@@ -1,0 +1,4 @@
+set(BUILD_PREMIUM ON)
+set(VCPKG_ROOT C:/source/vcpkg)
+#set(QT_ROOT D:/Qt6.8/6.8.0/msvc2022_64)
+set(QT_ROOT C:/Qt6.8.3/6.8.3/msvc2022_64)

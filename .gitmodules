@@ -1,0 +1,3 @@
+[submodule "src/GammaRay"]
+	path = src/GammaRay
+	url = git@github.com:RGAA-Software/GammaRayEnterprise.git

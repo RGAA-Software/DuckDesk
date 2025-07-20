@@ -1,0 +1,3 @@
+add_subdirectory(GammaRay)
+add_subdirectory(client_plugins)
+add_subdirectory(render_plugins)
