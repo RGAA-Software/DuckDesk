@@ -8,9 +8,14 @@
 #include <QString>
 #include <QFile>
 #include <QFileInfo>
-#include "cp_data_object.h"
+#include <windows.h>
+#include <shlwapi.h>
+#include <strsafe.h>
+#include <shlobj.h>
 #include "cp_file_struct.h"
 #include "tc_common_new/log.h"
+
+#pragma comment(lib, "shlwapi.lib")
 
 namespace tc
 {
@@ -18,50 +23,90 @@ namespace tc
     class CpFileStream;
     class ClipboardPlugin;
 
-    class CpVirtualFile : public CpDataObject, public IDataObjectAsyncCapability {
+    class CpVirtualFile : public IDataObject/*, public IDataObjectAsyncCapability*/ {
     public:
         explicit CpVirtualFile(ClipboardPlugin* plugin);
-        ~CpVirtualFile() override;
+        ~CpVirtualFile();
 
         void Init();
 
-        IFACEMETHODIMP QueryInterface(REFIID riid, void **ppv) {
-            if (IsEqualIID(IID_IDataObjectAsyncCapability, riid)) {
-                *ppv = (IDataObjectAsyncCapability *) this;
-                AddRef();
-                LOGI("Query interface => IID_IDataObjectAsyncCapability");
-                return S_OK;
+        HRESULT QueryInterface(REFIID riid, void **ppv) override {
+//            if (IsEqualIID(IID_IDataObjectAsyncCapability, riid)) {
+//                *ppv = (IDataObjectAsyncCapability *) this;
+//                CpDataObject::AddRef();
+//                LOGI("Query interface => IID_IDataObjectAsyncCapability");
+//                return S_OK;
+//            }
+//            return CpDataObject::QueryInterface(riid, ppv);
+
+            static const QITAB qit[] = {
+                QITABENT(CpVirtualFile, IDataObject),
+                { 0 },
+            };
+            return QISearch(this, qit, riid, ppv);
+        }
+
+        ULONG AddRef() override {
+            return InterlockedIncrement(&_cRef);
+        }
+
+        ULONG Release() override {
+            long cRef = InterlockedDecrement(&_cRef);
+            if (0 == cRef) {
+                delete this;
             }
-            return CpDataObject::QueryInterface(riid, ppv);
+            return cRef;
         }
 
-        IFACEMETHODIMP_(ULONG) AddRef() {
-            return CpDataObject::AddRef();
+        long GetRefCount() {
+            return _cRef;
         }
 
-        IFACEMETHODIMP_(ULONG) Release() {
-            return CpDataObject::Release();
+        HRESULT GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) override;
+        HRESULT GetDataHere(FORMATETC * /* pformatetc */, STGMEDIUM * /* pmedium */) override {
+            return DATA_E_FORMATETC;;
         }
 
-        IFACEMETHODIMP GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium);
+        HRESULT QueryGetData(FORMATETC *pformatetc) override;
+        HRESULT EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) override;
+        HRESULT GetCanonicalFormatEtc(FORMATETC *pformatetcIn, FORMATETC *pFormatetcOut) override {
+            pformatetcIn->ptd = NULL;
+            return E_NOTIMPL;
+        }
 
-        IFACEMETHODIMP QueryGetData(FORMATETC *pformatetc);
+        HRESULT SetData(FORMATETC *pformatetc, STGMEDIUM *pmedium, BOOL fRelease) override {
+            return E_NOTIMPL;
+        }
 
-        IFACEMETHODIMP EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc);
+        HRESULT DAdvise(FORMATETC * /* pformatetc */, DWORD /* advf */, IAdviseSink * /* pAdvSnk */, DWORD * /* pdwConnection */) override {
+            return E_NOTIMPL;
+        }
+
+        HRESULT DUnadvise(DWORD /* dwConnection */) override {
+            return E_NOTIMPL;
+        }
+
+        HRESULT EnumDAdvise(IEnumSTATDATA ** /* ppenumAdvise */) override {
+            return E_NOTIMPL;
+        }
 
         // IDataObjectAsyncCapability
-        virtual HRESULT SetAsyncMode(/* [in] */ BOOL fDoOpAsync);
+//        ULONG AddRef() override {
+//            return CpDataObject::AddRef();
+//        }
+//
+//        ULONG Release() override {
+//            return CpDataObject::Release();
+//        }
 
-        virtual HRESULT GetAsyncMode(/* [out] */ __RPC__out BOOL *pfIsOpAsync);
-
-        virtual HRESULT StartOperation(/* [optional][unique][in] */ __RPC__in_opt IBindCtx *pbcReserved);
-
-        virtual HRESULT InOperation(/* [out] */ __RPC__out BOOL *pfInAsyncOp);
-
-        virtual HRESULT EndOperation(
-                /* [in] */ HRESULT hResult,
-                /* [unique][in] */ __RPC__in_opt IBindCtx *pbcReserved,
-                /* [in] */ DWORD dwEffects);
+//        HRESULT SetAsyncMode(/* [in] */ BOOL fDoOpAsync) override;
+//        HRESULT GetAsyncMode(/* [out] */ __RPC__out BOOL *pfIsOpAsync) override;
+//        HRESULT StartOperation(/* [optional][unique][in] */ __RPC__in_opt IBindCtx *pbcReserved) override;
+//        HRESULT InOperation(/* [out] */ __RPC__out BOOL *pfInAsyncOp) override;
+//        HRESULT EndOperation(
+//                /* [in] */ HRESULT hResult,
+//                /* [unique][in] */ __RPC__in_opt IBindCtx *pbcReserved,
+//                /* [in] */ DWORD dwEffects) override;
 
         void OnClipboardFilesInfo(const std::string& device_id, const std::string& stream_id, const std::vector<ClipboardFile>& files);
         void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
@@ -71,14 +116,17 @@ namespace tc
         void ReportFileTransferEnd();
 
     private:
-        uint32_t clip_format_file_desc_ = 0;
-        uint32_t clip_format_file_content_ = 0;
+        CLIPFORMAT clip_format_file_desc_ = 0;
+        CLIPFORMAT clip_format_file_content_ = 0;
+        CLIPFORMAT m_cfHdrop = 0;
+        CLIPFORMAT m_cfPreferredDropEffect = 0;
         BOOL in_async_op_ = false;
         std::shared_ptr<CpFileStream> file_stream_ = nullptr;
         ClipboardPlugin* plugin_ = nullptr;
         // 这里分成2个，当点击粘贴后，清空menu_files，传输过程中再点击粘贴不让他再重复粘贴了
         std::vector<ClipboardFile> menu_files_;
         std::vector<ClipboardFileWrapper> task_files_;
+        long _cRef;
     };
 
     CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, ClipboardPlugin* plugin);

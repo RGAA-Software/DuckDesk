@@ -52,78 +52,17 @@ namespace tc
         GrPluginInterface::OnCreate(param);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
 
-        ::OleInitialize(nullptr);
         return true;
     }
 
     bool ClipboardPlugin::OnDestroy() {
         GrPluginInterface::OnDestroy();
-        ::OleUninitialize();
+
         return true;
     }
 
     void ClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {
-        if (msg->type() == MessageType::kClipboardInfo) {
-            if (msg->clipboard_info().type() == ClipboardType::kClipboardText && clipboard_mgr_) {
-                plugin_context_->PostUITask([=, this]() {
-                    clipboard_mgr_->OnRemoteClipboardInfo(msg);
-                });
-            }
-            if (msg->clipboard_info().type() == ClipboardType::kClipboardFiles) {
-                const auto& files = msg->clipboard_info().files();
-                std::vector<ClipboardFile> target_files;
-                for (auto& file : files) {
-                    ClipboardFile cpy_file;
-                    cpy_file.CopyFrom(file);
-                    target_files.push_back(file);
-                }
-
-                this->PostUITask([=, this]() {
-                    if (!virtual_file_) {
-                        virtual_file_ = tc::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, this);
-                    }
-                    if (!data_object_) {
-                        LOGE("DataObject is null!");
-                        return;
-                    }
-
-                    bool cleared_clipboard = false;
-                    for (int i = 0; i < 100; i++) {
-                        auto hr = ::OleSetClipboard(nullptr);
-                        if (hr == S_OK) {
-                            cleared_clipboard = true;
-                            break;
-                        }
-                        TimeUtil::DelayBySleep(10);
-                    }
-                    if (!cleared_clipboard) {
-                        LOGE("Empty clipboard failed!");
-                        return;
-                    }
-
-                    TimeUtil::DelayBySleep(10);
-
-                    bool set_clipboard = false;
-                    for (int i = 0; i < 100; i++) {
-                        auto hr = ::OleSetClipboard(data_object_);
-                        if (hr == S_OK) {
-                            set_clipboard = true;
-                            break;
-                        }
-                    }
-                    if (!set_clipboard) {
-                        LOGE("Set clipboard failed!");
-                        return;
-                    }
-
-                    LOGI("Data obj ref count: {}", virtual_file_->GetRefCount());
-                    auto device_id = msg->device_id();
-                    auto stream_id = msg->stream_id();
-                    virtual_file_->OnClipboardFilesInfo(device_id, stream_id, target_files);
-                });
-            }
-        }
-        else if (msg->type() == MessageType::kClipboardInfoResp) {
+        if (msg->type() == MessageType::kClipboardInfoResp) {
             // tell the panel, remote info
             auto event = std::make_shared<GrPluginRemoteClipboardResp>();
             auto sub = msg->clipboard_info_resp();
@@ -134,24 +73,20 @@ namespace tc
         }
         else if (msg->type() == tc::kClipboardReqAtBegin) {
             // begin; server -> client
-            // copy files from client -> server
+            // copy files from server -> client
             plugin_context_->PostWorkTask([=, this]() {
                 this->OnRequestFileBegin(msg);
             });
         }
-        else if (msg->type() == MessageType::kClipboardRespBuffer) {
-            if (virtual_file_) {
-                virtual_file_->OnClipboardRespBuffer(msg->cp_resp_buffer());
-            }
-        }
         else if (msg->type() == tc::kClipboardReqAtEnd) {
             // end; server -> client
-            // copy files from client -> server
+            // copy files from server -> client
             plugin_context_->PostWorkTask([=, this]() {
                 this->OnRequestFileEnd(msg);
             });
         }
         else if (msg->type() == MessageType::kClipboardReqBuffer) {
+            // copy file buffer, from server -> client
             this->OnRequestFileBuffer(msg);
         }
     }

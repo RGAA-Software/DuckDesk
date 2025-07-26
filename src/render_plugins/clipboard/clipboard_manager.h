@@ -22,7 +22,7 @@ namespace tc
         // Render Panel -> Local Network -> Render -> This Plugin
         void OnLocalClipboardUpdated(const std::shared_ptr<MsgClipboardEvent>& msg);
         // Client -> Network -> Render -> This Plugin
-        void OnRemoteClipboardInfo(const std::shared_ptr<Message>& msg);
+        //void OnRemoteClipboardInfo(const std::shared_ptr<Message>& msg);
 
     private:
         ClipboardPlugin* plugin_ = nullptr;

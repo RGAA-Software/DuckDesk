@@ -31,19 +31,19 @@ namespace tc
         }
 
         // IUnknown
-        IFACEMETHODIMP QueryInterface(REFIID riid, void **ppv) {
-            static const QITAB qit[] = {
-                QITABENT(CpDataObject, IDataObject),
-                {0},
-            };
-            return QISearch(this, qit, riid, ppv);
-        }
+//        HRESULT QueryInterface(REFIID riid, void **ppv) override {
+//            static const QITAB qit[] = {
+//                QITABENT(CpDataObject, IDataObject),
+//                {0},
+//            };
+//            return QISearch(this, qit, riid, ppv);
+//        }
 
-        IFACEMETHODIMP_(ULONG) AddRef() {
+        ULONG AddRef() override {
             return InterlockedIncrement(&_cRef);
         }
 
-        IFACEMETHODIMP_(ULONG) Release() {
+        ULONG Release() override {
             long cRef = InterlockedDecrement(&_cRef);
             if (0 == cRef) {
                 delete this;
@@ -56,43 +56,43 @@ namespace tc
         }
 
         // IDataObject
-        IFACEMETHODIMP GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium);
+//        HRESULT GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) override;
 
-        IFACEMETHODIMP GetDataHere(FORMATETC * /* pformatetc */, STGMEDIUM * /* pmedium */) {
+        HRESULT GetDataHere(FORMATETC * /* pformatetc */, STGMEDIUM * /* pmedium */) override {
             return DATA_E_FORMATETC;;
         }
 
-        IFACEMETHODIMP QueryGetData(FORMATETC *pformatetc);
+//        HRESULT QueryGetData(FORMATETC *pformatetc) override;
 
-        IFACEMETHODIMP GetCanonicalFormatEtc(FORMATETC *pformatetcIn, FORMATETC *pFormatetcOut) {
+        HRESULT GetCanonicalFormatEtc(FORMATETC *pformatetcIn, FORMATETC *pFormatetcOut) override {
             pformatetcIn->ptd = NULL;
             return E_NOTIMPL;
         }
 
-        IFACEMETHODIMP SetData(FORMATETC *pformatetc, STGMEDIUM *pmedium, BOOL fRelease);
+        HRESULT SetData(FORMATETC *pformatetc, STGMEDIUM *pmedium, BOOL fRelease) override;
 
-        IFACEMETHODIMP EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc);
+//        HRESULT EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) override;
 
-        IFACEMETHODIMP DAdvise(FORMATETC * /* pformatetc */, DWORD /* advf */, IAdviseSink * /* pAdvSnk */, DWORD * /* pdwConnection */) {
+        HRESULT DAdvise(FORMATETC * /* pformatetc */, DWORD /* advf */, IAdviseSink * /* pAdvSnk */, DWORD * /* pdwConnection */) override {
             return E_NOTIMPL;
         }
 
-        IFACEMETHODIMP DUnadvise(DWORD /* dwConnection */) {
+        HRESULT DUnadvise(DWORD /* dwConnection */) override {
             return E_NOTIMPL;
         }
 
-        IFACEMETHODIMP EnumDAdvise(IEnumSTATDATA ** /* ppenumAdvise */) {
+        HRESULT EnumDAdvise(IEnumSTATDATA ** /* ppenumAdvise */) override {
             return E_NOTIMPL;
         }
 
     protected:
-        HRESULT _EnsureShellDataObject() {
+        HRESULT EnsureShellDataObject() {
             // the shell data object imptlements ::SetData() in a way that will store any format
             // this code delegates to that implementation to avoid having to implement ::SetData()
             return _pdtobjShell ? S_OK : SHCreateDataObject(NULL, 0, NULL, NULL, IID_PPV_ARGS(&_pdtobjShell));
         }
 
-        IDataObject *_pdtobjShell;
+        IDataObject *_pdtobjShell = nullptr;
 
     private:
         long _cRef;

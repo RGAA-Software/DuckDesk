@@ -23,6 +23,7 @@ namespace tc
 {
 
     CpVirtualFile::CpVirtualFile(ClipboardPlugin* plugin) {
+        _cRef = 1;
         plugin_ = plugin;
     }
 
@@ -35,10 +36,15 @@ namespace tc
     void CpVirtualFile::Init() {
         clip_format_file_desc_ = RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR);
         clip_format_file_content_ = RegisterClipboardFormat(CFSTR_FILECONTENTS);
+        m_cfHdrop = CF_HDROP;
+        m_cfPreferredDropEffect = RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT);
+        LOGI("CpVirtualFile, register, file desc: {}, file content: {}", clip_format_file_desc_, clip_format_file_content_);
     }
 
-    STDMETHODIMP CpVirtualFile::GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) {
+    HRESULT CpVirtualFile::GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) {
         ZeroMemory(pmedium, sizeof(*pmedium));
+
+        //LOGI("====> GetData, format: {}", pformatetcIn->cfFormat);
 
         HRESULT hr = DATA_E_FORMATETC;
         if (pformatetcIn->cfFormat == clip_format_file_desc_) {
@@ -77,6 +83,7 @@ namespace tc
                     fd_array[index].nFileSizeLow = static_cast<DWORD>(file_size & 0xFFFFFFFF);
                     fd_array[index].nFileSizeHigh = static_cast<DWORD>((file_size >> 32) & 0xFFFFFFFF);
                     fd_array[index].dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+                    GetSystemTimeAsFileTime(&fd_array[index].ftLastWriteTime);
                     LOGI("GetData, total size: {}, high: {}, low: {}", file_size, fd_array[index].nFileSizeHigh, fd_array[index].nFileSizeLow);
 
                     SYSTEMTIME lt;
@@ -120,77 +127,88 @@ namespace tc
                 pmedium->tymed = TYMED_ISTREAM;
                 hr = S_OK;
             }
-        } else if (SUCCEEDED(_EnsureShellDataObject())) {
+        } /*else if (SUCCEEDED(EnsureShellDataObject())) {
             hr = _pdtobjShell->GetData(pformatetcIn, pmedium);
-        }
+        }*/
         return hr;
     }
 
-    STDMETHODIMP CpVirtualFile::QueryGetData(FORMATETC *pformatetc) {
+    HRESULT CpVirtualFile::QueryGetData(FORMATETC *pformatetc) {
+        LOGI("CpVirtualFile, QueryGetData, format: {}", pformatetc->cfFormat);
         HRESULT hr = S_FALSE;
         if (pformatetc->cfFormat == clip_format_file_desc_ ||
-            pformatetc->cfFormat == clip_format_file_content_) {
+            pformatetc->cfFormat == clip_format_file_content_ ||
+            pformatetc->cfFormat == m_cfHdrop ||
+            pformatetc->cfFormat == m_cfPreferredDropEffect) {
             hr = S_OK;
-        } else if (SUCCEEDED(_EnsureShellDataObject())) {
+            return S_OK;
+        }/* else if (SUCCEEDED(_EnsureShellDataObject())) {
             hr = _pdtobjShell->QueryGetData(pformatetc);
-        }
-        return hr;
+        }*/
+        //return hr;
+        return E_NOTIMPL;
     }
 
-    STDMETHODIMP CpVirtualFile::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) {
+    HRESULT CpVirtualFile::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) {
         *ppenumFormatEtc = NULL;
         HRESULT hr = E_NOTIMPL;
         if (dwDirection == DATADIR_GET) {
+            LOGI("Set format ...");
             FORMATETC rgfmtetc[] = {
                 // the order here defines the accuarcy of rendering
                 {(CLIPFORMAT) clip_format_file_desc_, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL},
                 {(CLIPFORMAT) clip_format_file_content_, NULL, DVASPECT_CONTENT, -1, TYMED_ISTREAM},
+                { (CLIPFORMAT)m_cfHdrop, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL },
+                { (CLIPFORMAT)m_cfPreferredDropEffect, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL }
             };
             hr = SHCreateStdEnumFmtEtc(ARRAYSIZE(rgfmtetc), rgfmtetc, ppenumFormatEtc);
+            if (hr != S_OK) {
+                LOGE("SHCreateStdEnumFmtEtc failed!");
+            }
         }
         return hr;
     }
 
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::SetAsyncMode(BOOL fDoOpAsync) {
-        return S_OK;
-    }
+//    HRESULT STDMETHODCALLTYPE CpVirtualFile::SetAsyncMode(BOOL fDoOpAsync) {
+//        return S_OK;
+//    }
+//
+//    HRESULT STDMETHODCALLTYPE CpVirtualFile::GetAsyncMode(BOOL *pfIsOpAsync) {
+//        *pfIsOpAsync = true;// VARIANT_TRUE;
+//        return S_OK;
+//    }
 
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::GetAsyncMode(BOOL *pfIsOpAsync) {
-        *pfIsOpAsync = true;// VARIANT_TRUE;
-        return S_OK;
-    }
+//    HRESULT STDMETHODCALLTYPE CpVirtualFile::StartOperation(IBindCtx *pbcReserved) {
+//        in_async_op_ = true;
+//        IOperationsProgressDialog *pDlg = nullptr;
+//        ::CoCreateInstance(CLSID_ProgressDialog, NULL, CLSCTX_INPROC_SERVER, IID_IOperationsProgressDialog, (LPVOID *) &pDlg);
+//        LOGI("StartOperation....");
+//        return S_OK;
+//    }
+//
+//    HRESULT STDMETHODCALLTYPE CpVirtualFile::InOperation(BOOL *pfInAsyncOp) {
+//        *pfInAsyncOp = in_async_op_;
+//        LOGI("InOperation....");
+//        return S_OK;
+//    }
 
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::StartOperation(IBindCtx *pbcReserved) {
-        in_async_op_ = true;
-        IOperationsProgressDialog *pDlg = nullptr;
-        ::CoCreateInstance(CLSID_ProgressDialog, NULL, CLSCTX_INPROC_SERVER, IID_IOperationsProgressDialog, (LPVOID *) &pDlg);
-        LOGI("StartOperation....");
-        return S_OK;
-    }
-
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::InOperation(BOOL *pfInAsyncOp) {
-        *pfInAsyncOp = in_async_op_;
-        LOGI("InOperation....");
-        return S_OK;
-    }
-
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::EndOperation(HRESULT hResult, IBindCtx *pbcReserved, DWORD dwEffects) {
-        in_async_op_ = false;
-        LOGI("EndOperation....");
-        if (file_stream_) {
-            // report
-            this->ReportFileTransferEnd();
-
-            file_stream_->Exit();
-            file_stream_.reset();
-        }
-
-        ::OleFlushClipboard();
-        ::OleSetClipboard(nullptr);
-        menu_files_.clear();
-        task_files_.clear();
-        return S_OK;
-    }
+//    HRESULT STDMETHODCALLTYPE CpVirtualFile::EndOperation(HRESULT hResult, IBindCtx *pbcReserved, DWORD dwEffects) {
+//        in_async_op_ = false;
+//        LOGI("EndOperation....");
+//        if (file_stream_) {
+//            // report
+//            this->ReportFileTransferEnd();
+//
+//            file_stream_->Exit();
+//            file_stream_.reset();
+//        }
+//
+//        ::OleFlushClipboard();
+//        ::OleSetClipboard(nullptr);
+//        menu_files_.clear();
+//        task_files_.clear();
+//        return S_OK;
+//    }
 
     void CpVirtualFile::OnClipboardFilesInfo(const std::string& device_id, const std::string& stream_id, const std::vector<ClipboardFile>& files) {
         menu_files_ = files;

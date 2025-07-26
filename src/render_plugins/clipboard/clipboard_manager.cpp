@@ -85,66 +85,66 @@ namespace tc
         }
     }
 
-    void ClipboardManager::OnRemoteClipboardInfo(const std::shared_ptr<Message>& msg) {
-        auto sub = msg->clipboard_info();
-        if (sub.type() == ClipboardType::kClipboardText) {
-            auto in_text = sub.msg();
-            auto is_same = false;
-            for (int i = 0; i < 100; i++) {
-                QClipboard *board = QGuiApplication::clipboard();
-                if (board->text() == in_text) {
-                    is_same = true;
-                    LOGI("Already same with clipboard, ignore: {}", in_text);
-                    break;
-                }
-                board->setText(QString::fromStdString(in_text));
-                if (board->ownsClipboard() && board->text() == in_text) {
-                    is_same = true;
-                    LOGI("*** update remote clipboard info: {}", in_text);
-                    break;
-                } else {
-                    LOGE("Can't update remote clipboard, not own it.");
-                }
-                TimeUtil::DelayBySleep(5);
-            }
-            if (is_same) {
-                // to panel
-                auto event = std::make_shared<GrPluginRemoteClipboardResp>();
-                auto sub = msg->clipboard_info_resp();
-                event->content_type_ = (int)sub.type();
-                event->remote_info_ = sub.msg();
-                plugin_->CallbackEvent(event);
-
-                // send back
-                tc::Message resp_msg;
-                resp_msg.set_type(tc::kClipboardInfoResp);
-                auto resp_sub = resp_msg.mutable_clipboard_info_resp();
-                resp_sub->set_type(ClipboardType::kClipboardText);
-                resp_sub->set_msg(in_text);
-                auto buffer = ProtoAsData(&resp_msg);
-                plugin_->DispatchAllStreamMessage(buffer);
-            }
-        }
-        else if (sub.type() == ClipboardType::kClipboardImage) {
-            auto in_image = sub.msg();
-            QImage image;
-            image.loadFromData((uchar*)in_image.c_str(), in_image.size(), "PNG");
-            if (image.isNull()) {
-                LOGE("An invalid image...");
-                return;
-            }
-            LOGI("In image size: {}, {}x{}", in_image.size(), image.width(), image.height());
-            for (int i = 0; i < 100; i++) {
-                QClipboard *board = QGuiApplication::clipboard();
-                board->setImage(image);
-                if (board->ownsClipboard()) {
-                    LOGI("set image Success: {}", i);
-                    break;
-                }
-                LOGI("Will try next: {}", i);
-                TimeUtil::DelayBySleep(5);
-            }
-        }
-    }
+//    void ClipboardManager::OnRemoteClipboardInfo(const std::shared_ptr<Message>& msg) {
+//        auto sub = msg->clipboard_info();
+//        if (sub.type() == ClipboardType::kClipboardText) {
+//            auto in_text = sub.msg();
+//            auto is_same = false;
+//            for (int i = 0; i < 100; i++) {
+//                QClipboard *board = QGuiApplication::clipboard();
+//                if (board->text() == in_text) {
+//                    is_same = true;
+//                    LOGI("Already same with clipboard, ignore: {}", in_text);
+//                    break;
+//                }
+//                board->setText(QString::fromStdString(in_text));
+//                if (board->ownsClipboard() && board->text() == in_text) {
+//                    is_same = true;
+//                    LOGI("*** update remote clipboard info: {}", in_text);
+//                    break;
+//                } else {
+//                    LOGE("Can't update remote clipboard, not own it.");
+//                }
+//                TimeUtil::DelayBySleep(5);
+//            }
+//            if (is_same) {
+//                // to panel
+//                auto event = std::make_shared<GrPluginRemoteClipboardResp>();
+//                auto sub = msg->clipboard_info_resp();
+//                event->content_type_ = (int)sub.type();
+//                event->remote_info_ = sub.msg();
+//                plugin_->CallbackEvent(event);
+//
+//                // send back
+//                tc::Message resp_msg;
+//                resp_msg.set_type(tc::kClipboardInfoResp);
+//                auto resp_sub = resp_msg.mutable_clipboard_info_resp();
+//                resp_sub->set_type(ClipboardType::kClipboardText);
+//                resp_sub->set_msg(in_text);
+//                auto buffer = ProtoAsData(&resp_msg);
+//                plugin_->DispatchAllStreamMessage(buffer);
+//            }
+//        }
+//        else if (sub.type() == ClipboardType::kClipboardImage) {
+//            auto in_image = sub.msg();
+//            QImage image;
+//            image.loadFromData((uchar*)in_image.c_str(), in_image.size(), "PNG");
+//            if (image.isNull()) {
+//                LOGE("An invalid image...");
+//                return;
+//            }
+//            LOGI("In image size: {}, {}x{}", in_image.size(), image.width(), image.height());
+//            for (int i = 0; i < 100; i++) {
+//                QClipboard *board = QGuiApplication::clipboard();
+//                board->setImage(image);
+//                if (board->ownsClipboard()) {
+//                    LOGI("set image Success: {}", i);
+//                    break;
+//                }
+//                LOGI("Will try next: {}", i);
+//                TimeUtil::DelayBySleep(5);
+//            }
+//        }
+//    }
 
 }
