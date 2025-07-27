@@ -89,7 +89,15 @@ namespace tc
                         LOGE("not same folder, {} => {}", base_folder_path.toStdString(), full_path.toStdString());
                         return std::nullopt;
                     }
-                    auto ref_path = cpy_full_path.mid(base_folder_path.size()+1);
+
+                    // C:/ or C:/Users/xx/Documents
+                    int mid_idx_offset = 1;
+                    if (base_folder_path.lastIndexOf("/") == base_folder_path.size()-1) {
+                        mid_idx_offset = 0;
+                    }
+
+                    auto ref_path = cpy_full_path.mid(base_folder_path.size() + mid_idx_offset);
+                    LOGI("BaseFolder: {}, Ref Path: {}", base_folder_path.toStdString(), ref_path.toStdString());
 
                     auto cp_file = ClipboardFile();
                     cp_file.set_full_path(full_path.toStdString());

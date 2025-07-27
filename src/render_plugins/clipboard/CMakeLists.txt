@@ -9,10 +9,10 @@ set(PLUGIN_SRCS
 )
 
 if (WIN32)
-    set(CLIPBOARD_SRCS
-            ${CMAKE_CURRENT_SOURCE_DIR}/win/cp_file_stream.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/win/cp_virtual_file.cpp
-    )
+#    set(CLIPBOARD_SRCS
+#            ${CMAKE_CURRENT_SOURCE_DIR}/win/cp_file_stream.cpp
+#            ${CMAKE_CURRENT_SOURCE_DIR}/win/cp_virtual_file.cpp
+#    )
 else ()
 
 endif ()

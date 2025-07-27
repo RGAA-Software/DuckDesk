@@ -27,30 +27,30 @@ namespace tc
         this->plugin_ = plugin;
     }
 
-    static bool GetClipboardFiles(HWND hwnd, std::vector<std::wstring>& files) {
-        files.clear();
-
-        if (!OpenClipboard(hwnd)) {
-            std::cerr << "Failed to open clipboard" << std::endl;
-            return false;
-        }
-
-        // 检查是否有文件被复制
-        HDROP hDrop = (HDROP)GetClipboardData(CF_HDROP);
-        if (hDrop) {
-            UINT fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
-
-            for (UINT i = 0; i < fileCount; i++) {
-                wchar_t filePath[MAX_PATH];
-                if (DragQueryFile(hDrop, i, filePath, MAX_PATH)) {
-                    files.push_back(filePath);
-                }
-            }
-        }
-
-        CloseClipboard();
-        return true;
-    }
+//    static bool GetClipboardFiles(HWND hwnd, std::vector<std::wstring>& files) {
+//        files.clear();
+//
+//        if (!OpenClipboard(hwnd)) {
+//            std::cerr << "Failed to open clipboard" << std::endl;
+//            return false;
+//        }
+//
+//        // 检查是否有文件被复制
+//        HDROP hDrop = (HDROP)GetClipboardData(CF_HDROP);
+//        if (hDrop) {
+//            UINT fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+//
+//            for (UINT i = 0; i < fileCount; i++) {
+//                wchar_t filePath[MAX_PATH];
+//                if (DragQueryFile(hDrop, i, filePath, MAX_PATH)) {
+//                    files.push_back(filePath);
+//                }
+//            }
+//        }
+//
+//        CloseClipboard();
+//        return true;
+//    }
 
     void ClipboardManager::OnLocalClipboardUpdated(const std::shared_ptr<MsgClipboardEvent>& msg) {
         LOGI("**clipboard update, type : {}, msg: {}, file size: {}", (int)msg->clipboard_type_, msg->text_msg_, msg->files_.size());

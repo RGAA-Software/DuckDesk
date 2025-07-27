@@ -151,7 +151,7 @@ namespace tc
             sub->set_read_size(data->Size());
             sub->set_buffer(data->AsString());
         }
-        LOGI("Req, index: {}, start: {}, size: {}, read size: {}", req_index, req_start, req_size, data ? data->Size() : 0);
+        //LOGI("Req, index: {}, start: {}, size: {}, read size: {}", req_index, req_start, req_size, data ? data->Size() : 0);
         auto event = std::make_shared<ClientPluginNetworkEvent>();
         event->media_channel_ = false;
         event->buf_ = tc::ProtoAsData(&msg);
