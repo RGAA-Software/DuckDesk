@@ -158,6 +158,7 @@ namespace tc
                 }
             }
             else {
+                LOGI("Will send files to server.");
                 // files
                 auto event = std::make_shared<ClientPluginClipboardEvent>();
                 event->type_ = ClipboardType::kClipboardFiles;
