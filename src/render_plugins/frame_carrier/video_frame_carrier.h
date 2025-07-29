@@ -50,6 +50,7 @@ namespace tc
 
         void Exit();
         void SetFullColorModeEnabled(bool enabled);
+        void ChangeLogoPosition();
 
     private:
         static bool D3D11Texture2DLockMutex(const ComPtr<ID3D11Texture2D>& texture2d);
@@ -88,6 +89,8 @@ namespace tc
         std::vector<QPoint> big_logo_points_;
 
         ComPtr<ID3D11Texture2D> logo_point_texture_ = nullptr;
+
+        bool logo_pos_offset_ = false;
     };
 
 }
