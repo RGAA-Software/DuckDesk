@@ -39,7 +39,10 @@ namespace tc
     }
 
     void FrameCarrierPlugin::On1Second() {
-
+        if (++timer_count_ > 10) {
+            timer_count_ = 0;
+            ChangeLogoPosition();
+        }
     }
 
     bool FrameCarrierPlugin::OnCreate(const tc::GrPluginParam& param) {
@@ -159,6 +162,12 @@ namespace tc
 
     std::vector<QPoint> FrameCarrierPlugin::GetBigLogoPoints() {
         return big_logo_points_;
+    }
+
+    void FrameCarrierPlugin::ChangeLogoPosition() {
+        for (const auto& [k, c] : frame_carriers_) {
+            c->ChangeLogoPosition();
+        }
     }
 
 }
