@@ -504,8 +504,8 @@
     <ROW Action="SET_APPDIR" Type="307" Source="APPDIR" Target="[ProgramFilesFolder][Manufacturer]\[ProductName]" MultiBuildTarget="DefaultBuild:[ProgramFiles64Folder][Manufacturer]\[ProductName]"/>
     <ROW Action="SET_SHORTCUTDIR" Type="307" Source="SHORTCUTDIR" Target="[ProgramMenuFolder][ProductName]"/>
     <ROW Action="SET_TARGETDIR_TO_APPDIR" Type="51" Source="TARGETDIR" Target="[APPDIR]"/>
-    <ROW Action="uninstall.exe" Type="2" Source="uninstall.exe" Target=" --option uninstall"/>
-    <ROW Action="vc_redist.x64.exe" Type="2" Source="vc_redist.x64.exe" Target=" /install /quiet /norestart"/>
+    <ROW Action="uninstall.exe" Type="2" Source="uninstall.exe" Target="--option uninstall"/>
+    <ROW Action="vc_redist.x64.exe" Type="2" Source="vc_redist.x64.exe" Target="/install /quiet /norestart"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiFeatCompsComponent">
     <ROW Feature_="MainFeature" Component_="APPDIR"/>
