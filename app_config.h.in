@@ -1,0 +1,4 @@
+#pragma once
+
+#define ACC_HOST "rgaa.vip"
+#define ACC_PORT 3344
