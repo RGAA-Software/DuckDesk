@@ -93,6 +93,7 @@ add_dependencies(tc_build_premium_all tc_build_all
         plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
 )
 
+set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay)
 set(RENDER_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/render_plugins)
 set(RENDER_PLUGIN_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/render_plugins)
 set(RENDER_PLUGIN_BINARY_TARGET_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay/gr_plugins)
@@ -154,4 +155,8 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/file_transfer_client/plugin_file_transfer_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer_client.dll"
         COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/file_transfer_client/plugin_file_transfer_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}//plugin_file_transfer_client.dll.toml"
 
+        ### Hook Capture ###
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
 )
