@@ -11,7 +11,7 @@
 #include <mutex>
 #include <functional>
 
-#include "tc_capture_new/capture_message.h"
+#include "hook_capture/capture_message.h"
 
 namespace tc
 {

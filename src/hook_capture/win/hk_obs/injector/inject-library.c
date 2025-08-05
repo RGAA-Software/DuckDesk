@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <stdbool.h>
-#include "tc_capture_new/win/hk_obs/obfuscate.h"
+#include "hook_capture/win/hk_obs/obfuscate.h"
 #include "inject-library.h"
 
 typedef HANDLE(WINAPI *create_remote_thread_t)(HANDLE, LPSECURITY_ATTRIBUTES,

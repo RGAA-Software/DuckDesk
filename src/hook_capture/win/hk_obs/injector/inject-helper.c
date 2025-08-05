@@ -8,7 +8,7 @@
 #include "../../../libobs/util/windows/obfuscate.h"
 #include "../inject-library.h"
 #else
-#include "tc_capture_new/win/hk_obs/obfuscate.h"
+#include "hook_capture/win/hk_obs/obfuscate.h"
 #include "inject-library.h"
 #endif
 

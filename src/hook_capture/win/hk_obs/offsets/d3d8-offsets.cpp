@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 #include <windows.h>
 #ifdef OBS_LEGACY
 #include "../d3d8-api/d3d8.h"

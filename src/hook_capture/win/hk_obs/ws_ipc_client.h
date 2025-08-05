@@ -5,10 +5,8 @@
 #ifndef TC_APPLICATION_WS_IPC_CLIENT_H
 #define TC_APPLICATION_WS_IPC_CLIENT_H
 
-#include <asio2/websocket/ws_client.hpp>
-
 #include <memory>
-#include <thread>
+#include <asio2/websocket/wss_client.hpp>
 
 namespace tc
 {
@@ -36,8 +34,7 @@ namespace tc
     private:
 
         int port_{0};
-        std::shared_ptr<asio2::ws_client> ws_client_ = nullptr;
-        std::thread ws_thread_;
+        std::shared_ptr<asio2::wss_client> wss_client_ = nullptr;
         WsIpcMessageCallback ipc_cbk_;
     };
 

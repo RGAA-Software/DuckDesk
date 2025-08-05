@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 #include <windows.h>
 #include <d3d9.h>
 #include "get-graphics-offsets.h"
