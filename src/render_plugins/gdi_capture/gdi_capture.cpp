@@ -10,7 +10,7 @@
 #include "tc_common_new/monitors.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/win32/win_helper.h"
-#include "tc_capture_new/capture_message.h"
+#include "hook_capture/capture_message.h"
 #include "tc_common_new/math_helper.h"
 #include "plugin_interface/gr_plugin_events.h"
 #include "gdi_capture_plugin.h"

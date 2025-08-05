@@ -1,3 +1,5 @@
 .idea/*
 .vs/*
 out/*
+cmake-build-release/*
+cmake-build-relwithdebinfo/*

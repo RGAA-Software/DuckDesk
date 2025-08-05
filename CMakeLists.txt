@@ -11,6 +11,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
+
 ##Source
 include_directories(${CMAKE_SOURCE_DIR}/)
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -85,7 +87,7 @@ add_dependencies(tc_build_premium_all tc_build_all
         ### render
         plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer
         plugin_gdi_capture plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc
-        plugin_net_udp plugin_nvenc_encoder plugin_obj_detector
+        plugin_net_udp plugin_nvenc_encoder plugin_obj_detector plugin_clipboard
 
         ### client
         plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
