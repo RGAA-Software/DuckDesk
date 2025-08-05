@@ -10,6 +10,7 @@
     <ROW Property="AI_FrameColor" Value="powderblue" MultiBuildValue="DefaultBuild:flatblue" MsiKey="AI_FrameColor"/>
     <ROW Property="AI_ImagesColor" Value="powderblue" MultiBuildValue="DefaultBuild:flatblue" MsiKey="AI_ImagesColor"/>
     <ROW Property="AI_PREREQ_REPAIR_ENABLED" MultiBuildValue="DefaultBuild:1"/>
+    <ROW Property="AI_README_FILE" Value="https://github.com/RGAA-Software/GammaRay"/>
     <ROW Property="AI_RUN_AS_ADMIN" Value="1"/>
     <ROW Property="AI_ThemeStyle" Value="default" MultiBuildValue="DefaultBuild:flat" MsiKey="AI_ThemeStyle"/>
     <ROW Property="ALLUSERS" Value="1"/>
@@ -20,7 +21,7 @@
     <ROW Property="ARPPRODUCTICON" Value="gr_icon.exe" Type="8"/>
     <ROW Property="ARPURLINFOABOUT" Value="https://github.com/RGAA-Software/GammaRay"/>
     <ROW Property="ARPURLUPDATEINFO" Value="https://github.com/RGAA-Software/GammaRay"/>
-    <ROW Property="CTRLS" Value="2"/>
+    <ROW Property="CTRLS" Value="3"/>
     <ROW Property="Manufacturer" Value="GammaRay"/>
     <ROW Property="ProductCode" Value="1033:{08E346A4-295A-4225-BF30-E6DEA1009DF5} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
@@ -29,6 +30,7 @@
     <ROW Property="RUNAPPLICATION" Value="1" Type="4"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND;AI_SETUPEXEPATH;SETUPEXEDIR"/>
     <ROW Property="UpgradeCode" Value="{E3668D7E-E0D6-4F07-B72A-E997CECE4402}"/>
+    <ROW Property="VIEWREADME" Value="1" Type="4"/>
     <ROW Property="WindowsType9X" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>
     <ROW Property="WindowsType9XDisplay" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>
     <ROW Property="WindowsTypeNT40" MultiBuildValue="DefaultBuild:Windows NT 4.0" ValueLocId="-"/>
@@ -540,6 +542,7 @@
     <ROW Action="SET_SHORTCUTDIR" Type="307" Source="SHORTCUTDIR" Target="[ProgramMenuFolder][ProductName]"/>
     <ROW Action="SET_TARGETDIR_TO_APPDIR" Type="51" Source="TARGETDIR" Target="[APPDIR]"/>
     <ROW Action="StopService" Type="1" Source="aicustact.dll" Target="StopWinService" Options="1" AdditionalSeq="AI_DATA_SETTER_1"/>
+    <ROW Action="uninstall.exe" Type="1042" Source="uninstall.exe" Target="--option uninstall"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiFeatCompsComponent">
     <ROW Feature_="MainFeature" Component_="APPDIR"/>
@@ -675,6 +678,7 @@
     <ROW Action="AI_AppSearchEx" Sequence="101"/>
     <ROW Action="AI_DOWNGRADE" Condition="AI_NEWERPRODUCTFOUND AND (UILevel &lt;&gt; 5)" Sequence="201"/>
     <ROW Action="AI_RESTORE_LOCATION" Condition="APPDIR=&quot;&quot;" Sequence="748"/>
+    <ROW Action="uninstall.exe" Condition="( Installed AND ( REMOVE = &quot;ALL&quot; OR AI_INSTALL_MODE = &quot;Remove&quot; ) )" Sequence="6401"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiInstallUISequenceComponent">
     <ROW Action="AI_PRESERVE_INSTALL_TYPE" Sequence="199"/>
