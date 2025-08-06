@@ -23,10 +23,10 @@
     <ROW Property="ARPURLUPDATEINFO" Value="https://github.com/RGAA-Software/GammaRay"/>
     <ROW Property="CTRLS" Value="3"/>
     <ROW Property="Manufacturer" Value="GammaRay"/>
-    <ROW Property="ProductCode" Value="1033:{08E346A4-295A-4225-BF30-E6DEA1009DF5} " Type="16"/>
+    <ROW Property="ProductCode" Value="1033:{856D07C9-7EB6-497F-887B-86A733029A58} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="GammaRay"/>
-    <ROW Property="ProductVersion" Value="1.2.7" Options="32"/>
+    <ROW Property="ProductVersion" Value="1.2.6" Options="32"/>
     <ROW Property="RUNAPPLICATION" Value="1" Type="4"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND;AI_SETUPEXEPATH;SETUPEXEDIR"/>
     <ROW Property="UpgradeCode" Value="{E3668D7E-E0D6-4F07-B72A-E997CECE4402}"/>
@@ -729,7 +729,7 @@
     <ROW Registry="Software" Root="-1" Key="Software" Name="\"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiShortsComponent">
-    <ROW Shortcut="GammaRay" Directory_="DesktopFolder" Name="GammaRay" Component_="GammaRay.exe" Target="[#GammaRay.exe]" Hotkey="0" Icon_="GammaRay.exe" IconIndex="0" ShowCmd="1" WkDir="GammaRay_Dir"/>
+    <ROW Shortcut="GammaRay" Directory_="DesktopFolder" Name="GammaRay" Component_="GammaRay.exe" Target="[#GammaRay.exe]" Hotkey="0" Icon_="GammaRay.exe" IconIndex="0" ShowCmd="1" WkDir="GammaRay_Dir" CustomFlags="1"/>
     <ROW Shortcut="UninstallProductNameProductVersion" Directory_="GammaRay_Dir" Name="UNINST~1.7|Uninstall [|ProductName] [|ProductVersion]" Component_="tc_graphics.dll" Target="[SystemFolder]msiexec.exe" Arguments="/x [ProductCode]" Hotkey="0" Icon_="SystemFoldermsiexec.exe" IconIndex="0" ShowCmd="1"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiThemeComponent">
