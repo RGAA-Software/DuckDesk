@@ -87,7 +87,7 @@ add_dependencies(tc_build_premium_all tc_build_all
         ### render
         plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
         plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_net_udp plugin_nvenc_encoder
-        plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets
+        plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets panel_companion
 
         ### client
         plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
@@ -159,4 +159,7 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
+
+        ### Panel Companion ###
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/panel_companion/panel_companion.dll" ${RENDER_BINARY_ROOT}
 )
