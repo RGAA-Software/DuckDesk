@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package tccp;
+
+enum CpMessageType {
+  kCpHello = 0;
+  kCpHeartBeat = 1;
+  kCpOnHeartBeat = 2;
+  kCpFileTransferBegin = 10;
+  kCpFileTransferEnd = 20;
+}
+
+// UI server
+enum CpSessionType {
+  kInnerServer = 0;
+  kAndroidClient = 1;
+  kWindowsClient = 2;
+}
+
+message CpPtMsgHello {
+  CpSessionType type = 1;
+}
+
+message CpPtMsgHeartBeat {
+  string remote_device_desktop_name = 1;
+  string remote_os_name = 2;
+}
+
+message CpPtMsgOnHeartBeat {
+
+}
+
+message CpFileTransferBegin {
+  string the_file_id = 1;
+  int64 begin_timestamp = 2;
+  string direction = 3;
+  string file_detail = 4;
+  string remote_device_id = 5;
+}
+
+message CpFileTransferEnd {
+  string the_file_id = 1;
+  int64 end_timestamp = 2;
+  int64 duration = 3;
+  bool success = 4;
+}
+
+message CpMessage {
+  CpMessageType type = 1;
+  string stream_id = 2;
+  CpPtMsgHello hello = 5;
+  CpPtMsgHeartBeat heartbeat= 10;
+  CpPtMsgOnHeartBeat on_heartbeat = 20;
+  CpFileTransferBegin ft_transfer_beg = 30;
+  CpFileTransferEnd ft_transfer_end = 40;
+}
+

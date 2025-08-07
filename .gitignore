@@ -3,3 +3,7 @@
 out/*
 cmake-build-release/*
 cmake-build-relwithdebinfo/*
+src/GammaRayWebClient/node_modules/*
+src/GammaRayWebClient/.idea/*
+src/GammaRayWebClient/.vscode/*
+src/GammaRayWebClient/dist/*

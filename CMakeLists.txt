@@ -102,6 +102,21 @@ set(CLIENT_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/client_plugins)
 set(CLIENT_PLUGIN_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/client_plugins)
 set(CLIENT_PLUGIN_BINARY_TARGET_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay/gr_plugins_client)
 
+## Copy proto files
+set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/GammaRayWebClient")
+set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_message_new)
+add_custom_command(TARGET tc_build_premium_all PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_file_transfer.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_message.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_client_panel_message.proto"
+
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_signaling_message.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/tc_file_transfer.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_message.proto"
+        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_client_panel_message.proto"
+)
+
 add_custom_command(TARGET tc_build_premium_all POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/file_transfer/plugin_file_transfer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll"
         COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/file_transfer/plugin_file_transfer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll.toml"
