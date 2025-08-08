@@ -9,7 +9,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    https: false
+    https: true
   },
   plugins: [
     vue(),
