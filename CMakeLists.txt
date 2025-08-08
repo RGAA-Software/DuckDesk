@@ -88,6 +88,7 @@ add_dependencies(tc_build_premium_all tc_build_all
         plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
         plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_net_udp plugin_nvenc_encoder
         plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets panel_companion
+        plugin_net_rtc_local plugin_ssl_proxy
 
         ### client
         plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
@@ -159,6 +160,12 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
 
         COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_resizer/plugin_frame_resizer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll"
         COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_resizer/plugin_frame_resizer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll.toml"
+
+        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_rtc_local/plugin_net_rtc_local.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_rtc_local/plugin_net_rtc_local.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll.toml"
+
+        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/ssl_proxy/plugin_ssl_proxy.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/ssl_proxy/plugin_ssl_proxy.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll.toml"
 
         #### Clients ####
         COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/media_record/plugin_media_record_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll"
