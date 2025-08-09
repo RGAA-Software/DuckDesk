@@ -1,21 +1,22 @@
 // connection type
 export enum GrSdkConnType {
-    kWebSocket,
-    kWebRtcDirect,
+    kWebSocket = 0,
+    kWebRtcDirect = 1,
+    kWebRtc = 2,
 }
 
 // sdk params
 export class GrSdkParams {
     // type
     sdkType: GrSdkConnType;
-    
+
     // canvas
     canvas: HTMLCanvasElement;
-    
+
     // renderer name
     // 2d / webgl / webgpu
     rendererName: string
-    
+
     constructor(params: { sdkType: GrSdkConnType; canvas: HTMLCanvasElement; rendererName: string }) {
         this.sdkType = params.sdkType;
         this.canvas = params.canvas;

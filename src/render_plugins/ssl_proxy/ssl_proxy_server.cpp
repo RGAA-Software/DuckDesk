@@ -17,6 +17,10 @@ namespace tc
     static std::string kUrlMedia = "/media";
     static std::string kUrlFileTransfer = "/file/transfer";
     static std::string kApiPing = "/api/ping";
+    static std::string kApiVerifySecurityPassword = "/verify/security/password";
+    static std::string kApiGetRenderConfiguration = "/get/render/configuration";
+    static std::string kApiPanelStreamMessage = "/panel/stream/message";
+    static std::string kApiAllocLocalRtc = "/alloc/local/rtc";
 
     struct aop_log {
         bool before(http::web_request &req, http::web_response &rep) {
@@ -78,7 +82,19 @@ namespace tc
         else {
             LOGE("set cert files success.");
         }
-        server_->set_verify_mode(asio::ssl::verify_peer);
+        //server_->set_verify_mode(asio::ssl::verify_peer);
+
+        // default
+        server_->bind<http::verb::get, http::verb::post>("/", [](http::web_request& req, http::web_response& rep) {
+            asio2::ignore_unused(req, rep);
+            rep.fill_file("/web_client/index.html");
+        }, aop_log{});
+
+        // If no method is specified, GET and POST are both enabled by default.
+        server_->bind("*", [](http::web_request& req, http::web_response& rep) {
+            rep.fill_file("/web_client" + http::url_decode(req.target()));
+            rep.chunked(true);
+        }, aop_log{});
 
         // media websocket
         AddWebsocketRouter(kUrlMedia);
@@ -103,6 +119,11 @@ namespace tc
         //AddHttpRouter(kApiPanelStreamMessage, [=, this](const std::string& path, http::web_request& req, http::web_response& rep) {
         //    http_handler_->HandlePanelStreamMessage(req, rep);
         //});
+
+        // kApiAllocLocalRtc
+        AddHttpRouter(kApiAllocLocalRtc, [=, this](const std::string& path, http::web_request& req, http::web_response& rep) {
+            //http_handler_->HandleAllocLocalRtc(req, rep);
+        });
 
         bool ret = server_->start("0.0.0.0", std::to_string(proxy_port_));
         LOGI("App server start result: {}, listen port: {}", ret, proxy_port_);

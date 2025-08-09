@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@primevue/themes": "^4.3.7",
+    "axios": "^1.11.0",
     "pinia": "^3.0.3",
     "primevue": "^4.3.7",
     "protobufjs": "^7.5.3",

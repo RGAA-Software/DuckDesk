@@ -3,15 +3,15 @@ import { GrConnParams, GrSdkConnType, GrSdkParams } from '@/client/gr_sdk_params
 import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
 
 export class GrApp {
-    
+
     // sdk
     grSdk: GrSdk
-    
+
     // renderer manager
     rendererManager: GrRendererManager
-    
+
     grCanvasResizer: CanvasResizer;
-    
+
     constructor() {
         document.documentElement.style.margin = "0";
         document.documentElement.style.padding = "0";
@@ -20,31 +20,31 @@ export class GrApp {
         document.body.style.padding = "0";
         document.body.style.overflow = "hidden";
     }
-    
+
     start(): void {
-        
+
         const queryParams = new URLSearchParams(window.location.search);
         const aValue = queryParams.get('a');
         console.log('a参数值:', aValue);
-        
+
         //.transferControlToOffscreen();
         const canvas = document.getElementById("main_view").transferControlToOffscreen();;
-        
+
         const rendererName = "webgl";//"webgl";//2d
-        
+
         this.rendererManager = new GrRendererManager(rendererName, canvas);
-        
+
         this.grSdk = new GrSdk(new GrSdkParams({
-            sdkType: GrSdkConnType.kWebSocket,
+            sdkType: GrSdkConnType.kWebRtcDirect,
             canvas: canvas,
             rendererName: rendererName
         }), this.rendererManager);
-        
+
         this.grSdk.start(new GrConnParams({
             host: "10.0.0.16",
             port: 20371
         }));
-        
+
     }
 
 }

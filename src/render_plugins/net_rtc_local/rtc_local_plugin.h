@@ -5,11 +5,13 @@
 #ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 #define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 
-#include "plugin_interface/gr_net_plugin.h"
 #include <map>
+#include "plugin_interface/gr_net_plugin.h"
+#include "tc_common_new/concurrent_hashmap.h"
 
 namespace tc
 {
+    class RtcServer;
 
     class RtcLocalPlugin : public GrNetPlugin {
     public:
@@ -23,9 +25,20 @@ namespace tc
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
+        int GetConnectedClientsCount() override;
+        int64_t GetQueuingMediaMsgCount() override;
+        int64_t GetQueuingFtMsgCount() override;
+        bool HasEnoughBufferForQueuingMediaMessages() override;
+        bool HasEnoughBufferForQueuingFtMessages() override;
+        bool AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
+                                      std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) override;
 
     private:
+        void WaitForMediaChannelActive();
+        std::string AddCandidateIpToAnwser(const std::string& ip, const std::string& anwser);
 
+    private:
+        tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
     };
 
 }

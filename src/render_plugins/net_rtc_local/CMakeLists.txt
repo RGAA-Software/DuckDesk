@@ -20,6 +20,9 @@ link_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc/x64)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_local_plugin.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_server.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_data_channel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/peer_callback.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

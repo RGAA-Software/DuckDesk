@@ -7,33 +7,33 @@ import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
 export class GrConn {
     // sdk
     grSdk: GrSdk
-    
+
     // sdk params
     grSdkParams: GrSdkParams
-    
+
     // conn params
     grConnParams: GrConnParams
-    
+
     // messages processor
     protoProcessor: GrProtoProcessor
-    
+
     constructor(sdk: GrSdk, connParams: GrConnParams, rendererManager: GrRendererManager) {
         this.grSdk = sdk
         this.grSdkParams = sdk.sdkParams
         this.grConnParams = connParams
         this.protoProcessor = new GrProtoProcessor(sdk, rendererManager);
     }
-    
-    start(): void {
-    
+
+    async start() {
+
     }
-    
-    stop(): void {
-    
+
+    async stop() {
+
     }
-    
-    parseMessage(data: Uint8Array): void {
+
+    async parseMessage(data: Uint8Array) {
         this.protoProcessor.parseMessage(data);
     }
-    
+
 }

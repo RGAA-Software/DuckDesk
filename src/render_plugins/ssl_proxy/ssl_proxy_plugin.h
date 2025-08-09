@@ -25,6 +25,7 @@ namespace tc
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
+        GrNetPlugin* GetLocalRtcPlugin();
 
     private:
         std::shared_ptr<SSLProxyServer> proxy_server_ = nullptr;

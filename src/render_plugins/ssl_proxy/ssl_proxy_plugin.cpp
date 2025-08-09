@@ -77,4 +77,11 @@ namespace tc
         return false;
     }
 
+    GrNetPlugin* SSLProxyPlugin::GetLocalRtcPlugin() {
+        if (auto plugin = GetPluginById(kNetRtcLocalPluginId); plugin) {
+            return (GrNetPlugin*)plugin;
+        }
+        return nullptr;
+    }
+
 }
