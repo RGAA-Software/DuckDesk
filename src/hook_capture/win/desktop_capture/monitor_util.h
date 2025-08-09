@@ -69,7 +69,7 @@ namespace tc
                 return false;
             }
             // to do: kVirtualDesktopNameSign 定义在 gr_monitor_capture_plugin.h , 等将monitor_util.h 移出去
-            if ("virtual_desktop" == name_) {
+            if ("Virtual_Desktop" == name_) {
                 return virtual_desktop_width_ > 0 && virtual_desktop_height_ > 0;
             }
 
@@ -89,6 +89,8 @@ namespace tc
             ss << "name: " << name_ << std::endl;
             ss << "attached desktop: " << attached_desktop_ << std::endl;
             ss << "left: " << left_ << ", top: " << top_ << ", right: " << right_ << ", bottom: " << bottom_ << std::endl;
+            ss << "virtual_desktop_top_: " << virtual_desktop_top_ << ", virtual_desktop_left_: " << virtual_desktop_left_ << 
+                ", virtual_desktop_width_: " << virtual_desktop_width_ << ", virtual_desktop_height_: " << virtual_desktop_height_ << std::endl;
             return ss.str();
         }
     };
