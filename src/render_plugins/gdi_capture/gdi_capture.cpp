@@ -169,6 +169,7 @@ namespace tc
     }
 
     void GdiCapture::Start() {
+        LOGI("GdiCapture::Start() stop_flag_: {}", stop_flag_.load());
         capture_thread_ = std::thread([this] {
             while (!stop_flag_) {
                 if (!this->Init()) {
@@ -190,6 +191,7 @@ namespace tc
     }
 
     void GdiCapture::Capture() {
+        LOGI("GdiCapture::Capture(), stop_flag_: {}", stop_flag_.load());
         while (!stop_flag_) {
             if (pausing_ || plugin_->DontHaveConnectedClientsNow()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(17));
@@ -215,6 +217,7 @@ namespace tc
     }
 
     bool GdiCapture::StartCapture() {
+        this->stop_flag_ = {false};
         this->Start();
         return true;
     }

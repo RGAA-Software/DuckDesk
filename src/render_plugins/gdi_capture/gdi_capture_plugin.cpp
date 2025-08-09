@@ -117,6 +117,8 @@ namespace tc
         cap_mon_info.virtual_desktop_width_ = GetSystemMetrics(SM_CXVIRTUALSCREEN);
         cap_mon_info.virtual_desktop_height_ = GetSystemMetrics(SM_CYVIRTUALSCREEN);
         cap_mon_info.virtual_desktop_width_ = MathHelper::AlignTo4Bytes(cap_mon_info.virtual_desktop_width_); // 直接4字节对齐, 方便后面直接进行内存copy,不然还得进行 '行' 内存拷贝
+        LOGI("cap_mon_info.virtual_desktop_left_: {}, cap_mon_info.virtual_desktop_top_: {}, ", cap_mon_info.virtual_desktop_left_, cap_mon_info.virtual_desktop_top_);
+        LOGI("cap_mon_info.virtual_desktop_width_: {}, cap_mon_info.virtual_desktop_height_: {}, ", cap_mon_info.virtual_desktop_width_, cap_mon_info.virtual_desktop_height_);
         cap_mon_info.name_ = kVirtualDesktopNameSign;
         gdi_capture_ = GdiCapture::Make(this, cap_mon_info);
     }
