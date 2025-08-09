@@ -11,6 +11,8 @@
 namespace tc
 {
 
+    class SSLProxyServer;
+
     class SSLProxyPlugin : public GrNetPlugin {
     public:
         std::string GetPluginId() override;
@@ -25,7 +27,7 @@ namespace tc
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
 
     private:
-        std::map<std::string, QLabel*> previewers_;
+        std::shared_ptr<SSLProxyServer> proxy_server_ = nullptr;
 
     };
 

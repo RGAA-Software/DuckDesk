@@ -25,7 +25,6 @@ namespace tc
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
 
     private:
-        std::map<std::string, QLabel*> previewers_;
 
     };
 

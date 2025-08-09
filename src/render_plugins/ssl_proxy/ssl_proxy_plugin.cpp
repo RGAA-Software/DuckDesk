@@ -8,6 +8,7 @@
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
 #include "render/plugins/plugin_ids.h"
+#include "ssl_proxy_server.h"
 
 void* GetInstance() {
     static tc::SSLProxyPlugin plugin;
@@ -44,13 +45,23 @@ namespace tc
     
     bool SSLProxyPlugin::OnCreate(const tc::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
-        plugin_type_ = GrPluginType::kStream;
+        plugin_type_ = GrPluginType::kNet;
 
         if (!IsPluginEnabled()) {
             return true;
         }
-        root_widget_->hide();
-        //root_widget_->show();
+
+        // net_ws plugin using this port
+        auto listen_port = GetConfigIntParam("ws-listen-port");
+        auto config_listen_port = GetConfigIntParam("listen-port");
+        if (config_listen_port > 0) {
+            listen_port = config_listen_port;
+        }
+
+        auto proxy_port = listen_port + 1;
+        proxy_server_ = std::make_shared<SSLProxyServer>(this, (uint16_t)listen_port, (uint16_t)proxy_port);
+        proxy_server_->Start();
+
         return true;
     }
 
@@ -65,6 +76,5 @@ namespace tc
     bool SSLProxyPlugin::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
         return false;
     }
-
 
 }

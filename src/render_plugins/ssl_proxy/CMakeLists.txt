@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/ssl_proxy_plugin.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ssl_proxy_server.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ws_local_client.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/http_handler.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
