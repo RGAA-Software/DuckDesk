@@ -9,9 +9,22 @@
 #include <fstream>
 #include <iostream>
 #include "tc_common_new/webrtc_helper.h"
+#include "tc_common_new/log.h"
 
 namespace tc
 {
+
+    class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer
+    {
+    public:
+        NotifyFrameFrameBuffer(int width, int height) : mWidth(width), mHeight(height) {}
+        virtual Type type() const { return webrtc::VideoFrameBuffer::Type::kNative; }
+        virtual rtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() { return nullptr; }
+        virtual int width() const { return mWidth; }
+        virtual int height() const { return mHeight; }
+        int mWidth;
+        int mHeight;
+    };
 
     class VideoSourceImpl : public rtc::VideoSourceInterface<webrtc::VideoFrame> {
     public:
@@ -27,6 +40,7 @@ namespace tc
                              const rtc::VideoSinkWants &wants) override {
             broadcaster_.AddOrUpdateSink(sink, wants);
             (void)video_adapter_;
+            LOGI("AddOrUpdateSink");
         }
 
         void RemoveSink(rtc::VideoSinkInterface<webrtc::VideoFrame> *sink) override {

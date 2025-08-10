@@ -8,40 +8,43 @@
 
 namespace tc
 {
+    class RtcServer;
+    class RtcLocalPlugin;
 
-class RtcContext;
+    // Implementation of video encoder factory
+    class RtcSharedVideoEncoderFactory : public webrtc::VideoEncoderFactory {
+    public:
+        RtcSharedVideoEncoderFactory(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) : supported_formats_(webrtc::SupportedH264Codecs()) {
+            this->plugin_ = plugin;
+            this->server_ = server;
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "1"));
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "0"));
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1, "1"));
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1, "0"));
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "1"));
+            supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "0"));
+        }
+        ~RtcSharedVideoEncoderFactory() override = default;
 
-// Implementation of video encoder factory
-class RtcSharedVideoEncoderFactory : public webrtc::VideoEncoderFactory {
-public:
-	RtcSharedVideoEncoderFactory(const std::shared_ptr<RtcContext>& ctx) : supported_formats_(webrtc::SupportedH264Codecs()) {
-		rtc_ctx_ = ctx;
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "1"));
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "0"));
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1, "1"));
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1, "0"));
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "1"));
-		supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "0"));
-	}
-	virtual ~RtcSharedVideoEncoderFactory() override {}
+        //virtual webrtc::VideoEncoderFactory::CodecInfo QueryVideoEncoder(const webrtc::SdpVideoFormat& format) const override
+        //{
+        //	webrtc::VideoEncoderFactory::CodecInfo codecInfo;
+        //	codecInfo.has_internal_source = false;
+        //	return codecInfo;
+        //}
 
-	//virtual webrtc::VideoEncoderFactory::CodecInfo QueryVideoEncoder(const webrtc::SdpVideoFormat& format) const override
-	//{
-	//	webrtc::VideoEncoderFactory::CodecInfo codecInfo;
-	//	codecInfo.has_internal_source = false;
-	//	return codecInfo;
-	//}
+        CodecSupport QueryCodecSupport(const webrtc::SdpVideoFormat& format, absl::optional<std::string> scalability_mode) const override;
+        std::unique_ptr<webrtc::VideoEncoder> CreateVideoEncoder(const webrtc::SdpVideoFormat& format) override;
 
-	CodecSupport QueryCodecSupport(const webrtc::SdpVideoFormat& format, absl::optional<std::string> scalability_mode) const override;
-	std::unique_ptr<webrtc::VideoEncoder> CreateVideoEncoder(const webrtc::SdpVideoFormat& format) override;
+        std::vector<webrtc::SdpVideoFormat> GetSupportedFormats() const override {
+            return supported_formats_;
+        }
 
-	std::vector<webrtc::SdpVideoFormat> GetSupportedFormats() const override {
-		return supported_formats_;
-	}
+    private:
+        RtcLocalPlugin* plugin_ = nullptr;
+        std::shared_ptr<RtcServer> server_ = nullptr;
+        std::vector<webrtc::SdpVideoFormat> supported_formats_;
 
-private:
-	std::vector<webrtc::SdpVideoFormat> supported_formats_;
-	std::shared_ptr<RtcContext> rtc_ctx_ = nullptr;
-};
+    };
 
 }

@@ -49,7 +49,7 @@ namespace tc
         return true;
     }
 
-    void ObjDetectorPlugin::OnRawVideoFrameRgba(const std::string& name, const std::shared_ptr<Image>& image) {
+    void ObjDetectorPlugin::OnRawVideoFrameRgba(const std::string& name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
         if (!IsPluginEnabled()) {
             return;
         }
@@ -68,7 +68,7 @@ namespace tc
         });
     }
 
-    void ObjDetectorPlugin::OnRawVideoFrameYuv(const std::string& name, const std::shared_ptr<Image>& image) {
+    void ObjDetectorPlugin::OnRawVideoFrameYuv(const std::string& name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
 
     }
 

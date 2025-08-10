@@ -6,6 +6,7 @@
 #define TEST_WEBRTC_RTCSERVER_H
 
 #include "tc_common_new/webrtc_helper.h"
+#include "plugin_interface/gr_plugin_interface.h"
 
 namespace tc
 {
@@ -16,6 +17,8 @@ namespace tc
     class RtcLocalPlugin;
     class RtcDataChannel;
     class AudioSourceImp;
+    class VideoSourceImpl;
+    class VideoTrackSourceImpl;
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
@@ -43,9 +46,19 @@ namespace tc
         std::string GetAnswerSdp();
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
+        void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height);
+        void OnNewFrameEncoded(const std::string& mon_name,
+                               const GrPluginEncodedVideoType& video_type,
+                               const std::shared_ptr<Data>& data,
+                               uint64_t frame_index,
+                               int frame_width,
+                               int frame_height,
+                               bool key);
+
     private:
         void CreatePeerConnectionFactory();
         void CreatePeerConnection();
+        void CreateSomeMediaDeps(webrtc::PeerConnectionFactoryDependencies& media_deps);
 
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);
 
@@ -71,6 +84,8 @@ namespace tc
         std::atomic<bool> exit_ = false;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
 
+        std::shared_ptr<VideoSourceImpl> video_source_ = nullptr;
+        rtc::scoped_refptr<VideoTrackSourceImpl> video_track_source_ = nullptr;
         rtc::scoped_refptr<AudioSourceImp> audio_source_ = nullptr;
     };
 

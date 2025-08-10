@@ -6,8 +6,11 @@
 #define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 
 #include <map>
+#include <atomic>
 #include "plugin_interface/gr_net_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
+#include "rtc_local_encoded_frame.h"
+#include "tc_common_new/concurrent_type.h"
 
 namespace tc
 {
@@ -33,12 +36,37 @@ namespace tc
         bool AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
                                       std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) override;
 
+        // data: encode video frame, h264/h265/...
+        void OnEncodedVideoFrame(const std::string& mon_name,
+                                 const GrPluginEncodedVideoType& video_type,
+                                 const std::shared_ptr<Data>& data,
+                                 uint64_t frame_index,
+                                 int frame_width,
+                                 int frame_height,
+                                 bool key) override;
+        // raw video frame
+        // handle: D3D Shared texture handle
+        void OnRawVideoFrameSharedTexture(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height,  uint64_t handle) override;
+
+        // raw video frame in rgba format
+        // image: Raw image
+        void OnRawVideoFrameRgba(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
+
+        // raw video frame in yuv(I420) format
+        // image: Raw image
+        void OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
+
+        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint64_t frame_index);
+
     private:
         void WaitForMediaChannelActive();
-        std::string AddCandidateIpToAnwser(const std::string& ip, const std::string& anwser);
+        std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
+        void NotifyNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height);
 
     private:
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
+        std::unordered_map<uint64_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        //tc::ConcurrentType<std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frame_;
     };
 
 }

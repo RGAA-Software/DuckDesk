@@ -7,7 +7,7 @@ namespace tc
 {
 
 std::unique_ptr<webrtc::VideoEncoder> RtcSharedVideoEncoderFactory::CreateVideoEncoder(const webrtc::SdpVideoFormat& format)  {
-	return std::make_unique<RtcSharedVideoEncoder>(nullptr);
+	return std::make_unique<RtcSharedVideoEncoder>(plugin_, server_);
 }
 
 webrtc::VideoEncoderFactory::CodecSupport RtcSharedVideoEncoderFactory::QueryCodecSupport(const webrtc::SdpVideoFormat& format,

@@ -46,7 +46,20 @@ export class GrRtcDirectConn extends GrConn {
             console.log("ontrack, ", ev);
             if (ev.track.kind == "video" && this.grRendererManager.rendererCanvas != undefined) {
                 this.grRendererManager.remoteVideoElement.srcObject = ev.streams[0];
-                console.log("ontrack, ", ev);
+                console.log("ontrack ===>, ", ev);
+
+                this.grRendererManager.remoteVideoElement.width = window.innerWidth;
+                this.grRendererManager.remoteVideoElement.height = window.innerHeight;
+
+                // if (this.displayMode === 'fit-width') {
+                //     this.grRendererManager.remoteVideoElement.width = viewportWidth;
+                //     this.grRendererManager.remoteVideoElement.height = frame.displayHeight * (viewportWidth / frame.displayWidth);
+                // } else if (this.displayMode === 'fit-height') {
+                //     this.renderCanvas.height = viewportHeight;
+                //     this.renderCanvas.width = frame.displayWidth * (viewportHeight / frame.displayHeight);
+                //
+                // }
+
             }
         }
 

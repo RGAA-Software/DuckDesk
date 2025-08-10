@@ -142,14 +142,14 @@ namespace tc
         return true;
     }
 
-    static void CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
+    void RtcServer::CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
         media_deps.adm = AudioDeviceModule::CreateForTest(
                 AudioDeviceModule::kDummyAudio, media_deps.task_queue_factory.get());
         media_deps.audio_encoder_factory =
                 webrtc::CreateAudioEncoderFactory<webrtc::AudioEncoderOpus>();
         media_deps.audio_decoder_factory =
                 webrtc::CreateAudioDecoderFactory<webrtc::AudioDecoderOpus>();
-        media_deps.video_encoder_factory = std::make_unique<RtcSharedVideoEncoderFactory>(nullptr),
+        media_deps.video_encoder_factory = std::make_unique<RtcSharedVideoEncoderFactory>(plugin_, shared_from_this()),
 //                std::make_unique<VideoEncoderFactoryTemplate<
 //                        LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
 //                        OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
@@ -211,9 +211,9 @@ namespace tc
         this->peer_conn_ = peer_conn;
 
         // video source
-        auto video_source = std::make_shared<VideoSourceImpl>();
-        auto video_track_source = rtc::make_ref_counted<VideoTrackSourceImpl>(video_source);
-        auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source, "video_track_source_1");
+        video_source_ = std::make_shared<VideoSourceImpl>();
+        video_track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(video_source_);
+        auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source_, "video_track_source_1");
         auto rtc_error_or = peer_conn_->AddTrack(video_track, { "video_track_1" });
         if (!rtc_error_or.ok()) {
             LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
@@ -325,6 +325,29 @@ namespace tc
 
     void RtcServer::SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback) {
         answer_sdp_callback_ = callback;
+    }
+
+    void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
+        if (video_source_) {
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_width, frame_height);
+            webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
+                    set_video_frame_buffer(buffer).
+                    set_timestamp_us(us).
+                    set_id(frame_idx).
+                    build();
+            video_source_->OnNotifyFrame(notify_frame);
+        }
+    }
+
+    void RtcServer::OnNewFrameEncoded(const std::string& mon_name,
+                           const GrPluginEncodedVideoType& video_type,
+                           const std::shared_ptr<Data>& data,
+                           uint64_t frame_index,
+                           int frame_width,
+                           int frame_height,
+                           bool key) {
+
     }
 
     void RtcServer::Exit() {
