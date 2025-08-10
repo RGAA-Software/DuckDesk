@@ -80,7 +80,9 @@ namespace tc
         std::cout << std::this_thread::get_id() << ":"
                   << "PeerCallback::IceGatheringChange(" << new_state << ")" << std::endl;
         if (new_state == webrtc::PeerConnectionInterface::IceGatheringState::kIceGatheringComplete) {
-            //rtc_server_->OnIceGatheringComplete();
+            if (ice_gather_completed_cbk_) {
+                ice_gather_completed_cbk_();
+            }
         }
         LOGI("OnIceGatheringChange:{}", (int)new_state);
     }

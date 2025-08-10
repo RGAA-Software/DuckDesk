@@ -25,4 +25,5 @@
 
     </Panel>
     <canvas id="main_view"></canvas>
+    <video id="remoteVideo" width="960px" height="540px" autoplay muted></video>
 </template>

@@ -37,14 +37,15 @@ export class GrRtcDirectConn extends GrConn {
             console.log("onicecandidate, ", ev);
         }
         this.rtcPeerConn.onicegatheringstatechange = (ev: Event)=> {
-            console.log("onicegatheringstatechange, ", ev);
+            console.log("ICE Gather, ", ev);
         }
         this.rtcPeerConn.onconnectionstatechange = (ev: Event)=> {
-            console.log("onconnectionstatechange, ", ev);
+            console.log("Connection State, ", ev);
         }
         this.rtcPeerConn.ontrack = (ev: RTCTrackEvent)=> {
-            if (ev.track.kind == "video" && this.remoteVideoElement != undefined) {
-                this.remoteVideoElement.srcObject = ev.streams[0];
+            console.log("ontrack, ", ev);
+            if (ev.track.kind == "video" && this.grRendererManager.rendererCanvas != undefined) {
+                this.grRendererManager.remoteVideoElement.srcObject = ev.streams[0];
                 console.log("ontrack, ", ev);
             }
         }
@@ -88,19 +89,16 @@ export class GrRtcDirectConn extends GrConn {
         }
         console.log("allocResult: ", allocResult);
 
-        // .then((offer) => {
-        //     console.log("createOffer", offer);
-        //     // set local sdp
-        //     this.rtcPeerConn?.setLocalDescription(offer).then(() => {
-        //         console.log("setLocalDescription success");
-        //
-        //     }).catch((e) => {
-        //         console.log("setLocalDescription failed", e);
-        //     })
-        //
-        // }).catch((e) => {
-        //     console.log("createOffer failed", e);
-        // })
+        if (allocResult.code != 200) {
+            console.log("allocResult failed");
+            return;
+        }
+
+        const answerSdp = allocResult.data.answer_sdp;
+        await this.rtcPeerConn.setRemoteDescription({
+            "sdp": answerSdp,
+            "type": "answer",
+        });
     }
 
     async stop() {

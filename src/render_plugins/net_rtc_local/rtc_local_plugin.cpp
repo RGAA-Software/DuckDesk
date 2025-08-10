@@ -171,8 +171,8 @@ namespace tc
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();
             auto new_answer = AddCandidateIpToAnwser(req->req_ip_, answer);
-            LOGI("answer: {}", answer);
-            LOGI("new answer, add ip: {}, {}", req->req_ip_, new_answer);
+//            LOGI("answer: {}", answer);
+//            LOGI("new answer, add ip: {}, {}", req->req_ip_, new_answer);
             auto reply = std::make_shared<GrLocalRtcReplyInfo>(GrLocalRtcReplyInfo {
                 .answer_sdp_ = new_answer,
             });

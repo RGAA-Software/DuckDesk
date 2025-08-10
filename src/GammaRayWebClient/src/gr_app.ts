@@ -28,11 +28,11 @@ export class GrApp {
         console.log('a参数值:', aValue);
 
         //.transferControlToOffscreen();
-        const canvas = document.getElementById("main_view").transferControlToOffscreen();;
-
+        const canvas = document.getElementById("main_view") as HTMLCanvasElement;//.transferControlToOffscreen();
+        const remoteVideoElement = document.getElementById('remoteVideo') as HTMLVideoElement;
         const rendererName = "webgl";//"webgl";//2d
 
-        this.rendererManager = new GrRendererManager(rendererName, canvas);
+        this.rendererManager = new GrRendererManager(rendererName, canvas, remoteVideoElement);
 
         this.grSdk = new GrSdk(new GrSdkParams({
             sdkType: GrSdkConnType.kWebRtcDirect,

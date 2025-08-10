@@ -23,6 +23,9 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_server.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_data_channel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/peer_callback.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_shared_video_encoder.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_shared_video_encoder_factory.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/h264_sei_helper.cc
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

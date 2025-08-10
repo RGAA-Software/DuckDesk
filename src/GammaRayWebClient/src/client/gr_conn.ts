@@ -17,10 +17,14 @@ export class GrConn {
     // messages processor
     protoProcessor: GrProtoProcessor
 
+    // renderer manager
+    grRendererManager: GrRendererManager
+
     constructor(sdk: GrSdk, connParams: GrConnParams, rendererManager: GrRendererManager) {
         this.grSdk = sdk
         this.grSdkParams = sdk.sdkParams
         this.grConnParams = connParams
+        this.grRendererManager = rendererManager
         this.protoProcessor = new GrProtoProcessor(sdk, rendererManager);
     }
 

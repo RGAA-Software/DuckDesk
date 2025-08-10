@@ -8,6 +8,7 @@
 #include "plugin_interface/gr_plugin_events.h"
 #include "rtc_data_channel.h"
 #include "tc_common_new/log.h"
+#include "rtc_shared_video_encoder_factory.h"
 
 using namespace webrtc;
 
@@ -59,13 +60,13 @@ namespace tc
         // create answer sdp callback
         create_answer_callback_->SetOnCreateSdpSuccessCallback([=, this](webrtc::SessionDescriptionInterface* desc) {
             peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
-            std::string sdp;
-            desc->ToString(&sdp);
-            this->answer_sdp_ = sdp;
-            LOGI("Create answer sdp success, will set local sdp.");
-            if (answer_sdp_callback_) {
-                answer_sdp_callback_(sdp);
-            }
+//            std::string sdp;
+//            desc->ToString(&sdp);
+//            this->answer_sdp_ = sdp;
+//            LOGI("Create answer sdp success, will set local sdp.");
+//            if (answer_sdp_callback_) {
+//                answer_sdp_callback_(sdp);
+//            }
         });
 
         create_answer_callback_->SetOnCreateSdpFailedCallback([=, this](const std::string& m) {
@@ -116,6 +117,24 @@ namespace tc
             this->plugin_->CallbackEvent(event);
         });
 
+        peer_callback_->SetOnIceGatherCompletedCallback([=, this]() {
+            LOGI("Ice Gather completed.");
+            std::string answer_sdp;
+            if (!this->peer_conn_->local_description()->ToString(&answer_sdp)) {
+                LOGE("Get local answer failed");
+                if (answer_sdp_callback_) {
+                    answer_sdp_callback_("");
+                }
+            }
+            else {
+                this->answer_sdp_ = answer_sdp;
+                LOGI("Get answer sdp success");
+                if (answer_sdp_callback_) {
+                    answer_sdp_callback_(answer_sdp);
+                }
+            }
+        });
+
         CreatePeerConnectionFactory();
         CreatePeerConnection();
         return true;
@@ -128,10 +147,10 @@ namespace tc
                 webrtc::CreateAudioEncoderFactory<webrtc::AudioEncoderOpus>();
         media_deps.audio_decoder_factory =
                 webrtc::CreateAudioDecoderFactory<webrtc::AudioDecoderOpus>();
-        media_deps.video_encoder_factory =
-                std::make_unique<VideoEncoderFactoryTemplate<
-                        LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
-                        OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
+        media_deps.video_encoder_factory = std::make_unique<RtcSharedVideoEncoderFactory>(nullptr),
+//                std::make_unique<VideoEncoderFactoryTemplate<
+//                        LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
+//                        OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
         media_deps.video_decoder_factory =
                 std::make_unique<VideoDecoderFactoryTemplate<
                         LibvpxVp8DecoderTemplateAdapter, LibvpxVp9DecoderTemplateAdapter,

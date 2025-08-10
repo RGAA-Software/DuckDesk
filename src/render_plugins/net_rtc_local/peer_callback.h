@@ -21,6 +21,7 @@ namespace tc
     using OnDataChannelCallback = std::function<void(const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch)>;
     using OnIceConnectedCallback = std::function<void()>;
     using OnIceDisConnectedCallback = std::function<void()>;
+    using OnIceGatherCompletedCallback = std::function<void()>;
 
     class RtcServer;
 
@@ -71,11 +72,16 @@ namespace tc
             ice_disconn_cbk_ = cbk;
         }
 
+        void SetOnIceGatherCompletedCallback(OnIceGatherCompletedCallback&& cbk) {
+            ice_gather_completed_cbk_ = cbk;
+        }
+
     private:
         OnIceCallback ice_callback_;
         OnDataChannelCallback ch_callback_;
         OnIceConnectedCallback  ice_conn_cbk_;
         OnIceDisConnectedCallback ice_disconn_cbk_;
+        OnIceGatherCompletedCallback ice_gather_completed_cbk_;
     };
 
     class CreateSessCallback : public webrtc::CreateSessionDescriptionObserver {

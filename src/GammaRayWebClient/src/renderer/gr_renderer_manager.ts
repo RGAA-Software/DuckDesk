@@ -6,11 +6,16 @@ import { GrWebGLRenderer } from '@/renderer/gr_renderer_webgl.ts'
 export class GrRendererManager {
     // renderer
     renderer: GrRenderer
+    // render canvas
+    rendererCanvas: HTMLCanvasElement
+    remoteVideoElement: HTMLVideoElement
 
     isVideoDecoderInitialized = false
     videoDecoder: VideoDecoder
 
-    constructor(rendererName: string, canvas: HTMLCanvasElement) {
+    constructor(rendererName: string, canvas: HTMLCanvasElement, remoteVideoElement: HTMLVideoElement) {
+        this.rendererCanvas = canvas;
+        this.remoteVideoElement = remoteVideoElement;
         if (rendererName == '2d') {
             this.renderer = new GrCanvas2DRenderer(rendererName, canvas)
         } else if (rendererName == 'webgl') {
