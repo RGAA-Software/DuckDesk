@@ -1,16 +1,11 @@
 #pragma once
 
 #include <mutex>
-
-#include <api/media_stream_interface.h>
-#include <api/notifier.h>
-#include <rtc_base/ref_counted_object.h>
-
-#include "webrtc/common.h"
+#include "tc_common_new/webrtc_helper.h"
 
 struct dlca_webrtc_frame;
 
-namespace dl
+namespace tc
 {
 
 class AudioSourceImp :public webrtc::Notifier<webrtc::AudioSourceInterface>

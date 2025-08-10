@@ -15,6 +15,7 @@ namespace tc
     class SetSessCallback;
     class RtcLocalPlugin;
     class RtcDataChannel;
+    class AudioSourceImp;
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
@@ -69,6 +70,8 @@ namespace tc
         std::shared_ptr<RtcDataChannel> ft_data_channel_ = nullptr;
         std::atomic<bool> exit_ = false;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
+
+        rtc::scoped_refptr<AudioSourceImp> audio_source_ = nullptr;
     };
 
 }

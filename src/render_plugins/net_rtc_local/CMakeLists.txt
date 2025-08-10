@@ -26,6 +26,8 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_shared_video_encoder.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_shared_video_encoder_factory.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/h264_sei_helper.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/video_source_mock.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/audio_source_imp.cc
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

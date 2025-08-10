@@ -9,6 +9,8 @@
 #include "rtc_data_channel.h"
 #include "tc_common_new/log.h"
 #include "rtc_shared_video_encoder_factory.h"
+#include "video_source_mock.h"
+#include "audio_source_imp.h"
 
 using namespace webrtc;
 
@@ -207,6 +209,21 @@ namespace tc
 //            exit(EXIT_FAILURE);
 //        }
         this->peer_conn_ = peer_conn;
+
+        // video source
+        auto video_source = std::make_shared<VideoSourceImpl>();
+        auto video_track_source = rtc::make_ref_counted<VideoTrackSourceImpl>(video_source);
+        auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source, "video_track_source_1");
+        auto rtc_error_or = peer_conn_->AddTrack(video_track, { "video_track_1" });
+        if (!rtc_error_or.ok()) {
+            LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
+            return;
+        }
+
+        // audio source
+        audio_source_ = AudioSourceImp::Create();
+        auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
+        peer_conn_->AddTrack(audio_track, { "audio1" });
 
         // set remote sdp
         LOGI("Will set remote offer sdp.");
