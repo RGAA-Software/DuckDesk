@@ -429,4 +429,34 @@ namespace tc
         return true;
     }
 
+    // TODO: in the same thread with Encode
+    // field: fps_, bps_
+    bool NVENCVideoEncoder::Config( uint32_t bps, uint32_t fps) {
+        NV_ENC_RECONFIGURE_PARAMS reconfigureParams = { NV_ENC_RECONFIGURE_PARAMS_VER };
+        NV_ENC_CONFIG encodeConfig = { NV_ENC_CONFIG_VER };
+        reconfigureParams.reInitEncodeParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
+        reconfigureParams.reInitEncodeParams.encodeConfig = &encodeConfig;
+        //reconfigureParams.forceIDR = true;
+        FillEncodeConfig(reconfigureParams.reInitEncodeParams, fps, encoder_config_.width, encoder_config_.height, bps);
+        reconfigureParams.reInitEncodeParams.maxEncodeWidth = encoder_config_.width;
+        reconfigureParams.reInitEncodeParams.maxEncodeHeight = encoder_config_.height;
+
+        bool r = false;
+        try {
+            r = nv_encoder_->Reconfigure(&reconfigureParams);
+        }
+        catch (NVENCException e) {
+            LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", e.getErrorCode(), e.what(),
+                 fps, encoder_config_.width, encoder_config_.height, bps
+            );
+            return false;
+        }
+        if (!r) {
+            LOGE("NvEnc Reconfigure failed fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+            return false;
+        }
+        LOGE("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+        return true;
+    }
+
 } // namespace tc

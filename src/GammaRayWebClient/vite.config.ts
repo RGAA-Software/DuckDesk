@@ -16,8 +16,8 @@ export default defineConfig({
         proxy: {
             // 代理所有以/api开头的请求
             '/api': {
-                //target: 'http://192.168.31.5:20371', // 你的服务器地址
-                target: 'http://10.0.0.16:20371', // 你的服务器地址
+                target: 'http://192.168.31.5:20371', // 你的服务器地址
+                // target: 'http://10.0.0.16:20371', // 你的服务器地址
                 changeOrigin: true,
                 rewrite: (path) => path.replace(/^\/api/, '') // 可选，重写路径
             }
@@ -48,19 +48,3 @@ export default defineConfig({
         },
     },
 })
-
-// npm install @libmedia/common
-// npm install @libmedia/cheap
-// npm install @libmedia/avformat
-// npm install @libmedia/avcodec
-// npm install @libmedia/audioresample
-// npm install @libmedia/audiostretchpitch
-// npm install @libmedia/videoscale
-// npm install @libmedia/avnetwork
-// npm install @libmedia/avprotocol
-// npm install @libmedia/avrender
-// npm install @libmedia/avpipeline
-// npm install @libmedia/avplayer
-// npm install @libmedia/avplayer-ui
-// npm install @libmedia/avtranscoder
-//

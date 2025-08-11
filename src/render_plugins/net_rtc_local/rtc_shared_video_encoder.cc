@@ -3,6 +3,7 @@
 #include "tc_common_new/time_util.h"
 #include "h264_sei_helper.h"
 #include "rtc_local_plugin.h"
+#include "plugin_interface/gr_plugin_events.h"
 
 namespace tc
 {
@@ -43,6 +44,11 @@ namespace tc
         ss << " kbps fps:" << parameters.framerate_fps;
         LOGI("SetRates: {}", ss.str());
         mTargetBitrate = parameters.bitrate.get_sum_bps();
+
+        auto event = std::make_shared<GrPluginConfigEncoder>();
+        event->bps_ = parameters.bitrate.get_sum_bps();
+        event->fps_ = parameters.framerate_fps;
+        plugin_->CallbackEvent(event);
     }
 
     int32_t RtcSharedVideoEncoder::Encode(const webrtc::VideoFrame& frame, const std::vector<webrtc::VideoFrameType>* frame_types)
@@ -91,16 +97,20 @@ namespace tc
         plugin_->SetClearOlderFramesBaseline(encoded_video_frame->timestamp_);
         auto end_ts = TimeUtil::GetCurrentTimestamp();
         auto diff_ts = end_ts - beg_ts;
-        LOGI("wait frame used: {}ms, for index: {}", diff_ts, frame.id());
+        //LOGI("wait frame used: {}ms, for index: {}", diff_ts, frame.id());
 
         if (last_encoded_frame_index_ == 0) {
             last_encoded_frame_index_ = frame.id();
         }
         auto diff_idx = frame.id() - last_encoded_frame_index_;
-        last_encoded_frame_index_ = diff_idx;
-        if (diff_idx > 1) {
-            LOGI("frame id not in sequence, frame idx: {}, diff: {}", frame.id(), diff_idx);
+        if (diff_idx > 1 && !encoded_video_frame->key_) {
+            LOGI("frame id not in sequence, current frame idx: {}, last frame index: {}, diff: {}", frame.id(), last_encoded_frame_index_, diff_idx);
+            plugin_->InsertIdr();
+            last_encoded_frame_index_ = 0;
+            return WEBRTC_VIDEO_CODEC_ERROR;
         }
+
+        last_encoded_frame_index_ = frame.id();
 
         webrtc::EncodedImage encodedImage;
         if (this->insert_timer_sei_) {

@@ -35,13 +35,14 @@ export class GrApp {
         this.rendererManager = new GrRendererManager(rendererName, canvas, remoteVideoElement);
 
         this.grSdk = new GrSdk(new GrSdkParams({
-            sdkType: GrSdkConnType.kWebSocket,
+            sdkType: GrSdkConnType.kWebRtcDirect,
             canvas: canvas,
             rendererName: rendererName
         }), this.rendererManager);
 
         this.grSdk.start(new GrConnParams({
-            host: "10.0.0.16",
+            //host: "10.0.0.16",
+            host: "192.168.31.5",
             port: 20371
         }));
 

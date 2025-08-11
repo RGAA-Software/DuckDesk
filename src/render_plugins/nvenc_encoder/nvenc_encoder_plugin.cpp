@@ -125,4 +125,14 @@ namespace tc
         }
         return result;
     }
+
+    void NvencEncoderPlugin::ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) {
+        if (bps == 0 || fps == 0) {
+            return;
+        }
+        // todo: target encoder == mon_name
+        for (const auto& [mon, encoder] : video_encoders_) {
+            encoder->Config(bps, fps);
+        }
+    }
 }

@@ -33,6 +33,7 @@ namespace tc
         void Exit(const std::string& monitor_name) override;
         void ExitAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> GetWorkingCapturesInfo() override;
+        void ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
 
     private:
         std::map<std::string, std::shared_ptr<NVENCVideoEncoder>> video_encoders_;

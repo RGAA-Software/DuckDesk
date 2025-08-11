@@ -33,6 +33,7 @@ namespace tc
         void Exit();
         int32_t GetEncodeFps();
         std::vector<int32_t> GetEncodeDurations();
+        bool Config( uint32_t bps, uint32_t fps);
 
     private:
         bool Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);

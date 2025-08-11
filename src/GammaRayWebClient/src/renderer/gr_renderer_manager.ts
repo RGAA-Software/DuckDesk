@@ -2,8 +2,6 @@ import { GrProtoMsg } from '@/messages/gr_proto_messages.ts'
 import { GrRenderer } from '@/renderer/gr_renderer.ts'
 import { GrCanvas2DRenderer } from '@/renderer/gr_renderer_2d.ts'
 import { GrWebGLRenderer } from '@/renderer/gr_renderer_webgl.ts'
-import getWasmUrl from '@libmedia/avutil/function/getWasmUrl'
-import { AVCodecID } from '@libmedia/avutil/codec'
 
 export class GrRendererManager {
     // renderer
