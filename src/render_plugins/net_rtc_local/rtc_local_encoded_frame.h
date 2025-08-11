@@ -23,6 +23,7 @@ namespace tc
         int frame_width_ = 0;
         int frame_height_ = 0;
         bool key_ = false;
+        int64_t timestamp_ = 0;
     };
 
 }

@@ -87,6 +87,9 @@ namespace tc
         std::shared_ptr<VideoSourceImpl> video_source_ = nullptr;
         rtc::scoped_refptr<VideoTrackSourceImpl> video_track_source_ = nullptr;
         rtc::scoped_refptr<AudioSourceImp> audio_source_ = nullptr;
+
+        // last captured frame index
+        uint64_t last_captured_frame_index_ = 0;
     };
 
 }

@@ -35,7 +35,7 @@ export class GrApp {
         this.rendererManager = new GrRendererManager(rendererName, canvas, remoteVideoElement);
 
         this.grSdk = new GrSdk(new GrSdkParams({
-            sdkType: GrSdkConnType.kWebRtcDirect,
+            sdkType: GrSdkConnType.kWebSocket,
             canvas: canvas,
             rendererName: rendererName
         }), this.rendererManager);

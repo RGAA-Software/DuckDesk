@@ -8,11 +8,6 @@ namespace tc
 {
 
     bool gAdapterBitrate = true;
-    namespace
-    {
-        std::list<RtcSharedVideoEncoder*> sAllVideoEncoder;
-        std::mutex sAllVideoEncoderMutex;
-    } // namespace
 
     RtcSharedVideoEncoder::RtcSharedVideoEncoder(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) {
         plugin_ = plugin;
@@ -23,42 +18,19 @@ namespace tc
         LOGI("rtc shared encoder released.");
     }
 
-    int RtcSharedVideoEncoder::GetAllVideoEncoderMinBitrate()
+    int RtcSharedVideoEncoder::GetVideoEncoderMinBitrate()
     {
-        std::lock_guard<std::mutex> lk(sAllVideoEncoderMutex);
-        int min = std::numeric_limits<int>::max();
-        for (RtcSharedVideoEncoder* encoder : sAllVideoEncoder)
-        {
-            int bitrat = encoder->GetTargetBitrate();
-            if (bitrat == 0)
-                continue;
-            if (bitrat < min)
-                min = bitrat;
-        }
-        if(min != std::numeric_limits<int>::max())
-            return min;
-        return 0;
-    }
-
-    int RtcSharedVideoEncoder::GetVideoEncoderCount()
-    {
-        std::lock_guard<std::mutex> lk(sAllVideoEncoderMutex);
-        return sAllVideoEncoder.size();
+        return this->GetTargetBitrate();
     }
 
     int32_t RtcSharedVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings, const webrtc::VideoEncoder::Settings& settings)
     {
-        std::lock_guard<std::mutex> lk(sAllVideoEncoderMutex);
-        sAllVideoEncoder.push_back(this);
-        encoder_index_ = sAllVideoEncoder.size();
         LOGI("InitEncode start bitrate {} kbps", codec_settings->startBitrate);
         return WEBRTC_VIDEO_CODEC_OK;
     }
 
     int32_t RtcSharedVideoEncoder::Release()
     {
-        std::lock_guard<std::mutex> lk(sAllVideoEncoderMutex);
-        sAllVideoEncoder.remove(this);
         return WEBRTC_VIDEO_CODEC_OK;
     }
 
@@ -93,14 +65,15 @@ namespace tc
                 if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
                     LOGI("Rtc request to insert an I Frame.");
                     plugin_->InsertIdr();
-                    //return WEBRTC_VIDEO_CODEC_OK;
+                    return WEBRTC_VIDEO_CODEC_OK;
                 }
             }
         }
 
+        auto beg_ts = TimeUtil::GetCurrentTimestamp();
         std::shared_ptr<RtcLocalEncodedVideoFrame> encoded_video_frame = nullptr;
         int try_count = 0;
-        while (try_count < 10) {
+        while (try_count < 50) {
             encoded_video_frame = plugin_->PopEncodedVideoFrame(frame.id());
             if (!encoded_video_frame || !encoded_video_frame->data_) {
                 try_count++;
@@ -110,8 +83,23 @@ namespace tc
             break;
         }
         if (!encoded_video_frame) {
+            plugin_->InsertIdr();
             LOGE("Can't find video frame for index: {}, try : {}", frame.id(), try_count);
+            plugin_->PrintCachedVideoFrames();
             return WEBRTC_VIDEO_CODEC_TIMEOUT;
+        }
+        plugin_->SetClearOlderFramesBaseline(encoded_video_frame->timestamp_);
+        auto end_ts = TimeUtil::GetCurrentTimestamp();
+        auto diff_ts = end_ts - beg_ts;
+        LOGI("wait frame used: {}ms, for index: {}", diff_ts, frame.id());
+
+        if (last_encoded_frame_index_ == 0) {
+            last_encoded_frame_index_ = frame.id();
+        }
+        auto diff_idx = frame.id() - last_encoded_frame_index_;
+        last_encoded_frame_index_ = diff_idx;
+        if (diff_idx > 1) {
+            LOGI("frame id not in sequence, frame idx: {}, diff: {}", frame.id(), diff_idx);
         }
 
         webrtc::EncodedImage encodedImage;
@@ -237,7 +225,7 @@ namespace tc
             constexpr auto kDefalutStartBitrate = 15 * 1024 * 1024;
             constexpr auto kDefalutMaxBitrate = 100 * 1024 * 1024;
             min = kDefalutMinBitrate;
-            max = kDefalutMaxBitrate;
+            max = kDefalutStartBitrate;
         }
         else
         {

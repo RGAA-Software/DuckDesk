@@ -56,7 +56,9 @@ namespace tc
         // image: Raw image
         void OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
 
-        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint64_t frame_index);
+        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint16_t frame_index);
+        void PrintCachedVideoFrames();
+        void SetClearOlderFramesBaseline(int64_t baseline_timestamp);
 
     private:
         void WaitForMediaChannelActive();
@@ -65,7 +67,8 @@ namespace tc
 
     private:
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
-        std::unordered_map<uint64_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        std::unordered_map<uint16_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        int64_t clear_baseline_timestamp_ = 0;
         //tc::ConcurrentType<std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frame_;
     };
 

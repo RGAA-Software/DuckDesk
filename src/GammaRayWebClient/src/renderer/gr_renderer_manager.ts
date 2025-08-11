@@ -2,6 +2,8 @@ import { GrProtoMsg } from '@/messages/gr_proto_messages.ts'
 import { GrRenderer } from '@/renderer/gr_renderer.ts'
 import { GrCanvas2DRenderer } from '@/renderer/gr_renderer_2d.ts'
 import { GrWebGLRenderer } from '@/renderer/gr_renderer_webgl.ts'
+import getWasmUrl from '@libmedia/avutil/function/getWasmUrl'
+import { AVCodecID } from '@libmedia/avutil/codec'
 
 export class GrRendererManager {
     // renderer
@@ -31,6 +33,15 @@ export class GrRendererManager {
             console.log('this is key frame, will init')
 
             const connInstance = this
+
+            const VERSION = "v0.9.0-31-g243a86a3";
+            const baseUrl = `https://cdn.jsdelivr.net/gh/zhaohappy/libmedia@${VERSION.split('-')[0].replace(/^[v|n]/, '')}/dist`;
+            console.log('baseUrl:', baseUrl);
+            getWasmUrl(
+                baseUrl,
+                'decoder',
+                AVCodecID.AV_CODEC_ID_H264
+            )
 
             this.videoDecoder = new VideoDecoder({
                 output(frame) {

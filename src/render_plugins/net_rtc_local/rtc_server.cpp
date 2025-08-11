@@ -329,6 +329,15 @@ namespace tc
 
     void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
         if (video_source_) {
+            if (last_captured_frame_index_ == 0) {
+                last_captured_frame_index_ = frame_idx;
+            }
+            auto diff = frame_idx - last_captured_frame_index_;
+            last_captured_frame_index_ = frame_idx;
+            if (diff > 1) {
+                LOGE("OnNewFrameCaptured, but diff size is: {}", diff);
+            }
+
             auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_width, frame_height);
             webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().

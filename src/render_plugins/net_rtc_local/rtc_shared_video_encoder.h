@@ -20,9 +20,7 @@ namespace tc
         RtcSharedVideoEncoder(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server);
         ~RtcSharedVideoEncoder() override;
 
-        static int GetAllVideoEncoderMinBitrate();
-
-        static int GetVideoEncoderCount();
+        int GetVideoEncoderMinBitrate();
 
         int32_t InitEncode(const webrtc::VideoCodec* codec_settings, const webrtc::VideoEncoder::Settings& settings) override;
 
@@ -68,6 +66,7 @@ namespace tc
         int encoder_index_ = 0;
         bool insert_timer_sei_ = true;
         //ObjectCounter<RtcSharedVideoEncoder> object_counter_;
+        uint16_t last_encoded_frame_index_ = 0;
     };
 
 } // namespace dl

@@ -165,6 +165,19 @@ namespace tc
                              int frame_width,
                              int frame_height,
                              bool key) {
+        // clear old ones
+        if (clear_baseline_timestamp_ > 0) {
+            auto it = encoded_video_frames_.begin();
+            while (it != encoded_video_frames_.end()) {
+                if ((*it).second->timestamp_ <= clear_baseline_timestamp_) {
+                    it = encoded_video_frames_.erase(it);
+                }
+                else {
+                    it++;
+                }
+            }
+        }
+
         auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
         encoded_video_frame->mon_name_ = mon_name;
         encoded_video_frame->video_type_ = (int)video_type;
@@ -173,8 +186,8 @@ namespace tc
         encoded_video_frame->frame_width_ = frame_width;
         encoded_video_frame->frame_height_ = frame_height;
         encoded_video_frame->key_ = key;
+        encoded_video_frame->timestamp_ = TimeUtil::GetCurrentTimestamp();
         encoded_video_frames_.insert({frame_index, encoded_video_frame});
-//        encoded_video_frame_.Update(encoded_video_frame);
 
         rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& rtc_server) {
             rtc_server->OnNewFrameEncoded(mon_name, video_type, data, frame_index, frame_width, frame_height, key);
@@ -205,16 +218,23 @@ namespace tc
         });
     }
 
-    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint64_t frame_index) {
+    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index) {
         if (encoded_video_frames_.contains(frame_index)) {
             auto encoded_frame = encoded_video_frames_[frame_index];
             encoded_video_frames_.erase(frame_index);
             return encoded_frame;
         }
         return nullptr;
-//        auto frame = encoded_video_frame_.Load();
-//        encoded_video_frame_.Update(nullptr);
-//        return frame;
+    }
+
+    void RtcLocalPlugin::PrintCachedVideoFrames() {
+        for (const auto& [frame_idx, frame] : encoded_video_frames_) {
+            LOGI("=> frame idx: {} , key: {}", frame_idx, frame->key_);
+        }
+    }
+
+    void RtcLocalPlugin::SetClearOlderFramesBaseline(int64_t baseline_timestamp) {
+        clear_baseline_timestamp_ = baseline_timestamp;
     }
 
     bool RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,
