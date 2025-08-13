@@ -1,9 +1,10 @@
-import { GrConn } from '@/client/gr_conn.ts'
-import { GrSdk } from '@/client/gr_sdk.ts'
-import { GrConnParams } from '@/client/gr_sdk_params.ts'
-import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
+
 import axios, { Axios, type AxiosResponse } from 'axios'
-import { GrResponse } from '@/base/gr_response.ts'
+import {GrConn} from "./gr_conn.ts";
+import {GrConnParams} from "./gr_sdk_params.ts";
+import {GrSdk} from "./gr_sdk.ts";
+import {GrRendererManager} from "../renderer/gr_renderer_manager.ts";
+import {GrResponse} from "../base/gr_response.ts";
 
 export class GrRtcDirectConn extends GrConn {
 

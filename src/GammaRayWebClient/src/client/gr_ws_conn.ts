@@ -1,7 +1,7 @@
-import { GrConn } from '@/client/gr_conn.ts'
-import { GrSdk } from '@/client/gr_sdk.ts'
-import { GrConnParams } from '@/client/gr_sdk_params.ts'
-import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
+import {GrSdk} from "./gr_sdk.ts";
+import {GrConnParams} from "./gr_sdk_params.ts";
+import {GrRendererManager} from "../renderer/gr_renderer_manager.ts";
+import {GrConn} from "./gr_conn.ts";
 
 export class GrWsConn extends GrConn {
 
@@ -69,6 +69,7 @@ export class GrWsConn extends GrConn {
             }
 
             //this.websocket?.send(msg);
+            // console.log("timer.....");
         }, 1000);
 
     }

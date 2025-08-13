@@ -1,4 +1,4 @@
-import { GrRenderer } from '@/renderer/gr_renderer.ts'
+import {GrRenderer} from "./gr_renderer.ts";
 
 export class GrWebGLRenderer extends GrRenderer {
     static vertexShaderSource = `
@@ -85,7 +85,7 @@ export class GrWebGLRenderer extends GrRenderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     }
 
-    render(frame: VideoFrame) {
+    render(frame: any) {
         super.render(frame)
         // const factor = 0.8;//(this.chromeWidth * 1.0) / frame.displayWidth
         //

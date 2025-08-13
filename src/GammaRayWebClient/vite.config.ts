@@ -1,50 +1,75 @@
-import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vueJsx from '@vitejs/plugin-vue-jsx'
-import vueDevTools from 'vite-plugin-vue-devtools'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 import typescript from '@rollup/plugin-typescript';
 import transformer from '@libmedia/cheap/build/transformer';
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
-    server: {
-        host: "0.0.0.0",
-        https: false,
-        proxy: {
-            // 代理所有以/api开头的请求
-            '/api': {
-                target: 'http://192.168.31.5:20371', // 你的服务器地址
-                // target: 'http://10.0.0.16:20371', // 你的服务器地址
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, '') // 可选，重写路径
-            }
-        }
+  build: {
+    target: 'esnext',
+  },
+  server: {
+    host: "0.0.0.0",
+    https: false,
+    proxy: {
+      // 代理所有以/api开头的请求
+      '/api': {
+        // target: 'http://192.168.31.5:20371', // 你的服务器地址
+        target: 'http://10.0.0.16:20371', // 你的服务器地址
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '') // 可选，重写路径
+      }
     },
-    plugins: [
-        vue(),
-        vueJsx(),
-        vueDevTools(),
-        basicSsl(),
+    headers: {
+        // 跨域相关头
+        'Access-Control-Allow-Origin': '*', // 允许所有域，或指定特定域如 'https://example.com'
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, Authorization',
+        
+        // 多线程相关头
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp'
+    },
+  },
+  plugins: [
+    react(),
+    typescript({
+      tsconfig: './tsconfig.json',
+      compilerOptions: {
+        outDir: 'dist/'
+      },
+      transformers: {
+        before: [
+          {
+            type: 'program',
+            factory: (program) => {
+              return transformer.before(program);
+            }
+          }
+        ]
+      }
+    }),
+  ],
+
+  worker: {
+    plugins: () => {
+      return [
         typescript({
-            // 配置使用的 tsconfig.json 配置文件
-            // include 中需要包含要处理的文件
-            tsconfig: './tsconfig.json',
-            transformers: {
-            before: [{
+          transformers: {
+            before: [
+              {
                 type: 'program',
                 factory: (program) => {
-                    return transformer.before(program)
+                  return transformer.before(program);
                 }
-            }
-            ]},
-        })
-    ],
-    resolve: {
-        alias: {
-            '@': fileURLToPath(new URL('./src', import.meta.url)),
-        },
-    },
-})
+              }
+            ]
+          }
+        }),
+      ]
+    }
+  }
+
+  }
+);

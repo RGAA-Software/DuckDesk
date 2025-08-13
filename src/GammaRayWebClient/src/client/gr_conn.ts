@@ -1,8 +1,7 @@
-import { GrSdkParams } from '@/client/gr_sdk_params.ts'
-import { GrSdk } from '@/client/gr_sdk.ts'
-import { GrConnParams } from '@/client/gr_sdk_params.ts'
-import { GrProtoProcessor } from '@/messages/gr_proto_processor.ts'
-import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
+import {GrSdk} from "./gr_sdk.ts";
+import {GrConnParams, GrSdkParams} from "./gr_sdk_params.ts";
+import {GrProtoProcessor} from "../messages/gr_proto_processor.ts";
+import {GrRendererManager} from "../renderer/gr_renderer_manager.ts";
 
 export class GrConn {
     // sdk
@@ -37,7 +36,7 @@ export class GrConn {
     }
 
     async parseMessage(data: Uint8Array) {
-        this.protoProcessor.parseMessage(data);
+        await this.protoProcessor.parseMessage(data);
     }
 
 }

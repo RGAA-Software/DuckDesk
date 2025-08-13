@@ -1,0 +1,18 @@
+
+  @tailwind components;
+  @tailwind utilities;
+
+  .canvas-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100%;
+  }
+
+  #main-view {
+    max-height: 100vh;
+    height: 100%;
+    width: auto; /* 宽度自动根据高度比例调整 */
+    display: block;
+  }

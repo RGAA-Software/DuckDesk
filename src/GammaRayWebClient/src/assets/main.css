@@ -1,9 +1,0 @@
-@import './base.css';
-
-#main_view {
-    display: block;              /* 去掉行内元素间隙 */
-    position: absolute;          /* 绝对定位 */
-    top: 50%;                    /* 顶部对齐到屏幕一半 */
-    left: 50%;                   /* 左侧对齐到屏幕一半 */
-    transform: translate(-50%, -50%); /* 让中心点真正居中 */
-}

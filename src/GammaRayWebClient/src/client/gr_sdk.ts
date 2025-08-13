@@ -1,10 +1,8 @@
-import { GrConnParams, GrSdkConnType, type GrSdkParams } from '@/client/gr_sdk_params.ts'
-import { GrConn } from '@/client/gr_conn.ts'
-import { GrWsConn } from '@/client/gr_ws_conn.ts'
-import { GrRtcDirectConn } from '@/client/gr_rtc_direct_conn.ts'
-import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
-import { getBrowserInfo } from '@/util/gr_browser_info.ts'
-import { GrRtcConn } from '@/client/gr_rtc_conn.ts'
+import {GrConnParams, GrSdkConnType, GrSdkParams} from "./gr_sdk_params.ts";
+import {GrConn} from "./gr_conn.ts";
+import {GrRendererManager} from "../renderer/gr_renderer_manager.ts";
+import {GrWsConn} from "./gr_ws_conn.ts";
+import {GrRtcDirectConn} from "./gr_rtc_direct_conn.ts";
 
 export class GrSdk {
 
@@ -23,7 +21,7 @@ export class GrSdk {
     constructor(params: GrSdkParams, rendererManager: GrRendererManager) {
         this.sdkParams = params;
         this.rendererManager = rendererManager;
-        this.browserInfo = getBrowserInfo();
+        //this.browserInfo = getBrowserInfo();
     }
 
     start(connParams: GrConnParams): void {
@@ -32,10 +30,7 @@ export class GrSdk {
             this.startWithWss(connParams);
         }
         else if (this.sdkParams.sdkType == GrSdkConnType.kWebRtcDirect) {
-            this.startWithRtcDirect();
-        }
-        else if (this.sdkParams.sdkType == GrSdkConnType.kWebRtc) {
-            this.startWithWebRtc(connParams);
+            this.startWithRtcDirect(connParams);
         }
         else {
             console.log("unknown sdk type: ", this.sdkParams.sdkType);
@@ -54,10 +49,5 @@ export class GrSdk {
         this.streamConn.start();
     }
 
-    private startWithWebRtc(connParams: GrConnParams) {
-        console.log("startWithWebRtc");
-        this.streamConn = new GrRtcConn(this, connParams, this.rendererManager);
-        this.streamConn.start();
-    }
 
 }

@@ -2,7 +2,6 @@ export class GrRenderer {
     rendererName: string
     lastRenderTime: number
     fps: number
-    frame: VideoFrame
     renderCanvas: HTMLCanvasElement
     renderCanvasContext = null;
     displayMode: string
@@ -15,8 +14,7 @@ export class GrRenderer {
         this.displayMode = "fit-height";
     }
     
-    render(frame: VideoFrame) {
-        this.frame = frame
+    render(frame: any) {
         const currentTime = performance.now()
         const duration = currentTime - this.lastRenderTime
         this.fps++

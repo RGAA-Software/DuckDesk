@@ -1,6 +1,6 @@
-import { GrSdk } from '@/client/gr_sdk.ts'
-import { GrProtoMsg } from '@/messages/gr_proto_messages.ts'
-import { GrRendererManager } from '@/renderer/gr_renderer_manager.ts'
+import {GrSdk} from "../client/gr_sdk.ts";
+import {GrRendererManager} from "../renderer/gr_renderer_manager.ts";
+import {GrProtoMsg} from "./gr_proto_messages.ts";
 
 export class GrProtoProcessor {
     // sdk
@@ -14,12 +14,12 @@ export class GrProtoProcessor {
         this.rendererManager = rendererManager;
     }
     
-    parseMessage(data: Uint8Array) {
+    async parseMessage(data: Uint8Array) {
         const msg = GrProtoMsg.Message.decode(data);
         const msgType = msg.type;
         
         if (msgType == GrProtoMsg.MessageType.values.kVideoFrame) {
-            this.rendererManager.onVideoFrame(msg);
+            await this.rendererManager.onVideoFrame(msg);
         }
     }
 }
