@@ -8,7 +8,7 @@
 #include "tc_common_new/webrtc_helper.h"
 
 #if 0
-namespace dl
+namespace tc
 {
 
     class DesktopCaptureSource : public rtc::VideoSourceInterface<webrtc::VideoFrame> {

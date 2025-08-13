@@ -1,4 +1,4 @@
-#include "rtc_shared_video_encoder.h"
+#include "rtc_video_encoder.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "h264_sei_helper.h"
@@ -269,12 +269,4 @@ namespace tc
         return 0;
     }
 
-    void RtcSharedVideoEncoder::RegisterEvents() {
-        //msg_listener_ = rtc_ctx_->GetMessageNotifier()->CreateListener();
-        //// 2S定时器
-        //msg_listener_->Listen<SigEvtTimer1S>([=](const SigEvtTimer1S& evt) {
-        //	insert_timer_sei_ = true;
-        //});
-    }
-
-} // namespace dl
+} // namespace tc

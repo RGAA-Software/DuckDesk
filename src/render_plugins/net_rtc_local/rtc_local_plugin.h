@@ -46,7 +46,7 @@ namespace tc
                                  bool key) override;
         // raw video frame
         // handle: D3D Shared texture handle
-        void OnRawVideoFrameSharedTexture(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height,  uint64_t handle) override;
+        void OnRawVideoFrameSharedTexture(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle) override;
 
         // raw video frame in rgba format
         // image: Raw image
@@ -62,14 +62,12 @@ namespace tc
 
     private:
         void WaitForMediaChannelActive();
-        std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
-        void NotifyNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height);
+        static std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
 
     private:
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
         std::unordered_map<uint16_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
         int64_t clear_baseline_timestamp_ = 0;
-        //tc::ConcurrentType<std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frame_;
     };
 
 }

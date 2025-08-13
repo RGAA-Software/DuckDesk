@@ -4,7 +4,7 @@
 
 #include "desktop_capture_source.h"
 #if 0
-namespace dl
+namespace tc
 {
 
     void DesktopCaptureSource::AddOrUpdateSink(

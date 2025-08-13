@@ -716,4 +716,4 @@ void FileTransmitSDK::ResetTokenBucket() {
 	token_bucket_ = 10;
 }
 
-} // namespace dl
+} // namespace tc

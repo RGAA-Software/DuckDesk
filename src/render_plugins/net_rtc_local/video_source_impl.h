@@ -8,27 +8,54 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include "tc_common_new/webrtc_helper.h"
 #include "tc_common_new/log.h"
+#include "tc_common_new/webrtc_helper.h"
 
 namespace tc
 {
 
-    class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer
-    {
+    class RtcLocalPlugin;
+
+    class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
-        NotifyFrameFrameBuffer(int width, int height) : mWidth(width), mHeight(height) {}
-        virtual Type type() const { return webrtc::VideoFrameBuffer::Type::kNative; }
-        virtual rtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() { return nullptr; }
-        virtual int width() const { return mWidth; }
-        virtual int height() const { return mHeight; }
-        int mWidth;
-        int mHeight;
+        NotifyFrameFrameBuffer(uint64_t frame_idx, int width, int height, uint64_t handle) {
+            this->frame_idx_ = frame_idx;
+            this->width_ = width;
+            this->height_ = height;
+            this->handle_ = handle;
+        }
+
+        [[nodiscard]] Type type() const override {
+            return webrtc::VideoFrameBuffer::Type::kNative;
+        }
+
+        rtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() override {
+            return nullptr;
+        }
+
+        [[nodiscard]] int width() const override {
+            return width_;
+        }
+
+        [[nodiscard]] int height() const override {
+            return height_;
+        }
+
+        [[nodiscard]] uint64_t GetHandle() {
+            return handle_;
+        }
+
+    private:
+        uint64_t frame_idx_ = 0;
+        int width_ = 0;
+        int height_ = 0;
+        uint64_t handle_ = 0;
     };
 
     class VideoSourceImpl : public rtc::VideoSourceInterface<webrtc::VideoFrame> {
     public:
-        VideoSourceImpl() {
+        VideoSourceImpl(RtcLocalPlugin* plugin) {
+            plugin_ = plugin;
         }
 
         void OnNotifyFrame(webrtc::VideoFrame& notify_frame) {
@@ -49,6 +76,7 @@ namespace tc
         }
 
     private:
+        RtcLocalPlugin* plugin_ = nullptr;
         rtc::VideoBroadcaster broadcaster_;
         cricket::VideoAdapter video_adapter_;
 
@@ -58,7 +86,8 @@ namespace tc
 
     class VideoTrackSourceImpl : public webrtc::VideoTrackSource {
     public:
-        VideoTrackSourceImpl(const std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>>& source) : webrtc::VideoTrackSource(false) {
+        VideoTrackSourceImpl(RtcLocalPlugin* plugin, const std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>>& source) : webrtc::VideoTrackSource(false) {
+            this->plugin_ = plugin;
             this->source_ = source;
         }
 
@@ -76,6 +105,7 @@ namespace tc
         }
 
     public:
+        RtcLocalPlugin* plugin_;
         std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>> source_ = nullptr;
     };
 

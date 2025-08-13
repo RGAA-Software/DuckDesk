@@ -52,8 +52,6 @@ namespace tc
             return true;
         }
 
-//        encoded_video_frame_.Update(nullptr);
-
         plugin_context_->StartTimer(100, [=, this]() {
             rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
                 srv->On100msTimeout();
@@ -186,18 +184,17 @@ namespace tc
         encoded_video_frame->frame_width_ = frame_width;
         encoded_video_frame->frame_height_ = frame_height;
         encoded_video_frame->key_ = key;
-        encoded_video_frame->timestamp_ = TimeUtil::GetCurrentTimestamp();
+        encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         encoded_video_frames_.insert({frame_index, encoded_video_frame});
 
-        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& rtc_server) {
-            rtc_server->OnNewFrameEncoded(mon_name, video_type, data, frame_index, frame_width, frame_height, key);
-        });
     }
 
     // raw video frame
     // handle: D3D Shared texture handle
     void RtcLocalPlugin::OnRawVideoFrameSharedTexture(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle) {
-        this->NotifyNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height);
+        rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+            rtc_server->OnNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height, handle);
+        });
     }
 
     // raw video frame in rgba format
@@ -209,13 +206,7 @@ namespace tc
     // raw video frame in yuv(I420) format
     // image: Raw image
     void RtcLocalPlugin::OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
-        this->NotifyNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height);
-    }
 
-    void RtcLocalPlugin::NotifyNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
-        rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
-            rtc_server->OnNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height);
-        });
     }
 
     std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index) {
@@ -243,7 +234,7 @@ namespace tc
         LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}", conn_id, req->sdp_.size());
         auto opt_rtc_server = rtc_servers_.TryGet(conn_id);
         if (opt_rtc_server.has_value()) {
-            LOGI("Remove old one.");
+            LOGI("** Remove old one.");
             opt_rtc_server.value()->Exit();
             rtc_servers_.Remove(conn_id);
         }
@@ -253,8 +244,6 @@ namespace tc
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();
             auto new_answer = AddCandidateIpToAnswer(req->req_ip_, answer);
-//            LOGI("answer: {}", answer);
-//            LOGI("new answer, add ip: {}, {}", req->req_ip_, new_answer);
             auto reply = std::make_shared<GrLocalRtcReplyInfo>(GrLocalRtcReplyInfo {
                 .answer_sdp_ = new_answer,
             });
@@ -267,21 +256,17 @@ namespace tc
     }
 
     std::string RtcLocalPlugin::AddCandidateIpToAnswer(const std::string& ip,const std::string& answer) {
-
-        std::unique_ptr<webrtc::SessionDescriptionInterface> session_desc = webrtc::CreateSessionDescription(webrtc::SdpType::kAnswer,answer);
-
+        // std::unique_ptr<webrtc::SessionDescriptionInterface>
+        auto session_desc = webrtc::CreateSessionDescription(webrtc::SdpType::kAnswer,answer);
         const webrtc::IceCandidateCollection* candidate_collection = session_desc->candidates(0);
 
-        // 寻找一个优先级最低的。让添加的外网ip的优先级最低。
-        // 同时检测是否已经存在相同IP,相同则直接返回不添加。
         uint32_t max_priority = 0;
         for (int i = 0; i < candidate_collection->count(); ++i) {
             const webrtc::IceCandidateInterface* ice_candidate = candidate_collection->at(i);
             const cricket::Candidate& candidate = ice_candidate->candidate();
-            if(candidate.priority() > max_priority)
+            if(candidate.priority() > max_priority) {
                 max_priority = candidate.priority();
-
-            // 已经存在该IP,则直接返回。
+            }
             if(candidate.address().EqualIPs(rtc::SocketAddress(ip,0))) {
                 LOGI("Found same! {}", ip);
                 return answer;
@@ -289,45 +274,40 @@ namespace tc
         }
 
         std::vector<std::unique_ptr<webrtc::IceCandidateInterface>> new_ice_candidates;
-
-        LOGI("Candidate counts: {}", candidate_collection->count());
         for(int i = 0; i < candidate_collection->count(); ++i) {
             const webrtc::IceCandidateInterface* ice_candidate = candidate_collection->at(i);
             cricket::Candidate candidate = ice_candidate->candidate();
 
-            // 替换IP
             rtc::SocketAddress address = candidate.address();
             address.SetIP(ip);
             candidate.set_address(address);
 
-            // 让UDP的优先级高一点。
             uint32_t udp_priority = static_cast<uint32_t>(
                     std::min(static_cast<uint64_t>(max_priority) + 1, static_cast<uint64_t>(UINT_MAX)));
-
             uint32_t tcp_priority = static_cast<uint32_t>(
                     std::min(static_cast<uint64_t>(max_priority) + 2, static_cast<uint64_t>(UINT_MAX)));
 
-            if (candidate.protocol() == "udp")
+            if (candidate.protocol() == "udp") {
                 candidate.set_priority(udp_priority);
-            else
+            }
+            else {
                 candidate.set_priority(tcp_priority);
-
+            }
             auto new_ice = webrtc::CreateIceCandidate(ice_candidate->sdp_mid(),ice_candidate->sdp_mline_index(),candidate);
             new_ice_candidates.emplace_back(std::move(new_ice));
         }
 
-        for(int i = 0; i < new_ice_candidates.size(); ++i) {
-            session_desc->AddCandidate(new_ice_candidates[i].get());
-
+        for(const auto& new_ice_candidate : new_ice_candidates) {
+            session_desc->AddCandidate(new_ice_candidate.get());
             std::string out_string;
-            new_ice_candidates[i]->ToString(&out_string);
-            LOGI("AddCandidate {}", out_string);
+            new_ice_candidate->ToString(&out_string);
+            LOGI("** AddCandidate {}", out_string);
         }
-        std::string ret_sdp;
-        if(!session_desc->ToString(&ret_sdp)) {
-            LOGE("AddCandidateIpToAnwser to sdp failed.");
+        std::string sdp;
+        if(!session_desc->ToString(&sdp)) {
+            LOGE("AddCandidateIpToAnswer failed.");
         }
-        return ret_sdp;
+        return sdp;
     }
 
 }

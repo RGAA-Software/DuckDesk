@@ -64,6 +64,6 @@ namespace tc
         int64_t created_timestamp_{0};
     };
 
-} // namespace dl
+} // namespace tc
 
 #endif //TEST_WEBRTC_DATA_CHANNEL_OBSERVER_IMPL_H

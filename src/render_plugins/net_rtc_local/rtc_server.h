@@ -16,7 +16,7 @@ namespace tc
     class SetSessCallback;
     class RtcLocalPlugin;
     class RtcDataChannel;
-    class AudioSourceImp;
+    class AudioSourceImpl;
     class VideoSourceImpl;
     class VideoTrackSourceImpl;
 
@@ -46,14 +46,7 @@ namespace tc
         std::string GetAnswerSdp();
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
-        void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height);
-        void OnNewFrameEncoded(const std::string& mon_name,
-                               const GrPluginEncodedVideoType& video_type,
-                               const std::shared_ptr<Data>& data,
-                               uint64_t frame_index,
-                               int frame_width,
-                               int frame_height,
-                               bool key);
+        void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle);
 
     private:
         void CreatePeerConnectionFactory();
@@ -86,7 +79,7 @@ namespace tc
 
         std::shared_ptr<VideoSourceImpl> video_source_ = nullptr;
         rtc::scoped_refptr<VideoTrackSourceImpl> video_track_source_ = nullptr;
-        rtc::scoped_refptr<AudioSourceImp> audio_source_ = nullptr;
+        rtc::scoped_refptr<AudioSourceImpl> audio_source_ = nullptr;
 
         // last captured frame index
         uint64_t last_captured_frame_index_ = 0;

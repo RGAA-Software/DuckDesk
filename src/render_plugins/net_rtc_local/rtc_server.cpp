@@ -8,9 +8,9 @@
 #include "plugin_interface/gr_plugin_events.h"
 #include "rtc_data_channel.h"
 #include "tc_common_new/log.h"
-#include "rtc_shared_video_encoder_factory.h"
-#include "video_source_mock.h"
-#include "audio_source_imp.h"
+#include "rtc_video_encoder_factory.h"
+#include "video_source_impl.h"
+#include "audio_source_impl.h"
 
 using namespace webrtc;
 
@@ -62,13 +62,6 @@ namespace tc
         // create answer sdp callback
         create_answer_callback_->SetOnCreateSdpSuccessCallback([=, this](webrtc::SessionDescriptionInterface* desc) {
             peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
-//            std::string sdp;
-//            desc->ToString(&sdp);
-//            this->answer_sdp_ = sdp;
-//            LOGI("Create answer sdp success, will set local sdp.");
-//            if (answer_sdp_callback_) {
-//                answer_sdp_callback_(sdp);
-//            }
         });
 
         create_answer_callback_->SetOnCreateSdpFailedCallback([=, this](const std::string& m) {
@@ -149,10 +142,12 @@ namespace tc
                 webrtc::CreateAudioEncoderFactory<webrtc::AudioEncoderOpus>();
         media_deps.audio_decoder_factory =
                 webrtc::CreateAudioDecoderFactory<webrtc::AudioDecoderOpus>();
-        media_deps.video_encoder_factory = std::make_unique<RtcSharedVideoEncoderFactory>(plugin_, shared_from_this()),
-//                std::make_unique<VideoEncoderFactoryTemplate<
-//                        LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
-//                        OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
+        // custom encoders
+        media_deps.video_encoder_factory = std::make_unique<RtcVideoEncoderFactory>(plugin_, shared_from_this()),
+        // default encoders
+        // media_deps.video_encoder_factory = std::make_unique<VideoEncoderFactoryTemplate<
+        //         LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
+        //         OpenH264EncoderTemplateAdapter, LibaomAv1EncoderTemplateAdapter>>();
         media_deps.video_decoder_factory =
                 std::make_unique<VideoDecoderFactoryTemplate<
                         LibvpxVp8DecoderTemplateAdapter, LibvpxVp9DecoderTemplateAdapter,
@@ -201,18 +196,11 @@ namespace tc
             std::cerr << "create peer connection failed: " << result.error().message() << std::endl;
             return;
         }
-        auto peer_conn = result.value();
-
-//        if (peer_conn.get() == nullptr) {
-//            peer_conn_factory_ = nullptr;
-//            std::cout << ":" << std::this_thread::get_id() << ":" << "Error on CreatePeerConnection." << std::endl;
-//            exit(EXIT_FAILURE);
-//        }
-        this->peer_conn_ = peer_conn;
+        this->peer_conn_ = result.value();
 
         // video source
-        video_source_ = std::make_shared<VideoSourceImpl>();
-        video_track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(video_source_);
+        video_source_ = std::make_shared<VideoSourceImpl>(plugin_);
+        video_track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, video_source_);
         auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source_, "video_track_source_1");
         auto rtc_error_or = peer_conn_->AddTrack(video_track, { "video_track_1" });
         if (!rtc_error_or.ok()) {
@@ -221,7 +209,7 @@ namespace tc
         }
 
         // audio source
-        audio_source_ = AudioSourceImp::Create();
+        audio_source_ = AudioSourceImpl::Create();
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
         peer_conn_->AddTrack(audio_track, { "audio1" });
 
@@ -327,36 +315,33 @@ namespace tc
         answer_sdp_callback_ = callback;
     }
 
-    void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
-        if (video_source_) {
-            if (last_captured_frame_index_ == 0) {
-                last_captured_frame_index_ = frame_idx;
-            }
-            auto diff = frame_idx - last_captured_frame_index_;
-            last_captured_frame_index_ = frame_idx;
-            if (diff > 1) {
-                LOGE("OnNewFrameCaptured, but diff size is: {}", diff);
-            }
-
-            auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-            auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_width, frame_height);
-            webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
-                    set_video_frame_buffer(buffer).
-                    set_timestamp_us(us).
-                    set_id(frame_idx).
-                    build();
-            video_source_->OnNotifyFrame(notify_frame);
+    void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle) {
+        if (!video_source_) {
+            LOGE("Don't have video source");
+            return;
         }
-    }
+        if (handle == 0) {
+            LOGE("Invalid texture handle");
+            return;
+        }
 
-    void RtcServer::OnNewFrameEncoded(const std::string& mon_name,
-                           const GrPluginEncodedVideoType& video_type,
-                           const std::shared_ptr<Data>& data,
-                           uint64_t frame_index,
-                           int frame_width,
-                           int frame_height,
-                           bool key) {
+        if (last_captured_frame_index_ == 0) {
+            last_captured_frame_index_ = frame_idx;
+        }
+        auto diff = frame_idx - last_captured_frame_index_;
+        last_captured_frame_index_ = frame_idx;
+        if (diff > 1) {
+            LOGE("OnNewFrameCaptured, but diff size is: {}", diff);
+        }
 
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_idx, frame_width, frame_height, handle);
+        webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
+                set_video_frame_buffer(buffer).
+                set_timestamp_us(us).
+                set_id(frame_idx).
+                build();
+        video_source_->OnNotifyFrame(notify_frame);
     }
 
     void RtcServer::Exit() {

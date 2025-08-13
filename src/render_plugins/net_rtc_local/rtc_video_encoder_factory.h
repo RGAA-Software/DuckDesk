@@ -3,7 +3,6 @@
 #include <api/video_codecs/builtin_video_encoder_factory.h>
 #include <common_video/h264/h264_common.h>
 #include <modules/video_coding/codecs/h264/include/h264.h>
-
 #include "tc_common_new/webrtc_helper.h"
 
 namespace tc
@@ -12,9 +11,9 @@ namespace tc
     class RtcLocalPlugin;
 
     // Implementation of video encoder factory
-    class RtcSharedVideoEncoderFactory : public webrtc::VideoEncoderFactory {
+    class RtcVideoEncoderFactory : public webrtc::VideoEncoderFactory {
     public:
-        RtcSharedVideoEncoderFactory(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) : supported_formats_(webrtc::SupportedH264Codecs()) {
+        RtcVideoEncoderFactory(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) : supported_formats_(webrtc::SupportedH264Codecs()) {
             this->plugin_ = plugin;
             this->server_ = server;
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "1"));
@@ -24,7 +23,7 @@ namespace tc
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "1"));
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileMain, webrtc::H264Level::kLevel3_1, "0"));
         }
-        ~RtcSharedVideoEncoderFactory() override = default;
+        ~RtcVideoEncoderFactory() override = default;
 
         //virtual webrtc::VideoEncoderFactory::CodecInfo QueryVideoEncoder(const webrtc::SdpVideoFormat& format) const override
         //{
