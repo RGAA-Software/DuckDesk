@@ -27,6 +27,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/incl
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/3rd)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/3rd/asio)
 #include_directories(${VCPKG_ROOT}/installed/x64-windows/include)
+include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite35)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/sqlite_orm/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/ffmpeg/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
@@ -77,6 +78,15 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Charts Svg)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Charts Svg)
+
+find_package(SDL2 CONFIG REQUIRED)
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
+find_package(gflags CONFIG REQUIRED)
+find_package(GTest CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(unofficial-libvpx CONFIG REQUIRED)
+find_package(FFTW3 CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc)
 
