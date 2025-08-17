@@ -83,6 +83,9 @@ namespace tc
                 }
 
                 int v_idx = video_frame.mon_index();
+                if(v_idx < 0) {
+                    v_idx = 0;
+                }
                 if (media_recorders_.size() > v_idx) {
                     media_recorders_[v_idx]->RecvVideoFrame(video_frame);
                 }
