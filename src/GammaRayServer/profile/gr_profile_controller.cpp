@@ -2,22 +2,26 @@
 // Created by RGAA on 19/08/2025.
 //
 
-#include "device_controller.h"
+#include "gr_profile_controller.h"
 
 namespace api
 {
     namespace v1
     {
-        drogon::Task<drogon::HttpResponsePtr> DeviceController::GetDeviceInfo(HttpRequestPtr req, std::string device_id) const {
-//            Json::Value ret;
-//            ret["message"] = "Hello, World!";
-//            auto resp = HttpResponse::newHttpJsonResponse(ret);
-//            callback(resp);
 
-            LOG_INFO << "the device id: " << device_id;
+        drogon::Task<drogon::HttpResponsePtr> GrProfileController::AddProfile(HttpRequestPtr req) const {
+            auto resp = HttpResponse::newHttpResponse();
+            resp->setStatusCode(k200OK);
+            resp->setBody("OK AddProfile");
+            co_return resp;
+        }
+
+        drogon::Task<drogon::HttpResponsePtr> GrProfileController::GetProfileInfo(HttpRequestPtr req, std::string profile_id) const {
+
+            LOG_INFO << "the device id: " << profile_id;
             auto resp = HttpResponse::newHttpResponse();
             nosql::RedisClientPtr redisClient = app().getRedisClient();
-            auto r = co_await redisClient->execCommandCoro("hgetall %s", device_id.c_str());
+            auto r = co_await redisClient->execCommandCoro("hgetall %s", profile_id.c_str());
 
             if (r.type() == nosql::RedisResultType::kNil) {
                 resp->setStatusCode(k404NotFound);
@@ -33,7 +37,7 @@ namespace api
             co_return resp;
         }
 
-        Task<HttpResponsePtr> DeviceController::GetAllDevicesInfo(HttpRequestPtr req) const {
+        Task<HttpResponsePtr> GrProfileController::GetProfilesInfo(HttpRequestPtr req, int page, int page_size) const {
             nosql::RedisClientPtr redisClient = app().getRedisClient();
             try {
                 auto r = co_await redisClient->execCommandCoro("1000");
@@ -47,6 +51,11 @@ namespace api
 //                nosql::RedisClientPtr redisClient = app().getRedisClient();
 //                auto r = co_await redisClient->execCommandCoro("");
 //            });
+
+            Json::Value ret;
+//            ret["message"] = "Hello, World!";
+//            auto resp = HttpResponse::newHttpJsonResponse(ret);
+//            callback(resp);
 
             co_return resp;
         }

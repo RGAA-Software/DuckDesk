@@ -15,6 +15,8 @@ if(WIN32)
 endif ()
 
 find_package(Drogon CONFIG REQUIRED)
+find_package(bsoncxx CONFIG REQUIRED)
+find_package(mongocxx CONFIG REQUIRED)
 
 #find_package(Protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
@@ -35,7 +37,11 @@ find_package(Drogon CONFIG REQUIRED)
 set(PROFILE_SRCS
         main.cpp
         #${RPC_SERVER_SRCS}
-        controller/device_controller.cpp
+        gr_profile.cpp
+        gr_profile_controller.cpp
+        gr_profile_database.cpp
+        gr_profile_context.cpp
+        gr_profile_settings.cpp
 )
 
 add_executable(${PROJECT_NAME} ${PROFILE_SRCS})

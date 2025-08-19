@@ -2,7 +2,7 @@
 // Created by RGAA on 19/08/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_DEVICE_CONTROLLER_H
+#ifndef GAMMARAYPREMIUM_GR_PROFILE_CONTROLLER_H
 #define GAMMARAYPREMIUM_DEVICE_CONTROLLER_H
 
 #include <drogon/HttpController.h>
@@ -36,4 +36,4 @@ namespace api
 } // namespace api
 
 
-#endif //GAMMARAYPREMIUM_DEVICE_CONTROLLER_H
+#endif //GAMMARAYPREMIUM_GR_PROFILE_CONTROLLER_H
