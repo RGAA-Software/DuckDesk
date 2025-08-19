@@ -87,6 +87,11 @@ find_package(glm CONFIG REQUIRED)
 find_package(unofficial-libvpx CONFIG REQUIRED)
 find_package(FFTW3 CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(Drogon CONFIG REQUIRED)
+find_package(bsoncxx CONFIG REQUIRED)
+find_package(mongocxx CONFIG REQUIRED)
+#find_package(protobuf REQUIRED)
+#find_package(gRPC REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc)
 
@@ -103,6 +108,10 @@ add_dependencies(tc_build_premium_all tc_build_all
         ### client
         plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
 )
+
+## Servers
+add_custom_target(tc_build_servers_all ALL COMMENT "Build all targets")
+add_dependencies(tc_build_servers_all gr_relay_server gr_spvr_server gr_auth_server gr_profile_server)
 
 set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay)
 set(RENDER_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/render_plugins)
