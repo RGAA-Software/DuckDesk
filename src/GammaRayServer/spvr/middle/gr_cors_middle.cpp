@@ -2,20 +2,12 @@
 // Created by RGAA on 19/08/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_CORS_MIDDLE_H
-#define GAMMARAYPREMIUM_CORS_MIDDLE_H
+#include "gr_cors_middle.h"
 
-#include <drogon/HttpMiddleware.h>
+namespace tc
+{
 
-using namespace drogon;
-
-class CorsMiddleware : public HttpMiddleware<CorsMiddleware> {
-public:
-    CorsMiddleware() {
-        LOG_INFO << "CorsMiddleware";
-    }
-
-    void invoke(const HttpRequestPtr &req, MiddlewareNextCallback &&nextCb, MiddlewareCallback &&mcb) override {
+    void GrCorsMiddleware::invoke(const HttpRequestPtr &req, MiddlewareNextCallback &&nextCb, MiddlewareCallback &&mcb) {
         LOG_INFO << "Middleware invoke.";
         std::string origin = req->getHeader("origin");
         if (origin.find("www.some-evil-place.com") != std::string::npos) {
@@ -31,7 +23,5 @@ public:
             mcb(resp);
         });
     }
-};
 
-
-#endif //GAMMARAYPREMIUM_CORS_MIDDLE_H
+}

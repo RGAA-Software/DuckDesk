@@ -53,6 +53,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client/src)
 
+## Server
+include_directories(${CMAKE_SOURCE_DIR}/src/GammaRayServer)
+
 link_directories(${VCPKG_ROOT}/installed/x64-windows/lib)
 
 if(MSVC)
@@ -111,7 +114,7 @@ add_dependencies(tc_build_premium_all tc_build_all
 
 ## Servers
 add_custom_target(tc_build_servers_all ALL COMMENT "Build all targets")
-add_dependencies(tc_build_servers_all gr_relay_server gr_spvr_server gr_auth_server gr_profile_server)
+add_dependencies(tc_build_servers_all gr_svr_base gr_relay_server gr_spvr_server gr_auth_server gr_profile_server)
 
 set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay)
 set(RENDER_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/render_plugins)

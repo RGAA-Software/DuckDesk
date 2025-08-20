@@ -2,22 +2,25 @@
 // Created by RGAA on 19/08/2025.
 //
 
-#include "time_filter.h"
+#include "gr_time_filter.h"
 
 #include <drogon/utils/coroutine.h>
 #include <drogon/drogon.h>
 #include <string>
-#include "../redis_cache.h"
-#include "../date_funcs.h"
+#include "svr_base/redis_cache.h"
+#include "svr_base/date_funcs.h"
 #define VDate "visitDate"
 
-void TimeFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&cb, FilterChainCallback &&ccb) {
-    drogon::async_run([req, cb = std::move(cb), ccb = std::move(ccb)]() -> drogon::Task<> {
-        auto userid = req->getOptionalParameter<std::string>("userid");
-        LOG_INFO << "userId has value: " << userid.has_value();
+namespace tc
+{
 
-        ccb();
-        co_return;
+    void GrTimeFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&cb, FilterChainCallback &&ccb) {
+        drogon::async_run([req, cb = std::move(cb), ccb = std::move(ccb)]() -> drogon::Task<> {
+            auto userid = req->getOptionalParameter<std::string>("userid");
+            LOG_INFO << "userId has value: " << userid.has_value();
+
+            ccb();
+            co_return;
 //        if (!userid.empty())
 //        {
 //            auto key = userid + "." + VDate;
@@ -70,5 +73,7 @@ void TimeFilter::doFilter(const HttpRequestPtr &req, FilterCallback &&cb, Filter
 //            cb(resp);
 //            co_return;
 //        }
-    });
+        });
+    }
+
 }

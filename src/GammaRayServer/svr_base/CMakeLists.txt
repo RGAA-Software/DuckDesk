@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(gr_spvr_server)
+project(gr_svr_base)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -16,24 +16,11 @@ find_package(Drogon CONFIG REQUIRED)
 find_package(bsoncxx CONFIG REQUIRED)
 find_package(mongocxx CONFIG REQUIRED)
 
-set(SPVR_SRCS
-        main.cpp
-        auth/gr_spvr_auth.cpp
-        auth/gr_spvr_auth_manager.cpp
-        filter/gr_time_filter.cpp
-        filter/gr_appkey_filter.cpp
-        middle/gr_cors_middle.cpp
-        ws/gr_ws_controller.cpp
-        ws/gr_conn_manager.cpp
-        controller/gr_device_controller.cpp
-        controller/gr_appkey_controller.cpp
-        db/gr_device.cpp
-        db/gr_spvr_database.cpp
-        gr_spvr_context.cpp
-        gr_spvr_settings.cpp
+set(SVR_BASE_SRCS
+    gr_http_response.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SPVR_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE Drogon::Drogon tc_common_new)
+add_library(${PROJECT_NAME} ${SVR_BASE_SRCS})
+target_link_libraries(${PROJECT_NAME} PRIVATE Drogon::Drogon)
 target_link_libraries(${PROJECT_NAME} PRIVATE $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>)
 target_link_libraries(${PROJECT_NAME} PRIVATE $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>)

@@ -3,17 +3,17 @@
 //
 
 #ifndef GAMMARAYPREMIUM_GR_SPVR_SETTINGS_H
-#define GAMMARAYPREMIUM_GR_PROFILE_SETTINGS_H
+#define GAMMARAYPREMIUM_GR_SPVR_SETTINGS_H
 
 #include <string>
 
 namespace tc
 {
 
-    class GrProfileSettings {
+    class GrSpvrSettings {
     public:
-        static GrProfileSettings* Instance() {
-            static GrProfileSettings instance;
+        static GrSpvrSettings* Instance() {
+            static GrSpvrSettings instance;
             return &instance;
         }
 
