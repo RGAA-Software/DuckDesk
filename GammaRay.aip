@@ -24,7 +24,7 @@
     <ROW Property="ARPURLUPDATEINFO" Value="https://github.com/RGAA-Software/GammaRay"/>
     <ROW Property="CTRLS" Value="3"/>
     <ROW Property="Manufacturer" Value="GammaRay"/>
-    <ROW Property="ProductCode" Value="1033:{66355ABE-7DAF-4670-A273-E0A1DFB0831E} " Type="16"/>
+    <ROW Property="ProductCode" Value="1033:{8C87C823-3C3D-40AF-AE6F-78DAE022909C} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="GammaRay"/>
     <ROW Property="ProductVersion" Value="2.0.1" Options="32"/>
