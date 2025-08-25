@@ -21,7 +21,7 @@
     <ROW Property="ARPURLUPDATEINFO" Value="https://github.com/RGAA-Software/GammaRay"/>
     <ROW Property="CTRLS" Value="2"/>
     <ROW Property="Manufacturer" Value="GammaRay"/>
-    <ROW Property="ProductCode" Value="1033:{5471F9E1-D388-48DE-BE20-D7B6E533247C} " Type="16"/>
+    <ROW Property="ProductCode" Value="1033:{82BBCCD7-C8F8-4FA0-AE9B-04949D994FBA} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="GammaRay"/>
     <ROW Property="ProductVersion" Value="2.0.2" Options="32"/>
@@ -76,108 +76,108 @@
     <ROW Component="APPDIR" ComponentId="{A06CDD72-EBAF-4405-9B52-9A9155A8B3E2}" Directory_="APPDIR" Attributes="0"/>
     <ROW Component="C4FE6FD5B7C4D07B3A313E754A9A6A8" ComponentId="{938A196C-2DA6-4BA3-8F37-1C12CA06184D}" Directory_="APPDIR" Attributes="260" KeyPath="C4FE6FD5B7C4D07B3A313E754A9A6A8" Options="2"/>
     <ROW Component="C945BDDBD4164BEAA5A0B63FA0DC5" ComponentId="{7A8945ED-7D30-4C11-A3DF-65928145B11C}" Directory_="APPDIR" Attributes="260" KeyPath="C945BDDBD4164BEAA5A0B63FA0DC5" Options="2"/>
-    <ROW Component="GammaRay.exe" ComponentId="{258B1BE3-8F93-4296-BBFB-2B756D51903B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRay.exe"/>
-    <ROW Component="GammaRayClientInner.exe" ComponentId="{71C71A41-339B-4089-9178-2B181A955CDE}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayClientInner.exe"/>
-    <ROW Component="GammaRayGuard.exe" ComponentId="{384F73A8-D56A-45EE-A0B6-6F1925C4D221}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayGuard.exe"/>
-    <ROW Component="GammaRayRender.exe" ComponentId="{E284186C-573A-4EA1-BEB5-567B2BA133F5}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayRender.exe"/>
-    <ROW Component="GammaRayService.exe" ComponentId="{ABBDEFA6-45C8-4E4F-BB58-EE021230CCEE}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayService.exe"/>
-    <ROW Component="GammaRayServiceManager.exe" ComponentId="{F10D363C-B93D-48B9-B709-0BD776A32C5E}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayServiceManager.exe"/>
-    <ROW Component="LICENSE" ComponentId="{3DD88327-76F3-44DA-A3A2-60E6D26D8BB5}" Directory_="roboto_Dir" Attributes="0" KeyPath="LICENSE" Type="0"/>
-    <ROW Component="LICENSE_1" ComponentId="{0D89160B-DE58-4BEC-9A7A-C23CE934E559}" Directory_="qt_material_Dir" Attributes="0" KeyPath="LICENSE_1" Type="0"/>
-    <ROW Component="Qt6Charts.dll" ComponentId="{1C4CC0A5-6E0E-4592-A57B-3EE89C58885B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Charts.dll"/>
-    <ROW Component="Qt6Core.dll" ComponentId="{3790DC4A-7332-4234-82FD-A5B6352EC74F}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Core.dll"/>
-    <ROW Component="Qt6Gui.dll" ComponentId="{CEA9E099-D263-495F-A241-BFE756B0DA4B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Gui.dll"/>
-    <ROW Component="Qt6Network.dll" ComponentId="{132CD304-B0DF-4C01-B15E-09AC3891B89E}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Network.dll"/>
-    <ROW Component="Qt6OpenGL.dll" ComponentId="{E408ACA9-5447-402B-9BDA-3AC088B627BC}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6OpenGL.dll"/>
-    <ROW Component="Qt6OpenGLWidgets.dll" ComponentId="{96ADECCA-67FE-418B-9902-9658DD374E24}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6OpenGLWidgets.dll"/>
-    <ROW Component="Qt6Svg.dll" ComponentId="{0FADA2B6-2365-4215-9ADC-1549CC849CA0}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Svg.dll"/>
-    <ROW Component="Qt6Widgets.dll" ComponentId="{9F39122E-1244-44A8-9313-C72DE1A33668}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Widgets.dll"/>
-    <ROW Component="SDL2.dll" ComponentId="{180783FA-8352-4C89-B60F-EBDE455D7BEA}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="SDL2.dll"/>
-    <ROW Component="ViGEmBus_1.22.0_x64_x86_arm64.exe" ComponentId="{82090428-FDAF-4912-8765-D571AE701FFE}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="ViGEmBus_1.22.0_x64_x86_arm64.exe"/>
-    <ROW Component="_library_600x900.jpg" ComponentId="{6CA34407-165F-412E-86D4-D7878A53B342}" Directory_="steam_covers_Dir" Attributes="0" KeyPath="_library_600x900.jpg" Type="0"/>
-    <ROW Component="avcodec59.dll" ComponentId="{B3B2B244-6EE6-4A68-A981-47813456881E}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avcodec59.dll"/>
-    <ROW Component="avdevice59.dll" ComponentId="{90EFB82D-8F27-4155-8EFC-08403DF77DDE}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avdevice59.dll"/>
-    <ROW Component="avfilter8.dll" ComponentId="{FC10AF1B-13EC-4910-BF7C-0E0817309994}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avfilter8.dll"/>
-    <ROW Component="avformat59.dll" ComponentId="{010B8455-3BEE-4A0F-BC18-F9073B4971E7}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avformat59.dll"/>
-    <ROW Component="avutil57.dll" ComponentId="{CB027048-12F7-41AE-8D7B-6060C11063A0}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avutil57.dll"/>
-    <ROW Component="base.svg" ComponentId="{C2459D9A-5AE0-40C0-9325-CFA6CFEB73CD}" Directory_="resources_1_Dir" Attributes="0" KeyPath="base.svg" Type="0"/>
-    <ROW Component="d3dcompiler_47.dll" ComponentId="{9707678C-696A-4483-841A-12FE2C2FE25F}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="d3dcompiler_47.dll"/>
-    <ROW Component="dark_amber.xml" ComponentId="{572D1770-3035-4A10-961A-63EB84B619EB}" Directory_="themes_Dir" Attributes="0" KeyPath="dark_amber.xml" Type="0"/>
-    <ROW Component="dxcompiler.dll" ComponentId="{5E9159B0-BD78-43CE-91B4-31D66CD93904}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="dxcompiler.dll"/>
-    <ROW Component="dxil.dll" ComponentId="{F6D19BD9-B491-4B03-B7ED-1B5590470429}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="dxil.dll"/>
-    <ROW Component="english.json" ComponentId="{5A0C8CDE-C2F7-4ADE-997F-5C00F3F73BA9}" Directory_="language_Dir" Attributes="0" KeyPath="english.json" Type="0"/>
-    <ROW Component="fftw3.dll" ComponentId="{A8FAA27D-029F-48CE-9C41-A8A5FBD159D1}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="fftw3.dll"/>
-    <ROW Component="gflags.dll" ComponentId="{AB2DBFFA-4C3A-489F-A54F-6CEB420EDCDD}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gflags.dll"/>
-    <ROW Component="gmock.dll" ComponentId="{24B5F42F-C0C9-4E32-B8CA-F825D7C9A75F}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gmock.dll"/>
-    <ROW Component="gr_client_icon.ico" ComponentId="{7BFCEEC4-87ED-4865-ABCC-6207465BBA84}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="gr_client_icon.ico" Type="0"/>
-    <ROW Component="gtest.dll" ComponentId="{23EF4EB3-D17C-40E6-B12A-8F619B0517B4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gtest.dll"/>
-    <ROW Component="gtest_main.dll" ComponentId="{FDE1826C-E10C-418F-A566-EF1E5CD7AA0A}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gtest_main.dll"/>
-    <ROW Component="jemalloc.dll" ComponentId="{744F8D86-DA7B-40D6-A42B-4224EED0ED58}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="jemalloc.dll"/>
-    <ROW Component="leveldbutil.exe" ComponentId="{6D225869-884B-4AAC-BF34-283AE1576CDB}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="leveldbutil.exe"/>
-    <ROW Component="libcrypto3x64.dll" ComponentId="{75E456BB-43AB-4996-8928-D05FC5D6AB58}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libcrypto3x64.dll"/>
-    <ROW Component="libssl3x64.dll" ComponentId="{180C3DE7-42FA-4D3D-9F9B-772E23B1C18A}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libssl3x64.dll"/>
-    <ROW Component="libyuv.dll" ComponentId="{EFF376C7-845E-49BF-8FBC-098758C365C4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libyuv.dll"/>
-    <ROW Component="logo.svg" ComponentId="{DE4A038F-A6D2-4B71-8CFF-AA6D15D77F30}" Directory_="logo_Dir" Attributes="0" KeyPath="logo.svg" Type="0"/>
-    <ROW Component="opencv_world4100.dll" ComponentId="{385AE19E-DC14-447F-9DC3-D14F921DB376}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="opencv_world4100.dll"/>
-    <ROW Component="opengl32sw.dll" ComponentId="{C2465E13-05FF-4772-8A0C-5DB1894D8CDB}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="opengl32sw.dll"/>
-    <ROW Component="panel_companion.dll" ComponentId="{E6F16C9D-BB32-4B6D-A61A-ECA6196276C5}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="panel_companion.dll"/>
-    <ROW Component="password" ComponentId="{2AF6809F-4D53-4FC6-AE4C-F14D141C3C3C}" Directory_="certs_Dir" Attributes="0" KeyPath="password" Type="0"/>
-    <ROW Component="plugin_amf_encoder.dll" ComponentId="{746C715B-EADE-4456-B769-A9009424904E}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_amf_encoder.dll"/>
-    <ROW Component="plugin_amf_encoder.dll.toml" ComponentId="{219FA7DB-73D0-46DE-BA1A-F214B5709D20}" Directory_="gr_plugins_Dir" Attributes="0" KeyPath="plugin_amf_encoder.dll.toml" Type="0"/>
-    <ROW Component="plugin_client_clipboard.dll" ComponentId="{E0B01F47-F654-4099-929C-080E3DF4C750}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_client_clipboard.dll"/>
-    <ROW Component="plugin_client_clipboard.dll.toml" ComponentId="{E29BFD0A-A9D0-42F6-89BA-F41EC5F50ED7}" Directory_="gr_plugins_client_Dir" Attributes="0" KeyPath="plugin_client_clipboard.dll.toml" Type="0"/>
-    <ROW Component="plugin_clipboard.dll" ComponentId="{8FA47D10-3086-409F-BC37-67939FB85EB9}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_clipboard.dll"/>
-    <ROW Component="plugin_dda_capture.dll" ComponentId="{FC192CB1-D395-476D-9508-B78612AD3007}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_dda_capture.dll"/>
-    <ROW Component="plugin_event_replayer.dll" ComponentId="{7C9BD642-4BFD-4407-AC8E-C8A061EEDF7E}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_event_replayer.dll"/>
-    <ROW Component="plugin_ffmpeg_encoder.dll" ComponentId="{C05EF32D-F7BA-4F82-82FB-63EC414AA984}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_ffmpeg_encoder.dll"/>
-    <ROW Component="plugin_file_transfer.dll" ComponentId="{66D42C83-6BFA-436C-9879-DB556A934F12}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_file_transfer.dll"/>
-    <ROW Component="plugin_file_transfer_client.dll" ComponentId="{11C2737C-7701-41E5-BFFA-0141C2FF04CD}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_file_transfer_client.dll"/>
-    <ROW Component="plugin_frame_carrier.dll" ComponentId="{6CDE7E54-4900-4F3F-86F8-48A14DD009F5}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_carrier.dll"/>
-    <ROW Component="plugin_frame_debugger.dll" ComponentId="{FC56BB12-0564-4765-BC1C-3C20D2D93808}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_debugger.dll"/>
-    <ROW Component="plugin_frame_resizer.dll" ComponentId="{2F2B5F0B-16A0-44FE-B48E-46334999C0BA}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_resizer.dll"/>
-    <ROW Component="plugin_gdi_capture.dll" ComponentId="{95F6AAD2-E4E5-4707-9358-241F524EE214}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_gdi_capture.dll"/>
-    <ROW Component="plugin_joystick.dll" ComponentId="{56C2BDA5-DDE1-4EE8-8F27-9871C2084B15}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_joystick.dll"/>
-    <ROW Component="plugin_media_record_client.dll" ComponentId="{E5ADC309-55A6-4DA3-B4C8-9533C38EBC7C}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_media_record_client.dll"/>
-    <ROW Component="plugin_media_recorder.dll" ComponentId="{F6D60910-53D0-432E-A6DC-E267D17145AF}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_media_recorder.dll"/>
-    <ROW Component="plugin_mock_video_stream.dll" ComponentId="{9DED604C-D8F3-4C70-A537-70D21BCA1B64}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_mock_video_stream.dll"/>
-    <ROW Component="plugin_net_relay.dll" ComponentId="{5E4EDF42-DDEA-41F9-82B4-ACA6C9424067}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_relay.dll"/>
-    <ROW Component="plugin_net_rtc.dll" ComponentId="{892F6C19-40B3-4ED6-93AF-FA4CA5596427}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_rtc.dll"/>
-    <ROW Component="plugin_net_rtc_local.dll" ComponentId="{1748FB0B-35F8-4967-9A48-A6F8C87D0391}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_rtc_local.dll"/>
-    <ROW Component="plugin_net_udp.dll" ComponentId="{0678428C-65CA-4672-98CE-6EF2E59520C9}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_udp.dll"/>
-    <ROW Component="plugin_net_ws.dll" ComponentId="{C2C656F5-A1D7-444A-91F0-1D6A6D4FB32E}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_ws.dll"/>
-    <ROW Component="plugin_nvenc_encoder.dll" ComponentId="{86A466B5-8BBC-46A6-B4AC-9BD09057A482}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_nvenc_encoder.dll"/>
-    <ROW Component="plugin_obj_detector.dll" ComponentId="{5AF76FC4-C2EF-40E6-B582-3D2D8B53B4B2}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_obj_detector.dll"/>
-    <ROW Component="plugin_opus_encoder.dll" ComponentId="{556AA6BF-AE7B-448B-996B-3FC84D90A9A2}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_opus_encoder.dll"/>
-    <ROW Component="plugin_ssl_proxy.dll" ComponentId="{4BA4DDA6-DB08-4CD1-8FB9-F120C13A6A56}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_ssl_proxy.dll"/>
-    <ROW Component="plugin_was_audio_capture.dll" ComponentId="{FFDB7D87-BCB1-404D-B07C-0B817E2FE45A}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_was_audio_capture.dll"/>
-    <ROW Component="png" ComponentId="{03193879-F63F-452C-96F6-62C63A4E29CC}" Directory_="resources_Dir" Attributes="0" KeyPath="png" Type="0"/>
-    <ROW Component="postproc56.dll" ComponentId="{FDF43861-26B1-4E46-AC68-FDB4EF15FB66}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="postproc56.dll"/>
-    <ROW Component="qcertonlybackend.dll" ComponentId="{0D619641-4D17-40D7-8E4B-4614D73E90D4}" Directory_="tls_Dir" Attributes="256" KeyPath="qcertonlybackend.dll"/>
-    <ROW Component="qgif.dll" ComponentId="{BC59C47B-C801-4201-B0B2-EC07AB4DA9ED}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qgif.dll"/>
-    <ROW Component="qicns.dll" ComponentId="{49ED7EB7-C146-4A27-A842-6CAF70581B1E}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qicns.dll"/>
-    <ROW Component="qico.dll" ComponentId="{517E95C2-D853-4C65-BFE8-1C21F336C45E}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qico.dll"/>
-    <ROW Component="qjpeg.dll" ComponentId="{B7D0162A-DD8A-4A36-9C06-8D1EC24A3FAB}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qjpeg.dll"/>
-    <ROW Component="qmodernwindowsstyle.dll" ComponentId="{912153C3-8A53-4621-A8FD-413C3BEDC410}" Directory_="styles_Dir" Attributes="256" KeyPath="qmodernwindowsstyle.dll"/>
-    <ROW Component="qnetworklistmanager.dll" ComponentId="{3EC717DD-5980-457F-813B-AED054FA90D7}" Directory_="networkinformation_Dir" Attributes="256" KeyPath="qnetworklistmanager.dll"/>
-    <ROW Component="qschannelbackend.dll" ComponentId="{0C9402A6-7C0C-426D-8361-9446BBBB1151}" Directory_="tls_Dir" Attributes="256" KeyPath="qschannelbackend.dll"/>
-    <ROW Component="qsvg.dll" ComponentId="{6572A602-8147-4256-AF86-D2DE65C82599}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qsvg.dll"/>
-    <ROW Component="qsvgicon.dll" ComponentId="{71372797-6E67-4439-BF74-84DBE213089D}" Directory_="iconengines_Dir" Attributes="256" KeyPath="qsvgicon.dll"/>
-    <ROW Component="qtga.dll" ComponentId="{773F5B41-00ED-4946-BEDC-0919A72C1320}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qtga.dll"/>
-    <ROW Component="qtiff.dll" ComponentId="{9D2BBF04-DB33-47FA-BA5E-51F1E305968C}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qtiff.dll"/>
-    <ROW Component="qtuiotouchplugin.dll" ComponentId="{E2D3B253-8EAD-4C44-8E04-62D9A5E99EE9}" Directory_="generic_Dir" Attributes="256" KeyPath="qtuiotouchplugin.dll"/>
-    <ROW Component="qwbmp.dll" ComponentId="{A3FE7668-179B-44CA-BF50-8813F0F7C66C}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qwbmp.dll"/>
-    <ROW Component="qwebp.dll" ComponentId="{0FCE1135-99FB-42C4-AC23-A31BEBB33140}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qwebp.dll"/>
-    <ROW Component="qwindows.dll" ComponentId="{605604F4-78C3-44F8-9B7A-A516DFD66DDE}" Directory_="platforms_Dir" Attributes="256" KeyPath="qwindows.dll"/>
-    <ROW Component="shadow_deleter.exe" ComponentId="{91830FF4-60C7-4419-B044-4BFE0EA9A493}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="shadow_deleter.exe"/>
-    <ROW Component="swresample4.dll" ComponentId="{072C6C25-3C12-4803-97C1-A1F4FF1AB64B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="swresample4.dll"/>
-    <ROW Component="swscale6.dll" ComponentId="{7D6AEC95-F63B-4D2F-813F-89CB9C4E1BA4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="swscale6.dll"/>
-    <ROW Component="tc_client_panel_message.proto" ComponentId="{2A4E8A8B-20F0-4292-ABE4-F550209DB638}" Directory_="proto_Dir" Attributes="0" KeyPath="tc_client_panel_message.proto" Type="0"/>
-    <ROW Component="tc_graphics.dll" ComponentId="{437E5E62-F4E2-4C0E-804B-ABBE773C21B8}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics.dll"/>
-    <ROW Component="tc_graphics_offsets.exe" ComponentId="{8BA9796E-A0C0-463F-A9C2-88B82C497D76}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics_offsets.exe"/>
-    <ROW Component="tc_graphics_util.exe" ComponentId="{8B595C40-ED03-4A3F-9B60-76CFE134FFD4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics_util.exe"/>
-    <ROW Component="tc_rtc_client.dll" ComponentId="{C99E9A4E-A3E5-4618-843F-736C0E1181A8}" Directory_="gr_client_Dir" Attributes="256" KeyPath="tc_rtc_client.dll"/>
+    <ROW Component="GammaRay.exe" ComponentId="{4EEE6DDA-F644-4B4B-A8EA-D0BBEF0E3630}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRay.exe"/>
+    <ROW Component="GammaRayClientInner.exe" ComponentId="{843895FA-3524-405F-9F6D-8135D67B6E2F}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayClientInner.exe"/>
+    <ROW Component="GammaRayGuard.exe" ComponentId="{355D4F14-5824-41C8-BB64-BA8E374B409D}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayGuard.exe"/>
+    <ROW Component="GammaRayRender.exe" ComponentId="{7402B0E6-1369-46AB-A1CE-68769CF2BD1E}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayRender.exe"/>
+    <ROW Component="GammaRayService.exe" ComponentId="{E37EC142-F693-4584-AFE1-A436B94F4CB8}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayService.exe"/>
+    <ROW Component="GammaRayServiceManager.exe" ComponentId="{C286DA64-FBAA-446E-A9DC-B491D84ECA43}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="GammaRayServiceManager.exe"/>
+    <ROW Component="LICENSE" ComponentId="{F48375D0-4C87-4474-A485-320A780C5682}" Directory_="roboto_Dir" Attributes="0" KeyPath="LICENSE" Type="0"/>
+    <ROW Component="LICENSE_1" ComponentId="{EEC20E46-FDC9-4FBA-9891-444427032D9A}" Directory_="qt_material_Dir" Attributes="0" KeyPath="LICENSE_1" Type="0"/>
+    <ROW Component="Qt6Charts.dll" ComponentId="{9301E4E8-8FD5-46B7-AEE3-3257E583C7DA}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Charts.dll"/>
+    <ROW Component="Qt6Core.dll" ComponentId="{822E18C2-68D0-462D-956B-11254BDE63FF}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Core.dll"/>
+    <ROW Component="Qt6Gui.dll" ComponentId="{0D84EE92-4153-4ED3-A160-9785F4E809F2}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Gui.dll"/>
+    <ROW Component="Qt6Network.dll" ComponentId="{E5459715-A9CE-4CC7-BDEF-BCBE4E945BA9}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Network.dll"/>
+    <ROW Component="Qt6OpenGL.dll" ComponentId="{915D9129-30F7-4B82-9895-6201E434F7FF}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6OpenGL.dll"/>
+    <ROW Component="Qt6OpenGLWidgets.dll" ComponentId="{65ED1521-1FB9-4C71-A0C1-08D535592562}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6OpenGLWidgets.dll"/>
+    <ROW Component="Qt6Svg.dll" ComponentId="{6E028286-DB63-472C-876B-F8F2E7C9C83C}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Svg.dll"/>
+    <ROW Component="Qt6Widgets.dll" ComponentId="{F27C4A7C-BD2A-4870-92CC-301A0EF994B5}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="Qt6Widgets.dll"/>
+    <ROW Component="SDL2.dll" ComponentId="{7AEC1B09-8026-4E3A-B8D4-1F3EAE9EEE99}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="SDL2.dll"/>
+    <ROW Component="ViGEmBus_1.22.0_x64_x86_arm64.exe" ComponentId="{27FC013B-4815-40E2-9AD7-9FC0A53A4385}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="ViGEmBus_1.22.0_x64_x86_arm64.exe"/>
+    <ROW Component="_library_600x900.jpg" ComponentId="{F94164E3-6498-4DA6-AA9C-AD0C0F0F1793}" Directory_="steam_covers_Dir" Attributes="0" KeyPath="_library_600x900.jpg" Type="0"/>
+    <ROW Component="avcodec59.dll" ComponentId="{D1D25390-BDC2-4008-8B3F-9EF9A1ACDE2C}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avcodec59.dll"/>
+    <ROW Component="avdevice59.dll" ComponentId="{B01175AB-7577-4ADA-8200-398AAEEC5B35}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avdevice59.dll"/>
+    <ROW Component="avfilter8.dll" ComponentId="{FE7E3B5D-1B53-423F-AB2B-F0F960C2E531}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avfilter8.dll"/>
+    <ROW Component="avformat59.dll" ComponentId="{BBDD879B-492B-4D4A-82DC-068BBCF82133}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avformat59.dll"/>
+    <ROW Component="avutil57.dll" ComponentId="{0AC63537-A1C6-4E2D-8999-81C00F0AEB2B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="avutil57.dll"/>
+    <ROW Component="base.svg" ComponentId="{873E9E0B-10F2-40C0-ABD8-B8C2CA814AA8}" Directory_="resources_1_Dir" Attributes="0" KeyPath="base.svg" Type="0"/>
+    <ROW Component="d3dcompiler_47.dll" ComponentId="{0A3593DB-C42A-4C1E-8889-4D7A860688AB}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="d3dcompiler_47.dll"/>
+    <ROW Component="dark_amber.xml" ComponentId="{7F42FA5D-EAAE-4697-A2B5-021673F57494}" Directory_="themes_Dir" Attributes="0" KeyPath="dark_amber.xml" Type="0"/>
+    <ROW Component="dxcompiler.dll" ComponentId="{0163BA31-D3B5-4BCE-8F47-D3EC6B58A8A4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="dxcompiler.dll"/>
+    <ROW Component="dxil.dll" ComponentId="{C5AC5F9E-EDD6-473B-AB12-7A3E7EE2308E}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="dxil.dll"/>
+    <ROW Component="english.json" ComponentId="{11632853-F967-4FE4-8DAD-D178F71874D0}" Directory_="language_Dir" Attributes="0" KeyPath="english.json" Type="0"/>
+    <ROW Component="fftw3.dll" ComponentId="{4E0E037A-FFF6-44B0-A034-44BEB6A1B708}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="fftw3.dll"/>
+    <ROW Component="gflags.dll" ComponentId="{FBE4AD54-A4F2-4292-851C-5D64B30FFC6A}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gflags.dll"/>
+    <ROW Component="gmock.dll" ComponentId="{B4E92536-873F-4F20-93D8-4BDFE6D7E1B0}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gmock.dll"/>
+    <ROW Component="gr_client_icon.ico" ComponentId="{08B9A390-6334-4902-88F1-1D437C6F6C00}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="gr_client_icon.ico" Type="0"/>
+    <ROW Component="gtest.dll" ComponentId="{2B74F838-67F9-46B3-90FB-5323596C129A}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gtest.dll"/>
+    <ROW Component="gtest_main.dll" ComponentId="{44E1A516-676F-420D-A07F-6D622E634FC2}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="gtest_main.dll"/>
+    <ROW Component="jemalloc.dll" ComponentId="{C2BDB89E-CDCB-40DA-A24C-A97CD708D520}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="jemalloc.dll"/>
+    <ROW Component="leveldbutil.exe" ComponentId="{7BF5ABD2-F913-489F-B1E6-FD4A0B884A31}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="leveldbutil.exe"/>
+    <ROW Component="libcrypto3x64.dll" ComponentId="{D4EE25A7-9101-4A68-898F-EAE895D9AA1F}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libcrypto3x64.dll"/>
+    <ROW Component="libssl3x64.dll" ComponentId="{55BE88A2-F0B1-4CF8-9A47-4D3F4DB3B948}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libssl3x64.dll"/>
+    <ROW Component="libyuv.dll" ComponentId="{ACE6808A-10A6-4208-9AD0-879085AA6EF7}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="libyuv.dll"/>
+    <ROW Component="logo.svg" ComponentId="{B31198D3-1654-4582-A1A8-D97E9DB8E81A}" Directory_="logo_Dir" Attributes="0" KeyPath="logo.svg" Type="0"/>
+    <ROW Component="opencv_world4100.dll" ComponentId="{B9DF593C-E7E7-4BD1-A000-2028F9E3A642}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="opencv_world4100.dll"/>
+    <ROW Component="opengl32sw.dll" ComponentId="{2708D278-3BA3-43F7-A0B2-06C6CF5FDDB8}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="opengl32sw.dll"/>
+    <ROW Component="panel_companion.dll" ComponentId="{F927339A-8059-4B80-B9E9-C37155CA0EE3}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="panel_companion.dll"/>
+    <ROW Component="password" ComponentId="{5D758F9E-705B-4A55-8EFD-9AD347A54A19}" Directory_="certs_Dir" Attributes="0" KeyPath="password" Type="0"/>
+    <ROW Component="plugin_amf_encoder.dll" ComponentId="{E0AAF809-E699-4DB9-BC49-E71A2040589B}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_amf_encoder.dll"/>
+    <ROW Component="plugin_amf_encoder.dll.toml" ComponentId="{98BAFE29-5694-4FB5-86EB-E4F6063D1437}" Directory_="gr_plugins_Dir" Attributes="0" KeyPath="plugin_amf_encoder.dll.toml" Type="0"/>
+    <ROW Component="plugin_client_clipboard.dll" ComponentId="{38E109E4-17E4-4789-84E2-79476D7D4E7B}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_client_clipboard.dll"/>
+    <ROW Component="plugin_client_clipboard.dll.toml" ComponentId="{1CAFA311-DE2C-4F45-92E4-631D9500209F}" Directory_="gr_plugins_client_Dir" Attributes="0" KeyPath="plugin_client_clipboard.dll.toml" Type="0"/>
+    <ROW Component="plugin_clipboard.dll" ComponentId="{B8B530D8-5FC8-414F-ABE4-9F2DE7E53596}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_clipboard.dll"/>
+    <ROW Component="plugin_dda_capture.dll" ComponentId="{3578F88A-D959-41D8-8EE0-93B4D8618A2B}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_dda_capture.dll"/>
+    <ROW Component="plugin_event_replayer.dll" ComponentId="{C7606036-B05E-4D7C-863C-A310AB94D224}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_event_replayer.dll"/>
+    <ROW Component="plugin_ffmpeg_encoder.dll" ComponentId="{9BD16CD9-8B61-4721-8383-70358E6D5E8E}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_ffmpeg_encoder.dll"/>
+    <ROW Component="plugin_file_transfer.dll" ComponentId="{645E6451-C369-477D-AD41-54309F05A2D7}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_file_transfer.dll"/>
+    <ROW Component="plugin_file_transfer_client.dll" ComponentId="{86BEAD86-578C-4A24-957B-159561194046}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_file_transfer_client.dll"/>
+    <ROW Component="plugin_frame_carrier.dll" ComponentId="{B65415C5-49D0-4C73-AC0A-1A8691792204}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_carrier.dll"/>
+    <ROW Component="plugin_frame_debugger.dll" ComponentId="{6906B68D-120B-4739-AAC7-741BB07D5772}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_debugger.dll"/>
+    <ROW Component="plugin_frame_resizer.dll" ComponentId="{0ED88244-77F4-40C8-AB72-491D92B5A75D}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_frame_resizer.dll"/>
+    <ROW Component="plugin_gdi_capture.dll" ComponentId="{2F3C2D8B-E8A6-4B7B-B03E-2EB05DD94CC0}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_gdi_capture.dll"/>
+    <ROW Component="plugin_joystick.dll" ComponentId="{83ADB04B-C910-4057-B988-62469FE9EFFE}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_joystick.dll"/>
+    <ROW Component="plugin_media_record_client.dll" ComponentId="{6B227357-7D09-4964-9F36-DF0855A7F6BB}" Directory_="gr_plugins_client_Dir" Attributes="256" KeyPath="plugin_media_record_client.dll"/>
+    <ROW Component="plugin_media_recorder.dll" ComponentId="{8BAFBD4E-11D4-41F9-91DE-F79F8F0FD321}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_media_recorder.dll"/>
+    <ROW Component="plugin_mock_video_stream.dll" ComponentId="{FEABC00F-F37E-4A9C-975B-8371D26D2D17}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_mock_video_stream.dll"/>
+    <ROW Component="plugin_net_relay.dll" ComponentId="{F1C7EF39-78E8-44A6-AA65-7807701F6F9F}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_relay.dll"/>
+    <ROW Component="plugin_net_rtc.dll" ComponentId="{C7EEDFFA-AB27-4C89-85E1-F226BCFCECDA}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_rtc.dll"/>
+    <ROW Component="plugin_net_rtc_local.dll" ComponentId="{00A031F1-5840-4FCE-8146-F2B9DF4F3ACB}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_rtc_local.dll"/>
+    <ROW Component="plugin_net_udp.dll" ComponentId="{ACF9835A-0F96-4CE5-A2EF-F3FA2F2D21F6}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_udp.dll"/>
+    <ROW Component="plugin_net_ws.dll" ComponentId="{805709B7-695C-4623-AF23-F7564DF149D7}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_net_ws.dll"/>
+    <ROW Component="plugin_nvenc_encoder.dll" ComponentId="{DC6B0B84-22E3-46CE-BA02-BC5EB96494D2}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_nvenc_encoder.dll"/>
+    <ROW Component="plugin_obj_detector.dll" ComponentId="{0C1C3BF7-8FCB-4932-A01C-4C83212C6ECE}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_obj_detector.dll"/>
+    <ROW Component="plugin_opus_encoder.dll" ComponentId="{689C8A0C-A758-42AD-AE14-9CBDAA161346}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_opus_encoder.dll"/>
+    <ROW Component="plugin_ssl_proxy.dll" ComponentId="{7E6D66D7-8282-46FE-A750-2E68C805C3F9}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_ssl_proxy.dll"/>
+    <ROW Component="plugin_was_audio_capture.dll" ComponentId="{FBB00C76-D3EC-417F-AC3B-484A0730D16D}" Directory_="gr_plugins_Dir" Attributes="256" KeyPath="plugin_was_audio_capture.dll"/>
+    <ROW Component="png" ComponentId="{80290C41-616D-44BA-B877-AAD9DB4C46AA}" Directory_="resources_Dir" Attributes="0" KeyPath="png" Type="0"/>
+    <ROW Component="postproc56.dll" ComponentId="{7371AAA2-2576-41E5-98B9-049A9E8BB2C6}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="postproc56.dll"/>
+    <ROW Component="qcertonlybackend.dll" ComponentId="{A4D4536C-3876-4FE2-8C5B-8BD5B41654D6}" Directory_="tls_Dir" Attributes="256" KeyPath="qcertonlybackend.dll"/>
+    <ROW Component="qgif.dll" ComponentId="{494C43EA-735E-4EEF-9320-44F370649F79}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qgif.dll"/>
+    <ROW Component="qicns.dll" ComponentId="{949C856F-A905-4D8E-AA69-8FE36B360843}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qicns.dll"/>
+    <ROW Component="qico.dll" ComponentId="{042489AF-359D-4A06-ABDC-157960F6C7D8}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qico.dll"/>
+    <ROW Component="qjpeg.dll" ComponentId="{AF80591B-EB42-42BF-8D80-46FB3C85C8A2}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qjpeg.dll"/>
+    <ROW Component="qmodernwindowsstyle.dll" ComponentId="{F2E4D7E0-A417-401C-9E0C-DE723F7E02AF}" Directory_="styles_Dir" Attributes="256" KeyPath="qmodernwindowsstyle.dll"/>
+    <ROW Component="qnetworklistmanager.dll" ComponentId="{FC6766E5-35D3-476C-9EC8-86BE223E096F}" Directory_="networkinformation_Dir" Attributes="256" KeyPath="qnetworklistmanager.dll"/>
+    <ROW Component="qschannelbackend.dll" ComponentId="{664020E3-F2C8-4807-B151-48EDDFB67072}" Directory_="tls_Dir" Attributes="256" KeyPath="qschannelbackend.dll"/>
+    <ROW Component="qsvg.dll" ComponentId="{45C189B3-4A12-4CB8-A467-24DF23228CB8}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qsvg.dll"/>
+    <ROW Component="qsvgicon.dll" ComponentId="{7EC2D12B-9D81-48CD-AFC8-A14627F838F9}" Directory_="iconengines_Dir" Attributes="256" KeyPath="qsvgicon.dll"/>
+    <ROW Component="qtga.dll" ComponentId="{55F8D36C-9B1F-4843-A23A-75C98E3E7464}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qtga.dll"/>
+    <ROW Component="qtiff.dll" ComponentId="{9B714084-2772-4077-91AB-87A5196B99D6}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qtiff.dll"/>
+    <ROW Component="qtuiotouchplugin.dll" ComponentId="{F9A04770-F8CA-4EC5-9A5D-9DF21C930CD8}" Directory_="generic_Dir" Attributes="256" KeyPath="qtuiotouchplugin.dll"/>
+    <ROW Component="qwbmp.dll" ComponentId="{1E9BA426-1293-4F79-9CA3-39D3F8529EFC}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qwbmp.dll"/>
+    <ROW Component="qwebp.dll" ComponentId="{34DEE159-909A-4F9D-BCC9-0BE20BAF60AB}" Directory_="imageformats_Dir" Attributes="256" KeyPath="qwebp.dll"/>
+    <ROW Component="qwindows.dll" ComponentId="{1AA09F70-CA9E-4A09-B63B-B0EF1F085C8C}" Directory_="platforms_Dir" Attributes="256" KeyPath="qwindows.dll"/>
+    <ROW Component="shadow_deleter.exe" ComponentId="{5784B5AE-8CAA-47AD-A86B-A0D8FDD18466}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="shadow_deleter.exe"/>
+    <ROW Component="swresample4.dll" ComponentId="{7F4A9E5C-6EAF-4DAC-815C-29347749E6A1}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="swresample4.dll"/>
+    <ROW Component="swscale6.dll" ComponentId="{B94DA526-6447-4B73-8772-DCB47517555B}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="swscale6.dll"/>
+    <ROW Component="tc_client_panel_message.proto" ComponentId="{AEF60D8B-AA5C-42CE-AD92-3C635C76D43B}" Directory_="proto_Dir" Attributes="0" KeyPath="tc_client_panel_message.proto" Type="0"/>
+    <ROW Component="tc_graphics.dll" ComponentId="{8EA957F4-E091-42E5-8D94-9436773AF7AA}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics.dll"/>
+    <ROW Component="tc_graphics_offsets.exe" ComponentId="{BB130FC8-961B-43F0-B02A-EC9203351244}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics_offsets.exe"/>
+    <ROW Component="tc_graphics_util.exe" ComponentId="{61BDE499-8F7B-46D2-90F0-C55A137F91E4}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="tc_graphics_util.exe"/>
+    <ROW Component="tc_rtc_client.dll" ComponentId="{2BE549D9-BA42-40BD-AE3C-5E5E745C4414}" Directory_="gr_client_Dir" Attributes="256" KeyPath="tc_rtc_client.dll"/>
     <ROW Component="uninstall.exe" ComponentId="{8895270F-E4FC-407E-8ECC-9B5824A5BADA}" Directory_="GammaRay_Dir" Attributes="256" KeyPath="uninstall.exe"/>
-    <ROW Component="vc_redist.x64.exe" ComponentId="{4BDC1143-C9EE-4D6A-B435-B8847649B967}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="vc_redist.x64.exe"/>
+    <ROW Component="vc_redist.x64.exe" ComponentId="{574261D6-DBC5-4CDA-8715-2C77CBF10CDE}" Directory_="GammaRay_Dir" Attributes="0" KeyPath="vc_redist.x64.exe"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiFeatsComponent">
     <ROW Feature="C4FE6FD5B7C4D07B3A313E754A9A6A8" Title="Visual C++ Redistributable for Visual Studio 2015-2022 x64" Description="Visual C++ Redistributable for Visual Studio 2015-2022 x64" Display="3" Level="1" Attributes="0"/>
@@ -186,6 +186,7 @@
     <ATTRIBUTE name="CurrentFeature" value="MainFeature"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiFilesComponent">
+    <ROW File="uninstall.exe" Component_="uninstall.exe" FileName="UNINST~1.EXE|uninstall.exe" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\uninstall.exe" SelfReg="false" DigSign="true"/>
     <ROW File="avcodec59.dll" Component_="avcodec59.dll" FileName="AVCODE~1.DLL|avcodec-59.dll" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\avcodec-59.dll" SelfReg="false"/>
     <ROW File="avdevice59.dll" Component_="avdevice59.dll" FileName="AVDEVI~1.DLL|avdevice-59.dll" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\avdevice-59.dll" SelfReg="false"/>
     <ROW File="avfilter8.dll" Component_="avfilter8.dll" FileName="AVFILT~1.DLL|avfilter-8.dll" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\avfilter-8.dll" SelfReg="false"/>
@@ -421,7 +422,6 @@
     <ROW File="tc_graphics_util.exe" Component_="tc_graphics_util.exe" FileName="TC_GRA~2.EXE|tc_graphics_util.exe" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\tc_graphics_util.exe" SelfReg="false" DigSign="true"/>
     <ROW File="qcertonlybackend.dll" Component_="qcertonlybackend.dll" FileName="QCERTO~1.DLL|qcertonlybackend.dll" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\tls\qcertonlybackend.dll" SelfReg="false"/>
     <ROW File="qschannelbackend.dll" Component_="qschannelbackend.dll" FileName="QSCHAN~1.DLL|qschannelbackend.dll" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\tls\qschannelbackend.dll" SelfReg="false"/>
-    <ROW File="uninstall.exe" Component_="uninstall.exe" FileName="UNINST~1.EXE|uninstall.exe" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\uninstall.exe" SelfReg="false" DigSign="true"/>
     <ROW File="vc_redist.x64.exe" Component_="vc_redist.x64.exe" FileName="VC_RED~1.EXE|vc_redist.x64.exe" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\vc_redist.x64.exe" SelfReg="false"/>
     <ROW File="ViGEmBus_1.22.0_x64_x86_arm64.exe" Component_="ViGEmBus_1.22.0_x64_x86_arm64.exe" FileName="VIGEMB~1.EXE|ViGEmBus_1.22.0_x64_x86_arm64.exe" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\ViGEmBus_1.22.0_x64_x86_arm64.exe" SelfReg="false"/>
     <ROW File="tc_client_panel_message.proto" Component_="tc_client_panel_message.proto" FileName="TC_CLI~1.PRO|tc_client_panel_message.proto" Attributes="0" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\web\proto\tc_client_panel_message.proto" SelfReg="false"/>
@@ -486,6 +486,7 @@
     <ROW Name="Prereq.dll" SourcePath="&lt;AI_CUSTACTS&gt;Prereq.dll"/>
     <ROW Name="ShortcutFlags.dll" SourcePath="&lt;AI_CUSTACTS&gt;ShortcutFlags.dll"/>
     <ROW Name="aicustact.dll" SourcePath="&lt;AI_CUSTACTS&gt;aicustact.dll"/>
+    <ROW Name="file_deleter.ps1" SourcePath="&lt;AI_SCRIPTS&gt;file_deleter.ps1"/>
     <ROW Name="lzmaextractor.dll" SourcePath="&lt;AI_CUSTACTS&gt;lzmaextractor.dll"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiControlComponent">
@@ -580,7 +581,7 @@
     <ROW Action="SET_SHORTCUTDIR" Type="307" Source="SHORTCUTDIR" Target="[ProgramMenuFolder][ProductName]"/>
     <ROW Action="SET_TARGETDIR_TO_APPDIR" Type="51" Source="TARGETDIR" Target="[APPDIR]"/>
     <ROW Action="StopService" Type="1" Source="aicustact.dll" Target="StopWinService" Options="1" AdditionalSeq="AI_DATA_SETTER_3"/>
-    <ROW Action="uninstall.exe" Type="1042" Source="uninstall.exe" Target="--option uninstall"/>
+    <ROW Action="uninstall.exe" Type="1106" Source="uninstall.exe" Target="--option uninstall"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiFeatCompsComponent">
     <ROW Feature_="MainFeature" Component_="APPDIR"/>
@@ -678,19 +679,20 @@
     <ROW Feature_="MainFeature" Component_="swresample4.dll"/>
     <ROW Feature_="MainFeature" Component_="swscale6.dll"/>
     <ROW Feature_="MainFeature" Component_="tc_graphics.dll"/>
+    <ROW Feature_="MainFeature" Component_="uninstall.exe"/>
     <ROW Feature_="MainFeature" Component_="tc_graphics_offsets.exe"/>
     <ROW Feature_="MainFeature" Component_="tc_graphics_util.exe"/>
     <ROW Feature_="MainFeature" Component_="qcertonlybackend.dll"/>
-    <ROW Feature_="MainFeature" Component_="qschannelbackend.dll"/>
-    <ROW Feature_="MainFeature" Component_="uninstall.exe"/>
-    <ROW Feature_="MainFeature" Component_="vc_redist.x64.exe"/>
-    <ROW Feature_="MainFeature" Component_="ViGEmBus_1.22.0_x64_x86_arm64.exe"/>
-    <ROW Feature_="MainFeature" Component_="tc_client_panel_message.proto"/>
     <ROW Feature_="MainFeature" Component_="AI_ExePath"/>
     <ROW Feature_="C4FE6FD5B7C4D07B3A313E754A9A6A8" Component_="C4FE6FD5B7C4D07B3A313E754A9A6A8"/>
     <ROW Feature_="C945BDDBD4164BEAA5A0B63FA0DC5" Component_="C945BDDBD4164BEAA5A0B63FA0DC5"/>
+    <ROW Feature_="MainFeature" Component_="qschannelbackend.dll"/>
+    <ROW Feature_="MainFeature" Component_="vc_redist.x64.exe"/>
+    <ROW Feature_="MainFeature" Component_="ViGEmBus_1.22.0_x64_x86_arm64.exe"/>
+    <ROW Feature_="MainFeature" Component_="tc_client_panel_message.proto"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiIconsComponent">
+    <ROW Name="GammaRay.exe" SourcePath="out\build\x64-RelDebug\src\GammaRay\package\GammaRay\gr_client_icon.ico" Index="0"/>
     <ROW Name="SystemFoldermsiexec.exe" SourcePath="&lt;AI_RES&gt;uninstall.ico" Index="0"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiInstExSeqComponent">
@@ -717,9 +719,15 @@
     <ROW Action="AI_MigrateInstallerProps" Condition="SETUPEXEDIR AND ((UILevel = 2) OR (UILevel = 3))" Sequence="6599"/>
     <ROW Action="AI_VerifyPrereq" Sequence="1101"/>
     <ROW Action="AI_AppSearchEx" Sequence="101"/>
-    <ROW Action="AI_DOWNGRADE" Condition="AI_NEWERPRODUCTFOUND AND (UILevel &lt;&gt; 5)" Sequence="201"/>
     <ROW Action="AI_RESTORE_LOCATION" Condition="APPDIR=&quot;&quot;" Sequence="748"/>
-    <ROW Action="uninstall.exe" Condition="( Installed AND ( REMOVE = &quot;ALL&quot; OR AI_INSTALL_MODE = &quot;Remove&quot; ) )" Sequence="6501"/>
+    <ROW Action="AI_DOWNGRADE" Condition="AI_NEWERPRODUCTFOUND AND (UILevel &lt;&gt; 5)" Sequence="201"/>
+    <ROW Action="uninstall.exe" Condition="( Installed AND ( REMOVE = &quot;ALL&quot; OR AI_INSTALL_MODE = &quot;Remove&quot; ) )" Sequence="1651"/>
+    <ROW Action="StopService" Sequence="6602"/>
+    <ROW Action="AI_DATA_SETTER_3" Sequence="6601"/>
+    <ROW Action="DeleteService" Sequence="6604"/>
+    <ROW Action="AI_DATA_SETTER_2" Sequence="6603"/>
+    <ROW Action="CleanUpProcess" Sequence="6606"/>
+    <ROW Action="AI_DATA_SETTER_1" Sequence="6605"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiInstallUISequenceComponent">
     <ROW Action="AI_PRESERVE_INSTALL_TYPE" Sequence="199"/>
@@ -737,15 +745,9 @@
     <ROW Action="AI_AppSearchEx" Sequence="101"/>
     <ROW Action="AI_SET_EXTENDER_IMAGES" Sequence="54" MsiKey="AI_SET_EXTENDER_IMAGES"/>
     <ROW Action="AI_SET_EXTEND_GLASS_DEFAULT" Sequence="55" MsiKey="AI_SET_EXTEND_GLASS_DEFAULT"/>
-    <ROW Action="AI_SET_EXTEND_GLASS" Sequence="82" MsiKey="AI_SET_EXTEND_GLASS"/>
-    <ROW Action="AI_SET_EXTENDER_IMAGES_SMALL" Sequence="83" MsiKey="AI_SET_EXTENDER_IMAGES_SMALL"/>
+    <ROW Action="AI_SET_EXTEND_GLASS" Sequence="76" MsiKey="AI_SET_EXTEND_GLASS"/>
+    <ROW Action="AI_SET_EXTENDER_IMAGES_SMALL" Sequence="77" MsiKey="AI_SET_EXTENDER_IMAGES_SMALL"/>
     <ROW Action="AI_RESTORE_LOCATION" Condition="APPDIR=&quot;&quot;" Sequence="748"/>
-    <ROW Action="CleanUpProcess" Sequence="81"/>
-    <ROW Action="AI_DATA_SETTER_1" Sequence="80"/>
-    <ROW Action="StopService" Sequence="77"/>
-    <ROW Action="AI_DATA_SETTER_3" Sequence="76"/>
-    <ROW Action="DeleteService" Sequence="79"/>
-    <ROW Action="AI_DATA_SETTER_2" Sequence="78"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiLaunchConditionsComponent">
     <ROW Condition="( Version9X OR ( NOT VersionNT64 ) OR ( VersionNT64 AND ((VersionNT64 &lt;&gt; 601) OR (MsiNTProductType &lt;&gt; 1)) AND ((VersionNT64 &lt;&gt; 601) OR (MsiNTProductType = 1)) AND ((VersionNT64 &lt;&gt; 602) OR (MsiNTProductType &lt;&gt; 1)) AND ((VersionNT64 &lt;&gt; 602) OR (MsiNTProductType = 1)) AND ((VersionNT64 &lt;&gt; 603) OR (MsiNTProductType &lt;&gt; 1)) AND ((VersionNT64 &lt;&gt; 603) OR (MsiNTProductType = 1)) ) )" Description="[ProductName] cannot be installed on the following Windows versions: [WindowsTypeNT64Display]." DescriptionLocId="AI.LaunchCondition.NoSpecificNT64" IsPredefined="true" Builds="DefaultBuild"/>
@@ -776,8 +778,8 @@
     <ROW Registry="Software" Root="-1" Key="Software" Name="\"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiShortsComponent">
-    <ROW Shortcut="GammaRay" Directory_="DesktopFolder" Name="GammaRay" Component_="GammaRay.exe" Target="[#GammaRay.exe]" Hotkey="0" IconIndex="0" ShowCmd="1" WkDir="GammaRay_Dir" CustomFlags="1"/>
-    <ROW Shortcut="UninstallProductNameProductVersion" Directory_="GammaRay_Dir" Name="UNINST~1.1|Uninstall [|ProductName] [|ProductVersion]" Component_="qico.dll" Target="[SystemFolder]msiexec.exe" Arguments="/x [ProductCode]" Hotkey="0" Icon_="SystemFoldermsiexec.exe" IconIndex="0" ShowCmd="1" WkDir="GammaRay_Dir" CustomFlags="1"/>
+    <ROW Shortcut="GammaRay" Directory_="DesktopFolder" Name="GammaRay" Component_="GammaRay.exe" Target="[#GammaRay.exe]" Hotkey="0" Icon_="GammaRay.exe" IconIndex="0" ShowCmd="1" WkDir="GammaRay_Dir" CustomFlags="1"/>
+    <ROW Shortcut="UninstallProductNameProductVersion" Directory_="GammaRay_Dir" Name="UNINST~1.2|Uninstall [|ProductName] [|ProductVersion]" Component_="uninstall.exe" Target="[SystemFolder]msiexec.exe" Arguments="/x [ProductCode]" Hotkey="0" Icon_="SystemFoldermsiexec.exe" IconIndex="0" ShowCmd="1"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiThemeComponent">
     <ATTRIBUTE name="UsedTheme" value="air"/>

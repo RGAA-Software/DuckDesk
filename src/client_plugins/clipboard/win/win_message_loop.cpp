@@ -71,10 +71,14 @@ namespace tc
         AddClipboardFormatListener(hwnd);
         LOGI("AddClipboardFormatListener already add WinMessageWindow");
 
+        /* 
+        * Under certain circumstances, even with administrator privileges, this function still fails to set and returns an error indicating insufficient permissions. 
+        * In the clipboard plugin, there is no need to monitor session-related messages, so this part has been commented out.
         if (!WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_ALL_SESSIONS)) {
-            LOGE("WTSRegisterSessionNotification error: %d", GetLastError());
+            LOGE("WTSRegisterSessionNotification error: {}", GetLastError());
             return;
         }
+        */
 
         HWINEVENTHOOK hEventHook = SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, nullptr, &WinMessageLoop::WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
 
