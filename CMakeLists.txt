@@ -94,6 +94,7 @@ find_package(OpenSSL REQUIRED)
 find_package(Drogon CONFIG REQUIRED)
 find_package(bsoncxx CONFIG REQUIRED)
 find_package(mongocxx CONFIG REQUIRED)
+find_package(cpr CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 

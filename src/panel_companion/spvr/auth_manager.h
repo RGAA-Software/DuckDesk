@@ -5,14 +5,25 @@
 #ifndef GAMMARAYPREMIUM_AUTH_MANAGER_H
 #define GAMMARAYPREMIUM_AUTH_MANAGER_H
 
+#include <memory>
+#include "tc_common_new/concurrent_type.h"
+
 namespace tc
 {
 
     class Authorization;
+    class PanelCompanionImpl;
 
     class AuthManager {
     public:
+        explicit AuthManager(PanelCompanionImpl* pc);
+        void OnTimer5S();
+        void RequestAuth();
+        std::shared_ptr<Authorization> GetAuth();
 
+    private:
+        PanelCompanionImpl* pc_ = nullptr;
+        tc::Mutex<std::shared_ptr<Authorization>> auth_;
     };
 
 }
