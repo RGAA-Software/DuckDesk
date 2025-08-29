@@ -46,7 +46,7 @@ namespace tc
         std::string GetAnswerSdp();
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
-        void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle);
+        void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
 
     private:
         void CreatePeerConnectionFactory();

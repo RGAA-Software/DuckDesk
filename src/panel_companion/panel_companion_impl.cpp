@@ -7,6 +7,8 @@
 #include "spvr/spvr_setting.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/thread.h"
+#include "tc_common_new/tc_aes.h"
+#include "tc_common_new/md5.h"
 
 void* GetInstance() {
     static tc::PanelCompanionImpl impl;
@@ -54,5 +56,13 @@ namespace tc
 
     void PanelCompanionImpl::PostNetTask(std::function<void()> &&task) {
         net_thread_->Post(std::move(task));
+    }
+
+    bool PanelCompanionImpl::EcnQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) {
+        const std::string user_key = MD5::Hex("U1J892%$m5s");
+        std::string key = user_key.substr(0, 16);
+        std::string iv = user_key.substr(user_key.length() - 16);
+        AesEncryptPcks7Cbc128(reinterpret_cast<const unsigned char*>(origin_content.c_str()), origin_content.size(),
+            reinterpret_cast<const unsigned char*>(key.c_str()), reinterpret_cast<const unsigned char*>(iv.c_str()), cipher_data);
     }
 }

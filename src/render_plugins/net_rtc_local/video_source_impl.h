@@ -18,11 +18,13 @@ namespace tc
 
     class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
-        NotifyFrameFrameBuffer(uint64_t frame_idx, int width, int height, uint64_t handle) {
+        NotifyFrameFrameBuffer(uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format) {
             this->frame_idx_ = frame_idx;
             this->width_ = width;
             this->height_ = height;
             this->handle_ = handle;
+            this->adapter_uid_ = adapter_uid;
+            this->frame_format_ = frame_format;
         }
 
         [[nodiscard]] Type type() const override {
@@ -45,11 +47,21 @@ namespace tc
             return handle_;
         }
 
+        [[nodiscard]] int64_t GetAdapterUid() {
+            return adapter_uid_;
+        }
+
+        [[nodiscard]] uint64_t GetFrameFormat() {
+            return adapter_uid_;
+        }
+
     private:
         uint64_t frame_idx_ = 0;
         int width_ = 0;
         int height_ = 0;
         uint64_t handle_ = 0;
+        int64_t adapter_uid_ = 0;
+        uint64_t frame_format_ = 0;
     };
 
     class VideoSourceImpl : public rtc::VideoSourceInterface<webrtc::VideoFrame> {

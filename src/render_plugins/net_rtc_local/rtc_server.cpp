@@ -315,7 +315,7 @@ namespace tc
         answer_sdp_callback_ = callback;
     }
 
-    void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle) {
+    void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
         if (!video_source_) {
             LOGE("Don't have video source");
             return;
@@ -335,7 +335,7 @@ namespace tc
         }
 
         auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_idx, frame_width, frame_height, handle);
+        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
         webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
                 set_video_frame_buffer(buffer).
                 set_timestamp_us(us).

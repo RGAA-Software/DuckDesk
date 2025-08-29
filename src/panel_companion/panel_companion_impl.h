@@ -29,6 +29,9 @@ namespace tc
         // Spvr
         void UpdateSpvrServerConfig(const std::string &host, int port) override;
 
+        // enc
+        bool EcnQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
+
     public:
         void PostNetTask(std::function<void()>&& task);
 

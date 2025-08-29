@@ -3,7 +3,12 @@
 #include "tc_common_new/time_util.h"
 #include "h264_sei_helper.h"
 #include "rtc_local_plugin.h"
+#include "video_source_impl.h"
+#include "settings/rd_settings.h"
+#include "plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
+#include "plugin_interface/gr_video_encoder_plugin.h"
+#include "plugin_interface/gr_frame_carrier_plugin.h"
 
 namespace tc
 {
@@ -70,12 +75,65 @@ namespace tc
             if (!frame_types->empty()) {
                 if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
                     LOGI("Rtc request to insert an I Frame.");
-                    plugin_->InsertIdr();
-                    return WEBRTC_VIDEO_CODEC_OK;
+                    //plugin_->InsertIdr();
+                    //return WEBRTC_VIDEO_CODEC_OK;   // 为什么直接返回了呢？
+                    // to do inseridr
                 }
             }
         }
 
+        rtc::scoped_refptr<NotifyFrameFrameBuffer> native_buffer = rtc::scoped_refptr<NotifyFrameFrameBuffer>(static_cast<NotifyFrameFrameBuffer*>(buffer.get()));
+        if (!native_buffer) {
+            RTC_LOG(LS_WARNING) << "Dynamic cast to NotifyFrameFrameBuffer failed";
+            return WEBRTC_VIDEO_CODEC_ERR_PARAMETER;
+        }
+
+        // to do encode
+
+        tc::EncoderConfig encoder_config;
+        encoder_config.width = native_buffer->width();
+        encoder_config.height = native_buffer->height();
+        encoder_config.encode_width = native_buffer->width();
+        encoder_config.encode_height = native_buffer->height();
+
+        encoder_config.frame_resize = false;
+
+        encoder_config.codec_type = RdSettings::Instance()->encoder_.encoder_format_ == Encoder::EncoderFormat::kH264 ? tc::EVideoCodecType::kH264 : tc::EVideoCodecType::kHEVC;
+        encoder_config.enable_adaptive_quantization = true;
+        encoder_config.gop_size = -1;
+        encoder_config.quality_preset = 1;
+        // MUST have a value > 0
+        encoder_config.fps = RdSettings::Instance()->encoder_.fps_;
+        if (encoder_config.fps < 15 || encoder_config.fps > 120) {
+            encoder_config.fps = 60;
+        }
+        encoder_config.multi_pass = tc::ENvdiaEncMultiPass::kMultiPassDisabled;
+        encoder_config.rate_control_mode = tc::ERateControlMode::kRateControlModeCbr;
+        encoder_config.sample_desc_count = 1;
+        encoder_config.supports_intra_refresh = true;
+        encoder_config.texture_format = native_buffer->GetFrameFormat();
+        encoder_config.bitrate = RdSettings::Instance()->encoder_.bitrate_ * 1000000;
+        encoder_config.adapter_uid_ = native_buffer->GetAdapterUid();
+        encoder_config.enable_full_color_mode_ = false /*RdSettings::Instance()->EnableFullColorMode()*/;
+
+        //PrintEncoderConfig(encoder_config);
+
+        auto nvenc_plugin = static_cast<GrVideoEncoderPlugin*>(plugin_->GetPluginById(kNvencEncoderPluginId));
+        nvenc_plugin->Init(encoder_config, "monitor_name");
+
+        auto frame_carrier_plugin = static_cast<GrFrameCarrierPlugin*>(plugin_->GetPluginById(kFrameCarrierPluginId));
+        frame_carrier_plugin->InitFrameCarrier(GrCarrierParams{
+            .mon_name_ = "monitor_name",
+            .d3d_device_ = plugin_->d3d11_devices_[native_buffer->GetAdapterUid()],
+            .d3d_device_context_ = plugin_->d3d11_devices_context_[native_buffer->GetAdapterUid()],
+            .adapter_uid_ = native_buffer->GetAdapterUid(),
+            .enable_full_color_mode_ = false,
+        });
+
+
+
+
+        // noting
         auto beg_ts = TimeUtil::GetCurrentTimestamp();
         std::shared_ptr<RtcLocalEncodedVideoFrame> encoded_video_frame = nullptr;
         int try_count = 0;
@@ -111,7 +169,7 @@ namespace tc
         }
 
         last_encoded_frame_index_ = frame.id();
-
+        // using
         webrtc::EncodedImage encodedImage;
         if (this->insert_timer_sei_) {
             this->insert_timer_sei_ = false;
