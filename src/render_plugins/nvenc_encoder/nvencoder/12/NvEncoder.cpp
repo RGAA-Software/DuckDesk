@@ -1065,3 +1065,11 @@ bool NvEncoder::SupportYuv444EncodeH264() {
     m_nvenc.nvEncGetEncodeCaps(m_hEncoder, NV_ENC_CODEC_H264_GUID, &capsParam, &supportsYUV444);
     return supportsYUV444;
 }
+
+bool NvEncoder::SupportYuv444EncodeHevc() {
+    NV_ENC_CAPS_PARAM capsParam = { NV_ENC_CAPS_PARAM_VER };
+    capsParam.capsToQuery = NV_ENC_CAPS_SUPPORT_YUV444_ENCODE;
+    int supportsYUV444 = 0;
+    m_nvenc.nvEncGetEncodeCaps(m_hEncoder, NV_ENC_CODEC_HEVC_GUID, &capsParam, &supportsYUV444);
+    return supportsYUV444;
+}

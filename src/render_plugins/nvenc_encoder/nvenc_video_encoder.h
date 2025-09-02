@@ -35,6 +35,8 @@ namespace tc
         std::vector<int32_t> GetEncodeDurations();
         bool Config( uint32_t bps, uint32_t fps);
 
+        bool SupportH264Yuv444();
+        bool SupportHevcYuv444();
     private:
         bool Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void Shutdown();

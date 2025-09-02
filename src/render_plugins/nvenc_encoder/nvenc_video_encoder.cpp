@@ -36,30 +36,6 @@ namespace tc
 
         NV_ENC_INITIALIZE_PARAMS initializeParams = {NV_ENC_INITIALIZE_PARAMS_VER};
         NV_ENC_CONFIG encode_config = {NV_ENC_CONFIG_VER};
-        bool support_yuv444 = nv_encoder_->SupportYuv444EncodeH264();
-        LOGI("NVENC NvEncoderD3D11 support_yuv444: {}", (int)support_yuv444);
-
-
-        // 虽然这样设置了, 但实际在264编码中，输出的编码帧解码后还是yuv420, 解决办法: 需要在编码前将纹理格式 参考:https://github.com/LizardByte/Sunshine 
-        // 参考Sunshine项目中的 synchronize_input_buffer
-        if (encoder_config_.enable_full_color_mode_ && support_yuv444) {
-            if (EVideoCodecType::kH264 == config.codec_type) {
-                //LOGI("NVENCVideoEncoder Initialize codec: kH264");
-                encode_config.profileGUID = NV_ENC_H264_PROFILE_HIGH_444_GUID;
-                encode_config.encodeCodecConfig.h264Config.chromaFormatIDC = 3;
-            }
-            else {
-                //LOGI("NVENCVideoEncoder Initialize codec: kHEVC");
-                encode_config.profileGUID = NV_ENC_HEVC_PROFILE_FREXT_GUID;
-                encode_config.encodeCodecConfig.hevcConfig.chromaFormatIDC = 3;
-            }
-        }
-
-        encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
-        encode_config.rcParams.averageBitRate = 10 * 1024 * 1024;
-        encode_config.rcParams.maxBitRate = 50 * 1024 * 1024;
-        encode_config.rcParams.vbvBufferSize = 1 * 1024 * 1024;
-
         initializeParams.encodeConfig = &encode_config;
         FillEncodeConfig(initializeParams, config.fps, config.encode_width, config.encode_height, config.bitrate);
         try {
@@ -199,6 +175,29 @@ namespace tc
 
         NV_ENC_TUNING_INFO tuning_preset = NV_ENC_TUNING_INFO_LOW_LATENCY;
         nv_encoder_->CreateDefaultEncoderParams(&initialize_params, encoder_guid, quality_preset, tuning_preset);
+
+        // custom params
+        bool support_h264_yuv444 = nv_encoder_->SupportYuv444EncodeH264();
+        bool support_hevc_yuv444 = nv_encoder_->SupportYuv444EncodeHevc();
+        LOGI("NVENC NvEncoderD3D11 support_h264_yuv444: {}", (int)support_h264_yuv444);
+        LOGI("NVENC NvEncoderD3D11 support_hevc_yuv444: {}", (int)support_hevc_yuv444);
+        if (encoder_config_.enable_full_color_mode_) {
+            if (EVideoCodecType::kH264 == encoder_config_.codec_type && support_h264_yuv444) {
+                //LOGI("NVENCVideoEncoder Initialize codec: kH264");
+                initialize_params.encodeConfig->profileGUID = NV_ENC_H264_PROFILE_HIGH_444_GUID;
+                initialize_params.encodeConfig->encodeCodecConfig.h264Config.chromaFormatIDC = 3;
+            }
+            else if(EVideoCodecType::kHEVC == encoder_config_.codec_type && support_hevc_yuv444) {
+                //LOGI("NVENCVideoEncoder Initialize codec: kHEVC");
+                initialize_params.encodeConfig->profileGUID = NV_ENC_HEVC_PROFILE_FREXT_GUID;
+                initialize_params.encodeConfig->encodeCodecConfig.hevcConfig.chromaFormatIDC = 3;
+            }
+        }
+
+        initialize_params.encodeConfig->rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
+        initialize_params.encodeConfig->rcParams.averageBitRate = 10 * 1024 * 1024;
+        initialize_params.encodeConfig->rcParams.maxBitRate = 50 * 1024 * 1024;
+        initialize_params.encodeConfig->rcParams.vbvBufferSize = 1 * 1024 * 1024;
 
         initialize_params.encodeWidth = initialize_params.darWidth = renderWidth;
         initialize_params.encodeHeight = initialize_params.darHeight = renderHeight;
@@ -457,6 +456,23 @@ namespace tc
         }
         LOGE("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
         return true;
+    }
+
+    bool NVENCVideoEncoder::SupportH264Yuv444() {
+        if (!nv_encoder_) {
+            LOGE("nv_encoder_ is nullptr");
+            return false;
+        }
+        return nv_encoder_->SupportYuv444EncodeH264();
+    }
+
+
+    bool NVENCVideoEncoder::SupportHevcYuv444() {
+        if (!nv_encoder_) {
+            LOGE("nv_encoder_ is nullptr");
+            return false;
+        }
+        return nv_encoder_->SupportYuv444EncodeHevc();
     }
 
 } // namespace tc

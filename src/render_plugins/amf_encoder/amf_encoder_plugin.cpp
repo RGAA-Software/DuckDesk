@@ -1,4 +1,4 @@
-//
+﻿//
 // Created RGAA on 15/11/2024.
 //
 
@@ -139,4 +139,11 @@ namespace tc
         return result;
     }
 
+    std::optional<EncoderCapability> AmfEncoderPlugin::GetEncoderCapability(const std::string& monitor_name) {
+        // to do 需要研究下A卡如何支持444编码
+        EncoderCapability cap;
+        cap.support_h264_yuv444_ = false;
+        cap.support_hevc_yuv444_ = false;
+        return { cap };
+    }
 }

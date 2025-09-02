@@ -135,4 +135,17 @@ namespace tc
             encoder->Config(bps, fps);
         }
     }
+
+    std::optional<EncoderCapability> NvencEncoderPlugin::GetEncoderCapability(const std::string& monitor_name) {
+        auto encoder = video_encoders_[monitor_name];
+        if (!encoder) {
+            return std::nullopt;
+        }
+
+        EncoderCapability cap;
+        cap.support_h264_yuv444_ = encoder->SupportH264Yuv444();
+        cap.support_hevc_yuv444_ = encoder->SupportHevcYuv444();
+
+        return {cap};
+    }
 }

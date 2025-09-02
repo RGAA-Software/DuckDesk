@@ -35,6 +35,7 @@ namespace tc
         std::map<std::string, WorkingEncoderInfoPtr> GetWorkingCapturesInfo() override;
         void ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
 
+        std::optional<EncoderCapability> GetEncoderCapability(const std::string& monitor_name) override;
     private:
         std::map<std::string, std::shared_ptr<NVENCVideoEncoder>> video_encoders_;
     };
