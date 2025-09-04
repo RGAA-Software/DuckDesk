@@ -24,6 +24,7 @@ namespace tc
     NVENCVideoEncoder::~NVENCVideoEncoder() = default;
 
     bool NVENCVideoEncoder::Initialize(const tc::EncoderConfig& config) {
+        enable_yuv444_ = false;
         encoder_config_ = config;
         e_buffer_format_ = DxgiFormatToNvEncFormat(static_cast<DXGI_FORMAT>(encoder_config_.texture_format));
        
@@ -113,6 +114,12 @@ namespace tc
             event->key_frame_ = is_key_frame;
             event->frame_index_ = frame_index;
             event->extra_ = extra;
+            if (enable_yuv444_) {
+                event->frame_format_ = RawImageType::kI444;
+            }
+            else {
+                event->frame_format_ = RawImageType::kI420;
+            }
             this->plugin_->CallbackEvent(event);
         }
 
@@ -186,11 +193,13 @@ namespace tc
                 //LOGI("NVENCVideoEncoder Initialize codec: kH264");
                 initialize_params.encodeConfig->profileGUID = NV_ENC_H264_PROFILE_HIGH_444_GUID;
                 initialize_params.encodeConfig->encodeCodecConfig.h264Config.chromaFormatIDC = 3;
+                enable_yuv444_ = true;
             }
             else if(EVideoCodecType::kHEVC == encoder_config_.codec_type && support_hevc_yuv444) {
                 //LOGI("NVENCVideoEncoder Initialize codec: kHEVC");
                 initialize_params.encodeConfig->profileGUID = NV_ENC_HEVC_PROFILE_FREXT_GUID;
                 initialize_params.encodeConfig->encodeCodecConfig.hevcConfig.chromaFormatIDC = 3;
+                enable_yuv444_ = true;
             }
         }
 

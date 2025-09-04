@@ -58,6 +58,7 @@ namespace tc
 
         NV_ENC_BUFFER_FORMAT e_buffer_format_;
 
+        bool enable_yuv444_ = false;
     };
 
 }
