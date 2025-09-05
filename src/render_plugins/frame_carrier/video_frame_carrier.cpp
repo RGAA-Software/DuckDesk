@@ -417,6 +417,9 @@ namespace tc
         if (logo_point_texture_) {
             logo_point_texture_.Reset();
         }
+        if (texture2d_) {
+            texture2d_->Release();
+        }
     }
 
     void VideoFrameCarrier::SetFullColorModeEnabled(bool enabled) {

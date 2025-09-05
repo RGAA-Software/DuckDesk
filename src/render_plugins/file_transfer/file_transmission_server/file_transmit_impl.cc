@@ -333,7 +333,7 @@ namespace tc {
 						grant_token_cv_.wait_for(lck, std::chrono::milliseconds(3000), [=]() ->bool {
 							
 							if (task_id_with_recved_index_.count(task_id)) {
-								if (index - task_id_with_recved_index_[task_id] < 8000 && token_bucket_ > 0) {
+								if (index - task_id_with_recved_index_[task_id] < 1000 && token_bucket_ > 0) {
 									//LOGI("download_path: {}, HandleDownload index: {}, task_id_with_recved_index_[task_id]: {}", download_path, index, task_id_with_recved_index_[task_id]);
 									return true;
 								}
