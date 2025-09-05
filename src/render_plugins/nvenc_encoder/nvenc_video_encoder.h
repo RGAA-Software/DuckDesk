@@ -37,12 +37,14 @@ namespace tc
 
         bool SupportH264Yuv444();
         bool SupportHevcYuv444();
+
     private:
         bool Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void Shutdown();
         void FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS& initialize_params, int refreshRate, int renderWidth, int renderHeight, uint64_t bitrate_bps);
         static NV_ENC_BUFFER_FORMAT DxgiFormatToNvEncFormat(DXGI_FORMAT dxgiFormat);
         bool CreateNvEncoder();
+
     private:
         std::shared_ptr<NvEncoder> nv_encoder_ = nullptr;
         EncoderConfig encoder_config_;
@@ -51,7 +53,6 @@ namespace tc
 
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;
-        ComPtr<ID3D11Texture2D> texture2d_;
 
         std::shared_ptr<FpsStat> fps_stat_ = nullptr;
         std::deque<int32_t> encode_durations_;

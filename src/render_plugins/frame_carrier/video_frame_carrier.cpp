@@ -411,8 +411,11 @@ namespace tc
         if (yuv_converter_thread_) {
             yuv_converter_thread_->Exit();
         }
+        if (texture2d_) {
+            texture2d_.Reset();
+        }
         if (logo_point_texture_) {
-            logo_point_texture_->Release();
+            logo_point_texture_.Reset();
         }
     }
 

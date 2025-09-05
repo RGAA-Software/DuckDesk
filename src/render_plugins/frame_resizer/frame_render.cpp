@@ -14,17 +14,9 @@ namespace tc
 
     FrameRender::FrameRender(ID3D11Device* device, ID3D11DeviceContext* context) :
         m_Device(device),
-        m_DeviceContext(context),
-        m_SamplerLinear(nullptr),
-        m_BlendState(nullptr),
-        m_VertexShader(nullptr),
-        m_PixelShader(nullptr),
-        m_InputLayout(nullptr),
-        m_TargetTexture(nullptr),
-        m_RTV(nullptr),
-        m_SrcTexture(nullptr),
-        m_SrcSrv(nullptr)
-    {}
+        m_DeviceContext(context) {
+        
+    }
 
     FrameRender::~FrameRender() {
         CleanRefs();
@@ -51,7 +43,7 @@ namespace tc
         // Create target texture
         D3D11_TEXTURE2D_DESC targetDesc;
         InitializeDesc(targetSize, &targetDesc, format);
-        hr = m_Device->CreateTexture2D(&targetDesc, nullptr, &m_TargetTexture);
+        hr = m_Device->CreateTexture2D(&targetDesc, nullptr, m_TargetTexture.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
 		D3D11_TEXTURE2D_DESC desc = {};
@@ -64,7 +56,7 @@ namespace tc
 		desc.SampleDesc.Count = 1;
         desc.Usage = D3D11_USAGE_STAGING;
         desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        hr = m_Device->CreateTexture2D(&desc, nullptr, &m_FinalTexture);
+        hr = m_Device->CreateTexture2D(&desc, nullptr, m_FinalTexture.GetAddressOf());
         if (hr != S_OK) {
             LOGE("Create final texture failed: {:x}", (uint32_t)hr);
             return hr;
@@ -72,7 +64,7 @@ namespace tc
 
         targetDesc.Width = originSize.cx;
         targetDesc.Height = originSize.cy;
-		hr = m_Device->CreateTexture2D(&targetDesc, nullptr, &m_SrcTexture);
+		hr = m_Device->CreateTexture2D(&targetDesc, nullptr, m_SrcTexture.GetAddressOf());
         if (hr != S_OK) {
             LOGE("Create src texture failed: {:x}", (uint32_t)hr);
             return hr;
@@ -85,7 +77,7 @@ namespace tc
 		SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 		SRVDesc.Texture2D.MostDetailedMip = 0;
 		SRVDesc.Texture2D.MipLevels = 1;
-        hr = m_Device->CreateShaderResourceView(m_SrcTexture, &SRVDesc, &m_SrcSrv);
+        hr = m_Device->CreateShaderResourceView(m_SrcTexture.Get(), &SRVDesc, m_SrcSrv.GetAddressOf());
         if (hr != S_OK) {
             LOGE("Create shader texture failed: {:x}", (uint32_t)hr);
             return hr;
@@ -108,7 +100,7 @@ namespace tc
         SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
         SampDesc.MinLOD = 0;
         SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-        hr = m_Device->CreateSamplerState(&SampDesc, &m_SamplerLinear);
+        hr = m_Device->CreateSamplerState(&SampDesc, m_SamplerLinear.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
         // Create the blend state
@@ -123,7 +115,7 @@ namespace tc
         BlendStateDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
         BlendStateDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
         BlendStateDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-        hr = m_Device->CreateBlendState(&BlendStateDesc, &m_BlendState);
+        hr = m_Device->CreateBlendState(&BlendStateDesc, m_BlendState.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
         // Initialize shaders
@@ -135,7 +127,7 @@ namespace tc
 
     HRESULT FrameRender::Draw() {
         FLOAT color[]{0, 0, 0, 0};
-        m_DeviceContext->ClearRenderTargetView(m_RTV, color);
+        m_DeviceContext->ClearRenderTargetView(m_RTV.Get(), color);
 
         HRESULT hr;
 
@@ -153,11 +145,11 @@ namespace tc
         UINT Offset = 0;
         FLOAT blendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
         m_DeviceContext->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
-        m_DeviceContext->OMSetRenderTargets(1, &m_RTV, nullptr);
-        m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-        m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-        m_DeviceContext->PSSetShaderResources(0, 1, &m_SrcSrv);
-        m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
+        m_DeviceContext->OMSetRenderTargets(1, m_RTV.GetAddressOf(), nullptr);
+        m_DeviceContext->VSSetShader(m_VertexShader.Get(), nullptr, 0);
+        m_DeviceContext->PSSetShader(m_PixelShader.Get(), nullptr, 0);
+        m_DeviceContext->PSSetShaderResources(0, 1, m_SrcSrv.GetAddressOf());
+        m_DeviceContext->PSSetSamplers(0, 1, m_SamplerLinear.GetAddressOf());
         m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         if (!VertexBuffer) {
@@ -171,24 +163,24 @@ namespace tc
 			RtlZeroMemory(&InitData, sizeof(InitData));
 			InitData.pSysMem = Vertices;
 
-            hr = m_Device->CreateBuffer(&BufferDesc, &InitData, &VertexBuffer);
+            hr = m_Device->CreateBuffer(&BufferDesc, &InitData, VertexBuffer.GetAddressOf());
             if (FAILED(hr)) {
                 printf("CreateBuffer failed !\n");
                 return S_FALSE;
             }
         }
-        m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
+        m_DeviceContext->IASetVertexBuffers(0, 1, VertexBuffer.GetAddressOf(), &Stride, &Offset);
 
         // Draw textured quad onto render target
         m_DeviceContext->Draw(NUMVERTICES, 0);
-        m_DeviceContext->CopyResource(m_FinalTexture, m_TargetTexture);
+        m_DeviceContext->CopyResource(m_FinalTexture.Get(), m_TargetTexture.Get());
         return S_OK;
     }
 
     HRESULT FrameRender::MakeRTV() {
-        HRESULT hr = m_Device->CreateRenderTargetView(m_TargetTexture, nullptr, &m_RTV);
+        HRESULT hr = m_Device->CreateRenderTargetView(m_TargetTexture.Get(), nullptr, m_RTV.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
-        m_DeviceContext->OMSetRenderTargets(1, &m_RTV, nullptr);
+        m_DeviceContext->OMSetRenderTargets(1, m_RTV.GetAddressOf(), nullptr);
         return S_OK;
     }
 
@@ -207,7 +199,7 @@ namespace tc
         HRESULT hr;
 
         UINT Size = ARRAYSIZE(g_VS);
-        hr = m_Device->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
+        hr = m_Device->CreateVertexShader(g_VS, Size, nullptr, m_VertexShader.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
         D3D11_INPUT_ELEMENT_DESC Layout[] =
@@ -216,13 +208,13 @@ namespace tc
             {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
         };
         UINT NumElements = ARRAYSIZE(Layout);
-        hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
+        hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, m_InputLayout.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
-        m_DeviceContext->IASetInputLayout(m_InputLayout);
+        m_DeviceContext->IASetInputLayout(m_InputLayout.Get());
 
         Size = ARRAYSIZE(g_PS);
-        hr = m_Device->CreatePixelShader(g_PS, Size, nullptr, &m_PixelShader);
+        hr = m_Device->CreatePixelShader(g_PS, Size, nullptr, m_PixelShader.GetAddressOf());
         RETURN_ON_BAD_HR(hr);
 
         return S_OK;
@@ -230,67 +222,67 @@ namespace tc
 
     void FrameRender::CleanRefs() {
         if (m_VertexShader) {
-            m_VertexShader->Release();
+            m_VertexShader.Reset();
             m_VertexShader = nullptr;
         }
 
         if (m_PixelShader) {
-            m_PixelShader->Release();
+            m_PixelShader.Reset();
             m_PixelShader = nullptr;
         }
 
         if (m_InputLayout) {
-            m_InputLayout->Release();
+            m_InputLayout.Reset();
             m_InputLayout = nullptr;
         }
 
         if (m_RTV) {
-            m_RTV->Release();
+            m_RTV.Reset();
             m_RTV = nullptr;
         }
 
         if (m_SamplerLinear) {
-            m_SamplerLinear->Release();
+            m_SamplerLinear.Reset();
             m_SamplerLinear = nullptr;
         }
 
         if (m_BlendState) {
-            m_BlendState->Release();
+            m_BlendState.Reset();
             m_BlendState = nullptr;
         }
 
         if (m_TargetTexture) {
-            m_TargetTexture->Release();
+            m_TargetTexture.Reset();
             m_TargetTexture = nullptr;
         }
 
         if (m_SrcTexture) {
-            m_SrcTexture->Release();
+            m_SrcTexture.Reset();
             m_SrcTexture = nullptr;
         }
 
         if (m_SrcSrv) {
-            m_SrcSrv->Release();
+            m_SrcSrv.Reset();
             m_SrcSrv = nullptr;
         }
 
         if (m_DeviceContext) {
-            m_DeviceContext->Release();
+            m_DeviceContext.Reset();
             m_DeviceContext = nullptr;
         }
 
         if (m_Device) {
-            m_Device->Release();
+            m_Device.Reset();
             m_Device = nullptr;
         }
 
         if (VertexBuffer) {
-            VertexBuffer->Release();
+            VertexBuffer.Reset();
             VertexBuffer = nullptr;
         }
 
         if (m_SrcSrv) {
-            m_SrcSrv->Release();
+            m_SrcSrv.Reset();
             m_SrcSrv = nullptr;
         }
     }

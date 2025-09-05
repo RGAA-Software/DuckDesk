@@ -3,6 +3,7 @@
 #include "resize_common_types.h"
 #include <string>
 #include <memory>
+#include "tc_common_new/win32/d3d11_wrapper.h"
 
 namespace tc
 {
@@ -17,27 +18,27 @@ namespace tc
         HRESULT Prepare(SIZE targetSize, SIZE originSize, int format);
         HRESULT Draw();
 
-        ID3D11Device *GetD3D11Device() {
+        ComPtr<ID3D11Device> GetD3D11Device() {
             return m_Device;
         }
 
-        ID3D11DeviceContext *GetD3D11DeviceContext() {
+        ComPtr<ID3D11DeviceContext> GetD3D11DeviceContext() {
             return m_DeviceContext;
         }
 
-        ID3D11Texture2D *GetFinalTexture() {
+        ComPtr<ID3D11Texture2D> GetFinalTexture() {
             return m_FinalTexture;
         }
 
-        ID3D11Texture2D *GetSrcTexture() {
+        ComPtr<ID3D11Texture2D> GetSrcTexture() {
             return m_SrcTexture;
         }
 
-        int GetTargetWidth() {
+        int GetTargetWidth() const {
             return target_size_.cx;
         }
 
-        int GetTargetHeight() {
+        int GetTargetHeight() const {
             return target_size_.cy;
         }
 
@@ -49,19 +50,19 @@ namespace tc
         void CleanRefs();
 
     private:
-        ID3D11Device *m_Device;
-        ID3D11DeviceContext *m_DeviceContext;
-        ID3D11SamplerState *m_SamplerLinear;
-        ID3D11BlendState *m_BlendState;
-        ID3D11VertexShader *m_VertexShader;
-        ID3D11PixelShader *m_PixelShader;
-        ID3D11InputLayout *m_InputLayout;
-        ID3D11Texture2D *m_TargetTexture;
-        ID3D11RenderTargetView *m_RTV;
-        ID3D11Texture2D *m_SrcTexture;
-        ID3D11ShaderResourceView *m_SrcSrv;
-        ID3D11Texture2D *m_FinalTexture{nullptr};
-        ID3D11Buffer *VertexBuffer = nullptr;
+        ComPtr<ID3D11Device> m_Device = nullptr;
+        ComPtr<ID3D11DeviceContext> m_DeviceContext = nullptr;
+        ComPtr<ID3D11SamplerState> m_SamplerLinear = nullptr;
+        ComPtr<ID3D11BlendState> m_BlendState = nullptr;
+        ComPtr<ID3D11VertexShader> m_VertexShader = nullptr;
+        ComPtr<ID3D11PixelShader> m_PixelShader = nullptr;
+        ComPtr<ID3D11InputLayout> m_InputLayout = nullptr;
+        ComPtr<ID3D11Texture2D> m_TargetTexture = nullptr;
+        ComPtr<ID3D11RenderTargetView> m_RTV = nullptr;
+        ComPtr<ID3D11Texture2D> m_SrcTexture = nullptr;
+        ComPtr<ID3D11ShaderResourceView> m_SrcSrv = nullptr;
+        ComPtr<ID3D11Texture2D> m_FinalTexture = nullptr;
+        ComPtr<ID3D11Buffer> VertexBuffer = nullptr;
         SIZE target_size_{};
     };
 

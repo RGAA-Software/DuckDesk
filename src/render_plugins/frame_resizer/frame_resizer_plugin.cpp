@@ -63,7 +63,7 @@ namespace tc
 
         auto resize_ctx = frame_render->GetD3D11DeviceContext();
         auto pre_texture = frame_render->GetSrcTexture();
-        resize_ctx->CopyResource(pre_texture, input.Get());
+        resize_ctx->CopyResource(pre_texture.Get(), input.Get());
 
         //DebugOutDDS(pre_texture, "2.dds");
 
