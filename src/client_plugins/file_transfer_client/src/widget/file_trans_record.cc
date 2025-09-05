@@ -6,11 +6,8 @@
 #include <qtableview.h>
 #include <qdebug.h>
 #include <qdir.h>
-#include <qfileinfo.h>
 #include <qstandardpaths.h>
-#include <qfileiconprovider.h>
 #include <qstorageinfo.h>
-#include <qtableview.h>
 #include <qheaderview.h>
 #include <qpushbutton.h>
 #include <qtablewidget.h>
@@ -24,18 +21,13 @@
 #include <qmenu.h>
 #include <qwidgetaction.h>
 #include <qprocess.h>
+#include <qboxlayout.h>
+#include <qlabel.h>
 #include "tc_common_new/string_util.h"
 #include "file_table_view_style.h"
 #include "file_operation_btn.h"
 #include "file_transmit_single_task_manager.h"
 #include "tc_label.h"
-
-
-#include <qpushbutton.h>
-#include <qboxlayout.h>
-#include <qlabel.h>
-#include <qsvgrenderer.h>
-
 
 namespace tc {
 

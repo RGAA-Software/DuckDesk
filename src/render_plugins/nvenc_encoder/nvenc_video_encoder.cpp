@@ -116,9 +116,11 @@ namespace tc
             event->extra_ = extra;
             if (enable_yuv444_) {
                 event->frame_format_ = RawImageType::kI444;
+                LOGI("event->frame_format_ = RawImageType::kI444;");
             }
             else {
                 event->frame_format_ = RawImageType::kI420;
+                LOGI("event->frame_format_ = RawImageType::kI420;");
             }
             this->plugin_->CallbackEvent(event);
         }
