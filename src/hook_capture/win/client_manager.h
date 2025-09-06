@@ -6,7 +6,7 @@
 
 #include <memory>
 
-#include "inject_params.h"
+#include "tc_capture_new/inject_params.h"
 
 namespace tc
 {
