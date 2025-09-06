@@ -45,7 +45,6 @@ add_library(${PROJECT_NAME} SHARED
         ../client_ipc_manager.cpp
         ../hk_video/d3d_utils.cpp
         ../hk_video/shared_texture.cpp
-        ../../capture_message_maker.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${DETOURS_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PUBLIC ${DETOURS_LIBRARY} tc_ipc_util tc_common_new tc_message libprotobuf dxgi d3d11 d3d12 dxguid Iphlpapi.lib)

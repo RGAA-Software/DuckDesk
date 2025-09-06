@@ -29,7 +29,6 @@ if (WIN32)
         win/audio/audio_file_saver.cpp
         win/audio/wasapi_audio_capture.cpp
         win/desktop_capture/dda_capture.cpp
-        capture_message_maker.cpp
         win/desktop_capture/cursor_capture.cpp
     )
     add_library(tc_capture_new ${CAPTURE_SRCS})

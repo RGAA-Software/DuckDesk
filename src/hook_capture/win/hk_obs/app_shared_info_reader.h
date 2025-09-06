@@ -9,12 +9,7 @@
 #include <memory>
 #include <functional>
 #include <string>
-
-//#include <Poco/NamedEvent.h>
-//#include <Poco/SharedMemory.h>
-//#include <Poco/NamedMutex.h>
-
-#include "hook_capture/capture_message.h"
+#include "tc_capture_new/capture_message.h"
 
 namespace tc
 {

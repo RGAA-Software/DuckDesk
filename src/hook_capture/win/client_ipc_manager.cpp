@@ -9,7 +9,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/time_util.h"
-#include "capture_message.h"
+#include "tc_capture_new/capture_message.h"
 
 #include <thread>
 

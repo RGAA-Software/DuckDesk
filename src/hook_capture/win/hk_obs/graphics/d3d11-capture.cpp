@@ -7,9 +7,9 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
 #include "hook_manager.h"
-#include "capture_message.h"
+#include "tc_capture_new/capture_message.h"
 #include "../hk_video/d3d_utils.h"
-#include "capture_message_maker.h"
+#include "tc_capture_new/capture_message_maker.h"
 #include <libyuv.h>
 #include <fstream>
 

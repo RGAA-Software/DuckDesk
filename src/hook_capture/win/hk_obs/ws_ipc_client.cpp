@@ -4,7 +4,7 @@
 
 #include "ws_ipc_client.h"
 #include "tc_common_new/log.h"
-#include "capture_message.h"
+#include "tc_capture_new/capture_message.h"
 
 namespace tc
 {
