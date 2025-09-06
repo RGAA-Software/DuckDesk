@@ -6,7 +6,7 @@
 #include <iostream>
 #include "tc_common_new/message_notifier.h"
 #include "tc_common_new/data.h"
-#include "capture_message.h"
+#include "tc_capture_new/capture_message.h"
 #include "tc_common_new/log.h"
 #include "tc_message.pb.h"
 
