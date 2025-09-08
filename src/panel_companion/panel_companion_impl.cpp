@@ -62,7 +62,7 @@ namespace tc
         const std::string user_key = MD5::Hex("U1J892%$m5s");
         std::string key = user_key.substr(0, 16);
         std::string iv = user_key.substr(user_key.length() - 16);
-        AesEncryptPcks7Cbc128(reinterpret_cast<const unsigned char*>(origin_content.c_str()), origin_content.size(),
+        return AesEncryptPcks7Cbc128(reinterpret_cast<const unsigned char*>(origin_content.c_str()), origin_content.size(),
             reinterpret_cast<const unsigned char*>(key.c_str()), reinterpret_cast<const unsigned char*>(iv.c_str()), cipher_data);
     }
 }
