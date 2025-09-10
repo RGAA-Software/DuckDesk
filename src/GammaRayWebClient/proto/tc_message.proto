@@ -80,6 +80,8 @@ enum MessageType {
   kFileTransSaveFileException = 320;
   // file transfer end
 
+  kLockDevice = 328;
+  kStopRender = 329;
   kReqCtrlAltDelete = 330;
 
   // client -> render update desktop
@@ -572,9 +574,21 @@ message ChangeMonitorResolutionResult {
   bool result = 2;
 }
 
+// Lock device
+message LockDevice {
+
+}
+
+// Stop render
+message StopRender {
+
+}
+
+// Ctrl + Alt + Delete
 message ReqCtrlAltDelete {
 
 }
+
 
 message RendererAudioSpectrum {
   // from inner server
@@ -651,6 +665,8 @@ message Message {
   FileTransSaveFileException file_trans_save_file_exception = 330;
   // file transfer end
 
+  LockDevice lock_device = 338;
+  StopRender stop_render = 339;
   ReqCtrlAltDelete req_ctrl_alt_delete = 340;
 
   ClipboardReqAtBegin cp_req_at_begin = 349;
