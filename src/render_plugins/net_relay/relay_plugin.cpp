@@ -83,13 +83,17 @@ namespace tc
                     relay_port = sys_relay_port;
                 }
 
-                if (sys_settings_.device_id_.empty() || relay_host.empty() || relay_port <= 0) {
+                if (sys_settings_.appkey_.empty()) {
+                    LOGW("Appkey is empty.");
+                }
+
+                if (sys_settings_.device_id_.empty() || relay_host.empty() || relay_port <= 0 || sys_settings_.appkey_.empty()) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
 
-                LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}",
-                     connect_count++, srv_device_id, relay_host, relay_port);
+                LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey: {}",
+                     connect_count++, srv_device_id, relay_host, relay_port, sys_settings_.appkey_);
 
                 // todo: check device id, empty? try to retry
                 relay_media_sdk_ = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
@@ -98,6 +102,7 @@ namespace tc
                     .ssl_ = false,
                     .device_id_ = srv_device_id,
                     .net_info_ = net_info_,
+                    .appkey_ = sys_settings_.appkey_,
                 });
 
                 relay_media_sdk_->SetOnConnectedCallback([=, this]() {
@@ -202,6 +207,7 @@ namespace tc
                         .net_info_ = net_info_,
                         .device_name_ = Hardware::GetDesktopName(),
                         .stream_id_ = ft_device_id, //
+                        .appkey_ = sys_settings_.appkey_,
                     });
 
                     relay_ft_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {

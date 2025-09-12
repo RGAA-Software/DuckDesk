@@ -12,9 +12,10 @@
 namespace tc
 {
 
+    class Thread;
     class AuthManager;
     class SpvrSettings;
-    class Thread;
+    class SharedPreference;
 
     class PanelCompanionImpl : public PanelCompanion {
     public:
@@ -28,17 +29,21 @@ namespace tc
 
         // Spvr
         void UpdateSpvrServerConfig(const std::string &host, int port) override;
+        std::shared_ptr<Authorization> RequestAuth() override;
+        std::shared_ptr<Authorization> GetAuth() override;
 
         // enc
-        bool EcnQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
+        bool EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
 
     public:
         void PostNetTask(std::function<void()>&& task);
+        std::shared_ptr<SharedPreference> GetSP();
 
     private:
         SpvrSettings* spvr_settings_ = nullptr;
         std::shared_ptr<AuthManager> auth_mgr_ = nullptr;
         std::shared_ptr<Thread> net_thread_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_ = nullptr;
     };
 
 }
