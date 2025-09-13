@@ -96,9 +96,16 @@ bool MediaRecorder::InitFFmpeg() {
 	audio_codecpar->codec_type = AVMEDIA_TYPE_AUDIO;
 	audio_codecpar->codec_id = AV_CODEC_ID_OPUS;
 	audio_codecpar->sample_rate = 48000;
-    audio_codecpar->channels = 2;
-	audio_codecpar->channel_layout = AV_CH_LAYOUT_STEREO;
+# if 0 // ffmpeg 7.x 已经废弃
+    //audio_codecpar->channels = 2; 
+	//audio_codecpar->channel_layout = AV_CH_LAYOUT_STEREO;
+#endif
 	audio_codecpar->format = AV_SAMPLE_FMT_S16;
+	int ret = av_channel_layout_from_mask(&audio_codecpar->ch_layout, AV_CH_LAYOUT_STEREO);
+	if (ret < 0) {
+		LOGE("Failed to set channel layout: {}", ret);
+		return false;
+	}
 
 	/*
 	* 添加 OPUS 音频的 extradata(重要), 否则无法播放, 会提示：
