@@ -13,7 +13,6 @@
 #include <qscrollbar.h>
 #include <qsizepolicy.h>
 #include <qwidgetaction.h>
-#include <qpushbutton.h>
 #include <qmenu.h>
 #include <QRegularExpression>
 #include <vector>

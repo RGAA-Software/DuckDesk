@@ -14,6 +14,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 
+set(FFMPEG_ROOT ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/ffmpeg7.1.1)
+
 ##Source
 include_directories(${CMAKE_SOURCE_DIR}/)
 include_directories(${CMAKE_SOURCE_DIR}/src)
@@ -30,7 +32,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/3rd/
 #include_directories(${VCPKG_ROOT}/installed/x64-windows/include)
 include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite35)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/sqlite_orm/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/ffmpeg/include)
+include_directories(${FFMPEG_ROOT}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/leveldb/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit)
