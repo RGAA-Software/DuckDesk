@@ -176,16 +176,16 @@ namespace tc
             }
         }
 
-        auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
-        encoded_video_frame->mon_name_ = mon_name;
-        encoded_video_frame->video_type_ = (int)video_type;
-        encoded_video_frame->data_ = data;
-        encoded_video_frame->frame_index_ = frame_index;
-        encoded_video_frame->frame_width_ = frame_width;
-        encoded_video_frame->frame_height_ = frame_height;
-        encoded_video_frame->key_ = key;
-        encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        encoded_video_frames_.insert({frame_index, encoded_video_frame});
+        //auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
+        //encoded_video_frame->mon_name_ = mon_name;
+        //encoded_video_frame->video_type_ = (int)video_type;
+        //encoded_video_frame->data_ = data;
+        //encoded_video_frame->frame_index_ = frame_index;
+        //encoded_video_frame->frame_width_ = frame_width;
+        //encoded_video_frame->frame_height_ = frame_height;
+        //encoded_video_frame->key_ = key;
+        //encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+        //encoded_video_frames_.insert({frame_index, encoded_video_frame});
 
     }
 

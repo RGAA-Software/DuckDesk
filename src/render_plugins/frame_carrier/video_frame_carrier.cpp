@@ -420,6 +420,8 @@ namespace tc
         if (texture2d_) {
             texture2d_->Release();
         }
+        logo_points_.clear();
+        big_logo_points_.clear();
     }
 
     void VideoFrameCarrier::SetFullColorModeEnabled(bool enabled) {
