@@ -3,11 +3,13 @@
 //
 
 #include "nvenc_encoder_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "tc_common_new/log.h"
 #include "nvenc_encoder_defs.h"
 #include "nvenc_video_encoder.h"
-#include "tc_common_new/log.h"
+#include "tc_common_new/memory_stat.h"
 #include "render/plugins/plugin_ids.h"
+#include "plugin_interface/gr_plugin_events.h"
+#include "plugin_interface/gr_plugin_context.h"
 
 static void* GetInstance() {
     static tc::NvencEncoderPlugin plugin;
@@ -38,6 +40,12 @@ namespace tc
 
     void NvencEncoderPlugin::On1Second() {
         GrVideoEncoderPlugin::On1Second();
+#if MEMORY_STST_ON
+        plugin_context_->PostWorkTask([=, this]() {
+            auto info = MemoryStat::Instance()->GetStatInfo();
+            LOGI("Memory usage: {}", info.Dump());
+        });
+#endif
     }
 
     bool NvencEncoderPlugin::OnCreate(const tc::GrPluginParam& param) {
