@@ -61,10 +61,7 @@ namespace tc
         std::vector<std::vector<uint8_t>> out_packet;
         if (nv_encoder_) {
             nv_encoder_->EndEncode(out_packet);
-        }
-        if (nv_encoder_) {
             nv_encoder_->DestroyEncoder();
-            nv_encoder_.reset();
         }
     }
 

@@ -24,7 +24,6 @@ namespace tc
 
     class Image;
     class Thread;
-    class FrameRender;
     class FrameCarrierPlugin;
     class GrFrameProcessorPlugin;
 
@@ -69,7 +68,6 @@ namespace tc
         ComPtr<ID3D11Device> d3d11_device_ = nullptr;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_ = nullptr;
         ComPtr<ID3D11Texture2D> texture2d_ = nullptr;
-        std::shared_ptr<FrameRender> frame_render_ = nullptr;
 
         std::shared_ptr<Image> raw_image_rgba_ = nullptr;
         int raw_image_rgba_format_ = -1;

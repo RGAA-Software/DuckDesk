@@ -10,9 +10,7 @@ namespace tc
 
     class FrameRender {
     public:
-        static std::shared_ptr<FrameRender> Make(ID3D11Device *device, ID3D11DeviceContext *context);
-
-        FrameRender(ID3D11Device *device, ID3D11DeviceContext *context);
+        FrameRender(const ComPtr<ID3D11Device>& device, const ComPtr<ID3D11DeviceContext>& context);
         ~FrameRender();
 
         HRESULT Prepare(SIZE targetSize, SIZE originSize, int format);

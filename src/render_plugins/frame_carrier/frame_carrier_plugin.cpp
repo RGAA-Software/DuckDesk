@@ -98,6 +98,7 @@ namespace tc
         if (frame_carrier != nullptr) {
             frame_carrier->Exit();
             frame_carriers_.erase(params.mon_name_);
+            LOGI("Released frame carrier for: {}", params.mon_name_);
         }
 
         // create a new one

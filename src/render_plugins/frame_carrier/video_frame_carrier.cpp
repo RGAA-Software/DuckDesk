@@ -418,7 +418,13 @@ namespace tc
             logo_point_texture_.Reset();
         }
         if (texture2d_) {
-            texture2d_->Release();
+            texture2d_.Reset();
+        }
+        if (d3d11_device_) {
+            d3d11_device_.Reset();
+        }
+        if (d3d11_device_context_) {
+            d3d11_device_context_.Reset();
         }
         logo_points_.clear();
         big_logo_points_.clear();

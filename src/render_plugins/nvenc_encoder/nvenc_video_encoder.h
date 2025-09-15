@@ -19,7 +19,6 @@ using namespace Microsoft::WRL;
 namespace tc
 {
 
-    class FrameRender;
     class NvencEncoderPlugin;
 
     class NVENCVideoEncoder {

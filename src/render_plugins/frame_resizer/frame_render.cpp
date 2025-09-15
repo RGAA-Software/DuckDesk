@@ -8,14 +8,9 @@ using namespace DirectX;
 namespace tc
 {
 
-    std::shared_ptr<FrameRender> FrameRender::Make(ID3D11Device* device, ID3D11DeviceContext* context) {
-        return std::make_shared<FrameRender>(device, context);
-    }
-
-    FrameRender::FrameRender(ID3D11Device* device, ID3D11DeviceContext* context) :
+    FrameRender::FrameRender(const ComPtr<ID3D11Device>& device, const ComPtr<ID3D11DeviceContext>& context) :
         m_Device(device),
         m_DeviceContext(context) {
-        
     }
 
     FrameRender::~FrameRender() {
