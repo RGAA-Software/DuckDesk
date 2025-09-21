@@ -35,6 +35,9 @@ namespace tc
         // enc
         bool EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
 
+        void UpdateCurrentCpuFrequency(float freq) override;
+        std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) override;
+
     public:
         void PostNetTask(std::function<void()>&& task);
         std::shared_ptr<SharedPreference> GetSP();
@@ -44,6 +47,7 @@ namespace tc
         std::shared_ptr<AuthManager> auth_mgr_ = nullptr;
         std::shared_ptr<Thread> net_thread_ = nullptr;
         std::shared_ptr<SharedPreference> sp_ = nullptr;
+        float current_cpu_frequency_ = 0.0f;
     };
 
 }
