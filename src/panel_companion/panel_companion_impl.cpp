@@ -13,7 +13,7 @@
 #include "tc_common_new/shared_preference.h"
 #include "crypto/auth_aes.h"
 #include "tc_3rdparty/json/json.hpp"
-#include "hw_info_parser.h"
+#include "hw_info/hw_info_parser.h"
 
 using namespace nlohmann;
 
