@@ -118,6 +118,11 @@ enum MessageType {
 
   // client -> render  
   kExitControlledEnd = 510;
+
+  // hardware info statistics
+  // render -> client
+  kHardwareInfo = 520;
+
 }
 
 enum VideoType {
@@ -612,6 +617,11 @@ message DisconnectConnection {
   string device_name = 4;
 }
 
+// render -> client
+message HardwareInfo {
+  bytes hw_info = 1;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -684,4 +694,6 @@ message Message {
 
   ModifyFps modify_fps = 490;
   DisconnectConnection disconnect_connection = 500;
+
+  HardwareInfo hw_info = 510;
 }

@@ -106,7 +106,9 @@ namespace tc
             LOGE("Decoded error: {}", e.what());
             return nullptr;
         }
-        return HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
+        auto sys_info = HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
+        sys_info->raw_json_msg_ = json_info;
+        return sys_info;
     }
 
 }
