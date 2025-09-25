@@ -61,6 +61,11 @@ namespace tc
     void FileTransferPlugin::OnSyncPluginSettingsInfo(const GrPluginSettingsInfo& settings) {
         GrPluginInterface::OnSyncPluginSettingsInfo(settings);
         LOGI("Max transmit speed: {}, Max receive speed: {}", settings.max_transmit_speed_, settings.max_receive_speed_);
+        if (file_trans_msg_interface_) {
+            if (settings.max_transmit_speed_ != file_trans_msg_interface_->GetMaxSpeedByMBPerSecond()) {
+                file_trans_msg_interface_->SetMaxSpeedByMBPerSecond(settings.max_transmit_speed_);
+            }
+        }
     }
 
     LanguageKind FileTransferPlugin::GetCurrentLanguage() {

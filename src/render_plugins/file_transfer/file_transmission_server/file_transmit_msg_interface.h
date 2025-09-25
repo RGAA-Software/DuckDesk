@@ -17,6 +17,9 @@ public:
 	void OnMessage(const std::shared_ptr<tc::Message>& msg);
 
 	void RegisterFileTransmitCallback();
+
+	uint64_t GetMaxSpeedByMBPerSecond();
+	void SetMaxSpeedByMBPerSecond(uint64_t speed);
 private:
     bool IsFileTransferEnabled();
 

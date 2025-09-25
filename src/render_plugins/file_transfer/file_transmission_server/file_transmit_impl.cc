@@ -467,12 +467,21 @@ namespace tc {
 	}
 
 	void FileTransmitImpl::GrantTokenBucket() {
-		token_bucket_ = token_bucket_ + speed_ / kSingleBufferSize;
+		token_bucket_ = token_bucket_ + speed_by_MB_per_100ms_ / kSingleBufferSize;
 		std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
 		grant_token_cv_.notify_all();
 	}
 
 	void FileTransmitImpl::ResetTokenBucket() {
 		token_bucket_ = 10;
+	}
+
+	void FileTransmitImpl::SetMaxSpeedByMBPerSecond(uint64_t speed) {
+		speed_by_MB_per_1000ms_ = speed;
+		speed_by_MB_per_100ms_ = speed_by_MB_per_1000ms_ * 0.1;
+	}
+
+	uint64_t FileTransmitImpl::GetMaxSpeedByMBPerSecond() {
+		return speed_by_MB_per_1000ms_;
 	}
 }

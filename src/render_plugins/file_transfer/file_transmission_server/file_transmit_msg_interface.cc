@@ -341,4 +341,12 @@ bool FileTransmitMsgInterface::IsFileTransferEnabled() {
     return file_trans_plugin_ && file_trans_plugin_->GetPluginSettingsInfo().file_transfer_enabled_;
 }
 
+uint64_t FileTransmitMsgInterface::GetMaxSpeedByMBPerSecond() {
+	return file_trans_manager_->GetMaxSpeedByMBPerSecond();
+}
+
+void FileTransmitMsgInterface::SetMaxSpeedByMBPerSecond(uint64_t speed) {
+	file_trans_manager_->SetMaxSpeedByMBPerSecond(speed);
+}
+
 }
