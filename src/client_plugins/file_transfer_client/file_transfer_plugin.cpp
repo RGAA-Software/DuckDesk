@@ -130,4 +130,8 @@ namespace tc
         return file_trans_interface_ && file_trans_interface_->HasTransTask();
     }
 
+    void FileTransferPlugin::SyncClientPluginSettings(const tc::ClientPluginSettings &st) {
+        LOGI("client name: {}, max transmit speed: {}, max receive speed: {}", st.display_name_, st.max_transmit_speed_, st.max_receive_speed_);
+    }
+
 }

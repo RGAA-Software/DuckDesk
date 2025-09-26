@@ -36,6 +36,7 @@ namespace tc
         bool EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
 
         void UpdateCurrentCpuFrequency(float freq) override;
+        float GetCurrentCpuFrequency() override;
         std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) override;
 
     public:

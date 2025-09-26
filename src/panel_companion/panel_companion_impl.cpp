@@ -96,6 +96,10 @@ namespace tc
         current_cpu_frequency_ = freq;
     }
 
+    float PanelCompanionImpl::GetCurrentCpuFrequency() {
+        return current_cpu_frequency_;
+    }
+
     std::shared_ptr<SysInfo> PanelCompanionImpl::ParseHardwareInfo(const std::string& info) {
         std::string json_info;
         try {

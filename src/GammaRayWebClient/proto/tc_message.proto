@@ -620,6 +620,7 @@ message DisconnectConnection {
 // render -> client
 message HardwareInfo {
   bytes hw_info = 1;
+  float current_cpu_freq = 2;
 }
 
 message Message {
