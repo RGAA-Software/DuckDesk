@@ -180,7 +180,7 @@ namespace tc
                         auto relay_msg_index = sub.relay_msg_index();
                         const auto &payload = sub.payload();
                         auto payload_msg = Data::Make(payload.data(), payload.size());
-                        this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, payload_msg);
+                        this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kMedia, payload_msg);
                         //LOGI("Relay in-message size: {}", payload_msg.size());
                     }
                 });
@@ -227,7 +227,7 @@ namespace tc
                             }
                             const auto &payload = sub.payload();
                             auto payload_msg = Data::Make((char*)payload.data(), payload.size());
-                            this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, payload_msg);
+                            this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kFileTransfer, payload_msg);
                         }
                     });
 
@@ -372,4 +372,16 @@ namespace tc
         }
         return {};
     }
+
+    void RelayPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {
+        //LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}", ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
+        if (ack->ch_type_ == NetChannelType::kFileTransfer) {
+            if (last_ack_) {
+                auto diff = (int64_t) ack->resp_time_ - (int64_t) last_ack_->resp_time_;
+                LOGI("OnMessage ack: {}ms, now: {}, last: {}", (diff), ack->resp_time_, last_ack_->resp_time_);
+            }
+            last_ack_ = ack;
+        }
+    }
+
 }

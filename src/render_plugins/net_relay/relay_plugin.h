@@ -35,6 +35,7 @@ namespace tc
         bool HasEnoughBufferForQueuingMediaMessages() override;
         bool HasEnoughBufferForQueuingFtMessages() override;
         std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo() override;
+        void OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) override;
 
     private:
         void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id);
@@ -50,6 +51,8 @@ namespace tc
         // don't send media stream at begin
         // client will request to resume it
         bool paused_stream = true;
+
+        std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
     };
 
 }

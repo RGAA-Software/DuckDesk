@@ -181,6 +181,7 @@ enum ClientConnectType {
 message Ack {
   MessageType type = 1;
   uint64 send_time = 2;
+  uint64 resp_time = 3;
 }
 
 message Hello {

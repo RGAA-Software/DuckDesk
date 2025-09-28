@@ -80,7 +80,7 @@ namespace tc
         server_->bind_recv([=, this](std::shared_ptr<asio2::udp_session>& session_ptr, std::string_view data) {
             auto msg = Data::Make(data.data(), data.size());
             auto socket_fd = fn_get_socket_fd(session_ptr);
-            this->OnClientEventCame(true, socket_fd, NetPluginType::kUdpKcp, msg);
+            //this->OnClientEventCame(true, socket_fd, NetPluginType::kUdpKcp, msg);
 
         }).bind_connect([=, this](std::shared_ptr<asio2::udp_session>& session_ptr) {
             auto socket_fd = fn_get_socket_fd(session_ptr);

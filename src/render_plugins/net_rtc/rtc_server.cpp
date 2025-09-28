@@ -85,7 +85,7 @@ namespace tc
                 // data callback
                 media_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, payload_msg);
+                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kMedia, payload_msg);
                 });
             }
             else if (name == "ft_data_channel") {
@@ -94,7 +94,7 @@ namespace tc
                 // data callback
                 ft_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, payload_msg);
+                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kFileTransfer, payload_msg);
                 });
             }
         });
