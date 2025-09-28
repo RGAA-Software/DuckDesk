@@ -6,7 +6,7 @@
 namespace tc {
 	void FileMsgAnswerCbkStructure::Add(const std::shared_ptr<tc::Message>& msg, OnMsgParseRespCallbackFuncType parse_msg_callbck) {
 		int seq = send_message_seq_++;
-		msg->set_sequence(seq);
+		msg->set_file_operate_sequence(seq);
 		std::lock_guard<std::mutex> lock{mutex_};
 		send_msg_resp_callback_map_[seq].send_time = std::chrono::system_clock::now();
 		send_msg_resp_callback_map_[seq].callback = [=](const std::shared_ptr<tc::Message>& message) {
@@ -108,7 +108,7 @@ namespace tc {
 			} while (0);
 			data = resp_json.dump();
 
-			parse_msg_callbck(message->resp_code(), message->resp_message().c_str(), data.c_str());
+			parse_msg_callbck(message->file_operate_resp_code(), message->file_operate_resp_message().c_str(), data.c_str());
 		};
 	}
 }

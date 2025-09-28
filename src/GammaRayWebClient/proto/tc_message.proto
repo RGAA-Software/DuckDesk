@@ -627,12 +627,6 @@ message HardwareInfo {
 message Message {
   string device_id = 3;
   string stream_id = 4;
-  // 消息序号
-  uint64 sequence = 5;
-  uint64 resp_sequence = 6;
-  RespCode resp_code = 7;
-  string resp_message = 8;
-  string resp_data = 9;
   MessageType type = 10;
   uint64 send_time = 20;
   string extra = 30;
@@ -661,6 +655,11 @@ message Message {
   RendererAudioSpectrum renderer_audio_spectrum = 260;
 
    // file transfer begin
+  uint64 file_operate_sequence = 270;
+  uint64 file_operate_resp_sequence = 271;
+  RespCode file_operate_resp_code = 272;
+  string file_operate_resp_message = 273;
+  string file_operate_resp_data = 274;
   FileOperateionsEvent file_operateions_event = 280;
   FileOperateRespRename file_operate_resp_rename = 285;
   FileOperateRespGetFileList file_operate_resp_get_file_list = 290;

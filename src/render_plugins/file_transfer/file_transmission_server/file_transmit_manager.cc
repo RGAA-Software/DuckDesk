@@ -47,7 +47,7 @@ namespace tc {
 		}
 		auto operate = msg->file_operateions_event();
 		LOGI("HandleFileoperateMsg operate_type {} ",tc::FileOperateionsEvent_OperateType_Name(operate.operate_type()));
-		auto seq = msg->sequence(); // 指令序号. 消息对应的操作完成以后，要将结果封装为消息反馈给客户端，还要将指令序号返回回去
+		auto seq = msg->file_operate_sequence(); // 指令序号. 消息对应的操作完成以后，要将结果封装为消息反馈给客户端，还要将指令序号返回回去
 		if (operate.operate_type() == tc::FileOperateionsEvent::kGetFilesList) {
 			std::string path = operate.path_of_filelist();
 			file_operate_thread_->post(std::move([=]() {

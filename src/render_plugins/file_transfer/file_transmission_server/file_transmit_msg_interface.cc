@@ -60,19 +60,19 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespGetFileList);
-		message->set_resp_sequence(resp_seq);
+		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 			//message->set_resp_message(QStringLiteral("获取文件列表成功").toStdString());
-			message->set_resp_message( (tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_success")).toStdString() );
+			message->set_file_operate_resp_message( (tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_success")).toStdString() );
 		}
 		else {
-			message->set_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
 			//message->set_resp_message(QStringLiteral("获取文件列表失败").toStdString());
-			message->set_resp_message((tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_log_failed")).toStdString());
+			message->set_file_operate_resp_message((tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_log_failed")).toStdString());
 		}
 		//message->set_resp_message(QStringLiteral("获取文件列表").toStdString());
-		message->set_resp_message(tcTr("id_file_trans_get_fil_list").toStdString());
+		message->set_file_operate_resp_message(tcTr("id_file_trans_get_fil_list").toStdString());
 		tc::FileOperateRespGetFileList* file_list = new tc::FileOperateRespGetFileList();
 		file_list->set_path(target_path);
 		file_list->set_ret(ret);
@@ -99,14 +99,14 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegBatchCreateFoldersCallback([=, this](const std::string& stream_id, int resp_seq, std::vector<std::string> error_paths, std::string er_msg) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespBatchCreateFolders);
-		message->set_resp_sequence(resp_seq);
-		message->set_resp_code(tc::RespCode::kRespCodeOk);
+		message->set_file_operate_resp_sequence(resp_seq);
+		message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 		//message->set_resp_message(QStringLiteral("文件夹创建成功").toStdString());
-		message->set_resp_message(tcTr("id_file_trans_create_folder_success").toStdString());
+		message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_success").toStdString());
 		if (error_paths.size() > 0) {
-			message->set_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
 			//message->set_resp_message(QStringLiteral("文件夹创建失败").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_create_folder_failed").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_failed").toStdString());
 		}
 		tc::FileOperateRespBatchCreateFolders* resp = new tc::FileOperateRespBatchCreateFolders();
 		resp->set_msg_of_error(er_msg);
@@ -125,8 +125,8 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegJudgeFileExistsCallback([=, this](const std::string& stream_id, int resp_seq, std::string path, bool exists, uint64_t file_size, uint64_t file_date) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespExists);
-		message->set_resp_sequence(resp_seq);
-		message->set_resp_code(tc::RespCode::kRespCodeOk);
+		message->set_file_operate_resp_sequence(resp_seq);
+		message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 		tc::FileOperateRespExists* resp = new tc::FileOperateRespExists();
 		resp->set_path(path);
 		resp->set_ret(exists);
@@ -241,16 +241,16 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegRemoveCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::vector<std::string> er_paths, std::string er_msg) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespDel);
-		message->set_resp_sequence(resp_seq);
+		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 			//message->set_resp_message(QStringLiteral("移除成功").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_remove_success").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_success").toStdString());
 		}
 		else {
-			message->set_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
 			//message->set_resp_message(QStringLiteral("移除失败").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_remove_failed").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_failed").toStdString());
 		}
 		tc::FileOperateRespDel* resp = new tc::FileOperateRespDel();
 		resp->set_msg_of_error(er_msg);
@@ -271,17 +271,17 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegCreateNewFolderCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::string parent_path, std::string new_path, std::string er_msg) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespCreateNewFolder);
-		message->set_resp_sequence(resp_seq);
+		message->set_file_operate_resp_sequence(resp_seq);
 		
 		if (ret) {
-			message->set_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 			//message->set_resp_message(QStringLiteral("新建文件夹成功").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_new_folder_success").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_success").toStdString());
 		}
 		else {
-			message->set_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
 			//message->set_resp_message(QStringLiteral("新建文件夹失败").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_new_folder_failed").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_failed").toStdString());
 		}
 		tc::FileOperateRespCreateNewFolder* resp = new tc::FileOperateRespCreateNewFolder();
 		resp->set_path_of_parent(parent_path);
@@ -300,16 +300,16 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegRenameCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::string old_path, std::string new_path, std::string er_msg) {
 		auto message = std::make_shared<tc::Message>();
 		message->set_type(tc::kFileOperateRespRename);
-		message->set_resp_sequence(resp_seq);
+		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
 			//message->set_resp_message(QStringLiteral("重命名成功").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_rename_success").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_success").toStdString());
 		}
 		else {
-			message->set_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
 			//message->set_resp_message(QStringLiteral("重命名失败").toStdString());
-			message->set_resp_message(tcTr("id_file_trans_rename_failed").toStdString());
+			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_failed").toStdString());
 
 		}
 		tc::FileOperateRespRename* resp = new tc::FileOperateRespRename();
