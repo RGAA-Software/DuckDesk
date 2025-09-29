@@ -22,4 +22,5 @@ if(MSVC)
 endif()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core tc_common_new tc_net_plugin tc_qt_widget libprotobuf tc_message Winmm.lib)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core tc_common_new tc_net_plugin
+    tc_qt_widget libprotobuf tc_message Winmm.lib tc_global_id_generator)

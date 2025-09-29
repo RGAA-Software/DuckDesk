@@ -9,6 +9,10 @@
 #include "render/plugin_interface/gr_net_plugin.h"
 #include "file_transmission_server/file_transmit_msg_interface.h"
 
+extern "C" {
+    __declspec(dllimport) uint64_t GenNextGlobalId();
+}
+
 void* GetInstance() {
     static tc::FileTransferPlugin plugin;
     return (void*)&plugin;
@@ -55,12 +59,19 @@ namespace tc
         // translator
         LOGI("Init language: {}", (int)GetCurrentLanguage());
         tcTrMgr()->InitLanguage(GetCurrentLanguage());
+
+        // test //
+        for (int i = 0; i < 10; i++) {
+            LOGI("GlobalId: {}", ::GenNextGlobalId());
+        }
+        // test //
+
         return true;
     }
 
     void FileTransferPlugin::OnSyncPluginSettingsInfo(const GrPluginSettingsInfo& settings) {
         GrPluginInterface::OnSyncPluginSettingsInfo(settings);
-        LOGI("Max transmit speed: {}, Max receive speed: {}", settings.max_transmit_speed_, settings.max_receive_speed_);
+        //LOGI("Max transmit speed: {}, Max receive speed: {}", settings.max_transmit_speed_, settings.max_receive_speed_);
         if (file_trans_msg_interface_) {
             if (settings.max_transmit_speed_ != file_trans_msg_interface_->GetMaxSpeedByMBPerSecond()) {
                 file_trans_msg_interface_->SetMaxSpeedByMBPerSecond(settings.max_transmit_speed_);

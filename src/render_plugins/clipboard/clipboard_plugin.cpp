@@ -17,6 +17,10 @@
 #include "tc_message_new/proto_converter.h"
 #include "tc_common_new/md5.h"
 
+extern "C" {
+    __declspec(dllimport) uint64_t GenNextGlobalId();
+}
+
 void* GetInstance() {
     static tc::ClipboardPlugin plugin;
     return (void*)&plugin;
@@ -51,6 +55,12 @@ namespace tc
     bool ClipboardPlugin::OnCreate(const tc::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
+
+        // test //
+        for (int i = 0; i < 10; i++) {
+            LOGI("NextGlobalId: {}", GenNextGlobalId());
+        }
+        // test //
 
         return true;
     }

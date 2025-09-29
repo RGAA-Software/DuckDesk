@@ -15,6 +15,7 @@
 #include "src/core/file_sdk_interface.h"
 #include "src/widget/file_trans_widget.h"
 #include "src/core/file_trans_interface.h"
+#include "widget_helper.h"
 
 void* GetInstance() {
     static tc::FileTransferPlugin plugin;
@@ -59,6 +60,7 @@ namespace tc
         auto layout = new NoMarginHLayout();
         layout->addWidget(file_trans_interface_->GetFileTransWidget());
         root_widget_->setLayout(layout);
+        WidgetHelper::SetTitleBarColor(root_widget_);
 
         // title
         root_widget_->setWindowTitle(QString::fromStdString(std::format("{}[{}]", tcTr("id_file_transfer").toStdString(), plugin_settings_.stream_name_)));

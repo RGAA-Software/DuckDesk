@@ -629,6 +629,7 @@ message Message {
   string stream_id = 4;
   MessageType type = 10;
   uint64 send_time = 20;
+  uint64 send_index = 21;
   string extra = 30;
   Hello hello = 40;
   ServerConfiguration config = 41;
