@@ -66,9 +66,9 @@ namespace tc {
 			rename_callback_ = callback;
 		}
 
-		void SetMaxSpeedByMBPerSecond(uint64_t speed);
+		void SetMaxSpeedBybitPerSecond(uint64_t speed);
 
-		uint64_t GetMaxSpeedByMBPerSecond();
+		uint64_t GetMaxSpeedBybitPerSecond();
 
 		// 文件上传相关
 		std::shared_ptr<FileTransmitImpl> file_transmit_impl_;

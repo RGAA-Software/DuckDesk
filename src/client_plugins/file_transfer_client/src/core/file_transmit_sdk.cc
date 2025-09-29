@@ -615,7 +615,7 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
 						// wait_for用法
 						grant_token_cv_.wait_for(lck, std::chrono::milliseconds(3000), [=]() ->bool {
 							if (task_id_with_recved_index_.count(task_id)) {
-								if (index - task_id_with_recved_index_[task_id] < 1000 && token_bucket_ > 0) {
+								if (index - task_id_with_recved_index_[task_id] < 100 && token_bucket_ > 0) {
 									return true;
 								}
 								else {

@@ -154,11 +154,11 @@ namespace tc {
 		file_transmit_impl_->HandleFileTransDataPacketResponse(message->stream_id(), file_trans_data_packet_resp);
 	}
 
-	uint64_t FileTransmitManager::GetMaxSpeedByMBPerSecond() {
-		return file_transmit_impl_->GetMaxSpeedByMBPerSecond();
+	uint64_t FileTransmitManager::GetMaxSpeedBybitPerSecond() {
+		return file_transmit_impl_->GetMaxSpeedBybitPerSecond();
 	}
 
-	void FileTransmitManager::SetMaxSpeedByMBPerSecond(uint64_t speed) {
-		file_transmit_impl_->SetMaxSpeedByMBPerSecond(speed);
+	void FileTransmitManager::SetMaxSpeedBybitPerSecond(uint64_t speed) {
+		file_transmit_impl_->SetMaxSpeedBybitPerSecond(speed);
 	}
 }
