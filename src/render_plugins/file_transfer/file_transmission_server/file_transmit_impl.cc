@@ -331,9 +331,9 @@ namespace tc {
 					if (0 >= token_bucket_) {
 						std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
 						grant_token_cv_.wait_for(lck, std::chrono::milliseconds(3000), [=]() ->bool {
-							
+						
 							if (task_id_with_recved_index_.count(task_id)) {
-								if (index - task_id_with_recved_index_[task_id] < 1000 && token_bucket_ > 0) {
+								if (index - task_id_with_recved_index_[task_id] < 100 && token_bucket_ > 0) {
 									//LOGI("download_path: {}, HandleDownload index: {}, task_id_with_recved_index_[task_id]: {}", download_path, index, task_id_with_recved_index_[task_id]);
 									return true;
 								}
@@ -476,12 +476,19 @@ namespace tc {
 		token_bucket_ = 10;
 	}
 
-	void FileTransmitImpl::SetMaxSpeedByMBPerSecond(uint64_t speed) {
-		speed_by_MB_per_1000ms_ = speed;
-		speed_by_MB_per_100ms_ = speed_by_MB_per_1000ms_ * 0.1;
+	void FileTransmitImpl::SetMaxSpeedBybitPerSecond(uint64_t speed) {
+		if (0 == speed) {
+			return;
+		}
+		speed_by_bit_per_1000ms_ = speed;
+		speed_by_MB_per_100ms_ = speed_by_bit_per_1000ms_ * 0.1 * 0.1 * 0.75;
+		if (speed_by_MB_per_100ms_ > kMaxSpeedByMBPer100ms) {
+			speed_by_MB_per_100ms_ = kMaxSpeedByMBPer100ms;
+		}
+		LOGI("speed_by_MB_per_100ms_ is {}", speed_by_MB_per_100ms_);
 	}
 
-	uint64_t FileTransmitImpl::GetMaxSpeedByMBPerSecond() {
-		return speed_by_MB_per_1000ms_;
+	uint64_t FileTransmitImpl::GetMaxSpeedBybitPerSecond() {
+		return speed_by_bit_per_1000ms_;
 	}
 }

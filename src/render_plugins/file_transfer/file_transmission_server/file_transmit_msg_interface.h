@@ -18,8 +18,8 @@ public:
 
 	void RegisterFileTransmitCallback();
 
-	uint64_t GetMaxSpeedByMBPerSecond();
-	void SetMaxSpeedByMBPerSecond(uint64_t speed);
+	uint64_t GetMaxSpeedBybitPerSecond();
+	void SetMaxSpeedBybitPerSecond(uint64_t speed);
 private:
     bool IsFileTransferEnabled();
 
