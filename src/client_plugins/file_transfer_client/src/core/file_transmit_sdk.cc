@@ -707,13 +707,29 @@ void FileTransmitSDK::HandleFileTransDataPacketResponse(tc::FileTransDataPacketR
 }
 
 void FileTransmitSDK::GrantTokenBucket() {
-	token_bucket_ = token_bucket_ + speed_ / kSingleBufferSize;
+	token_bucket_ = token_bucket_ + speed_by_MB_per_100ms_ / kSingleBufferSize;
 	std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
 	grant_token_cv_.notify_all();
 }
 
 void FileTransmitSDK::ResetTokenBucket() {
 	token_bucket_ = 10;
+}
+
+void FileTransmitSDK::SetMaxSpeedBybitPerSecond(uint64_t speed) {
+	if (0 == speed) {
+		return;
+	}
+	speed_by_bit_per_1000ms_ = speed;
+	speed_by_MB_per_100ms_ = speed_by_bit_per_1000ms_ * 0.1 * 0.1 * 0.85;
+	if (speed_by_MB_per_100ms_ > kMaxSpeedByMBPer100ms) {
+		speed_by_MB_per_100ms_ = kMaxSpeedByMBPer100ms;
+	}
+	LOGI("speed_by_MB_per_100ms_ is {}", speed_by_MB_per_100ms_);
+}
+
+uint64_t FileTransmitSDK::GetMaxSpeedBybitPerSecond() {
+	return speed_by_bit_per_1000ms_;
 }
 
 } // namespace tc

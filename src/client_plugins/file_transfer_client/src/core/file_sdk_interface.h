@@ -59,6 +59,9 @@ public:
     void SetOnFileDownloadBeginCallback(OnFileDownloadBeginCallback&& cbk);
     void SetOnFileDownloadEndCallback(OnFileDownloadEndCallback&& cbk);
 
+	uint64_t GetMaxSpeedBybitPerSecond();
+	void SetMaxSpeedBybitPerSecond(uint64_t speed);
+
 public:
     QWidget* file_trans_widget_ = nullptr;
 	std::shared_ptr<FileTransmitSDK> file_transmit_sdk_ = nullptr;

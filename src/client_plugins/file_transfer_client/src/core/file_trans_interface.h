@@ -38,6 +38,9 @@ namespace tc
 
         QWidget* GetFileTransWidget();
 
+        uint64_t GetMaxSpeedBybitPerSecond();
+        void SetMaxSpeedBybitPerSecond(uint64_t speed);
+
     private:
         FileTransferPlugin* plugin_ = nullptr;
         FileTransWidget* file_trans_widget_ = nullptr;

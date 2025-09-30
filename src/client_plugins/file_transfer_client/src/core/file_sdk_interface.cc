@@ -347,5 +347,19 @@ void FileSDKInterface::SetOnFileDownloadEndCallback(OnFileDownloadEndCallback&& 
     download_end_cbk_ = cbk;
 }
 
+uint64_t FileSDKInterface::GetMaxSpeedBybitPerSecond() {
+	if (!file_transmit_sdk_) {
+		LOGW("file_transmit_sdk_ is nullptr");
+		return 0;
+	}
+	return file_transmit_sdk_->GetMaxSpeedBybitPerSecond();
+}
+
+void FileSDKInterface::SetMaxSpeedBybitPerSecond(uint64_t speed) {
+	if (!file_transmit_sdk_) {
+		return;
+	}
+	file_transmit_sdk_->SetMaxSpeedBybitPerSecond(speed);
+}
 
 }

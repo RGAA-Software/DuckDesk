@@ -72,10 +72,11 @@ namespace tc
     void FileTransferPlugin::OnSyncPluginSettingsInfo(const GrPluginSettingsInfo& settings) {
         GrPluginInterface::OnSyncPluginSettingsInfo(settings);
         //LOGI("Max transmit speed: {}, Max receive speed: {}", settings.max_transmit_speed_, settings.max_receive_speed_);
-        if (file_trans_msg_interface_) {
-            if (settings.max_transmit_speed_ != file_trans_msg_interface_->GetMaxSpeedBybitPerSecond()) {
-                file_trans_msg_interface_->SetMaxSpeedBybitPerSecond(settings.max_transmit_speed_);
-            }
+        if (!file_trans_msg_interface_) {
+            return;
+        }
+        if (settings.max_transmit_speed_ != file_trans_msg_interface_->GetMaxSpeedBybitPerSecond()) {
+            file_trans_msg_interface_->SetMaxSpeedBybitPerSecond(settings.max_transmit_speed_);
         }
     }
 

@@ -481,7 +481,7 @@ namespace tc {
 			return;
 		}
 		speed_by_bit_per_1000ms_ = speed;
-		speed_by_MB_per_100ms_ = speed_by_bit_per_1000ms_ * 0.1 * 0.1 * 0.75;
+		speed_by_MB_per_100ms_ = speed_by_bit_per_1000ms_ * 0.1 * 0.1 * 0.85;
 		if (speed_by_MB_per_100ms_ > kMaxSpeedByMBPer100ms) {
 			speed_by_MB_per_100ms_ = kMaxSpeedByMBPer100ms;
 		}

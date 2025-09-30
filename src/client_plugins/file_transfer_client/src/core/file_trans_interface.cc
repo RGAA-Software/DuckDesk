@@ -99,4 +99,12 @@ namespace tc
         return file_trans_widget_;
     }
 
+    uint64_t FileTransInterface::GetMaxSpeedBybitPerSecond() {
+        return FileSDKInterface::Instance()->GetMaxSpeedBybitPerSecond();
+    }
+
+    void FileTransInterface::SetMaxSpeedBybitPerSecond(uint64_t speed) {
+        FileSDKInterface::Instance()->SetMaxSpeedBybitPerSecond(speed);
+    }
+
 }

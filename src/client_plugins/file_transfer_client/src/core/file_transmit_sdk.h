@@ -85,6 +85,10 @@ public:
 
 	void SendFileTransDataPacketResponseMessage(std::string task_id, uint64_t recved_index);
 
+	void SetMaxSpeedBybitPerSecond(uint64_t speed);
+
+	uint64_t GetMaxSpeedBybitPerSecond();
+
 	std::shared_ptr<FileMsgAnswerCbkStructure> msg_answer_cst_ = nullptr;
 
 	const std::string path_split_ = "<path_split>"; 
@@ -130,7 +134,10 @@ public:
 	// 限速设计:
 	// const uint64_t single_buffer_size_ = 1024 * 64;
 	// MB / 100ms
-	const uint64_t speed_ = 5 * 1 * 1024 * 1024;
+	const uint64_t kMaxSpeedByMBPer100ms = 4 * 1 * 1000 * 1000;
+	uint64_t speed_by_MB_per_100ms_ = 4 * 1 * 1000 * 1000;
+
+	uint64_t speed_by_bit_per_1000ms_ = 10 * 50 * 1 * 1000 * 1000;
 	std::atomic<uint64_t> token_bucket_ = {0};
 	void GrantTokenBucket();
 	void ResetTokenBucket();
