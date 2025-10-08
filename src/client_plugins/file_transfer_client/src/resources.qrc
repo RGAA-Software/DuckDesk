@@ -36,6 +36,7 @@
         <file>resource/close_press.svg</file>
         <file>resource/file_exists_warning.svg</file>
 		<file>resource/profile_picture.svg</file>
+		<file>resource/remote_profile_picture.svg</file>
 		<file>resource/logo_text.png</file>
 	</qresource>
 </RCC>

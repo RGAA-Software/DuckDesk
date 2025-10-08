@@ -65,7 +65,10 @@ AccountInfoWidget::AccountInfoWidget(FileAffiliationType aff_type, QWidget* pare
 	// to do 这里以后应该换成实际的用户头像
 	/*btn_profile_picture_->SetPixmap1(":/resource/profile_picture.svg", 42, 42);*/
 	QIcon icon;
-	icon.addFile(":/resource/profile_picture.svg");
+	QString icon_path = ":/resource/profile_picture.svg";
+	if(FileAffiliationType::kRemote == aff_type_) {
+		icon_path = ":/resource/remote_profile_picture.svg";
+	}
 	btn_profile_picture_->setIcon(icon);
 	btn_profile_picture_->setIconSize(QSize(42,42));
 
