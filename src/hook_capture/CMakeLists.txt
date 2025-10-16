@@ -14,6 +14,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win/hk_obs)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win/hk_obs/d3d8_api)
+include_directories(${VK_SDK_ROOT}/Include)
 
 #find_package(libyuv CONFIG REQUIRED)
 
