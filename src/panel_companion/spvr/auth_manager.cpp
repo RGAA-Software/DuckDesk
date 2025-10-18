@@ -68,7 +68,7 @@ namespace tc
         }
 
         try {
-            LOGI("auth: {}", resp.body);
+            //LOGI("auth: {}", resp.body);
             auto auth = std::make_shared<Authorization>();
             auto value = json::parse(resp.body);
             auth->auth_id_ = value["data"]["auth_id"].get<std::string>();

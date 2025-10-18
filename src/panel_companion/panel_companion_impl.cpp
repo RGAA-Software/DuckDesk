@@ -101,18 +101,35 @@ namespace tc
     }
 
     std::shared_ptr<SysInfo> PanelCompanionImpl::ParseHardwareInfo(const std::string& info) {
+        if (info.empty()) {
+            return nullptr;
+        }
         std::string json_info;
         try {
             json_info = AuthAes::AesDecrypt(info, AES_DEPLOY_AUTH);
-            LOGI("Decoded: {}", json_info);
+            //LOGI("Decoded: {}", json_info);
         }
         catch(std::exception& e) {
-            LOGE("Decoded error: {}", e.what());
+            LOGE("Decoded error: {}, info: {}", e.what(), info);
             return nullptr;
         }
         auto sys_info = HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
         sys_info->raw_json_msg_ = json_info;
         return sys_info;
+    }
+
+    std::shared_ptr<SpvrAccessInfo> PanelCompanionImpl::ParseSpvrAccessInfo(const std::string& info) {
+        std::string real_info;
+        try {
+            std::string head = "spvr://access##";
+            real_info = info.substr(head.size(), info.size());
+            auto json_info = AuthAes::AesDecrypt(real_info, AES_DEPLOY_AUTH);
+            LOGI("AccessInfo: {}", json_info);
+        }
+        catch(std::exception& e) {
+            LOGE("Decoded error: {}, info: {}", e.what(), real_info);
+            return nullptr;
+        }
     }
 
 }
