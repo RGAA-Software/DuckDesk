@@ -14,6 +14,7 @@
 #include "crypto/auth_aes.h"
 #include "tc_3rdparty/json/json.hpp"
 #include "hw_info/hw_info_parser.h"
+#include "spvr/spvr_access_info_parser.h"
 
 using namespace nlohmann;
 
@@ -125,6 +126,7 @@ namespace tc
             real_info = info.substr(head.size(), info.size());
             auto json_info = AuthAes::AesDecrypt(real_info, AES_DEPLOY_AUTH);
             LOGI("AccessInfo: {}", json_info);
+            return SpvrAccessInfoParser::ParseInfo(json_info);
         }
         catch(std::exception& e) {
             LOGE("Decoded error: {}, info: {}", e.what(), real_info);
