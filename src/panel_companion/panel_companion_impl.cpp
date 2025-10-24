@@ -125,8 +125,12 @@ namespace tc
             std::string head = "spvr://access##";
             real_info = info.substr(head.size(), info.size());
             auto json_info = AuthAes::AesDecrypt(real_info, AES_DEPLOY_AUTH);
-            LOGI("AccessInfo: {}", json_info);
-            return SpvrAccessInfoParser::ParseInfo(json_info);
+            auto parsed_info = SpvrAccessInfoParser::ParseInfo(json_info);
+            if (!parsed_info->IsValid()) {
+                LOGI("Parsed AccessInfo invalid: {}", json_info);
+                return nullptr;
+            }
+            return parsed_info;
         }
         catch(std::exception& e) {
             LOGE("Decoded error: {}, info: {}", e.what(), real_info);
