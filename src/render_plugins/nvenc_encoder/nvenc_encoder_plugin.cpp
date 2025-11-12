@@ -103,9 +103,9 @@ namespace tc
             return VideoEncoderError::NotFound();
         }
         if (!video_encoders_[monitor_name]->Encode(tex2d, frame_index, extra)) {
-            //todo:: callback event
+            return VideoEncoderError::EncodeFailed();
         }
-        return VideoEncoderError::NoError();
+        return VideoEncoderError::Ok();
     }
 
     void NvencEncoderPlugin::Exit(const std::string& monitor_name) {

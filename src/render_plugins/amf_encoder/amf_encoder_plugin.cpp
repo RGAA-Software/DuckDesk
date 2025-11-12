@@ -98,12 +98,14 @@ namespace tc
                 return VideoEncoderError::NotFound();
             }
             auto video_encoder = video_encoders_[monitor_name];
-            video_encoder->Encode(tex2d, frame_index, extra);
+            if (!video_encoder->Encode(tex2d, frame_index, extra)) {
+                return VideoEncoderError::EncodeFailed();
+            }
         }
         else {
             LOGI("Amf encoder is not working, ignore it.");
         }
-        return VideoEncoderError::NoError();
+        return VideoEncoderError::Ok();
     }
 
     void AmfEncoderPlugin::Exit(const std::string& monitor_name) {

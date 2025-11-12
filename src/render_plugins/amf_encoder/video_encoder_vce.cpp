@@ -286,15 +286,11 @@ namespace tc
         return true;
     }
 
-    void VideoEncoderVCE::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
+    bool VideoEncoderVCE::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
         extra_ = extra;
         D3D11_TEXTURE2D_DESC desc;
         tex2d->GetDesc(&desc);
-        EncodeTexture(tex2d, desc.Width, desc.Height, frame_index);
-    }
-
-    void VideoEncoderVCE::Encode(const std::shared_ptr<Image>& i420_data, uint64_t frame_index, std::any extra) {
-        extra_ = extra;
+        return EncodeTexture(tex2d, desc.Width, desc.Height, frame_index);
     }
 
     void VideoEncoderVCE::Exit() {
@@ -309,13 +305,17 @@ namespace tc
         LOGI("Successfully shutdown VideoEncoderVCE.");
     }
 
-    void VideoEncoderVCE::EncodeTexture(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, int width, int height, int64_t frame_idx) {
-        amf::AMFSurfacePtr surface = nullptr;
+    bool VideoEncoderVCE::EncodeTexture(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, int width, int height, int64_t frame_idx) {
+        amf::AMFSurfacePtr surface;
         // Surface is cached by AMF.
-        AMF_LOG_ERR_IF(amf_context_->AllocSurface(amf::AMF_MEMORY_DX11, convert_input_format_, width, height, &surface));
+        auto res = amf_context_->AllocSurface(amf::AMF_MEMORY_DX11, convert_input_format_, width, height, &surface);
+        if(res != AMF_OK) {
+            LOGE("amf context alloc surface failed: {}", res);
+            return false;
+        }
         if (!surface) {
             LOGE("AllocSurface failed!");
-            return;
+            return false;
         }
         auto textureDX11 = (ID3D11Texture2D*)surface->GetPlaneAt(0)->GetNative(); // no reference counting - do not Release()
         d3d11_device_context_->CopyResource(textureDX11, tex2d.Get());
@@ -346,6 +346,7 @@ namespace tc
         // perhaps to convert
         //m_converter->Submit(surface);
         encoder_->Submit(surface);
+        return true;
     }
 
     void VideoEncoderVCE::Receive(amf::AMFData *data) {

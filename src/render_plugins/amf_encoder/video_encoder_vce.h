@@ -64,8 +64,7 @@ namespace tc
         ~VideoEncoderVCE();
 
         bool Initialize(const tc::EncoderConfig &config);
-        void Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
-        void Encode(const std::shared_ptr<Image> &i420_data, uint64_t frame_index, std::any extra);
+        bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void InsertIdr();
         void Exit();
         void Shutdown();
@@ -76,7 +75,7 @@ namespace tc
     private:
         void ApplyFrameProperties(const amf::AMFSurfacePtr &surface, bool insertIDR);
         void SkipAUD(char** buffer, int* length);
-        void EncodeTexture(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, int width, int height, int64_t frame_idx);
+        bool EncodeTexture(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, int width, int height, int64_t frame_idx);
 
     private:
         amf::AMF_SURFACE_FORMAT convert_input_format_ = amf::AMF_SURFACE_BGRA;// AMF_SURFACE_RGBA;
