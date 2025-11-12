@@ -96,18 +96,16 @@ namespace tc
         return ok;
     }
 
-    void NvencEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError NvencEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
         auto cap_video_msg = std::any_cast<CaptureVideoFrame>(extra);
         auto monitor_name = std::string(cap_video_msg.display_name_);
-        if (HasEncoderForMonitor(monitor_name)) {
-            if (!video_encoders_[monitor_name]->Encode(tex2d, frame_index, extra)) {
-                //todo:: callback event
-            }
+        if (!HasEncoderForMonitor(monitor_name)) {
+            return VideoEncoderError::NotFound();
         }
-    }
-
-    void NvencEncoderPlugin::Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) {
-
+        if (!video_encoders_[monitor_name]->Encode(tex2d, frame_index, extra)) {
+            //todo:: callback event
+        }
+        return VideoEncoderError::NoError();
     }
 
     void NvencEncoderPlugin::Exit(const std::string& monitor_name) {

@@ -89,13 +89,13 @@ namespace tc
         return true;
     }
 
-    void AmfEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError AmfEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
         auto cap_video_msg = std::any_cast<CaptureVideoFrame>(extra);
         if (IsWorking()) {
             auto monitor_name = std::string(cap_video_msg.display_name_);
             if (video_encoders_.find(monitor_name) == video_encoders_.end()) {
                 LOGE("Not found video encoder for monitor: {}", monitor_name);
-                return;
+                return VideoEncoderError::NotFound();
             }
             auto video_encoder = video_encoders_[monitor_name];
             video_encoder->Encode(tex2d, frame_index, extra);
@@ -103,10 +103,7 @@ namespace tc
         else {
             LOGI("Amf encoder is not working, ignore it.");
         }
-    }
-
-    void AmfEncoderPlugin::Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) {
-
+        return VideoEncoderError::NoError();
     }
 
     void AmfEncoderPlugin::Exit(const std::string& monitor_name) {
