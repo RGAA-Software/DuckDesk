@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>resources/abc.svg</file>
-	</qresource>
-</RCC>
