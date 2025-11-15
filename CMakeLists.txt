@@ -114,14 +114,17 @@ add_subdirectory(src)
 
 add_custom_target(tc_build_premium_all ALL COMMENT "Build all targets")
 add_dependencies(tc_build_premium_all tc_build_all
-        ### render
-        plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
-        plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_net_udp plugin_nvenc_encoder
-        plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets panel_companion
-        plugin_net_rtc_local plugin_ssl_proxy
+    ### render
+    plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
+    plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_net_udp plugin_nvenc_encoder
+    plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets panel_companion
+    plugin_net_rtc_local plugin_ssl_proxy
 
-        ### client
-        plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
+    ### client
+    plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
+
+    ### skins
+    skin_interface skin_official
 )
 
 ## Servers
