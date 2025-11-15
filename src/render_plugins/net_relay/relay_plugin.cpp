@@ -114,6 +114,14 @@ namespace tc
 
                 });
 
+                relay_media_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
+                    this->ReportRelayAlive(device_id);
+                });
+
+                relay_media_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
+                    this->ReportRelayAlive(device_id);
+                });
+
                 relay_media_sdk_->SetOnRoomPreparedCallback([this](std::shared_ptr<RelayMessage> msg) {
                     auto sub = msg->room_prepared();
                     const auto& room_id = sub.room_id();
@@ -208,6 +216,14 @@ namespace tc
                         .device_name_ = Hardware::GetDesktopName(),
                         .stream_id_ = ft_device_id, //
                         .appkey_ = sys_settings_.appkey_,
+                    });
+
+                    relay_ft_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
+                        this->ReportRelayAlive(device_id);
+                    });
+
+                    relay_ft_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
+                        this->ReportRelayAlive(device_id);
                     });
 
                     relay_ft_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
@@ -382,6 +398,12 @@ namespace tc
             }
             last_ack_ = ack;
         }
+    }
+
+    void RelayPlugin::ReportRelayAlive(const std::string& device_id) {
+        auto event = std::make_shared<GrPluginRelayAlive>();
+        event->device_id_ = device_id;
+        this->CallbackEvent(event);
     }
 
 }
