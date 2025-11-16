@@ -89,7 +89,7 @@ namespace tc
         for (int h = 0; h < cover_image.height(); h++) {
             for (int w = 0; w < cover_image.width(); w++) {
                 auto r = cover_image.pixel(w, h);
-                if (qRed(r) == 0) {
+                if (qRed(r) < 20) {
                     cover_points_.emplace_back(w, h);
                 }
             }

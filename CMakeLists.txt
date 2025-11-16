@@ -148,81 +148,86 @@ set(CLIENT_PLUGIN_BINARY_TARGET_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay/gr_plugins
 set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/GammaRayWebClient")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_message_new)
 add_custom_command(TARGET tc_build_premium_all PRE_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_file_transfer.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_message.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_client_panel_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_file_transfer.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_client_panel_message.proto"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_signaling_message.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/tc_file_transfer.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_message.proto"
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_client_panel_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_signaling_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/tc_file_transfer.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_client_panel_message.proto"
 )
 
 add_custom_command(TARGET tc_build_premium_all POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/file_transfer/plugin_file_transfer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/file_transfer/plugin_file_transfer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/file_transfer/plugin_file_transfer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/file_transfer/plugin_file_transfer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_relay/plugin_net_relay.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_relay.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_relay/plugin_net_relay.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_relay.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_relay/plugin_net_relay.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_relay.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_relay/plugin_net_relay.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_relay.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/clipboard/plugin_clipboard.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_clipboard.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/clipboard/plugin_clipboard.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_clipboard.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/clipboard/plugin_clipboard.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_clipboard.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/clipboard/plugin_clipboard.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_clipboard.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/gdi_capture/plugin_gdi_capture.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_gdi_capture.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/gdi_capture/plugin_gdi_capture.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_gdi_capture.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/gdi_capture/plugin_gdi_capture.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_gdi_capture.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/gdi_capture/plugin_gdi_capture.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_gdi_capture.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/joystick/plugin_joystick.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/joystick/plugin_joystick.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/joystick/plugin_joystick.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/joystick/plugin_joystick.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_udp/plugin_net_udp.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_udp.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_udp/plugin_net_udp.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_udp.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_udp/plugin_net_udp.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_udp.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_udp/plugin_net_udp.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_udp.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_rtc/plugin_net_rtc.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_rtc/plugin_net_rtc.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_rtc/plugin_net_rtc.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_rtc/plugin_net_rtc.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/media_recorder/plugin_media_recorder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_recorder.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/media_recorder/plugin_media_recorder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_recorder.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/media_recorder/plugin_media_recorder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_recorder.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/media_recorder/plugin_media_recorder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_recorder.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/obj_detector/plugin_obj_detector.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_obj_detector.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/obj_detector/plugin_obj_detector.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_obj_detector.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/obj_detector/plugin_obj_detector.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_obj_detector.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/obj_detector/plugin_obj_detector.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_obj_detector.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/amf_encoder/plugin_amf_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_amf_encoder.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/amf_encoder/plugin_amf_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_amf_encoder.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/amf_encoder/plugin_amf_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_amf_encoder.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/amf_encoder/plugin_amf_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_amf_encoder.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/nvenc_encoder/plugin_nvenc_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_nvenc_encoder.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/nvenc_encoder/plugin_nvenc_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_nvenc_encoder.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/nvenc_encoder/plugin_nvenc_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_nvenc_encoder.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/nvenc_encoder/plugin_nvenc_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_nvenc_encoder.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_resizer/plugin_frame_resizer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_resizer/plugin_frame_resizer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_resizer/plugin_frame_resizer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_resizer/plugin_frame_resizer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_resizer.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_rtc_local/plugin_net_rtc_local.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_rtc_local/plugin_net_rtc_local.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/net_rtc_local/plugin_net_rtc_local.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/net_rtc_local/plugin_net_rtc_local.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_rtc_local.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/ssl_proxy/plugin_ssl_proxy.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/ssl_proxy/plugin_ssl_proxy.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/ssl_proxy/plugin_ssl_proxy.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/ssl_proxy/plugin_ssl_proxy.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll.toml"
 
-        #### Clients ####
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/media_record/plugin_media_record_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/media_record/plugin_media_record_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll.toml"
+    #### Clients ####
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/media_record/plugin_media_record_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/media_record/plugin_media_record_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/clipboard/plugin_client_clipboard.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_client_clipboard.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/clipboard/plugin_client_clipboard.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_client_clipboard.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/clipboard/plugin_client_clipboard.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_client_clipboard.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/clipboard/plugin_client_clipboard.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_client_clipboard.dll.toml"
 
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/file_transfer_client/plugin_file_transfer_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer_client.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/file_transfer_client/plugin_file_transfer_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}//plugin_file_transfer_client.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/file_transfer_client/plugin_file_transfer_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_file_transfer_client.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/file_transfer_client/plugin_file_transfer_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}//plugin_file_transfer_client.dll.toml"
 
-        ### Hook Capture ###
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
+    ### Hook Capture ###
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
 
-        ### Panel Companion ###
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/panel_companion/panel_companion.dll" ${RENDER_BINARY_ROOT}
+    ### Panel Companion ###
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/panel_companion/panel_companion.dll" ${RENDER_BINARY_ROOT}
+
+    ### Skins
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/skins/skin_config.toml" ${RENDER_BINARY_ROOT}/gr_skins/skin_config.toml
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/skins/official/skin_official.dll" ${RENDER_BINARY_ROOT}/gr_skins/skin_official.dll
+
 )
