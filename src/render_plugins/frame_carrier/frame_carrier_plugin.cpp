@@ -9,6 +9,7 @@
 #include "video_frame_carrier.h"
 #include "render/plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
+#include "tc_common_new/image_generator.h"
 
 void* GetInstance() {
     static tc::FrameCarrierPlugin plugin;
@@ -41,7 +42,7 @@ namespace tc
     void FrameCarrierPlugin::On1Second() {
         if (++timer_count_ > 10) {
             timer_count_ = 0;
-            ChangeLogoPosition();
+            //ChangeLogoPosition();
         }
     }
 
@@ -84,6 +85,15 @@ namespace tc
             }
         }
 
+        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, "www.godesk.online");
+        for (int h = 0; h < cover_image.height(); h++) {
+            for (int w = 0; w < cover_image.width(); w++) {
+                auto r = cover_image.pixel(w, h);
+                if (qRed(r) == 0) {
+                    cover_points_.emplace_back(w, h);
+                }
+            }
+        }
         return true;
     }
 
@@ -162,6 +172,10 @@ namespace tc
 
     std::vector<QPoint> FrameCarrierPlugin::GetBigLogoPoints() {
         return big_logo_points_;
+    }
+
+    std::vector<QPoint> FrameCarrierPlugin::GetCoverPoints() {
+        return cover_points_;
     }
 
     void FrameCarrierPlugin::ChangeLogoPosition() {

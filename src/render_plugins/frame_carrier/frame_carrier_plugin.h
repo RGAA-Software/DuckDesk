@@ -50,6 +50,9 @@ namespace tc
         // big log points
         std::vector<QPoint> GetBigLogoPoints();
 
+        // cover points
+        std::vector<QPoint> GetCoverPoints();
+
     private:
         std::shared_ptr<VideoFrameCarrier> GetFrameCarrier(const std::string& monitor_name);
         void ChangeLogoPosition();
@@ -63,6 +66,8 @@ namespace tc
         std::vector<QPoint> logo_points_;
         // big log points
         std::vector<QPoint> big_logo_points_;
+        // full screen
+        std::vector<QPoint> cover_points_;
         int timer_count_ = 0;
     };
 

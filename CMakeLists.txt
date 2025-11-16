@@ -85,6 +85,10 @@ if (MEMORY_STST_ENABLED)
     add_definitions(-DMEMORY_STST_ON=1)
 endif ()
 
+if (STAMP_LABEL_ON_DIRECT)
+    add_definitions(-DSTAMP_LABEL_ON_DIRECT=1)
+endif ()
+
 add_compile_definitions(ASIO2_ENABLE_SSL) #ASIO2_ENABLE_LOG
 add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX -DENABLE_SSL=0 -D_AMD64_)#-DCMAKE_GENERATOR_PLATFORM=x64
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
