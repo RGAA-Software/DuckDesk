@@ -66,10 +66,22 @@ namespace tc
 
     QPixmap SkinOfficial::GetLargeIconTextLogo() {
         QPixmap p;
+        p.load(":/skin/resources/tc_logo_text_trans_bg.png");
         return p;
     }
 
-    QPixmap SkinOfficial::GetSquareIconLogo() {
+    QPixmap SkinOfficial::GetSquareLogo() {
+        QPixmap p;
+        p.load(":/skin/resources/tc_icon.png");
+        return p;
+    }
+
+    QPixmap SkinOfficial::GetSquarePrimaryColorLogoTransBg() {
+        QPixmap p;
+        return p;
+    }
+
+    QPixmap SkinOfficial::GetSquareWhiteLogoTransBg() {
         QPixmap p;
         return p;
     }

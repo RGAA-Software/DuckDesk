@@ -14,34 +14,38 @@ namespace tc
         QString GetSkinName() override;
 
         // app name
-        QString GetAppName();
+        QString GetAppName() override;
 
         // version
         // eg: 1.3.5
-        QString GetAppVersionName();
+        QString GetAppVersionName() override;
 
         // eg: Premium / Pro ...
-        QString GetAppVersionMode();
+        QString GetAppVersionMode() override;
 
         // colors
-        int GetPrimaryColor();
+        int GetPrimaryColor() override;
 
-        int GetSecondaryColor();
+        int GetSecondaryColor() override;
 
-        int GetHeadTextColor();
+        int GetHeadTextColor() override;
 
-        int GetSubHeadTextColor();
+        int GetSubHeadTextColor() override;
 
-        int GetMainTextColor();
+        int GetMainTextColor() override;
 
-        int GetSecondaryTextColor();
+        int GetSecondaryTextColor() override;
 
         // icons
-        QPixmap GetWindowIcon();
+        QPixmap GetWindowIcon() override;
 
-        QPixmap GetLargeIconTextLogo();
+        QPixmap GetLargeIconTextLogo() override;
 
-        QPixmap GetSquareIconLogo();
+        QPixmap GetSquareLogo() override;
+
+        QPixmap GetSquarePrimaryColorLogoTransBg() override;
+
+        QPixmap GetSquareWhiteLogoTransBg() override;
         
     };
 }
