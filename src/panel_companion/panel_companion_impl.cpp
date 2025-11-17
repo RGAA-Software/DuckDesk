@@ -10,6 +10,7 @@
 #include "tc_common_new/thread.h"
 #include "tc_common_new/tc_aes.h"
 #include "tc_common_new/md5.h"
+#include "tc_common_new/folder_util.h"
 #include "tc_common_new/shared_preference.h"
 #include "crypto/auth_aes.h"
 #include "tc_3rdparty/json/json.hpp"
@@ -31,7 +32,7 @@ namespace tc
     }
 
     bool PanelCompanionImpl::Init() {
-        std::string base_path = ".";
+        std::string base_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()).toStdString();
         Logger::InitLog(base_path + "/gr_logs/panel_companion.log", true);
         LOGI("PanelCompanion Init");
 
@@ -39,8 +40,8 @@ namespace tc
         net_thread_->Poll();
 
         sp_ = std::make_shared<SharedPreference>();
-        auto sp_dir = qApp->applicationDirPath() + "/gr_data";
-        if (!sp_->Init(sp_dir.toStdString(), "panel_companion.dat")) {
+        auto sp_dir = base_path + "/gr_data";
+        if (!sp_->Init(sp_dir, "panel_companion.dat")) {
             //QMessageBox::critical(nullptr, "Error", "You may already run a instance.");
             return -1;
         }
