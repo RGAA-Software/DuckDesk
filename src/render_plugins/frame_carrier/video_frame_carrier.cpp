@@ -39,6 +39,7 @@ namespace tc
         // logo points
         logo_points_ = plugin_->GetLogoPoints();
         big_logo_points_ = plugin_->GetBigLogoPoints();
+        cover_points_ = plugin_->GetCoverPoints();
     }
 
     bool VideoFrameCarrier::D3D11Texture2DLockMutex(const ComPtr<ID3D11Texture2D>& texture2d) {
@@ -187,20 +188,46 @@ namespace tc
             d3d11_device_context_->UpdateSubresource(logo_point_texture_.Get(), 0, nullptr, logo_image->data->DataAddr(), logo_image->GetWidth() * 4, 0);
         }
 
-        auto big_picture = tex_width > 1920 && tex_height > 1080;
-        const auto& points = big_picture ? big_logo_points_ : logo_points_;
-        auto right_offset = big_picture ? 280 : 135;
-        right_offset += 130; // total logo width
-        D3D11_BOX srcBox = {0, 0, 0, logo_width, logo_height, 1};
-        for (const auto& point : points) {
-            d3d11_device_context_->CopySubresourceRegion(
-                texture.Get(),
-                0,
-                (logo_pos_offset_ ? (tex_width - right_offset) : 0) + point.x(), point.y(), 0,
-                logo_point_texture_.Get(),
-                0,
-                &srcBox
-            );
+        // logo
+        {
+            auto big_picture = tex_width > 1920 && tex_height > 1080;
+            const auto &points = big_picture ? big_logo_points_ : logo_points_;
+            auto right_offset = big_picture ? 280 : 135;
+            right_offset += 130; // total logo width
+            D3D11_BOX srcBox = {0, 0, 0, logo_width, logo_height, 1};
+            for (const auto &point: points) {
+                d3d11_device_context_->CopySubresourceRegion(
+                        texture.Get(),
+                        0,
+                        (logo_pos_offset_ ? (tex_width - right_offset) : 0) + point.x(), point.y(), 0,
+                        logo_point_texture_.Get(),
+                        0,
+                        &srcBox
+                );
+            }
+        }
+
+        // cover
+        {
+            D3D11_BOX srcBox = {0, 0, 0, 256, 48, 1};
+
+            int size = std::min(tex_width/300, 8);
+            for (int i = 0; i < size; i++) {
+                int offset_x = i * (tex_width/size);
+                int offset_y = i * ((tex_height)/ size);
+                for (const auto &point: cover_points_) {
+                    d3d11_device_context_->CopySubresourceRegion(
+                        texture.Get(),
+                        0,
+                        offset_x + point.x(),
+                        offset_y + point.y(),
+                        0,
+                        logo_point_texture_.Get(),
+                        0,
+                        &srcBox
+                    );
+                }
+            }
         }
     }
 

@@ -58,10 +58,13 @@ namespace tc
     }
 
     void NVENCVideoEncoder::Shutdown() {
-        std::vector<std::vector<uint8_t>> out_packet;
         if (nv_encoder_) {
-            nv_encoder_->EndEncode(out_packet);
+            if (has_transmit_frames_) {
+                std::vector<std::vector<uint8_t>> out_packet;
+                nv_encoder_->EndEncode(out_packet);
+            }
             nv_encoder_->DestroyEncoder();
+            nv_encoder_ = nullptr;
         }
     }
 
@@ -89,6 +92,8 @@ namespace tc
             LOGE("Encode frame failed, code: {}, err: {}", (int)e.getErrorCode(), e.what());
             return false;
         }
+
+        has_transmit_frames_ = true;
 
         CD3D11_TEXTURE2D_DESC desc;
         tex2d->GetDesc(&desc);

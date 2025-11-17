@@ -85,10 +85,12 @@ namespace tc
         std::vector<QPoint> logo_points_;
         // big log points
         std::vector<QPoint> big_logo_points_;
+        // cover points
+        std::vector<QPoint> cover_points_;
 
         ComPtr<ID3D11Texture2D> logo_point_texture_ = nullptr;
 
-        bool logo_pos_offset_ = false;
+        bool logo_pos_offset_ = true;
     };
 
 }
