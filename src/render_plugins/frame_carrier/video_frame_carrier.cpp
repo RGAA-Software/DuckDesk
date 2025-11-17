@@ -194,7 +194,7 @@ namespace tc
             const auto &points = big_picture ? big_logo_points_ : logo_points_;
             auto right_offset = big_picture ? 280 : 135;
             right_offset += 130; // total logo width
-            D3D11_BOX srcBox = {0, 0, 0, logo_width, logo_height, 1};
+            D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
             for (const auto &point: points) {
                 d3d11_device_context_->CopySubresourceRegion(
                         texture.Get(),
@@ -209,9 +209,9 @@ namespace tc
 
         // cover
         {
-            D3D11_BOX srcBox = {0, 0, 0, 256, 48, 1};
-
-            int size = std::min(tex_width/300, 8);
+            //D3D11_BOX srcBox = {0, 0, 0, 280, 48, 1};
+            D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
+            int size = std::min(tex_width/300, 7);
             for (int i = 0; i < size; i++) {
                 int offset_x = i * (tex_width/size);
                 int offset_y = i * ((tex_height)/ size);
