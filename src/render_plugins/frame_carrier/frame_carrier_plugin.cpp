@@ -86,7 +86,7 @@ namespace tc
         }
 
         int total_points = 0;
-        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, "www.godesk.online");
+        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, QStringLiteral("Unlicensed Stream")); // www.godesk.online
         for (int h = 0; h < cover_image.height(); h++) {
             for (int w = 0; w < cover_image.width(); w++) {
                 auto pxl = cover_image.pixel(w, h);

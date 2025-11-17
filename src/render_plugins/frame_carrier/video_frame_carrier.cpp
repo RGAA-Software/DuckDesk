@@ -208,10 +208,10 @@ namespace tc
         }
 
         // cover
-        {
+        if (1) {
             //D3D11_BOX srcBox = {0, 0, 0, 280, 48, 1};
             D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
-            int size = std::min(tex_width/300, 7);
+            int size = std::min(tex_width/300, 5);
             for (int i = 0; i < size; i++) {
                 int offset_x = i * (tex_width/size);
                 int offset_y = i * ((tex_height)/ size);
