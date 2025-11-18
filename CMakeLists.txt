@@ -131,7 +131,7 @@ add_dependencies(tc_build_premium_all tc_build_all
     skin_interface skin_official
 
     ### anti hooking
-    anti_hooking_protection
+    tc_protection
 )
 
 ## Servers
@@ -234,5 +234,5 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/skins/official/skin_official.dll" ${RENDER_BINARY_ROOT}/gr_skins/skin_official.dll
 
     ### anti hooking
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/anti_hooking/anti_hooking_protection.dll" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/anti_hooking/tc_protection.dll" ${RENDER_BINARY_ROOT}
 )

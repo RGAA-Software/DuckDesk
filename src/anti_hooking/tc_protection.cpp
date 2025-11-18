@@ -1,4 +1,4 @@
-#include "antihookingprotection.h"
+#include "tc_protection.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -218,7 +218,7 @@ LoadLibraryWFunc AntiHookingProtection::s_RealLoadLibraryW;
 LoadLibraryExAFunc AntiHookingProtection::s_RealLoadLibraryExA;
 LoadLibraryExWFunc AntiHookingProtection::s_RealLoadLibraryExW;
 
-AH_EXPORT void AntiHookingDummyImport() {}
+AH_EXPORT void TCProtectionDummyImport() {}
 
 extern "C"
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
