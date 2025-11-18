@@ -208,7 +208,7 @@ namespace tc
         }
 
         // cover
-        if (1) {
+        if (!plugin_->IsLicenseOk()) {
             //D3D11_BOX srcBox = {0, 0, 0, 280, 48, 1};
             D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
             int size = std::min(tex_width/300, 5);

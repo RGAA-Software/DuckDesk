@@ -187,4 +187,9 @@ namespace tc
         }
     }
 
+    // ignore the mark if no skin or opensource skin
+    bool FrameCarrierPlugin::IsLicenseOk() {
+        return sys_settings_.license_ok_;
+    }
+
 }
