@@ -42,7 +42,7 @@ namespace tc
     }
 
     void FileTransferPlugin::OnMessage(std::shared_ptr<Message> msg) {
-        LOGI("OnMessage, file transfer enabled: {}", sys_settings_.file_transfer_enabled_);
+        //LOGI("OnMessage, file transfer enabled: {}", sys_settings_.file_transfer_enabled_);
         if (!file_trans_msg_interface_ || !sys_settings_.file_transfer_enabled_) {
             return;
         }
