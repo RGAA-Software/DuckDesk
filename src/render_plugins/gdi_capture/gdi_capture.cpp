@@ -177,7 +177,7 @@ namespace tc
             auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
             this->plugin_->CallbackEvent(event);
-            //LOGI("Capture...{} , index: {}", cap_video_frame.display_name_, GetFrameIndex());
+            LOGI("Capture...{} , index: {}", cap_video_frame.display_name_, cap_video_frame.frame_index_);
         }
 
         // fps tick
