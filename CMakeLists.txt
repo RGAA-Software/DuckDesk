@@ -235,4 +235,10 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
 
     ### anti hooking
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/anti_hooking/tc_protection.dll" ${RENDER_BINARY_ROOT}
+
+    ### make setup
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/make_setup_config.json"  "${RENDER_BINARY_ROOT}/package/make_setup_config.json"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/make_setup.nsi"  "${RENDER_BINARY_ROOT}/package/make_setup.nsi"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/make_setup.py"  "${RENDER_BINARY_ROOT}/package/make_setup.py"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/start_make.bat"  "${RENDER_BINARY_ROOT}/package/start_make.bat"
 )
