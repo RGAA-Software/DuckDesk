@@ -172,6 +172,17 @@ namespace tc
         cap_video_frame.frame_index_ = GetFrameIndex();
         cap_video_frame.raw_image_ = Image::Make(data_ptr, bmp.bmWidth, bmp.bmHeight, RawImageType::kBGRA);
         memcpy(cap_video_frame.display_name_, my_monitor_info_.name_.c_str(), my_monitor_info_.name_.size());
+        auto mon_index_res = plugin_->GetMonIndexByName(my_monitor_info_.name_);
+        if (mon_index_res.has_value()) {
+            cap_video_frame.monitor_index_ = mon_index_res.value();
+        }
+        else {
+            LOGE("desktop capture get mon index by name failed!");
+        }
+        cap_video_frame.left_ = this->left_;
+        cap_video_frame.top_ = this->top_;
+        cap_video_frame.right_ = this->right_;
+        cap_video_frame.bottom_ = this->bottom_;
 
         if (plugin_->IsPluginEnabled()) {
             auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
