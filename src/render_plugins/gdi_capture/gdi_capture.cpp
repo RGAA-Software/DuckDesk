@@ -20,6 +20,35 @@
 namespace tc
 {
 
+    static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+        auto gdi_capture = (GdiCapture*)dwData;
+        MONITORINFOEX monitorInfo;
+        monitorInfo.cbSize = sizeof(MONITORINFOEX);
+        GetMonitorInfo(hMonitor, &monitorInfo);
+
+        auto it_mon_name = std::wstring(monitorInfo.szDevice);
+        if (it_mon_name != gdi_capture->mon_name_) {
+            return TRUE;
+        }
+
+        int screen_width = lprcMonitor->right - lprcMonitor->left;
+        int screen_height = lprcMonitor->bottom - lprcMonitor->top;
+
+        gdi_capture->left_ = lprcMonitor->left;
+        gdi_capture->top_ = lprcMonitor->top;
+        gdi_capture->right_ = lprcMonitor->right;
+        gdi_capture->bottom_ = lprcMonitor->bottom;
+        if ((screen_width != gdi_capture->width_ && gdi_capture->width_ > 0) || (screen_height != gdi_capture->height_ && gdi_capture->height_ > 0)) {
+            gdi_capture->reinit_ = true;
+            LOGW("GDI Screen size changed, origin: {}x{}, now: {}x{}", gdi_capture->width_, gdi_capture->height_, screen_width, screen_height);
+        }
+        gdi_capture->width_ = screen_width;
+        gdi_capture->height_ = screen_height;
+
+        LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
+        return TRUE;
+    }
+
     std::shared_ptr<GdiCapture> GdiCapture::Make(GdiCapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info) {
         return std::make_shared<GdiCapture>(plugin, my_monitor_info);
     }
@@ -28,17 +57,26 @@ namespace tc
         : PluginDesktopCapture(my_monitor_info) {
         plugin_ = plugin;
         fps_stat_ = std::make_shared<FpsStat>();
+        mon_name_ = StringUtil::ToWString(my_monitor_info_.name_);
+        is_primary_monitor_ = my_monitor_info_.primary_;
         LOGI("GdiCapture my monitor info: {}", my_monitor_info.Dump());
     }
 
     GdiCapture::~GdiCapture() {
-       
+       LOGW("GDI Released: {}", my_monitor_info_.name_);
     }
 
     bool GdiCapture::Init() {
-        init_success_ = false;     
-        screen_dc_ = GetDC(NULL); // 整个虚拟屏幕的设备上下文, GetDC 是采集整个虚拟屏幕的画面,GDI 作为托底采集,就采集整个虚拟桌面就可以
-        //screen_dc_ = CreateDC(NULL, R"(\\.\DISPLAY1)", NULL, NULL); // CreateDC 可以采集特定屏幕的画面
+        init_success_ = false;
+
+        EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
+        if (width_ <= 0 || height_ <= 0) {
+            LOGE("monitor size error: {}x{}", width_, height_);
+            return false;
+        }
+
+        //screen_dc_ = GetDC(NULL); // 整个虚拟屏幕的设备上下文, GetDC 是采集整个虚拟屏幕的画面,GDI 作为托底采集,就采集整个虚拟桌面就可以
+        screen_dc_ = CreateDCW(nullptr, mon_name_.c_str(), nullptr, nullptr); // CreateDC 可以采集特定屏幕的画面
         if (!screen_dc_) {
             LOGW("GdiCapture GetDC failed.");
             return false;
@@ -55,7 +93,7 @@ namespace tc
         }
 
         // 创建兼容位图
-        bit_map_ = CreateCompatibleBitmap(screen_dc_, my_monitor_info_.virtual_desktop_width_, my_monitor_info_.virtual_desktop_height_);
+        bit_map_ = CreateCompatibleBitmap(screen_dc_, my_monitor_info_.Width(), my_monitor_info_.Height());
         if (!bit_map_) {
             LOGW("CreateCompatibleBitmap failed.");
             return false;
@@ -89,8 +127,7 @@ namespace tc
 
     bool GdiCapture::CaptureNextFrame() {
         // 复制整个虚拟屏幕的内容到内存 DC
-        BitBlt(memory_dc_, 0, 0, my_monitor_info_.virtual_desktop_width_, my_monitor_info_.virtual_desktop_height_, screen_dc_, my_monitor_info_.virtual_desktop_left_, 
-            my_monitor_info_.virtual_desktop_top_, SRCCOPY);
+        BitBlt(memory_dc_, 0, 0, my_monitor_info_.Width(), my_monitor_info_.Height(), screen_dc_, 0, 0, SRCCOPY);
         BITMAP bmp;
         GetObject(bit_map_, sizeof(BITMAP), &bmp);
         
@@ -125,6 +162,7 @@ namespace tc
             return false;
         }
 
+        // FFmpeg to encode
         CaptureVideoFrame cap_video_frame{};
         cap_video_frame.type_ = kCaptureVideoFrame;
         cap_video_frame.capture_type_ = kCaptureVideoByBitmapData;
@@ -133,12 +171,13 @@ namespace tc
         cap_video_frame.frame_height_ = bmp.bmHeight;
         cap_video_frame.frame_index_ = GetFrameIndex();
         cap_video_frame.raw_image_ = Image::Make(data_ptr, bmp.bmWidth, bmp.bmHeight, RawImageType::kBGRA);
-        memcpy(cap_video_frame.display_name_, kVirtualDesktopNameSign.c_str(), kVirtualDesktopNameSign.size());
+        memcpy(cap_video_frame.display_name_, my_monitor_info_.name_.c_str(), my_monitor_info_.name_.size());
 
         if (plugin_->IsPluginEnabled()) {
             auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
             this->plugin_->CallbackEvent(event);
+            //LOGI("Capture...{} , index: {}", cap_video_frame.display_name_, GetFrameIndex());
         }
 
         // fps tick
@@ -198,7 +237,7 @@ namespace tc
                 continue;
             }
 
-            if (!WinHelper::InputDesktopSelected()) {
+            if (!WinHelper::InputDesktopSelected() || reinit_) {
                 if (!WinHelper::SelectInputDesktop()) {
                     LOGE("GDI capture SelectInputDesktop error.");
                 }
@@ -206,12 +245,14 @@ namespace tc
                 this->Exit();
                 this->Init();
                 plugin_->InsertIdr();
+
+                reinit_ = false;
             }
             CaptureNextFrame();
         }
     }
 
-    int GdiCapture::GetFrameIndex() {
+    int64_t GdiCapture::GetFrameIndex() {
         monitor_frame_index_++;
         return monitor_frame_index_;
     }
@@ -251,6 +292,10 @@ namespace tc
 
     int GdiCapture::GetCapturingFps() {
         return fps_stat_->value();
+    }
+
+    void GdiCapture::SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk) {
+        gdi_init_success_callback_ = std::move(cbk);
     }
 
 } // tc

@@ -13,6 +13,8 @@
 
 namespace tc
 {
+    using GdiInitSuccessCallback = std::function<void()>;
+
     class Data;
     class GdiCapturePlugin;
 
@@ -30,30 +32,30 @@ namespace tc
         bool IsPrimaryMonitor() override;
         bool IsInitSuccess() override;
         int GetCapturingFps() override;
+        void SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk);
 
-        using GdiInitSuccessCallback = std::function<void()>;
-        GdiInitSuccessCallback gdi_init_success_callback_ = nullptr;
-        void SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk) {
-            gdi_init_success_callback_ = std::move(cbk);
-        }
     private:
         void Start();
         bool Exit();
         void Capture();
-    
 
-        bool CaptureNextFrame();       
-        int GetFrameIndex();
+        bool CaptureNextFrame();
+        int64_t GetFrameIndex();
         std::vector<SupportedResolution> GetSupportedResolutions(const std::wstring& name);
 
-
+    public:
+        std::wstring mon_name_;
+        int left_ = 0;
+        int top_ = 0;
+        int right_ = 0;
+        int bottom_ = 0;
+        int width_ = 0;
+        int height_ = 0;
+        bool reinit_ = false;
 
     private:
-        bool init_success_ = false;
-
-
         GdiCapturePlugin* plugin_ = nullptr;
-
+        bool init_success_ = false;
         std::atomic<bool> stop_flag_ = false;
         std::thread capture_thread_;
         int64_t monitor_frame_index_ = 0;
@@ -64,5 +66,6 @@ namespace tc
         HBITMAP bit_map_ = nullptr;
         HDC screen_dc_ = nullptr;
         HDC memory_dc_ = nullptr;
+        GdiInitSuccessCallback gdi_init_success_callback_ = nullptr;
     };
 }
