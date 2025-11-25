@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import sys
 
 # gen_pack_name文件在 GammaRay\package 目录下
 from gen_pack_name import gen_package_name
@@ -26,7 +25,7 @@ def run_7z(seven_zip_path, target_dir, output_7z):
     print("7z compression completed.")
 
 def run_nsis(nsis_dir, nsi_script_path, working_dir):
-    makensis_exe = os.path.join(nsis_dir, "makensisw.exe")   # 推荐用 makensis.exe
+    makensis_exe = os.path.join(nsis_dir, "makensis.exe")   # 推荐用 makensis.exe
     # 如果你想用 GUI 版本，也可换成 makensisw.exe
     # makensis_exe = os.path.join(nsis_dir, "makensisw.exe")
 
