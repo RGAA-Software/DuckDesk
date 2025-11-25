@@ -40,9 +40,6 @@ namespace tc
         // Capturing target <==> information
         std::map<std::string, WorkingCaptureInfoPtr> GetWorkingCapturesInfo() override;
 
-        //
-        bool InitGdiCapture(const std::string& name, const CaptureMonitorInfo& info);
-
         void CreateCaptures();
         void HandleDisplayDeviceChangeEvent() override;
         void RestartCapturing();

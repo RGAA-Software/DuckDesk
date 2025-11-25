@@ -24,7 +24,7 @@ namespace tc
         auto gdi_capture = (GdiCapture*)dwData;
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
-        GetMonitorInfo(hMonitor, &monitorInfo);
+        GetMonitorInfoW(hMonitor, &monitorInfo);
 
         auto it_mon_name = std::wstring(monitorInfo.szDevice);
         if (it_mon_name != gdi_capture->mon_name_) {
@@ -45,7 +45,7 @@ namespace tc
         gdi_capture->width_ = screen_width;
         gdi_capture->height_ = screen_height;
 
-        LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
+        //LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
         return TRUE;
     }
 
@@ -188,7 +188,6 @@ namespace tc
             auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
             this->plugin_->CallbackEvent(event);
-            LOGI("Capture...{} , index: {}", cap_video_frame.display_name_, cap_video_frame.frame_index_);
         }
 
         // fps tick
@@ -219,7 +218,7 @@ namespace tc
     }
 
     void GdiCapture::Start() {
-        LOGI("GdiCapture::Start() stop_flag_: {}", stop_flag_.load());
+        LOGI("GdiCapture::Start() stop flag : {}", stop_flag_.load());
         capture_thread_ = std::thread([this] {
             while (!stop_flag_) {
                 if (!this->Init()) {
@@ -248,6 +247,9 @@ namespace tc
                 continue;
             }
 
+            // check display size
+            EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
+
             if (!WinHelper::InputDesktopSelected() || reinit_) {
                 if (!WinHelper::SelectInputDesktop()) {
                     LOGE("GDI capture SelectInputDesktop error.");
@@ -269,7 +271,7 @@ namespace tc
     }
 
     bool GdiCapture::StartCapture() {
-        this->stop_flag_ = {false};
+        this->stop_flag_ = false;
         this->Start();
         return true;
     }

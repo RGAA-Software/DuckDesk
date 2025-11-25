@@ -52,9 +52,10 @@ namespace tc
 
     bool GdiCapturePlugin::OnDestroy() {
         GrMonitorCapturePlugin::OnDestroy();
-//        if (cursor_capture_thread_ && cursor_capture_thread_->IsJoinable()) {
-//            cursor_capture_thread_->Join();
-//        }
+        for (const auto& [mon, capture] : captures_) {
+            capture->PauseCapture();
+            capture->StopCapture();
+        }
         return true;
     }
 
@@ -98,7 +99,8 @@ namespace tc
                     }
                     else {
                         if (!capture->IsInitSuccess()) {
-                            LOGW("Capture for: {} is not valid now.", monitor_name);  // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
+                            // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
+                            LOGW("Capture for: {} is not valid now.", monitor_name);
                             continue;
                         }
                         if (use_default_monitor && capture->IsPrimaryMonitor()) {
@@ -208,6 +210,7 @@ namespace tc
 
         CreateCaptures();
         if (monitors_.empty()) {
+            LOGE("Can't find any monitors.");
             return false;
         }
 
@@ -219,13 +222,15 @@ namespace tc
 
         for(const auto&[dev_name, monitor_info] : monitors_) {
             auto capture = std::make_shared<GdiCapture>(this, monitor_info);
-            LOGI("DDACapturePlugin capture_fps_: {}", capture_fps_);
+            LOGI("GDIPlugin capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             capture->StartCapture();
             captures_.insert({dev_name, capture});
         }
 
         NotifyCaptureMonitorInfo();
+
+        SetCaptureMonitor(capturing_monitor_name_);
         return true;
     }
 
@@ -287,10 +292,6 @@ namespace tc
         CalculateVirtualDeskInfo();
     }
 
-    bool GdiCapturePlugin::InitGdiCapture(const std::string& name, const CaptureMonitorInfo& info) {
-        return true;
-    }
-
     void GdiCapturePlugin::HandleDisplayDeviceChangeEvent() {
         RestartCapturing();
     }
@@ -310,6 +311,7 @@ namespace tc
             capture->StopCapture();
         }
         captures_.clear();
+        monitors_.clear();
     }
 
     void GdiCapturePlugin::NotifyCaptureMonitorInfo() {
@@ -334,8 +336,8 @@ namespace tc
             }
             if (!found) {
                 resolutions.push_back(SupportedResolution{
-                        .width_ = dm.dmPelsWidth,
-                        .height_ = dm.dmPelsHeight,
+                    .width_ = dm.dmPelsWidth,
+                    .height_ = dm.dmPelsHeight,
                 });
             }
         }
@@ -367,7 +369,6 @@ namespace tc
 
         int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_, far_bottom = sorted_monitors_[0].bottom_;
 
-        int left_monitor_virtual_size = 0;
         for (auto& info : sorted_monitors_) {
 
             if (info.left_ < far_left) {
