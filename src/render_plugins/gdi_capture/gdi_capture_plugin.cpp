@@ -73,44 +73,46 @@ namespace tc
         }
         LOGI("SetCaptureMonitor: {}, use_default_monitor: {}", name, use_default_monitor);
 
-        // todo: capture all monitors at same time
-        if (IsWorking()) {
-            if (kAllMonitorsNameSign == name) {
-                capturing_monitor_name_ = name;
-                // TODO
-                for (const auto& [monitor_name, capture]: captures_) {
+        if (!IsWorking()) {
+            return;
+        }
+
+        if (kAllMonitorsNameSign == name) {
+            capturing_monitor_name_ = name;
+            // TODO
+            for (const auto& [monitor_name, capture]: captures_) {
+                if (!capture->IsInitSuccess()) {
+                    LOGW("Capture for: {} is not valid now.", monitor_name);
+                    continue;
+                }
+                capture->ResumeCapture();
+            }
+        }
+        else {
+            for (const auto &[monitor_name, capture]: captures_) {
+                if (!name.empty()) {
+                    if (monitor_name == name) {
+                        capturing_monitor_name_ = name;
+                        capture->ResumeCapture();
+                    }
+                    else {
+                        capture->PauseCapture();
+                    }
+                }
+                else {
                     if (!capture->IsInitSuccess()) {
+                        // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
                         LOGW("Capture for: {} is not valid now.", monitor_name);
                         continue;
                     }
-                    capture->ResumeCapture();
-                }
-            }
-            else {
-                for (const auto &[monitor_name, capture]: captures_) {
-                    if (!name.empty()) {
-                        if (monitor_name == name) {
-                            capturing_monitor_name_ = name;
-                            capture->ResumeCapture();
-                        }
-                        else {
-                            capture->PauseCapture();
-                        }
+                    if (use_default_monitor && capture->IsPrimaryMonitor()) {
+                        LOGI("Resume the capture for: {}, this is the default monitor", monitor_name);
+                        capturing_monitor_name_ = monitor_name;
+                        capture->ResumeCapture();
                     }
                     else {
-                        if (!capture->IsInitSuccess()) {
-                            // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
-                            LOGW("Capture for: {} is not valid now.", monitor_name);
-                            continue;
-                        }
-                        if (use_default_monitor && capture->IsPrimaryMonitor()) {
-                            LOGI("Use default monitor: {}", monitor_name);
-                            capturing_monitor_name_ = monitor_name;
-                            capture->ResumeCapture();
-                        }
-                        else {
-                            capture->PauseCapture();
-                        }
+                        LOGI("Pause the capture for: {}", monitor_name);
+                        capture->PauseCapture();
                     }
                 }
             }
@@ -222,15 +224,19 @@ namespace tc
 
         for(const auto&[dev_name, monitor_info] : monitors_) {
             auto capture = std::make_shared<GdiCapture>(this, monitor_info);
+            if (!capture->Init()) {
+                LOGE("GDI capture init failed! {}", dev_name);
+                return false;
+            }
             LOGI("GDIPlugin capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             capture->StartCapture();
             captures_.insert({dev_name, capture});
+
+            SetCaptureMonitor(capturing_monitor_name_);
         }
 
         NotifyCaptureMonitorInfo();
-
-        SetCaptureMonitor(capturing_monitor_name_);
         return true;
     }
 

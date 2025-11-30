@@ -67,6 +67,29 @@ namespace tc
     }
 
     bool GdiCapture::Init() {
+        const int kInitTryMaxCount = 3;
+        int try_count = -1;
+        bool gdi_init_res = false;
+
+        do {
+            ++try_count;
+            gdi_init_res = this->InitInternal();
+            if (!gdi_init_res) {
+                LOGE("gdi capture init failed for target: {}, will try again.", my_monitor_info_.name_);
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            else {
+                break;
+            }
+
+        } while (try_count < kInitTryMaxCount);
+
+        LOGI("Init GDI result: {} -> {}", my_monitor_info_.name_, gdi_init_res);
+        return gdi_init_res;
+    }
+
+    bool GdiCapture::InitInternal() {
         init_success_ = false;
 
         EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
@@ -220,21 +243,6 @@ namespace tc
     void GdiCapture::Start() {
         LOGI("GdiCapture::Start() stop flag : {}", stop_flag_.load());
         capture_thread_ = std::thread([this] {
-            while (!stop_flag_) {
-                if (!this->Init()) {
-                    LOGE("gdi capture init failed for target: {}, will try again.", my_monitor_info_.name_);
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    continue;
-                }
-                else {
-                    break;
-                }
-            }
-
-            if (gdi_init_success_callback_) {
-                gdi_init_success_callback_();
-            }
-
             Capture();
         });
     }
@@ -305,10 +313,6 @@ namespace tc
 
     int GdiCapture::GetCapturingFps() {
         return fps_stat_->value();
-    }
-
-    void GdiCapture::SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk) {
-        gdi_init_success_callback_ = std::move(cbk);
     }
 
 } // tc
