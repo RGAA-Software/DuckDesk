@@ -205,9 +205,12 @@ namespace tc
     std::string GdiCapturePlugin::GetCapturingMonitorName() {
         return capturing_monitor_name_;
     }
-    
+
+    bool GdiCapturePlugin::TryInitSpecificCapture() {
+        return true;
+    }
+
     bool GdiCapturePlugin::StartCapturing() {
-        GrMonitorCapturePlugin::StartCapturing();
         StopCapturing();
 
         CreateCaptures();
