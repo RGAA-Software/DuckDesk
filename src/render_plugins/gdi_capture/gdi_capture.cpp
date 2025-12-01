@@ -24,7 +24,7 @@ namespace tc
         auto gdi_capture = (GdiCapture*)dwData;
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
-        GetMonitorInfo(hMonitor, &monitorInfo);
+        GetMonitorInfoW(hMonitor, &monitorInfo);
 
         auto it_mon_name = std::wstring(monitorInfo.szDevice);
         if (it_mon_name != gdi_capture->mon_name_) {
@@ -45,7 +45,7 @@ namespace tc
         gdi_capture->width_ = screen_width;
         gdi_capture->height_ = screen_height;
 
-        LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
+        //LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
         return TRUE;
     }
 
@@ -67,6 +67,29 @@ namespace tc
     }
 
     bool GdiCapture::Init() {
+        const int kInitTryMaxCount = 3;
+        int try_count = -1;
+        bool gdi_init_res = false;
+
+        do {
+            ++try_count;
+            gdi_init_res = this->InitInternal();
+            if (!gdi_init_res) {
+                LOGE("gdi capture init failed for target: {}, will try again.", my_monitor_info_.name_);
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            else {
+                break;
+            }
+
+        } while (try_count < kInitTryMaxCount);
+
+        LOGI("Init GDI result: {} -> {}", my_monitor_info_.name_, gdi_init_res);
+        return gdi_init_res;
+    }
+
+    bool GdiCapture::InitInternal() {
         init_success_ = false;
 
         EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
@@ -188,7 +211,6 @@ namespace tc
             auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
             this->plugin_->CallbackEvent(event);
-            LOGI("Capture...{} , index: {}", cap_video_frame.display_name_, cap_video_frame.frame_index_);
         }
 
         // fps tick
@@ -219,23 +241,8 @@ namespace tc
     }
 
     void GdiCapture::Start() {
-        LOGI("GdiCapture::Start() stop_flag_: {}", stop_flag_.load());
+        LOGI("GdiCapture::Start() stop flag : {}", stop_flag_.load());
         capture_thread_ = std::thread([this] {
-            while (!stop_flag_) {
-                if (!this->Init()) {
-                    LOGE("gdi capture init failed for target: {}, will try again.", my_monitor_info_.name_);
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    continue;
-                }
-                else {
-                    break;
-                }
-            }
-
-            if (gdi_init_success_callback_) {
-                gdi_init_success_callback_();
-            }
-
             Capture();
         });
     }
@@ -247,6 +254,9 @@ namespace tc
                 std::this_thread::sleep_for(std::chrono::milliseconds(17));
                 continue;
             }
+
+            // check display size
+            EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
 
             if (!WinHelper::InputDesktopSelected() || reinit_) {
                 if (!WinHelper::SelectInputDesktop()) {
@@ -269,7 +279,7 @@ namespace tc
     }
 
     bool GdiCapture::StartCapture() {
-        this->stop_flag_ = {false};
+        this->stop_flag_ = false;
         this->Start();
         return true;
     }
@@ -303,10 +313,6 @@ namespace tc
 
     int GdiCapture::GetCapturingFps() {
         return fps_stat_->value();
-    }
-
-    void GdiCapture::SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk) {
-        gdi_init_success_callback_ = std::move(cbk);
     }
 
 } // tc

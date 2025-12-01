@@ -13,7 +13,6 @@
 
 namespace tc
 {
-    using GdiInitSuccessCallback = std::function<void()>;
 
     class Data;
     class GdiCapturePlugin;
@@ -32,16 +31,15 @@ namespace tc
         bool IsPrimaryMonitor() override;
         bool IsInitSuccess() override;
         int GetCapturingFps() override;
-        void SetDDAInitSuccessCallback(GdiInitSuccessCallback&& cbk);
 
     private:
+        bool InitInternal();
         void Start();
         bool Exit();
         void Capture();
 
         bool CaptureNextFrame();
         int64_t GetFrameIndex();
-        std::vector<SupportedResolution> GetSupportedResolutions(const std::wstring& name);
 
     public:
         std::wstring mon_name_;
@@ -66,6 +64,5 @@ namespace tc
         HBITMAP bit_map_ = nullptr;
         HDC screen_dc_ = nullptr;
         HDC memory_dc_ = nullptr;
-        GdiInitSuccessCallback gdi_init_success_callback_ = nullptr;
     };
 }

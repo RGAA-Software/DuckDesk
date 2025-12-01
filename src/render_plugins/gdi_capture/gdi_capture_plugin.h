@@ -21,6 +21,7 @@ namespace tc
         std::string GetPluginDescription() override;
         bool OnCreate(const tc::GrPluginParam& param) override;
         bool OnDestroy() override;
+        bool TryInitSpecificCapture() override;
         bool StartCapturing() override;
         void StopCapturing() override;
         std::vector<CaptureMonitorInfo> GetCaptureMonitorInfo() override;
@@ -39,9 +40,6 @@ namespace tc
 
         // Capturing target <==> information
         std::map<std::string, WorkingCaptureInfoPtr> GetWorkingCapturesInfo() override;
-
-        //
-        bool InitGdiCapture(const std::string& name, const CaptureMonitorInfo& info);
 
         void CreateCaptures();
         void HandleDisplayDeviceChangeEvent() override;

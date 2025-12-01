@@ -52,9 +52,10 @@ namespace tc
 
     bool GdiCapturePlugin::OnDestroy() {
         GrMonitorCapturePlugin::OnDestroy();
-//        if (cursor_capture_thread_ && cursor_capture_thread_->IsJoinable()) {
-//            cursor_capture_thread_->Join();
-//        }
+        for (const auto& [mon, capture] : captures_) {
+            capture->PauseCapture();
+            capture->StopCapture();
+        }
         return true;
     }
 
@@ -72,43 +73,46 @@ namespace tc
         }
         LOGI("SetCaptureMonitor: {}, use_default_monitor: {}", name, use_default_monitor);
 
-        // todo: capture all monitors at same time
-        if (IsWorking()) {
-            if (kAllMonitorsNameSign == name) {
-                capturing_monitor_name_ = name;
-                // TODO
-                for (const auto& [monitor_name, capture]: captures_) {
+        if (!IsWorking()) {
+            return;
+        }
+
+        if (kAllMonitorsNameSign == name) {
+            capturing_monitor_name_ = name;
+            // TODO
+            for (const auto& [monitor_name, capture]: captures_) {
+                if (!capture->IsInitSuccess()) {
+                    LOGW("Capture for: {} is not valid now.", monitor_name);
+                    continue;
+                }
+                capture->ResumeCapture();
+            }
+        }
+        else {
+            for (const auto &[monitor_name, capture]: captures_) {
+                if (!name.empty()) {
+                    if (monitor_name == name) {
+                        capturing_monitor_name_ = name;
+                        capture->ResumeCapture();
+                    }
+                    else {
+                        capture->PauseCapture();
+                    }
+                }
+                else {
                     if (!capture->IsInitSuccess()) {
+                        // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
                         LOGW("Capture for: {} is not valid now.", monitor_name);
                         continue;
                     }
-                    capture->ResumeCapture();
-                }
-            }
-            else {
-                for (const auto &[monitor_name, capture]: captures_) {
-                    if (!name.empty()) {
-                        if (monitor_name == name) {
-                            capturing_monitor_name_ = name;
-                            capture->ResumeCapture();
-                        }
-                        else {
-                            capture->PauseCapture();
-                        }
+                    if (use_default_monitor && capture->IsPrimaryMonitor()) {
+                        LOGI("Resume the capture for: {}, this is the default monitor", monitor_name);
+                        capturing_monitor_name_ = monitor_name;
+                        capture->ResumeCapture();
                     }
                     else {
-                        if (!capture->IsInitSuccess()) {
-                            LOGW("Capture for: {} is not valid now.", monitor_name);  // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
-                            continue;
-                        }
-                        if (use_default_monitor && capture->IsPrimaryMonitor()) {
-                            LOGI("Use default monitor: {}", monitor_name);
-                            capturing_monitor_name_ = monitor_name;
-                            capture->ResumeCapture();
-                        }
-                        else {
-                            capture->PauseCapture();
-                        }
+                        LOGI("Pause the capture for: {}", monitor_name);
+                        capture->PauseCapture();
                     }
                 }
             }
@@ -201,13 +205,17 @@ namespace tc
     std::string GdiCapturePlugin::GetCapturingMonitorName() {
         return capturing_monitor_name_;
     }
-    
+
+    bool GdiCapturePlugin::TryInitSpecificCapture() {
+        return true;
+    }
+
     bool GdiCapturePlugin::StartCapturing() {
-        GrMonitorCapturePlugin::StartCapturing();
         StopCapturing();
 
         CreateCaptures();
         if (monitors_.empty()) {
+            LOGE("Can't find any monitors.");
             return false;
         }
 
@@ -219,10 +227,16 @@ namespace tc
 
         for(const auto&[dev_name, monitor_info] : monitors_) {
             auto capture = std::make_shared<GdiCapture>(this, monitor_info);
-            LOGI("DDACapturePlugin capture_fps_: {}", capture_fps_);
+            if (!capture->Init()) {
+                LOGE("GDI capture init failed! {}", dev_name);
+                return false;
+            }
+            LOGI("GDIPlugin capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             capture->StartCapture();
             captures_.insert({dev_name, capture});
+
+            SetCaptureMonitor(capturing_monitor_name_);
         }
 
         NotifyCaptureMonitorInfo();
@@ -287,10 +301,6 @@ namespace tc
         CalculateVirtualDeskInfo();
     }
 
-    bool GdiCapturePlugin::InitGdiCapture(const std::string& name, const CaptureMonitorInfo& info) {
-        return true;
-    }
-
     void GdiCapturePlugin::HandleDisplayDeviceChangeEvent() {
         RestartCapturing();
     }
@@ -310,6 +320,7 @@ namespace tc
             capture->StopCapture();
         }
         captures_.clear();
+        monitors_.clear();
     }
 
     void GdiCapturePlugin::NotifyCaptureMonitorInfo() {
@@ -334,8 +345,8 @@ namespace tc
             }
             if (!found) {
                 resolutions.push_back(SupportedResolution{
-                        .width_ = dm.dmPelsWidth,
-                        .height_ = dm.dmPelsHeight,
+                    .width_ = dm.dmPelsWidth,
+                    .height_ = dm.dmPelsHeight,
                 });
             }
         }
@@ -367,7 +378,6 @@ namespace tc
 
         int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_, far_bottom = sorted_monitors_[0].bottom_;
 
-        int left_monitor_virtual_size = 0;
         for (auto& info : sorted_monitors_) {
 
             if (info.left_ < far_left) {
