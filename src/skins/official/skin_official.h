@@ -48,7 +48,10 @@ namespace tc
         QPixmap GetSquareWhiteLogoTransBg() override;
 
         // enable game
-        virtual bool IsGameEnabled();
+        bool IsGameEnabled() override;
+
+        //
+        bool IsCoPhoneEnabled() override;
     };
 }
 

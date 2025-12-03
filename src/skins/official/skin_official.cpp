@@ -97,6 +97,10 @@ namespace tc
     }
 
     bool SkinOfficial::IsGameEnabled() {
+        return true;
+    }
+
+    bool SkinOfficial::IsCoPhoneEnabled() {
         return false;
     }
 
