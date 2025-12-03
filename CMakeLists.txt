@@ -241,4 +241,5 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/make_setup.nsi"  "${RENDER_BINARY_ROOT}/package/make_setup.nsi"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/make_setup.py"  "${RENDER_BINARY_ROOT}/package/make_setup.py"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/start_make.bat"  "${RENDER_BINARY_ROOT}/package/start_make.bat"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/make_setup/save_pdb.py"  "${RENDER_BINARY_ROOT}/package/save_pdb.py"
 )
