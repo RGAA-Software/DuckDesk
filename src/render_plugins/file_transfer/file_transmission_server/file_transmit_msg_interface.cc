@@ -176,7 +176,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
         event->the_file_id_ = task_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->visitor_device_id_ = device_id;
-        event->direction_ = "In";
+        event->direction_ = "Out";
         event->file_detail_ = file_path;
         file_trans_plugin_->CallbackEvent(event);
     };
@@ -331,7 +331,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
         event->the_file_id_ = task_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->visitor_device_id_ = device_id;
-        event->direction_ = "Out";
+        event->direction_ = "In";
         event->file_detail_ = dst_path;
         file_trans_plugin_->CallbackEvent(event);
     };
