@@ -103,14 +103,20 @@ Function .onInit
     ; 检查旧版本是否运行
     ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
     ${If} $R0 == 0
-        MessageBox MB_OK "检测到程序正在运行，将自动关闭。"
+        MessageBox MB_OK|MB_TOPMOST "将自动关闭当前正在运行程序,进行下一步安装"
         Call StopAndDeleteService
+		Call KillProcesses
+		
+		Call StopAndDeleteService
 		Call KillProcesses
     ${EndIf}
 FunctionEnd
 
 Function un.onInit
     Call un.StopAndDeleteService
+    Call un.KillProcesses
+	
+	Call un.StopAndDeleteService
     Call un.KillProcesses
 FunctionEnd
 
@@ -130,18 +136,18 @@ FunctionEnd
 
 
 Function KillProcesses
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayGuard.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
 FunctionEnd
 
 Function un.KillProcesses
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayGuard.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
