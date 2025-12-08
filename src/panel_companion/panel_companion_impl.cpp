@@ -127,6 +127,10 @@ namespace tc
             real_info = info.substr(head.size(), info.size());
             auto json_info = AuthAes::AesDecrypt(real_info, AES_DEPLOY_AUTH);
             auto parsed_info = SpvrAccessInfoParser::ParseInfo(json_info);
+            if (!parsed_info) {
+                LOGI("Parsed AccessInfo is null");
+                return nullptr;
+            }
             if (!parsed_info->IsValid()) {
                 LOGI("Parsed AccessInfo invalid: {}", json_info);
                 return nullptr;
