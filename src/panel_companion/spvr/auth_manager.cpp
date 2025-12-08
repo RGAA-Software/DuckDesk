@@ -24,7 +24,7 @@ namespace tc
 
     void AuthManager::OnTimer5S() {
         pc_->PostNetTask([=, this]() {
-            if (auto auth = this->RequestAuth(); auth && !auth->appkey_.empty()) {
+            if (const auto auth = this->RequestAuth(); auth && !auth->appkey_.empty()) {
                 this->auth_.Update(auth);
                 this->FlushToStorage();
             }
@@ -37,7 +37,7 @@ namespace tc
         if (auth_id.empty() || appkey.empty()) {
             return;
         }
-        auto auth = std::make_shared<Authorization>();
+        const auto auth = std::make_shared<Authorization>();
         auth->auth_id_ = auth_id;
         auth->appkey_ = appkey;
         this->auth_.Update(auth);
@@ -45,11 +45,11 @@ namespace tc
     }
 
     void AuthManager::FlushToStorage() {
-        this->auth_.WithLock([=, this](std::shared_ptr<Authorization>& auth) {
+        this->auth_.WithLock([=, this](const std::shared_ptr<Authorization>& auth) {
             if (auth->auth_id_.empty() || auth->appkey_.empty()) {
                 return;
             }
-            auto sp = pc_->GetSP();
+            const auto sp = pc_->GetSP();
             sp->Put(kAuthId, auth->auth_id_);
             sp->Put(kAuthAppkey, auth->appkey_);
         });
@@ -83,7 +83,7 @@ namespace tc
     }
 
     std::shared_ptr<Authorization> AuthManager::GetAuth() {
-        return auth_.Load();
+        return auth_.Clone();
     }
 
 }
