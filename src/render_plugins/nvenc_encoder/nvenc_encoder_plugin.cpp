@@ -76,6 +76,13 @@ namespace tc
     }
 
     bool NvencEncoderPlugin::HasEncoderForMonitor(const std::string& monitor_name) {
+#if 0
+        LOGW("HasEncoderForMonitor monitor_name: {}", monitor_name);
+
+        for (auto item : video_encoders_) {
+            LOGW("HasEncoderForMonitor item: {}", item.first);
+        }
+#endif
         return video_encoders_.find(monitor_name) != video_encoders_.end();
     }
 
@@ -112,6 +119,7 @@ namespace tc
         if (video_encoders_.find(monitor_name) != video_encoders_.end()) {
             video_encoders_[monitor_name]->Exit();
             video_encoders_.erase(monitor_name);
+            LOGW("Exit encoder for monitor_name: {}", monitor_name);
         }
     }
 
