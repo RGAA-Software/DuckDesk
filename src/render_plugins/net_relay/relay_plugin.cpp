@@ -122,6 +122,20 @@ namespace tc
                     this->ReportRelayAlive(device_id);
                 });
 
+                relay_media_sdk_->SetOnRequestControlCallback([=, this](std::shared_ptr<RelayMessage> msg) {
+                    const auto& sub = msg->request_control();
+                    LOGI("Request Control:");
+                    LOGI("Device ID: {}", sub.device_id());
+                    LOGI("Remote Device ID: {}", sub.remote_device_id());
+                    LOGI("Stream ID: {}", sub.stream_id());
+                    LOGI("Force GDI: {}", sub.force_gdi());
+
+                    const auto event = std::make_shared<GrPluginReqParamsBeginStreaming>();
+                    event->stream_id_ = sub.stream_id();
+                    event->force_gdi_ = sub.force_gdi();
+                    this->CallbackEvent(event);
+                });
+
                 relay_media_sdk_->SetOnRoomPreparedCallback([this](std::shared_ptr<RelayMessage> msg) {
                     auto sub = msg->room_prepared();
                     const auto& room_id = sub.room_id();
