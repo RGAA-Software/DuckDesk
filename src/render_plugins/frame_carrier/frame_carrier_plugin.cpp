@@ -57,8 +57,10 @@ namespace tc
 
         // logo src
         {
-            QImage image;
-            image.load(":/resources/ic_logo_src.png");
+            //QImage image;
+            //image.load(":/resources/ic_logo_src.png");
+            //QImage image = ImageGenerator::CreateGrayscaleWithText(256, 32, 0xff, 0x00, 20, true, QStringLiteral("www.godesk.uk"));
+            QImage image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, QStringLiteral("www.godesk.uk"));
             LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image.width(), image.height(), (int)image.format(), image.sizeInBytes());
             for (int h = 0; h < image.height(); h++) {
                 for (int w = 0; w < image.width(); w++) {
@@ -72,8 +74,9 @@ namespace tc
 
         // big logo src
         {
-            QImage image;
-            image.load(":/resources/ic_logo_src_big.png");
+            // QImage image;
+            // image.load(":/resources/ic_logo_src_big.png");
+            QImage image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, QStringLiteral("www.godesk.uk"));
             LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image.width(), image.height(), (int)image.format(), image.sizeInBytes());
             for (int h = 0; h < image.height(); h++) {
                 for (int w = 0; w < image.width(); w++) {
@@ -86,7 +89,7 @@ namespace tc
         }
 
         int total_points = 0;
-        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, QStringLiteral("Unlicensed Stream")); // www.godesk.online
+        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, QStringLiteral("Unlicensed Stream"));
         for (int h = 0; h < cover_image.height(); h++) {
             for (int w = 0; w < cover_image.width(); w++) {
                 auto pxl = cover_image.pixel(w, h);
