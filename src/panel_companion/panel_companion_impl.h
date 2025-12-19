@@ -31,6 +31,9 @@ namespace tc
         void UpdateSpvrServerConfig(const std::string &host, int port) override;
         std::shared_ptr<Authorization> RequestAuth() override;
         std::shared_ptr<Authorization> GetAuth() override;
+        bool IsAuthFree() override;
+        bool IsAuthPersonal() override;
+        bool IsAuthEnterprise() override;
 
         // enc
         bool EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;

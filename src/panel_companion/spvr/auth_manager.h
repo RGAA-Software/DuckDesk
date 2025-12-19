@@ -19,7 +19,7 @@ namespace tc
         explicit AuthManager(PanelCompanionImpl* pc);
         void OnTimer5S();
         std::shared_ptr<Authorization> RequestAuth();
-        std::shared_ptr<Authorization> GetAuth();
+        std::shared_ptr<Authorization> GetAuth() const;
         void LoadFromStorage();
         void FlushToStorage();
 

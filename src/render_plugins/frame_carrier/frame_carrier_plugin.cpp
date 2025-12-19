@@ -191,8 +191,8 @@ namespace tc
     }
 
     // ignore the mark if no skin or opensource skin
-    bool FrameCarrierPlugin::IsLicenseOk() {
-        return sys_settings_.license_ok_;
+    int FrameCarrierPlugin::GetAuthRole() const {
+        return sys_settings_.role_;
     }
 
 }

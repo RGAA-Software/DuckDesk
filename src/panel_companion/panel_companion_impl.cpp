@@ -76,6 +76,21 @@ namespace tc
         return auth_mgr_->GetAuth();
     }
 
+    bool PanelCompanionImpl::IsAuthFree() {
+        const auto auth = GetAuth();
+        return auth->IsFree();
+    }
+
+    bool PanelCompanionImpl::IsAuthPersonal() {
+        const auto auth = GetAuth();
+        return auth->IsPersonal();
+    }
+
+    bool PanelCompanionImpl::IsAuthEnterprise() {
+        auto auth = GetAuth();
+        return auth->IsEnterprise();
+    }
+
     ///
 
     void PanelCompanionImpl::PostNetTask(std::function<void()> &&task) {

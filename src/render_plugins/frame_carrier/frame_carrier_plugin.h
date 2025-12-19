@@ -53,7 +53,7 @@ namespace tc
         // cover points
         std::vector<QPoint> GetCoverPoints();
 
-        bool IsLicenseOk();
+        int GetAuthRole() const;
 
     private:
         std::shared_ptr<VideoFrameCarrier> GetFrameCarrier(const std::string& monitor_name);

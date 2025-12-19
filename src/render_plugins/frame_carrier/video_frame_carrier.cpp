@@ -163,7 +163,10 @@ namespace tc
         //PrintD3DTexture2DDesc("frame carrier, texture2d", texture2d_.Get());
 
         // logo
-        StampLogoOnTexture(texture2d_, desc.Width, desc.Height);
+        if (plugin_->GetAuthRole() <= 1) {
+            StampLogoOnTexture(texture2d_, desc.Width, desc.Height);
+        }
+
         return texture2d_;
     }
 
@@ -208,27 +211,27 @@ namespace tc
         }
 
         // cover
-        if (!plugin_->IsLicenseOk()) {
-            //D3D11_BOX srcBox = {0, 0, 0, 280, 48, 1};
-            D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
-            int size = std::min(tex_width/300, 5);
-            for (int i = 0; i < size; i++) {
-                int offset_x = i * (tex_width/size);
-                int offset_y = i * ((tex_height)/ size);
-                for (const auto &point: cover_points_) {
-                    d3d11_device_context_->CopySubresourceRegion(
-                        texture.Get(),
-                        0,
-                        offset_x + point.x(),
-                        offset_y + point.y(),
-                        0,
-                        logo_point_texture_.Get(),
-                        0,
-                        &srcBox
-                    );
-                }
-            }
-        }
+        // if (!plugin_->IsLicenseOk()) {
+        //     //D3D11_BOX srcBox = {0, 0, 0, 280, 48, 1};
+        //     D3D11_BOX srcBox = {0, 0, 0, 1, 1, 1};
+        //     int size = std::min(tex_width/300, 5);
+        //     for (int i = 0; i < size; i++) {
+        //         int offset_x = i * (tex_width/size);
+        //         int offset_y = i * ((tex_height)/ size);
+        //         for (const auto &point: cover_points_) {
+        //             d3d11_device_context_->CopySubresourceRegion(
+        //                 texture.Get(),
+        //                 0,
+        //                 offset_x + point.x(),
+        //                 offset_y + point.y(),
+        //                 0,
+        //                 logo_point_texture_.Get(),
+        //                 0,
+        //                 &srcBox
+        //             );
+        //         }
+        //     }
+        // }
     }
 
     bool VideoFrameCarrier::ConvertRawImage(const std::shared_ptr<Image> image,
@@ -236,7 +239,9 @@ namespace tc
                                             std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
         raw_image_rgba_ = image;
         // stamp logo
-        StampLogoOnRGBABuffer(image);
+        if (plugin_->GetAuthRole() <= 1) {
+            StampLogoOnRGBABuffer(image);
+        }
 
         rgba_cbk(raw_image_rgba_);
 		// to do 明确下gdi原图的像素布局

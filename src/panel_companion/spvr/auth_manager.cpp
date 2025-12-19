@@ -12,11 +12,26 @@
 
 static const std::string kAuthId = "key_auth_id";
 static const std::string kAuthAppkey = "key_auth_appkey";
+static const std::string kAuthRole = "key_auth_role";
 
 namespace tc
 {
 
     using namespace nlohmann;
+
+    // auth beg
+    bool Authorization::IsFree() const {
+        return role_ == AuthRole::kFree;
+    }
+
+    bool Authorization::IsPersonal() const {
+        return role_ == AuthRole::kPersonal;
+    }
+
+    bool Authorization::IsEnterprise() const {
+        return role_ == AuthRole::kEnterprise;
+    }
+    // auth end
 
     AuthManager::AuthManager(PanelCompanionImpl* pc) {
         pc_ = pc;
@@ -34,14 +49,17 @@ namespace tc
     void AuthManager::LoadFromStorage() {
         auto auth_id = pc_->GetSP()->Get(kAuthId);
         auto appkey = pc_->GetSP()->Get(kAuthAppkey);
+        auto role = pc_->GetSP()->GetInt(kAuthRole);
         if (auth_id.empty() || appkey.empty()) {
+            LOGW("No auth loaded from storage, id: {}, appkey: {}, role: {}", auth_id, appkey, role);
             return;
         }
         const auto auth = std::make_shared<Authorization>();
         auth->auth_id_ = auth_id;
         auth->appkey_ = appkey;
+        auth->role_ = static_cast<AuthRole>(role);
         this->auth_.Update(auth);
-        LOGI("Load auth from storage: auth id: {}, appkey: {} ", auth_id, appkey);
+        LOGI("Load auth from storage: auth id: {}, appkey: {}, role: {} ", auth_id, appkey, role);
     }
 
     void AuthManager::FlushToStorage() {
@@ -52,6 +70,7 @@ namespace tc
             const auto sp = pc_->GetSP();
             sp->Put(kAuthId, auth->auth_id_);
             sp->Put(kAuthAppkey, auth->appkey_);
+            sp->PutInt(kAuthRole, static_cast<int>(auth->role_));
         });
     }
 
@@ -73,6 +92,14 @@ namespace tc
             auto value = json::parse(resp.body);
             auth->auth_id_ = value["data"]["auth_id"].get<std::string>();
             auth->appkey_ = value["data"]["appkey"].get<std::string>();
+            if (!value["data"]["role"].is_null()) {
+                auth->role_ = (AuthRole)value["data"]["role"].get<int>();
+            }
+
+            // test //
+            // auth->role_ = AuthRole::kPersonal;
+            // test //
+
             this->auth_.Update(auth);
             this->FlushToStorage();
             return auth;
@@ -82,7 +109,7 @@ namespace tc
         return nullptr;
     }
 
-    std::shared_ptr<Authorization> AuthManager::GetAuth() {
+    std::shared_ptr<Authorization> AuthManager::GetAuth() const {
         return auth_.Clone();
     }
 
