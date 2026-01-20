@@ -80,7 +80,7 @@ void StatisticsPanel::InitView() {
     //download_speed_lab_->setText(QStringLiteral("下载速度:"));
 	download_speed_lab_->setText(tcTr("id_file_trans_st_down_speed"));
     download_speed_value_lab_ = new QLabel(this);
-	download_speed_value_lab_->setFixedWidth(60);
+	download_speed_value_lab_->setFixedWidth(70);
 	download_speed_value_lab_->setText("0");
 
 	hbox_main_layout_->addWidget(total_lab_);
