@@ -4,10 +4,12 @@
 
 #include "panel_companion_impl.h"
 #include <QApplication>
+#include <QDesktopServices>
 #include "spvr/auth_manager.h"
 #include "spvr/spvr_setting.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/thread.h"
+#include "tc_common_new/http_client.h"
 #include "tc_common_new/tc_aes.h"
 #include "tc_common_new/md5.h"
 #include "tc_common_new/folder_util.h"
@@ -16,6 +18,7 @@
 #include "tc_3rdparty/json/json.hpp"
 #include "hw_info/hw_info_parser.h"
 #include "spvr/spvr_access_info_parser.h"
+#include "version_config.h"
 
 using namespace nlohmann;
 
@@ -49,6 +52,8 @@ namespace tc
         spvr_settings_ = SpvrSettings::Instance();
         auth_mgr_ = std::make_shared<AuthManager>(this);
         auth_mgr_->LoadFromStorage();
+
+        //
         return true;
     }
 
@@ -158,4 +163,55 @@ namespace tc
         }
     }
 
+    void PanelCompanionImpl::JumpToGithub() {
+        QDesktopServices::openUrl(QUrl("https://github.com/RGAA-Software/GammaRay"));
+    }
+
+    // version1 == version2 return 0;  version1 > version2 return 1; version1 < version2 return -1;
+    int CompareVersion(const QString& version1, const QString& version2) {
+        QStringList parts1 = version1.split('.');
+        QStringList parts2 = version2.split('.');
+        int numParts = qMax(parts1.size(), parts2.size());
+        for (int i = 0; i < numParts; ++i) {
+            int part1 = (i < parts1.size()) ? parts1[i].toInt() : 0;
+            int part2 = (i < parts2.size()) ? parts2[i].toInt() : 0;
+
+            if (part1 < part2) {
+                return -1;
+            }
+            else if (part1 > part2) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    bool PanelCompanionImpl::HasUpdateForOffSite() {
+        auto client = HttpClient::MakeSSL("127.0.0.1", 443, "/api/v1/query/product/version", 2000);
+        auto resp = client->Request();
+        if (resp.status != 200 || resp.body.empty()) {
+            LOGE("response failed: {}", resp.status);
+            return false;
+        }
+        try { 
+            nlohmann::json json;
+            json.parse(resp.body);
+            if (!json.contains("data")) {
+                LOGE("json parse error: miss data field");
+                return false;
+            }
+            auto data_obj = json["data"];
+            if (!data_obj.contains("version")) {
+                LOGE("json parse error: miss version field");
+                return false;
+            }
+            auto version = data_obj["version"].dump();
+
+            int res = CompareVersion(QString::fromStdString(version), PROJECT_VERSION);
+            return res > 0;
+        } catch (std::exception& e) {
+            LOGE("json parse error: {}", e.what());
+            return false;
+        }
+    }
 }

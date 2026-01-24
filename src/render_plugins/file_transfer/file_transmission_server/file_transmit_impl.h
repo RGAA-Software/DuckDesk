@@ -141,7 +141,7 @@ namespace tc {
 
 		uint64_t speed_by_bit_per_1000ms_ = 10 * 50 * 1 * 1000 * 1000;
 		
-		std::atomic<uint64_t> token_bucket_ = { 0 };
+		std::atomic<int64_t> token_bucket_ = { 0 };
 		void GrantTokenBucket();
 		void ResetTokenBucket();
 		std::mutex grant_token_mutex_;

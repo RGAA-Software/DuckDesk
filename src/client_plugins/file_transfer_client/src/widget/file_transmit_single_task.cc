@@ -167,7 +167,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 		if (curr <= last_update_time_) {
 			return;
 		}
-		if (curr - last_update_time_ > 60 * 1000) { // timeout 1 min
+		if (curr - last_update_time_ > 6 * 60 * 1000) { // timeout 6 min
 			std::cout << task_id_.toStdString() << "task time out" << std::endl;
 			emit SigTransmitTaskRes(task_type_, EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kTimeOut);
 		}
