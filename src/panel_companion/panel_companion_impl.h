@@ -45,6 +45,11 @@ namespace tc
         // spvr access
         std::shared_ptr<SpvrAccessInfo> ParseSpvrAccessInfo(const std::string& info) override;
 
+        // jump to github
+        void JumpToGithub() override;
+        bool HasUpdateForOffSite() override;
+
+
     public:
         void PostNetTask(std::function<void()>&& task);
         std::shared_ptr<SharedPreference> GetSP();

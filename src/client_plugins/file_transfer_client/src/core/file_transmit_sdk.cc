@@ -601,34 +601,53 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
 				file_data_packet->set_file_size(file_size);
 				msg->set_allocated_file_trans_data_packet(file_data_packet);
 				std::shared_ptr<void> auto_send{ nullptr, [=, &is_send_msg, &sended_msg](void* buf) {
+
 					if (0 >= token_bucket_) {
-						std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
-#if 0					// wait 用法
-						grant_token_cv_.wait(lck, [=]() ->bool {
-							if (token_bucket_ > 0) {
-								return true;
-							}
-							return false;
-						});
-						grant_token_cv_.wait_for(lck, std::chrono::milliseconds(3000));
-#endif
-						// wait_for用法
-						grant_token_cv_.wait_for(lck, std::chrono::milliseconds(3000), [=]() ->bool {
-							if (task_id_with_recved_index_.count(task_id)) {
-								if (index - task_id_with_recved_index_[task_id] < 100 && token_bucket_ > 0) {
+						int loop_count = 0;
+						while (true) {
+							std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
+							auto res = grant_token_cv_.wait_for(lck, std::chrono::milliseconds(1), [=]() ->bool {
+								if (token_bucket_ > 0) {
 									return true;
 								}
-								else {
-									LOGW("src_file_path: {}, UploadFile index: {}, task_id_with_recved_index_[task_id]: {}, token_bucket_: {}", src_file_path, index, task_id_with_recved_index_[task_id], token_bucket_);
-									return false;
+								return false;
+							});
+							if (res || loop_count > 100) {
+								break;
+							}
+							++loop_count;
+						}
+					}
+
+					{
+						bool need_wait = false;
+						{
+							std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
+							if (task_id_with_recved_index_.count(task_id)) {
+								LOGW("index - task_id_with_recved_index_[task_id] = {}", index - task_id_with_recved_index_[task_id]);
+								if (index - task_id_with_recved_index_[task_id] >= 180) {
+									need_wait = true;
 								}
 							}
-							if (token_bucket_ > 0) {
-								return true;
+						}
+						if (need_wait) {
+							int loop_count = 0;
+							while (true) {
+								std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
+								auto res = grant_token_cv_.wait_for(lck, std::chrono::milliseconds(1), [=]() ->bool {
+									if (index - task_id_with_recved_index_[task_id] < 180) {
+										return true;
+									}
+									return false;
+								});
+								if (res || loop_count > 10) {
+									break;
+								}
+								++loop_count;
 							}
-							return false;
-						});
+						}
 					}
+
 					if (!is_send_msg || !send_message_func_) {
 						return;
 					}
@@ -704,6 +723,7 @@ void FileTransmitSDK::HandleFileTransDataPacketResponse(tc::FileTransDataPacketR
 	//LOGI("HandleFileTransDataPacketResponse task_id: {}, recved_index: {}", task_id, recved_index);
 	std::unique_lock<std::mutex> lck{ grant_token_mutex_ };
 	task_id_with_recved_index_[task_id] = recved_index;
+    grant_token_cv_.notify_all();
 }
 
 void FileTransmitSDK::GrantTokenBucket() {
