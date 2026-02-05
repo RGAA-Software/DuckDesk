@@ -34,6 +34,7 @@ namespace tc
         bool IsAuthFree() override;
         bool IsAuthPersonal() override;
         bool IsAuthEnterprise() override;
+        bool IsAuthValid() override;
 
         // enc
         bool EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) override;
@@ -51,7 +52,7 @@ namespace tc
 
 
     public:
-        void PostNetTask(std::function<void()>&& task);
+        void PostNetTask(std::function<void()>&& task) const;
         std::shared_ptr<SharedPreference> GetSP();
 
     private:

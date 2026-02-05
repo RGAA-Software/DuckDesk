@@ -96,9 +96,13 @@ namespace tc
         return auth->IsEnterprise();
     }
 
+    bool PanelCompanionImpl::IsAuthValid() {
+        return auth_mgr_->IsAuthValid();
+    }
+
     ///
 
-    void PanelCompanionImpl::PostNetTask(std::function<void()> &&task) {
+    void PanelCompanionImpl::PostNetTask(std::function<void()> &&task) const {
         net_thread_->Post(std::move(task));
     }
 

@@ -20,6 +20,7 @@ namespace tc
         void OnTimer5S();
         std::shared_ptr<Authorization> RequestAuth();
         std::shared_ptr<Authorization> GetAuth() const;
+        bool IsAuthValid() const;
         void LoadFromStorage();
         void FlushToStorage();
 

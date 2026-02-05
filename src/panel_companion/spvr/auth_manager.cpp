@@ -8,6 +8,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/shared_preference.h"
+#include "tc_common_new/const_auto.h"
 #include "panel_companion/panel_companion_impl.h"
 
 static const std::string kAuthId = "key_auth_id";
@@ -111,6 +112,31 @@ namespace tc
 
     std::shared_ptr<Authorization> AuthManager::GetAuth() const {
         return auth_.Clone();
+    }
+
+    bool AuthManager::IsAuthValid() const {
+        cat settings = SpvrSettings::Instance();
+        if (settings->host_.empty() || settings->port_ <= 0) {
+            return false;
+        }
+
+        cat path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth_.Clone()->appkey_);
+        cat client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
+        cat resp = client->Request();
+        if (resp.status != 200) {
+            return false;
+        }
+
+        try {
+            cat value = json::parse(resp.body);
+            if (value["data"].is_boolean()) {
+                return value["data"].get<bool>();
+            }
+            return false;
+        } catch (std::exception& e) {
+            LOGE("Parse auth failed: {}", e.what());
+        }
+        return false;
     }
 
 }
