@@ -191,15 +191,14 @@ namespace tc
     }
 
     bool PanelCompanionImpl::HasUpdateForOffSite() {
-        auto client = HttpClient::MakeSSL("127.0.0.1", 443, "/api/v1/query/product/version", 2000);
+        auto client = HttpClient::MakeSSL("godesk.uk", 443, "/api/v1/query/product/version", 2000);
         auto resp = client->Request();
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("response failed: {}", resp.status);
             return false;
         }
         try { 
-            nlohmann::json json;
-            json.parse(resp.body);
+            nlohmann::json json = nlohmann::json::parse(resp.body);
             if (!json.contains("data")) {
                 LOGE("json parse error: miss data field");
                 return false;
@@ -209,9 +208,10 @@ namespace tc
                 LOGE("json parse error: miss version field");
                 return false;
             }
-            auto version = data_obj["version"].dump();
-
-            int res = CompareVersion(QString::fromStdString(version), PROJECT_VERSION);
+            auto version = data_obj["version"].get<std::string>();
+            std::string cur_version_str = PROJECT_VERSION;
+            int res = CompareVersion(QString::fromStdString(version), QString::fromStdString(cur_version_str));
+            LOGI("Current version: {}, offsite version: {}, res: {}", cur_version_str, version, res);
             return res > 0;
         } catch (std::exception& e) {
             LOGE("json parse error: {}", e.what());
