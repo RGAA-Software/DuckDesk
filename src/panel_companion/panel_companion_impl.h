@@ -9,6 +9,8 @@
 #include <memory>
 #include <functional>
 
+#include "tc_common_new/concurrent_type.h"
+
 namespace tc
 {
 
@@ -16,6 +18,7 @@ namespace tc
     class AuthManager;
     class SpvrSettings;
     class SharedPreference;
+    class StatManager;
 
     class PanelCompanionImpl : public PanelCompanion {
     public:
@@ -50,10 +53,11 @@ namespace tc
         void JumpToGithub() override;
         bool HasUpdateForOffSite() override;
 
-
-    public:
         void PostNetTask(std::function<void()>&& task) const;
         std::shared_ptr<SharedPreference> GetSP();
+
+    private:
+        void ReportWorkingAuthIfNeeded();
 
     private:
         SpvrSettings* spvr_settings_ = nullptr;
@@ -61,6 +65,12 @@ namespace tc
         std::shared_ptr<Thread> net_thread_ = nullptr;
         std::shared_ptr<SharedPreference> sp_ = nullptr;
         float current_cpu_frequency_ = 0.0f;
+        // report or not...
+        std::atomic_bool reported_working_auth_ = false;
+        // system info
+        tc::Mutex<std::shared_ptr<SysInfo>> sys_info_;
+        // stat manager
+        std::shared_ptr<StatManager> stat_mgr_ = nullptr;
     };
 
 }

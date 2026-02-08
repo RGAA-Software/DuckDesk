@@ -6,5 +6,6 @@ add_library(panel_companion SHARED
     spvr/spvr_setting.cpp
     crypto/auth_aes.cpp
     spvr/spvr_access_info_parser.cpp
+    stat/stat_manager.cpp
 )
 target_link_libraries(panel_companion tc_panel_companion tc_common_new tc_hw_info)

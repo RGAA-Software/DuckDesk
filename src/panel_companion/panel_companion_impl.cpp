@@ -19,6 +19,7 @@
 #include "hw_info/hw_info_parser.h"
 #include "spvr/spvr_access_info_parser.h"
 #include "version_config.h"
+#include "stat/stat_manager.h"
 
 using namespace nlohmann;
 
@@ -50,8 +51,12 @@ namespace tc
         }
 
         spvr_settings_ = SpvrSettings::Instance();
+        // auth
         auth_mgr_ = std::make_shared<AuthManager>(this);
         auth_mgr_->LoadFromStorage();
+
+        // stat
+        stat_mgr_ = std::make_shared<StatManager>(this);
 
         //
         return true;
@@ -67,6 +72,9 @@ namespace tc
 
     void PanelCompanionImpl::OnTimer5S() {
         auth_mgr_->OnTimer5S();
+        this->PostNetTask([this]() {
+            ReportWorkingAuthIfNeeded();
+        });
     }
 
     void PanelCompanionImpl::UpdateSpvrServerConfig(const std::string &host, int port) {
@@ -141,6 +149,10 @@ namespace tc
         }
         auto sys_info = HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
         sys_info->raw_json_msg_ = json_info;
+
+        // save it
+        sys_info_ = sys_info;
+
         return sys_info;
     }
 
@@ -216,6 +228,16 @@ namespace tc
         } catch (std::exception& e) {
             LOGE("json parse error: {}", e.what());
             return false;
+        }
+    }
+
+    // In network thread
+    void PanelCompanionImpl::ReportWorkingAuthIfNeeded() {
+        if (reported_working_auth_ || !sys_info_.HasValue()) {
+            return;
+        }
+        if (stat_mgr_->ReportWorkingAuth(sys_info_.Clone())) {
+            reported_working_auth_ = true;
         }
     }
 }
