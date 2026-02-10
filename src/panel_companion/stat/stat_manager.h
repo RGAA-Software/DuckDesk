@@ -6,6 +6,7 @@
 #define GAMMARAYPREMIUM_STAT_MANAGER_H
 
 #include <memory>
+#include <string>
 
 namespace tc
 {

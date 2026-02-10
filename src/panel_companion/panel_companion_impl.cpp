@@ -20,6 +20,7 @@
 #include "spvr/spvr_access_info_parser.h"
 #include "version_config.h"
 #include "stat/stat_manager.h"
+#include "spvr/auth_defs.h"
 
 using namespace nlohmann;
 
@@ -233,11 +234,31 @@ namespace tc
 
     // In network thread
     void PanelCompanionImpl::ReportWorkingAuthIfNeeded() {
-        if (reported_working_auth_ || !sys_info_.HasValue()) {
+        LOGI("Will report working auth, reported working auth: {}, sys info: {}, has stat mgr: {}",
+            reported_working_auth_, sys_info_.HasValue(), stat_mgr_ != nullptr);
+        if (reported_working_auth_ || !sys_info_.HasValue() || !stat_mgr_) {
             return;
         }
         if (stat_mgr_->ReportWorkingAuth(sys_info_.Clone())) {
             reported_working_auth_ = true;
         }
     }
+
+    std::string PanelCompanionImpl::GetAuthId() const {
+        return sp_->Get(kAuthId);
+    }
+
+    std::string PanelCompanionImpl::GetAuthName() const {
+        return sp_->Get(kAuthName);
+    }
+
+    std::string PanelCompanionImpl::GetMachineCode() const {
+        return sp_->Get(kAuthMachineCode);
+    }
+
+    std::string PanelCompanionImpl::GetAppkey() const {
+        return sp_->Get(kAuthAppkey);
+    }
+
+
 }

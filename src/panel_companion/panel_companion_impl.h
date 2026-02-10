@@ -56,6 +56,12 @@ namespace tc
         void PostNetTask(std::function<void()>&& task) const;
         std::shared_ptr<SharedPreference> GetSP();
 
+        // auth
+        std::string GetAuthId() const;
+        std::string GetAuthName() const;
+        std::string GetMachineCode() const;
+        std::string GetAppkey() const;
+
     private:
         void ReportWorkingAuthIfNeeded();
 

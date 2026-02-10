@@ -5,15 +5,12 @@
 #include "auth_manager.h"
 #include "spvr_setting.h"
 #include "json/json.hpp"
+#include "auth_defs.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/shared_preference.h"
 #include "tc_common_new/const_auto.h"
 #include "panel_companion/panel_companion_impl.h"
-
-static const std::string kAuthId = "key_auth_id";
-static const std::string kAuthAppkey = "key_auth_appkey";
-static const std::string kAuthRole = "key_auth_role";
 
 namespace tc
 {
@@ -48,15 +45,19 @@ namespace tc
     }
 
     void AuthManager::LoadFromStorage() {
-        auto auth_id = pc_->GetSP()->Get(kAuthId);
-        auto appkey = pc_->GetSP()->Get(kAuthAppkey);
-        auto role = pc_->GetSP()->GetInt(kAuthRole);
+        cat auth_id = pc_->GetSP()->Get(kAuthId);
+        cat auth_name = pc_->GetSP()->Get(kAuthName);
+        cat machine_code = pc_->GetSP()->Get(kAuthMachineCode);
+        cat appkey = pc_->GetSP()->Get(kAuthAppkey);
+        cat role = pc_->GetSP()->GetInt(kAuthRole);
         if (auth_id.empty() || appkey.empty()) {
             LOGW("No auth loaded from storage, id: {}, appkey: {}, role: {}", auth_id, appkey, role);
             return;
         }
         const auto auth = std::make_shared<Authorization>();
         auth->auth_id_ = auth_id;
+        auth->auth_name_ = auth_name;
+        auth->machine_code_ = machine_code;
         auth->appkey_ = appkey;
         auth->role_ = static_cast<AuthRole>(role);
         this->auth_.Update(auth);
@@ -70,6 +71,8 @@ namespace tc
             }
             const auto sp = pc_->GetSP();
             sp->Put(kAuthId, auth->auth_id_);
+            sp->Put(kAuthName, auth->auth_name_);
+            sp->Put(kAuthMachineCode, auth->machine_code_);
             sp->Put(kAuthAppkey, auth->appkey_);
             sp->PutInt(kAuthRole, static_cast<int>(auth->role_));
         });
@@ -92,6 +95,8 @@ namespace tc
             auto auth = std::make_shared<Authorization>();
             auto value = json::parse(resp.body);
             auth->auth_id_ = value["data"]["auth_id"].get<std::string>();
+            auth->auth_name_ = value["data"]["auth_name"].get<std::string>();
+            auth->machine_code_ = value["data"]["machine_code"].get<std::string>();
             auth->appkey_ = value["data"]["appkey"].get<std::string>();
             if (!value["data"]["role"].is_null()) {
                 auth->role_ = (AuthRole)value["data"]["role"].get<int>();
