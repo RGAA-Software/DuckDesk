@@ -13,7 +13,7 @@
 
 using namespace nlohmann;
 
-#define LOCAL_HOST 1
+#define LOCAL_HOST 0
 #if LOCAL_HOST
 cat sHost = "127.0.0.1";
 #else
