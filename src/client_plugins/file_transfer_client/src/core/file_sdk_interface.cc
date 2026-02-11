@@ -154,7 +154,7 @@ void FileSDKInterface::RegisterFileOperateCallback() {
 		file_transmit_sdk_->RegOnFileUploadEndCallback(std::move([=](ETcFileTransmitState state, std::string task_id) {
 			if (ETcFileTransmitState::kSuccess== state) {
 				std::cout << "emit on file upload end kSuccess" << std::endl;
-				emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kSuccess, EFileTransmitTaskErrorCause::kPlaceholder);
+				emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kSuccess, EFileTransmitTaskErrorCause::kPlaceholder);
 
                 // upload success callback
                 if (upload_end_cbk_) {
@@ -163,25 +163,25 @@ void FileSDKInterface::RegisterFileOperateCallback() {
 			}
 			else {
 				if (ETcFileTransmitState::kRemoteFileOpenFailed == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kRemoteFileFailedOpen);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kRemoteFileFailedOpen);
 				}
 				else if (ETcFileTransmitState::kVerifyError == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kVerifyError);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kVerifyError);
 				}
 				else if (ETcFileTransmitState::kFileWriteFailed == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedWrite);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedWrite);
 				}
 				else if (ETcFileTransmitState::kUnknowError == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
 				}
 				else if (ETcFileTransmitState::kPacketLoss == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kPacketLoss);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kPacketLoss);
 				}
 				else if (ETcFileTransmitState::kCreateFolderFailed == state) {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDirFailedCreate);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDirFailedCreate);
 				}
 				else {
-					emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
+					emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
 				}
 
                 // upload failed callback
@@ -212,7 +212,7 @@ void FileSDKInterface::RegisterFileOperateCallback() {
 			task_ptr->already_transmit_file_size_ = download_size;
 
 			if (task_ptr->is_delete_) {
-				emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDelete);
+				emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDelete);
 				return;
 			}
 			// 下载进度
@@ -237,7 +237,7 @@ void FileSDKInterface::RegisterFileOperateCallback() {
 			// 下载成功
 			else if (ETcFileTransmitState::kSuccess == state) {
 				printf("ETcFileTransmitState::kSUCCESS \n");
-				emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kSuccess, EFileTransmitTaskErrorCause::kPlaceholder);
+				emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kSuccess, EFileTransmitTaskErrorCause::kPlaceholder);
 
                 if (download_end_cbk_) {
                     download_end_cbk_(task_id, "", true);
@@ -247,43 +247,43 @@ void FileSDKInterface::RegisterFileOperateCallback() {
                 // 下载失败
                 if (ETcFileTransmitState::kFileNoneExist == state) {
                     printf("ETcFileTransmitState::kFileNoneExist \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileNotExists);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileNotExists);
 
                 } else if (ETcFileTransmitState::kRemoteFileOpenFailed == state) {
                     printf("ETcFileTransmitState::kRemoteFileOpenFailed \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kRemoteFileFailedOpen);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kRemoteFileFailedOpen);
 
                 } else if (ETcFileTransmitState::kUnknowError == state) {
                     printf("ETcFileTransmitState::kUnknowError \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
 
                 } else if (ETcFileTransmitState::kCreateFolderFailed == state) {
                     printf("ETcFileTransmitState::kCreateFolderFailed \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDirFailedCreate);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDirFailedCreate);
 
                 } else if (ETcFileTransmitState::kFileOpenFailed == state) {
                     printf("ETcFileTransmitState::kFileOpenFailed \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedOpen);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedOpen);
 
                 } else if (ETcFileTransmitState::kFileWriteFailed == state) {
                     printf("ETcFileTransmitState::kFileWriteFailed \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedWrite);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedWrite);
 
                 } else if (ETcFileTransmitState::kVerifyError == state) {
                     printf("ETcFileTransmitState::kVerifyError \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kVerifyError);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kVerifyError);
 
                 } else if (ETcFileTransmitState::kFileReadFailed == state) {
                     printf("ETcFileTransmitState::kFileReadFailed \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedRead);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileFailedRead);
 
                 } else if (ETcFileTransmitState::kPacketLoss == state) {
                     printf("ETcFileTransmitState::kPacketLoss \n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kPacketLoss);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kPacketLoss);
 
                 } else {
                     printf("TC_FILE_TRANSMIT_RES kUnKnown\n");
-                    emit this->SigTransmitTaskEndRes(QString::fromUtf8(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
+                    emit this->SigTransmitTaskEndRes(QString::fromStdString(task_id), EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kUnKnown);
                 }
 
                 if (download_end_cbk_) {

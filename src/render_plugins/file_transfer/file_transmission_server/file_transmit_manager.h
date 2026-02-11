@@ -42,7 +42,7 @@ namespace tc {
 
 		void HandleFileTransDataPacketResponseMessage(const std::shared_ptr<tc::Message>& message);
 		
-		void RegGetFlieListCallback(GetFileListCallbackFuncType callback) {
+		void RegGetFileListCallback(GetFileListCallbackFuncType callback) {
 			get_file_list_callback_ = callback;
 		}
 

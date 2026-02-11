@@ -10,10 +10,10 @@ RequestExecutionLevel admin
 
 ;--------------------------------
 ; App Info
-!define PRODUCT_NAME "GammaRay"
+!define PRODUCT_NAME "GoDesk"
 !define APPNAME "GammaRay"
-!define COMPANY "GammaRay"
-!define INSTALL_DIR "C:\Program Files\GammaRay\${APPNAME}"
+!define COMPANY "GoDesk"
+!define INSTALL_DIR "C:\Program Files\GoDesk\App"
 
 !define BUILD_PATH "app"
 
