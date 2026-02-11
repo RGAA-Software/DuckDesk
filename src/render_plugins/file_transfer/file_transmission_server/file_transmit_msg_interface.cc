@@ -55,7 +55,7 @@ void FileTransmitMsgInterface::OnMessage(const std::shared_ptr<tc::Message>& msg
 }
 
 void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
-	file_trans_manager_->RegGetFlieListCallback([=, this](
+	file_trans_manager_->RegGetFileListCallback([=, this](
 		const std::string& stream_id, int resp_seq, bool ret, std::vector<tc::FileDescInfo> file_infos, std::string error_msg, std::string target_path, std::string file_permission_path
 	) {
 		auto message = std::make_shared<tc::Message>();
