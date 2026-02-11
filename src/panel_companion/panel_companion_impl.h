@@ -62,8 +62,13 @@ namespace tc
         std::string GetMachineCode() const;
         std::string GetAppkey() const;
 
+        // device id
+        void UpdateDeviceId(const std::string& device_id) override;
+        std::string GetDeviceId() const;
+
     private:
         void ReportWorkingAuthIfNeeded();
+        void ReportOpenUpIfNeeded();
 
     private:
         SpvrSettings* spvr_settings_ = nullptr;
@@ -77,6 +82,10 @@ namespace tc
         tc::Mutex<std::shared_ptr<SysInfo>> sys_info_;
         // stat manager
         std::shared_ptr<StatManager> stat_mgr_ = nullptr;
+        // device id
+        std::string device_id_;
+        // has reported open up
+        bool reported_open_up_ = false;
     };
 
 }

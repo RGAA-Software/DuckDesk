@@ -76,6 +76,10 @@ namespace tc
         this->PostNetTask([this]() {
             ReportWorkingAuthIfNeeded();
         });
+
+        this->PostNetTask([this]() {
+            ReportOpenUpIfNeeded();
+        });
     }
 
     void PanelCompanionImpl::UpdateSpvrServerConfig(const std::string &host, int port) {
@@ -234,13 +238,22 @@ namespace tc
 
     // In network thread
     void PanelCompanionImpl::ReportWorkingAuthIfNeeded() {
-        LOGI("Will report working auth, reported working auth: {}, sys info: {}, has stat mgr: {}",
-            reported_working_auth_, sys_info_.HasValue(), stat_mgr_ != nullptr);
         if (reported_working_auth_ || !sys_info_.HasValue() || !stat_mgr_) {
             return;
         }
         if (stat_mgr_->ReportWorkingAuth(sys_info_.Clone())) {
             reported_working_auth_ = true;
+            LOGI("Report working auth!");
+        }
+    }
+
+    void PanelCompanionImpl::ReportOpenUpIfNeeded() {
+        if (reported_open_up_ || !sys_info_.HasValue() || !stat_mgr_) {
+            return;
+        }
+        if (stat_mgr_->ReportOpenUp(sys_info_.Clone())) {
+            reported_open_up_ = true;
+            LOGI("Report OpenUp!");
         }
     }
 
@@ -260,5 +273,12 @@ namespace tc
         return sp_->Get(kAuthAppkey);
     }
 
+    std::string PanelCompanionImpl::GetDeviceId() const {
+        return device_id_;
+    }
+
+    void PanelCompanionImpl::UpdateDeviceId(const std::string& device_id) {
+        device_id_ = device_id;
+    }
 
 }

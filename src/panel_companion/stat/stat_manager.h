@@ -16,7 +16,11 @@ namespace tc
     class StatManager {
     public:
         explicit StatManager(PanelCompanionImpl* impl);
+        // report auth
         [[nodiscard]] bool ReportWorkingAuth(const std::shared_ptr<SysInfo>& info);
+
+        // report software open up
+        [[nodiscard]] bool ReportOpenUp(const std::shared_ptr<SysInfo>& info);
 
     private:
         PanelCompanionImpl* impl_ = nullptr;
