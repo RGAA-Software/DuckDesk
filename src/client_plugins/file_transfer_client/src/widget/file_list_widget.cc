@@ -92,7 +92,7 @@ void FileListWidget::Init(QString last_path) {
 	file_table_view_->horizontalHeader()->resizeSection(static_cast<int>(EFileTableHeaderViewItemType::KType), 60);
 	file_table_view_->horizontalHeader()->resizeSection(static_cast<int>(EFileTableHeaderViewItemType::KUpdateTime), 140);
 	file_table_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
-	file_table_view_->horizontalHeader()->setSectionsMovable(QHeaderView::ResizeToContents);
+	file_table_view_->horizontalHeader()->setSectionsMovable(true);
 	file_table_view_->setDragDropMode(QAbstractItemView::NoDragDrop);
 
 	item_delegate_ = new FileInfoTableViewBtnDelegate(this);

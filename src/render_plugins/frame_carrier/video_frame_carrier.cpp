@@ -40,6 +40,15 @@ namespace tc
         logo_points_ = plugin_->GetLogoPoints();
         big_logo_points_ = plugin_->GetBigLogoPoints();
         cover_points_ = plugin_->GetCoverPoints();
+
+#ifdef OPENSOURCE_BUILD
+        enable_logo_ = true;
+#elif defined(OFFICIAL_BUILD)
+        enable_logo_ = false;
+#else
+        enable_logo_ = false;
+#endif
+
     }
 
     bool VideoFrameCarrier::D3D11Texture2DLockMutex(const ComPtr<ID3D11Texture2D>& texture2d) {
@@ -163,7 +172,7 @@ namespace tc
         //PrintD3DTexture2DDesc("frame carrier, texture2d", texture2d_.Get());
 
         // logo
-        if (plugin_->GetAuthRole() <= 1) {
+        if (enable_logo_) {
             StampLogoOnTexture(texture2d_, desc.Width, desc.Height);
         }
 
@@ -239,7 +248,7 @@ namespace tc
                                             std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
         raw_image_rgba_ = image;
         // stamp logo
-        if (plugin_->GetAuthRole() <= 1) {
+        if (enable_logo_) {
             StampLogoOnRGBABuffer(image);
         }
 

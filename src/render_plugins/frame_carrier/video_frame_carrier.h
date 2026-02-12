@@ -91,6 +91,8 @@ namespace tc
         ComPtr<ID3D11Texture2D> logo_point_texture_ = nullptr;
 
         bool logo_pos_offset_ = true;
+
+        bool enable_logo_ = true;
     };
 
 }

@@ -7,3 +7,5 @@ src/GammaRayWebClient/node_modules/*
 src/GammaRayWebClient/.idea/*
 src/GammaRayWebClient/.vscode/*
 src/GammaRayWebClient/dist/*
+build_official/*
+build_opensource/*

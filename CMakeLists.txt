@@ -2,6 +2,19 @@ cmake_minimum_required(VERSION 3.26)
 include(env_premium.cmake)
 include(config_premium.cmake)
 
+message("TARGET_TYPE: ===> ${TARGET_TYPE}")
+if(TARGET_TYPE STREQUAL "OpenSource")
+    message(STATUS "Building OpenSource version!!")
+    # 添加 OpenSource 特定设置
+    add_definitions(-DOPENSOURCE_BUILD)
+elseif(TARGET_TYPE STREQUAL "Official")
+    message(STATUS "Building Official version")
+    add_definitions(-DOFFICIAL_BUILD)
+else()
+    add_definitions(-DOFFICIAL_BUILD)
+    message(WARNING "Unknown TARGET_TYPE: ${TARGET_TYPE}, will use official type.")
+endif()
+
 set(CMAKE_PREFIX_PATH ${QT_ROOT}/lib/cmake)
 set(CMAKE_TOOLCHAIN_FILE ${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 

@@ -506,7 +506,7 @@ void FileTransRecord::Init() {
     file_trans_record_table_view_->horizontalHeader()->resizeSection(6, 80);
     file_trans_record_table_view_->horizontalHeader()->resizeSection(7, 30);
     file_trans_record_table_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    file_trans_record_table_view_->horizontalHeader()->setSectionsMovable(QHeaderView::ResizeToContents);
+    file_trans_record_table_view_->horizontalHeader()->setSectionsMovable(true);
     file_trans_record_table_view_->setDragDropMode(QAbstractItemView::NoDragDrop);
     auto item_delegate = new FileTransRecordTableViewBtnDelegate(this);
     file_trans_record_table_view_->setItemDelegate(item_delegate);
