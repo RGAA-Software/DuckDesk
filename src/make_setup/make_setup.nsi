@@ -17,7 +17,7 @@ RequestExecutionLevel admin
 
 !define BUILD_PATH "app"
 
-OutFile "${PRODUCT_NAME}_${PRODUCT_VERSION}_Setup.exe"
+OutFile "${PRODUCT_NAME}_${PRODUCT_VERSION}_${TARGET_TYPE}_Setup.exe"
 
 InstallDir "${INSTALL_DIR}"
 
