@@ -45,7 +45,6 @@ namespace tc
     private:
         std::shared_ptr<RelayServerSdk> relay_media_sdk_ = nullptr;
         std::shared_ptr<RelayServerSdk> relay_ft_sdk_ = nullptr;
-        std::atomic_bool sdk_init_ = false;
         std::atomic_uint64_t recv_relay_ft_msg_index_ = 0;
         std::atomic_uint64_t recv_relay_media_msg_index_ = 0;
 
@@ -54,6 +53,9 @@ namespace tc
         bool paused_stream = true;
 
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
+
+        std::string using_appkey_;
+        std::atomic_bool need_reconnect_ = false;
     };
 
 }

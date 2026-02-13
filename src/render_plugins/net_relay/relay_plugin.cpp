@@ -92,185 +92,205 @@ namespace tc
                     continue;
                 }
 
-                LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey: {}",
+                // release the connection
+                auto fn_release_sdk = [=, this]() {
+                    LOGI("Will retry to connect relay server.");
+                    if (relay_media_sdk_) {
+                        relay_media_sdk_->Stop();
+                    }
+                    if (relay_ft_sdk_) {
+                       relay_ft_sdk_->Stop();
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                };
+
+                if (need_reconnect_) {
+                    LOGW("Need to recreate connection!");
+                    fn_release_sdk();
+                    need_reconnect_ = false;
+                }
+
+                if (!relay_media_sdk_ || !relay_media_sdk_->IsAlive()) {
+                    LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey: {}",
                      connect_count++, srv_device_id, relay_host, relay_port, sys_settings_.appkey_);
 
-                // todo: check device id, empty? try to retry
-                relay_media_sdk_ = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
-                    .host_ = relay_host,
-                    .port_ = relay_port,
-                    .ssl_ = false,
-                    .device_id_ = srv_device_id,
-                    .net_info_ = net_info_,
-                    .appkey_ = sys_settings_.appkey_,
-                });
+                    // using appkey
+                    using_appkey_ = sys_settings_.appkey_;
 
-                relay_media_sdk_->SetOnConnectedCallback([=, this]() {
-                    this->sdk_init_ = true;
-
-                });
-
-                relay_media_sdk_->SetOnDisConnectedCallback([=, this]() {
-
-                });
-
-                relay_media_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
-                    this->ReportRelayAlive(device_id);
-                });
-
-                relay_media_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
-                    this->ReportRelayAlive(device_id);
-                });
-
-                relay_media_sdk_->SetOnRequestControlCallback([=, this](std::shared_ptr<RelayMessage> msg) {
-                    const auto& sub = msg->request_control();
-                    LOGI("Request Control:");
-                    LOGI("Device ID: {}", sub.device_id());
-                    LOGI("Remote Device ID: {}", sub.remote_device_id());
-                    LOGI("Stream ID: {}", sub.stream_id());
-                    LOGI("Force GDI: {}", sub.force_gdi());
-
-                    const auto event = std::make_shared<GrPluginReqParamsBeginStreaming>();
-                    event->stream_id_ = sub.stream_id();
-                    event->force_gdi_ = sub.force_gdi();
-                    this->CallbackEvent(event);
-                });
-
-                relay_media_sdk_->SetOnRoomPreparedCallback([this](std::shared_ptr<RelayMessage> msg) {
-                    auto sub = msg->room_prepared();
-                    const auto& room_id = sub.room_id();
-
-                    auto room = relay_media_sdk_->GetRoomById(room_id);
-                    if (!room) {
-                        return;
-                    }
-
-                    const auto& device_id = sub.device_id();
-                    std::string visitor_device_id = ExtractClientId(device_id);
-
-                    // TEST //
-                    if (room->creator_stream_id_.empty()) {
-                        LOGE("!!!MUST HAVE STREAM ID!!!");
-                        relay_media_sdk_->Stop();
-                        return;
-                    }
-                    // TEST //
-
-                    this->NotifyMediaClientConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id);
-                });
-
-                relay_media_sdk_->SetOnRoomDestroyedCallback([this](std::shared_ptr<RelayMessage> msg) {
-                    auto sub = msg->room_destroyed();
-                    const auto& room_id = sub.room_id();
-                    auto room = relay_media_sdk_->GetRoomById(room_id);
-                    if (!room) {
-                        LOGE("Can't find room for id: {}", room_id);
-                        return;
-                    }
-
-                    const auto& device_id = sub.device_id();
-                    std::string visitor_device_id = ExtractClientId(device_id);
-
-                    auto begin_timestamp = room ? room->created_timestamp_ : 0;
-                    this->NotifyMediaClientDisConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id, begin_timestamp);
-                    if (!relay_media_sdk_->HasRelayRooms()) {
-                        paused_stream = true;
-                        LOGW("No active rooms, paused stream.");
-                    }
-                });
-
-                relay_media_sdk_->SetOnRequestPauseStreamCallback([this]() {
-                    paused_stream = true;
-
-                    auto event = std::make_shared<GrPluginRelayPausedEvent>();
-                    this->CallbackEvent(event);
-                    LOGI("==> Pause stream.");
-                });
-
-                relay_media_sdk_->SetOnRequestResumeStreamCallback([this]() {
-                    paused_stream = false;
-
-                    auto event = std::make_shared<GrPluginRelayResumedEvent>();
-                    this->CallbackEvent(event);
-                    LOGI("==> Resume stream.");
-                });
-
-                relay_media_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
-                    auto type = msg->type();
-                    if (type == RelayMessageType::kRelayTargetMessage) {
-                        auto sub = msg->relay();
-                        auto relay_msg_index = sub.relay_msg_index();
-                        const auto &payload = sub.payload();
-                        auto payload_msg = Data::Make(payload.data(), payload.size());
-                        this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kMedia, payload_msg);
-                        //LOGI("Relay in-message size: {}", payload_msg.size());
-                    }
-                });
-
-                relay_media_sdk_->SetOnNotificationCallback([this](std::shared_ptr<RelayMessage> msg) {
-                    const auto sub = msg->notification();
-                    auto event = std::make_shared<GrPluginPanelStreamMessage>();
-                    event->body_ = Data::From(sub.body());
-                    CallbackEvent(event);
-                });
-
-                relay_media_sdk_->Start();
-
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-                if (this->sdk_init_) {
-                    LOGI("SDK Connected to server, connect file transfer channel");
-
-                    auto ft_device_id = "ft_server_" + sys_settings_.device_id_;
-                    relay_ft_sdk_ = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
+                    // todo: check device id, empty? try to retry
+                    relay_media_sdk_ = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
                         .host_ = relay_host,
                         .port_ = relay_port,
                         .ssl_ = false,
-                        .device_id_ = ft_device_id,
+                        .device_id_ = srv_device_id,
                         .net_info_ = net_info_,
-                        .device_name_ = Hardware::GetDesktopName(),
-                        .stream_id_ = ft_device_id, //
                         .appkey_ = sys_settings_.appkey_,
                     });
 
-                    relay_ft_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
+                    relay_media_sdk_->SetOnConnectedCallback([=, this]() {
+
+                    });
+
+                    relay_media_sdk_->SetOnDisConnectedCallback([=, this]() {
+
+                    });
+
+                    relay_media_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
                         this->ReportRelayAlive(device_id);
                     });
 
-                    relay_ft_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
+                    relay_media_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
                         this->ReportRelayAlive(device_id);
                     });
 
-                    relay_ft_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
+                    relay_media_sdk_->SetOnRequestControlCallback([=, this](std::shared_ptr<RelayMessage> msg) {
+                        const auto& sub = msg->request_control();
+                        LOGI("Request Control:");
+                        LOGI("Device ID: {}", sub.device_id());
+                        LOGI("Remote Device ID: {}", sub.remote_device_id());
+                        LOGI("Stream ID: {}", sub.stream_id());
+                        LOGI("Force GDI: {}", sub.force_gdi());
+
+                        const auto event = std::make_shared<GrPluginReqParamsBeginStreaming>();
+                        event->stream_id_ = sub.stream_id();
+                        event->force_gdi_ = sub.force_gdi();
+                        this->CallbackEvent(event);
+                    });
+
+                    relay_media_sdk_->SetOnRoomPreparedCallback([this](std::shared_ptr<RelayMessage> msg) {
+                        auto sub = msg->room_prepared();
+                        const auto& room_id = sub.room_id();
+
+                        auto room = relay_media_sdk_->GetRoomById(room_id);
+                        if (!room) {
+                            return;
+                        }
+
+                        const auto& device_id = sub.device_id();
+                        std::string visitor_device_id = ExtractClientId(device_id);
+
+                        // TEST //
+                        if (room->creator_stream_id_.empty()) {
+                            LOGE("!!!MUST HAVE STREAM ID!!!");
+                            relay_media_sdk_->Stop();
+                            return;
+                        }
+                        // TEST //
+
+                        this->NotifyMediaClientConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id);
+                    });
+
+                    relay_media_sdk_->SetOnRoomDestroyedCallback([this](std::shared_ptr<RelayMessage> msg) {
+                        auto sub = msg->room_destroyed();
+                        const auto& room_id = sub.room_id();
+                        auto room = relay_media_sdk_->GetRoomById(room_id);
+                        if (!room) {
+                            LOGE("Can't find room for id: {}", room_id);
+                            return;
+                        }
+
+                        const auto& device_id = sub.device_id();
+                        std::string visitor_device_id = ExtractClientId(device_id);
+
+                        auto begin_timestamp = room ? room->created_timestamp_ : 0;
+                        this->NotifyMediaClientDisConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id, begin_timestamp);
+                        if (!relay_media_sdk_->HasRelayRooms()) {
+                            paused_stream = true;
+                            LOGW("No active rooms, paused stream.");
+                        }
+                    });
+
+                    relay_media_sdk_->SetOnRequestPauseStreamCallback([this]() {
+                        paused_stream = true;
+
+                        auto event = std::make_shared<GrPluginRelayPausedEvent>();
+                        this->CallbackEvent(event);
+                        LOGI("==> Pause stream.");
+                    });
+
+                    relay_media_sdk_->SetOnRequestResumeStreamCallback([this]() {
+                        paused_stream = false;
+
+                        auto event = std::make_shared<GrPluginRelayResumedEvent>();
+                        this->CallbackEvent(event);
+                        LOGI("==> Resume stream.");
+                    });
+
+                    relay_media_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
                         auto type = msg->type();
                         if (type == RelayMessageType::kRelayTargetMessage) {
                             auto sub = msg->relay();
                             auto relay_msg_index = sub.relay_msg_index();
-                            if (recv_relay_ft_msg_index_ == 0) {
-                                recv_relay_ft_msg_index_ = relay_msg_index;
-                            }
-                            else {
-                                auto diff = relay_msg_index - recv_relay_ft_msg_index_;
-                                if (diff != 1) {
-                                    LOGE("FT error sequence, current: {}, last: {}", relay_msg_index, recv_relay_ft_msg_index_);
-                                }
-                                recv_relay_ft_msg_index_ = relay_msg_index;
-                            }
                             const auto &payload = sub.payload();
-                            auto payload_msg = Data::Make((char*)payload.data(), payload.size());
-                            this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kFileTransfer, payload_msg);
+                            auto payload_msg = Data::Make(payload.data(), payload.size());
+                            this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kMedia, payload_msg);
+                            //LOGI("Relay in-message size: {}", payload_msg.size());
                         }
                     });
 
-                    relay_ft_sdk_->Start();
+                    relay_media_sdk_->SetOnNotificationCallback([this](std::shared_ptr<RelayMessage> msg) {
+                        const auto sub = msg->notification();
+                        auto event = std::make_shared<GrPluginPanelStreamMessage>();
+                        event->body_ = Data::From(sub.body());
+                        CallbackEvent(event);
+                    });
 
-                    break;
+                    relay_media_sdk_->Start();
+                }
+
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+
+                // firstly, the media sdk should be connected.
+                if (relay_media_sdk_ && relay_media_sdk_->IsAlive()) {
+                    if (!relay_ft_sdk_ || !relay_ft_sdk_->IsAlive()) {
+                        LOGI("SDK Connected to server, connect file transfer channel");
+                        auto ft_device_id = "ft_server_" + sys_settings_.device_id_;
+                        relay_ft_sdk_ = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
+                            .host_ = relay_host,
+                            .port_ = relay_port,
+                            .ssl_ = false,
+                            .device_id_ = ft_device_id,
+                            .net_info_ = net_info_,
+                            .device_name_ = Hardware::GetDesktopName(),
+                            .stream_id_ = ft_device_id, //
+                            .appkey_ = sys_settings_.appkey_,
+                        });
+
+                        relay_ft_sdk_->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
+                            this->ReportRelayAlive(device_id);
+                        });
+
+                        relay_ft_sdk_->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
+                            this->ReportRelayAlive(device_id);
+                        });
+
+                        relay_ft_sdk_->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
+                            auto type = msg->type();
+                            if (type == RelayMessageType::kRelayTargetMessage) {
+                                auto sub = msg->relay();
+                                auto relay_msg_index = sub.relay_msg_index();
+                                if (recv_relay_ft_msg_index_ == 0) {
+                                    recv_relay_ft_msg_index_ = relay_msg_index;
+                                }
+                                else {
+                                    auto diff = relay_msg_index - recv_relay_ft_msg_index_;
+                                    if (diff != 1) {
+                                        LOGE("FT error sequence, current: {}, last: {}", relay_msg_index, recv_relay_ft_msg_index_);
+                                    }
+                                    recv_relay_ft_msg_index_ = relay_msg_index;
+                                }
+                                const auto &payload = sub.payload();
+                                auto payload_msg = Data::Make((char*)payload.data(), payload.size());
+                                this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kFileTransfer, payload_msg);
+                            }
+                        });
+
+                        relay_ft_sdk_->Start();
+                    }
                 }
                 else {
-                    LOGI("Will retry to connect relay server.");
-                    relay_media_sdk_->Stop();
-                    if (relay_media_sdk_) {
-                        relay_media_sdk_->Stop();
-                    }
+                    LOGE("Media not connected, will release and reconnect.");
+                    fn_release_sdk();
                 }
             }
         }).detach();
@@ -337,7 +357,7 @@ namespace tc
     }
 
     bool RelayPlugin::IsWorking() {
-        return sdk_init_ && relay_media_sdk_ && relay_media_sdk_->IsAlive() && sys_settings_.relay_enabled_;
+        return relay_media_sdk_ && relay_media_sdk_->IsAlive() && sys_settings_.relay_enabled_;
     }
 
     void RelayPlugin::SyncInfo(const tc::NetSyncInfo &info) {
@@ -368,14 +388,18 @@ namespace tc
 
     void RelayPlugin::OnSyncPluginSettingsInfo(const tc::GrPluginSettingsInfo &settings) {
         GrPluginInterface::OnSyncPluginSettingsInfo(settings);
+        if (!sys_settings_.appkey_.empty() && sys_settings_.appkey_ != using_appkey_) {
+            need_reconnect_ = true;
+            LOGW("Appkey changed, need to recreate connection.");
+        }
     }
 
     int64_t RelayPlugin::GetQueuingMediaMsgCount() {
-        return relay_media_sdk_ && sdk_init_ ? relay_media_sdk_->GetQueuingMsgCount() : 0;
+        return relay_media_sdk_ ? relay_media_sdk_->GetQueuingMsgCount() : 0;
     }
 
     int64_t RelayPlugin::GetQueuingFtMsgCount() {
-        return relay_ft_sdk_ && sdk_init_ ? relay_ft_sdk_->GetQueuingMsgCount() : 0;
+        return relay_ft_sdk_? relay_ft_sdk_->GetQueuingMsgCount() : 0;
     }
 
     bool RelayPlugin::HasEnoughBufferForQueuingMediaMessages() {
