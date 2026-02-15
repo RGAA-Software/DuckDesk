@@ -90,7 +90,7 @@ void FileTransmitSDK::On6000msTimer() {
         auto now = GetCurrentTimestamp();
         auto diff = now - it->second->last_update_time_;
 		if (diff >= 14 * 1000) {
-            LOGI("Will clear this task since update time error: {}, now: {}, last: {}, diff: {}ms", it->first, now, it->second->last_update_time_, diff);
+            LOGI("Will clear this task since update time error: {}, now: {}, last: {}, diff: {}ms", it->first, now, it->second->last_update_time_.load(), diff);
 			it->second->is_ended_ = true;
 			if (it->second->file_ptr_->IsOpen()) {
 				it->second->file_ptr_->Close();

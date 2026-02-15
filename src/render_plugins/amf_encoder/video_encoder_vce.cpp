@@ -21,7 +21,7 @@
 #define DEBUG_FILE 0
 
 #define AMF_LOG_ERR_IF(expr) {AMF_RESULT res = expr;\
-    if(res != AMF_OK){LOGE("ERROR: {}", res);}}
+    if(res != AMF_OK){LOGE("ERROR: {}", (int)res);}}
 
 const wchar_t* START_TIME_PROPERTY = L"StartTimeProperty";
 const wchar_t* FRAME_INDEX_PROPERTY = L"FrameIndexProperty";
@@ -69,7 +69,7 @@ namespace tc
         // Create encoder component.
         auto ret = g_AMFFactory.GetFactory()->CreateComponent(amf_context_, pCodec, &amf_encoder_);
         if (ret != AMF_OK) {
-            LOGE("CreateComponent failed: {}", ret);
+            LOGE("CreateComponent failed: {}", (int)ret);
             return false;
         }
 
@@ -117,7 +117,7 @@ namespace tc
 
         ret = amf_encoder_->Init(input_format_, encoder_config_.width, encoder_config_.height);
         if (ret != AMF_OK) {
-            LOGE("!!! AMF encoder init failed: {}, {}x{}, format: {}", ret, encoder_config_.width, encoder_config_.height, input_format_);
+            LOGE("!!! AMF encoder init failed: {}, {}x{}, format: {}", (int)ret, encoder_config_.width, encoder_config_.height, (int)input_format_);
             return false;
         }
 
@@ -310,7 +310,7 @@ namespace tc
         // Surface is cached by AMF.
         auto res = amf_context_->AllocSurface(amf::AMF_MEMORY_DX11, convert_input_format_, width, height, &surface);
         if(res != AMF_OK) {
-            LOGE("amf context alloc surface failed: {}", res);
+            LOGE("amf context alloc surface failed: {}", (int)res);
             return false;
         }
         if (!surface) {

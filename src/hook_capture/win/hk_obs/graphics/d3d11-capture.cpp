@@ -137,7 +137,7 @@ static inline bool d3d11_init_format(IDXGISwapChain *swap, HWND &window) {
     data.cx = desc.BufferDesc.Width;
     data.cy = desc.BufferDesc.Height;
 
-    LOGI("d3d11 init format: {}, multisampled: {}, w: {}, h: {}", data.format, data.multisampled, data.cx, data.cy);
+    LOGI("d3d11 init format: {}, multisampled: {}, w: {}, h: {}", (int)data.format, data.multisampled, data.cx, data.cy);
     return true;
 }
 

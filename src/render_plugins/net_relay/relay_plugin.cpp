@@ -275,7 +275,7 @@ namespace tc
                                 else {
                                     auto diff = relay_msg_index - recv_relay_ft_msg_index_;
                                     if (diff != 1) {
-                                        LOGE("FT error sequence, current: {}, last: {}", relay_msg_index, recv_relay_ft_msg_index_);
+                                        LOGE("FT error sequence, current: {}, last: {}", relay_msg_index, recv_relay_ft_msg_index_.load());
                                     }
                                     recv_relay_ft_msg_index_ = relay_msg_index;
                                 }

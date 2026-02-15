@@ -42,7 +42,7 @@ namespace tc
         try {
             nv_encoder_->CreateEncoder(&initializeParams);
         } catch (const NVENCException& e) {
-            LOGI("Config failed: {} => {}", e.getErrorCode(), e.what());
+            LOGI("Config failed: {} => {}", (int)e.getErrorCode(), e.what());
             return false;
         }
         LOGI("NVENC init success.");
@@ -435,7 +435,7 @@ namespace tc
         }
         catch (const NVENCException& e) {
             nv_encoder_ = nullptr;
-            LOGI("NVENC NvEncoderD3D11 failed: {} => {}", e.getErrorCode(), e.what());
+            LOGI("NVENC NvEncoderD3D11 failed: {} => {}", (int)e.getErrorCode(), e.what());
             return false;
         }
         return true;
@@ -458,7 +458,7 @@ namespace tc
             r = nv_encoder_->Reconfigure(&reconfigureParams);
         }
         catch (NVENCException e) {
-            LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", e.getErrorCode(), e.what(),
+            LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", (int)e.getErrorCode(), e.what(),
                  fps, encoder_config_.width, encoder_config_.height, bps
             );
             return false;

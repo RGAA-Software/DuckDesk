@@ -50,7 +50,7 @@ namespace tc
             connected_ = false;
         }
 
-        LOGI("DataChannel[ {} ] state changed: {}, connected: {}", name_, (int)data_channel_->state(), connected_);
+        LOGI("DataChannel[ {} ] state changed: {}, connected: {}", name_, (int)data_channel_->state(), connected_.load());
     }
 
     void RtcDataChannel::OnMessage(const webrtc::DataBuffer &buffer) {
@@ -194,7 +194,7 @@ namespace tc
             }
 
             if (pending_data_count_ > 80) {
-                LOGI("[ {} ] pending_data_count: {}", name_, pending_data_count_);
+                LOGI("[ {} ] pending_data_count: {}", name_, pending_data_count_.load());
             }
         }
         else {

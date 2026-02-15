@@ -61,7 +61,7 @@ namespace tc
         }
 
         if (req_index_ != resp_buffer_->req_index()) {
-            LOGE("invalid req index, send: {}, received: {}", req_index_, resp_buffer_->req_index());
+            LOGE("invalid req index, send: {}, received: {}", req_index_.load(), resp_buffer_->req_index());
             return S_FALSE;
         }
 

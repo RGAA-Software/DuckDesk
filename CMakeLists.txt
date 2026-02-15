@@ -85,6 +85,8 @@ if(MSVC)
     #link_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/openssl/x64/lib/VC)
 endif()
 
+add_definitions(-DFMT_HEADER_ONLY)
+
 if(MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:83886080")
 else()

@@ -13,9 +13,9 @@ namespace tc
 		D3D11_TEXTURE2D_DESC desc;
 		texture->GetDesc(&desc);
 		LOGI("-----------------ID3D11Texture2D Desc------------------");
-		LOGI("Width : {} , Height : {}, Format : {}", desc.Width, desc.Height, desc.Format);
+		LOGI("Width : {} , Height : {}, Format : {}", desc.Width, desc.Height, (int)desc.Format);
 		LOGI("MipLevels : {}, ArraySize : {}", desc.MipLevels, desc.ArraySize);
-		LOGI("Usage : {}", desc.Usage);
+		LOGI("Usage : {}", (int)desc.Usage);
 		LOGI("BindFlags : {}", desc.BindFlags);
 		LOGI("CPUAccessFlags : {}", desc.CPUAccessFlags);
 		LOGI("MiscFlags : {}", desc.MiscFlags);

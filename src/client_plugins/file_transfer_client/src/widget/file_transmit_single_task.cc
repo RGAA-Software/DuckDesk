@@ -156,7 +156,7 @@ void FileTransmitSingleTask::InitSigChannel() {
             auto mB_size =  (uint32_t)speed / 1024;
             if (mB_size > 50) {
                 LOGI("SPEED is so fast: {}MB/s, diff size: {}, diff time: {}, already_transmit_file_size: {}, last_calculate_size: {}",
-                     mB_size, temp_size, temp_time, already_transmit_file_size_, last_calculate_size_);
+                     mB_size, temp_size, temp_time, already_transmit_file_size_.load(), last_calculate_size_);
             }
             // test end //
 
