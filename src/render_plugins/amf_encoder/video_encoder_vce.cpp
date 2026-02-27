@@ -288,6 +288,12 @@ namespace tc
 
     bool VideoEncoderVCE::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
         extra_ = extra;
+
+        auto cap_video_frame = std::any_cast<CaptureVideoFrame>(extra);
+        if (cap_video_frame.request_idr_) {
+            InsertIdr();
+        }
+
         D3D11_TEXTURE2D_DESC desc;
         tex2d->GetDesc(&desc);
         return EncodeTexture(tex2d, desc.Width, desc.Height, frame_index);

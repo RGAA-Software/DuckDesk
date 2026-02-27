@@ -79,9 +79,11 @@ namespace tc
         auto pInputTexture = reinterpret_cast<ID3D11Texture2D*>(input_frame->inputPtr);
         d3d11_device_context_->CopyResource(pInputTexture, tex2d.Get());
 
+        auto cap_video_frame = std::any_cast<CaptureVideoFrame>(extra);
+
         bool is_key_frame = false;
         NV_ENC_PIC_PARAMS picParams = {};
-        if (insert_idr_) {
+        if (insert_idr_ || cap_video_frame.request_idr_) {
             picParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
             insert_idr_ = false;
             is_key_frame = true;
