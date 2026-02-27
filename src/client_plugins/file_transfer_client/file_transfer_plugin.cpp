@@ -62,6 +62,8 @@ namespace tc
         root_widget_->setLayout(layout);
         WidgetHelper::SetTitleBarColor(root_widget_);
 
+        root_widget_->setFocusPolicy(Qt::StrongFocus);
+
         // title
         root_widget_->setWindowTitle(QString::fromStdString(std::format("{}[{}]", tcTr("id_file_transfer").toStdString(), plugin_settings_.stream_name_)));
 

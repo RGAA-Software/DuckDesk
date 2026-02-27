@@ -153,6 +153,7 @@ void FileOperationWidget::Init() {
 	btn_go_parent_directory_->setEnabled(false);
 
 	search_line_edit_ = new QLineEdit(this);
+	search_line_edit_->setFocusPolicy(Qt::StrongFocus);
 	search_line_edit_->setFixedHeight(30);
 	search_line_edit_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
 	search_line_edit_->setStyleSheet(s_search_line_edit_style);
