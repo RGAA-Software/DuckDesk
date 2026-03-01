@@ -43,10 +43,6 @@ namespace tc
 
         QPixmap GetSquareLogo() override;
 
-        QPixmap GetSquarePrimaryColorLogoTransBg() override;
-
-        QPixmap GetSquareWhiteLogoTransBg() override;
-
         // enable game
         bool IsGameEnabled() override;
 

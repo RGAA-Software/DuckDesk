@@ -80,22 +80,6 @@ namespace tc
         return square_logo;
     }
 
-    QPixmap SkinOfficial::GetSquarePrimaryColorLogoTransBg() {
-        static QPixmap primary_color_logo_trans_bg;
-        if (primary_color_logo_trans_bg.isNull()) {
-            primary_color_logo_trans_bg.load(":/skin/resources/tc_trans_icon_blue.png");
-        }
-        return primary_color_logo_trans_bg;
-    }
-
-    QPixmap SkinOfficial::GetSquareWhiteLogoTransBg() {
-        static QPixmap white_logo_trans_bg;
-        if (white_logo_trans_bg.isNull()) {
-            white_logo_trans_bg.load(":/skin/resources/tc_trans_icon_white.png");
-        }
-        return white_logo_trans_bg;
-    }
-
     bool SkinOfficial::IsGameEnabled() {
         return true;
     }
