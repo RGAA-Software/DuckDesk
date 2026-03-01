@@ -97,6 +97,10 @@ if (JEMALLOC_ENABLED)
     add_definitions(-DJEMALLOC_ON=1)
 endif ()
 
+if (MIMALLOC_ENABLED)
+    add_definitions(-DMIMALLOC_ON=1)
+endif ()
+
 if (MEMORY_STST_ENABLED)
     add_definitions(-DMEMORY_STST_ON=1)
 endif ()
@@ -127,6 +131,7 @@ find_package(mongocxx CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
+find_package(mimalloc CONFIG REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc)
 
