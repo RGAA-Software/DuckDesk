@@ -149,7 +149,7 @@ void FileTransWidget::Init() {
 	s_switch_no_curr_btn_style = s_switch_no_curr_btn_style.arg(10);
 
 	btn_record_table_ = new FileTransLogSwitchButton(this);
-	btn_record_table_->setFixedSize(90, 24);
+	btn_record_table_->setFixedSize(110, 24);
 	//btn_record_table_->setText(QStringLiteral("传输记录"));
 	btn_record_table_->setText(tcTr("id_file_trans_records"));
 	btn_record_table_->setStyleSheet(s_switch_curr_btn_style);
@@ -220,7 +220,7 @@ void FileTransWidget::Init() {
 	logo_lab_ = new QLabel(this);
 	logo_lab_->setFixedSize(120, 50);
 	logo_lab_->setAttribute(Qt::WA_StyledBackground, true);
-	logo_lab_->setStyleSheet(R"(image: url(:/resource/logo_text.png);
+	logo_lab_->setStyleSheet(R"(image: url(:/resource/tc_text_logo.png);
                                     background-repeat:no-repeat;
                                     background-position: center center;)");
 	logo_lab_->move(this->width() * 0.88, this->height() * 0.92);
@@ -285,7 +285,7 @@ void FileTransWidget::InitSigChannel() {
 }
 
 void FileTransWidget::resizeEvent(QResizeEvent* event) {
-	logo_lab_->move(this->width() * 0.88, this->height() * 0.92);
+	logo_lab_->move(this->width() * 0.88, this->height() * 0.91);
 	QWidget::resizeEvent(event);
 }
 
