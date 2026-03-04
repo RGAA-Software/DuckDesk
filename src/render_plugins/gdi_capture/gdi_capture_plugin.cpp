@@ -324,7 +324,11 @@ namespace tc
     }
 
     void GdiCapturePlugin::NotifyCaptureMonitorInfo() {
-        auto event = std::make_shared<GrPluginCapturingMonitorInfoEvent>();
+        if (sorted_monitors_.empty()) {
+            LOGI("==> Sorted Monitor's empty, ignore the GrPluginCapturingMonitorInfoEvent");
+            return;
+        }
+        const auto event = std::make_shared<GrPluginCapturingMonitorInfoEvent>();
         this->CallbackEvent(event);
     }
 
