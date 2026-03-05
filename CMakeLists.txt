@@ -13,7 +13,7 @@ elseif(TARGET_TYPE STREQUAL "Official")
 else()
     set(TARGET_TYPE "Official")
     add_definitions(-DOFFICIAL_BUILD)
-    message(WARNING "Unknown TARGET_TYPE: ${TARGET_TYPE}, will use official type.")
+    message("TARGET_TYPE: ${TARGET_TYPE}, will use official type.")
 endif()
 
 set(CMAKE_PREFIX_PATH ${QT_ROOT}/lib/cmake)
