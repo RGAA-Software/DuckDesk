@@ -1,5 +1,5 @@
 add_subdirectory(GammaRay)
-add_subdirectory(GammaRayServer)
+#add_subdirectory(GammaRayServer)
 add_subdirectory(client_plugins)
 add_subdirectory(render_plugins)
 add_subdirectory(hook_capture)
