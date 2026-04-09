@@ -68,7 +68,7 @@ namespace tc
 
     public:
         uint32_t current_pid_{};
-        std::string dll_path_;
+        std::wstring dll_path_;
 #if ENABLE_SHM
         std::shared_ptr<ClientIpcManager> client_ipc_mgr_ = nullptr;
 #endif

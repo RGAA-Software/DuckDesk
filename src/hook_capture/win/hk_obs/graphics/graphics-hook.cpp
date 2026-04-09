@@ -816,14 +816,13 @@ static bool init_dll(void) {
     return !!dup_hook_mutex;
 }
 
-std::string GetDllPath(HMODULE module) {
+std::wstring GetDllPath(HMODULE module) {
     wchar_t path[MAX_PATH] = {0};
     if (GetModuleFileName(module, path, MAX_PATH)) {
         auto w_path = std::wstring(path);
-        auto u_path = tc::StringUtil::ToUTF8(w_path);
-        return tc::FileUtil::GetFileFolder(u_path);
+        return w_path;
     }
-    return "";
+    return L"";
 }
 
 static HookManager *g_hook_manager = HookManager::Instance();
@@ -835,14 +834,14 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1) {
         dll_inst = hinst;
         g_hook_manager->Init();
 
-        std::string dll_path = GetDllPath(hinst);
+        std::wstring dll_path = GetDllPath(hinst);
         g_hook_manager->dll_path_ = dll_path;
-        auto log_path = std::format("{}/tc_graphics_{}.log", dll_path, g_hook_manager->app_shared_msg_->ipc_port_);
+        auto log_path = std::format(L"{}/tc_graphics_{}.log", dll_path, g_hook_manager->app_shared_msg_->ipc_port_);
         tc::Logger::InitLog(log_path, true);
         g_hook_manager->StartIpcClient();
         g_hook_manager->DumpSharedMessage();
 
-        LOGI("Dll path: {}", dll_path);
+        LOGI("Dll path: {}", StringUtil::ToUTF8(dll_path));
 
         g_hook_manager->HookMethods();
 

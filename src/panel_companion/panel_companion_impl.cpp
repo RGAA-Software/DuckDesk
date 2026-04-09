@@ -37,18 +37,19 @@ namespace tc
     }
 
     bool PanelCompanionImpl::Init() {
-        std::string base_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()).toStdString();
-        Logger::InitLog(base_path + "/gr_logs/panel_companion.log", true);
+        auto base_path = FolderUtil::GetProgramDataPath();
+        auto log_path = std::format(L"{}/gr_logs/panel_companion.log", base_path);
+        Logger::InitLog(log_path, true);
         LOGI("PanelCompanion Init");
 
         net_thread_ = Thread::Make("companion_net", 1024);
         net_thread_->Poll();
 
         sp_ = std::make_shared<SharedPreference>();
-        auto sp_dir = base_path + "/gr_data";
+        auto sp_dir = base_path + L"/gr_data";
         if (!sp_->Init(sp_dir, "panel_companion.dat")) {
             //QMessageBox::critical(nullptr, "Error", "You may already run a instance.");
-            return -1;
+            return false;
         }
 
         spvr_settings_ = SpvrSettings::Instance();
