@@ -63,9 +63,8 @@ namespace tc
     }
 
     bool ClipboardPlugin::OnDestroy() {
-        GrPluginInterface::OnDestroy();
-
-        return true;
+        GrPluginInterface::OnStop();
+        return GrPluginInterface::OnDestroy();
     }
 
     void ClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {

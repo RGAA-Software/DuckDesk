@@ -48,7 +48,9 @@ namespace tc
     }
 
     bool AmfEncoderPlugin::OnDestroy() {
-        return true;
+        GrVideoEncoderPlugin::OnStop();
+        ExitAll();
+        return GrVideoEncoderPlugin::OnDestroy();
     }
 
     void AmfEncoderPlugin::InsertIdr() {

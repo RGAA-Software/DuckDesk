@@ -44,7 +44,13 @@ namespace tc
     }
 
     bool UdpPlugin::OnDestroy() {
-        return true;
+        GrNetPlugin::OnStop();
+        if (server_) {
+            server_->stop();
+            server_.reset();
+        }
+        sessions_.Clear();
+        return GrNetPlugin::OnDestroy();
     }
 
     void UdpPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {

@@ -51,8 +51,9 @@ namespace tc
     }
 
     bool NvencEncoderPlugin::OnDestroy() {
-        GrVideoEncoderPlugin::OnDestroy();
-        return true;
+        GrVideoEncoderPlugin::OnStop();
+        ExitAll();
+        return GrVideoEncoderPlugin::OnDestroy();
     }
 
     void NvencEncoderPlugin::InsertIdr() {

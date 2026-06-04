@@ -296,7 +296,16 @@ namespace tc
     }
 
     bool RelayPlugin::OnDestroy() {
-        return true;
+        GrNetPlugin::OnStop();
+        if (relay_media_sdk_) {
+            relay_media_sdk_->Stop();
+            relay_media_sdk_.reset();
+        }
+        if (relay_ft_sdk_) {
+            relay_ft_sdk_->Stop();
+            relay_ft_sdk_.reset();
+        }
+        return GrNetPlugin::OnDestroy();
     }
 
     void RelayPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {

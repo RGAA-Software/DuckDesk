@@ -100,7 +100,14 @@ namespace tc
     }
 
     bool FrameCarrierPlugin::OnDestroy() {
-        return true;
+        GrFrameCarrierPlugin::OnStop();
+        for (const auto& [monitor_name, frame_carrier] : frame_carriers_) {
+            if (frame_carrier) {
+                frame_carrier->Exit();
+            }
+        }
+        frame_carriers_.clear();
+        return GrFrameCarrierPlugin::OnDestroy();
     }
 
     bool FrameCarrierPlugin::InitFrameCarrier(const tc::GrCarrierParams &params) {

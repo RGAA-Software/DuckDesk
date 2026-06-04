@@ -48,12 +48,13 @@ namespace tc
     }
 
     bool GdiCapturePlugin::OnDestroy() {
-        GrMonitorCapturePlugin::OnDestroy();
+        GrMonitorCapturePlugin::OnStop();
         for (const auto& [mon, capture] : captures_) {
             capture->PauseCapture();
             capture->StopCapture();
         }
-        return true;
+        captures_.clear();
+        return GrMonitorCapturePlugin::OnDestroy();
     }
 
     std::vector<CaptureMonitorInfo> GdiCapturePlugin::GetCaptureMonitorInfo() {
