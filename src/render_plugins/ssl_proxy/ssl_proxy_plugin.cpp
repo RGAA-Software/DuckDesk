@@ -10,10 +10,7 @@
 #include "render/plugins/plugin_ids.h"
 #include "ssl_proxy_server.h"
 
-void* GetInstance() {
-    static tc::SSLProxyPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::SSLProxyPlugin)
 
 namespace tc
 {

@@ -16,10 +16,7 @@
 
 #include <qpushbutton.h>
 
-void* GetInstance() {
-    static tc::MediaRecordPluginClient plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::MediaRecordPluginClient)
 
 namespace tc
 {

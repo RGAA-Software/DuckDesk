@@ -11,10 +11,7 @@
 #include "plugin_interface/gr_plugin_events.h"
 #include "tc_common_new/image_generator.h"
 
-void* GetInstance() {
-    static tc::FrameCarrierPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::FrameCarrierPlugin)
 
 namespace tc
 {

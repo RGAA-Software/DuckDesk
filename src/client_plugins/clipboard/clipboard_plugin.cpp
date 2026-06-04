@@ -169,7 +169,4 @@ namespace tc
     }
 }
 
-void* GetInstance() {
-    static tc::ClientClipboardPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::ClientClipboardPlugin)

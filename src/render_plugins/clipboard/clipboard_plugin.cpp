@@ -21,10 +21,7 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-void* GetInstance() {
-    static tc::ClipboardPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::ClipboardPlugin)
 
 namespace tc
 {

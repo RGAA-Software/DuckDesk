@@ -22,10 +22,7 @@
 
 using namespace relay;
 
-void* GetInstance() {
-    static tc::RelayPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::RelayPlugin)
 
 namespace tc
 {

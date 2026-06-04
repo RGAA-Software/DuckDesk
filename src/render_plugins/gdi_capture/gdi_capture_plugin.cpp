@@ -8,10 +8,7 @@
 #include "render/plugins/plugin_ids.h"
 #include "gdi_capture.h"
 
-void* GetInstance() {
-    static tc::GdiCapturePlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::GdiCapturePlugin)
 
 namespace tc
 {

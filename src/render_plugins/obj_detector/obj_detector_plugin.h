@@ -30,12 +30,8 @@ namespace tc
 
 }
 
-extern "C" __declspec(dllexport) void* GetInstance();
 
-void* GetInstance() {
-    static tc::ObjDetectorPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::ObjDetectorPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

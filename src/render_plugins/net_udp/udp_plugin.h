@@ -66,12 +66,8 @@ namespace tc
 
 }
 
-extern "C" __declspec(dllexport) void* GetInstance();
 
-void* GetInstance() {
-    static tc::UdpPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::UdpPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

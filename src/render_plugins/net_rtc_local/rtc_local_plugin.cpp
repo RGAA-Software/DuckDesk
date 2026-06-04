@@ -11,10 +11,7 @@
 #include "plugin_interface/gr_plugin_events.h"
 #include "plugin_interface/gr_plugin_context.h"
 
-void* GetInstance() {
-    static tc::RtcLocalPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::RtcLocalPlugin)
 
 namespace tc
 {

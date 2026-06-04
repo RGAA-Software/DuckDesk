@@ -17,10 +17,7 @@
 #include "src/core/file_trans_interface.h"
 #include "widget_helper.h"
 
-void* GetInstance() {
-    static tc::FileTransferPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::FileTransferPlugin)
 
 namespace tc
 {

@@ -75,7 +75,6 @@ namespace tc
 
 }
 
-extern "C" __declspec(dllexport) void* GetInstance();
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

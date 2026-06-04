@@ -11,10 +11,7 @@
 #include "plugin_interface/gr_plugin_events.h"
 #include "plugin_interface/gr_plugin_context.h"
 
-static void* GetInstance() {
-    static tc::NvencEncoderPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::NvencEncoderPlugin)
 
 namespace tc
 {

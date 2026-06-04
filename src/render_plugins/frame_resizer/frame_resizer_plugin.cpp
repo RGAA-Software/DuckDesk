@@ -8,10 +8,7 @@
 #include "frame_render.h"
 #include "tc_common_new/log.h"
 
-static void* GetInstance() {
-    static tc::FrameResizerPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::FrameResizerPlugin)
 
 namespace tc
 {

@@ -209,7 +209,4 @@ namespace tc
 
 }
 
-void* GetInstance() {
-    static tc::RtcPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::RtcPlugin)

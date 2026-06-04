@@ -9,10 +9,7 @@
 #include "tc_common_new/log.h"
 #include "render/plugins/plugin_ids.h"
 
-static void* GetInstance() {
-    static tc::AmfEncoderPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::AmfEncoderPlugin)
 
 namespace tc
 {

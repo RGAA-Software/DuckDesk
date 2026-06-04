@@ -13,10 +13,7 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-void* GetInstance() {
-    static tc::FileTransferPlugin plugin;
-    return (void*)&plugin;
-}
+GR_PLUGIN_EXPORT(tc::FileTransferPlugin)
 
 namespace tc
 {

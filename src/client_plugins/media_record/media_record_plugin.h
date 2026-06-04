@@ -40,7 +40,6 @@ namespace tc
     };
 }
 
-extern "C" __declspec(dllexport) void* GetInstance();
 
 
 
