@@ -1,6 +1,7 @@
 ﻿#include "gdi_capture.h"
 #include <algorithm>
 #include <iostream>
+#include <limits>
 #include <timeapi.h>
 #include "tc_common_new/string_util.h"
 #include "tc_common_new/message_notifier.h"
@@ -171,7 +172,17 @@ namespace tc
             LOGW("bmp.bmWidthBytes != bmp.bmWidth * 4. bmp.bmWidthBytes: {}, bmp.bmWidth: {}", bmp.bmWidthBytes, bmp.bmWidth);
         }
 
-        DWORD dwBmpSize = bmp.bmWidthBytes * bmp.bmHeight;
+        if (bmp.bmWidthBytes <= 0 || bmp.bmHeight <= 0) {
+            LOGE("invalid bitmap dimensions, width_bytes: {}, height: {}", bmp.bmWidthBytes, bmp.bmHeight);
+            return false;
+        }
+        const auto width_bytes = static_cast<size_t>(bmp.bmWidthBytes);
+        const auto bmp_height = static_cast<size_t>(bmp.bmHeight);
+        if (width_bytes > (std::numeric_limits<size_t>::max)() / bmp_height) {
+            LOGE("bitmap size overflow, width_bytes: {}, height: {}", bmp.bmWidthBytes, bmp.bmHeight);
+            return false;
+        }
+        const auto dwBmpSize = width_bytes * bmp_height;
 
         DataPtr data_ptr = Data::Make(nullptr, dwBmpSize);
         if (!data_ptr) {
@@ -179,7 +190,13 @@ namespace tc
             return false;
         }
 
-        int ret = GetDIBits(memory_dc_, bit_map_, 0, (UINT)bmp.bmHeight, data_ptr->DataAddr(), (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+        auto* data_addr = data_ptr->DataAddr();
+        if (!data_addr) {
+            LOGE("bitmap data address is null, size: {}", dwBmpSize);
+            return false;
+        }
+
+        int ret = GetDIBits(memory_dc_, bit_map_, 0, (UINT)bmp.bmHeight, data_addr, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
         if (ret == 0) {
             LOGW("GetDIBits failed.");
             return false;
@@ -194,7 +211,10 @@ namespace tc
         cap_video_frame.frame_height_ = bmp.bmHeight;
         cap_video_frame.frame_index_ = GetFrameIndex();
         cap_video_frame.raw_image_ = Image::Make(data_ptr, bmp.bmWidth, bmp.bmHeight, RawImageType::kBGRA);
-        memcpy(cap_video_frame.display_name_, my_monitor_info_.name_.c_str(), my_monitor_info_.name_.size());
+        if (StringUtil::CopyCStringToArray(cap_video_frame.display_name_, my_monitor_info_.name_)) {
+            LOGW("display_name truncated for monitor: {}, src_len: {}, dst_len: {}",
+                 my_monitor_info_.name_, my_monitor_info_.name_.size(), sizeof(cap_video_frame.display_name_));
+        }
         auto mon_index_res = plugin_->GetMonIndexByName(my_monitor_info_.name_);
         if (mon_index_res.has_value()) {
             cap_video_frame.monitor_index_ = mon_index_res.value();

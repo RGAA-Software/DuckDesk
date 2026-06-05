@@ -4,6 +4,7 @@
 
 #include "video_frame_carrier.h"
 #include <atlcomcli.h>
+#include <limits>
 #include <libyuv/convert.h>
 #include <libyuv/convert_from_argb.h>
 #include "tc_common_new/log.h"
@@ -322,17 +323,50 @@ namespace tc
     }
 
     bool VideoFrameCarrier::CopyToRawImage(const uint8_t* data, int row_pitch_bytes, int height) {
-        auto total_size = row_pitch_bytes * height;
-        auto width = row_pitch_bytes / 4;
-        if (raw_image_rgba_ == nullptr || (raw_image_rgba_->GetData() && raw_image_rgba_->GetData()->Size() != total_size)) {
-            raw_image_rgba_ = Image::Make(Data::Make(nullptr, total_size), width, height);
-        }
-
-        if (total_size > raw_image_rgba_->GetData()->Size()) {
-            LOGE("raw image buffer is too small, you need to resize it!");
+        if (!data) {
+            LOGE("CopyToRawImage failed: data is null");
             return false;
         }
-        memcpy(raw_image_rgba_->GetData()->DataAddr(), data, total_size);
+        if (row_pitch_bytes <= 0 || height <= 0) {
+            LOGE("CopyToRawImage failed: invalid row_pitch_bytes ({}) or height ({})", row_pitch_bytes, height);
+            return false;
+        }
+        if ((row_pitch_bytes % 4) != 0) {
+            LOGE("CopyToRawImage failed: row_pitch_bytes ({}) is not RGBA aligned", row_pitch_bytes);
+            return false;
+        }
+
+        const auto row_pitch = static_cast<size_t>(row_pitch_bytes);
+        const auto image_height = static_cast<size_t>(height);
+        if (row_pitch > (std::numeric_limits<size_t>::max)() / image_height) {
+            LOGE("CopyToRawImage failed: size overflow, row_pitch_bytes: {}, height: {}", row_pitch_bytes, height);
+            return false;
+        }
+
+        const auto total_size = row_pitch * image_height;
+        const auto width = row_pitch_bytes / 4;
+        if (raw_image_rgba_ == nullptr ||
+            !raw_image_rgba_->GetData() ||
+            raw_image_rgba_->GetData()->Size() != total_size) {
+            raw_image_rgba_ = Image::Make(Data::Make(nullptr, total_size), width, height);
+        }
+        if (!raw_image_rgba_ || !raw_image_rgba_->GetData()) {
+            LOGE("CopyToRawImage failed: raw image buffer allocation failed");
+            return false;
+        }
+
+        auto* dst = raw_image_rgba_->GetData()->DataAddr();
+        if (!dst) {
+            LOGE("CopyToRawImage failed: raw image buffer address is null");
+            return false;
+        }
+        if (total_size > raw_image_rgba_->GetData()->Size()) {
+            LOGE("CopyToRawImage failed: raw image buffer too small, need: {}, actual: {}",
+                 total_size, raw_image_rgba_->GetData()->Size());
+            return false;
+        }
+
+        memcpy(dst, data, total_size);
         raw_image_rgba_->raw_img_type_ = (RawImageType)GetRawImageType();
         return true;
     }
