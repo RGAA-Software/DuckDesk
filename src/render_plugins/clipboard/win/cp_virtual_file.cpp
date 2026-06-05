@@ -25,12 +25,28 @@ namespace tc
     CpVirtualFile::CpVirtualFile(ClipboardPlugin* plugin) {
         _cRef = 1;
         plugin_ = plugin;
+        plugin_lifetime_token_ = plugin ? plugin->GetLifetimeToken() : nullptr;
+        if (plugin) {
+            event_cbk_ = [plugin, token = plugin_lifetime_token_](const std::shared_ptr<GrPluginBaseEvent>& event) {
+                if (!plugin || !token || !token->load()) {
+                    return;
+                }
+                plugin->CallbackEvent(event);
+            };
+            file_transfer_cbk_ = [plugin, token = plugin_lifetime_token_](const std::string& stream_id,
+                                                                          const std::shared_ptr<Data>& msg,
+                                                                          bool run_through) {
+                if (!plugin || !token || !token->load()) {
+                    return;
+                }
+                plugin->DispatchTargetFileTransferMessage(stream_id, msg, run_through);
+            };
+        }
     }
 
     CpVirtualFile::~CpVirtualFile() {
-        if (file_stream_) {
-            file_stream_->Release();
-        }
+        stream_owner_alive_->store(false);
+        ExitAllStreams();
     }
 
     void CpVirtualFile::Init() {
@@ -65,7 +81,14 @@ namespace tc
                 auto group_descriptor = (FILEGROUPDESCRIPTORW*)::GlobalLock(h);
                 if (!group_descriptor) {
                     LOGE("GlobalLock failed!");
+                    GlobalFree(h);
                     return S_FALSE;
+                }
+                if (GlobalSize(h) < cb) {
+                    LOGE("GlobalSize too small, expect: {}, actual: {}", cb, GlobalSize(h));
+                    ::GlobalUnlock(h);
+                    GlobalFree(h);
+                    return STG_E_MEDIUMFULL;
                 }
 
                 group_descriptor->cItems = file_count;
@@ -104,7 +127,7 @@ namespace tc
         } else if (pformatetcIn->cfFormat == clip_format_file_content_) {
             if ((pformatetcIn->tymed & TYMED_ISTREAM)) {
                 auto file_index = pformatetcIn->lindex;
-                if (task_files_.size() <= file_index) {
+                if (file_index < 0 || task_files_.size() <= static_cast<size_t>(file_index)) {
                     LOGE("Invalid file index: {}, we only have: {}", file_index, menu_files_.size());
                     return S_FALSE;
                 }
@@ -112,18 +135,47 @@ namespace tc
 
                 auto fw = task_files_.at(file_index);
                 LOGI("Will get data stream for index: {}, name: {}", file_index, fw.file_.file_name());
+                const auto full_path = fw.file_.full_path();
+                RemoveStreamByPath(full_path);
+                auto dispatch_cbk = file_transfer_cbk_;
+                auto plugin_token = plugin_lifetime_token_;
 
-                if (file_stream_) {
-                    // report
-                    this->ReportFileTransferEnd();
-                    file_stream_->Exit();
+                auto* file_stream = new CpFileStream(
+                    [dispatch_cbk, plugin_token](const ClipboardFileWrapper& file_wrapper, int64_t req_index, int64_t req_start, ULONG req_size) -> bool {
+                        if (!dispatch_cbk || !plugin_token || !plugin_token->load()) {
+                            return false;
+                        }
+                        tc::Message msg;
+                        msg.set_type(MessageType::kClipboardReqBuffer);
+                        auto req_buffer = msg.mutable_cp_req_buffer();
+                        req_buffer->set_req_index(req_index);
+                        req_buffer->set_req_size(req_size);
+                        req_buffer->set_req_start(req_start);
+                        req_buffer->set_full_name(file_wrapper.file_.full_path());
+                        dispatch_cbk(file_wrapper.stream_id_, ProtoAsData(&msg), false);
+                        return true;
+                    },
+                    plugin_lifetime_token_,
+                    [this, full_path, token = stream_owner_alive_](CpFileStream* stream) {
+                        if (!token || !token->load()) {
+                            return;
+                        }
+                        std::lock_guard<std::mutex> lock(active_streams_mtx_);
+                        auto it = active_streams_.find(full_path);
+                        if (it != active_streams_.end() && it->second == stream) {
+                            active_streams_.erase(it);
+                        }
+                    },
+                    fw
+                );
+                {
+                    std::lock_guard<std::mutex> lock(active_streams_mtx_);
+                    active_streams_[full_path] = file_stream;
                 }
-                file_stream_ = std::make_shared<CpFileStream>(plugin_, fw);
-                // report
-                this->ReportFileTransferBegin();
 
-                pmedium->pstm = (IStream *)file_stream_.get();
-                pmedium->pstm->AddRef();
+                ReportFileTransferBegin(file_stream);
+
+                pmedium->pstm = file_stream;
                 pmedium->tymed = TYMED_ISTREAM;
                 hr = S_OK;
             }
@@ -229,55 +281,109 @@ namespace tc
     }
 
     void CpVirtualFile::OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer) {
-        if (file_stream_) {
-            file_stream_->OnClipboardRespBuffer(resp_buffer);
+        auto* stream = FindStreamByPath(resp_buffer.full_name());
+        if (!stream) {
+            LOGW("clipboard response has no matching stream: {}", resp_buffer.full_name());
+            return;
         }
+        stream->OnClipboardRespBuffer(resp_buffer);
+        stream->Release();
     }
 
-    void CpVirtualFile::ReportFileTransferBegin() {
-        if (!file_stream_) {
+    void CpVirtualFile::ReportFileTransferBegin(CpFileStream* stream) {
+        if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
             return;
         }
         auto event = std::make_shared<GrPluginFileTransferBegin>();
-        event->the_file_id_ = file_stream_->GetFileId();
+        event->the_file_id_ = stream->GetFileId();
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        event->visitor_device_id_ = file_stream_->GetDeviceId();
+        event->visitor_device_id_ = stream->GetDeviceId();
         event->direction_ = "In";
-        event->file_detail_ = file_stream_->GetFileName();
-        plugin_->CallbackEvent(event);
+        event->file_detail_ = stream->GetFileName();
+        event_cbk_(event);
 
         // send begin message to client
         // send end message to client
         tc::Message msg;
-        msg.set_device_id(file_stream_->GetDeviceId());
-        msg.set_stream_id(file_stream_->GetStreamId());
+        msg.set_device_id(stream->GetDeviceId());
+        msg.set_stream_id(stream->GetStreamId());
         msg.set_type(MessageType::kClipboardReqAtBegin);
         auto req_buffer = msg.mutable_cp_req_at_begin();
-        req_buffer->set_full_name(file_stream_->GetFullPath());
+        req_buffer->set_full_name(stream->GetFullPath());
         auto buffer = ProtoAsData(&msg);
-        plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
+        file_transfer_cbk_(stream->GetStreamId(), buffer, false);
     }
 
-    void CpVirtualFile::ReportFileTransferEnd() {
-        if (!file_stream_) {
+    void CpVirtualFile::ReportFileTransferEnd(CpFileStream* stream) {
+        if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
             return;
         }
         auto event = std::make_shared<GrPluginFileTransferEnd>();
-        event->the_file_id_ = file_stream_->GetFileId();
+        event->the_file_id_ = stream->GetFileId();
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = true;
-        plugin_->CallbackEvent(event);
+        event_cbk_(event);
 
         // send end message to client
         tc::Message msg;
-        msg.set_device_id(file_stream_->GetDeviceId());
-        msg.set_stream_id(file_stream_->GetStreamId());
+        msg.set_device_id(stream->GetDeviceId());
+        msg.set_stream_id(stream->GetStreamId());
         msg.set_type(MessageType::kClipboardReqAtEnd);
         auto req_buffer = msg.mutable_cp_req_at_end();
-        req_buffer->set_full_name(file_stream_->GetFullPath());
+        req_buffer->set_full_name(stream->GetFullPath());
         req_buffer->set_success(true);
         auto buffer = ProtoAsData(&msg);
-        plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
+        file_transfer_cbk_(stream->GetStreamId(), buffer, false);
+    }
+
+    void CpVirtualFile::ExitAllStreams() {
+        std::vector<CpFileStream*> streams;
+        {
+            std::lock_guard<std::mutex> lock(active_streams_mtx_);
+            for (const auto& [_, stream] : active_streams_) {
+                if (stream) {
+                    stream->AddRef();
+                    streams.push_back(stream);
+                }
+            }
+            active_streams_.clear();
+        }
+        for (auto* stream : streams) {
+            ReportFileTransferEnd(stream);
+            stream->Exit();
+            stream->Release();
+        }
+    }
+
+    void CpVirtualFile::RemoveStreamByPath(const std::string& full_path) {
+        CpFileStream* stream = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(active_streams_mtx_);
+            auto it = active_streams_.find(full_path);
+            if (it != active_streams_.end()) {
+                stream = it->second;
+                if (stream) {
+                    stream->AddRef();
+                }
+                active_streams_.erase(it);
+            }
+        }
+        if (!stream) {
+            return;
+        }
+        ReportFileTransferEnd(stream);
+        stream->Exit();
+        stream->Release();
+    }
+
+    CpFileStream* CpVirtualFile::FindStreamByPath(const std::string& full_path) {
+        std::lock_guard<std::mutex> lock(active_streams_mtx_);
+        auto it = active_streams_.find(full_path);
+        if (it == active_streams_.end() || !it->second) {
+            return nullptr;
+        }
+        it->second->AddRef();
+        return it->second;
     }
 
     CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, ClipboardPlugin* plugin) {

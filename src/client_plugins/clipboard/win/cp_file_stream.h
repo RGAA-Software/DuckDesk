@@ -6,9 +6,10 @@
 #define GAMMARAY_CP_FILE_STREAM_H
 
 #include <cstdint>
-#include <memory>
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <functional>
 #include <QFile>
 #include <QFileInfo>
 #include "cp_data_object.h"
@@ -18,14 +19,18 @@
 
 namespace tc
 {
-
-    class ClientClipboardPlugin;
-
     class CpFileStream : public IStream {
     public:
+        using RequestBufferCallback = std::function<bool(const ClipboardFileWrapper&, int64_t, int64_t, ULONG)>;
+        using CleanupCallback = std::function<void(CpFileStream*)>;
 
-        CpFileStream(ClientClipboardPlugin* plugin, const ClipboardFileWrapper& fw) : ref_(1) {
-            plugin_ = plugin;
+        CpFileStream(RequestBufferCallback request_buffer_cb,
+                     std::shared_ptr<std::atomic_bool> lifetime_token,
+                     CleanupCallback cleanup_cb,
+                     const ClipboardFileWrapper& fw) : ref_(1) {
+            request_buffer_cb_ = std::move(request_buffer_cb);
+            lifetime_token_ = std::move(lifetime_token);
+            cleanup_cb_ = std::move(cleanup_cb);
             cp_file_ = fw;
             gen_file_id_ = MD5::Hex(cp_file_.file_.file_name());
         }
@@ -43,6 +48,9 @@ namespace tc
         ULONG Release() override {
             ULONG newRef = InterlockedDecrement(&ref_);
             if (newRef == 0) {
+                if (cleanup_cb_) {
+                    cleanup_cb_(this);
+                }
                 delete this;
             }
             return newRef;
@@ -93,12 +101,14 @@ namespace tc
         std::string GetFullPath();
 
     private:
-        ClientClipboardPlugin* plugin_ = nullptr;
         LONG ref_;
         uint64_t file_size_ {0};
         std::atomic_int64_t current_position_ = 0;
         std::atomic_int64_t req_index_ = 0;
         ClipboardFileWrapper cp_file_;
+        std::shared_ptr<std::atomic_bool> lifetime_token_ = nullptr;
+        RequestBufferCallback request_buffer_cb_ = nullptr;
+        CleanupCallback cleanup_cb_ = nullptr;
 
         std::atomic_bool exit_ = false;
         std::mutex wait_data_mtx_;

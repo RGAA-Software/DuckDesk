@@ -5,6 +5,9 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <atomic>
+#include <functional>
 #include <QString>
 #include <QFile>
 #include <QFileInfo>
@@ -16,6 +19,7 @@ namespace tc
 
     class CpFileStream;
     class ClientClipboardPlugin;
+    class ClientPluginBaseEvent;
 
     class CpVirtualFile : public CpDataObject, public IDataObjectAsyncCapability {
     public:
@@ -65,15 +69,25 @@ namespace tc
         void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
 
     private:
-        void ReportFileTransferBegin();
-        void ReportFileTransferEnd();
+        using EventCallback = std::function<void(const std::shared_ptr<ClientPluginBaseEvent>&)>;
+
+        void ReportFileTransferBegin(CpFileStream* stream);
+        void ReportFileTransferEnd(CpFileStream* stream);
+        void ExitAllStreams();
+        void RemoveStreamByPath(const std::string& full_path);
+        CpFileStream* FindStreamByPath(const std::string& full_path);
 
     private:
         uint32_t clip_format_filedesc_ = 0;
         uint32_t clip_format_filecontent_ = 0;
         BOOL in_async_op_ = false;
         ClientClipboardPlugin* plugin_ = nullptr;
-        std::shared_ptr<CpFileStream> file_stream_ = nullptr;
+        std::shared_ptr<std::atomic_bool> plugin_lifetime_token_ = nullptr;
+        std::shared_ptr<std::atomic_bool> stream_owner_alive_ = std::make_shared<std::atomic_bool>(true);
+        EventCallback event_cbk_ = nullptr;
+        std::function<bool(const ClipboardFileWrapper&, int64_t, int64_t, ULONG)> request_buffer_cbk_ = nullptr;
+        mutable std::mutex active_streams_mtx_;
+        std::map<std::string, CpFileStream*> active_streams_;
         std::vector<ClipboardFile> menu_files_;
         std::vector<ClipboardFileWrapper> task_files_;
     };

@@ -40,6 +40,7 @@ namespace tc
     
     bool ClientClipboardPlugin::OnCreate(const tc::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
+        lifetime_token_->store(true);
         plugin_type_ = ClientPluginType::kUtil;
 
         if (!IsPluginEnabled()) {
@@ -51,6 +52,15 @@ namespace tc
         clipboard_mgr_->Start();
 
         return true;
+    }
+
+    bool ClientClipboardPlugin::OnDestroy() {
+        lifetime_token_->store(false);
+        if (clipboard_mgr_) {
+            clipboard_mgr_->Stop();
+            clipboard_mgr_.reset();
+        }
+        return ClientPluginInterface::OnDestroy();
     }
 
     void ClientClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {

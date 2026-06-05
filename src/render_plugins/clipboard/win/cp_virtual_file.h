@@ -5,6 +5,9 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <atomic>
+#include <functional>
 #include <QString>
 #include <QFile>
 #include <QFileInfo>
@@ -22,6 +25,8 @@ namespace tc
 
     class CpFileStream;
     class ClipboardPlugin;
+    class Data;
+    class GrPluginBaseEvent;
 
     class CpVirtualFile : public IDataObject/*, public IDataObjectAsyncCapability*/ {
     public:
@@ -112,8 +117,14 @@ namespace tc
         void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
 
     private:
-        void ReportFileTransferBegin();
-        void ReportFileTransferEnd();
+        using EventCallback = std::function<void(const std::shared_ptr<GrPluginBaseEvent>&)>;
+        using FileTransferDispatchCallback = std::function<void(const std::string&, std::shared_ptr<Data>, bool)>;
+
+        void ReportFileTransferBegin(CpFileStream* stream);
+        void ReportFileTransferEnd(CpFileStream* stream);
+        void ExitAllStreams();
+        void RemoveStreamByPath(const std::string& full_path);
+        CpFileStream* FindStreamByPath(const std::string& full_path);
 
     private:
         CLIPFORMAT clip_format_file_desc_ = 0;
@@ -121,8 +132,13 @@ namespace tc
         CLIPFORMAT m_cfHdrop = 0;
         CLIPFORMAT m_cfPreferredDropEffect = 0;
         BOOL in_async_op_ = false;
-        std::shared_ptr<CpFileStream> file_stream_ = nullptr;
         ClipboardPlugin* plugin_ = nullptr;
+        std::shared_ptr<std::atomic_bool> plugin_lifetime_token_ = nullptr;
+        std::shared_ptr<std::atomic_bool> stream_owner_alive_ = std::make_shared<std::atomic_bool>(true);
+        EventCallback event_cbk_ = nullptr;
+        FileTransferDispatchCallback file_transfer_cbk_ = nullptr;
+        mutable std::mutex active_streams_mtx_;
+        std::map<std::string, CpFileStream*> active_streams_;
         // 这里分成2个，当点击粘贴后，清空menu_files，传输过程中再点击粘贴不让他再重复粘贴了
         std::vector<ClipboardFile> menu_files_;
         std::vector<ClipboardFileWrapper> task_files_;

@@ -51,6 +51,7 @@ namespace tc
 
     bool ClipboardPlugin::OnCreate(const tc::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
+        lifetime_token_->store(true);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
 
         // test //
@@ -63,6 +64,7 @@ namespace tc
     }
 
     bool ClipboardPlugin::OnDestroy() {
+        lifetime_token_->store(false);
         GrPluginInterface::OnStop();
         return GrPluginInterface::OnDestroy();
     }

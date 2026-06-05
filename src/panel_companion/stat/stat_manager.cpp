@@ -42,17 +42,17 @@ namespace tc
         obj["auth_machine_code"] = impl_->GetMachineCode();
         obj["sys_info"] = info->AsSimpleInfo();
 
-        cat [status, body] = client->Post({
+        cat response = client->Post({
             {"token", kToken}
         }, obj.dump());
-        if (status != 200) {
-            LOGE("ReportWorkingAuth: {}", status);
+        if (response.status != 200) {
+            LOGE("ReportWorkingAuth failed, status: {}, error: {}", response.status, response.error_message);
             return false;
         }
 
         try {
-            LOGI("report auth: {}", body);
-            cat value = json::parse(body);
+            LOGI("report auth: {}", response.body);
+            cat value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;
             }
@@ -71,17 +71,17 @@ namespace tc
         obj["device_id"] = impl_->GetDeviceId();
         obj["sys_info"] = info->AsSimpleInfo();
 
-        cat [status, body] = client->Post({
+        cat response = client->Post({
             {"token", kToken}
         }, obj.dump());
-        if (status != 200) {
-            LOGE("ReportWorkingAuth: {}", status);
+        if (response.status != 200) {
+            LOGE("ReportOpenUp failed, status: {}, error: {}", response.status, response.error_message);
             return false;
         }
 
         try {
-            LOGI("report auth: {}", body);
-            cat value = json::parse(body);
+            LOGI("report auth: {}", response.body);
+            cat value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;
             }

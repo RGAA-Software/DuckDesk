@@ -225,13 +225,16 @@ namespace tc
             return 0;//origin_GetRawInputData_(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
         }
 
-        std::shared_ptr<CaptureBaseMessage> msg = messages_.Front();
+        auto msg = messages_.Front();
         messages_.PopFront();
+        if (!msg.has_value() || !msg.value()) {
+            return 0;
+        }
 
         auto raw_input = (RAWINPUT*)pData;
         memset(raw_input, 0, sizeof(RAWINPUT));
-        if (msg->type_ == kKeyboardEventMessage) {
-            auto keyboard_msg = std::static_pointer_cast<KeyboardEventMessage>(msg);
+        if (msg.value()->type_ == kKeyboardEventMessage) {
+            auto keyboard_msg = std::static_pointer_cast<KeyboardEventMessage>(msg.value());
             bool down = keyboard_msg->down_;
             int k = keyboard_msg->key_;
             raw_input->header.dwType = RIM_TYPEKEYBOARD;
@@ -241,8 +244,8 @@ namespace tc
             raw_input->data.keyboard.Message = down ? WM_KEYDOWN : WM_KEYUP;
             LOGI("vkey: {}, down: {}, makecode:{}", k, down, raw_input->data.keyboard.MakeCode);
 
-        } else if (msg->type_ == kMouseEventMessage) {
-            auto mouse_msg = std::static_pointer_cast<MouseEventMessage>(msg);
+        } else if (msg.value()->type_ == kMouseEventMessage) {
+            auto mouse_msg = std::static_pointer_cast<MouseEventMessage>(msg.value());
 
             raw_input->header.dwType = RIM_TYPEMOUSE;
             if (mouse_msg->absolute_) {

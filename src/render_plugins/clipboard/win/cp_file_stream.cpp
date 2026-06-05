@@ -3,18 +3,18 @@
 //
 
 #include "cp_file_stream.h"
-#include "tc_common_new/log.h"
 #include "tc_common_new/md5.h"
-#include "tc_common_new/time_util.h"
-#include "tc_message_new/proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "render_plugins/clipboard/clipboard_plugin.h"
 
 namespace tc
 {
 
-    CpFileStream::CpFileStream(ClipboardPlugin* plugin, const ClipboardFileWrapper& fw) : ref_(1) {
-        plugin_ = plugin;
+    CpFileStream::CpFileStream(RequestBufferCallback request_buffer_cb,
+                               std::shared_ptr<std::atomic_bool> lifetime_token,
+                               CleanupCallback cleanup_cb,
+                               const ClipboardFileWrapper& fw) : ref_(1) {
+        request_buffer_cb_ = std::move(request_buffer_cb);
+        lifetime_token_ = std::move(lifetime_token);
+        cleanup_cb_ = std::move(cleanup_cb);
         cp_file_ = fw;
         gen_file_id_ = MD5::Hex(cp_file_.file_.file_name());
         LOGI("**** Start: {}", cp_file_.file_.file_name());
@@ -38,16 +38,18 @@ namespace tc
     }
 
     HRESULT STDMETHODCALLTYPE CpFileStream::Read(void *pv, ULONG cb, ULONG *pcbRead) {
-        // read from remote synchronized
-        tc::Message msg;
-        msg.set_type(MessageType::kClipboardReqBuffer);
-        auto req_buffer = msg.mutable_cp_req_buffer();
-        req_buffer->set_req_index(req_index_);
-        req_buffer->set_req_size(cb);
-        req_buffer->set_req_start(current_position_);
-        req_buffer->set_full_name(cp_file_.file_.full_path());
-        auto buffer = ProtoAsData(&msg);
-        plugin_->DispatchTargetFileTransferMessage(cp_file_.stream_id_, buffer, false);
+        if (!pv) {
+            return STG_E_INVALIDPOINTER;
+        }
+        if (pcbRead) {
+            *pcbRead = 0;
+        }
+        if (exit_ || !request_buffer_cb_ || !lifetime_token_ || !lifetime_token_->load()) {
+            return S_FALSE;
+        }
+        if (!request_buffer_cb_(cp_file_, req_index_.load(), current_position_.load(), cb)) {
+            return S_FALSE;
+        }
 
         std::unique_lock lk(wait_data_mtx_);
         data_cv_.wait_for(lk, std::chrono::seconds(10), [this]() -> bool {
@@ -66,9 +68,20 @@ namespace tc
 
         // copy data
         auto resp_buffer = resp_buffer_.value();
-        if (resp_buffer.read_size() > 0) {
+        const auto read_size = static_cast<size_t>(resp_buffer.read_size());
+        if (read_size > cb) {
+            LOGE("clipboard response too large, req size: {}, resp size: {}", cb, read_size);
+            return STG_E_READFAULT;
+        }
+        if (read_size > resp_buffer.buffer().size()) {
+            LOGE("clipboard response buffer too small, declared: {}, actual: {}", read_size, resp_buffer.buffer().size());
+            return STG_E_READFAULT;
+        }
+        if (read_size > 0) {
             memcpy(pv, resp_buffer.buffer().data(), resp_buffer.read_size());
-            *pcbRead = resp_buffer.read_size();
+            if (pcbRead) {
+                *pcbRead = resp_buffer.read_size();
+            }
             current_position_ += resp_buffer.read_size();
         }
 
