@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "base",
+    "gr_auth_mgr",
+    "gr_sysinfo",
+]
+
+resolver = "2"
+
+[workspace.package]
+version = "2.0.1"
+edition = "2021"
