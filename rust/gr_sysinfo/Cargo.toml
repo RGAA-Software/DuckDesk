@@ -3,6 +3,10 @@ name = "gr_sysinfo"
 version.workspace = true
 edition.workspace = true
 
+[[bin]]
+name = "GammaRaySysInfo"
+path = "src/main.rs"
+
 [dependencies]
 base = {path = "../base"}
 gr_auth_mgr = {path = "../gr_auth_mgr" }
