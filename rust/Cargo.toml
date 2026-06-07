@@ -1,8 +1,11 @@
 [workspace]
 members = [
-    "base",
+    "gr_base",
     "gr_auth_mgr",
     "gr_sysinfo",
+    "gr_service",
+    "gr_service/service_core",
+    "gr_service/service_manager",
 ]
 
 resolver = "2"

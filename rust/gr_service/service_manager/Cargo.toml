@@ -1,0 +1,18 @@
+[package]
+name = "service_manager"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "GammaRayServiceManager"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.47", features = ["derive"] }
+service_core = { path = "../service_core" }
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+] }

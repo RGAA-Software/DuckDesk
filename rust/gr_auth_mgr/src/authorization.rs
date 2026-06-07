@@ -1,5 +1,5 @@
+use gr_base::crypto_util::aes_encrypt;
 use serde::{Deserialize, Serialize};
-use base::crypto_util::aes_encrypt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Authorization {
@@ -40,7 +40,7 @@ impl Authorization {
 
     pub fn as_vo(&self, total: u64) -> AuthorizationVo {
         AuthorizationVo {
-            authorization:self.clone(),
+            authorization: self.clone(),
             total,
         }
     }

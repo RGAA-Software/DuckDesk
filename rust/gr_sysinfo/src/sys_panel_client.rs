@@ -11,7 +11,9 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 // [this] ---> Panel ws server
 pub struct SysPanelClient {
-    sender: Arc<Mutex<Option<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>>>>,
+    sender: Arc<
+        Mutex<Option<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>>>,
+    >,
     pub duration: i32,
 }
 
@@ -28,22 +30,23 @@ impl SysPanelClient {
         let self_sender = self.sender.clone();
         tokio::spawn(async move {
             loop {
-                let ws_stream = match timeout(Duration::from_secs(5), connect_async(address.clone())).await {
-                    Ok(Ok((mut stream, _response))) => {
-                        tracing::info!("connect success....");
-                        let message = "Hello, WebSocket!";
-                        let _ = stream.send(TungsteniteMessage::Text(message.into())).await;
-                        Some(stream)
-                    }
-                    Ok(Err(e)) => {
-                        tracing::error!("Failed to connect to {}: {}", address, e);
-                        None
-                    }
-                    Err(_) => {
-                        tracing::error!("Connect to {} timed out", address);
-                        None
-                    }
-                };
+                let ws_stream =
+                    match timeout(Duration::from_secs(5), connect_async(address.clone())).await {
+                        Ok(Ok((mut stream, _response))) => {
+                            tracing::info!("connect success....");
+                            let message = "Hello, WebSocket!";
+                            let _ = stream.send(TungsteniteMessage::Text(message.into())).await;
+                            Some(stream)
+                        }
+                        Ok(Err(e)) => {
+                            tracing::error!("Failed to connect to {}: {}", address, e);
+                            None
+                        }
+                        Err(_) => {
+                            tracing::error!("Connect to {} timed out", address);
+                            None
+                        }
+                    };
 
                 if let Some(stream) = ws_stream {
                     let (sender, mut receiver) = stream.split();
@@ -54,23 +57,21 @@ impl SysPanelClient {
                         loop {
                             if let Some(sender) = &mut *sender.lock().await {
                                 let start = Instant::now();
-                                let info = gSysInfoMgr
-                                    .lock().await
-                                    .load_system_info_as_encrypt_json();
+                                let info =
+                                    gSysInfoMgr.lock().await.load_system_info_as_encrypt_json();
                                 let elapsed = start.elapsed();
                                 tracing::info!("used: {}ms", elapsed.as_millis());
-                                if let Err(e) = sender.send(TungsteniteMessage::Text(info.into())).await {
+                                if let Err(e) =
+                                    sender.send(TungsteniteMessage::Text(info.into())).await
+                                {
                                     tracing::error!("send info failed, break: {}", e);
                                     break;
                                 }
-                            }
-                            else {
+                            } else {
                                 tracing::error!("No sender, Break the loop.");
                                 break;
                             }
-                            let duration = gSysPanelClient
-                                .lock().await
-                                .duration as u64;
+                            let duration = gSysPanelClient.lock().await.duration as u64;
                             tokio::time::sleep(Duration::from_secs(duration)).await;
                         }
                     });
@@ -78,9 +79,7 @@ impl SysPanelClient {
                     // receive message
                     while let Some(msg) = receiver.next().await {
                         match msg {
-                            Ok(TungsteniteMessage::Binary(_data)) => {
-
-                            }
+                            Ok(TungsteniteMessage::Binary(_data)) => {}
                             Ok(TungsteniteMessage::Text(text)) => {
                                 tracing::info!("Received message: {}", text);
                             }
@@ -103,6 +102,5 @@ impl SysPanelClient {
                 sleep(Duration::from_secs(2)).await;
             }
         });
-
     }
 }

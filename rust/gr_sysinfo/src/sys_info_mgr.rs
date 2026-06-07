@@ -1,11 +1,14 @@
+use adlx::helper::AdlxHelper;
+use anyhow::Result;
+use gr_base::crypto_util::aes_encrypt;
+use gr_base::sys_info::{
+    SysComponentInfo, SysCpuInfo, SysDiskInfo, SysGpuInfo, SysInfo, SysIpNetwork, SysMemInfo,
+    SysNetworkInfo, SysOsInfo, SysSingleCpuInfo,
+};
+use gr_auth_mgr::crypto_keys::AES_DEPLOY_AUTH;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::Nvml;
 use sysinfo::{Components, Disks, Networks, System, Users};
-use gr_auth_mgr::crypto_keys::AES_DEPLOY_AUTH;
-use base::crypto_util::aes_encrypt;
-use adlx::helper::AdlxHelper;
-use anyhow::Result;
-use base::sys_info::{SysComponentInfo, SysCpuInfo, SysDiskInfo, SysGpuInfo, SysInfo, SysIpNetwork, SysMemInfo, SysNetworkInfo, SysOsInfo, SysSingleCpuInfo};
 
 #[derive(Debug, Clone)]
 struct DefaultEthernet {
@@ -120,9 +123,7 @@ impl SysInfoManager {
                         })
                     }
                 }
-                _ => {
-                    None
-                }
+                _ => None,
             };
             println!("\tDefault Network: {:?}", def_ethernet);
             self.def_ethernet = def_ethernet;
@@ -158,8 +159,12 @@ impl SysInfoManager {
                 }
             }
             if !found_def_ethernet {
-                println!("this is not default ethernet: {}, {}", interface_name, data.mac_address().to_string());
-                continue
+                println!(
+                    "this is not default ethernet: {}, {}",
+                    interface_name,
+                    data.mac_address().to_string()
+                );
+                continue;
             }
 
             networks.push(SysNetworkInfo {
@@ -175,11 +180,21 @@ impl SysInfoManager {
 
         // OS info
         let os = SysOsInfo {
-            sys_name: System::name().unwrap_or_else(|| "<unknown>".to_owned()).to_string(),
-            sys_kernel_version: System::kernel_version().unwrap_or_else(|| "<unknown>".to_owned()).to_string(),
-            sys_os_version: System::os_version().unwrap_or_else(|| "<unknown>".to_owned()).to_string(),
-            sys_os_long_version: System::long_os_version().unwrap_or_else(|| "<unknown>".to_owned()).to_string(),
-            sys_host_name: System::host_name().unwrap_or_else(|| "<unknown>".to_owned()).to_string(),
+            sys_name: System::name()
+                .unwrap_or_else(|| "<unknown>".to_owned())
+                .to_string(),
+            sys_kernel_version: System::kernel_version()
+                .unwrap_or_else(|| "<unknown>".to_owned())
+                .to_string(),
+            sys_os_version: System::os_version()
+                .unwrap_or_else(|| "<unknown>".to_owned())
+                .to_string(),
+            sys_os_long_version: System::long_os_version()
+                .unwrap_or_else(|| "<unknown>".to_owned())
+                .to_string(),
+            sys_host_name: System::host_name()
+                .unwrap_or_else(|| "<unknown>".to_owned())
+                .to_string(),
             sys_kernel: System::kernel_long_version().to_string(),
         };
 
@@ -216,8 +231,7 @@ impl SysInfoManager {
                     // ID
                     if let Ok(serial) = device.serial() {
                         gpu_info.id = serial;
-                    }
-                    else {
+                    } else {
                         if let Ok(uuid) = device.uuid() {
                             gpu_info.id = uuid;
                         }
@@ -277,8 +291,8 @@ impl SysInfoManager {
         }
 
         SysInfo {
-            timestamp: base::get_current_timestamp(),
-            timestamp_readable: base::get_current_readable_timestamp(),
+            timestamp: gr_base::get_current_timestamp(),
+            timestamp_readable: gr_base::get_current_readable_timestamp(),
             cpu,
             mem,
             disks: disks_info,
@@ -286,7 +300,7 @@ impl SysInfoManager {
             os,
             components: cps,
             uptime,
-            gpus
+            gpus,
         }
     }
 
@@ -303,8 +317,7 @@ impl SysInfoManager {
             // id
             let gpu_id = if let Ok(id) = gpu.unique_id() {
                 id.to_string()
-            }
-            else {
+            } else {
                 "".to_string()
             };
 
@@ -328,14 +341,20 @@ impl SysInfoManager {
                 0
             };
 
-            let gpu_fan_speed = if supported_metrics.is_supported_gpu_fan_speed().unwrap_or(false) {
+            let gpu_fan_speed = if supported_metrics
+                .is_supported_gpu_fan_speed()
+                .unwrap_or(false)
+            {
                 gpu_metrics.fan_speed().unwrap_or(0)
             } else {
                 println!("fan_speed metrics not supported");
                 0
             };
 
-            let gpu_temperature = if supported_metrics.is_supported_gpu_temperature().unwrap_or(false) {
+            let gpu_temperature = if supported_metrics
+                .is_supported_gpu_temperature()
+                .unwrap_or(false)
+            {
                 gpu_metrics.temperature().unwrap_or(0.0)
             } else {
                 println!("temperature metrics not supported");
@@ -357,12 +376,12 @@ impl SysInfoManager {
     }
 
     pub fn load_system_info_as_json(&mut self) -> String {
-        let info =self.load_system_info();
+        let info = self.load_system_info();
         serde_json::to_string(&info).unwrap_or("".to_string())
     }
 
     pub fn load_system_info_as_encrypt_json(&mut self) -> String {
-        let info =self.load_system_info();
+        let info = self.load_system_info();
         let info = serde_json::to_string(&info).unwrap_or("".to_string());
         aes_encrypt(info.as_str(), &AES_DEPLOY_AUTH).unwrap_or("".to_string())
     }
@@ -370,10 +389,10 @@ impl SysInfoManager {
 
 #[cfg(test)]
 mod tests {
+    use crate::sys_info_mgr::{SysIpNetwork, SysNetworkInfo};
     use adlx::{gpu::Gpu1, helper::AdlxHelper, interface::Interface, Gpu2};
     use anyhow::Result;
     use sysinfo::{Networks, System};
-    use crate::sys_info_mgr::{SysIpNetwork, SysNetworkInfo};
 
     #[test]
     pub fn test_cpu_frequency() {
@@ -382,7 +401,6 @@ mod tests {
             println!("{} MHz", cpu_frequency_in_mhz);
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
-
     }
 
     #[test]
@@ -400,8 +418,12 @@ mod tests {
             println!("name: {}", gpu.asic_family_type().unwrap());
             println!("name: {}", gpu.total_vram().unwrap());
 
-            let gpu_metrics = performance_monitoring_services.current_gpu_metrics(&gpu).unwrap();
-            let supported_metrics = performance_monitoring_services.supported_gpu_metrics(&gpu).unwrap();
+            let gpu_metrics = performance_monitoring_services
+                .current_gpu_metrics(&gpu)
+                .unwrap();
+            let supported_metrics = performance_monitoring_services
+                .supported_gpu_metrics(&gpu)
+                .unwrap();
 
             if supported_metrics.is_supported_gpu_usage().unwrap_or(false) {
                 dbg!(gpu_metrics.usage().unwrap());
@@ -414,12 +436,18 @@ mod tests {
             } else {
                 println!("vram metrics not supported");
             }
-            if supported_metrics.is_supported_gpu_fan_speed().unwrap_or(false) {
+            if supported_metrics
+                .is_supported_gpu_fan_speed()
+                .unwrap_or(false)
+            {
                 dbg!(gpu_metrics.fan_speed().unwrap());
             } else {
                 println!("fan_speed metrics not supported");
             }
-            if supported_metrics.is_supported_gpu_temperature().unwrap_or(false) {
+            if supported_metrics
+                .is_supported_gpu_temperature()
+                .unwrap_or(false)
+            {
                 dbg!(gpu_metrics.temperature().unwrap());
             } else {
                 println!("temperature metrics not supported");

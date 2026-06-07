@@ -1,4 +1,4 @@
-use base::hash_util::{compute_hash, HashAlgo};
+use gr_base::hash_util::{compute_hash, HashAlgo};
 
 pub const APP_SECRET_SALT: &str = "bfa900206bed4db59156ae5fead1d249";
 

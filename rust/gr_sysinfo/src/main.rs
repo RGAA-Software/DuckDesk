@@ -2,12 +2,12 @@ mod sys_info_mgr;
 mod sys_panel_client;
 
 use crate::sys_info_mgr::SysInfoManager;
-use std::sync::Arc;
+use crate::sys_panel_client::SysPanelClient;
+use gr_base::log_util;
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
+use std::sync::Arc;
 use tokio::sync::Mutex;
-use base::log_util;
-use crate::sys_panel_client::SysPanelClient;
 
 lazy_static::lazy_static! {
     pub static ref gSysInfoMgr: Arc<Mutex<SysInfoManager>> = Arc::new(Mutex::new(SysInfoManager::new()));
@@ -25,7 +25,6 @@ struct Cli {
 
     #[arg(short, long)]
     port: Option<i32>,
-
 }
 
 #[tokio::main]
@@ -35,24 +34,21 @@ async fn main() {
 
     let _guard = log_util::init_log("logs/".to_string(), "gr_sys_info".to_string());
 
-    gSysPanelClient
-        .lock().await
-        .duration = args.duration.unwrap_or(1);
+    gSysPanelClient.lock().await.duration = args.duration.unwrap_or(1);
 
     tokio::spawn(async move {
         gSysPanelClient
-            .lock().await
-            .connect(format!("ws://127.0.0.1:{}/sys/info", port)).await;
+            .lock()
+            .await
+            .connect(format!("ws://127.0.0.1:{}/sys/info", port))
+            .await;
     });
 
     loop {
         if args.print.unwrap_or(false) {
-            let sys_info = gSysInfoMgr
-                .lock().await
-                .load_system_info();
+            let sys_info = gSysInfoMgr.lock().await.load_system_info();
             tracing::info!("info: {:#?}", sys_info);
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     }
-
 }

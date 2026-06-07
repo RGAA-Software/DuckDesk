@@ -11,7 +11,8 @@
    - [04-render-process-and-plugins.md](./04-render-process-and-plugins.md)
    - [05-client-process-and-plugins.md](./05-client-process-and-plugins.md)
    - [06-web-client.md](./06-web-client.md)
-4. 最后用 [07-module-inventory.md](./07-module-inventory.md) 当索引，按目录回查模块职责。
+4. 如果要理解本地守护与服务层，再看 [08-service-and-rust-migration.md](./08-service-and-rust-migration.md)。
+5. 最后用 [07-module-inventory.md](./07-module-inventory.md) 当索引，按目录回查模块职责。
 
 ## 这次分析的边界
 

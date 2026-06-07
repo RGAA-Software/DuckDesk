@@ -12,6 +12,8 @@
 - 渲染进程 `GammaRayRender`
 - 远端客户端 `GammaRayClientInner`
 - 服务相关可执行文件
+  - 当前由 Rust `gr_service` / `gr_service_mgr` 产出同名 `GammaRayService.exe` / `GammaRayServiceManager.exe`
+  - `src/GammaRay/src/service` 只保留 C++ wrapper 和历史 `legacy` 参考实现
 - 基础插件接口库
 - 开源版默认皮肤和资源
 

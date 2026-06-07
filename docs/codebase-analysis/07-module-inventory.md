@@ -21,7 +21,7 @@
 | `render_panel` | 面板 UI、设备管理、配置、安全、流管理 |
 | `render` | 渲染/采集/编码/网络输出主进程 |
 | `client` | 原生客户端 |
-| `service` | 服务相关逻辑 |
+| `service` | 服务相关逻辑，当前活跃实现是 Rust service 二进制，目录内只保留 C++ wrapper 与 `legacy` 历史源码 |
 | `render_panel/guard` | 守护进程 `GammaRayGuard` |
 | `hw_info` | 本机/远端硬件信息展示 |
 | `theme` | Qt 样式主题 |
