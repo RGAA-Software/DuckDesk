@@ -22,7 +22,7 @@
 | `render` | 渲染/采集/编码/网络输出主进程 |
 | `client` | 原生客户端 |
 | `service` | 服务相关逻辑，当前活跃实现是 Rust service 二进制，目录内只保留 C++ wrapper 与 `legacy` 历史源码 |
-| `render_panel/guard` | 守护进程 `GammaRayGuard` |
+| `render_panel/guard` | 历史 Qt/C++ Guard 实现，当前用于 Rust 迁移对照 |
 | `hw_info` | 本机/远端硬件信息展示 |
 | `theme` | Qt 样式主题 |
 | `skin` | 皮肤接口与加载 |

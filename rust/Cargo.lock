@@ -1110,6 +1110,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gr_guard"
+version = "2.0.1"
+dependencies = [
+ "futures-util",
+ "gr_base",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "gr_service"
 version = "2.0.1"
 dependencies = [
