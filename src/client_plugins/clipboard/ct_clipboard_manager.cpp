@@ -9,6 +9,7 @@
 #include <QBuffer>
 #include <QMimeData>
 #include <QUrl>
+#include <QDir>
 #include <vector>
 #include <optional>
 #include "tc_common_new/log.h"

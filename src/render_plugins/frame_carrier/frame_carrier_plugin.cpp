@@ -3,6 +3,7 @@
 //
 
 #include "frame_carrier_plugin.h"
+#include <QFile>
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
@@ -47,8 +48,10 @@ namespace tc
         GrPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
-            auto file = File::OpenForReadB(":/resources/ic_logo_point.png");
-            auto data = file->ReadAll();
+            QFile qf(":/resources/ic_logo_point.png");
+            qf.open(QIODevice::ReadOnly);
+            auto ba = qf.readAll();
+            auto data = Data::Make(ba.constData(), ba.size());
             logo_image_ = Image::MakeByCompressedImage(data);
         }
 

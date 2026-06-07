@@ -5,6 +5,7 @@
 #include "panel_companion_impl.h"
 #include <QApplication>
 #include <QDesktopServices>
+#include <QUrl>
 #include "spvr/auth_manager.h"
 #include "spvr/spvr_setting.h"
 #include "tc_common_new/log.h"
