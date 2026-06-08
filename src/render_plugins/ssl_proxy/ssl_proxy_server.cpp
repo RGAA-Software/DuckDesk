@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
+#include "tc_common_new/string_util.h"
 #include "tc_common_new/url_helper.h"
 #include "render/network/ws_data.h"
 #include "render/network/wss_router.h"
@@ -67,9 +68,9 @@ namespace tc
             }
         });
 
-        char exe_path[MAX_PATH] = {};
-        GetModuleFileNameA(nullptr, exe_path, MAX_PATH);
-        auto exe_dir = std::filesystem::path(exe_path).parent_path().string();
+        wchar_t exe_path[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
+        auto exe_dir = StringUtil::ToUTF8(std::filesystem::path(exe_path).parent_path().wstring());
         auto pwd_file = std::format("{}/certs/password", exe_dir);
         auto pwd = (File::OpenForRead(pwd_file))->ReadAllAsString();
         server_->set_cert_file(

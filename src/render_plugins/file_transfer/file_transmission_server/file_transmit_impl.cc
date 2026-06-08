@@ -5,6 +5,7 @@
 #include "tc_common_new/file.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/md5.h"
+#include "tc_common_new/string_util.h"
 
 namespace tc {
 
@@ -102,7 +103,7 @@ namespace tc {
 				upload_task->src_file_path_ = src_file_path;
 				upload_task->target_file_path_ = target_file_path;
 				upload_task->current_packet_index_ = index;
-				std::filesystem::path target_path(target_file_path);
+				auto target_path = std::filesystem::u8path(target_file_path);
 				auto parent_path = target_path.parent_path();
 
 				if (!std::filesystem::exists(parent_path)) {
@@ -172,7 +173,7 @@ namespace tc {
 			{
 			case tc::FileTransDataPacket::kEnd: { // 对端已经上传完毕
                 auto target_file_path = id_with_upload_task_[task_id]->target_file_path_;
-                auto target_file_size = std::filesystem::file_size(target_file_path);
+                auto target_file_size = std::filesystem::file_size(std::filesystem::u8path(target_file_path));
                 LOGI("FileTransDataPacket::kEnd, src size: {}, target size: {}, file: {}", src_file_size, target_file_size, target_file_path);
 				if (src_file_size == target_file_size) { // to do 先校验下大小，后面再考虑校验md5
 					call_upload_callback(stream_id, task_id, FileUploadTask::EFileUploadState::kSuccess);
@@ -272,13 +273,13 @@ namespace tc {
 		try {
 			const std::size_t buffer_size = kSingleBufferSize;
 			char buffer[buffer_size] = { 0, };
-			if (!std::filesystem::exists(download_path)) {
+			if (!std::filesystem::exists(std::filesystem::u8path(download_path))) {
 				LOGD("File no exists %s error", download_path.c_str());
 				call_download_callback(device_id, stream_id, task_id, tc::FileDownloadTask::EFileDownloadState::kNoExists);
 				return;
 			}
-			uint64_t file_size = std::filesystem::file_size(download_path);
-			std::wstring download_pathw(download_path.begin(), download_path.end());
+			uint64_t file_size = std::filesystem::file_size(std::filesystem::u8path(download_path));
+			auto download_pathw = StringUtil::ToWString(download_path);
 			FILE* pf = _wfopen(download_pathw.c_str(), L"rb");
 			if (!pf) {
 				LOGE("File open %s error", download_path.c_str());
