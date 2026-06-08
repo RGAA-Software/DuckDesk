@@ -10,7 +10,7 @@
 #include "video_frame_carrier.h"
 #include "render/plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
-#include "tc_common_new/image_generator.h"
+#include "image_generator.h"
 
 GR_PLUGIN_EXPORT(tc::FrameCarrierPlugin)
 

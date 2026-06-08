@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/frame_carrier_plugin.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/video_frame_carrier.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/image_generator.cpp
 )
 
 qt_add_resources(RESOURCES ${CMAKE_CURRENT_SOURCE_DIR}/resources.qrc)
