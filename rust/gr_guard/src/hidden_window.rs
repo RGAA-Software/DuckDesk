@@ -33,7 +33,7 @@ impl Default for HiddenWindowSpec {
             height: 10,
             ex_style: (WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT).0,
             style: (WS_POPUP | WS_VISIBLE).0,
-            alpha: 1,
+            alpha: 0,
             topmost_flags: (SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE).0,
         }
     }
@@ -146,8 +146,8 @@ mod tests {
     }
 
     #[test]
-    fn hidden_window_alpha_is_non_zero() {
-        assert_eq!(HiddenWindowSpec::default().alpha, 1);
+    fn hidden_window_alpha_is_zero() {
+        assert_eq!(HiddenWindowSpec::default().alpha, 0);
     }
 
     #[test]

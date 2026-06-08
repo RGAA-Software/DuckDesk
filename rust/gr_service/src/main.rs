@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), windows_subsystem = "windows")]
+
 mod app;
 mod service_host;
 mod service_windows;
