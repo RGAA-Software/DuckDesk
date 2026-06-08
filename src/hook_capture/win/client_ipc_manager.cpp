@@ -4,8 +4,6 @@
 
 #include "client_ipc_manager.h"
 
-#include "tc_common_new/ipc_shm.h"
-#include "tc_common_new/ipc_msg_queue.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/time_util.h"
