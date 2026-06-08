@@ -377,7 +377,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 				}
 
                 LOGI("Create file: {}, task_id: {}", target_file_path, task_id);
-				download_task->file_ptr_ = tc::File::OpenForWriteB(target_file_path);
+				download_task->file_ptr_ = tc::File::OpenForWriteB(tc::U8Path(target_file_path));
 				if (!id_with_download_task_[task_id]->file_ptr_->IsOpen()) {
                     LOGE("Create file failed!");
 					id_with_download_task_[task_id]->is_ended_ = true;

@@ -18,21 +18,6 @@
 #pragma comment(lib, "Wtsapi32.lib")
 #endif // WIN32
 
-#ifdef WIN32
-static std::string PathToUTF8(const std::filesystem::path& p) {
-    return tc::StringUtil::ToUTF8(p.wstring());
-}
-static std::filesystem::path PathFromUTF8(const std::string& s) {
-    return std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(s.c_str()), s.size()));
-}
-#else
-static std::string PathToUTF8(const std::filesystem::path& p) {
-    return p.string();
-}
-static std::filesystem::path PathFromUTF8(const std::string& s) {
-    return std::filesystem::path(s);
-}
-#endif
 
 namespace tc {
 	static std::string s_file_permission_path_ = "/";

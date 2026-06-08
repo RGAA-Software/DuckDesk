@@ -51,7 +51,7 @@ namespace tc
         {
             auto logo_path = std::filesystem::path(StringUtil::ToWString(base_path_)) / L"gr_plugins" / L"resources" / L"ic_logo_point.png";
             if (std::filesystem::exists(logo_path)) {
-                auto file = File::OpenForReadB(StringUtil::ToUTF8(logo_path.wstring()));
+                auto file = File::OpenForReadB(U8Path(StringUtil::ToUTF8(logo_path.wstring())));
                 if (file) {
                     auto data = file->ReadAll();
                     logo_image_ = Image::MakeByCompressedImage(data);

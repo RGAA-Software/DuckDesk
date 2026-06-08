@@ -72,7 +72,7 @@ namespace tc
         GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
         auto exe_dir = StringUtil::ToUTF8(std::filesystem::path(exe_path).parent_path().wstring());
         auto pwd_file = std::format("{}/certs/password", exe_dir);
-        auto pwd = (File::OpenForRead(pwd_file))->ReadAllAsString();
+        auto pwd = (File::OpenForRead(U8Path(pwd_file)))->ReadAllAsString();
         server_->set_cert_file(
             "",
             std::format("{}/certs/server.crt", exe_dir),

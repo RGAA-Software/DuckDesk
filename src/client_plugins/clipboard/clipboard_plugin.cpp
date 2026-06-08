@@ -141,7 +141,7 @@ namespace tc
         auto req_size = buffer.req_size();
         auto full_filename = buffer.full_name();
 
-        auto file = File::OpenForReadB(full_filename);
+        auto file = File::OpenForReadB(U8Path(full_filename));
         DataPtr data = nullptr;
         if (file->Exists()) {
             uint64_t read_size = 0;

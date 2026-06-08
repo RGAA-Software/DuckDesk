@@ -121,7 +121,7 @@ namespace tc {
 					call_upload_callback(stream_id, task_id, FileUploadTask::EFileUploadState::kDirFailedCreate);
 					return;
 				}
-				upload_task->file_ptr_ = File::OpenForWriteB(target_file_path);
+				upload_task->file_ptr_ = File::OpenForWriteB(PathFromUTF8(target_file_path));
 				if (!id_with_upload_task_[task_id]->file_ptr_->IsOpen()) {
 					upload_task->is_ended_ = true;
 					call_upload_callback(stream_id, task_id, FileUploadTask::EFileUploadState::kFailedOpen);
