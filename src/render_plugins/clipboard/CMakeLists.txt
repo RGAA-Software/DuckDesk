@@ -18,4 +18,4 @@ else ()
 endif ()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${CLIPBOARD_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_message tc_plugin tc_opus_codec_new Winmm.lib tc_global_id_generator)
+target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_message tc_plugin tc_opus_codec_new Winmm.lib tc_global_id_generator Qt6::Core Qt6::Widgets)

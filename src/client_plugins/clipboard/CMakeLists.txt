@@ -21,4 +21,4 @@ else ()
 endif ()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${CLIPBOARD_WIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_message tc_client_plugin Winmm.lib Wtsapi32.lib)
+target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_message tc_client_plugin Winmm.lib Wtsapi32.lib Qt6::Core Qt6::Widgets)

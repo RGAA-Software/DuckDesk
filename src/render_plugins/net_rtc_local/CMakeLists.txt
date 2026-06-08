@@ -42,4 +42,4 @@ target_link_libraries(${PROJECT_NAME} PUBLIC tc_common_new tc_message tc_net_plu
         wmcodecdspuuid Iphlpapi.lib
         dxgi d3d11 d3d12 dxguid Strmiids Quartz Ole32
         Shcore.lib Dwmapi.lib
-)
+ Qt6::Core Qt6::Widgets)
