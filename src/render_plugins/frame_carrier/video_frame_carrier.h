@@ -15,7 +15,6 @@
 #endif
 #include <mutex>
 //#include <opencv2/opencv.hpp>
-#include <QPoint>
 #include "tc_common_new/image.h"
 
 namespace tc
@@ -82,11 +81,11 @@ namespace tc
         bool enable_full_color_mode_ = false;
 
         // logo points
-        std::vector<QPoint> logo_points_;
+        std::vector<std::pair<int, int>> logo_points_;
         // big log points
-        std::vector<QPoint> big_logo_points_;
+        std::vector<std::pair<int, int>> big_logo_points_;
         // cover points
-        std::vector<QPoint> cover_points_;
+        std::vector<std::pair<int, int>> cover_points_;
 
         ComPtr<ID3D11Texture2D> logo_point_texture_ = nullptr;
 

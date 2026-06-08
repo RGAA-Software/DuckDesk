@@ -3,13 +3,13 @@
 //
 
 #include "ssl_proxy_server.h"
+#include <filesystem>
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/url_helper.h"
 #include "render/network/ws_data.h"
 #include "render/network/wss_router.h"
 #include "http_handler.h"
-#include <QApplication>
 
 namespace tc
 {
@@ -67,7 +67,9 @@ namespace tc
             }
         });
 
-        auto exe_dir = qApp->applicationDirPath().toStdString();
+        char exe_path[MAX_PATH] = {};
+        GetModuleFileNameA(nullptr, exe_path, MAX_PATH);
+        auto exe_dir = std::filesystem::path(exe_path).parent_path().string();
         auto pwd_file = std::format("{}/certs/password", exe_dir);
         auto pwd = (File::OpenForRead(pwd_file))->ReadAllAsString();
         server_->set_cert_file(

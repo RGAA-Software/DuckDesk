@@ -8,9 +8,6 @@
 #include <mutex>
 #include <atomic>
 #include <functional>
-#include <QString>
-#include <QFile>
-#include <QFileInfo>
 #include <windows.h>
 #include <shlwapi.h>
 #include <strsafe.h>

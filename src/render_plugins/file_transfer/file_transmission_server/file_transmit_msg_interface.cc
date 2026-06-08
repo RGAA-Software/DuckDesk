@@ -1,6 +1,5 @@
 #include "file_transmit_msg_interface.h"
-#include <qstring.h>
-#include "tc_label.h"
+#include "tc_tr.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "file_transfer_plugin.h"
@@ -63,16 +62,16 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-			//message->set_resp_message(QStringLiteral("获取文件列表成功").toStdString());
-			message->set_file_operate_resp_message( (tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_success")).toStdString() );
+			//message->set_resp_message(QStringLiteral("获取文件列表成功"));
+			message->set_file_operate_resp_message( (tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_success")) );
 		}
 		else {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
-			//message->set_resp_message(QStringLiteral("获取文件列表失败").toStdString());
-			message->set_file_operate_resp_message((tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_log_failed")).toStdString());
+			//message->set_resp_message(QStringLiteral("获取文件列表失败"));
+			message->set_file_operate_resp_message((tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_log_failed")));
 		}
-		//message->set_resp_message(QStringLiteral("获取文件列表").toStdString());
-		message->set_file_operate_resp_message(tcTr("id_file_trans_get_fil_list").toStdString());
+		//message->set_resp_message(QStringLiteral("获取文件列表"));
+		message->set_file_operate_resp_message(tcTr("id_file_trans_get_fil_list"));
 		tc::FileOperateRespGetFileList* file_list = new tc::FileOperateRespGetFileList();
 		file_list->set_path(target_path);
 		file_list->set_ret(ret);
@@ -101,12 +100,12 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		message->set_type(tc::kFileOperateRespBatchCreateFolders);
 		message->set_file_operate_resp_sequence(resp_seq);
 		message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-		//message->set_resp_message(QStringLiteral("文件夹创建成功").toStdString());
-		message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_success").toStdString());
+		//message->set_resp_message(QStringLiteral("文件夹创建成功"));
+		message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_success"));
 		if (error_paths.size() > 0) {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
-			//message->set_resp_message(QStringLiteral("文件夹创建失败").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_failed").toStdString());
+			//message->set_resp_message(QStringLiteral("文件夹创建失败"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_failed"));
 		}
 		tc::FileOperateRespBatchCreateFolders* resp = new tc::FileOperateRespBatchCreateFolders();
 		resp->set_msg_of_error(er_msg);
@@ -244,13 +243,13 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-			//message->set_resp_message(QStringLiteral("移除成功").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_success").toStdString());
+			//message->set_resp_message(QStringLiteral("移除成功"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_success"));
 		}
 		else {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
-			//message->set_resp_message(QStringLiteral("移除失败").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_failed").toStdString());
+			//message->set_resp_message(QStringLiteral("移除失败"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_failed"));
 		}
 		tc::FileOperateRespDel* resp = new tc::FileOperateRespDel();
 		resp->set_msg_of_error(er_msg);
@@ -275,13 +274,13 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		
 		if (ret) {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-			//message->set_resp_message(QStringLiteral("新建文件夹成功").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_success").toStdString());
+			//message->set_resp_message(QStringLiteral("新建文件夹成功"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_success"));
 		}
 		else {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
-			//message->set_resp_message(QStringLiteral("新建文件夹失败").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_failed").toStdString());
+			//message->set_resp_message(QStringLiteral("新建文件夹失败"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_failed"));
 		}
 		tc::FileOperateRespCreateNewFolder* resp = new tc::FileOperateRespCreateNewFolder();
 		resp->set_path_of_parent(parent_path);
@@ -303,13 +302,13 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-			//message->set_resp_message(QStringLiteral("重命名成功").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_success").toStdString());
+			//message->set_resp_message(QStringLiteral("重命名成功"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_success"));
 		}
 		else {
 			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
-			//message->set_resp_message(QStringLiteral("重命名失败").toStdString());
-			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_failed").toStdString());
+			//message->set_resp_message(QStringLiteral("重命名失败"));
+			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_failed"));
 
 		}
 		tc::FileOperateRespRename* resp = new tc::FileOperateRespRename();

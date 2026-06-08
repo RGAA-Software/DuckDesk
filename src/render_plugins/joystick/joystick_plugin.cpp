@@ -47,8 +47,6 @@ namespace tc
         if (!IsPluginEnabled()) {
             return true;
         }
-        root_widget_->hide();
-
         PrepareConnection();
 
         return true;

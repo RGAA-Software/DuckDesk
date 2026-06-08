@@ -24,7 +24,7 @@ namespace tc
         void OnRawVideoFrameYuv(const std::string& name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
 
     private:
-        std::map<std::string, QLabel*> previewers_;
+        std::map<std::string, int> previewers_;
 
     };
 

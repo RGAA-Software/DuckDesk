@@ -53,7 +53,7 @@ namespace tc
         std::map<std::string, CaptureMonitorInfo> monitors_;
 
     private:
-        std::map<std::string, QLabel*> previewers_;
+        std::map<std::string, int> previewers_;
         std::map<std::string, std::shared_ptr<PluginDesktopCapture>> captures_;
         std::vector<CaptureMonitorInfo> sorted_monitors_;
         VirtualDesktopBoundRectangleInfo virtual_desktop_bound_rectangle_info_;

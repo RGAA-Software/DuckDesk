@@ -7,17 +7,16 @@
 
 #ifdef WIN32
 
-#include <QImage>
-#include <QPainter>
-#include <QColor>
+#include <memory>
+#include <string>
 
 namespace tc
 {
+    class Image;
+
     class ImageGenerator {
     public:
-        static QImage CreateGrayscaleWithText(int w, int h, int bg_color, int font_color, int font_size, bool bold, const QString& text);
-
-
+        static std::shared_ptr<Image> CreateGrayscaleWithText(int w, int h, int bg_color, int font_color, int font_size, bool bold, const std::string& text);
     };
 
 }

@@ -6,7 +6,7 @@
 #define GAMMARAY_RTC_PLUGIN_H
 #include <memory>
 #include "plugin_interface/gr_plugin_interface.h"
-#include "tc_qt_widget/translator/tc_translator.h"
+#include "file_transmission_server/tc_translator_stub.h"
 
 namespace tc
 {

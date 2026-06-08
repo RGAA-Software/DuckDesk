@@ -4,13 +4,6 @@
 
 #include "clipboard_manager.h"
 #include "rd_context.h"
-#include <QGuiApplication>
-#include <QClipboard>
-#include <QImage>
-#include <QBuffer>
-#include <QMimeData>
-#include <QUrl>
-#include <QFileInfo>
 #include <shellapi.h>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
@@ -23,7 +16,7 @@
 namespace tc
 {
 
-    ClipboardManager::ClipboardManager(ClipboardPlugin* plugin) : QObject(nullptr) {
+    ClipboardManager::ClipboardManager(ClipboardPlugin* plugin) {
         this->plugin_ = plugin;
     }
 

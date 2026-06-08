@@ -3,7 +3,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-#include <QString>
 #include "tc_message.pb.h"
 
 namespace tc {
@@ -38,7 +37,7 @@ namespace tc {
 	private:
 		std::vector<tc::FileDescInfo> GetFilesListImpl(const std::string& path);
 		// 递归遍历
-		void TraverseDirectory(const QString& path, std::vector<QString>& folders, std::vector<QString>& files);
+		void TraverseDirectory(const std::string& path, std::vector<std::string>& folders, std::vector<std::string>& files);
 	};
 
 	

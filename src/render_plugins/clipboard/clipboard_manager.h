@@ -6,7 +6,7 @@
 #define GAMMARAYPC_CLIPBOARD_H
 
 #include <memory>
-#include <QObject>
+
 
 namespace tc
 {
@@ -16,7 +16,7 @@ namespace tc
     class ClipboardPlugin;
     class MsgClipboardEvent;
 
-    class ClipboardManager : public QObject {
+    class ClipboardManager {
     public:
         explicit ClipboardManager(ClipboardPlugin* plugin);
         // Render Panel -> Local Network -> Render -> This Plugin

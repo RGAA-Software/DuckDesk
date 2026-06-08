@@ -46,12 +46,12 @@ namespace tc
         std::shared_ptr<Image> GetLogoImage();
 
         // logo points
-        std::vector<QPoint> GetLogoPoints();
+        std::vector<std::pair<int, int>> GetLogoPoints();
         // big log points
-        std::vector<QPoint> GetBigLogoPoints();
+        std::vector<std::pair<int, int>> GetBigLogoPoints();
 
         // cover points
-        std::vector<QPoint> GetCoverPoints();
+        std::vector<std::pair<int, int>> GetCoverPoints();
 
         int GetAuthRole() const;
 
@@ -65,11 +65,11 @@ namespace tc
         // logo image item
         std::shared_ptr<Image> logo_image_ = nullptr;
         // logo points
-        std::vector<QPoint> logo_points_;
+        std::vector<std::pair<int, int>> logo_points_;
         // big log points
-        std::vector<QPoint> big_logo_points_;
+        std::vector<std::pair<int, int>> big_logo_points_;
         // full screen
-        std::vector<QPoint> cover_points_;
+        std::vector<std::pair<int, int>> cover_points_;
         int timer_count_ = 0;
     };
 

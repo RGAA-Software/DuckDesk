@@ -3,7 +3,7 @@
 //
 
 #include "frame_carrier_plugin.h"
-#include <QFile>
+#include <filesystem>
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
@@ -48,23 +48,26 @@ namespace tc
         GrPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
-            QFile qf(":/resources/ic_logo_point.png");
-            qf.open(QIODevice::ReadOnly);
-            auto ba = qf.readAll();
-            auto data = Data::Make(ba.constData(), ba.size());
-            logo_image_ = Image::MakeByCompressedImage(data);
+            auto logo_path = std::filesystem::path(base_path_) / "gr_plugins" / "resources" / "ic_logo_point.png";
+            if (std::filesystem::exists(logo_path)) {
+                auto file = File::OpenForReadB(logo_path.string());
+                if (file) {
+                    auto data = file->ReadAll();
+                    logo_image_ = Image::MakeByCompressedImage(data);
+                }
+            }
         }
 
         // logo src
         {
             //QImage image;
             //image.load(":/resources/ic_logo_src.png");
-            QImage image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 22, true, QStringLiteral("www.godesk.uk"));
-            LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image.width(), image.height(), (int)image.format(), image.sizeInBytes());
-            for (int h = 0; h < image.height(); h++) {
-                for (int w = 0; w < image.width(); w++) {
-                    auto r = image.pixel(w, h);
-                    if (qRed(r) == 0) {
+            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 22, true, "www.godesk.uk");
+            LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image->width, image->height, image->channels, image->data->Size());
+            for (int h = 0; h < image->height; h++) {
+                for (int w = 0; w < image->width; w++) {
+                    auto r = ((uint8_t*)image->data->DataAddr())[h * image->width + w];
+                    if (r == 0) {
                         logo_points_.emplace_back(w, h);
                     }
                 }
@@ -75,12 +78,12 @@ namespace tc
         {
             // QImage image;
             // image.load(":/resources/ic_logo_src_big.png");
-            QImage image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, QStringLiteral("www.godesk.uk"));
-            LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image.width(), image.height(), (int)image.format(), image.sizeInBytes());
-            for (int h = 0; h < image.height(); h++) {
-                for (int w = 0; w < image.width(); w++) {
-                    auto r = image.pixel(w, h);
-                    if (qRed(r) == 0) {
+            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, "www.godesk.uk");
+            LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image->width, image->height, image->channels, image->data->Size());
+            for (int h = 0; h < image->height; h++) {
+                for (int w = 0; w < image->width; w++) {
+                    auto r = ((uint8_t*)image->data->DataAddr())[h * image->width + w];
+                    if (r == 0) {
                         big_logo_points_.emplace_back(w, h);
                     }
                 }
@@ -88,11 +91,11 @@ namespace tc
         }
 
         int total_points = 0;
-        QImage cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, QStringLiteral("Unlicensed Stream"));
-        for (int h = 0; h < cover_image.height(); h++) {
-            for (int w = 0; w < cover_image.width(); w++) {
-                auto pxl = cover_image.pixel(w, h);
-                if (qRed(pxl) == 0) {
+        auto cover_image = ImageGenerator::CreateGrayscaleWithText(280, 48, 0xff, 0x00, 22, true, "Unlicensed Stream");
+        for (int h = 0; h < cover_image->height; h++) {
+            for (int w = 0; w < cover_image->width; w++) {
+                auto pxl = ((uint8_t*)cover_image->data->DataAddr())[h * cover_image->width + w];
+                if (pxl == 0) {
                     cover_points_.emplace_back(w, h);
                     total_points++;
                 }
@@ -178,15 +181,15 @@ namespace tc
         return logo_image_;
     }
 
-    std::vector<QPoint> FrameCarrierPlugin::GetLogoPoints() {
+    std::vector<std::pair<int, int>> FrameCarrierPlugin::GetLogoPoints() {
         return logo_points_;
     }
 
-    std::vector<QPoint> FrameCarrierPlugin::GetBigLogoPoints() {
+    std::vector<std::pair<int, int>> FrameCarrierPlugin::GetBigLogoPoints() {
         return big_logo_points_;
     }
 
-    std::vector<QPoint> FrameCarrierPlugin::GetCoverPoints() {
+    std::vector<std::pair<int, int>> FrameCarrierPlugin::GetCoverPoints() {
         return cover_points_;
     }
 

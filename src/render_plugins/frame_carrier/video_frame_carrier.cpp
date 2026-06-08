@@ -212,7 +212,7 @@ namespace tc
                 d3d11_device_context_->CopySubresourceRegion(
                         texture.Get(),
                         0,
-                        (logo_pos_offset_ ? (tex_width - right_offset) : 0) + point.x(), point.y(), 0,
+                        (logo_pos_offset_ ? (tex_width - right_offset) : 0) + point.first, point.second, 0,
                         logo_point_texture_.Get(),
                         0,
                         &srcBox
@@ -232,8 +232,8 @@ namespace tc
         //             d3d11_device_context_->CopySubresourceRegion(
         //                 texture.Get(),
         //                 0,
-        //                 offset_x + point.x(),
-        //                 offset_y + point.y(),
+        //                 offset_x + point.first,
+        //                 offset_y + point.second,
         //                 0,
         //                 logo_point_texture_.Get(),
         //                 0,
@@ -271,7 +271,7 @@ namespace tc
         auto right_offset = big_picture ? 280 : 135;
         right_offset += 130; // total logo width
         for (const auto& point : points) {
-            auto offset = (point.y() * image->width + (point.x() + (image->width - (logo_pos_offset_ ? right_offset : 0)))) * 4;
+            auto offset = (point.second * image->width + (point.first + (image->width - (logo_pos_offset_ ? right_offset : 0)))) * 4;
             if (image->data->Size() <= offset + 3) {
                 return;
             }

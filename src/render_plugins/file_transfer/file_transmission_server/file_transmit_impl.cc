@@ -1,8 +1,5 @@
 #include "file_transmit_impl.h"
-#include <qdir.h>
-#include <qfile.h>
-#include <qfileinfo.h>
-#include <qstring.h>
+#include <filesystem>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/file.h"
@@ -105,13 +102,11 @@ namespace tc {
 				upload_task->src_file_path_ = src_file_path;
 				upload_task->target_file_path_ = target_file_path;
 				upload_task->current_packet_index_ = index;
-				QDir temp_path{ QString::fromStdString(target_file_path) };
-				QString temp_path_str = temp_path.absoluteFilePath("..");
-				QString path_str = QDir(temp_path_str).absolutePath();
-				QDir target_dir{path_str};
+				std::filesystem::path target_path(target_file_path);
+				auto parent_path = target_path.parent_path();
 
-				if (!target_dir.exists()) {
-					target_dir.mkpath(".");
+				if (!std::filesystem::exists(parent_path)) {
+					std::filesystem::create_directories(parent_path);
 				}
 
                 // report file transfer
@@ -119,8 +114,8 @@ namespace tc {
                     upload_task_created_func_(upload_task->task_id_, device_id, src_file_path, target_file_path);
                 }
 
-				if (!target_dir.exists()) {
-					LOGE("HandleUplaod error, target_dir = {} , can not be created.", target_dir.path().toStdString());
+				if (!std::filesystem::exists(parent_path)) {
+					LOGE("HandleUplaod error, target_dir = {} , can not be created.", parent_path.string());
 					id_with_upload_task_[task_id]->is_ended_ = true;
 					call_upload_callback(stream_id, task_id, FileUploadTask::EFileUploadState::kDirFailedCreate);
 					return;
@@ -176,10 +171,9 @@ namespace tc {
 			switch (transmit_state)
 			{
 			case tc::FileTransDataPacket::kEnd: { // 对端已经上传完毕
-                // TODO: 使用QFileInfo读取
-				QFile file{QString::fromStdString(id_with_upload_task_[task_id]->target_file_path_)};
-				auto target_file_size = file.size();
-                LOGI("FileTransDataPacket::kEnd, src size: {}, target size: {}, file: {}", src_file_size, target_file_size, file.fileName().toStdString());
+                auto target_file_path = id_with_upload_task_[task_id]->target_file_path_;
+                auto target_file_size = std::filesystem::file_size(target_file_path);
+                LOGI("FileTransDataPacket::kEnd, src size: {}, target size: {}, file: {}", src_file_size, target_file_size, target_file_path);
 				if (src_file_size == target_file_size) { // to do 先校验下大小，后面再考虑校验md5
 					call_upload_callback(stream_id, task_id, FileUploadTask::EFileUploadState::kSuccess);
 				}
@@ -278,15 +272,13 @@ namespace tc {
 		try {
 			const std::size_t buffer_size = kSingleBufferSize;
 			char buffer[buffer_size] = { 0, };
-			QString download_path_qstr = QString::fromStdString(download_path);
-			QFile file{ download_path_qstr };
-			if (!file.exists()) {
+			if (!std::filesystem::exists(download_path)) {
 				LOGD("File no exists %s error", download_path.c_str());
 				call_download_callback(device_id, stream_id, task_id, tc::FileDownloadTask::EFileDownloadState::kNoExists);
 				return;
 			}
-			uint64_t file_size = file.size();
-			std::wstring download_pathw = download_path_qstr.toStdWString();
+			uint64_t file_size = std::filesystem::file_size(download_path);
+			std::wstring download_pathw(download_path.begin(), download_path.end());
 			FILE* pf = _wfopen(download_pathw.c_str(), L"rb");
 			if (!pf) {
 				LOGE("File open %s error", download_path.c_str());
@@ -404,7 +396,7 @@ namespace tc {
 					statistics_readed_size += readed_size;
 					file_data_packet->set_data(buffer, readed_size);
 					if (feof(pf)) { // 文件结束
-                        LOGI("File at end: {}, total bytes: {}", download_path_qstr.toStdString(), statistics_readed_size);
+                        LOGI("File at end: {}, total bytes: {}", download_path, statistics_readed_size);
 						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
 
                         // 下载正常结束
@@ -420,7 +412,7 @@ namespace tc {
 				}
 				else {
 					if (feof(pf)) {
-                        LOGI("File at end: {}, total bytes: {}", download_path_qstr.toStdString(), statistics_readed_size);
+                        LOGI("File at end: {}, total bytes: {}", download_path, statistics_readed_size);
 						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
 
                         // 下载正常结束

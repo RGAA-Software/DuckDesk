@@ -8,11 +8,11 @@
 #include <fstream>
 #include <shlobj.h>
 #include <format>
-#include <QFileInfo>
 #include "cp_file_stream.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/md5.h"
 #include "tc_common_new/time_util.h"
+#include "tc_common_new/string_util.h"
 #include "tc_message_new/proto_converter.h"
 #include "plugin_interface/gr_plugin_events.h"
 #include "render_plugins/clipboard/clipboard_plugin.h"
@@ -97,8 +97,8 @@ namespace tc
                 for (uint32_t index = 0; index < file_count; ++index) {
                     auto clipboard_file = menu_files_.at(index);
                     // use ref_path to process folder
-                    auto target_filename = QString::fromStdString(clipboard_file.ref_path()).toStdWString();
-                    LOGI("GetData, file: {}, name: {}", clipboard_file.file_name(), QString::fromStdWString(target_filename).toStdString());
+                    auto target_filename = StringUtil::ToWString(clipboard_file.ref_path());
+                    LOGI("GetData, file: {}, name: {}", clipboard_file.file_name(), StringUtil::ToUTF8(target_filename));
                     wcsncpy_s(fd_array[index].cFileName, _countof(fd_array[index].cFileName), target_filename.c_str(), _TRUNCATE);
 
                     fd_array[index].dwFlags = FD_FILESIZE | FD_ATTRIBUTES | FD_CREATETIME | FD_WRITESTIME | FD_PROGRESSUI;
