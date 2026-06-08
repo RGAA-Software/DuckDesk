@@ -29,4 +29,7 @@ src\GammaRay\test_network_adapter.exe >> run_tests4.log 2>&1
 echo ===== test_qr_generator ===== >> run_tests4.log 2>&1
 src\GammaRay\test_qr_generator.exe >> run_tests4.log 2>&1
 
+echo ===== test_process ===== >> run_tests4.log 2>&1
+src\GammaRay\test_process.exe >> run_tests4.log 2>&1
+
 echo DONE >> run_tests4.log 2>&1
