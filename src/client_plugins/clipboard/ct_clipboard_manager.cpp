@@ -129,7 +129,7 @@ namespace tc
                 auto full_path = url.toLocalFile();
                 QFileInfo file_info(full_path);
                 if (file_info.isDir()) {
-                    FolderUtil::VisitAllByQt(full_path.toStdString(), [&](VisitResult&& r) {
+                    FolderUtil::VisitAllByQt(std::filesystem::path(full_path.toStdWString()), [&](VisitResult&& r) {
                         auto cp_file = fn_make_cp_file(base_folder_path, QString::fromStdWString(r.path_));
                         if (cp_file) {
                             cp_files.push_back(cp_file.value());

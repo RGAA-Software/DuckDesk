@@ -166,7 +166,7 @@ void MediaRecorder::EndRecord() {
                 plugin_->GetPluginContext()->PostUITask([=]() {
                     // Show the file path?
                     auto folder_path = FileUtil::GetFileFolder(event->message_);
-                    FolderUtil::OpenDir(folder_path);
+                    FolderUtil::OpenDir(PathFromUTF8(folder_path));
                 });
             };
 			plugin_->CallbackEvent(event);

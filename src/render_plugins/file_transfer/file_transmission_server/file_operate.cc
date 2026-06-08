@@ -18,6 +18,22 @@
 #pragma comment(lib, "Wtsapi32.lib")
 #endif // WIN32
 
+#ifdef WIN32
+static std::string PathToUTF8(const std::filesystem::path& p) {
+    return tc::StringUtil::ToUTF8(p.wstring());
+}
+static std::filesystem::path PathFromUTF8(const std::string& s) {
+    return std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(s.c_str()), s.size()));
+}
+#else
+static std::string PathToUTF8(const std::filesystem::path& p) {
+    return p.string();
+}
+static std::filesystem::path PathFromUTF8(const std::string& s) {
+    return std::filesystem::path(s);
+}
+#endif
+
 namespace tc {
 	static std::string s_file_permission_path_ = "/";
 
@@ -26,10 +42,10 @@ namespace tc {
 	std::vector<tc::FileDescInfo> FileOperate::GetFilesListImpl(const std::string& path) {
 		std::vector<tc::FileDescInfo> file_infos;
 		try {
-			for (const auto& entry : std::filesystem::directory_iterator(path)) {
+			for (const auto& entry : std::filesystem::directory_iterator(PathFromUTF8(path))) {
 				tc::FileDescInfo info;
-				auto abs_path = std::filesystem::absolute(entry.path()).string();
-				info.set_name(entry.path().filename().string());
+				auto abs_path = PathToUTF8(std::filesystem::absolute(entry.path()));
+				info.set_name(PathToUTF8(entry.path().filename()));
 				info.set_path(abs_path);
 				if (std::filesystem::is_directory(entry.status())) {
 					info.set_type(tc::FileDescInfo::kFolder);
@@ -65,13 +81,13 @@ namespace tc {
 			path = StringUtil::StandardizeWinPath(path);
 			do {
 				if ("/" != s_file_permission_path_) {
-					std::string visitFileInfo = std::filesystem::canonical(path).string();
-					std::string filePermissionFileInfo = std::filesystem::canonical(s_file_permission_path_).string();
+					std::string visitFileInfo = PathToUTF8(std::filesystem::canonical(PathFromUTF8(path)));
+					std::string filePermissionFileInfo = PathToUTF8(std::filesystem::canonical(PathFromUTF8(s_file_permission_path_)));
 					if (visitFileInfo == filePermissionFileInfo) {
 						break;
 					}
-					std::string visit_path_str = std::filesystem::path(visitFileInfo).parent_path().string();
-					std::string permission_path_str = std::filesystem::path(filePermissionFileInfo).parent_path().string();
+					std::string visit_path_str = PathToUTF8(std::filesystem::path(visitFileInfo).parent_path());
+					std::string permission_path_str = PathToUTF8(std::filesystem::path(filePermissionFileInfo).parent_path());
 					if (StringUtil::StartWith(visit_path_str, permission_path_str)) {
 						permission = false;
 						break;
@@ -86,10 +102,10 @@ namespace tc {
 			if (root_path_ == path) {
 				return { true, GetThisPCFiles(), "", s_file_permission_path_};
 			}
-			if (!std::filesystem::exists(path)) {
+			if (!std::filesystem::exists(PathFromUTF8(path))) {
 				return { false, {}, permission_log + std::string("The accessed directory no longer exists"), s_file_permission_path_};
 			}
-			if (!std::filesystem::is_directory(path)) {
+			if (!std::filesystem::is_directory(PathFromUTF8(path))) {
 				return { false, {}, permission_log + std::string("The accessed path is not a valid folder or disk directory"), s_file_permission_path_};
 			}
 			std::vector<tc::FileDescInfo> file_infos = GetFilesListImpl(path);
@@ -113,13 +129,13 @@ namespace tc {
 			path = StringUtil::StandardizeWinPath(path);
 			do {
 				if ("/" != s_file_permission_path_) {
-					std::string visitFileInfo = std::filesystem::canonical(path).string();
-					std::string filePermissionFileInfo = std::filesystem::canonical(s_file_permission_path_).string();
+					std::string visitFileInfo = PathToUTF8(std::filesystem::canonical(PathFromUTF8(path)));
+					std::string filePermissionFileInfo = PathToUTF8(std::filesystem::canonical(PathFromUTF8(s_file_permission_path_)));
 					if (visitFileInfo == filePermissionFileInfo) {
 						break;
 					}
-					std::string visit_path_str = std::filesystem::path(visitFileInfo).parent_path().string();
-					std::string permission_path_str = std::filesystem::path(filePermissionFileInfo).parent_path().string();
+					std::string visit_path_str = PathToUTF8(std::filesystem::path(visitFileInfo).parent_path());
+					std::string permission_path_str = PathToUTF8(std::filesystem::path(filePermissionFileInfo).parent_path());
 					if (StringUtil::StartWith(visit_path_str, permission_path_str)) {
 						permission = false;
 						break;
@@ -136,11 +152,11 @@ namespace tc {
 				return { true, GetThisPCFiles(), "", s_file_permission_path_ };
 			}
 
-			if (!std::filesystem::exists(path)) {
+			if (!std::filesystem::exists(PathFromUTF8(path))) {
 				return { false, {}, permission_log + std::string("The accessed directory no longer exists"), s_file_permission_path_ };
 			}
 
-			if (!std::filesystem::is_directory(path)) {
+			if (!std::filesystem::is_directory(PathFromUTF8(path))) {
 				return { false, {}, permission_log + std::string("The accessed path is not a valid folder or disk directory"), s_file_permission_path_ };
 			}
 			
@@ -151,18 +167,18 @@ namespace tc {
 			for (auto& folder : folders) {
 				tc::FileDescInfo info;
 				info.set_type(tc::FileDescInfo::kFolder);
-				info.set_name(std::filesystem::path(folder).filename().string());
-				info.set_path(std::filesystem::absolute(folder).string());
+				info.set_name(PathToUTF8(std::filesystem::path(PathFromUTF8(folder)).filename()));
+				info.set_path(PathToUTF8(std::filesystem::absolute(PathFromUTF8(folder))));
 				file_infos.emplace_back(info);
 			}
 
 			for (auto& file : files) {
 				tc::FileDescInfo info;
 				info.set_type(tc::FileDescInfo::kFile);
-				info.set_name(std::filesystem::path(file).filename().string());
-				info.set_path(std::filesystem::absolute(file).string());
-				info.set_size(std::filesystem::file_size(file));
-				auto lwt = std::filesystem::last_write_time(file);
+				info.set_name(PathToUTF8(std::filesystem::path(PathFromUTF8(file)).filename()));
+				info.set_path(PathToUTF8(std::filesystem::absolute(PathFromUTF8(file))));
+				info.set_size(std::filesystem::file_size(PathFromUTF8(file)));
+				auto lwt = std::filesystem::last_write_time(PathFromUTF8(file));
 				auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
 					lwt - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
 				info.set_date(std::chrono::duration_cast<std::chrono::seconds>(sctp.time_since_epoch()).count());
@@ -182,8 +198,8 @@ namespace tc {
 
 	void FileOperate::TraverseDirectory(const std::string& path, std::vector<std::string>& folders, std::vector<std::string>& files) {
 		try {
-			for (const auto& entry : std::filesystem::directory_iterator(path, std::filesystem::directory_options::skip_permission_denied)) {
-				auto itemPath = entry.path().string();
+			for (const auto& entry : std::filesystem::directory_iterator(PathFromUTF8(path), std::filesystem::directory_options::skip_permission_denied)) {
+				auto itemPath = PathToUTF8(entry.path());
 				if (std::filesystem::is_directory(entry.status())) {
 					folders.push_back(itemPath);
 					TraverseDirectory(itemPath, folders, files);
@@ -300,10 +316,10 @@ namespace tc {
 		bool ret = true;
 		std::string er_msg;
 		try {
-			if (!std::filesystem::exists(folder_path)) {
-				std::filesystem::create_directories(folder_path);
+			if (!std::filesystem::exists(PathFromUTF8(folder_path))) {
+				std::filesystem::create_directories(PathFromUTF8(folder_path));
 			}
-			if (!std::filesystem::exists(folder_path)) {
+			if (!std::filesystem::exists(PathFromUTF8(folder_path))) {
 				ret = false;
 			}
 		}
@@ -320,17 +336,17 @@ namespace tc {
 		std::string er_msg;
 		for (auto ph : paths) {
 			try {
-				if (std::filesystem::is_directory(ph)) {
-					if (!std::filesystem::exists(ph)) {
+				if (std::filesystem::is_directory(PathFromUTF8(ph))) {
+					if (!std::filesystem::exists(PathFromUTF8(ph))) {
 						break;
 					}
-					std::filesystem::remove_all(ph);
+					std::filesystem::remove_all(PathFromUTF8(ph));
 				}
-				else if (std::filesystem::is_regular_file(ph)) {
-					if (!std::filesystem::exists(ph)) {
+				else if (std::filesystem::is_regular_file(PathFromUTF8(ph))) {
+					if (!std::filesystem::exists(PathFromUTF8(ph))) {
 						break;
 					}
-					std::filesystem::remove(ph);
+					std::filesystem::remove(PathFromUTF8(ph));
 				}
 			}
 			catch (std::exception& e) {
@@ -345,7 +361,7 @@ namespace tc {
 		try {
 			std::string create_new_folder_path_ = "";
 			bool create_new_folder_res_ = false;
-			if (!std::filesystem::exists(parent_path_str)) {
+			if (!std::filesystem::exists(PathFromUTF8(parent_path_str))) {
 				return { false, "", parent_path_str + tcTr("id_file_trans_no_exists") };
 			}
 			int temp_count = 1;
@@ -361,11 +377,11 @@ namespace tc {
 
 				std::string new_folder_name = prefix + suffix;
 				create_new_folder_path_ = parent_path_str + "/" + new_folder_name;
-				if (std::filesystem::exists(create_new_folder_path_)) {
+				if (std::filesystem::exists(PathFromUTF8(create_new_folder_path_))) {
 					++temp_count;
 					continue;
 				}
-				std::filesystem::create_directories(create_new_folder_path_);
+				std::filesystem::create_directories(PathFromUTF8(create_new_folder_path_));
 				create_new_folder_res_ = true;
 				break;
 			} while (true);
@@ -380,12 +396,12 @@ namespace tc {
 
 	std::tuple<bool, uint64_t, uint64_t> FileOperate::IsExists(const std::string& u8_path) {
 		try { 
-			bool ret = std::filesystem::exists(u8_path);
+			bool ret = std::filesystem::exists(PathFromUTF8(u8_path));
 			uint64_t file_size = 0;
 			uint64_t date_changed = 0;
 			if (ret) {
-				file_size = std::filesystem::file_size(u8_path);
-				auto lwt = std::filesystem::last_write_time(u8_path);
+				file_size = std::filesystem::file_size(PathFromUTF8(u8_path));
+				auto lwt = std::filesystem::last_write_time(PathFromUTF8(u8_path));
 				auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
 					lwt - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
 				date_changed = std::chrono::duration_cast<std::chrono::seconds>(sctp.time_since_epoch()).count();
@@ -401,15 +417,15 @@ namespace tc {
 
 	std::tuple<bool, std::string, std::string> FileOperate::Rename(const std::string& u8_old_path, const std::string& u8_new_name) {
 		try {
-			if (!std::filesystem::exists(u8_old_path)) {
+			if (!std::filesystem::exists(PathFromUTF8(u8_old_path))) {
 				return { false, "", tcTr("id_file_trans_target_path_no_exists")};
 			}
-			std::string new_file_path = (std::filesystem::path(u8_old_path).parent_path() / u8_new_name).string();
-			if (std::filesystem::exists(new_file_path)) {
+			std::string new_file_path = PathToUTF8((PathFromUTF8(u8_old_path).parent_path() / PathFromUTF8(u8_new_name)));
+			if (std::filesystem::exists(PathFromUTF8(new_file_path))) {
 				return { false, "", tcTr("id_file_trans_rename_failed_name_occypy") };
 			}
 
-			std::filesystem::rename(u8_old_path, new_file_path);
+			std::filesystem::rename(PathFromUTF8(u8_old_path), PathFromUTF8(new_file_path));
 			return { true, new_file_path, "" };
 		}
 		catch (std::exception& e) {

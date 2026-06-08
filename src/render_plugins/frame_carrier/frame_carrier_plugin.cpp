@@ -7,6 +7,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
+#include "tc_common_new/string_util.h"
 #include "video_frame_carrier.h"
 #include "render/plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
@@ -48,9 +49,9 @@ namespace tc
         GrPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
-            auto logo_path = std::filesystem::path(base_path_) / "gr_plugins" / "resources" / "ic_logo_point.png";
+            auto logo_path = std::filesystem::path(StringUtil::ToWString(base_path_)) / L"gr_plugins" / L"resources" / L"ic_logo_point.png";
             if (std::filesystem::exists(logo_path)) {
-                auto file = File::OpenForReadB(logo_path.string());
+                auto file = File::OpenForReadB(StringUtil::ToUTF8(logo_path.wstring()));
                 if (file) {
                     auto data = file->ReadAll();
                     logo_image_ = Image::MakeByCompressedImage(data);
