@@ -1,6 +1,6 @@
 project(plugin_net_rtc_local)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-DWEBRTC_WIN=1 -DWEBRTC_USE_H264=1)

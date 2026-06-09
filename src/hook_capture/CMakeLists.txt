@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.26)
 project(tc_capture_new)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX -DENABLE_JEMALLOC=0)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
