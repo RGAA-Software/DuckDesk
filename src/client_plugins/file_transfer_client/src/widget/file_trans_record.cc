@@ -333,29 +333,7 @@ QVariant FileTransRecordTableModel::data(const QModelIndex& index, int role) con
                     //return QStringLiteral("网络错误");
                     return tcTr("id_file_trans_net_error");//丢包
                 }
-#if 0
-                else if (EFileTransmitTaskErrorCause::kRemoteFileFailedOpen == record.cause_) {
-                    return QStringLiteral("读取远端文件异常");
-                }
-                else if (EFileTransmitTaskErrorCause::kVerifyError == record.cause_) {
-                    return QStringLiteral("校验失败");
-                }
-                else if (EFileTransmitTaskErrorCause::kFileFailedWrite == record.cause_) {
-                    return QStringLiteral("写文件异常");
-                }
-                else if (EFileTransmitTaskErrorCause::kDirFailedCreate == record.cause_) {
-                    return QStringLiteral("文件夹创建失败");
-                }
-                else if (EFileTransmitTaskErrorCause::kFileNotExists == record.cause_) {
-                    return QStringLiteral("文件不存在");
-                }
-                else if (EFileTransmitTaskErrorCause::kFileFailedOpen == record.cause_) {
-                    return QStringLiteral("打开文件异常");
-                }
-                else if (EFileTransmitTaskErrorCause::kFileFailedRead == record.cause_) {
-                    return QStringLiteral("读取文件异常");
-                }
-#endif
+
                 else {
                     //return QStringLiteral("失败");
                     return tcTr("id_file_trans_log_failed");
@@ -454,17 +432,6 @@ void FileTransRecord::Init() {
     setLayout(main_vbox_layout_);
     setStyleSheet(QString("QWidget {background-color: #F5F5F5; border-radius: %1px;}").arg(6));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    /*FileTransRecordTableModel::Instance()->m_headers
-        << QStringLiteral("名称")
-        << QStringLiteral("进度")
-        << QStringLiteral("大小")
-        << QStringLiteral("速度")
-        << QStringLiteral("发送路径")
-        << QStringLiteral("接受路径")
-        << QStringLiteral("方向")
-        << QStringLiteral("删除");*/
-
-
     FileTransRecordTableModel::Instance()->m_headers
         << tcTr("id_file_trans_name")
         << tcTr("id_file_trans_progress")

@@ -151,12 +151,7 @@ void RemoteFileUtil::RecursiveGetFiles(const QString& path) {
 }
 
 void RemoteFileUtil::BatchCreateFolders(std::vector<QString> folders) {
-#if 0
-	FileLogManager::Instance()->AppendLog(QStringLiteral("在远端批量创建以下文件夹:"));
-	for (auto& path : folders) {
-		FileLogManager::Instance()->AppendLog(path);
-	}
-#endif
+
 //	FileSDKInterface::Instance()->BatchCreateFolders(folders, [=](bool res, const QString& message, const QString& resp_json_data) {
 	FileSDKInterface::Instance()->BatchCreateFolders(folders, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		if (tc::RespCode::kRespCodeOk == resp_code) {

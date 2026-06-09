@@ -53,11 +53,6 @@ void FileListWidget::Init(QString last_path) {
 	main_hboxlayout->setSpacing(0);
 	setLayout(main_hboxlayout);
 	file_info_table_model_ = new FileInfoTableModel(current_file_container_);
-	/*file_info_table_model_->m_headers
-		<< QStringLiteral("名称")
-		<< QStringLiteral("大小")
-		<< QStringLiteral("类型")
-		<< QStringLiteral("修改时间");*/
 	file_info_table_model_->m_headers
 		<< tcTr("id_file_trans_name")
 		<< tcTr("id_file_trans_size")

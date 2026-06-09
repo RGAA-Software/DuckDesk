@@ -3,6 +3,7 @@
 #include <qdebug.h>
 #include <qstorageinfo.h>
 #include "tc_common_new/file_util.h"
+#include "tc_common_new/string_util.h"
 #include "tc_label.h" // 翻译相关
 #include "file_detail_info.h"
 #include "file_log_manager.h"
@@ -42,7 +43,7 @@ void LocalFileUtil::GetThisPCFilesImpl() {
     // 获取桌面路径
     FileDetailInfo desktop_info;
     desktop_info.file_path_ = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    desktop_info.file_name_ = /*QStringLiteral("桌面");*/  tcTr("id_file_trans_desktop");
+    desktop_info.file_name_ = tcTr("id_file_trans_desktop");
     desktop_info.file_type_ = EFileType::kDesktopFolder;
     desktop_info.local_file_ = true;
     current_file_container_.AddFileInfo(desktop_info);
@@ -51,7 +52,7 @@ void LocalFileUtil::GetThisPCFilesImpl() {
     // 获取我的文档路径
     FileDetailInfo my_document_info;
     my_document_info.file_path_ = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    my_document_info.file_name_ = /*QStringLiteral("我的文档")*/ tcTr("id_file_trans_my_document");
+    my_document_info.file_name_ = tcTr("id_file_trans_my_document");
     my_document_info.file_type_ = EFileType::kFolder;
     my_document_info.local_file_ = true;
     current_file_container_.AddFileInfo(my_document_info);
@@ -60,7 +61,7 @@ void LocalFileUtil::GetThisPCFilesImpl() {
     // 获取我的音乐路径
     FileDetailInfo my_music_info;
     my_music_info.file_path_ = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
-    my_music_info.file_name_ = /*QStringLiteral("我的音乐")*/ tcTr("id_file_trans_my_music");
+    my_music_info.file_name_ = tcTr("id_file_trans_my_music");
     my_music_info.file_type_ = EFileType::kFolder;
     my_music_info.local_file_ = true;
     current_file_container_.AddFileInfo(my_music_info);
@@ -69,7 +70,7 @@ void LocalFileUtil::GetThisPCFilesImpl() {
     // 获取我的图片路径
     FileDetailInfo my_picture_info;
     my_picture_info.file_path_ = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
-    my_picture_info.file_name_ = /*QStringLiteral("我的图片")*/ tcTr("id_file_trans_my_picture");
+    my_picture_info.file_name_ = tcTr("id_file_trans_my_picture");
     my_picture_info.file_type_ = EFileType::kFolder;
     my_picture_info.local_file_ = true;
     current_file_container_.AddFileInfo(my_picture_info);
@@ -78,7 +79,7 @@ void LocalFileUtil::GetThisPCFilesImpl() {
     // 获取我的视频路径
     FileDetailInfo my_video_info;
     my_video_info.file_path_ = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
-    my_video_info.file_name_ = /*QStringLiteral("我的视频")*/  tcTr("id_file_trans_my_video");
+    my_video_info.file_name_ = tcTr("id_file_trans_my_video");
     my_video_info.file_type_ = EFileType::kFolder;
     my_video_info.local_file_ = true;
     current_file_container_.AddFileInfo(my_video_info);
@@ -269,7 +270,7 @@ void LocalFileUtil::CreateNewFolderImpl(const QString& parent_path) {
         return;
     }
     int temp_count = 1;
-    QString prefix = QStringLiteral("新建文件夹");
+    QString prefix = QString::fromUtf8(U8S(u8"新建文件夹"));
     do {
         QString suffix;
         if (1 == temp_count) {
