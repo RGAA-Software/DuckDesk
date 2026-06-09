@@ -71,8 +71,8 @@ namespace tc {
 					if (visitFileInfo == filePermissionFileInfo) {
 						break;
 					}
-					std::string visit_path_str = PathToUTF8(std::filesystem::path(visitFileInfo).parent_path());
-					std::string permission_path_str = PathToUTF8(std::filesystem::path(filePermissionFileInfo).parent_path());
+					std::string visit_path_str = PathToUTF8(std::filesystem::path(PathFromUTF8(visitFileInfo)).parent_path());
+					std::string permission_path_str = PathToUTF8(std::filesystem::path(PathFromUTF8(filePermissionFileInfo)).parent_path());
 					if (StringUtil::StartWith(visit_path_str, permission_path_str)) {
 						permission = false;
 						break;

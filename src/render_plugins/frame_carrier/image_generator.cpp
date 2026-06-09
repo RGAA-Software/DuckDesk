@@ -10,6 +10,7 @@
 #include "tc_common_new/image.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/log.h"
+#include "tc_common_new/string_util.h"
 
 namespace tc
 {
@@ -67,7 +68,8 @@ namespace tc
                                   CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial");
         HFONT oldFont = (HFONT)SelectObject(hdcMem, hfont);
 
-        DrawTextA(hdcMem, text.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        auto wtext = StringUtil::ToWString(text);
+        DrawTextW(hdcMem, wtext.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
         // Convert 32bpp BGRA to grayscale Image
         auto image = Image::Make(nullptr, w, h, 1);
