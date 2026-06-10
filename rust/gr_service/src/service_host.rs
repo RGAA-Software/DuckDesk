@@ -55,7 +55,8 @@ impl ServiceRuntime {
         self.stop_tx.subscribe()
     }
 
-    pub fn request_stop(&self) {
+    pub fn request_stop(&mut self) {
+        self.state.stop_requested = true;
         let _ = self.stop_tx.send(());
     }
 

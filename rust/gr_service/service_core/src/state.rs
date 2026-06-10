@@ -22,6 +22,7 @@ pub struct ServiceState {
     pub last_desktop_launch: Option<RenderLaunchSpec>,
     pub desktop_alive: bool,
     pub desktop_pid: Option<u32>,
+    pub stop_requested: bool,
 }
 
 impl ServiceState {
@@ -42,7 +43,7 @@ impl ServiceState {
     }
 
     pub fn should_restart_desktop(&self) -> bool {
-        !self.desktop_alive && self.last_desktop_launch.is_some()
+        !self.stop_requested && !self.desktop_alive && self.last_desktop_launch.is_some()
     }
 
     pub fn heartbeat_response(&self, index: i64) -> ServiceMessage {
