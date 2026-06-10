@@ -1,6 +1,8 @@
 use clap::Parser;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
 use sysinfo::System;
 use windows::core::PCSTR;
 use windows::Win32::Foundation::HWND;
@@ -62,7 +64,8 @@ fn exit_program() {
     }
 
     run_service_manager(&["stop"]);
-    kill_processes();
+    kill_service_process();
+    kill_other_processes();
 }
 
 fn uninstall_program() {
@@ -80,12 +83,9 @@ fn uninstall_program() {
         return;
     }
 
-    run_service_manager(&["remove", "--uninstall-service", "true"]);
-    kill_processes();
-
-    let exe_dir = gr_base::current_exe_dir();
-    let shadow_deleter = PathBuf::from(&exe_dir).join("shadow_deleter.exe");
-    let _ = Command::new(&shadow_deleter).arg(&shadow_deleter).spawn();
+    run_service_manager(&["remove", "--uninstall-service"]);
+    kill_service_process();
+    kill_other_processes();
 
     std::process::exit(0);
 }
@@ -93,18 +93,44 @@ fn uninstall_program() {
 fn run_service_manager(args: &[&str]) {
     let exe_dir = gr_base::current_exe_dir();
     let exe_path = PathBuf::from(&exe_dir).join("GammaRayServiceManager.exe");
+    if !exe_path.exists() {
+        eprintln!("Warning: GammaRayServiceManager.exe not found at {:?}", exe_path);
+        return;
+    }
     let mut cmd = Command::new(&exe_path);
-    cmd.args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let _ = cmd.spawn().and_then(|mut child| child.wait());
+    cmd.args(args);
+    match cmd.spawn().and_then(|mut child| child.wait()) {
+        Ok(status) => {
+            if !status.success() {
+                eprintln!("Warning: GammaRayServiceManager exited with code: {:?}", status.code());
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to run GammaRayServiceManager.exe: {}", e);
+        }
+    }
 }
 
-fn kill_processes() {
+fn kill_service_process() {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    for (_pid, process) in sys.processes() {
+        if process.name() == "GammaRayService.exe" {
+            let _ = process.kill();
+        }
+    }
+
+    thread::sleep(Duration::from_millis(500));
+}
+
+fn kill_other_processes() {
     let mut sys = System::new_all();
     sys.refresh_all();
 
     let targets = [
+        "GammaRayRender.exe",
+        "GammaRayClientInner.exe",
         "GammaRayGuard.exe",
         "GammaRaySysInfo.exe",
         "GammaRay.exe",
