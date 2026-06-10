@@ -1,0 +1,11 @@
+[package]
+name = "gr_crash_reporter"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "GammaRayCrashReporter"
+path = "src/main.rs"
+
+[dependencies]
+gr_base = { path = "../gr_base" }

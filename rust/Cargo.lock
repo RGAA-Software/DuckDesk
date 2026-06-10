@@ -1110,6 +1110,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gr_crash_reporter"
+version = "2.0.1"
+dependencies = [
+ "gr_base",
+]
+
+[[package]]
 name = "gr_guard"
 version = "2.0.1"
 dependencies = [
