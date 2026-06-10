@@ -15,7 +15,7 @@
 #include "tc_common_new/string_util.h"
 #include "tc_message_new/proto_converter.h"
 #include "plugin_interface/gr_plugin_events.h"
-#include "render_plugins/clipboard/clipboard_plugin.h"
+#include "gr_render/plugins/clipboard/clipboard_plugin.h"
 
 #pragma comment(lib, "Wininet.lib")
 

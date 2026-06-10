@@ -163,9 +163,9 @@ add_dependencies(tc_build_premium_all tc_build_all
 #add_dependencies(tc_build_servers_all gr_svr_base gr_relay_server gr_spvr_server gr_auth_server gr_profile_server)
 
 set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay)
-set(RENDER_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/render_plugins)
-set(RENDER_PLUGIN_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/render_plugins)
-set(RENDER_PLUGIN_BINARY_TARGET_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay/gr_plugins)
+set(RENDER_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/gr_render/plugins)
+set(RENDER_PLUGIN_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/gr_render/plugins)
+set(RENDER_PLUGIN_BINARY_TARGET_ROOT ${CMAKE_BINARY_DIR}/src/gr_render/gr_plugins)
 
 set(CLIENT_PLUGIN_SOURCE_ROOT ${CMAKE_SOURCE_DIR}/src/client_plugins)
 set(CLIENT_PLUGIN_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/client_plugins)
@@ -234,6 +234,30 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
 
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/ssl_proxy/plugin_ssl_proxy.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll"
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/ssl_proxy/plugin_ssl_proxy.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ssl_proxy.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/net_ws/plugin_net_ws.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_ws.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/net_ws/plugin_net_ws.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_net_ws.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/ffmpeg_encoder/plugin_ffmpeg_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ffmpeg_encoder.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/ffmpeg_encoder/plugin_ffmpeg_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_ffmpeg_encoder.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/frame_debugger/plugin_frame_debugger.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_debugger.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/frame_debugger/plugin_frame_debugger.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_debugger.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/dda_capture/plugin_dda_capture.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_dda_capture.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/dda_capture/plugin_dda_capture.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_dda_capture.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/mock_video_stream/plugin_mock_video_stream.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_mock_video_stream.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/mock_video_stream/plugin_mock_video_stream.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_mock_video_stream.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/was_audio_capture/plugin_was_audio_capture.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_was_audio_capture.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/was_audio_capture/plugin_was_audio_capture.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_was_audio_capture.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/opus_encoder/plugin_opus_encoder.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_opus_encoder.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/opus_encoder/plugin_opus_encoder.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_opus_encoder.dll.toml"
+
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/plugins/event_replayer/plugin_event_replayer.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_event_replayer.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GR_RENDER_PATH}/plugins/event_replayer/plugin_event_replayer.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_event_replayer.dll.toml"
 
     #### Clients ####
     COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_BINARY_ROOT}/media_record/plugin_media_record_client.dll"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}/plugin_media_record_client.dll"
