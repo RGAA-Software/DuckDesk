@@ -1169,6 +1169,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gr_uninstall"
+version = "2.0.1"
+dependencies = [
+ "clap",
+ "gr_base",
+ "sysinfo",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

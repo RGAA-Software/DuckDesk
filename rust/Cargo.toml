@@ -8,6 +8,7 @@ members = [
     "gr_service/service_core",
     "gr_service/service_manager",
     "gr_crash_reporter",
+    "gr_uninstall",
 ]
 
 resolver = "2"
