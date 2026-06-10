@@ -1,4 +1,4 @@
-﻿//
+//
 // Created RGAA on 15/11/2024.
 //
 
@@ -7,7 +7,7 @@
 #include "video_encoder_vce.h"
 #include "amf_encoder_defs.h"
 #include "tc_common_new/log.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 
 GR_PLUGIN_EXPORT(tc::AmfEncoderPlugin)
 

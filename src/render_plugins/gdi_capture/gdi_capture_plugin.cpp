@@ -5,7 +5,7 @@
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/math_helper.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "gdi_capture.h"
 
 GR_PLUGIN_EXPORT(tc::GdiCapturePlugin)

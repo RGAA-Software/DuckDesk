@@ -3,7 +3,7 @@
 //
 
 #include "rtc_plugin.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "video_source_mock.h"
 #include "tc_common_new/log.h"
 #include "rtc_messages.h"

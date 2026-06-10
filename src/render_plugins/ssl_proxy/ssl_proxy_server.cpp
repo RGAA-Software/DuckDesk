@@ -8,8 +8,8 @@
 #include "tc_common_new/file.h"
 #include "tc_common_new/string_util.h"
 #include "tc_common_new/url_helper.h"
-#include "render/network/ws_data.h"
-#include "render/network/wss_router.h"
+#include "network/ws_data.h"
+#include "network/wss_router.h"
 #include "http_handler.h"
 
 namespace tc

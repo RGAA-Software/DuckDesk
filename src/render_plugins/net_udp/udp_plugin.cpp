@@ -3,7 +3,7 @@
 //
 
 #include "udp_plugin.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
 #include "plugin_interface/gr_plugin_events.h"

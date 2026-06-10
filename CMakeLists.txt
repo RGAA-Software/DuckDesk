@@ -43,16 +43,18 @@ include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/3rd)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/asio2/3rd/asio)
-#include_directories(${VCPKG_ROOT}/installed/x64-windows/include)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite35)
+include_directories(${VCPKG_ROOT}/installed/x64-windows/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/sqlite35)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/sqlite_orm/include)
 include_directories(${FFMPEG_ROOT}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/leveldb/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/opencv_410/include)
+set(OpenCV_Libs ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/opencv_410/x64/vc16/lib/opencv_world4100.lib)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src/render)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_qt_widget)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_client_sdk_new)
 ##Binary
@@ -81,8 +83,8 @@ if(MSVC)
     #include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/ffmpeg/include)
     #link_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/ffmpeg/lib/x64)
 
-    #include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/openssl/include)
-    #link_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/openssl/x64/lib/VC)
+    include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/openssl/include)
+    link_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/openssl/x64/lib/VC)
 endif()
 
 add_definitions(-DFMT_HEADER_ONLY)
@@ -200,8 +202,8 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll"
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_frame_carrier.dll.toml"
 
-    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll"
-    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${CMAKE_SOURCE_DIR}/src/GammaRay/src/render/plugins/frame_carrier/plugin_frame_carrier.dll.toml"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/frame_carrier/plugin_frame_carrier.dll"  "${CMAKE_SOURCE_DIR}/src/gr_render/plugins/frame_carrier/plugin_frame_carrier.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/frame_carrier/plugin_frame_carrier.dll.toml"  "${CMAKE_SOURCE_DIR}/src/gr_render/plugins/frame_carrier/plugin_frame_carrier.dll.toml"
 
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_BINARY_ROOT}/joystick/plugin_joystick.dll"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll"
     COMMAND ${CMAKE_COMMAND} -E copy "${RENDER_PLUGIN_SOURCE_ROOT}/joystick/plugin_joystick.dll.toml"  "${RENDER_PLUGIN_BINARY_TARGET_ROOT}/plugin_joystick.dll.toml"

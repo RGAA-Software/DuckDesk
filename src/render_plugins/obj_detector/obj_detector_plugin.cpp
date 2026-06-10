@@ -7,7 +7,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 
 namespace tc
 {

@@ -1,0 +1,76 @@
+[description]
+author = "GoDesk"
+version = "1.0.1"
+
+# encoder settings
+[encoder]
+# auto
+# specify
+select-type = "auto"
+# h264
+# hevc
+format = "h264"
+# bitrate (M)
+bitrate = 5
+# origin
+# specify force scale to the resolution below
+encode-resolution-type = "origin"
+# force encoding resolution
+encode-width = 1280
+encode-height = 720
+
+# capture settings
+[capture]
+# enable audio capture or not
+enable-audio = true
+# audio capture method
+# inner
+# global
+audio-capture-type = "global"
+# enable video capture or not
+enable-video = true
+# video capture method
+# inner
+# global
+video-capture-type = "inner"
+
+# transmission settings
+[transmission]
+# websocket
+network-type = "websocket"
+# port
+listening-port = 20371
+
+# application settings
+[application]
+# game-path
+# 1.exe path，attention: UE games use exe in specific subdir => "XXGame/Binaries/Win64/XXGame.exe
+# 2.steam://rungameid/xxx
+# 3.steam://open/bigpicture Steam Big Picture Mode
+
+game-path = "D:/Game/Dyson Sphere Program/DSPGAME.exe"
+# Steam BIG Picture Mode
+#game-path = "steam://open/bigpicture"
+#game-path = "C:/software/u3d_demo/u3d_demo/u3d_shared_window_demo.exe"
+
+#
+game-arguments = ""
+#game-arguments = "-force-d3d11 -D3D11 -dx11"
+#game-arguments = "-force-d3d12 -D3D12 -dx12"
+
+# useless now
+hide-after-started = false
+# useless now
+force-fullscreen = false
+
+# capture method
+# prepare => start app with easyhook
+# search => start & find process to hook
+capture-method = "search"
+
+# debug
+debug-enabled = false
+
+# global => replay events by SendInput
+# inner => replay events in process
+event-replay-mode = "global"

@@ -7,7 +7,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "vigem/vigem_controller.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
 #include "plugin_interface/gr_plugin_context.h"
 

@@ -6,7 +6,7 @@
 #define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 
 #include "plugin_interface/gr_video_encoder_plugin.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 
 namespace tc
 {

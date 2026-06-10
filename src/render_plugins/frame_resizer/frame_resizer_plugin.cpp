@@ -4,7 +4,7 @@
 
 #include "frame_resizer_plugin.h"
 #include "plugin_interface/gr_plugin_events.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "frame_render.h"
 #include "tc_common_new/log.h"
 

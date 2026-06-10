@@ -4,7 +4,7 @@
 
 #include "media_recorder_plugin.h"
 #include "plugin_interface/gr_plugin_events.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 
 namespace tc
 {

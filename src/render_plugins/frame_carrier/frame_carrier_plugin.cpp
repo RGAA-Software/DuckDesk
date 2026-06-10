@@ -9,7 +9,7 @@
 #include "tc_common_new/image.h"
 #include "tc_common_new/string_util.h"
 #include "video_frame_carrier.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "plugin_interface/gr_plugin_events.h"
 #include "image_generator.h"
 

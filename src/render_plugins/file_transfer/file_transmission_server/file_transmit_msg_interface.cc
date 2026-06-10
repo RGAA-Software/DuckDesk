@@ -5,8 +5,8 @@
 #include "file_transfer_plugin.h"
 #include "file_transmit_manager.h"
 #include "file_transmit_impl.h"
-#include "render/plugin_interface/gr_net_plugin.h"
-#include "render/plugin_interface/gr_plugin_events.h"
+#include "plugin_interface/gr_net_plugin.h"
+#include "plugin_interface/gr_plugin_events.h"
 #include "tc_message_new/proto_converter.h"
 
 namespace tc {

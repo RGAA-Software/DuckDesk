@@ -11,7 +11,7 @@
 #include "tc_common_new/hardware.h"
 #include "tc_common_new/string_util.h"
 #include "tc_common_new/client_id_extractor.h"
-#include "render/plugins/plugin_ids.h"
+#include "plugins/plugin_ids.h"
 #include "tc_relay_client/relay_server_sdk.h"
 #include "tc_relay_client/relay_server_sdk_param.h"
 #include "tc_relay_client/relay_room.h"
