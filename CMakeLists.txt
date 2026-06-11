@@ -138,6 +138,130 @@ find_package(mimalloc CONFIG REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc)
 
+set(GR_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/GammaRay)
+if (BUILD_PREMIUM)
+    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/GammaRay)
+else()
+    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
+endif()
+
+find_program(CARGO_EXECUTABLE cargo)
+if(NOT CARGO_EXECUTABLE)
+    message(FATAL_ERROR "cargo not found. Rust toolchain is required to build gr_sysinfo.")
+endif()
+
+set(GR_SYSINFO_EXE_NAME GammaRaySysInfo.exe)
+set(GR_SERVICE_EXE_NAME GammaRayService.exe)
+set(GR_SERVICE_MGR_EXE_NAME GammaRayServiceManager.exe)
+set(GR_GUARD_EXE_NAME GammaRayGuard.exe)
+set(GR_CRASH_REPORTER_EXE_NAME GammaRayCrashReporter.exe)
+set(GR_UNINSTALL_EXE_NAME GammaRayUninstall.exe)
+
+set(GR_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust)
+set(GR_RUST_PROFILE debug)
+set(GR_RUST_BUILD_FLAG "")
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(GR_RUST_PROFILE release)
+    set(GR_RUST_BUILD_FLAG --release)
+endif()
+set(GR_SYSINFO_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SYSINFO_EXE_NAME})
+set(GR_SERVICE_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_EXE_NAME})
+set(GR_SERVICE_MGR_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_MGR_EXE_NAME})
+set(GR_GUARD_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_GUARD_EXE_NAME})
+set(GR_CRASH_REPORTER_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_CRASH_REPORTER_EXE_NAME})
+set(GR_UNINSTALL_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_UNINSTALL_EXE_NAME})
+
+set(GR_SYSINFO_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SYSINFO_EXE_NAME})
+set(GR_SERVICE_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_EXE_NAME})
+set(GR_SERVICE_MGR_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_MGR_EXE_NAME})
+set(GR_GUARD_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_GUARD_EXE_NAME})
+set(GR_CRASH_REPORTER_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_CRASH_REPORTER_EXE_NAME})
+set(GR_UNINSTALL_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_UNINSTALL_EXE_NAME})
+
+add_custom_target(GammaRaySysInfo_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_sysinfo --bin GammaRaySysInfo ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRaySysInfo"
+        VERBATIM
+)
+
+add_custom_target(GammaRayService_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_service --bin GammaRayService ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRayService"
+        VERBATIM
+)
+
+add_custom_target(GammaRayServiceManager_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin GammaRayServiceManager ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRayServiceManager"
+        VERBATIM
+)
+
+add_custom_target(GammaRayGuard_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_guard --bin GammaRayGuard ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRayGuard"
+        VERBATIM
+)
+
+add_custom_target(GammaRayCrashReporter_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_crash_reporter --bin GammaRayCrashReporter ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRayCrashReporter"
+        VERBATIM
+)
+
+add_custom_target(GammaRaySysInfo_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SYSINFO_RUST_EXE}" "${GR_SYSINFO_STAGED_EXE}"
+        DEPENDS GammaRaySysInfo_rust
+        COMMENT "Staging Rust GammaRaySysInfo"
+        VERBATIM
+)
+
+add_custom_target(GammaRayService_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SERVICE_RUST_EXE}" "${GR_SERVICE_STAGED_EXE}"
+        DEPENDS GammaRayService_rust
+        COMMENT "Staging Rust GammaRayService"
+        VERBATIM
+)
+
+add_custom_target(GammaRayServiceManager_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SERVICE_MGR_RUST_EXE}" "${GR_SERVICE_MGR_STAGED_EXE}"
+        DEPENDS GammaRayServiceManager_rust
+        COMMENT "Staging Rust GammaRayServiceManager"
+        VERBATIM
+)
+
+add_custom_target(GammaRayGuard_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_GUARD_RUST_EXE}" "${GR_GUARD_STAGED_EXE}"
+        DEPENDS GammaRayGuard_rust
+        COMMENT "Staging Rust GammaRayGuard"
+        VERBATIM
+)
+
+add_custom_target(GammaRayCrashReporter_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_CRASH_REPORTER_RUST_EXE}" "${GR_CRASH_REPORTER_STAGED_EXE}"
+        DEPENDS GammaRayCrashReporter_rust
+        COMMENT "Staging Rust GammaRayCrashReporter"
+        VERBATIM
+)
+
+add_custom_target(GammaRayUninstall_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_uninstall --bin GammaRayUninstall ${GR_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust GammaRayUninstall"
+        VERBATIM
+)
+
+add_custom_target(GammaRayUninstall_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_UNINSTALL_RUST_EXE}" "${GR_UNINSTALL_STAGED_EXE}"
+        DEPENDS GammaRayUninstall_rust
+        COMMENT "Staging Rust GammaRayUninstall"
+        VERBATIM
+)
+
 add_subdirectory(src)
 
 add_custom_target(tc_build_premium_all ALL COMMENT "Build all targets")
