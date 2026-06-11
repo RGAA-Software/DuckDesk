@@ -265,7 +265,7 @@ add_custom_target(GammaRayUninstall_stage
 add_subdirectory(src)
 
 add_custom_target(tc_build_premium_all ALL COMMENT "Build all targets")
-add_dependencies(tc_build_premium_all tc_build_all
+add_dependencies(tc_build_premium_all
     ### main executables
     GammaRay uninstall panel_shadow_deleter
 
@@ -279,10 +279,19 @@ add_dependencies(tc_build_premium_all tc_build_all
     plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
 
     ### skins
-    skin_interface skin_official
+    skin_interface skin_official skin_loader skin_opensource
 
     ### anti hooking
     tc_protection
+
+    ### from former tc_build_all (deps + rust stages)
+    sqlite35 GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
+    GammaRayClientInner tc_relay_client tc_rtc_client tc_cp_message GammaRayGuard_stage tc_hw_info
+    GammaRayCrashReporter_stage GammaRaySysInfo_stage
+    plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
+    plugin_was_audio_capture plugin_opus_encoder tc_sdk tc_qt_widget plugin_mock_video_stream tc_translator
+    tc_spvr_client tc_account_sdk tc_rp_message tc_profile_client plugin_event_replayer tc_global_id_generator
+    tc_server_message
 )
 
 ## Servers
