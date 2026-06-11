@@ -32,14 +32,14 @@ find_package(OpenSSL REQUIRED)
 include_directories(${VK_SDK_ROOT}/Include)
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_panel/src)
-include_directories(${CMAKE_BINARY_DIR}/src/GammaRay)
+include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client/src)
 
 link_directories(${VK_SDK_ROOT}/Lib)
-link_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/libplacebo/lib)
+link_directories(${GR_PROJECT_PATH}/tc_3rdparty/libplacebo/lib)
 
 qt_add_resources(RES ${CMAKE_SOURCE_DIR}/src/gr_panel/resources/main.qrc resources.qrc)
 add_compile_options(/bigobj)
@@ -151,7 +151,7 @@ if (WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/postproc-58.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swresample-5.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swscale-8.dll"  "${CMAKE_BINARY_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/deps/tc_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/tc_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/gr_panel/resources/language" "${CMAKE_CURRENT_BINARY_DIR}/resources/language"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/gr_panel/resources/qt_material" "${CMAKE_CURRENT_BINARY_DIR}/resources/qt_material"
     )

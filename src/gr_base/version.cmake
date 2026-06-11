@@ -1,0 +1,1 @@
+set(TC_APP_VERSION 3.1.0)

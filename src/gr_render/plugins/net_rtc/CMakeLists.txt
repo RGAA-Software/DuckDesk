@@ -20,7 +20,7 @@ include_directories(${WEBRTC_ROOT}/include)
 include_directories(${WEBRTC_ROOT}/include/third_party/abseil-cpp)
 include_directories(${WEBRTC_ROOT}/include/third_party/jsoncpp/source/include/)
 include_directories(${WEBRTC_ROOT}/include/base)
-link_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/webrtc/x64)
+link_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/webrtc/x64)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_plugin.cpp

@@ -9,29 +9,29 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 
-# configure_file for version_config.h and icon.rc are in src/GammaRay/CMakeLists.txt
-# icon.rc is generated at ${CMAKE_BINARY_DIR}/src/GammaRay/icon.rc
+# configure_file for version_config.h, app_config.h and icon.rc are in src/gr_base/CMakeLists.txt
+# icon.rc is generated at ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/ui/gd_gui/src)
-include_directories(${GR_PROJECT_PATH}/deps)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/eventbus/src)
+include_directories(${GR_PROJECT_PATH})
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/eventbus/src)
 include_directories(${GR_PROJECT_BINARY_PATH})
-include_directories(${GR_PROJECT_BINARY_PATH}/deps/tc_message_new)
-include_directories(${GR_PROJECT_BINARY_PATH}/deps/tc_server_protocol)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/include)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/3rd)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/3rd/asio)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite35)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite_orm/include)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/leveldb/include)
+include_directories(${GR_PROJECT_BINARY_PATH}/tc_message_new)
+include_directories(${GR_PROJECT_BINARY_PATH}/tc_server_protocol)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/include)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd/asio)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/sqlite35)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/sqlite_orm/include)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/webrtc/include/third_party/libyuv/include)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/leveldb/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
-include_directories(${GR_PROJECT_PATH}/deps/tc_qt_widget)
-include_directories(${GR_PROJECT_PATH}/deps/tc_client_sdk_new)
-include_directories(${CMAKE_BINARY_DIR}/src/GammaRay)
+include_directories(${GR_PROJECT_PATH}/tc_qt_widget)
+include_directories(${GR_PROJECT_PATH}/tc_client_sdk_new)
+include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
 
 add_subdirectory(src)
 add_subdirectory(src/tests)
@@ -45,7 +45,7 @@ add_executable(GammaRay WIN32
         ${RES}
         ${MAIN_SRCS}
         ${NETWORK_SRCS}
-        ${CMAKE_BINARY_DIR}/src/GammaRay/icon.rc
+        ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
         ${SERVICE_MGR_SRCS}
         ${DEVICE_LIST_SRCS}
 )
@@ -67,7 +67,7 @@ add_custom_command(TARGET GammaRay PRE_BUILD
 
 ### Uninstall
 add_executable(uninstall WIN32
-        ${CMAKE_BINARY_DIR}/src/GammaRay/icon.rc
+        ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
         ${UNINSTALL_SRCS}
         ${SERVICE_MGR_SRCS})
 
@@ -89,7 +89,7 @@ install(TARGETS GammaRay
 
 add_custom_command(TARGET GammaRay POST_BUILD
         COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:GammaRay> --release
-        COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/deps/tc_controller/vigem/driver/joystick.exe"  "${CMAKE_CURRENT_BINARY_DIR}/"
+        COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/tc_controller/vigem/driver/joystick.exe"  "${CMAKE_CURRENT_BINARY_DIR}/"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/language" "${GR_PROJECT_BINARY_PATH}/resources/language"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/qt_material" "${GR_PROJECT_BINARY_PATH}/resources/qt_material"
 )

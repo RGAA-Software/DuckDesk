@@ -10,7 +10,7 @@ import os
 import shutil
 import sys
 
-# Directories inside src/GammaRay/ that we keep as-is
+# Directories inside src/gr_deps/ that we keep as-is
 KEEP_DIRS = {
     "certs", "resources", "translations", "www", "web", "package",
     "generic", "iconengines", "imageformats", "networkinformation",
@@ -93,9 +93,9 @@ def main():
     os.makedirs(dist_dir, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # 1. Base: src/GammaRay/ (main exes, Qt DLLs, resources, etc.)
+    # 1. Base: src/gr_deps/ (main exes, Qt DLLs, resources, etc.)
     # ------------------------------------------------------------------
-    gamma_ray_dir = os.path.join(build_dir, "src", "GammaRay")
+    gamma_ray_dir = os.path.join(build_dir, "src", "gr_deps")
     if os.path.isdir(gamma_ray_dir):
         for entry in os.listdir(gamma_ray_dir):
             src_path = os.path.join(gamma_ray_dir, entry)
@@ -120,7 +120,7 @@ def main():
         ("src/gr_render/fftw3.dll", "fftw3.dll"),
         ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
         ("src/panel_companion/panel_companion.dll", "panel_companion.dll"),
-        (os.path.join(source_dir, "src/GammaRay/deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
+        (os.path.join(source_dir, "src/gr_deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
@@ -205,7 +205,7 @@ def main():
     # ------------------------------------------------------------------
     # 8. Joystick (source tree)
     # ------------------------------------------------------------------
-    joystick_src = os.path.join(build_dir, "..", "src", "GammaRay", "deps", "tc_controller", "vigem", "driver", "joystick.exe")
+    joystick_src = os.path.join(build_dir, "..", "src", "gr_deps", "tc_controller", "vigem", "driver", "joystick.exe")
     if os.path.isfile(joystick_src):
         copy_file(joystick_src, os.path.join(dist_dir, "joystick.exe"))
 

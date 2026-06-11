@@ -8,9 +8,9 @@ add_subdirectory(hook_capture)
 #find_package(OpenCV CONFIG REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/include)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/3rd)
-include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/asio2/3rd/asio)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/include)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd)
+include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd/asio)
 
 configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/rd_icon.rc.in"
@@ -59,15 +59,15 @@ target_link_libraries(${PROJECT_NAME} sqlite35 EasyHook64 gflags::gflags leveldb
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${GR_PROJECT_BINARY_PATH}"
         #COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:${PROJECT_NAME}> --release
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avdevice-61.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avfilter-10.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avformat-61.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avutil-59.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/postproc-58.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swresample-5.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
-        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swscale-8.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avdevice-61.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avfilter-10.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avformat-61.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avutil-59.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/postproc-58.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swresample-5.dll"  "${GR_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swscale-8.dll"  "${GR_PROJECT_BINARY_PATH}"
 )
 

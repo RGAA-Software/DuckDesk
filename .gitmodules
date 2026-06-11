@@ -1,3 +1,54 @@
-[submodule "src/GammaRay"]
-	path = src/GammaRay
-	url = git@github.com:RGAA-Software/GammaRay.git
+[submodule "src/gr_deps/tc_3rdparty"]
+	path = src/gr_deps/tc_3rdparty
+	url = git@github.com:RGAA-Software/tc_3rdparty.git
+[submodule "src/gr_deps/tc_common_new"]
+	path = src/gr_deps/tc_common_new
+	url = git@github.com:RGAA-Software/tc_common_new.git
+[submodule "src/gr_deps/tc_account_sdk"]
+	path = src/gr_deps/tc_account_sdk
+	url = git@github.com:RGAA-Software/tc_account_sdk.git
+[submodule "src/gr_deps/tc_capture_new"]
+	path = src/gr_deps/tc_capture_new
+	url = git@github.com:RGAA-Software/tc_capture_new.git
+[submodule "src/gr_deps/tc_client_sdk_new"]
+	path = src/gr_deps/tc_client_sdk_new
+	url = git@github.com:RGAA-Software/tc_client_sdk_new.git
+[submodule "src/gr_deps/tc_client_web"]
+	path = src/gr_deps/tc_client_web
+	url = git@github.com:RGAA-Software/tc_client_web.git
+[submodule "src/gr_deps/tc_controller"]
+	path = src/gr_deps/tc_controller
+	url = git@github.com:RGAA-Software/tc_controller.git
+[submodule "src/gr_deps/tc_encoder_new"]
+	path = src/gr_deps/tc_encoder_new
+	url = git@github.com:RGAA-Software/tc_encoder_new.git
+[submodule "src/gr_deps/tc_manager_client"]
+	path = src/gr_deps/tc_manager_client
+	url = git@github.com:RGAA-Software/tc_manager_client.git
+[submodule "src/gr_deps/tc_message_new"]
+	path = src/gr_deps/tc_message_new
+	url = git@github.com:RGAA-Software/tc_message_new.git
+[submodule "src/gr_deps/tc_opus_codec_new"]
+	path = src/gr_deps/tc_opus_codec_new
+	url = git@github.com:RGAA-Software/tc_opus_codec_new.git
+[submodule "src/gr_deps/tc_profile_client"]
+	path = src/gr_deps/tc_profile_client
+	url = git@github.com:RGAA-Software/tc_profile_client.git
+[submodule "src/gr_deps/tc_qt_widget"]
+	path = src/gr_deps/tc_qt_widget
+	url = git@github.com:RGAA-Software/tc_qt_widget.git
+[submodule "src/gr_deps/tc_relay_client"]
+	path = src/gr_deps/tc_relay_client
+	url = git@github.com:RGAA-Software/tc_relay_client.git
+[submodule "src/gr_deps/tc_server_protocol"]
+	path = src/gr_deps/tc_server_protocol
+	url = git@github.com:RGAA-Software/tc_server_protocol.git
+[submodule "src/gr_deps/tc_spvr_client"]
+	path = src/gr_deps/tc_spvr_client
+	url = git@github.com:RGAA-Software/tc_spvr_client.git
+[submodule "src/gr_deps/tc_steam_manager_new"]
+	path = src/gr_deps/tc_steam_manager_new
+	url = git@github.com:RGAA-Software/tc_steam_manager_new.git
+[submodule "src/gr_deps/tc_webrtc_client"]
+	path = src/gr_deps/tc_webrtc_client
+	url = git@github.com:RGAA-Software/tc_webrtc_client.git
