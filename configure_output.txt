@@ -1,0 +1,131 @@
+**********************************************************************
+** Visual Studio 2026 Developer Command Prompt v18.6.2
+** Copyright (c) 2026 Microsoft Corporation
+**********************************************************************
+[vcvarsall.bat] Environment initialized for: 'x64'
+CMake Warning (dev) in CMakeLists.txt:
+  No project() command is present.  The top-level CMakeLists.txt file must
+  contain a literal, direct call to the project() command.  Add a line of
+  code such as
+
+    project(ProjectName)
+
+  near the top of the file, but after cmake_minimum_required().
+
+  CMake is pretending there is a "project(Project)" command on the first
+  line.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) in CMakeLists.txt:
+  cmake_minimum_required() should be called prior to this top-level project()
+  call.  Please see the cmake-commands(7) manual for usage documentation of
+  both commands.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+TARGET_TYPE: ===> Official
+-- Building Official version
+-- Found ZLIB: optimized;C:/source/vcpkg/installed/x64-windows/lib/zlib.lib;debug;C:/source/vcpkg/installed/x64-windows/debug/lib/zlibd.lib (found suitable version "1.3.0", minimum required is "1")  
+Client => CMAKE_BUILD_TYPE: RelWithDebInfo
+DETOURS_INCLUDE_DIRS--> C:/source/vcpkg/installed/x64-windows/include
+DETOURS_LIBRARY--> C:/source/vcpkg/installed/x64-windows/lib/detours.lib
+==> CMAKE_BUILD_TYPE: RelWithDebInfo
+==> BUILD_FROM: IDE
+==> QT_ROOT:C:/Qt6.8.3/6.8.3/msvc2022_64
+==> VCPKG_ROOT:C:/source/vcpkg
+==> Build Premium <==
+Webrtc Root: D:/source/GoCloud/GammaRayPremium/src/GammaRay/deps/tc_3rdparty/webrtc
+ xx 
+-- Building with DirectX 12 Runtime support
+-- 
+-- 29.3.0
+-- Found ZLIB: optimized;C:/source/vcpkg/installed/x64-windows/lib/zlib.lib;debug;C:/source/vcpkg/installed/x64-windows/debug/lib/zlibd.lib (found version "1.3.0")  
+-- Opus package version from git repo: 1.5.2-11-g2554a89e
+-- Opus project version: 1.5.2
+-- Performing Test VLA_SUPPORTED -- failed to compile
+-- Check SIMD support by compiler
+-- The following features have been enabled:
+
+ * OPUS_BUILD_TESTING, build tests.
+ * OPUS_ENABLE_FLOAT_API, compile with the floating point API (for machines with float library).
+ * OPUS_HARDENING, run-time checks that are cheap and safe for use in production.
+ * OPUS_INSTALL_PKG_CONFIG_MODULE, install pkg-config module.
+ * OPUS_INSTALL_CMAKE_CONFIG_MODULE, install CMake package config module.
+ * OPUS_USE_ALLOCA, use alloca for stack arrays (on non-C99 compilers).
+ * OPUS_STACK_PROTECTOR, use stack protection.
+ * OPUS_X86_MAY_HAVE_SSE, does runtime check for SSE1 support.
+ * OPUS_X86_MAY_HAVE_SSE2, does runtime check for SSE2 support.
+ * OPUS_X86_MAY_HAVE_SSE4_1, does runtime check for SSE4.1 support.
+ * OPUS_X86_MAY_HAVE_AVX2, does runtime check for AVX FMA AVX2 support.
+ * OPUS_X86_PRESUME_SSE, assume target CPU has SSE1 support (override runtime check).
+ * OPUS_X86_PRESUME_SSE2, assume target CPU has SSE2 support (override runtime check).
+
+-- The following OPTIONAL packages have been found:
+
+ * Qt6WidgetsTools (required version >= 6.8.3)
+ * Qt6CoreTools (required version >= 6.8.3)
+ * Qt6GuiTools (required version >= 6.8.3)
+ * Qt6Widgets
+ * Qt6Network
+ * Qt6Core5Compat
+ * Qt6WebSockets
+ * WrapVulkanHeaders
+ * Qt6Charts
+ * Qt6Svg
+ * OpenMP
+ * JPEG
+ * Git
+
+-- The following REQUIRED packages have been found:
+
+ * QT
+ * Qt6
+ * SDL2, low level access to audio, keyboard, mouse, joystick, and graphics hardware, <https://www.libsdl.org/>
+ * GTest
+ * glm
+ * unofficial-libvpx
+ * FFTW3
+ * OpenSSL
+ * cpr
+ * mimalloc
+ * gflags
+ * Protobuf
+ * ZLIB
+ * Threads
+
+-- The following features have been disabled:
+
+ * OPUS_BUILD_SHARED_LIBRARY, build shared library.
+ * OPUS_CUSTOM_MODES, enable non-Opus modes, e.g. 44.1 kHz & 2^n frames.
+ * OPUS_BUILD_PROGRAMS, build programs.
+ * OPUS_DISABLE_INTRINSICS, disable all intrinsics optimizations.
+ * OPUS_FIXED_POINT, compile as fixed-point (for machines without a fast enough FPU).
+ * OPUS_FLOAT_APPROX, enable floating point approximations (Ensure your platform supports IEEE 754 before enabling).
+ * OPUS_ASSERTIONS, additional software error checking.
+ * OPUS_FUZZING, causes the encoder to make random decisions (do not use in production).
+ * OPUS_CHECK_ASM, enable bit-exactness checks between optimized and c implementations.
+ * OPUS_DNN_FLOAT_DEBUG, Run DNN computations as float for debugging purposes.
+ * OPUS_DRED, enable DRED.
+ * OPUS_OSCE, enable OSCE.
+ * OPUS_STATIC_RUNTIME, build with static runtime library.
+ * OPUS_FIXED_POINT_DEBUG, debug fixed-point implementation.
+ * OPUS_VAR_ARRAYS, use variable length arrays for stack arrays.
+ * OPUS_NONTHREADSAFE_PSEUDOSTACK, use a non threadsafe pseudostack when neither variable length arrays or alloca is supported.
+ * OPUS_FAST_MATH, enable fast math (unsupported and discouraged use, as code is not well tested with this build option).
+ * OPUS_X86_PRESUME_SSE4_1, assume target CPU has SSE4.1 support (override runtime check).
+ * OPUS_X86_PRESUME_AVX2, assume target CPU has AVX FMA AVX2 support (override runtime check).
+
+Protobuf of tc_message.proto: D:/source/GoCloud/GammaRayPremium/build_official/src/GammaRay/deps/tc_message_new/tc_message.pb.cc;D:/source/GoCloud/GammaRayPremium/build_official/src/GammaRay/deps/tc_message_new/tc_service_message.pb.cc;D:/source/GoCloud/GammaRayPremium/build_official/src/GammaRay/deps/tc_message_new/tc_file_transfer.pb.cc;D:/source/GoCloud/GammaRayPremium/build_official/src/GammaRay/deps/tc_message_new/tc_signaling_message.pb.cc
+==--== D:/source/GoCloud/GammaRayPremium/src/GammaRay/tc_3rdparty/eventbus/src
+ffmpeg libraries: 
+QT_ROOT=C:/Qt6.8.3/6.8.3/msvc2022_64
+--==> Protobuf_LIBRARIES: D:/source/GoCloud/GammaRayPremium/build_official/src/GammaRay/deps/tc_3rdparty/protobuf/cmake/libprotobuf.lib
+--==> Protobuf_INCLUDE_DIRS: D:/source/GoCloud/GammaRayPremium/src/GammaRay/deps/tc_3rdparty/protobuf/src
+RTC PLUGIN, WEBRTC_ROOT: D:/source/GoCloud/GammaRayPremium/src/GammaRay/deps/tc_3rdparty/webrtc
+-- file transmission(server) is enabled.
+RTC PLUGIN, WEBRTC_ROOT: D:/source/GoCloud/GammaRayPremium/src/GammaRay/deps/tc_3rdparty/webrtc
+--> C:/source/vcpkg/installed/x64-windows/include
+--> C:/source/vcpkg/installed/x64-windows/lib/detours.lib
+--> C:/source/vcpkg/packages/detours_x64-windows-static/include/detours
+-- Configuring done (4.7s)
+-- Generating done (4.9s)
+-- Build files have been written to: D:/source/GoCloud/GammaRayPremium/build_official

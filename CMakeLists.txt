@@ -53,20 +53,20 @@ include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/opencv_410
 set(OpenCV_Libs ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/opencv_410/x64/vc16/lib/opencv_world4100.lib)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_3rdparty/qwindowkit/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_panel/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_qt_widget)
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_client_sdk_new)
 ##Binary
-include_directories(${CMAKE_BINARY_DIR}/src/GammaRay)
+include_directories(${CMAKE_BINARY_DIR}/src/gr_panel)
 include_directories(${CMAKE_BINARY_DIR}/src/GammaRay/deps/tc_message_new)
 include_directories(${CMAKE_BINARY_DIR}/src/GammaRay/deps/tc_server_protocol)
 
 ## Client
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src/client)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src/client/plugins)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src/client/plugins/file_transfer_client)
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRay/src/client/plugins/file_transfer_client/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_client)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins/file_transfer_client)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins/file_transfer_client/src)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
@@ -270,9 +270,9 @@ add_custom_command(TARGET tc_build_premium_all POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${CLIENT_PLUGIN_SOURCE_ROOT}/file_transfer_client/plugin_file_transfer_client.dll.toml"  "${CLIENT_PLUGIN_BINARY_TARGET_ROOT}//plugin_file_transfer_client.dll.toml"
 
     ### Hook Capture ###
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
-    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/hook_capture/win/hk_obs/tc_graphics.dll" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/hook_capture/win/hk_obs/injector/tc_graphics_util.exe" ${RENDER_BINARY_ROOT}
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/gr_render/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe" ${RENDER_BINARY_ROOT}
 
     ### Panel Companion ###
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/src/panel_companion/panel_companion.dll" ${RENDER_BINARY_ROOT}

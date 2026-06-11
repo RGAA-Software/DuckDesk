@@ -3,6 +3,7 @@ project(GammaRayRender VERSION ${TC_APP_VERSION} LANGUAGES CXX)
 add_subdirectory(settings)
 add_subdirectory(plugin_interface)
 add_subdirectory(plugins)
+add_subdirectory(hook_capture)
 
 #find_package(OpenCV CONFIG REQUIRED)
 

@@ -1,0 +1,456 @@
+//
+// Created by RGAA on 2023-12-27.
+//
+
+#include <QHBoxLayout>
+#include <QApplication>
+#include <QGraphicsDropShadowEffect>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QTimer>
+#include <dwmapi.h>
+#include "gr_client/ct_workspace.h"
+#include "thunder_sdk.h"
+#include "gr_client/ct_client_context.h"
+#include "tc_common_new/data.h"
+#include "tc_common_new/log.h"
+#include "tc_common_new/message_notifier.h"
+#include "gr_client/ct_audio_player.h"
+#include "ui/float_controller.h"
+#include "ui/float_controller_panel.h"
+#include "gr_client/ct_app_message.h"
+#include "gr_client/ct_settings.h"
+#include "ui/float_notification_handle.h"
+#include "ui/notification_panel.h"
+#include "tc_qt_widget/sized_msg_box.h"
+#include "ui/ct_statistics_panel.h"
+#include "ui/no_margin_layout.h"
+#include "tc_client_sdk_new/sdk_messages.h"
+#include "tc_common_new/process_util.h"
+#include "ui/float_button_state_indicator.h"
+#include "ct_main_progress.h"
+#include "tc_qt_widget/widgetframe/mainwindow_wrapper.h"
+#include "tc_dialog.h"
+#include "ct_game_view.h"
+#include "ct_const_def.h"
+#include "tc_common_new/file.h"
+#include "tc_common_new/qwidget_helper.h"
+#include "network/ct_panel_client.h"
+#include "tc_common_new/time_util.h"
+#include "plugins/ct_plugin_manager.h"
+#include "gr_client/plugin_interface/ct_app_events.h"
+#include "gr_client/plugin_interface/ct_plugin_interface.h"
+#include "gr_client/plugin_interface/ct_media_record_plugin_interface.h"
+#include "tc_qt_widget/notify/notifymanager.h"
+#include "front_render/opengl/ct_opengl_video_widget.h"
+#include "front_render/vulkan/pl_vulkan.h"
+
+namespace tc
+{
+    std::shared_ptr<Workspace> Workspace::Make(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent) {
+        struct WorkspaceEnabler final : Workspace {
+            WorkspaceEnabler(const std::shared_ptr<ClientContext>& app_ctx,
+                             const std::shared_ptr<ThunderSdkParams>& app_params,
+                             QWidget* app_parent)
+                : Workspace(app_ctx, app_params, app_parent) {}
+        };
+
+        auto workspace = std::make_shared<WorkspaceEnabler>(ctx, params, parent);
+        workspace->Init();
+        return workspace;
+    }
+
+    Workspace::Workspace(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent) : BaseWorkspace(ctx, params, parent) {
+        this->context_->full_functionality_ = true;
+    }
+
+    Workspace::~Workspace() {
+
+    }
+
+    void Workspace::RegisterBaseListeners() {
+        BaseWorkspace::RegisterBaseListeners();
+        ListenMultiMonDisplayModeMessage();
+    }
+
+    void Workspace::ListenMultiMonDisplayModeMessage() {
+        msg_listener_->Listen<MsgClientMultiMonDisplayMode>([=, this](const MsgClientMultiMonDisplayMode& msg) {
+            multi_display_mode_ = msg.mode_;
+            context_->PostUITask([=, this]() {
+                if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
+                    if (monitors_count_ > 1) {
+                        setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(1)));
+                    }
+                    else {
+                        setWindowTitle(origin_title_name_);
+                    }
+
+                    for (const auto& index_name : monitor_index_map_name_) {
+                        if (game_views_.size() > index_name.first) {
+                            if (game_views_[index_name.first]) {
+                                game_views_[index_name.first]->SetMonitorName(index_name.second);
+                            }
+                        }
+                    }
+                }
+                else if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
+                    setWindowTitle(origin_title_name_);
+                    if (monitor_index_map_name_.count(msg.current_cap_mon_index_)) {
+                        game_views_[kMainGameViewIndex]->SetMonitorName(monitor_index_map_name_[msg.current_cap_mon_index_]);
+                    }
+                }
+            });
+            this->SendUpdateDesktopMessage();
+        });
+    }
+
+    void Workspace::Init() {
+        BaseWorkspace::Init();
+    }
+
+    void Workspace::RegisterSdkMsgCallbacks() {
+        BaseWorkspace::RegisterSdkMsgCallbacks();
+
+        sdk_->SetOnVideoFrameDecodedCallback([=, this](std::shared_ptr<RawImage> image, const SdkCaptureMonitorInfo& info) {
+            if (remote_force_closed_) {
+                return;
+            }
+            if (!has_frame_arrived_) {
+                has_frame_arrived_ = true;
+                UpdateVideoWidgetSize();
+            }
+            //LOGI("SdkCaptureMonitorInfo mon_index_: {}, w: {}, h: {}", info.mon_index_, image->img_width, image->img_height);
+            if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
+                if (!game_views_.empty()) {
+                    if (game_views_[kMainGameViewIndex]) {
+                        game_views_[kMainGameViewIndex]->RefreshCapturedMonitorInfo(info);
+                        if (this->params_->support_vulkan_) {  
+                            uintptr_t obj = reinterpret_cast<uintptr_t>(game_views_[kMainGameViewIndex]);
+                            pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
+                            game_views_[kMainGameViewIndex]->UpdateFullColorState(image->full_color_);
+                        }
+                        else {
+                            game_views_[kMainGameViewIndex]->RefreshImage(image);
+                        }
+                    }
+                }
+            }
+            else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
+                if (game_views_.size() > info.mon_index_) {
+                    if (game_views_[info.mon_index_]) {
+                        game_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
+                        if (this->params_->support_vulkan_) {
+                            pl_vulkan_->RenderFrame(reinterpret_cast<uintptr_t>(game_views_[info.mon_index_]), image->vulkan_av_frame_);
+                        }
+                        else {
+                            game_views_[info.mon_index_]->RefreshImage(image);
+                        }
+                        if (!game_views_[info.mon_index_]->GetActiveStatus()) {
+                            game_views_[info.mon_index_]->SetActiveStatus(true);
+                            UpdateGameViewsStatus(false);
+                        }
+                    }
+                }
+            }
+            context_->UpdateCapturingMonitorInfo(info);
+        });
+    }
+
+    void Workspace::SendWindowsKey(unsigned long vk, bool down) {
+        if (!game_views_.empty() && !remote_force_closed_) {
+            if (game_views_[kMainGameViewIndex]) {
+                game_views_[kMainGameViewIndex]->SendKeyEvent(vk, down);
+            }
+        }
+    }
+
+    void Workspace::CalculateAspectRatio() {
+        for (auto game_view : game_views_) {
+            if (game_view && !game_view->isHidden()) {
+                game_view->CalculateAspectRatio();
+            }
+        }
+    }
+
+    void Workspace::SwitchToFillWindow() {
+        for (auto game_view : game_views_) {
+            if (game_view && !game_view->isHidden()) {
+                game_view->SwitchToFillWindow();
+            }
+        }
+    }
+
+    void Workspace::UpdateGameViewsStatus(bool force_layout_screens) {
+        QList<QScreen*> screens = QGuiApplication::screens();
+        if (EMultiMonDisplayMode::kTab ==  multi_display_mode_) {
+            for (auto game_view : game_views_) {
+                if (game_view->IsMainView()) {
+                    if (full_screen_) {
+                        if (!force_layout_screens) {
+                            WidgetSelectMonitor(this, screens);
+                        }
+                        this->showFullScreen();
+                        game_view->showFullScreen();
+                        //tc::QWidgetHelper::SetBorderInFullScreen(this, true);
+                        //tc::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                    }
+                    else {
+                        if (this->isMaximized()) {
+                            this->showMaximized();
+                            game_view->showMaximized();
+                        }
+                        else {
+                            this->showNormal();
+                            game_view->showNormal();
+                        }
+                    }
+                }
+                else {
+                    game_view->hide();
+                }
+            }
+        }
+        else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
+            for (auto game_view : game_views_) {
+                if (game_view->GetActiveStatus()) {
+                    if (full_screen_) {
+                        if (game_view->IsMainView()) {
+                            if (!force_layout_screens) {
+                                WidgetSelectMonitor(this, screens);
+                            }
+                            this->showFullScreen();
+                            this->raise();
+                            game_view->showFullScreen();
+                            //tc::QWidgetHelper::SetBorderInFullScreen(this, true);
+                        }
+                        else {
+                            if (!force_layout_screens) {
+                                WidgetSelectMonitor(game_view, screens);
+                            }
+                            game_view->showFullScreen();
+                        }
+                        //tc::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                    }
+                    else {
+                        if (game_view->isMaximized()) {
+                            game_view->showMaximized();
+                            if (game_view->IsMainView()) {
+                                this->showMaximized();
+                            }
+                        }
+                        else {
+                            game_view->showNormal();
+                            if (game_view->IsMainView()) {
+                                this->showNormal();
+                            }
+                        }
+                    }
+                }
+                else {
+                    game_view->hide();
+                }
+            }
+        }
+    }
+
+    void Workspace::OnGetCaptureMonitorsCount(int monitors_count) {
+        monitors_count_ = monitors_count;
+        if (monitors_count <= 1) {
+            setWindowTitle(origin_title_name_);
+        }
+        int real_display_monitors = std::min(monitors_count, static_cast<int>(game_views_.size()));
+        for (int index = 0; index < real_display_monitors; ++index) {
+            game_views_[index]->SetActiveStatus(true);
+        }
+
+        for (; real_display_monitors < game_views_.size(); ++real_display_monitors) {
+            game_views_[real_display_monitors]->SetActiveStatus(false);
+        }
+        UpdateGameViewsStatus(false);
+
+        if (monitors_count_ > 1) {
+            std::call_once(send_split_windows_flag_, [this]() {
+                if (settings_->split_windows_) {
+                    this->SendSwitchMonitorMessage(kCaptureAllMonitorsSign);
+                    LOGI("SendSwitchMonitorMessage(kCaptureAllMonitorsSign)");
+                }
+            });
+        }
+
+        std::call_once(layout_windows_, [=, this]() {
+            if (monitors_count != 2) {
+                context_->PostDelayUITask([this]() {
+                    if (settings_->auto_layout_screens_) {
+                        this->showMaximized();
+                    }
+                }, 100);
+            }
+            else {
+                context_->PostDelayUITask([=, this]() {
+                    if (settings_->auto_layout_screens_) {
+                        // layout it
+                        const auto screens = qApp->screens();
+                        if (monitors_count == 2 && screens.size() == monitors_count) {
+
+                            this->showNormal();
+
+                            std::map<int, QScreen*> scs;
+                            for (const auto& sc : screens) {
+                                auto left = sc->geometry().left();
+                                scs.insert({left, sc});
+                                LOGI("===> Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
+                            }
+
+                            if (game_views_.size() >= scs.size()) {
+                                int gv_index = 0;
+                                for (const auto& sc: scs | std::views::values) {
+                                    if (gv_index == 0) {
+                                        LOGI("===> 0 Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
+                                        auto ml = sc->geometry().left() + (sc->geometry().width() - this->width())/2;
+                                        auto mt = (sc->geometry().height() - this->height())/2;
+                                        this->move(ml, mt);
+                                        this->windowHandle()->setScreen(sc);
+                                    }
+                                    else {
+                                        const auto view = game_views_[gv_index];
+                                        auto ml = sc->geometry().left() + (sc->geometry().width() - this->width())/2;
+                                        auto mt = (sc->geometry().height() - this->height())/2;
+                                        view->move(ml, mt);
+                                        if (const auto win = view->windowHandle()) {
+                                            LOGI("===> 1 Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
+                                            win->setScreen(sc);
+                                        }
+                                    }
+                                    ++gv_index;
+                                }
+                            }
+
+                            context_->PostDelayUITask([=, this]() {
+                                full_screen_ = true;
+                                this->UpdateGameViewsStatus(true);
+                            }, 50);
+                        }
+                    }
+                }, 100);
+            }
+        });
+    }
+
+    void Workspace::OnGetCaptureMonitorName(std::string monitor_name) {
+        LOGI("OnGetCaptureMonitorName monitor_name: {}", monitor_name);
+        for (const auto& index_name : monitor_index_map_name_) {
+            if (game_views_.size() > index_name.first) {
+                if (game_views_[index_name.first]) {
+                    game_views_[index_name.first]->SetMonitorName(index_name.second);
+                }
+            }
+        }
+
+        if (kCaptureAllMonitorsSign == monitor_name) {
+            multi_display_mode_ = EMultiMonDisplayMode::kSeparate;
+            if (monitors_count_ > 1) {
+                setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(1)));
+            } 
+        }
+        else {
+            multi_display_mode_ = EMultiMonDisplayMode::kTab;
+            if (game_views_[kMainGameViewIndex]) {
+                game_views_[kMainGameViewIndex]->SetMonitorName(monitor_name);
+            }
+        }
+    }
+
+    void Workspace::InitGameView(const std::shared_ptr<ThunderSdkParams>& params) {
+        this->resize(def_window_size_);
+
+        bool support_vulkan = this->params_->support_vulkan_;
+
+        for (int index = 0; index < settings_->max_number_of_screen_window_; ++index) {
+            GameView* game_view = nullptr;
+            if (0 == index) {
+                game_view = new GameView(context_, sdk_, params, this);    // main view
+                game_view->resize(def_window_size_);
+                game_view->show();
+                game_view->SetMainView(true);
+                setCentralWidget(game_view);
+                if (support_vulkan) {
+                    auto hwnd = game_view->GetVideoHwnd();
+                    uintptr_t obj = reinterpret_cast<uintptr_t>(game_view);
+                    bool res = pl_vulkan_->Initialize(obj, hwnd);
+                    if (!res) {
+                        LOGE("pl_vulkan_->Initialize failed.");
+                    }
+                }
+                params->render_type_name_ = render_type_name_ = game_view->GetRenderTypeName();
+            }
+            else {
+                game_view = new GameView(context_, sdk_, params, nullptr); // extend view
+                game_view->InitOverlayWidget();
+                game_view->resize(def_window_size_);
+                game_view->hide();
+                game_view->SetMainView(false);
+                game_view->installEventFilter(this);
+                game_view->setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(index + 1)));
+       
+                uintptr_t obj = reinterpret_cast<uintptr_t>(game_view);
+                if (support_vulkan) {
+                    auto hwnd = game_view->GetVideoHwnd();
+                    bool res = pl_vulkan_->CreateRenderComponent(obj, hwnd);
+                    if (!res) {
+                        LOGE("pl_vulkan_->CreateRenderComponent failed.");
+                    }
+                }
+            }
+            game_views_.push_back(game_view);
+        }
+        QTimer::singleShot(1, this, [=, this]() {
+            {
+                QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
+                int x = (screenGeometry.width() - this->width()) / 2;
+                int y = (screenGeometry.height() - this->height()) / 2;
+                this->move(x, y);
+            }
+
+            QPoint ws_pos = this->pos();
+            const int x_offset = 80;
+            const int y_offset = 40;
+            const int start_x = ws_pos.x();
+            const int start_y = ws_pos.y();
+            int index = 0;
+            for (auto game_view : game_views_) {
+                if (!game_view) {
+                    ++index;
+                    continue;
+                }
+                if (game_view->IsMainView()) {
+                    ++index;
+                    continue;
+                }
+                game_view->move(start_x + x_offset * index, start_y + y_offset * index);
+                ++index;
+            }
+        });
+    }
+
+    bool Workspace::eventFilter(QObject* watched, QEvent* event) {
+        for (const auto game_view : game_views_) {
+            if (!game_view) {
+                continue;
+            }
+            
+            if (game_view == watched) {
+                switch (event->type())
+                {
+                    case QEvent::Close: {
+                        close_event_occurred_widget_ = game_view;
+                        event->ignore();
+                        this->close();
+                        return true;
+                    }
+                }
+            }
+        }
+        return QMainWindow::eventFilter(watched, event);
+    }
+}

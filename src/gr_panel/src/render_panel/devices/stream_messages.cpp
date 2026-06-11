@@ -1,0 +1,42 @@
+//
+// Created by RGAA on 10/07/2025.
+//
+
+#include "stream_messages.h"
+#include "json/json.hpp"
+#include "render_panel/gr_context.h"
+#include "render_panel/gr_application.h"
+
+using namespace nlohmann;
+
+namespace tc
+{
+
+    std::string GrSmRestartRender::AsJson() {
+        json obj;
+        obj["event"] = "restart_render";
+        obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
+        return obj.dump();
+    }
+
+    std::string GrSmLockScreen::AsJson() {
+        json obj;
+        obj["event"] = "lock_screen";
+        obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
+        return obj.dump();
+    }
+
+    std::string GrSmRestartDevice::AsJson() {
+        json obj;
+        obj["event"] = "restart_device";
+        obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
+        return obj.dump();
+    }
+
+    std::string GrSmShutdownDevice::AsJson() {
+        json obj;
+        obj["event"] = "shutdown_device";
+        obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
+        return obj.dump();
+    }
+}

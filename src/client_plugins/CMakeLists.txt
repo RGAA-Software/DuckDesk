@@ -1,3 +1,0 @@
-add_subdirectory(clipboard)
-add_subdirectory(media_record)
-add_subdirectory(file_transfer_client)

@@ -1,0 +1,656 @@
+//
+// Created by RGAA on 2024/1/17.
+//
+
+#include "gr_application.h"
+#include <QTimer>
+#include <QScreen>
+#include <QApplication>
+#include <QMessageBox>
+#include "tc_dialog.h"
+#include "gr_workspace.h"
+#include "tc_label.h"
+#include "gr_context.h"
+#include "gr_settings.h"
+#include "gr_statistics.h"
+#include "gr_app_messages.h"
+#include "skin/skin_loader.h"
+#include "tc_common_new/log.h"
+#include "gr_system_monitor.h"
+#include "gr_connected_manager.h"
+#include "tc_common_new/thread.h"
+#include "network/gr_spvr_client.h"
+#include "tc_common_new/time_util.h"
+#include "companion/panel_companion.h"
+#include "spvr_scanner/spvr_scanner.h"
+#include "ui/input_safety_pwd_dialog.h"
+#include "ui/monitor_refresher.h"
+#include "tc_3rdparty/json/json.hpp"
+#include "tc_relay_client/relay_api.h"
+#include "skin/interface/skin_interface.h"
+#include "tc_spvr_client/spvr_device_api.h"
+#include "tc_spvr_client/spvr_device.h"
+#include "tc_steam_manager_new/steam_manager.h"
+#include "tc_common_new/folder_util.h"
+#include "tc_common_new/http_client.h"
+#include "tc_common_new/win32/firewall_helper.h"
+#include "tc_common_new/shared_preference.h"
+#include "tc_common_new/message_notifier.h"
+#include "render_panel/gr_guard_starter.h"
+#include "tc_spvr_client/spvr_stream.h"
+#include "tc_spvr_client/spvr_device_api.h"
+#include "render_panel/gr_render_msg_processor.h"
+#include "render_panel/network/ws_panel_server.h"
+#include "render_panel/network/udp_broadcaster.h"
+#include "render_panel/network/gr_service_client.h"
+#include "render_panel/devices/stream_messages.h"
+#include "render_panel/system/win/win_panel_message_loop.h"
+#include "render_panel/clipboard/panel_clipboard_manager.h"
+#include "render_panel/user/gr_user_manager.h"
+#include "render_panel/devices/gr_device_manager.h"
+
+#include <shellapi.h>
+#include <QLibrary>
+
+#include "tc_common_new/const_auto.h"
+
+using namespace nlohmann;
+
+typedef void *(*FnGetInstance)();
+
+namespace tc
+{
+
+    std::shared_ptr<GrApplication> grApp;
+
+    std::shared_ptr<GrApplication> GrApplication::Make(QWidget* main_window, bool run_automatically) {
+        struct GrApplicationEnabler final : GrApplication {
+            GrApplicationEnabler(QWidget* window, bool auto_run) : GrApplication(window, auto_run) {}
+        };
+
+        auto app = std::make_shared<GrApplicationEnabler>(main_window, run_automatically);
+        app->Init();
+        return app;
+    }
+
+    GrApplication::GrApplication(QWidget* main_window, bool run_automatically) : QObject(main_window) {
+        main_window_ = main_window;
+        run_automatically_ = run_automatically;
+    }
+
+    GrApplication::~GrApplication() = default;
+
+    void GrApplication::Init() {
+        TimeDuration td("GrApplication::Init");
+        // shared_from_this() below requires this object to be created by GrApplication::Make().
+        grApp = shared_from_this();
+        msg_notifier_ = std::make_shared<MessageNotifier>();
+
+        auto begin_ctx_init_ts = TimeUtil::GetCurrentTimestamp();
+        settings_ = GrSettings::Instance();
+        settings_->Init(msg_notifier_);
+        settings_->Load();
+        settings_->Dump();
+
+        // panel companion
+        LoadPanelCompanion();
+        if (companion_) {
+            companion_->UpdateSpvrServerConfig(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort());
+        }
+
+        skin_ = SkinLoader::LoadSkin();
+        if (!skin_) {
+            LOGE("Load skin failed!!!");
+        }
+
+        //auto exeDir = QApplication::applicationDirPath().toStdString();
+        //FolderUtil::CreateDir(std::format("{}/clients/windows", exeDir));
+        //FolderUtil::CreateDir(std::format("{}/clients/android", exeDir));
+
+        context_ = std::make_shared<GrContext>(main_window_);
+        context_->Init(shared_from_this());
+        if (!context_->IsDatabaseReady()) {
+            const auto db_error = QString::fromStdString(context_->GetDatabaseError());
+            QMessageBox::warning(nullptr, "Database degraded", "Local database init failed. Related features will run in degraded mode.\n\n" + db_error);
+        }
+        auto ctx_init_diff = TimeUtil::GetCurrentTimestamp() - begin_ctx_init_ts;
+        LOGI("** Context init used: {}ms", ctx_init_diff);
+
+        user_mgr_ = std::make_shared<GrUserManager>(context_);
+
+        device_mgr_ = std::make_shared<GrDeviceManager>(context_);
+
+        // firewall
+        auto weak_self = weak_from_this();
+        context_->PostTask([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || !self->context_) {
+                return;
+            }
+            self->RegisterFirewall();
+        });
+
+        auto begin_conn_ts = TimeUtil::GetCurrentTimestamp();
+        auto st = GrStatistics::Instance();
+        st->SetContext(context_);
+        st->RegisterEventListeners();
+
+        gr_connected_manager_ = std::make_shared<GrConnectedManager>(context_);
+        clipboard_mgr_ = std::make_shared<ClipboardManager>(context_);
+        rd_msg_processor_ = std::make_shared<GrRenderMsgProcessor>(context_);
+        guard_starter_ = std::make_shared<GrGuardStarter>(context_);
+
+        ws_panel_server_ = WsPanelServer::Make(shared_from_this());
+        ws_panel_server_->Start();
+
+        sys_monitor_ = GrSystemMonitor::Make(shared_from_this());
+        sys_monitor_->Start();
+
+        //udp_broadcaster_ = UdpBroadcaster::Make(context_);
+
+        service_client_ = std::make_shared<GrServiceClient>(shared_from_this());
+        service_client_->Start();
+
+        QCoreApplication::instance()->installNativeEventFilter(gr_connected_manager_.get());
+
+        // monitor refresher
+        monitor_refresher_ = std::make_shared<MonitorRefresher>(context_, nullptr);
+        monitor_refresher_->InitMessageListeners();
+
+        auto conn_diff = TimeUtil::GetCurrentTimestamp() - begin_conn_ts;
+        LOGI("** Connection used: {}ms", conn_diff);
+
+        RefreshClientManagerSettings();
+        RegisterMessageListener();
+        StartWindowsMessagesLooping();
+        spvr_scanner_ = std::make_shared<SpvrScanner>(shared_from_this());
+        spvr_scanner_->StartUdpReceiver(30501);
+
+        // update device id
+        if (cat comp = grApp->GetCompanion(); comp) {
+            comp->UpdateDeviceId(settings_->GetDeviceId());
+        }
+
+        if (!run_automatically_) {
+            context_->PostUIDelayTask([weak_self]() {
+                auto self = weak_self.lock();
+                if (!self || !self->context_) {
+                    return;
+                }
+                self->UpdateServerSecurityPasswordIfNeeded();
+                //CheckSecurityPassword();
+            }, 500);
+        }
+    }
+
+    void GrApplication::PrepareForShutdown() {
+        if (shutdown_prepared_) {
+            return;
+        }
+        shutdown_prepared_ = true;
+
+        if (service_client_) {
+            service_client_->Exit();
+            service_client_ = nullptr;
+        }
+        if (sys_monitor_) {
+            sys_monitor_->Exit();
+            sys_monitor_ = nullptr;
+        }
+    }
+
+    void GrApplication::Exit() {
+        PrepareForShutdown();
+        if (win_msg_loop_) {
+            win_msg_loop_->Stop();
+        }
+        if (win_msg_thread_ && win_msg_thread_->IsJoinable()) {
+            win_msg_thread_->Join();
+        }
+        if (monitor_refresher_) {
+            monitor_refresher_->Exit();
+            monitor_refresher_ = nullptr;
+        }
+        if (spvr_client_) {
+            spvr_client_->Stop();
+            spvr_client_ = nullptr;
+        }
+        if (spvr_scanner_) {
+            spvr_scanner_->Exit();
+            spvr_scanner_ = nullptr;
+        }
+        if (ws_panel_server_) {
+            ws_panel_server_->Exit();
+            ws_panel_server_ = nullptr;
+        }
+        context_->Exit();
+    }
+
+    bool GrApplication::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
+        if(eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG")
+        {
+            const auto pMsg = static_cast<MSG*>(message);
+            if(pMsg->message == WM_COPYDATA) {
+
+            }
+            else if(pMsg->message == WM_DROPFILES) {
+
+            }
+            else if (pMsg->message == WM_DISPLAYCHANGE) {
+                LOGI("WM_DISPLAYCHANGE, Monitor changed!");
+                if (monitor_refresher_) {
+                    LOGW("Will exit monitor refresher and recreate it.");
+                    monitor_refresher_->Exit();
+                    monitor_refresher_.reset();
+                    auto weak_self = weak_from_this();
+                    context_->PostUIDelayTask([weak_self]() {
+                        auto self = weak_self.lock();
+                        if (!self || !self->context_) {
+                            return;
+                        }
+                        self->monitor_refresher_ = std::make_shared<MonitorRefresher>(self->context_, nullptr);
+                        self->monitor_refresher_->InitMessageListeners();
+                   }, 5000);
+                }
+            }
+        }
+        return false;
+    }
+
+    bool GrApplication::IsServiceConnected() const {
+        return service_client_ && service_client_->IsAlive();
+    }
+
+    bool GrApplication::PostMessage2Service(const std::string& msg) {
+        if (!IsServiceConnected()) {
+            return false;
+        }
+        service_client_->PostNetMessage(msg);
+        return true;
+    }
+
+    bool GrApplication::IsRendererConnected() {
+        return ws_panel_server_ && ws_panel_server_->IsAlive();
+    }
+
+    bool GrApplication::PostMessage2Renderer(std::shared_ptr<Data> msg) {
+        if (!IsRendererConnected()) {
+            return false;
+        }
+        ws_panel_server_->PostRendererMessage(msg);
+        return true;
+    }
+
+    void GrApplication::RefreshClientManagerSettings() {
+        std::shared_ptr<Authorization> auth = nullptr;
+        if (companion_) {
+            auth = companion_->GetAuth();
+        }
+        // deprecated //
+    }
+
+    void GrApplication::RegisterMessageListener() {
+        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_->Listen<MsgSettingsChanged>([=, this](const MsgSettingsChanged& msg) {
+            LOGI("Settings changed...");
+            RefreshClientManagerSettings();
+            bool force_update = settings_->GetDeviceId().empty();
+            RequestNewClientId(force_update);
+        });
+
+        msg_listener_->Listen<MsgGrTimer100>([=, this](const MsgGrTimer100& msg) {
+            if (companion_) {
+                companion_->OnTimer100ms();
+            }
+        });
+
+        msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& msg) {
+            if (companion_) {
+                companion_->OnTimer1S();
+            }
+
+            // spvr client
+            this->StartSpvrClientIfNeeded();
+        });
+
+        // stop the spvr connection
+        msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
+            if (spvr_client_) {
+                spvr_client_->Stop();
+            }
+        });
+
+        msg_listener_->Listen<MsgGrTimer5S>([=, this](const MsgGrTimer5S& msg) {
+            if (settings_->GetDeviceId().empty()) {
+                RequestNewClientId(true);
+            }
+            if (companion_) {
+                companion_->OnTimer5S();
+            }
+        });
+
+        msg_listener_->Listen<MsgForceRequestDeviceId>([=, this](const MsgForceRequestDeviceId& msg) {
+            RequestNewClientId(true);
+        });
+    }
+
+    bool GrApplication::RequestNewClientId(bool force_update, bool sync) {
+        if (!force_update && !settings_->GetDeviceId().empty() && !settings_->GetDeviceRandomPwd().empty()) {
+            return false;
+        }
+
+        auto weak_self = weak_from_this();
+        auto task = [weak_self, force_update]() -> bool {
+            auto self = weak_self.lock();
+            if (!self || !self->context_) {
+                return false;
+            }
+            if (!self->settings_->HasSpvrServerConfig()) {
+                return false;
+            }
+
+            // make a default device name
+            std::string def_device_name = "D-";
+            auto ips = self->context_->GetIps();
+            std::string device_suffix = "NULL";
+            if (!ips.empty()) {
+                auto ip = ips[0].ip_addr_;
+                std::vector<std::string> ip_segments;
+                StringUtil::Split(ip, ip_segments, ".");
+                if (!ip_segments.empty()) {
+                    device_suffix = ip_segments[ip_segments.size()-1];
+                }
+            }
+            def_device_name += device_suffix;
+            LOGI("Will request new device, device name: {}", def_device_name);
+
+            auto opt_device = self->device_mgr_->RequestNewDevice(def_device_name, "");
+            if (!opt_device.has_value()) {
+                LOGE("Can't create new device, error: {}", (int)opt_device.error());
+                return false;
+            }
+            auto device = opt_device.value();
+            if (!device || device->device_id_.empty() || device->gen_random_pwd_.empty()) {
+                LOGE("Can't create new device, device is nullptr.");
+                return false;
+            }
+
+            self->settings_->SetDeviceId(device->device_id_);
+            if (cat comp = grApp->GetCompanion(); comp) {
+                comp->UpdateDeviceId(device->device_id_);
+            }
+            self->settings_->SetDeviceName(device->device_name_);
+            self->settings_->SetDeviceRandomPwd(device->gen_random_pwd_);
+
+            self->context_->SendAppMessage(MsgRequestedNewDevice {
+                .device_id_ = device->device_id_,
+                .device_random_pwd_ = device->gen_random_pwd_,
+                .force_update_ = force_update,
+            });
+            self->context_->SendAppMessage(MsgSyncSettingsToRender{});
+
+            return true;
+        };
+
+        if (sync) {
+            return task();
+        }
+        else {
+            context_->PostTask([task]() {
+                task();
+            });
+            return true;
+        }
+    }
+
+    void GrApplication::RegisterFirewall() {
+        // register firewall
+        auto begin_fm_ts = TimeUtil::GetCurrentTimestamp();
+        auto app_path = qApp->applicationDirPath() + "/" + kGammaRayName.c_str();
+        auto render_path = qApp->applicationDirPath() + "/" + kGammaRayRenderName.c_str();
+        auto client_inner_path = qApp->applicationDirPath() + "/" + kGammaRayClientInner.c_str();
+        auto guard_path = qApp->applicationDirPath() + "/" + kGammaRayGuardName.c_str();
+        auto service_path = qApp->applicationDirPath() + "/" + kGammaRayService.c_str();
+        auto fh = FirewallHelper::Instance();
+
+        fh->RemoveProgramFromFirewall("GammaRayIn");
+        fh->RemoveProgramFromFirewall("GammaRayOut");
+        fh->RemoveProgramFromFirewall("GammaRayRenderIn");
+        fh->RemoveProgramFromFirewall("GammaRayRenderOut");
+        fh->RemoveProgramFromFirewall("GammaRayClientInnerIn");
+        fh->RemoveProgramFromFirewall("GammaRayClientInnerOut");
+        fh->RemoveProgramFromFirewall("GammaRayGuardIn");
+        fh->RemoveProgramFromFirewall("GammaRayGuardOut");
+        fh->RemoveProgramFromFirewall("GammaRayServiceIn");
+        fh->RemoveProgramFromFirewall("GammaRayServiceOut");
+
+        fh->AddProgramToFirewall(RulesInfo("GammaRayIn", app_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayOut", app_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayRenderIn", render_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayRenderOut", render_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerIn", client_inner_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerOut", client_inner_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayGuardIn", guard_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayGuardOut", guard_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayServiceIn", service_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("GammaRayServiceOut", service_path.toStdString(), "", 2));
+        auto fm_diff = TimeUtil::GetCurrentTimestamp()-begin_fm_ts;
+        LOGI("** Firewall init used: {}ms", fm_diff);
+        LOGI("app path: {}", app_path.toStdString());
+        LOGI("render path: {}", render_path.toStdString());
+        LOGI("client inner path: {}", client_inner_path.toStdString());
+        LOGI("client inner path: {}", guard_path.toStdString());
+        LOGI("client inner path: {}", service_path.toStdString());
+    }
+
+    std::shared_ptr<MessageNotifier> GrApplication::GetMessageNotifier() {
+        return msg_notifier_;
+    }
+
+    bool GrApplication::CheckLocalDeviceInfoWithPopup() {
+        auto r = this->IsDeviceInfoOk();
+        if (r) {
+            return true;
+        }
+
+        auto err_msg = "Your device info invalid, ID is empty or password invalid";
+        QString pre_msg = tcTr("id_local_device_info_error");
+        TcDialog dialog(tcTr("id_error"), pre_msg + std::format(" {}", err_msg).c_str(), grWorkspace.get());
+        dialog.exec();
+        return false;
+    }
+
+    void GrApplication::CheckSecurityPassword() {
+        if (settings_->GetDeviceSecurityPwd().empty()) {
+            InputSafetyPwdDialog dialog(grApp, grWorkspace.get());
+            dialog.exec();
+        }
+    }
+
+    void GrApplication::UpdateServerSecurityPasswordIfNeeded() {
+        auto weak_self = weak_from_this();
+        context_->PostTask([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || !self->context_) {
+                return;
+            }
+            if (self->settings_->GetDeviceSecurityPwd().empty()) {
+                return;
+            }
+        });
+    }
+
+    void GrApplication::StartWindowsMessagesLooping() {
+        auto weak_self = weak_from_this();
+        win_msg_thread_ = Thread::MakeOnceTask([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->win_msg_loop_ = std::make_shared<WinMessageLoop>(self);
+            self->win_msg_loop_->Start();
+        }, "", false);
+    }
+
+    bool GrApplication::PostMessage2RemoteRender(const std::shared_ptr<GrBaseStreamMessage>& msg) {
+        if (!msg || !msg->stream_item_) {
+            return false;
+        }
+
+        auto& item = msg->stream_item_;
+        if (item->HasRelayInfo()) {
+            auto srv_remote_device_id = "server_" + item->remote_device_id_;
+            auto res = relay::RelayApi::NotifyEvent(item->relay_host_,
+                                                    item->relay_port_,
+                                                    context_->GetDeviceIdOrIpAddress(),
+                                                    srv_remote_device_id,
+                                                    msg->AsJson(),
+                                                    this->GetAppkey());
+            if (res.has_value()) {
+                if (res.value() == relay::kRelayOk) {
+                    return true;
+                }
+                else {
+                    LOGE("NotifyEvent failed, res: {}", res.value());
+                }
+            }
+            return false;
+        }
+        else {
+            // host & port mode
+            auto client = HttpClient::Make(item->stream_host_, item->stream_port_, "/panel/stream/message", 3000);
+            auto res = client->Post({}, msg->AsJson());
+            LOGI("res: {} {}", res.status, res.body);
+            if (res.status == 200) {
+                try {
+                    auto obj = json::parse(res.body);
+                    auto code = obj["code"].get<int>();
+                    if (code == 200) {
+                        return true;
+                    }
+                    else {
+                        LOGE("NotifyEvent failed, error code: {}", code);
+                    }
+                } catch(std::exception& e) {
+                    LOGE("NotifyEvent, parse json failed: {}, body: {}", e.what(), res.body);
+                }
+            }
+            return false;
+        }
+    }
+
+    void GrApplication::LoadPanelCompanion() {
+        auto base_path = QCoreApplication::applicationDirPath();
+#ifdef WIN32
+        auto lib_name = "panel_companion.dll";
+#else
+        auto lib_name = "panel_companion.so";
+#endif
+        auto library_path = base_path + "/" + lib_name;
+        auto library = new QLibrary(library_path);
+        if (!library->load()) {
+            LOGE("Load panel_companion failed: {}, error: {}",
+                 library_path.toStdString(),
+                 library->errorString().toStdString());
+            return;
+        }
+        auto fn_get_instance = (FnGetInstance)library->resolve("GetInstance");
+        auto func = (FnGetInstance) fn_get_instance;
+        if (!func) {
+            LOGE("Don't have GetInstance in panel_companion.");
+            return;
+        }
+
+        auto plugin = (PanelCompanion*)func();
+        if (!plugin) {
+            LOGE("Can't exe GetInstance in panel_companion");
+            return;
+        }
+
+        if (!plugin->Init()) {
+            LOGE("Can't init panel_companion");
+            return;
+        }
+        LOGI("Load panel_companion success.");
+        companion_ = plugin;
+    }
+
+    PanelCompanion* GrApplication::GetCompanion() {
+        return companion_;
+    }
+
+    std::string GrApplication::GetAppkey() {
+        if (companion_ && companion_->GetAuth()) {
+            return companion_->GetAuth()->appkey_;
+        }
+        return "";
+    }
+
+    void GrApplication::StartSpvrClientIfNeeded() {
+        auto appkey = GetAppkey();
+        auto spvr_host = settings_->GetSpvrServerHost();
+        auto spvr_port = settings_->GetSpvrServerPort();
+        auto device_id = settings_->GetDeviceId();
+        if (appkey.empty() || spvr_host.empty() || spvr_port <= 0 || device_id.empty()) {
+            return;
+        }
+
+        if (appkey != using_appkey_) {
+            LOGW("Appkey changed,  {} => {} will release WS:SpvrClient and recreate it.", using_appkey_, appkey);
+            if (spvr_client_) {
+                spvr_client_->Stop();
+                spvr_client_ = nullptr;
+            }
+        }
+
+        if (!spvr_client_) {
+            spvr_client_ = std::make_shared<GrSpvrClient>(context_, spvr_host, spvr_port, device_id);
+        }
+        if (!spvr_client_->IsStarted()) {
+            spvr_client_->Start();
+        }
+        using_appkey_ = appkey;
+    }
+
+    std::shared_ptr<SpvrScanner> GrApplication::GetSpvrScanner() {
+        return spvr_scanner_;
+    }
+
+    SkinInterface* GrApplication::GetSkin() {
+        return skin_;
+    }
+
+    std::string GrApplication::GetSkinName() {
+        return skin_ ? skin_->GetSkinName().toStdString() : "";
+    }
+
+    bool GrApplication::IsSpvrClientAlive() {
+        return spvr_client_ && spvr_client_->IsAlive();
+    }
+
+    std::shared_ptr<GrUserManager> GrApplication::GetUserManager() {
+        return user_mgr_;
+    }
+
+    bool GrApplication::IsDeviceInfoOk() {
+        auto device_id = settings_->GetDeviceId();
+        auto device_random_pwd = settings_->GetDeviceRandomPwd();
+        auto device_safety_pwd = settings_->GetDeviceSecurityPwd();
+
+        if (device_id.empty() || device_random_pwd.empty()) {
+            LOGE("Check device info error, device id is empty.");
+            return false;
+        }
+        return true;
+    }
+
+    std::shared_ptr<GrDeviceManager> GrApplication::GetDeviceManager() {
+        return device_mgr_;
+    }
+
+    bool GrApplication::CanConnectSpvrServer() {
+        cat r = spvr::SpvrDeviceApi::Ping(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort(), this->GetAppkey());
+        return r.has_value() ? r.value() : false;
+    }
+
+}
