@@ -3,9 +3,9 @@
 out/*
 cmake-build-release/*
 cmake-build-relwithdebinfo/*
-src/GammaRayWebClient/node_modules/*
-src/GammaRayWebClient/.idea/*
-src/GammaRayWebClient/.vscode/*
-src/GammaRayWebClient/dist/*
+src/gr_web_client/node_modules/*
+src/gr_web_client/.idea/*
+src/gr_web_client/.vscode/*
+src/gr_web_client/dist/*
 build_official/*
 build_opensource/*

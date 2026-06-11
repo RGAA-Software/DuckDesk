@@ -23,7 +23,7 @@
 - `src/GammaRay` 主程序及其子模块
 - `src/render_plugins` 渲染端插件
 - `src/client_plugins` 客户端插件
-- `src/GammaRayWebClient` 浏览器端客户端
+- `src/gr_web_client` 浏览器端客户端
 - `src/skins`、`src/panel_companion`、`src/hook_capture`、`src/anti_hooking`
 
 以下内容只做边界说明，不做逐文件展开：

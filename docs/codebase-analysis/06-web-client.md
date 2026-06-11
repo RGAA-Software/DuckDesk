@@ -1,8 +1,8 @@
-# 浏览器客户端 `GammaRayWebClient` 详解
+# 浏览器客户端 `gr_web_client` 详解
 
 ## 1. 技术栈
 
-`src/GammaRayWebClient` 是一个独立前端工程，技术栈包括：
+`src/gr_web_client` 是一个独立前端工程，技术栈包括：
 
 - React 18
 - TypeScript
@@ -146,7 +146,7 @@ index.tsx
 
 ## 10. 浏览器端的当前定位
 
-从代码成熟度看，`GammaRayWebClient` 当前更像：
+从代码成熟度看，`gr_web_client` 当前更像：
 
 - 轻量观看/接入客户端
 - 协议验证场

@@ -142,7 +142,7 @@ cmake --build build_xxx -j18
 顶层会把 `tc_message_new` 下的几个 `.proto` 文件同步到：
 
 - `build/.../src/GammaRay/web/proto`
-- `src/GammaRayWebClient/proto`
+- `src/gr_web_client/proto`
 
 这表示浏览器端协议不是独立维护，而是从主协议仓内复制出来的镜像。
 
@@ -153,7 +153,7 @@ cmake --build build_xxx -j18
 - `src/GammaRay`：基础主工程
 - `src/render_plugins`：Premium 渲染端插件
 - `src/client_plugins`：Premium 客户端插件
-- `src/GammaRayWebClient`：浏览器端客户端
+- `src/gr_web_client`：浏览器端客户端
 - `src/skins`：皮肤实现
 - `src/panel_companion`：面板伴生能力库
 - `src/hook_capture`：采集与 Hook 能力

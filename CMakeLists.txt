@@ -301,7 +301,7 @@ add_dependencies(tc_build_premium_all
 set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/GammaRay)
 
 ## Copy proto files
-set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/GammaRayWebClient")
+set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/gr_web_client")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/GammaRay/deps/tc_message_new)
 add_custom_command(TARGET tc_build_premium_all PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"

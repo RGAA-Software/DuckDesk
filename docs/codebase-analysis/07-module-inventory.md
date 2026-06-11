@@ -7,7 +7,7 @@
 | `src/GammaRay` | 基础主工程 | 主程序、渲染端、客户端、服务、接口库 |
 | `src/render_plugins` | Premium 渲染插件 | 编码、采集、网络、文件、剪贴板等增强能力 |
 | `src/client_plugins` | Premium 客户端插件 | 录屏、剪贴板、文件传输 |
-| `src/GammaRayWebClient` | 浏览器客户端 | React + TS + wasm 解码渲染 |
+| `src/gr_web_client` | 浏览器客户端 | React + TS + wasm 解码渲染 |
 | `src/skins` | 皮肤系统 | 当前主要是 `skin_official` |
 | `src/panel_companion` | 面板伴生库 | SPVR、认证、统计、私有逻辑 |
 | `src/hook_capture` | 底层采集能力 | DDA、音频采集、Hook/注入链 |
@@ -155,9 +155,9 @@
 
 ### 浏览器主线
 
-- `src/GammaRayWebClient/src/gr_app.ts`
-- `src/GammaRayWebClient/src/client/gr_sdk.ts`
-- `src/GammaRayWebClient/src/renderer/gr_renderer_manager.ts`
+- `src/gr_web_client/src/gr_app.ts`
+- `src/gr_web_client/src/client/gr_sdk.ts`
+- `src/gr_web_client/src/renderer/gr_renderer_manager.ts`
 
 ## 8. 当前代码库的结构判断
 

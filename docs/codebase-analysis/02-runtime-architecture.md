@@ -16,7 +16,7 @@
 
 原生远控客户端。负责连接远端流、解码显示、播放音频、输入回传、客户端插件能力。
 
-### `GammaRayWebClient`
+### `gr_web_client`
 
 浏览器端轻量客户端。当前看主要支持：
 
@@ -153,7 +153,7 @@
 
 - `src/GammaRay`
 - 顶层 Premium 插件和皮肤
-- `src/GammaRayWebClient`
+- `src/gr_web_client`
 
 而以下路径虽然还在仓库里，但不属于当前主运行时：
 
