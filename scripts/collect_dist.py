@@ -103,6 +103,9 @@ def main():
             if os.path.isdir(src_path):
                 if entry in KEEP_DIRS:
                     copy_tree(src_path, dst_path)
+                elif entry.startswith("tc_"):
+                    # skip submodule build output directories
+                    pass
                 elif entry not in SKIP_DIRS:
                     copy_tree(src_path, dst_path)
             else:
