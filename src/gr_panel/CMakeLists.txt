@@ -90,4 +90,6 @@ install(TARGETS GammaRay
 add_custom_command(TARGET GammaRay POST_BUILD
         COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:GammaRay> --release
         COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/deps/tc_controller/vigem/driver/joystick.exe"  "${CMAKE_CURRENT_BINARY_DIR}/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/language" "${GR_PROJECT_BINARY_PATH}/resources/language"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/qt_material" "${GR_PROJECT_BINARY_PATH}/resources/qt_material"
 )

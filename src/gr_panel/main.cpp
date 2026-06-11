@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
     mon_detector->DetectAdapters();
     mon_detector->PrintAdapters();
 
-    tcFontMgr()->InitFont(":/src/gr_client/resources/font/ms_yahei.ttf");
+    tcFontMgr()->InitFont(":/resources/font/ms_yahei.ttf");
 
     // init language
     tcTrMgr()->InitLanguage();

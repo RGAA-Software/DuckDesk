@@ -85,6 +85,7 @@ def main():
 
     global dist_dir
     build_dir = os.path.abspath(args.build_dir)
+    source_dir = os.path.abspath(os.path.join(build_dir, ".."))
     dist_dir = os.path.join(build_dir, "dist")
 
     if os.path.isdir(dist_dir):
@@ -114,35 +115,55 @@ def main():
     supplements = [
         ("src/gr_client/GammaRayClientInner.exe", "GammaRayClientInner.exe"),
         ("src/gr_client/SDL2.dll", "SDL2.dll"),
+        ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/gr_render/GammaRayRender.exe", "GammaRayRender.exe"),
+        ("src/gr_render/fftw3.dll", "fftw3.dll"),
+        ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
         ("src/panel_companion/panel_companion.dll", "panel_companion.dll"),
+        (os.path.join(source_dir, "src/GammaRay/deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
     ]
     for rel_src, rel_dst in supplements:
-        copy_file(os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
+        copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
 
     # ------------------------------------------------------------------
     # 3. Render plugins  →  dist/gr_plugins/
     # ------------------------------------------------------------------
-    gr_plugins_src = os.path.join(build_dir, "src", "gr_render", "gr_plugins")
+    gr_plugins_build_dir = os.path.join(build_dir, "src", "gr_render", "plugins")
+    gr_plugins_src_dir = os.path.join(source_dir, "src", "gr_render", "plugins")
     gr_plugins_dst = os.path.join(dist_dir, "gr_plugins")
-    if os.path.isdir(gr_plugins_src):
+    if os.path.isdir(gr_plugins_build_dir):
         os.makedirs(gr_plugins_dst, exist_ok=True)
-        for f in os.listdir(gr_plugins_src):
-            if f.endswith(".dll") or f.endswith(".toml"):
-                copy_file(os.path.join(gr_plugins_src, f), os.path.join(gr_plugins_dst, f))
+        for plugin_dir in os.listdir(gr_plugins_build_dir):
+            plugin_build_dir = os.path.join(gr_plugins_build_dir, plugin_dir)
+            plugin_src_dir = os.path.join(gr_plugins_src_dir, plugin_dir)
+            if not os.path.isdir(plugin_build_dir):
+                continue
+            for f in os.listdir(plugin_build_dir):
+                if f.startswith("plugin_") and f.endswith(".dll"):
+                    copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_dst, f))
+            if os.path.isdir(plugin_src_dir):
+                for f in os.listdir(plugin_src_dir):
+                    if f.startswith("plugin_") and f.endswith(".toml"):
+                        copy_file(os.path.join(plugin_src_dir, f), os.path.join(gr_plugins_dst, f))
 
     # ------------------------------------------------------------------
     # 4. Client plugins  →  dist/gr_plugins_client/
     # ------------------------------------------------------------------
-    client_plugin_dirs = ["clipboard", "file_transfer_client", "media_record"]
+    client_plugin_dirs = ["clipboard", "file_transfer_client", "media_record", "multi_screens"]
     gr_plugins_client_dst = os.path.join(dist_dir, "gr_plugins_client")
     for plugin_dir in client_plugin_dirs:
-        plugin_src_dir = os.path.join(build_dir, "src", "gr_client", "plugins", plugin_dir)
-        if not os.path.isdir(plugin_src_dir):
+        plugin_build_dir = os.path.join(build_dir, "src", "gr_client", "plugins", plugin_dir)
+        plugin_src_dir = os.path.join(source_dir, "src", "gr_client", "plugins", plugin_dir)
+        if not os.path.isdir(plugin_build_dir):
             continue
-        for f in os.listdir(plugin_src_dir):
-            if f.startswith("plugin_") and (f.endswith(".dll") or f.endswith(".toml")):
-                copy_file(os.path.join(plugin_src_dir, f), os.path.join(gr_plugins_client_dst, f))
+        os.makedirs(gr_plugins_client_dst, exist_ok=True)
+        for f in os.listdir(plugin_build_dir):
+            if f.startswith("plugin_") and f.endswith(".dll"):
+                copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_client_dst, f))
+        if os.path.isdir(plugin_src_dir):
+            for f in os.listdir(plugin_src_dir):
+                if f.startswith("plugin_") and f.endswith(".toml"):
+                    copy_file(os.path.join(plugin_src_dir, f), os.path.join(gr_plugins_client_dst, f))
 
     # ------------------------------------------------------------------
     # 5. Skins  →  dist/gr_skins/

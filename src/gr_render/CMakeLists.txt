@@ -58,6 +58,7 @@ target_link_libraries(${PROJECT_NAME} sqlite35 EasyHook64 gflags::gflags leveldb
 #target_link_libraries(${PROJECT_NAME} opencv_ml opencv_dnn opencv_core opencv_flann)
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_CURRENT_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_BINARY_DIR}"
         #COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:${PROJECT_NAME}> --release
         COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${CMAKE_BINARY_DIR}/src/GammaRay"
