@@ -124,6 +124,7 @@ def main():
         ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
         ("src/panel_companion/panel_companion.dll", "panel_companion.dll"),
         (os.path.join(source_dir, "src/gr_deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
+        ("src/gr_deps/tc_webrtc_client/tc_rtc_client.dll", "gr_client/tc_rtc_client.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
