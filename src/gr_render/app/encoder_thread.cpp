@@ -23,11 +23,11 @@
 #include "rd_statistics.h"
 #include "tc_common_new/win32/d3d_render.h"
 #include "tc_common_new/win32/d3d_debug_helper.h"
-#include "plugins/plugin_manager.h"
-#include "plugin_interface/gr_stream_plugin.h"
-#include "plugin_interface/gr_video_encoder_plugin.h"
-#include "plugin_interface/gr_frame_carrier_plugin.h"
-#include "plugin_interface/gr_frame_processor_plugin.h"
+#include "gr_render/plugins/plugin_manager.h"
+#include "gr_render/plugin_interface/gr_stream_plugin.h"
+#include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "gr_render/plugin_interface/gr_frame_carrier_plugin.h"
+#include "gr_render/plugin_interface/gr_frame_processor_plugin.h"
 
 #define DEBUG_FILE 0
 

@@ -17,9 +17,9 @@
 #include "tc_render_panel_message.pb.h"
 #include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugin_interface/gr_stream_plugin.h"
-#include "plugin_interface/gr_video_encoder_plugin.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_stream_plugin.h"
+#include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
 #include "plugin_stream_event_router.h"
 #include "tc_capture_new/capture_message.h"
 

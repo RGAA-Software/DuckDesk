@@ -12,7 +12,7 @@
 #include "network/ws_media_router.h"
 #include "ws_stream_router.h"
 #include "ws_filetransfer_router.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "ws_plugin.h"
 #include "tc_common_new/url_helper.h"
 #include "http_handler.h"

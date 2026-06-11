@@ -7,7 +7,7 @@
 #include "tc_common_new/md5.h"
 #include "tc_common_new/time_util.h"
 #include "tc_message_new/proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "render_panel/gr_context.h"
 #include "render_panel/gr_application.h"
 #include "tc_message_new/proto_converter.h"

@@ -17,8 +17,8 @@
 #include "tc_common_new/monitors.h"
 #include "tc_common_new/fps_stat.h"
 #include "tc_common_new/win32/d3d11_wrapper.h"
-#include "plugins/plugin_desktop_capture.h"
-#include "plugin_interface/gr_monitor_capture_error.h"
+#include "gr_render/plugins/plugin_desktop_capture.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_error.h"
 
 using namespace Microsoft::WRL;
 

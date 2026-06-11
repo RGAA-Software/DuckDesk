@@ -5,7 +5,7 @@
 #include "win_event_replayer.h"
 #include "tc_message.pb.h"
 #include "tc_common_new/log.h"
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 
 namespace tc
 {

@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_RTC_PLUGIN_H
 #define GAMMARAY_RTC_PLUGIN_H
 
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "rtc_messages.h"
 #include "tc_common_new/concurrent_hashmap.h"
 

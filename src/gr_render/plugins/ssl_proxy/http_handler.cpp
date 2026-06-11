@@ -7,7 +7,7 @@
 #include "tc_common_new/data.h"
 #include "rd_app.h"
 #include "ssl_proxy_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 
 namespace tc
 {

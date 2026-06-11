@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/gdi_capture.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/gdi_capture_plugin.cpp
-        ${GR_RENDER_PATH}/plugins/plugin_desktop_capture.cpp
+        ${CMAKE_SOURCE_DIR}/src/gr_render/plugins/plugin_desktop_capture.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

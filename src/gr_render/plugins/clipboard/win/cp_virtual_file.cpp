@@ -14,7 +14,7 @@
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/string_util.h"
 #include "tc_message_new/proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "gr_render/plugins/clipboard/clipboard_plugin.h"
 
 #pragma comment(lib, "Wininet.lib")

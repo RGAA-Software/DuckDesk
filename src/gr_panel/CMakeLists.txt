@@ -28,7 +28,7 @@ include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite35)
 include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/sqlite_orm/include)
 include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
 include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/leveldb/include)
-include_directories(${GR_RENDER_PATH})
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
 include_directories(${GR_PROJECT_PATH}/deps/tc_qt_widget)
 include_directories(${GR_PROJECT_PATH}/deps/tc_client_sdk_new)
 include_directories(${CMAKE_BINARY_DIR}/src/GammaRay)
@@ -77,7 +77,7 @@ SET_TARGET_PROPERTIES(shadow_deleter PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartu
 
 target_link_libraries(uninstall PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network tc_qt_widget
         Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg)
-target_link_libraries(uninstall PRIVATE tc_common_new tc_steam_manager_new tc_vigem tc_message sqlite35 tc_plugin winmm.lib SetupAPI.lib)
+target_link_libraries(uninstall PRIVATE tc_common_new tc_steam_manager_new tc_vigem tc_message sqlite35 tc_plugin winmm.lib SetupAPI.lib gflags::gflags)
 ### Uninstall End
 
 include(GNUInstallDirs)

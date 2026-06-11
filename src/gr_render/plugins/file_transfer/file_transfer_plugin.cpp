@@ -5,8 +5,8 @@
 #include "file_transfer_plugin.h"
 #include "tc_message.pb.h"
 #include "tc_common_new/log.h"
-#include "plugins/plugin_ids.h"
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "file_transmission_server/file_transmit_msg_interface.h"
 
 extern "C" {

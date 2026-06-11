@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_DDA_CAPTURE_PLUGIN_H
 #define GAMMARAY_DDA_CAPTURE_PLUGIN_H
 #include <optional>
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
 
 namespace tc

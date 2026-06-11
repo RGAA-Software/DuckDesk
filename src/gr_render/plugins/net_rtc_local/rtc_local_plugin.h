@@ -7,7 +7,7 @@
 
 #include <map>
 #include <atomic>
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
 #include "rtc_local_encoded_frame.h"
 #include "tc_common_new/concurrent_type.h"

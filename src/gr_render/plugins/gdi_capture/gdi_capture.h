@@ -9,7 +9,7 @@
 #include <functional>
 #include "tc_common_new/monitors.h"
 #include "tc_common_new/fps_stat.h"
-#include "plugins/plugin_desktop_capture.h"
+#include "gr_render/plugins/plugin_desktop_capture.h"
 
 namespace tc
 {

@@ -40,7 +40,7 @@
 #include "network/ct_panel_client.h"
 #include "tc_common_new/md5.h"
 #include "tc_common_new/time_util.h"
-#include "plugins/ct_plugin_manager.h"
+#include "gr_client/plugins/ct_plugin_manager.h"
 #include "gr_client/plugin_interface/ct_app_events.h"
 #include "gr_client/plugin_interface/ct_plugin_interface.h"
 #include "gr_client/plugin_interface/ct_media_record_plugin_interface.h"

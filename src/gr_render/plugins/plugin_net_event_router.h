@@ -8,7 +8,7 @@
 #include <string>
 #include <memory>
 #include <string_view>
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 
 namespace tc
 {

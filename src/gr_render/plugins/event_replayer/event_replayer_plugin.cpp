@@ -8,10 +8,10 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "win_event_replayer.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "tc_common_new/process_util.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
 
 GR_PLUGIN_EXPORT(tc::EventReplayerPlugin)
 

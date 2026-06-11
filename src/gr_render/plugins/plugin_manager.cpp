@@ -15,11 +15,11 @@
 #include "plugin_event_router.h"
 #include "settings/rd_settings.h"
 #include "tc_common_new/folder_util.h"
-#include "plugin_interface/gr_net_plugin.h"
-#include "plugin_interface/gr_stream_plugin.h"
-#include "plugin_interface/gr_plugin_interface.h"
-#include "plugin_interface/gr_video_encoder_plugin.h"
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugin_interface/gr_stream_plugin.h"
+#include "gr_render/plugin_interface/gr_plugin_interface.h"
+#include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 
 typedef void *(*FnGetInstance)();
 

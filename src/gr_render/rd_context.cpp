@@ -11,8 +11,8 @@
 #include "tc_common_new/win32/dynamic_library.h"
 #include "tc_common_new/win32/win_helper.h"
 #include "tc_common_new/string_util.h"
-#include "plugins/plugin_manager.h"
-#include "plugin_interface/gr_plugin_interface.h"
+#include "gr_render/plugins/plugin_manager.h"
+#include "gr_render/plugin_interface/gr_plugin_interface.h"
 
 typedef uint64_t (*FnGenNextGlobalId)();
 FnGenNextGlobalId g_fn_gen_next_global_id = nullptr;

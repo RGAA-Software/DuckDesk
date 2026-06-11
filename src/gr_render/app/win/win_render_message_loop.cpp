@@ -4,9 +4,9 @@
 #include "tc_common_new/log.h"
 #include "win_render_message_window.h"
 #include "rd_context.h"
-#include "plugins/plugin_manager.h"
+#include "gr_render/plugins/plugin_manager.h"
 #include "app/app_messages.h"
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 
 namespace tc
 {

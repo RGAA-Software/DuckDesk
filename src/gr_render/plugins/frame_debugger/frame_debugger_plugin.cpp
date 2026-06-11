@@ -3,12 +3,12 @@
 //
 
 #include "frame_debugger_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/log.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "tc_common_new/folder_util.h"
 #include "tc_common_new/string_util.h"
 

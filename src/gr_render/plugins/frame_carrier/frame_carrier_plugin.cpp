@@ -9,8 +9,8 @@
 #include "tc_common_new/image.h"
 #include "tc_common_new/string_util.h"
 #include "video_frame_carrier.h"
-#include "plugins/plugin_ids.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "image_generator.h"
 
 GR_PLUGIN_EXPORT(tc::FrameCarrierPlugin)

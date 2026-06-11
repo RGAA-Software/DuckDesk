@@ -3,10 +3,10 @@
 //
 
 #include "mock_video_stream_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugins/plugin_ids.h"
-#include "plugin_interface/gr_plugin_context.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/log.h"

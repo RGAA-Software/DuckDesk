@@ -6,7 +6,7 @@
 #define GAMMARAY_PLUGIN_STREAM_EVENT_ROUTER_H
 
 #include <memory>
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 
 namespace tc
 {

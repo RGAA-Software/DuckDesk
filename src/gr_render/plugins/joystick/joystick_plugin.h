@@ -6,7 +6,7 @@
 #define GAMMARAY_JOYSTICK_PLUGIN_H
 
 #include <map>
-#include "plugin_interface/gr_plugin_interface.h"
+#include "gr_render/plugin_interface/gr_plugin_interface.h"
 
 namespace tc
 {

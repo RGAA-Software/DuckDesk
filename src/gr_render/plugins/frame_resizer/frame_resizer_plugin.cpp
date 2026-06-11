@@ -3,8 +3,8 @@
 //
 
 #include "frame_resizer_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "frame_render.h"
 #include "tc_common_new/log.h"
 

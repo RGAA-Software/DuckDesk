@@ -6,7 +6,7 @@
 #define TC_APPLICATION_WS_PLUGIN_ROUTER_H
 
 #include "network/ws_router.h"
-#include "plugin_interface/gr_net_plugin_type.h"
+#include "gr_render/plugin_interface/gr_net_plugin_type.h"
 //#include "network/wss_router.h"
 
 namespace tc

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 #include <map>
 #include <string>
 #include <memory>

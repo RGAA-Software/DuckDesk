@@ -11,7 +11,7 @@
 #include "tc_message.pb.h"
 #include "clipboard_plugin.h"
 #include "tc_message_new/proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 
 namespace tc
 {

@@ -18,7 +18,7 @@
 #include "tc_message.pb.h"
 #include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "render_panel/gr_context.h"
 #include "render_panel/gr_application.h"
 #include "render_panel/gr_app_messages.h"

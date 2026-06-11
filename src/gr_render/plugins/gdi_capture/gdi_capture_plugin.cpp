@@ -1,11 +1,11 @@
 
 #include "gdi_capture_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/math_helper.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "gdi_capture.h"
 
 GR_PLUGIN_EXPORT(tc::GdiCapturePlugin)

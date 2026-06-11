@@ -3,11 +3,11 @@
 //
 
 #include "amf_encoder_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "video_encoder_vce.h"
 #include "amf_encoder_defs.h"
 #include "tc_common_new/log.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 
 GR_PLUGIN_EXPORT(tc::AmfEncoderPlugin)
 

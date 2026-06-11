@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_WS_PLUGIN_H
 #define GAMMARAY_WS_PLUGIN_H
 
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 
 namespace tc
 {

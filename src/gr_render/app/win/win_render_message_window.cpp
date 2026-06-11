@@ -4,7 +4,7 @@
 #include <shellapi.h>
 #include "tc_common_new/log.h"
 #include "rd_context.h"
-#include "plugins/plugin_manager.h"
+#include "gr_render/plugins/plugin_manager.h"
 #include "win_render_message_loop.h"
 
 namespace tc

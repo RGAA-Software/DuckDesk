@@ -15,9 +15,9 @@
 #include "tc_common_new/defer.h"
 #include "tc_common_new/file.h"
 #include "frame_carrier_plugin.h"
-#include "plugins/plugin_manager.h"
+#include "gr_render/plugins/plugin_manager.h"
 #include "tc_common_new/win32/d3d_debug_helper.h"
-#include "plugin_interface/gr_frame_processor_plugin.h"
+#include "gr_render/plugin_interface/gr_frame_processor_plugin.h"
 
 namespace tc
 {

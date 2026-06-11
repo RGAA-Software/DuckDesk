@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_RTC_PLUGIN_H
 #define GAMMARAY_RTC_PLUGIN_H
 #include <memory>
-#include "plugin_interface/gr_plugin_interface.h"
+#include "gr_render/plugin_interface/gr_plugin_interface.h"
 #include "file_transmission_server/tc_translator_stub.h"
 
 namespace tc

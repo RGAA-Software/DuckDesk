@@ -6,7 +6,7 @@
 #define GAMMARAY_UDP_PLUGIN_H
 
 #include <asio2/udp/udp_server.hpp>
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
 
 //namespace asio2

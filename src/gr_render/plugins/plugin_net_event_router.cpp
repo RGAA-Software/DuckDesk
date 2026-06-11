@@ -27,8 +27,8 @@
 #include "tc_message_new/rp_proto_converter.h"
 #include "tc_common_new/win32/process_helper.h"
 #include "tc_capture_new/capture_message_maker.h"
-#include "plugin_interface/gr_video_encoder_plugin.h"
-#include "plugin_interface/gr_monitor_capture_plugin.h"
+#include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 
 namespace tc {
 

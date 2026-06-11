@@ -13,9 +13,9 @@
 #include "tc_common_new/message_notifier.h"
 #include "tc_message.pb.h"
 #include "tc_render_panel_message.pb.h"
-#include "plugins/plugin_manager.h"
-#include "plugin_interface/gr_plugin_interface.h"
-#include "plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugins/plugin_manager.h"
+#include "gr_render/plugin_interface/gr_plugin_interface.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"
 

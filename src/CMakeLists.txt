@@ -1,13 +1,11 @@
-set(GR_RENDER_PATH ${CMAKE_SOURCE_DIR}/src/gr_render CACHE PATH "Path to gr_render sources")
 set(GR_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/GammaRay)
 if (BUILD_PREMIUM)
     set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/GammaRay)
 else()
     set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
 endif()
-
 include(${GR_PROJECT_PATH}/version.cmake)
-
+include_directories(${GR_PROJECT_BINARY_PATH})
 add_subdirectory(gr_base)
 add_subdirectory(gr_client)
 add_subdirectory(GammaRay)

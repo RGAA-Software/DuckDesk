@@ -13,7 +13,7 @@
 #include "tc_common_new/math_helper.h"
 #include "tc_common_new/win32/win_helper.h"
 #include "tc_capture_new/capture_message.h"
-#include "plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "gdi_capture_plugin.h"
 #include "tc_common_new/win32/d3d_debug_helper.h"
 

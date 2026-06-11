@@ -9,14 +9,14 @@
 
 #include <ranges>
 
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "dda_capture.h"
 #include "cursor_capture.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/thread.h"
 #include "tc_common_new/memory_stat.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
 
 GR_PLUGIN_EXPORT(tc::DDACapturePlugin)
 

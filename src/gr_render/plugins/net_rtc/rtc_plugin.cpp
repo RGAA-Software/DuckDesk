@@ -3,13 +3,13 @@
 //
 
 #include "rtc_plugin.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "video_source_mock.h"
 #include "tc_common_new/log.h"
 #include "rtc_messages.h"
 #include "rtc_server.h"
 #include "tc_common_new/time_util.h"
-#include "plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
 //#include "tc_message.pb.h"
 
 namespace tc

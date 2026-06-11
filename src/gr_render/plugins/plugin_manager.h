@@ -12,7 +12,7 @@
 #include "plugin_ids.h"
 #include "tc_common_new/win32/dynamic_library.h"
 #include "tc_common_new/concurrent_hashmap.h"
-#include "plugin_interface/gr_plugin_settings_info.h"
+#include "gr_render/plugin_interface/gr_plugin_settings_info.h"
 
 namespace tc
 {

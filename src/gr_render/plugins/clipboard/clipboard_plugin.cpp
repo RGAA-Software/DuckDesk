@@ -3,8 +3,8 @@
 //
 
 #include "clipboard_plugin.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "tc_opus_codec_new/opus_codec.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
@@ -13,7 +13,7 @@
 #include "clipboard_manager.h"
 #include "tc_message.pb.h"
 #include "win/cp_virtual_file.h"
-#include "plugin_interface/gr_plugin_context.h"
+#include "gr_render/plugin_interface/gr_plugin_context.h"
 #include "tc_message_new/proto_converter.h"
 #include "tc_common_new/md5.h"
 

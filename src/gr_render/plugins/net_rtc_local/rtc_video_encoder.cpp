@@ -5,10 +5,10 @@
 #include "rtc_local_plugin.h"
 #include "video_source_impl.h"
 #include "settings/rd_settings.h"
-#include "plugins/plugin_ids.h"
-#include "plugin_interface/gr_plugin_events.h"
-#include "plugin_interface/gr_video_encoder_plugin.h"
-#include "plugin_interface/gr_frame_carrier_plugin.h"
+#include "gr_render/plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "gr_render/plugin_interface/gr_frame_carrier_plugin.h"
 
 namespace tc
 {
