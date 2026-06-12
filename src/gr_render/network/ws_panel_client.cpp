@@ -108,8 +108,8 @@ namespace tc
             }
         });
 
-        LOGI("Will connect to panel : {}", settings_->panel_server_port_);
-        if (!client_->async_start("127.0.0.1", settings_->panel_server_port_, "/panel/renderer")) {
+        LOGI("Will connect to panel : {}:{}", settings_->panel_server_host_, settings_->panel_server_port_);
+        if (!client_->async_start(settings_->panel_server_host_, settings_->panel_server_port_, "/panel/renderer")) {
             LOGE("WsPanelClient, connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }

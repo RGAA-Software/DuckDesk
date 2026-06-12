@@ -94,8 +94,10 @@ namespace tc
             self->ParseMessage(msg);
         });
 
+        auto settings = RdSettings::Instance();
+        LOGI("Will connect to service : {}:{}", settings->service_server_host_, settings->service_server_port_);
         // the /ws is the websocket upgraged target
-        if (!client_->async_start("127.0.0.1", 20375, "/service/message?from=panel")) {
+        if (!client_->async_start(settings->service_server_host_, settings->service_server_port_, "/service/message?from=panel")) {
             LOGE("RenderServiceClient, connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
         else {

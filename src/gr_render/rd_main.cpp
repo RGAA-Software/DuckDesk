@@ -65,7 +65,10 @@ DEFINE_string(device_safety_pwd, "", "device safety pwd");
 DEFINE_string(relay_server_host, "", "relay host");
 DEFINE_string(relay_server_port, "", "relay port");
 
+DEFINE_string(panel_server_host, "127.0.0.1", "");
 DEFINE_int32(panel_server_port, 0, "");
+DEFINE_string(service_server_host, "127.0.0.1", "");
+DEFINE_int32(service_server_port, 20375, "");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
 // file transfer enabled
@@ -145,7 +148,10 @@ void UpdateSettings(RdSettings* settings) {
     settings->relay_host_ = FLAGS_relay_server_host;
     settings->relay_port_ = FLAGS_relay_server_port;
 
+    settings->panel_server_host_ = FLAGS_panel_server_host;
     settings->panel_server_port_ = FLAGS_panel_server_port;
+    settings->service_server_host_ = FLAGS_service_server_host;
+    settings->service_server_port_ = FLAGS_service_server_port;
 
     // can be operated
     settings->can_be_operated_ = FLAGS_can_be_operated;
@@ -201,7 +207,10 @@ void PrintInputArgs() {
     LOGI("coturn server port: {}", FLAGS_coturn_server_port);
     LOGI("device id: {}", FLAGS_device_id);
     LOGI("device random pwd: {}", FLAGS_device_random_pwd);
+    LOGI("panel server host: {}", FLAGS_panel_server_host);
     LOGI("panel server port: {}", FLAGS_panel_server_port);
+    LOGI("service server host: {}", FLAGS_service_server_host);
+    LOGI("service server port: {}", FLAGS_service_server_port);
     LOGI("udp listen port: {}", FLAGS_udp_listen_port);
     LOGI("relay host: {}", FLAGS_relay_server_host);
     LOGI("relay port: {}", FLAGS_relay_server_port);
