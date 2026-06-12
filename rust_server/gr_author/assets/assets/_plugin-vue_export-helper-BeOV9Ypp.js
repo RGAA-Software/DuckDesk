@@ -1,0 +1,1 @@
+import{s as a}from"./index-CScTa2Qw.js";const f=a("auth",{state:()=>({refreshFlag:0}),actions:{triggerRefresh(){this.refreshFlag++}}}),n=(t,r)=>{const e=t.__vccOpts||t;for(const[s,o]of r)e[s]=o;return e};export{n as _,f as u};

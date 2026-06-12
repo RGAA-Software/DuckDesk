@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "gr_base",
+    "gr_auth_mgr",
 ]
 resolver = "2"
 
