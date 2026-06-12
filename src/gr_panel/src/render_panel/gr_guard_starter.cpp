@@ -3,6 +3,7 @@
 //
 
 #include "gr_guard_starter.h"
+#include "gr_exe_names.h"
 #include <QApplication>
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -18,7 +19,7 @@
 namespace tc
 {
 
-    static const std::string kGammaRayGuardName = "GammaRayGuard.exe";
+    static const std::string kGammaRayGuardName = tc::kGammaRayGuardExeName;
 
     GrGuardStarter::GrGuardStarter(const std::shared_ptr<GrContext>& ctx) {
         context_ = ctx;

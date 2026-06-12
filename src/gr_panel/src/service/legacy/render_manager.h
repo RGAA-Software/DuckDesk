@@ -9,6 +9,7 @@
 #include <map>
 #include <mutex>
 #include <QProcess>
+#include "gr_exe_names.h"
 #include "render_process.h"
 #include "tc_common_new/response.h"
 #include "tc_common_new/concurrent_hashmap.h"
@@ -16,11 +17,11 @@
 namespace tc
 {
 
-    static const std::string kGammaRayName = "GammaRay.exe";
-    static const std::string kGammaRayGuardName = "GammaRayGuard.exe";
-    static const std::string kGammaRayRenderName = "GammaRayRender.exe";
-    static const std::string kGammaRayClientInner = "GammaRayClientInner.exe";
-    static const std::string kGammaRaySysInfo = "GammaRaySysInfo.exe";
+    static const std::string kGammaRayName = tc::kGammaRayExeName;
+    static const std::string kGammaRayGuardName = tc::kGammaRayGuardExeName;
+    static const std::string kGammaRayRenderName = tc::kGammaRayRenderExeName;
+    static const std::string kGammaRayClientInner = tc::kGammaRayClientInnerExeName;
+    static const std::string kGammaRaySysInfo = tc::kGammaRaySysInfoExeName;
 
     class ServiceContext;
     class MessageListener;

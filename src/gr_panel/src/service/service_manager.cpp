@@ -3,6 +3,7 @@
 //
 
 #include "service_manager.h"
+#include "gr_exe_names.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -14,7 +15,7 @@
 namespace tc
 {
     namespace {
-        static const char* kServiceManagerExe = "GammaRayServiceManager.exe";
+        static const char* kServiceManagerExe = tc::kGammaRayServiceManagerExeName;
 
         struct ProcessResult {
             bool ok_ = false;

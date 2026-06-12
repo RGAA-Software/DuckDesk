@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include "gr_exe_names.h"
 
 namespace tc
 {
@@ -76,12 +77,12 @@ namespace tc
     static const std::string kResTypeOrigin = "origin";
     static const std::string kResTypeResize = "resize";
 
-    static const std::string kGammaRayName = "GammaRay.exe";
-    static const std::string kGammaRayGuardName = "GammaRayGuard.exe";
-    static const std::string kGammaRayRenderName = "GammaRayRender.exe";
-    static const std::string kGammaRayClientInner = "GammaRayClientInner.exe";
-    static const std::string kGammaRayService = "GammaRayService.exe";
-    static const std::string kGammaRaySysInfo = "GammaRaySysInfo.exe";
+    static const std::string kGammaRayName = tc::kGammaRayExeName;
+    static const std::string kGammaRayGuardName = tc::kGammaRayGuardExeName;
+    static const std::string kGammaRayRenderName = tc::kGammaRayRenderExeName;
+    static const std::string kGammaRayClientInner = tc::kGammaRayClientInnerExeName;
+    static const std::string kGammaRayService = tc::kGammaRayServiceExeName;
+    static const std::string kGammaRaySysInfo = tc::kGammaRaySysInfoExeName;
 
     class SharedPreference;
     class MessageNotifier;

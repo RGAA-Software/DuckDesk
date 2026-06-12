@@ -3,6 +3,7 @@
 //
 
 #include "gr_workspace.h"
+#include "gr_exe_names.h"
 #include "gr_application.h"
 
 #include <QHBoxLayout>
@@ -673,8 +674,8 @@ namespace tc
                         srv_mgr->Stop();
                     }
                 }
-                tc::ProcessHelper::CloseProcessesByName("GammaRayGuard.exe");
-                tc::ProcessHelper::CloseProcessesByName("GammaRaySysInfo.exe");
+                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayGuardExeName);
+                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRaySysInfoExeName);
                 auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
                 LOGI("Force close current GammaRay process, pid={}", current_pid);
                 tc::ProcessHelper::CloseProcess(current_pid);

@@ -8,6 +8,7 @@
 
 #include <format>
 #include <iostream>
+#include "gr_exe_names.h"
 #include "service/service_manager.h"
 #include "tc_common_new/win32/process_helper.h"
 #include <Windows.h>
@@ -23,11 +24,11 @@ int main(int argc, char** argv) {
     QApplication app(argc, argv);
     std::string base_path = app.applicationDirPath().toStdString();
     std::cout << "path: " << base_path << std::endl;
-    std::string bin_path = std::format("{}/GammaRayService.exe", base_path);
+    std::string bin_path = std::format("{}/{}", base_path, tc::kGammaRayServiceExeName);
     std::cout << "binpath: " << bin_path << std::endl;
 
     g_service_manager = ServiceManager::Make();
-    g_service_manager->Init("GammaRayService", bin_path, "GammaRat Service", "** GammaRay Service **");
+    g_service_manager->Init(tc::kGammaRayServiceExeName, bin_path, "GammaRat Service", "** GammaRay Service **");
 
     bool exit = false;
     while (!exit) {
@@ -47,7 +48,7 @@ int main(int argc, char** argv) {
             g_service_manager->Remove(true);
             auto processes = tc::ProcessHelper::GetProcessList(false);
             for (auto& process : processes) {
-                if (process->exe_full_path_.find("GammaRay.exe") != std::string::npos) {
+                if (process->exe_full_path_.find(tc::kGammaRayExeName) != std::string::npos) {
                     std::cout << "Kill exe: " << process->exe_full_path_ << std::endl;
                     tc::ProcessHelper::CloseProcess(process->pid_);
                     break;

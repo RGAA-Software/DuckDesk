@@ -3,6 +3,7 @@
 //
 
 #include "gr_context.h"
+#include "gr_exe_names.h"
 
 #include "tc_common_new/task_runtime.h"
 #include "tc_common_new/shared_preference.h"
@@ -118,7 +119,7 @@ namespace tc
         event_manager_ = std::make_shared<GrEventManager>(shared_from_this());
         service_manager_ = ServiceManager::Make();
         std::string base_path = qApp->applicationDirPath().toStdString();
-        std::string bin_path = std::format("\"{}/GammaRayService.exe\" {}", base_path, settings_->sys_service_port_);
+        std::string bin_path = std::format("\"{}/{}\" {}", base_path, tc::kGammaRayServiceExeName, settings_->sys_service_port_);
         LOGI("Service path: {}", bin_path);
         service_manager_->Init("GammaRayService", bin_path, "GammaRat Service", "** GammaRay Service **");
         //service_manager_->Install();

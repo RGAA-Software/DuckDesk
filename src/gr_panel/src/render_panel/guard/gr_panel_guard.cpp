@@ -3,6 +3,7 @@
 //
 
 #include "gr_panel_guard.h"
+#include "gr_exe_names.h"
 #include <QApplication>
 #include "tc_common_new/thread.h"
 #include "gr_guard_context.h"
@@ -14,8 +15,8 @@
 namespace tc
 {
 
-    const auto kGammaRayName = "GammaRay.exe";
-    const auto kGammaRaySysInfoName = "GammaRaySysInfo.exe";
+    const auto kGammaRayName = tc::kGammaRayExeName;
+    const auto kGammaRaySysInfoName = tc::kGammaRaySysInfoExeName;
 
     GrPanelGuard::GrPanelGuard(const std::shared_ptr<GrGuardContext>& ctx) {
         context_ = ctx;

@@ -3,6 +3,7 @@
 //
 
 #include "gr_system_monitor.h"
+#include "gr_exe_names.h"
 #include <qdir.h>
 #include <qfileinfo.h>
 #include <QApplication>
@@ -38,6 +39,12 @@
 namespace tc
 {
     namespace {
+        bool HasServiceBinaries() {
+            const auto base_path = QCoreApplication::applicationDirPath();
+            return QFileInfo::exists(base_path + "/" + tc::kGammaRayRenderExeName) &&
+                   QFileInfo::exists(base_path + "/" + tc::kGammaRayServiceExeName);
+        }
+
         std::string ExtractServiceExecutablePath(const std::string& value) {
             auto qvalue = QString::fromStdString(value).trimmed();
             if (qvalue.isEmpty()) {
@@ -73,9 +80,14 @@ namespace tc
     }
 
     void GrSystemMonitor::Start() {
-        CheckServiceAlive();
-        // install service
-        this->service_manager_->Install();
+        const bool has_service_binaries = HasServiceBinaries();
+        if (has_service_binaries) {
+            CheckServiceAlive();
+            // install service
+            this->service_manager_->Install();
+        } else {
+            LOGI("{} or {} not found in app dir, skip service management.", tc::kGammaRayRenderExeName, tc::kGammaRayServiceExeName);
+        }
 
         vigem_driver_manager_ = VigemDriverManager::Make();
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
@@ -148,17 +160,19 @@ namespace tc
                 }
 
                 // check service status
-                context_->PostTask([weak_self]() {
-                    const auto self = weak_self.lock();
-                    if (!self || self->exit_) {
-                        return;
-                    }
-                    auto status = self->service_manager_->QueryStatus();
-                    self->context_->SendAppMessage(MsgServiceAlive {
-                        .alive_ = (status == ServiceStatus::kRunning),
+                if (has_service_binaries) {
+                    context_->PostTask([weak_self]() {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exit_) {
+                            return;
+                        }
+                        auto status = self->service_manager_->QueryStatus();
+                        self->context_->SendAppMessage(MsgServiceAlive {
+                            .alive_ = (status == ServiceStatus::kRunning),
+                        });
+                        //LOGI("Service Status: {}", (int)status);
                     });
-                    //LOGI("Service Status: {}", (int)status);
-                });
+                }
 
                 std::this_thread::sleep_for(std::chrono::seconds(5));
             }
@@ -395,6 +409,10 @@ namespace tc
     }
 
     void GrSystemMonitor::StartServer() {
+        if (!HasServiceBinaries()) {
+            LOGI("{} or {} not found in app dir, skip StartServer.", tc::kGammaRayRenderExeName, tc::kGammaRayServiceExeName);
+            return;
+        }
         auto srv_mgr = context_->GetRenderController();
         srv_mgr->StartServer();
     }
