@@ -15,6 +15,14 @@ web/gr_cms/.output/*
 web/gr_cms/coverage/*
 web/gr_cms/test-results/*
 web/gr_cms/playwright-report/*
+web/gr_desk/node_modules/*
+web/gr_desk/.idea/*
+web/gr_desk/.vscode/*
+web/gr_desk/dist/*
+web/gr_desk/.output/*
+web/gr_desk/coverage/*
+web/gr_desk/test-results/*
+web/gr_desk/playwright-report/*
 build_official/*
 build_opensource/*
 output/*
