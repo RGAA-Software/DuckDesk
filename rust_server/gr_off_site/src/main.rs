@@ -11,7 +11,7 @@ mod filter;
 
 use crate::off_database::OffDatabase;
 use crate::off_server::OffServer;
-use base::log_util;
+use gr_base::log_util;
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ async fn main() {
     let args = Cli::parse();
     let port = args.port.unwrap_or(20369);
 
-    let _ = base::create_dir_if_not_exists("./static");
+    let _ = gr_base::create_dir_if_not_exists("./static");
 
     // log
     let _guard = log_util::init_log("logs/gr_off_site/".to_string(), "log_off".to_string());

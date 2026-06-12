@@ -8,7 +8,7 @@ name = "GammaRayService"
 path = "src/main.rs"
 
 [dependencies]
-gr_base = { path = "../gr_base" }
+gr_base = { path = "../../rust_base/gr_base" }
 service_core = { path = "./service_core" }
 tokio = { version = "1.43.0", features = ["full"] }
 tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }

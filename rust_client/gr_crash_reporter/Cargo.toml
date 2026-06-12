@@ -8,4 +8,4 @@ name = "GammaRayCrashReporter"
 path = "src/main.rs"
 
 [dependencies]
-gr_base = { path = "../gr_base" }
+gr_base = { path = "../../rust_base/gr_base" }

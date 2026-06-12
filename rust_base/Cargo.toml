@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "gr_off_site",
+    "gr_base",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "2.0.1"
 edition = "2021"

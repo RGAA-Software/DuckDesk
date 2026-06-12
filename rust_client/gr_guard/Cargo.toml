@@ -8,7 +8,7 @@ name = "GammaRayGuard"
 path = "src/main.rs"
 
 [dependencies]
-gr_base = { path = "../gr_base" }
+gr_base = { path = "../../rust_base/gr_base" }
 futures-util = "0.3.31"
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "time", "net"] }
 tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }

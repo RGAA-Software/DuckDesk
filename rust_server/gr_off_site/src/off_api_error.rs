@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use thiserror::Error;
-use base::RespMessage;
+use gr_base::RespMessage;
 
 #[derive(Debug, Error)]
 pub enum OffApiError {

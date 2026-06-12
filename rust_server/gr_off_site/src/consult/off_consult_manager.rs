@@ -77,8 +77,8 @@ impl OffConsultManager {
                         doc! {"$set":
                             doc!{
                                 KEY_PROCESSED: p,
-                                KEY_UPDATED_TS: base::get_current_timestamp(),
-                                KEY_UPDATED_TS_READABLE: base::get_current_readable_timestamp(),
+                                KEY_UPDATED_TS: gr_base::get_current_timestamp(),
+                                KEY_UPDATED_TS_READABLE: gr_base::get_current_readable_timestamp(),
                             }}).await;
         if let Err(e) = r {
             tracing::error!("failed to mark processed user device: {}", e);

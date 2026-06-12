@@ -7,7 +7,7 @@ use mongodb::bson::doc;
 use mongodb::bson::oid::ObjectId;
 use serde_json::Value;
 use tokio::sync::Mutex;
-use base::{ok_resp, RespMessage, RespStringMap};
+use gr_base::{ok_resp, RespMessage, RespStringMap};
 use crate::consult::off_consult::OffConsult;
 use crate::{gOffConsultManager, gOffDatabase};
 use crate::off_api_error::OffApiError;
@@ -30,10 +30,10 @@ pub async fn create_new_consult(State(_ctx): State<Arc<Mutex<OffContext>>>,
     consult.email = r[KEY_EMAIL].as_str().unwrap().to_string();
     consult.wechat = r[KEY_WECHAT].as_str().unwrap().to_string();
     consult.qq = r[KEY_QQ].as_str().unwrap().to_string();
-    consult.created_ts = base::get_current_timestamp();
-    consult.created_ts_readable = base::get_current_readable_timestamp();
-    consult.updated_ts = base::get_current_timestamp();
-    consult.updated_ts_readable = base::get_current_readable_timestamp();
+    consult.created_ts = gr_base::get_current_timestamp();
+    consult.created_ts_readable = gr_base::get_current_readable_timestamp();
+    consult.updated_ts = gr_base::get_current_timestamp();
+    consult.updated_ts_readable = gr_base::get_current_readable_timestamp();
     consult.processed = false;
     if consult.content.is_empty() || consult.consult_type.is_empty() {
         return Err(OffApiError::NeedDescParam);

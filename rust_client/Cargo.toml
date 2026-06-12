@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "gr_base",
     "gr_auth_mgr",
     "gr_guard",
     "gr_sysinfo",

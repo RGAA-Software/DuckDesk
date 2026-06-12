@@ -7,7 +7,7 @@ use mongodb::bson::doc;
 use mongodb::bson::oid::ObjectId;
 use serde_json::Value;
 use tokio::sync::Mutex;
-use base::{ok_resp, RespMessage, RespStringMap};
+use gr_base::{ok_resp, RespMessage, RespStringMap};
 use crate::{gOffConsultManager, gOffDatabase, gOffIssueManager};
 use crate::issue::off_issue::OffIssue;
 use crate::issue::off_issue_keys::{KEY_ISSUE_DESC, KEY_ISSUE_OS, KEY_ISSUE_TITLE, KEY_ISSUE_VERSION};
@@ -32,8 +32,8 @@ pub async fn create_new_issue(State(_ctx): State<Arc<Mutex<OffContext>>>,
     issue.email = r[KEY_EMAIL].as_str().unwrap().to_string();
     issue.wechat = r[KEY_WECHAT].as_str().unwrap().to_string();
     issue.qq = r[KEY_QQ].as_str().unwrap().to_string();
-    issue.created_ts = base::get_current_timestamp();
-    issue.created_ts_readable = base::get_current_readable_timestamp();
+    issue.created_ts = gr_base::get_current_timestamp();
+    issue.created_ts_readable = gr_base::get_current_readable_timestamp();
     issue.processed = false;
     if issue.desc.is_empty() {
         return Err(OffApiError::NeedDescParam);
