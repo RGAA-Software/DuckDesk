@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package relay;
+
+enum RelayMessageType {
+  kRelayError = 0;
+  kRelayHello = 5;
+  kRelayHeartBeat = 10;
+  kRelayTargetMessage = 20;
+  kRelayCreateRoom = 30;
+  kRelayCreateRoomResp = 40;
+  kRelayRequestControl = 50;
+  kRelayRequestControlResp = 60;
+  kRelayRoomPrepared = 70;
+  kRelayRoomInfoChanged = 80;
+  kRelayRoomDestroyed = 90;
+  kRelayRequestStop = 100;
+  kRelayRequestStopResp = 110;
+  kRelayRequestPausedStream = 120;
+  kRelayRequestResumeStream = 130;
+  kRelayRemoteDeviceOffline = 140;
+  kRelayNotification = 150;
+}
+
+enum RelayErrorCode {
+  kRelayCodeUnknown = 0;
+  kRelayCodeOk = 200;
+  kRelayCodeCreateRoomFailed = 600;
+  kRelayCodeRejectControl = 601;
+  kRelayCodeClientNotFound = 602;
+  kRelayCodeRemoteClientNotFound = 603;
+}
+
+message RelayErrorMessage {
+  RelayErrorCode code = 1;
+  string message = 2;
+  RelayMessageType which_message = 3;
+}
+
+message RelayDeviceInfo {
+  string device_id = 2;
+  string relay_server_ip = 3;
+  int32 relay_server_port = 4;
+  string device_w3c_ip = 5;
+  repeated string device_local_ips = 6;
+  int32 device_local_port = 7;
+}
+
+message RelayDeviceNetInfo {
+  string ip = 1;
+  string mac = 2;
+}
+
+message RelayHello {
+  repeated RelayDeviceNetInfo net_info = 2;
+}
+
+message RelayHeartBeat {
+  int64 index = 1;
+  repeated RelayDeviceNetInfo net_info = 2;
+}
+
+message RelayTargetMessage {
+  int64 relay_msg_index = 5;
+  repeated string room_ids = 10;
+  bytes payload = 30;
+}
+
+message RelayCreateRoomMessage {
+  string device_id = 1;
+  string device_name = 2;
+  string stream_id = 3;
+  string remote_device_id = 10;
+}
+
+message RelayCreateRoomRespMessage {
+  string device_id = 1;
+  string remote_device_id = 10;
+  string room_id = 20;
+}
+
+message RelayRequestControlMessage {
+  string device_id = 1;
+  string device_name = 2;
+  string stream_id = 3;
+  string remote_device_id = 20;
+  string room_id = 30;
+  bool force_gdi = 40;
+}
+
+message RelayRequestControlRespMessage {
+  string device_id = 10;
+  string remote_device_id = 20;
+  string room_id = 30;
+  bool under_control = 35;
+  string message = 40;
+}
+
+message RelayRoomPreparedMessage {
+  string room_id = 10;
+  // same with creator_device_id
+  string device_id = 20;
+  string remote_device_id = 30;
+  // same with device_id
+  string creator_device_id = 40;
+  string creator_device_name = 50;
+  string creator_stream_id = 60;
+}
+
+message RelayRoomInfoChangedMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+  repeated RelayDeviceInfo devices = 40;
+}
+
+message RelayRoomDestroyedMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+}
+
+// I don't want to relay anymore
+message RelayRequestStopMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+}
+
+message RelayRequestStopRespMessage {
+
+}
+
+message RelayRequestPauseMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+}
+
+message RelayRequestResumeMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+}
+
+message RelayRemoteDeviceOfflineMessage {
+  string room_id = 10;
+  string device_id = 20;
+  string remote_device_id = 30;
+}
+
+message RelayNotificationMessage {
+  // json format
+  string body = 1;
+  string from_device = 2;
+}
+
+message RelayMessage {
+  string from_device_id = 20;
+  RelayErrorMessage relay_error = 21;
+  RelayMessageType type = 30;
+  RelayHello hello = 40;
+  RelayHeartBeat heartbeat = 50;
+  RelayTargetMessage relay = 60;
+  RelayCreateRoomMessage create_room = 70;
+  RelayCreateRoomRespMessage create_room_resp = 80;
+  RelayRequestControlMessage request_control = 90;
+  RelayRequestControlRespMessage request_control_resp = 100;
+  RelayRoomPreparedMessage room_prepared = 110;
+  RelayRoomInfoChangedMessage room_info_changed = 120;
+  RelayRoomDestroyedMessage room_destroyed = 130;
+  RelayRequestStopMessage request_stop = 140;
+  RelayRequestStopRespMessage request_stop_resp = 150;
+  RelayRequestPauseMessage request_pause = 160;
+  RelayRequestResumeMessage request_resume = 170;
+  RelayRemoteDeviceOfflineMessage remote_device_offline = 180;
+  RelayNotificationMessage notification = 190;
+}

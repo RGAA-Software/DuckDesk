@@ -2,6 +2,7 @@
 members = [
     "gr_base",
     "gr_auth_mgr",
+    "protocol",
 ]
 resolver = "2"
 

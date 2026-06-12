@@ -1,0 +1,15 @@
+[package]
+name = "protocol"
+version = "2.0.1"
+edition = "2024"
+
+[dependencies]
+tonic = "0.14.1"
+prost = "0.14.1"
+tonic-prost = "0.14.1"
+prost-types = { version = "0.14.1", optional = true }
+
+[build-dependencies]
+prost-build = "0.14.1"
+tonic-build = "0.14.1"
+tonic-prost-build = "0.14.1"

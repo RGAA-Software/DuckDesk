@@ -1,0 +1,1 @@
+pub const KEY_DEVICE_ID: &str = "device_id";

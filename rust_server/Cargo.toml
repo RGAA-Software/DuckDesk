@@ -4,6 +4,7 @@ members = [
     "gr_updater",
     "gr_author",
     "gr_stat_server",
+    "gr_spvr_server",
     "builder",
 ]
 resolver = "2"
