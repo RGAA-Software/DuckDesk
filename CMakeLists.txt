@@ -43,8 +43,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/qwindowkit/inclu
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd/asio)
-include_directories(${VCPKG_ROOT}/installed/x64-windows/include)
-include_directories(${VCPKG_ROOT}/packages/breakpad_x64-windows-static/include)
+include_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/sqlite35)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/sqlite_orm/include)
 include_directories(${FFMPEG_ROOT}/include)
@@ -76,7 +75,7 @@ include_directories(${CMAKE_BINARY_DIR}/src/gr_deps/tc_server_protocol)
 ## Server
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRayServer)
 
-link_directories(${VCPKG_ROOT}/installed/x64-windows/lib)
+link_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/lib)
 
 if(MSVC)
     add_compile_options($<IF:$<CONFIG:Debug>,/MTd,/MT>)
@@ -95,14 +94,6 @@ if(MSVC)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--stack,83886080")
 endif()
-
-if (JEMALLOC_ENABLED)
-    add_definitions(-DJEMALLOC_ON=1)
-endif ()
-
-if (MIMALLOC_ENABLED)
-    add_definitions(-DMIMALLOC_ON=1)
-endif ()
 
 if (MEMORY_STST_ENABLED)
     add_definitions(-DMEMORY_STST_ON=1)
@@ -133,9 +124,9 @@ find_package(OpenSSL REQUIRED)
 #find_package(bsoncxx CONFIG REQUIRED)
 #find_package(mongocxx CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
+find_package(unofficial-breakpad CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
-find_package(mimalloc CONFIG REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/webrtc)
 

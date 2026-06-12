@@ -11,7 +11,7 @@ fn main() {
         let vcpkg_root = std::env::var("VCPKG_ROOT")
             .unwrap_or_else(|_| "C:/source/vcpkg".to_string());
         let vcpkg_triplet = std::env::var("VCPKG_DEFAULT_TRIPLET")
-            .unwrap_or_else(|_| "x64-windows".to_string());
+            .unwrap_or_else(|_| "x64-windows-static-release".to_string());
 
         Path::new(&vcpkg_root)
             .join("installed")

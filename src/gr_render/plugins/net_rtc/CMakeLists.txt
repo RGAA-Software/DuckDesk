@@ -35,6 +35,9 @@ set(PLUGIN_SRCS
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 #add_library(${PROJECT_NAME} ${PLUGIN_SRCS})
+# webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
+# linked through tc_common_new; /FORCE:MULTIPLE lets the linker pick one.
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
 target_link_libraries(${PROJECT_NAME} PUBLIC tc_common_new tc_message tc_net_plugin
         webrtc.lib
         Winmm

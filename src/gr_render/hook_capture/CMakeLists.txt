@@ -3,7 +3,7 @@ project(tc_capture_new)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX -DENABLE_JEMALLOC=0)
+add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 if(WIN32)
@@ -17,9 +17,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win/hk_obs/d3d8_api)
 include_directories(${VK_SDK_ROOT}/Include)
 
 #find_package(libyuv CONFIG REQUIRED)
-
-#link_directories(${VCPKG_ROOT}/installed/x64-windows-static/lib)
-#link_directories(${VCPKG_ROOT}/packages/jemalloc_x64-windows-static/lib)
 
 if (WIN32)
 

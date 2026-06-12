@@ -56,8 +56,10 @@ target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::
         tc_relay_client tc_translator tc_spvr_client Dwmapi.lib tc_widget_loadings tc_client_plugin
         tc_account_sdk tc_rp_message tc_profile_client tc_hw_info tc_global_id_generator tc_server_message skin_interface skin_loader gd_gui
 )
-set(BREAKPAD_LIB_PATH ${VCPKG_ROOT}/packages/breakpad_x64-windows-static/lib)
-target_link_libraries(GammaRay PRIVATE ${BREAKPAD_LIB_PATH}/libbreakpad.lib ${BREAKPAD_LIB_PATH}/libbreakpad_client.lib)
+target_link_libraries(GammaRay PRIVATE
+    unofficial::breakpad::libbreakpad
+    unofficial::breakpad::libbreakpad_client
+)
 
 add_custom_command(TARGET GammaRay PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/gr_plugins

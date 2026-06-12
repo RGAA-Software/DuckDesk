@@ -115,11 +115,9 @@ def main():
     # ------------------------------------------------------------------
     supplements = [
         ("src/gr_client/GammaRayClientInner.exe", "GammaRayClientInner.exe"),
-        ("src/gr_client/SDL2.dll", "SDL2.dll"),
+        # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/gr_render/GammaRayRender.exe", "GammaRayRender.exe"),
-        ("src/gr_render/gflags.dll", "gflags.dll"),
-        ("src/gr_render/fftw3.dll", "fftw3.dll"),
         ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
         (os.path.join(source_dir, "src/gr_deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
         ("src/gr_deps/tc_webrtc_client/tc_rtc_client.dll", "gr_client/tc_rtc_client.dll"),
