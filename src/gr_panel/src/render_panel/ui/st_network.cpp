@@ -60,7 +60,7 @@ namespace tc
             {
                 // title
                 auto label = new TcLabel(this);
-                label->SetTextId("id_gr_spvr_server");
+                label->SetTextId("id_gr_cms_server");
                 label->setStyleSheet("font-size: 16px; font-weight: 700;");
                 segment_layout->addSpacing(0);
                 segment_layout->addWidget(label);

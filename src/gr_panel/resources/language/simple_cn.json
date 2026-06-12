@@ -74,7 +74,7 @@
   "id_rtc": "RTC串流",
   "id_ethernet_adapter": "网卡",
   "id_panel_listening_port": "此UI程序监听端口",
-  "id_gr_spvr_server": "服务配置",
+  "id_gr_cms_server": "服务配置",
   "id_security_settings": "安全设置",
   "id_long_term_password": "安全密码(长期)",
   "id_allowed_mouse_keyboard": "允许鼠标键盘操作",

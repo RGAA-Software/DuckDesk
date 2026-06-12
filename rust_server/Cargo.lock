@@ -2583,7 +2583,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gr_author"
+name = "gr_auth_server"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -2642,30 +2642,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gr_off_site"
-version = "0.1.0"
-dependencies = [
- "axum",
- "axum-server",
- "clap",
- "clap_derive",
- "futures-util",
- "gr_base",
- "lazy_static",
- "mongodb",
- "rustls 0.23.35",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "thiserror 2.0.17",
- "tokio",
- "tokio-stream",
- "tower-http",
- "tracing",
-]
-
-[[package]]
-name = "gr_spvr_server"
+name = "gr_cms_server"
 version = "3.0.0"
 dependencies = [
  "arboard",
@@ -2710,6 +2687,29 @@ dependencies = [
  "uuid",
  "webbrowser",
  "winres",
+]
+
+[[package]]
+name = "gr_desk_server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum-server",
+ "clap",
+ "clap_derive",
+ "futures-util",
+ "gr_base",
+ "lazy_static",
+ "mongodb",
+ "rustls 0.23.35",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-stream",
+ "tower-http",
+ "tracing",
 ]
 
 [[package]]

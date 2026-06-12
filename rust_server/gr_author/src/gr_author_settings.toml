@@ -1,9 +1,0 @@
-# listening port
-server_port = 30400
-
-# database path
-db_path = "mongodb://localhost:27017/"
-
-# verify server
-# /api/v1/verify/authorization
-verify_server = "https://godesk.uk:30400"

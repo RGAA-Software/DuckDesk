@@ -17,8 +17,8 @@
 ├── certs/
 │   ├── cert.pem
 │   └── key.pem
-├── gr_spvr_server --> 生成管理设备ID
-├── gr_spvr_settings.toml
+├── gr_cms_server --> 生成管理设备ID
+├── gr_cms_server_settings.toml
 ├── gr_relay_server --> 转发数据
 └── gr_relay_settings.toml
 

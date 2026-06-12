@@ -1,4 +1,4 @@
-# gr_author 管理员权限改造方案
+# gr_auth_server 管理员权限改造方案
 
 > 状态：待实施  
 > 目标：用基于 JWT Claims 的角色鉴权（RBAC）替换当前硬编码管理员/访客账号、URL 传密码等不安全的实现。
@@ -7,7 +7,7 @@
 
 ## 1. 现状问题
 
-当前 `gr_author` 的管理员能力存在以下明显缺陷：
+当前 `gr_auth_server` 的管理员能力存在以下明显缺陷：
 
 | 问题 | 影响 | 所在文件 |
 |------|------|----------|
@@ -304,7 +304,7 @@ GR_AUTHOR_ADMIN_PASSWORD=<首次启动时生成的强密码>
 
 如果必须“开箱即用”，可以在首次启动时：
 1. 生成 16~20 位随机密码。
-2. 写入 `logs/gr_author/.bootstrap_admin` 或安全打印到控制台。
+2. 写入 `logs/gr_auth_server/.bootstrap_admin` 或安全打印到控制台。
 3. 首次登录后强制修改密码。
 
 该方案需要额外实现“强制修改密码”接口，优先级低于环境变量方案。
@@ -400,7 +400,7 @@ pub async fn handle_create_new_authorization(
 - Refresh Token 单独管理，可撤销。
 - 退出时撤销 Refresh Token。
 
-对于 `gr_author` 这种后台管理场景，**方案 A 更简单直接**。
+对于 `gr_auth_server` 这种后台管理场景，**方案 A 更简单直接**。
 
 ---
 

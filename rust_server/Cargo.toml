@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "gr_off_site",
+    "gr_desk_server",
     "gr_updater",
-    "gr_author",
+    "gr_auth_server",
     "gr_stat_server",
-    "gr_spvr_server",
+    "gr_cms_server",
     "builder",
 ]
 resolver = "2"
