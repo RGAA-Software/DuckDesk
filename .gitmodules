@@ -42,7 +42,7 @@
 	url = git@github.com:RGAA-Software/tc_relay_client.git
 [submodule "src/gr_deps/tc_server_protocol"]
 	path = src/gr_deps/tc_server_protocol
-	url = git@github.com:RGAA-Software/tc_server_protocol.git
+	url = git@github.com:RGAA-Software/tc_protocol.git
 [submodule "src/gr_deps/tc_spvr_client"]
 	path = src/gr_deps/tc_spvr_client
 	url = git@github.com:RGAA-Software/tc_spvr_client.git
