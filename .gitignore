@@ -7,6 +7,14 @@ src/gr_web_client/node_modules/*
 src/gr_web_client/.idea/*
 src/gr_web_client/.vscode/*
 src/gr_web_client/dist/*
+web/gr_cms/node_modules/*
+web/gr_cms/.idea/*
+web/gr_cms/.vscode/*
+web/gr_cms/dist/*
+web/gr_cms/.output/*
+web/gr_cms/coverage/*
+web/gr_cms/test-results/*
+web/gr_cms/playwright-report/*
 build_official/*
 build_opensource/*
 output/*
