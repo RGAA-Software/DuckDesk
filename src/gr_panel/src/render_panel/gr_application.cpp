@@ -22,6 +22,7 @@
 #include "network/gr_spvr_client.h"
 #include "tc_common_new/time_util.h"
 #include "companion/panel_companion.h"
+#include "companion/panel_companion_impl.h"
 #include "spvr_scanner/spvr_scanner.h"
 #include "ui/input_safety_pwd_dialog.h"
 #include "ui/monitor_refresher.h"
@@ -50,13 +51,11 @@
 #include "render_panel/devices/gr_device_manager.h"
 
 #include <shellapi.h>
-#include <QLibrary>
 
 #include "tc_common_new/const_auto.h"
 
 using namespace nlohmann;
 
-typedef void *(*FnGetInstance)();
 
 namespace tc
 {
@@ -540,33 +539,7 @@ namespace tc
     }
 
     void GrApplication::LoadPanelCompanion() {
-        auto base_path = QCoreApplication::applicationDirPath();
-#ifdef WIN32
-        auto lib_name = "panel_companion.dll";
-#else
-        auto lib_name = "panel_companion.so";
-#endif
-        auto library_path = base_path + "/" + lib_name;
-        auto library = new QLibrary(library_path);
-        if (!library->load()) {
-            LOGE("Load panel_companion failed: {}, error: {}",
-                 library_path.toStdString(),
-                 library->errorString().toStdString());
-            return;
-        }
-        auto fn_get_instance = (FnGetInstance)library->resolve("GetInstance");
-        auto func = (FnGetInstance) fn_get_instance;
-        if (!func) {
-            LOGE("Don't have GetInstance in panel_companion.");
-            return;
-        }
-
-        auto plugin = (PanelCompanion*)func();
-        if (!plugin) {
-            LOGE("Can't exe GetInstance in panel_companion");
-            return;
-        }
-
+        auto plugin = std::make_shared<PanelCompanionImpl>();
         if (!plugin->Init()) {
             LOGE("Can't init panel_companion");
             return;
@@ -576,7 +549,7 @@ namespace tc
     }
 
     PanelCompanion* GrApplication::GetCompanion() {
-        return companion_;
+        return companion_.get();
     }
 
     std::string GrApplication::GetAppkey() {

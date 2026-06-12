@@ -36,9 +36,7 @@ include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
 add_subdirectory(src)
 add_subdirectory(src/tests)
 add_subdirectory(src/service)
-add_subdirectory(src/uninstall)
 add_subdirectory(src/ui/gd_gui)
-add_subdirectory(panel_companion)
 
 set(RES resources/main.qrc resources/qss.qrc res.qrc)
 add_executable(GammaRay WIN32
@@ -67,18 +65,18 @@ add_custom_command(TARGET GammaRay PRE_BUILD
 )
 
 ### Uninstall
-add_executable(uninstall WIN32
-        ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
-        ${UNINSTALL_SRCS}
-        ${SERVICE_MGR_SRCS})
-
-SET_TARGET_PROPERTIES(uninstall PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
-add_executable(panel_shadow_deleter ${SHADOW_DELETER_SRCS})
-SET_TARGET_PROPERTIES(panel_shadow_deleter PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
-
-target_link_libraries(uninstall PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network tc_qt_widget
-        Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg)
-target_link_libraries(uninstall PRIVATE tc_common_new tc_steam_manager_new tc_vigem tc_message sqlite35 tc_plugin winmm.lib SetupAPI.lib gflags::gflags)
+#add_executable(uninstall WIN32
+#        ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
+#        ${UNINSTALL_SRCS}
+#        ${SERVICE_MGR_SRCS})
+#
+#SET_TARGET_PROPERTIES(uninstall PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+#add_executable(panel_shadow_deleter ${SHADOW_DELETER_SRCS})
+#SET_TARGET_PROPERTIES(panel_shadow_deleter PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+#
+#target_link_libraries(uninstall PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network tc_qt_widget
+#        Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg)
+#target_link_libraries(uninstall PRIVATE tc_common_new tc_steam_manager_new tc_vigem tc_message sqlite35 tc_plugin winmm.lib SetupAPI.lib gflags::gflags)
 ### Uninstall End
 
 include(GNUInstallDirs)

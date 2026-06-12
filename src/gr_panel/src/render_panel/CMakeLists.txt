@@ -107,8 +107,8 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/spvr/gr_spvr_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/spvr/gr_event_manager.cpp
 
-
-    PARENT_SCOPE
 )
 
 add_subdirectory(companion)
+
+set(PANEL_SRCS ${PANEL_SRCS} ${COMPANION_SRCS} PARENT_SCOPE)

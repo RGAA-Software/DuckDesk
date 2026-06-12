@@ -90,6 +90,4 @@ namespace tc
 
 }
 
-extern "C" __declspec(dllexport) void* GetInstance();
-
 #endif //GAMMARAYPREMIUM_PANEL_COMPANION_IMPL_H

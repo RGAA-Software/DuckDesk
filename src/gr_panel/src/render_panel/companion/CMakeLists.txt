@@ -1,3 +1,10 @@
-project(tc_panel_companion)
-
-add_library(${PROJECT_NAME} panel_companion.cpp)
+set(COMPANION_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/panel_companion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panel_companion_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/crypto/auth_aes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/auth_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/spvr_setting.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/spvr_access_info_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/stat/stat_manager.cpp
+    PARENT_SCOPE
+)

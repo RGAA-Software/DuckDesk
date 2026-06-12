@@ -25,7 +25,7 @@ if "%VS_INSTALL_DIR%"=="" (
 call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-for /f "delims=" %%a in ('dir /b /ad "%VS_INSTALL_DIR%\VC\Tools\MSVC" ^| sort /r ^| findstr /r "^[0-9]"') do (
+for /f "delims=" %%a in ('dir /b /ad "%VS_INSTALL_DIR%\VC\Tools\MSVC" ^| sort.exe /r ^| findstr.exe /r "^[0-9]"') do (
     set "VC_TOOLS_DIR=%VS_INSTALL_DIR%\VC\Tools\MSVC\%%a\bin\Hostx64\x64"
     goto :found_vc
 )
@@ -35,9 +35,15 @@ if not "%VC_TOOLS_DIR%"=="" (
     echo Using VC tools: %VC_TOOLS_DIR%
 )
 
+if /I "%1"=="incremental" (
+    echo Incremental build requested, skipping CMake configure...
+    goto :do_build
+)
+
 cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official
 if errorlevel 1 exit /b %errorlevel%
 
+:do_build
 echo ----------------------BUILD START------------------------
 echo ---------------------------------------------------------
 echo ---------------------------------------------------------

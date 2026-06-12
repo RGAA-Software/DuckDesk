@@ -25,11 +25,6 @@
 
 using namespace nlohmann;
 
-void* GetInstance() {
-    static tc::PanelCompanionImpl impl;
-    return (void*)&impl;
-}
-
 namespace tc
 {
 

@@ -274,12 +274,12 @@ add_subdirectory(src)
 add_custom_target(tc_build_premium_all ALL COMMENT "Build all targets")
 add_dependencies(tc_build_premium_all
     ### main executables
-    GammaRay uninstall panel_shadow_deleter
+    GammaRay
 
     ### render
     plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
     plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_net_udp plugin_nvenc_encoder
-    plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets panel_companion
+    plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets
     plugin_net_rtc_local plugin_ssl_proxy
 
     ### client

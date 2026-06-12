@@ -10,7 +10,7 @@
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/shared_preference.h"
 #include "tc_common_new/const_auto.h"
-#include "panel_companion/panel_companion_impl.h"
+#include "../panel_companion_impl.h"
 
 namespace tc
 {

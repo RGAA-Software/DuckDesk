@@ -37,8 +37,6 @@ PRODUCT_EXES = {
     "GammaRaySysInfo.exe",
     "GammaRayCrashReporter.exe",
     "GammaRayUninstall.exe",
-    "panel_shadow_deleter.exe",
-    "uninstall.exe",
     "joystick.exe",
     "tc_graphics_util.exe",
     "tc_graphics_offsets.exe",
@@ -120,9 +118,9 @@ def main():
         ("src/gr_client/SDL2.dll", "SDL2.dll"),
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/gr_render/GammaRayRender.exe", "GammaRayRender.exe"),
+        ("src/gr_render/gflags.dll", "gflags.dll"),
         ("src/gr_render/fftw3.dll", "fftw3.dll"),
         ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
-        ("src/panel_companion/panel_companion.dll", "panel_companion.dll"),
         (os.path.join(source_dir, "src/gr_deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
         ("src/gr_deps/tc_webrtc_client/tc_rtc_client.dll", "gr_client/tc_rtc_client.dll"),
     ]
@@ -176,14 +174,14 @@ def main():
     os.makedirs(gr_skins_dst, exist_ok=True)
 
     # skin_open_source / skin_official DLLs
-    skins_src = os.path.join(build_dir, "src", "skins", "official")
+    skins_src = os.path.join(build_dir, "src", "gr_panel", "src", "skin", "official")
     if os.path.isdir(skins_src):
         for f in os.listdir(skins_src):
             if f.endswith(".dll"):
                 copy_file(os.path.join(skins_src, f), os.path.join(gr_skins_dst, f))
 
     # skin config (from source tree)
-    skin_config_src = os.path.join(build_dir, "..", "src", "skins", "skin_config.toml")
+    skin_config_src = os.path.join(build_dir, "..", "src", "gr_panel", "src", "skin", "skin_config.toml")
     if os.path.isfile(skin_config_src):
         copy_file(skin_config_src, os.path.join(gr_skins_dst, "skin_config.toml"))
 

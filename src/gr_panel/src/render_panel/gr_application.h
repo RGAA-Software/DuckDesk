@@ -163,7 +163,7 @@ namespace tc
         bool run_automatically_ = false;
 
         // panel companion
-        PanelCompanion* companion_ = nullptr;
+        std::shared_ptr<PanelCompanion> companion_ = nullptr;
 
         // panel spvr client
         std::shared_ptr<GrSpvrClient> spvr_client_ = nullptr;
