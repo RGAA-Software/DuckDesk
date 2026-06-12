@@ -1444,6 +1444,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "gr_stat_server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum-server",
+ "clap",
+ "clap_derive",
+ "futures-util",
+ "gr_base",
+ "lazy_static",
+ "mongodb",
+ "rustls",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-stream",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "gr_updater"
 version = "0.1.0"
 dependencies = [

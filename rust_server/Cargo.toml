@@ -3,6 +3,7 @@ members = [
     "gr_off_site",
     "gr_updater",
     "gr_author",
+    "gr_stat_server",
     "builder",
 ]
 resolver = "2"

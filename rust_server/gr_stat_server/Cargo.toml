@@ -1,0 +1,24 @@
+[package]
+name = "gr_stat_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gr_base = {path = "../../rust_base/gr_base"}
+
+rustls = { version = "0.23", features = ["ring"] }
+axum = { version = "0.8.1", features = ["ws", "multipart"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+tower-http = { version = "0.6.2", features = ["full"] }
+serde_json = "1.0"
+tracing = "0.1.44"
+tokio = { version = "1.43.0", features = ["full"] }
+lazy_static = "1.5.0"
+futures-util = "0.3.31"
+clap = { version = "4.5.47", features = ["derive"] }
+clap_derive = "4.5.47"
+mongodb = "3.2.1"
+thiserror = "2.0.17"
+serde = { version = "1.0.228", features = ["derive"] }
+tokio-stream = "0.1.17"
+serde_urlencoded = "0.7.1"
