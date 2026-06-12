@@ -146,11 +146,10 @@ else()
     set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
 endif()
 
-set(Protobuf_SRC_ROOT_FOLDER ${GR_PROJECT_PATH}/tc_3rdparty/protobuf)
-if(CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
-    set(Protobuf_LIBRARIES ${GR_PROJECT_BINARY_PATH}/tc_3rdparty/protobuf/cmake/libprotobuf.lib)
-endif()
-find_package(Protobuf REQUIRED)
+# Use protobuf from vcpkg
+set(protobuf_MODULE_COMPATIBLE ON)
+find_package(protobuf CONFIG REQUIRED)
+message(STATUS "Using protobuf from vcpkg: ${protobuf_VERSION}")
 
 find_program(CARGO_EXECUTABLE cargo)
 if(NOT CARGO_EXECUTABLE)

@@ -23,4 +23,4 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_net_plugin
-    libprotobuf tc_message Winmm.lib tc_global_id_generator)
+    protobuf::libprotobuf tc_message Winmm.lib tc_global_id_generator)

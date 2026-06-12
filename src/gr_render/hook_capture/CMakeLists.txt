@@ -33,7 +33,7 @@ if (WIN32)
         win/desktop_capture/cursor_capture.cpp
     )
     add_library(tc_capture_new ${CAPTURE_SRCS})
-    target_link_libraries(tc_capture_new tc_message libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
+    target_link_libraries(tc_capture_new tc_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
 
     ## capture dll
     set(DLL_SRCS

@@ -12,7 +12,7 @@ if (WIN32)
         win/win_desktop_manager.cpp
         win/win_render_message_loop.cpp
     )
-    target_link_libraries(app_manager tc_message libprotobuf)#frame_render
+    target_link_libraries(app_manager tc_message protobuf::libprotobuf)#frame_render
 elseif (APPLE)
 
 elseif (UNIX)

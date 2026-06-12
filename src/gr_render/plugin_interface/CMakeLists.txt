@@ -22,4 +22,4 @@ set(NET_PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/gr_net_plugin.cpp
 )
 add_library(tc_net_plugin ${NET_PLUGIN_SRCS})
-target_link_libraries(tc_net_plugin PRIVATE tc_plugin libprotobuf tc_message tc_common_new)
+target_link_libraries(tc_net_plugin PRIVATE tc_plugin protobuf::libprotobuf tc_message tc_common_new)

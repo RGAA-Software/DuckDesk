@@ -31,6 +31,7 @@
 	.\vcpkg.exe install drogon:x64-windows
     .\vcpkg.exe install breakpad:x64-windows-static
     .\vcpkg.exe install mimalloc:x64-windows
+    .\vcpkg.exe install protobuf:x64-windows-static-release
 ```
 
 - 2.4 You can open the project by Visual Studio 2022 or Clion, solve the problems and then compile the project.

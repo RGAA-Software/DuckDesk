@@ -49,7 +49,7 @@ else()
     #
 endif()
 
-target_link_libraries(main app_manager libprotobuf tc_message Dexode::EventBus)
+target_link_libraries(main app_manager protobuf::libprotobuf tc_message Dexode::EventBus)
 
 add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\"")

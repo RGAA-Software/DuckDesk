@@ -1,5 +1,5 @@
 #set(PREMIUM_WEBRTC_ENABLED OFF)
-set(Inner_Protobuf_ENABLED ON)
+set(Inner_Protobuf_ENABLED OFF)
 set(DirectXTex_ENABLED ON)
 set(FFTW3_ENABLED ON)
 set(TESTS_ENABLED ON)
