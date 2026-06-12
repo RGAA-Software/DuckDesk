@@ -9,3 +9,5 @@ src/gr_web_client/.vscode/*
 src/gr_web_client/dist/*
 build_official/*
 build_opensource/*
+setup/app/*
+setup/GammaRay_pdb_*/
