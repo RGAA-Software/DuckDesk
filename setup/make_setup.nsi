@@ -15,9 +15,11 @@ RequestExecutionLevel admin
 !define COMPANY "GoDesk"
 !define INSTALL_DIR "C:\Program Files\GoDesk\App"
 
-!define BUILD_PATH "app"
+!ifndef OUTPUT_DIR
+    !define OUTPUT_DIR "."
+!endif
 
-OutFile "${PRODUCT_NAME}_${PRODUCT_VERSION}_${TARGET_TYPE}_Setup.exe"
+OutFile "${OUTPUT_DIR}\${PRODUCT_NAME}_${PRODUCT_VERSION}_${TARGET_TYPE}_Setup.exe"
 
 InstallDir "${INSTALL_DIR}"
 
@@ -53,7 +55,7 @@ Section "安装主程序" SecMain
     SetOutPath "$INSTDIR"
 
     ; 1. 解压 app.7z
-    File "app\app.7z"
+    File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
 	

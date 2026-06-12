@@ -3,6 +3,8 @@ import json
 import os
 import subprocess
 
+from gen_pack_name import extract_project_version
+
 
 def load_config():
     config_path = "make_setup_config.json"
@@ -50,6 +52,16 @@ def find_nsis(configured_dir: str | None, current_dir: str) -> str:
     )
 
 
+def compute_output_dir(build_dir: str, current_dir: str) -> str:
+    build_name = os.path.basename(os.path.normpath(build_dir))
+    version_file = os.path.join(build_dir, "src", "gr_base", "version_config.h")
+    version = extract_project_version(version_file)
+    if not version:
+        raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
+    output_dir = os.path.join(current_dir, "..", "output", build_name, version)
+    return os.path.abspath(output_dir)
+
+
 def run_7z(seven_zip_path, target_dir, output_7z):
     print(f"Running 7z compression: {seven_zip_path}")
 
@@ -67,14 +79,16 @@ def run_7z(seven_zip_path, target_dir, output_7z):
     print("7z compression completed.")
 
 
-def run_nsis(nsis_dir, nsi_script_path, working_dir):
+def run_nsis(nsis_dir, nsi_script_path, working_dir, output_dir):
     makensis_exe = os.path.join(nsis_dir, "makensis.exe")
 
     print(f"Running NSIS to generate installer: {makensis_exe}")
+    print(f"Output directory: {output_dir}")
 
     cmd = [
         makensis_exe,
-        nsi_script_path
+        f"/DOUTPUT_DIR={output_dir}",
+        nsi_script_path,
     ]
 
     subprocess.run(cmd, check=True, cwd=working_dir)
@@ -89,33 +103,36 @@ def main():
     cfg = load_config()
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
+    build_dir = os.path.abspath(args.build_dir)
 
     seven_zip_path = find_7z(cfg.get("7z_path"), current_dir)
     nsis_dir = find_nsis(cfg.get("nsis_dir_path"), current_dir)
-
-    build_dir = os.path.abspath(args.build_dir)
 
     # 目标压缩文件夹：直接使用编译好的 dist/
     target_dir = os.path.join(build_dir, "dist")
     if not os.path.isdir(target_dir):
         raise RuntimeError(f"dist folder not found: {target_dir}")
 
+    # 输出目录：output/<build_name>/<version>/
+    output_dir = compute_output_dir(build_dir, current_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
     # 输出 app.7z
-    output_7z = os.path.join(current_dir, "app", "app.7z")
+    output_7z = os.path.join(output_dir, "app", "app.7z")
 
     # NSIS 脚本路径
     nsi_script_path = os.path.join(current_dir, "make_setup.nsi")
 
-    # NSIS 的工作目录
+    # NSIS 的工作目录保持为 setup/，以便找到 image/ 等资源
     nsi_workdir = current_dir
 
     # 调用 7z 压缩
     run_7z(seven_zip_path, target_dir, output_7z)
 
     # 调用 NSIS 生成安装包
-    run_nsis(nsis_dir, nsi_script_path, nsi_workdir)
+    run_nsis(nsis_dir, nsi_script_path, nsi_workdir, output_dir)
 
-    print("All tasks finished successfully.")
+    print(f"All tasks finished successfully. Output: {output_dir}")
 
 
 if __name__ == "__main__":

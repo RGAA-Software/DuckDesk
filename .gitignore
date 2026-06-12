@@ -9,6 +9,7 @@ src/gr_web_client/.vscode/*
 src/gr_web_client/dist/*
 build_official/*
 build_opensource/*
+output/*
 setup/app/*
 setup/GammaRay_pdb_*/
 __pycache__/
