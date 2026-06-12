@@ -23,6 +23,14 @@ web/gr_desk/.output/*
 web/gr_desk/coverage/*
 web/gr_desk/test-results/*
 web/gr_desk/playwright-report/*
+web/gr_auth/node_modules/*
+web/gr_auth/.idea/*
+web/gr_auth/.vscode/*
+web/gr_auth/dist/*
+web/gr_auth/.output/*
+web/gr_auth/coverage/*
+web/gr_auth/test-results/*
+web/gr_auth/playwright-report/*
 build_official/*
 build_opensource/*
 output/*

@@ -1,0 +1,10 @@
+/*@import './base.css';*/
+
+
+ /*Element Plus 样式先*/
+@import 'element-plus/dist/index.css';
+
+@import "tailwindcss";
+/*@import 'tailwindcss/index.css';*/
+/*@import "tailwindcss/preflight";*/
+/*@tailwind utilities;*/
