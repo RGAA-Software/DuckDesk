@@ -35,7 +35,7 @@ calcmhz = "0.1.10"
 adlx = { git = "https://github.com/Traverse-Research/adlx-rs.git", branch = "main" }
 anyhow = "1.0.100"
 netdev = "0.37.3"
-mongodb = "3.2.1"
+mongodb = "=3.2.1"
 thiserror = "2.0.17"
 serde = { version = "1.0.228", features = ["derive"] }
 md5 = "0.8.0"
