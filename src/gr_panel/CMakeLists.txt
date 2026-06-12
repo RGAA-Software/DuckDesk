@@ -38,6 +38,7 @@ add_subdirectory(src/tests)
 add_subdirectory(src/service)
 add_subdirectory(src/uninstall)
 add_subdirectory(src/ui/gd_gui)
+add_subdirectory(${CMAKE_SOURCE_DIR}/src/panel_companion ${CMAKE_CURRENT_BINARY_DIR}/panel_companion)
 
 set(RES resources/main.qrc resources/qss.qrc res.qrc)
 add_executable(GammaRay WIN32
