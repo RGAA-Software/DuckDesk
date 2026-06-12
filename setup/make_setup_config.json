@@ -1,4 +1,4 @@
 {
-    "7z_path": "D:/company/software/7-Zip/7z.exe",
-    "nsis_dir_path": "D:/company/software/NSIS"
+    "7z_path": "../tools/7z/7za.exe",
+    "nsis_dir_path": "../tools/nsis"
 }

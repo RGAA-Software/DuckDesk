@@ -6,12 +6,54 @@ import subprocess
 
 def load_config():
     config_path = "make_setup_config.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    if os.path.isfile(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def find_7z(configured_path: str | None, current_dir: str) -> str:
+    candidates = []
+    if configured_path:
+        candidates.append(configured_path)
+    candidates.extend([
+        os.path.join(current_dir, "..", "tools", "7z", "7za.exe"),
+        r"C:\Program Files\7-Zip\7z.exe",
+        r"C:\Program Files (x86)\7-Zip\7z.exe",
+        r"D:\company\software\7-Zip\7z.exe",
+        r"D:\software\7-Zip\7-Zip\7z.exe",
+    ])
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    raise RuntimeError(
+        "Cannot find 7z.exe. Please install 7-Zip or update make_setup_config.json."
+    )
+
+
+def find_nsis(configured_dir: str | None, current_dir: str) -> str:
+    candidates = []
+    if configured_dir:
+        candidates.append(os.path.join(configured_dir, "makensis.exe"))
+    candidates.extend([
+        os.path.join(current_dir, "..", "tools", "nsis", "makensis.exe"),
+        r"C:\Program Files (x86)\NSIS\makensis.exe",
+        r"C:\Program Files\NSIS\makensis.exe",
+        r"D:\company\software\NSIS\makensis.exe",
+        r"D:\software\newNSIS3.06.1\newNSIS3.06.1\makensis.exe",
+    ])
+    for path in candidates:
+        if os.path.isfile(path):
+            return os.path.dirname(path)
+    raise RuntimeError(
+        "Cannot find NSIS makensis.exe. Please install NSIS or update make_setup_config.json."
+    )
 
 
 def run_7z(seven_zip_path, target_dir, output_7z):
-    print("Running 7z compression...")
+    print(f"Running 7z compression: {seven_zip_path}")
+
+    os.makedirs(os.path.dirname(output_7z), exist_ok=True)
 
     cmd = [
         seven_zip_path,
@@ -28,7 +70,7 @@ def run_7z(seven_zip_path, target_dir, output_7z):
 def run_nsis(nsis_dir, nsi_script_path, working_dir):
     makensis_exe = os.path.join(nsis_dir, "makensis.exe")
 
-    print("Running NSIS to generate installer...")
+    print(f"Running NSIS to generate installer: {makensis_exe}")
 
     cmd = [
         makensis_exe,
@@ -46,11 +88,10 @@ def main():
 
     cfg = load_config()
 
-    seven_zip_path = cfg["7z_path"]
-    nsis_dir = cfg["nsis_dir_path"]
-
-    # Python 文件当前目录
     current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    seven_zip_path = find_7z(cfg.get("7z_path"), current_dir)
+    nsis_dir = find_nsis(cfg.get("nsis_dir_path"), current_dir)
 
     build_dir = os.path.abspath(args.build_dir)
 

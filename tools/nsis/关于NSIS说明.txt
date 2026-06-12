@@ -1,0 +1,18 @@
+NSIS3.06.1 增强版特点：
+1、汉化 makensisw 工具仅界面为中文版;
+2、重新编辑NSIS菜单改为中文显示并增加多个实用中文手册及工具;
+     ┞ 增加脚本编辑 ：VNISEdit 、Notepad；
+     ┞ 增加实用工具 ：NSIS文件夹压缩器、INI 转 NSI、注册表转NSI、ResHacker资源修改器；
+     ┞ 增加手册大全 ：nsDialogs手册、NSIS插件教程合集、NSIS教程、NSIS示例代码、NSIS图文教程集锦、汉化新世纪nsis讨论(截至2005.4.18)、轻狂志-NSIS图文教程集锦；
+3、MUI2手册改为中文版（汉化者：贾可）;
+4、NSIS手册改为中文（汉化：mefcl、贾可）;
+5、x86-ansi 和 x86-unicode 集成收集插件大全，这里就不一一列表;
+6、汉化 zip2exe 界面并把生成安装包改为中文（需要英文请修改Contrib\zip2exe\Modern.nsh);
+7、解决VNISEdit在系统盘非Admin账户编译代码错误提示及权限问题。
+
+
+在此致谢：贾可、gfm688、Ansifa、zhfi、少轻狂、水晶、似水年华、mefcl、蓝色网际等等..... 为NSIS付出贡献者致谢！
+
+By - 星空不寂寞|2020.08.28
+
+
