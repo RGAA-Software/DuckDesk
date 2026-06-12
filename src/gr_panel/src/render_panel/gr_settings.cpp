@@ -274,6 +274,37 @@ namespace tc
         return value > 0 ? value : 20369;
     }
 
+    // Panel Server Host // Set
+    void GrSettings::SetPanelServerHost(const std::string& host) {
+        sp_->Put(kStPanelServerHost, host);
+    }
+
+    // Panel Server Host // Get
+    std::string GrSettings::GetPanelServerHost() {
+        return sp_->Get(kStPanelServerHost, "127.0.0.1");
+    }
+
+    // Service Server Host // Set
+    void GrSettings::SetServiceServerHost(const std::string& host) {
+        sp_->Put(kStServiceServerHost, host);
+    }
+
+    // Service Server Host // Get
+    std::string GrSettings::GetServiceServerHost() {
+        return sp_->Get(kStServiceServerHost, "127.0.0.1");
+    }
+
+    // Service Server Port // Set
+    void GrSettings::SetServiceServerPort(int port) {
+        sp_->Put(kStServiceServerPort, std::to_string(port));
+    }
+
+    // Service Server Port // Get
+    int GrSettings::GetServiceServerPort() {
+        auto value = std::atoi(sp_->Get(kStServiceServerPort, "").c_str());
+        return value > 0 ? value : sys_service_port_;
+    }
+
     // Render Server Port // Set
     void GrSettings::SetRenderServerPort(int port) {
         sp_->Put(kStNetworkListenPort, std::to_string(port));

@@ -113,7 +113,10 @@ namespace tc
         args.push_back(std::format("--{}={}", kStDeviceId, settings->GetDeviceId()));
         args.push_back(std::format("--{}={}", kStDeviceRandomPwd, settings->GetDeviceRandomPwd()));
         args.push_back(std::format("--{}={}", kStDeviceSafetyPwd, settings->GetDeviceSecurityPwd()));
+        args.push_back(std::format("--panel_server_host={}", settings->GetPanelServerHost()));
         args.push_back(std::format("--panel_server_port={}", settings->GetPanelServerPort()));
+        args.push_back(std::format("--service_server_host={}", settings->GetServiceServerHost()));
+        args.push_back(std::format("--service_server_port={}", settings->GetServiceServerPort()));
         args.push_back(std::format("--{}={}", kStRelayServerHost, settings->GetRelayServerHost()));
         args.push_back(std::format("--{}={}", kStRelayServerPort, settings->GetRelayServerPort()));
         args.push_back(std::format("--{}={}", kStCanBeOperated, settings->IsBeingOperatedEnabled()));

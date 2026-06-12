@@ -35,6 +35,9 @@ namespace tc
     static const std::string kStDebugBlock = "debug_block";
     static const std::string kStMockVideo = "mock_video";
     static const std::string kStPanelListeningPort = "panel_listen_port";
+    static const std::string kStPanelServerHost = "panel_server_host";
+    static const std::string kStServiceServerHost = "service_server_host";
+    static const std::string kStServiceServerPort = "service_server_port";
     static const std::string kStCaptureAudioDevice = "capture_audio_device";
     static const std::string kStFileTransferFolder = "file_transfer_folder";
     static const std::string kStListeningIp = "listening_ip";
@@ -151,6 +154,18 @@ namespace tc
         // Panel Server Port
         void SetPanelServerPort(int port);
         int GetPanelServerPort();
+
+        // Panel Server Host
+        void SetPanelServerHost(const std::string& host);
+        std::string GetPanelServerHost();
+
+        // Service Server Host
+        void SetServiceServerHost(const std::string& host);
+        std::string GetServiceServerHost();
+
+        // Service Server Port
+        void SetServiceServerPort(int port);
+        int GetServiceServerPort();
 
         // Render Server Port
         void SetRenderServerPort(int port);
