@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "gr_off_site",
+    "gr_updater",
 ]
 resolver = "2"
 

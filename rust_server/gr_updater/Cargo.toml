@@ -1,0 +1,42 @@
+[package]
+name = "gr_updater"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gr_base = {path = "../../rust_base/gr_base"}
+
+rustls = { version = "0.23", features = ["ring"] }
+redis = { version = "0.29.1", features = ["tokio-comp", "r2d2", "tokio-rustls-comp"] }
+axum = { version = "0.8.1", features = ["ws", "multipart"] }
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+tower-http = { version = "0.6.2", features = ["full"] }
+serde_json = "1.0"
+sysinfo = "0.37.0"
+systemstat = "0.2.5"
+raw-cpuid = "11"
+disk-serial-number = "0.2.1"
+log = "0.4.26"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.19", features = ["fmt", "std"] }
+tracing-appender = "^0"
+tracing-log = "0.2.0"
+tokio = { version = "1.43.0", features = ["full"] }
+lazy_static = "1.5.0"
+nvml-wrapper = "0.11.0"
+tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }
+tokio-rustls = { version = "0.26.2" }
+futures-util = "0.3.31"
+clap = { version = "4.5.47", features = ["derive"] }
+clap_derive = "4.5.47"
+calcmhz = "0.1.10"
+#adlx = "0.0.0-alpha.1"
+adlx = { git = "https://github.com/Traverse-Research/adlx-rs.git", branch = "main" }
+anyhow = "1.0.100"
+netdev = "0.37.3"
+mongodb = "3.2.1"
+thiserror = "2.0.17"
+serde = { version = "1.0.228", features = ["derive"] }
+md5 = "0.8.0"
+tokio-util = "0.7.17"
