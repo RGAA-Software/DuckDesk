@@ -6,8 +6,8 @@
 
 - CMake 已禁用旧的 C++ `GammaRayService` / `GammaRayServiceManager` 可执行文件构建
 - 生产构建启用的是 Rust 版本：
-  - `rust/gr_service` -> `GammaRayService.exe`
-  - `rust/gr_service_mgr` -> `GammaRayServiceManager.exe`
+  - `rust_client/gr_service` -> `GammaRayService.exe`
+  - `rust_client/gr_service_mgr` -> `GammaRayServiceManager.exe`
 - `src/GammaRay/src/service/service_manager.cpp` 仍保留为 C++ 包装层，用于让现有 panel/uninstall 代码继续通过原接口调用 Rust manager
 - 历史 C++ service 主体代码已迁到 `src/GammaRay/src/service/legacy`
 
@@ -400,7 +400,7 @@
 
 仓库已经有 Rust workspace：
 
-- [rust/Cargo.toml](/D:/thunder_cloud/GammaRayPremium/rust/Cargo.toml:1)
+- [rust_client/Cargo.toml](/D:/thunder_cloud/GammaRayPremium/rust_client/Cargo.toml:1)
 
 现有成员：
 
@@ -428,7 +428,7 @@
 
 ## 8. 建议的 Rust 新架构
 
-建议在 `rust/` 下新增至少两个 crate：
+建议在 `rust_client/` 下新增至少两个 crate：
 
 - `gr_service`
   - 替换 `GammaRayService.exe`
@@ -443,7 +443,7 @@
 推荐结构：
 
 ```text
-rust/
+rust_client/
   Cargo.toml
   base/
   gr_auth_mgr/

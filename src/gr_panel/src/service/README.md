@@ -8,7 +8,7 @@ Current contents:
 
 The Windows service executables are no longer built from C++ here.
 
-- Rust `rust/gr_service` builds `GammaRayService.exe`
-- Rust `rust/gr_service/service_manager` builds `GammaRayServiceManager.exe`
+- Rust `rust_client/gr_service` builds `GammaRayService.exe`
+- Rust `rust_client/gr_service/service_manager` builds `GammaRayServiceManager.exe`
 
 Historical C++ service sources were moved to [`legacy`](./legacy/) for reference only and are not part of the active build.

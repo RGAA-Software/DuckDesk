@@ -164,7 +164,7 @@ set(GR_GUARD_EXE_NAME GammaRayGuard.exe)
 set(GR_CRASH_REPORTER_EXE_NAME GammaRayCrashReporter.exe)
 set(GR_UNINSTALL_EXE_NAME GammaRayUninstall.exe)
 
-set(GR_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust)
+set(GR_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
 set(GR_RUST_PROFILE debug)
 set(GR_RUST_BUILD_FLAG "")
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

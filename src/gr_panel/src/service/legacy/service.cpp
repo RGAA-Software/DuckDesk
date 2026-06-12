@@ -4,7 +4,7 @@
 //
 // Deprecated:
 // This C++ Windows service runtime is no longer built by CMake.
-// The active service runtime lives in `rust/gr_service`.
+// The active service runtime lives in `rust_client/gr_service`.
 
 #include "service.h"
 #include "service_context.h"

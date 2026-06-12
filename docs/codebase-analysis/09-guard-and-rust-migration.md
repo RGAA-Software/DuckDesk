@@ -25,7 +25,7 @@
 
 ## 当前迁移落点
 
-新的 Rust crate 位于 `rust/gr_guard`，按测试驱动推进：
+新的 Rust crate 位于 `rust_client/gr_guard`，按测试驱动推进：
 
 - `config.rs`
 - `logging.rs`
