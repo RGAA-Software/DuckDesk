@@ -24,7 +24,6 @@ include_directories(${GR_PROJECT_BINARY_PATH}/tc_server_protocol)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/include)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd/asio)
-include_directories(${GR_PROJECT_PATH}/tc_3rdparty/sqlite35)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/sqlite_orm/include)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/webrtc/include/third_party/libyuv/include)
 #include_directories(${GR_PROJECT_PATH}/tc_3rdparty/leveldb/include)
@@ -51,7 +50,7 @@ add_executable(GammaRay WIN32
 
 SET_TARGET_PROPERTIES(GammaRay PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
 
-target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg sqlite35
+target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3
         tc_common_new tc_steam_manager_new tc_vigem tc_message tc_cp_message tc_plugin tc_qt_widget winmm.lib SetupAPI.lib gflags::gflags
         tc_relay_client tc_translator tc_spvr_client Dwmapi.lib tc_widget_loadings tc_client_plugin
         tc_account_sdk tc_rp_message tc_profile_client tc_hw_info tc_global_id_generator tc_server_message skin_interface skin_loader gd_gui

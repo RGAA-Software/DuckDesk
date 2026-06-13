@@ -44,7 +44,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd/asio)
 include_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/sqlite35)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/sqlite_orm/include)
 include_directories(${FFMPEG_ROOT}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
@@ -130,6 +129,7 @@ find_package(libyuv CONFIG REQUIRED)
 find_package(leveldb CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 
@@ -287,7 +287,7 @@ add_dependencies(tc_build_premium_all
     tc_protection
 
     ### from former tc_build_all (deps + rust stages)
-    sqlite35 GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
+    GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
     GammaRayClientInner tc_relay_client tc_rtc_client tc_cp_message GammaRayGuard_stage tc_hw_info
     GammaRayCrashReporter_stage GammaRaySysInfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
