@@ -5,7 +5,7 @@
 #include "plugin_manager.h"
 #include <filesystem>
 #include <cctype>
-#include "toml/toml.hpp"
+#include <toml++/toml.hpp>
 #include "rd_app.h"
 #include "plugin_ids.h"
 #include "rd_context.h"

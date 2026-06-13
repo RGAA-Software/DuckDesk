@@ -5,7 +5,7 @@
 #include "skin_loader.h"
 #include <QLibrary>
 #include <QApplication>
-#include "toml/toml.hpp"
+#include <toml++/toml.hpp>
 #include "tc_common_new/log.h"
 #include "interface/skin_interface.h"
 

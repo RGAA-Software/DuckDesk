@@ -129,6 +129,7 @@ find_package(Opus CONFIG REQUIRED)
 find_package(libyuv CONFIG REQUIRED)
 find_package(leveldb CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(tomlplusplus CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 

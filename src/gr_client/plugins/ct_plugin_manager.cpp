@@ -7,7 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QApplication>
-#include "toml/toml.hpp"
+#include <toml++/toml.hpp>
 #include "ct_settings.h"
 #include "ct_plugin_ids.h"
 #include "ct_client_context.h"
