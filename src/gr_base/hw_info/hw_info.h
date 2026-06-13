@@ -9,7 +9,7 @@
 #include <vector>
 #include <sstream>
 
-#include "json/json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace tc
 {

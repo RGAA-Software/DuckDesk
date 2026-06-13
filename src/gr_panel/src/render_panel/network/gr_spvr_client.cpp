@@ -13,7 +13,7 @@
 #include "render_panel/gr_settings.h"
 #include "tc_common_new/base64.h"
 #include "hw_info/hw_info.h"
-#include "json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "render_panel/gr_application.h"
 #include "render_panel/user/gr_user_manager.h"
 

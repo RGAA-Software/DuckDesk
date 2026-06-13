@@ -11,7 +11,7 @@
 #include "tc_steam_manager_new/steam_manager.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "gr_settings.h"
 #include "render_panel/database/db_game_operator.h"
 #include "gr_resources.h"

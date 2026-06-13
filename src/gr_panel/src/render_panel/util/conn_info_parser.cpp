@@ -3,7 +3,7 @@
 //
 
 #include "conn_info_parser.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "tc_spvr_client/spvr_stream.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/base64.h"

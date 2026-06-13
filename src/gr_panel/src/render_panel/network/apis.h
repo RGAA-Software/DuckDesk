@@ -5,7 +5,7 @@
 #ifndef TC_APPLICATION_APIS_H
 #define TC_APPLICATION_APIS_H
 
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 
 using namespace nlohmann;
 

@@ -3,7 +3,7 @@
 #include <qstandardpaths.h>
 #include <qdebug.h>
 #include <qstorageinfo.h>
-#include <json/json.hpp>
+#include <nlohmann/json.hpp>
 #include "tc_message.pb.h"
 #include "tc_common_new/string_util.h"
 #include "tc_common_new/log.h"

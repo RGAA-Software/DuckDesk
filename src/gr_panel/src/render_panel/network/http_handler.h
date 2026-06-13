@@ -5,7 +5,7 @@
 #ifndef TC_APPLICATION_HTTP_HANDLER_H
 #define TC_APPLICATION_HTTP_HANDLER_H
 
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include <asio2/asio2.hpp>
 
 using namespace nlohmann;

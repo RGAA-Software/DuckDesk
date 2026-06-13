@@ -3,7 +3,7 @@
 //
 
 #include "stream_messages.h"
-#include "json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "render_panel/gr_context.h"
 #include "render_panel/gr_application.h"
 

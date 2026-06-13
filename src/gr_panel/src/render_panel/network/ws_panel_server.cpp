@@ -8,7 +8,7 @@
 #include "http_handler.h"
 #include "tc_message.pb.h"
 #include "render_panel/gr_settings.h"
-#include "json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"

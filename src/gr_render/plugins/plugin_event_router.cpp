@@ -13,7 +13,7 @@
 #include "tc_common_new/data.h"
 #include "tc_common_new/image.h"
 #include "plugin_net_event_router.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "tc_render_panel_message.pb.h"
 #include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"

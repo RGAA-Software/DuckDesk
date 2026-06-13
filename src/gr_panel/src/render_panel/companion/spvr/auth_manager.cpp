@@ -4,7 +4,7 @@
 
 #include "auth_manager.h"
 #include "spvr_setting.h"
-#include "json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "auth_defs.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/http_client.h"

@@ -7,11 +7,11 @@
 #include "render_panel/gr_context.h"
 #include "tc_steam_manager_new/steam_manager.h"
 #include "tc_steam_manager_new/steam_entities.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "render_panel/gr_application.h"
 #include "render_panel/gr_render_controller.h"
 #include "tc_common_new/net_resp.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "render_panel//gr_run_game_manager.h"
 #include "render_panel/database/db_game.h"
 #include "render_panel/database/db_game_operator.h"

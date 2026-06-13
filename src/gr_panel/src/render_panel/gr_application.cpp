@@ -26,7 +26,7 @@
 #include "spvr_scanner/spvr_scanner.h"
 #include "ui/input_safety_pwd_dialog.h"
 #include "ui/monitor_refresher.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "tc_relay_client/relay_api.h"
 #include "skin/interface/skin_interface.h"
 #include "tc_spvr_client/spvr_device_api.h"

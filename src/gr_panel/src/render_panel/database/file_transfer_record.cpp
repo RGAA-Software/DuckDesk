@@ -4,7 +4,7 @@
 
 #include "file_transfer_record.h"
 #include "tc_common_new/time_util.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include <format>
 
 using namespace nlohmann;

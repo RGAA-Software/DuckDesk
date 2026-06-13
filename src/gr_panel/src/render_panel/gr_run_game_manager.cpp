@@ -14,7 +14,7 @@
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/md5.h"
 #include "tc_common_new/win32/process_helper.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include <QImage>
 #include <QPixmap>
 #include <QApplication>

@@ -5,7 +5,7 @@
 #include "steam_game.h"
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/log.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "tc_steam_manager_new/steam_entities.h"
 
 using namespace nlohmann;

@@ -6,7 +6,7 @@
 #include "tc_common_new/md5.h"
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/log.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 
 using namespace nlohmann;
 

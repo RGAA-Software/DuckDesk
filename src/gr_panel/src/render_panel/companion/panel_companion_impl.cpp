@@ -16,7 +16,7 @@
 #include "tc_common_new/folder_util.h"
 #include "tc_common_new/shared_preference.h"
 #include "crypto/auth_aes.h"
-#include "tc_3rdparty/json/json.hpp"
+#include <nlohmann/json.hpp>
 #include "hw_info/hw_info_parser.h"
 #include "spvr/spvr_access_info_parser.h"
 #include "version_config.h"
