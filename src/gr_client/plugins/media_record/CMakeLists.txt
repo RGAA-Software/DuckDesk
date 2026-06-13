@@ -15,9 +15,7 @@ set(PLUGIN_SRCS
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_message tc_client_plugin Qt6::Core Qt6::Widgets)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${FFMPEG_ROOT}/lib/avcodec.lib ${FFMPEG_ROOT}/lib/avdevice.lib ${FFMPEG_ROOT}/lib/avfilter.lib
-        ${FFMPEG_ROOT}/lib/avformat.lib ${FFMPEG_ROOT}/lib/avutil.lib ${FFMPEG_ROOT}/lib/swresample.lib ${FFMPEG_ROOT}/lib/swscale.lib
-        ${FFMPEG_ROOT}/lib/postproc.lib tc_opus_codec_new yuv)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${FFMPEG_LIBRARIES} tc_opus_codec_new yuv)
 target_include_directories(${PROJECT_NAME} PRIVATE
     
     ${CMAKE_SOURCE_DIR}/src/gr_client/plugin_interface

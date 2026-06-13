@@ -70,9 +70,9 @@ cmake --build build_xxx -j18
 - Qt 6.5+
 - vcpkg 管理的 SDL2、gflags、GTest、glm、libvpx、FFTW3、cpr、mimalloc、OpenSSL、protobuf、opus、spdlog、fmt、libyuv、leveldb 等
 - Vulkan SDK
-- FFmpeg 7.1.1
+- FFmpeg 8.1.1 (vcpkg `ffmpeg[avcodec,avdevice,avfilter,avformat,core,swresample,swscale]:x64-windows-static-release`)
 - WebRTC 头文件/预构建资源
-- OpenCV 4.10
+- OpenCV 4.12 (vcpkg `opencv4[core,world]:x64-windows-static-release`)
 - Breakpad
 - 大量仓库内置私有库和三方源码
 

@@ -23,6 +23,12 @@ SKIP_DIRS = {"CMakeFiles", "deps", "tc_client_web"}
 # File extensions to skip
 SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmake"}
 
+# Stale bundled FFmpeg DLLs that should not be copied now that FFmpeg is statically linked via vcpkg
+SKIP_NAMES = {
+    "avcodec-61.dll", "avdevice-61.dll", "avfilter-10.dll", "avformat-61.dll",
+    "avutil-59.dll", "postproc-58.dll", "swresample-5.dll", "swscale-8.dll",
+}
+
 # Test executable prefix
 TEST_PREFIX = "test_"
 
@@ -45,6 +51,8 @@ PRODUCT_EXES = {
 
 
 def should_copy_file(name: str) -> bool:
+    if name.lower() in SKIP_NAMES:
+        return False
     base, ext = os.path.splitext(name)
     if ext.lower() in SKIP_EXTS:
         return False

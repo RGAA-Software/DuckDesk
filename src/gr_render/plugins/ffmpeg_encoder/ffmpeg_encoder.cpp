@@ -188,11 +188,11 @@ namespace tc
         frame_->pts = (int64_t)frame_index;
         if (insert_idr_ || cap_video_frame.request_idr_) {
             insert_idr_ = false;
-            frame_->key_frame = 1;
+            frame_->flags |= AV_FRAME_FLAG_KEY;
             frame_->pict_type = AV_PICTURE_TYPE_I;
             LOGI("Insert an I Frame!");
         } else {
-            frame_->key_frame = 0;
+            frame_->flags &= ~AV_FRAME_FLAG_KEY;
             frame_->pict_type = AV_PICTURE_TYPE_NONE;
         }
         int y_size = img_width * img_height;
@@ -276,9 +276,6 @@ namespace tc
     void FFmpegEncoder::Exit() {
         av_packet_unref(packet_);
         av_frame_free(&frame_);
-        if (codec_ctx_) {
-            avcodec_close(codec_ctx_);
-        }
         avcodec_free_context(&codec_ctx_);
     }
 

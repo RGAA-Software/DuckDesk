@@ -28,7 +28,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 
-set(FFMPEG_ROOT ${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/ffmpeg7.1.1)
+find_package(FFMPEG REQUIRED)
+set(FFMPEG_ROOT ${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET})
 
 ##Source
 include_directories(${CMAKE_SOURCE_DIR}/)
@@ -75,9 +76,6 @@ link_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/lib)
 if(MSVC)
     add_compile_options($<IF:$<CONFIG:Debug>,/MTd,/MT>)
     add_compile_options("/bigobj")
-    #include_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/ffmpeg/include)
-    #link_directories(${GR_PROJECT_PATH}/deps/tc_3rdparty/ffmpeg/lib/x64)
-
     include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/openssl/include)
     link_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/openssl/x64/lib/VC)
 endif()
