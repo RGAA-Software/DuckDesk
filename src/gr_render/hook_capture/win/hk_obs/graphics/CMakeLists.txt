@@ -29,4 +29,4 @@ add_library(${PROJECT_NAME} SHARED
         ../obfuscate.c
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${DETOURS_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} PUBLIC ${DETOURS_LIBRARY} tc_ipc_util tc_common_new dxgi d3d11 d3d12 dxguid DirectXTex)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${DETOURS_LIBRARY} tc_ipc_util tc_common_new dxgi d3d11 d3d12 dxguid Microsoft::DirectXTex)
