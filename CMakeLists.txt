@@ -125,6 +125,7 @@ find_package(OpenSSL REQUIRED)
 #find_package(mongocxx CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(unofficial-breakpad CONFIG REQUIRED)
+find_package(Opus CONFIG REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 
