@@ -56,7 +56,7 @@ SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"leve
 target_link_libraries(${PROJECT_NAME} settings main tc_common_new tc_message tc_steam_manager_new tc_vigem tc_plugin) # tc_rtc tc_encoder_new legacy_encoder
 # easyhook does not have a static triplet, keep using the dynamic x64-windows package
 target_link_directories(${PROJECT_NAME} PRIVATE ${VCPKG_ROOT}/installed/x64-windows/lib)
-target_link_libraries(${PROJECT_NAME} sqlite35 EasyHook64 gflags::gflags leveldb tc_rp_message)
+target_link_libraries(${PROJECT_NAME} sqlite35 EasyHook64 gflags::gflags leveldb::leveldb tc_rp_message)
 #target_link_libraries(${PROJECT_NAME} opencv_ml opencv_dnn opencv_core opencv_flann)
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

@@ -68,7 +68,7 @@ cmake --build build_xxx -j18
 从顶层和 `src/GammaRay/CMakeLists.txt` 可以确认关键依赖包括：
 
 - Qt 6.5+
-- vcpkg 管理的 SDL2、gflags、GTest、glm、libvpx、FFTW3、cpr、mimalloc、OpenSSL 等
+- vcpkg 管理的 SDL2、gflags、GTest、glm、libvpx、FFTW3、cpr、mimalloc、OpenSSL、protobuf、opus、spdlog、fmt、libyuv、leveldb 等
 - Vulkan SDK
 - FFmpeg 7.1.1
 - WebRTC 头文件/预构建资源
