@@ -8,7 +8,7 @@
 #include "tc_common_new/data.h"
 #include "tc_common_new/thread.h"
 #include "tc_common_new/log.h"
-#include "snowflake/snowflake.h"
+#include "tc_common_new/snowflake_id.h"
 #include <QtCore/QTimer>
 #include <QtCore/QEvent>
 #include <tc_common_new/string_util.h>
