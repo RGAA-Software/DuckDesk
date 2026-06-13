@@ -119,7 +119,6 @@ def main():
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/gr_render/GammaRayRender.exe", "GammaRayRender.exe"),
         ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
-        (os.path.join(source_dir, "src/gr_deps/tc_3rdparty/opencv_410/x64/vc16/bin/opencv_world4100.dll"), "opencv_world4100.dll"),
         ("src/gr_deps/tc_webrtc_client/tc_rtc_client.dll", "gr_client/tc_rtc_client.dll"),
     ]
     for rel_src, rel_dst in supplements:

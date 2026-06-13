@@ -11,4 +11,4 @@ set(PLUGIN_SRCS
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE tc_common_new tc_steam_manager_new tc_message tc_plugin winmm.lib SetupAPI.lib yuv)
-#target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_Libs})
+#target_link_libraries(${PROJECT_NAME} PRIVATE opencv_world)
