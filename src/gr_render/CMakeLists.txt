@@ -56,7 +56,7 @@ if(WIN32)
 else()
     add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
 endif()
-SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\"")
+SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\" /ENTRY:mainCRTStartup")
 target_link_libraries(${PROJECT_NAME} settings main tc_common_new tc_message tc_steam_manager_new tc_vigem tc_plugin) # tc_rtc tc_encoder_new legacy_encoder
 # easyhook does not have a static triplet, keep using the dynamic x64-windows package
 target_link_directories(${PROJECT_NAME} PRIVATE ${VCPKG_ROOT}/installed/x64-windows/lib)
