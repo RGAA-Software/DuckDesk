@@ -28,6 +28,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::monitor_dashboard::{render_connection_summary, render_dashboard};
 use crate::monitor_model::{MachineTelemetry, MonitorTab, RemoteMachineState};
+use crate::tray::{self, TrayCommand};
 
 const PATH_SYS_INFO: &str = "/sys/info";
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -40,6 +41,9 @@ pub struct HostCli {
 
     #[arg(long, default_value_t = 20379)]
     port: u16,
+
+    #[arg(long, default_value_t = false)]
+    pub startup: bool,
 }
 
 #[derive(Clone, Default)]
@@ -522,6 +526,7 @@ impl Render for SysMonitorHostApp {
 }
 
 pub fn run(cli: HostCli) {
+    tray::init_tray("GrSysMonitorHost");
     let app = gpui_platform::application().with_assets(Assets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
@@ -534,17 +539,53 @@ pub fn run(cli: HostCli) {
 
         let cli = cli.clone();
         cx.spawn(async move |cx| {
-            cx.open_window(window_options, |window, cx| {
-                window.activate_window();
+            let start_hidden = cli.startup;
+            let window_handle = cx.open_window(window_options, |window, cx| {
                 window.set_window_title("GrSysMonitorHost");
 
                 Theme::change(ThemeMode::Dark, Some(window), cx);
+
+                window.on_window_should_close(cx, |window, _cx| {
+                    tray::hide_window(window);
+                    false
+                });
+
+                if start_hidden {
+                    tray::hide_window(window);
+                } else {
+                    window.activate_window();
+                }
 
                 let host_cli = cli.clone();
                 let view = cx.new(|cx| SysMonitorHostApp::new(window, cx, host_cli));
                 cx.new(|cx| Root::new(view, window, cx))
             })
             .expect("failed to open GrSysMonitorHost window");
+
+            cx.spawn({
+                let window_handle = window_handle;
+                async move |cx| loop {
+                    Timer::after(Duration::from_millis(200)).await;
+                    for command in tray::take_commands() {
+                        match command {
+                            TrayCommand::ShowWindow => {
+                                let _ = window_handle.update(cx, |_, window, _| {
+                                    tray::show_window(window);
+                                    window.activate_window();
+                                });
+                            }
+                            TrayCommand::ExitApp => {
+                                let _ = window_handle.update(cx, |_, window, _| {
+                                    window.remove_window();
+                                });
+                                let _ = cx.update(|cx| cx.quit());
+                                return;
+                            }
+                        }
+                    }
+                }
+            })
+            .detach();
         })
         .detach();
     });

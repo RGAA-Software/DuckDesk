@@ -54,8 +54,8 @@ Section "Install"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\GrSysMonitorHost.lnk" "$INSTDIR\${HOST_EXE}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\卸载.lnk" "$INSTDIR\Uninstall.exe"
 
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitor" "$\"$INSTDIR\${MONITOR_EXE}$\""
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitorHost" "$\"$INSTDIR\${HOST_EXE}$\""
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitor" "$\"$INSTDIR\${MONITOR_EXE}$\" --startup"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitorHost" "$\"$INSTDIR\${HOST_EXE}$\" --startup"
 
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""

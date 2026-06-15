@@ -3176,6 +3176,7 @@ dependencies = [
  "lazy_static",
  "netdev 0.37.3",
  "nvml-wrapper",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "smol",

@@ -23,6 +23,7 @@ use crate::monitor_dashboard::{render_connection_summary, render_dashboard};
 use crate::monitor_model::{MachineTelemetry, MonitorTab};
 use crate::monitor_sender::{MonitorSenderHandle, SenderStatus};
 use crate::sys_info_mgr::SysInfoManager;
+use crate::tray::{self, TrayCommand};
 
 const INTERVAL: Duration = Duration::from_secs(1);
 const DEFAULT_MONITOR_HOST: &str = "127.0.0.1";
@@ -291,7 +292,8 @@ impl Render for SysMonitorApp {
     }
 }
 
-pub fn run() {
+pub fn run(start_hidden: bool) {
+    tray::init_tray("GrSysMonitor");
     let app = gpui_platform::application().with_assets(Assets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
@@ -303,16 +305,51 @@ pub fn run() {
         };
 
         cx.spawn(async move |cx| {
-            cx.open_window(window_options, |window, cx| {
-                window.activate_window();
+            let window_handle = cx.open_window(window_options, |window, cx| {
                 window.set_window_title("GrSysMonitor");
 
                 Theme::change(ThemeMode::Dark, Some(window), cx);
+
+                window.on_window_should_close(cx, |window, _cx| {
+                    tray::hide_window(window);
+                    false
+                });
+
+                if start_hidden {
+                    tray::hide_window(window);
+                } else {
+                    window.activate_window();
+                }
 
                 let view = cx.new(|cx| SysMonitorApp::new(window, cx));
                 cx.new(|cx| Root::new(view, window, cx))
             })
             .expect("failed to open GrSysMonitor window");
+
+            cx.spawn({
+                let window_handle = window_handle;
+                async move |cx| loop {
+                    Timer::after(Duration::from_millis(200)).await;
+                    for command in tray::take_commands() {
+                        match command {
+                            TrayCommand::ShowWindow => {
+                                let _ = window_handle.update(cx, |_, window, _| {
+                                    tray::show_window(window);
+                                    window.activate_window();
+                                });
+                            }
+                            TrayCommand::ExitApp => {
+                                let _ = window_handle.update(cx, |_, window, _| {
+                                    window.remove_window();
+                                });
+                                let _ = cx.update(|cx| cx.quit());
+                                return;
+                            }
+                        }
+                    }
+                }
+            })
+            .detach();
         })
         .detach();
     });

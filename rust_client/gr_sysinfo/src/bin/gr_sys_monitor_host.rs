@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), windows_subsystem = "windows")]
+
 use clap::Parser;
 
 fn main() {
