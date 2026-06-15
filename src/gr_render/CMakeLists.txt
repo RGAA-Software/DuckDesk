@@ -51,7 +51,11 @@ endif()
 
 target_link_libraries(main app_manager protobuf::libprotobuf tc_message Dexode::EventBus)
 
-add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
+if(WIN32)
+    add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
+else()
+    add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
+endif()
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\"")
 target_link_libraries(${PROJECT_NAME} settings main tc_common_new tc_message tc_steam_manager_new tc_vigem tc_plugin) # tc_rtc tc_encoder_new legacy_encoder
 # easyhook does not have a static triplet, keep using the dynamic x64-windows package
