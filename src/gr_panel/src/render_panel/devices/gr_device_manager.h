@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "expt/expected.h"
+#include "tc_common_new/expected.h"
 #include "tc_spvr_client/spvr_errors.h"
 
 namespace spvr
