@@ -36,4 +36,5 @@ build_opensource/*
 output/*
 setup/app/*
 setup/GammaRay_pdb_*/
+rust_client/gr_sysinfo/build/*
 __pycache__/

@@ -1,11 +1,9 @@
 use adlx::helper::AdlxHelper;
 use anyhow::Result;
-use gr_base::crypto_util::aes_encrypt;
 use gr_base::sys_info::{
     SysComponentInfo, SysCpuInfo, SysDiskInfo, SysGpuInfo, SysInfo, SysIpNetwork, SysMemInfo,
     SysNetworkInfo, SysOsInfo, SysSingleCpuInfo,
 };
-use gr_auth_mgr::crypto_keys::AES_DEPLOY_AUTH;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::Nvml;
 use sysinfo::{Components, Disks, Networks, System, Users};
@@ -381,9 +379,7 @@ impl SysInfoManager {
     }
 
     pub fn load_system_info_as_encrypt_json(&mut self) -> String {
-        let info = self.load_system_info();
-        let info = serde_json::to_string(&info).unwrap_or("".to_string());
-        aes_encrypt(info.as_str(), &AES_DEPLOY_AUTH).unwrap_or("".to_string())
+        self.load_system_info_as_json()
     }
 }
 

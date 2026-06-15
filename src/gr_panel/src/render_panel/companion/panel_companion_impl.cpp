@@ -140,15 +140,7 @@ namespace tc
         if (info.empty()) {
             return nullptr;
         }
-        std::string json_info;
-        try {
-            json_info = AuthAes::AesDecrypt(info, AES_DEPLOY_AUTH);
-            //LOGI("Decoded: {}", json_info);
-        }
-        catch(std::exception& e) {
-            LOGE("Decoded error: {}, info: {}", e.what(), info);
-            return nullptr;
-        }
+        std::string json_info = info;
         auto sys_info = HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
         sys_info->raw_json_msg_ = json_info;
 
