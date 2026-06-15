@@ -9,6 +9,11 @@ struct MonitorCli {
 }
 
 fn main() {
+    let _guard = gr_sysinfo::single_instance::ensure_single_instance("GrSysMonitor_SingleInstance");
+    if _guard.is_none() {
+        return;
+    }
+
     let cli = MonitorCli::parse();
     gr_sysinfo::monitor_app::run(cli.startup);
 }

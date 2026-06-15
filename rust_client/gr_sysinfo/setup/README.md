@@ -14,4 +14,5 @@ Installer behavior:
 - installs to `%ProgramFiles%\GammaRayPremium\GrSysMonitorSuite`
 - creates Start Menu shortcuts
 - registers both executables in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+- launches `GrSysMonitor.exe` automatically when installation completes
 - removes those entries on uninstall

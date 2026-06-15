@@ -140,6 +140,10 @@ async fn handle_host_client(
         .peer_addr()
         .map(|addr| addr.to_string())
         .unwrap_or_else(|_| "<unknown>".to_string());
+    let peer_ip = stream
+        .peer_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|_| "<unknown>".to_string());
 
     let ws_stream = accept_hdr_async(stream, move |req: &Request, resp: Response| {
         if req.uri().path() == PATH_SYS_INFO {
@@ -171,7 +175,7 @@ async fn handle_host_client(
                 } else {
                     info.os.sys_host_name.clone()
                 };
-                let key = format!("{host_name}@{peer_addr}");
+                let key = peer_ip.clone();
                 machine_key = Some(key.clone());
 
                 if let Ok(mut items) = machines.lock() {
@@ -179,6 +183,8 @@ async fn handle_host_client(
                         Some(record) => {
                             record.display_name = host_name.clone();
                             record.peer_addr = peer_addr.clone();
+                            record.peer_ip = peer_ip.clone();
+                            record.active_peer_addr = peer_addr.clone();
                             record.last_seen = info.timestamp_readable.clone();
                             record.connected = true;
                             record.telemetry.apply_snapshot(info);
@@ -189,7 +195,9 @@ async fn handle_host_client(
                                 RemoteMachineState {
                                     machine_id: key.clone(),
                                     display_name: host_name,
+                                    peer_ip: peer_ip.clone(),
                                     peer_addr: peer_addr.clone(),
+                                    active_peer_addr: peer_addr.clone(),
                                     last_seen: info.timestamp_readable.clone(),
                                     connected: true,
                                     telemetry: MachineTelemetry::new(info),
@@ -214,7 +222,9 @@ async fn handle_host_client(
     if let Some(machine_key) = machine_key {
         if let Ok(mut items) = machines.lock() {
             if let Some(record) = items.get_mut(&machine_key) {
-                record.connected = false;
+                if record.active_peer_addr == peer_addr {
+                    record.connected = false;
+                }
             }
         }
     }
@@ -358,7 +368,7 @@ impl SysMonitorHostApp {
                                                         .text_sm()
                                                         .font_semibold()
                                                         .text_color(cx.theme().foreground)
-                                                        .child(machine.peer_addr.clone()),
+                                                        .child(machine.peer_ip.clone()),
                                                 )
                                                 .child(
                                                     h_flex()

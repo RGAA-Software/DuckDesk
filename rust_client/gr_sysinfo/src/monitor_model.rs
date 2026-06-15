@@ -167,7 +167,9 @@ impl MachineTelemetry {
 pub struct RemoteMachineState {
     pub machine_id: String,
     pub display_name: String,
+    pub peer_ip: String,
     pub peer_addr: String,
+    pub active_peer_addr: String,
     pub last_seen: String,
     pub connected: bool,
     pub telemetry: MachineTelemetry,

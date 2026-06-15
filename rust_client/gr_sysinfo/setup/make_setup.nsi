@@ -63,6 +63,9 @@ Section "Install"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "Publisher" "${COMPANY_NAME}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "DisplayVersion" "${PRODUCT_VERSION}"
 
+    ; Launch GrSysMonitor after installation completes
+    ExecShell "" "$INSTDIR\${MONITOR_EXE}"
+
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 
