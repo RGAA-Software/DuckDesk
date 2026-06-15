@@ -4,6 +4,7 @@
 
 #include "clipboard_manager.h"
 #include "rd_context.h"
+#include <Windows.h>
 #include <shellapi.h>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"

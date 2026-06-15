@@ -28,7 +28,7 @@
 #include "tc_common_new/dump_helper.h"
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/folder_util.h"
-#include "snowflake/snowflake.h"
+#include "tc_common_new/snowflake_id.h"
 #include "ct_game_overlay.h"
 #include "version_config.h"
 #include "front_render/vulkan/ct_vulkan_checker.h"
