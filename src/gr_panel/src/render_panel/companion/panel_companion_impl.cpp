@@ -142,8 +142,11 @@ namespace tc
         }
         std::string json_info = info;
         auto sys_info = HWInfoParser::ParseHWInfo(json_info, current_cpu_frequency_);
+        if (!sys_info) {
+            return nullptr;
+        }
         sys_info->raw_json_msg_ = json_info;
-
+        
         // save it
         sys_info_ = sys_info;
 
