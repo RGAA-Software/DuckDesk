@@ -6,7 +6,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 use crate::author_context::AuthorContext;
-use crate::author_handler::{handle_ping, handle_query_authors, handle_verify_author, handle_log_out};
+use crate::author_handler::{handle_ping, handle_query_authors, handle_verify_author, handle_log_out, handle_me};
 use crate::authorization_handler::{handle_create_new_authorization, handle_create_new_deploy_authorization, handle_query_authorization_by_id, handle_query_authorization_by_name, handle_query_authorization_like_name, handle_query_authorizations, handle_query_deploy_authorization_by_id, handle_update_authorization, handle_verify_appkey_secret};
 use crate::filter::{author_admin_filter, author_auth_id_filter, author_page_size_filter, author_login_token_filter};
 pub struct AuthorServer {
@@ -67,46 +67,60 @@ impl AuthorServer {
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
+            .route("/api/v1/me",
+                   get(handle_me)
+                       .layer(middleware::from_fn(author_login_token_filter::filter))
+            )
+
             .route("/api/v1/query/authors",
                    get(handle_query_authors)
+                       .layer(middleware::from_fn(author_admin_filter::filter))
+                       .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/create/new/authorization",
                    post(handle_create_new_authorization)
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/create/new/deploy/authorization",
                    post(handle_create_new_deploy_authorization)
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/query/authorization/by/id",
                 get(handle_query_authorization_by_id)
                     .layer(middleware::from_fn(author_auth_id_filter::filter))
+                    .layer(middleware::from_fn(author_admin_filter::filter))
                     .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/query/deploy/authorization/by/id",
                    get(handle_query_deploy_authorization_by_id)
                        .layer(middleware::from_fn(author_auth_id_filter::filter))
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/query/authorization/by/name",
                    get(handle_query_authorization_by_name)
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/query/authorization/like/name",
                    get(handle_query_authorization_like_name)
                        .layer(middleware::from_fn(author_page_size_filter::filter))
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
             .route("/api/v1/query/authorizations",
                    get(handle_query_authorizations)
                        .layer(middleware::from_fn(author_page_size_filter::filter))
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 
@@ -117,6 +131,7 @@ impl AuthorServer {
 
             .route("/api/v1/update/authorization",
                    post(handle_update_authorization)
+                       .layer(middleware::from_fn(author_admin_filter::filter))
                        .layer(middleware::from_fn(author_login_token_filter::filter))
             )
 

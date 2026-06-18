@@ -1,19 +1,15 @@
 <script setup lang="ts">
-  import { Ticket, UserFilled } from '@element-plus/icons-vue'
+  import { Ticket } from '@element-plus/icons-vue'
   import router from '@/router'
   import {RouterView, useRoute} from 'vue-router'
-  import {ref} from "vue";
+  import {computed, onMounted, ref} from "vue";
   import http from '@/utils/http'
 
   import CreateAuthorizationDialog from "@/components/CreateAuthorizationDialog.vue";
 
   const route = useRoute()
-  const handleOpen = (key: string, keyPath: string[]) => {
-    console.log(key, keyPath)
-  }
-  const handleClose = (key: string, keyPath: string[]) => {
-    console.log(key, keyPath)
-  }
+  const currentPermission = ref('')
+  const isAdmin = computed(() => currentPermission.value === 'perm_all')
 
   const createDialogVisible = ref(false)
 
@@ -23,16 +19,20 @@
 
   const logout = async () => {
     try {
-      const response = await http.post('/log_out')
-      console.log("the response: ", response.data)
-    } catch (err: any) {
-      console.log("err", err)
+      await http.post('/log_out')
+    } catch {
+      // 本地退出仍然要清理 token，避免服务端异常时卡在登录态。
     } finally {
       sessionStorage.removeItem('login_token')
       await router.push('/')
       // loading.value = false
     }
   }
+
+  onMounted(async () => {
+    const response = await http.get('/me')
+    currentPermission.value = response.data.data.permission
+  })
 
 </script>
 
@@ -41,15 +41,13 @@
     <el-container class="h-full">
       <el-header class="flex items-center gap-4">
         <el-text class="!text-lg font-bold" type="primary">授权管理系统</el-text>
-        <el-button type="primary" @click="openDialog" >创建授权</el-button>
+        <el-button v-if="isAdmin" type="primary" @click="openDialog" >创建授权</el-button>
         <el-button @click="logout" >退出登录</el-button>
       </el-header>
       <el-container>
         <el-aside width="200px" class="">
           <el-menu
             class="no-border-menu"
-            @open="handleOpen"
-            @close="handleClose"
             :default-active="route.path"
             router
           >

@@ -1,8 +1,8 @@
 <script setup lang="ts">
   import { ref } from 'vue'
-  import { Search, Avatar, Lock, Unlock, Hide, View} from '@element-plus/icons-vue'
+  import { Avatar, Lock, Hide, View, Warning} from '@element-plus/icons-vue'
   import { useRouter } from 'vue-router'
-  import axios from "axios";
+  import http from "@/utils/http";
 
   const router = useRouter()
   const username = ref('')
@@ -21,31 +21,22 @@
   const errorMessage = ref('')
 
   const login = async () => {
-    // request
-
-    console.log('用户名:', username.value)
-    console.log('密码:', password.value)
-
     try {
       const params = {
         author_name: username.value,
         author_token: password.value
       }
-      const response = await axios.post('/api/v1/verify/author', params) // application/json
-      console.log("the resp: ", response.data)
-      console.log("the resp code: ", response.data.code)
+      const response = await http.post('/verify/author', params) // application/json
       if (kRespSuccessCode == response.data.code) {
-        console.log("the resp token: ", response.data.data.token)
         sessionStorage.setItem('login_token', response.data.data.token) //
-        axios.defaults.headers.common['Authorization'] = response.data.data.token // to do: F5 刷新这个请求头就没了，需要再单独设置下
         await router.push('/main')
+        return
       }
-    } catch (err: any) {
-      console.log("err", err)
-      errorMessage.value = '用户名或密码错误'
+
+      errorMessage.value = response.data.message || '用户名或密码错误'
       loginErrorDialogVisible.value = true
-    } finally {
-      errorMessage.value = '用户名或密码错误'
+    } catch (err: any) {
+      errorMessage.value = err.response?.data?.message || '用户名或密码错误'
       loginErrorDialogVisible.value = true
     }
   }
@@ -136,4 +127,3 @@
 
   </el-row>
 </template>
-

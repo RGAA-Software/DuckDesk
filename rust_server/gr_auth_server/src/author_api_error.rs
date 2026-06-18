@@ -1,4 +1,5 @@
 use axum::Json;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 use gr_base::RespMessage;
@@ -47,23 +48,78 @@ pub enum AuthorApiError {
 
 impl IntoResponse for AuthorApiError {
     fn into_response(self) -> Response {
-        let (code, msg) = match self {
-            AuthorApiError::InvalidParams => (800, self.to_string()),
-            AuthorApiError::DatabaseError => (801, self.to_string()),
-            AuthorApiError::InvalidPassword => (802, self.to_string()),
-            AuthorApiError::InvalidPageSize => (803, self.to_string()),
-            AuthorApiError::AlreadyExists => (804, self.to_string()),
-            AuthorApiError::MustBeAdministrator => (805, self.to_string()),
-            AuthorApiError::AuthorizationNotFound => (806, self.to_string()),
-            AuthorApiError::AppkeySecretNotPaired => (807, self.to_string()),
-            AuthorApiError::CantCreateAuthorization => (808, self.to_string()),
-            AuthorApiError::NoAuthorsFound => (809, self.to_string()),
-            AuthorApiError::UpdateAuthFailed => (810, self.to_string()),
-            AuthorApiError::InvalidLoginToken => (811, self.to_string()),
-            AuthorApiError::MissLoginToken => (812, self.to_string()),
-        };
-
+        let status = self.status_code();
+        let code = self.business_code();
+        let msg = self.to_string();
         let body = Json(RespMessage::new_data(code, msg, ""));
-        (axum::http::StatusCode::from_u16(code as u16).unwrap(), body).into_response()
+        (status, body).into_response()
+    }
+}
+
+impl AuthorApiError {
+    pub fn business_code(&self) -> i32 {
+        match self {
+            AuthorApiError::InvalidParams => 800,
+            AuthorApiError::DatabaseError => 801,
+            AuthorApiError::InvalidPassword => 802,
+            AuthorApiError::InvalidPageSize => 803,
+            AuthorApiError::AlreadyExists => 804,
+            AuthorApiError::MustBeAdministrator => 805,
+            AuthorApiError::AuthorizationNotFound => 806,
+            AuthorApiError::AppkeySecretNotPaired => 807,
+            AuthorApiError::CantCreateAuthorization => 808,
+            AuthorApiError::NoAuthorsFound => 809,
+            AuthorApiError::UpdateAuthFailed => 810,
+            AuthorApiError::InvalidLoginToken => 811,
+            AuthorApiError::MissLoginToken => 812,
+        }
+    }
+
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            AuthorApiError::InvalidParams
+            | AuthorApiError::InvalidPageSize
+            | AuthorApiError::AlreadyExists
+            | AuthorApiError::AuthorizationNotFound
+            | AuthorApiError::AppkeySecretNotPaired
+            | AuthorApiError::CantCreateAuthorization
+            | AuthorApiError::NoAuthorsFound
+            | AuthorApiError::UpdateAuthFailed => StatusCode::BAD_REQUEST,
+            AuthorApiError::InvalidPassword
+            | AuthorApiError::InvalidLoginToken
+            | AuthorApiError::MissLoginToken => StatusCode::UNAUTHORIZED,
+            AuthorApiError::MustBeAdministrator => StatusCode::FORBIDDEN,
+            AuthorApiError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn business_codes_remain_stable() {
+        assert_eq!(AuthorApiError::InvalidParams.business_code(), 800);
+        assert_eq!(AuthorApiError::InvalidPassword.business_code(), 802);
+        assert_eq!(AuthorApiError::MustBeAdministrator.business_code(), 805);
+        assert_eq!(AuthorApiError::InvalidLoginToken.business_code(), 811);
+        assert_eq!(AuthorApiError::MissLoginToken.business_code(), 812);
+    }
+
+    #[test]
+    fn errors_map_to_valid_http_status_codes() {
+        let cases = [
+            (AuthorApiError::InvalidParams, StatusCode::BAD_REQUEST),
+            (AuthorApiError::DatabaseError, StatusCode::INTERNAL_SERVER_ERROR),
+            (AuthorApiError::InvalidPassword, StatusCode::UNAUTHORIZED),
+            (AuthorApiError::MustBeAdministrator, StatusCode::FORBIDDEN),
+            (AuthorApiError::InvalidLoginToken, StatusCode::UNAUTHORIZED),
+            (AuthorApiError::MissLoginToken, StatusCode::UNAUTHORIZED),
+        ];
+
+        for (error, status) in cases {
+            assert_eq!(error.status_code(), status);
+        };
     }
 }

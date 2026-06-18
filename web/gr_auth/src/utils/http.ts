@@ -19,16 +19,20 @@ http.interceptors.request.use(
 	(error) => Promise.reject(error)
 )
 
-// 811: 无效登录token
+const LOGIN_EXPIRED_CODES = new Set([811, 812])
 
 // 响应拦截器：统一处理登录失效
 http.interceptors.response.use(
 	(response) => {
-		// ...
+		if (LOGIN_EXPIRED_CODES.has(response.data?.code)) {
+			void handleLoginExpired()
+		}
 		return response
 	},
 	async (error) => {
-		if (error.response?.status === 811) {
+		const status = error.response?.status
+		const code = error.response?.data?.code
+		if (status === 401 || status === 403 || LOGIN_EXPIRED_CODES.has(code)) {
 			await handleLoginExpired()
 		}
 		return Promise.reject(error)
@@ -39,7 +43,9 @@ http.interceptors.response.use(
 const handleLoginExpired = async () => {
 	sessionStorage.removeItem('login_token')
 	ElMessage.error('登录已失效，请重新登录')
-	await router.push('/')
+	if (router.currentRoute.value.path !== '/') {
+		await router.push('/')
+	}
 }
 
 export default http

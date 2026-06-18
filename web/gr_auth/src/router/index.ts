@@ -28,4 +28,10 @@ const router = createRouter({
   ],
 })
 
+router.beforeEach((to) => {
+  if (to.path.startsWith('/main') && !sessionStorage.getItem('login_token')) {
+    return '/'
+  }
+})
+
 export default router

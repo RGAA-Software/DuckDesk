@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::thread::current;
 use axum::body::Body;
 use axum::extract::{ConnectInfo, Query, State};
 use axum::Json;
@@ -9,25 +8,23 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use gr_auth_mgr::app_secret_util::is_appkey_secret_paired;
 use gr_base::{ok_resp, RespMessage};
-use gr_base::crypto_util::{aes_decrypt, aes_encrypt};
 use crate::author_api_error::AuthorApiError;
 use crate::author_api_error::AuthorApiError::AppkeySecretNotPaired;
 use crate::author_context::AuthorContext;
 use crate::author_http_util::{get_body_int, get_body_str, get_body, get_int_param, get_str_param};
 use gr_auth_mgr::authorization::{Authorization, AuthorizationVo};
-use crate::author_keys::{KEY_AUTHOR_NAME, KEY_AUTHOR_TOKEN, KEY_CREATE_AUTHORIZATION_ROLE, KEY_CREATE_AUTHORIZATION_DAYS, KEY_CREATE_AUTHORIZATION_MACHINE_CODE,
+use crate::author_keys::{KEY_CREATE_AUTHORIZATION_ROLE, KEY_CREATE_AUTHORIZATION_DAYS, KEY_CREATE_AUTHORIZATION_MACHINE_CODE,
 KEY_CREATE_AUTHORIZATION_MAX_STREAMS, KEY_CREATE_AUTHORIZATION_USER_NAME, KEY_CREATE_AUTHORIZATION_AUTH_ID};
-use crate::author_resp::AuthorLoginResp;
 use crate::authorization_manager::AuthorizationError;
-use crate::{gAuthorManager, gAuthorizationManager};
-use crate::author_claims::AuthorClaims;
+use crate::gAuthorizationManager;
 
 pub async fn handle_create_new_authorization(State(_context): State<Arc<Mutex<AuthorContext>>>,
                                   ConnectInfo(_addr): ConnectInfo<SocketAddr>, body: Body)
                                   -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
 
     let body = get_body(body).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str())
+        .map_err(|_| AuthorApiError::InvalidParams)?;
     let name = get_body_str(&r, KEY_CREATE_AUTHORIZATION_USER_NAME)?;
     let days = get_body_int(&r, KEY_CREATE_AUTHORIZATION_DAYS)? as i32;
     let max_streams = get_body_int(&r, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)? as i32;
@@ -70,10 +67,7 @@ pub async fn handle_create_new_deploy_authorization(State(ctx): State<Arc<Mutex<
 pub async fn handle_query_authorization_by_id(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
                                              query: Query<HashMap<String, String>>)
                                              -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
-    let auth_id = query
-        .get("auth_id")
-        .unwrap()
-        .clone();
+    let auth_id = get_str_param(&query, "auth_id")?;
 
     if let Some(auth) = gAuthorizationManager
         .query_authorization_by_id(auth_id).await {
@@ -164,7 +158,7 @@ pub async fn handle_verify_appkey_secret(State(_ctx): State<Arc<Mutex<AuthorCont
     let appkey = get_str_param(&query, "appkey")?;
     let app_secret = get_str_param(&query, "app_secret")?;
     if !is_appkey_secret_paired(appkey.clone(), app_secret.clone()) {
-        return Err(AppkeySecretNotPaired)
+        return Err(AppkeySecretNotPaired);
     }
 
     if let Some(auth) = gAuthorizationManager
@@ -183,7 +177,8 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
                                              -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
 
     let body = get_body(body).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str())
+        .map_err(|_| AuthorApiError::InvalidParams)?;
     let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
     tracing::info!("Auth ID: {}", auth_id);
     let days = get_body_int(&r, KEY_CREATE_AUTHORIZATION_DAYS)? as i32;
@@ -195,7 +190,7 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
 
     let auth = gAuthorizationManager
         .query_authorization_by_id(auth_id.clone()).await;
-    if let None = auth {
+    if auth.is_none() {
         return Err(AuthorApiError::AuthorizationNotFound);
     }
 
