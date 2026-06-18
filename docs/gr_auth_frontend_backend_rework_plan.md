@@ -16,7 +16,7 @@
 - `/api/v1/query/authors` 没有登录保护。
 - 登录日志打印 `author_token`，还打印 `login_token`。
 - 管理员密码存储已改为 Argon2id，字段命名已收敛为 `password_hash`。
-- logout 使用全局 `TOKEN_VERSION`，一个用户退出会让所有用户 token 失效；服务重启后旧 token 可能恢复有效。
+- logout 已改为 `jti` + 进程内 blacklist，当前只失效当前 token。
 - 同一套 router 同时开放 HTTP 和 HTTPS，敏感接口可明文访问。
 
 ### 1.2 前端问题
@@ -113,12 +113,12 @@
 
 ### 阶段六：logout 与 token 生命周期
 
-- 删除全局 `TOKEN_VERSION`。
-- 第一阶段可以使用短有效期 JWT。
-- 第二阶段实现 token blacklist：
+- 已删除全局 `TOKEN_VERSION`。
+- JWT claims 已增加 `jti`。
+- 已实现进程内 token blacklist：
   - logout 只失效当前 token。
-  - blacklist 记录 token 或 jti 及过期时间。
-  - token 过期后清理 blacklist。
+  - blacklist 记录 `jti` 及过期时间。
+  - 验证 token 时会清理过期 blacklist 项。
 
 ### 阶段七：HTTP/HTTPS 收口
 

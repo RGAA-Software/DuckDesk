@@ -19,7 +19,7 @@
 | JWT Secret 硬编码 | 可伪造 Token | `author_claims.rs` |
 | 密码已改用 Argon2id，字段已命名为 `password_hash` | 当前按新服务处理，不做旧字段兼容 | `author_manager.rs` / `author.rs` |
 | 同一份 router 同时暴露 HTTP/HTTPS | 敏感接口可明文访问 | `author_server.rs` |
-| 退出登录全局递增 Token Version | 一人退出全员失效；重启后旧 Token 复活 | `author_claims.rs` |
+| 退出登录已改为 `jti` + 进程内 blacklist | 后续如需重启后仍保持 logout 状态，可落 MongoDB | `author_claims.rs` |
 
 > 注：业务错误码直接当 HTTP StatusCode 返回导致的 panic 问题（`author_api_error.rs`）不在本方案范围内，按现有逻辑继续返回给调用方报错即可。
 
@@ -431,7 +431,7 @@ pub async fn handle_create_new_authorization(
 - [ ] `filter/author_login_token_filter.rs`（替换为新的 `auth_middleware.rs`）
 - [x] `author_manager.rs` 中的硬编码 `AUTHOR_ADMIN_PASSWORD`、`AUTHOR_VISITOR_PASSWORD`
 - [x] `author_manager.rs` 中的 `gen_token` / `gen_password_by_token` / `gen_password` 自制哈希
-- [ ] `author_claims.rs` 中的全局 `TOKEN_VERSION`
+- [x] `author_claims.rs` 中的全局 `TOKEN_VERSION`
 - [ ] `author_context.rs`（空壳结构体）
 - [ ] 所有 `println!` 敏感信息/调试输出
 
@@ -445,7 +445,7 @@ pub async fn handle_create_new_authorization(
 4. **中间件**：新增 `auth_middleware.rs` + `admin_middleware.rs`。
 5. **路由**：按第 10 节表重新挂载中间件。
 6. **初始管理员**：改为 `gr_auth_server_settings.toml` 的 `[bootstrap]` 配置层创建。
-7. **退出登录**：改为黑名单机制。
+7. **退出登录**：改为 `jti` + blacklist 机制。
 8. **清理**：删除废弃文件、移除 `println!`、补单元测试。
 
 ---

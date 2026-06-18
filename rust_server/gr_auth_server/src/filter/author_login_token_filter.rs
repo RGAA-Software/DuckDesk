@@ -27,7 +27,12 @@ pub fn verify_headers(headers: &HeaderMap) -> Result<AuthorClaims, AuthorApiErro
 mod tests {
     use super::*;
     use crate::author::AuthorRole;
+    use crate::author_claims::init_jwt_secret;
     use axum::http::HeaderValue;
+
+    fn init_test_secret() {
+        assert!(init_jwt_secret("test-secret-must-be-at-least-32-bytes".to_string()));
+    }
 
     #[test]
     fn verify_headers_rejects_missing_authorization() {
@@ -50,6 +55,7 @@ mod tests {
 
     #[test]
     fn verify_headers_accepts_valid_token() {
+        init_test_secret();
         let claims = AuthorClaims::new(
             "Admin".to_string(),
             AuthorRole::Admin,
