@@ -18,7 +18,7 @@
 | 登录校验中间件不注入用户信息 | 接口不知道谁在操作，无法做权限控制 | `filter/author_login_token_filter.rs` |
 | JWT Secret 硬编码 | 可伪造 Token | `author_claims.rs` |
 | 密码已改用 Argon2id，字段已命名为 `password_hash` | 当前按新服务处理，不做旧字段兼容 | `author_manager.rs` / `author.rs` |
-| 同一份 router 同时暴露 HTTP/HTTPS | 敏感接口可明文访问 | `author_server.rs` |
+| 已关闭明文 HTTP 监听，仅保留 HTTPS | 敏感接口不再通过 HTTP 暴露 | `author_server.rs` |
 | 退出登录已改为 `jti` + 进程内 blacklist | 后续如需重启后仍保持 logout 状态，可落 MongoDB | `author_claims.rs` |
 
 > 注：业务错误码直接当 HTTP StatusCode 返回导致的 panic 问题（`author_api_error.rs`）不在本方案范围内，按现有逻辑继续返回给调用方报错即可。

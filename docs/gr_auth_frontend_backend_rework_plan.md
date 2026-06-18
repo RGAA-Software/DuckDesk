@@ -17,7 +17,7 @@
 - 登录日志打印 `author_token`，还打印 `login_token`。
 - 管理员密码存储已改为 Argon2id，字段命名已收敛为 `password_hash`。
 - logout 已改为 `jti` + 进程内 blacklist，当前只失效当前 token。
-- 同一套 router 同时开放 HTTP 和 HTTPS，敏感接口可明文访问。
+- 已关闭明文 HTTP 监听，仅保留 HTTPS。
 
 ### 1.2 前端问题
 
@@ -122,8 +122,8 @@
 
 ### 阶段七：HTTP/HTTPS 收口
 
-- 管理 API 默认只走 HTTPS。
-- HTTP 端口只保留健康检查或重定向，或者关闭。
+- 已关闭 HTTP 端口，仅保留 HTTPS。
+- 管理 API、登录、logout、`/me` 和静态资源都只通过 HTTPS 暴露。
 - 静态资源继续由 `gr_auth_server` 托管。
 
 ## 4. 测试要求

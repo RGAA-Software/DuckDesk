@@ -137,13 +137,6 @@ impl AuthorServer {
 
             .with_state(self.context.clone());
 
-        let tcp_router = router.clone();
-        let http_port = self.port - 1;
-        tokio::spawn(async move {
-            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", http_port)).await.unwrap();
-            axum::serve(listener,  tcp_router.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
-        });
-        tracing::info!("http.listening on {}", http_port);
         tracing::info!("https.listening on {}", self.port);
 
         let addr = SocketAddr::from(([0, 0, 0, 0], self.port));
