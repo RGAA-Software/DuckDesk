@@ -163,6 +163,7 @@ import {onMounted, ref} from 'vue'
 import { watch } from 'vue'
 import {type ComponentSize, ElMessage} from 'element-plus'
 import http from '@/utils/http'
+import { validateUpdateAuthorization } from '@/utils/authorizationValidation'
 
 import { useAuthStore } from '@/stores/auth'
 
@@ -178,9 +179,6 @@ watch(
 // 错误信息
 const errorMessage = ref('')
 const errorDialogVisible = ref(false)
-
-const MAX_AUTH_DAYS = 365000
-const MAX_AUTH_STREAMS = 10000
 
 interface Authorization {
   auth_id: string
@@ -233,26 +231,15 @@ const showMessage = (message: string) => {
 const validateSelectedAuthorization = () => {
   if (!selectedData.value) return false
 
-  const days = Number(selectedData.value.days)
-  const maxStreams = Number(selectedData.value.max_streams)
-  const role = Number(selectedData.value.role)
-
-  if (!Number.isInteger(days) || days < 1 || days > MAX_AUTH_DAYS) {
-    showMessage(`Days 必须在 1 到 ${MAX_AUTH_DAYS} 之间`)
-    return false
-  }
-  if (!Number.isInteger(maxStreams) || maxStreams < 1 || maxStreams > MAX_AUTH_STREAMS) {
-    showMessage(`Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`)
-    return false
-  }
-  if (![1, 2, 3].includes(role)) {
-    showMessage('Customer Role 必须是 1、2 或 3')
+  const validation = validateUpdateAuthorization(selectedData.value)
+  if (!validation.ok) {
+    showMessage(validation.message)
     return false
   }
 
-  selectedData.value.days = days
-  selectedData.value.max_streams = maxStreams
-  selectedData.value.role = role
+  selectedData.value.days = validation.value.days
+  selectedData.value.max_streams = validation.value.max_streams
+  selectedData.value.role = validation.value.role
   return true
 }
 

@@ -183,6 +183,21 @@
 
 ### 4.2 前端测试
 
+- 已引入 Vitest + jsdom 单元测试体系，`npm run test:unit` 作为前端单元测试入口。
+- 已覆盖 HTTP client：
+  - 请求自动携带 `Authorization`。
+  - HTTP 401 清理 token 并跳转登录页。
+  - legacy 811/812 业务 code 清理 token。
+  - HTTP 403 只提示无权限，不清理 token。
+- 已覆盖 router guard：
+  - 无 token 访问 `/main/*` 自动回登录页。
+  - 有 token 可以进入 `/main/*`。
+- 已覆盖授权输入校验纯函数：
+  - 创建授权字段 trim 和数字标准化。
+  - 缺字段、空字符串、超长字符串。
+  - `days`、`max_streams` 的下界、上界、越界、小数和非数字。
+  - `role` 的合法值和非法值。
+  - 修改授权的非法边界。
 - 登录成功跳转 `/main/auth-list`。
 - 登录失败显示错误，不保存 token。
 - 无 token 访问 `/main/*` 自动回登录页。
