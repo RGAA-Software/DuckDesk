@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{Query, State};
 use axum::Json;
 use serde_json::Value;
 use tokio::sync::Mutex;
@@ -19,22 +18,18 @@ use crate::authorization_manager::AuthorizationError;
 use crate::gAuthorizationManager;
 
 pub async fn handle_create_new_authorization(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                  ConnectInfo(_addr): ConnectInfo<SocketAddr>, body: Body)
+                                  body: Body)
                                   -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
 
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str())
         .map_err(|_| AuthorApiError::InvalidParams)?;
-    let name = get_body_str(&r, KEY_CREATE_AUTHORIZATION_USER_NAME)?;
-    let days = get_body_int(&r, KEY_CREATE_AUTHORIZATION_DAYS)? as i32;
-    let max_streams = get_body_int(&r, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)? as i32;
-    let machine_code = get_body_str(&r, KEY_CREATE_AUTHORIZATION_MACHINE_CODE)?;
-    let customer_role = get_body_int(&r, KEY_CREATE_AUTHORIZATION_ROLE)? as i32;
+    let input = parse_create_authorization_input(&r)?;
 
-    tracing::info!("customer_role {}", customer_role);
+    tracing::info!("customer_role {}", input.role);
 
     let auth = gAuthorizationManager
-        .gen_new_authorization(name, machine_code, days, max_streams, customer_role).await;
+        .gen_new_authorization(input.name, input.machine_code, input.days, input.max_streams, input.role).await;
     match auth {
         Ok(auth) => {
             Ok(Json(ok_resp(auth)))
@@ -54,9 +49,9 @@ pub async fn handle_create_new_authorization(State(_context): State<Arc<Mutex<Au
 }
 
 pub async fn handle_create_new_deploy_authorization(State(ctx): State<Arc<Mutex<AuthorContext>>>,
-                                                    ConnectInfo(_addr): ConnectInfo<SocketAddr>, body: Body)
+                                                    body: Body)
                                                     -> Result<Json<RespMessage<String>>, AuthorApiError> {
-    let r = handle_create_new_authorization(State(ctx), ConnectInfo(_addr), body).await?;
+    let r = handle_create_new_authorization(State(ctx), body).await?;
     let auth = r.0.data;
     if let Ok(str) = auth.as_deploy_str() {
         return Ok(Json(ok_resp(str)));
@@ -100,13 +95,7 @@ pub async fn handle_query_deploy_authorization_by_id(State(_ctx): State<Arc<Mute
 pub async fn handle_query_authorization_by_name(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
                                               query: Query<HashMap<String, String>>)
                                               -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
-    let auth_name = query
-        .get("auth_name")
-        .unwrap_or(&"".to_string())
-        .clone();
-    if auth_name.is_empty() {
-        return Err(AuthorApiError::InvalidParams);
-    }
+    let auth_name = get_str_param(&query, "auth_name")?;
 
     if let Some(auth) = gAuthorizationManager
         .query_authorization_by_name(auth_name).await {
@@ -173,20 +162,18 @@ pub async fn handle_verify_appkey_secret(State(_ctx): State<Arc<Mutex<AuthorCont
 
 
 pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                             ConnectInfo(_addr): ConnectInfo<SocketAddr>, body: Body)
+                                             body: Body)
                                              -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
 
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str())
         .map_err(|_| AuthorApiError::InvalidParams)?;
-    let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    let input = parse_update_authorization_input(&r)?;
+    let auth_id = input.auth_id;
     tracing::info!("Auth ID: {}", auth_id);
-    let days = get_body_int(&r, KEY_CREATE_AUTHORIZATION_DAYS)? as i32;
-    tracing::info!("Days: {}", days);
-    let max_streams = get_body_int(&r, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)? as i32;
-    tracing::info!("Max streams: {}", max_streams);
-    let role = get_body_int(&r, KEY_CREATE_AUTHORIZATION_ROLE)? as i32;
-    tracing::info!("Role: {}", role);
+    tracing::info!("Days: {}", input.days);
+    tracing::info!("Max streams: {}", input.max_streams);
+    tracing::info!("Role: {}", input.role);
 
     let auth = gAuthorizationManager
         .query_authorization_by_id(auth_id.clone()).await;
@@ -196,11 +183,11 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
 
     let mut auth = auth.unwrap();
     let current_ts = gr_base::get_current_timestamp();
-    auth.days = days;
-    auth.role = role;
-    auth.max_streams = max_streams;
+    auth.days = input.days;
+    auth.role = input.role;
+    auth.max_streams = input.max_streams;
     auth.created_timestamp_ms = current_ts;
-    auth.end_timestamp_ms = current_ts + (days as i64) * 24 * 3600 * 1000;
+    auth.end_timestamp_ms = current_ts + (input.days as i64) * 24 * 3600 * 1000;
     auth.last_modify_timestamp = current_ts;
     let r = gAuthorizationManager
         .update_authorization(auth_id.clone(), auth).await;
@@ -212,5 +199,268 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
     }
     else {
         Err(AuthorApiError::UpdateAuthFailed)
+    }
+}
+
+const MAX_AUTH_NAME_LEN: usize = 128;
+const MAX_MACHINE_CODE_LEN: usize = 256;
+const MAX_AUTH_DAYS: i32 = 365000;
+const MAX_AUTH_STREAMS: i32 = 10000;
+const VALID_CUSTOMER_ROLES: std::ops::RangeInclusive<i32> = 1..=3;
+
+#[derive(Debug, PartialEq, Eq)]
+struct CreateAuthorizationInput {
+    name: String,
+    machine_code: String,
+    days: i32,
+    max_streams: i32,
+    role: i32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct UpdateAuthorizationInput {
+    auth_id: String,
+    days: i32,
+    max_streams: i32,
+    role: i32,
+}
+
+fn parse_create_authorization_input(body: &Value) -> Result<CreateAuthorizationInput, AuthorApiError> {
+    let name = get_body_str(body, KEY_CREATE_AUTHORIZATION_USER_NAME)?;
+    let machine_code = get_body_str(body, KEY_CREATE_AUTHORIZATION_MACHINE_CODE)?;
+    let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
+    let max_streams = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?;
+    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+
+    validate_name(&name)?;
+    validate_machine_code(&machine_code)?;
+    validate_days(days)?;
+    validate_max_streams(max_streams)?;
+    validate_customer_role(role)?;
+
+    Ok(CreateAuthorizationInput {
+        name,
+        machine_code,
+        days,
+        max_streams,
+        role,
+    })
+}
+
+fn parse_update_authorization_input(body: &Value) -> Result<UpdateAuthorizationInput, AuthorApiError> {
+    let auth_id = get_body_str(body, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
+    let max_streams = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?;
+    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+
+    validate_auth_id(&auth_id)?;
+    validate_days(days)?;
+    validate_max_streams(max_streams)?;
+    validate_customer_role(role)?;
+
+    Ok(UpdateAuthorizationInput {
+        auth_id,
+        days,
+        max_streams,
+        role,
+    })
+}
+
+fn checked_body_i32(body: &Value, key: &str) -> Result<i32, AuthorApiError> {
+    i32::try_from(get_body_int(body, key)?)
+        .map_err(|_| AuthorApiError::InvalidParams)
+}
+
+fn validate_name(name: &str) -> Result<(), AuthorApiError> {
+    if name.trim().is_empty() || name.len() > MAX_AUTH_NAME_LEN {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn validate_machine_code(machine_code: &str) -> Result<(), AuthorApiError> {
+    if machine_code.trim().is_empty() || machine_code.len() > MAX_MACHINE_CODE_LEN {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn validate_auth_id(auth_id: &str) -> Result<(), AuthorApiError> {
+    if auth_id.trim().is_empty() {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn validate_days(days: i32) -> Result<(), AuthorApiError> {
+    if !(1..=MAX_AUTH_DAYS).contains(&days) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn validate_max_streams(max_streams: i32) -> Result<(), AuthorApiError> {
+    if !(1..=MAX_AUTH_STREAMS).contains(&max_streams) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn validate_customer_role(role: i32) -> Result<(), AuthorApiError> {
+    if !VALID_CUSTOMER_ROLES.contains(&role) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn valid_create_body() -> Value {
+        json!({
+            "name": "customer-a",
+            "machine_code": "machine-a",
+            "days": 30,
+            "max_streams": 4,
+            "role": 1
+        })
+    }
+
+    fn valid_update_body() -> Value {
+        json!({
+            "auth_id": "auth-id",
+            "days": 30,
+            "max_streams": 4,
+            "role": 1
+        })
+    }
+
+    #[test]
+    fn parses_valid_create_authorization_input() {
+        let input = parse_create_authorization_input(&valid_create_body()).unwrap();
+
+        assert_eq!(input.name, "customer-a");
+        assert_eq!(input.machine_code, "machine-a");
+        assert_eq!(input.days, 30);
+        assert_eq!(input.max_streams, 4);
+        assert_eq!(input.role, 1);
+    }
+
+    #[test]
+    fn create_input_rejects_missing_or_wrong_typed_fields() {
+        let cases = [
+            json!({"machine_code":"m","days":30,"max_streams":1,"role":1}),
+            json!({"name":"n","days":30,"max_streams":1,"role":1}),
+            json!({"name":"n","machine_code":"m","days":"30","max_streams":1,"role":1}),
+            json!({"name":"n","machine_code":"m","days":30,"max_streams":"1","role":1}),
+            json!({"name":"n","machine_code":"m","days":30,"max_streams":1,"role":"1"}),
+        ];
+
+        for body in cases {
+            assert!(parse_create_authorization_input(&body).is_err(), "body should be rejected: {body}");
+        }
+    }
+
+    #[test]
+    fn create_input_rejects_empty_and_too_long_name_or_machine_code() {
+        let mut body = valid_create_body();
+        body["name"] = json!(" ");
+        assert!(parse_create_authorization_input(&body).is_err());
+
+        let mut body = valid_create_body();
+        body["name"] = json!("x".repeat(MAX_AUTH_NAME_LEN + 1));
+        assert!(parse_create_authorization_input(&body).is_err());
+
+        let mut body = valid_create_body();
+        body["machine_code"] = json!(" ");
+        assert!(parse_create_authorization_input(&body).is_err());
+
+        let mut body = valid_create_body();
+        body["machine_code"] = json!("x".repeat(MAX_MACHINE_CODE_LEN + 1));
+        assert!(parse_create_authorization_input(&body).is_err());
+    }
+
+    #[test]
+    fn create_input_rejects_days_boundaries() {
+        for days in [0, -1, MAX_AUTH_DAYS + 1] {
+            let mut body = valid_create_body();
+            body["days"] = json!(days);
+            assert!(parse_create_authorization_input(&body).is_err(), "days={days} should fail");
+        }
+
+        for days in [1, MAX_AUTH_DAYS] {
+            let mut body = valid_create_body();
+            body["days"] = json!(days);
+            assert!(parse_create_authorization_input(&body).is_ok(), "days={days} should pass");
+        }
+    }
+
+    #[test]
+    fn create_input_rejects_max_streams_boundaries() {
+        for max_streams in [0, -1, MAX_AUTH_STREAMS + 1] {
+            let mut body = valid_create_body();
+            body["max_streams"] = json!(max_streams);
+            assert!(parse_create_authorization_input(&body).is_err(), "max_streams={max_streams} should fail");
+        }
+
+        for max_streams in [1, MAX_AUTH_STREAMS] {
+            let mut body = valid_create_body();
+            body["max_streams"] = json!(max_streams);
+            assert!(parse_create_authorization_input(&body).is_ok(), "max_streams={max_streams} should pass");
+        }
+    }
+
+    #[test]
+    fn create_input_rejects_invalid_customer_roles() {
+        for role in [0, -1, 4] {
+            let mut body = valid_create_body();
+            body["role"] = json!(role);
+            assert!(parse_create_authorization_input(&body).is_err(), "role={role} should fail");
+        }
+
+        for role in [1, 2, 3] {
+            let mut body = valid_create_body();
+            body["role"] = json!(role);
+            assert!(parse_create_authorization_input(&body).is_ok(), "role={role} should pass");
+        }
+    }
+
+    #[test]
+    fn parses_valid_update_authorization_input() {
+        let input = parse_update_authorization_input(&valid_update_body()).unwrap();
+
+        assert_eq!(input.auth_id, "auth-id");
+        assert_eq!(input.days, 30);
+        assert_eq!(input.max_streams, 4);
+        assert_eq!(input.role, 1);
+    }
+
+    #[test]
+    fn update_input_rejects_missing_auth_id_and_invalid_boundaries() {
+        let mut body = valid_update_body();
+        body["auth_id"] = json!(" ");
+        assert!(parse_update_authorization_input(&body).is_err());
+
+        let mut body = valid_update_body();
+        body["days"] = json!(0);
+        assert!(parse_update_authorization_input(&body).is_err());
+
+        let mut body = valid_update_body();
+        body["max_streams"] = json!(0);
+        assert!(parse_update_authorization_input(&body).is_err());
+
+        let mut body = valid_update_body();
+        body["role"] = json!(4);
+        assert!(parse_update_authorization_input(&body).is_err());
+    }
+
+    #[test]
+    fn rejects_i64_values_outside_i32_range() {
+        let mut body = valid_create_body();
+        body["days"] = json!(i64::from(i32::MAX) + 1);
+
+        assert!(parse_create_authorization_input(&body).is_err());
     }
 }

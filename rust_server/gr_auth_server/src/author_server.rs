@@ -311,4 +311,53 @@ mod tests {
         ).await;
         assert_eq!(second_status, StatusCode::OK);
     }
+
+    #[tokio::test]
+    async fn create_authorization_rejects_invalid_body_before_database_access() {
+        init_test_secret();
+        let invalid_body = r#"{
+            "name": "customer-a",
+            "machine_code": "machine-a",
+            "days": 0,
+            "max_streams": 4,
+            "role": 1
+        }"#;
+
+        let status = request_status(
+            test_router(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/create/new/authorization")
+                .header("Authorization", token_for(AuthorRole::Admin))
+                .header("content-type", "application/json")
+                .body(Body::from(invalid_body))
+                .unwrap(),
+        ).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn update_authorization_rejects_invalid_body_before_database_access() {
+        init_test_secret();
+        let invalid_body = r#"{
+            "auth_id": "auth-id",
+            "days": 30,
+            "max_streams": 4,
+            "role": 4
+        }"#;
+
+        let status = request_status(
+            test_router(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/update/authorization")
+                .header("Authorization", token_for(AuthorRole::Admin))
+                .header("content-type", "application/json")
+                .body(Body::from(invalid_body))
+                .unwrap(),
+        ).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
 }

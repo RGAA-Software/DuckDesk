@@ -101,6 +101,20 @@
   - `/api/v1/query/authorization/like/name`
   - 其他授权管理查询接口按业务确认。
 
+### 阶段四补充：授权输入契约与边界校验
+
+- 已为创建授权和更新授权增加显式输入解析层：
+  - `name` 不能为空，最长 128。
+  - `machine_code` 不能为空，最长 256。
+  - `days` 必须是 `1..=365000` 的整数。
+  - `max_streams` 必须是 `1..=10000` 的整数。
+  - `role` 必须是 `1..=3`。
+  - 超出 `i32` 范围的数字直接返回 `InvalidParams`。
+- 创建授权和更新授权在输入校验失败时直接返回 HTTP 400，不访问数据库。
+- `auth_name` query 参数已改为统一参数读取，缺失或为空返回 `InvalidParams`。
+- 前端创建授权和修改授权已增加同样的边界校验，提交前先拦截明显非法输入。
+- 已补充后端单元测试和 router 集成测试，覆盖缺字段、类型错误、空字符串、超长字符串、上下界、越界数字和非法角色。
+
 ### 阶段五：管理员初始化与密码哈希
 
 - 删除硬编码 `Admin/Admin@321%!`、`Visitor/Visitor@321%!`。
@@ -153,6 +167,10 @@
   - 创建授权成功。
   - 重复 name 返回 AlreadyExists。
   - days/max_streams/role 缺失或类型错误返回 InvalidParams。
+  - name/machine_code 为空或超长返回 InvalidParams。
+  - days/max_streams 的 0、负数、上界、超过上界全部覆盖。
+  - role 的合法值和非法值全部覆盖。
+  - 超出 i32 范围的数值返回 InvalidParams。
   - 查询分页 page/page_size 边界：0、负数、大页码、超大 page_size。
   - update 不存在 auth_id 返回 AuthorizationNotFound。
   - update 非法 body 不 panic。
@@ -199,3 +217,4 @@
 - 前端 type-check/build 通过。
 - 关键后端单元测试和前端交互测试覆盖上述场景。
 - 后端 router 已支持直接构造并进行集成测试，覆盖基础认证、角色权限和 logout 行为。
+- 授权创建/更新的输入边界已由后端单元测试、后端 router 集成测试和前端 build/type-check 覆盖。

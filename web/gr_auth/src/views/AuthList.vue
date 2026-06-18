@@ -179,6 +179,9 @@ watch(
 const errorMessage = ref('')
 const errorDialogVisible = ref(false)
 
+const MAX_AUTH_DAYS = 365000
+const MAX_AUTH_STREAMS = 10000
+
 interface Authorization {
   auth_id: string
   auth_name: string
@@ -220,6 +223,37 @@ const updateTableData = (items: Authorization[]) => {
 const showError = (err: any, fallback: string) => {
   errorMessage.value = err.response?.data?.message || fallback
   errorDialogVisible.value = true
+}
+
+const showMessage = (message: string) => {
+  errorMessage.value = message
+  errorDialogVisible.value = true
+}
+
+const validateSelectedAuthorization = () => {
+  if (!selectedData.value) return false
+
+  const days = Number(selectedData.value.days)
+  const maxStreams = Number(selectedData.value.max_streams)
+  const role = Number(selectedData.value.role)
+
+  if (!Number.isInteger(days) || days < 1 || days > MAX_AUTH_DAYS) {
+    showMessage(`Days 必须在 1 到 ${MAX_AUTH_DAYS} 之间`)
+    return false
+  }
+  if (!Number.isInteger(maxStreams) || maxStreams < 1 || maxStreams > MAX_AUTH_STREAMS) {
+    showMessage(`Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`)
+    return false
+  }
+  if (![1, 2, 3].includes(role)) {
+    showMessage('Customer Role 必须是 1、2 或 3')
+    return false
+  }
+
+  selectedData.value.days = days
+  selectedData.value.max_streams = maxStreams
+  selectedData.value.role = role
+  return true
 }
 
 const formatDateCreateTime = (obj: Authorization) => {
@@ -296,6 +330,7 @@ const handleDelete = (index: number, row: Authorization) => {
 
 const handleSave = async () => {
   if (!selectedData.value) return
+  if (!validateSelectedAuthorization()) return
 
   // 1. 组装后端需要的数据
   const payload = {
@@ -310,8 +345,7 @@ const handleSave = async () => {
     await http.post('/update/authorization', payload)
     await queryAuthorizations(currentPage.value, pageSize.value)
     // 3. 成功提示
-    errorMessage.value = '修改成功'
-    errorDialogVisible.value = true
+    showMessage('修改成功')
     dialogVisible.value = false // 关闭弹窗
   } catch (err: any) {
     showError(err, '修改失败')

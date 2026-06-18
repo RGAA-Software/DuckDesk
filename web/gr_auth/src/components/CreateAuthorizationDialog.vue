@@ -25,10 +25,55 @@ const deployInfo = ref('')
 // 错误信息
 const errorMessage = ref('')
 
+const MAX_AUTH_NAME_LEN = 128
+const MAX_MACHINE_CODE_LEN = 256
+const MAX_AUTH_DAYS = 365000
+const MAX_AUTH_STREAMS = 10000
+
+const showError = (message: string) => {
+  errorMessage.value = message
+  errorDialogVisible.value = true
+}
+
+const validateForm = () => {
+  const name = form.value.name.trim()
+  const machineCode = form.value.machine_code.trim()
+  const role = Number(form.value.role)
+  const days = Number(form.value.days)
+  const maxStreams = Number(form.value.max_streams)
+
+  if (!name || !machineCode || !form.value.role || !form.value.days || !form.value.max_streams) {
+    showError('请填写完整授权信息')
+    return false
+  }
+  if (name.length > MAX_AUTH_NAME_LEN) {
+    showError(`User Name 不能超过 ${MAX_AUTH_NAME_LEN} 个字符`)
+    return false
+  }
+  if (machineCode.length > MAX_MACHINE_CODE_LEN) {
+    showError(`Machine Code 不能超过 ${MAX_MACHINE_CODE_LEN} 个字符`)
+    return false
+  }
+  if (!Number.isInteger(days) || days < 1 || days > MAX_AUTH_DAYS) {
+    showError(`Days 必须在 1 到 ${MAX_AUTH_DAYS} 之间`)
+    return false
+  }
+  if (!Number.isInteger(maxStreams) || maxStreams < 1 || maxStreams > MAX_AUTH_STREAMS) {
+    showError(`Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`)
+    return false
+  }
+  if (![1, 2, 3].includes(role)) {
+    showError('Customer Role 必须是 1、2 或 3')
+    return false
+  }
+
+  form.value.name = name
+  form.value.machine_code = machineCode
+  return true
+}
+
 const handleCreate = async ()  => {
-  if (!form.value.name || !form.value.machine_code || !form.value.role || !form.value.days || !form.value.max_streams) {
-    errorMessage.value = '请填写完整授权信息'
-    errorDialogVisible.value = true
+  if (!validateForm()) {
     return
   }
 
@@ -156,7 +201,7 @@ const form = ref({
 
       <!-- max streams -->
       <el-form-item label="Max Streams">
-        <el-input v-model="form.max_streams"></el-input>
+        <el-input v-model="form.max_streams" type="number" min="1" :max="MAX_AUTH_STREAMS"></el-input>
       </el-form-item>
     </el-form>
     <template #footer>
