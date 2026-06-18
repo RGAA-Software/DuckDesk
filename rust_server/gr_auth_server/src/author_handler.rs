@@ -74,7 +74,6 @@ pub async fn handle_me(Extension(claims): Extension<AuthorClaims>)
 }
 
 pub async fn handle_log_out(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                             ConnectInfo(_addr): ConnectInfo<SocketAddr>,
                                              Extension(claims): Extension<AuthorClaims>,
                                              _body: Body)
                                              -> Result<Json<RespMessage<AuthorLogOutResp>>, AuthorApiError> {

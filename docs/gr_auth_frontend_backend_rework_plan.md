@@ -198,3 +198,4 @@
 - `cargo check -p gr_auth_server` 通过。
 - 前端 type-check/build 通过。
 - 关键后端单元测试和前端交互测试覆盖上述场景。
+- 后端 router 已支持直接构造并进行集成测试，覆盖基础认证、角色权限和 logout 行为。

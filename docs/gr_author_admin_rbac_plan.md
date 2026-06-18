@@ -482,3 +482,4 @@ argon2 = "0.5"
 - [ ] 没有从 URL Query 读取密码/Token 的代码。
 - [ ] 退出登录只影响当前 Token，不影响其他用户。
 - [ ] 所有 panic 风险点（`unwrap`）被替换为错误返回。
+- [x] Router 可直接构造并覆盖认证、角色权限和 logout 集成测试。
