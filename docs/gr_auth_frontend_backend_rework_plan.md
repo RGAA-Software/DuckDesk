@@ -73,15 +73,13 @@
 后端：
 
 - `Author` 增加角色枚举 `AuthorRole`。
-- 兼容旧 `permission` 字段，或提供迁移脚本：
-  - `perm_all` -> `admin`
-  - `perm_visitor` -> `visitor`
+- 新服务直接使用 `role: admin|visitor`，不兼容旧 `permission` 字段。
 - JWT claims 增加 `role`。
 - `AuthorClaims::generate_token()` 返回 `Result`，不再 panic。
 
 前端：
 
-- 登录后保存当前用户角色，或新增 `/api/v1/me` 获取当前用户信息。
+- 登录后通过 `/api/v1/me` 获取当前用户角色。
 - 菜单和按钮按角色显示。
 
 ### 阶段四：认证和管理员中间件
@@ -161,9 +159,9 @@
 - logout：
   - 只影响当前 token。
   - 多用户 token 互不影响。
-- 数据迁移：
-  - 旧 `permission` 能正确映射 role。
-  - 旧密码 hash 迁移或重置路径可验证。
+- 数据模型：
+  - `AuthorRole` 只能接受 `admin` / `visitor`。
+  - `/api/v1/me` 返回 `role`，不返回旧 `permission`。
 
 ### 4.2 前端测试
 

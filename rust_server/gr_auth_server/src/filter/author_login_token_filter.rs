@@ -26,7 +26,7 @@ pub fn verify_headers(headers: &HeaderMap) -> Result<AuthorClaims, AuthorApiErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::author_manager::AUTHOR_PERM_ALL;
+    use crate::author::AuthorRole;
     use axum::http::HeaderValue;
 
     #[test]
@@ -52,7 +52,7 @@ mod tests {
     fn verify_headers_accepts_valid_token() {
         let claims = AuthorClaims::new(
             "Admin".to_string(),
-            AUTHOR_PERM_ALL.to_string(),
+            AuthorRole::Admin,
             3600,
         );
         let token = claims.generate_token().expect("token should encode");
@@ -62,7 +62,7 @@ mod tests {
         let verified = verify_headers(&headers).expect("valid token should pass");
 
         assert_eq!(verified.sub, "Admin");
-        assert_eq!(verified.permission, AUTHOR_PERM_ALL);
+        assert_eq!(verified.role, AuthorRole::Admin);
     }
 }
 

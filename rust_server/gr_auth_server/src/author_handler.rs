@@ -40,7 +40,7 @@ pub async fn handle_verify_author(State(_context): State<Arc<Mutex<AuthorContext
         .verify_author(author_name, author_token).await {
         //tracing::info!("gr_auth_server _author: {:#?}", _author);
 
-        let claims = AuthorClaims::new(jwt_name, author.permission, 3600); // 1小时有效期
+        let claims = AuthorClaims::new(jwt_name, author.role, 3600); // 1小时有效期
         let login_token = claims
             .generate_token()
             .map_err(|_| AuthorApiError::DatabaseError)?;
@@ -69,7 +69,7 @@ pub async fn handle_me(Extension(claims): Extension<AuthorClaims>)
                        -> Result<Json<RespMessage<AuthorMeResp>>, AuthorApiError> {
     Ok(Json(ok_resp(AuthorMeResp {
         name: claims.sub,
-        permission: claims.permission,
+        role: claims.role,
     })))
 }
 

@@ -8,8 +8,8 @@
   import CreateAuthorizationDialog from "@/components/CreateAuthorizationDialog.vue";
 
   const route = useRoute()
-  const currentPermission = ref('')
-  const isAdmin = computed(() => currentPermission.value === 'perm_all')
+  const currentRole = ref('')
+  const isAdmin = computed(() => currentRole.value === 'admin')
 
   const createDialogVisible = ref(false)
 
@@ -31,7 +31,7 @@
 
   onMounted(async () => {
     const response = await http.get('/me')
-    currentPermission.value = response.data.data.permission
+    currentRole.value = response.data.data.role
   })
 
 </script>

@@ -11,13 +11,11 @@ use argon2::{
         rand_core::OsRng,
     },
 };
-use crate::author::Author;
+use crate::author::{Author, AuthorRole};
 use crate::{gAuthorDatabase, gAuthorSettings};
 
 pub const AUTHOR_ADMIN: &str = "Admin";
 pub const AUTHOR_VISITOR: &str = "Visitor";
-pub const AUTHOR_PERM_ALL: &str = "perm_all";
-pub const AUTHOR_PERM_VISITOR: &str = "perm_visitor";
 
 pub struct AuthorManager {
 
@@ -49,7 +47,7 @@ impl AuthorManager {
                 return false;
             };
 
-            if !self.insert_bootstrap_author(admin_name.clone(), admin_password, AUTHOR_PERM_ALL).await {
+            if !self.insert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin).await {
                 return false;
             }
         }
@@ -57,7 +55,7 @@ impl AuthorManager {
         if !self.has_author(&visitor_name).await {
             match visitor_password {
                 Some(visitor_password) => {
-                    if !self.insert_bootstrap_author(visitor_name.clone(), visitor_password, AUTHOR_PERM_VISITOR).await {
+                    if !self.insert_bootstrap_author(visitor_name.clone(), visitor_password, AuthorRole::Visitor).await {
                         return false;
                     }
                 }
@@ -79,7 +77,7 @@ impl AuthorManager {
             .await.is_some()
     }
 
-    async fn insert_bootstrap_author(&self, name: String, plain_password: String, permission: &str) -> bool {
+    async fn insert_bootstrap_author(&self, name: String, plain_password: String, role: AuthorRole) -> bool {
         let Ok(password_hash) = Self::hash_password(&plain_password) else {
             tracing::error!("hash password failed for bootstrap account '{}'", name);
             return false;
@@ -88,7 +86,7 @@ impl AuthorManager {
         self.insert_author(Author {
             name,
             password_hash,
-            permission: permission.to_string(),
+            role,
         }).await
     }
 

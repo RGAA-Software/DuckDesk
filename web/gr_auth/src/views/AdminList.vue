@@ -1,7 +1,7 @@
 <template>
   <el-table :data="tableData" stripe style="width: 100%">
     <el-table-column label="用户名" prop="name" />
-    <el-table-column label="权限" prop="permission" />
+    <el-table-column label="角色" prop="role" />
   </el-table>
 
 </template>
@@ -13,7 +13,7 @@ import http from '@/utils/http'
 
 interface Author {
   name: string,
-  permission: string
+  role: string
 }
 
 const tableData = ref<Author[]>([])

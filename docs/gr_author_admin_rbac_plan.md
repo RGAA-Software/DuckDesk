@@ -65,8 +65,7 @@ pub struct Author {
 说明：
 - 旧字段 `permission: String` 用 `AuthorRole` 枚举替换，避免字符串比较和拼写错误。
 - 数据库已有文档需要迁移：
-  - `"perm_all"` -> `"admin"`
-  - `"perm_visitor"` -> `"visitor"`
+  - 新服务直接使用 `"admin"` / `"visitor"`，不兼容旧 `perm_*` 字段。
 
 ---
 
@@ -440,7 +439,7 @@ pub async fn handle_create_new_authorization(
 
 ## 12. 实施顺序建议
 
-1. **数据模型**：改 `Author` + `AuthorRole`，写 MongoDB 迁移脚本。
+1. **数据模型**：改 `Author` + `AuthorRole`，新服务不做旧字段迁移。
 2. **密码哈希**：引入 `argon2`，替换 `verify_author`。
 3. **JWT**：给 Claims 加 `role`，外部化 Secret。
 4. **中间件**：新增 `auth_middleware.rs` + `admin_middleware.rs`。
@@ -467,7 +466,7 @@ argon2 = "0.5"
 
 | 风险 | 缓解措施 |
 |------|----------|
-| 数据库已有 `Author` 文档格式不兼容 | 上线前执行迁移脚本，把 `permission` 字段转为 `role` |
+| 数据库已有旧 `Author` 文档格式不兼容 | 新服务直接使用 `role` 字段；部署前清空旧 Author 数据或重新初始化管理员 |
 | 旧密码哈希无法登录 | 首次登录时检测哈希格式，触发强制重设密码；或批量重置管理员密码 |
 | JWT Secret 外部化后配置遗漏 | 启动时校验 Secret 长度，过短直接报错退出 |
 | 中间件顺序挂错导致未授权访问 | 增加集成测试覆盖管理员接口 |

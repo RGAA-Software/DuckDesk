@@ -3,6 +3,7 @@ use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey,
 use jsonwebtoken::errors::{Error as JwtError, ErrorKind};
 use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use crate::author::AuthorRole;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -13,9 +14,9 @@ const MIN_JWT_SECRET_LEN: usize = 32;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthorClaims {
-    pub sub: String,         // 用户ID或用户名
-    pub permission: String,  // 旧权限字段，后续迁移为 role
-    pub exp: usize,          // 过期时间
+    pub sub: String,      // 用户ID或用户名
+    pub role: AuthorRole, // 角色
+    pub exp: usize,       // 过期时间
     pub ver: u64,
 }
 
@@ -29,7 +30,7 @@ impl AuthorClaims {
     }
 
     /// 创建一个带过期时间的 AuthorClaims
-    pub fn new(user_id: String, permission: String, expire_seconds: u64) -> Self {
+    pub fn new(user_id: String, role: AuthorRole, expire_seconds: u64) -> Self {
         let expiration = SystemTime::now()
             .checked_add(Duration::from_secs(expire_seconds))
             .unwrap()
@@ -39,7 +40,7 @@ impl AuthorClaims {
         let ver = TOKEN_VERSION.load(Ordering::Relaxed);
         Self {
             sub: user_id.to_owned(),
-            permission,
+            role,
             exp: expiration,
             ver,
         }
@@ -95,18 +96,18 @@ fn current_jwt_secret() -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use crate::author_claims::{init_jwt_secret, AuthorClaims};
-    use crate::author_manager::AUTHOR_PERM_ALL;
+    use crate::author::AuthorRole;
 
     fn init_test_secret() {
         assert!(init_jwt_secret("test-secret-must-be-at-least-32-bytes".to_string()));
     }
 
     #[test]
-    fn generated_token_preserves_subject_and_permission() {
+    fn generated_token_preserves_subject_and_role() {
         init_test_secret();
         let claims = AuthorClaims::new(
             "Admin".to_string(),
-            AUTHOR_PERM_ALL.to_string(),
+            AuthorRole::Admin,
             3600,
         );
 
@@ -114,7 +115,7 @@ mod tests {
         let token_data = AuthorClaims::verify(&token).expect("token should verify");
 
         assert_eq!(token_data.claims.sub, "Admin");
-        assert_eq!(token_data.claims.permission, AUTHOR_PERM_ALL);
+        assert_eq!(token_data.claims.role, AuthorRole::Admin);
     }
 
     #[test]
@@ -122,7 +123,7 @@ mod tests {
         init_test_secret();
         let claims = AuthorClaims::new(
             "Admin".to_string(),
-            AUTHOR_PERM_ALL.to_string(),
+            AuthorRole::Admin,
             3600,
         );
 
