@@ -7,3 +7,16 @@ db_path = "mongodb://localhost:27017/"
 # verify server
 # /api/v1/verify/authorization
 verify_server = "https://godesk.uk:30400"
+
+[bootstrap]
+# Required on every startup. Use a random secret with at least 32 characters.
+# Changing it invalidates existing login tokens.
+jwt_secret = "CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_CHARS"
+
+# Required only when no admin exists in MongoDB.
+admin_name = "Admin"
+admin_password = "CHANGE_ME_ADMIN_PASSWORD"
+
+# Optional visitor bootstrap account. Leave password empty to skip creation.
+visitor_name = "Visitor"
+visitor_password = ""

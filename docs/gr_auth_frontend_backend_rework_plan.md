@@ -106,9 +106,10 @@
 ### 阶段五：管理员初始化与密码哈希
 
 - 删除硬编码 `Admin/Admin@321%!`、`Visitor/Visitor@321%!`。
-- 初始管理员通过环境变量创建：
-  - `GR_AUTHOR_ADMIN_NAME`
-  - `GR_AUTHOR_ADMIN_PASSWORD`
+- 初始管理员通过 `gr_auth_server_settings.toml` 的 `[bootstrap]` 配置层创建：
+  - `bootstrap.admin_name`
+  - `bootstrap.admin_password`
+  - `bootstrap.jwt_secret`
 - 引入 Argon2id 存储密码 hash。
 - 对旧 hash 做兼容迁移，或要求首次升级后重置密码。
 

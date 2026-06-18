@@ -82,7 +82,7 @@ use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use crate::author::AuthorRole;
 use crate::author_api_error::AuthorApiError;
 
-// TODO: 从环境变量或配置文件读取，不要硬编码
+// TODO: 从 gr_auth_server_settings.toml 的 [bootstrap] 配置读取，不要硬编码
 const SECRET_KEY: &[u8] = b"author_secret_key";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -126,7 +126,7 @@ impl AuthorClaims {
 - Claims 增加 `role`。
 - `generate_token` 返回 `Result`，不再 `unwrap()`。
 - 删除全局 `TOKEN_VERSION` 机制，改由标准 JWT `exp` 过期 + 服务端黑名单/缓存实现退出登录（见第 9 节）。
-- **Secret 仍需外部化**：开发阶段可保留常量，但正式发布前必须从配置文件或环境变量注入。
+- **Secret 仍需外部化**：开发阶段可保留常量，但正式发布前必须从 `gr_auth_server_settings.toml` 的 `[bootstrap]` 配置层注入。
 
 ---
 
@@ -227,24 +227,24 @@ use crate::auth_middleware::auth_middleware;
 
 ## 7. 初始管理员账号的安全创建
 
-### 7.1 推荐方案：环境变量
+### 7.1 推荐方案：配置文件 bootstrap 层
 
 文件：`src/author_manager.rs`
 
 ```rust
-use std::env;
 use argon2::{self, Config, ThreadMode, Variant, Version};
 use rand::Rng;
+use crate::gAuthorSettings;
 
 pub struct AuthorManager;
 
 impl AuthorManager {
     pub async fn init(&self) -> bool {
         if !self.has_admin().await {
-            let admin_name = env::var("GR_AUTHOR_ADMIN_NAME")
-                .unwrap_or_else(|_| "admin".to_string());
-            let admin_pass = env::var("GR_AUTHOR_ADMIN_PASSWORD")
-                .expect("GR_AUTHOR_ADMIN_PASSWORD must be set when no admin exists");
+            let settings = gAuthorSettings.lock().await;
+            let admin_name = settings.bootstrap.admin_name.clone();
+            let admin_pass = settings.bootstrap.admin_password.clone()
+                .expect("bootstrap.admin_password must be set when no admin exists");
 
             if let Err(e) = self.insert_admin(&admin_name, &admin_pass).await {
                 tracing::error!("insert admin failed: {}", e);
@@ -293,11 +293,15 @@ impl AuthorManager {
 }
 ```
 
-配置示例（`.env` 或启动脚本）：
+配置示例（`gr_auth_server_settings.toml`）：
 
-```bash
-GR_AUTHOR_ADMIN_NAME=admin
-GR_AUTHOR_ADMIN_PASSWORD=<首次启动时生成的强密码>
+```toml
+[bootstrap]
+jwt_secret = "random-secret-with-at-least-32-characters"
+admin_name = "admin"
+admin_password = "<首次启动时生成的强密码>"
+visitor_name = "Visitor"
+visitor_password = ""
 ```
 
 ### 7.2 备选方案：首次启动生成一次性密码
@@ -307,7 +311,7 @@ GR_AUTHOR_ADMIN_PASSWORD=<首次启动时生成的强密码>
 2. 写入 `logs/gr_auth_server/.bootstrap_admin` 或安全打印到控制台。
 3. 首次登录后强制修改密码。
 
-该方案需要额外实现“强制修改密码”接口，优先级低于环境变量方案。
+该方案需要额外实现“强制修改密码”接口，优先级低于配置文件 bootstrap 方案。
 
 ---
 
@@ -441,7 +445,7 @@ pub async fn handle_create_new_authorization(
 3. **JWT**：给 Claims 加 `role`，外部化 Secret。
 4. **中间件**：新增 `auth_middleware.rs` + `admin_middleware.rs`。
 5. **路由**：按第 10 节表重新挂载中间件。
-6. **初始管理员**：改为环境变量方式创建。
+6. **初始管理员**：改为 `gr_auth_server_settings.toml` 的 `[bootstrap]` 配置层创建。
 7. **退出登录**：改为黑名单机制。
 8. **清理**：删除废弃文件、移除 `println!`、补单元测试。
 

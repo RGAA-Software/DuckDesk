@@ -22,6 +22,7 @@ use rustls::crypto::ring::default_provider;
 use tokio::sync::Mutex;
 use gr_base::log_util;
 use crate::author_context::AuthorContext;
+use crate::author_claims::init_jwt_secret;
 use crate::author_database::AuthorDatabase;
 use crate::author_manager::AuthorManager;
 use crate::author_server::AuthorServer;
@@ -49,6 +50,16 @@ async fn main() {
 
     // settings
     AuthorSettings::load_settings().await;
+
+    let jwt_secret = gAuthorSettings
+        .lock().await
+        .bootstrap
+        .jwt_secret
+        .clone();
+    if !init_jwt_secret(jwt_secret) {
+        tracing::error!("could not initialize JWT secret");
+        return;
+    }
     
     // database
     let db_path = gAuthorSettings
