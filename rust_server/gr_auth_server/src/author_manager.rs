@@ -87,7 +87,7 @@ impl AuthorManager {
 
         self.insert_author(Author {
             name,
-            password: password_hash,
+            password_hash,
             permission: permission.to_string(),
         }).await
     }
@@ -173,7 +173,7 @@ impl AuthorManager {
 
     pub async fn verify_author(&self, author_name: String, plain_password: String) -> Option<Author> {
         if let Some(author) = self.find_author_by_name(author_name.clone()).await {
-            if author.name == author_name && Self::verify_password(&plain_password, &author.password) {
+            if author.name == author_name && Self::verify_password(&plain_password, &author.password_hash) {
                 return Some(author);
             }
         }

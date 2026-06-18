@@ -15,7 +15,7 @@
 - `author_admin_filter` 存在但未挂载；多数管理接口只校验“有登录 token”，不校验管理员权限。
 - `/api/v1/query/authors` 没有登录保护。
 - 登录日志打印 `author_token`，还打印 `login_token`。
-- 密码存储已改为 Argon2id；后续仍需把字段命名从 `password` 收敛为更明确的 `password_hash`。
+- 管理员密码存储已改为 Argon2id，字段命名已收敛为 `password_hash`。
 - logout 使用全局 `TOKEN_VERSION`，一个用户退出会让所有用户 token 失效；服务重启后旧 token 可能恢复有效。
 - 同一套 router 同时开放 HTTP 和 HTTPS，敏感接口可明文访问。
 

@@ -78,7 +78,6 @@
 <!--      <p><strong>Appkey:</strong> {{ selectedData.appkey }}</p>-->
 <!--      <p><strong>App Secret:</strong> {{ selectedData.app_secret }}</p>-->
 <!--      <p><strong>用户名:</strong> {{ selectedData.username }}</p>-->
-<!--      <p><strong>密码:</strong> {{ selectedData.password }}</p>-->
 <!--      <p><strong>Days:</strong> {{ selectedData.days }}</p>-->
 <!--      <p><strong>Verify Server:</strong> {{ selectedData.verify_server }}</p>-->
 

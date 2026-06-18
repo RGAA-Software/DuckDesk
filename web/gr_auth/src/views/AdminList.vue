@@ -13,7 +13,6 @@ import http from '@/utils/http'
 
 interface Author {
   name: string,
-  password: string,
   permission: string
 }
 

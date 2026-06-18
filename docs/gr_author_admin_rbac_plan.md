@@ -17,7 +17,7 @@
 | 管理员过滤层未挂载到任何路由 | 目前只是死代码 | `author_server.rs` |
 | 登录校验中间件不注入用户信息 | 接口不知道谁在操作，无法做权限控制 | `filter/author_login_token_filter.rs` |
 | JWT Secret 硬编码 | 可伪造 Token | `author_claims.rs` |
-| 密码已改用 Argon2id，但字段仍名为 `password` | 字段语义不够明确，后续应改名为 `password_hash` | `author_manager.rs` / `author.rs` |
+| 密码已改用 Argon2id，字段已命名为 `password_hash` | 当前按新服务处理，不做旧字段兼容 | `author_manager.rs` / `author.rs` |
 | 同一份 router 同时暴露 HTTP/HTTPS | 敏感接口可明文访问 | `author_server.rs` |
 | 退出登录全局递增 Token Version | 一人退出全员失效；重启后旧 Token 复活 | `author_claims.rs` |
 
