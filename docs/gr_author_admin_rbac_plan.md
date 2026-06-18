@@ -17,7 +17,7 @@
 | 管理员过滤层未挂载到任何路由 | 目前只是死代码 | `author_server.rs` |
 | 登录校验中间件不注入用户信息 | 接口不知道谁在操作，无法做权限控制 | `filter/author_login_token_filter.rs` |
 | JWT Secret 硬编码 | 可伪造 Token | `author_claims.rs` |
-| 密码使用 `MD5(SHA256(password) + salt)` | 自制密码学方案，MD5 已不安全 | `author_manager.rs` |
+| 密码已改用 Argon2id，但字段仍名为 `password` | 字段语义不够明确，后续应改名为 `password_hash` | `author_manager.rs` / `author.rs` |
 | 同一份 router 同时暴露 HTTP/HTTPS | 敏感接口可明文访问 | `author_server.rs` |
 | 退出登录全局递增 Token Version | 一人退出全员失效；重启后旧 Token 复活 | `author_claims.rs` |
 
@@ -430,8 +430,8 @@ pub async fn handle_create_new_authorization(
 
 - [ ] `filter/author_admin_filter.rs`（URL Query 传密码方案）
 - [ ] `filter/author_login_token_filter.rs`（替换为新的 `auth_middleware.rs`）
-- [ ] `author_manager.rs` 中的硬编码 `AUTHOR_ADMIN_PASSWORD`、`AUTHOR_VISITOR_PASSWORD`
-- [ ] `author_manager.rs` 中的 `gen_token` / `gen_password_by_token` / `gen_password` 自制哈希
+- [x] `author_manager.rs` 中的硬编码 `AUTHOR_ADMIN_PASSWORD`、`AUTHOR_VISITOR_PASSWORD`
+- [x] `author_manager.rs` 中的 `gen_token` / `gen_password_by_token` / `gen_password` 自制哈希
 - [ ] `author_claims.rs` 中的全局 `TOKEN_VERSION`
 - [ ] `author_context.rs`（空壳结构体）
 - [ ] 所有 `println!` 敏感信息/调试输出

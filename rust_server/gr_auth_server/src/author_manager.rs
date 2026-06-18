@@ -1,8 +1,16 @@
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 use mongodb::Cursor;
-use gr_base::hash_util;
-use gr_base::hash_util::HashAlgo;
+use argon2::{
+    Argon2,
+    password_hash::{
+        PasswordHash,
+        PasswordHasher,
+        PasswordVerifier,
+        SaltString,
+        rand_core::OsRng,
+    },
+};
 use crate::author::Author;
 use crate::{gAuthorDatabase, gAuthorSettings};
 
@@ -72,9 +80,14 @@ impl AuthorManager {
     }
 
     async fn insert_bootstrap_author(&self, name: String, plain_password: String, permission: &str) -> bool {
+        let Ok(password_hash) = Self::hash_password(&plain_password) else {
+            tracing::error!("hash password failed for bootstrap account '{}'", name);
+            return false;
+        };
+
         self.insert_author(Author {
             name,
-            password: self.gen_password(plain_password),
+            password: password_hash,
             permission: permission.to_string(),
         }).await
     }
@@ -132,22 +145,35 @@ impl AuthorManager {
         r.is_ok()
     }
 
-    pub fn gen_token(&self, plain_password: String) -> String {
-        hash_util::compute_hash(HashAlgo::SHA256, plain_password.as_bytes())
+    pub fn hash_password(plain_password: &str) -> Result<String, String> {
+        if plain_password.is_empty() {
+            return Err("password is empty".to_string());
+        }
+
+        let salt = SaltString::generate(&mut OsRng);
+        Argon2::default()
+            .hash_password(plain_password.as_bytes(), &salt)
+            .map(|hash| hash.to_string())
+            .map_err(|e| e.to_string())
     }
 
-    fn gen_password_by_token(&self, token: String) -> String {
-        hash_util::compute_hash(HashAlgo::MD5, (token + "ce111670ed4146f0a724709846e0965b@%!").as_bytes())
+    pub fn verify_password(plain_password: &str, password_hash: &str) -> bool {
+        if plain_password.is_empty() || password_hash.is_empty() {
+            return false;
+        }
+
+        let Ok(parsed_hash) = PasswordHash::new(password_hash) else {
+            return false;
+        };
+
+        Argon2::default()
+            .verify_password(plain_password.as_bytes(), &parsed_hash)
+            .is_ok()
     }
 
-    pub fn gen_password(&self, plain_password: String) -> String {
-        let token = self.gen_token(plain_password);
-        self.gen_password_by_token(token)
-    }
-
-    pub async fn verify_author(&self, author_name: String, author_token: String) -> Option<Author> {
+    pub async fn verify_author(&self, author_name: String, plain_password: String) -> Option<Author> {
         if let Some(author) = self.find_author_by_name(author_name.clone()).await {
-            if author.name == author_name && author.password == self.gen_password_by_token(author_token) {
+            if author.name == author_name && Self::verify_password(&plain_password, &author.password) {
                 return Some(author);
             }
         }
@@ -179,21 +205,39 @@ mod tests {
     use crate::author_manager::{configured_name, optional_secret, AuthorManager};
 
     #[test]
-    fn gen_token_is_stable_for_same_input() {
-        let auth = AuthorManager {};
-        assert_eq!(
-            auth.gen_token("password".to_string()),
-            auth.gen_token("password".to_string()),
-        );
+    fn hash_password_does_not_return_plaintext() {
+        let hash = AuthorManager::hash_password("password").expect("password should hash");
+
+        assert_ne!(hash, "password");
+        assert!(hash.starts_with("$argon2"));
     }
 
     #[test]
-    fn gen_password_is_stable_for_same_input() {
-        let auth = AuthorManager {};
-        assert_eq!(
-            auth.gen_password("password".to_string()),
-            auth.gen_password("password".to_string()),
-        );
+    fn hash_password_uses_unique_salt() {
+        let first = AuthorManager::hash_password("password").expect("password should hash");
+        let second = AuthorManager::hash_password("password").expect("password should hash");
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn verify_password_accepts_correct_password() {
+        let hash = AuthorManager::hash_password("password").expect("password should hash");
+
+        assert!(AuthorManager::verify_password("password", &hash));
+    }
+
+    #[test]
+    fn verify_password_rejects_wrong_password() {
+        let hash = AuthorManager::hash_password("password").expect("password should hash");
+
+        assert!(!AuthorManager::verify_password("wrong-password", &hash));
+    }
+
+    #[test]
+    fn hash_password_rejects_empty_password() {
+        assert!(AuthorManager::hash_password("").is_err());
+        assert!(!AuthorManager::verify_password("", ""));
     }
 
     #[test]

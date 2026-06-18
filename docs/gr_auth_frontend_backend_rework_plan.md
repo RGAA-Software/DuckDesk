@@ -15,7 +15,7 @@
 - `author_admin_filter` 存在但未挂载；多数管理接口只校验“有登录 token”，不校验管理员权限。
 - `/api/v1/query/authors` 没有登录保护。
 - 登录日志打印 `author_token`，还打印 `login_token`。
-- 密码存储使用自制 `MD5(SHA256(password) + salt)`，不适合作为密码哈希。
+- 密码存储已改为 Argon2id；后续仍需把字段命名从 `password` 收敛为更明确的 `password_hash`。
 - logout 使用全局 `TOKEN_VERSION`，一个用户退出会让所有用户 token 失效；服务重启后旧 token 可能恢复有效。
 - 同一套 router 同时开放 HTTP 和 HTTPS，敏感接口可明文访问。
 
@@ -110,8 +110,8 @@
   - `bootstrap.admin_name`
   - `bootstrap.admin_password`
   - `bootstrap.jwt_secret`
-- 引入 Argon2id 存储密码 hash。
-- 对旧 hash 做兼容迁移，或要求首次升级后重置密码。
+- 已引入 Argon2id 存储密码 hash。
+- 本服务按新服务处理，不兼容旧 hash。
 
 ### 阶段六：logout 与 token 生命周期
 
