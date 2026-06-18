@@ -32,8 +32,10 @@ http.interceptors.response.use(
 	async (error) => {
 		const status = error.response?.status
 		const code = error.response?.data?.code
-		if (status === 401 || status === 403 || LOGIN_EXPIRED_CODES.has(code)) {
+		if (status === 401 || LOGIN_EXPIRED_CODES.has(code)) {
 			await handleLoginExpired()
+		} else if (status === 403) {
+			ElMessage.error('没有权限执行该操作')
 		}
 		return Promise.reject(error)
 	}

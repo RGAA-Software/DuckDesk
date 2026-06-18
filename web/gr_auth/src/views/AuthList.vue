@@ -27,7 +27,7 @@
     <el-table-column label="名称" prop="auth_name" :min-width="50"/>
     <el-table-column label="Machine Code" prop="machine_code" :min-width="120" />
     <el-table-column label="创建时间" prop="created_timestamp_ms" :formatter="formatDateCreateTime"/>
-    <el-table-column label="结束时间" prop="end_timestamp_ms" :formatter="formatDateEndTime"/> />
+    <el-table-column label="结束时间" prop="end_timestamp_ms" :formatter="formatDateEndTime"/>
     <el-table-column label="授权时间(天)" prop="days" />
     <el-table-column label="剩余时间(天)" prop="left_days" />
     <el-table-column align="left">
@@ -39,7 +39,7 @@
           显示
         </el-button>
 
-        <el-button size="small" @click="handleModifyInfo(scope.$index, scope.row)">
+        <el-button size="small" @click="handleModifyInfo(scope.row)">
           修改
         </el-button>
         <el-button
@@ -63,7 +63,7 @@
       :disabled="disabled"
       :background="background"
       layout="total, sizes, prev, pager, next, jumper"
-      :total="tableData.length"
+      :total="totalAuthCount"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
     />
@@ -101,21 +101,6 @@
         <!-- Appkey -->
         <el-form-item label="Appkey">
           <el-input v-model="selectedData.appkey" disabled></el-input>
-        </el-form-item>
-
-        <!-- App Secret -->
-        <el-form-item label="App Secret">
-          <el-input v-model="selectedData.app_secret" disabled></el-input>
-        </el-form-item>
-
-        <!-- 用户名 -->
-        <el-form-item label="用户名">
-          <el-input v-model="selectedData.username" disabled></el-input>
-        </el-form-item>
-
-        <!-- 密码 -->
-        <el-form-item label="密码">
-          <el-input v-model="selectedData.password" disabled></el-input>
         </el-form-item>
 
         <!-- Verify Server -->
@@ -175,7 +160,7 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, onMounted, ref} from 'vue'
+import {onMounted, ref} from 'vue'
 import { watch } from 'vue'
 import {type ComponentSize, ElMessage} from 'element-plus'
 import http from '@/utils/http'
@@ -225,6 +210,19 @@ const saveBtnVisible = ref(false)
 const deleteBtnVisible = ref(false)
 const totalAuthCount = ref(0)
 
+const updateTableData = (items: Authorization[]) => {
+  tableData.value = items
+  totalAuthCount.value = items.length > 0 ? Number(items[0].total) : 0
+  tableData.value.forEach((item) => {
+    item.left_days = Math.floor(item.days - (Date.now() - item.created_timestamp_ms)/24/3600/1000)
+  })
+}
+
+const showError = (err: any, fallback: string) => {
+  errorMessage.value = err.response?.data?.message || fallback
+  errorDialogVisible.value = true
+}
+
 const formatDateCreateTime = (obj: Authorization) => {
   const date = new Date(obj.created_timestamp_ms);
   return date.toLocaleString();
@@ -245,18 +243,11 @@ const queryAuthorizations = async (page: number, pageSize: number) => {
       page_size: pageSize,
     }
     const response = await http.get('/query/authorizations', {params})
-    console.log("the response: ", response.data)
-    tableData.value = response.data.data
-    tableData.value.forEach((item) => {
-      item.left_days = Math.floor(item.days - (Date.now() - item.created_timestamp_ms)/24/3600/1000);
-    })
-
-    console.log("ok", response.data.data)
+    updateTableData(response.data.data || [])
   } catch (err: any) {
-    console.log("err", err)
-    tableData.value = err.message || '请求出错'
-  } finally {
-    // loading.value = false
+    tableData.value = []
+    totalAuthCount.value = 0
+    showError(err, '请求授权列表失败')
   }
 }
 
@@ -268,20 +259,11 @@ const searchAuthorization = async () => {
       auth_name: search.value,
     }
     const response = await http.get('/query/authorization/like/name', {params})
-    console.log("the response: ", response.data)
-    tableData.value = response.data.data
-    tableData.value.forEach((item) => {
-      item.left_days = Math.floor(item.days - (Date.now() - item.created_timestamp_ms)/24/3600/1000);
-    })
-    console.log("ok", response.data.data)
+    updateTableData(response.data.data || [])
   } catch (err: any) {
-    console.log("err", err)
-    tableData.value = err.message || '请求出错'
-    if (tableData.value && tableData.value.length > 0) {
-      totalAuthCount.value = tableData.value[0].total
-    }
-  } finally {
-    // loading.value = false
+    tableData.value = []
+    totalAuthCount.value = 0
+    showError(err, '搜索授权失败')
   }
 }
 
@@ -299,23 +281,21 @@ const handleShowInfo = (index: number, row: Authorization) => {
   selectedData.value.disable_modify = true
   dialogVisible.value = true
   saveBtnVisible.value = false
-  console.log(dialogVisible.value, selectedData.value)
 }
 
-const handleModifyInfo = (index: number, row: Authorization) => {
+const handleModifyInfo = (row: Authorization) => {
   selectedData.value = row
   selectedData.value.disable_modify = false
   dialogVisible.value = true
   saveBtnVisible.value = true
-  console.log(dialogVisible.value, selectedData.value)
 }
 
 const handleDelete = (index: number, row: Authorization) => {
-  console.log(index, row)
+  void index
+  void row
 }
 
 const handleSave = async () => {
-  console.log('保存数据:', selectedData.value)
   if (!selectedData.value) return
 
   // 1. 组装后端需要的数据
@@ -328,17 +308,14 @@ const handleSave = async () => {
 
   try {
     // 2. 调用后台接口
-    const res = await http.post('/update/authorization', payload)
-    console.log('创建成功:', res.data)
-    await queryAuthorizations(currentPage.value, pageSize.value);
+    await http.post('/update/authorization', payload)
+    await queryAuthorizations(currentPage.value, pageSize.value)
     // 3. 成功提示
     errorMessage.value = '修改成功'
     errorDialogVisible.value = true
     dialogVisible.value = false // 关闭弹窗
   } catch (err: any) {
-    console.error(err)
-    errorMessage.value = '修改失败'
-    errorDialogVisible.value = true
+    showError(err, '修改失败')
   }
 }
 
@@ -369,8 +346,11 @@ const saveDeployInfo = () => {
 }
 
 const handleSearch = () => {
-  console.log('回车搜索:', search.value)
-  searchAuthorization();
+  if (!search.value) {
+    void queryAuthorizations(currentPage.value, pageSize.value)
+    return
+  }
+  void searchAuthorization()
 }
 
 watch(search, async (newVal) => {
@@ -380,7 +360,7 @@ watch(search, async (newVal) => {
 })
 
 onMounted(async () => {
-  await queryAuthorizations(currentPage.value, pageSize.value);
+  await queryAuthorizations(currentPage.value, pageSize.value)
 })
 
 
@@ -392,8 +372,7 @@ const disabled = ref(false)
 
 const handleSizeChange = async (val: number) => {
   pageSize.value = val
-  console.log('current page: ', currentPage.value, ' page size: ', pageSize.value)
-  await queryAuthorizations(currentPage.value, pageSize.value);
+  await queryAuthorizations(currentPage.value, pageSize.value)
 }
 
 const handleCurrentChange = async (val: number) => {
@@ -428,4 +407,3 @@ const handleCurrentChange = async (val: number) => {
 
 
 </style>
-

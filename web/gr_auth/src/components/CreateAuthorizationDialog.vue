@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import http from '@/utils/http'
 
 import { useAuthStore } from '@/stores/auth'
@@ -18,11 +19,19 @@ const visible = computed({
 })
 
 const errorDialogVisible = ref(false)
+const deployDialogVisible = ref(false)
+const deployInfo = ref('')
 
 // 错误信息
 const errorMessage = ref('')
 
 const handleCreate = async ()  => {
+  if (!form.value.name || !form.value.machine_code || !form.value.role || !form.value.days || !form.value.max_streams) {
+    errorMessage.value = '请填写完整授权信息'
+    errorDialogVisible.value = true
+    return
+  }
+
   // 1. 组装后端需要的数据
   const payload = {
     name: form.value.name,
@@ -35,18 +44,36 @@ const handleCreate = async ()  => {
   try {
     // 2. 调用后台接口
     const res = await http.post('/create/new/deploy/authorization', payload)
-    console.log('创建成功:', res.data)
+    deployInfo.value = res.data.data || ''
 
     authStore.triggerRefresh()
     visible.value = false
+    deployDialogVisible.value = true
     // 3. 成功提示
     errorMessage.value = '创建成功'
-    errorDialogVisible.value = true
   } catch (err: any) {
-    console.error(err)
-    errorMessage.value = '创建失败'
+    errorMessage.value = err.response?.data?.message || '创建失败'
     errorDialogVisible.value = true
   }
+}
+
+const copyDeployInfo = async () => {
+  try {
+    await navigator.clipboard.writeText(deployInfo.value)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+const downloadDeployInfo = () => {
+  const blob = new Blob([deployInfo.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `auth-${form.value.name}.info`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const form = ref({
@@ -78,6 +105,20 @@ const form = ref({
           确定
         </el-button>
       </div>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="deployDialogVisible" title="Deploy Information" width="600">
+    <el-input
+      v-model="deployInfo"
+      type="textarea"
+      :rows="8"
+      readonly
+    />
+    <template #footer>
+      <el-button @click="copyDeployInfo">复制</el-button>
+      <el-button @click="downloadDeployInfo">下载</el-button>
+      <el-button type="primary" @click="deployDialogVisible = false">关闭</el-button>
     </template>
   </el-dialog>
 
