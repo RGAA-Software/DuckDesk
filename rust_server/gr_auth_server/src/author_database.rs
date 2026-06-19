@@ -22,6 +22,10 @@ impl AuthorDatabase {
 
     pub async fn init(&mut self, db_path: String) -> bool {
         let uri = db_path;
+        if uri.trim().is_empty() {
+            tracing::error!("MongoDB connection string is empty");
+            return false;
+        }
         // Create a new client and connect to the server
         let client = Client::with_uri_str(uri).await;
         if let Err(e) = client {
@@ -60,4 +64,16 @@ impl AuthorDatabase {
         self.c_customer.clone().unwrap()
     }
     
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn init_rejects_empty_connection_string_before_mongodb_client() {
+        let mut database = AuthorDatabase::new();
+
+        assert!(!database.init(" ".to_string()).await);
+    }
 }

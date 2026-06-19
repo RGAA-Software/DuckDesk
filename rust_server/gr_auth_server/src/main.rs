@@ -49,7 +49,10 @@ async fn main() {
         .expect("Failed to initialize CryptoProvider");
 
     // settings
-    AuthorSettings::load_settings().await;
+    if !AuthorSettings::load_settings().await {
+        tracing::error!("could not initialize settings");
+        return;
+    }
 
     let jwt_secret = gAuthorSettings
         .lock().await

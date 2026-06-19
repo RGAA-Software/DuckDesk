@@ -180,6 +180,15 @@
 - 数据模型：
   - `AuthorRole` 只能接受 `admin` / `visitor`。
   - `/api/v1/me` 返回 `role`，不返回旧 `permission`。
+- 配置与启动：
+  - 配置文件缺失返回显式错误，不 panic。
+  - TOML 缺字段或格式错误返回显式错误，不 panic。
+  - `server_port = 0`、`db_path` 空、`verify_server` 空返回配置错误。
+  - `bootstrap.jwt_secret` 空、太短或占位值返回配置错误。
+  - `bootstrap.admin_name` / `bootstrap.visitor_name` 空返回配置错误。
+  - 非空 `bootstrap.admin_password` / `bootstrap.visitor_password` 不能是占位值。
+  - MongoDB 连接串为空时在创建 client 前失败并记录日志。
+  - HTTPS 证书/私钥缺失时在 bind 前失败并记录明确路径。
 
 ### 4.2 前端测试
 
@@ -249,3 +258,4 @@
 - 关键后端单元测试和前端交互测试覆盖上述场景。
 - 后端 router 已支持直接构造并进行集成测试，覆盖基础认证、角色权限和 logout 行为。
 - 授权创建/更新的输入边界已由后端单元测试、后端 router 集成测试和前端 build/type-check 覆盖。
+- 配置加载、配置校验、MongoDB 空连接串和 HTTPS 证书缺失路径已补充后端单元测试。

@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use axum::{middleware, Router};
 use axum::routing::{get, get_service, post};
@@ -30,23 +30,17 @@ impl AuthorServer {
         let web_dir = current_dir.join("web_auth");
         tracing::info!("assets_dir: {:?}", &web_dir);
 
-        // certs config
-        // configure certificate and private key used by https
-        let cp = current_dir.join("certs").join("cert.pem");
-        let kp = current_dir.join("certs").join("key.pem");
+        let (cp, kp) = tls_cert_paths(current_dir);
         tracing::info!("cp: {:?}", &cp);
         tracing::info!("cp: {:?}", &kp);
 
-        let config = RustlsConfig::from_pem_file(
-            current_dir.join("certs").join("cert.pem"),
-            current_dir.join("certs").join("key.pem"),
-        ).await;
-
-        if let Err(e) = config {
-            tracing::error!("==> {}", e);
-            return;
-        }
-        let config = config.unwrap();
+        let config = match load_tls_config(&cp, &kp).await {
+            Ok(config) => config,
+            Err(e) => {
+                tracing::error!("could not load HTTPS certificate or private key: {}", e);
+                return;
+            }
+        };
 
         let router = build_router(self.context.clone(), web_dir);
 
@@ -58,6 +52,29 @@ impl AuthorServer {
             .await
             .unwrap();
     }
+}
+
+fn tls_cert_paths(current_dir: &Path) -> (PathBuf, PathBuf) {
+    (
+        current_dir.join("certs").join("cert.pem"),
+        current_dir.join("certs").join("key.pem"),
+    )
+}
+
+async fn load_tls_config(cert_path: &Path, key_path: &Path) -> Result<RustlsConfig, std::io::Error> {
+    if !cert_path.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("certificate file not found: {}", cert_path.display()),
+        ));
+    }
+    if !key_path.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("private key file not found: {}", key_path.display()),
+        ));
+    }
+    RustlsConfig::from_pem_file(cert_path, key_path).await
 }
 
 pub fn build_router(
@@ -179,6 +196,27 @@ mod tests {
         AuthorClaims::new("TestUser".to_string(), role, 3600)
             .generate_token()
             .expect("token should encode")
+    }
+
+    #[test]
+    fn builds_tls_cert_paths_from_executable_directory() {
+        let base = PathBuf::from("D:/gr_auth_server");
+        let (cert, key) = tls_cert_paths(&base);
+
+        assert_eq!(cert, base.join("certs").join("cert.pem"));
+        assert_eq!(key, base.join("certs").join("key.pem"));
+    }
+
+    #[tokio::test]
+    async fn load_tls_config_reports_missing_certificate_before_binding() {
+        let base = std::env::temp_dir().join("gr_auth_missing_tls_test");
+        let cert = base.join("cert.pem");
+        let key = base.join("key.pem");
+
+        let err = load_tls_config(&cert, &key).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+        assert!(err.to_string().contains("certificate file not found"));
     }
 
     async fn request_status(router: Router, request: Request<Body>) -> StatusCode {
