@@ -112,4 +112,32 @@ describe('LoginPanel', () => {
     expect(mocks.routerPush).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('用户名或密码错误')
   })
+
+  it('ignores repeated login while request is pending', async () => {
+    let resolveLogin!: (value: any) => void
+    vi.mocked(http.post).mockReturnValue(new Promise((resolve) => {
+      resolveLogin = resolve
+    }))
+    const wrapper = mountLoginPanel()
+
+    await wrapper.findAll('input')[0].setValue('Admin')
+    await wrapper.findAll('input')[1].setValue('password-a')
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
+    await buttons[buttons.length - 1].trigger('click')
+
+    expect(http.post).toHaveBeenCalledTimes(1)
+
+    resolveLogin({
+      data: {
+        code: 200,
+        data: {
+          token: 'login-token-a',
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(sessionStorage.getItem('login_token')).toBe('login-token-a')
+  })
 })

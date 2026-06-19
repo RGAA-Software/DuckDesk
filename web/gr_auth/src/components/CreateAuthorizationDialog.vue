@@ -25,6 +25,7 @@ const visible = computed({
 const errorDialogVisible = ref(false)
 const deployDialogVisible = ref(false)
 const deployInfo = ref('')
+const isCreating = ref(false)
 
 // 错误信息
 const errorMessage = ref('')
@@ -35,6 +36,7 @@ const showError = (message: string) => {
 }
 
 const handleCreate = async ()  => {
+  if (isCreating.value) return
   const validation = validateCreateAuthorization(form.value)
   if (!validation.ok) {
     showError(validation.message)
@@ -44,6 +46,7 @@ const handleCreate = async ()  => {
   form.value.name = validation.value.name
   form.value.machine_code = validation.value.machine_code
 
+  isCreating.value = true
   try {
     // 2. 调用后台接口
     const res = await http.post('/create/new/deploy/authorization', validation.value)
@@ -57,6 +60,8 @@ const handleCreate = async ()  => {
   } catch (err: any) {
     errorMessage.value = err.response?.data?.message || '创建失败'
     errorDialogVisible.value = true
+  } finally {
+    isCreating.value = false
   }
 }
 
@@ -163,7 +168,14 @@ const form = ref({
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button type="primary" @click="handleCreate">创建</el-button>
+      <el-button
+        type="primary"
+        :loading="isCreating"
+        :disabled="isCreating"
+        @click="handleCreate"
+      >
+        创建
+      </el-button>
     </template>
   </el-dialog>
 </template>

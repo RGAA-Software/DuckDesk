@@ -254,4 +254,35 @@ describe('AuthList', () => {
     expect(vm.errorDialogVisible).toBe(true)
     expect(vm.errorMessage).toContain('Days 必须在 1 到')
   })
+
+  it('ignores repeated save while update request is pending', async () => {
+    vi.mocked(http.get)
+      .mockResolvedValueOnce({ data: { data: [authItem()] } })
+      .mockResolvedValueOnce({ data: { data: [authItem({ days: 7, max_streams: 2, role: 2 })] } })
+    let resolveUpdate!: (value: any) => void
+    vi.mocked(http.post).mockReturnValue(new Promise((resolve) => {
+      resolveUpdate = resolve
+    }))
+    const wrapper = mountAuthList()
+    await flushPromises()
+    const vm = vmOf(wrapper)
+
+    vm.handleModifyInfo({
+      ...authItem(),
+      days: '7',
+      max_streams: '2',
+      role: '2',
+    })
+    const firstSave = vm.handleSave()
+    const secondSave = vm.handleSave()
+
+    expect(http.post).toHaveBeenCalledTimes(1)
+
+    resolveUpdate({ data: { code: 200 } })
+    await firstSave
+    await secondSave
+    await flushPromises()
+
+    expect(vm.errorMessage).toBe('修改成功')
+  })
 })

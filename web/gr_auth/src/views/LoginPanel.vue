@@ -8,6 +8,7 @@
   const username = ref('')
   const password = ref('')
   const showPassword = ref(false);
+  const isLoggingIn = ref(false)
 
   const togglePasswordVisibility = () => {
     showPassword.value = !showPassword.value;
@@ -21,6 +22,8 @@
   const errorMessage = ref('')
 
   const login = async () => {
+    if (isLoggingIn.value) return
+    isLoggingIn.value = true
     try {
       const params = {
         author_name: username.value,
@@ -38,6 +41,8 @@
     } catch (err: any) {
       errorMessage.value = err.response?.data?.message || '用户名或密码错误'
       loginErrorDialogVisible.value = true
+    } finally {
+      isLoggingIn.value = false
     }
   }
 
@@ -117,7 +122,13 @@
 
         <div style="margin: 15px 0" />
 
-        <el-button class="w-full !h-10" type="primary" @click="login">
+        <el-button
+          class="w-full !h-10"
+          type="primary"
+          :loading="isLoggingIn"
+          :disabled="isLoggingIn"
+          @click="login"
+        >
           登录
         </el-button>
       </el-card>

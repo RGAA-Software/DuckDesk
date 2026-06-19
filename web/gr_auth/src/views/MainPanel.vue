@@ -12,12 +12,15 @@
   const isAdmin = computed(() => currentRole.value === 'admin')
 
   const createDialogVisible = ref(false)
+  const isLoggingOut = ref(false)
 
   const openDialog = () => {
     createDialogVisible.value = true
   }
 
   const logout = async () => {
+    if (isLoggingOut.value) return
+    isLoggingOut.value = true
     try {
       await http.post('/log_out')
     } catch {
@@ -25,7 +28,7 @@
     } finally {
       sessionStorage.removeItem('login_token')
       await router.push('/')
-      // loading.value = false
+      isLoggingOut.value = false
     }
   }
 
@@ -42,7 +45,7 @@
       <el-header class="flex items-center gap-4">
         <el-text class="!text-lg font-bold" type="primary">授权管理系统</el-text>
         <el-button v-if="isAdmin" type="primary" @click="openDialog" >创建授权</el-button>
-        <el-button @click="logout" >退出登录</el-button>
+        <el-button :loading="isLoggingOut" :disabled="isLoggingOut" @click="logout" >退出登录</el-button>
       </el-header>
       <el-container>
         <el-aside width="200px" class="">

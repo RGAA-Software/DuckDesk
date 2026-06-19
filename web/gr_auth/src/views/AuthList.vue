@@ -152,7 +152,15 @@
     </div>
     <template #footer>
       <el-button @click="dialogVisible = false">关闭</el-button>
-      <el-button v-if="saveBtnVisible" type="primary" @click="handleSave">保存</el-button>
+      <el-button
+        v-if="saveBtnVisible"
+        type="primary"
+        :loading="isSaving"
+        :disabled="isSaving"
+        @click="handleSave"
+      >
+        保存
+      </el-button>
     </template>
   </el-dialog>
 
@@ -209,6 +217,7 @@ const dialogVisible = ref(false)
 const saveBtnVisible = ref(false)
 const deleteBtnVisible = ref(false)
 const totalAuthCount = ref(0)
+const isSaving = ref(false)
 
 const updateTableData = (items: Authorization[]) => {
   tableData.value = items
@@ -317,6 +326,7 @@ const handleDelete = (index: number, row: Authorization) => {
 
 const handleSave = async () => {
   if (!selectedData.value) return
+  if (isSaving.value) return
   if (!validateSelectedAuthorization()) return
 
   // 1. 组装后端需要的数据
@@ -327,6 +337,7 @@ const handleSave = async () => {
     role: Number(selectedData.value.role),
   }
 
+  isSaving.value = true
   try {
     // 2. 调用后台接口
     await http.post('/update/authorization', payload)
@@ -336,6 +347,8 @@ const handleSave = async () => {
     dialogVisible.value = false // 关闭弹窗
   } catch (err: any) {
     showError(err, '修改失败')
+  } finally {
+    isSaving.value = false
   }
 }
 

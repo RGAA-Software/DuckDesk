@@ -112,4 +112,33 @@ describe('MainPanel', () => {
     expect(sessionStorage.getItem('login_token')).toBeNull()
     expect(mocks.routerPush).toHaveBeenCalledWith('/')
   })
+
+  it('ignores repeated logout while request is pending', async () => {
+    vi.mocked(http.get).mockResolvedValue({
+      data: {
+        data: {
+          role: 'admin',
+        },
+      },
+    })
+    let rejectLogout!: (reason?: any) => void
+    vi.mocked(http.post).mockReturnValue(new Promise((_, reject) => {
+      rejectLogout = reject
+    }))
+    sessionStorage.setItem('login_token', 'token-a')
+
+    const wrapper = mountMainPanel()
+    await flushPromises()
+    const logoutButton = wrapper.findAll('button').find((button) => button.text() === '退出登录')!
+    await logoutButton.trigger('click')
+    await logoutButton.trigger('click')
+
+    expect(http.post).toHaveBeenCalledTimes(1)
+
+    rejectLogout(new Error('network error'))
+    await flushPromises()
+
+    expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(mocks.routerPush).toHaveBeenCalledWith('/')
+  })
 })
