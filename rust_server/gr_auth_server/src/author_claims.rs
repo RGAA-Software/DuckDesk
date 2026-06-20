@@ -187,6 +187,23 @@ mod tests {
     }
 
     #[test]
+    fn expired_token_is_rejected() {
+        let _guard = blacklist_test_guard();
+        init_test_secret();
+        clear_blacklist_for_test();
+        let mut claims = AuthorClaims::new(
+            "Admin".to_string(),
+            AuthorRole::Admin,
+            3600,
+        );
+        claims.exp = current_timestamp().saturating_sub(3600);
+
+        let token = claims.generate_token().expect("expired token should encode");
+
+        assert!(AuthorClaims::verify(&token).is_err());
+    }
+
+    #[test]
     fn generated_tokens_have_unique_jti() {
         let first = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
         let second = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);

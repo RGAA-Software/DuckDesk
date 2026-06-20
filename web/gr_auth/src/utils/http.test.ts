@@ -106,4 +106,41 @@ describe('http client interceptors', () => {
     expect(messageError).toHaveBeenCalledWith('没有权限执行该操作')
     expect(routerPush).not.toHaveBeenCalled()
   })
+
+  it('does not clear token or redirect on HTTP 500', async () => {
+    const { default: http } = await import('./http')
+    sessionStorage.setItem('login_token', 'token-a')
+    routerState.currentRoute.value.path = '/main/auth-list'
+
+    const adapter: AxiosAdapter = async (config) => Promise.reject({
+      config,
+      response: {
+        status: 500,
+        data: { code: 805 },
+      },
+    })
+
+    await expect(http.get('/query/authorizations', { adapter })).rejects.toBeTruthy()
+
+    expect(sessionStorage.getItem('login_token')).toBe('token-a')
+    expect(messageError).not.toHaveBeenCalled()
+    expect(routerPush).not.toHaveBeenCalled()
+  })
+
+  it('does not clear token or redirect when request has no response', async () => {
+    const { default: http } = await import('./http')
+    sessionStorage.setItem('login_token', 'token-a')
+    routerState.currentRoute.value.path = '/main/auth-list'
+
+    const adapter: AxiosAdapter = async (config) => Promise.reject({
+      config,
+      request: {},
+    })
+
+    await expect(http.get('/query/authorizations', { adapter })).rejects.toBeTruthy()
+
+    expect(sessionStorage.getItem('login_token')).toBe('token-a')
+    expect(messageError).not.toHaveBeenCalled()
+    expect(routerPush).not.toHaveBeenCalled()
+  })
 })

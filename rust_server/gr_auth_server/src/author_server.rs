@@ -261,6 +261,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn login_rejects_empty_body_before_database_access() {
+        let status = request_status(
+            test_router(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/verify/author")
+                .body(Body::empty())
+                .unwrap(),
+        ).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn login_rejects_invalid_json_before_database_access() {
+        let status = request_status(
+            test_router(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/verify/author")
+                .header("content-type", "application/json")
+                .body(Body::from("{invalid-json"))
+                .unwrap(),
+        ).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn login_rejects_missing_fields_before_database_access() {
+        let status = request_status(
+            test_router(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/verify/author")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"author_name":"Admin"}"#))
+                .unwrap(),
+        ).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
     async fn me_rejects_invalid_token() {
         let status = request_status(
             test_router(),

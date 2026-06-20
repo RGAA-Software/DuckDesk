@@ -1,7 +1,6 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use axum::body::Body;
-use axum::extract::{ConnectInfo, State};
+use axum::extract::State;
 use axum::Extension;
 use axum::Json;
 use serde_json::Value;
@@ -26,7 +25,7 @@ pub async fn handle_ping(State(_ctx): State<Arc<Mutex<AuthorContext>>>) -> Json<
 }
 
 pub async fn handle_verify_author(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                  ConnectInfo(_addr): ConnectInfo<SocketAddr>, body: Body)
+                                  body: Body)
                                   -> Result<Json<RespMessage<AuthorLoginResp>>, AuthorApiError> {
 
     let body = get_body(body).await?;
@@ -53,7 +52,7 @@ pub async fn handle_verify_author(State(_context): State<Arc<Mutex<AuthorContext
 }
 
 pub async fn handle_query_authors(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                  ConnectInfo(_addr): ConnectInfo<SocketAddr>,)
+                                  )
                                   -> Result<Json<RespMessage<Vec<Author>>>, AuthorApiError> {
     let authors = gAuthorManager
         .find_authors().await;

@@ -193,6 +193,23 @@ describe('CreateAuthorizationDialog', () => {
     expect(mocks.messageSuccess).toHaveBeenCalledWith('已复制到剪贴板')
   })
 
+  it('shows copy error when clipboard write fails', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error('clipboard denied')),
+      },
+    })
+    const { wrapper } = mountDialog()
+    const vm = vmOf(wrapper)
+    vm.deployInfo = 'deploy-info'
+
+    await vm.copyDeployInfo()
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('deploy-info')
+    expect(mocks.messageError).toHaveBeenCalledWith('复制失败')
+  })
+
   it('downloads deploy information as auth info file', () => {
     const click = vi.fn()
     const { wrapper } = mountDialog()

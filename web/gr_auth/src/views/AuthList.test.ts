@@ -148,6 +148,24 @@ describe('AuthList', () => {
     expect(vm.totalAuthCount).toBe(1)
   })
 
+  it('clears table and shows fallback error when search fails', async () => {
+    vi.mocked(http.get)
+      .mockResolvedValueOnce({ data: { data: [authItem()] } })
+      .mockRejectedValueOnce({})
+    const wrapper = mountAuthList()
+    await flushPromises()
+    const vm = vmOf(wrapper)
+
+    vm.search = 'missing-customer'
+    vm.handleSearch()
+    await flushPromises()
+
+    expect(vm.tableData).toEqual([])
+    expect(vm.totalAuthCount).toBe(0)
+    expect(vm.errorDialogVisible).toBe(true)
+    expect(vm.errorMessage).toBe('搜索授权失败')
+  })
+
   it('reloads current page when search is empty', async () => {
     vi.mocked(http.get)
       .mockResolvedValueOnce({ data: { data: [authItem()] } })
@@ -253,6 +271,33 @@ describe('AuthList', () => {
     expect(http.post).not.toHaveBeenCalled()
     expect(vm.errorDialogVisible).toBe(true)
     expect(vm.errorMessage).toContain('Days 必须在 1 到')
+  })
+
+  it('shows fallback error and keeps dialog open when save fails', async () => {
+    vi.mocked(http.get).mockResolvedValue({ data: { data: [authItem()] } })
+    vi.mocked(http.post).mockRejectedValue({})
+    const wrapper = mountAuthList()
+    await flushPromises()
+    const vm = vmOf(wrapper)
+
+    vm.handleModifyInfo({
+      ...authItem(),
+      days: '7',
+      max_streams: '2',
+      role: '2',
+    })
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledWith('/update/authorization', {
+      auth_id: 'auth-a',
+      days: 7,
+      max_streams: 2,
+      role: 2,
+    })
+    expect(vm.errorDialogVisible).toBe(true)
+    expect(vm.errorMessage).toBe('修改失败')
+    expect(vm.dialogVisible).toBe(true)
   })
 
   it('ignores repeated save while update request is pending', async () => {
