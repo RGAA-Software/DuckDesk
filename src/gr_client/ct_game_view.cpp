@@ -479,7 +479,7 @@ namespace tc
         overlay_widget_ = new OverlayWidget(this);
         overlay_widget_->resize(this->size());
         overlay_widget_->SetOpacity(0.5);
-        overlay_widget_->SetWatermarkCount(10);
+        // overlay_widget_->SetWatermarkCount(10);
         overlay_widget_->hide();
         QTimer::singleShot(1000, this, [=, this]() {
             if (overlay_widget_) {
@@ -490,18 +490,18 @@ namespace tc
                 else {
                     overlay_widget_->show();
                 }
-                if (settings_->force_direct_) {
-                    overlay_widget_->SetWatermarkText("Force Direct");
-                }
-                if (settings_->show_watermark_) {
-                    overlay_widget_->SetWatermarkText("Unlicensed Stream");
-                }
-                if (settings_->show_watermark_ || settings_->force_direct_) {
-                    overlay_widget_->SetWatermarkCount(15);
-                }
-                else {
-                    overlay_widget_->SetWatermarkCount(0);
-                }
+                // if (settings_->force_direct_) {
+                //     overlay_widget_->SetWatermarkText("Force Direct");
+                // }
+                // if (settings_->show_watermark_) {
+                //     overlay_widget_->SetWatermarkText("Unlicensed Stream");
+                // }
+                // if (settings_->show_watermark_ || settings_->force_direct_) {
+                //     overlay_widget_->SetWatermarkCount(15);
+                // }
+                // else {
+                //     overlay_widget_->SetWatermarkCount(0);
+                // }
             }
         });
     }

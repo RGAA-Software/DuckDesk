@@ -315,20 +315,20 @@ namespace tc
             LOGI("Step: MsgFirstVideoFrameDecoded, at: {}", main_progress_->GetCurrentProgress());
 
             // process watermark
-            context_->PostUITask([=, this]() {
-                if (settings_->force_direct_) {
-                    overlay_widget_->SetWatermarkText("Force Direct");
-                }
-                if (settings_->show_watermark_) {
-                    overlay_widget_->SetWatermarkText("Unlicensed Stream");
-                }
-                if (settings_->show_watermark_ || settings_->force_direct_) {
-                    overlay_widget_->SetWatermarkCount(15);
-                }
-                else {
-                    overlay_widget_->SetWatermarkCount(0);
-                }
-            });
+            // context_->PostUITask([=, this]() {
+            //     if (settings_->force_direct_) {
+            //         overlay_widget_->SetWatermarkText("Force Direct");
+            //     }
+            //     if (settings_->show_watermark_) {
+            //         overlay_widget_->SetWatermarkText("Unlicensed Stream");
+            //     }
+            //     if (settings_->show_watermark_ || settings_->force_direct_) {
+            //         overlay_widget_->SetWatermarkCount(15);
+            //     }
+            //     else {
+            //         overlay_widget_->SetWatermarkCount(0);
+            //     }
+            // });
 
             DismissConnectingDialog();
         });
