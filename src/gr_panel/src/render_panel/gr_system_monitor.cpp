@@ -93,9 +93,11 @@ namespace tc
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         RegisterMessageListener();
 
-        if (!CheckViGEmDriver()) {
-            InstallViGem(true);
-        }
+        // Default: do not auto-install ViGEm driver at startup.
+        // The driver will only be installed when the user explicitly triggers MsgInstallViGEm.
+        // if (!CheckViGEmDriver()) {
+        //     InstallViGem(true);
+        // }
 
         const auto weak_self = weak_from_this();
         monitor_thread_ = Thread::MakeOnceTask([=, this]() {
