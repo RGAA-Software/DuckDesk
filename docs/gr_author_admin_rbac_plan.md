@@ -1,7 +1,13 @@
 # gr_auth_server 管理员权限改造方案
 
-> 状态：待实施  
+> 状态：已完成
 > 目标：用基于 JWT Claims 的角色鉴权（RBAC）替换当前硬编码管理员/访客账号、URL 传密码等不安全的实现。
+>
+> 完成说明：
+> - `AuthorRole`、JWT Claims、`author_admin_filter`、`author_login_token_filter`、Argon2 密码哈希、bootstrap 配置化初始化、前后端路由/菜单角色控制均已落地。
+> - 已删除空壳 `AuthorContext` 与硬编码默认用户名 `AUTHOR_ADMIN` / `AUTHOR_VISITOR`。
+> - 验证：`cargo test -p gr_auth_server` 70 passed；`web/gr_auth` type-check + 47 Vitest passed；`scripts/package_gr_auth_server.bat` 可完整打包。
+> - 运行时冒烟需要 MongoDB 4.0+（当前本地 MongoDB 3.6 与 Rust driver 3.x 不兼容）。
 
 ---
 

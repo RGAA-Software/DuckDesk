@@ -1,18 +1,18 @@
-use std::sync::Arc;
-use mongodb::{Client, Collection};
-use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
-use tokio::sync::Mutex;
-use crate::gSpvrSettings;
 use crate::device::spvr_device::SpvrDevice;
+use crate::event::spvr_event::SpvrEvent;
+use crate::gSpvrSettings;
+use crate::net_client::spvr_client_conn::SpvrClientConnVo;
 use crate::record::spvr_file_transfer::SpvrFileTransfer;
 use crate::record::spvr_visit::SpvrVisit;
 use crate::stream::spvr_stream::SpvrStream;
-use crate::user::spvr_user::SpvrUser;
-use crate::event::spvr_event::SpvrEvent;
-use crate::net_client::spvr_client_conn::SpvrClientConnVo;
 use crate::update::update_info::UpdateInfo;
+use crate::user::spvr_user::SpvrUser;
 use crate::user_device::spvr_user_device::SpvrUserDevice;
+use mongodb::bson::doc;
+use mongodb::options::ClientOptions;
+use mongodb::{Client, Collection};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Default)]
 pub struct SpvrDatabase {
@@ -91,13 +91,16 @@ impl SpvrDatabase {
                 self.c_visit = Some(Arc::new(Mutex::new(c_visit)));
 
                 // record: file transfer
-                let c_file_transfer: Collection<SpvrFileTransfer> = database.collection("c_file_transfer");
+                let c_file_transfer: Collection<SpvrFileTransfer> =
+                    database.collection("c_file_transfer");
                 self.c_file_transfer = Some(Arc::new(Mutex::new(c_file_transfer)));
 
-                let c_user_device: Collection<SpvrUserDevice> = database.collection("c_user_device");
+                let c_user_device: Collection<SpvrUserDevice> =
+                    database.collection("c_user_device");
                 self.c_user_device = Some(Arc::new(Mutex::new(c_user_device)));
 
-                let c_client_conn: Collection<SpvrClientConnVo> = database.collection("c_client_conn");
+                let c_client_conn: Collection<SpvrClientConnVo> =
+                    database.collection("c_client_conn");
                 self.c_client_conn = Some(Arc::new(Mutex::new(c_client_conn)));
 
                 let c_update_info: Collection<UpdateInfo> = database.collection("c_update_info");
@@ -147,5 +150,4 @@ impl SpvrDatabase {
     pub fn update_info(&self) -> Arc<Mutex<Collection<UpdateInfo>>> {
         self.c_update_info.clone().unwrap()
     }
-
 }

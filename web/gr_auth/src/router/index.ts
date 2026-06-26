@@ -21,6 +21,7 @@ const router = createRouter({
         },
         {
           path: 'admin-list',
+          meta: { requiresAdmin: true },
           component: () => import('@/views/AdminList.vue'),
         },
       ]
@@ -29,8 +30,12 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.path.startsWith('/main') && !sessionStorage.getItem('login_token')) {
+  const token = sessionStorage.getItem('login_token')
+  if (to.path.startsWith('/main') && !token) {
     return '/'
+  }
+  if (to.meta.requiresAdmin && sessionStorage.getItem('login_role') !== 'admin') {
+    return '/main/auth-list'
   }
 })
 

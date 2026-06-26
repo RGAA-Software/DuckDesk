@@ -1,16 +1,14 @@
+use crate::event::spvr_event::SpvrEvent;
+use crate::event::spvr_event_keys::{EVENT_TYPE, KEY_EVENT_ID};
+use crate::gSpvrDatabase;
+use crate::spvr_api_error::SpvrApiError;
+use mongodb::bson::{doc, Bson, Document};
 use std::collections::HashMap;
 use std::sync::Arc;
-use mongodb::bson::{doc, Bson, Document};
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
-use crate::{gSpvrDatabase};
-use crate::spvr_api_error::SpvrApiError;
-use crate::event::spvr_event::{SpvrEvent};
-use crate::event::spvr_event_keys::{EVENT_TYPE, KEY_EVENT_ID};
 
-pub struct SpvrEventManager {
-
-}
+pub struct SpvrEventManager {}
 
 impl SpvrEventManager {
     pub fn new() -> Arc<Self> {
@@ -19,10 +17,13 @@ impl SpvrEventManager {
 
     pub async fn add_event(&self, warn: SpvrEvent) -> Result<(), SpvrApiError> {
         let r = gSpvrDatabase
-            .lock().await
+            .lock()
+            .await
             .event()
-            .lock().await
-            .insert_one(warn).await;
+            .lock()
+            .await
+            .insert_one(warn)
+            .await;
         if let Err(err) = r {
             tracing::error!("failed to insert warn: {}", err);
             return Err(SpvrApiError::DatabaseError);
@@ -32,10 +33,13 @@ impl SpvrEventManager {
 
     pub async fn remove_event(&self, warn_id: String) -> Result<(), SpvrApiError> {
         let r = gSpvrDatabase
-        .lock().await
+            .lock()
+            .await
             .event()
-            .lock().await
-            .delete_one(doc!{KEY_EVENT_ID: warn_id.clone()}).await;
+            .lock()
+            .await
+            .delete_one(doc! {KEY_EVENT_ID: warn_id.clone()})
+            .await;
         if let Err(err) = r {
             tracing::error!("failed to remove warn: {}", err);
             return Err(SpvrApiError::DatabaseError);
@@ -50,9 +54,12 @@ impl SpvrEventManager {
         page_size: i32,
         filters: HashMap<String, T>,
         sort_field: Option<String>, // sort field
-        sort_order: Option<i32>, // 1= asc, -1=dec
-    ) -> Result<Vec<SpvrEvent>, SpvrApiError> where T: Into<Bson> {
-        let skip = (page-1) * page_size;
+        sort_order: Option<i32>,    // 1= asc, -1=dec
+    ) -> Result<Vec<SpvrEvent>, SpvrApiError>
+    where
+        T: Into<Bson>,
+    {
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
         let mut event_type: Bson = Bson::String("".to_string());
@@ -62,11 +69,10 @@ impl SpvrEventManager {
         for (key, value) in filters {
             if key == EVENT_TYPE {
                 event_type = value.into().clone();
-                and_conditions.push(doc!{
+                and_conditions.push(doc! {
                     key: event_type.clone()
                 });
-            }
-            else {
+            } else {
                 and_conditions.push(doc! {
                     key: {
                         "$regex": value,
@@ -92,13 +98,16 @@ impl SpvrEventManager {
         };
 
         let r = gSpvrDatabase
-            .lock().await
+            .lock()
+            .await
             .event()
-            .lock().await
+            .lock()
+            .await
             .find(filter.clone())
             .sort(sort_doc)
             .skip(skip as u64)
-            .limit(limit).await;
+            .limit(limit)
+            .await;
         if let Err(err) = r {
             tracing::error!("failed to query warns: {}", err);
             return Err(SpvrApiError::DatabaseError);
@@ -128,22 +137,31 @@ impl SpvrEventManager {
         };
         tracing::info!("count_total_events filter: {}", filter);
         gSpvrDatabase
-            .lock().await
+            .lock()
+            .await
             .event()
-            .lock().await
-            .count_documents(filter).await
+            .lock()
+            .await
+            .count_documents(filter)
+            .await
             .map_err(|err| {
                 tracing::error!("failed to count documents: {}", err);
                 SpvrApiError::DatabaseError
             })
     }
 
-    pub async fn count_total_events_with_filters(&self, filters: Document) -> Result<u64, SpvrApiError> {
+    pub async fn count_total_events_with_filters(
+        &self,
+        filters: Document,
+    ) -> Result<u64, SpvrApiError> {
         gSpvrDatabase
-            .lock().await
+            .lock()
+            .await
             .event()
-            .lock().await
-            .count_documents(filters).await
+            .lock()
+            .await
+            .count_documents(filters)
+            .await
             .map_err(|err| {
                 tracing::error!("failed to count documents: {}", err);
                 SpvrApiError::DatabaseError

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use gr_base::sys_info::SysInfo;
+use serde::{Deserialize, Serialize};
 
 const CM_HEARTBEAT: &str = "heartbeat";
 
@@ -10,19 +10,13 @@ pub enum CmMessage {
     Ping,
 
     #[serde(rename = "heartbeat")]
-    Heartbeat {
-        index: u32,
-    },
+    Heartbeat { index: u32 },
 
     #[serde(rename = "stream_hardware_info")]
-    StreamHardwareInfo {
-        device_id: String,
-    },
+    StreamHardwareInfo { device_id: String },
 
     #[serde(rename = "stream_running_stat")]
-    StreamRunningStat {
-        device_id: String,
-    },
+    StreamRunningStat { device_id: String },
 
     #[serde(other)]
     Unknown,

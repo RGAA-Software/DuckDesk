@@ -1,27 +1,29 @@
-use crate::{gSpvrDatabase};
 use crate::device::spvr_device::SpvrDevice;
+use crate::gSpvrDatabase;
+use crate::spvr_api_error::SpvrApiError;
 use futures_util::StreamExt;
+use mongodb::bson::doc;
 use mongodb::bson::{Bson, Document};
-use mongodb::{
-    bson::{doc}
-};
+use mongodb::options::AggregateOptions;
 use std::collections::HashMap;
 use std::sync::Arc;
-use mongodb::options::AggregateOptions;
 use tokio::sync::Mutex;
-use crate::spvr_api_error::SpvrApiError;
 
-pub struct SpvrDeviceManager {
-
-}
+pub struct SpvrDeviceManager {}
 
 impl SpvrDeviceManager {
     pub fn new() -> Arc<SpvrDeviceManager> {
-        Arc::new(SpvrDeviceManager {
-        })
+        Arc::new(SpvrDeviceManager {})
     }
-    
-    pub async fn query_devices(&self, device_name: String, device_id: String, ip: String, page: i32, page_size: i32) -> Result<Vec<SpvrDevice>, SpvrApiError> {
+
+    pub async fn query_devices(
+        &self,
+        device_name: String,
+        device_id: String,
+        ip: String,
+        page: i32,
+        page_size: i32,
+    ) -> Result<Vec<SpvrDevice>, SpvrApiError> {
         let c_device = gSpvrDatabase.lock().await.device();
 
         let mut and_conditions: Vec<Document> = Vec::new();
@@ -63,9 +65,11 @@ impl SpvrDeviceManager {
 
         //tracing::info!("the filter for device : {:#?}", filter);
 
-        let skip = (page-1) * page_size;
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
-        let mut cursor = c_device.lock().await
+        let mut cursor = c_device
+            .lock()
+            .await
             .find(filter)
             .skip(skip as u64)
             .limit(limit)
@@ -87,7 +91,7 @@ impl SpvrDeviceManager {
         }
         Ok(devices)
     }
-    
+
     pub async fn insert_device(&self, device: SpvrDevice) -> Result<bool, SpvrApiError> {
         let c_device = gSpvrDatabase.lock().await.device();
         let r = c_device.lock().await.insert_one(device).await;
@@ -97,18 +101,18 @@ impl SpvrDeviceManager {
         }
         Ok(true)
     }
-    
-    pub async fn query_device_by_id_and_seed(&self, device_id: String, seed: String) -> Result<SpvrDevice, SpvrApiError> {
-        let c_device = gSpvrDatabase
-            .lock().await
-            .device();
-        let filter = doc! { 
+
+    pub async fn query_device_by_id_and_seed(
+        &self,
+        device_id: String,
+        seed: String,
+    ) -> Result<SpvrDevice, SpvrApiError> {
+        let c_device = gSpvrDatabase.lock().await.device();
+        let filter = doc! {
             "device_id": device_id.clone(),
             "seed": seed.clone(),
         };
-        let r = c_device
-            .lock().await
-            .find_one(filter).await;
+        let r = c_device.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("error retrieving device from MongoDB: {}", e);
             return Err(SpvrApiError::DatabaseError);
@@ -116,32 +120,34 @@ impl SpvrDeviceManager {
         let r = r.unwrap();
         if let Some(device) = r {
             Ok(device)
-        }
-        else {
+        } else {
             tracing::error!("device not found: {}, seed: {}", device_id, seed);
             Err(SpvrApiError::DeviceNotFound)
         }
     }
-    
+
     pub async fn query_device_by_id(&self, device_id: String) -> Result<SpvrDevice, SpvrApiError> {
         let c_device = gSpvrDatabase.lock().await.device();
-        let filter = doc! { 
+        let filter = doc! {
             "device_id": device_id,
         };
-        let r = c_device.lock().await.find_one(filter, ).await;
+        let r = c_device.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("error querying device: {}", e);
             return Err(SpvrApiError::DatabaseError);
         }
         if let Some(device) = r.unwrap() {
             Ok(device)
-        }
-        else {
+        } else {
             Err(SpvrApiError::DeviceNotFound)
         }
     }
 
-    pub async fn update_device(&self, device_id: String, update_info: HashMap<String, String>) -> Result<bool, SpvrApiError> {
+    pub async fn update_device(
+        &self,
+        device_id: String,
+        update_info: HashMap<String, String>,
+    ) -> Result<bool, SpvrApiError> {
         let c_device = gSpvrDatabase.lock().await.device();
         let filter_doc = doc! {
             "device_id": device_id,
@@ -154,19 +160,27 @@ impl SpvrDeviceManager {
         sub_update_doc.insert("last_update_timestamp", gr_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
         let r = c_device
-            .lock().await
-            .update_one(filter_doc, update_doc).await;
+            .lock()
+            .await
+            .update_one(filter_doc, update_doc)
+            .await;
         if let Err(e) = r {
             println!("error updating device: {}", e);
             Err(SpvrApiError::DatabaseError)
-        }
-        else {
+        } else {
             Ok(true)
         }
     }
 
-    pub async fn update_device_field<T>(&self, device_id: String, key: String, val: T) -> Result<bool, SpvrApiError>
-        where T: Into<Bson> {
+    pub async fn update_device_field<T>(
+        &self,
+        device_id: String,
+        key: String,
+        val: T,
+    ) -> Result<bool, SpvrApiError>
+    where
+        T: Into<Bson>,
+    {
         let c_device = gSpvrDatabase.lock().await.device();
         let filter_doc = doc! {
             "device_id": device_id,
@@ -178,24 +192,30 @@ impl SpvrDeviceManager {
 
         sub_update_doc.insert("last_update_timestamp", gr_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
-        let r = c_device.lock().await.update_one(filter_doc, update_doc).await;
+        let r = c_device
+            .lock()
+            .await
+            .update_one(filter_doc, update_doc)
+            .await;
         if let Err(e) = r {
             println!("error updating device: {}", e);
             Err(SpvrApiError::DatabaseError)
-        }
-        else {
+        } else {
             Ok(true)
         }
     }
 
-    pub async fn bind_logged_in_user(&self, device_id: String, user_id: String) -> Result<bool, SpvrApiError> {
-        self.update_device_field(device_id, "logged_in_user_id".to_string(), user_id).await
+    pub async fn bind_logged_in_user(
+        &self,
+        device_id: String,
+        user_id: String,
+    ) -> Result<bool, SpvrApiError> {
+        self.update_device_field(device_id, "logged_in_user_id".to_string(), user_id)
+            .await
     }
 
     pub async fn query_total_devices_count(&self) -> Result<u64, SpvrApiError> {
-        let c_device = gSpvrDatabase
-            .lock().await
-            .device();
+        let c_device = gSpvrDatabase.lock().await.device();
         let r = c_device.lock().await.count_documents(doc! {}).await;
         if let Err(e) = r {
             return Err(SpvrApiError::DatabaseError);
@@ -204,26 +224,23 @@ impl SpvrDeviceManager {
     }
 
     pub async fn query_total_used_time(&self) -> Result<u64, SpvrApiError> {
-        let c_device = gSpvrDatabase
-            .lock().await
-            .device();
-        let pipeline = vec![
-            doc! {
-                "$group": {
-                    "_id": null,
-                    "total": {
-                        "$sum": {
-                            "$ifNull": [format!("${}", "used_time"), 0]  // 处理 null 值
-                        }
+        let c_device = gSpvrDatabase.lock().await.device();
+        let pipeline = vec![doc! {
+            "$group": {
+                "_id": null,
+                "total": {
+                    "$sum": {
+                        "$ifNull": [format!("${}", "used_time"), 0]  // 处理 null 值
                     }
                 }
             }
-        ];
-        let options = AggregateOptions::builder()
-            .allow_disk_use(true)
-            .build();
+        }];
+        let options = AggregateOptions::builder().allow_disk_use(true).build();
         // 5. 执行查询
-        let mut cursor = c_device.lock().await.aggregate(pipeline)
+        let mut cursor = c_device
+            .lock()
+            .await
+            .aggregate(pipeline)
             .await
             .map_err(|e| SpvrApiError::DatabaseError)?;
         // 6. 获取结果

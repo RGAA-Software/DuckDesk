@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>
 #include "render_panel/gr_application.h"
 #include "render_panel/user/gr_user_manager.h"
+#include "network/ct_auth_token.h"
 
 using namespace spvr_panel;
 
@@ -115,7 +116,9 @@ namespace tc
 
         // the /ws is the websocket upgraged target
         auto user_id = grApp->GetUserManager()->GetUserId();
-        auto path = std::format("/spvr/panel?appkey={}&device_id={}&user_id={}", grApp->GetAppkey(), device_id_, user_id);
+        auto token = GenerateConnectionToken(grApp->GetAppkey());
+        auto path = std::format("/spvr/panel?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}",
+                                 grApp->GetAppkey(), token.token, token.ts, token.nonce, device_id_, user_id);
         LOGI("will connect => {}:{}{}", host_, port_, path);
         if (!client_->async_start(host_, port_, path)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());

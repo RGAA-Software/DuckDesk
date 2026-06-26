@@ -1,24 +1,24 @@
-use crate::consult::off_consult_handle::{create_new_consult, mark_consult_processed, query_consults};
+use crate::consult::off_consult_handle::{
+    create_new_consult, mark_consult_processed, query_consults,
+};
 use crate::issue::off_issue_handle::{create_new_issue, mark_issue_processed, query_issues};
 use crate::off_context::OffContext;
-use crate::version::off_version_handle::{handle_query_product_version, handle_update_product_version};
+use crate::version::off_version_handle::{
+    handle_query_product_version, handle_update_product_version,
+};
 use axum::routing::{get, get_service, post};
-use axum::{Router};
+use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 
-pub struct OffServer {
-
-}
+pub struct OffServer {}
 
 impl OffServer {
-
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 
     pub async fn start(&self, context: Arc<Mutex<OffContext>>) {
@@ -36,7 +36,8 @@ impl OffServer {
         let config = RustlsConfig::from_pem_file(
             current_dir.join("certs").join("cert.pem"),
             current_dir.join("certs").join("key.pem"),
-        ).await;
+        )
+        .await;
 
         if let Err(e) = config {
             tracing::error!("==> {}", e);
@@ -52,19 +53,26 @@ impl OffServer {
             .fallback_service(get_service(static_dir).handle_error(|_| async move {
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Static file error"
+                    "Static file error",
                 )
             }))
             .route("/api/v1/create/new/issue", post(create_new_issue))
             .route("/api/v1/query/issues", get(query_issues))
             .route("/api/v1/mark/issue/processed", post(mark_issue_processed))
-
             .route("/api/v1/create/new/consult", post(create_new_consult))
             .route("/api/v1/query/consults", get(query_consults))
-            .route("/api/v1/mark/consult/processed", post(mark_consult_processed))
-            .route("/api/v1/update/product/version", post(handle_update_product_version))
-            .route("/api/v1/query/product/version", get(handle_query_product_version))
-            
+            .route(
+                "/api/v1/mark/consult/processed",
+                post(mark_consult_processed),
+            )
+            .route(
+                "/api/v1/update/product/version",
+                post(handle_update_product_version),
+            )
+            .route(
+                "/api/v1/query/product/version",
+                get(handle_query_product_version),
+            )
             .with_state(context.clone());
 
         let http_router = router.clone();
@@ -74,8 +82,13 @@ impl OffServer {
             let listener = tokio::net::TcpListener::bind(format!("{}:{}", http_host, 5000)).await;
             if let Err(e) = listener {
                 tracing::error!("{}", e);
-            } else{
-                axum::serve(listener.unwrap(), http_router.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+            } else {
+                axum::serve(
+                    listener.unwrap(),
+                    http_router.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .await
+                .unwrap();
             }
         });
 
@@ -86,5 +99,4 @@ impl OffServer {
             .await
             .unwrap();
     }
-
 }

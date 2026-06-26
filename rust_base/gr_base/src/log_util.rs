@@ -121,13 +121,17 @@ impl RotatingFileState {
 
         if self.max_files > 1 {
             let last_index = self.max_files - 1;
-            let last_path = self.directory.join(rotated_log_filename(&self.file_name, last_index));
+            let last_path = self
+                .directory
+                .join(rotated_log_filename(&self.file_name, last_index));
             if last_path.exists() {
                 let _ = fs::remove_file(&last_path);
             }
 
             for index in (1..last_index).rev() {
-                let src = self.directory.join(rotated_log_filename(&self.file_name, index));
+                let src = self
+                    .directory
+                    .join(rotated_log_filename(&self.file_name, index));
                 let dst = self
                     .directory
                     .join(rotated_log_filename(&self.file_name, index + 1));
@@ -138,7 +142,9 @@ impl RotatingFileState {
 
             let current_path = self.directory.join(&self.file_name);
             if current_path.exists() {
-                let first_rotated = self.directory.join(rotated_log_filename(&self.file_name, 1));
+                let first_rotated = self
+                    .directory
+                    .join(rotated_log_filename(&self.file_name, 1));
                 let _ = fs::rename(current_path, first_rotated);
             }
         } else {
@@ -188,8 +194,14 @@ mod tests {
 
     #[test]
     fn normalize_log_filename_appends_log_suffix() {
-        assert_eq!(normalize_log_filename("godesk_service"), "godesk_service.log");
-        assert_eq!(normalize_log_filename("godesk_render_20371.log"), "godesk_render_20371.log");
+        assert_eq!(
+            normalize_log_filename("godesk_service"),
+            "godesk_service.log"
+        );
+        assert_eq!(
+            normalize_log_filename("godesk_render_20371.log"),
+            "godesk_render_20371.log"
+        );
     }
 
     #[test]

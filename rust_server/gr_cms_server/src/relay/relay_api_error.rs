@@ -1,7 +1,7 @@
-use axum::Json;
 use axum::response::{IntoResponse, Response};
-use thiserror::Error;
+use axum::Json;
 use gr_base::RespMessage;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RelayApiError {
@@ -19,9 +19,9 @@ pub enum RelayApiError {
 
     #[error("Notify event failed")]
     NotifyEventFailed,
-    
+
     #[error("Invalid Appkey")]
-    InvalidAppkey
+    InvalidAppkey,
 }
 
 impl IntoResponse for RelayApiError {

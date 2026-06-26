@@ -1,27 +1,31 @@
+use axum::extract::{ws, ConnectInfo, Query, State};
+use axum::routing::{get, post};
+use axum::serve::ListenerExt;
+use axum::{
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    middleware,
+    response::IntoResponse,
+    routing::any,
+    Json, Router, ServiceExt,
+};
+use axum_extra::TypedHeader;
+use futures_util::StreamExt;
+use prost::Message as ProstMessage;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::Arc;
-use axum::extract::{ws, ConnectInfo, Query, State};
-use axum::routing::{get, post};
-use axum::{extract::ws::{Message, WebSocket, WebSocketUpgrade}, middleware, response::IntoResponse, routing::any, Json, Router, ServiceExt};
-use axum::serve::ListenerExt;
-use axum_extra::TypedHeader;
-use futures_util::StreamExt;
-use prost::Message as ProstMessage;
 use tokio::sync::Mutex;
 
-use tower_http::{
-    services::ServeDir,
-};
+use crate::filter::{spvr_appkey_filter, spvr_statistics_filter, spvr_timer_filter};
+use crate::relay::relay_conn::RelayConn;
+use crate::relay::{relay_device_handler, relay_room_handler};
+use crate::spvr_context::SpvrContext;
+use crate::{gRelayConnMgr, gRelayRoomMgr};
 use gr_base::{get_current_timestamp, json_util, RespMessage};
 use protocol::relay::{RelayMessage, RelayMessageType};
-use crate::{gRelayConnMgr, gRelayRoomMgr};
-use crate::filter::{spvr_appkey_filter, spvr_statistics_filter, spvr_timer_filter};
-use crate::relay::{relay_device_handler, relay_room_handler};
-use crate::relay::relay_conn::RelayConn;
-use crate::spvr_context::SpvrContext;
+use tower_http::services::ServeDir;
 
 pub struct RelayServer {
     pub host: String,
@@ -46,30 +50,47 @@ impl RelayServer {
             .route("/ping", get(RelayServer::ping))
             .route("/relay", any(RelayServer::ws_handler))
             .route("/query/room", get(relay_room_handler::hr_query_room))
-            .route("/query/total/rooms", get(relay_room_handler::hr_query_total_rooms))
-            .route("/query/total/alive/rooms", get(relay_room_handler::hr_query_total_alive_rooms))
-            .route("/query/devices", get(relay_device_handler::hd_query_devices))
+            .route(
+                "/query/total/rooms",
+                get(relay_room_handler::hr_query_total_rooms),
+            )
+            .route(
+                "/query/total/alive/rooms",
+                get(relay_room_handler::hr_query_total_alive_rooms),
+            )
+            .route(
+                "/query/devices",
+                get(relay_device_handler::hd_query_devices),
+            )
             .route("/query/device", get(relay_device_handler::hd_query_device))
             .route("/notify/event", post(relay_device_handler::hd_notify_event))
-
             .layer(middleware::from_fn(spvr_appkey_filter::filter))
             .layer(middleware::from_fn(spvr_statistics_filter::filter))
             .layer(middleware::from_fn(spvr_timer_filter::filter))
-            
             .with_state(self.context.clone());
 
         // run our app with hyper, listening globally on port 3000
-        let listener = tokio::net::TcpListener::bind(format!("{}:{}", self.host, self.port)).await.unwrap().tap_io(|tcp_stream| {
-            if let Ok(nodelay) = tcp_stream.nodelay() {
-                if !nodelay {
-                    if let Err(err) = tcp_stream.set_nodelay(true) {
-                        tracing::error!("failed to set TCP_NODELAY on incoming connection: {err:#}");
+        let listener = tokio::net::TcpListener::bind(format!("{}:{}", self.host, self.port))
+            .await
+            .unwrap()
+            .tap_io(|tcp_stream| {
+                if let Ok(nodelay) = tcp_stream.nodelay() {
+                    if !nodelay {
+                        if let Err(err) = tcp_stream.set_nodelay(true) {
+                            tracing::error!(
+                                "failed to set TCP_NODELAY on incoming connection: {err:#}"
+                            );
+                        }
                     }
                 }
-            }
-        });
+            });
         //axum::serve(listener, app).await.unwrap();
-        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
     }
 
     pub async fn ping(State(_ctx): State<Arc<Mutex<SpvrContext>>>) -> Json<RespMessage<String>> {
@@ -103,10 +124,12 @@ impl RelayServer {
         })
     }
 
-    async fn handle_socket(context: Arc<Mutex<SpvrContext>>,
-                           params: HashMap<String, String>,
-                           socket: WebSocket,
-                           who: SocketAddr) {
+    async fn handle_socket(
+        context: Arc<Mutex<SpvrContext>>,
+        params: HashMap<String, String>,
+        socket: WebSocket,
+        who: SocketAddr,
+    ) {
         let (sender, mut receiver) = socket.split();
 
         let mut recv_task = tokio::spawn(async move {
@@ -122,45 +145,63 @@ impl RelayServer {
             let mut t = addr.splitn(2, ':');
             let client_w3c_host = t.next().unwrap_or("").to_string();
 
-            tracing::info!("connected device id: {}, client w3c host: {}, device name: {}, stream id: {}", 
-                device_id, client_w3c_host, device_name, stream_id);
-            
+            tracing::info!(
+                "connected device id: {}, client w3c host: {}, device name: {}, stream id: {}",
+                device_id,
+                client_w3c_host,
+                device_name,
+                stream_id
+            );
+
             // make relay conn
-            let relay_conn = RelayConn::new(context.clone(), sender, 
-                                            device_id.clone(), client_w3c_host, device_name, stream_id).await;
-            
+            let relay_conn = RelayConn::new(
+                context.clone(),
+                sender,
+                device_id.clone(),
+                client_w3c_host,
+                device_name,
+                stream_id,
+            )
+            .await;
+
             // add to manager
             gRelayConnMgr
-                .add_connection(device_id.clone(), relay_conn.clone()).await;
+                .add_connection(device_id.clone(), relay_conn.clone())
+                .await;
 
             tracing::info!("will receive messages");
             // wait for messages
             while let Some(Ok(msg)) = receiver.next().await {
                 // print message and break if instructed to do so
-                if RelayServer::process_message(context.clone(), relay_conn.clone(), msg, who).await.is_break() {
+                if RelayServer::process_message(context.clone(), relay_conn.clone(), msg, who)
+                    .await
+                    .is_break()
+                {
                     break;
                 }
             }
 
             tracing::info!("remove device: {}", device_id);
-            
+
             // notify controller if the exiting device is remote device
             gRelayRoomMgr
-                .notify_remote_device_offline(device_id.clone()).await;
-            
+                .notify_remote_device_offline(device_id.clone())
+                .await;
+
             // remove room
             gRelayRoomMgr
-                .destroy_room_i_created(device_id.clone()).await;
+                .destroy_room_i_created(device_id.clone())
+                .await;
 
             // clear info in rooms
             gRelayRoomMgr
-                .clear_info_in_rooms_i_was_invited(device_id.clone()).await;
+                .clear_info_in_rooms_i_was_invited(device_id.clone())
+                .await;
 
             // this connection has disconnected
             // remove connection
             relay_conn.lock().await.last_relay_msg_index = 0;
-            gRelayConnMgr
-                .remove_connection(device_id).await;
+            gRelayConnMgr.remove_connection(device_id).await;
         });
 
         tokio::select! {
@@ -176,11 +217,12 @@ impl RelayServer {
         }
     }
 
-    async fn process_message(_context: Arc<Mutex<SpvrContext>>,
-                             relay_conn: Arc<Mutex<RelayConn>>,
-                             msg: Message,
-                             who: SocketAddr)
-        -> ControlFlow<(), ()> {
+    async fn process_message(
+        _context: Arc<Mutex<SpvrContext>>,
+        relay_conn: Arc<Mutex<RelayConn>>,
+        msg: Message,
+        who: SocketAddr,
+    ) -> ControlFlow<(), ()> {
         match msg {
             Message::Text(_data) => {
                 // // append received data size
@@ -193,7 +235,11 @@ impl RelayServer {
                 // }
             }
             Message::Binary(data) => {
-                relay_conn.lock().await.append_upload_data_size(data.len() as i64).await;
+                relay_conn
+                    .lock()
+                    .await
+                    .append_upload_data_size(data.len() as i64)
+                    .await;
                 let m = RelayMessage::decode(data.clone());
                 if let Err(e) = m {
                     tracing::error!("decode relay message failed: {}", e);
@@ -204,59 +250,35 @@ impl RelayServer {
                 //tracing::info!("from: {} message type: {}", m.from_device_id, m_type);
 
                 if m_type == RelayMessageType::KRelayHello {
-                    relay_conn
-                        .lock().await
-                        .on_hello(m).await;
+                    relay_conn.lock().await.on_hello(m).await;
 
                     // send back
                     let data_cpy = data.clone();
                     tokio::spawn(async move {
-                        relay_conn
-                            .lock().await
-                            .send_bin_message(data_cpy).await;
+                        relay_conn.lock().await.send_bin_message(data_cpy).await;
                     });
-                }
-                else if m_type == RelayMessageType::KRelayHeartBeat {
-                    relay_conn
-                        .lock().await
-                        .on_heartbeat(m).await;
+                } else if m_type == RelayMessageType::KRelayHeartBeat {
+                    relay_conn.lock().await.on_heartbeat(m).await;
 
                     // send back
                     let data_cpy = data.clone();
                     tokio::spawn(async move {
-                        relay_conn
-                            .lock().await
-                            .send_bin_message(data_cpy).await;
+                        relay_conn.lock().await.send_bin_message(data_cpy).await;
                     });
-                }
-                else if m_type == RelayMessageType::KRelayError {
-                    relay_conn
-                        .lock().await
-                        .on_error(m).await
-                }
-                else if m_type == RelayMessageType::KRelayTargetMessage {
-                    gRelayRoomMgr
-                        .on_relay(m, data).await;
-                }
-                else if m_type == RelayMessageType::KRelayCreateRoom {
-                    gRelayRoomMgr
-                        .on_create_room(m, data).await;
-                }
-                else if m_type == RelayMessageType::KRelayRequestControl {
-                    gRelayRoomMgr
-                        .on_request_control(m, data).await;
-                }
-                else if m_type == RelayMessageType::KRelayRequestControlResp {
-                    gRelayRoomMgr
-                        .on_request_control_resp(m, data).await;
-                }
-                else if m_type == RelayMessageType::KRelayRequestPausedStream {
-                    gRelayRoomMgr
-                        .on_request_resume_pause_stream(m, data).await;
-                }
-                else if m_type == RelayMessageType::KRelayRequestResumeStream {
-                    gRelayRoomMgr
-                        .on_request_resume_pause_stream(m, data).await;
+                } else if m_type == RelayMessageType::KRelayError {
+                    relay_conn.lock().await.on_error(m).await
+                } else if m_type == RelayMessageType::KRelayTargetMessage {
+                    gRelayRoomMgr.on_relay(m, data).await;
+                } else if m_type == RelayMessageType::KRelayCreateRoom {
+                    gRelayRoomMgr.on_create_room(m, data).await;
+                } else if m_type == RelayMessageType::KRelayRequestControl {
+                    gRelayRoomMgr.on_request_control(m, data).await;
+                } else if m_type == RelayMessageType::KRelayRequestControlResp {
+                    gRelayRoomMgr.on_request_control_resp(m, data).await;
+                } else if m_type == RelayMessageType::KRelayRequestPausedStream {
+                    gRelayRoomMgr.on_request_resume_pause_stream(m, data).await;
+                } else if m_type == RelayMessageType::KRelayRequestResumeStream {
+                    gRelayRoomMgr.on_request_resume_pause_stream(m, data).await;
                 }
                 return ControlFlow::Continue(());
             }
@@ -272,9 +294,7 @@ impl RelayServer {
                 return ControlFlow::Break(());
             }
 
-            Message::Pong(v) => {
-
-            }
+            Message::Pong(v) => {}
             // You should never need to manually handle Message::Ping, as axum's websocket library
             // will do so for you automagically by replying with Pong and copying the v according to
             // spec. But if you need the contents of the pings you can see them here.
@@ -284,5 +304,4 @@ impl RelayServer {
         }
         ControlFlow::Continue(())
     }
-
 }

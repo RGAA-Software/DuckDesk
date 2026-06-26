@@ -9,12 +9,18 @@ use tokio::time::{sleep, timeout};
 use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
+type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>;
+
 // [this] ---> Panel ws server
 pub struct SysPanelClient {
-    sender: Arc<
-        Mutex<Option<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>>>,
-    >,
+    sender: Arc<Mutex<Option<WsSink>>>,
     pub duration: i32,
+}
+
+impl Default for SysPanelClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SysPanelClient {
@@ -30,13 +36,25 @@ impl SysPanelClient {
         let self_sender = self.sender.clone();
         tokio::spawn(async move {
             loop {
+                // 重连前清空旧 sender，释放 SplitSink 及其内部 TLS/TCP 缓冲
+                *self_sender.lock().await = None;
+
                 let ws_stream =
                     match timeout(Duration::from_secs(5), connect_async(address.clone())).await {
                         Ok(Ok((mut stream, _response))) => {
                             tracing::info!("connect success....");
                             let message = "Hello, WebSocket!";
-                            let _ = stream.send(TungsteniteMessage::Text(message.into())).await;
-                            Some(stream)
+                            if let Err(e) = timeout(
+                                Duration::from_secs(5),
+                                stream.send(TungsteniteMessage::Text(message.into())),
+                            )
+                            .await
+                            {
+                                tracing::error!("handshake send timeout or failed: {:?}", e);
+                                None
+                            } else {
+                                Some(stream)
+                            }
                         }
                         Ok(Err(e)) => {
                             tracing::error!("Failed to connect to {}: {}", address, e);
@@ -61,11 +79,30 @@ impl SysPanelClient {
                                     gSysInfoMgr.lock().await.load_system_info_as_encrypt_json();
                                 let elapsed = start.elapsed();
                                 tracing::info!("used: {}ms", elapsed.as_millis());
-                                if let Err(e) =
-                                    sender.send(TungsteniteMessage::Text(info.into())).await
+
+                                let payload_len = info.len();
+                                let send_start = Instant::now();
+                                match timeout(
+                                    Duration::from_secs(10),
+                                    sender.send(TungsteniteMessage::Text(info.into())),
+                                )
+                                .await
                                 {
-                                    tracing::error!("send info failed, break: {}", e);
-                                    break;
+                                    Ok(Ok(())) => {
+                                        tracing::info!(
+                                            "send info success, size={} bytes, elapsed={}ms",
+                                            payload_len,
+                                            send_start.elapsed().as_millis()
+                                        );
+                                    }
+                                    Ok(Err(e)) => {
+                                        tracing::error!("send info failed, break: {}", e);
+                                        break;
+                                    }
+                                    Err(_) => {
+                                        tracing::error!("send info timeout ({}s), break", 10);
+                                        break;
+                                    }
                                 }
                             } else {
                                 tracing::error!("No sender, Break the loop.");
@@ -96,9 +133,17 @@ impl SysPanelClient {
                             }
                         }
                     }
+
+                    // 接收循环退出，清空 sender，避免旧 SplitSink 残留
+                    *self_sender.lock().await = None;
+                    tracing::info!("receiver loop ended, sender cleared");
                 }
 
-                tracing::info!("will reconnect to {}", address);
+                tracing::info!(
+                    "will reconnect to {}, sender strong_count={}",
+                    address,
+                    Arc::strong_count(&self_sender)
+                );
                 sleep(Duration::from_secs(2)).await;
             }
         });

@@ -6,7 +6,7 @@ use gr_base::crypto_util::aes_encrypt;
 use tokio::net::UdpSocket;
 
 pub struct SpvrContext {
-    pub machine_code: String
+    pub machine_code: String,
 }
 
 impl SpvrContext {
@@ -22,9 +22,7 @@ impl SpvrContext {
 
     pub async fn gen_access_info(&self) -> SpvrAccessInfo {
         // myself
-        let self_config = gSpvrSettings
-            .lock().await
-            .get_server_config().await;
+        let self_config = gSpvrSettings.lock().await.get_server_config().await;
         SpvrAccessInfo {
             spvr_srv_config: self_config,
         }
@@ -39,7 +37,7 @@ impl SpvrContext {
                 Ok(format!("spvr://access##{}", v))
             } else {
                 Err("Failed to encrypt spvr.".to_string())
-            }
+            };
         }
         Err("Failed to serialize as json.".to_string())
     }
@@ -50,7 +48,7 @@ impl SpvrContext {
             let socket = UdpSocket::bind("0.0.0.0:0").await;
             if let Err(e) = socket {
                 tracing::error!("Failed to bind socket: {:?}", e);
-                return
+                return;
             }
             let socket = socket.unwrap();
 
@@ -58,9 +56,7 @@ impl SpvrContext {
             socket.set_broadcast(true).unwrap();
             loop {
                 let broadcast_addr = format!("255.255.255.255:{}", port);
-                let msg = gSpvrContext
-                    .lock().await
-                    .get_encrypt_access_info().await;
+                let msg = gSpvrContext.lock().await.get_encrypt_access_info().await;
                 if let Err(e) = msg {
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     continue;

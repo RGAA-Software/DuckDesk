@@ -8,8 +8,8 @@ fn main() {
         Path::new(&path).to_path_buf()
     } else {
         // 2. 从 vcpkg 获取 protoc
-        let vcpkg_root = std::env::var("VCPKG_ROOT")
-            .unwrap_or_else(|_| "C:/source/vcpkg".to_string());
+        let vcpkg_root =
+            std::env::var("VCPKG_ROOT").unwrap_or_else(|_| "C:/source/vcpkg".to_string());
         let vcpkg_triplet = std::env::var("VCPKG_DEFAULT_TRIPLET")
             .unwrap_or_else(|_| "x64-windows-static-release".to_string());
 
@@ -36,19 +36,23 @@ fn main() {
     tonic_prost_build::configure()
         .build_server(true)
         .out_dir("src/")
-        .compile_protos(&[
-            proto_dir.join("grpc_relay.proto").to_str().unwrap(),
-        ], &[proto_dir.to_str().unwrap()])
+        .compile_protos(
+            &[proto_dir.join("grpc_relay.proto").to_str().unwrap()],
+            &[proto_dir.to_str().unwrap()],
+        )
         .expect("Failed to compile grpc_relay.proto");
 
     tonic_prost_build::configure()
         .build_server(false)
         .out_dir("src/")
-        .compile_protos(&[
-            proto_dir.join("relay_message.proto").to_str().unwrap(),
-            proto_dir.join("spvr_relay.proto").to_str().unwrap(),
-            proto_dir.join("spvr_panel.proto").to_str().unwrap(),
-            proto_dir.join("spvr_client.proto").to_str().unwrap(),
-        ], &[proto_dir.to_str().unwrap()])
+        .compile_protos(
+            &[
+                proto_dir.join("relay_message.proto").to_str().unwrap(),
+                proto_dir.join("spvr_relay.proto").to_str().unwrap(),
+                proto_dir.join("spvr_panel.proto").to_str().unwrap(),
+                proto_dir.join("spvr_client.proto").to_str().unwrap(),
+            ],
+            &[proto_dir.to_str().unwrap()],
+        )
         .expect("Failed to compile proto files");
 }

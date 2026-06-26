@@ -1,35 +1,29 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use futures_util::StreamExt;
-use mongodb::bson;
-use mongodb::bson::{doc, Bson};
-use tokio::sync::Mutex;
 use crate::gSpvrDatabase;
 use crate::spvr_api_error::SpvrApiError;
 use crate::update::update_info::UpdateInfo;
 use crate::update::update_keys::KEY_UPDATE_VERSION;
+use futures_util::StreamExt;
+use mongodb::bson;
+use mongodb::bson::{doc, Bson};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub struct UpdateInfoManager {
-
-}
+pub struct UpdateInfoManager {}
 
 impl UpdateInfoManager {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self{})
+        Arc::new(Self {})
     }
 
-    pub async fn insert_update_info(&self, info: UpdateInfo)-> Result<UpdateInfo, SpvrApiError> {
+    pub async fn insert_update_info(&self, info: UpdateInfo) -> Result<UpdateInfo, SpvrApiError> {
         let version = info.version.clone();
 
-        let c_update_info = gSpvrDatabase
-            .lock().await
-            .update_info();
+        let c_update_info = gSpvrDatabase.lock().await.update_info();
 
         let coll = c_update_info.lock().await;
 
-        let existing = coll
-            .find_one(doc! { KEY_UPDATE_VERSION: &version })
-            .await;
+        let existing = coll.find_one(doc! { KEY_UPDATE_VERSION: &version }).await;
 
         if let Err(e) = existing {
             tracing::error!("db find version error: {}", e);
@@ -42,10 +36,9 @@ impl UpdateInfoManager {
             let update_doc = doc! {
                 "$set": bson::to_document(&info).unwrap()
             };
-            let r = coll.update_one(
-                doc! { KEY_UPDATE_VERSION: &version },
-                update_doc
-            ).await;
+            let r = coll
+                .update_one(doc! { KEY_UPDATE_VERSION: &version }, update_doc)
+                .await;
             if let Err(e) = r {
                 tracing::error!("update error: {}", e);
                 return Err(SpvrApiError::DatabaseError);
@@ -70,13 +63,14 @@ impl UpdateInfoManager {
         filters: HashMap<String, T>,
         sort_field: Option<String>,
         sort_order: Option<i32>, // 1= asc, -1=dec
-    ) -> Result<Vec<UpdateInfo>, SpvrApiError> where T: Into<Bson> {
-        let c_update_info = gSpvrDatabase
-            .lock().await
-            .update_info();
-        let skip = (page-1) * page_size;
+    ) -> Result<Vec<UpdateInfo>, SpvrApiError>
+    where
+        T: Into<Bson>,
+    {
+        let c_update_info = gSpvrDatabase.lock().await.update_info();
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
-        let mut filter = doc! { };
+        let mut filter = doc! {};
         for (key, value) in filters {
             filter.insert(key, value.into());
         }
@@ -88,7 +82,9 @@ impl UpdateInfoManager {
             doc! {}
         };
 
-        let cursor = c_update_info.lock().await
+        let cursor = c_update_info
+            .lock()
+            .await
             .find(filter)
             .sort(sort_doc)
             .skip(skip as u64)
@@ -105,23 +101,21 @@ impl UpdateInfoManager {
             if let Err(e) = stream {
                 tracing::error!("error to get stream value in cursor: {}", e);
                 break;
-            }
-            else {
+            } else {
                 streams.push(stream.unwrap());
             }
         }
         Ok(streams)
     }
-    pub async fn query_update_info_by_version(&self, version: String) -> Result<UpdateInfo, SpvrApiError> {
-        let c_update_info = gSpvrDatabase
-            .lock().await
-            .update_info();
+    pub async fn query_update_info_by_version(
+        &self,
+        version: String,
+    ) -> Result<UpdateInfo, SpvrApiError> {
+        let c_update_info = gSpvrDatabase.lock().await.update_info();
         let filter = doc! {
             KEY_UPDATE_VERSION: version,
         };
-        let r = c_update_info
-            .lock().await
-            .find_one(filter).await;
+        let r = c_update_info.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("query user by uid error: {}", e);
             return Err(SpvrApiError::DatabaseError);

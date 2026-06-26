@@ -30,13 +30,10 @@ pub struct SpvrVisit {
     pub created_timestamp: i64,
 
     #[serde(default)]
-    pub total: i64
+    pub total: i64,
 }
 
-impl SpvrVisit {
-
-}
-
+impl SpvrVisit {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpvrUpdateVisit {
@@ -50,6 +47,4 @@ pub struct SpvrUpdateVisit {
     pub duration: i64,
 }
 
-impl SpvrUpdateVisit {
-
-}
+impl SpvrUpdateVisit {}

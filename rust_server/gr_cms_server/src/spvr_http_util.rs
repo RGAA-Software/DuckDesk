@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use crate::spvr_api_error::SpvrApiError;
+use crate::user::spvr_user_keys::KEY_USER_ID;
 use axum::body::Body;
 use axum::extract::Query;
 use egui::TextBuffer;
 use serde::Deserialize;
+use std::collections::HashMap;
 use tokio_stream::StreamExt;
-use crate::spvr_api_error::SpvrApiError;
-use crate::user::spvr_user_keys::KEY_USER_ID;
 
 #[derive(Deserialize)]
 struct RequestBody {
@@ -20,11 +20,9 @@ pub async fn get_body_data(body: Body) -> Result<String, SpvrApiError> {
         bytes.extend_from_slice(&chunk);
     }
 
-    let r = String::from_utf8(bytes)
-        .map_err(|_| SpvrApiError::InvalidParams)?;
-    tracing::info!("body: {:#?}", r);
-    let rb: RequestBody = serde_json::from_str(r.as_str())
-        .map_err(|_| SpvrApiError::InvalidParams)?;
+    let r = String::from_utf8(bytes).map_err(|_| SpvrApiError::InvalidParams)?;
+    let rb: RequestBody =
+        serde_json::from_str(r.as_str()).map_err(|_| SpvrApiError::InvalidParams)?;
     if rb.data.is_empty() {
         return Err(SpvrApiError::InvalidParams);
     }
@@ -39,8 +37,7 @@ pub async fn get_body(body: Body) -> Result<String, SpvrApiError> {
         let chunk = chunk.map_err(|_| SpvrApiError::InvalidParams)?;
         bytes.extend_from_slice(&chunk);
     }
-    let r = String::from_utf8(bytes)
-        .map_err(|_| SpvrApiError::InvalidParams)?;
+    let r = String::from_utf8(bytes).map_err(|_| SpvrApiError::InvalidParams)?;
     if r.is_empty() {
         return Err(SpvrApiError::InvalidParams);
     }
@@ -48,7 +45,8 @@ pub async fn get_body(body: Body) -> Result<String, SpvrApiError> {
 }
 
 pub fn get_body_str(body: &serde_json::Value, key: &str) -> Result<String, SpvrApiError> {
-    let v = body.get(key)
+    let v = body
+        .get(key)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .ok_or(SpvrApiError::InvalidParams)?
@@ -65,14 +63,16 @@ pub fn get_body_str_or_empty(body: &serde_json::Value, key: &str) -> String {
 }
 
 pub fn get_body_bool(body: &serde_json::Value, key: &str) -> Result<bool, SpvrApiError> {
-    let v = body.get(key)
+    let v = body
+        .get(key)
         .and_then(|v| v.as_bool())
         .ok_or(SpvrApiError::InvalidParams)?;
     Ok(v)
 }
 
 pub fn get_body_int(body: &serde_json::Value, key: &str) -> Result<i64, SpvrApiError> {
-    let v = body.get(key)
+    let v = body
+        .get(key)
         .and_then(|v| v.as_i64())
         .ok_or(SpvrApiError::InvalidParams)?;
     Ok(v)
@@ -80,59 +80,73 @@ pub fn get_body_int(body: &serde_json::Value, key: &str) -> Result<i64, SpvrApiE
 
 //////// Query /////////
 
-pub fn get_str_param(query: &Query<HashMap<String, String>>, key: &str) -> Result<String, SpvrApiError> {
-    query.get(key)
+pub fn get_str_param(
+    query: &Query<HashMap<String, String>>,
+    key: &str,
+) -> Result<String, SpvrApiError> {
+    query
+        .get(key)
         .filter(|s| !s.is_empty())
         .cloned()
         .ok_or(SpvrApiError::InvalidParams)
 }
 
-pub fn get_str_param_or(query: &Query<HashMap<String, String>>, key: &str, def: &str) -> Result<String, SpvrApiError> {
-    if let Ok(v) = query.get(key)
+pub fn get_str_param_or(
+    query: &Query<HashMap<String, String>>,
+    key: &str,
+    def: &str,
+) -> Result<String, SpvrApiError> {
+    if let Ok(v) = query
+        .get(key)
         .filter(|s| !s.is_empty())
         .cloned()
-        .ok_or(SpvrApiError::InvalidParams) {
+        .ok_or(SpvrApiError::InvalidParams)
+    {
         Ok(v)
-    }
-    else {
+    } else {
         Ok(def.to_string())
     }
 }
 
 // allow to get an empty string
-pub fn get_str_param_allow_empty(query: &Query<HashMap<String, String>>, key: &str) -> Result<String, SpvrApiError> {
-    query.get(key)
-        .cloned()
-        .ok_or(SpvrApiError::InvalidParams)
+pub fn get_str_param_allow_empty(
+    query: &Query<HashMap<String, String>>,
+    key: &str,
+) -> Result<String, SpvrApiError> {
+    query.get(key).cloned().ok_or(SpvrApiError::InvalidParams)
 }
 
 pub fn get_int_param(query: &HashMap<String, String>, key: &str) -> Result<i32, SpvrApiError> {
-    query.get(key)
-        .filter(|s| !s.is_empty())          // 先确保有值且非空
+    query
+        .get(key)
+        .filter(|s| !s.is_empty()) // 先确保有值且非空
         .ok_or(SpvrApiError::InvalidParams)?
-        .parse::<i32>()                     // 尝试解析为 i32
+        .parse::<i32>() // 尝试解析为 i32
         .map_err(|_| SpvrApiError::InvalidParams)
 }
 
-pub fn get_int_param_or(query: &HashMap<String, String>, key: &str, def: i32) -> Result<i32, SpvrApiError> {
+pub fn get_int_param_or(
+    query: &HashMap<String, String>,
+    key: &str,
+    def: i32,
+) -> Result<i32, SpvrApiError> {
     let r = query.get(key);
     if let Some(r) = r {
         if r.is_empty() {
             Ok(def)
-        }
-        else {
+        } else {
             Ok(r.parse::<i32>().unwrap_or(def))
         }
-    }
-    else {
+    } else {
         Ok(def)
     }
 }
 
 pub fn get_bool_param(query: &HashMap<String, String>, key: &str) -> Result<bool, SpvrApiError> {
-    query.get(key)
-        .filter(|s| !s.is_empty())          // 先确保有值且非空
+    query
+        .get(key)
+        .filter(|s| !s.is_empty()) // 先确保有值且非空
         .ok_or(SpvrApiError::InvalidParams)?
-        .parse::<bool>()                     // 尝试解析为 bool
+        .parse::<bool>() // 尝试解析为 bool
         .map_err(|_| SpvrApiError::InvalidParams)
 }

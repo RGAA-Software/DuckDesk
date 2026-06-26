@@ -1,22 +1,22 @@
-mod update_server;
-mod update_context;
 mod update_api_error;
+mod update_context;
+mod update_database;
 mod update_handle;
 mod update_http_utils;
 mod update_info;
-mod update_keys;
-mod update_database;
 mod update_info_manager;
+mod update_keys;
+mod update_server;
 
-use gr_base::log_util;
+use crate::update_database::UpdateDatabase;
+use crate::update_info_manager::UpdateInfoManager;
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
+use gr_base::log_util;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use update_context::UpdateContext;
 use update_server::UpdateServer;
-use crate::update_database::UpdateDatabase;
-use crate::update_info_manager::UpdateInfoManager;
 
 lazy_static::lazy_static! {
     pub static ref gUpdateDatabase: Arc<Mutex<UpdateDatabase>> = UpdateDatabase::new();
@@ -24,8 +24,7 @@ lazy_static::lazy_static! {
 }
 
 #[tokio::main]
-async  fn main() {
-
+async fn main() {
     let _ = gr_base::create_dir_if_not_exists("./static");
 
     // log
@@ -35,9 +34,7 @@ async  fn main() {
     let _ = gr_base::create_dir_all_if_not_exists("./uploads/update_info");
 
     // database
-    if !gUpdateDatabase
-        .lock().await
-        .init().await {
+    if !gUpdateDatabase.lock().await.init().await {
         tracing::error!("failed to initialize database");
         return;
     }

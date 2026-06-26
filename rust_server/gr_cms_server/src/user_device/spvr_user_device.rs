@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::device::spvr_device::SpvrDevice;
 use crate::user::spvr_user::SpvrUser;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct SpvrUserDevice {

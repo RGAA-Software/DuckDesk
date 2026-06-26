@@ -1,5 +1,5 @@
-use serde::Serialize;
 use crate::author::AuthorRole;
+use serde::Serialize;
 
 #[derive(Serialize, Default)]
 pub struct AuthorLoginResp {
@@ -27,7 +27,8 @@ mod tests {
         let value = serde_json::to_value(AuthorMeResp {
             name: "Admin".to_string(),
             role: AuthorRole::Admin,
-        }).unwrap();
+        })
+        .unwrap();
 
         assert_eq!(value["name"], "Admin");
         assert_eq!(value["role"], "admin");

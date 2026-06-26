@@ -1,6 +1,6 @@
-use std::cmp::PartialEq;
 use prost::Message;
 use protocol::relay::{RelayErrorCode, RelayErrorMessage, RelayMessage, RelayMessageType};
+use std::cmp::PartialEq;
 
 pub fn make_error_message(code: RelayErrorCode) -> Vec<u8> {
     let mut rl_msg = RelayMessage::default();
@@ -16,8 +16,7 @@ pub fn make_error_message(code: RelayErrorCode) -> Vec<u8> {
 pub fn get_error_message(code: RelayErrorCode) -> String {
     if code == RelayErrorCode::KRelayCodeOk {
         return "Ok".to_string();
-    }
-    else if code == RelayErrorCode::KRelayCodeCreateRoomFailed {
+    } else if code == RelayErrorCode::KRelayCodeCreateRoomFailed {
         return "Create room failed.".to_string();
     }
 

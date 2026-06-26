@@ -4,27 +4,27 @@ use serde::{Deserialize, Serialize};
 pub struct SpvrUser {
     // uid, generated bson id -> md5 hex it
     pub uid: String,
-    
+
     // username
     #[serde(default)]
     pub username: String,
-    
+
     // password // md5 hex string
     #[serde(default)]
     pub password: String,
-    
+
     // already used by some or not
     #[serde(default, deserialize_with = "gr_base::serde_as_bool")]
     pub assigned: bool,
-    
+
     // created timestamp
     #[serde(default)]
     pub created_timestamp: i64,
-    
+
     // update timestamp
     #[serde(default)]
     pub update_timestamp: i64,
-    
+
     // deleted?
     #[serde(default, deserialize_with = "gr_base::serde_as_bool")]
     pub deleted: bool,

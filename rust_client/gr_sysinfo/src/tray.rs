@@ -138,22 +138,26 @@ mod windows_impl {
     }
 
     unsafe fn add_tray_icon(hwnd: HWND, tooltip: &str) -> bool {
-        let mut data = NOTIFYICONDATAW::default();
-        data.cbSize = size_of::<NOTIFYICONDATAW>() as u32;
-        data.hWnd = hwnd;
-        data.uID = 1;
-        data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
-        data.uCallbackMessage = TRAY_CALLBACK_MESSAGE;
-        data.hIcon = load_app_icon();
+        let mut data = NOTIFYICONDATAW {
+            cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: 1,
+            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
+            uCallbackMessage: TRAY_CALLBACK_MESSAGE,
+            hIcon: load_app_icon(),
+            ..Default::default()
+        };
         copy_tooltip(&mut data, tooltip);
         Shell_NotifyIconW(NIM_ADD, &data).as_bool()
     }
 
     unsafe fn remove_tray_icon(hwnd: HWND) {
-        let mut data = NOTIFYICONDATAW::default();
-        data.cbSize = size_of::<NOTIFYICONDATAW>() as u32;
-        data.hWnd = hwnd;
-        data.uID = 1;
+        let data = NOTIFYICONDATAW {
+            cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: 1,
+            ..Default::default()
+        };
         let _ = Shell_NotifyIconW(NIM_DELETE, &data);
     }
 
@@ -217,7 +221,7 @@ mod windows_impl {
                 _ => DefWindowProcW(hwnd, message, wparam, lparam),
             },
             WM_COMMAND => {
-                match (wparam.0 & 0xffff) as usize {
+                match wparam.0 & 0xffff {
                     MENU_SHOW_ID => push_command(TrayCommand::ShowWindow),
                     MENU_EXIT_ID => push_command(TrayCommand::ExitApp),
                     _ => {}

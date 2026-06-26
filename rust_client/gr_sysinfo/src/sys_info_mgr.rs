@@ -23,6 +23,14 @@ pub struct SysInfoManager {
     users: Users,
     max_frequency: f32,
     def_ethernet: Option<DefaultEthernet>,
+    nvml: Option<Nvml>,
+    adlx_helper: Option<AdlxHelper>,
+}
+
+impl Default for SysInfoManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SysInfoManager {
@@ -32,6 +40,8 @@ impl SysInfoManager {
         let disks = Disks::new_with_refreshed_list();
         let components = Components::new_with_refreshed_list();
         let users = Users::new_with_refreshed_list();
+        let nvml = Nvml::init().ok();
+        let adlx_helper = AdlxHelper::new().ok();
 
         SysInfoManager {
             system,
@@ -41,6 +51,8 @@ impl SysInfoManager {
             users,
             max_frequency: 0.0,
             def_ethernet: None,
+            nvml,
+            adlx_helper,
         }
     }
 
@@ -160,7 +172,7 @@ impl SysInfoManager {
                 println!(
                     "this is not default ethernet: {}, {}",
                     interface_name,
-                    data.mac_address().to_string()
+                    data.mac_address()
                 );
                 continue;
             }
@@ -219,8 +231,7 @@ impl SysInfoManager {
 
         // GPU info
         let mut gpus = Vec::new();
-        let nvml = Nvml::init();
-        if let Ok(nvml) = nvml {
+        if let Some(ref nvml) = self.nvml {
             let device_count = nvml.device_count().unwrap_or(0);
             for i in 0..device_count {
                 let mut gpu_info = SysGpuInfo::default();
@@ -303,7 +314,10 @@ impl SysInfoManager {
     }
 
     fn load_amd_gpu_info(&self) -> Result<Vec<SysGpuInfo>, anyhow::Error> {
-        let helper = AdlxHelper::new()?;
+        let helper = match self.adlx_helper.as_ref() {
+            Some(h) => h,
+            None => return Ok(Vec::new()),
+        };
         let system = helper.system();
         let gpu_list = system.gpus()?;
         let performance_monitoring_services = system.performance_monitoring_services()?;
@@ -359,14 +373,16 @@ impl SysInfoManager {
                 0.0
             };
 
-            let mut info = SysGpuInfo::default();
-            info.id = gpu_id;
-            info.brand = gpu_name.to_string();
-            info.gpu_utilization = gpu_usage as u32;
-            info.mem_total_gb = gpu_ram as f32 * 1.0 / 1024.0;
-            info.mem_used_gb = gpu_used_ram as f32 * 1.0 / 1024.0;
-            info.fan_speed = gpu_fan_speed as u32;
-            info.temperature = gpu_temperature as u32;
+            let info = SysGpuInfo {
+                id: gpu_id,
+                brand: gpu_name.to_string(),
+                gpu_utilization: gpu_usage as u32,
+                mem_total_gb: gpu_ram as f32 * 1.0 / 1024.0,
+                mem_used_gb: gpu_used_ram as f32 * 1.0 / 1024.0,
+                fan_speed: gpu_fan_speed as u32,
+                temperature: gpu_temperature as u32,
+                ..Default::default()
+            };
             gpus_info.push(info);
         }
 
@@ -401,7 +417,15 @@ mod tests {
 
     #[test]
     pub fn test_amd_gpu_info() {
-        let helper = AdlxHelper::new().unwrap();
+        // ADLX requires the AMD driver DLL (amdadlx64.dll). Skip the test on
+        // machines without AMD hardware/drivers instead of failing the suite.
+        let helper = match AdlxHelper::new() {
+            Ok(h) => h,
+            Err(e) => {
+                println!("ADLX not available, skipping AMD GPU test: {}", e);
+                return;
+            }
+        };
         let system = helper.system();
         let gpu_list = system.gpus().unwrap();
         let performance_monitoring_services = system.performance_monitoring_services().unwrap();

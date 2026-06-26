@@ -5,6 +5,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(OpenSSL REQUIRED)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
@@ -27,6 +29,7 @@ include_directories(${GR_PROJECT_PATH}/tc_3rdparty/asio2/3rd/asio)
 include_directories(${GR_PROJECT_PATH}/tc_3rdparty/webrtc/include/third_party/libyuv/include)
 #include_directories(${GR_PROJECT_PATH}/tc_3rdparty/leveldb/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
+include_directories(${CMAKE_SOURCE_DIR}/src/gr_client)
 include_directories(${GR_PROJECT_PATH}/tc_qt_widget)
 include_directories(${GR_PROJECT_PATH}/tc_client_sdk_new)
 include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
@@ -45,13 +48,14 @@ add_executable(GammaRay WIN32
         ${CMAKE_BINARY_DIR}/src/gr_base/icon.rc
         ${SERVICE_MGR_SRCS}
         ${DEVICE_LIST_SRCS}
+        ${CMAKE_SOURCE_DIR}/src/gr_client/network/ct_auth_token.cpp
 )
 
 SET_TARGET_PROPERTIES(GammaRay PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
 
 target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3 sqlite_orm::sqlite_orm
         tc_common_new tc_steam_manager_new tc_vigem tc_message tc_cp_message tc_plugin tc_qt_widget winmm.lib SetupAPI.lib gflags::gflags
-        tc_relay_client tc_translator tc_spvr_client Dwmapi.lib tc_widget_loadings tc_client_plugin
+        tc_relay_client tc_translator tc_spvr_client Dwmapi.lib tc_widget_loadings tc_client_plugin OpenSSL::Crypto
         tc_account_sdk tc_rp_message tc_profile_client tc_hw_info tc_global_id_generator tc_server_message skin_interface skin_loader gd_gui
 )
 target_link_libraries(GammaRay PRIVATE

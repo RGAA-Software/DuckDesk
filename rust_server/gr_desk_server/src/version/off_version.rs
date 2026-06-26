@@ -13,7 +13,7 @@ pub struct OffVersion {
     #[serde(default)]
     pub version: String,
     #[serde(default)]
-    pub created_at: i64
+    pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -27,4 +27,3 @@ pub struct OffQueryVersionResponse {
     #[serde(default)]
     pub version: String,
 }
-

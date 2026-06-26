@@ -15,7 +15,12 @@ path = "src/bin/gr_sys_monitor.rs"
 name = "GrSysMonitorHost"
 path = "src/bin/gr_sys_monitor_host.rs"
 
+[features]
+default = []
+dhat-heap = ["dep:dhat"]
+
 [dependencies]
+dhat = { version = "0.3.3", optional = true }
 gr_base = {path = "../../rust_base/gr_base"}
 gr_auth_mgr = {path = "../../rust_base/gr_auth_mgr" }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import iconLogo from '@/assets/ic_logo.png'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElNotification, type UploadFile } from 'element-plus'
 import { queryAuthorization, updateAuthorization } from '@/model/auth_api.ts'
 import type { Authorization } from '@/entity/authorization.ts'
@@ -43,15 +43,6 @@ onMounted(async () => {
     localStorage.setItem('appkey', authorization.value.appkey)
   }
   console.log('auth: `', authorization?.value)
-})
-
-const isDefaultAuth = computed(() => {
-  if (authorization.value) {
-    return (
-      authorization.value.machine_code === 'MC-001' || authorization.value.machine_code === 'MC-002'
-    )
-  }
-  return false
 })
 
 async function handleLogin() {
@@ -159,14 +150,6 @@ async function handleCopyMachineCode() {
   }
 }
 
-// handle auto fill in
-async function handleAutoFillIn() {
-  if (authorization.value) {
-    inputUsername.value = authorization.value.username
-    inputPassword.value = authorization.value.password
-  }
-}
-
 </script>
 
 <template>
@@ -249,20 +232,6 @@ async function handleAutoFillIn() {
     </div>
 
     <div class="h-5" />
-    <div v-if="isDefaultAuth && authorization">
-      <div class="flex justify-center items-center">
-        <div class="w-100 flex justify-start items-center">
-          <span>当前为免费授权</span>
-          <span class="pl-2">账号:</span>
-          <span class="ml-1 bg-blue-200">{{ authorization?.username }}</span>
-          <span class="pl-2">密码:</span>
-          <span class="ml-1 bg-blue-200">{{ authorization?.password }}</span>
-        </div>
-        <el-button class="ml-2 w-22" type="primary" plain @click="handleAutoFillIn"
-          >自动填入</el-button
-        >
-      </div>
-    </div>
   </div>
 
   <el-dialog

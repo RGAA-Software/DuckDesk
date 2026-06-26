@@ -1,22 +1,22 @@
+use crate::interact::spvr_lang::SpvrLanguage;
+use crate::{gAuthManager, gSpvrSettings};
+use arboard::Clipboard;
+use egui::WidgetType::TextEdit;
+use egui::{Color32, Context, Label, RichText, Vec2};
+use egui_notify::Toasts;
+use gr_auth_mgr::authorization::Authorization;
+use gr_base::ip_util::{get_clean_ipv4_addresses, test_ip_main};
+use gr_base::{mongodb_util, redis_util};
+use redis::AsyncCommands;
 use std::cmp::PartialEq;
 use std::fs::File;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use arboard::Clipboard;
-use egui::{Color32, Context, Label, RichText, Vec2};
-use egui::WidgetType::TextEdit;
-use egui_notify::Toasts;
-use redis::AsyncCommands;
 use sys_locale::get_locale;
 use sysinfo::{Pid, ProcessesToUpdate, Signal, System};
 use tokio::runtime::{Handle, Runtime};
-use gr_auth_mgr::authorization::Authorization;
-use crate::{gAuthManager, gSpvrSettings};
-use crate::interact::spvr_lang::SpvrLanguage;
 use webbrowser;
-use gr_base::ip_util::{get_clean_ipv4_addresses, test_ip_main};
-use gr_base::{mongodb_util, redis_util};
 
 #[derive(Eq, PartialEq)]
 enum MainPageType {
@@ -67,16 +67,19 @@ impl SpvrUI {
             .insert(0, "my_font".to_owned());
 
         let mut style = (*ctx.style()).clone();
-        style.text_styles.insert(TextStyle::Body, FontId::new(18.0, FontFamily::Proportional));
+        style
+            .text_styles
+            .insert(TextStyle::Body, FontId::new(18.0, FontFamily::Proportional));
         ctx.set_style(style);
         ctx.set_fonts(fonts);
     }
 
-    pub fn new(cc: &eframe::CreationContext<'_>,
-               language: SpvrLanguage,
-               machine_code: String,
-               state: Arc<Mutex<SpvrUIState>>
-        ) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        language: SpvrLanguage,
+        machine_code: String,
+        state: Arc<Mutex<SpvrUIState>>,
+    ) -> Self {
         SpvrUI::setup_custom_fonts(&cc.egui_ctx);
 
         let mut selected_ip = "".to_string();
@@ -120,11 +123,7 @@ impl SpvrUI {
                 state.lock().unwrap().spvr_alive = false;
                 state.lock().unwrap().relay_alive = false;
                 for (pid, process) in processes {
-                    let name = process
-                        .name()
-                        .to_string_lossy()
-                        .to_string()
-                        .to_lowercase();
+                    let name = process.name().to_string_lossy().to_string().to_lowercase();
                     if name.contains("gr_relay") {
                         state.lock().unwrap().relay_alive = true;
                     }
@@ -156,9 +155,7 @@ impl SpvrUI {
         tokio::spawn(async move {
             loop {
                 // check redis
-                let redis_url = gSpvrSettings
-                    .lock().await
-                    .redis_url.clone();
+                let redis_url = gSpvrSettings.lock().await.redis_url.clone();
                 let redis_conn = redis_util::get_redis_conn_mgr(redis_url.clone()).await;
                 if let Err(err) = redis_conn {
                     tracing::error!("connect to redis failed: {}", err.to_string());
@@ -168,10 +165,9 @@ impl SpvrUI {
                 }
 
                 // check mongodb
-                let mongodb_uri = gSpvrSettings
-                    .lock().await
-                    .mongodb_url.clone();
-                state.lock().unwrap().mongodb_ok = mongodb_util::check_mongodb_available(mongodb_uri).await;
+                let mongodb_uri = gSpvrSettings.lock().await.mongodb_url.clone();
+                state.lock().unwrap().mongodb_ok =
+                    mongodb_util::check_mongodb_available(mongodb_uri).await;
 
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             }
@@ -205,12 +201,23 @@ impl eframe::App for SpvrUI {
                 ui.add_space(20.);
                 let btn_size = [150.0, 32.0];
                 // logo
-                ui.add( egui::Image::new(egui::include_image!("../../assets/tc_icon.png"))
-                            .fit_to_exact_size(egui::Vec2::new(55.0, 55.0))
-                            .corner_radius(10),);
+                ui.add(
+                    egui::Image::new(egui::include_image!("../../assets/tc_icon.png"))
+                        .fit_to_exact_size(egui::Vec2::new(55.0, 55.0))
+                        .corner_radius(10),
+                );
 
                 ui.add_space(20.);
-                if ui.add_sized(btn_size, egui::SelectableLabel::new(self.main_page == MainPageType::PageServerSettings, self.language.server_settings.as_str())).clicked() {
+                if ui
+                    .add_sized(
+                        btn_size,
+                        egui::SelectableLabel::new(
+                            self.main_page == MainPageType::PageServerSettings,
+                            self.language.server_settings.as_str(),
+                        ),
+                    )
+                    .clicked()
+                {
                     self.main_page = MainPageType::PageServerSettings;
                 }
 
@@ -218,7 +225,6 @@ impl eframe::App for SpvrUI {
                 //if ui.add_sized(btn_size, egui::SelectableLabel::new(self.main_page == MainPageType::PageServerState, self.language.server_state.as_str())).clicked() {
                 //    self.main_page = MainPageType::PageServerState;
                 //}
-
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -242,20 +248,30 @@ impl eframe::App for SpvrUI {
                                 RichText::new(self.machine_code.as_str())
                                     .strong()
                                     .color(Color32::WHITE)
-                                    .background_color(Color32::DARK_BLUE)
+                                    .background_color(Color32::DARK_BLUE),
                             );
 
                             // operation
-                            if ui.add_sized(op_btn_size, egui::Button::new(self.language.copy.as_str())).clicked() {
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(self.language.copy.as_str()),
+                                )
+                                .clicked()
+                            {
                                 let mut ok = false;
                                 if let Ok(mut clipboard) = Clipboard::new() {
                                     if let Ok(r) = clipboard.set_text(self.machine_code.as_str()) {
-                                        self.toasts.success(self.language.copy_success.as_str()).duration(Duration::from_secs(2));
+                                        self.toasts
+                                            .success(self.language.copy_success.as_str())
+                                            .duration(Duration::from_secs(2));
                                         ok = true;
                                     }
                                 }
                                 if !ok {
-                                    self.toasts.error(self.language.copy_success.as_str()).duration(Duration::from_secs(2));
+                                    self.toasts
+                                        .error(self.language.copy_success.as_str())
+                                        .duration(Duration::from_secs(2));
                                 }
                             }
                             ui.end_row();
@@ -271,23 +287,30 @@ impl eframe::App for SpvrUI {
                             let days = self.state.lock().unwrap().auth.days;
                             let used_time = self.state.lock().unwrap().used_time;
                             if (self.language.is_zh_cn()) {
-                                auth_state = format!("流路数: {}, 时间: {}天, 已使用: {}天",
-                                                     max_streams,
-                                                     days,
-                                                     milliseconds_to_days(used_time));
+                                auth_state = format!(
+                                    "流路数: {}, 时间: {}天, 已使用: {}天",
+                                    max_streams,
+                                    days,
+                                    milliseconds_to_days(used_time)
+                                );
+                            } else {
+                                auth_state = format!(
+                                    "Steams: {}, Days: {}, Used: {}",
+                                    max_streams,
+                                    days,
+                                    milliseconds_to_days(used_time)
+                                );
                             }
-                            else {
-                                auth_state = format!("Steams: {}, Days: {}, Used: {}",
-                                                     max_streams,
-                                                     days,
-                                                     milliseconds_to_days(used_time));
-                            }
-                            ui.label(
-                                auth_state.as_str()
-                            );
+                            ui.label(auth_state.as_str());
 
                             // operation
-                            if ui.add_sized(op_btn_size, egui::Button::new(self.language.refresh.as_str())).clicked() {
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(self.language.refresh.as_str()),
+                                )
+                                .clicked()
+                            {
                                 let state = self.state.clone();
                                 tokio::task::spawn_blocking(move || {
                                     let rt = Handle::current();
@@ -296,7 +319,9 @@ impl eframe::App for SpvrUI {
                                     state.lock().unwrap().used_time = used_time;
                                 });
 
-                                self.toasts.success(self.language.operate_success.as_str()).duration(Duration::from_secs(2));
+                                self.toasts
+                                    .success(self.language.operate_success.as_str())
+                                    .duration(Duration::from_secs(2));
                             }
 
                             ui.end_row();
@@ -317,21 +342,28 @@ impl eframe::App for SpvrUI {
                                     RichText::new("OK")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_GREEN)
+                                        .background_color(Color32::DARK_GREEN),
                                 );
-                            }
-                            else {
+                            } else {
                                 ui.label(
                                     RichText::new("ERROR")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_RED)
+                                        .background_color(Color32::DARK_RED),
                                 );
                             }
 
                             // operation
-                            if ui.add_sized(op_btn_size, egui::Button::new(self.language.restart.as_str())).clicked() {
-                                self.toasts.success(self.language.operate_success.as_str()).duration(Duration::from_secs(5));
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(self.language.restart.as_str()),
+                                )
+                                .clicked()
+                            {
+                                self.toasts
+                                    .success(self.language.operate_success.as_str())
+                                    .duration(Duration::from_secs(5));
                                 // kill the spvr server
                                 self.kill_server();
                             }
@@ -344,14 +376,28 @@ impl eframe::App for SpvrUI {
                                 .selected_text(&self.selected_ip)
                                 .show_ui(ui, |ui| {
                                     for fruit in &self.total_ips {
-                                        ui.selectable_value(&mut self.selected_ip, fruit.clone(), fruit);
+                                        ui.selectable_value(
+                                            &mut self.selected_ip,
+                                            fruit.clone(),
+                                            fruit,
+                                        );
                                     }
                                 });
 
                             // operation
-                            if ui.add_sized(op_btn_size, egui::Button::new(self.language.open.as_str())).clicked() {
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(self.language.open.as_str()),
+                                )
+                                .clicked()
+                            {
                                 // open the site
-                                if webbrowser::open(format!("http://{}:30499", self.selected_ip).as_str()).is_ok() {
+                                if webbrowser::open(
+                                    format!("http://{}:30499", self.selected_ip).as_str(),
+                                )
+                                .is_ok()
+                                {
                                     // ...
                                 }
                             }
@@ -365,15 +411,14 @@ impl eframe::App for SpvrUI {
                                     RichText::new("OK")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_GREEN)
+                                        .background_color(Color32::DARK_GREEN),
                                 );
-                            }
-                            else {
+                            } else {
                                 ui.label(
                                     RichText::new("ERROR")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_RED)
+                                        .background_color(Color32::DARK_RED),
                                 );
                             }
                             ui.end_row();
@@ -386,15 +431,14 @@ impl eframe::App for SpvrUI {
                                     RichText::new("OK")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_GREEN)
+                                        .background_color(Color32::DARK_GREEN),
                                 );
-                            }
-                            else {
+                            } else {
                                 ui.label(
                                     RichText::new("ERROR")
                                         .strong()
                                         .color(Color32::WHITE)
-                                        .background_color(Color32::DARK_RED)
+                                        .background_color(Color32::DARK_RED),
                                 );
                             }
                             ui.end_row();
@@ -405,8 +449,16 @@ impl eframe::App for SpvrUI {
                             ui.label(self.language.st_exit_server.as_str());
                             ui.label("");
                             // operation
-                            if ui.add_sized(op_btn_size, egui::Button::new(RichText::new(self.language.exit.as_str()).color(Color32::RED)))
-                                .clicked() {
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(
+                                        RichText::new(self.language.exit.as_str())
+                                            .color(Color32::RED),
+                                    ),
+                                )
+                                .clicked()
+                            {
                                 // open the site
                                 self.state.lock().unwrap().show_exit_dialog = true;
                             }
@@ -415,23 +467,22 @@ impl eframe::App for SpvrUI {
 
                     self.toasts.show(ctx);
                 });
+            } else if self.main_page == MainPageType::PageServerState {
+                if ui
+                    .add_sized([150.0, 32.0], egui::Button::new("Profile Server"))
+                    .clicked()
+                {}
+            } else if self.main_page == MainPageType::PageRelayServer {
+                if ui
+                    .add_sized([150.0, 32.0], egui::Button::new("Relay Server"))
+                    .clicked()
+                {}
+            } else if self.main_page == MainPageType::PageSettings {
+                if ui
+                    .add_sized([150.0, 32.0], egui::Button::new("Settings"))
+                    .clicked()
+                {}
             }
-            else if self.main_page == MainPageType::PageServerState {
-                if ui.add_sized([150.0, 32.0], egui::Button::new("Profile Server")).clicked() {
-
-                }
-            }
-            else if self.main_page == MainPageType::PageRelayServer {
-                if ui.add_sized([150.0, 32.0], egui::Button::new("Relay Server")).clicked() {
-
-                }
-            }
-            else if self.main_page == MainPageType::PageSettings {
-                if ui.add_sized([150.0, 32.0], egui::Button::new("Settings")).clicked() {
-
-                }
-            }
-
         });
 
         if self.state.lock().unwrap().show_exit_dialog {
@@ -445,7 +496,7 @@ impl eframe::App for SpvrUI {
                         ui.add_space(20.0);
 
                         ui.label(
-                            RichText::new(self.language.st_ask_exit_server.as_str()).size(20.0)
+                            RichText::new(self.language.st_ask_exit_server.as_str()).size(20.0),
                         );
                         ui.add_space(20.0);
 
@@ -454,7 +505,13 @@ impl eframe::App for SpvrUI {
                             // 左侧添加弹性空间
                             ui.add_space(ui.available_width() / 2.0 - 77.5); // (70+70+15)/2 = 77.5
 
-                            if ui.add_sized([70.0, 25.0], egui::Button::new(self.language.cancel.as_str())).clicked() {
+                            if ui
+                                .add_sized(
+                                    [70.0, 25.0],
+                                    egui::Button::new(self.language.cancel.as_str()),
+                                )
+                                .clicked()
+                            {
                                 self.state.lock().unwrap().show_exit_dialog = false;
                             }
 
@@ -465,8 +522,9 @@ impl eframe::App for SpvrUI {
                                     [70.0, 25.0],
                                     egui::Button::new(
                                         egui::RichText::new(self.language.sure.as_str())
-                                            .color(egui::Color32::WHITE)
-                                    ).fill(egui::Color32::from_rgb(200, 0, 0)),
+                                            .color(egui::Color32::WHITE),
+                                    )
+                                    .fill(egui::Color32::from_rgb(200, 0, 0)),
                                 )
                                 .clicked()
                             {
@@ -484,17 +542,11 @@ impl eframe::App for SpvrUI {
 
 async fn refresh_auth() -> (Authorization, i64) {
     // read the auth/auth.info
-    gAuthManager
-        .lock().await
-        .load().await;
-    let auth = gAuthManager
-        .lock().await
-        .get_auth().await;
+    gAuthManager.lock().await.load().await;
+    let auth = gAuthManager.lock().await.get_auth().await;
 
     let mut used_time: i64 = 0;
-    let file = File::options()
-        .read(true)
-        .open("au.dat");
+    let file = File::options().read(true).open("au.dat");
     if let Ok(mut file) = file {
         let mut buffer: String = String::default();
         if let Ok(size) = file.read_to_string(&mut buffer) {

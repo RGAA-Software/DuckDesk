@@ -1,43 +1,49 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use axum::body::Body;
-use axum::extract::{Multipart, Query, State};
-use axum::http::{header, HeaderMap, HeaderValue};
-use axum::Json;
-use axum::response::IntoResponse;
-use serde_json::Value;
-use md5;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
-use tokio::fs::File;
-use tokio_util::io::ReaderStream;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
 use crate::gUpdateInfoManager;
 use crate::update_api_error::UpdateApiError;
 use crate::update_context::UpdateContext;
-use crate::update_http_utils::{get_str_param, get_body_str, get_int_param, get_int_param_or};
+use crate::update_http_utils::{get_body_str, get_int_param, get_int_param_or, get_str_param};
 use crate::update_info::UpdateInfo;
-use crate::update_keys::{KEY_UPDATE_FORCED, KEY_UPDATE_INSTALL_PACKAGE, KEY_UPDATE_DESC, KEY_UPDATE_VERSION};
+use crate::update_keys::{
+    KEY_UPDATE_DESC, KEY_UPDATE_FORCED, KEY_UPDATE_INSTALL_PACKAGE, KEY_UPDATE_VERSION,
+};
+use axum::Json;
+use axum::body::Body;
+use axum::extract::{Multipart, Query, State};
+use axum::http::{HeaderMap, HeaderValue, header};
+use axum::response::IntoResponse;
+use gr_base::{RespMessage, RespStringMap, ok_resp};
+use md5;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
+use tokio_util::io::ReaderStream;
 
 const SAVE_INSTALL_PACKAGE_DIR: &str = "./uploads/update_info/";
 const RESP_INSTALL_PACKAGE_DIR: &str = "/uploads/update_info/";
 
-pub async fn handle_hello_world(State(_ctx): State<Arc<Mutex<UpdateContext>>>,
-                                query: Query<HashMap<String, String>>,
-                                body: Body)
-                                -> Result<Json<RespMessage<String>>, UpdateApiError>
-{
+pub async fn handle_hello_world(
+    State(_ctx): State<Arc<Mutex<UpdateContext>>>,
+    query: Query<HashMap<String, String>>,
+    body: Body,
+) -> Result<Json<RespMessage<String>>, UpdateApiError> {
     Ok(Json(ok_resp("hello world".to_string())))
 }
 
-pub async fn handle_upload_update_info(State(_ctx): State<Arc<Mutex<UpdateContext>>>,
-                                       query: Query<HashMap<String, String>>,
-                                       mut multipart: Multipart)
-                                       -> Result<Json<RespMessage<String>>, UpdateApiError>
-{
+pub async fn handle_upload_update_info(
+    State(_ctx): State<Arc<Mutex<UpdateContext>>>,
+    query: Query<HashMap<String, String>>,
+    mut multipart: Multipart,
+) -> Result<Json<RespMessage<String>>, UpdateApiError> {
     let mut update_info = UpdateInfo::default();
     let mut upload_file_path = "".to_string();
-    while let Some(mut field) = multipart.next_field().await.map_err(|e| {UpdateApiError::InvalidParams})? {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| UpdateApiError::InvalidParams)?
+    {
         let key = field.name().unwrap_or("").to_string();
         if key == KEY_UPDATE_INSTALL_PACKAGE {
             let filename = field.file_name().unwrap_or("").to_string();
@@ -74,8 +80,7 @@ pub async fn handle_upload_update_info(State(_ctx): State<Arc<Mutex<UpdateContex
             }
             upload_file_path = target_path;
             break;
-        }
-        else if key == KEY_UPDATE_FORCED {
+        } else if key == KEY_UPDATE_FORCED {
             update_info.forced = field.text().await.unwrap_or_default().to_lowercase() == "true";
         } else if key == KEY_UPDATE_VERSION {
             update_info.version = field.text().await.unwrap_or_default();
@@ -87,8 +92,10 @@ pub async fn handle_upload_update_info(State(_ctx): State<Arc<Mutex<UpdateContex
     update_info.created_timestamp = gr_base::get_current_timestamp();
 
     let info = gUpdateInfoManager
-        .lock().await
-        .insert_update_info(update_info).await?;
+        .lock()
+        .await
+        .insert_update_info(update_info)
+        .await?;
 
     if upload_file_path.is_empty() {
         return Err(UpdateApiError::UploadFileFailed);
@@ -97,21 +104,32 @@ pub async fn handle_upload_update_info(State(_ctx): State<Arc<Mutex<UpdateContex
     Ok(Json(ok_resp("upload ok".to_string())))
 }
 
-pub async fn handle_query_update_info(State(_ctx): State<Arc<Mutex<UpdateContext>>>,
-                          query: Query<HashMap<String, String>>,
-                          body: Body)
-                          -> Result<Json<RespMessage<Vec<UpdateInfo>>>, UpdateApiError> {
+pub async fn handle_query_update_info(
+    State(_ctx): State<Arc<Mutex<UpdateContext>>>,
+    query: Query<HashMap<String, String>>,
+    body: Body,
+) -> Result<Json<RespMessage<Vec<UpdateInfo>>>, UpdateApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
     let r = gUpdateInfoManager
-        .lock().await
-        .query_info::<String>(page, page_size, HashMap::default(), Some(String::from("created_timestamp")), Some(sort_time)).await?;
+        .lock()
+        .await
+        .query_info::<String>(
+            page,
+            page_size,
+            HashMap::default(),
+            Some(String::from("created_timestamp")),
+            Some(sort_time),
+        )
+        .await?;
     Ok(Json(ok_resp(r)))
 }
 
-pub async fn handle_download_install_package(State(_ctx): State<Arc<Mutex<UpdateContext>>>, query: Query<HashMap<String, String>>) -> impl IntoResponse {
-
+pub async fn handle_download_install_package(
+    State(_ctx): State<Arc<Mutex<UpdateContext>>>,
+    query: Query<HashMap<String, String>>,
+) -> impl IntoResponse {
     let filename = match query.get("down_file") {
         Some(v) => v.clone(),
         None => return (axum::http::StatusCode::BAD_REQUEST, "missing down_file").into_response(),
@@ -125,11 +143,14 @@ pub async fn handle_download_install_package(State(_ctx): State<Arc<Mutex<Update
         Ok(f) => f,
         Err(_) => return (axum::http::StatusCode::NOT_FOUND, "File Not Found").into_response(),
     };
-    
+
     let metadata = match file.metadata().await {
         Ok(m) => m,
         Err(_) => {
-            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "cannot read file metadata")
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "cannot read file metadata",
+            )
                 .into_response();
         }
     };
@@ -139,10 +160,12 @@ pub async fn handle_download_install_package(State(_ctx): State<Arc<Mutex<Update
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
-
     // 创建 HeaderMap
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
     headers.insert(
         header::CONTENT_LENGTH,
         HeaderValue::from_str(&file_size.to_string()).unwrap(),

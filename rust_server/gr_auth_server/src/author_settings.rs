@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::gAuthorSettings;
+use serde::Deserialize;
 
 const MIN_JWT_SECRET_LEN: usize = 32;
 
@@ -28,7 +28,10 @@ pub enum AuthorSettingsError {
     #[error("failed to parse settings toml: {0}")]
     ParseToml(String),
     #[error("invalid settings field '{field}': {message}")]
-    InvalidField { field: &'static str, message: &'static str },
+    InvalidField {
+        field: &'static str,
+        message: &'static str,
+    },
 }
 
 impl AuthorSettings {
@@ -59,8 +62,8 @@ impl AuthorSettings {
     }
 
     pub fn load_settings_from_file(path: &str) -> Result<Self, AuthorSettingsError> {
-        let toml_content = std::fs::read_to_string(path)
-            .map_err(|e| AuthorSettingsError::ReadFile {
+        let toml_content =
+            std::fs::read_to_string(path).map_err(|e| AuthorSettingsError::ReadFile {
                 path: path.to_string(),
                 message: e.to_string(),
             })?;
@@ -86,12 +89,17 @@ impl AuthorSettings {
         validate_non_empty("bootstrap.jwt_secret", &self.bootstrap.jwt_secret)?;
         validate_secret("bootstrap.jwt_secret", &self.bootstrap.jwt_secret)?;
         validate_non_empty("bootstrap.admin_name", &self.bootstrap.admin_name)?;
-        validate_optional_secret("bootstrap.admin_password", self.bootstrap.admin_password.as_deref())?;
+        validate_optional_secret(
+            "bootstrap.admin_password",
+            self.bootstrap.admin_password.as_deref(),
+        )?;
         validate_non_empty("bootstrap.visitor_name", &self.bootstrap.visitor_name)?;
-        validate_optional_secret("bootstrap.visitor_password", self.bootstrap.visitor_password.as_deref())?;
+        validate_optional_secret(
+            "bootstrap.visitor_password",
+            self.bootstrap.visitor_password.as_deref(),
+        )?;
         Ok(())
     }
-
 }
 
 fn validate_non_empty(field: &'static str, value: &str) -> Result<(), AuthorSettingsError> {
@@ -121,7 +129,10 @@ fn validate_secret(field: &'static str, value: &str) -> Result<(), AuthorSetting
     Ok(())
 }
 
-fn validate_optional_secret(field: &'static str, value: Option<&str>) -> Result<(), AuthorSettingsError> {
+fn validate_optional_secret(
+    field: &'static str,
+    value: Option<&str>,
+) -> Result<(), AuthorSettingsError> {
     let Some(value) = value else {
         return Ok(());
     };
@@ -153,9 +164,9 @@ impl Default for BootstrapSettings {
     fn default() -> Self {
         BootstrapSettings {
             jwt_secret: "".to_string(),
-            admin_name: "Admin".to_string(),
+            admin_name: "".to_string(),
             admin_password: None,
-            visitor_name: "Visitor".to_string(),
+            visitor_name: "".to_string(),
             visitor_password: None,
         }
     }
@@ -177,7 +188,8 @@ admin_name = "Admin"
 admin_password = "admin-password"
 visitor_name = "Visitor"
 visitor_password = ""
-"#.to_string()
+"#
+        .to_string()
     }
 
     #[test]
@@ -192,7 +204,8 @@ visitor_password = ""
 
     #[test]
     fn rejects_missing_required_fields() {
-        let err = AuthorSettings::parse_from_toml(r#"
+        let err = AuthorSettings::parse_from_toml(
+            r#"
 server_port = 30400
 verify_server = "https://godesk.uk:30400"
 
@@ -200,7 +213,9 @@ verify_server = "https://godesk.uk:30400"
 jwt_secret = "test-secret-must-be-at-least-32-bytes"
 admin_name = "Admin"
 visitor_name = "Visitor"
-"#).unwrap_err();
+"#,
+        )
+        .unwrap_err();
 
         assert!(matches!(err, AuthorSettingsError::ParseToml(_)));
     }
@@ -208,10 +223,26 @@ visitor_name = "Visitor"
     #[test]
     fn rejects_empty_required_fields() {
         let cases = [
-            ("db_path", r#"db_path = "mongodb://localhost:27017/""#, r#"db_path = " ""#),
-            ("verify_server", r#"verify_server = "https://godesk.uk:30400""#, r#"verify_server = " ""#),
-            ("bootstrap.admin_name", r#"admin_name = "Admin""#, r#"admin_name = " ""#),
-            ("bootstrap.visitor_name", r#"visitor_name = "Visitor""#, r#"visitor_name = " ""#),
+            (
+                "db_path",
+                r#"db_path = "mongodb://localhost:27017/""#,
+                r#"db_path = " ""#,
+            ),
+            (
+                "verify_server",
+                r#"verify_server = "https://godesk.uk:30400""#,
+                r#"verify_server = " ""#,
+            ),
+            (
+                "bootstrap.admin_name",
+                r#"admin_name = "Admin""#,
+                r#"admin_name = " ""#,
+            ),
+            (
+                "bootstrap.visitor_name",
+                r#"visitor_name = "Visitor""#,
+                r#"visitor_name = " ""#,
+            ),
         ];
 
         for (field, from, to) in cases {
@@ -229,8 +260,7 @@ visitor_name = "Visitor"
 
     #[test]
     fn rejects_zero_server_port() {
-        let toml = valid_settings_toml()
-            .replace("server_port = 30400", "server_port = 0");
+        let toml = valid_settings_toml().replace("server_port = 30400", "server_port = 0");
         let err = AuthorSettings::parse_from_toml(&toml).unwrap_err();
 
         assert_eq!(
@@ -246,13 +276,19 @@ visitor_name = "Visitor"
     fn rejects_invalid_jwt_secret_values() {
         let cases = [
             ("too-short", "must be at least 32 characters"),
-            ("CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_CHARS", "must not be a placeholder"),
-            ("<random secret with at least 32 characters>", "must not be a placeholder"),
+            (
+                "CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_CHARS",
+                "must not be a placeholder",
+            ),
+            (
+                "<random secret with at least 32 characters>",
+                "must not be a placeholder",
+            ),
         ];
 
         for (secret, message) in cases {
-            let toml = valid_settings_toml()
-                .replace("test-secret-must-be-at-least-32-bytes", secret);
+            let toml =
+                valid_settings_toml().replace("test-secret-must-be-at-least-32-bytes", secret);
             let err = AuthorSettings::parse_from_toml(&toml).unwrap_err();
             assert_eq!(
                 err,
@@ -266,8 +302,10 @@ visitor_name = "Visitor"
 
     #[test]
     fn rejects_placeholder_bootstrap_passwords_when_present() {
-        let admin_toml = valid_settings_toml()
-            .replace(r#"admin_password = "admin-password""#, r#"admin_password = "CHANGE_ME_ADMIN_PASSWORD""#);
+        let admin_toml = valid_settings_toml().replace(
+            r#"admin_password = "admin-password""#,
+            r#"admin_password = "CHANGE_ME_ADMIN_PASSWORD""#,
+        );
         let err = AuthorSettings::parse_from_toml(&admin_toml).unwrap_err();
         assert_eq!(
             err,
@@ -277,8 +315,10 @@ visitor_name = "Visitor"
             }
         );
 
-        let visitor_toml = valid_settings_toml()
-            .replace(r#"visitor_password = """#, r#"visitor_password = "<visitor password>""#);
+        let visitor_toml = valid_settings_toml().replace(
+            r#"visitor_password = """#,
+            r#"visitor_password = "<visitor password>""#,
+        );
         let err = AuthorSettings::parse_from_toml(&visitor_toml).unwrap_err();
         assert_eq!(
             err,
@@ -292,21 +332,29 @@ visitor_name = "Visitor"
     #[test]
     fn allows_missing_or_empty_optional_bootstrap_passwords() {
         let without_passwords = valid_settings_toml()
-            .replace(r#"admin_password = "admin-password"
-"#, "")
-            .replace(r#"visitor_password = ""
-"#, "");
+            .replace(
+                r#"admin_password = "admin-password"
+"#,
+                "",
+            )
+            .replace(
+                r#"visitor_password = ""
+"#,
+                "",
+            );
         assert!(AuthorSettings::parse_from_toml(&without_passwords).is_ok());
 
-        let empty_passwords = valid_settings_toml()
-            .replace(r#"admin_password = "admin-password""#, r#"admin_password = """#);
+        let empty_passwords = valid_settings_toml().replace(
+            r#"admin_password = "admin-password""#,
+            r#"admin_password = """#,
+        );
         assert!(AuthorSettings::parse_from_toml(&empty_passwords).is_ok());
     }
 
     #[test]
     fn reports_read_file_errors_without_panic() {
-        let err = AuthorSettings::load_settings_from_file("missing-gr-auth-settings.toml")
-            .unwrap_err();
+        let err =
+            AuthorSettings::load_settings_from_file("missing-gr-auth-settings.toml").unwrap_err();
 
         assert!(matches!(err, AuthorSettingsError::ReadFile { .. }));
     }

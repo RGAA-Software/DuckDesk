@@ -1,23 +1,23 @@
-mod stat_server;
-mod stat_database;
-mod stat_context;
-mod stat_api_error;
-mod stat_http_utils;
-mod stat_api_keys;
 mod auth;
 mod filter;
+mod stat_api_error;
+mod stat_api_keys;
+mod stat_context;
+mod stat_database;
+mod stat_http_utils;
+mod stat_server;
 mod using;
 
+use crate::auth::auth_stat_manager::StatAuthManager;
+use crate::stat_context::StatContext;
 use crate::stat_database::StatDatabase;
 use crate::stat_server::StatServer;
-use gr_base::log_util;
+use crate::using::stat_using_manager::StatUsingManager;
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
+use gr_base::log_util;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::stat_context::StatContext;
-use crate::auth::auth_stat_manager::StatAuthManager;
-use crate::using::stat_using_manager::StatUsingManager;
 
 lazy_static::lazy_static! {
     pub static ref gStatDatabase: Arc<Mutex<StatDatabase >> = StatDatabase::new();
@@ -28,10 +28,8 @@ lazy_static::lazy_static! {
 #[derive(Parser)]
 #[command(name = "myapp", version, about, long_about = None)]
 struct Cli {
-
     #[arg(short, long)]
     port: Option<u16>,
-
 }
 
 #[tokio::main]
@@ -45,9 +43,7 @@ async fn main() {
     let _guard = log_util::init_log("logs/gr_stat_server/".to_string(), "log_stat".to_string());
 
     // database
-    if !gStatDatabase
-        .lock().await
-        .init().await {
+    if !gStatDatabase.lock().await.init().await {
         tracing::error!("failed to initialize database");
         return;
     }

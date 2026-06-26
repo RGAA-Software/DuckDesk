@@ -1,8 +1,8 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use thiserror::Error;
 use gr_base::RespMessage;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AuthorApiError {
@@ -23,7 +23,7 @@ pub enum AuthorApiError {
 
     #[error("Must be administrator")]
     MustBeAdministrator,
-    
+
     #[error("Authorization not found")]
     AuthorizationNotFound,
 
@@ -111,7 +111,10 @@ mod tests {
     fn errors_map_to_valid_http_status_codes() {
         let cases = [
             (AuthorApiError::InvalidParams, StatusCode::BAD_REQUEST),
-            (AuthorApiError::DatabaseError, StatusCode::INTERNAL_SERVER_ERROR),
+            (
+                AuthorApiError::DatabaseError,
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
             (AuthorApiError::InvalidPassword, StatusCode::UNAUTHORIZED),
             (AuthorApiError::MustBeAdministrator, StatusCode::FORBIDDEN),
             (AuthorApiError::InvalidLoginToken, StatusCode::UNAUTHORIZED),
@@ -120,6 +123,6 @@ mod tests {
 
         for (error, status) in cases {
             assert_eq!(error.status_code(), status);
-        };
+        }
     }
 }

@@ -3,6 +3,10 @@ use gr_sysinfo::{gSysInfoMgr, gSysPanelClient};
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[derive(Parser)]
 #[command(name = "myapp", version, about, long_about = None)]
 struct Cli {
@@ -14,10 +18,17 @@ struct Cli {
 
     #[arg(short, long)]
     port: Option<i32>,
+
+    /// Run for the specified number of seconds and then exit (useful for heap profiling).
+    #[arg(long)]
+    exit_after: Option<u64>,
 }
 
 #[tokio::main]
 async fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let args = Cli::parse();
     let port = args.port.unwrap_or(20369);
 
@@ -32,6 +43,12 @@ async fn main() {
             .connect(format!("ws://127.0.0.1:{}/sys/info", port))
             .await;
     });
+
+    if let Some(secs) = args.exit_after {
+        tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
+        tracing::info!("exit-after {}s reached, shutting down for heap profiling", secs);
+        return;
+    }
 
     loop {
         if args.print.unwrap_or(false) {

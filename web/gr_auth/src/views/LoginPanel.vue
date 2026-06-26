@@ -32,7 +32,15 @@
       const response = await http.post('/verify/author', params) // application/json
       if (kRespSuccessCode == response.data.code) {
         sessionStorage.setItem('login_token', response.data.data.token) //
-        await router.push('/main')
+        try {
+          const me = await http.get('/me')
+          sessionStorage.setItem('login_role', me.data.data.role)
+          await router.push('/main')
+        } catch (err: any) {
+          sessionStorage.removeItem('login_token')
+          errorMessage.value = err.response?.data?.message || '获取用户信息失败'
+          loginErrorDialogVisible.value = true
+        }
         return
       }
 

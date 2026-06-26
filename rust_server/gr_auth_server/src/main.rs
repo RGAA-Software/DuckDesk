@@ -1,40 +1,41 @@
-mod author_settings;
-mod author_context;
-mod author_server;
-mod author_database;
-mod filter;
-mod author_api_error;
-mod author_manager;
 mod author;
-mod author_handler;
-mod authorization_manager;
+mod author_api_error;
 mod author_appkey_generator;
-mod authorization_handler;
-mod author_http_util;
-mod author_customer;
-mod author_keys;
 mod author_claims;
+mod author_customer;
+mod author_database;
+mod author_handler;
+mod author_http_util;
+mod author_keys;
+mod author_license_keys;
+mod author_manager;
 mod author_resp;
+mod author_server;
+mod author_settings;
+mod authorization_handler;
+mod authorization_manager;
+mod filter;
 
-use std::sync::Arc;
-use rustls::crypto::CryptoProvider;
-use rustls::crypto::ring::default_provider;
-use tokio::sync::Mutex;
-use gr_base::log_util;
-use crate::author_context::AuthorContext;
 use crate::author_claims::init_jwt_secret;
 use crate::author_database::AuthorDatabase;
+use crate::author_license_keys::init_license_signer;
 use crate::author_manager::AuthorManager;
 use crate::author_server::AuthorServer;
 use crate::author_settings::AuthorSettings;
 use crate::authorization_manager::AuthorizationManager;
+use gr_auth_mgr::auth_license::LicenseSigner;
+use gr_base::log_util;
+use rustls::crypto::CryptoProvider;
+use rustls::crypto::ring::default_provider;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 lazy_static::lazy_static! {
     pub static ref gAuthorSettings: Arc<Mutex<AuthorSettings >> = Arc::new(Mutex::new(AuthorSettings::new()));
-    pub static ref gAuthorContext: Arc<Mutex<AuthorContext >> = Arc::new(Mutex::new(AuthorContext::new()));
     pub static ref gAuthorDatabase: Arc<Mutex<AuthorDatabase >> = Arc::new(Mutex::new(AuthorDatabase::new()));
     pub static ref gAuthorManager: Arc<AuthorManager> = Arc::new(AuthorManager::new());
     pub static ref gAuthorizationManager: Arc<AuthorizationManager> = Arc::new(AuthorizationManager::new());
+    pub static ref gLicenseSigner: Arc<Mutex<Option<LicenseSigner>>> = Arc::new(Mutex::new(None));
 }
 
 #[tokio::main]
@@ -54,48 +55,44 @@ async fn main() {
         return;
     }
 
-    let jwt_secret = gAuthorSettings
-        .lock().await
-        .bootstrap
-        .jwt_secret
-        .clone();
+    let jwt_secret = gAuthorSettings.lock().await.bootstrap.jwt_secret.clone();
     if !init_jwt_secret(jwt_secret) {
         tracing::error!("could not initialize JWT secret");
         return;
     }
-    
+
     // database
-    let db_path = gAuthorSettings
-        .lock().await
-        .db_path.clone();
-    if !gAuthorDatabase
-        .lock().await
-        .init(db_path).await {
+    let db_path = gAuthorSettings.lock().await.db_path.clone();
+    if !gAuthorDatabase.lock().await.init(db_path).await {
         tracing::error!("could not initialize database");
         return;
     }
 
-    // context
-    let context = Arc::new(Mutex::new(AuthorContext::new()));
-
     // gr_auth_server manager
-    if !gAuthorManager
-        .init().await {
+    if !gAuthorManager.init().await {
         tracing::error!("could not initialize author_manager");
         return;
     }
 
     // authorization manager
-    if !gAuthorizationManager
-        .init().await {
+    if !gAuthorizationManager.init().await {
         tracing::error!("could not initialize authorization_manager");
         return;
     }
 
+    // license signer
+    match init_license_signer() {
+        Ok(signer) => {
+            *gLicenseSigner.lock().await = Some(signer);
+        }
+        Err(e) => {
+            tracing::error!("could not initialize license signer: {}", e);
+            return;
+        }
+    }
+
     // server
-    let port = gAuthorSettings
-        .lock().await
-        .server_port;
-    let server = AuthorServer::new(port, context);
+    let port = gAuthorSettings.lock().await.server_port;
+    let server = AuthorServer::new(port);
     server.start().await;
 }

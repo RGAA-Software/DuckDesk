@@ -3,8 +3,8 @@ use crate::spvr_client::SpvrClientMessageType;
 use crate::spvr_panel::SpvrPanelMessageType;
 use crate::spvr_relay::SpvrRelayMessageType;
 
-pub mod relay;
 pub mod grpc_relay;
+pub mod relay;
 pub mod spvr_client;
 pub mod spvr_panel;
 pub mod spvr_relay;

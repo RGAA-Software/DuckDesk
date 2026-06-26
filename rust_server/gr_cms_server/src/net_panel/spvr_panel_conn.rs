@@ -2,14 +2,16 @@ use crate::spvr_context::SpvrContext;
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
-use std::sync::Arc;
 use futures_util::SinkExt;
-use prost::Message as ProstMessage;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use gr_base::sys_info::SysInfo;
+use prost::Message as ProstMessage;
 use protocol::relay::{RelayMessage, RelayMessageType, RelayNotificationMessage};
-use protocol::spvr_panel::{SpvrPanelHeartBeat, SpvrPanelHello, SpvrPanelMessage, SpvrPanelMessageType};
+use protocol::spvr_panel::{
+    SpvrPanelHeartBeat, SpvrPanelHello, SpvrPanelMessage, SpvrPanelMessageType,
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub type SpvrPanelConnPtr = Arc<Mutex<SpvrPanelConn>>;
 
@@ -39,11 +41,12 @@ pub struct SpvrPanelConnVo {
 
 impl SpvrPanelConn {
     //
-    pub async fn new(context: Arc<Mutex<SpvrContext>>,
-                     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
-                     device_id: String, 
-                     appkey: String,
-                     user_id: String,
+    pub async fn new(
+        context: Arc<Mutex<SpvrContext>>,
+        sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+        device_id: String,
+        appkey: String,
+        user_id: String,
     ) -> SpvrPanelConn {
         Self {
             context,
@@ -89,8 +92,7 @@ impl SpvrPanelConn {
             self.user_id = sub.user_id;
             self.device_name = sub.device_name;
             self.send_hello(device_id, self.user_id.clone()).await;
-        }
-        else if m.msg_type == SpvrPanelMessageType::KSpvrPanelHeartBeat {
+        } else if m.msg_type == SpvrPanelMessageType::KSpvrPanelHeartBeat {
             let sub = m.heartbeat.unwrap();
             self.last_update_timestamp = gr_base::get_current_timestamp();
             let hb_index = sub.hb_index;
@@ -107,17 +109,20 @@ impl SpvrPanelConn {
                         self.sys_info_array.remove(0);
                     }
                 } else {
-                    tracing::error!("parse sys info raw to SysInfo failed! {}", sys_info.err().unwrap());
+                    tracing::error!(
+                        "parse sys info raw to SysInfo failed! {}",
+                        sys_info.err().unwrap()
+                    );
                 }
-            }
-            else {
+            } else {
                 tracing::warn!("==> sys info raw is empty!");
             }
             if self.sys_info_array.len() > 0 {
                 //tracing::info!("panel heartbeat msg, self.sys_info, readable ts: {} cpu 0 using: {:?}, cpu 1 using: {}",
                 //    self.sys_info_array[0].timestamp_readable, self.sys_info_array[0].cpu.cpus[0].using, self.sys_info_array[0].cpu.cpus[1].using);
             }
-            self.send_heartbeat(hb_index, self.device_id.clone(), self.user_id.clone()).await;
+            self.send_heartbeat(hb_index, self.device_id.clone(), self.user_id.clone())
+                .await;
         }
 
         true
@@ -158,9 +163,7 @@ impl SpvrPanelConn {
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {
         // send message
         let size = om.len();
-        let r = self.sender
-            .lock().await
-            .send(Message::Binary(om)).await;
+        let r = self.sender.lock().await.send(Message::Binary(om)).await;
         if let Err(r) = r {
             tracing::error!("error sending relay message: {r}");
             return false;

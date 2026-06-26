@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/utils/http', () => ({
   default: {
     post: vi.fn(),
+    get: vi.fn(),
   },
 }))
 
@@ -49,6 +50,7 @@ describe('LoginPanel', () => {
     sessionStorage.clear()
     mocks.routerPush.mockReset()
     vi.mocked(http.post).mockReset()
+    vi.mocked(http.get).mockReset()
   })
 
   it('stores token and navigates to main page on successful login', async () => {
@@ -57,6 +59,13 @@ describe('LoginPanel', () => {
         code: 200,
         data: {
           token: 'login-token-a',
+        },
+      },
+    })
+    vi.mocked(http.get).mockResolvedValue({
+      data: {
+        data: {
+          role: 'admin',
         },
       },
     })
@@ -73,9 +82,37 @@ describe('LoginPanel', () => {
       author_name: 'Admin',
       author_token: 'password-a',
     })
+    expect(http.get).toHaveBeenCalledWith('/me')
     expect(sessionStorage.getItem('login_token')).toBe('login-token-a')
+    expect(sessionStorage.getItem('login_role')).toBe('admin')
     expect(mocks.routerPush).toHaveBeenCalledWith('/main')
     expect(wrapper.text()).not.toContain('用户名或密码错误')
+  })
+
+  it('clears token and shows error when /me fails after login', async () => {
+    vi.mocked(http.post).mockResolvedValue({
+      data: {
+        code: 200,
+        data: {
+          token: 'login-token-a',
+        },
+      },
+    })
+    vi.mocked(http.get).mockRejectedValue({
+      response: {
+        data: { message: '无法获取角色' },
+      },
+    })
+    const wrapper = mountLoginPanel()
+
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(sessionStorage.getItem('login_role')).toBeNull()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('无法获取角色')
   })
 
   it('does not store token when backend returns business failure', async () => {
@@ -118,6 +155,13 @@ describe('LoginPanel', () => {
     vi.mocked(http.post).mockReturnValue(new Promise((resolve) => {
       resolveLogin = resolve
     }))
+    vi.mocked(http.get).mockResolvedValue({
+      data: {
+        data: {
+          role: 'admin',
+        },
+      },
+    })
     const wrapper = mountLoginPanel()
 
     await wrapper.findAll('input')[0].setValue('Admin')
@@ -139,5 +183,6 @@ describe('LoginPanel', () => {
     await flushPromises()
 
     expect(sessionStorage.getItem('login_token')).toBe('login-token-a')
+    expect(sessionStorage.getItem('login_role')).toBe('admin')
   })
 })

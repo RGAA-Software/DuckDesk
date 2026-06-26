@@ -1,9 +1,9 @@
+use crate::author_api_error::AuthorApiError;
 use axum::body::Body;
-use axum::http::{Request};
+use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
-use crate::author_api_error::AuthorApiError;
 
 const MAX_PAGE_SIZE: i32 = 100;
 

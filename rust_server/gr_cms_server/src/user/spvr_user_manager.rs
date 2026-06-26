@@ -1,27 +1,28 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use futures_util::StreamExt;
-use mongodb::bson::{doc, Bson, Document};
-use mongodb::bson::oid::ObjectId;
-use mongodb::Collection;
-use tokio::sync::Mutex;
 use crate::device::spvr_id_generator::PrIdGenerator;
 use crate::gSpvrDatabase;
 use crate::spvr_api_error::SpvrApiError;
 use crate::user::spvr_user::SpvrUser;
 use crate::user::spvr_user_keys::{KEY_DELETED, KEY_PASSWORD, KEY_USER_ID, KEY_USER_NAME};
+use futures_util::StreamExt;
+use mongodb::bson::oid::ObjectId;
+use mongodb::bson::{doc, Bson, Document};
+use mongodb::Collection;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub struct SpvrUserManager {
-}
+pub struct SpvrUserManager {}
 
 impl SpvrUserManager {
-
     pub fn new() -> Arc<Self> {
-        Arc::new(SpvrUserManager {
-        })
+        Arc::new(SpvrUserManager {})
     }
 
-    pub async fn register_user(&self, username: String, hash_password: String) -> Result<SpvrUser, SpvrApiError> {
+    pub async fn register_user(
+        &self,
+        username: String,
+        hash_password: String,
+    ) -> Result<SpvrUser, SpvrApiError> {
         let r = self.query_user_by_username(username.clone()).await;
         if let Ok(user) = r {
             tracing::warn!("the user: {} already exists", username);
@@ -43,12 +44,8 @@ impl SpvrUserManager {
             total: 0,
         };
 
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
-        if let Err(e) = c_user
-            .lock().await
-            .insert_one(user).await {
+        let c_user = gSpvrDatabase.lock().await.user();
+        if let Err(e) = c_user.lock().await.insert_one(user).await {
             tracing::error!("insert spvr user failed: {}", e);
             return Err(SpvrApiError::DatabaseError);
         }
@@ -57,12 +54,15 @@ impl SpvrUserManager {
     }
 
     pub async fn delete_user(&self, uid: String) -> Result<SpvrUser, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
         let r = c_user
-            .lock().await
-            .update_one(doc! {"uid": uid.clone()}, doc! {"$set": doc!{KEY_DELETED: true}}).await;
+            .lock()
+            .await
+            .update_one(
+                doc! {"uid": uid.clone()},
+                doc! {"$set": doc!{KEY_DELETED: true}},
+            )
+            .await;
         if let Err(e) = r {
             tracing::error!("failed to delete user: {}, id: {}", e, uid);
             return Err(SpvrApiError::DatabaseError);
@@ -72,12 +72,15 @@ impl SpvrUserManager {
     }
 
     pub async fn active_user(&self, uid: String) -> Result<SpvrUser, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
         let r = c_user
-            .lock().await
-            .update_one(doc! {"uid": uid.clone()}, doc! {"$set": doc!{KEY_DELETED: false}}).await;
+            .lock()
+            .await
+            .update_one(
+                doc! {"uid": uid.clone()},
+                doc! {"$set": doc!{KEY_DELETED: false}},
+            )
+            .await;
         if let Err(e) = r {
             tracing::error!("failed to active user: {}, id: {}", e, uid);
             return Err(SpvrApiError::DatabaseError);
@@ -86,20 +89,24 @@ impl SpvrUserManager {
         Ok(user)
     }
 
-    pub async fn update_user<T>(&self, uid: String, key: String, val: T) -> Result<SpvrUser, SpvrApiError> where T: Into<Bson> {
+    pub async fn update_user<T>(
+        &self,
+        uid: String,
+        key: String,
+        val: T,
+    ) -> Result<SpvrUser, SpvrApiError>
+    where
+        T: Into<Bson>,
+    {
         let filter_doc = doc! {"uid": uid.clone()};
         let mut update_doc = doc! {};
         let mut sub_update_doc = doc! {key: val};
         sub_update_doc.insert("update_timestamp", gr_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
 
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
 
-        if let Err(e) = c_user
-            .lock().await
-            .update_one(filter_doc, update_doc).await {
+        if let Err(e) = c_user.lock().await.update_one(filter_doc, update_doc).await {
             tracing::error!("update user failed: {}", e);
             return Err(SpvrApiError::DatabaseError);
         }
@@ -108,20 +115,21 @@ impl SpvrUserManager {
         Ok(user)
     }
 
-    pub async fn update_user_password(&self, uid: String, password: String) -> Result<SpvrUser, SpvrApiError> {
-        self.update_user(uid, KEY_PASSWORD.to_string(), password).await
+    pub async fn update_user_password(
+        &self,
+        uid: String,
+        password: String,
+    ) -> Result<SpvrUser, SpvrApiError> {
+        self.update_user(uid, KEY_PASSWORD.to_string(), password)
+            .await
     }
 
     pub async fn query_user_by_id(&self, uid: String) -> Result<SpvrUser, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
         let filter = doc! {
             KEY_USER_ID: uid,
         };
-        let r = c_user
-            .lock().await
-            .find_one(filter).await;
+        let r = c_user.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("query user by uid error: {}", e);
             return Err(SpvrApiError::DatabaseError);
@@ -134,15 +142,11 @@ impl SpvrUserManager {
     }
 
     pub async fn query_user_by_username(&self, username: String) -> Result<SpvrUser, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
         let filter = doc! {
             KEY_USER_NAME: username.clone(),
         };
-        let r = c_user
-            .lock().await
-            .find_one(filter).await;
+        let r = c_user.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("query user by username error: {}", e);
             return Err(SpvrApiError::DatabaseError);
@@ -159,15 +163,13 @@ impl SpvrUserManager {
         &self,
         page: i32,
         page_size: i32,
-        username: String, // Like
-        uid: String, // Like
+        username: String,           // Like
+        uid: String,                // Like
         sort_field: Option<String>, // sort field
-        sort_order: Option<i32>, // 1= asc, -1=dec
+        sort_order: Option<i32>,    // 1= asc, -1=dec
     ) -> Result<Vec<SpvrUser>, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
-        let skip = (page-1) * page_size;
+        let c_user = gSpvrDatabase.lock().await.user();
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
         let mut and_conditions: Vec<Document> = Vec::new();
@@ -184,7 +186,7 @@ impl SpvrUserManager {
                "uid": {
                     "$regex": uid,
                     "$options": "i"
-                } 
+                }
             });
         }
 
@@ -205,7 +207,9 @@ impl SpvrUserManager {
             doc! {}
         };
 
-        let cursor = c_user.lock().await
+        let cursor = c_user
+            .lock()
+            .await
             .find(filter)
             .sort(sort_doc)
             .skip(skip as u64)
@@ -230,19 +234,20 @@ impl SpvrUserManager {
     }
 
     pub async fn count_users(&self) -> Result<u32, SpvrApiError> {
-        let c_user = gSpvrDatabase
-            .lock().await
-            .user();
+        let c_user = gSpvrDatabase.lock().await.user();
         let r = c_user.lock().await;
-        if let Ok(count) = r.count_documents(doc!{}).await {
+        if let Ok(count) = r.count_documents(doc! {}).await {
             Ok(count as u32)
-        }
-        else {
+        } else {
             Err(SpvrApiError::DatabaseError)
         }
     }
 
-    pub async fn batch_gen_random_users(&self, batch_size: i32, name_prefix: String) -> Result<Vec<SpvrUser>, SpvrApiError> {
+    pub async fn batch_gen_random_users(
+        &self,
+        batch_size: i32,
+        name_prefix: String,
+    ) -> Result<Vec<SpvrUser>, SpvrApiError> {
         let prefix = if name_prefix.is_empty() {
             "User:".to_string()
         } else {
@@ -280,8 +285,6 @@ mod tests {
     use super::*;
     #[test]
     fn test_gen_random_users() {
-        for i in 0..10 {
-
-        }
+        for i in 0..10 {}
     }
 }

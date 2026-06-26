@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
+project(GammaRayPremium LANGUAGES CXX C)
+
 include(env_premium.cmake)
 include(config_premium.cmake)
 

@@ -1,15 +1,15 @@
+use crate::gSpvrClientConnMgr;
 use crate::spvr_context::SpvrContext;
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
-use std::sync::Arc;
-use prost::Message as ProstMessage;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use gr_base::md5_hex;
+use prost::Message as ProstMessage;
 use protocol::spvr_client::{SpvrClientMessage, SpvrClientMessageType};
 use protocol::spvr_relay::{SpvrRelayMessage, SpvrRelayMessageType};
-use crate::gSpvrClientConnMgr;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub type SpvrClientConnPtr = Arc<Mutex<SpvrClientConn>>;
 
@@ -63,15 +63,20 @@ pub struct SpvrClientConnVo {
 
 impl SpvrClientConn {
     //
-    pub async fn new(context: Arc<Mutex<SpvrContext>>,
-                     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
-                     device_id: String,
-                     remote_device_id: String,
-                     remote_device_ip: String,
-                     appkey: String,
-
+    pub async fn new(
+        context: Arc<Mutex<SpvrContext>>,
+        sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+        device_id: String,
+        remote_device_id: String,
+        remote_device_ip: String,
+        appkey: String,
     ) -> Self {
-        let seed = format!("{}{}{}", device_id, remote_device_id, gr_base::get_current_timestamp());
+        let seed = format!(
+            "{}{}{}",
+            device_id,
+            remote_device_id,
+            gr_base::get_current_timestamp()
+        );
         let conn_id = md5_hex(&seed);
         Self {
             context,
@@ -101,7 +106,7 @@ impl SpvrClientConn {
             readable_update_ts: gr_base::format_readable_timestamp(self.last_update_timestamp),
         }
     }
-    
+
     pub async fn process_message(&mut self, who: String, data: Bytes) -> bool {
         let m = SpvrClientMessage::decode(data);
         if let Err(e) = m {
@@ -118,10 +123,8 @@ impl SpvrClientConn {
             self.connection_alive = true;
 
             // insert to db
-            gSpvrClientConnMgr
-                .insert_conn(self.as_vo()).await;
-        }
-        else if msg_type == SpvrClientMessageType::KSpvrClientHeartBeat {
+            gSpvrClientConnMgr.insert_conn(self.as_vo()).await;
+        } else if msg_type == SpvrClientMessageType::KSpvrClientHeartBeat {
             let m_heartbeat = m.heartbeat.unwrap();
             self.hb_index = m_heartbeat.hb_index;
             self.last_update_timestamp = gr_base::get_current_timestamp();
@@ -130,7 +133,8 @@ impl SpvrClientConn {
             // update database
             if self.hb_index % 5 == 0 {
                 gSpvrClientConnMgr
-                    .update_conn(self.conn_id.clone(), self.last_update_timestamp).await;
+                    .update_conn(self.conn_id.clone(), self.last_update_timestamp)
+                    .await;
             }
         }
         true

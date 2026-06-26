@@ -1,7 +1,7 @@
+use gr_auth_mgr::app_secret_util::calculate_app_secret;
+use gr_base::hash_util::{HashAlgo, compute_hash};
 use mongodb::bson::uuid;
 use rand::Rng;
-use gr_auth_mgr::app_secret_util::calculate_app_secret;
-use gr_base::hash_util::{compute_hash, HashAlgo};
 
 pub struct AppkeySecret {
     pub appkey: String,
@@ -12,7 +12,6 @@ pub struct AppkeySecret {
 
 pub fn gen_appkey_secret(name: String, machine_code: String) -> AppkeySecret {
     let random_salt = uuid::Uuid::new().to_string();
-    tracing::info!("random salt: {}", random_salt);
     let input = name + machine_code.as_str() + random_salt.as_str();
     let appkey = compute_hash(HashAlgo::MD5, input.as_bytes());
     let app_secret = calculate_app_secret(appkey.clone());
@@ -22,7 +21,7 @@ pub fn gen_appkey_secret(name: String, machine_code: String) -> AppkeySecret {
         appkey,
         app_secret,
         username,
-        password
+        password,
     }
 }
 

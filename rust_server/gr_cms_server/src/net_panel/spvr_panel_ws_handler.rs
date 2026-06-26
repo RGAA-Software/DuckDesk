@@ -1,5 +1,6 @@
+use crate::gSpvrPanelConnMgr;
+use crate::net_panel::spvr_panel_conn::SpvrPanelConn;
 use crate::spvr_context::SpvrContext;
-use crate::{gSpvrPanelConnMgr};
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
@@ -10,7 +11,6 @@ use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::net_panel::spvr_panel_conn::SpvrPanelConn;
 
 pub(crate) async fn panel_handler(
     State(context): State<Arc<Mutex<SpvrContext>>>,
@@ -29,15 +29,15 @@ pub(crate) async fn panel_handler(
         tracing::info!("ws query param {}:{}", k, v);
     }
     let params = query.0.clone();
-    ws.on_upgrade(move |socket| {
-        handle_socket(context.clone(), params, socket, addr)
-    })
+    ws.on_upgrade(move |socket| handle_socket(context.clone(), params, socket, addr))
 }
 
-async fn handle_socket(context: Arc<Mutex<SpvrContext>>,
-                       params: HashMap<String, String>,
-                       socket: WebSocket,
-                       who: SocketAddr) {
+async fn handle_socket(
+    context: Arc<Mutex<SpvrContext>>,
+    params: HashMap<String, String>,
+    socket: WebSocket,
+    who: SocketAddr,
+) {
     let (sender, mut receiver) = socket.split();
 
     let mut recv_task = tokio::spawn(async move {
@@ -50,46 +50,52 @@ async fn handle_socket(context: Arc<Mutex<SpvrContext>>,
         }
 
         let sender = Arc::new(Mutex::new(sender));
-        let panel_conn = SpvrPanelConn::new(context.clone(),
-                                             sender,
-                                             device_id.clone(),
-                                             appkey.clone(),
-                                             user_id.clone()).await;
+        let panel_conn = SpvrPanelConn::new(
+            context.clone(),
+            sender,
+            device_id.clone(),
+            appkey.clone(),
+            user_id.clone(),
+        )
+        .await;
         let spvr_conn = Arc::new(Mutex::new(panel_conn));
         gSpvrPanelConnMgr
-            .add_conn(device_id.clone(), spvr_conn.clone()).await;
+            .add_conn(device_id.clone(), spvr_conn.clone())
+            .await;
 
         while let Some(Ok(msg)) = receiver.next().await {
             // print message and break if instructed to do so
-            if process_message(context.clone(), spvr_conn.clone(), msg, who).await.is_break() {
+            if process_message(context.clone(), spvr_conn.clone(), msg, who)
+                .await
+                .is_break()
+            {
                 break;
             }
         }
 
         // remove
-        gSpvrPanelConnMgr
-            .remove_conn(device_id).await;
-
+        gSpvrPanelConnMgr.remove_conn(device_id).await;
     });
 
     tokio::select! {
-            spvr_rv = (&mut recv_task) => {
-                match spvr_rv {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tracing::error!("receive task error: {e:?}")
-                    }
+        spvr_rv = (&mut recv_task) => {
+            match spvr_rv {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!("receive task error: {e:?}")
                 }
-                recv_task.abort();
-            },
-        }
+            }
+            recv_task.abort();
+        },
+    }
 }
 
-async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
-                         spvr_conn: Arc<Mutex<SpvrPanelConn>>,
-                         msg: Message,
-                         who: SocketAddr)
-                         -> ControlFlow<(), ()> {
+async fn process_message(
+    _spvr_ctx: Arc<Mutex<SpvrContext>>,
+    spvr_conn: Arc<Mutex<SpvrPanelConn>>,
+    msg: Message,
+    who: SocketAddr,
+) -> ControlFlow<(), ()> {
     //tracing::info!("IN --> {}:{}", who.ip(), who.port());
     match msg {
         Message::Text(data) => {
@@ -98,8 +104,11 @@ async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
         }
         Message::Binary(data) => {
             return if spvr_conn
-                .lock().await
-                .process_message(who.ip().to_string(), data).await {
+                .lock()
+                .await
+                .process_message(who.ip().to_string(), data)
+                .await
+            {
                 ControlFlow::Continue(())
             } else {
                 ControlFlow::Break(())
@@ -107,7 +116,10 @@ async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
         }
         Message::Close(c) => {
             if let Some(cf) = c {
-                println!(">>> {} sent close with code {} and reason `{}`", who, cf.code, cf.reason);
+                println!(
+                    ">>> {} sent close with code {} and reason `{}`",
+                    who, cf.code, cf.reason
+                );
             } else {
                 println!(">>> {who} somehow sent close message without CloseFrame");
             }

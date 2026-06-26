@@ -199,7 +199,10 @@ namespace tc
                         // change to GDI
                         // capture_plugin_->DisablePlugin();
                         LOGI("Don't use DDA, will switch to GDI.");
-                        SwitchGdiCapture();
+                        if (!SwitchGdiCapture() || !capture_plugin_) {
+                            LOGE("Switch to GDI failed or no capture plugin available.");
+                            return;
+                        }
                         capture_plugin_->StartCapturing();
                     });
                 }
@@ -684,7 +687,7 @@ namespace tc
                 LOGE("StartCapturing failed in : {}", capture_plugin_->GetPluginName());
                 if (capture_plugin_->GetPluginId() == kDdaCapturePluginId) {
                     LOGW("The failed capture is DDA, will change to GDI");
-                    if (SwitchGdiCapture()) {
+                    if (SwitchGdiCapture() && capture_plugin_) {
                         capture_plugin_->StartCapturing();
                     }
                 }

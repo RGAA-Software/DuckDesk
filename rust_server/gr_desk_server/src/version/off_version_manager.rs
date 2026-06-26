@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use futures_util::StreamExt;
-use mongodb::bson::{doc, Bson};
-use tokio::sync::Mutex;
-use crate::{gOffDatabase, gOffIssueManager};
-use crate::version::off_version::{OffVersion};
 use crate::issue::off_issue::OffIssue;
 use crate::off_api_error::OffApiError;
 use crate::off_api_error::OffApiError::DatabaseError;
 use crate::off_api_keys::{KEY_ITEM_ID, KEY_PROCESSED, KEY_UPDATED_TS, KEY_UPDATED_TS_READABLE};
+use crate::version::off_version::OffVersion;
+use crate::{gOffDatabase, gOffIssueManager};
+use futures_util::StreamExt;
+use mongodb::bson::{doc, Bson};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct OffVersionManager {
     pub current_version: OffVersion,
@@ -16,19 +16,23 @@ pub struct OffVersionManager {
 
 impl OffVersionManager {
     pub fn new() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self{
-            current_version: Default::default()
+        Arc::new(Mutex::new(Self {
+            current_version: Default::default(),
         }))
     }
 
-    pub async fn insert_version(&self, version: OffVersion)-> Result<OffVersion, OffApiError> {
+    pub async fn insert_version(&self, version: OffVersion) -> Result<OffVersion, OffApiError> {
         let r = gOffDatabase
-            .lock().await
-            .version().await
-            .lock().await
-            .insert_one(version.clone()).await;
+            .lock()
+            .await
+            .version()
+            .await
+            .lock()
+            .await
+            .insert_one(version.clone())
+            .await;
         if let Err(e) = r {
-            return Err(DatabaseError)
+            return Err(DatabaseError);
         }
         Ok(version)
     }
@@ -40,13 +44,14 @@ impl OffVersionManager {
         filters: HashMap<String, T>,
         sort_field: Option<String>,
         sort_order: Option<i32>, // 1= asc, -1=dec
-    ) -> Result<Vec<OffVersion>, OffApiError> where T: Into<Bson> {
-        let c_version = gOffDatabase
-            .lock().await
-            .version().await;
-        let skip = (page-1) * page_size;
+    ) -> Result<Vec<OffVersion>, OffApiError>
+    where
+        T: Into<Bson>,
+    {
+        let c_version = gOffDatabase.lock().await.version().await;
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
-        let mut filter = doc! { };
+        let mut filter = doc! {};
         for (key, value) in filters {
             filter.insert(key, value.into());
         }
@@ -58,7 +63,9 @@ impl OffVersionManager {
             doc! {}
         };
 
-        let cursor = c_version.lock().await
+        let cursor = c_version
+            .lock()
+            .await
             .find(filter)
             .sort(sort_doc)
             .skip(skip as u64)
@@ -75,18 +82,14 @@ impl OffVersionManager {
             if let Err(e) = stream {
                 tracing::error!("error to get stream value in cursor: {}", e);
                 break;
-            }
-            else {
+            } else {
                 streams.push(stream.unwrap());
             }
         }
         Ok(streams)
     }
 
-
-    pub async fn query_latest_version(
-        &self,
-    ) -> Result<Option<OffVersion>, OffApiError> {
+    pub async fn query_latest_version(&self) -> Result<Option<OffVersion>, OffApiError> {
         let mut result = self
             .query_versions::<Bson>(
                 1,

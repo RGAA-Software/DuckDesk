@@ -1,8 +1,8 @@
-use serde::Deserialize;
-use gr_base::ip_util::get_clean_ipv4_addresses;
-use gr_base::server_id_util;
 use crate::config::spvr_server_config::SpvrServerConfig;
 use crate::{gAuthManager, gSpvrSettings};
+use gr_base::ip_util::get_clean_ipv4_addresses;
+use gr_base::server_id_util;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct SpvrSettings {
@@ -35,14 +35,14 @@ impl SpvrSettings {
     pub fn new() -> Self {
         SpvrSettings::default()
     }
-    
+
     pub async fn load_settings() {
         let toml_content = std::fs::read_to_string("gr_cms_server_settings.toml")
             .expect("can't read gr_cms_server_settings.toml");
         let mut ns: SpvrSettings = toml::from_str(&toml_content).expect("parse toml failed");
         //tracing::info!("Load Settings:\n{:#?}", ns);
         tracing::info!("the w3c ip: {}", ns.server_w3c_ip);
-        
+
         if ns.server_w3c_ip.is_empty() {
             tracing::warn!("server w3c_ip is empty, will read the machine info.");
 
@@ -68,12 +68,9 @@ impl SpvrSettings {
         // tracing::info!("Settings:\n{:#?}", ns);
         *settings = ns;
     }
-    
+
     pub async fn get_server_config(&self) -> SpvrServerConfig {
-        let appkey = gAuthManager
-            .lock().await
-            .get_auth().await
-            .appkey;
+        let appkey = gAuthManager.lock().await.get_auth().await.appkey;
         SpvrServerConfig {
             srv_name: self.server_name.clone(),
             srv_w3c_ip: self.server_w3c_ip.clone(),

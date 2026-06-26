@@ -1,5 +1,5 @@
-use std::{fs, io};
 use std::path::Path;
+use std::{fs, io};
 
 pub fn create_dir_if_not_exists(path: &str) -> io::Result<()> {
     match fs::create_dir(path) {
@@ -13,7 +13,6 @@ pub fn delete_dir_if_exists(path: &str) -> io::Result<()> {
     fs::remove_dir_all(path)
 }
 
-
 /// 复制目录及其所有内容，如果目标目录存在则强制覆盖
 ///
 /// # 参数
@@ -26,7 +25,17 @@ pub fn delete_dir_if_exists(path: &str) -> io::Result<()> {
 ///
 /// # 示例
 /// ```
-/// copy_dir_all("/path/to/source", "/path/to/destination").unwrap();
+/// use builder::copy_dir_all;
+/// use std::fs;
+///
+/// let src = std::env::temp_dir().join("builder_doctest_src");
+/// let dst = std::env::temp_dir().join("builder_doctest_dst");
+/// let _ = fs::remove_dir_all(&src);
+/// let _ = fs::remove_dir_all(&dst);
+/// fs::create_dir(&src).unwrap();
+/// fs::write(src.join("file.txt"), b"hello").unwrap();
+/// copy_dir_all(&src, &dst).unwrap();
+/// assert!(dst.join("file.txt").exists());
 /// ```
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     let src = src.as_ref();

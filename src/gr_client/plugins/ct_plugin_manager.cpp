@@ -225,11 +225,21 @@ namespace tc
     }
 
     void ClientPluginManager::On1Second() {
-        if (exiting_) {
+        if (exiting_ || !context_) {
             return;
         }
-        VisitAllPlugins([=, this](ClientPluginInterface* plugin) {
-            plugin->On1Second();
+        auto weak_self = weak_from_this();
+        context_->PostTask([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_ || !self->context_ || self->plugins_.empty()) {
+                return;
+            }
+            self->VisitAllPlugins([self](ClientPluginInterface* plugin) {
+                if (self->exiting_) {
+                    return;
+                }
+                plugin->On1Second();
+            });
         });
     }
 

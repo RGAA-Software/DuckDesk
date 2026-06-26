@@ -1,17 +1,23 @@
-use std::sync::Arc;
-use redis::aio::MultiplexedConnection;
 use redis::aio::ConnectionLike;
+use redis::aio::MultiplexedConnection;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub struct RelayRedisConn <T> where T: ConnectionLike, T: Clone {
-    conn: Option<T>
+pub struct RelayRedisConn<T>
+where
+    T: ConnectionLike,
+    T: Clone,
+{
+    conn: Option<T>,
 }
 
-impl <T> RelayRedisConn<T> where T: ConnectionLike, T: Clone {
+impl<T> RelayRedisConn<T>
+where
+    T: ConnectionLike,
+    T: Clone,
+{
     pub fn new() -> Self {
-        Self {
-            conn: None
-        }
+        Self { conn: None }
     }
 
     pub fn set_conn(&mut self, conn: T) {

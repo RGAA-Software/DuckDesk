@@ -31,6 +31,6 @@ pub struct OffConsult {
     pub processed: bool,
 
     pub updated_ts_readable: String,
-    
+
     pub updated_ts: i64,
 }

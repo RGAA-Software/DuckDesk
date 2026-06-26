@@ -1,8 +1,12 @@
-use std::collections::HashMap;
+use crate::event::spvr_event_keys::{
+    EVENT_ANALYZE_LOG, EVENT_CPU, EVENT_DISK, EVENT_GPU, EVENT_MEMORY, EVENT_USER_ACTIVE,
+    EVENT_USER_DELETE, EVENT_USER_LOGIN, EVENT_USER_LOGOUT, EVENT_USER_REGISTER, EVENT_USER_UPDATE,
+    EVENT_USER_UPDATE_PASSWORD,
+};
+use gr_base::sys_info::SysInfo;
 use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
-use gr_base::sys_info::SysInfo;
-use crate::event::spvr_event_keys::{EVENT_ANALYZE_LOG, EVENT_CPU, EVENT_DISK, EVENT_GPU, EVENT_MEMORY, EVENT_USER_ACTIVE, EVENT_USER_DELETE, EVENT_USER_LOGIN, EVENT_USER_LOGOUT, EVENT_USER_REGISTER, EVENT_USER_UPDATE, EVENT_USER_UPDATE_PASSWORD};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct SpvrEvent {
@@ -65,11 +69,9 @@ pub struct SpvrEvent {
     pub gpu_id: String,
     #[serde(default)]
     pub gpu_name: String,
-
 }
 
 impl SpvrEvent {
-
     pub fn new_register(uid: String, username: String) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
@@ -137,7 +139,11 @@ impl SpvrEvent {
         event
     }
 
-    pub fn new_update_password(uid: String, username: String, values: HashMap<String, String>) -> Self {
+    pub fn new_update_password(
+        uid: String,
+        username: String,
+        values: HashMap<String, String>,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_USER_UPDATE_PASSWORD.to_string();
@@ -149,7 +155,12 @@ impl SpvrEvent {
         event
     }
 
-    pub fn new_analyze_log(uid: String, username: String, device_id: String, log_path: String) -> Self {
+    pub fn new_analyze_log(
+        uid: String,
+        username: String,
+        device_id: String,
+        log_path: String,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_ANALYZE_LOG.to_string();
@@ -163,7 +174,14 @@ impl SpvrEvent {
     }
 
     // cpu
-    pub fn new_cpu(device_id: String, device_ip: String, device_name: String, uid: String, username: String, cpu_usage: u32) -> Self {
+    pub fn new_cpu(
+        device_id: String,
+        device_ip: String,
+        device_name: String,
+        uid: String,
+        username: String,
+        cpu_usage: u32,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_CPU.to_string();
@@ -179,7 +197,14 @@ impl SpvrEvent {
     }
 
     // memory
-    pub fn new_memory(device_id: String, device_ip: String, device_name: String, uid: String, username: String, mem_usage: u32) -> Self {
+    pub fn new_memory(
+        device_id: String,
+        device_ip: String,
+        device_name: String,
+        uid: String,
+        username: String,
+        mem_usage: u32,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_MEMORY.to_string();
@@ -195,7 +220,15 @@ impl SpvrEvent {
     }
 
     // disk
-    pub fn new_disk(device_id: String, device_ip: String, device_name: String, uid: String,  username: String, disk_usage: u32, disk_path: String) -> Self {
+    pub fn new_disk(
+        device_id: String,
+        device_ip: String,
+        device_name: String,
+        uid: String,
+        username: String,
+        disk_usage: u32,
+        disk_path: String,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_DISK.to_string();
@@ -212,7 +245,16 @@ impl SpvrEvent {
     }
 
     // gpu
-    pub fn new_gpu(device_id: String, device_ip: String, device_name: String, uid: String, username: String, gpu_usage: u32, gpu_id: String, gpu_name: String) -> Self {
+    pub fn new_gpu(
+        device_id: String,
+        device_ip: String,
+        device_name: String,
+        uid: String,
+        username: String,
+        gpu_usage: u32,
+        gpu_id: String,
+        gpu_name: String,
+    ) -> Self {
         let mut event = SpvrEvent::default();
         event.event_id = ObjectId::new().to_hex();
         event.event_type = EVENT_GPU.to_string();
@@ -228,6 +270,4 @@ impl SpvrEvent {
         event.gpu_name = gpu_name;
         event
     }
-
-
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Ticket } from '@element-plus/icons-vue'
+  import { Ticket, UserFilled } from '@element-plus/icons-vue'
   import router from '@/router'
   import {RouterView, useRoute} from 'vue-router'
   import {computed, onMounted, ref} from "vue";
@@ -27,6 +27,7 @@
       // 本地退出仍然要清理 token，避免服务端异常时卡在登录态。
     } finally {
       sessionStorage.removeItem('login_token')
+      sessionStorage.removeItem('login_role')
       await router.push('/')
       isLoggingOut.value = false
     }
@@ -59,10 +60,10 @@
               <span>授权列表</span>
             </el-menu-item>
 
-<!--            <el-menu-item index="/main/admin-list">-->
-<!--              <el-icon><UserFilled /></el-icon>-->
-<!--              <span>管理员信息</span>-->
-<!--            </el-menu-item>-->
+            <el-menu-item v-if="isAdmin" index="/main/admin-list">
+              <el-icon><UserFilled /></el-icon>
+              <span>管理员信息</span>
+            </el-menu-item>
 
           </el-menu>
         </el-aside>

@@ -81,6 +81,7 @@ fn render_metric_card<V>(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_chart<V, T: Clone + 'static>(
     id: &str,
     title: &str,

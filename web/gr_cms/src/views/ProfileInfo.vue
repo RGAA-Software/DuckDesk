@@ -6,6 +6,11 @@ import type { Authorization } from '@/entity/authorization.ts'
 import { formatTimestamp, formatTimeToDays } from '@/util/time.ts'
 import { ElNotification, type UploadFile } from 'element-plus'
 import { queryAuthorization, updateAuthorization } from '@/model/auth_api.ts'
+import CryptoJS from 'crypto-js'
+
+const md5 = (input: string): string => {
+  return CryptoJS.MD5(input).toString()
+}
 
 import { useRouter } from 'vue-router'
 import {copyText} from "@/util/clipboard.ts";
@@ -34,12 +39,9 @@ async function handleChangePassword() {
     })
     return
   }
-  if (
-    oldPassword.value !== repeatOldPassword.value ||
-    oldPassword.value !== authorization.value?.password
-  ) {
+  if (oldPassword.value !== repeatOldPassword.value) {
     ElNotification({
-      message: '旧密码不匹配',
+      message: '两次输入的旧密码不一致',
       type: 'error',
     })
     return
@@ -49,6 +51,7 @@ async function handleChangePassword() {
     '/api/v1/auth/control/update/password?appkey=' + localStorage.getItem('appkey'),
     {
       password: newPassword.value,
+      old_password: md5(oldPassword.value),
     },
   )
   if (resp.status !== 200) {

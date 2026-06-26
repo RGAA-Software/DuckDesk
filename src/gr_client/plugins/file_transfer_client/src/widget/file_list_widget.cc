@@ -426,8 +426,8 @@ void FileListWidget::OnContextMenuEvent(QModelIndex index, QPoint pos) {
 
 void FileListWidget::OnRowDoubleClicked(const QModelIndex& index) {
 	auto row = index.row();
-	auto record = current_file_container_.files_detail_info_[row];
-	if (record.file_type_ == EFileType::kFile) {
+	auto [ok, record] = current_file_container_[row];
+	if (!ok || record.file_type_ == EFileType::kFile) {
 		return;
 	}
 	last_dir_ = current_dir_;
@@ -557,12 +557,12 @@ void FileListWidget::ExitPersistentEditor() {
 		current_index_opened_ = false;
 		//std::cout << "FileTableView::ExitPersistentEditor closePersistentEditor context_menu_index_ " << context_menu_index_.row() << " " << context_menu_index_.column() << std::endl;
 		auto row = context_menu_index_.row();
-		auto record = current_file_container_.files_detail_info_[row];
+		auto [ok, record] = current_file_container_[row];
 		if (item_delegate_->editor_) {
 			item_delegate_->editor_->releaseKeyboard();
 			//std::cout << "cellText = " << item_delegate_->editor_->text().toStdString() << std::endl;
 			QString new_file_name = item_delegate_->editor_->text();
-			if (!new_file_name.isEmpty() && record.file_name_ != new_file_name) {
+			if (ok && !new_file_name.isEmpty() && record.file_name_ != new_file_name) {
 				file_util_->ReName(record.file_path_, new_file_name);
 			}
 		}

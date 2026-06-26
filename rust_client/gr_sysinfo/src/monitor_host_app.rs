@@ -145,6 +145,7 @@ async fn handle_host_client(
         .map(|addr| addr.ip().to_string())
         .unwrap_or_else(|_| "<unknown>".to_string());
 
+    #[allow(clippy::result_large_err)]
     let ws_stream = accept_hdr_async(stream, move |req: &Request, resp: Response| {
         if req.uri().path() == PATH_SYS_INFO {
             Ok(resp)
@@ -308,11 +309,11 @@ impl SysMonitorHostApp {
 
     fn select_machine(
         &mut self,
-        machine_id: &String,
+        machine_id: &str,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.selected_machine = Some(machine_id.clone());
+        self.selected_machine = Some(machine_id.to_owned());
         cx.notify();
     }
 
@@ -572,6 +573,7 @@ pub fn run(cli: HostCli) {
             })
             .expect("failed to open GrSysMonitorHost window");
 
+            #[allow(clippy::redundant_locals)]
             cx.spawn({
                 let window_handle = window_handle;
                 async move |cx| loop {
@@ -588,7 +590,7 @@ pub fn run(cli: HostCli) {
                                 let _ = window_handle.update(cx, |_, window, _| {
                                     window.remove_window();
                                 });
-                                let _ = cx.update(|cx| cx.quit());
+                                cx.update(|cx| cx.quit());
                                 return;
                             }
                         }

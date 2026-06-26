@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use mongodb::{Client, Collection};
-use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
-use tokio::sync::Mutex;
 use crate::consult::off_consult::OffConsult;
 use crate::issue::off_issue::OffIssue;
 use crate::version::off_version::OffVersion;
+use mongodb::bson::doc;
+use mongodb::options::ClientOptions;
+use mongodb::{Client, Collection};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Default)]
 pub struct OffDatabase {
@@ -78,5 +78,4 @@ impl OffDatabase {
     pub async fn version(&mut self) -> Arc<Mutex<Collection<OffVersion>>> {
         self.c_version.clone().unwrap()
     }
-
 }

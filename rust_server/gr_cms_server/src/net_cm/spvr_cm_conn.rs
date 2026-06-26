@@ -1,13 +1,13 @@
-use std::sync::Arc;
-use axum::body::Bytes;
-use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
-use futures_util::SinkExt;
-use futures_util::stream::SplitSink;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use crate::gSpvrPanelConnMgr;
 use crate::net_cm::spvr_cm_message::{CmMessage, StreamHardwareInfoResp, StreamHardwarePieceResp};
 use crate::spvr_context::SpvrContext;
+use axum::body::Bytes;
+use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
+use futures_util::stream::SplitSink;
+use futures_util::SinkExt;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct SpvrCmConn {
@@ -22,9 +22,10 @@ pub struct SpvrCmConn {
 }
 
 impl SpvrCmConn {
-    pub async fn new(context: Arc<Mutex<SpvrContext>>,
-                     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
-                     appkey: String,
+    pub async fn new(
+        context: Arc<Mutex<SpvrContext>>,
+        sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+        appkey: String,
     ) -> SpvrCmConn {
         Self {
             context,
@@ -51,32 +52,26 @@ impl SpvrCmConn {
                     continue;
                 }
 
-                let r = gSpvrPanelConnMgr
-                    .get_conn(target_device_id.clone()).await;
+                let r = gSpvrPanelConnMgr.get_conn(target_device_id.clone()).await;
                 if let Err(err) = r {
                     //tracing::error!("error getting conn: {}", err);
                     fn_delay_1s.await;
                     continue;
-                }
-                else {
+                } else {
                     let conn = r.unwrap();
                     if !conn.lock().await.sys_info_array.is_empty() {
-                        let sys_info = conn.lock().await
-                            .sys_info_array
-                            .last().unwrap()
-                            .clone();
+                        let sys_info = conn.lock().await.sys_info_array.last().unwrap().clone();
                         let resp = StreamHardwarePieceResp {
                             msg_type: "stream_hardware_piece_resp".to_string(),
                             device_id: target_device_id.clone(),
-                            sys_info
+                            sys_info,
                         };
                         if let Ok(str) = serde_json::to_string(&resp) {
                             if !me.lock().await.send_message(str).await {
                                 tracing::warn!("exit hardware info back streamer...");
                                 break;
                             }
-                        }
-                        else {
+                        } else {
                             tracing::error!("error serializing {:#?} to json", resp);
                         }
                     }
@@ -99,13 +94,11 @@ impl SpvrCmConn {
 
             CmMessage::StreamHardwareInfo { device_id } => {
                 tracing::info!("stream hardware info device_id: {}", device_id);
-                let r = gSpvrPanelConnMgr
-                    .get_conn(device_id.clone()).await;
+                let r = gSpvrPanelConnMgr.get_conn(device_id.clone()).await;
                 if let Err(err) = r {
                     tracing::error!("error getting conn: {}", err);
                     // back
-                }
-                else {
+                } else {
                     let conn = r.unwrap();
                     let sys_info_array = conn.lock().await.sys_info_array.clone();
                     let resp = serde_json::to_string(&StreamHardwareInfoResp {
@@ -115,8 +108,7 @@ impl SpvrCmConn {
                     });
                     if let Err(e) = resp {
                         tracing::error!("error serializing stream info: {}", e);
-                    }
-                    else {
+                    } else {
                         self.send_message(resp.unwrap()).await;
                     }
 
@@ -124,9 +116,7 @@ impl SpvrCmConn {
                 }
             }
 
-            CmMessage::StreamRunningStat { device_id } => {
-
-            }
+            CmMessage::StreamRunningStat { device_id } => {}
 
             CmMessage::Unknown => {
                 tracing::warn!("received unknown message: {}", data);
@@ -136,8 +126,13 @@ impl SpvrCmConn {
     }
 
     pub async fn send_message(&self, msg: String) -> bool {
-        if let Err(err) = self.sender.lock().await
-            .send(Message::Text(Utf8Bytes::from(msg))).await {
+        if let Err(err) = self
+            .sender
+            .lock()
+            .await
+            .send(Message::Text(Utf8Bytes::from(msg)))
+            .await
+        {
             tracing::error!("send message to cm client failed: {}", err);
             return false;
         }

@@ -1,16 +1,15 @@
+use protocol::grpc_relay::RelayRoomsCountRequest;
 use protocol::{
-    grpc_relay::grpc_relay_client::GrpcRelayClient,
-    grpc_relay::{HeartBeatRequest},
-    grpc_relay::{RelayStreamRequest}
+    grpc_relay::grpc_relay_client::GrpcRelayClient, grpc_relay::HeartBeatRequest,
+    grpc_relay::RelayStreamRequest,
 };
-use std::sync::Arc;
 use serde::Serialize;
+use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::time::{Duration};
+use tokio::time::Duration;
 use tokio_stream::Stream;
 use tonic::codegen::tokio_stream::StreamExt;
-use tonic::transport::{Channel};
-use protocol::grpc_relay::{RelayRoomsCountRequest};
+use tonic::transport::Channel;
 
 #[derive(Serialize)]
 pub struct SpvrGrpcRelayClient {
@@ -57,10 +56,12 @@ impl SpvrGrpcRelayClient {
     pub async fn heartbeat(&mut self) -> bool {
         let server_id = "".to_string();
         if let Some(mut client) = self.client.lock().await.clone() {
-            let r = client.heart_beat(tonic::Request::new(HeartBeatRequest {
-                server_id,
-                hb_index: self.hb_index,
-            })).await;
+            let r = client
+                .heart_beat(tonic::Request::new(HeartBeatRequest {
+                    server_id,
+                    hb_index: self.hb_index,
+                }))
+                .await;
 
             if let Ok(_r) = r {
                 self.hb_index += 1;
@@ -74,9 +75,8 @@ impl SpvrGrpcRelayClient {
     pub async fn query_alive_rooms_count(&mut self) -> Result<u32, ()> {
         if let Some(mut client) = self.client.lock().await.clone() {
             let r = client
-                .query_relay_rooms_count(tonic::Request::new(RelayRoomsCountRequest {
-
-                })).await;
+                .query_relay_rooms_count(tonic::Request::new(RelayRoomsCountRequest {}))
+                .await;
 
             if let Ok(resp) = r {
                 let reply = resp.into_inner();
@@ -92,21 +92,14 @@ impl SpvrGrpcRelayClient {
             loop {
                 interval.tick().await;
                 let relay_client = relay_client.clone();
-                let grpc_ip = relay_client
-                    .lock().await
-                    .grpc_ip.clone();
-                let grpc_port = relay_client
-                    .lock().await
-                    .grpc_port;
+                let grpc_ip = relay_client.lock().await.grpc_ip.clone();
+                let grpc_port = relay_client.lock().await.grpc_port;
                 if relay_client.lock().await.heartbeat().await {
                     //tracing::info!("guard is ok: {:?}", Instant::now());
                     continue;
-                }
-                else {
+                } else {
                     tracing::error!("Relay Grpc heartbeat failed. It's closed, will reconnect it.");
-                    relay_client
-                        .lock().await
-                        .connect(grpc_ip, grpc_port).await;
+                    relay_client.lock().await.connect(grpc_ip, grpc_port).await;
                 }
             }
         });
@@ -116,8 +109,7 @@ impl SpvrGrpcRelayClient {
         let in_stream = echo_requests_iter().await.take(num);
 
         if let Some(client) = &mut *self.client.lock().await {
-            let response = client
-                .stream_request(in_stream).await;
+            let response = client.stream_request(in_stream).await;
             if let Err(e) = response {
                 tracing::error!("streaming request error: {}", e);
                 return;
@@ -132,6 +124,5 @@ impl SpvrGrpcRelayClient {
                 }
             });
         }
-
     }
 }

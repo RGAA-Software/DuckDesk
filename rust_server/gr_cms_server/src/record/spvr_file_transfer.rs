@@ -27,18 +27,16 @@ pub struct SpvrFileTransfer {
     pub created_timestamp: i64,
 
     #[serde(default)]
-    pub total: i64
+    pub total: i64,
 }
 
-impl SpvrFileTransfer {
-
-}
+impl SpvrFileTransfer {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpvrUpdateFileTransfer {
     #[serde(default)]
     pub the_file_id: String,
-    
+
     #[serde(default)]
     pub end: i64,
 
@@ -46,6 +44,4 @@ pub struct SpvrUpdateFileTransfer {
     pub success: bool,
 }
 
-impl SpvrUpdateFileTransfer {
-
-}
+impl SpvrUpdateFileTransfer {}

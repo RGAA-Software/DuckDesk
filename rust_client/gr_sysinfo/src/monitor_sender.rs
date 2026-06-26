@@ -1,12 +1,14 @@
+use std::cmp;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::SinkExt;
 use tokio::runtime::Runtime;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
+use tracing;
 
 #[derive(Clone, Default)]
 struct SenderDesired {
@@ -29,6 +31,12 @@ pub struct MonitorSenderHandle {
     desired: Arc<Mutex<SenderDesired>>,
     latest_json: Arc<Mutex<String>>,
     status: Arc<Mutex<SenderStatus>>,
+}
+
+impl Default for MonitorSenderHandle {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MonitorSenderHandle {
@@ -94,6 +102,8 @@ fn spawn_sender_thread(
             let mut active_revision = 0_u64;
             let mut target = String::new();
             let mut ws = None;
+            let mut reconnect_delay = Duration::from_secs(1);
+            const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(30);
 
             loop {
                 let desired_snapshot = desired.lock().map(|value| value.clone()).unwrap_or_default();
@@ -103,6 +113,7 @@ fn spawn_sender_thread(
                 if !desired_snapshot.enabled {
                     ws = None;
                     active_revision = desired_snapshot.revision;
+                    reconnect_delay = Duration::from_secs(1);
                     update_status(&status, false, current_target, "Idle", "");
                     sleep(Duration::from_millis(300)).await;
                     continue;
@@ -116,20 +127,52 @@ fn spawn_sender_thread(
                     target = current_target.clone();
                     active_revision = desired_snapshot.revision;
                     update_status(&status, false, current_target.clone(), "Connecting", "");
-                    match connect_async(&current_target).await {
-                        Ok((stream, _)) => {
+                    match timeout(Duration::from_secs(5), connect_async(&current_target)).await {
+                        Ok(Ok((stream, _))) => {
                             ws = Some(stream);
+                            reconnect_delay = Duration::from_secs(1);
                             update_status(&status, true, current_target, "Connected", "");
+                            tracing::info!(
+                                "monitor sender connected to {}",
+                                target
+                            );
                         }
-                        Err(err) => {
+                        Ok(Err(err)) => {
+                            let err_str = err.to_string();
                             update_status(
                                 &status,
                                 false,
-                                current_target,
+                                current_target.clone(),
                                 "ConnectFailed",
-                                &err.to_string(),
+                                &err_str,
                             );
-                            sleep(Duration::from_secs(1)).await;
+                            tracing::warn!(
+                                "monitor sender connect failed: {}, retry in {:?}, target={}",
+                                err_str,
+                                reconnect_delay,
+                                current_target
+                            );
+                            sleep(reconnect_delay).await;
+                            reconnect_delay =
+                                cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                            continue;
+                        }
+                        Err(_) => {
+                            update_status(
+                                &status,
+                                false,
+                                current_target.clone(),
+                                "ConnectTimeout",
+                                "connection timed out",
+                            );
+                            tracing::warn!(
+                                "monitor sender connect timeout, retry in {:?}, target={}",
+                                reconnect_delay,
+                                current_target
+                            );
+                            sleep(reconnect_delay).await;
+                            reconnect_delay =
+                                cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
                             continue;
                         }
                     }
@@ -140,29 +183,59 @@ fn spawn_sender_thread(
                     continue;
                 };
 
-                let payload = latest_json
-                    .lock()
-                    .map(|value| value.clone())
-                    .unwrap_or_default();
+                let payload = latest_json.lock().map(|value| value.clone()).unwrap_or_default();
                 if payload.is_empty() {
                     sleep(Duration::from_millis(300)).await;
                     continue;
                 }
 
-                if let Err(err) = stream.send(Message::Text(payload.into())).await {
-                    update_status(
-                        &status,
-                        false,
-                        target.clone(),
-                        "SendFailed",
-                        &err.to_string(),
-                    );
-                    ws = None;
-                    sleep(Duration::from_secs(1)).await;
-                    continue;
+                let payload_len = payload.len();
+                let send_start = Instant::now();
+                match timeout(
+                    Duration::from_secs(10),
+                    stream.send(Message::Text(payload.into())),
+                )
+                .await
+                {
+                    Ok(Ok(())) => {
+                        update_status(&status, true, target.clone(), "Connected", "");
+                        tracing::info!(
+                            "monitor sender sent {} bytes in {}ms",
+                            payload_len,
+                            send_start.elapsed().as_millis()
+                        );
+                    }
+                    Ok(Err(err)) => {
+                        let err_str = err.to_string();
+                        update_status(
+                            &status,
+                            false,
+                            target.clone(),
+                            "SendFailed",
+                            &err_str,
+                        );
+                        tracing::error!("monitor sender send failed: {}", err_str);
+                        ws = None;
+                        sleep(reconnect_delay).await;
+                        reconnect_delay = cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                        continue;
+                    }
+                    Err(_) => {
+                        update_status(
+                            &status,
+                            false,
+                            target.clone(),
+                            "SendTimeout",
+                            "send timed out",
+                        );
+                        tracing::error!("monitor sender send timeout (10s)");
+                        ws = None;
+                        sleep(reconnect_delay).await;
+                        reconnect_delay = cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                        continue;
+                    }
                 }
 
-                update_status(&status, true, target.clone(), "Connected", "");
                 sleep(Duration::from_secs(1)).await;
             }
         });

@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Customer {
-    
-}
+pub struct Customer {}

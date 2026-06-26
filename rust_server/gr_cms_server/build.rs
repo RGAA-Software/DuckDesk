@@ -1,5 +1,5 @@
-use std::{fs, io};
 use std::path::Path;
+use std::{fs, io};
 
 fn main() {
     #[cfg(windows)]
@@ -12,10 +12,14 @@ fn main() {
     // save folder with exe
     let src_path = "src/gr_cms_server_settings.toml";
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let dest_folder =  Path::new(&out_dir).parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap();
-    
+    let dest_folder = Path::new(&out_dir)
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+
     let dest_path = dest_folder.join("gr_cms_server_settings.toml");
     if let Err(e) = fs::copy(src_path, dest_path) {
         eprintln!("copy settings failed: {}", e);
@@ -24,27 +28,33 @@ fn main() {
     // make certs if needed
     let certs_folder = dest_folder.join("certs");
     builder::create_dir_if_not_exists(certs_folder.to_str().unwrap()).unwrap();
-    
+
     // cert.pem
     let cert_path = certs_folder.clone().join("cert.pem");
     if let Err(e) = fs::copy("certs/cert.pem", cert_path) {
         eprintln!("copy settings failed: {}", e);
     }
-    
+
     // key.pem
     let key_path = certs_folder.clone().join("key.pem");
     if let Err(e) = fs::copy("certs/key.pem", key_path) {
         eprintln!("copy settings failed: {}", e);
     }
-    
+
     // root folder in RustRover IDE
     let src_path = "src/gr_cms_server_settings.toml";
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let dest_path = Path::new(&out_dir).parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap()
+    let dest_path = Path::new(&out_dir)
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
         .join("gr_cms_server_settings.toml");
 
     if let Err(e) = fs::copy(src_path, dest_path) {
@@ -71,4 +81,3 @@ fn main() {
     // copy it
     builder::copy_dir_all("../web", web_folder).unwrap();
 }
-

@@ -1,5 +1,5 @@
-use crate::author_api_error::AuthorApiError;
 use crate::author::AuthorRole;
+use crate::author_api_error::AuthorApiError;
 use crate::author_claims::AuthorClaims;
 use crate::filter::author_login_token_filter::verify_headers;
 use axum::body::Body;
@@ -17,7 +17,7 @@ pub async fn filter(headers: HeaderMap, mut req: Request<Body>, next: Next) -> R
         None => match verify_headers(&headers) {
             Ok(claims) => claims,
             Err(err) => return err.into_response(),
-        }
+        },
     };
 
     if is_admin_claims(&claims) {
@@ -34,22 +34,14 @@ mod tests {
 
     #[test]
     fn admin_claims_are_allowed() {
-        let claims = AuthorClaims::new(
-            "Admin".to_string(),
-            AuthorRole::Admin,
-            3600,
-        );
+        let claims = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
 
         assert!(is_admin_claims(&claims));
     }
 
     #[test]
     fn visitor_claims_are_rejected() {
-        let claims = AuthorClaims::new(
-            "Visitor".to_string(),
-            AuthorRole::Visitor,
-            3600,
-        );
+        let claims = AuthorClaims::new("Visitor".to_string(), AuthorRole::Visitor, 3600);
 
         assert!(!is_admin_claims(&claims));
     }

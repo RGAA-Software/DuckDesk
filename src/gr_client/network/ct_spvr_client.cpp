@@ -8,6 +8,7 @@
 #include "spvr_client.pb.h"
 #include "thunder_sdk.h"
 #include "tc_common_new/time_util.h"
+#include "ct_auth_token.h"
 
 namespace tc
 {
@@ -89,7 +90,9 @@ namespace tc
         });
 
         // the /ws is the websocket upgraged target
-        auto path = std::format("/spvr/client?appkey={}&device_id={}&remote_device_id={}&remote_device_ip={}", appkey_, device_id_, remote_device_id_, remote_device_ip_);
+        auto token = GenerateConnectionToken(appkey_);
+        auto path = std::format("/spvr/client?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
+            appkey_, token.token, token.ts, token.nonce, device_id_, remote_device_id_, remote_device_ip_);
         LOGI("will connect => {}:{}{}", host_, port_, path);
         if (!client_->async_start(host_, port_, path)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());

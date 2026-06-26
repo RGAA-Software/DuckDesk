@@ -1,11 +1,14 @@
-use serde::{Serialize, Deserialize};
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, TokenData, errors::Result as JwtResult};
+use crate::author::AuthorRole;
 use jsonwebtoken::errors::{Error as JwtError, ErrorKind};
+use jsonwebtoken::{
+    DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode,
+    errors::Result as JwtResult,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-use crate::author::AuthorRole;
 
 static JWT_SECRET: RwLock<Option<Vec<u8>>> = RwLock::new(None);
 static TOKEN_BLACKLIST: LazyLock<RwLock<HashMap<String, usize>>> =
@@ -45,7 +48,7 @@ impl AuthorClaims {
             exp: expiration,
         }
     }
-    
+
     pub fn verify(token: &str) -> JwtResult<TokenData<Self>> {
         let Some(secret) = current_jwt_secret() else {
             return Err(JwtError::from(ErrorKind::InvalidToken));
@@ -54,7 +57,7 @@ impl AuthorClaims {
         let data = decode::<Self>(
             token,
             &DecodingKey::from_secret(&secret),
-            &Validation::default()
+            &Validation::default(),
         )?;
 
         cleanup_blacklist();
@@ -67,13 +70,15 @@ impl AuthorClaims {
     pub fn logout(&self) {
         blacklist_token(self.jti.clone(), self.exp);
     }
-
 }
 
 pub fn init_jwt_secret(secret: String) -> bool {
     let secret = secret.trim();
     if secret.len() < MIN_JWT_SECRET_LEN {
-        tracing::error!("JWT secret is too short; require at least {} characters", MIN_JWT_SECRET_LEN);
+        tracing::error!(
+            "JWT secret is too short; require at least {} characters",
+            MIN_JWT_SECRET_LEN
+        );
         return false;
     }
     if secret.starts_with('<') || secret.starts_with("CHANGE_ME") {
@@ -87,14 +92,13 @@ pub fn init_jwt_secret(secret: String) -> bool {
 }
 
 fn current_jwt_secret() -> Option<Vec<u8>> {
-    JWT_SECRET
-        .read()
-        .expect("jwt secret lock poisoned")
-        .clone()
+    JWT_SECRET.read().expect("jwt secret lock poisoned").clone()
 }
 
 fn blacklist_token(jti: String, exp: usize) {
-    let mut guard = TOKEN_BLACKLIST.write().expect("token blacklist lock poisoned");
+    let mut guard = TOKEN_BLACKLIST
+        .write()
+        .expect("token blacklist lock poisoned");
     guard.insert(jti, exp);
 }
 
@@ -107,7 +111,9 @@ fn is_blacklisted(jti: &str) -> bool {
 
 pub fn cleanup_blacklist() {
     let now = current_timestamp();
-    let mut guard = TOKEN_BLACKLIST.write().expect("token blacklist lock poisoned");
+    let mut guard = TOKEN_BLACKLIST
+        .write()
+        .expect("token blacklist lock poisoned");
     guard.retain(|_, exp| *exp > now);
 }
 
@@ -134,20 +140,32 @@ fn blacklist_len_for_test() -> usize {
         .len()
 }
 
+/// Global lock used by all tests that mutate or inspect the token blacklist.
+/// This prevents parallel tests from clearing each other's blacklist entries.
+#[cfg(test)]
+pub(crate) static BLACKLIST_TEST_LOCK: LazyLock<std::sync::Mutex<()>> =
+    LazyLock::new(|| std::sync::Mutex::new(()));
+
+#[cfg(test)]
+pub(crate) fn blacklist_test_guard() -> std::sync::MutexGuard<'static, ()> {
+    BLACKLIST_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::author_claims::{blacklist_len_for_test, blacklist_token, cleanup_blacklist, clear_blacklist_for_test, current_timestamp, init_jwt_secret, is_blacklisted, AuthorClaims};
     use crate::author::AuthorRole;
-    use std::sync::{LazyLock, Mutex, MutexGuard};
-
-    static BLACKLIST_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn blacklist_test_guard() -> MutexGuard<'static, ()> {
-        BLACKLIST_TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
+    use crate::author_claims::{
+        AuthorClaims, blacklist_len_for_test, blacklist_test_guard, blacklist_token,
+        cleanup_blacklist, clear_blacklist_for_test, current_timestamp, init_jwt_secret,
+        is_blacklisted,
+    };
 
     fn init_test_secret() {
-        assert!(init_jwt_secret("test-secret-must-be-at-least-32-bytes".to_string()));
+        assert!(init_jwt_secret(
+            "test-secret-must-be-at-least-32-bytes".to_string()
+        ));
     }
 
     #[test]
@@ -155,11 +173,7 @@ mod tests {
         let _guard = blacklist_test_guard();
         init_test_secret();
         clear_blacklist_for_test();
-        let claims = AuthorClaims::new(
-            "Admin".to_string(),
-            AuthorRole::Admin,
-            3600,
-        );
+        let claims = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
 
         let token = claims.generate_token().expect("token should encode");
         let token_data = AuthorClaims::verify(&token).expect("token should verify");
@@ -174,11 +188,7 @@ mod tests {
         let _guard = blacklist_test_guard();
         init_test_secret();
         clear_blacklist_for_test();
-        let claims = AuthorClaims::new(
-            "Admin".to_string(),
-            AuthorRole::Admin,
-            3600,
-        );
+        let claims = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
 
         let mut token = claims.generate_token().expect("token should encode");
         token.push('x');
@@ -191,14 +201,12 @@ mod tests {
         let _guard = blacklist_test_guard();
         init_test_secret();
         clear_blacklist_for_test();
-        let mut claims = AuthorClaims::new(
-            "Admin".to_string(),
-            AuthorRole::Admin,
-            3600,
-        );
+        let mut claims = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
         claims.exp = current_timestamp().saturating_sub(3600);
 
-        let token = claims.generate_token().expect("expired token should encode");
+        let token = claims
+            .generate_token()
+            .expect("expired token should encode");
 
         assert!(AuthorClaims::verify(&token).is_err());
     }
@@ -247,7 +255,11 @@ mod tests {
 
     #[test]
     fn rejects_placeholder_jwt_secret() {
-        assert!(!init_jwt_secret("CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_CHARS".to_string()));
-        assert!(!init_jwt_secret("<random secret with at least 32 characters>".to_string()));
+        assert!(!init_jwt_secret(
+            "CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_CHARS".to_string()
+        ));
+        assert!(!init_jwt_secret(
+            "<random secret with at least 32 characters>".to_string()
+        ));
     }
 }

@@ -1,29 +1,24 @@
-use std::collections::HashMap;
-use std::sync::Arc;
 use futures_util::StreamExt;
 use mongodb::bson;
 use mongodb::bson::{doc, Bson};
 use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use tokio::sync::Mutex;
 use crate::gSpvrDatabase;
+use crate::record::spvr_visit::{SpvrUpdateVisit, SpvrVisit};
 use crate::spvr_api_error::SpvrApiError;
-use crate::record::spvr_visit::{SpvrVisit, SpvrUpdateVisit};
+use tokio::sync::Mutex;
 
-pub struct SpvrVisitManager {
-
-}
+pub struct SpvrVisitManager {}
 
 impl SpvrVisitManager {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self{})
+        Arc::new(Self {})
     }
 
     pub async fn insert_visit_info(&self, info: SpvrVisit) -> Result<SpvrVisit, SpvrApiError> {
-
-        let c_visit_info = gSpvrDatabase
-            .lock().await
-            .visit();
+        let c_visit_info = gSpvrDatabase.lock().await.visit();
 
         let coll = c_visit_info.lock().await;
 
@@ -36,15 +31,15 @@ impl SpvrVisitManager {
         Ok(info)
     }
 
-    pub async fn update_visit_info(&self, update: SpvrUpdateVisit) -> Result<SpvrVisit, SpvrApiError> {
-
+    pub async fn update_visit_info(
+        &self,
+        update: SpvrUpdateVisit,
+    ) -> Result<SpvrVisit, SpvrApiError> {
         if update.conn_id.is_empty() {
             return Err(SpvrApiError::InvalidParams);
         }
 
-        let c_visit_info = gSpvrDatabase
-            .lock().await
-            .visit();
+        let c_visit_info = gSpvrDatabase.lock().await.visit();
 
         let coll = c_visit_info.lock().await;
 
@@ -89,16 +84,17 @@ impl SpvrVisitManager {
         page_size: i32,
         filters: HashMap<String, T>,
         sort_field: Option<String>,
-        sort_order: Option<i32>, // 1= asc, -1=dec
-        visit_device_id: Option<String>, // like
+        sort_order: Option<i32>,          // 1= asc, -1=dec
+        visit_device_id: Option<String>,  // like
         target_device_id: Option<String>, // like
-    ) -> Result<Vec<SpvrVisit>, SpvrApiError> where T: Into<Bson> {
-        let c_visit_info = gSpvrDatabase
-            .lock().await
-            .visit();
-        let skip = (page-1) * page_size;
+    ) -> Result<Vec<SpvrVisit>, SpvrApiError>
+    where
+        T: Into<Bson>,
+    {
+        let c_visit_info = gSpvrDatabase.lock().await.visit();
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
-        let mut filter = doc! { };
+        let mut filter = doc! {};
         for (key, value) in filters {
             filter.insert(key, value.into());
         }
@@ -109,9 +105,9 @@ impl SpvrVisitManager {
                 filter.insert(
                     "visitor_device",
                     doc! {
-                    "$regex": v,
-                    "$options": "i" // 不区分大小写（可选）
-                },
+                        "$regex": v,
+                        "$options": "i" // 不区分大小写（可选）
+                    },
                 );
             }
         }
@@ -122,9 +118,9 @@ impl SpvrVisitManager {
                 filter.insert(
                     "target_device",
                     doc! {
-                    "$regex": v,
-                    "$options": "i"
-                },
+                        "$regex": v,
+                        "$options": "i"
+                    },
                 );
             }
         }
@@ -136,7 +132,9 @@ impl SpvrVisitManager {
             doc! {}
         };
 
-        let cursor = c_visit_info.lock().await
+        let cursor = c_visit_info
+            .lock()
+            .await
             .find(filter)
             .sort(sort_doc)
             .skip(skip as u64)
@@ -153,8 +151,7 @@ impl SpvrVisitManager {
             if let Err(e) = stream {
                 tracing::error!("error to get stream value in cursor: {}", e);
                 break;
-            }
-            else {
+            } else {
                 streams.push(stream.unwrap());
             }
         }
@@ -162,12 +159,8 @@ impl SpvrVisitManager {
     }
 
     pub async fn total_size(&self) -> Result<i64, SpvrApiError> {
-        let c_visit_info = gSpvrDatabase
-            .lock().await
-            .visit();
-        let r = c_visit_info
-            .lock().await
-            .count_documents(doc!{}).await;
+        let c_visit_info = gSpvrDatabase.lock().await.visit();
+        let r = c_visit_info.lock().await.count_documents(doc! {}).await;
         if let Err(e) = r {
             return Err(SpvrApiError::DatabaseError);
         }

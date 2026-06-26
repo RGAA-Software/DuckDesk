@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use mongodb::{Client, Collection};
+use crate::update_info::UpdateInfo;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
+use mongodb::{Client, Collection};
+use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::update_info::UpdateInfo;
 
 #[derive(Default)]
 pub struct UpdateDatabase {
@@ -54,7 +54,7 @@ impl UpdateDatabase {
             }
         }
     }
-    
+
     pub async fn update_info(&mut self) -> Arc<Mutex<Collection<UpdateInfo>>> {
         self.c_update_info.clone().unwrap()
     }

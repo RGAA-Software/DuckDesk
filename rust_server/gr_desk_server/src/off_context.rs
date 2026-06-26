@@ -1,6 +1,4 @@
-pub struct OffContext {
-
-}
+pub struct OffContext {}
 
 impl OffContext {
     pub fn new() -> OffContext {

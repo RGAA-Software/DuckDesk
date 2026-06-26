@@ -49,6 +49,7 @@ describe('http client interceptors', () => {
   it('clears token and redirects to login on HTTP 401', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
+    sessionStorage.setItem('login_role', 'admin')
     locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
@@ -62,6 +63,7 @@ describe('http client interceptors', () => {
     await expect(http.get('/me', { adapter })).rejects.toBeTruthy()
 
     expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(sessionStorage.getItem('login_role')).toBeNull()
     expect(messageError).toHaveBeenCalledWith('登录已失效，请重新登录')
     expect(locationHref).toHaveBeenCalledWith('/')
   })
@@ -69,6 +71,7 @@ describe('http client interceptors', () => {
   it('clears token on legacy login-expired business code in success response', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
+    sessionStorage.setItem('login_role', 'admin')
     locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => ({
@@ -80,12 +83,14 @@ describe('http client interceptors', () => {
     await Promise.resolve()
 
     expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(sessionStorage.getItem('login_role')).toBeNull()
     expect(locationHref).toHaveBeenCalledWith('/')
   })
 
   it('shows permission error without clearing token on HTTP 403', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
+    sessionStorage.setItem('login_role', 'admin')
     locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
@@ -99,6 +104,7 @@ describe('http client interceptors', () => {
     await expect(http.get('/query/authors', { adapter })).rejects.toBeTruthy()
 
     expect(sessionStorage.getItem('login_token')).toBe('token-a')
+    expect(sessionStorage.getItem('login_role')).toBe('admin')
     expect(messageError).toHaveBeenCalledWith('没有权限执行该操作')
     expect(locationHref).not.toHaveBeenCalled()
   })

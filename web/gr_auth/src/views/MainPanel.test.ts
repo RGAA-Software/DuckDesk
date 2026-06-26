@@ -102,6 +102,7 @@ describe('MainPanel', () => {
     })
     vi.mocked(http.post).mockRejectedValue(new Error('network error'))
     sessionStorage.setItem('login_token', 'token-a')
+    sessionStorage.setItem('login_role', 'admin')
 
     const wrapper = mountMainPanel()
     await flushPromises()
@@ -110,6 +111,7 @@ describe('MainPanel', () => {
 
     expect(http.post).toHaveBeenCalledWith('/log_out')
     expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(sessionStorage.getItem('login_role')).toBeNull()
     expect(mocks.routerPush).toHaveBeenCalledWith('/')
   })
 
@@ -126,6 +128,7 @@ describe('MainPanel', () => {
       rejectLogout = reject
     }))
     sessionStorage.setItem('login_token', 'token-a')
+    sessionStorage.setItem('login_role', 'admin')
 
     const wrapper = mountMainPanel()
     await flushPromises()
@@ -139,6 +142,37 @@ describe('MainPanel', () => {
     await flushPromises()
 
     expect(sessionStorage.getItem('login_token')).toBeNull()
+    expect(sessionStorage.getItem('login_role')).toBeNull()
     expect(mocks.routerPush).toHaveBeenCalledWith('/')
+  })
+
+  it('shows admin-list menu for admin users', async () => {
+    vi.mocked(http.get).mockResolvedValue({
+      data: {
+        data: {
+          role: 'admin',
+        },
+      },
+    })
+
+    const wrapper = mountMainPanel()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('管理员信息')
+  })
+
+  it('hides admin-list menu for visitor users', async () => {
+    vi.mocked(http.get).mockResolvedValue({
+      data: {
+        data: {
+          role: 'visitor',
+        },
+      },
+    })
+
+    const wrapper = mountMainPanel()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('管理员信息')
   })
 })

@@ -1,10 +1,13 @@
-use std::collections::HashMap;
-use std::sync::{Arc};
+use crate::relay::relay_conn::RelayConn;
+use crate::relay::relay_message::{
+    KEY_CREATE_TIMESTAMP, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP,
+    KEY_REMOTE_DEVICE_ID, KEY_ROOM_ID, KEY_STREAM_ID,
+};
 use axum::body::Bytes;
 use serde::Serialize;
-use tokio::sync::{Mutex};
-use crate::relay::relay_conn::RelayConn;
-use crate::relay::relay_message::{KEY_CREATE_TIMESTAMP, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP, KEY_REMOTE_DEVICE_ID, KEY_ROOM_ID, KEY_STREAM_ID};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct RelayRoom {
     pub device_id: String,
@@ -49,19 +52,28 @@ impl RelayRoom {
             && !self.remote_device_id.is_empty()
             && !self.room_id.is_empty()
     }
-    
+
     pub fn as_str_map(&self) -> HashMap<String, String> {
         let mut hm = HashMap::new();
         hm.insert(KEY_DEVICE_ID.to_string(), self.device_id.clone());
-        hm.insert(KEY_REMOTE_DEVICE_ID.to_string(), self.remote_device_id.clone());
+        hm.insert(
+            KEY_REMOTE_DEVICE_ID.to_string(),
+            self.remote_device_id.clone(),
+        );
         hm.insert(KEY_ROOM_ID.to_string(), self.room_id.clone());
-        hm.insert(KEY_CREATE_TIMESTAMP.to_string(), self.create_timestamp.to_string());
-        hm.insert(KEY_LAST_UPDATE_TIMESTAMP.to_string(), self.last_update_timestamp.to_string());
+        hm.insert(
+            KEY_CREATE_TIMESTAMP.to_string(),
+            self.create_timestamp.to_string(),
+        );
+        hm.insert(
+            KEY_LAST_UPDATE_TIMESTAMP.to_string(),
+            self.last_update_timestamp.to_string(),
+        );
         hm.insert(KEY_DEVICE_NAME.to_string(), self.device_name.clone());
         hm.insert(KEY_STREAM_ID.to_string(), self.stream_id.clone());
         hm
     }
-    
+
     pub async fn notify_except(&self, except_id: String, relay_msg_index: i64, m: Bytes) {
         let mut conns = Vec::new();
         for (key, value) in self.relay_conns.clone() {
@@ -69,13 +81,15 @@ impl RelayRoom {
                 conns.push(value.clone());
             }
         }
-        
+
         for conn in conns {
             let m = m.clone();
             let device_id = conn.lock().await.device_id.clone();
             let r = conn
-                .lock().await
-                .send_bin_message_with_index(relay_msg_index, m).await;
+                .lock()
+                .await
+                .send_bin_message_with_index(relay_msg_index, m)
+                .await;
             if !r {
                 tracing::warn!("notify to this device failed: {}", device_id)
             }

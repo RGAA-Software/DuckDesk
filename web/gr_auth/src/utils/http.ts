@@ -43,6 +43,7 @@ http.interceptors.response.use(
 // 登录失效处理
 const handleLoginExpired = () => {
 	sessionStorage.removeItem('login_token')
+	sessionStorage.removeItem('login_role')
 	ElMessage.error('登录已失效，请重新登录')
 	if (window.location.pathname !== '/') {
 		window.location.href = '/'

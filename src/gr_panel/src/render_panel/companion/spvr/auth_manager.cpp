@@ -10,6 +10,7 @@
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/shared_preference.h"
 #include "tc_common_new/const_auto.h"
+#include "tc_common_new/time_util.h"
 #include "../panel_companion_impl.h"
 
 namespace tc
@@ -50,6 +51,9 @@ namespace tc
         cat machine_code = pc_->GetSP()->Get(kAuthMachineCode);
         cat appkey = pc_->GetSP()->Get(kAuthAppkey);
         cat role = pc_->GetSP()->GetInt(kAuthRole);
+        cat days = pc_->GetSP()->GetInt(kAuthDays);
+        cat max_streams = pc_->GetSP()->GetInt(kAuthMaxStreams);
+        cat end_timestamp_ms = pc_->GetSP()->GetInt64(kAuthEndTimestampMs);
         if (auth_id.empty() || appkey.empty()) {
             LOGW("No auth loaded from storage, id: {}, appkey: {}, role: {}", auth_id, appkey, role);
             return;
@@ -75,6 +79,9 @@ namespace tc
             sp->Put(kAuthMachineCode, auth->machine_code_);
             sp->Put(kAuthAppkey, auth->appkey_);
             sp->PutInt(kAuthRole, static_cast<int>(auth->role_));
+            sp->PutInt(kAuthDays, auth->days_);
+            sp->PutInt(kAuthMaxStreams, auth->max_streams_);
+            sp->PutInt64(kAuthEndTimestampMs, auth->end_timestamp_ms_);
         });
     }
 
@@ -84,7 +91,8 @@ namespace tc
             return nullptr;
         }
 
-        auto client = HttpClient::MakeSSL(settings->host_, settings->port_, "/api/v1/auth/control/get/authorization", 2000);
+        const auto path = std::format("/api/v1/auth/control/get/authorization?appkey={}", auth_.Clone()->appkey_);
+        auto client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
         auto resp = client->Request();
         if (resp.status != 200) {
             return nullptr;
@@ -100,6 +108,15 @@ namespace tc
             auth->appkey_ = value["data"]["appkey"].get<std::string>();
             if (!value["data"]["role"].is_null()) {
                 auth->role_ = (AuthRole)value["data"]["role"].get<int>();
+            }
+            if (!value["data"]["days"].is_null()) {
+                auth->days_ = value["data"]["days"].get<int>();
+            }
+            if (!value["data"]["max_streams"].is_null()) {
+                auth->max_streams_ = value["data"]["max_streams"].get<int>();
+            }
+            if (!value["data"]["end_timestamp_ms"].is_null()) {
+                auth->end_timestamp_ms_ = value["data"]["end_timestamp_ms"].get<int64_t>();
             }
 
             // test //
@@ -125,7 +142,15 @@ namespace tc
             return false;
         }
 
-        cat path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth_.Clone()->appkey_);
+        // Local expiration check: if we know the expiration timestamp, enforce it.
+        const auto auth = auth_.Clone();
+        if (auth->end_timestamp_ms_ > 0 &&
+            static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()) > auth->end_timestamp_ms_) {
+            LOGW("Authorization expired locally: end_timestamp_ms={}", auth->end_timestamp_ms_);
+            return false;
+        }
+
+        cat path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth->appkey_);
         cat client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
         cat resp = client->Request();
         if (resp.status != 200) {

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub type SpvrControllingStreamPtr = Arc<Mutex<SpvrControllingStream>>;
@@ -13,5 +13,4 @@ pub struct SpvrControllingStream {
     send_data_bytes: i64,
     received_data_bytes: i64,
     video_encode_format: String,
-
 }

@@ -1,28 +1,16 @@
-use futures_util::StreamExt;
-use mongodb::bson::doc;
-use mongodb::Cursor;
-use argon2::{
-    Argon2,
-    password_hash::{
-        PasswordHash,
-        PasswordHasher,
-        PasswordVerifier,
-        SaltString,
-        rand_core::OsRng,
-    },
-};
 use crate::author::{Author, AuthorRole};
 use crate::{gAuthorDatabase, gAuthorSettings};
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
+};
+use futures_util::StreamExt;
+use mongodb::Cursor;
+use mongodb::bson::doc;
 
-pub const AUTHOR_ADMIN: &str = "Admin";
-pub const AUTHOR_VISITOR: &str = "Visitor";
-
-pub struct AuthorManager {
-
-}
+pub struct AuthorManager {}
 
 impl AuthorManager {
-
     pub fn new() -> Self {
         Self {}
     }
@@ -31,53 +19,79 @@ impl AuthorManager {
         let (admin_name, admin_password, visitor_name, visitor_password) = {
             let settings = gAuthorSettings.lock().await;
             (
-                configured_name(&settings.bootstrap.admin_name, AUTHOR_ADMIN),
+                validated_name(&settings.bootstrap.admin_name),
                 optional_secret(settings.bootstrap.admin_password.as_deref()),
-                configured_name(&settings.bootstrap.visitor_name, AUTHOR_VISITOR),
+                validated_name(&settings.bootstrap.visitor_name),
                 optional_secret(settings.bootstrap.visitor_password.as_deref()),
             )
         };
 
-        if !self.has_author(&admin_name).await {
-            let Some(admin_password) = admin_password else {
-                tracing::error!(
-                    "bootstrap.admin_password is required to create initial admin account '{}'",
-                    admin_name,
-                );
-                return false;
-            };
+        let Some(admin_name) = admin_name else {
+            tracing::error!("bootstrap.admin_name is required to initialize the server");
+            return false;
+        };
+        let Some(admin_password) = admin_password else {
+            tracing::error!(
+                "bootstrap.admin_password is required to create the initial admin account '{}'",
+                admin_name,
+            );
+            return false;
+        };
 
-            if !self.insert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin).await {
+        if !self.has_author(&admin_name).await {
+            if !self
+                .insert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin)
+                .await
+            {
                 return false;
             }
         }
 
-        if !self.has_author(&visitor_name).await {
-            match visitor_password {
-                Some(visitor_password) => {
-                    if !self.insert_bootstrap_author(visitor_name.clone(), visitor_password, AuthorRole::Visitor).await {
-                        return false;
+        if let Some(visitor_name) = visitor_name {
+            if !self.has_author(&visitor_name).await {
+                match visitor_password {
+                    Some(visitor_password) => {
+                        if !self
+                            .insert_bootstrap_author(
+                                visitor_name.clone(),
+                                visitor_password,
+                                AuthorRole::Visitor,
+                            )
+                            .await
+                        {
+                            return false;
+                        }
+                    }
+                    None => {
+                        tracing::warn!(
+                            "bootstrap.visitor_password is not set; skip creating initial visitor account '{}'",
+                            visitor_name,
+                        );
                     }
                 }
-                None => {
-                    tracing::warn!(
-                        "bootstrap.visitor_password is not set; skip creating initial visitor account '{}'",
-                        visitor_name,
-                    );
-                }
             }
+        } else if visitor_password.is_some() {
+            tracing::error!(
+                "bootstrap.visitor_password is set but visitor_name is empty; refusing to start"
+            );
+            return false;
         }
 
         true
     }
 
     async fn has_author(&self, author_name: &str) -> bool {
-        self
-            .find_author_by_name(author_name.to_string())
-            .await.is_some()
+        self.find_author_by_name(author_name.to_string())
+            .await
+            .is_some()
     }
 
-    async fn insert_bootstrap_author(&self, name: String, plain_password: String, role: AuthorRole) -> bool {
+    async fn insert_bootstrap_author(
+        &self,
+        name: String,
+        plain_password: String,
+        role: AuthorRole,
+    ) -> bool {
         let Ok(password_hash) = Self::hash_password(&plain_password) else {
             tracing::error!("hash password failed for bootstrap account '{}'", name);
             return false;
@@ -87,33 +101,25 @@ impl AuthorManager {
             name,
             password_hash,
             role,
-        }).await
+        })
+        .await
     }
 
     pub async fn find_author_by_name(&self, author_name: String) -> Option<Author> {
-        let c_author = gAuthorDatabase
-            .lock().await
-            .author();
+        let c_author = gAuthorDatabase.lock().await.author();
         let filter = doc! {
             "name": author_name,
         };
-        if let Ok(opt_author) = c_author
-            .lock().await
-            .find_one(filter, ).await {
+        if let Ok(opt_author) = c_author.lock().await.find_one(filter).await {
             opt_author
-        }
-        else {
+        } else {
             None
         }
     }
 
     pub async fn find_authors(&self) -> Result<Vec<Author>, String> {
-        let c_author = gAuthorDatabase
-            .lock().await
-            .author();
-        let cursor = c_author
-            .lock().await
-            .find(doc! {}, ).await;
+        let c_author = gAuthorDatabase.lock().await.author();
+        let cursor = c_author.lock().await.find(doc! {}).await;
         if let Err(e) = cursor {
             return Err(e.to_string());
         }
@@ -126,7 +132,6 @@ impl AuthorManager {
                 break;
             } else {
                 let author = author.unwrap();
-                println!("device: {:?}", author);
                 authors.push(author);
             }
         }
@@ -134,12 +139,11 @@ impl AuthorManager {
     }
 
     pub async fn insert_author(&self, author: Author) -> bool {
-        let c_author = gAuthorDatabase
-            .lock().await
-            .author();
-        let r = c_author
-            .lock().await
-            .insert_one(author).await;
+        let c_author = gAuthorDatabase.lock().await.author();
+        let r = c_author.lock().await.insert_one(author).await;
+        if let Err(e) = &r {
+            tracing::error!("insert_author failed: {}", e);
+        }
         r.is_ok()
     }
 
@@ -169,23 +173,28 @@ impl AuthorManager {
             .is_ok()
     }
 
-    pub async fn verify_author(&self, author_name: String, plain_password: String) -> Option<Author> {
+    pub async fn verify_author(
+        &self,
+        author_name: String,
+        plain_password: String,
+    ) -> Option<Author> {
         if let Some(author) = self.find_author_by_name(author_name.clone()).await {
-            if author.name == author_name && Self::verify_password(&plain_password, &author.password_hash) {
+            if author.name == author_name
+                && Self::verify_password(&plain_password, &author.password_hash)
+            {
                 return Some(author);
             }
         }
         None
     }
-
 }
 
-fn configured_name(configured: &str, default_name: &str) -> String {
-    let configured = configured.trim();
-    if configured.is_empty() {
-        default_name.to_string()
+fn validated_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    if name.is_empty() {
+        None
     } else {
-        configured.to_string()
+        Some(name.to_string())
     }
 }
 
@@ -200,7 +209,7 @@ fn optional_secret(secret: Option<&str>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::author_manager::{configured_name, optional_secret, AuthorManager};
+    use crate::author_manager::{AuthorManager, optional_secret, validated_name};
 
     #[test]
     fn hash_password_does_not_return_plaintext() {
@@ -239,19 +248,14 @@ mod tests {
     }
 
     #[test]
-    fn configured_name_uses_configured_name() {
-        assert_eq!(
-            configured_name("ConfiguredAdmin", "Admin"),
-            "ConfiguredAdmin",
-        );
+    fn validated_name_uses_configured_name() {
+        assert_eq!(validated_name("ConfiguredAdmin"), Some("ConfiguredAdmin".to_string()));
     }
 
     #[test]
-    fn configured_name_falls_back_to_default_when_configured_name_is_empty() {
-        assert_eq!(
-            configured_name(" ", "Admin"),
-            "Admin",
-        );
+    fn validated_name_rejects_empty_or_whitespace() {
+        assert_eq!(validated_name(""), None);
+        assert_eq!(validated_name("   "), None);
     }
 
     #[test]

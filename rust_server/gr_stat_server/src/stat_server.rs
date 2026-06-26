@@ -1,31 +1,27 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
-use axum::{middleware, Json, Router};
+use crate::auth::auth_stat::StatAuth;
+use crate::auth::auth_stat_handle::handle_insert_or_update_auth_stat;
+use crate::filter;
+use crate::filter::stat_visit_filter;
+use crate::stat_api_error::StatApiError;
+use crate::stat_context::StatContext;
+use crate::using::stat_using_handler;
+use crate::using::stat_using_handler::handle_open_up;
 use axum::body::Body;
 use axum::extract::State;
 use axum::routing::{get, get_service, post};
+use axum::{middleware, Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
+use gr_base::{ok_resp, RespMessage};
+use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
-use gr_base::{ok_resp, RespMessage};
-use crate::auth::auth_stat::StatAuth;
-use crate::filter::stat_visit_filter;
-use crate::stat_context::StatContext;
-use crate::auth::auth_stat_handle::handle_insert_or_update_auth_stat;
-use crate::filter;
-use crate::stat_api_error::StatApiError;
-use crate::using::stat_using_handler;
-use crate::using::stat_using_handler::handle_open_up;
 
-pub struct StatServer {
-
-}
+pub struct StatServer {}
 
 impl StatServer {
-
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 
     pub async fn start(&self, context: Arc<Mutex<StatContext>>, port: u16) {
@@ -43,7 +39,8 @@ impl StatServer {
         let config = RustlsConfig::from_pem_file(
             current_dir.join("certs").join("cert.pem"),
             current_dir.join("certs").join("key.pem"),
-        ).await;
+        )
+        .await;
 
         if let Err(e) = config {
             tracing::error!("==> {}", e);
@@ -59,20 +56,19 @@ impl StatServer {
             .fallback_service(get_service(static_dir).handle_error(|_| async move {
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Static file error"
+                    "Static file error",
                 )
             }))
-
             .route("/api/v1/ping", get(StatServer::handle_ping))
             // auth
-            .route("/api/v1/insert/update/auth/stat", post(handle_insert_or_update_auth_stat))
-
+            .route(
+                "/api/v1/insert/update/auth/stat",
+                post(handle_insert_or_update_auth_stat),
+            )
             // normal stat
             .route("/api/v1/open/up", post(handle_open_up))
-
             .layer(middleware::from_fn(stat_visit_filter::filter))
             .layer(middleware::from_fn(filter::stat_statistics_filter::filter))
-
             .with_state(context.clone());
 
         let http_host = "0.0.0.0";
@@ -88,5 +84,4 @@ impl StatServer {
     pub async fn handle_ping() -> Result<Json<RespMessage<String>>, StatApiError> {
         Ok(Json(ok_resp("pong".to_string())))
     }
-
 }

@@ -1,114 +1,128 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use axum::body::Body;
-use axum::extract::{Query, State};
-use axum::Json;
-use serde_json::Value;
-use tokio::sync::Mutex;
-use gr_auth_mgr::app_secret_util::is_appkey_secret_paired;
-use gr_base::{ok_resp, RespMessage};
 use crate::author_api_error::AuthorApiError;
 use crate::author_api_error::AuthorApiError::AppkeySecretNotPaired;
-use crate::author_context::AuthorContext;
-use crate::author_http_util::{get_body_int, get_body_str, get_body, get_int_param, get_str_param};
-use gr_auth_mgr::authorization::{Authorization, AuthorizationVo};
-use crate::author_keys::{KEY_CREATE_AUTHORIZATION_ROLE, KEY_CREATE_AUTHORIZATION_DAYS, KEY_CREATE_AUTHORIZATION_MACHINE_CODE,
-KEY_CREATE_AUTHORIZATION_MAX_STREAMS, KEY_CREATE_AUTHORIZATION_USER_NAME, KEY_CREATE_AUTHORIZATION_AUTH_ID};
+use crate::author_http_util::{get_body, get_body_int, get_body_str, get_int_param, get_str_param};
+use crate::author_keys::{
+    KEY_CREATE_AUTHORIZATION_AUTH_ID, KEY_CREATE_AUTHORIZATION_DAYS,
+    KEY_CREATE_AUTHORIZATION_MACHINE_CODE, KEY_CREATE_AUTHORIZATION_MAX_STREAMS,
+    KEY_CREATE_AUTHORIZATION_ROLE, KEY_CREATE_AUTHORIZATION_USER_NAME,
+};
+use crate::author_license_keys::sign_authorization_model;
 use crate::authorization_manager::AuthorizationError;
 use crate::gAuthorizationManager;
+use crate::gLicenseSigner;
+use axum::Json;
+use axum::body::Body;
+use axum::extract::Query;
+use gr_auth_mgr::app_secret_util::is_appkey_secret_paired;
+use gr_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
+use gr_auth_mgr::authorization::{Authorization, AuthorizationVo};
+use gr_base::{RespMessage, ok_resp};
+use serde_json::Value;
+use std::collections::HashMap;
 
-pub async fn handle_create_new_authorization(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                  body: Body)
-                                  -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
-
+pub async fn handle_create_new_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
     let body = get_body(body).await?;
-    let r: Value = serde_json::from_str(body.as_str())
-        .map_err(|_| AuthorApiError::InvalidParams)?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
     let input = parse_create_authorization_input(&r)?;
 
     tracing::info!("customer_role {}", input.role);
 
     let auth = gAuthorizationManager
-        .gen_new_authorization(input.name, input.machine_code, input.days, input.max_streams, input.role).await;
+        .gen_new_authorization(
+            input.name,
+            input.machine_code,
+            input.days,
+            input.max_streams,
+            input.role,
+        )
+        .await;
     match auth {
-        Ok(auth) => {
-            Ok(Json(ok_resp(auth)))
+        Ok(auth) => Ok(Json(ok_resp(auth))),
+        Err(e) => match e {
+            AuthorizationError::AlreadyExist => Err(AuthorApiError::AlreadyExists),
+            AuthorizationError::DatabaseError => Err(AuthorApiError::DatabaseError),
+            _ => Err(AuthorApiError::DatabaseError),
         },
-        Err(e) => {
-            match e {
-                AuthorizationError::AlreadyExist => {
-                    Err(AuthorApiError::AlreadyExists)
-                }
-                AuthorizationError::DatabaseError => {
-                    Err(AuthorApiError::DatabaseError)
-                }
-                _ => Err(AuthorApiError::DatabaseError)
-            }
-        }
     }
 }
 
-pub async fn handle_create_new_deploy_authorization(State(ctx): State<Arc<Mutex<AuthorContext>>>,
-                                                    body: Body)
-                                                    -> Result<Json<RespMessage<String>>, AuthorApiError> {
-    let r = handle_create_new_authorization(State(ctx), body).await?;
+pub async fn handle_create_new_deploy_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<String>>, AuthorApiError> {
+    let r = handle_create_new_authorization(body).await?;
     let auth = r.0.data;
-    if let Ok(str) = auth.as_deploy_str() {
-        return Ok(Json(ok_resp(str)));
-    }
-    Err(AuthorApiError::CantCreateAuthorization)
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let signed = sign_authorization_model(signer, &auth)
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    let deploy_str = signed
+        .to_deploy_string()
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    Ok(Json(ok_resp(deploy_str)))
 }
 
-pub async fn handle_query_authorization_by_id(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                             query: Query<HashMap<String, String>>)
-                                             -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+pub async fn handle_query_authorization_by_id(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
     let auth_id = get_str_param(&query, "auth_id")?;
 
     if let Some(auth) = gAuthorizationManager
-        .query_authorization_by_id(auth_id).await {
+        .query_authorization_by_id(auth_id)
+        .await
+    {
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-pub async fn handle_query_deploy_authorization_by_id(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                             query: Query<HashMap<String, String>>)
-                                             -> Result<Json<RespMessage<String>>, AuthorApiError> {
+pub async fn handle_query_deploy_authorization_by_id(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<String>>, AuthorApiError> {
     let auth_id = get_str_param(&query, "auth_id")?;
 
     if let Some(auth) = gAuthorizationManager
-        .query_authorization_by_id(auth_id).await {
-        if let Ok(str ) = auth.as_deploy_str() {
-            Ok(Json(ok_resp(str)))
-        }
-        else {
-            Err(AuthorApiError::AuthorizationNotFound)
-        }
-    }
-    else {
+        .query_authorization_by_id(auth_id)
+        .await
+    {
+        let signer_guard = gLicenseSigner.lock().await;
+        let signer = signer_guard
+            .as_ref()
+            .ok_or(AuthorApiError::CantCreateAuthorization)?;
+        let signed = sign_authorization_model(signer, &auth)
+            .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+        let deploy_str = signed
+            .to_deploy_string()
+            .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+        Ok(Json(ok_resp(deploy_str)))
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-pub async fn handle_query_authorization_by_name(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                              query: Query<HashMap<String, String>>)
-                                              -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+pub async fn handle_query_authorization_by_name(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
     let auth_name = get_str_param(&query, "auth_name")?;
 
     if let Some(auth) = gAuthorizationManager
-        .query_authorization_by_name(auth_name).await {
+        .query_authorization_by_name(auth_name)
+        .await
+    {
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-pub async fn handle_query_authorization_like_name(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                                query: Query<HashMap<String, String>>)
-                                                -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
+pub async fn handle_query_authorization_like_name(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
     let auth_name = get_str_param(&query, "auth_name")?;
     if auth_name.is_empty() {
         return Err(AuthorApiError::InvalidParams);
@@ -118,32 +132,34 @@ pub async fn handle_query_authorization_like_name(State(_ctx): State<Arc<Mutex<A
     let page_size = get_int_param(&query, "page_size")?;
 
     if let Ok(auth) = gAuthorizationManager
-        .query_authorizations_like_name(auth_name, page, page_size).await {
+        .query_authorizations_like_name(auth_name, page, page_size)
+        .await
+    {
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-pub async fn handle_query_authorizations(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                                  query: Query<HashMap<String, String>>)
-                                                  -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
+pub async fn handle_query_authorizations(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
 
     if let Ok(auth) = gAuthorizationManager
-        .query_authorizations_no_filter(page, page_size).await {
+        .query_authorizations_no_filter(page, page_size)
+        .await
+    {
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-pub async fn handle_verify_appkey_secret(State(_ctx): State<Arc<Mutex<AuthorContext>>>,
-                                         query: Query<HashMap<String, String>>)
-                                         -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+pub async fn handle_verify_appkey_secret(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
     let appkey = get_str_param(&query, "appkey")?;
     let app_secret = get_str_param(&query, "app_secret")?;
     if !is_appkey_secret_paired(appkey.clone(), app_secret.clone()) {
@@ -151,23 +167,47 @@ pub async fn handle_verify_appkey_secret(State(_ctx): State<Arc<Mutex<AuthorCont
     }
 
     if let Some(auth) = gAuthorizationManager
-        .query_authorization_by_appkey_secret(appkey, app_secret).await {
+        .query_authorization_by_appkey_secret(appkey, app_secret)
+        .await
+    {
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::AuthorizationNotFound)
     }
 }
 
-
-
-pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<AuthorContext>>>,
-                                             body: Body)
-                                             -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
-
+pub async fn handle_verify_license(
+    body: Body,
+) -> Result<Json<RespMessage<bool>>, AuthorApiError> {
     let body = get_body(body).await?;
-    let r: Value = serde_json::from_str(body.as_str())
-        .map_err(|_| AuthorApiError::InvalidParams)?;
+    let value: serde_json::Value =
+        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_str = get_body_str(&value, "data")?;
+
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+
+    let signed =
+        SignedLicense::parse_deploy_string(&auth_str).map_err(|_| AuthorApiError::InvalidParams)?;
+
+    let public_key = signer.public_key_bytes();
+    let verifier = LicenseVerifier::from_public_key_bytes(&public_key)
+        .map_err(|_| AuthorApiError::DatabaseError)?;
+    let now_ms = gr_base::get_current_timestamp();
+    let valid = verifier
+        .verify(&signed, &signed.license.machine_code, now_ms)
+        .map_err(|_| AuthorApiError::DatabaseError)?;
+    Ok(Json(ok_resp(valid)))
+}
+
+pub async fn handle_update_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
     let input = parse_update_authorization_input(&r)?;
     let auth_id = input.auth_id;
     tracing::info!("Auth ID: {}", auth_id);
@@ -176,7 +216,8 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
     tracing::info!("Role: {}", input.role);
 
     let auth = gAuthorizationManager
-        .query_authorization_by_id(auth_id.clone()).await;
+        .query_authorization_by_id(auth_id.clone())
+        .await;
     if auth.is_none() {
         return Err(AuthorApiError::AuthorizationNotFound);
     }
@@ -190,14 +231,15 @@ pub async fn handle_update_authorization(State(_context): State<Arc<Mutex<Author
     auth.end_timestamp_ms = current_ts + (input.days as i64) * 24 * 3600 * 1000;
     auth.last_modify_timestamp = current_ts;
     let r = gAuthorizationManager
-        .update_authorization(auth_id.clone(), auth).await;
+        .update_authorization(auth_id.clone(), auth)
+        .await;
     if r {
         let auth = gAuthorizationManager
-            .query_authorization_by_id(auth_id).await
+            .query_authorization_by_id(auth_id)
+            .await
             .unwrap();
         Ok(Json(ok_resp(auth)))
-    }
-    else {
+    } else {
         Err(AuthorApiError::UpdateAuthFailed)
     }
 }
@@ -225,7 +267,9 @@ struct UpdateAuthorizationInput {
     role: i32,
 }
 
-fn parse_create_authorization_input(body: &Value) -> Result<CreateAuthorizationInput, AuthorApiError> {
+fn parse_create_authorization_input(
+    body: &Value,
+) -> Result<CreateAuthorizationInput, AuthorApiError> {
     let name = get_body_str(body, KEY_CREATE_AUTHORIZATION_USER_NAME)?;
     let machine_code = get_body_str(body, KEY_CREATE_AUTHORIZATION_MACHINE_CODE)?;
     let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
@@ -247,7 +291,9 @@ fn parse_create_authorization_input(body: &Value) -> Result<CreateAuthorizationI
     })
 }
 
-fn parse_update_authorization_input(body: &Value) -> Result<UpdateAuthorizationInput, AuthorApiError> {
+fn parse_update_authorization_input(
+    body: &Value,
+) -> Result<UpdateAuthorizationInput, AuthorApiError> {
     let auth_id = get_body_str(body, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
     let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
     let max_streams = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?;
@@ -267,8 +313,7 @@ fn parse_update_authorization_input(body: &Value) -> Result<UpdateAuthorizationI
 }
 
 fn checked_body_i32(body: &Value, key: &str) -> Result<i32, AuthorApiError> {
-    i32::try_from(get_body_int(body, key)?)
-        .map_err(|_| AuthorApiError::InvalidParams)
+    i32::try_from(get_body_int(body, key)?).map_err(|_| AuthorApiError::InvalidParams)
 }
 
 fn validate_name(name: &str) -> Result<(), AuthorApiError> {
@@ -359,7 +404,10 @@ mod tests {
         ];
 
         for body in cases {
-            assert!(parse_create_authorization_input(&body).is_err(), "body should be rejected: {body}");
+            assert!(
+                parse_create_authorization_input(&body).is_err(),
+                "body should be rejected: {body}"
+            );
         }
     }
 
@@ -387,13 +435,19 @@ mod tests {
         for days in [0, -1, MAX_AUTH_DAYS + 1] {
             let mut body = valid_create_body();
             body["days"] = json!(days);
-            assert!(parse_create_authorization_input(&body).is_err(), "days={days} should fail");
+            assert!(
+                parse_create_authorization_input(&body).is_err(),
+                "days={days} should fail"
+            );
         }
 
         for days in [1, MAX_AUTH_DAYS] {
             let mut body = valid_create_body();
             body["days"] = json!(days);
-            assert!(parse_create_authorization_input(&body).is_ok(), "days={days} should pass");
+            assert!(
+                parse_create_authorization_input(&body).is_ok(),
+                "days={days} should pass"
+            );
         }
     }
 
@@ -402,13 +456,19 @@ mod tests {
         for max_streams in [0, -1, MAX_AUTH_STREAMS + 1] {
             let mut body = valid_create_body();
             body["max_streams"] = json!(max_streams);
-            assert!(parse_create_authorization_input(&body).is_err(), "max_streams={max_streams} should fail");
+            assert!(
+                parse_create_authorization_input(&body).is_err(),
+                "max_streams={max_streams} should fail"
+            );
         }
 
         for max_streams in [1, MAX_AUTH_STREAMS] {
             let mut body = valid_create_body();
             body["max_streams"] = json!(max_streams);
-            assert!(parse_create_authorization_input(&body).is_ok(), "max_streams={max_streams} should pass");
+            assert!(
+                parse_create_authorization_input(&body).is_ok(),
+                "max_streams={max_streams} should pass"
+            );
         }
     }
 
@@ -417,13 +477,19 @@ mod tests {
         for role in [0, -1, 4] {
             let mut body = valid_create_body();
             body["role"] = json!(role);
-            assert!(parse_create_authorization_input(&body).is_err(), "role={role} should fail");
+            assert!(
+                parse_create_authorization_input(&body).is_err(),
+                "role={role} should fail"
+            );
         }
 
         for role in [1, 2, 3] {
             let mut body = valid_create_body();
             body["role"] = json!(role);
-            assert!(parse_create_authorization_input(&body).is_ok(), "role={role} should pass");
+            assert!(
+                parse_create_authorization_input(&body).is_ok(),
+                "role={role} should pass"
+            );
         }
     }
 

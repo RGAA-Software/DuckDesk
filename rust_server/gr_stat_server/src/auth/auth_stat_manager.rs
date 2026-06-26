@@ -1,14 +1,12 @@
-use std::sync::Arc;
-use mongodb::bson::doc;
-use gr_base::get_current_timestamp;
+use crate::auth::auth_stat::StatAuth;
 use crate::gStatDatabase;
 use crate::stat_api_error::StatApiError;
 use crate::stat_api_keys::{KEY_AUTH_ID, KEY_SYS_INFO, KEY_UPDATED_TS};
-use crate::auth::auth_stat::StatAuth;
+use gr_base::get_current_timestamp;
+use mongodb::bson::doc;
+use std::sync::Arc;
 
-pub struct StatAuthManager {
-
-}
+pub struct StatAuthManager {}
 
 impl StatAuthManager {
     pub fn new() -> Arc<Self> {
@@ -16,9 +14,7 @@ impl StatAuthManager {
     }
 
     pub async fn insert_or_update(&self, stat: StatAuth) -> Result<StatAuth, StatApiError> {
-        let c_auth_stat = gStatDatabase
-            .lock().await
-            .auth_stat();
+        let c_auth_stat = gStatDatabase.lock().await.auth_stat();
         let filter = doc! {
             KEY_AUTH_ID: stat.auth_id.as_str(),
             KEY_SYS_INFO: stat.sys_info.as_str(),
@@ -30,27 +26,28 @@ impl StatAuthManager {
                 stat_cpy.created_ts = created_ts;
                 if let Ok(_) = c_auth_stat.insert_one(stat_cpy.clone()).await {
                     Ok(stat_cpy)
-                }
-                else {
+                } else {
                     Err(StatApiError::DatabaseError)
                 }
-            }
-            else {
-                if let Ok(_r) = c_auth_stat.update_one(filter, doc! {
-                    "$set": doc! {
-                        KEY_UPDATED_TS: get_current_timestamp()
-                    }
-                }).await {
+            } else {
+                if let Ok(_r) = c_auth_stat
+                    .update_one(
+                        filter,
+                        doc! {
+                            "$set": doc! {
+                                KEY_UPDATED_TS: get_current_timestamp()
+                            }
+                        },
+                    )
+                    .await
+                {
                     Ok(stat)
-                }
-                else {
+                } else {
                     Err(StatApiError::DatabaseError)
                 }
             }
-        }
-        else {
+        } else {
             Err(StatApiError::DatabaseError)
         }
     }
-
 }

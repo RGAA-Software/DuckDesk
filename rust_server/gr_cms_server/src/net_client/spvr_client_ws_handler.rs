@@ -1,7 +1,9 @@
+use crate::gSpvrClientConnMgr;
+use crate::net_client::spvr_client_conn::SpvrClientConn;
+use crate::net_client::spvr_client_conn_mgr::StreamReservation;
 use crate::spvr_context::SpvrContext;
-use crate::{gSpvrClientConnMgr};
 use axum::extract::ws::{Message, WebSocket};
-use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Extension, Query, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use axum_extra::TypedHeader;
 use futures_util::StreamExt;
@@ -10,7 +12,6 @@ use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::net_client::spvr_client_conn::SpvrClientConn;
 
 pub(crate) async fn client_handler(
     State(context): State<Arc<Mutex<SpvrContext>>>,
@@ -18,6 +19,7 @@ pub(crate) async fn client_handler(
     ws: WebSocketUpgrade,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Extension(reservation): Extension<StreamReservation>,
 ) -> impl IntoResponse {
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
         user_agent.to_string()
@@ -25,28 +27,42 @@ pub(crate) async fn client_handler(
         String::from("Unknown browser")
     };
     tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
-    for (k, v) in query.iter() {
-        tracing::info!("ws query param {}:{}", k, v);
+    for (k, _) in query.iter() {
+        tracing::debug!("ws query param key: {}", k);
     }
     let params = query.0.clone();
     ws.on_upgrade(move |socket| {
-        handle_socket(context.clone(), params, socket, addr)
+        let reservation = reservation;
+        async move { handle_socket(context.clone(), params, socket, addr, reservation).await }
     })
 }
 
-async fn handle_socket(context: Arc<Mutex<SpvrContext>>,
-                       params: HashMap<String, String>,
-                       socket: WebSocket,
-                       who: SocketAddr) {
+async fn handle_socket(
+    context: Arc<Mutex<SpvrContext>>,
+    params: HashMap<String, String>,
+    socket: WebSocket,
+    who: SocketAddr,
+    reservation: StreamReservation,
+) {
     let (sender, mut receiver) = socket.split();
 
     let mut recv_task = tokio::spawn(async move {
         let appkey = params.get("appkey").unwrap();
         let device_id = params.get("device_id").unwrap_or(&"".to_string()).clone();
-        let remote_device_id = params.get("remote_device_id").unwrap_or(&"".to_string()).clone();
-        let remote_device_ip = params.get("remote_device_ip").unwrap_or(&"".to_string()).clone();
-        tracing::info!("client ws connected, device id: {}, remote device id: {}, remote device ip: {}",
-            device_id, remote_device_id, remote_device_ip);
+        let remote_device_id = params
+            .get("remote_device_id")
+            .unwrap_or(&"".to_string())
+            .clone();
+        let remote_device_ip = params
+            .get("remote_device_ip")
+            .unwrap_or(&"".to_string())
+            .clone();
+        tracing::info!(
+            "client ws connected, device id: {}, remote device id: {}, remote device ip: {}",
+            device_id,
+            remote_device_id,
+            remote_device_ip
+        );
 
         if device_id.is_empty() {
             tracing::error!("spvr client error, device id is empty!");
@@ -54,61 +70,69 @@ async fn handle_socket(context: Arc<Mutex<SpvrContext>>,
         }
 
         // make a special id
-        let conn_id = format!("{}-{}", device_id,
-                              if remote_device_id.is_empty() {
-                                  if remote_device_ip.is_empty() {
-                                      gr_base::get_current_timestamp().to_string()
-                                  }
-                                  else {
-                                      remote_device_ip.clone()
-                                  }
-                              }
-                              else {
-                                  remote_device_id.clone()
-                              });
+        let conn_id = format!(
+            "{}-{}",
+            device_id,
+            if remote_device_id.is_empty() {
+                if remote_device_ip.is_empty() {
+                    gr_base::get_current_timestamp().to_string()
+                } else {
+                    remote_device_ip.clone()
+                }
+            } else {
+                remote_device_id.clone()
+            }
+        );
         let sender = Arc::new(Mutex::new(sender));
-        let conn = SpvrClientConn::new(context.clone(),
-                                             sender,
-                                             device_id.clone(),
-                                             remote_device_id.clone(),
-                                             remote_device_ip.clone(),
-                                             appkey.clone()).await;
+        let conn = SpvrClientConn::new(
+            context.clone(),
+            sender,
+            device_id.clone(),
+            remote_device_id.clone(),
+            remote_device_ip.clone(),
+            appkey.clone(),
+        )
+        .await;
         tracing::info!("spvr client connection from {}", conn_id);
         let conn = Arc::new(Mutex::new(conn));
         gSpvrClientConnMgr
-            .add_conn(conn_id.clone(), conn.clone()).await;
+            .add_conn(conn_id.clone(), conn.clone())
+            .await;
+        reservation.forget();
 
         while let Some(Ok(msg)) = receiver.next().await {
             // print message and break if instructed to do so
-            if process_message(context.clone(), conn.clone(), msg, who).await.is_break() {
+            if process_message(context.clone(), conn.clone(), msg, who)
+                .await
+                .is_break()
+            {
                 break;
             }
         }
 
         // remove
-        gSpvrClientConnMgr
-            .remove_conn(conn_id).await;
-
+        gSpvrClientConnMgr.remove_conn(conn_id).await;
     });
 
     tokio::select! {
-            spvr_rv = (&mut recv_task) => {
-                match spvr_rv {
-                    Ok(_) => {},
-                    Err(e) => {
-                        tracing::error!("receive task error: {e:?}")
-                    }
+        spvr_rv = (&mut recv_task) => {
+            match spvr_rv {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!("receive task error: {e:?}")
                 }
-                recv_task.abort();
-            },
-        }
+            }
+            recv_task.abort();
+        },
+    }
 }
 
-async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
-                         spvr_conn: Arc<Mutex<SpvrClientConn>>,
-                         msg: Message,
-                         who: SocketAddr)
-                         -> ControlFlow<(), ()> {
+async fn process_message(
+    _spvr_ctx: Arc<Mutex<SpvrContext>>,
+    spvr_conn: Arc<Mutex<SpvrClientConn>>,
+    msg: Message,
+    who: SocketAddr,
+) -> ControlFlow<(), ()> {
     //tracing::info!("IN --> {}:{}", who.ip(), who.port());
     match msg {
         Message::Text(data) => {
@@ -117,8 +141,11 @@ async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
         }
         Message::Binary(data) => {
             return if spvr_conn
-                .lock().await
-                .process_message(who.ip().to_string(), data).await {
+                .lock()
+                .await
+                .process_message(who.ip().to_string(), data)
+                .await
+            {
                 ControlFlow::Continue(())
             } else {
                 ControlFlow::Break(())
@@ -126,7 +153,10 @@ async fn process_message(_spvr_ctx: Arc<Mutex<SpvrContext>>,
         }
         Message::Close(c) => {
             if let Some(cf) = c {
-                println!(">>> {} sent close with code {} and reason `{}`", who, cf.code, cf.reason);
+                println!(
+                    ">>> {} sent close with code {} and reason `{}`",
+                    who, cf.code, cf.reason
+                );
             } else {
                 println!(">>> {who} somehow sent close message without CloseFrame");
             }

@@ -38,7 +38,10 @@ mod tests {
         };
     }
 
+    // This test requires real SMTP credentials and network access. It is
+    // ignored by default so the suite stays green in CI/automated runs.
     #[test]
+    #[ignore = "requires real SMTP credentials and network access"]
     fn it_works() {
         aw!(send_email());
     }

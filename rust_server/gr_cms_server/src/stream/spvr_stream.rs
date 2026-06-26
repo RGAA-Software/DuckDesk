@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpvrStream {
     pub stream_id: String,

@@ -21,8 +21,14 @@ mod tests {
 
     #[test]
     fn author_role_serializes_to_stable_snake_case_values() {
-        assert_eq!(serde_json::to_string(&AuthorRole::Admin).unwrap(), "\"admin\"");
-        assert_eq!(serde_json::to_string(&AuthorRole::Visitor).unwrap(), "\"visitor\"");
+        assert_eq!(
+            serde_json::to_string(&AuthorRole::Admin).unwrap(),
+            "\"admin\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AuthorRole::Visitor).unwrap(),
+            "\"visitor\""
+        );
     }
 
     #[test]

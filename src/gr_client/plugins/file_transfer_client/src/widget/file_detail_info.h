@@ -86,14 +86,14 @@ public:
 	void Clear() {
 		files_detail_info_.clear();
 	}
-	std::pair<bool, FileDetailInfo> operator[] (int index) {
-		if (index >= files_detail_info_.size()) {
+	std::pair<bool, FileDetailInfo> operator[] (int index) const {
+		if (index < 0 || index >= (int)files_detail_info_.size()) {
 			FileDetailInfo temp;
 			return std::make_pair(false, temp);
 		}
 		return std::make_pair(true, files_detail_info_[index]);
 	}
-	size_t Size() {
+	size_t Size() const {
 		return files_detail_info_.size();
 	}
 	bool HasDisk();

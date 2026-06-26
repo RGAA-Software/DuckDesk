@@ -1,6 +1,6 @@
 use crate::author_api_error::AuthorApiError;
-use axum::{http::HeaderMap};
 use axum::body::Body;
+use axum::http::HeaderMap;
 use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -8,13 +8,9 @@ use axum::response::{IntoResponse, Response};
 use crate::author_claims::AuthorClaims;
 
 pub fn verify_headers(headers: &HeaderMap) -> Result<AuthorClaims, AuthorApiError> {
-    let login_token = match headers.get("Authorization")
-        .and_then(|v| v.to_str().ok())
-    {
+    let login_token = match headers.get("Authorization").and_then(|v| v.to_str().ok()) {
         Some(t) => t,
-        None => {
-            return Err(AuthorApiError::MissLoginToken)
-        }
+        None => return Err(AuthorApiError::MissLoginToken),
     };
 
     match AuthorClaims::verify(login_token) {
@@ -31,7 +27,9 @@ mod tests {
     use axum::http::HeaderValue;
 
     fn init_test_secret() {
-        assert!(init_jwt_secret("test-secret-must-be-at-least-32-bytes".to_string()));
+        assert!(init_jwt_secret(
+            "test-secret-must-be-at-least-32-bytes".to_string()
+        ));
     }
 
     #[test]
@@ -40,7 +38,10 @@ mod tests {
 
         let err = verify_headers(&headers).expect_err("missing token should fail");
 
-        assert_eq!(err.business_code(), AuthorApiError::MissLoginToken.business_code());
+        assert_eq!(
+            err.business_code(),
+            AuthorApiError::MissLoginToken.business_code()
+        );
     }
 
     #[test]
@@ -50,17 +51,16 @@ mod tests {
 
         let err = verify_headers(&headers).expect_err("invalid token should fail");
 
-        assert_eq!(err.business_code(), AuthorApiError::InvalidLoginToken.business_code());
+        assert_eq!(
+            err.business_code(),
+            AuthorApiError::InvalidLoginToken.business_code()
+        );
     }
 
     #[test]
     fn verify_headers_accepts_valid_token() {
         init_test_secret();
-        let claims = AuthorClaims::new(
-            "Admin".to_string(),
-            AuthorRole::Admin,
-            3600,
-        );
+        let claims = AuthorClaims::new("Admin".to_string(), AuthorRole::Admin, 3600);
         let token = claims.generate_token().expect("token should encode");
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", HeaderValue::from_str(&token).unwrap());
@@ -77,7 +77,7 @@ pub async fn filter(headers: HeaderMap, mut req: Request<Body>, next: Next) -> R
         Ok(claims) => {
             req.extensions_mut().insert(claims);
             next.run(req).await
-        },
+        }
         Err(err) => err.into_response(),
     }
 }

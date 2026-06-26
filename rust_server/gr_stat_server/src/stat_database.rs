@@ -1,16 +1,16 @@
-use std::sync::Arc;
-use mongodb::{Client, Collection};
-use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
-use tokio::sync::Mutex;
 use crate::auth::auth_stat::StatAuth;
 use crate::using::stat_open_up::StatOpenUp;
+use mongodb::bson::doc;
+use mongodb::options::ClientOptions;
+use mongodb::{Client, Collection};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Default)]
 pub struct StatDatabase {
     pub client: Option<Arc<Mutex<Client>>>,
     pub c_auth_stat: Option<Arc<Collection<StatAuth>>>,
-    pub c_open_up: Option<Arc<Collection<StatOpenUp>>>
+    pub c_open_up: Option<Arc<Collection<StatOpenUp>>>,
 }
 
 impl StatDatabase {

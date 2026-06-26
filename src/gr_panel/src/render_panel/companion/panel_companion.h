@@ -9,6 +9,7 @@
 #include <vector>
 #include <optional>
 #include <memory>
+#include <cstdint>
 #include "hw_info/hw_info.h"
 
 namespace tc
@@ -33,6 +34,9 @@ namespace tc
         std::string machine_code_;
         std::string appkey_;
         AuthRole role_ = AuthRole::kFree;
+        int days_ = 0;
+        int max_streams_ = 0;
+        int64_t end_timestamp_ms_ = 0;
     };
 
     // SpvrSrvConfig

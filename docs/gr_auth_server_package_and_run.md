@@ -32,17 +32,22 @@ scripts/package_gr_auth_server.bat
 
 1. 检查 `cargo`、`npm`、`openssl` 是否可用。
 2. 在 `output/gr_auth_server/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
-3. 编译前端 `web/gr_auth`。
-4. 编译后端 `rust_server/gr_auth_server`。
-5. 把所有产物整理到 `output/gr_auth_server/`：
+3. 在 `output/gr_auth_server/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
+   - `auth_license_private.key`：授权服务器私钥（**必须保密，不可泄露给 CMS/客户端**）。
+   - `auth_license_public.key`：CMS 验证授权签名所需的公钥。
+4. 编译前端 `web/gr_auth`。
+5. 编译后端 `rust_server/gr_auth_server`。
+6. 把所有产物整理到 `output/gr_auth_server/`：
 
 ```text
 output/gr_auth_server/
 ├── gr_auth_server.exe              # 后端可执行文件
 ├── gr_auth_server_settings.toml    # 配置文件
 ├── certs/
-│   ├── cert.pem                    # 自签名证书
-│   └── key.pem                     # 私钥
+│   ├── cert.pem                    # 自签名 HTTPS 证书
+│   ├── key.pem                     # HTTPS 私钥
+│   ├── auth_license_private.key    # 授权签名私钥（保密）
+│   └── auth_license_public.key     # 授权签名公钥（分发给 CMS）
 └── web_auth/                       # 前端静态资源
     ├── index.html
     └── assets/
@@ -148,8 +153,27 @@ cargo build -p gr_auth_server --release
 
 修改 `gr_auth_server_settings.toml` 中的 `server_port`，重启服务即可。
 
-## 7. 生产环境建议
+## 7. 分发公钥到 CMS
+
+`gr_cms_server`（CMS）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
+
+```text
+output/gr_auth_server/certs/auth_license_public.key
+```
+
+复制到 CMS 运行目录的：
+
+```text
+certs/auth_license_public.key
+```
+
+即可。CMS 也支持通过环境变量 `GR_AUTH_LICENSE_PUBLIC_KEY` 直接传入 base64 公钥。
+
+> 旧版 AES deploy string 仍可在 CMS 加载阶段被识别（只读兼容），但 `/update/authorization` 接口已拒绝接收新的 AES deploy string，必须使用签名格式。
+
+## 8. 生产环境建议
 
 - 不要使用自签名证书，替换为可信机构签发的 TLS 证书。
 - `jwt_secret` 使用密码生成器生成足够强度的随机字符串。
 - 为 MongoDB 启用认证，并修改 `db_path` 使用带用户名密码的连接串。
+- **私钥安全**：`auth_license_private.key` 只能存在于 `gr_auth_server` 的运行环境，禁止提交到版本仓库或随安装包泄露。建议通过环境变量 `GR_AUTH_LICENSE_PRIVATE_KEY` 注入，而不是把文件随安装包分发。

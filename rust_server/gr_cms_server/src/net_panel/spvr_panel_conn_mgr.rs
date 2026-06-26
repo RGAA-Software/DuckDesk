@@ -1,7 +1,7 @@
+use crate::net_panel::spvr_panel_conn::{SpvrPanelConn, SpvrPanelConnPtr, SpvrPanelConnVo};
+use crate::spvr_api_error::SpvrApiError;
 use egui::ahash::HashMap;
 use tokio::sync::Mutex;
-use crate::net_panel::spvr_panel_conn::{SpvrPanelConn, SpvrPanelConnVo, SpvrPanelConnPtr};
-use crate::spvr_api_error::SpvrApiError;
 
 pub struct SpvrPanelConnManager {
     connections: Mutex<HashMap<String, SpvrPanelConnPtr>>,
@@ -15,25 +15,18 @@ impl SpvrPanelConnManager {
     }
 
     pub async fn add_conn(&self, device_id: String, conn: SpvrPanelConnPtr) {
-        self.connections
-            .lock().await
-            .insert(device_id, conn);
+        self.connections.lock().await.insert(device_id, conn);
     }
 
     pub async fn remove_conn(&self, device_id: String) {
-        self.connections
-            .lock().await
-            .remove(&device_id);
+        self.connections.lock().await.remove(&device_id);
     }
 
     pub async fn get_conn(&self, device_id: String) -> Result<SpvrPanelConnPtr, SpvrApiError> {
-        let conn = self.connections
-            .lock().await
-            .get(&device_id).cloned();
+        let conn = self.connections.lock().await.get(&device_id).cloned();
         if let Some(conn) = conn {
             Ok(conn)
-        }
-        else {
+        } else {
             Err(SpvrApiError::DeviceNotFound)
         }
     }
@@ -51,8 +44,7 @@ impl SpvrPanelConnManager {
         }
         if all_conn.is_empty() {
             Err(SpvrApiError::ConnectionNotFound)
-        }
-        else {
+        } else {
             Ok(all_conn)
         }
     }
@@ -64,8 +56,7 @@ impl SpvrPanelConnManager {
         }
         if all_conn.is_empty() {
             Err(SpvrApiError::ConnectionNotFound)
-        }
-        else {
+        } else {
             Ok(all_conn)
         }
     }
@@ -77,10 +68,9 @@ impl SpvrPanelConnManager {
     pub async fn is_panel_online(&self, device_id: String) -> Result<bool, SpvrApiError> {
         for (id, conn) in self.connections.lock().await.iter() {
             if *id == device_id {
-                return Ok(true)
+                return Ok(true);
             }
         }
         Ok(false)
     }
-
 }

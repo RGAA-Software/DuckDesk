@@ -89,7 +89,10 @@ QVariant FileInfoTableModel::data(const QModelIndex& index, int role) const
 
     auto row = index.row();
     int col = index.column();
-    auto record = file_container_.files_detail_info_[row];
+    auto [ok, record] = file_container_[row];
+    if (!ok) {
+        return QVariant();
+    }
 
     switch (role)
     {

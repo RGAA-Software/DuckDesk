@@ -1,9 +1,8 @@
-use serde::{Deserialize, Serialize};
 use crate::device::spvr_desktop_link::DesktopLinkRaw;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct SpvrDevice {
-    
     // device id
     #[serde(default)]
     pub device_id: String,
@@ -62,8 +61,7 @@ impl SpvrDevice {
             Ok(v) => {
                 if v.ips.is_empty() {
                     "".to_string()
-                }
-                else {
+                } else {
                     v.ips[0].ip.to_string()
                 }
             }

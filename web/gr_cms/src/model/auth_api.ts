@@ -51,7 +51,9 @@ export async function updateAuthorization(authStr: string) {
 
 export async function queryAuthorization() {
   const resp = await axiosHttp.get('/api/v1/auth/control/get/authorization', {
-    params: {},
+    params: {
+      appkey: localStorage.getItem('appkey'),
+    },
   })
   if (resp.status !== 200) {
     console.error('query users failed', resp)

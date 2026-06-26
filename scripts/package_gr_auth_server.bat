@@ -128,6 +128,34 @@ echo       Certificate: %CERT_DIR%\cert.pem
 echo       Private key: %CERT_DIR%\key.pem
 
 :cert_done
+
+:: --- 1b. Generate Ed25519 license signing key pair if missing ---
+if exist "%CERT_DIR%\auth_license_private.key" (
+    if exist "%CERT_DIR%\auth_license_public.key" (
+        echo [1b/4] License signing key pair already exists, skipping generation.
+        goto :license_keys_done
+    )
+)
+
+echo [1b/4] Generating Ed25519 license signing key pair...
+%OPENSSL_EXE% genpkey -algorithm ED25519 -outform DER -out "%CERT_DIR%\auth_license_private.der"
+if errorlevel 1 (
+    echo ERROR: Failed to generate license private key.
+    exit /b 1
+)
+%OPENSSL_EXE% pkey -in "%CERT_DIR%\auth_license_private.der" -inform DER -pubout -outform DER -out "%CERT_DIR%\auth_license_public.der"
+if errorlevel 1 (
+    echo ERROR: Failed to derive license public key.
+    exit /b 1
+)
+%OPENSSL_EXE% base64 -in "%CERT_DIR%\auth_license_private.der" -out "%CERT_DIR%\auth_license_private.key"
+%OPENSSL_EXE% base64 -in "%CERT_DIR%\auth_license_public.der" -out "%CERT_DIR%\auth_license_public.key"
+del "%CERT_DIR%\auth_license_private.der" >nul 2>nul
+del "%CERT_DIR%\auth_license_public.der" >nul 2>nul
+echo       Private key: %CERT_DIR%\auth_license_private.key
+echo       Public key : %CERT_DIR%\auth_license_public.key
+
+:license_keys_done
 echo.
 
 :: --- 2. Build auth frontend ---
@@ -194,6 +222,7 @@ echo   1. Start MongoDB (default: mongodb://localhost:27017/)
 echo   2. Edit %OUTPUT_DIR%\gr_auth_server_settings.toml
 echo      - bootstrap.jwt_secret   : set a random string (>=32 chars)
 echo      - bootstrap.admin_password: set initial admin password
+echo   3. Distribute %OUTPUT_DIR%\certs\auth_license_public.key to CMS servers.
 echo.
 echo Run:
 echo   %OUTPUT_DIR%\gr_auth_server.exe

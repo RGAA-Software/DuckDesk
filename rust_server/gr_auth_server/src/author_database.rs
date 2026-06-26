@@ -1,14 +1,14 @@
 use crate::author::Author;
+use crate::author_customer::Customer;
 use gr_auth_mgr::authorization::Authorization;
 use mongodb::{Client, Collection};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::author_customer::Customer;
 
 pub struct AuthorDatabase {
     c_author: Option<Arc<Mutex<Collection<Author>>>>,
     c_authorization: Option<Arc<Mutex<Collection<Authorization>>>>,
-    c_customer: Option<Arc<Mutex<Collection<Customer>>>>
+    c_customer: Option<Arc<Mutex<Collection<Customer>>>>,
 }
 
 impl AuthorDatabase {
@@ -16,7 +16,7 @@ impl AuthorDatabase {
         AuthorDatabase {
             c_author: None,
             c_authorization: None,
-            c_customer: None
+            c_customer: None,
         }
     }
 
@@ -32,7 +32,7 @@ impl AuthorDatabase {
             tracing::error!("error connecting to MongoDB: {}", e);
             return false;
         }
-        
+
         let client = client.unwrap();
         // Get a handle on the movies collection
         let database = client.database("db_gr_auth_server");
@@ -48,7 +48,7 @@ impl AuthorDatabase {
         // customer
         let c_customer: Collection<Customer> = database.collection("c_customer");
         self.c_customer = Some(Arc::new(Mutex::new(c_customer)));
-        
+
         true
     }
 
@@ -63,7 +63,6 @@ impl AuthorDatabase {
     pub fn customer(&self) -> Arc<Mutex<Collection<Customer>>> {
         self.c_customer.clone().unwrap()
     }
-    
 }
 
 #[cfg(test)]

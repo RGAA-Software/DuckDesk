@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use crate::relay::relay_room::RelayRoom;
+use axum::body::Bytes;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
+use std::sync::Arc;
 use std::time::Duration;
-use axum::body::Bytes;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, Mutex};
-use crate::relay::relay_room::RelayRoom;
 
 pub struct RelayPacket {
     // pub conn: Arc<Mutex<RelayConn>>,
@@ -72,15 +72,14 @@ impl RelayQueue {
         if self.exit.load(Relaxed) {
             return;
         }
-        
+
         let sender = self.pkt_sender.clone();
         loop {
             let cap = sender.capacity();
             if cap <= 5 {
                 //tracing::info!("Room:{} => cap: {}, sleep 50ms", self.room_id, cap);
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            }
-            else {
+            } else {
                 break;
             }
         }

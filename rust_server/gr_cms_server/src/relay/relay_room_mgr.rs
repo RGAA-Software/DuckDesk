@@ -1,11 +1,17 @@
-use crate::relay::relay_message::{KEY_CREATE_TIMESTAMP, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP, KEY_REMOTE_DEVICE_ID, KEY_ROOM_ID, KEY_STREAM_ID};
+use crate::relay::relay_message::{
+    KEY_CREATE_TIMESTAMP, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP,
+    KEY_REMOTE_DEVICE_ID, KEY_ROOM_ID, KEY_STREAM_ID,
+};
 use crate::relay::relay_proto_maker::make_error_message;
 use crate::relay::relay_queue::{RelayPacket, RelayQueue};
 use crate::relay::relay_room::{RelayRoom, RelayRoomAdapter};
 use crate::{gRelayConnMgr, gRelayRedisConn, gRelayRoomMgr};
 use axum::body::Bytes;
 use prost::Message;
-use protocol::relay::{RelayCreateRoomRespMessage, RelayErrorCode, RelayMessage, RelayMessageType, RelayRemoteDeviceOfflineMessage, RelayRoomDestroyedMessage, RelayRoomPreparedMessage};
+use protocol::relay::{
+    RelayCreateRoomRespMessage, RelayErrorCode, RelayMessage, RelayMessageType,
+    RelayRemoteDeviceOfflineMessage, RelayRoomDestroyedMessage, RelayRoomPreparedMessage,
+};
 use redis::{AsyncCommands, Commands, RedisResult};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,10 +30,14 @@ impl RelayRoomManager {
         }
     }
 
-    pub async fn create_room(&self, device_id: String, remote_device_id: String, device_name: String, stream_id: String) -> Option<RelayRoom> {
-        let conn_device =
-            if let Some(device) = gRelayConnMgr
-                .get_conn(device_id.clone()).await {
+    pub async fn create_room(
+        &self,
+        device_id: String,
+        remote_device_id: String,
+        device_name: String,
+        stream_id: String,
+    ) -> Option<RelayRoom> {
+        let conn_device = if let Some(device) = gRelayConnMgr.get_conn(device_id.clone()).await {
             device
         } else {
             tracing::error!("Could not find device {}", device_id);
@@ -35,13 +45,12 @@ impl RelayRoomManager {
         };
 
         let conn_remote_device =
-            if let Some(remote_device) = gRelayConnMgr
-                .get_conn(remote_device_id.clone()).await {
-            remote_device
-        } else {
-            tracing::error!("Could not find remote device {}", remote_device_id);
-            return None;
-        };
+            if let Some(remote_device) = gRelayConnMgr.get_conn(remote_device_id.clone()).await {
+                remote_device
+            } else {
+                tracing::error!("Could not find remote device {}", remote_device_id);
+                return None;
+            };
 
         let room_id = format!("relay-room:{}-{}", device_id, remote_device_id);
         let mut devices = HashMap::new();
@@ -64,19 +73,27 @@ impl RelayRoomManager {
             (KEY_DEVICE_ID, device_id),
             (KEY_REMOTE_DEVICE_ID, remote_device_id),
             (KEY_ROOM_ID, room_id.clone()),
-            (KEY_CREATE_TIMESTAMP, relay_room.create_timestamp.to_string()),
-            (KEY_LAST_UPDATE_TIMESTAMP, relay_room.last_update_timestamp.to_string()),
+            (
+                KEY_CREATE_TIMESTAMP,
+                relay_room.create_timestamp.to_string(),
+            ),
+            (
+                KEY_LAST_UPDATE_TIMESTAMP,
+                relay_room.last_update_timestamp.to_string(),
+            ),
             (KEY_DEVICE_NAME, device_name),
             (KEY_STREAM_ID, stream_id),
         ];
 
         let result = gRelayRedisConn
-            .lock().await
+            .lock()
+            .await
             .clone_conn()
-            .hset_multiple::<String, &str, String, ()>(room_id.clone(), &relay_room_info).await;
+            .hset_multiple::<String, &str, String, ()>(room_id.clone(), &relay_room_info)
+            .await;
         if let Err(err) = result {
             tracing::error!("insert to redis failed {:?}, room id: {}", err, room_id);
-            return None
+            return None;
         }
 
         // gr_relay_server queue
@@ -89,12 +106,14 @@ impl RelayRoomManager {
 
     pub async fn find_room(&self, room_id: String, must_valid: bool) -> Option<RelayRoom> {
         let result = gRelayRedisConn
-            .lock().await
+            .lock()
+            .await
             .clone_conn()
-            .hgetall::<String, Vec<(String, String)>>(room_id.clone()).await;
+            .hgetall::<String, Vec<(String, String)>>(room_id.clone())
+            .await;
         if let Err(err) = result {
             tracing::error!("Could not find room: {} in redis, err: {}", room_id, err);
-            return None
+            return None;
         }
 
         let mut relay_room = RelayRoom::default();
@@ -102,46 +121,44 @@ impl RelayRoomManager {
         for (key, val) in room_info.iter() {
             if key == KEY_DEVICE_ID {
                 relay_room.device_id = val.clone();
-            }
-            else if key == KEY_REMOTE_DEVICE_ID {
+            } else if key == KEY_REMOTE_DEVICE_ID {
                 relay_room.remote_device_id = val.clone();
-            }
-            else if key == KEY_ROOM_ID {
+            } else if key == KEY_ROOM_ID {
                 relay_room.room_id = val.clone();
-            }
-            else if key == KEY_CREATE_TIMESTAMP {
+            } else if key == KEY_CREATE_TIMESTAMP {
                 relay_room.create_timestamp = val.parse::<i64>().unwrap_or(0);
-            }
-            else if key == KEY_LAST_UPDATE_TIMESTAMP {
+            } else if key == KEY_LAST_UPDATE_TIMESTAMP {
                 relay_room.last_update_timestamp = val.parse::<i64>().unwrap_or(0);
-            }
-            else if key == KEY_DEVICE_NAME {
+            } else if key == KEY_DEVICE_NAME {
                 relay_room.device_name = val.clone();
-            }
-            else if key == KEY_STREAM_ID {
+            } else if key == KEY_STREAM_ID {
                 relay_room.stream_id = val.clone();
             }
         }
 
-        if let Some(device) =  gRelayConnMgr
-            .get_conn(relay_room.device_id.clone()).await {
-            relay_room.relay_conns.insert(relay_room.device_id.clone(), device.clone());
+        if let Some(device) = gRelayConnMgr.get_conn(relay_room.device_id.clone()).await {
+            relay_room
+                .relay_conns
+                .insert(relay_room.device_id.clone(), device.clone());
             //tracing::info!("found device {:?}", relay_room.device_id);
         }
         if let Some(remote_device) = gRelayConnMgr
-            .get_conn(relay_room.remote_device_id.clone()).await {
-            relay_room.relay_conns.insert(relay_room.remote_device_id.clone(), remote_device.clone());
+            .get_conn(relay_room.remote_device_id.clone())
+            .await
+        {
+            relay_room
+                .relay_conns
+                .insert(relay_room.remote_device_id.clone(), remote_device.clone());
             //tracing::info!("found remote device {:?}", relay_room.remote_device_id);
         }
-        
+
         if must_valid {
             if relay_room.is_valid() {
                 Some(relay_room)
             } else {
                 None
             }
-        }
-        else {
+        } else {
             Some(relay_room)
         }
     }
@@ -150,9 +167,7 @@ impl RelayRoomManager {
         let begin = 0;
         let pattern = "relay-room:client_*";
         let cursor = begin as u64;
-        let mut redis_conn = gRelayRedisConn
-            .lock().await
-            .clone_conn();
+        let mut redis_conn = gRelayRedisConn.lock().await.clone_conn();
         let r: RedisResult<(u64, Vec<String>)> = redis::cmd("SCAN")
             .cursor_arg(cursor)
             .arg("MATCH")
@@ -163,7 +178,7 @@ impl RelayRoomManager {
             .await;
         if let Err(err) = r {
             tracing::error!("Could not find rooms in redis, err: {}", err);
-            return Vec::new()
+            return Vec::new();
         }
         let room_ids = r.unwrap();
         tracing::info!("room ids: {:#?}", room_ids);
@@ -195,14 +210,20 @@ impl RelayRoomManager {
 
     // remote offline/exit
     // > remote device | *** this device offline -->
-    // > device        |  notify this device    <--| 
+    // > device        |  notify this device    <--|
     pub async fn notify_remote_device_offline(&self, remote_device_id: String) {
         let r = gRelayRedisConn
-            .lock().await
+            .lock()
+            .await
             .clone_conn()
-            .keys::<String, Vec<String>>(format!("relay-room:*{}", remote_device_id)).await;
+            .keys::<String, Vec<String>>(format!("relay-room:*{}", remote_device_id))
+            .await;
         if let Err(err) = r {
-            tracing::error!("Could not find rooms contain {}, err: {}", remote_device_id, err);
+            tracing::error!(
+                "Could not find rooms contain {}, err: {}",
+                remote_device_id,
+                err
+            );
             return;
         }
 
@@ -217,11 +238,17 @@ impl RelayRoomManager {
 
             // get room info from redis
             let room_info = gRelayRedisConn
-                .lock().await
+                .lock()
+                .await
                 .clone_conn()
-                .hgetall::<&String, Vec<(String, String)>>(room_id).await;
+                .hgetall::<&String, Vec<(String, String)>>(room_id)
+                .await;
             if let Err(err) = room_info {
-                tracing::error!("Could not find room info: {} in redis, err: {}", room_id, err);
+                tracing::error!(
+                    "Could not find room info: {} in redis, err: {}",
+                    room_id,
+                    err
+                );
                 continue;
             }
 
@@ -253,9 +280,12 @@ impl RelayRoomManager {
                 });
 
                 let r = rl_msg.encode_to_vec();
-                if let Some(device) = gRelayConnMgr
-                    .get_conn(target_device_id.clone()).await {
-                    tracing::info!("sent to device : {}, offline device is : {}", target_device_id, remote_device_id);
+                if let Some(device) = gRelayConnMgr.get_conn(target_device_id.clone()).await {
+                    tracing::info!(
+                        "sent to device : {}, offline device is : {}",
+                        target_device_id,
+                        remote_device_id
+                    );
                     tokio::spawn(async move {
                         _ = device.lock().await.send_bin_message(Bytes::from(r)).await;
                     });
@@ -265,26 +295,38 @@ impl RelayRoomManager {
     }
 
     // creator offline/exit
-    // > remote device | 
-    // > device        | *** this device offline, destroy the rooms[media/file transfer] 
+    // > remote device |
+    // > device        | *** this device offline, destroy the rooms[media/file transfer]
     pub async fn destroy_room_i_created(&self, device_id: String) {
         let r = gRelayRedisConn
-            .lock().await
+            .lock()
+            .await
             .clone_conn()
-            .keys::<String, Vec<String>>(format!("relay-room:{}*", device_id)).await;
+            .keys::<String, Vec<String>>(format!("relay-room:{}*", device_id))
+            .await;
         if let Err(err) = r {
-            tracing::error!("Could not find rooms created by: {}, err: {}", device_id, err);
+            tracing::error!(
+                "Could not find rooms created by: {}, err: {}",
+                device_id,
+                err
+            );
             return;
         }
 
         let room_ids = r.unwrap();
         for room_id in room_ids.iter() {
             let room_info = gRelayRedisConn
-                .lock().await
+                .lock()
+                .await
                 .clone_conn()
-                .hgetall::<&String, Vec<(String, String)>>(room_id).await;
+                .hgetall::<&String, Vec<(String, String)>>(room_id)
+                .await;
             if let Err(err) = room_info {
-                tracing::error!("Could not find room info: {} in redis, err: {}", room_id, err);
+                tracing::error!(
+                    "Could not find room info: {} in redis, err: {}",
+                    room_id,
+                    err
+                );
                 continue;
             }
 
@@ -306,19 +348,24 @@ impl RelayRoomManager {
                     remote_device_id: target_remote_device_id.clone(),
                 });
                 let r = rl_msg.encode_to_vec();
-                if let Some(remote_device) = gRelayConnMgr
-                    .get_conn(target_remote_device_id).await {
+                if let Some(remote_device) = gRelayConnMgr.get_conn(target_remote_device_id).await {
                     tokio::spawn(async move {
-                        _ = remote_device.lock().await.send_bin_message(Bytes::from(r)).await;
+                        _ = remote_device
+                            .lock()
+                            .await
+                            .send_bin_message(Bytes::from(r))
+                            .await;
                     });
                 }
             }
 
             // delete info in redis
             _ = gRelayRedisConn
-                .lock().await
+                .lock()
+                .await
                 .clone_conn()
-                .del::<&String, ()>(room_id).await;
+                .del::<&String, ()>(room_id)
+                .await;
 
             // exit gr_relay_server queue
             let relay_queue = self.relay_queue.clone();
@@ -332,32 +379,38 @@ impl RelayRoomManager {
     }
 
     pub async fn on_heartbeat_for_my_room(&self, device_id: String) {
-        let mut conn = gRelayRedisConn
-            .lock().await
-            .clone_conn();
+        let mut conn = gRelayRedisConn.lock().await.clone_conn();
         let r = conn
-            .keys::<String, Vec<String>>(format!("relay-room:{}*", device_id)).await;
+            .keys::<String, Vec<String>>(format!("relay-room:{}*", device_id))
+            .await;
         let room_ids = r.unwrap();
         for room_id in room_ids.iter() {
             _ = conn
-                .hset::<&String, &str, String, ()>(room_id, KEY_LAST_UPDATE_TIMESTAMP, gr_base::get_current_timestamp().to_string()).await;
+                .hset::<&String, &str, String, ()>(
+                    room_id,
+                    KEY_LAST_UPDATE_TIMESTAMP,
+                    gr_base::get_current_timestamp().to_string(),
+                )
+                .await;
         }
     }
 
     pub async fn clear_info_in_rooms_i_was_invited(&self, device_id: String) {
-        let mut conn = gRelayRedisConn
-            .lock().await
-            .clone_conn();
+        let mut conn = gRelayRedisConn.lock().await.clone_conn();
         let room_id_pattern = format!("relay-room:*{}", device_id);
         tracing::warn!("will find rooms like: {}", room_id_pattern);
 
-        let r = conn
-            .keys::<String, Vec<String>>(room_id_pattern).await;
+        let r = conn.keys::<String, Vec<String>>(room_id_pattern).await;
         let room_ids = r.unwrap();
         for room_id in room_ids.iter() {
             _ = conn
-                .hset::<&String, &str, String, ()>(room_id, KEY_REMOTE_DEVICE_ID, "".to_string()).await;
-            tracing::warn!("I({}) was offline, clear info in room: {}", device_id, room_id);
+                .hset::<&String, &str, String, ()>(room_id, KEY_REMOTE_DEVICE_ID, "".to_string())
+                .await;
+            tracing::warn!(
+                "I({}) was offline, clear info in room: {}",
+                device_id,
+                room_id
+            );
         }
     }
 
@@ -371,11 +424,16 @@ impl RelayRoomManager {
         for room_id in sub.room_ids.iter() {
             let room = self.find_room(room_id.clone(), true).await;
             if let Some(room) = room {
-                if self.relay_msg_indices
-                    .lock().await
-                    .contains_key(from_device_id.as_str()) {
-                    let last_relay_msg_index = self.relay_msg_indices
-                        .lock().await
+                if self
+                    .relay_msg_indices
+                    .lock()
+                    .await
+                    .contains_key(from_device_id.as_str())
+                {
+                    let last_relay_msg_index = self
+                        .relay_msg_indices
+                        .lock()
+                        .await
                         .get(from_device_id.as_str())
                         .cloned();
                     if let Some(last_relay_msg_index) = last_relay_msg_index {
@@ -387,16 +445,16 @@ impl RelayRoomManager {
                         }
 
                         self.relay_msg_indices
-                            .lock().await
+                            .lock()
+                            .await
                             .insert(from_device_id.clone(), relay_msg_index);
-                    }
-                    else {
+                    } else {
                         //
                     }
-                }
-                else {
+                } else {
                     self.relay_msg_indices
-                        .lock().await
+                        .lock()
+                        .await
                         .insert(from_device_id.clone(), relay_msg_index);
                 }
 
@@ -405,12 +463,14 @@ impl RelayRoomManager {
 
                 let id = room_id.clone();
                 if let Some(queue) = self.relay_queue.lock().await.get(&id) {
-                    queue.send(RelayPacket {
-                        except_id: from_device_id,
-                        room,
-                        payload: om,
-                        relay_msg_index,
-                    }).await;
+                    queue
+                        .send(RelayPacket {
+                            except_id: from_device_id,
+                            room,
+                            payload: om,
+                            relay_msg_index,
+                        })
+                        .await;
                 }
             }
         }
@@ -418,8 +478,14 @@ impl RelayRoomManager {
 
     pub async fn on_create_room(&self, m: RelayMessage, _om: Bytes) {
         let sub = m.create_room.unwrap();
-        let room = self.create_room(sub.device_id.clone(), sub.remote_device_id.clone(),
-            sub.device_name.clone(), sub.stream_id.clone()).await;
+        let room = self
+            .create_room(
+                sub.device_id.clone(),
+                sub.remote_device_id.clone(),
+                sub.device_name.clone(),
+                sub.stream_id.clone(),
+            )
+            .await;
         let resp_msg;
         if let Some(room) = room {
             tracing::info!("created room: {}", room.room_id);
@@ -432,14 +498,16 @@ impl RelayRoomManager {
             });
 
             resp_msg = rl_msg.encode_to_vec();
-        }
-        else {
+        } else {
             resp_msg = make_error_message(RelayErrorCode::KRelayCodeCreateRoomFailed);
         }
 
-        if let Some(device) = gRelayConnMgr
-            .get_conn(sub.device_id.clone()).await {
-            _ = device.lock().await.send_bin_message(Bytes::from(resp_msg)).await;
+        if let Some(device) = gRelayConnMgr.get_conn(sub.device_id.clone()).await {
+            _ = device
+                .lock()
+                .await
+                .send_bin_message(Bytes::from(resp_msg))
+                .await;
         }
     }
 
@@ -449,16 +517,13 @@ impl RelayRoomManager {
         let remote_device_id = sub.remote_device_id;
         let _device_name = sub.device_name;
         let _stream_id = sub.stream_id;
-        let remote_conn = gRelayConnMgr
-            .get_conn(remote_device_id.clone()).await;
+        let remote_conn = gRelayConnMgr.get_conn(remote_device_id.clone()).await;
 
         if let Some(remote_conn) = remote_conn {
             remote_conn.lock().await.send_bin_message(om).await;
             tracing::info!("request control message to: {}", remote_device_id);
-        }
-        else {
-            if let Some(conn) = gRelayConnMgr
-                .get_conn(from_device_id).await {
+        } else {
+            if let Some(conn) = gRelayConnMgr.get_conn(from_device_id).await {
                 let r = make_error_message(RelayErrorCode::KRelayCodeRemoteClientNotFound);
                 _ = conn.lock().await.send_bin_message(Bytes::from(r)).await;
             }
@@ -469,8 +534,7 @@ impl RelayRoomManager {
         let sub = m.request_control_resp.unwrap();
         let creator_device_id = sub.device_id.clone();
         //let remote_device_id = sub.remote_device_id.clone();
-        let req_device = gRelayConnMgr
-            .get_conn(creator_device_id.clone()).await;
+        let req_device = gRelayConnMgr.get_conn(creator_device_id.clone()).await;
         if let None = req_device {
             tracing::error!("can't find device: {}", creator_device_id);
             return;
@@ -488,8 +552,7 @@ impl RelayRoomManager {
             }
             let room = room.unwrap();
 
-            let resp_device = gRelayConnMgr
-                .get_conn(sub.remote_device_id.clone()).await;
+            let resp_device = gRelayConnMgr.get_conn(sub.remote_device_id.clone()).await;
             if let None = resp_device {
                 tracing::error!("can't find remote device: {}", sub.remote_device_id);
                 return;
@@ -511,12 +574,20 @@ impl RelayRoomManager {
 
             // 1. to requester
             tokio::spawn(async move {
-                req_device.lock().await.send_bin_message(Bytes::from(r)).await;
+                req_device
+                    .lock()
+                    .await
+                    .send_bin_message(Bytes::from(r))
+                    .await;
             });
 
             // 2. to remote
             tokio::spawn(async move {
-                resp_device.lock().await.send_bin_message(Bytes::from(rr)).await;
+                resp_device
+                    .lock()
+                    .await
+                    .send_bin_message(Bytes::from(rr))
+                    .await;
             });
         }
     }
@@ -528,22 +599,18 @@ impl RelayRoomManager {
             let sub = m.request_resume.unwrap();
             remote_device_id = sub.remote_device_id;
             tracing::info!("request resume stream message to: {}", remote_device_id);
-        }
-        else if m.r#type == RelayMessageType::KRelayRequestPausedStream {
+        } else if m.r#type == RelayMessageType::KRelayRequestPausedStream {
             let sub = m.request_pause.unwrap();
             remote_device_id = sub.remote_device_id;
             tracing::info!("request pause stream message to: {}", remote_device_id);
         }
-        
-        let remote_conn = gRelayConnMgr
-            .get_conn(remote_device_id.clone()).await;
+
+        let remote_conn = gRelayConnMgr.get_conn(remote_device_id.clone()).await;
 
         if let Some(remote_conn) = remote_conn {
             remote_conn.lock().await.send_bin_message(om).await;
-        }
-        else {
-            if let Some(conn) = gRelayConnMgr
-                .get_conn(from_device_id).await {
+        } else {
+            if let Some(conn) = gRelayConnMgr.get_conn(from_device_id).await {
                 let r = make_error_message(RelayErrorCode::KRelayCodeRemoteClientNotFound);
                 _ = conn.lock().await.send_bin_message(Bytes::from(r)).await;
             }

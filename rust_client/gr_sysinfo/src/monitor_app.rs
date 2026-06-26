@@ -105,7 +105,7 @@ impl SysMonitorApp {
         });
         let port_input = cx.new(|cx| {
             InputState::new(window, cx)
-                .default_value(&connection_config.port.to_string())
+                .default_value(connection_config.port.to_string())
                 .placeholder("port")
         });
 
@@ -326,6 +326,7 @@ pub fn run(start_hidden: bool) {
             })
             .expect("failed to open GrSysMonitor window");
 
+            #[allow(clippy::redundant_locals)]
             cx.spawn({
                 let window_handle = window_handle;
                 async move |cx| loop {
@@ -342,7 +343,7 @@ pub fn run(start_hidden: bool) {
                                 let _ = window_handle.update(cx, |_, window, _| {
                                     window.remove_window();
                                 });
-                                let _ = cx.update(|cx| cx.quit());
+                                cx.update(|cx| cx.quit());
                                 return;
                             }
                         }

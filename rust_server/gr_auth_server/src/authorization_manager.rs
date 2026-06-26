@@ -1,12 +1,13 @@
-use std::collections::HashMap;
-use futures_util::{StreamExt};
-use mongodb::bson::{doc, to_document, Bson, DateTime, Document, Regex};
-use mongodb::bson::oid::ObjectId;
-use mongodb::Cursor;
-use thiserror::Error;
 use crate::author_appkey_generator::gen_appkey_secret;
+use crate::author_license_keys::sign_authorization_model;
+use crate::{gAuthorDatabase, gAuthorSettings, gLicenseSigner};
+use futures_util::StreamExt;
 use gr_auth_mgr::authorization::{Authorization, AuthorizationVo};
-use crate::{gAuthorDatabase, gAuthorSettings};
+use mongodb::Cursor;
+use mongodb::bson::oid::ObjectId;
+use mongodb::bson::{Bson, DateTime, Document, Regex, doc, to_document};
+use std::collections::HashMap;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AuthorizationError {
@@ -20,9 +21,7 @@ pub enum AuthorizationError {
     TimeConvertError,
 }
 
-pub struct AuthorizationManager {
-
-}
+pub struct AuthorizationManager {}
 
 impl AuthorizationManager {
     pub fn new() -> AuthorizationManager {
@@ -33,8 +32,14 @@ impl AuthorizationManager {
         true
     }
 
-    pub async fn gen_new_authorization(&self, name: String, machine_code: String, days: i32, max_streams: i32, role: i32)
-        -> Result<Authorization, AuthorizationError> {
+    pub async fn gen_new_authorization(
+        &self,
+        name: String,
+        machine_code: String,
+        days: i32,
+        max_streams: i32,
+        role: i32,
+    ) -> Result<Authorization, AuthorizationError> {
         let auth = self.query_authorization_by_name(name.clone()).await;
         if auth.is_some() {
             return Err(AuthorizationError::AlreadyExist);
@@ -45,10 +50,7 @@ impl AuthorizationManager {
         let now_ms = now.timestamp_millis();
         let future_ms = now_ms + (days as i64) * 24 * 3600 * 1000;
         //let future_date = DateTime::from_millis(future_ms);
-        let verify_server = gAuthorSettings
-            .lock().await
-            .verify_server
-            .clone();
+        let verify_server = gAuthorSettings.lock().await.verify_server.clone();
         let auth = Authorization {
             auth_id,
             auth_name: name,
@@ -71,68 +73,59 @@ impl AuthorizationManager {
 
         if self.insert_authorization(auth.clone()).await {
             Ok(auth)
-        }
-        else {
+        } else {
             Err(AuthorizationError::DatabaseError)
         }
     }
 
     pub async fn insert_authorization(&self, auth: Authorization) -> bool {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
-        let r = c_authorization
-            .lock().await
-            .insert_one(auth).await;
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
+        let r = c_authorization.lock().await.insert_one(auth).await;
         if let Err(e) = r {
-            println!("error inserting device: {}", e);
+            tracing::error!("error inserting authorization: {}", e);
             return false;
         }
         true
     }
 
     pub async fn query_authorization_by_id(&self, auth_id: String) -> Option<Authorization> {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         let filter = doc! {
             "auth_id": auth_id,
         };
-        let r = c_authorization
-            .lock().await
-            .find_one(filter).await;
+        let r = c_authorization.lock().await.find_one(filter).await;
         r.unwrap_or(None)
     }
 
     pub async fn query_authorization_by_name(&self, name: String) -> Option<Authorization> {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         let filter = doc! {
             "auth_name": name,
         };
-        let r = c_authorization
-            .lock().await
-            .find_one(filter).await;
+        let r = c_authorization.lock().await.find_one(filter).await;
         r.unwrap_or(None)
     }
 
-    pub async fn query_authorization_by_appkey_secret(&self, appkey: String, app_secret: String) -> Option<Authorization> {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+    pub async fn query_authorization_by_appkey_secret(
+        &self,
+        appkey: String,
+        app_secret: String,
+    ) -> Option<Authorization> {
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         let filter = doc! {
             "appkey": appkey,
             "app_secret": app_secret,
         };
-        tracing::info!("filter: {}", filter);
-        let r = c_authorization
-            .lock().await
-            .find_one(filter).await;
+        let r = c_authorization.lock().await.find_one(filter).await;
         r.unwrap_or(None)
     }
 
-    pub async fn query_authorizations_like_name(&self, pattern: String, page: i32, page_size: i32) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
+    pub async fn query_authorizations_like_name(
+        &self,
+        pattern: String,
+        page: i32,
+        page_size: i32,
+    ) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
         let regex = Regex {
             pattern,
             options: "i".to_string(), // i = ignore case
@@ -145,20 +138,28 @@ impl AuthorizationManager {
         self.query_authorizations(filter, page, page_size).await
     }
 
-    pub async fn query_authorizations_no_filter(&self, page: i32, page_size: i32) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
-        self.query_authorizations(doc!{}, page, page_size).await
+    pub async fn query_authorizations_no_filter(
+        &self,
+        page: i32,
+        page_size: i32,
+    ) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
+        self.query_authorizations(doc! {}, page, page_size).await
     }
 
-    pub async fn query_authorizations(&self, filter: Document, page: i32, page_size: i32) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
+    pub async fn query_authorizations(
+        &self,
+        filter: Document,
+        page: i32,
+        page_size: i32,
+    ) -> Result<Vec<AuthorizationVo>, AuthorizationError> {
         let total = self.query_authorizations_count().await?;
 
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
-        let skip = (page-1) * page_size;
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
+        let skip = (page - 1) * page_size;
         let limit = page_size as i64;
         let cursor = c_authorization
-            .lock().await
+            .lock()
+            .await
             .find(filter)
             .skip(skip as u64)
             .limit(limit)
@@ -179,7 +180,11 @@ impl AuthorizationManager {
                 break;
             } else {
                 let mut auth = auth.unwrap();
-                auth.deploy_str = auth.as_deploy_str().unwrap();
+                if let Some(signer) = gLicenseSigner.lock().await.as_ref() {
+                    if let Ok(signed) = sign_authorization_model(signer, &auth) {
+                        auth.deploy_str = signed.to_deploy_string().unwrap_or_default();
+                    }
+                }
                 authorizations.push(auth.as_vo(total));
             }
         }
@@ -187,9 +192,7 @@ impl AuthorizationManager {
     }
 
     pub async fn update_authorization(&self, auth_id: String, auth: Authorization) -> bool {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
 
         let doc = to_document(&auth);
         if let Err(e) = doc {
@@ -198,8 +201,10 @@ impl AuthorizationManager {
         }
         let doc = doc.unwrap();
         let r = c_authorization
-            .lock().await
-            .update_one(doc! {"auth_id": auth_id},  doc! { "$set": doc },).await;
+            .lock()
+            .await
+            .update_one(doc! {"auth_id": auth_id}, doc! { "$set": doc })
+            .await;
         if let Err(e) = r {
             tracing::error!("error updating auth: {}", e);
             return false;
@@ -207,10 +212,12 @@ impl AuthorizationManager {
         true
     }
 
-    pub async fn update_authorization_str_map(&self, auth_id: String, update_info: HashMap<String, String>) -> bool {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+    pub async fn update_authorization_str_map(
+        &self,
+        auth_id: String,
+        update_info: HashMap<String, String>,
+    ) -> bool {
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         let filter_doc = doc! {
             "auth_id": auth_id,
         };
@@ -222,21 +229,23 @@ impl AuthorizationManager {
         sub_update_doc.insert("last_modify_timestamp", gr_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
         let r = c_authorization
-            .lock().await
-            .update_one(filter_doc, update_doc).await;
+            .lock()
+            .await
+            .update_one(filter_doc, update_doc)
+            .await;
         if let Err(e) = r {
-            println!("error updating device: {}", e);
+            tracing::error!("error updating authorization str map: {}", e);
             false
-        }
-        else {
+        } else {
             true
         }
     }
 
-    pub async fn update_authorization_field<T>(&self, auth_id: String, key: String, val: T) -> bool where T: Into<Bson> {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+    pub async fn update_authorization_field<T>(&self, auth_id: String, key: String, val: T) -> bool
+    where
+        T: Into<Bson>,
+    {
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         let filter_doc = doc! {
             "auth_id": auth_id,
         };
@@ -248,25 +257,23 @@ impl AuthorizationManager {
         sub_update_doc.insert("last_modify_timestamp", gr_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
         let r = c_authorization
-            .lock().await
-            .update_one(filter_doc, update_doc).await;
+            .lock()
+            .await
+            .update_one(filter_doc, update_doc)
+            .await;
         if let Err(e) = r {
-            println!("error updating device: {}", e);
+            tracing::error!("error updating authorization field: {}", e);
             false
-        }
-        else {
+        } else {
             true
         }
     }
 
     pub async fn query_authorizations_count(&self) -> Result<u64, AuthorizationError> {
-        let c_authorization = gAuthorDatabase
-            .lock().await
-            .authorization();
+        let c_authorization = gAuthorDatabase.lock().await.authorization();
         if let Ok(r) = c_authorization.lock().await.count_documents(doc! {}).await {
             Ok(r)
-        }
-        else {
+        } else {
             Err(AuthorizationError::DatabaseError)
         }
     }

@@ -1,11 +1,10 @@
-use serde::{Deserialize, Serialize};
+use crate::device::spvr_device::SpvrDevice;
 use gr_base::format_duration_compact;
 use gr_base::sys_info::SysInfo;
-use crate::device::spvr_device::SpvrDevice;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct SpvrDeviceVo {
-
     // device id
     #[serde(default)]
     pub device_id: String,

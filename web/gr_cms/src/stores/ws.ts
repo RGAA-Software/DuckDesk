@@ -15,7 +15,7 @@ export const useWsStore = defineStore('ws', {
       if (ws) return
 
       ws = new WebSocket(url)
-      let heartbeatTimer: number = 0
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null
       let heartbeatIndex: number = 0
 
       const startHeartbeat = () => {
@@ -52,7 +52,10 @@ export const useWsStore = defineStore('ws', {
         this.connected = false
         ws = null
         console.log('WebSocket closed')
-        clearInterval(heartbeatTimer)
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer)
+          heartbeatTimer = null
+        }
       }
 
       ws.onerror = (e) => {

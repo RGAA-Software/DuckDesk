@@ -1,71 +1,73 @@
 #![windows_subsystem = "windows"]
 
-mod spvr_context;
-mod spvr_server;
-mod spvr_grpc_relay_client;
-mod spvr_settings;
-mod spvr_grpc_relay_client_mgr;
-mod spvr_grpc_ws_client_trait;
-mod spvr_handler;
-mod spvr_defs;
 mod device;
 mod filter;
 mod spvr_api_error;
+mod spvr_context;
+mod spvr_defs;
+mod spvr_grpc_relay_client;
+mod spvr_grpc_relay_client_mgr;
+mod spvr_grpc_ws_client_trait;
+mod spvr_handler;
+mod spvr_server;
+mod spvr_settings;
 
 mod auth;
-mod spvr_http_util;
-mod spvr_database;
-mod event;
-mod spvr_router;
 mod config;
-mod net_client;
-mod net_panel;
-mod user;
-mod stream;
-mod record;
-mod net_cm;
+mod event;
 mod interact;
-mod system;
-mod user_device;
+mod net_client;
+mod net_cm;
+mod net_panel;
+mod record;
 mod relay;
+mod spvr_database;
+mod spvr_http_util;
+mod spvr_router;
+mod stream;
+mod system;
 mod update;
+mod user;
+mod user_device;
 
-use std::fs::File;
-use std::io::Read;
-use crate::spvr_grpc_relay_client_mgr::SpvrGrpcRelayClientManager;
-use crate::spvr_server::SpvrServer;
-use crate::spvr_settings::SpvrSettings;
-use gr_base::{kv_storage::KvStorage, log_util, redis_util};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use clap::Parser;
-use egui::IconData;
-use sys_locale::get_locale;
-use gr_base::hwid_util::HardwareIdUtil;
+use crate::auth::spvr_auth_license_keys::init_license_verifier;
 use crate::auth::spvr_auth_manager::AuthManager;
 use crate::device::spvr_device_manager::SpvrDeviceManager;
 use crate::device::spvr_id_generator::PrIdGenerator;
+use crate::event::spvr_event_manager::SpvrEventManager;
+use crate::interact::spvr_lang::SpvrLanguage;
 use crate::interact::spvr_ui;
+use crate::interact::spvr_ui::SpvrUIState;
 use crate::net_client::spvr_client_conn_mgr::SpvrClientConnManager;
 use crate::net_cm::spvr_cm_mgr::SpvrCMManager;
 use crate::net_panel::spvr_panel_conn_mgr::SpvrPanelConnManager;
-use crate::spvr_context::SpvrContext;
-use crate::spvr_database::SpvrDatabase;
-use crate::stream::spvr_stream_manager::SpvrStreamManager;
-use crate::user::spvr_user_manager::SpvrUserManager;
-use crate::event::spvr_event_manager::SpvrEventManager;
-use crate::interact::spvr_lang::SpvrLanguage;
-use crate::interact::spvr_ui::SpvrUIState;
+use crate::record::spvr_file_transfer_manager::SpvrFileTransferManager;
+use crate::record::spvr_visit_manager::SpvrVisitManager;
 use crate::relay::relay_conn_mgr::RelayConnManager;
 use crate::relay::relay_redis_conn::RelayRedisConn;
 use crate::relay::relay_room_mgr::RelayRoomManager;
-use crate::system::spvr_system_manager::SpvrSystemManager;
-use crate::user_device::spvr_user_device_manager::SpvrUserDeviceManager;
-use redis::aio::{ConnectionManager};
 use crate::relay::relay_server::RelayServer;
+use crate::spvr_context::SpvrContext;
+use crate::spvr_database::SpvrDatabase;
+use crate::spvr_grpc_relay_client_mgr::SpvrGrpcRelayClientManager;
+use crate::spvr_server::SpvrServer;
+use crate::spvr_settings::SpvrSettings;
+use crate::stream::spvr_stream_manager::SpvrStreamManager;
+use crate::system::spvr_system_manager::SpvrSystemManager;
 use crate::update::update_info_manager::UpdateInfoManager;
-use crate::record::spvr_file_transfer_manager::SpvrFileTransferManager;
-use crate::record::spvr_visit_manager::SpvrVisitManager;
+use crate::user::spvr_user_manager::SpvrUserManager;
+use crate::user_device::spvr_user_device_manager::SpvrUserDeviceManager;
+use clap::Parser;
+use egui::IconData;
+use gr_auth_mgr::auth_license::LicenseVerifier;
+use gr_base::hwid_util::HardwareIdUtil;
+use gr_base::{kv_storage::KvStorage, log_util, redis_util};
+use redis::aio::ConnectionManager;
+use std::fs::File;
+use std::io::Read;
+use std::sync::Arc;
+use sys_locale::get_locale;
+use tokio::sync::Mutex;
 
 lazy_static::lazy_static! {
     // Spvr
@@ -95,11 +97,14 @@ lazy_static::lazy_static! {
     // Auth Manager
     pub static ref gAuthManager: Arc<Mutex<AuthManager>> = Arc::new(Mutex::new(AuthManager::new()));
 
+    // License verifier (Ed25519 public key)
+    pub static ref gLicenseVerifier: Arc<Mutex<Option<Arc<LicenseVerifier>>>> = Arc::new(Mutex::new(None));
+
     // Relay
     pub static ref gRelayConnMgr: Arc<RelayConnManager> = Arc::new(RelayConnManager::new());
     pub static ref gRelayRoomMgr: Arc<RelayRoomManager> = Arc::new(RelayRoomManager::new());
     pub static ref gRelayRedisConn: Arc<Mutex<RelayRedisConn<ConnectionManager>>> = Arc::new(Mutex::new(RelayRedisConn::new()));
-    
+
     // Update
     pub static ref gUpdateInfoManager: Arc<UpdateInfoManager> = UpdateInfoManager::new();
 
@@ -123,42 +128,35 @@ async fn main() {
 
     if args.running_mode == String::from("server") {
         run_as_server(machine_code).await;
-    }
-    else if args.running_mode == "system_service" {
+    } else if args.running_mode == "system_service" {
         run_as_system_service(machine_code);
-    }
-    else {
+    } else {
         run_as_panel(machine_code).await;
     }
-
 }
 
-fn run_as_system_service(machine_code: String) {
-
-}
+fn run_as_system_service(machine_code: String) {}
 
 async fn run_as_panel(machine_code: String) {
     // load settings
     SpvrSettings::load_settings().await;
 
     // log
-    let _guard = log_util::init_log("logs/gr_cms_server/".to_string(), "log_spvr_panel".to_string());
+    let _guard = log_util::init_log(
+        "logs/gr_cms_server/".to_string(),
+        "log_spvr_panel".to_string(),
+    );
 
     let locale = match get_locale() {
-        Some(locale) => {
-            locale
-        }
-        None => {
-            "en-US".to_string()
-        },
+        Some(locale) => locale,
+        None => "en-US".to_string(),
     };
     tracing::info!("Current system locale: {}", locale);
 
     let mut language: SpvrLanguage;
     if locale.starts_with("en-") {
         language = SpvrLanguage::new_english();
-    }
-    else {
+    } else {
         language = SpvrLanguage::new_chinese();
     }
 
@@ -166,17 +164,11 @@ async fn run_as_panel(machine_code: String) {
     // language = SpvrLanguage::new_chinese();
 
     // read the auth/auth.info
-    gAuthManager
-        .lock().await
-        .load().await;
-    let auth = gAuthManager
-        .lock().await
-        .get_auth().await;
+    gAuthManager.lock().await.load().await;
+    let auth = gAuthManager.lock().await.get_auth().await;
 
     let mut used_time: i64 = 0;
-    let file = File::options()
-        .read(true)
-        .open("au.dat");
+    let file = File::options().read(true).open("au.dat");
     if let Ok(mut file) = file {
         let mut buffer: String = String::default();
         if let Ok(size) = file.read_to_string(&mut buffer) {
@@ -193,7 +185,7 @@ async fn run_as_panel(machine_code: String) {
     let icon_data = include_bytes!("../assets/tc_icon.png");
     let img = image::load_from_memory_with_format(icon_data, image::ImageFormat::Png).unwrap();
     let rgba_data = img.into_rgba8();
-    let (w,h)=(rgba_data.width(),rgba_data.height());
+    let (w, h) = (rgba_data.width(), rgba_data.height());
     let raw_data: Vec<u8> = rgba_data.into_raw();
 
     let mut options = eframe::NativeOptions {
@@ -203,7 +195,7 @@ async fn run_as_panel(machine_code: String) {
     options.viewport.icon = Some(Arc::<IconData>::new(IconData {
         rgba: raw_data,
         width: w,
-        height: h
+        height: h,
     }));
 
     let state = SpvrUIState {
@@ -228,7 +220,12 @@ async fn run_as_panel(machine_code: String) {
             // This gives us image support:
             egui_extras::install_image_loaders(&cc.egui_ctx);
 
-            Ok(Box::new(spvr_ui::SpvrUI::new(cc, language, machine_code, state)))
+            Ok(Box::new(spvr_ui::SpvrUI::new(
+                cc,
+                language,
+                machine_code,
+                state,
+            )))
         }),
     );
     if let Err(e) = r {
@@ -250,7 +247,8 @@ async fn run_as_server(machine_code: String) {
 
     // update machine code
     gSpvrContext
-        .lock().await
+        .lock()
+        .await
         .update_machine_code(machine_code.clone());
     tracing::info!("machine code: {}", machine_code);
 
@@ -284,21 +282,28 @@ async fn run_as_server(machine_code: String) {
     }
 
     // Redis
-    let redis_url = gSpvrSettings
-        .lock().await
-        .redis_url.clone();
+    let redis_url = gSpvrSettings.lock().await.redis_url.clone();
     let redis_conn = redis_util::get_redis_conn_mgr(redis_url.clone()).await;
     if let Err(err) = redis_conn {
         tracing::error!("connect to redis failed: {}", err.to_string());
         return;
     }
     tracing::info!("connected to redis: {}", redis_url);
-    gRelayRedisConn
-        .lock().await
-        .set_conn(redis_conn.unwrap());
+    gRelayRedisConn.lock().await.set_conn(redis_conn.unwrap());
 
     // generator
     gIdGenerator.lock().await.init().await;
+
+    // License verifier
+    match init_license_verifier() {
+        Ok(verifier) => {
+            *gLicenseVerifier.lock().await = Some(Arc::new(verifier));
+        }
+        Err(e) => {
+            tracing::error!("license verifier initialization failed: {}", e);
+            return;
+        }
+    }
 
     // Auth Manager
     if !gAuthManager.lock().await.load().await {
@@ -308,9 +313,7 @@ async fn run_as_server(machine_code: String) {
     AuthManager::start_count_down().await;
 
     let port = gSpvrSettings.lock().await.udp_broadcast_port;
-    gSpvrContext
-        .lock().await
-        .broadcast_access_info(port).await;
+    gSpvrContext.lock().await.broadcast_access_info(port).await;
     tracing::info!("broadcast port at: {}", port);
 
     // gSpvrContext
