@@ -1,5 +1,4 @@
 import axios from 'axios'
-import router from "@/router";
 import {ElMessage} from "element-plus";
 
 const http = axios.create({
@@ -33,7 +32,7 @@ http.interceptors.response.use(
 		const status = error.response?.status
 		const code = error.response?.data?.code
 		if (status === 401 || LOGIN_EXPIRED_CODES.has(code)) {
-			await handleLoginExpired()
+			handleLoginExpired()
 		} else if (status === 403) {
 			ElMessage.error('没有权限执行该操作')
 		}
@@ -42,11 +41,11 @@ http.interceptors.response.use(
 )
 
 // 登录失效处理
-const handleLoginExpired = async () => {
+const handleLoginExpired = () => {
 	sessionStorage.removeItem('login_token')
 	ElMessage.error('登录已失效，请重新登录')
-	if (router.currentRoute.value.path !== '/') {
-		await router.push('/')
+	if (window.location.pathname !== '/') {
+		window.location.href = '/'
 	}
 }
 

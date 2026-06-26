@@ -7,11 +7,11 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     vueJsx(),
-    vueDevTools(),
+    mode === 'development' && vueDevTools(),
     tailwindcss(),
   ],
   resolve: {
@@ -29,4 +29,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

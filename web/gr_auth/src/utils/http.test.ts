@@ -1,22 +1,17 @@
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const routerPush = vi.fn()
-const routerState = vi.hoisted(() => ({
-  currentRoute: {
-    value: {
-      path: '/',
-    },
-  },
-}))
 const messageError = vi.fn()
+const locationHref = vi.fn()
+const locationPathname = vi.fn()
 
-vi.mock('@/router', () => ({
-  default: {
-    currentRoute: routerState.currentRoute,
-    push: routerPush,
+Object.defineProperty(window, 'location', {
+  value: {
+    get pathname() { return locationPathname() },
+    set href(value: string) { locationHref(value) },
   },
-}))
+  writable: true,
+})
 
 vi.mock('element-plus', () => ({
   ElMessage: {
@@ -35,9 +30,10 @@ const okResponse = (config: InternalAxiosRequestConfig): AxiosResponse => ({
 describe('http client interceptors', () => {
   beforeEach(() => {
     sessionStorage.clear()
-    routerPush.mockReset()
+    locationHref.mockReset()
+    locationPathname.mockReset()
     messageError.mockReset()
-    routerState.currentRoute.value.path = '/'
+    locationPathname.mockReturnValue('/')
   })
 
   it('adds Authorization header when login token exists', async () => {
@@ -53,7 +49,7 @@ describe('http client interceptors', () => {
   it('clears token and redirects to login on HTTP 401', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
-    routerState.currentRoute.value.path = '/main/auth-list'
+    locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
       config,
@@ -67,13 +63,13 @@ describe('http client interceptors', () => {
 
     expect(sessionStorage.getItem('login_token')).toBeNull()
     expect(messageError).toHaveBeenCalledWith('登录已失效，请重新登录')
-    expect(routerPush).toHaveBeenCalledWith('/')
+    expect(locationHref).toHaveBeenCalledWith('/')
   })
 
   it('clears token on legacy login-expired business code in success response', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
-    routerState.currentRoute.value.path = '/main/auth-list'
+    locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => ({
       ...okResponse(config),
@@ -84,13 +80,13 @@ describe('http client interceptors', () => {
     await Promise.resolve()
 
     expect(sessionStorage.getItem('login_token')).toBeNull()
-    expect(routerPush).toHaveBeenCalledWith('/')
+    expect(locationHref).toHaveBeenCalledWith('/')
   })
 
   it('shows permission error without clearing token on HTTP 403', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
-    routerState.currentRoute.value.path = '/main/auth-list'
+    locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
       config,
@@ -104,13 +100,13 @@ describe('http client interceptors', () => {
 
     expect(sessionStorage.getItem('login_token')).toBe('token-a')
     expect(messageError).toHaveBeenCalledWith('没有权限执行该操作')
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(locationHref).not.toHaveBeenCalled()
   })
 
   it('does not clear token or redirect on HTTP 500', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
-    routerState.currentRoute.value.path = '/main/auth-list'
+    locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
       config,
@@ -124,13 +120,13 @@ describe('http client interceptors', () => {
 
     expect(sessionStorage.getItem('login_token')).toBe('token-a')
     expect(messageError).not.toHaveBeenCalled()
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(locationHref).not.toHaveBeenCalled()
   })
 
   it('does not clear token or redirect when request has no response', async () => {
     const { default: http } = await import('./http')
     sessionStorage.setItem('login_token', 'token-a')
-    routerState.currentRoute.value.path = '/main/auth-list'
+    locationPathname.mockReturnValue('/main/auth-list')
 
     const adapter: AxiosAdapter = async (config) => Promise.reject({
       config,
@@ -141,6 +137,6 @@ describe('http client interceptors', () => {
 
     expect(sessionStorage.getItem('login_token')).toBe('token-a')
     expect(messageError).not.toHaveBeenCalled()
-    expect(routerPush).not.toHaveBeenCalled()
+    expect(locationHref).not.toHaveBeenCalled()
   })
 })
