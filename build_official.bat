@@ -55,7 +55,7 @@ if /I "%1"=="incremental" (
     goto :do_build
 )
 
-cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official
+cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 
 :do_build
