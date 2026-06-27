@@ -10,9 +10,9 @@ pub fn aes_encrypt(plaintext: &str, key_bytes: &[u8; 32]) -> Result<String, Stri
 
     let mut nonce_bytes = [0u8; 12];
     rand::rng().fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
     let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
+        .encrypt(&nonce, plaintext.as_bytes())
         .map_err(|e| e.to_string())?;
 
     // base64(nonce + ciphertext)
@@ -30,10 +30,13 @@ pub fn aes_decrypt(encoded: &str, key_bytes: &[u8; 32]) -> Result<String, String
         .map_err(|e| e.to_string())?;
 
     let (nonce_bytes, ciphertext) = data.split_at(12);
-    let nonce = Nonce::from_slice(nonce_bytes);
+    let nonce_arr: [u8; 12] = nonce_bytes
+        .try_into()
+        .map_err(|_| "invalid nonce length".to_string())?;
+    let nonce = Nonce::from(nonce_arr);
 
     let plaintext = cipher
-        .decrypt(nonce, ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|e| e.to_string())?;
 
     String::from_utf8(plaintext).map_err(|e| e.to_string())

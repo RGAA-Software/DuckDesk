@@ -56,6 +56,7 @@ pub fn init_license_signer() -> Result<LicenseSigner, String> {
 }
 
 /// Returns the base64-encoded public key for distribution to CMS instances.
+#[allow(dead_code)]
 pub fn get_license_public_key_b64(signer: &LicenseSigner) -> String {
     general_purpose::STANDARD.encode(signer.public_key_bytes())
 }
