@@ -1,7 +1,7 @@
 use crate::gUpdateInfoManager;
 use crate::update_api_error::UpdateApiError;
 use crate::update_context::UpdateContext;
-use crate::update_http_utils::{get_body_str, get_int_param, get_int_param_or, get_str_param};
+use crate::update_http_utils::{get_int_param, get_int_param_or};
 use crate::update_info::UpdateInfo;
 use crate::update_keys::{
     KEY_UPDATE_DESC, KEY_UPDATE_FORCED, KEY_UPDATE_INSTALL_PACKAGE, KEY_UPDATE_VERSION,
@@ -11,9 +11,8 @@ use axum::body::Body;
 use axum::extract::{Multipart, Query, State};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::IntoResponse;
-use gr_base::{RespMessage, RespStringMap, ok_resp};
+use gr_base::{RespMessage, ok_resp};
 use md5;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::fs::File;
@@ -26,15 +25,15 @@ const RESP_INSTALL_PACKAGE_DIR: &str = "/uploads/update_info/";
 
 pub async fn handle_hello_world(
     State(_ctx): State<Arc<Mutex<UpdateContext>>>,
-    query: Query<HashMap<String, String>>,
-    body: Body,
+    _query: Query<HashMap<String, String>>,
+    _body: Body,
 ) -> Result<Json<RespMessage<String>>, UpdateApiError> {
     Ok(Json(ok_resp("hello world".to_string())))
 }
 
 pub async fn handle_upload_update_info(
     State(_ctx): State<Arc<Mutex<UpdateContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
     mut multipart: Multipart,
 ) -> Result<Json<RespMessage<String>>, UpdateApiError> {
     let mut update_info = UpdateInfo::default();
@@ -42,7 +41,7 @@ pub async fn handle_upload_update_info(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| UpdateApiError::InvalidParams)?
+        .map_err(|_e| UpdateApiError::InvalidParams)?
     {
         let key = field.name().unwrap_or("").to_string();
         if key == KEY_UPDATE_INSTALL_PACKAGE {
@@ -91,7 +90,7 @@ pub async fn handle_upload_update_info(
 
     update_info.created_timestamp = gr_base::get_current_timestamp();
 
-    let info = gUpdateInfoManager
+    let _info = gUpdateInfoManager
         .lock()
         .await
         .insert_update_info(update_info)
@@ -107,7 +106,7 @@ pub async fn handle_upload_update_info(
 pub async fn handle_query_update_info(
     State(_ctx): State<Arc<Mutex<UpdateContext>>>,
     query: Query<HashMap<String, String>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<Vec<UpdateInfo>>>, UpdateApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;

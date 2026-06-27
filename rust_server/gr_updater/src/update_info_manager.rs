@@ -1,7 +1,7 @@
 use crate::update_api_error::UpdateApiError;
 use crate::update_info::UpdateInfo;
 use crate::update_keys::KEY_UPDATE_VERSION;
-use crate::{gUpdateDatabase, gUpdateInfoManager};
+use crate::gUpdateDatabase;
 use futures_util::StreamExt;
 use mongodb::bson;
 use mongodb::bson::{Bson, doc};

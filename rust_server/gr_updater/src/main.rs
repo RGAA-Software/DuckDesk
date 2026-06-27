@@ -10,8 +10,6 @@ mod update_server;
 
 use crate::update_database::UpdateDatabase;
 use crate::update_info_manager::UpdateInfoManager;
-use clap::Parser as ClapParser;
-use clap_derive::Parser;
 use gr_base::log_util;
 use std::sync::Arc;
 use tokio::sync::Mutex;
