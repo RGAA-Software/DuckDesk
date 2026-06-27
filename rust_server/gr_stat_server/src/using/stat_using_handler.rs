@@ -1,4 +1,3 @@
-use crate::auth::auth_stat::StatAuth;
 use crate::gStatUsingManager;
 use crate::stat_api_error::StatApiError;
 use crate::stat_api_keys::{KEY_DEVICE_ID, KEY_SYS_INFO};
