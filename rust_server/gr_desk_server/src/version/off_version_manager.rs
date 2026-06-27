@@ -1,9 +1,7 @@
-use crate::issue::off_issue::OffIssue;
 use crate::off_api_error::OffApiError;
 use crate::off_api_error::OffApiError::DatabaseError;
-use crate::off_api_keys::{KEY_ITEM_ID, KEY_PROCESSED, KEY_UPDATED_TS, KEY_UPDATED_TS_READABLE};
 use crate::version::off_version::OffVersion;
-use crate::{gOffDatabase, gOffIssueManager};
+use crate::gOffDatabase;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson};
 use std::collections::HashMap;
@@ -31,7 +29,7 @@ impl OffVersionManager {
             .await
             .insert_one(version.clone())
             .await;
-        if let Err(e) = r {
+        if let Err(_e) = r {
             return Err(DatabaseError);
         }
         Ok(version)

@@ -4,16 +4,16 @@ use crate::issue::off_issue_keys::{
 };
 use crate::off_api_error::OffApiError;
 use crate::off_api_keys::{
-    KEY_CONSULT_TYPE, KEY_CONTENT, KEY_DESC, KEY_EMAIL, KEY_ITEM_ID, KEY_PROCESSED, KEY_QQ,
+    KEY_DESC, KEY_EMAIL, KEY_ITEM_ID, KEY_PROCESSED, KEY_QQ,
     KEY_TITLE, KEY_VERSION, KEY_WECHAT, KEY_YOUR_NAME,
 };
 use crate::off_context::OffContext;
-use crate::off_http_utils::{get_body, get_int_param, get_int_param_or, get_str_param};
-use crate::{gOffConsultManager, gOffDatabase, gOffIssueManager};
+use crate::off_http_utils::{get_body, get_int_param, get_int_param_or};
+use crate::{gOffDatabase, gOffIssueManager};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
+use gr_base::{ok_resp, RespMessage};
 use mongodb::bson::doc;
 use mongodb::bson::oid::ObjectId;
 use serde_json::Value;
@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 
 pub async fn create_new_issue(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
     b: Body,
 ) -> Result<Json<RespMessage<OffIssue>>, OffApiError> {
     let body = get_body(b).await?;
@@ -73,7 +73,7 @@ pub async fn create_new_issue(
 pub async fn query_issues(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
     query: Query<HashMap<String, String>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<Vec<OffIssue>>>, OffApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
@@ -100,6 +100,6 @@ pub async fn mark_issue_processed(
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let cid = r[KEY_ITEM_ID].as_str().unwrap().to_string();
     let p = r[KEY_PROCESSED].as_bool().unwrap();
-    let r = gOffIssueManager.lock().await.mark_processed(cid, p).await?;
+    let _r = gOffIssueManager.lock().await.mark_processed(cid, p).await?;
     Ok(Json(ok_resp("".to_string())))
 }

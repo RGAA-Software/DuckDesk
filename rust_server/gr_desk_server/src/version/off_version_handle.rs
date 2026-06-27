@@ -1,29 +1,21 @@
 use crate::off_api_error::OffApiError;
-use crate::off_api_keys::{
-    KEY_CONSULT_TYPE, KEY_CONTENT, KEY_EMAIL, KEY_ITEM_ID, KEY_PROCESSED, KEY_QQ, KEY_TITLE,
-    KEY_WECHAT, KEY_YOUR_NAME,
-};
 use crate::off_context::OffContext;
-use crate::off_http_utils::{get_body, get_int_param, get_int_param_or, get_str_param};
 use crate::version::off_version::{
     OffQueryVersionResponse, OffUpdateVersion, OffUpdateVersionResponse, OffVersion,
 };
-use crate::{gOffDatabase, gOffVersionManager};
-use axum::body::Body;
+use crate::gOffVersionManager;
 use axum::extract::{Query, State};
 use axum::Json;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
-use mongodb::bson::oid::ObjectId;
-use mongodb::bson::{doc, DateTime};
-use serde_json::Value;
+use gr_base::{ok_resp, RespMessage};
+use mongodb::bson::DateTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub async fn handle_update_product_version(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
-    query: Query<HashMap<String, String>>,
-    Json(mut update_version): Json<OffUpdateVersion>,
+    _query: Query<HashMap<String, String>>,
+    Json(update_version): Json<OffUpdateVersion>,
 ) -> Result<Json<RespMessage<OffUpdateVersionResponse>>, OffApiError> {
     if update_version.verify_code != "e37a4d7256e51250da04fbcc7454a83b" {
         return Err(OffApiError::InvalidVersionVerifyCode);
@@ -54,10 +46,10 @@ pub async fn handle_update_product_version(
 
 pub async fn handle_query_product_version(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<OffQueryVersionResponse>>, OffApiError> {
-    let mut value = String::new();
-    let mut cur_version = gOffVersionManager.lock().await.current_version.clone();
+    let value;
+    let cur_version = gOffVersionManager.lock().await.current_version.clone();
     if cur_version.version.is_empty() {
         let opt_version = gOffVersionManager
             .lock()

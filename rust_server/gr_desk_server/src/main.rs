@@ -38,7 +38,7 @@ struct Cli {
 #[tokio::main]
 async fn main() {
     let args = Cli::parse();
-    let port = args.port.unwrap_or(20369);
+    let _port = args.port.unwrap_or(20369);
 
     let _ = gr_base::create_dir_if_not_exists("./static");
 

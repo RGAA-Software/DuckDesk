@@ -5,12 +5,12 @@ use crate::off_api_keys::{
     KEY_WECHAT, KEY_YOUR_NAME,
 };
 use crate::off_context::OffContext;
-use crate::off_http_utils::{get_body, get_int_param, get_int_param_or, get_str_param};
+use crate::off_http_utils::{get_body, get_int_param, get_int_param_or};
 use crate::{gOffConsultManager, gOffDatabase};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
+use gr_base::{ok_resp, RespMessage};
 use mongodb::bson::doc;
 use mongodb::bson::oid::ObjectId;
 use serde_json::Value;
@@ -101,7 +101,7 @@ pub async fn mark_consult_processed(
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let cid = r[KEY_ITEM_ID].as_str().unwrap().to_string();
     let p = r[KEY_PROCESSED].as_bool().unwrap();
-    let r = gOffConsultManager
+    let _r = gOffConsultManager
         .lock()
         .await
         .mark_processed(cid, p)
