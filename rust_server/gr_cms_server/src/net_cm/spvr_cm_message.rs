@@ -1,9 +1,8 @@
 use gr_base::sys_info::SysInfo;
 use serde::{Deserialize, Serialize};
 
-const CM_HEARTBEAT: &str = "heartbeat";
-
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 #[serde(tag = "msg_type")]
 pub enum CmMessage {
     #[serde(rename = "ping")]

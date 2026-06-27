@@ -8,12 +8,10 @@ use crate::spvr_defs::{
     KEY_DEVICE_NAME, KEY_IP, KEY_OFFLINE, KEY_ONLINE, KEY_ONLINE_STATE, KEY_PWD_TYPE,
 };
 use crate::spvr_http_util::{
-    get_body, get_body_bool, get_body_str, get_bool_param, get_int_param, get_str_param,
+    get_body, get_body_bool, get_body_str, get_int_param, get_str_param,
     get_str_param_allow_empty, get_str_param_or,
 };
-use crate::user::spvr_user::SpvrUser;
-use crate::user::spvr_user_keys::{KEY_HASH_PASSWORD, KEY_USER_ID, KEY_USER_NAME};
-use crate::{gDeviceManager, gIdGenerator, gSpvrPanelConnMgr, gUserManager};
+use crate::{gDeviceManager, gIdGenerator, gSpvrPanelConnMgr};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;
@@ -224,7 +222,7 @@ pub async fn handle_query_devices(
 
 pub async fn handle_count_devices(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<u64>>, SpvrApiError> {
     let device = gDeviceManager.query_total_devices_count().await?;
     Ok(Json(ok_resp(device)))
@@ -318,7 +316,7 @@ pub async fn update_random_password(
     let mut device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
 
     // generate new random password
-    let id_generator = gIdGenerator.clone();
+    let _id_generator = gIdGenerator.clone();
     let new_random_pwd = PrIdGenerator::generate_random_pwd();
 
     // update to database

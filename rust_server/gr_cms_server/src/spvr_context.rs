@@ -1,6 +1,5 @@
 use crate::config::spvr_access_info::SpvrAccessInfo;
-use crate::config::spvr_server_config::SpvrServerConfig;
-use crate::{gSpvrClientConnMgr, gSpvrContext, gSpvrSettings};
+use crate::{gSpvrContext, gSpvrSettings};
 use gr_auth_mgr::crypto_keys::AES_DEPLOY_AUTH;
 use gr_base::crypto_util::aes_encrypt;
 use tokio::net::UdpSocket;
@@ -57,7 +56,7 @@ impl SpvrContext {
             loop {
                 let broadcast_addr = format!("255.255.255.255:{}", port);
                 let msg = gSpvrContext.lock().await.get_encrypt_access_info().await;
-                if let Err(e) = msg {
+                if let Err(_e) = msg {
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     continue;
                 }

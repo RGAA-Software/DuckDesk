@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub struct SpvrLanguage {
     zh_cn: bool,
     // app settings

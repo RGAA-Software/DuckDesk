@@ -4,7 +4,7 @@ use crate::net_client::spvr_client_handler::{
     handle_query_conns,
 };
 use crate::spvr_context::SpvrContext;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;

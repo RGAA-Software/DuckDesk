@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::{fs, io};
+use std::fs;
 
 fn main() {
     #[cfg(windows)]

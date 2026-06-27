@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DesktopLinkRaw {
     pub did: String,      // device id
     pub dn: String,       // device name

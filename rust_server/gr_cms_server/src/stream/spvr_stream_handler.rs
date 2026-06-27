@@ -81,7 +81,7 @@ pub async fn handle_insert_stream(
     let r = gSpvrStreamMgr
         .query_stream_by_id(stream.stream_id.clone())
         .await;
-    if let Err(e) = r {
+    if let Err(_e) = r {
         let s = gSpvrStreamMgr.insert_stream(stream).await?;
         Ok(Json(ok_resp(s)))
     } else {
@@ -108,7 +108,7 @@ pub async fn handle_update_stream(
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let stream_id = r[KEY_STREAM_ID].as_str().unwrap().to_string();
-    let stream = gSpvrStreamMgr.query_stream_by_id(stream_id.clone()).await?;
+    let _stream = gSpvrStreamMgr.query_stream_by_id(stream_id.clone()).await?;
     tracing::info!("found stream {:?} to update.", stream_id);
 
     let mut update_success = false;

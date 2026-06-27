@@ -19,12 +19,11 @@ impl PrIdGenerator {
 
     pub fn generate_new_id(&self, info: &String, platform: &String) -> GenDeviceInfo {
         let ignore_info = false;
-        let mut seed = info.clone();
-        if info.is_empty() || ignore_info {
-            seed = uuid::Uuid::new_v4().to_string();
+        let seed = if info.is_empty() || ignore_info {
+            uuid::Uuid::new_v4().to_string()
         } else {
-            seed = platform.clone() + info;
-        }
+            platform.clone() + info
+        };
 
         let mut device_id = "".to_string();
         let digest = gr_base::md5_hex(&seed.clone());

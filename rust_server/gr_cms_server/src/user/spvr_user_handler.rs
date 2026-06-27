@@ -1,5 +1,4 @@
 use crate::event::spvr_event::SpvrEvent;
-use crate::filter::spvr_timer_filter::filter;
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
 use crate::spvr_defs::KEY_DEVICE_ID;
@@ -19,8 +18,6 @@ use axum::http::{HeaderValue, StatusCode};
 use axum::response::Response;
 use axum::Json;
 use gr_base::{ok_resp, RespMessage};
-use mongodb::bson::Bson;
-use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -176,7 +173,7 @@ pub async fn handle_update_user(
                     let value = s.clone();
                     if key == KEY_USER_NAME {
                         let user = gUserManager.query_user_by_username(value.to_string()).await;
-                        if let Ok(user) = user {
+                        if let Ok(_user) = user {
                             tracing::error!(
                                 "can't update username, cause there's already same one: {}",
                                 value.to_string()
@@ -252,7 +249,7 @@ pub async fn handle_update_avatar(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| SpvrApiError::InvalidParams)?
+        .map_err(|_e| SpvrApiError::InvalidParams)?
     {
         let key = field.name().unwrap_or("").to_string();
         let filename = field.file_name().unwrap_or("").to_string();
@@ -260,7 +257,7 @@ pub async fn handle_update_avatar(
         if key == KEY_FILE {
             // copy file
             let extension = gr_base::get_extension(filename.as_str())
-                .map_err(|e| SpvrApiError::InvalidParams)?;
+                .map_err(|_e| SpvrApiError::InvalidParams)?;
             let target_name = format!("{}.{}", uid, extension);
             let target_path = format!("./uploads/avatar/{}", target_name);
             tracing::info!("upload avatar file: {}", target_path);
@@ -424,7 +421,7 @@ pub async fn query_users(
 
 pub async fn count_users(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<u32>>, SpvrApiError> {
     let users = gUserManager.count_users().await?;
     Ok(Json(ok_resp(users)))
@@ -495,7 +492,7 @@ fn build_download_response(content: &str, filename: &str, content_type: &str) ->
 
 pub async fn handle_batch_generate_csv_users(
     State(_context): State<Arc<Mutex<SpvrContext>>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<SpvrUser>>, SpvrApiError> {
     Ok(Json(ok_resp(SpvrUser::default())))
 }

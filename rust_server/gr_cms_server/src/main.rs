@@ -5,9 +5,9 @@ mod filter;
 mod spvr_api_error;
 mod spvr_context;
 mod spvr_defs;
-mod spvr_grpc_relay_client;
-mod spvr_grpc_relay_client_mgr;
-mod spvr_grpc_ws_client_trait;
+// mod spvr_grpc_relay_client;
+// mod spvr_grpc_relay_client_mgr;
+// mod spvr_grpc_ws_client_trait;
 mod spvr_handler;
 mod spvr_server;
 mod spvr_settings;
@@ -49,7 +49,6 @@ use crate::relay::relay_room_mgr::RelayRoomManager;
 use crate::relay::relay_server::RelayServer;
 use crate::spvr_context::SpvrContext;
 use crate::spvr_database::SpvrDatabase;
-use crate::spvr_grpc_relay_client_mgr::SpvrGrpcRelayClientManager;
 use crate::spvr_server::SpvrServer;
 use crate::spvr_settings::SpvrSettings;
 use crate::stream::spvr_stream_manager::SpvrStreamManager;
@@ -135,7 +134,7 @@ async fn main() {
     }
 }
 
-fn run_as_system_service(machine_code: String) {}
+fn run_as_system_service(_machine_code: String) {}
 
 async fn run_as_panel(machine_code: String) {
     // load settings
@@ -153,7 +152,7 @@ async fn run_as_panel(machine_code: String) {
     };
     tracing::info!("Current system locale: {}", locale);
 
-    let mut language: SpvrLanguage;
+    let language: SpvrLanguage;
     if locale.starts_with("en-") {
         language = SpvrLanguage::new_english();
     } else {
@@ -171,7 +170,7 @@ async fn run_as_panel(machine_code: String) {
     let file = File::options().read(true).open("au.dat");
     if let Ok(mut file) = file {
         let mut buffer: String = String::default();
-        if let Ok(size) = file.read_to_string(&mut buffer) {
+        if let Ok(_size) = file.read_to_string(&mut buffer) {
             if let Ok(value) = buffer.parse::<i64>() {
                 used_time = value;
             }

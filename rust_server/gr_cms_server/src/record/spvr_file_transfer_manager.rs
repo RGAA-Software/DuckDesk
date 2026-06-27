@@ -1,14 +1,11 @@
 use crate::gSpvrDatabase;
 use crate::record::spvr_file_transfer::{SpvrFileTransfer, SpvrUpdateFileTransfer};
-use crate::record::spvr_visit::{SpvrUpdateVisit, SpvrVisit};
 use crate::spvr_api_error::SpvrApiError;
 use futures_util::StreamExt;
-use mongodb::bson;
 use mongodb::bson::{doc, Bson};
 use mongodb::options::ReturnDocument;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrFileTransferManager {}
 
@@ -168,7 +165,7 @@ impl SpvrFileTransferManager {
             .await
             .count_documents(doc! {})
             .await;
-        if let Err(e) = r {
+        if let Err(_e) = r {
             return Err(SpvrApiError::DatabaseError);
         }
         Ok(r.unwrap() as i64)

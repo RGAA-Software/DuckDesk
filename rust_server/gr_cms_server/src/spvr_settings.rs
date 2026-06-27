@@ -1,7 +1,6 @@
 use crate::config::spvr_server_config::SpvrServerConfig;
 use crate::{gAuthManager, gSpvrSettings};
 use gr_base::ip_util::get_clean_ipv4_addresses;
-use gr_base::server_id_util;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, Default)]

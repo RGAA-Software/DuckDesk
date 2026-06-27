@@ -1,4 +1,3 @@
-use crate::event::spvr_event::SpvrEvent;
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
 use crate::spvr_defs::KEY_DEVICE_ID;

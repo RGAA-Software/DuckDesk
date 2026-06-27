@@ -1,21 +1,19 @@
 use crate::interact::spvr_lang::SpvrLanguage;
 use crate::{gAuthManager, gSpvrSettings};
 use arboard::Clipboard;
-use egui::WidgetType::TextEdit;
-use egui::{Color32, Context, Label, RichText, Vec2};
+use egui::{Color32, RichText};
 use egui_notify::Toasts;
 use gr_auth_mgr::authorization::Authorization;
-use gr_base::ip_util::{get_clean_ipv4_addresses, test_ip_main};
+use gr_base::ip_util::get_clean_ipv4_addresses;
 use gr_base::{mongodb_util, redis_util};
-use redis::AsyncCommands;
+
 use std::cmp::PartialEq;
 use std::fs::File;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use sys_locale::get_locale;
 use sysinfo::{Pid, ProcessesToUpdate, Signal, System};
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Handle;
 use webbrowser;
 
 #[derive(Eq, PartialEq)]
@@ -50,7 +48,7 @@ pub struct SpvrUI {
 
 impl SpvrUI {
     pub fn setup_custom_fonts(ctx: &egui::Context) {
-        use egui::{FontFamily, FontId, FontTweak, TextStyle};
+        use egui::{FontFamily, FontId, TextStyle};
         let mut fonts = egui::FontDefinitions::default();
 
         fonts.font_data.insert(
@@ -211,10 +209,8 @@ impl eframe::App for SpvrUI {
                 if ui
                     .add_sized(
                         btn_size,
-                        egui::SelectableLabel::new(
-                            self.main_page == MainPageType::PageServerSettings,
-                            self.language.server_settings.as_str(),
-                        ),
+                        egui::Button::new(self.language.server_settings.as_str())
+                            .selected(self.main_page == MainPageType::PageServerSettings),
                     )
                     .clicked()
                 {
@@ -261,7 +257,7 @@ impl eframe::App for SpvrUI {
                             {
                                 let mut ok = false;
                                 if let Ok(mut clipboard) = Clipboard::new() {
-                                    if let Ok(r) = clipboard.set_text(self.machine_code.as_str()) {
+                                    if let Ok(_r) = clipboard.set_text(self.machine_code.as_str()) {
                                         self.toasts
                                             .success(self.language.copy_success.as_str())
                                             .duration(Duration::from_secs(2));
@@ -286,7 +282,7 @@ impl eframe::App for SpvrUI {
                             let max_streams = self.state.lock().unwrap().auth.max_streams;
                             let days = self.state.lock().unwrap().auth.days;
                             let used_time = self.state.lock().unwrap().used_time;
-                            if (self.language.is_zh_cn()) {
+                            if self.language.is_zh_cn()  {
                                 auth_state = format!(
                                     "流路数: {}, 时间: {}天, 已使用: {}天",
                                     max_streams,
@@ -372,7 +368,7 @@ impl eframe::App for SpvrUI {
                             // open manager website
                             //
                             ui.label(self.language.st_spvr_website.as_str());
-                            egui::ComboBox::from_id_source("http_ips")
+                            egui::ComboBox::from_id_salt("http_ips")
                                 .selected_text(&self.selected_ip)
                                 .show_ui(ui, |ui| {
                                     for fruit in &self.total_ips {
@@ -549,7 +545,7 @@ async fn refresh_auth() -> (Authorization, i64) {
     let file = File::options().read(true).open("au.dat");
     if let Ok(mut file) = file {
         let mut buffer: String = String::default();
-        if let Ok(size) = file.read_to_string(&mut buffer) {
+        if let Ok(_size) = file.read_to_string(&mut buffer) {
             if let Ok(value) = buffer.parse::<i64>() {
                 used_time = value;
             }

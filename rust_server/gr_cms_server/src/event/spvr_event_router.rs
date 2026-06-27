@@ -7,7 +7,6 @@ use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_http::limit::RequestBodyLimitLayer;
 
 pub fn make_event_router(context: Arc<Mutex<SpvrContext>>) -> Router<Arc<Mutex<SpvrContext>>> {
     Router::new()

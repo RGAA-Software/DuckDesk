@@ -5,7 +5,6 @@ use crate::spvr_api_error::SpvrApiError;
 use mongodb::bson::{doc, Bson, Document};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 
 pub struct SpvrEventManager {}
@@ -62,13 +61,11 @@ impl SpvrEventManager {
         let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
-        let mut event_type: Bson = Bson::String("".to_string());
-
         let mut and_conditions: Vec<Document> = Vec::new();
 
         for (key, value) in filters {
             if key == EVENT_TYPE {
-                event_type = value.into().clone();
+                let event_type: Bson = value.into().clone();
                 and_conditions.push(doc! {
                     key: event_type.clone()
                 });

@@ -6,7 +6,6 @@ use futures_util::stream::SplitSink;
 use gr_base::md5_hex;
 use prost::Message as ProstMessage;
 use protocol::spvr_client::{SpvrClientMessage, SpvrClientMessageType};
-use protocol::spvr_relay::{SpvrRelayMessage, SpvrRelayMessageType};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -107,17 +106,17 @@ impl SpvrClientConn {
         }
     }
 
-    pub async fn process_message(&mut self, who: String, data: Bytes) -> bool {
+    pub async fn process_message(&mut self, _who: String, data: Bytes) -> bool {
         let m = SpvrClientMessage::decode(data);
         if let Err(e) = m {
             tracing::error!("spvr client parse error: {:?}", e);
             return false;
         }
         let m = m.unwrap();
-        let device_id = m.device_id;
+        let _device_id = m.device_id;
         let msg_type = m.msg_type;
         if msg_type == SpvrClientMessageType::KSpvrClientHello {
-            let m_hello = m.hello.unwrap();
+            let _m_hello = m.hello.unwrap();
             // update time
             self.hello_timestamp = gr_base::get_current_timestamp();
             self.connection_alive = true;

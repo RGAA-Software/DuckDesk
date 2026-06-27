@@ -1,8 +1,3 @@
-use crate::device::spvr_device_handler::{
-    append_used_time, handle_create_new_device, handle_query_devices, query_device_by_id,
-    update_random_password, update_safety_password, verify_device_info,
-};
-use crate::filter::spvr_appkey_filter::filter as spvr_appkey_filter;
 use crate::filter::spvr_ws_token_filter::{
     client_filter as spvr_client_token_filter_fn, panel_filter as spvr_panel_token_filter_fn,
     website_filter as spvr_website_token_filter_fn,
@@ -12,7 +7,7 @@ use crate::filter::spvr_timer_filter::filter as spvr_timer_filter;
 use crate::spvr_context::SpvrContext;
 use crate::{gSpvrContext, gSpvrSettings};
 use axum::extract::{DefaultBodyLimit, State};
-use axum::routing::{any, get, get_service, post};
+use axum::routing::{any, get, get_service};
 use axum::{Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use gr_base::{get_current_timestamp, RespMessage};
@@ -24,39 +19,23 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::auth::spvr_auth_router::make_auth_router;
 use crate::device::spvr_device_router::make_device_router;
 use crate::event::spvr_event_router::make_event_router;
-use crate::filter::spvr_appkey_filter;
 use crate::net_client::spvr_client_router::make_client_router;
 use crate::net_client::spvr_client_ws_handler;
 use crate::net_cm::spvr_cm_ws_handler;
 use crate::net_panel::spvr_panel_router::make_panel_router;
 use crate::net_panel::spvr_panel_ws_handler;
 use crate::record::spvr_record_router::make_record_router;
-use crate::relay::relay_server::RelayServer;
-use crate::relay::{relay_device_handler, relay_room_handler};
 use crate::spvr_router::make_spvr_router;
 use crate::stream::spvr_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::spvr_user_router::make_user_router;
 use crate::user_device::spvr_user_device_router::make_user_device_router;
-use axum::body::Body;
-use axum::{
-    http::Request,
-    middleware::{self, Next},
-    response::Response,
-};
+use axum::middleware::{self};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 pub struct SpvrServer {
     pub host: String,
     pub port: u16,
-}
-
-async fn log_mw(req: Request<Body>, next: Next) -> Response {
-    //println!("--> hit {}", req.uri().path());
-    let mut res = next.run(req).await;
-    res.headers_mut()
-        .insert("x-logged", "true".parse().unwrap());
-    res
 }
 
 impl SpvrServer {

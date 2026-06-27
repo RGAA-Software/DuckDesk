@@ -7,9 +7,7 @@ use crate::user_device::spvr_user_device::{SpvrUserDevice, SpvrUserDeviceAdapter
 use crate::{gDeviceManager, gSpvrDatabase, gUserManager};
 use futures_util::StreamExt;
 use mongodb::bson::doc;
-use mongodb::Collection;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrUserDeviceManager {}
 
@@ -41,7 +39,7 @@ impl SpvrUserDeviceManager {
         let user_device_adapter = self
             .query_by_uid_device_id(user_device.uid.clone(), user_device.device_id.clone())
             .await;
-        if let Ok(uda) = user_device_adapter {
+        if let Ok(_uda) = user_device_adapter {
             tracing::info!(
                 "user-device already exist: {} {}",
                 user_device.uid,

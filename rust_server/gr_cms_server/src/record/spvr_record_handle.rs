@@ -1,39 +1,30 @@
 use crate::gRecordFileTransferManager;
 use crate::gRecordVisitManager;
 use crate::record::spvr_file_transfer::{SpvrFileTransfer, SpvrUpdateFileTransfer};
-use crate::record::spvr_file_transfer_manager::SpvrFileTransferManager;
 use crate::record::spvr_visit::{SpvrUpdateVisit, SpvrVisit};
-use crate::record::spvr_visit_manager::SpvrVisitManager;
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
 use crate::spvr_http_util::{
-    get_body, get_body_data, get_int_param, get_int_param_or, get_str_param_allow_empty,
+    get_int_param, get_int_param_or, get_str_param_allow_empty,
 };
 use axum::body::Body;
-use axum::extract::{Multipart, Query, State};
-use axum::http::{header, HeaderMap, HeaderValue};
-use axum::response::IntoResponse;
+use axum::extract::{Query, State};
 use axum::Json;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
-use md5;
-use serde_json::Value;
+use gr_base::{ok_resp, RespMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
-use tokio_util::io::ReaderStream;
 pub async fn handle_hello_world(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
-    body: Body,
+    _query: Query<HashMap<String, String>>,
+    _body: Body,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     Ok(Json(ok_resp("hello world".to_string())))
 }
 
 pub async fn handle_upload_visit_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
     Json(mut up_visit): Json<SpvrVisit>,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     up_visit.created_timestamp = gr_base::get_current_timestamp();
@@ -44,8 +35,8 @@ pub async fn handle_upload_visit_info(
 
 pub async fn handle_update_visit_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
-    Json(mut update_visit): Json<SpvrUpdateVisit>,
+    _query: Query<HashMap<String, String>>,
+    Json(update_visit): Json<SpvrUpdateVisit>,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     tracing::info!("update_visit_info : {:?}", update_visit);
     let _info = gRecordVisitManager.update_visit_info(update_visit).await?;
@@ -55,7 +46,7 @@ pub async fn handle_update_visit_info(
 pub async fn handle_query_update_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
     query: Query<HashMap<String, String>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<Vec<SpvrVisit>>>, SpvrApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
@@ -90,7 +81,7 @@ pub async fn handle_query_update_info(
 
 pub async fn handle_upload_file_transfer_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
     Json(mut up_file_transfer): Json<SpvrFileTransfer>,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     up_file_transfer.created_timestamp = gr_base::get_current_timestamp();
@@ -103,8 +94,8 @@ pub async fn handle_upload_file_transfer_info(
 
 pub async fn handle_update_file_transfer_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
-    Json(mut up_file_transfer): Json<SpvrUpdateFileTransfer>,
+    _query: Query<HashMap<String, String>>,
+    Json(up_file_transfer): Json<SpvrUpdateFileTransfer>,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     tracing::info!("update_file_transfer : {:?}", up_file_transfer);
     let _info = gRecordFileTransferManager
@@ -116,7 +107,7 @@ pub async fn handle_update_file_transfer_info(
 pub async fn handle_query_file_transfer_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
     query: Query<HashMap<String, String>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<Vec<SpvrFileTransfer>>>, SpvrApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;

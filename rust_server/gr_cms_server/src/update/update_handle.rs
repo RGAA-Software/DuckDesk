@@ -11,9 +11,8 @@ use axum::extract::{Multipart, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use axum::Json;
-use gr_base::{ok_resp, RespMessage, RespStringMap};
+use gr_base::{ok_resp, RespMessage};
 use md5;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::fs::File;
@@ -26,15 +25,15 @@ const RESP_INSTALL_PACKAGE_DIR: &str = "/uploads/update_info/";
 
 pub async fn handle_hello_world(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
-    body: Body,
+    _query: Query<HashMap<String, String>>,
+    _body: Body,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     Ok(Json(ok_resp("hello world".to_string())))
 }
 
 pub async fn handle_upload_update_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
     mut multipart: Multipart,
 ) -> Result<Json<RespMessage<String>>, SpvrApiError> {
     let mut update_info = UpdateInfo::default();
@@ -42,7 +41,7 @@ pub async fn handle_upload_update_info(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| SpvrApiError::InvalidParams)?
+        .map_err(|_e| SpvrApiError::InvalidParams)?
     {
         let key = field.name().unwrap_or("").to_string();
         if key == KEY_UPDATE_INSTALL_PACKAGE {
@@ -104,7 +103,7 @@ pub async fn handle_upload_update_info(
 pub async fn handle_query_update_info(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
     query: Query<HashMap<String, String>>,
-    body: Body,
+    _body: Body,
 ) -> Result<Json<RespMessage<Vec<UpdateInfo>>>, SpvrApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;

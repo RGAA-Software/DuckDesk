@@ -3,7 +3,6 @@ use chrono::prelude::*;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrSystemManager {}
 

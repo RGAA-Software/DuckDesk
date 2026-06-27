@@ -1,5 +1,5 @@
 use crate::gSpvrPanelConnMgr;
-use crate::net_panel::spvr_panel_conn::{SpvrPanelConn, SpvrPanelConnVo};
+use crate::net_panel::spvr_panel_conn::SpvrPanelConnVo;
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
 use crate::spvr_defs::KEY_DEVICE_ID;
@@ -22,7 +22,7 @@ pub async fn handle_query_panel_conn_by_id(
 
 pub async fn handle_query_all_panel_conn(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-    query: Query<HashMap<String, String>>,
+    _query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<Vec<SpvrPanelConnVo>>>, SpvrApiError> {
     let all_conn = gSpvrPanelConnMgr.get_all_conn_info().await?;
     Ok(Json(ok_resp(all_conn)))

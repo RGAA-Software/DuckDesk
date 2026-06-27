@@ -1,8 +1,6 @@
 use crate::spvr_api_error::SpvrApiError;
-use crate::user::spvr_user_keys::KEY_USER_ID;
 use axum::body::Body;
 use axum::extract::Query;
-use egui::TextBuffer;
 use serde::Deserialize;
 use std::collections::HashMap;
 use tokio_stream::StreamExt;
@@ -142,11 +140,3 @@ pub fn get_int_param_or(
     }
 }
 
-pub fn get_bool_param(query: &HashMap<String, String>, key: &str) -> Result<bool, SpvrApiError> {
-    query
-        .get(key)
-        .filter(|s| !s.is_empty()) // 先确保有值且非空
-        .ok_or(SpvrApiError::InvalidParams)?
-        .parse::<bool>() // 尝试解析为 bool
-        .map_err(|_| SpvrApiError::InvalidParams)
-}

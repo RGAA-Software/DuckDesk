@@ -1,9 +1,9 @@
 use crate::auth::spvr_auth_license_keys::{
-    is_offline_grace_period_exceeded, license_to_authorization, parse_and_verify_signed_license,
+    is_offline_grace_period_exceeded, parse_and_verify_signed_license,
     verify_license_online, KEY_LAST_ONLINE_VERIFY_MS,
 };
 use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gSpvrContext};
-use gr_auth_mgr::app_secret_util::{calculate_app_secret, is_appkey_secret_paired};
+use gr_auth_mgr::app_secret_util::calculate_app_secret;
 use gr_auth_mgr::auth_used_time::{sign_used_time, verify_used_time};
 use gr_auth_mgr::auth_util::{parse_authorization, verify_authorization};
 use gr_auth_mgr::authorization::Authorization;

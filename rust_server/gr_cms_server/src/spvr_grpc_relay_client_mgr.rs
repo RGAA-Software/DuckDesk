@@ -41,7 +41,7 @@ impl SpvrGrpcWsClientTrait for SpvrGrpcRelayClientManager {
         tracing::info!("RelayServer OnHello: {:#?}", msg);
     }
 
-    async fn on_ws_heartbeat(&mut self, msg: SpvrRelayHeartBeat) {
+    async fn on_ws_heartbeat(&mut self, _msg: SpvrRelayHeartBeat) {
         //tracing::info!("HeartBeat: {:?}", msg);
     }
 

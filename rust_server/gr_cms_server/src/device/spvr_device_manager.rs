@@ -7,7 +7,6 @@ use mongodb::bson::{Bson, Document};
 use mongodb::options::AggregateOptions;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrDeviceManager {}
 
@@ -217,7 +216,7 @@ impl SpvrDeviceManager {
     pub async fn query_total_devices_count(&self) -> Result<u64, SpvrApiError> {
         let c_device = gSpvrDatabase.lock().await.device();
         let r = c_device.lock().await.count_documents(doc! {}).await;
-        if let Err(e) = r {
+        if let Err(_e) = r {
             return Err(SpvrApiError::DatabaseError);
         }
         Ok(r.unwrap())
@@ -235,17 +234,17 @@ impl SpvrDeviceManager {
                 }
             }
         }];
-        let options = AggregateOptions::builder().allow_disk_use(true).build();
+        let _options = AggregateOptions::builder().allow_disk_use(true).build();
         // 5. 执行查询
         let mut cursor = c_device
             .lock()
             .await
             .aggregate(pipeline)
             .await
-            .map_err(|e| SpvrApiError::DatabaseError)?;
+            .map_err(|_e| SpvrApiError::DatabaseError)?;
         // 6. 获取结果
         if let Some(result) = cursor.next().await {
-            let doc = result.map_err(|e| SpvrApiError::DatabaseError)?;
+            let doc = result.map_err(|_e| SpvrApiError::DatabaseError)?;
 
             match doc.get("total") {
                 Some(mongodb::bson::Bson::Int32(val)) => Ok(*val as u64),

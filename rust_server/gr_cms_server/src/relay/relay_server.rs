@@ -1,4 +1,4 @@
-use axum::extract::{ws, ConnectInfo, Query, State};
+use axum::extract::{ConnectInfo, Query, State};
 use axum::routing::{get, post};
 use axum::serve::ListenerExt;
 use axum::{
@@ -6,7 +6,7 @@ use axum::{
     middleware,
     response::IntoResponse,
     routing::any,
-    Json, Router, ServiceExt,
+    Json, Router,
 };
 use axum_extra::TypedHeader;
 use futures_util::StreamExt;
@@ -23,7 +23,7 @@ use crate::relay::relay_conn::RelayConn;
 use crate::relay::{relay_device_handler, relay_room_handler};
 use crate::spvr_context::SpvrContext;
 use crate::{gRelayConnMgr, gRelayRoomMgr};
-use gr_base::{get_current_timestamp, json_util, RespMessage};
+use gr_base::{get_current_timestamp, RespMessage};
 use protocol::relay::{RelayMessage, RelayMessageType};
 use tower_http::services::ServeDir;
 
@@ -294,7 +294,7 @@ impl RelayServer {
                 return ControlFlow::Break(());
             }
 
-            Message::Pong(v) => {}
+            Message::Pong(_v) => {}
             // You should never need to manually handle Message::Ping, as axum's websocket library
             // will do so for you automagically by replying with Pong and copying the v according to
             // spec. But if you need the contents of the pings you can see them here.

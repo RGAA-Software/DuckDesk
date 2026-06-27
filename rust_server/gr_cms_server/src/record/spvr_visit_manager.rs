@@ -1,14 +1,12 @@
 use futures_util::StreamExt;
-use mongodb::bson;
 use mongodb::bson::{doc, Bson};
-use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
+use mongodb::options::ReturnDocument;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::gSpvrDatabase;
 use crate::record::spvr_visit::{SpvrUpdateVisit, SpvrVisit};
 use crate::spvr_api_error::SpvrApiError;
-use tokio::sync::Mutex;
 
 pub struct SpvrVisitManager {}
 
@@ -161,7 +159,7 @@ impl SpvrVisitManager {
     pub async fn total_size(&self) -> Result<i64, SpvrApiError> {
         let c_visit_info = gSpvrDatabase.lock().await.visit();
         let r = c_visit_info.lock().await.count_documents(doc! {}).await;
-        if let Err(e) = r {
+        if let Err(_e) = r {
             return Err(SpvrApiError::DatabaseError);
         }
         Ok(r.unwrap() as i64)

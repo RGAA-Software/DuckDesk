@@ -4,12 +4,12 @@ use crate::relay::relay_message::{
     KEY_RELAY_SERVER_PORT,
 };
 use crate::spvr_context::SpvrContext;
-use crate::{gRelayConnMgr, gRelayRoomMgr, gSpvrSettings};
+use crate::{gRelayConnMgr, gSpvrSettings};
 use axum::body::Bytes;
 use axum::extract::{ConnectInfo, Query, State};
 use axum::Json;
 use gr_base::{
-    ok_resp_vec_str_map, resp_empty_str_map, resp_empty_vec_str_map, RespMsgPair, RespStringMap,
+    ok_resp_vec_str_map, RespStringMap,
     RespVecStringMap, StringMap,
 };
 use prost::Message;
@@ -58,7 +58,7 @@ pub async fn hd_query_device(
         client_local_ips.push_str(";");
     }
     let device_name = conn.lock().await.device_name.clone();
-    let stream_id = conn.lock().await.stream_id.clone();
+    let _stream_id = conn.lock().await.stream_id.clone();
     let server_w3c_ip = gSpvrSettings.lock().await.server_w3c_ip.clone();
     let relay_port = gSpvrSettings.lock().await.relay_port as i32;
 

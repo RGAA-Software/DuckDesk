@@ -26,10 +26,6 @@ pub const KEY_FILE: &str = "file";
 
 pub const KEY_AVATAR_PATH: &str = "avatar_path";
 
-pub const KEY_ADMINISTRATOR: &str = "administrator";
-
 pub const KEY_AUTH_ID: &str = "auth_id";
-
-pub const KEY_AUTH_NAME: &str = "auth_name";
 
 pub const KEY_AUTH_PASSWORD: &str = "auth_password";

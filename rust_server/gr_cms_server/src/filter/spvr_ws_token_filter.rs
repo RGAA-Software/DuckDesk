@@ -1,11 +1,10 @@
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 
 use crate::gAuthManager;
-use crate::net_client::spvr_client_conn_mgr::StreamReservation;
 use crate::spvr_api_error::SpvrApiError;
 use gr_auth_mgr::auth_token::verify_connection_token;
 use gr_base::get_current_timestamp;
@@ -93,15 +92,10 @@ pub async fn website_filter(req: Request<Body>, next: Next) -> Response {
     verify_and_run(req, next, false).await
 }
 
-/// Convenience response used by non-axum callers.
-pub fn unauthorized_response() -> Response {
-    (StatusCode::UNAUTHORIZED, "Invalid ws token").into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{gAuthManager, gSpvrClientConnMgr};
+    use crate::gAuthManager;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;

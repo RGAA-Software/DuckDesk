@@ -1,5 +1,4 @@
 use crate::relay::relay_conn::RelayConn;
-use redis::AsyncCommands;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};

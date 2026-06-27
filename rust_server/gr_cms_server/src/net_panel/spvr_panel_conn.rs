@@ -5,7 +5,6 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use gr_base::sys_info::SysInfo;
 use prost::Message as ProstMessage;
-use protocol::relay::{RelayMessage, RelayMessageType, RelayNotificationMessage};
 use protocol::spvr_panel::{
     SpvrPanelHeartBeat, SpvrPanelHello, SpvrPanelMessage, SpvrPanelMessageType,
 };
@@ -77,7 +76,7 @@ impl SpvrPanelConn {
         }
     }
 
-    pub async fn process_message(&mut self, who: String, data: Bytes) -> bool {
+    pub async fn process_message(&mut self, _who: String, data: Bytes) -> bool {
         let m = SpvrPanelMessage::decode(data);
         if let Err(e) = m {
             tracing::error!("parse error: {:?}", e);
@@ -162,7 +161,7 @@ impl SpvrPanelConn {
 
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {
         // send message
-        let size = om.len();
+        let _size = om.len();
         let r = self.sender.lock().await.send(Message::Binary(om)).await;
         if let Err(r) = r {
             tracing::error!("error sending relay message: {r}");

@@ -3,7 +3,7 @@ use crate::net_panel::spvr_panel_handler::{
     handle_query_all_panel_conn, handle_query_online_panel_count, handle_query_panel_conn_by_id,
 };
 use crate::spvr_context::SpvrContext;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;

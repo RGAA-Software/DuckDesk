@@ -5,14 +5,14 @@ use crate::relay::relay_message::{
 use crate::relay::relay_proto_maker::make_error_message;
 use crate::relay::relay_queue::{RelayPacket, RelayQueue};
 use crate::relay::relay_room::{RelayRoom, RelayRoomAdapter};
-use crate::{gRelayConnMgr, gRelayRedisConn, gRelayRoomMgr};
+use crate::{gRelayConnMgr, gRelayRedisConn};
 use axum::body::Bytes;
 use prost::Message;
 use protocol::relay::{
     RelayCreateRoomRespMessage, RelayErrorCode, RelayMessage, RelayMessageType,
     RelayRemoteDeviceOfflineMessage, RelayRoomDestroyedMessage, RelayRoomPreparedMessage,
 };
-use redis::{AsyncCommands, Commands, RedisResult};
+use redis::{AsyncCommands, RedisResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -253,7 +253,7 @@ impl RelayRoomManager {
             }
 
             let room_info = room_info.unwrap();
-            for (key, val) in room_info.iter() {
+            for (_key, val) in room_info.iter() {
                 if val == &remote_device_id {
                     tracing::info!("found remote device id is myself.");
                     break;

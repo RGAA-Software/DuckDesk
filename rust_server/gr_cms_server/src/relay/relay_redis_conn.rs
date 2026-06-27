@@ -1,7 +1,4 @@
 use redis::aio::ConnectionLike;
-use redis::aio::MultiplexedConnection;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct RelayRedisConn<T>
 where

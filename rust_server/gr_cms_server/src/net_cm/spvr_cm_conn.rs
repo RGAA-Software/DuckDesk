@@ -1,11 +1,9 @@
 use crate::gSpvrPanelConnMgr;
 use crate::net_cm::spvr_cm_message::{CmMessage, StreamHardwareInfoResp, StreamHardwarePieceResp};
 use crate::spvr_context::SpvrContext;
-use axum::body::Bytes;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -53,7 +51,7 @@ impl SpvrCmConn {
                 }
 
                 let r = gSpvrPanelConnMgr.get_conn(target_device_id.clone()).await;
-                if let Err(err) = r {
+                if let Err(_err) = r {
                     //tracing::error!("error getting conn: {}", err);
                     fn_delay_1s.await;
                     continue;
@@ -88,7 +86,7 @@ impl SpvrCmConn {
                 tracing::info!("received ping");
             }
 
-            CmMessage::Heartbeat { index } => {
+            CmMessage::Heartbeat { index: _ } => {
                 //tracing::info!("received heartbeat: {}", index);
             }
 
@@ -116,7 +114,7 @@ impl SpvrCmConn {
                 }
             }
 
-            CmMessage::StreamRunningStat { device_id } => {}
+            CmMessage::StreamRunningStat { device_id: _ } => {}
 
             CmMessage::Unknown => {
                 tracing::warn!("received unknown message: {}", data);

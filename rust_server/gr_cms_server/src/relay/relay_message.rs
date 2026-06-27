@@ -1,15 +1,8 @@
 pub const KEY_DEVICE_ID: &str = "device_id";
 pub const KEY_REMOTE_DEVICE_ID: &str = "remote_device_id";
 pub const KEY_ROOM_ID: &str = "room_id";
-pub const KEY_TYPE: &str = "type";
-pub const KEY_CODE: &str = "code";
-pub const KEY_MESSAGE: &str = "message";
-pub const KEY_WHICH_MESSAGE: &str = "which_message";
-pub const KEY_INDEX: &str = "index";
-pub const KEY_UNDER_CONTROL: &str = "under_control";
 pub const KEY_CREATE_TIMESTAMP: &str = "create_timestamp";
 pub const KEY_LAST_UPDATE_TIMESTAMP: &str = "last_update_timestamp";
-pub const KEY_PAGE: &str = "page";
 pub const KEY_PAGE_SIZE: &str = "page_size";
 pub const KEY_CLIENT_W3C_HOST: &str = "client_w3c_host";
 

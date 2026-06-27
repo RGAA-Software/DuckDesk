@@ -102,7 +102,7 @@ async fn process_cm_message(
                 ControlFlow::Break(())
             }
         }
-        Message::Binary(data) => {
+        Message::Binary(_data) => {
             return ControlFlow::Continue(());
         }
         Message::Close(c) => {

@@ -1,7 +1,6 @@
 use crate::device::spvr_device_keys::KEY_DEVICE_ID;
-use crate::event::spvr_event::SpvrEvent;
 use crate::gSpvrDatabase;
-use crate::net_client::spvr_client_conn::{SpvrClientConn, SpvrClientConnPtr, SpvrClientConnVo};
+use crate::net_client::spvr_client_conn::{SpvrClientConnPtr, SpvrClientConnVo};
 use crate::spvr_api_error::SpvrApiError;
 use egui::ahash::HashMap;
 use mongodb::bson::doc;

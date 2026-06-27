@@ -8,7 +8,6 @@ use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrStreamManager {}
 

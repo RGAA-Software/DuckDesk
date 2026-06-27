@@ -6,10 +6,7 @@ use crate::user::spvr_user_keys::{KEY_DELETED, KEY_PASSWORD, KEY_USER_ID, KEY_US
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{doc, Bson, Document};
-use mongodb::Collection;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SpvrUserManager {}
 
@@ -24,7 +21,7 @@ impl SpvrUserManager {
         hash_password: String,
     ) -> Result<SpvrUser, SpvrApiError> {
         let r = self.query_user_by_username(username.clone()).await;
-        if let Ok(user) = r {
+        if let Ok(_user) = r {
             tracing::warn!("the user: {} already exists", username);
             return Err(SpvrApiError::UserAlreadyExists);
         }
@@ -255,12 +252,12 @@ impl SpvrUserManager {
         };
         let mut user_index = 0;
         let mut users = Vec::new();
-        for i in 0..batch_size {
+        for _i in 0..batch_size {
             loop {
                 let username = format!("{}{}", prefix, user_index);
                 user_index += 1;
                 let user = self.query_user_by_username(username.clone()).await;
-                if let Ok(user) = user {
+                if let Ok(_user) = user {
                     continue;
                 }
                 let password = PrIdGenerator::generate_random_pwd();
@@ -282,9 +279,9 @@ impl SpvrUserManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     #[test]
     fn test_gen_random_users() {
-        for i in 0..10 {}
+        for _i in 0..10 {}
     }
 }

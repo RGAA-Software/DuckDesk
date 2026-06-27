@@ -1,7 +1,7 @@
 use crate::gAuthManager;
 use crate::spvr_api_error::SpvrApiError;
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;

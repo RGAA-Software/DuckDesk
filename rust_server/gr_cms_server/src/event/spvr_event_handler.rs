@@ -6,14 +6,12 @@ use crate::event::spvr_event_keys::{
 use crate::relay::relay_message::{KEY_DEVICE_NAME, KEY_PAGE_SIZE};
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
-use crate::spvr_defs::{KEY_DEVICE_ID, KEY_DEVICE_IP, KEY_IP};
+use crate::spvr_defs::{KEY_DEVICE_ID, KEY_DEVICE_IP};
 use crate::spvr_http_util::{
-    get_body, get_body_bool, get_body_int, get_body_str, get_body_str_or_empty, get_int_param,
-    get_str_param, get_str_param_or,
+    get_body, get_body_int, get_body_str_or_empty, get_int_param, get_str_param_or,
 };
-use crate::user::spvr_user::SpvrUser;
 use crate::user::spvr_user_keys::{
-    KEY_AVATAR_PATH, KEY_FILE, KEY_PAGE, KEY_USER_ID, KEY_USER_NAME,
+    KEY_FILE, KEY_PAGE, KEY_USER_ID, KEY_USER_NAME,
 };
 use crate::{gDeviceManager, gSpvrEventMgr, gSpvrSettings, gUserManager};
 use axum::body::Body;
@@ -101,7 +99,7 @@ pub async fn handle_add_event(
 
 pub async fn handle_remove_event(
     State(_context): State<Arc<Mutex<SpvrContext>>>,
-    b: Body,
+    _b: Body,
 ) -> Result<Json<RespMessage<SpvrEvent>>, SpvrApiError> {
     Ok(Json(ok_resp(SpvrEvent::default())))
 }
@@ -164,14 +162,14 @@ pub async fn handle_add_log(
 
     let user = gUserManager.query_user_by_id(uid.clone()).await?;
 
-    let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
+    let _device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
 
     tracing::info!("found user to save log, user name: {}", user.username);
     let mut target_log_path = String::new();
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| SpvrApiError::InvalidParams)?
+        .map_err(|_e| SpvrApiError::InvalidParams)?
     {
         let key = field.name().unwrap_or("").to_string();
         let filename = field.file_name().unwrap_or("").to_string();
