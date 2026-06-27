@@ -79,7 +79,7 @@ pub struct LicenseSigner {
 impl LicenseSigner {
     /// Loads a signer from raw PKCS#8 v1 private key bytes.
     pub fn from_pkcs8_bytes(bytes: &[u8]) -> Result<Self, String> {
-        let key_pair = Ed25519KeyPair::from_pkcs8(bytes)
+        let key_pair = Ed25519KeyPair::from_pkcs8_maybe_unchecked(bytes)
             .map_err(|e| format!("invalid Ed25519 private key: {}", e))?;
         Ok(Self { key_pair })
     }

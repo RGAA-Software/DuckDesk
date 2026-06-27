@@ -10,8 +10,8 @@ const PUBLIC_KEY_FILE: &str = "certs/auth_license_public.key";
 /// Initializes the license signer for this auth server process.
 ///
 /// Priority:
-/// 1. `GR_AUTH_LICENSE_PRIVATE_KEY` environment variable (base64 PKCS#8).
-/// 2. `certs/auth_license_private.key` file (base64 PKCS#8).
+/// 1. `GR_AUTH_LICENSE_PRIVATE_KEY` environment variable (base64 PKCS#8 v1/v2).
+/// 2. `certs/auth_license_private.key` file (base64 PKCS#8 v1/v2).
 /// 3. Generate a new key pair and persist it (development only; logs a warning).
 pub fn init_license_signer() -> Result<LicenseSigner, String> {
     if let Ok(encoded) = std::env::var(PRIVATE_KEY_ENV) {

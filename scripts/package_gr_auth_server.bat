@@ -137,7 +137,7 @@ if exist "%CERT_DIR%\auth_license_private.key" (
     )
 )
 
-echo [1b/4] Generating Ed25519 license signing key pair...
+echo [1b/4] Generating Ed25519 license signing key pair (PKCS#8 v1)...
 %OPENSSL_EXE% genpkey -algorithm ED25519 -outform DER -out "%CERT_DIR%\auth_license_private.der"
 if errorlevel 1 (
     echo ERROR: Failed to generate license private key.
