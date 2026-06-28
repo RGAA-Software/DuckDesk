@@ -17,12 +17,12 @@ impl PrIdGenerator {
 
     pub async fn init(&self) {}
 
-    pub fn generate_new_id(&self, info: &String, platform: &String) -> GenDeviceInfo {
+    pub fn generate_new_id(&self, info: &str, platform: &str) -> GenDeviceInfo {
         let ignore_info = false;
         let seed = if info.is_empty() || ignore_info {
             uuid::Uuid::new_v4().to_string()
         } else {
-            platform.clone() + info
+            format!("{}{}", platform, info)
         };
 
         let mut device_id = "".to_string();

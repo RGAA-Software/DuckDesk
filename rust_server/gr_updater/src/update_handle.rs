@@ -12,7 +12,6 @@ use axum::extract::{Multipart, Query, State};
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::IntoResponse;
 use gr_base::{RespMessage, ok_resp};
-use md5;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::fs::File;

@@ -64,7 +64,7 @@ impl SpvrPanelConn {
 
     pub fn as_info(&self) -> SpvrPanelConnVo {
         let mut sys_info = SysInfo::default();
-        if self.sys_info_array.len() > 0 {
+        if !self.sys_info_array.is_empty() {
             sys_info = self.sys_info_array.last().unwrap().clone();
         }
         SpvrPanelConnVo {
@@ -116,7 +116,7 @@ impl SpvrPanelConn {
             } else {
                 tracing::warn!("==> sys info raw is empty!");
             }
-            if self.sys_info_array.len() > 0 {
+            if !self.sys_info_array.is_empty() {
                 //tracing::info!("panel heartbeat msg, self.sys_info, readable ts: {} cpu 0 using: {:?}, cpu 1 using: {}",
                 //    self.sys_info_array[0].timestamp_readable, self.sys_info_array[0].cpu.cpus[0].using, self.sys_info_array[0].cpu.cpus[1].using);
             }

@@ -18,7 +18,7 @@ pub async fn hr_query_room(
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespStringMap>, RelayApiError> {
     let room_id = get_query_param(&query.0, KEY_ROOM_ID);
-    if let None = room_id {
+    if room_id.is_none() {
         return Err(RelayApiError::InvalidParams);
     }
 

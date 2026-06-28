@@ -18,11 +18,11 @@ impl StatUsingManager {
             KEY_SYS_INFO: stat.sys_info.as_str(),
         };
         if let Ok(count) = c_open_up.count_documents(filter.clone()).await {
-            if count <= 0 {
+            if count == 0 {
                 let created_ts = gr_base::get_current_timestamp();
                 let mut stat_cpy = stat.clone();
                 stat_cpy.created_ts = created_ts;
-                if let Ok(_) = c_open_up.insert_one(stat_cpy.clone()).await {
+                if c_open_up.insert_one(stat_cpy.clone()).await.is_ok() {
                     Ok(stat_cpy)
                 } else {
                     Err(StatApiError::DatabaseError)

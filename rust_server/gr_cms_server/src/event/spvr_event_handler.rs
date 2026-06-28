@@ -49,7 +49,7 @@ pub async fn handle_add_event(
             username,
             cpu_usage as u32,
         );
-        let _r = gSpvrEventMgr.add_event(event.clone()).await?;
+        gSpvrEventMgr.add_event(event.clone()).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_MEMORY {
         let mem_usage = get_body_int(&r, KEY_MEMORY_USAGE)?;
@@ -61,7 +61,7 @@ pub async fn handle_add_event(
             username,
             mem_usage as u32,
         );
-        let _r = gSpvrEventMgr.add_event(event.clone()).await?;
+        gSpvrEventMgr.add_event(event.clone()).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_DISK {
         let disk_usage = get_body_int(&r, KEY_DISK_USAGE)?;
@@ -75,7 +75,7 @@ pub async fn handle_add_event(
             disk_usage as u32,
             disk_path,
         );
-        let _r = gSpvrEventMgr.add_event(event.clone()).await?;
+        gSpvrEventMgr.add_event(event.clone()).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_GPU {
         let gpu_usage = get_body_int(&r, KEY_GPU_USAGE)?;
@@ -91,7 +91,7 @@ pub async fn handle_add_event(
             gpu_id,
             gpu_name,
         );
-        let _r = gSpvrEventMgr.add_event(event.clone()).await?;
+        gSpvrEventMgr.add_event(event.clone()).await?;
         return Ok(Json(ok_resp(event)));
     }
     Ok(Json(ok_resp(SpvrEvent::default())))

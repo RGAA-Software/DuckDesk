@@ -535,7 +535,7 @@ impl RelayRoomManager {
         let creator_device_id = sub.device_id.clone();
         //let remote_device_id = sub.remote_device_id.clone();
         let req_device = gRelayConnMgr.get_conn(creator_device_id.clone()).await;
-        if let None = req_device {
+        if req_device.is_none() {
             tracing::error!("can't find device: {}", creator_device_id);
             return;
         }
@@ -546,14 +546,14 @@ impl RelayRoomManager {
             tracing::info!("{} is under control", sub.remote_device_id);
             let room_id = sub.room_id;
             let room = self.find_room(room_id.clone(), true).await;
-            if let None = room {
+            if room.is_none() {
                 tracing::error!("can't find room: {}", room_id);
                 return;
             }
             let room = room.unwrap();
 
             let resp_device = gRelayConnMgr.get_conn(sub.remote_device_id.clone()).await;
-            if let None = resp_device {
+            if resp_device.is_none() {
                 tracing::error!("can't find remote device: {}", sub.remote_device_id);
                 return;
             }

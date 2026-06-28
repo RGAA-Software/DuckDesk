@@ -62,6 +62,7 @@ pub fn get_license_public_key_b64(signer: &LicenseSigner) -> String {
 }
 
 /// Convenience helper: sign an `Authorization`-derived license payload.
+#[allow(clippy::too_many_arguments)]
 pub fn sign_authorization(
     signer: &LicenseSigner,
     auth_id: String,

@@ -125,7 +125,7 @@ async fn main() {
     let args = Args::parse();
     let machine_code = HardwareIdUtil::generate_hardware_id();
 
-    if args.running_mode == String::from("server") {
+    if args.running_mode == "server" {
         run_as_server(machine_code).await;
     } else if args.running_mode == "system_service" {
         run_as_system_service(machine_code);
@@ -152,15 +152,11 @@ async fn run_as_panel(machine_code: String) {
     };
     tracing::info!("Current system locale: {}", locale);
 
-    let language: SpvrLanguage;
-    if locale.starts_with("en-") {
-        language = SpvrLanguage::new_english();
+    let language = if locale.starts_with("en-") {
+        SpvrLanguage::new_english()
     } else {
-        language = SpvrLanguage::new_chinese();
-    }
-
-    // test //
-    // language = SpvrLanguage::new_chinese();
+        SpvrLanguage::new_chinese()
+    };
 
     // read the auth/auth.info
     gAuthManager.lock().await.load().await;

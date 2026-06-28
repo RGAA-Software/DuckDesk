@@ -39,7 +39,7 @@ impl SpvrPanelConnManager {
 
     pub async fn get_all_conn(&self) -> Result<Vec<SpvrPanelConn>, SpvrApiError> {
         let mut all_conn = Vec::new();
-        for (_id, conn) in self.connections.lock().await.iter() {
+        for conn in self.connections.lock().await.values() {
             all_conn.push(conn.lock().await.clone());
         }
         if all_conn.is_empty() {
@@ -51,7 +51,7 @@ impl SpvrPanelConnManager {
 
     pub async fn get_all_conn_info(&self) -> Result<Vec<SpvrPanelConnVo>, SpvrApiError> {
         let mut all_conn = Vec::new();
-        for (_id, conn) in self.connections.lock().await.iter() {
+        for conn in self.connections.lock().await.values() {
             all_conn.push(conn.lock().await.as_info());
         }
         if all_conn.is_empty() {
@@ -66,7 +66,7 @@ impl SpvrPanelConnManager {
     }
 
     pub async fn is_panel_online(&self, device_id: String) -> Result<bool, SpvrApiError> {
-        for (id, _conn) in self.connections.lock().await.iter() {
+        for id in self.connections.lock().await.keys() {
             if *id == device_id {
                 return Ok(true);
             }

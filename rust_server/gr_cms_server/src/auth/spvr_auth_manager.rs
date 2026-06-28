@@ -32,9 +32,8 @@ impl AuthManager {
         let auth_str = if let Some(str) = gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
             str
         } else {
-            let default_auth =
-                std::fs::read_to_string("auth/auth.info").expect("can't read auth/auth.info");
-            default_auth
+            
+            std::fs::read_to_string("auth/auth.info").expect("can't read auth/auth.info")
         };
 
         let machine_code = gSpvrContext.lock().await.machine_code.clone();

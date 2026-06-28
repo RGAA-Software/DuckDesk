@@ -45,7 +45,7 @@ pub async fn hd_query_device(
 ) -> Result<Json<RespStringMap>, RelayApiError> {
     let device_id = query.get("device_id").unwrap().clone();
     let conn = gRelayConnMgr.get_conn(device_id).await;
-    if let None = conn {
+    if conn.is_none() {
         return Err(RelayApiError::DeviceNotFound);
     }
 
@@ -55,7 +55,7 @@ pub async fn hd_query_device(
     let mut client_local_ips = "".to_string();
     for info in conn.lock().await.client_net_info.clone() {
         client_local_ips.push_str(info.ip.as_str());
-        client_local_ips.push_str(";");
+        client_local_ips.push(';');
     }
     let device_name = conn.lock().await.device_name.clone();
     let _stream_id = conn.lock().await.stream_id.clone();
@@ -70,7 +70,7 @@ pub async fn hd_query_device(
     value.insert(KEY_RELAY_SERVER_PORT.to_string(), relay_port.to_string());
     value.insert(KEY_DEVICE_NAME.to_string(), device_name);
     value.insert(KEY_DEVICE_ID.to_string(), device_id);
-    return Ok(Json(gr_base::ok_resp(value)));
+    Ok(Json(gr_base::ok_resp(value)))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -101,7 +101,7 @@ pub async fn hd_notify_event(
     }
 
     let conn = gRelayConnMgr.get_conn(to_device_id.clone()).await;
-    if let None = conn {
+    if conn.is_none() {
         tracing::error!("notify event failed, device not found: {}", to_device_id);
         return Err(RelayApiError::DeviceNotFound);
     }

@@ -46,7 +46,7 @@ async fn handle_ws_socket(
         let sender = Arc::new(Mutex::new(sender));
         let panel_conn = SpvrCmConn::new(context.clone(), sender, appkey.clone()).await;
 
-        let id = format!("{}-{}", who.ip().to_string(), who.port());
+        let id = format!("{}-{}", who.ip(), who.port());
         tracing::info!("ws connect from {}, id: {}", who, id);
         let spvr_conn = Arc::new(Mutex::new(panel_conn));
 

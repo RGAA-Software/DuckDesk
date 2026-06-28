@@ -132,7 +132,7 @@ impl SpvrUserManager {
             return Err(SpvrApiError::DatabaseError);
         }
         let r = r.unwrap();
-        if let None = r {
+        if r.is_none() {
             return Err(SpvrApiError::UserNotFound);
         }
         Ok(r.unwrap())
@@ -149,7 +149,7 @@ impl SpvrUserManager {
             return Err(SpvrApiError::DatabaseError);
         }
         let r = r.unwrap();
-        if let None = r {
+        if r.is_none() {
             tracing::error!("user not found: {}", username);
             return Err(SpvrApiError::UserNotFound);
         }

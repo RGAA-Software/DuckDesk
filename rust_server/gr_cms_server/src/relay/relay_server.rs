@@ -275,9 +275,9 @@ impl RelayServer {
                     gRelayRoomMgr.on_request_control(m, data).await;
                 } else if m_type == RelayMessageType::KRelayRequestControlResp {
                     gRelayRoomMgr.on_request_control_resp(m, data).await;
-                } else if m_type == RelayMessageType::KRelayRequestPausedStream {
-                    gRelayRoomMgr.on_request_resume_pause_stream(m, data).await;
-                } else if m_type == RelayMessageType::KRelayRequestResumeStream {
+                } else if m_type == RelayMessageType::KRelayRequestPausedStream
+                    || m_type == RelayMessageType::KRelayRequestResumeStream
+                {
                     gRelayRoomMgr.on_request_resume_pause_stream(m, data).await;
                 }
                 return ControlFlow::Continue(());

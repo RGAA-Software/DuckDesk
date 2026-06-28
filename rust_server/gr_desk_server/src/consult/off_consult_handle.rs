@@ -101,7 +101,7 @@ pub async fn mark_consult_processed(
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let cid = r[KEY_ITEM_ID].as_str().unwrap().to_string();
     let p = r[KEY_PROCESSED].as_bool().unwrap();
-    let _r = gOffConsultManager
+    gOffConsultManager
         .lock()
         .await
         .mark_processed(cid, p)

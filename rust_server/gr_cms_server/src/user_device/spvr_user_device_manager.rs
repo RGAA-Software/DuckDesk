@@ -59,7 +59,7 @@ impl SpvrUserDeviceManager {
             return Err(SpvrApiError::DatabaseError);
         }
 
-        Ok(user_device_adapter?)
+        user_device_adapter
     }
 
     pub async fn remove_device_from_user(
@@ -135,7 +135,7 @@ impl SpvrUserDeviceManager {
             .await
             .map_err(|e| {
                 tracing::error!("failed to get cursor to query user device: {}", e);
-                return SpvrApiError::DatabaseError;
+                SpvrApiError::DatabaseError
             })?;
 
         let mut devices: Vec<SpvrUserDeviceAdapter> = Vec::new();

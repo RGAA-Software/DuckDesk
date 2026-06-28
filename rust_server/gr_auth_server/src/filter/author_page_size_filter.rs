@@ -18,13 +18,11 @@ fn is_valid_page_size(params: &PageSizeQueryParams) -> bool {
 }
 
 pub async fn filter(req: Request<Body>, next: Next) -> Response {
-    if let Some(query) = req.uri().query() {
-        if let Ok(params) = serde_urlencoded::from_str::<PageSizeQueryParams>(query) {
-            if is_valid_page_size(&params) {
+    if let Some(query) = req.uri().query()
+        && let Ok(params) = serde_urlencoded::from_str::<PageSizeQueryParams>(query)
+            && is_valid_page_size(&params) {
                 return next.run(req).await;
             }
-        }
-    }
     tracing::error!("don't have page / page_size");
     AuthorApiError::InvalidPageSize.into_response()
 }

@@ -27,7 +27,7 @@ pub(crate) async fn client_handler(
         String::from("Unknown browser")
     };
     tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
-    for (k, _) in query.iter() {
+    for k in query.keys() {
         tracing::debug!("ws query param key: {}", k);
     }
     let params = query.0.clone();

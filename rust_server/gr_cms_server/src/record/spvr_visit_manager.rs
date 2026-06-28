@@ -76,6 +76,7 @@ impl SpvrVisitManager {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn query_info<T>(
         &self,
         page: i32,

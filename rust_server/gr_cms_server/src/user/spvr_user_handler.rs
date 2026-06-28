@@ -68,7 +68,7 @@ pub async fn handle_login(
     if user.password == hash_password {
         // record the event
         let event = SpvrEvent::new_login(user.uid.clone(), user.username.clone());
-        let _ = gSpvrEventMgr.add_event(event).await?;
+        gSpvrEventMgr.add_event(event).await?;
 
         // bind this device to this user
         let _ = gDeviceManager
@@ -193,7 +193,7 @@ pub async fn handle_update_user(
                 }
                 Value::Number(n) => {
                     let n = n.as_i64();
-                    if let None = n {
+                    if n.is_none() {
                         continue;
                     }
                     let n = n.unwrap();

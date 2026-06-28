@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[allow(clippy::field_reassign_with_default)]
 pub async fn handle_insert_stream(
     State(_context): State<Arc<Mutex<SpvrContext>>>,
     b: Body,

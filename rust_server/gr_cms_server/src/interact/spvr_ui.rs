@@ -17,6 +17,7 @@ use tokio::runtime::Handle;
 use webbrowser;
 
 #[derive(Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 enum MainPageType {
     PageServerSettings = 0,
     PageServerState,
@@ -125,7 +126,7 @@ impl SpvrUI {
                     if name.contains("gr_relay") {
                         state.lock().unwrap().relay_alive = true;
                     }
-                    let pid = pid.clone();
+                    let pid = *pid;
                     if name.contains("gr_cms_server") && pid.as_u32() != my_pid {
                         state.lock().unwrap().spvr_alive = true;
                         state.lock().unwrap().spvr_alive_pid = pid.as_u32();
@@ -278,25 +279,24 @@ impl eframe::App for SpvrUI {
                             }
 
                             ui.label(self.language.st_auth_state.as_str());
-                            let auth_state: String;
                             let max_streams = self.state.lock().unwrap().auth.max_streams;
                             let days = self.state.lock().unwrap().auth.days;
                             let used_time = self.state.lock().unwrap().used_time;
-                            if self.language.is_zh_cn()  {
-                                auth_state = format!(
+                            let auth_state = if self.language.is_zh_cn() {
+                                format!(
                                     "流路数: {}, 时间: {}天, 已使用: {}天",
                                     max_streams,
                                     days,
                                     milliseconds_to_days(used_time)
-                                );
+                                )
                             } else {
-                                auth_state = format!(
+                                format!(
                                     "Steams: {}, Days: {}, Used: {}",
                                     max_streams,
                                     days,
                                     milliseconds_to_days(used_time)
-                                );
-                            }
+                                )
+                            };
                             ui.label(auth_state.as_str());
 
                             // operation
@@ -473,12 +473,11 @@ impl eframe::App for SpvrUI {
                     .add_sized([150.0, 32.0], egui::Button::new("Relay Server"))
                     .clicked()
                 {}
-            } else if self.main_page == MainPageType::PageSettings {
-                if ui
+            } else if self.main_page == MainPageType::PageSettings
+                && ui
                     .add_sized([150.0, 32.0], egui::Button::new("Settings"))
                     .clicked()
                 {}
-            }
         });
 
         if self.state.lock().unwrap().show_exit_dialog {

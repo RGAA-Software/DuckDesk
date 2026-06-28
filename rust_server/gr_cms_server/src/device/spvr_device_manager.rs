@@ -75,7 +75,7 @@ impl SpvrDeviceManager {
             .await
             .map_err(|e| {
                 tracing::error!("failed to get cursor to query user device: {}", e);
-                return SpvrApiError::DatabaseError;
+                SpvrApiError::DatabaseError
             })?;
 
         println!("query device, skip:{} - limit:{}", skip, limit);

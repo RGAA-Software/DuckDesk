@@ -180,11 +180,10 @@ impl AuthorizationManager {
                 break;
             } else {
                 let mut auth = auth.unwrap();
-                if let Some(signer) = gLicenseSigner.lock().await.as_ref() {
-                    if let Ok(signed) = sign_authorization_model(signer, &auth) {
+                if let Some(signer) = gLicenseSigner.lock().await.as_ref()
+                    && let Ok(signed) = sign_authorization_model(signer, &auth) {
                         auth.deploy_str = signed.to_deploy_string().unwrap_or_default();
                     }
-                }
                 authorizations.push(auth.as_vo(total));
             }
         }

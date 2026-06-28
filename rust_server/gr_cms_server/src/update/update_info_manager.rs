@@ -30,7 +30,7 @@ impl UpdateInfoManager {
         }
 
         //存在则更新
-        if let Some(_) = existing.unwrap() {
+        if existing.unwrap().is_some() {
             tracing::info!("update version {}", version);
             let update_doc = doc! {
                 "$set": bson::to_document(&info).unwrap()
@@ -120,7 +120,7 @@ impl UpdateInfoManager {
             return Err(SpvrApiError::DatabaseError);
         }
         let r = r.unwrap();
-        if let None = r {
+        if r.is_none() {
             return Err(SpvrApiError::VersionNotFound);
         }
         Ok(r.unwrap())

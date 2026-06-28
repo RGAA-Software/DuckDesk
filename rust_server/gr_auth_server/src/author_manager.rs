@@ -38,14 +38,13 @@ impl AuthorManager {
             return false;
         };
 
-        if !self.has_author(&admin_name).await {
-            if !self
+        if !self.has_author(&admin_name).await
+            && !self
                 .insert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin)
                 .await
             {
                 return false;
             }
-        }
 
         if let Some(visitor_name) = visitor_name {
             if !self.has_author(&visitor_name).await {
@@ -110,11 +109,12 @@ impl AuthorManager {
         let filter = doc! {
             "name": author_name,
         };
-        if let Ok(opt_author) = c_author.lock().await.find_one(filter).await {
-            opt_author
-        } else {
-            None
-        }
+        c_author
+            .lock()
+            .await
+            .find_one(filter)
+            .await
+            .unwrap_or_default()
     }
 
     pub async fn find_authors(&self) -> Result<Vec<Author>, String> {
@@ -178,13 +178,12 @@ impl AuthorManager {
         author_name: String,
         plain_password: String,
     ) -> Option<Author> {
-        if let Some(author) = self.find_author_by_name(author_name.clone()).await {
-            if author.name == author_name
+        if let Some(author) = self.find_author_by_name(author_name.clone()).await
+            && author.name == author_name
                 && Self::verify_password(&plain_password, &author.password_hash)
             {
                 return Some(author);
             }
-        }
         None
     }
 }

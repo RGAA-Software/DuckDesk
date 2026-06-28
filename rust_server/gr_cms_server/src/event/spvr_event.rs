@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default, clippy::too_many_arguments)]
+
 use crate::event::spvr_event_keys::{
     EVENT_ANALYZE_LOG, EVENT_CPU, EVENT_DISK, EVENT_GPU, EVENT_MEMORY, EVENT_USER_ACTIVE,
     EVENT_USER_DELETE, EVENT_USER_LOGIN, EVENT_USER_LOGOUT, EVENT_USER_REGISTER, EVENT_USER_UPDATE,

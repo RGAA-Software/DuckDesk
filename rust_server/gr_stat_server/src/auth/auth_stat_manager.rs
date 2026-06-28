@@ -20,11 +20,11 @@ impl StatAuthManager {
             KEY_SYS_INFO: stat.sys_info.as_str(),
         };
         if let Ok(count) = c_auth_stat.count_documents(filter.clone()).await {
-            if count <= 0 {
+            if count == 0 {
                 let created_ts = gr_base::get_current_timestamp();
                 let mut stat_cpy = stat.clone();
                 stat_cpy.created_ts = created_ts;
-                if let Ok(_) = c_auth_stat.insert_one(stat_cpy.clone()).await {
+                if c_auth_stat.insert_one(stat_cpy.clone()).await.is_ok() {
                     Ok(stat_cpy)
                 } else {
                     Err(StatApiError::DatabaseError)

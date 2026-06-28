@@ -109,15 +109,17 @@ pub async fn handle_create_new_device(
                     "the device is a new one, insert to db: {}",
                     new_device_info.device_id
                 );
-                let mut device = SpvrDevice::default();
-                device.device_id = new_device_info.device_id;
-                device.device_name = device_name.clone();
-                device.seed = new_device_info.seed;
-                device.created_timestamp = gr_base::get_current_timestamp();
-                device.last_update_timestamp = gr_base::get_current_timestamp();
-                device.random_pwd_md5 = new_random_pwd_md5;
-                device.gen_random_pwd = new_device_info.random_pwd;
-                device.active = true;
+                let device = SpvrDevice {
+                    device_id: new_device_info.device_id,
+                    device_name: device_name.clone(),
+                    seed: new_device_info.seed,
+                    created_timestamp: gr_base::get_current_timestamp(),
+                    last_update_timestamp: gr_base::get_current_timestamp(),
+                    random_pwd_md5: new_random_pwd_md5,
+                    gen_random_pwd: new_device_info.random_pwd,
+                    active: true,
+                    ..Default::default()
+                };
 
                 let resp_device = device.clone();
                 let ok = gDeviceManager.insert_device(device.clone()).await?;
@@ -185,15 +187,14 @@ pub async fn handle_query_devices(
                     );
                     continue;
                 }
-            } else if online_state == KEY_OFFLINE {
-                if online {
+            } else if online_state == KEY_OFFLINE
+                && online {
                     tracing::info!(
                         "this device is online: {}, but we need offline devices, ignore it.",
                         device.device_id
                     );
                     continue;
                 }
-            }
         }
         let mut device_vo = SpvrDeviceVo::from(&device);
         device_vo.online = online;
@@ -278,16 +279,8 @@ pub async fn verify_device_info(
     let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
     tracing::info!("found device to verify: {}", device.device_id);
 
-    let ok_random_pwd = if !random_pwd_md5.is_empty() && random_pwd_md5 == device.random_pwd_md5 {
-        true
-    } else {
-        false
-    };
-    let ok_safety_pwd = if !safety_pwd_md5.is_empty() && safety_pwd_md5 == device.safety_pwd_md5 {
-        true
-    } else {
-        false
-    };
+    let ok_random_pwd = !random_pwd_md5.is_empty() && random_pwd_md5 == device.random_pwd_md5;
+    let ok_safety_pwd = !safety_pwd_md5.is_empty() && safety_pwd_md5 == device.safety_pwd_md5;
     if !ok_random_pwd && !ok_safety_pwd {
         tracing::error!("verify failed, invalid password");
         return Err(SpvrApiError::PasswordInvalid);
