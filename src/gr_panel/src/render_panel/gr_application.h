@@ -183,8 +183,10 @@ namespace tc
         // monitor refresher
         std::shared_ptr<MonitorRefresher> monitor_refresher_ = nullptr;
 
-        // last appkey
+        // last spvr connection info used by GrSpvrClient
         std::string using_appkey_;
+        std::string using_spvr_host_;
+        int using_spvr_port_ = 0;
         bool shutdown_prepared_ = false;
     };
 

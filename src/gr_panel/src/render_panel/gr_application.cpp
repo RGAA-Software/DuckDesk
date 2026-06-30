@@ -568,8 +568,11 @@ namespace tc
             return;
         }
 
-        if (appkey != using_appkey_) {
-            LOGW("Appkey changed,  {} => {} will release WS:SpvrClient and recreate it.", using_appkey_, appkey);
+        const bool host_changed = (spvr_host != using_spvr_host_);
+        const bool port_changed = (spvr_port != using_spvr_port_);
+        if (appkey != using_appkey_ || host_changed || port_changed) {
+            LOGW("Spvr config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, will release WS:SpvrClient and recreate it.",
+                 using_appkey_, appkey, using_spvr_host_, spvr_host, using_spvr_port_, spvr_port);
             if (spvr_client_) {
                 spvr_client_->Stop();
                 spvr_client_ = nullptr;
@@ -583,6 +586,8 @@ namespace tc
             spvr_client_->Start();
         }
         using_appkey_ = appkey;
+        using_spvr_host_ = spvr_host;
+        using_spvr_port_ = spvr_port;
     }
 
     std::shared_ptr<SpvrScanner> GrApplication::GetSpvrScanner() {
