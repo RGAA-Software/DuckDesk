@@ -74,6 +74,9 @@ pub fn sign_authorization(
     created_at_ms: i64,
     expires_at_ms: i64,
     appkey: String,
+    app_secret: String,
+    username: String,
+    password: String,
 ) -> Result<SignedLicense, String> {
     let license = AuthLicense {
         auth_id,
@@ -85,12 +88,15 @@ pub fn sign_authorization(
         created_at_ms,
         expires_at_ms,
         appkey,
+        app_secret,
+        username,
+        password,
     };
     signer.sign(&license)
 }
 
-/// Signs a full `Authorization` model, producing a `SignedLicense` containing only
-/// the fields the CMS needs to enforce.
+/// Signs a full `Authorization` model, producing a `SignedLicense` containing
+/// the fields the CMS needs to enforce authorization, including credentials.
 pub fn sign_authorization_model(
     signer: &LicenseSigner,
     auth: &Authorization,
@@ -106,6 +112,9 @@ pub fn sign_authorization_model(
         auth.created_timestamp_ms,
         auth.end_timestamp_ms,
         auth.appkey.clone(),
+        auth.app_secret.clone(),
+        auth.username.clone(),
+        auth.password.clone(),
     )
 }
 
@@ -129,6 +138,9 @@ mod tests {
             0,
             1000,
             "key".to_string(),
+            "secret".to_string(),
+            "user".to_string(),
+            "pass".to_string(),
         )
         .unwrap();
         let verifier =
@@ -155,6 +167,9 @@ mod tests {
             0,
             1000,
             "key".to_string(),
+            "secret".to_string(),
+            "user".to_string(),
+            "pass".to_string(),
         )
         .unwrap();
         assert!(signed.to_deploy_string().unwrap().contains('.'));

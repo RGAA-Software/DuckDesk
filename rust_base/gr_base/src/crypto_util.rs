@@ -82,4 +82,17 @@ mod tests {
 
         assert_eq!(decoded, text);
     }
+
+    #[test]
+    fn decrypt_access_info() {
+        let key: [u8; 32] = *b"cae8ae8CDTDF289437e#$()92cb17540";
+        let encoded = "jmLPUhIWRLHF62lgOd170Zy8N/mhCy1ljniBVkgMvLIUMgRhmAwtRSoOEEXHrFrGqNeC15gNKb5WyoYzdVNHZMDPYeu5cchsWG35z28IyExkjwaHq9eZ99U63IZMYOIs5Jnp2OfAGebT3qFqJH3Z1htNXA8FC/69u34zTf056pSxdGGudpdZdWSzAJ6gtYg+5IYCRbjOJTt3y2VJSXhSdW+uH9em7dwouzOnFIV98ycoNmfp5rXA8FxEcDYt1BAiqs71vPv7pH5Y4YO5i/yET0oASPw3ORJwg3M=";
+        match aes_decrypt(encoded, &key) {
+            Ok(plain) => println!("decrypted access info:\n{}", plain),
+            Err(e) => {
+                println!("decrypt failed: {}", e);
+                panic!("decrypt failed");
+            }
+        }
+    }
 }

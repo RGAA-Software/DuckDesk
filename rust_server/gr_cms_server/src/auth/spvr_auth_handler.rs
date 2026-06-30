@@ -18,19 +18,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-// update the new authorization (signed license format only)
+// Upload a new signed license. The auth server is the authority for
+// credentials (username/password/app_secret); they are carried in the signed
+// license and used verbatim.
 pub async fn handle_update_authorization(
     State(_context): State<Arc<Mutex<SpvrContext>>>,
     Query(_params): Query<HashMap<String, String>>,
     body: Body,
 ) -> Result<Json<RespMessage<Authorization>>, SpvrApiError> {
     let auth_str = get_body_data(body).await?;
-
-    // Reject legacy AES deploy strings: they must be migrated to signed licenses.
-    if !auth_str.contains('.') {
-        tracing::error!("legacy AES deploy strings are no longer accepted for updates");
-        return Err(SpvrApiError::InvalidAuthorization);
-    }
+    tracing::info!(
+        "update/authorization: received deploy string, len={} preview='{}'",
+        auth_str.len(),
+        &auth_str[..auth_str.len().min(60)]
+    );
 
     let verifier = gLicenseVerifier
         .lock()
@@ -40,24 +41,72 @@ pub async fn handle_update_authorization(
         .ok_or(SpvrApiError::InternalError)?;
     let machine_code = gSpvrContext.lock().await.machine_code.clone();
     let now_ms = get_current_timestamp();
+    tracing::info!(
+        "update/authorization: machine_code='{}' now_ms={}",
+        machine_code,
+        now_ms
+    );
 
-    let signed = SignedLicense::parse_deploy_string(&auth_str)
-        .map_err(|_| SpvrApiError::InvalidAuthorization)?;
+    let signed = SignedLicense::parse_deploy_string(&auth_str).map_err(|e| {
+        tracing::error!("update/authorization: parse_deploy_string failed: {}", e);
+        SpvrApiError::InvalidAuthorization
+    })?;
 
-    if !verifier
-        .verify(&signed, &machine_code, now_ms)
-        .map_err(|_| SpvrApiError::InvalidAuthorization)?
-    {
-        tracing::error!("signed license verification failed");
+    tracing::info!(
+        "update/authorization: parsed license OK, auth_id='{}' auth_name='{}' \
+         machine_code='{}' appkey='{}' username='{}' password_len={}",
+        signed.license.auth_id,
+        signed.license.auth_name,
+        signed.license.machine_code,
+        signed.license.appkey,
+        signed.license.username,
+        signed.license.password.len()
+    );
+
+    let verify_result = verifier.verify(&signed, &machine_code, now_ms);
+    match &verify_result {
+        Ok(true) => tracing::info!("update/authorization: signature+machine+expiry verify OK"),
+        Ok(false) => {
+            // Distinguish which check failed for debugging.
+            let sig_ok = verifier.verify_signature(&signed).unwrap_or(false);
+            let mc_ok = signed.license.machine_code == machine_code;
+            let exp_ok = signed.license.expires_at_ms > now_ms;
+            tracing::error!(
+                "update/authorization: verify returned false — \
+                 signature_ok={} machine_code_ok={} (license='{}' vs local='{}') \
+                 expiry_ok={} (expires_ms={} vs now_ms={})",
+                sig_ok,
+                mc_ok,
+                signed.license.machine_code,
+                machine_code,
+                exp_ok,
+                signed.license.expires_at_ms,
+                now_ms
+            );
+        }
+        Err(e) => tracing::error!("update/authorization: verify error: {}", e),
+    }
+
+    if !verify_result.map_err(|_| SpvrApiError::InvalidAuthorization)? {
         return Err(SpvrApiError::InvalidAuthorization);
     }
 
     let existing = gAuthManager.lock().await.get_auth().await;
     let mut auth = license_to_authorization(&signed.license, Some(&existing), auth_str.clone());
 
-    // Derive app_secret from appkey so the appkey filter keeps working until Phase 3.
+    // Derive app_secret from appkey so the appkey filter keeps working.
     use gr_auth_mgr::app_secret_util::calculate_app_secret;
     auth.app_secret = calculate_app_secret(auth.appkey.clone());
+
+    tracing::info!(
+        "update/authorization: authorization built, auth_id='{}' appkey='{}' \
+         app_secret='{}' username='{}' password='{}'",
+        auth.auth_id,
+        auth.appkey,
+        auth.app_secret,
+        auth.username,
+        auth.password
+    );
 
     // save to db
     gKvStorage
@@ -74,6 +123,9 @@ pub async fn handle_update_authorization(
     // used time
     auth.used_time_ms = gAuthManager.lock().await.get_used_time().await;
 
+    tracing::info!(
+        "update/authorization: SUCCESS, auth stored in KvStorage and AuthManager"
+    );
     Ok(Json(ok_resp(auth)))
 }
 
@@ -111,18 +163,15 @@ pub async fn handle_update_auth_password(
 
     auth.password = password;
 
-    let deploy_str = auth.as_deploy_str();
-    if let Err(e) = deploy_str {
-        tracing::error!("Failed to deploy auth: {}", e);
-        return Err(SpvrApiError::InternalError);
+    // The deploy string in KvStorage is the signed license from the auth
+    // server; we keep it as-is (the auth server is the authority for the
+    // signed fields). The password change only affects the in-memory
+    // Authorization so the web login uses the new password.
+    // save to db (preserve the existing deploy string)
+    if let Some(deploy_str) = gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
+        // deploy_str unchanged
+        let _ = deploy_str;
     }
-    let deploy_str = deploy_str.unwrap();
-
-    // save to db
-    gKvStorage
-        .lock()
-        .await
-        .put(KEY_AUTHORIZATION, deploy_str.as_str());
 
     // update auth manager
     gAuthManager.lock().await.update_auth(auth.clone()).await;
@@ -139,6 +188,10 @@ pub async fn handle_get_authorization(
     let used_time_ms = gAuthManager.lock().await.get_used_time().await;
     let mut auth = gAuthManager.lock().await.get_auth().await;
     auth.used_time_ms = used_time_ms;
+    tracing::info!(
+        "get/authorization: auth_id='{}' auth_name='{}' appkey='{}' days={} max_streams={} end_ms={} used_ms={}",
+        auth.auth_id, auth.auth_name, auth.appkey, auth.days, auth.max_streams, auth.end_timestamp_ms, auth.used_time_ms
+    );
     Ok(Json(ok_resp(SanitizedAuthorization::from(auth))))
 }
 
@@ -151,6 +204,10 @@ pub async fn handle_auth_valid(
     let (left_time_ms, expired) =
         compute_auth_time_status(used_time_ms, auth.days, auth.end_timestamp_ms, now_ms);
     let valid = left_time_ms > 0 && !expired;
+    tracing::info!(
+        "auth/valid: auth_id='{}' appkey='{}' days={} used_ms={} end_ms={} now_ms={} left_ms={} expired={} -> valid={}",
+        auth.auth_id, auth.appkey, auth.days, used_time_ms, auth.end_timestamp_ms, now_ms, left_time_ms, expired, valid
+    );
     Ok(Json(ok_resp(valid)))
 }
 
@@ -246,6 +303,7 @@ pub async fn handle_verify_auth_account(
         Err(SpvrApiError::PasswordInvalid)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

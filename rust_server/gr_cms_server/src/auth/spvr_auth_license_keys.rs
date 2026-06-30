@@ -3,61 +3,6 @@ use gr_auth_mgr::auth_license::{AuthLicense, LicenseVerifier, SignedLicense};
 use gr_auth_mgr::authorization::Authorization;
 use std::path::Path;
 
-pub const KEY_LAST_ONLINE_VERIFY_MS: &str = "license_last_online_verify_ms";
-/// Default offline grace period: 7 days in milliseconds.
-pub const DEFAULT_OFFLINE_GRACE_PERIOD_MS: i64 = 7 * 24 * 60 * 60 * 1000;
-
-/// Performs an online license check against the configured auth server.
-/// Returns `Ok(true)` when the server confirms validity or when no verify server
-/// is configured. HTTPS certificate validation is disabled to support the default
-/// self-signed certificate; this is acceptable because the signature itself provides
-/// authenticity.
-pub async fn verify_license_online(verify_server: &str, deploy_str: &str) -> Result<bool, String> {
-    if verify_server.is_empty() {
-        return Ok(true);
-    }
-    let url = format!(
-        "{}/api/v1/verify/license",
-        verify_server.trim_end_matches('/')
-    );
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("failed to build http client: {}", e))?;
-    let body = serde_json::json!({ "data": deploy_str });
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("online license verification request failed: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!(
-            "online license verification returned {}",
-            resp.status()
-        ));
-    }
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("failed to parse online verification response: {}", e))?;
-    let valid = json
-        .get("data")
-        .and_then(|v| v.as_bool())
-        .ok_or("online verification response missing data field")?;
-    Ok(valid)
-}
-
-/// Checks whether the CMS has been offline for longer than the allowed grace period.
-pub fn is_offline_grace_period_exceeded(last_online_verify_ms: i64, now_ms: i64) -> bool {
-    if last_online_verify_ms <= 0 {
-        // No prior online verification; allow running until the first check can be performed.
-        return false;
-    }
-    now_ms - last_online_verify_ms > DEFAULT_OFFLINE_GRACE_PERIOD_MS
-}
-
 const PUBLIC_KEY_ENV: &str = "GR_AUTH_LICENSE_PUBLIC_KEY";
 const PUBLIC_KEY_FILE: &str = "certs/auth_license_public.key";
 
@@ -126,9 +71,9 @@ pub fn license_to_authorization(
         description: existing.map(|a| a.description.clone()).unwrap_or_default(),
         max_streams: license.max_streams,
         appkey: license.appkey.clone(),
-        app_secret: existing.map(|a| a.app_secret.clone()).unwrap_or_default(),
-        username: existing.map(|a| a.username.clone()).unwrap_or_default(),
-        password: existing.map(|a| a.password.clone()).unwrap_or_default(),
+        app_secret: license.app_secret.clone(),
+        username: license.username.clone(),
+        password: license.password.clone(),
         created_timestamp_ms: license.created_at_ms,
         end_timestamp_ms: license.expires_at_ms,
         last_modify_timestamp: gr_base::get_current_timestamp(),
@@ -178,6 +123,9 @@ mod tests {
             created_at_ms: 1000,
             expires_at_ms: 1000 + 7 * 24 * 60 * 60 * 1000,
             appkey: "appkey-1".to_string(),
+            app_secret: "secret-1".to_string(),
+            username: "SpvrAdmin".to_string(),
+            password: "p@ss1".to_string(),
         }
     }
 
@@ -212,6 +160,9 @@ mod tests {
         assert_eq!(auth.auth_id, "auth-1");
         assert_eq!(auth.machine_code, "mc-1");
         assert_eq!(auth.max_streams, 2);
+        assert_eq!(auth.username, "SpvrAdmin");
+        assert_eq!(auth.password, "p@ss1");
+        assert_eq!(auth.app_secret, "secret-1");
     }
 
     #[test]
@@ -249,20 +200,24 @@ mod tests {
     }
 
     #[test]
-    fn license_to_authorization_preserves_credentials() {
+    fn license_to_authorization_uses_license_credentials() {
         let existing = Authorization {
-            username: "admin".to_string(),
-            password: "secret".to_string(),
-            app_secret: "app-secret".to_string(),
+            username: "old-user".to_string(),
+            password: "old-pass".to_string(),
+            app_secret: "old-secret".to_string(),
             verify_server: "https://example.com".to_string(),
+            description: "desc".to_string(),
             ..Default::default()
         };
         let license = sample_license();
         let auth = license_to_authorization(&license, Some(&existing), "deploy".to_string());
-        assert_eq!(auth.username, "admin");
-        assert_eq!(auth.password, "secret");
-        assert_eq!(auth.app_secret, "app-secret");
+        // Credentials come from the license, not existing.
+        assert_eq!(auth.username, "SpvrAdmin");
+        assert_eq!(auth.password, "p@ss1");
+        assert_eq!(auth.app_secret, "secret-1");
+        // Non-credential fields still come from existing.
         assert_eq!(auth.verify_server, "https://example.com");
+        assert_eq!(auth.description, "desc");
         assert_eq!(auth.auth_id, license.auth_id);
     }
 }

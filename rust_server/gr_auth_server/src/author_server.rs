@@ -476,6 +476,9 @@ mod tests {
             created_at_ms: 0,
             expires_at_ms: i64::MAX,
             appkey: "key".to_string(),
+            app_secret: "secret".to_string(),
+            username: "user".to_string(),
+            password: "pass".to_string(),
         };
         let signed = gLicenseSigner
             .lock()

@@ -38,30 +38,29 @@ impl AuthorManager {
             return false;
         };
 
-        if !self.has_author(&admin_name).await
-            && !self
-                .insert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin)
-                .await
-            {
-                return false;
-            }
+        if !self
+            .upsert_bootstrap_author(admin_name.clone(), admin_password, AuthorRole::Admin)
+            .await
+        {
+            return false;
+        }
 
         if let Some(visitor_name) = visitor_name {
-            if !self.has_author(&visitor_name).await {
-                match visitor_password {
-                    Some(visitor_password) => {
-                        if !self
-                            .insert_bootstrap_author(
-                                visitor_name.clone(),
-                                visitor_password,
-                                AuthorRole::Visitor,
-                            )
-                            .await
-                        {
-                            return false;
-                        }
+            match visitor_password {
+                Some(visitor_password) => {
+                    if !self
+                        .upsert_bootstrap_author(
+                            visitor_name.clone(),
+                            visitor_password,
+                            AuthorRole::Visitor,
+                        )
+                        .await
+                    {
+                        return false;
                     }
-                    None => {
+                }
+                None => {
+                    if !self.has_author(&visitor_name).await {
                         tracing::warn!(
                             "bootstrap.visitor_password is not set; skip creating initial visitor account '{}'",
                             visitor_name,
@@ -102,6 +101,65 @@ impl AuthorManager {
             role,
         })
         .await
+    }
+
+    /// Creates the bootstrap author if it does not exist, or updates its
+    /// password hash (and role) if it already exists. This ensures that
+    /// changing the password in the settings file takes effect on every
+    /// restart, instead of only on first creation.
+    async fn upsert_bootstrap_author(
+        &self,
+        name: String,
+        plain_password: String,
+        role: AuthorRole,
+    ) -> bool {
+        let Ok(password_hash) = Self::hash_password(&plain_password) else {
+            tracing::error!("hash password failed for bootstrap account '{}'", name);
+            return false;
+        };
+
+        if self.find_author_by_name(name.clone()).await.is_some() {
+            // Author exists — update password and role from config.
+            return self.update_author_password(&name, &password_hash, role).await;
+        }
+
+        // Author does not exist — create it.
+        self.insert_author(Author {
+            name,
+            password_hash,
+            role,
+        })
+        .await
+    }
+
+    async fn update_author_password(
+        &self,
+        name: &str,
+        password_hash: &str,
+        role: AuthorRole,
+    ) -> bool {
+        let c_author = gAuthorDatabase.lock().await.author();
+        let role_bson = serde_json::to_value(&role)
+            .ok()
+            .and_then(|v| mongodb::bson::to_bson(&v).ok())
+            .unwrap_or(mongodb::bson::Bson::String("visitor".to_string()));
+        let filter = doc! { "name": name };
+        let update = doc! {
+            "$set": {
+                "password_hash": password_hash,
+                "role": role_bson,
+            }
+        };
+        let r = c_author.lock().await.update_one(filter, update).await;
+        if let Err(e) = &r {
+            tracing::error!("update_author_password failed for '{}': {}", name, e);
+            return false;
+        }
+        let updated = r.map(|r| r.matched_count > 0).unwrap_or(false);
+        if updated {
+            tracing::info!("bootstrap account '{}' password updated from settings", name);
+        }
+        updated
     }
 
     pub async fn find_author_by_name(&self, author_name: String) -> Option<Author> {

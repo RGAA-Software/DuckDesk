@@ -7,7 +7,8 @@ use crate::filter::spvr_timer_filter::filter as spvr_timer_filter;
 use crate::spvr_context::SpvrContext;
 use crate::{gSpvrContext, gSpvrSettings};
 use axum::extract::{DefaultBodyLimit, State};
-use axum::routing::{any, get, get_service};
+use axum::response::IntoResponse;
+use axum::routing::{any, get};
 use axum::{Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use gr_base::{get_current_timestamp, RespMessage};
@@ -77,25 +78,19 @@ impl SpvrServer {
         // from the same origin; native clients do not use CORS.
         let cors = CorsLayer::new().allow_origin(AllowOrigin::predicate(|_, _| false));
 
-        let static_dir = ServeDir::new(web_spvr_dir.clone())
-            .not_found_service(ServeFile::new(web_spvr_dir.join("index.html")));
+        let index_html_path = web_spvr_dir.join("index.html");
 
         let router = Router::new()
-            .fallback_service(get_service(static_dir).handle_error(|_| async move {
-                (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Static file error",
-                )
-            }))
+            // Static files served from web/ directory.
+            .nest_service("/assets", ServeDir::new(web_spvr_dir.join("assets")))
+            .route_service("/favicon.ico", ServeFile::new(web_spvr_dir.join("favicon.ico")))
             // .nest_service("/web",
-            //     get_service(ServeDir::new(web_spvr_dir).append_index_html_on_directories(true))
+            //     ServeDir::new(web_spvr_dir).append_index_html_on_directories(true),
             // )
             .nest_service(
                 "/uploads",
-                get_service(
-                    ServeDir::new(current_dir.join("uploads"))
-                        .append_index_html_on_directories(true),
-                ),
+                ServeDir::new(current_dir.join("uploads"))
+                    .append_index_html_on_directories(true),
             )
             //.fallback_service(ServeDir::new(web_spvr_dir).append_index_html_on_directories(true))
             // device
@@ -158,6 +153,22 @@ impl SpvrServer {
             .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB
             //
             .layer(cors)
+            // SPA fallback: any path not matched by API routes or static
+            // files returns index.html, so Vue Router (history mode) routes
+            // like /devices-list work on direct access or page refresh.
+            .fallback(move || {
+                let path = index_html_path.clone();
+                async move {
+                    match tokio::fs::read_to_string(&path).await {
+                        Ok(content) => axum::response::Html(content).into_response(),
+                        Err(_) => (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            "index.html not found",
+                        )
+                            .into_response(),
+                    }
+                }
+            })
             .with_state(context.clone());
 
         // HTTP plaintext port only exposes /ping for health checks.

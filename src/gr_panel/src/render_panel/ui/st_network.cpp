@@ -580,6 +580,14 @@ namespace tc
         auto companion = grApp->GetCompanion();
         if (companion) {
             companion->UpdateSpvrServerConfig(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort());
+
+            // Extract the appkey from the pasted access string so
+            // RequestAuth uses the current appkey, not a stale cached one.
+            auto ac_info = ParseSpvrAccessInfo(edt_spvr_access_->toPlainText().trimmed().toStdString());
+            if (ac_info && !ac_info->spvr_config_.srv_appkey_.empty()) {
+                companion->UpdateAppkey(ac_info->spvr_config_.srv_appkey_);
+            }
+
             auto auth = companion->RequestAuth();
             if (!auth) {
                 TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_request_auth"), nullptr);

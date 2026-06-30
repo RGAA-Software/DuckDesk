@@ -83,6 +83,12 @@ namespace tc
         spvr_settings_->UpdateServerConfig(host, port);
     }
 
+    void PanelCompanionImpl::UpdateAppkey(const std::string& appkey) {
+        if (auth_mgr_) {
+            auth_mgr_->UpdateAppkey(appkey);
+        }
+    }
+
     std::shared_ptr<Authorization> PanelCompanionImpl::RequestAuth() {
         return auth_mgr_->RequestAuth();
     }
@@ -259,10 +265,6 @@ namespace tc
 
     std::string PanelCompanionImpl::GetMachineCode() const {
         return sp_->Get(kAuthMachineCode);
-    }
-
-    std::string PanelCompanionImpl::GetAppkey() const {
-        return sp_->Get(kAuthAppkey);
     }
 
     std::string PanelCompanionImpl::GetDeviceId() const {

@@ -300,10 +300,11 @@ async fn run_as_server(machine_code: String) {
         }
     }
 
-    // Auth Manager
+    // Auth Manager — load is best-effort: if no valid authorization is found
+    // (first run, expired license, etc.) the server still starts so the user
+    // can upload a new authorization via the web UI.
     if !gAuthManager.lock().await.load().await {
-        tracing::error!("auth manager initialization failed");
-        return;
+        tracing::warn!("no valid authorization loaded; starting unlicensed — upload a license via the web UI");
     }
     AuthManager::start_count_down().await;
 

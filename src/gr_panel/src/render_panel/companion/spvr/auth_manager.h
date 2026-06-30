@@ -23,6 +23,7 @@ namespace tc
         bool IsAuthValid() const;
         void LoadFromStorage();
         void FlushToStorage();
+        void UpdateAppkey(const std::string& appkey);
 
     private:
 

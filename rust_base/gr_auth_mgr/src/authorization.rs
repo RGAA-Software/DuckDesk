@@ -1,4 +1,3 @@
-use gr_base::crypto_util::aes_encrypt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -33,11 +32,6 @@ pub struct AuthorizationVo {
 }
 
 impl Authorization {
-    pub fn as_deploy_str(&self) -> Result<String, String> {
-        let value = serde_json::to_string(self).unwrap();
-        aes_encrypt(value.as_str(), &crate::crypto_keys::AES_DEPLOY_AUTH)
-    }
-
     pub fn as_vo(&self, total: u64) -> AuthorizationVo {
         AuthorizationVo {
             authorization: self.clone(),

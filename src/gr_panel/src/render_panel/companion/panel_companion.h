@@ -94,6 +94,7 @@ namespace tc
 
         // Spvr
         virtual void UpdateSpvrServerConfig(const std::string& host, int port) = 0;
+        virtual void UpdateAppkey(const std::string& appkey) = 0;
         virtual std::shared_ptr<Authorization> RequestAuth() = 0;
         virtual std::shared_ptr<Authorization> GetAuth() = 0;
         virtual bool IsAuthFree() = 0;

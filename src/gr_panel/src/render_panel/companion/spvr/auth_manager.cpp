@@ -136,6 +136,16 @@ namespace tc
         return auth_.Clone();
     }
 
+    void AuthManager::UpdateAppkey(const std::string& appkey) {
+        auto auth = auth_.Clone();
+        if (auth->appkey_ != appkey) {
+            LOGI("UpdateAppkey: '{}' -> '{}'", auth->appkey_, appkey);
+            auth->appkey_ = appkey;
+            auth_.Update(auth);
+            FlushToStorage();
+        }
+    }
+
     bool AuthManager::IsAuthValid() const {
         cat settings = SpvrSettings::Instance();
         if (settings->host_.empty() || settings->port_ <= 0) {

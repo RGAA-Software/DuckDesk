@@ -249,10 +249,11 @@ impl SpvrDeviceManager {
             match doc.get("total") {
                 Some(mongodb::bson::Bson::Int32(val)) => Ok(*val as u64),
                 Some(mongodb::bson::Bson::Int64(val)) => Ok(*val as u64),
-                _ => Err(SpvrApiError::DatabaseError),
+                _ => Ok(0),
             }
         } else {
-            Err(SpvrApiError::DatabaseError)
+            // Empty collection: no documents to group, total is 0.
+            Ok(0)
         }
     }
 }

@@ -26,23 +26,39 @@ async fn verify_and_run(
     next: Next,
     check_max_streams: bool,
 ) -> Response {
+    let path = req.uri().path();
     let query = req.uri().query().unwrap_or("");
     let params = match serde_urlencoded::from_str::<WsTokenQueryParams>(query) {
         Ok(p) => p,
         Err(e) => {
-            tracing::error!("missing or malformed ws token params: {}", e);
+            tracing::warn!(
+                "ws filter: missing/malformed params path='{}' error='{}' query='{}'",
+                path,
+                e,
+                query
+            );
             return SpvrApiError::InvalidAppkey.into_response();
         }
     };
 
     let auth = gAuthManager.lock().await.get_auth().await;
     if auth.appkey.is_empty() || auth.app_secret.is_empty() {
-        tracing::error!("authorization not loaded, rejecting ws connection");
+        tracing::warn!(
+            "ws filter: no authorization loaded, path='{}' req_appkey='{}' \
+             stored_appkey='(empty)' stored_secret='(empty)'",
+            path,
+            params.appkey
+        );
         return SpvrApiError::InvalidAppkey.into_response();
     }
 
     if auth.appkey != params.appkey {
-        tracing::error!("ws appkey mismatch");
+        tracing::warn!(
+            "ws filter: appkey mismatch, path='{}' req_appkey='{}' stored_appkey='{}'",
+            path,
+            params.appkey,
+            auth.appkey
+        );
         return SpvrApiError::InvalidAppkey.into_response();
     }
 
@@ -55,9 +71,19 @@ async fn verify_and_run(
         &params.nonce,
         now_ms,
     ) {
-        tracing::error!("ws token verification failed");
+        tracing::warn!(
+            "ws filter: token verification failed, path='{}' appkey='{}' \
+         token='{}' ts={} nonce='{}'",
+            path,
+            params.appkey,
+            &params.token[..params.token.len().min(16)],
+            params.ts,
+            params.nonce
+        );
         return SpvrApiError::InvalidAppkey.into_response();
     }
+
+    tracing::info!("ws filter: OK path='{}' appkey='{}'", path, params.appkey);
 
     if check_max_streams {
         let reservation = match crate::gSpvrClientConnMgr.try_reserve_stream(auth.max_streams) {

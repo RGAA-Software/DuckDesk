@@ -1,11 +1,7 @@
-use crate::auth::spvr_auth_license_keys::{
-    is_offline_grace_period_exceeded, parse_and_verify_signed_license,
-    verify_license_online, KEY_LAST_ONLINE_VERIFY_MS,
-};
+use crate::auth::spvr_auth_license_keys::parse_and_verify_signed_license;
 use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gSpvrContext};
 use gr_auth_mgr::app_secret_util::calculate_app_secret;
 use gr_auth_mgr::auth_used_time::{sign_used_time, verify_used_time};
-use gr_auth_mgr::auth_util::{parse_authorization, verify_authorization};
 use gr_auth_mgr::authorization::Authorization;
 use gr_base::{get_current_timestamp, md5_hex};
 use std::fs::File;
@@ -28,110 +24,72 @@ impl AuthManager {
         }
     }
 
+    /// Loads the authorization from KvStorage (cached deploy string) or
+    /// `auth/auth.info` (on-disk). Only signed license format is accepted.
+    /// Returns `false` if no valid authorization is found; the server still
+    /// starts so the user can upload a license via the web UI.
     pub async fn load(&mut self) -> bool {
         let auth_str = if let Some(str) = gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
+            tracing::info!("load: found cached authorization in KvStorage (len={})", str.len());
             str
         } else {
-            
-            std::fs::read_to_string("auth/auth.info").expect("can't read auth/auth.info")
+            match std::fs::read_to_string("auth/auth.info") {
+                Ok(s) => {
+                    tracing::info!("load: found auth/auth.info file (len={})", s.len());
+                    s
+                }
+                Err(e) => {
+                    tracing::info!("load: no auth/auth.info found ({}); starting unlicensed", e);
+                    return false;
+                }
+            }
         };
 
         let machine_code = gSpvrContext.lock().await.machine_code.clone();
         let now_ms = get_current_timestamp();
+        tracing::info!(
+            "load: attempting to parse signed license, machine_code='{}' now_ms={}",
+            machine_code,
+            now_ms
+        );
 
-        // Try the new signed license format first.
-        if let Some(verifier) = gLicenseVerifier.lock().await.as_ref() {
-            match parse_and_verify_signed_license(verifier, &auth_str, &machine_code, now_ms) {
-                Ok(mut auth) => {
-                    tracing::info!("signed auth loaded: auth_id={}, auth_name={}, machine_code={}, days={}, max_streams={}",
-                        auth.auth_id, auth.auth_name, auth.machine_code, auth.days, auth.max_streams);
-                    // Preserve credentials from any previously stored authorization.
-                    let existing = self.get_auth().await;
-                    if !existing.username.is_empty() {
-                        auth.username = existing.username;
-                    }
-                    if !existing.password.is_empty() {
-                        auth.password = existing.password;
-                    }
-                    if !existing.app_secret.is_empty() {
-                        auth.app_secret = existing.app_secret;
-                    }
-                    self.update_key_used_time(&auth_str);
-                    self.update_auth(auth).await;
-                    return true;
-                }
-                Err(e) => {
-                    tracing::debug!("signed license parse failed (will try legacy AES): {}", e);
-                }
-            }
-        }
-
-        // Fall back to legacy AES deploy string (read-only, deprecated).
-        let auth = parse_authorization(auth_str.clone());
-        if let Err(err) = auth {
-            tracing::error!("parse auth error: {}, auth: {}", err, auth_str);
-            return false;
-        }
-        let auth = auth.unwrap();
-        if let Err(e) = verify_authorization(&auth) {
-            tracing::error!("invalid authorization: {}", e);
-            return false;
-        }
-
-        tracing::warn!("loaded legacy AES authorization; this format is deprecated and will be removed. auth_id={}, auth_name={}",
-            auth.auth_id, auth.auth_name);
-
-        self.update_key_used_time(&auth_str);
-        self.update_auth(auth.clone()).await;
-
-        // Online/offline hybrid check.
-        if let Err(e) = self.perform_online_license_check(&auth, &auth_str).await {
-            tracing::error!("license online verification failed: {}", e);
-            return false;
-        }
-
-        true
-    }
-
-    async fn perform_online_license_check(
-        &self,
-        auth: &Authorization,
-        deploy_str: &str,
-    ) -> Result<(), String> {
-        let now_ms = get_current_timestamp();
-        let last_online = gKvStorage
+        let Some(verifier) = gLicenseVerifier
             .lock()
             .await
-            .get(KEY_LAST_ONLINE_VERIFY_MS)
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
+            .as_ref()
+            .map(Arc::clone)
+        else {
+            tracing::error!("load: license verifier not initialized");
+            return false;
+        };
 
-        // If we are within the offline grace period, skip the network call.
-        if !is_offline_grace_period_exceeded(last_online, now_ms) {
-            return Ok(());
-        }
-
-        match verify_license_online(&auth.verify_server, deploy_str).await {
-            Ok(true) => {
-                gKvStorage
-                    .lock()
-                    .await
-                    .put(KEY_LAST_ONLINE_VERIFY_MS, now_ms.to_string().as_str());
-                tracing::info!("online license verification succeeded");
-                Ok(())
+        match parse_and_verify_signed_license(&verifier, &auth_str, &machine_code, now_ms) {
+            Ok(auth) => {
+                tracing::info!(
+                    "load: signed auth loaded OK, auth_id='{}' auth_name='{}' \
+                     machine_code='{}' appkey='{}' days={} max_streams={} username='{}' \
+                     password_len={}",
+                    auth.auth_id,
+                    auth.auth_name,
+                    auth.machine_code,
+                    auth.appkey,
+                    auth.days,
+                    auth.max_streams,
+                    auth.username,
+                    auth.password.len()
+                );
+                self.update_key_used_time(&auth_str);
+                self.update_auth(auth).await;
+                true
             }
-            Ok(false) => Err("license rejected by online verification".to_string()),
             Err(e) => {
-                // Network/auth-server failure: allow running if we have a previous successful check.
-                if last_online > 0 {
-                    tracing::warn!(
-                        "online verification unreachable, continuing on cached check: {}",
-                        e
-                    );
-                    Ok(())
-                } else {
-                    Err(e)
-                }
+                tracing::error!(
+                    "load: failed to parse/verify signed license: {}. \
+                     auth_str preview='{}'",
+                    e,
+                    &auth_str[..auth_str.len().min(80)]
+                );
+                false
             }
         }
     }

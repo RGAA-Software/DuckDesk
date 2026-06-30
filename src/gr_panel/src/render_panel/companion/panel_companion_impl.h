@@ -32,6 +32,7 @@ namespace tc
 
         // Spvr
         void UpdateSpvrServerConfig(const std::string &host, int port) override;
+        void UpdateAppkey(const std::string& appkey) override;
         std::shared_ptr<Authorization> RequestAuth() override;
         std::shared_ptr<Authorization> GetAuth() override;
         bool IsAuthFree() override;
@@ -60,7 +61,6 @@ namespace tc
         std::string GetAuthId() const;
         std::string GetAuthName() const;
         std::string GetMachineCode() const;
-        std::string GetAppkey() const;
 
         // device id
         void UpdateDeviceId(const std::string& device_id) override;

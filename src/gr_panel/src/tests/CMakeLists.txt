@@ -23,3 +23,8 @@ add_executable(test_resolutions test_resolutions.cpp)
 
 add_executable(test_http_client test_http_client.cpp)
 target_link_libraries(test_http_client tc_common_new)
+
+add_executable(test_access_decrypt test_access_decrypt.cpp)
+find_package(OpenSSL REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(test_access_decrypt PRIVATE OpenSSL::Crypto nlohmann_json::nlohmann_json)
