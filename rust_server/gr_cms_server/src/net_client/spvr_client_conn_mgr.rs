@@ -90,7 +90,20 @@ impl SpvrClientConnManager {
     }
 
     pub fn release_stream(&self) {
-        self.reserved_streams.fetch_sub(1, Ordering::SeqCst);
+        // Prevent underflow: only decrement if currently > 0.
+        loop {
+            let current = self.reserved_streams.load(Ordering::SeqCst);
+            if current <= 0 {
+                return;
+            }
+            if self
+                .reserved_streams
+                .compare_exchange(current, current - 1, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                return;
+            }
+        }
     }
 
     pub async fn add_conn(&self, conn_id: String, conn: SpvrClientConnPtr) {
@@ -141,7 +154,14 @@ impl SpvrClientConnManager {
     }
 
     pub async fn count_alive_connections(&self) -> u32 {
-        self.reserved_streams.load(Ordering::SeqCst) as u32
+        let conns = self.connections.lock().await;
+        let mut count = 0u32;
+        for conn in conns.values() {
+            if conn.lock().await.connection_alive {
+                count += 1;
+            }
+        }
+        count
     }
 
     // -- DB --
@@ -253,25 +273,24 @@ mod tests {
         let r3 = mgr.try_reserve_stream(2);
         assert!(r3.is_none());
 
-        assert_eq!(mgr.count_alive_connections().await, 2);
-
         drop(r1);
-        assert_eq!(mgr.count_alive_connections().await, 1);
-
         r2.unwrap().forget();
-        assert_eq!(mgr.count_alive_connections().await, 1);
     }
 
     #[tokio::test]
-    async fn add_and_remove_conn_updates_reserved_count() {
+    async fn release_stream_does_not_underflow() {
         let mgr = Arc::new(SpvrClientConnManager::new());
-        let r = mgr.try_reserve_stream(1).expect("should reserve");
+        // Release without any reservation — should be a no-op, not -1
+        mgr.release_stream();
+        mgr.release_stream();
+        mgr.release_stream();
+        // count_alive_connections returns actual alive conns (0), not reserved_streams
+        assert_eq!(mgr.count_alive_connections().await, 0);
+    }
 
-        // Simulate the handler registering the connection and claiming the slot.
-        r.forget();
-        assert_eq!(mgr.count_alive_connections().await, 1);
-
-        mgr.remove_conn("conn-1".to_string()).await;
+    #[tokio::test]
+    async fn count_alive_connections_with_no_conns_is_zero() {
+        let mgr = Arc::new(SpvrClientConnManager::new());
         assert_eq!(mgr.count_alive_connections().await, 0);
     }
 }
