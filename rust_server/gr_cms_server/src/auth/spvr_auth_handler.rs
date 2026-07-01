@@ -217,11 +217,14 @@ pub struct SanitizedAuthorization {
     pub auth_name: String,
     pub machine_code: String,
     pub appkey: String,
+    pub app_secret: String,
+    pub username: String,
     pub role: i32,
     pub days: i32,
     pub max_streams: i32,
     pub end_timestamp_ms: i64,
     pub used_time_ms: i64,
+    pub created_timestamp_ms: i64,
 }
 
 impl From<Authorization> for SanitizedAuthorization {
@@ -231,11 +234,14 @@ impl From<Authorization> for SanitizedAuthorization {
             auth_name: auth.auth_name,
             machine_code: auth.machine_code,
             appkey: auth.appkey,
+            app_secret: auth.app_secret,
+            username: auth.username,
             role: auth.role,
             days: auth.days,
             max_streams: auth.max_streams,
             end_timestamp_ms: auth.end_timestamp_ms,
             used_time_ms: auth.used_time_ms,
+            created_timestamp_ms: auth.created_timestamp_ms,
         }
     }
 }
@@ -327,8 +333,11 @@ mod tests {
         let sanitized = SanitizedAuthorization::from(auth);
         assert_eq!(sanitized.auth_id, "id-1");
         assert_eq!(sanitized.appkey, "key-1");
-        // Ensure no sensitive fields are exposed on the sanitized DTO.
-        // The struct itself intentionally lacks app_secret/username/password.
+        assert_eq!(sanitized.app_secret, "secret-1");
+        assert_eq!(sanitized.username, "user-1");
+        assert_eq!(sanitized.created_timestamp_ms, 0);
+        // Password is the only field that should remain hidden in the sanitized DTO.
+        // (It is not part of SanitizedAuthorization.)
     }
 
     #[test]

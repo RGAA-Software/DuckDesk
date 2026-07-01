@@ -193,7 +193,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-35 text-slate-500">App Secret</div>
             <div class="text-medium text-slate-600 font-semibold">
-              {{ authorization?.app_secret }}
+              {{ authorization?.app_secret || '-' }}
             </div>
           </div>
           <div class="h-2" />
@@ -201,7 +201,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-35 text-slate-500">用户名</div>
             <div class="text-medium text-slate-600 font-semibold">
-              {{ authorization?.username }}
+              {{ authorization?.username || '-' }}
             </div>
           </div>
           <div class="h-2" />
@@ -209,7 +209,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-35 text-slate-500">创建时间</div>
             <div class="text-medium text-slate-600 font-semibold">
-              {{ formatTimestamp(authorization?.created_timestamp_ms!) }}
+              {{ authorization?.created_timestamp_ms ? formatTimestamp(authorization.created_timestamp_ms) : '-' }}
             </div>
           </div>
           <div class="h-2" />
