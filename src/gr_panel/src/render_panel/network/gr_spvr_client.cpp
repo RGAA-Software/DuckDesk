@@ -72,6 +72,15 @@ namespace tc
             }
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
+
+            // Generate a fresh token for every connection attempt (including auto reconnect).
+            // The token has a short lifetime (60s), so reusing the original path on reconnect
+            // would cause the CMS token filter to reject the connection.
+            auto user_id = grApp->GetUserManager()->GetUserId();
+            auto token = GenerateConnectionToken(grApp->GetAppkey());
+            auto path = std::format("/spvr/panel?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}",
+                                     grApp->GetAppkey(), token.token, token.ts, token.nonce, self->device_id_, user_id);
+            self->client_->set_upgrade_target(path);
         })
         .bind_connect([weak_self]() {
             auto self = weak_self.lock();
@@ -114,13 +123,8 @@ namespace tc
             self->ParseMessage(msg);
         });
 
-        // the /ws is the websocket upgraged target
-        auto user_id = grApp->GetUserManager()->GetUserId();
-        auto token = GenerateConnectionToken(grApp->GetAppkey());
-        auto path = std::format("/spvr/panel?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}",
-                                 grApp->GetAppkey(), token.token, token.ts, token.nonce, device_id_, user_id);
-        LOGI("will connect => {}:{}{}", host_, port_, path);
-        if (!client_->async_start(host_, port_, path)) {
+        LOGI("will connect => {}:{}/spvr/panel", host_, port_);
+        if (!client_->async_start(host_, port_)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }
