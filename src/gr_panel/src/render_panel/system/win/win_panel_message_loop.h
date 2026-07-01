@@ -2,7 +2,8 @@
 #include <Windows.h>
 #include <memory>
 #include <thread>
-#include <QString>
+#include "tc_common_new/clipboard/clipboard_echo.h"
+#include "tc_common_new/clipboard/clipboard_platform.h"
 
 namespace tc
 {
@@ -20,14 +21,20 @@ namespace tc
         void Stop();
 
         void OnClipboardUpdate(HWND hwnd);
+        void SetRemoteClipboardEcho(const std::string& text);
+        void BeginSuppressOutboundClipboard();
+        void EndSuppressOutboundClipboard();
+        clipboard::EchoFilter& GetEchoFilter() { return echo_filter_; }
     private:
+        void ProcessLocalClipboardUpdate();
         void CreateMessageWindow();
         void ThreadFunc();
         void OnWinSessionChange(uint32_t msg);
         static void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime);
     private:
         std::thread thread_;
-        QString remote_info_;
+        clipboard::EchoFilter echo_filter_;
+        std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         std::shared_ptr<GrApplication> app_ = nullptr;
         std::shared_ptr<GrContext> context_ = nullptr;
         std::shared_ptr<WinMessageWindow> message_window_ = nullptr;

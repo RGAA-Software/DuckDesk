@@ -8,6 +8,7 @@
 #include <memory>
 #include <QObject>
 #include <objidl.h>
+#include "tc_common_new/clipboard/clipboard_platform.h"
 
 namespace tc
 {
@@ -25,6 +26,7 @@ namespace tc
 
     private:
         std::shared_ptr<GrContext> context_ = nullptr;
+        std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         CpVirtualFile* virtual_file_ = nullptr;
         IDataObject* data_object_ = nullptr;
     };

@@ -7,8 +7,10 @@
 
 #include <memory>
 #include <QObject>
-#include "tc_message.pb.h"
 #include <objidl.h>
+#include "tc_common_new/clipboard/clipboard_echo.h"
+#include "tc_common_new/clipboard/clipboard_platform.h"
+#include "tc_message.pb.h"
 
 namespace tc
 {
@@ -32,7 +34,8 @@ namespace tc
     private:
         ClientClipboardPlugin* plugin_ = nullptr;
         std::shared_ptr<ClientPluginContext> context_ = nullptr;
-        QString remote_info_;
+        clipboard::EchoFilter echo_filter_;
+        std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         std::shared_ptr<WinMessageLoop> msg_loop_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         CpVirtualFile* virtual_file_ = nullptr;

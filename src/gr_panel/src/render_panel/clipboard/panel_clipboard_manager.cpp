@@ -3,34 +3,42 @@
 //
 
 #include "panel_clipboard_manager.h"
-#include "rd_context.h"
-#include <QGuiApplication>
-#include <QClipboard>
-#include <QImage>
-#include <QBuffer>
-#include <QMimeData>
-#include <QUrl>
-#include <QFileInfo>
-#include <shellapi.h>
+#include <objidl.h>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
-#include "tc_common_new/folder_util.h"
 #include "tc_message.pb.h"
-#include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"
-#include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "render_panel/gr_context.h"
 #include "render_panel/gr_application.h"
 #include "render_panel/gr_app_messages.h"
-#include "render_panel/clipboard/win/panel_cp_file_stream.h"
+#include "render_panel/system/win/win_panel_message_loop.h"
 #include "render_panel/clipboard/win/panel_cp_virtual_file.h"
+#include "tc_common_new/clipboard/clipboard_platform.h"
+#include "tc_common_new/clipboard/clipboard_echo.h"
 #include <QPointer>
 
 namespace tc
 {
+    namespace {
+        class OleInitGuard {
+        public:
+            OleInitGuard() {
+                initialized_ = SUCCEEDED(::OleInitialize(nullptr));
+            }
+            ~OleInitGuard() {
+                if (initialized_) {
+                    ::OleUninitialize();
+                }
+            }
+            bool Ok() const { return initialized_; }
+        private:
+            bool initialized_ = false;
+        };
+    }
 
     ClipboardManager::ClipboardManager(const std::shared_ptr<GrContext>& ctx) : QObject(nullptr) {
         context_ = ctx;
+        clipboard_platform_ = clipboard::CreatePlatform();
     }
 
 //    static bool GetClipboardFiles(HWND hwnd, std::vector<std::wstring>& files) {
@@ -99,59 +107,46 @@ namespace tc
             auto sub = msg->clipboard_info();
             LOGI("Remote Clipboard info, type : {}", (int)sub.type());
             if (sub.type() == ClipboardType::kClipboardText) {
-                // qt operate clipboard, need ui thread
-                context_->PostUITask([=]() {
-                    if (!self) {
+                const auto in_text = sub.msg();
+                if (in_text.empty()) {
+                    return;
+                }
+
+                context_->PostTask([=]() {
+                    if (!self || !self->clipboard_platform_) {
                         return;
                     }
-                    auto in_text = sub.msg();
-                    auto is_same = false;
-                    for (int i = 0; i < 100; i++) {
-                        QClipboard* board = QGuiApplication::clipboard();
-                        if (board->text() == in_text) {
-                            is_same = true;
-                            LOGI("Already same with clipboard, ignore: {}", in_text);
-                            break;
-                        }
-                        board->setText(QString::fromStdString(in_text));
-                        TimeUtil::DelayBySleep(5);
-                        if (board->ownsClipboard() && board->text() == QString::fromStdString(in_text)) {
-                            is_same = true;
-                            LOGI("*** update remote clipboard info: {}", in_text);
-                            break;
-                        }
-                        else {
-                            LOGE("Can't update remote clipboard, not own it.");
-                        }
 
+                    std::shared_ptr<WinMessageLoop> msg_loop;
+                    if (auto app = self->context_->GetApplication()) {
+                        msg_loop = app->GetWinMessageLoop();
                     }
-                    if (is_same) {
-                        // to panel
-                        //auto event = std::make_shared<GrPluginRemoteClipboardResp>();
-                        //event->content_type_ = (int)sub.type();
-                        //event->remote_info_ = sub.msg();
-                        // todo::
-                        //plugin_->CallbackEvent(event);
-
-                        // notify clipboard monitor
-                        auto sub_resp = msg->clipboard_info_resp();
-                        self->context_->SendAppMessage(MsgRemoteClipboardResp{
-                            .text_msg_ = sub_resp.msg(),
-                            });
-
-                        // send back
-                        tc::Message resp_msg;
-                        resp_msg.set_type(tc::kClipboardInfoResp);
-                        auto resp_sub = resp_msg.mutable_clipboard_info_resp();
-                        resp_sub->set_type(ClipboardType::kClipboardText);
-                        resp_sub->set_msg(in_text);
-                        auto buffer = ProtoAsData(&resp_msg);
-                        // now
-                        auto rp_msg = tc::MakeRpRawRenderMessage(msg->stream_id(), msg->device_id(), resp_msg.SerializeAsString(), true);
-                        self->context_->GetApplication()->PostMessage2Renderer(rp_msg);
-                        // before
-                        //plugin_->DispatchAllStreamMessage(buffer);
+                    if (!msg_loop) {
+                        LOGE("WinMessageLoop unavailable for remote clipboard apply");
+                        return;
                     }
+
+                    clipboard::SuppressOutboundGuard suppress_guard(msg_loop->GetEchoFilter());
+                    msg_loop->SetRemoteClipboardEcho(in_text);
+
+                    if (!clipboard::WriteTextWithRetry(*self->clipboard_platform_, in_text)) {
+                        LOGE("Failed to apply remote clipboard text after retries");
+                        return;
+                    }
+
+                    LOGI("*** update remote clipboard info: {}", in_text);
+
+                    self->context_->SendAppMessage(MsgRemoteClipboardResp{
+                        .text_msg_ = in_text,
+                    });
+
+                    tc::Message resp_msg;
+                    resp_msg.set_type(tc::kClipboardInfoResp);
+                    auto resp_sub = resp_msg.mutable_clipboard_info_resp();
+                    resp_sub->set_type(ClipboardType::kClipboardText);
+                    resp_sub->set_msg(in_text);
+                    auto rp_msg = tc::MakeRpRawRenderMessage(msg->stream_id(), msg->device_id(), resp_msg.SerializeAsString(), true);
+                    self->context_->GetApplication()->PostMessage2Renderer(rp_msg);
                 });
                 
             }/*
@@ -186,7 +181,7 @@ namespace tc
                     LOGI("Clipboard file: {}", file.file_name());
                 }
 
-                context_->PostUITask([=]() {
+                context_->PostTask([=]() {
                     if (!self) {
                         return;
                     }
@@ -198,12 +193,15 @@ namespace tc
                         return;
                     }
 
-                    ::OleInitialize(nullptr);
+                    OleInitGuard ole_guard;
+                    if (!ole_guard.Ok()) {
+                        LOGE("OleInitialize failed!");
+                        return;
+                    }
 
                     bool cleared_clipboard = false;
-                    for (int i = 0; i < 100; i++) {
-                        auto hr = ::OleSetClipboard(nullptr);
-                        if (hr == S_OK) {
+                    for (int i = 0; i < 20; i++) {
+                        if (self->clipboard_platform_ && self->clipboard_platform_->Clear()) {
                             cleared_clipboard = true;
                             break;
                         }
@@ -217,19 +215,18 @@ namespace tc
                     TimeUtil::DelayBySleep(10);
 
                     bool set_clipboard = false;
-                    for (int i = 0; i < 100; i++) {
+                    for (int i = 0; i < 20; i++) {
                         auto hr = ::OleSetClipboard(self->data_object_);
                         if (hr == S_OK) {
                             set_clipboard = true;
                             break;
                         }
+                        TimeUtil::DelayBySleep(10);
                     }
                     if (!set_clipboard) {
                         LOGE("Set clipboard failed!");
                         return;
                     }
-                    ::CloseClipboard();
-                    ::OleUninitialize();
 
                     auto device_id = msg->device_id();
                     auto stream_id = msg->stream_id();

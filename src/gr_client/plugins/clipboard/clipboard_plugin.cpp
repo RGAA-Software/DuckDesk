@@ -66,19 +66,14 @@ namespace tc
     void ClientClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {
         ClientPluginInterface::OnMessage(msg);
         if (msg->type() == MessageType::kClipboardInfo) {
-            // server -> text message -> client
-            plugin_context_->PostUITask([=, this]() {
-                if (clipboard_mgr_) {
-                    clipboard_mgr_->OnRemoteClipboardMessage(msg);
-                }
-            });
+            if (clipboard_mgr_) {
+                clipboard_mgr_->OnRemoteClipboardMessage(msg);
+            }
         }
         else if (msg->type() == tc::kClipboardInfoResp) {
-            plugin_context_->PostUITask([=, this]() {
-                if (clipboard_mgr_) {
-                    clipboard_mgr_->OnRemoteClipboardRespMessage(msg);
-                }
-            });
+            if (clipboard_mgr_) {
+                clipboard_mgr_->OnRemoteClipboardRespMessage(msg);
+            }
         }
         else if (msg->type() == tc::kClipboardReqAtBegin) {
             // begin; server -> client
@@ -116,9 +111,9 @@ namespace tc
     }
 
     void ClientClipboardPlugin::OnLocalClipboardUpdated() {
-        plugin_context_->PostUITask([this]() {
+        if (clipboard_mgr_) {
             clipboard_mgr_->OnLocalClipboardUpdated();
-        });
+        }
     }
 
     bool ClientClipboardPlugin::IsClipboardEnabled() {

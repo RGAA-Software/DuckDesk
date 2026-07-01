@@ -1,6 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
+cd /d "%~dp0"
+
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 
@@ -54,19 +56,34 @@ if not "%VC_TOOLS_DIR%"=="" (
     echo Using VC libs: !VC_MSVC_DIR!\lib\x64
 )
 
-if /I "%1"=="incremental" (
-    echo Incremental build requested, skipping CMake configure...
-    goto :do_build
+set "SKIP_CONFIGURE=0"
+set "RUN_TESTS=0"
+for %%a in (%*) do (
+    if /I "%%a"=="incremental" set "SKIP_CONFIGURE=1"
+    if /I "%%a"=="run" set "RUN_TESTS=1"
 )
 
-cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+if "%SKIP_CONFIGURE%"=="0" (
+    cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+    if errorlevel 1 exit /b %errorlevel%
+)
+
+echo ----------------------BUILD TESTS START------------------------
+echo ---------------------------------------------------------
+cmake --build build_official -j18 --target ^
+    tc_common_new ^
+    test_string_util test_file_util test_folder_util test_file ^
+    test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
+    test_qr_generator test_process test_process_helper test_uncovered test_snowflake_id ^
+    test_clipboard_echo test_clipboard_file_builder test_clipboard_platform ^
+    test_common test_http test_cpu
 if errorlevel 1 exit /b %errorlevel%
 
-:do_build
-echo ----------------------BUILD START------------------------
-echo ---------------------------------------------------------
-echo ---------------------------------------------------------
-cmake --build build_official -j18
-if errorlevel 1 exit /b %errorlevel%
+echo ----------------------BUILD TESTS DONE-------------------------
+
+if "%RUN_TESTS%"=="1" (
+    call "%~dp0scripts\run_tc_tests.bat"
+    if errorlevel 1 exit /b %errorlevel%
+)
 
 endlocal

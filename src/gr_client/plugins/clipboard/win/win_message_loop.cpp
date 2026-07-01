@@ -84,7 +84,6 @@ namespace tc
 
         if (hEventHook == nullptr) {
             std::cout << "Failed to set event hook." << std::endl;
-            return;
         }
 
         int bRet = 0;
@@ -99,7 +98,10 @@ namespace tc
             }
         }
 
-        UnhookWinEvent(hEventHook);
+        RemoveClipboardFormatListener(hwnd);
+        if (hEventHook != nullptr) {
+            UnhookWinEvent(hEventHook);
+        }
     }
 
 }
