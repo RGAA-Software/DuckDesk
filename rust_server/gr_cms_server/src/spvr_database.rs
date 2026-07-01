@@ -9,8 +9,8 @@ use crate::update::update_info::UpdateInfo;
 use crate::user::spvr_user::SpvrUser;
 use crate::user_device::spvr_user_device::SpvrUserDevice;
 use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
-use mongodb::{Client, Collection};
+use mongodb::options::{ClientOptions, IndexOptions};
+use mongodb::{Client, Collection, IndexModel};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -88,11 +88,25 @@ impl SpvrDatabase {
 
                 // record: visit
                 let c_visit: Collection<SpvrVisit> = database.collection("c_visit");
+                let visit_index = IndexModel::builder()
+                    .keys(doc! { "conn_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_visit.create_index(visit_index).await {
+                    tracing::warn!("create visit conn_id index failed: {}", e);
+                }
                 self.c_visit = Some(Arc::new(Mutex::new(c_visit)));
 
                 // record: file transfer
                 let c_file_transfer: Collection<SpvrFileTransfer> =
                     database.collection("c_file_transfer");
+                let ft_index = IndexModel::builder()
+                    .keys(doc! { "the_file_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_file_transfer.create_index(ft_index).await {
+                    tracing::warn!("create file_transfer the_file_id index failed: {}", e);
+                }
                 self.c_file_transfer = Some(Arc::new(Mutex::new(c_file_transfer)));
 
                 let c_user_device: Collection<SpvrUserDevice> =

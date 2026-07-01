@@ -25,12 +25,21 @@ namespace tc
     }
 
     void VisitRecordOperator::InsertVisitRecord(const std::shared_ptr<VisitRecord>& record) {
-        if (!record || !IsDbReady(db_)) {
+        if (!record) {
+            return;
+        }
+        if (!IsDbReady(db_)) {
+            std::lock_guard<std::mutex> lock(pending_mutex_);
+            pending_records_.push_back(record);
             return;
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        storage.insert(*record);
+        try {
+            storage.replace(*record);
+        } catch (const std::exception& e) {
+            LOGE("InsertVisitRecord failed: {}", e.what());
+        }
     }
 
     void VisitRecordOperator::UpdateVisitRecord(const std::string& conn_id, int64_t end_timestamp, int64_t duration) {
@@ -83,6 +92,21 @@ namespace tc
         return records;
     }
 
+    std::vector<std::shared_ptr<VisitRecord>> VisitRecordOperator::ScanUnclosedRecords(int64_t before_timestamp) {
+        if (!IsDbReady(db_)) {
+            return {};
+        }
+        using Storage = decltype(db_->GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(db_->GetDbStorage());
+        auto qrs = storage.get_all_pointer<VisitRecord>(
+            where(c(&VisitRecord::end_) == 0 && c(&VisitRecord::begin_) < before_timestamp));
+        std::vector<std::shared_ptr<VisitRecord>> records;
+        for (auto& r : qrs) {
+            records.push_back(std::move(r));
+        }
+        return records;
+    }
+
     void VisitRecordOperator::Delete(int id) {
         if (!IsDbReady(db_)) {
             return;
@@ -109,6 +133,17 @@ namespace tc
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
         auto count = storage.count<VisitRecord>();
         return count;
+    }
+
+    void VisitRecordOperator::FlushPendingRecords() {
+        std::vector<std::shared_ptr<VisitRecord>> records;
+        {
+            std::lock_guard<std::mutex> lock(pending_mutex_);
+            records = std::move(pending_records_);
+        }
+        for (const auto& record : records) {
+            InsertVisitRecord(record);
+        }
     }
 
 }

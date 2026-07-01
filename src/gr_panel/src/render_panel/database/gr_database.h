@@ -88,7 +88,7 @@ namespace tc
                 make_table("visit_record",
                     make_column("id", &VisitRecord::id_, primary_key()),
                     make_column("stream_id", &VisitRecord::stream_id_),
-                    make_column("conn_id", &VisitRecord::conn_id_),
+                    make_column("conn_id", &VisitRecord::conn_id_, unique()),
                     make_column("conn_type", &VisitRecord::conn_type_),
                     make_column("begin", &VisitRecord::begin_),
                     make_column("end", &VisitRecord::end_),
@@ -98,7 +98,7 @@ namespace tc
                 ),
                 make_table("file_transfer_record",
                     make_column("id", &FileTransferRecord::id_, primary_key()),
-                    make_column("the_file_id", &FileTransferRecord::the_file_id_),
+                    make_column("the_file_id", &FileTransferRecord::the_file_id_, unique()),
                     make_column("begin", &FileTransferRecord::begin_),
                     make_column("end", &FileTransferRecord::end_),
                     make_column("visitor_device", &FileTransferRecord::visitor_device_),
@@ -122,6 +122,8 @@ namespace tc
         std::shared_ptr<FileTransferRecordOperator> GetFileTransferRecordOp();
         std::shared_ptr<StreamDBOperator> GetStreamDBOperator();
         std::shared_ptr<DBGameOperator> GetDBGameOperator();
+        std::vector<std::shared_ptr<VisitRecord>> ScanUnclosedVisitRecords(int64_t before_timestamp);
+        std::vector<std::shared_ptr<FileTransferRecord>> ScanUnclosedFileTransferRecords(int64_t before_timestamp);
 
     private:
 

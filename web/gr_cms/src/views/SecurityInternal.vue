@@ -61,6 +61,8 @@ async function queryVisits(
   visits.value = data.data
   if (visits.value.length > 0 && visits.value[0] !== null) {
     totalVisitSize.value = visits.value[0]!.total
+  } else {
+    totalVisitSize.value = 0
   }
 
   //console.log('device list, total: ', totalVisitSize.value, ', devices: ', visits.value)
@@ -125,19 +127,21 @@ async function queryFileTransfers(
     },
   })
   if (resp.status !== 200) {
-    console.error('queryVisits failed', resp)
+    console.error('queryFileTransfers failed', resp)
     return
   }
 
   const data = resp.data
   if (data.code !== 200) {
-    console.error('queryVisits failed, data:', data)
+    console.error('queryFileTransfers failed, data:', data)
     return
   }
 
   fileTransfers.value = data.data
   if (fileTransfers.value.length > 0 && fileTransfers.value[0] !== null) {
     totalFileTransferSize.value = fileTransfers.value[0]!.total
+  } else {
+    totalFileTransferSize.value = 0
   }
 
   //console.log('device list, total: ', totalFileTransferSize.value, ', filetransfer: ', fileTransfers.value)
@@ -151,6 +155,8 @@ onMounted(async () => {
 
 // search
 const handleSearch = async () => {
+  visitCurrentPage.value = 1
+  fileTransferCurrentPage.value = 1
   // 1. search records
   await queryVisits(
     visitCurrentPage.value,
@@ -165,6 +171,20 @@ const handleSearch = async () => {
     visitDeviceId.value,
     targetDeviceId.value,
   )
+}
+
+const handleClear = async () => {
+  visitDeviceId.value = ''
+  targetDeviceId.value = ''
+  visitCurrentPage.value = 1
+  fileTransferCurrentPage.value = 1
+  await queryVisits(visitCurrentPage.value, visitPageSize.value, '', '')
+  await queryFileTransfers(fileTransferCurrentPage.value, fileTransferPageSize.value, '', '')
+}
+
+const handleRefresh = async () => {
+  await queryVisits(visitCurrentPage.value, visitPageSize.value, visitDeviceId.value, targetDeviceId.value)
+  await queryFileTransfers(fileTransferCurrentPage.value, fileTransferPageSize.value, visitDeviceId.value, targetDeviceId.value)
 }
 </script>
 
@@ -190,6 +210,20 @@ const handleSearch = async () => {
           <span class="!h-5"></span>
           <div class="h-2" />
           <el-button class="w-20" type="primary" @click="handleSearch">搜索</el-button>
+        </div>
+
+        <div class="w-5" />
+        <div class="w-40 flex flex-col items-start">
+          <span class="!h-5"></span>
+          <div class="h-2" />
+          <el-button class="w-20" @click="handleClear">清空</el-button>
+        </div>
+
+        <div class="w-5" />
+        <div class="w-40 flex flex-col items-start">
+          <span class="!h-5"></span>
+          <div class="h-2" />
+          <el-button class="w-20" @click="handleRefresh">刷新</el-button>
         </div>
       </div>
     </el-card>
@@ -226,7 +260,7 @@ const handleSearch = async () => {
 
           <el-table-column label="结束时间" :min-width="160">
             <template #default="scope">
-              <span class="">{{ scope.row.end > 0 ? formatTimestamp(scope.row.end) : 0 }}</span>
+              <span class="">{{ scope.row.end > 0 ? formatTimestamp(scope.row.end) : '-' }}</span>
             </template>
           </el-table-column>
 
@@ -326,7 +360,27 @@ const handleSearch = async () => {
 
           <el-table-column label="结束时间" :min-width="100">
             <template #default="scope">
-              <span class="">{{ formatTimestamp(scope.row.end) }}</span>
+              <span class="">{{ scope.row.end > 0 ? formatTimestamp(scope.row.end) : '-' }}</span>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="传输结果" :min-width="80">
+            <template #default="scope">
+              <el-tag :type="scope.row.success ? 'success' : 'danger'" effect="light">
+                {{ scope.row.success ? '成功' : '失败/未完成' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="传输耗时" :min-width="100">
+            <template #default="scope">
+              <span>
+                {{
+                  scope.row.end > 0 && scope.row.begin > 0
+                    ? formatDuration(scope.row.end - scope.row.begin)
+                    : '-'
+                }}
+              </span>
             </template>
           </el-table-column>
 

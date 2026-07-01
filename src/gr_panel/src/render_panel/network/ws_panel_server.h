@@ -91,6 +91,9 @@ namespace tc
 
         void NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
 
+        // scan and close records left open by a previous crash
+        void ScanAndFixUnclosedRecords();
+
         // notify event if needed
         void NotifyEventIfNeeded(const std::shared_ptr<SysInfo>& sys_info);
 

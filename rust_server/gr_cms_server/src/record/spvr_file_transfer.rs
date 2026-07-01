@@ -24,6 +24,9 @@ pub struct SpvrFileTransfer {
     pub file_detail: String,
 
     #[serde(default)]
+    pub success: bool,
+
+    #[serde(default)]
     pub created_timestamp: i64,
 
     #[serde(default)]

@@ -75,6 +75,9 @@ pub enum SpvrApiError {
     #[error("visit not found")]
     VisitNotFound,
 
+    #[error("file transfer not found")]
+    FileTransferNotFound,
+
     #[error("machine code not matched")]
     MachineCodeNotMatched,
 
@@ -119,6 +122,7 @@ impl SpvrApiError {
             SpvrApiError::VersionNotFound => 620,
             SpvrApiError::FileNotFound => 621,
             SpvrApiError::VisitNotFound => 622,
+            SpvrApiError::FileTransferNotFound => 625,
             SpvrApiError::MachineCodeNotMatched => 623,
             SpvrApiError::MaxStreamsReached => 624,
         }
@@ -149,7 +153,8 @@ impl SpvrApiError {
             | SpvrApiError::NeedVersionParam
             | SpvrApiError::VersionNotFound
             | SpvrApiError::FileNotFound
-            | SpvrApiError::VisitNotFound => StatusCode::BAD_REQUEST,
+            | SpvrApiError::VisitNotFound
+            | SpvrApiError::FileTransferNotFound => StatusCode::BAD_REQUEST,
             SpvrApiError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

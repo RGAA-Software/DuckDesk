@@ -70,7 +70,7 @@ namespace tc
 
     void AuthManager::FlushToStorage() {
         this->auth_.WithLock([=, this](const std::shared_ptr<Authorization>& auth) {
-            if (auth->auth_id_.empty() || auth->appkey_.empty()) {
+            if (!auth || auth->auth_id_.empty() || auth->appkey_.empty()) {
                 return;
             }
             const auto sp = pc_->GetSP();
@@ -91,7 +91,12 @@ namespace tc
             return nullptr;
         }
 
-        const auto path = std::format("/api/v1/auth/control/get/authorization?appkey={}", auth_.Clone()->appkey_);
+        const auto cached_auth = auth_.Clone();
+        if (!cached_auth || cached_auth->appkey_.empty()) {
+            return nullptr;
+        }
+
+        const auto path = std::format("/api/v1/auth/control/get/authorization?appkey={}", cached_auth->appkey_);
         auto client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
         auto resp = client->Request();
         if (resp.status != 200) {
@@ -138,6 +143,9 @@ namespace tc
 
     void AuthManager::UpdateAppkey(const std::string& appkey) {
         auto auth = auth_.Clone();
+        if (!auth) {
+            auth = std::make_shared<Authorization>();
+        }
         if (auth->appkey_ != appkey) {
             LOGI("UpdateAppkey: '{}' -> '{}'", auth->appkey_, appkey);
             auth->appkey_ = appkey;
@@ -154,6 +162,9 @@ namespace tc
 
         // Local expiration check: if we know the expiration timestamp, enforce it.
         const auto auth = auth_.Clone();
+        if (!auth || auth->appkey_.empty()) {
+            return false;
+        }
         if (auth->end_timestamp_ms_ > 0 &&
             static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()) > auth->end_timestamp_ms_) {
             LOGW("Authorization expired locally: end_timestamp_ms={}", auth->end_timestamp_ms_);

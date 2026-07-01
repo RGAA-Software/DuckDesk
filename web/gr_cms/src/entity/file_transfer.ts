@@ -8,5 +8,8 @@ export class FileTransfer {
     public total: number,
     public file_detail: string,
     public created_timestamp: number = 0,
+    public direction: string = '',
+    public success?: boolean,
+    public duration?: number,
   ) {}
 }

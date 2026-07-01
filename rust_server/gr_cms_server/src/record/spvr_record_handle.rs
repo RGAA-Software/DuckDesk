@@ -14,6 +14,16 @@ use gr_base::{ok_resp, RespMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+const MAX_PAGE_SIZE: i32 = 1000;
+
+fn validate_paging(page: i32, page_size: i32) -> Result<(), SpvrApiError> {
+    if page <= 0 || page_size <= 0 || page_size > MAX_PAGE_SIZE {
+        return Err(SpvrApiError::InvalidParams);
+    }
+    Ok(())
+}
+
 pub async fn handle_hello_world(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
     _query: Query<HashMap<String, String>>,
@@ -50,10 +60,29 @@ pub async fn handle_query_update_info(
 ) -> Result<Json<RespMessage<Vec<SpvrVisit>>>, SpvrApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
+    validate_paging(page, page_size)?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
     let visit_device_id = get_str_param_allow_empty(&query, "visit_device_id")?;
     let target_device_id = get_str_param_allow_empty(&query, "target_device_id")?;
-    let total_size = gRecordVisitManager.total_size().await?;
+
+    let visit_device_filter = if visit_device_id.is_empty() {
+        None
+    } else {
+        Some(visit_device_id.clone())
+    };
+    let target_device_filter = if target_device_id.is_empty() {
+        None
+    } else {
+        Some(target_device_id.clone())
+    };
+
+    let total_size = gRecordVisitManager
+        .total_size::<String>(
+            HashMap::default(),
+            visit_device_filter.clone(),
+            target_device_filter.clone(),
+        )
+        .await?;
     let mut r = gRecordVisitManager
         .query_info::<String>(
             page,
@@ -61,16 +90,8 @@ pub async fn handle_query_update_info(
             HashMap::default(),
             Some(String::from("created_timestamp")),
             Some(sort_time),
-            if visit_device_id.is_empty() {
-                None
-            } else {
-                Some(visit_device_id)
-            },
-            if target_device_id.is_empty() {
-                None
-            } else {
-                Some(target_device_id)
-            },
+            visit_device_filter,
+            target_device_filter,
         )
         .await?;
     for visit in &mut r {
@@ -101,7 +122,7 @@ pub async fn handle_update_file_transfer_info(
     let _info = gRecordFileTransferManager
         .update_file_transfer_info(up_file_transfer)
         .await?;
-    Ok(Json(ok_resp("upload ok".to_string())))
+    Ok(Json(ok_resp("update ok".to_string())))
 }
 
 pub async fn handle_query_file_transfer_info(
@@ -111,10 +132,29 @@ pub async fn handle_query_file_transfer_info(
 ) -> Result<Json<RespMessage<Vec<SpvrFileTransfer>>>, SpvrApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
+    validate_paging(page, page_size)?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
     let visit_device_id = get_str_param_allow_empty(&query, "visit_device_id")?;
     let target_device_id = get_str_param_allow_empty(&query, "target_device_id")?;
-    let total_size = gRecordFileTransferManager.total_size().await?;
+
+    let visit_device_filter = if visit_device_id.is_empty() {
+        None
+    } else {
+        Some(visit_device_id.clone())
+    };
+    let target_device_filter = if target_device_id.is_empty() {
+        None
+    } else {
+        Some(target_device_id.clone())
+    };
+
+    let total_size = gRecordFileTransferManager
+        .total_size::<String>(
+            HashMap::default(),
+            visit_device_filter.clone(),
+            target_device_filter.clone(),
+        )
+        .await?;
     let mut r = gRecordFileTransferManager
         .query_info::<String>(
             page,
@@ -122,16 +162,8 @@ pub async fn handle_query_file_transfer_info(
             HashMap::default(),
             Some(String::from("created_timestamp")),
             Some(sort_time),
-            if visit_device_id.is_empty() {
-                None
-            } else {
-                Some(visit_device_id)
-            },
-            if target_device_id.is_empty() {
-                None
-            } else {
-                Some(target_device_id)
-            },
+            visit_device_filter,
+            target_device_filter,
         )
         .await?;
     for ft in &mut r {

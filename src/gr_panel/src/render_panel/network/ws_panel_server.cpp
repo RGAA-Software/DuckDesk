@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 #include "tc_common_new/http_client.h"
 #include "tc_common_new/log.h"
+#include "tc_common_new/time_util.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/file.h"
 #include "tc_render_panel_message.pb.h"
@@ -243,6 +244,12 @@ namespace tc
 
         bool ret = server_->start("0.0.0.0", settings_->GetPanelServerPort());
         LOGI("App server start result: {}, port: {}", ret, settings_->GetPanelServerPort());
+
+        context_->PostTask([weak_self]() {
+            if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->ScanAndFixUnclosedRecords();
+            }
+        });
     }
 
     void WsPanelServer::Exit() {
@@ -488,7 +495,7 @@ namespace tc
                     return;
                 }
                 auto sub = proto_msg->ft_transfer_end();
-                self->ft_record_op_->UpdateVisitRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
+                self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
                 auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
                     .the_file_id_ = sub.the_file_id(),
@@ -641,7 +648,7 @@ namespace tc
                     ip_address = ips[0].ip_addr_;
                 }
 
-                self->ft_record_op_->InsertFileTransferRecord(std::make_shared<FileTransferRecord>(FileTransferRecord {
+                auto record = std::make_shared<FileTransferRecord>(FileTransferRecord {
                     .the_file_id_ = sub.the_file_id(),
                     .begin_ = sub.begin_timestamp(),
                     .end_ = 0,
@@ -649,7 +656,9 @@ namespace tc
                     .target_device_ = self->settings_->GetDeviceId().empty() ? ip_address : self->settings_->GetDeviceId(),
                     .direction_ = sub.direction(),
                     .file_detail_ = sub.file_detail(),
-                }));
+                });
+                self->ft_record_op_->InsertFileTransferRecord(record);
+                self->NotifyInsertFileTransferRecordToCms(record);
             });
         }
         else if (proto_msg->type() == tcrp::kRpFileTransferEnd) {
@@ -660,7 +669,14 @@ namespace tc
                     return;
                 }
                 auto sub = proto_msg->ft_end();
-                self->ft_record_op_->UpdateVisitRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
+                self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
+
+                auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
+                    .the_file_id_ = sub.the_file_id(),
+                    .end_ = sub.end_timestamp(),
+                    .success_ = sub.success()
+                });
+                self->NotifyUpdateFileTransferRecordToCms(record);
             });
         }
         else if (proto_msg->type() == tcrp::kRpRawRenderMessage) {
@@ -731,6 +747,34 @@ namespace tc
                 });
             }
         }
+    }
+
+    void WsPanelServer::ScanAndFixUnclosedRecords() {
+        auto db = context_->GetDatabase();
+        if (!db || !db->IsReady()) {
+            return;
+        }
+
+        const auto now = TimeUtil::GetCurrentTimestamp();
+        const auto cutoff = now - 60 * 1000; // only records older than 60s
+
+        auto visits = db->ScanUnclosedVisitRecords(cutoff);
+        for (auto& r : visits) {
+            r->end_ = now;
+            r->duration_ = std::max<int64_t>(0, now - r->begin_);
+            visit_record_op_->InsertVisitRecord(r);
+            NotifyUpdateVisitRecordToCms(r);
+        }
+
+        auto transfers = db->ScanUnclosedFileTransferRecords(cutoff);
+        for (auto& r : transfers) {
+            r->end_ = now;
+            r->success_ = false;
+            ft_record_op_->InsertFileTransferRecord(r);
+            NotifyUpdateFileTransferRecordToCms(r);
+        }
+
+        LOGI("ScanAndFixUnclosedRecords: fixed {} visit(s), {} file transfer(s)", visits.size(), transfers.size());
     }
 
     void WsPanelServer::NotifyInsertVisitRecordToCms(const std::shared_ptr<VisitRecord> record) {

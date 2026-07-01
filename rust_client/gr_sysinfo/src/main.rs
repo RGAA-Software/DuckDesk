@@ -1,4 +1,5 @@
 use gr_base::log_util;
+use gr_base::path_util::default_log_root;
 use gr_sysinfo::{gSysInfoMgr, gSysPanelClient};
 use clap::Parser as ClapParser;
 use clap_derive::Parser;
@@ -32,7 +33,11 @@ async fn main() {
     let args = Cli::parse();
     let port = args.port.unwrap_or(20369);
 
-    let _guard = log_util::init_log("logs/".to_string(), "gr_sys_info".to_string());
+    let log_root = default_log_root();
+    let _guard = log_util::init_log(
+        log_root.to_string_lossy().to_string(),
+        "gr_sys_info".to_string(),
+    );
 
     gSysPanelClient.lock().await.duration = args.duration.unwrap_or(1);
 

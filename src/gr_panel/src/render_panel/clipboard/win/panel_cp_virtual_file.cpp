@@ -323,7 +323,7 @@ namespace tc
 
     void CpVirtualFile::RecordFileTransferEnd() {
         const auto ft_record_op = context_->GetDatabase()->GetFileTransferRecordOp();
-        ft_record_op->UpdateVisitRecord(file_stream_->GetFileId(), (int64_t)TimeUtil::GetCurrentTimestamp(), true);
+        ft_record_op->UpdateFileTransferRecord(file_stream_->GetFileId(), (int64_t)TimeUtil::GetCurrentTimestamp(), true);
     }
 
     CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<GrContext>& ctx) {

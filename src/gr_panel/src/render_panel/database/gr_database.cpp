@@ -109,4 +109,18 @@ namespace tc
     std::shared_ptr<DBGameOperator> GrDatabase::GetDBGameOperator() {
         return db_game_operator_;
     }
+
+    std::vector<std::shared_ptr<VisitRecord>> GrDatabase::ScanUnclosedVisitRecords(int64_t before_timestamp) {
+        if (visit_record_op_) {
+            return visit_record_op_->ScanUnclosedRecords(before_timestamp);
+        }
+        return {};
+    }
+
+    std::vector<std::shared_ptr<FileTransferRecord>> GrDatabase::ScanUnclosedFileTransferRecords(int64_t before_timestamp) {
+        if (ft_record_op_) {
+            return ft_record_op_->ScanUnclosedRecords(before_timestamp);
+        }
+        return {};
+    }
 }
