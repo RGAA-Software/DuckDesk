@@ -5,6 +5,8 @@
 #ifndef GAMMARAYPREMIUM_SKIN_LOADER_H
 #define GAMMARAYPREMIUM_SKIN_LOADER_H
 
+#include <string>
+
 namespace tc
 {
 
@@ -12,7 +14,7 @@ namespace tc
 
     class SkinLoader {
     public:
-        static SkinInterface* LoadSkin();
+        static SkinInterface* LoadSkin(const std::string& skin_name_hint = "");
     };
 
 }

@@ -5,6 +5,7 @@
 #include "start_stream_loading.h"
 #include <QResizeEvent>
 #include <QPainter>
+#include <QPixmap>
 #include "tc_label.h"
 #include "widget_helper.h"
 #include "no_margin_layout.h"
@@ -33,9 +34,16 @@ namespace tc
             auto lbl_icon = new QLabel(this);
             lbl_icon->setFixedSize(size, size);
             lbl_icon->setScaledContents(true);
+            QPixmap logo;
             if (const auto sk = grApp->GetSkin(); sk) {
-                auto p = sk->GetSquareLogo();
-                lbl_icon->setPixmap(p);
+                logo = sk->GetSquareLogo();
+            }
+            if (logo.isNull()) {
+                logo.load(":/resources/tc_icon.png");
+            }
+            if (!logo.isNull()) {
+                logo = logo.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                lbl_icon->setPixmap(logo);
             }
             root_layout->addSpacing(60);
 

@@ -1,4 +1,3 @@
-add_subdirectory(interface)
 add_subdirectory(opensource)
 add_subdirectory(official)
 

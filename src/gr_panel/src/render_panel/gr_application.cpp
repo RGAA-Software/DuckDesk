@@ -62,19 +62,20 @@ namespace tc
 
     std::shared_ptr<GrApplication> grApp;
 
-    std::shared_ptr<GrApplication> GrApplication::Make(QWidget* main_window, bool run_automatically) {
+    std::shared_ptr<GrApplication> GrApplication::Make(QWidget* main_window, bool run_automatically, const std::string& skin_name) {
         struct GrApplicationEnabler final : GrApplication {
-            GrApplicationEnabler(QWidget* window, bool auto_run) : GrApplication(window, auto_run) {}
+            GrApplicationEnabler(QWidget* window, bool auto_run, const std::string& skin) : GrApplication(window, auto_run, skin) {}
         };
 
-        auto app = std::make_shared<GrApplicationEnabler>(main_window, run_automatically);
+        auto app = std::make_shared<GrApplicationEnabler>(main_window, run_automatically, skin_name);
         app->Init();
         return app;
     }
 
-    GrApplication::GrApplication(QWidget* main_window, bool run_automatically) : QObject(main_window) {
+    GrApplication::GrApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name) : QObject(main_window) {
         main_window_ = main_window;
         run_automatically_ = run_automatically;
+        requested_skin_name_ = skin_name;
     }
 
     GrApplication::~GrApplication() = default;
@@ -97,7 +98,7 @@ namespace tc
             companion_->UpdateSpvrServerConfig(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort());
         }
 
-        skin_ = SkinLoader::LoadSkin();
+        skin_ = SkinLoader::LoadSkin(requested_skin_name_);
         if (!skin_) {
             LOGE("Load skin failed!!!");
         }

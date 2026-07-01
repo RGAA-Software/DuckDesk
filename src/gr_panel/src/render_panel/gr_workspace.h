@@ -48,7 +48,7 @@ namespace tc
 
     class GrWorkspace : public QMainWindow, public std::enable_shared_from_this<GrWorkspace> {
     public:
-        GrWorkspace(bool run_automatically);
+        GrWorkspace(bool run_automatically, const std::string& skin_name = "");
         void Init();
         void closeEvent(QCloseEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
@@ -96,6 +96,7 @@ namespace tc
         QPushButton* btn_uninstall_ = nullptr;
         // is started by OS when logon?
         bool run_automatically_ = false;
+        std::string skin_name_;
 
         // username
         int avatar_size_ = 50;

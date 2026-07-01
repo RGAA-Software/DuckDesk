@@ -107,7 +107,7 @@ namespace tc
         InitPluginsManager();
 
         // skin
-        skin_ = SkinLoader::LoadSkin();
+        skin_ = SkinLoader::LoadSkin(settings_->skin_name_);
 
         auto beg = TimeUtil::GetCurrentTimestamp();
 

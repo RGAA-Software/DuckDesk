@@ -179,10 +179,13 @@ def main():
     os.makedirs(gr_skins_dst, exist_ok=True)
 
     # skin_open_source / skin_official DLLs
-    skins_src = os.path.join(build_dir, "src", "gr_panel", "src", "skin", "official")
+    # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to GR_PROJECT_BINARY_PATH
+    # (which points to src/gr_deps), the skin DLLs are built there, not under
+    # src/gr_panel/src/skin/official.
+    skins_src = os.path.join(build_dir, "src", "gr_deps")
     if os.path.isdir(skins_src):
         for f in os.listdir(skins_src):
-            if f.endswith(".dll"):
+            if f.startswith("skin_") and f.endswith(".dll"):
                 copy_file(os.path.join(skins_src, f), os.path.join(gr_skins_dst, f))
 
     # skin config (from source tree)

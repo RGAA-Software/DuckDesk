@@ -35,6 +35,7 @@ std::shared_ptr<GrWorkspace> g_workspace = nullptr;
 struct CommandLineOptions {
     bool run_automatically = false;
     bool debug = false;
+    std::string skin_name;
 };
 
 CommandLineOptions ParseCommandLine(QApplication& app) {
@@ -48,11 +49,15 @@ CommandLineOptions ParseCommandLine(QApplication& app) {
 
     QCommandLineOption debug_option("debug", "Show startup debug message box and block until dismissed.");
     parser.addOption(debug_option);
+
+    QCommandLineOption skin_option("skin", "Skin plugin name (e.g. skin_official, skin_opensource).", "name", "");
+    parser.addOption(skin_option);
     parser.process(app);
 
     return CommandLineOptions {
         .run_automatically = parser.isSet(run_automatically_option),
         .debug = parser.isSet(debug_option),
+        .skin_name = parser.value(skin_option).toStdString(),
     };
 }
 
@@ -148,6 +153,7 @@ int main(int argc, char *argv[]) {
     LOGI("Commands:");
     LOGI("  Run automatically: {}", options.run_automatically);
     LOGI("  Debug: {}", options.debug);
+    LOGI("  Skin: {}", options.skin_name);
 
     // pipe
     auto rn_pipe = std::make_shared<GrRunningPipe>();
@@ -188,7 +194,7 @@ int main(int argc, char *argv[]) {
     // init language
     tcTrMgr()->InitLanguage();
 
-    g_workspace = std::make_shared<GrWorkspace>(options.run_automatically);
+    g_workspace = std::make_shared<GrWorkspace>(options.run_automatically, options.skin_name);
     g_workspace->Init();
     g_workspace->setFixedSize(1450, 800);
     if (!options.run_automatically) {

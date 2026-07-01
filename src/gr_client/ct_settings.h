@@ -155,6 +155,9 @@ namespace tc
         // force direct
         bool force_direct_ = false;
 
+        // skin plugin name
+        std::string skin_name_;
+
         ///////
         ///////
         // from render //

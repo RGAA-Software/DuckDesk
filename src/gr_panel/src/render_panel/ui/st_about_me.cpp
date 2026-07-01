@@ -6,6 +6,7 @@
 
 #include <QPushButton>
 #include <QDesktopServices>
+#include <QPixmap>
 
 #include "tc_label.h"
 #include "version_config.h"
@@ -30,18 +31,17 @@ namespace tc
             int size = 90;
             label->setFixedSize(size, size);
             label->setScaledContents(true);
+            QPixmap pixmap;
             auto skin = grApp->GetSkin();
             if (skin) {
-                auto pixmap = skin->GetSquareLogo();
-                label->setPixmap(pixmap);
+                pixmap = skin->GetSquareLogo();
             }
-            else {
-                label->setStyleSheet(R"(
-                    border: none;
-                    border-image: url(:/resources/tc_trans_icon_blue.png);
-                    background-repeat: no-repeat;
-                    background-position: center;
-                )");
+            if (pixmap.isNull()) {
+                pixmap.load(":/resources/tc_icon.png");
+            }
+            if (!pixmap.isNull()) {
+                pixmap = pixmap.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                label->setPixmap(pixmap);
             }
             layout->addWidget(label);
             layout->addStretch();

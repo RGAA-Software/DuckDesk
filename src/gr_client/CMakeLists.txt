@@ -156,6 +156,8 @@ if (WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/tc_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/gr_panel/resources/language" "${CMAKE_CURRENT_BINARY_DIR}/resources/language"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/gr_panel/resources/qt_material" "${CMAKE_CURRENT_BINARY_DIR}/resources/qt_material"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gr_skins"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${GR_PROJECT_BINARY_PATH}/gr_skins" "${CMAKE_CURRENT_BINARY_DIR}/gr_skins"
     )
 
 elseif (APPLE)

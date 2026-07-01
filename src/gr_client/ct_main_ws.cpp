@@ -178,6 +178,9 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_force_direct("force_direct", "force direct", "value", "");
     parser.addOption(opt_force_direct);
 
+    QCommandLineOption opt_skin("skin", "Skin plugin name (e.g. skin_official, skin_opensource).", "name", "");
+    parser.addOption(opt_skin);
+
     parser.process(app);
 
     g_remote_host_ = parser.value(opt_host).toStdString();
@@ -360,6 +363,9 @@ void ParseCommandLine(QApplication& app) {
 
     // force direct
     settings->force_direct_ = parser.value(opt_force_direct).toInt() == 1;
+
+    // skin
+    settings->skin_name_ = parser.value(opt_skin).toStdString();
 }
 
 bool PrepareDirs(const QString& base_path) {

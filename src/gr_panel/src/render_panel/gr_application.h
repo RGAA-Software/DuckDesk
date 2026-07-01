@@ -43,7 +43,7 @@ namespace tc
     class GrApplication : public QObject, public QAbstractNativeEventFilter, public std::enable_shared_from_this<GrApplication> {
     public:
 
-        static std::shared_ptr<GrApplication> Make(QWidget* main_window, bool run_automatically);
+        static std::shared_ptr<GrApplication> Make(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
 
         ~GrApplication() override;
 
@@ -113,7 +113,7 @@ namespace tc
         [[nodiscard]] bool CanConnectSpvrServer();
 
     protected:
-        explicit GrApplication(QWidget* main_window, bool run_automatically);
+        explicit GrApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
 
     private:
         void Init();
@@ -182,6 +182,9 @@ namespace tc
 
         // monitor refresher
         std::shared_ptr<MonitorRefresher> monitor_refresher_ = nullptr;
+
+        // requested skin name from command line
+        std::string requested_skin_name_;
 
         // last spvr connection info used by GrSpvrClient
         std::string using_appkey_;

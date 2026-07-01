@@ -7,22 +7,18 @@
 #include <QApplication>
 #include <toml++/toml.hpp>
 #include "tc_common_new/log.h"
-#include "interface/skin_interface.h"
+#include "skin/interface/skin_interface.h"
 
 typedef void* (*FnGetInstance)();
 
 namespace tc
 {
 
-    SkinInterface* SkinLoader::LoadSkin() {
-        std::string skin_name;
-#ifdef OPENSOURCE_BUILD
-        skin_name = "skin_opensource";
-#elif defined(OFFICIAL_BUILD)
-        skin_name = "skin_official";
-#else
-        skin_name = "skin_official";
-#endif
+    SkinInterface* SkinLoader::LoadSkin(const std::string& skin_name_hint) {
+        std::string skin_name = skin_name_hint;
+        if (skin_name.empty()) {
+            skin_name = "skin_official";
+        }
         LOGI("Prebuilt skin name: {}", skin_name);
 
         auto base_path = QCoreApplication::applicationDirPath();

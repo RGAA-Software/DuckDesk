@@ -63,8 +63,9 @@ namespace tc
 {
     std::shared_ptr<GrWorkspace> grWorkspace;
 
-    GrWorkspace::GrWorkspace(bool run_automatically) : QMainWindow(nullptr) {
+    GrWorkspace::GrWorkspace(bool run_automatically, const std::string& skin_name) : QMainWindow(nullptr) {
         this->run_automatically_ = run_automatically;
+        this->skin_name_ = skin_name;
         settings_ = GrSettings::Instance();
         //setWindowFlags(windowFlags() | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         WidgetHelper::SetTitleBarColor(this);
@@ -108,7 +109,7 @@ namespace tc
         setWindowIcon(theme_->AdvancedStyleSheet->styleIcon());
         qApp->setStyleSheet(theme_->AdvancedStyleSheet->styleSheet());
 
-        app_ = GrApplication::Make(this, run_automatically);
+        app_ = GrApplication::Make(this, run_automatically, skin_name_);
         context_ = app_->GetContext();
         skin_ = grApp->GetSkin();
 
