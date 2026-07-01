@@ -54,6 +54,9 @@ namespace tc
         const auto& record = opt_record.value();
         record->end_ = end_timestamp;
         record->success_ = success;
+        record->duration_ = (record->begin_ > 0 && end_timestamp > record->begin_)
+            ? end_timestamp - record->begin_
+            : 0;
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
         auto streams = storage.get_all<FileTransferRecord>(where(c(&FileTransferRecord::the_file_id_) == the_file_id));

@@ -95,6 +95,7 @@ namespace tc
 
         void OnClipboardRespBuffer(const ClipboardRespBuffer& rb);
         void Exit();
+        [[nodiscard]] bool IsTransferComplete() const;
         std::string GetFileId();
         std::string GetDeviceId();
         std::string GetFileName();

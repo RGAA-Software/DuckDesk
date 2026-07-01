@@ -497,13 +497,9 @@ namespace tc
                 auto sub = proto_msg->ft_transfer_end();
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
-                auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
-                    .the_file_id_ = sub.the_file_id(),
-                    .end_ = sub.end_timestamp(),
-                    .success_ = sub.success()
-                });
-
-                self->NotifyUpdateFileTransferRecordToCms(record);
+                if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
+                    self->NotifyUpdateFileTransferRecordToCms(opt.value());
+                }
             });
         }
         return true;
@@ -671,12 +667,9 @@ namespace tc
                 auto sub = proto_msg->ft_end();
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
-                auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
-                    .the_file_id_ = sub.the_file_id(),
-                    .end_ = sub.end_timestamp(),
-                    .success_ = sub.success()
-                });
-                self->NotifyUpdateFileTransferRecordToCms(record);
+                if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
+                    self->NotifyUpdateFileTransferRecordToCms(opt.value());
+                }
             });
         }
         else if (proto_msg->type() == tcrp::kRpRawRenderMessage) {
@@ -770,6 +763,7 @@ namespace tc
         for (auto& r : transfers) {
             r->end_ = now;
             r->success_ = false;
+            r->duration_ = std::max<int64_t>(0, now - r->begin_);
             ft_record_op_->InsertFileTransferRecord(r);
             NotifyUpdateFileTransferRecordToCms(r);
         }

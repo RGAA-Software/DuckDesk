@@ -122,7 +122,7 @@ namespace tc
 
                 if (file_stream_) {
                     // report
-                    this->ReportFileTransferEnd();
+                    this->ReportFileTransferEnd(file_stream_->IsTransferComplete());
                     file_stream_->Exit();
                 }
                 file_stream_ = std::make_shared<CpFileStream>(context_, fw);
@@ -198,8 +198,8 @@ namespace tc
         in_async_op_ = false;
         LOGI("EndOperation....");
         if (file_stream_) {
-            // report
-            this->ReportFileTransferEnd();
+            const bool success = SUCCEEDED(hResult) && file_stream_->IsTransferComplete();
+            this->ReportFileTransferEnd(success);
 
             file_stream_->Exit();
             file_stream_.reset();
@@ -271,13 +271,13 @@ namespace tc
         // send end message to client
     }
 
-    void CpVirtualFile::ReportFileTransferEnd() {
+    void CpVirtualFile::ReportFileTransferEnd(bool success) {
         if (!file_stream_) {
             return;
         }
 
         // record in database
-        this->RecordFileTransferEnd();
+        this->RecordFileTransferEnd(success);
 
         // send end message to client
         tc::Message msg;
@@ -286,7 +286,7 @@ namespace tc
         msg.set_type(MessageType::kClipboardReqAtEnd);
         auto req_buffer = msg.mutable_cp_req_at_end();
         req_buffer->set_full_name(file_stream_->GetFullPath());
-        req_buffer->set_success(true);
+        req_buffer->set_success(success);
         //auto buffer = ProtoAsData(&msg);
         // todo::
         //plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
@@ -321,9 +321,14 @@ namespace tc
         NotifyFileTransferRecordToCms(record);
     }
 
-    void CpVirtualFile::RecordFileTransferEnd() {
+    void CpVirtualFile::RecordFileTransferEnd(bool success) {
         const auto ft_record_op = context_->GetDatabase()->GetFileTransferRecordOp();
-        ft_record_op->UpdateFileTransferRecord(file_stream_->GetFileId(), (int64_t)TimeUtil::GetCurrentTimestamp(), true);
+        const auto file_id = file_stream_->GetFileId();
+        ft_record_op->UpdateFileTransferRecord(file_id, (int64_t)TimeUtil::GetCurrentTimestamp(), success);
+
+        if (const auto opt = ft_record_op->GetFileTransferRecordByFileId(file_id); opt.has_value()) {
+            NotifyUpdateFileTransferRecordToCms(opt.value());
+        }
     }
 
     CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<GrContext>& ctx) {
@@ -355,6 +360,23 @@ namespace tc
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("NotifyFileTransferRecordToCms failed: {}", resp.status);
+        }
+    }
+
+    void CpVirtualFile::NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
+        if (!record) {
+            return;
+        }
+        auto settings = GrSettings::Instance();
+        std::string serv_host = settings->GetSpvrServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
+        auto appkey = grApp->GetAppkey();
+        auto resp = client->Post({
+            {"appkey", appkey}
+            }, record->AsUpdateJson(), "application/json");
+
+        if (resp.status != 200 || resp.body.empty()) {
+            LOGE("NotifyUpdateFileTransferRecordToCms failed: {}", resp.status);
         }
     }
 };

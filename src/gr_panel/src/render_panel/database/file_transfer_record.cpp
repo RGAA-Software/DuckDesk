@@ -42,6 +42,7 @@ namespace tc
         obj["target_device"] = target_device_;
         obj["direction"] = direction_;
         obj["file_detail"] = file_detail_;
+        obj["duration"] = duration_;
         return obj.dump(2);
     }
 
@@ -50,6 +51,7 @@ namespace tc
         obj["the_file_id"] = the_file_id_;
         obj["end"] = end_;
         obj["success"] = success_;
+        obj["duration"] = duration_;
         return obj.dump(2);
     }
 }

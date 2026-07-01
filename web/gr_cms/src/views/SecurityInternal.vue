@@ -2,6 +2,7 @@
 import { Connection, Files } from '@element-plus/icons-vue'
 import { onMounted, ref } from 'vue'
 import { formatDuration, formatTimestamp } from '@/util/time.ts'
+import { connTypeTagType, formatConnTypeLabel } from '@/util/conn_type.ts'
 import type { Visit } from '@/entity/visit.ts'
 import axiosHttp from '@/http.ts'
 import type { FileTransfer } from '@/entity/file_transfer.ts'
@@ -244,10 +245,10 @@ const handleRefresh = async () => {
           <el-table-column label="连接类型" :min-width="80">
             <template #default="scope">
               <el-tag
-                :type="scope.row.conn_type === 'Direct' ? 'success' : 'primary'"
+                :type="connTypeTagType(scope.row.conn_type)"
                 effect="light"
               >
-                {{ scope.row.conn_type === 'Direct' ? '直连' : '中转' }}
+                {{ formatConnTypeLabel(scope.row.conn_type) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -376,9 +377,11 @@ const handleRefresh = async () => {
             <template #default="scope">
               <span>
                 {{
-                  scope.row.end > 0 && scope.row.begin > 0
-                    ? formatDuration(scope.row.end - scope.row.begin)
-                    : '-'
+                  scope.row.duration != null && scope.row.duration > 0
+                    ? formatDuration(scope.row.duration)
+                    : scope.row.end > 0 && scope.row.begin > 0
+                      ? formatDuration(scope.row.end - scope.row.begin)
+                      : '-'
                 }}
               </span>
             </template>

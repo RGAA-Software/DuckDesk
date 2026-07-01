@@ -33,6 +33,7 @@ namespace tc
         std::string direction_;
         std::string file_detail_;
         bool success_ = false;
+        int64_t duration_{0};
     };
 
 }

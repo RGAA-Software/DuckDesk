@@ -27,6 +27,9 @@ pub struct SpvrFileTransfer {
     pub success: bool,
 
     #[serde(default)]
+    pub duration: i64,
+
+    #[serde(default)]
     pub created_timestamp: i64,
 
     #[serde(default)]
@@ -45,6 +48,9 @@ pub struct SpvrUpdateFileTransfer {
 
     #[serde(default)]
     pub success: bool,
+
+    #[serde(default)]
+    pub duration: i64,
 }
 
 impl SpvrUpdateFileTransfer {}

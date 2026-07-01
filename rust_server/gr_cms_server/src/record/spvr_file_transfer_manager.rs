@@ -53,6 +53,7 @@ impl SpvrFileTransferManager {
         let mut set_doc = doc! {};
         set_doc.insert("end", update.end);
         set_doc.insert("success", update.success);
+        set_doc.insert("duration", update.duration);
 
         if set_doc.is_empty() {
             return Err(SpvrApiError::InvalidParams);

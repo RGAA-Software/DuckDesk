@@ -134,6 +134,13 @@ namespace tc
         LOGI("**** Exit: {}", cp_file_.file_.file_name());
     }
 
+    bool CpFileStream::IsTransferComplete() const {
+        if (cp_file_.file_.total_size() <= 0) {
+            return false;
+        }
+        return current_position_.load() >= static_cast<int64_t>(cp_file_.file_.total_size());
+    }
+
     std::string CpFileStream::GetFileId() {
         return gen_file_id_;
     }

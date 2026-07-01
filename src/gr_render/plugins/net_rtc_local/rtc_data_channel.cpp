@@ -41,7 +41,7 @@ namespace tc
                 auto event = std::make_shared<GrPluginClientConnectedEvent>();
                 event->stream_id_ = this->the_conn_id_;
                 event->visitor_device_id_ = name_;
-                event->conn_type_ = "P2P";
+                event->conn_type_ = "RTC";
                 event->begin_timestamp_ = created_timestamp_;
                 this->plugin_->CallbackEvent(event);
             }

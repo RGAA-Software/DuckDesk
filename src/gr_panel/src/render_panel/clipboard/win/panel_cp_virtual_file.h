@@ -103,14 +103,14 @@ namespace tc
 
     private:
         void ReportFileTransferBegin();
-        void ReportFileTransferEnd();
+        void ReportFileTransferEnd(bool success);
 
         // Copy in
         void RecordFileTransferBegin();
-        // Copy in
-        void RecordFileTransferEnd();
+        void RecordFileTransferEnd(bool success);
 
         void NotifyFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
+        void NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
     private:
         CLIPFORMAT clip_format_file_desc_ = 0;
         CLIPFORMAT clip_format_file_content_ = 0;
