@@ -667,6 +667,10 @@ namespace tc
             this->setEnabled(false);
             auto srv_mgr = this->app_->GetContext()->GetServiceManager();
             std::thread([srv_mgr, uninstall_service]() {
+                // 1. 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
+                LOGI("Force close all GammaRayClientInner processes first.");
+                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayClientInnerExeName);
+
                 if (srv_mgr) {
                     if (uninstall_service) {
                         srv_mgr->Remove(true);
