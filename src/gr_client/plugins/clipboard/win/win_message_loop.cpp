@@ -68,8 +68,11 @@ namespace tc
             return;
         }
 
-        AddClipboardFormatListener(hwnd);
-        LOGI("AddClipboardFormatListener already add WinMessageWindow");
+        if (!AddClipboardFormatListener(hwnd)) {
+            LOGE("AddClipboardFormatListener failed, error: {}", GetLastError());
+            return;
+        }
+        LOGI("AddClipboardFormatListener ok, hwnd={}", reinterpret_cast<void*>(hwnd));
 
         /* 
         * Under certain circumstances, even with administrator privileges, this function still fails to set and returns an error indicating insufficient permissions. 

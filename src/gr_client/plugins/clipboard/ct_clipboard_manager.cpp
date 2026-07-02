@@ -38,9 +38,12 @@ namespace tc
 
     void ClipboardManager::OnLocalClipboardUpdated() {
         if (!plugin_->IsClipboardEnabled() || !clipboard_platform_) {
+            LOGI("OnLocalClipboardUpdated skipped: enabled={}, platform={}",
+                 plugin_->IsClipboardEnabled(), clipboard_platform_ != nullptr);
             return;
         }
         if (echo_filter_.IsOutboundSuppressed()) {
+            LOGI("OnLocalClipboardUpdated skipped: outbound suppressed");
             return;
         }
 
@@ -75,7 +78,10 @@ namespace tc
             event->type_ = ClipboardType::kClipboardText;
             event->text_msg_ = content.text_;
             plugin_->CallbackEvent(event);
+            return;
         }
+
+        LOGI("OnLocalClipboardUpdated: clipboard has no syncable text or files");
     }
 
     void ClipboardManager::OnRemoteClipboardMessage(std::shared_ptr<tc::Message> msg) {

@@ -67,6 +67,11 @@ namespace tc
         }
 
         case WM_CLIPBOARDUPDATE: {
+            if (!self) {
+                LOGE("WM_CLIPBOARDUPDATE but window self is null");
+                break;
+            }
+            LOGI("WM_CLIPBOARDUPDATE");
             self->OnLocalClipboardUpdated(window);
             break;
         }
