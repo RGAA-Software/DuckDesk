@@ -28,6 +28,13 @@ namespace tc
         return false;
     }
 
+    void GrNetPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+    }
+
+    bool GrNetPlugin::IsUserProxyConnected() {
+        return false;
+    }
+
     void GrNetPlugin::OnClientEventCame(bool is_proto,
                                         int64_t socket_fd,
                                         const NetPluginType& nt_plugin_type,

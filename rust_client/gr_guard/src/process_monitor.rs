@@ -131,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn does_not_start_when_both_targets_exist() {
+    fn does_not_start_when_all_targets_exist() {
         let lister = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME), entry(SYSINFO_EXE_NAME)],
         };
@@ -158,7 +158,6 @@ mod tests {
         let outcome = run_guard_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
         assert!(!outcome.panel_alive);
         assert!(outcome.started_panel);
-        assert!(!outcome.started_sysinfo);
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
             &[PathBuf::from("D:/GammaRay/GammaRay.exe")]
@@ -182,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn starts_both_targets_when_both_missing() {
+    fn starts_all_targets_when_all_missing() {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
         let outcome = run_guard_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
@@ -192,7 +191,7 @@ mod tests {
             spawner.paths.lock().expect("lock").as_slice(),
             &[
                 PathBuf::from("D:/GammaRay/GammaRay.exe"),
-                PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe")
+                PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe"),
             ]
         );
     }

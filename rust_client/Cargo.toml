@@ -2,6 +2,7 @@
 members = [
     "gr_guard",
     "gr_sysinfo",
+    "gr_user_proxy",
     "gr_service",
     "gr_service/service_core",
     "gr_service/service_manager",

@@ -22,6 +22,7 @@ pub struct ServiceState {
     pub last_desktop_launch: Option<RenderLaunchSpec>,
     pub desktop_alive: bool,
     pub desktop_pid: Option<u32>,
+    pub user_proxy_alive: bool,
     pub stop_requested: bool,
 }
 
@@ -33,13 +34,23 @@ impl ServiceState {
     pub fn update_processes(&mut self, processes: &[ProcessSnapshot]) {
         self.desktop_alive = false;
         self.desktop_pid = None;
+        self.user_proxy_alive = false;
         for process in processes {
             if process.kind() == ProcessKind::DesktopRender {
                 self.desktop_alive = true;
                 self.desktop_pid = Some(process.pid);
-                return;
+            }
+            if process.is_user_proxy_process() {
+                self.user_proxy_alive = true;
             }
         }
+    }
+
+    pub fn should_restart_user_proxy(&self) -> bool {
+        !self.stop_requested
+            && self.desktop_alive
+            && !self.user_proxy_alive
+            && self.last_desktop_launch.is_some()
     }
 
     pub fn should_restart_desktop(&self) -> bool {
@@ -120,5 +131,21 @@ mod tests {
             response.heart_beat_resp.unwrap().render_status_enum(),
             Some(RenderStatus::Working)
         );
+    }
+
+    #[test]
+    fn state_requests_user_proxy_restart_when_render_alive() {
+        let mut state = ServiceState::default();
+        state.update_desktop_launch(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        state.update_processes(&[ProcessSnapshot::new(
+            1,
+            "GammaRayRender.exe",
+            "--app_mode=desktop",
+        )]);
+        assert!(state.should_restart_user_proxy());
     }
 }

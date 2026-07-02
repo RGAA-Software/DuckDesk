@@ -57,13 +57,19 @@ namespace tc
     }
 
     void WinMessageLoop::OnClipboardUpdate(HWND hwnd) {
+        // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+        (void)hwnd;
+#if 0
         if (!app_->IsRendererConnected()) {
             return;
         }
         ProcessLocalClipboardUpdate();
+#endif
     }
 
     void WinMessageLoop::ProcessLocalClipboardUpdate() {
+        // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+#if 0
         if (!app_->IsRendererConnected() || !clipboard_platform_) {
             return;
         }
@@ -107,6 +113,7 @@ namespace tc
         } else if (content.HasText()) {
             fn_send_text(content.text_);
         }
+#endif
     }
 
     void WinMessageLoop::OnWinSessionChange(uint32_t message) {

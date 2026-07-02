@@ -99,6 +99,7 @@ namespace tc
         std::shared_ptr<WinDesktopManager> GetDesktopManager();
         // post to panel process
         void PostPanelMessage(std::shared_ptr<Data> msg);
+        void PostUserProxyMessage(std::shared_ptr<Data> msg);
 
         void HandleForceGdiEvent(bool force_gdi);
 

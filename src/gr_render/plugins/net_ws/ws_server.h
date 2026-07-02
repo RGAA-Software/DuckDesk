@@ -16,6 +16,7 @@ namespace tc
 {
     class WsStreamRouter;
     class WsFileTransferRouter;
+    class WsUserProxyRouter;
     class HttpHandler;
     class WsPlugin;
     class GrConnectedClientInfo;
@@ -40,7 +41,11 @@ namespace tc
         std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo();
         void OnClientHello(const std::shared_ptr<MsgClientHello>& event);
 
+        void PostUserProxyMessage(std::shared_ptr<Data> msg);
+        bool IsUserProxyConnected();
+
     private:
+        void AddUserProxyRouter();
         void AddWebsocketRouter(const std::string& path);
 
         void AddHttpRouter(const std::string& path,
@@ -60,6 +65,7 @@ namespace tc
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
 
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
+        std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;
         std::atomic_bool exiting_ = false;
 
     };

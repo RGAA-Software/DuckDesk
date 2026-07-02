@@ -673,6 +673,8 @@ namespace tc
             });
         }
         else if (proto_msg->type() == tcrp::kRpRawRenderMessage) {
+            // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+#if 0
             auto sub = proto_msg->raw_render_msg();
             auto rd_proto_msg = std::make_shared<tc::Message>();
             if (!rd_proto_msg->ParseFromString(sub.msg())) {
@@ -681,6 +683,7 @@ namespace tc
             }
             auto processor = app_->GetRenderMsgProcessor();
             processor->OnMessage(rd_proto_msg);
+#endif
         }
         else if (proto_msg->type() == tcrp::kRpRelayAlive) {
             auto sub = proto_msg->relay_alive();

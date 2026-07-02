@@ -15,6 +15,7 @@ pub const RENDER_EXE_NAME: &str = "GammaRayRender.exe";
 pub const GUARD_EXE_NAME: &str = "GammaRayGuard.exe";
 pub const CLIENT_INNER_EXE_NAME: &str = "GammaRayClientInner.exe";
 pub const SYSINFO_EXE_NAME: &str = "GammaRaySysInfo.exe";
+pub const USER_PROXY_EXE_NAME: &str = "GammaRayUserProxy.exe";
 pub const PANEL_EXE_NAME: &str = "GammaRay.exe";
 
 #[derive(Clone, Debug, PartialEq, Eq)]

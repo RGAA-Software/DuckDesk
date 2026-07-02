@@ -29,6 +29,9 @@ namespace tc
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
 
+        void PostUserProxyMessage(std::shared_ptr<Data> msg) override;
+        bool IsUserProxyConnected() override;
+
         bool IsOnlyAudioClients() override;
         int GetConnectedClientsCount() override;
 

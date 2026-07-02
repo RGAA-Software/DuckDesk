@@ -99,6 +99,24 @@ namespace tc
         return false;
     }
 
+    void WsPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+        if (IsWorking() && msg && ws_server_) {
+            plugin_context_->PostWorkTask([=, this]() {
+                if (IsStoppingOrDestroyed() || !ws_server_) {
+                    return;
+                }
+                ws_server_->PostUserProxyMessage(msg);
+            });
+        }
+    }
+
+    bool WsPlugin::IsUserProxyConnected() {
+        if (IsWorking() && ws_server_) {
+            return ws_server_->IsUserProxyConnected();
+        }
+        return false;
+    }
+
     bool WsPlugin::IsOnlyAudioClients() {
         if (IsWorking()) {
             return ws_server_->IsOnlyAudioClients();

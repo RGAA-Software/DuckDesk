@@ -1085,6 +1085,15 @@ namespace tc
         }
     }
 
+    void RdApplication::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+        if (!msg || !plugin_manager_) {
+            return;
+        }
+        plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+            plugin->PostUserProxyMessage(msg);
+        });
+    }
+
     void RdApplication::HandleForceGdiEvent(bool force_gdi) {
         force_gdi_ = force_gdi;
         auto weak_self = weak_from_this();

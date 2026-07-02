@@ -218,7 +218,7 @@ mod tests {
             decoded.heart_beat_resp.unwrap().render_status_enum(),
             Some(RenderStatus::Working)
         );
-        assert_eq!(process_manager.launches.lock().unwrap().len(), 1);
+        assert_eq!(process_manager.launches.lock().unwrap().len(), 2);
 
         task.abort();
     }

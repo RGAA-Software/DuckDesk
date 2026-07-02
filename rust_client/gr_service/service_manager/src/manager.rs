@@ -277,6 +277,7 @@ fn gamma_cleanup_process_names() -> &'static [&'static str] {
         "GammaRayGuard.exe",
         "GammaRayClientInner.exe",
         "GammaRaySysInfo.exe",
+        "GammaRayUserProxy.exe",
     ]
 }
 
@@ -543,6 +544,7 @@ mod tests {
                 "GammaRayGuard.exe",
                 "GammaRayClientInner.exe",
                 "GammaRaySysInfo.exe",
+                "GammaRayUserProxy.exe",
             ]
         );
     }

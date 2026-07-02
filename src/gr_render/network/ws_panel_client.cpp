@@ -235,6 +235,8 @@ namespace tc
                     ProcessCommandDisablePlugin(plugin_id);
                 }
             }
+            // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+#if 0
             else if (m.type() == tcrp::RpMessageType::kRpClipboardEvent) {
                 const auto& clipboard_info = m.clipboard_info();
                 //LOGI("*** Clipboard type: {}, text: {}, file size: {}", (int)clipboard_info.type(), clipboard_info.msg(), clipboard_info.files_size());
@@ -259,6 +261,7 @@ namespace tc
                 }
                 context_->DispatchAppEvent2Plugins(event);
             }
+#endif
             else if (m.type() == tcrp::RpMessageType::kRpDisconnectConnection) {
                 const auto& sub = m.disconnect_connection();
                 // 1. make disconnect message in tc_messages.proto

@@ -3218,6 +3218,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gr_user_proxy"
+version = "2.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures-util",
+ "gr_base",
+ "prost",
+ "prost-build",
+ "protoc-bin-vendored",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "grid"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,4 +1,4 @@
-use crate::config::RENDER_EXE_NAME;
+use crate::config::{RENDER_EXE_NAME, USER_PROXY_EXE_NAME};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RenderMode {
@@ -48,6 +48,18 @@ impl ProcessSnapshot {
             .unwrap_or(false)
     }
 
+    pub fn is_user_proxy_process(&self) -> bool {
+        self.exe_path
+            .rsplit(['\\', '/'])
+            .next()
+            .map(|name| name.eq_ignore_ascii_case(USER_PROXY_EXE_NAME))
+            .unwrap_or(false)
+    }
+
+    pub fn is_managed_clipboard_process(&self) -> bool {
+        self.is_render_process() || self.is_user_proxy_process()
+    }
+
     pub fn kind(&self) -> ProcessKind {
         if !self.is_render_process() {
             return ProcessKind::Other;
@@ -83,5 +95,12 @@ mod tests {
         let process = ProcessSnapshot::new(1, "D:/GammaRay.exe", "");
         assert!(!process.is_render_process());
         assert_eq!(process.kind(), ProcessKind::Other);
+    }
+
+    #[test]
+    fn detect_user_proxy_process() {
+        let process = ProcessSnapshot::new(1, "D:/GammaRayUserProxy.exe", "--render-port=20371");
+        assert!(process.is_user_proxy_process());
+        assert!(process.is_managed_clipboard_process());
     }
 }

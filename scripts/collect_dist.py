@@ -41,6 +41,7 @@ PRODUCT_EXES = {
     "GammaRayServiceManager.exe",
     "GammaRayGuard.exe",
     "GammaRaySysInfo.exe",
+    "GammaRayUserProxy.exe",
     "GammaRayCrashReporter.exe",
     "GammaRayUninstall.exe",
     "joystick.exe",

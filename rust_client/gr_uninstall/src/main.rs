@@ -133,6 +133,7 @@ fn kill_other_processes() {
         "GammaRayClientInner.exe",
         "GammaRayGuard.exe",
         "GammaRaySysInfo.exe",
+        "GammaRayUserProxy.exe",
         "GammaRay.exe",
     ];
 

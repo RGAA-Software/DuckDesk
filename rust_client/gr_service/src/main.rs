@@ -3,6 +3,7 @@
 mod app;
 mod service_host;
 mod service_windows;
+mod user_proxy;
 mod websocket_server;
 mod windows_actions;
 mod windows_process;

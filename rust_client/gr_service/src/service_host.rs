@@ -9,6 +9,7 @@ use service_core::{PersistedServiceState, RenderLaunchSpec, ServiceState};
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, warn};
 
+use crate::user_proxy;
 use crate::websocket_server::WebsocketService;
 use crate::windows_actions::SystemActions;
 use crate::windows_process::ProcessManager;
@@ -134,6 +135,9 @@ impl ServiceRuntime {
             &spec.app_path,
             &spec.args,
         )?;
+        if let Err(err) = self.start_user_proxy(&spec) {
+            warn!("start user proxy failed: {err}");
+        }
         self.state.update_desktop_launch(spec);
         self.persist_state()?;
         self.sync_process_state()?;
@@ -144,13 +148,27 @@ impl ServiceRuntime {
         Ok(())
     }
 
+    fn start_user_proxy(&self, spec: &RenderLaunchSpec) -> Result<(), String> {
+        let render_port = user_proxy::extract_render_port(&spec.args);
+        let app_path = user_proxy::user_proxy_path(&spec.work_dir);
+        info!(
+            "starting user proxy, path={}, render_port={}",
+            app_path, render_port
+        );
+        self.process_manager.start_process_as_session_user(
+            &spec.work_dir,
+            &app_path,
+            &user_proxy::user_proxy_args(render_port),
+        )
+    }
+
     pub fn stop_desktop(&mut self) -> Result<(), String> {
         let processes = self.process_manager.list_processes()?;
         let mut killed = 0usize;
         for process in processes {
-            if process.is_render_process() {
+            if process.is_managed_clipboard_process() {
                 info!(
-                    "stopping render process, pid={}, exe_path={}, cmdline={}",
+                    "stopping managed desktop process, pid={}, exe_path={}, cmdline={}",
                     process.pid, process.exe_path, process.cmdline
                 );
                 let _ = self.process_manager.kill_process(process.pid);
@@ -158,7 +176,7 @@ impl ServiceRuntime {
             }
         }
         self.sync_process_state()?;
-        info!("stop desktop finished, killed_render_count={killed}");
+        info!("stop desktop finished, killed_managed_count={killed}");
         Ok(())
     }
 
@@ -272,6 +290,14 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                             error!("restart desktop failed: {err}");
                         }
                     }
+                } else if guard.state.should_restart_user_proxy() {
+                    if let Some(spec) = guard.state.last_desktop_launch.clone() {
+                        warn!("user proxy missing while render alive, restarting");
+                        if let Err(err) = guard.start_user_proxy(&spec) {
+                            error!("restart user proxy failed: {err}");
+                        }
+                        let _ = guard.sync_process_state();
+                    }
                 }
             }
             _ = stop_rx.recv() => {
@@ -308,6 +334,7 @@ mod tests {
     struct MockProcessManager {
         processes: StdMutex<Vec<ProcessSnapshot>>,
         launches: StdMutex<Vec<RenderLaunchSpec>>,
+        session_user_launches: StdMutex<Vec<RenderLaunchSpec>>,
         kills: StdMutex<Vec<u32>>,
     }
 
@@ -316,6 +343,7 @@ mod tests {
             Self {
                 processes: StdMutex::new(processes),
                 launches: StdMutex::new(Vec::new()),
+                session_user_launches: StdMutex::new(Vec::new()),
                 kills: StdMutex::new(Vec::new()),
             }
         }
@@ -352,6 +380,23 @@ mod tests {
                 .unwrap()
                 .push(ProcessSnapshot::new(99, app_path, args.join(" ")));
             Ok(())
+        }
+
+        fn start_process_as_session_user(
+            &self,
+            work_dir: &str,
+            app_path: &str,
+            args: &[String],
+        ) -> Result<(), String> {
+            self.session_user_launches
+                .lock()
+                .unwrap()
+                .push(RenderLaunchSpec {
+                    work_dir: work_dir.to_string(),
+                    app_path: app_path.to_string(),
+                    args: args.to_vec(),
+                });
+            self.start_process_as_active_user(work_dir, app_path, args)
         }
     }
 
@@ -397,6 +442,38 @@ mod tests {
         };
         runtime.start_desktop(spec.clone()).unwrap();
         assert_eq!(runtime.state.last_desktop_launch, Some(spec));
+    }
+
+    #[test]
+    fn start_desktop_launches_user_proxy_with_session_user_token() {
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("gr_data_test_up"),
+            std::env::temp_dir().join("gr_logs_test_up"),
+        );
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime = ServiceRuntime::new(
+            config,
+            manager.clone(),
+            Arc::new(MockActions::new()),
+        );
+        runtime
+            .start_desktop(RenderLaunchSpec {
+                work_dir: "D:/app".to_string(),
+                app_path: "D:/app/GammaRayRender.exe".to_string(),
+                args: vec![
+                    "--app_mode=desktop".to_string(),
+                    "--network_listen_port=20400".to_string(),
+                ],
+            })
+            .unwrap();
+        let session_launches = manager.session_user_launches.lock().unwrap();
+        assert_eq!(session_launches.len(), 1);
+        assert!(session_launches[0].app_path.ends_with("GammaRayUserProxy.exe"));
+        assert_eq!(
+            session_launches[0].args,
+            vec!["--render-port=20400".to_string()]
+        );
     }
 
     #[test]
@@ -481,29 +558,29 @@ mod tests {
             ProcessSnapshot::new(2, "D:/GammaRayGuard.exe", ""),
             ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
             ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
+            ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
         ]);
         runtime.stop_managed_render().unwrap();
         assert!(!runtime.state.desktop_alive);
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
-        assert!(processes.iter().any(|process| process.exe_path.ends_with("GammaRayGuard.exe")));
-        assert!(processes.iter().any(|process| process.exe_path.ends_with("GammaRayClientInner.exe")));
-        assert!(processes.iter().any(|process| process.exe_path.ends_with("GammaRaySysInfo.exe")));
+        assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
     }
 
     #[test]
-    fn stop_control_event_only_kills_render() {
+    fn stop_control_event_only_kills_managed_processes() {
         let mut runtime = test_runtime(vec![
             ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
             ProcessSnapshot::new(2, "D:/GammaRayGuard.exe", ""),
             ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
             ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
+            ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
         ]);
         runtime.handle_control_event(ControlEvent::Stop).unwrap();
         runtime.sync_process_state().unwrap();
         assert!(!runtime.state.desktop_alive);
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
-        assert!(processes.iter().all(|process| !process.is_render_process()));
+        assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
     }
 }

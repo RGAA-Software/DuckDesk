@@ -102,6 +102,9 @@ namespace tc
 //    }
 
     void ClipboardManager::OnRemoteClipboardInfo(std::shared_ptr<Message> msg) {
+        // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+        (void)msg;
+#if 0
         QPointer<ClipboardManager> self(this);
         if (msg->type() == MessageType::kClipboardInfo) {
             auto sub = msg->clipboard_info();
@@ -234,7 +237,8 @@ namespace tc
                 });
             }
         }
-        else if (msg->type() == MessageType::kClipboardRespBuffer) {
+#endif
+        if (msg->type() == MessageType::kClipboardRespBuffer) {
             if (virtual_file_) {
                 virtual_file_->OnClipboardRespBuffer(msg->cp_resp_buffer());
             }

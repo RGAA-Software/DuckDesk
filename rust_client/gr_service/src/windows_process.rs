@@ -29,6 +29,17 @@ pub trait ProcessManager: Send + Sync {
         app_path: &str,
         args: &[String],
     ) -> Result<(), String>;
+
+    /// Launch strictly with the logged-on user's WTS token (no SYSTEM token
+    /// fallback). Required for UserProxy, which must run as the session user.
+    fn start_process_as_session_user(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+    ) -> Result<(), String> {
+        self.start_process_as_active_user(work_dir, app_path, args)
+    }
 }
 
 #[derive(Default)]
@@ -112,6 +123,19 @@ impl ProcessManager for WindowsProcessManager {
                 }
             }
         }
+    }
+
+    fn start_process_as_session_user(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+    ) -> Result<(), String> {
+        info!(
+            "start process as session user (WTS token only) requested, work_dir={}, app_path={}, args={:?}",
+            work_dir, app_path, args
+        );
+        start_process_with_wts_user_token(work_dir, app_path, args)
     }
 }
 

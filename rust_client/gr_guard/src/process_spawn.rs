@@ -31,9 +31,6 @@ impl ProcessSpawner for WindowsProcessSpawner {
 }
 
 fn detached_spawn_flags() -> u32 {
-    // `CREATE_NEW_CONSOLE | DETACHED_PROCESS` is an invalid combination on Windows and
-    // causes ERROR_INVALID_PARAMETER (87). The C++ implementation uses Qt detached launch
-    // semantics, so using only DETACHED_PROCESS is the closest low-level equivalent here.
     DETACHED_PROCESS.0
 }
 

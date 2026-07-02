@@ -249,6 +249,10 @@ namespace tc
     }
 
     void PluginEventRouter::ReportRemoteClipboardResp(const std::shared_ptr<GrPluginRemoteClipboardResp>& event) {
+        // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+        // Panel echo path replaced by UserProxy local echo when applying remote clipboard.
+        (void)event;
+#if 0
         app_->PostGlobalTask([=, this]() {
             tcrp::RpMessage msg;
             msg.set_type(tcrp::kRpRemoteClipboardResp);
@@ -258,6 +262,7 @@ namespace tc
             auto buffer = RpProtoAsData(&msg);
             app_->PostPanelMessage(buffer);
         });
+#endif
     }
 
     void PluginEventRouter::ProcessPanelStreamMessage(const std::shared_ptr<GrPluginPanelStreamMessage>& event) {

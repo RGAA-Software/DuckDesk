@@ -12,6 +12,7 @@
 #include "network/ws_media_router.h"
 #include "ws_stream_router.h"
 #include "ws_filetransfer_router.h"
+#include "ws_user_proxy_router.h"
 #include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "ws_plugin.h"
 #include "tc_common_new/url_helper.h"
@@ -19,6 +20,7 @@
 
 static std::string kUrlMedia = "/media";
 static std::string kUrlFileTransfer = "/file/transfer";
+static std::string kUrlUserProxy = "/user-proxy";
 static std::string kApiPing = "/api/ping";
 static std::string kApiVerifySecurityPassword = "/verify/security/password";
 static std::string kApiGetRenderConfiguration = "/get/render/configuration";
@@ -95,6 +97,9 @@ namespace tc
         // media websocket
         AddWebsocketRouter(kUrlMedia);
         AddWebsocketRouter(kUrlFileTransfer);
+#if GR_USER_PROXY_ENABLED
+        AddUserProxyRouter();
+#endif
 
         // ping
         AddHttpRouter(kApiPing, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
@@ -192,6 +197,59 @@ namespace tc
 
     bool WsPluginServer::IsWorking() {
         return server_ && server_->is_started();
+    }
+
+    void WsPluginServer::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+#if GR_USER_PROXY_ENABLED
+        if (!msg) {
+            return;
+        }
+        if (user_proxy_router_ && user_proxy_router_->IsConnected()) {
+            LOGI("PostUserProxyMessage ok, len={}", msg->Size());
+            user_proxy_router_->PostBinaryMessage(msg);
+        } else {
+            LOGW("user-proxy not connected, drop clipboard message, len={}", msg->Size());
+        }
+#endif
+    }
+
+    bool WsPluginServer::IsUserProxyConnected() {
+#if GR_USER_PROXY_ENABLED
+        return user_proxy_router_ && user_proxy_router_->IsConnected();
+#else
+        return false;
+#endif
+    }
+
+    void WsPluginServer::AddUserProxyRouter() {
+        user_proxy_router_ = WsUserProxyRouter::Make(ws_data_);
+        auto weak_self = weak_from_this();
+        auto weak_router = std::weak_ptr<WsUserProxyRouter>(user_proxy_router_);
+        auto fn_get_socket_fd = [](std::shared_ptr<asio2::http_session> &sess_ptr) -> uint64_t {
+            return (uint64_t)sess_ptr->socket().native_handle();
+        };
+        server_->bind(kUrlUserProxy, websocket::listener<asio2::http_session>{}
+            .on("message", [weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
+                if (auto router = weak_router.lock()) {
+                    auto socket_fd = fn_get_socket_fd(sess_ptr);
+                    router->OnMessage(sess_ptr, socket_fd, data);
+                }
+            })
+            .on("open", [weak_self, weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
+                auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                if (auto router = weak_router.lock()) {
+                    router->OnOpen(sess_ptr);
+                }
+            })
+            .on("close", [weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
+                if (auto router = weak_router.lock()) {
+                    router->OnClose(sess_ptr);
+                }
+            })
+        );
     }
 
     void WsPluginServer::AddWebsocketRouter(const std::string &path) {

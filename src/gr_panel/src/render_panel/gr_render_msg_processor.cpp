@@ -17,6 +17,9 @@ namespace tc
     }
 
     void GrRenderMsgProcessor::OnMessage(std::shared_ptr<tc::Message> msg) const {
+        // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy
+        (void)msg;
+#if 0
         // clipboard
         if (const auto ctx = context_.lock()) {
             const auto app = ctx->GetApplication();
@@ -27,6 +30,7 @@ namespace tc
                 clipboard_mgr->OnRemoteClipboardInfo(msg);
             }
         }
+#endif
     }
 
 }
