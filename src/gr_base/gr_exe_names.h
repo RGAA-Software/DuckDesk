@@ -12,5 +12,6 @@ namespace tc {
     inline constexpr const char* kGammaRayServiceManagerExeName = "GammaRayServiceManager.exe";
     inline constexpr const char* kGammaRayGuardExeName = "GammaRayGuard.exe";
     inline constexpr const char* kGammaRaySysInfoExeName = "GammaRaySysInfo.exe";
+    inline constexpr const char* kGammaRayUserProxyExeName = "GammaRayUserProxy.exe";
 
 } // namespace tc

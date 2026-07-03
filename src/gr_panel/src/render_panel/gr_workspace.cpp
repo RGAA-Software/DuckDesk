@@ -679,6 +679,8 @@ namespace tc
                         srv_mgr->Stop();
                     }
                 }
+                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayRenderExeName);
+                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayUserProxyExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayGuardExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRaySysInfoExeName);
                 auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
