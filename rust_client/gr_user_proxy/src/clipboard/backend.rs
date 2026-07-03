@@ -2,6 +2,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 use super::content::{ClipboardContent, ClipboardFileEntry};
+use crate::clipboard::virtual_file::VirtualFileCoordinator;
 
 pub trait ClipboardBackend: Send + Sync {
     fn read_content(&self) -> anyhow::Result<ClipboardContent>;
@@ -13,6 +14,10 @@ pub trait ClipboardBackend: Send + Sync {
         anyhow::bail!("write_file_paths not supported by this backend")
     }
 
+    fn write_virtual_files(&self, _coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+        anyhow::bail!("write_virtual_files not supported by this backend")
+    }
+
     fn read_text(&self) -> anyhow::Result<Option<String>> {
         Ok(self.read_content()?.text)
     }
@@ -22,6 +27,7 @@ pub trait ClipboardBackend: Send + Sync {
 pub struct InMemoryClipboard {
     content: Arc<Mutex<ClipboardContent>>,
     notify: Sender<()>,
+    virtual_session: Arc<Mutex<Option<Arc<VirtualFileCoordinator>>>>,
 }
 
 impl InMemoryClipboard {
@@ -31,6 +37,7 @@ impl InMemoryClipboard {
             Self {
                 content: Arc::new(Mutex::new(ClipboardContent::default())),
                 notify: notify_tx,
+                virtual_session: Arc::new(Mutex::new(None)),
             },
             notify_rx,
         )
@@ -53,6 +60,9 @@ impl InMemoryClipboard {
         }
         let _ = self.notify.send(());
     }
+    pub fn virtual_session(&self) -> Option<Arc<VirtualFileCoordinator>> {
+        self.virtual_session.lock().expect("lock").clone()
+    }
 }
 
 impl ClipboardBackend for InMemoryClipboard {
@@ -74,6 +84,18 @@ impl ClipboardBackend for InMemoryClipboard {
         let mut guard = self.content.lock().expect("lock");
         guard.text = None;
         guard.files = entries;
+        *self.virtual_session.lock().expect("lock") = None;
+        Ok(())
+    }
+
+    fn write_virtual_files(&self, coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+        let files = coordinator
+            .session_files()
+            .ok_or_else(|| anyhow::anyhow!("virtual file session missing"))?;
+        let mut guard = self.content.lock().expect("lock");
+        guard.text = None;
+        guard.files = files;
+        *self.virtual_session.lock().expect("lock") = Some(coordinator);
         Ok(())
     }
 }

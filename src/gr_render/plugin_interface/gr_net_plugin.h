@@ -76,6 +76,11 @@ namespace tc
         // to file transfer
         virtual bool PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through);
 
+        // Serialized RpMessage to localhost UserProxy WebSocket
+        virtual void PostUserProxyMessage(std::shared_ptr<Data> msg);
+
+        virtual bool IsUserProxyConnected();
+
         // messages from remote(client) -> this plugin -> exe processes it
         // client 1 ->
         // client 2 ->  -> Renderer

@@ -6,14 +6,26 @@ use windows::Win32::Foundation::{GlobalFree, HGLOBAL, HANDLE, POINT};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
-use windows::Win32::System::Ole::OleInitialize;
+use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT};
+use windows::Win32::System::Ole::{OleInitialize, OleSetClipboard};
 use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
+use windows::Win32::UI::WindowsAndMessaging::{
+    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
+};
 
 use super::content::{build_file_entries_from_paths, ClipboardContent};
 
 const CF_UNICODETEXT: u32 = 13;
-const CF_HDROP: u32 = 15;
+pub(crate) const CF_HDROP: u32 = 15;
+
+/// `GMEM_SHARE` — not exported from `Win32::System::Memory` in windows-rs.
+const GMEM_SHARE: u32 = 0x2000;
+
+/// `GHND | GMEM_SHARE` — shell clipboard data must be moveable and shared.
+#[inline]
+pub(crate) fn clipboard_global_alloc_flags() -> windows::Win32::System::Memory::GLOBAL_ALLOC_FLAGS {
+    GMEM_MOVEABLE | GMEM_ZEROINIT | windows::Win32::System::Memory::GLOBAL_ALLOC_FLAGS(GMEM_SHARE)
+}
 
 #[repr(C)]
 struct DropFiles {
@@ -24,10 +36,10 @@ struct DropFiles {
 }
 
 /// Closes the clipboard on scope exit so failure paths never leave it open.
-struct OpenClipboardGuard;
+pub(crate) struct OpenClipboardGuard;
 
 impl OpenClipboardGuard {
-    fn open() -> anyhow::Result<Self> {
+    pub(crate) fn open() -> anyhow::Result<Self> {
         unsafe {
             OpenClipboard(None).map_err(|err| anyhow::anyhow!("OpenClipboard failed: {err}"))?;
         }
@@ -56,6 +68,67 @@ unsafe fn global_unlock(mem: HGLOBAL) -> anyhow::Result<()> {
 
 pub struct WinClipboardPlatform;
 
+/// Drain pending COM/OLE messages on the current STA thread.
+pub(crate) fn pump_sta_messages() {
+    unsafe {
+        let mut msg = MSG::default();
+        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+            let _ = TranslateMessage(&msg);
+            let _ = DispatchMessageW(&msg);
+        }
+    }
+}
+
+pub(crate) fn build_hdrop_global(paths: &[&str]) -> anyhow::Result<HGLOBAL> {
+    if paths.is_empty() {
+        anyhow::bail!("no paths for HDROP");
+    }
+    let mut wide_paths = Vec::new();
+    for path in paths {
+        wide_paths.extend(
+            OsStr::new(path)
+                .encode_wide()
+                .chain(std::iter::once(0)),
+        );
+    }
+    wide_paths.push(0);
+
+    let header_size = std::mem::size_of::<DropFiles>();
+    let payload_bytes = wide_paths.len() * 2;
+    let total_bytes = header_size + payload_bytes;
+
+    unsafe {
+        let mem = GlobalAlloc(clipboard_global_alloc_flags(), total_bytes)
+            .map_err(|err| anyhow::anyhow!("GlobalAlloc HDROP failed: {err}"))?;
+        let base = GlobalLock(mem);
+        if base.is_null() {
+            let _ = GlobalFree(Some(mem));
+            anyhow::bail!("GlobalLock HDROP failed");
+        }
+
+        let drop_files = DropFiles {
+            p_files: header_size as u32,
+            pt: POINT { x: 0, y: 0 },
+            f_nc: BOOL(0),
+            f_wide: BOOL(1),
+        };
+        std::ptr::write(base as *mut DropFiles, drop_files);
+        std::ptr::copy_nonoverlapping(
+            wide_paths.as_ptr() as *const u8,
+            base.add(header_size) as *mut u8,
+            payload_bytes,
+        );
+        global_unlock(mem)?;
+        Ok(mem)
+    }
+}
+
+fn release_ole_clipboard_owner() {
+    unsafe {
+        let _ = OleSetClipboard(None);
+    }
+}
+
 impl WinClipboardPlatform {
     pub fn new() -> Self {
         unsafe {
@@ -80,6 +153,7 @@ impl WinClipboardPlatform {
     }
 
     fn try_clear() -> anyhow::Result<()> {
+        release_ole_clipboard_owner();
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
@@ -196,6 +270,7 @@ impl WinClipboardPlatform {
     fn try_write_text(text: &str) -> anyhow::Result<()> {
         let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
         let bytes = wide.len() * 2;
+        release_ole_clipboard_owner();
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
@@ -253,10 +328,11 @@ impl WinClipboardPlatform {
         let payload_bytes = wide_paths.len() * 2;
         let total_bytes = header_size + payload_bytes;
 
+        release_ole_clipboard_owner();
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
-            let mem = GlobalAlloc(GMEM_MOVEABLE, total_bytes)
+            let mem = GlobalAlloc(clipboard_global_alloc_flags(), total_bytes)
                 .map_err(|err| anyhow::anyhow!("GlobalAlloc failed: {err}"))?;
             let base = GlobalLock(mem);
             if base.is_null() {
@@ -288,12 +364,12 @@ impl WinClipboardPlatform {
 }
 
 #[cfg(test)]
+pub(crate) static CLIPBOARD_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
 mod tests {
     use super::WinClipboardPlatform;
-    use std::sync::Mutex;
-
-    // Tests below touch the real system clipboard; serialize them.
-    static CLIPBOARD_TEST_LOCK: Mutex<()> = Mutex::new(());
+    use super::CLIPBOARD_TEST_LOCK;
 
     #[test]
     fn read_empty_after_clear() {

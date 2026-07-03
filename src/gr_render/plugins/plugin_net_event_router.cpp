@@ -157,6 +157,30 @@ namespace tc {
                          (int)msg->clipboard_info().type(), event->message_->Size());
                     app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
+            } else if (msg->type() == MessageType::kClipboardRespBuffer) {
+                context_->PostTask([=, this]() {
+                    bool user_proxy_connected = false;
+                    plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+                        if (plugin->IsUserProxyConnected()) {
+                            user_proxy_connected = true;
+                        }
+                    });
+                    if (!user_proxy_connected) {
+                        LOGW("user-proxy not connected, drop clipboard resp buffer, len={}",
+                             event->message_->Size());
+                        return;
+                    }
+                    tcrp::RpMessage rp_msg;
+                    rp_msg.set_type(tcrp::kRpRawRenderMessage);
+                    auto sub = rp_msg.mutable_raw_render_msg();
+                    sub->set_msg(event->message_->AsString());
+                    sub->set_data_channel(true);
+                    sub->set_stream_id(msg->stream_id());
+                    sub->set_device_id(msg->device_id());
+                    LOGI("PostUserProxyMessage clipboard resp buffer, len={}",
+                         event->message_->Size());
+                    app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
+                });
             }
 #else
             // USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy

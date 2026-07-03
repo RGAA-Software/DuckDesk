@@ -30,7 +30,7 @@
 
 - 不删除 Panel 剪贴板相关代码。
 - 不一次性去掉 Panel 进程。（Service 启动链改动已在 Phase 3 完成：Service 拉起/守护 UserProxy。）
-- 第一阶段可先只做 **剪贴板文本**；剪贴板文件（OLE 虚拟文件流式传输）作为 Phase 2 遗留项。
+- Phase 1 文本剪贴板与 Phase 2 文件/OLE 虚拟文件流均已实现；详见 §9 Phase 2。
 - 不改变 Render 必须以 SYSTEM 运行的采集模型。
 
 ---
@@ -156,8 +156,12 @@ rust_client/gr_user_proxy/
     ├── clipboard/
     │   ├── mod.rs
     │   ├── win_listener.rs     # AddClipboardFormatListener + 消息泵线程
-    │   ├── win_platform.rs     # OpenClipboard 读写 CF_UNICODETEXT
-    │   └── echo.rs             # 与 tc_common_new/clipboard_echo 同语义
+    │   ├── win_platform.rs     # OpenClipboard 读写 CF_UNICODETEXT / CF_HDROP
+    │   ├── echo.rs             # 与 tc_common_new/clipboard_echo 同语义
+    │   └── virtual_file/       # OLE IDataObject + IStream 虚拟文件粘贴
+    │       ├── coordinator.rs
+    │       ├── stream.rs
+    │       └── win_clipboard.rs
     └── app.rs                  # 组装：连接 + 剪贴板 + 分发
 ```
 
@@ -357,6 +361,8 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 
 并加入 `dist` / `collect_dist.py` 产物白名单（若需要随官方包发布）。
 
+`collect_dist.py` 的 `SKIP_NAMES` 包含 `plugin_net_udp.dll`（`PLUGIN_NET_UDP_ENABLED=OFF` 时避免陈旧产物进包）。
+
 ### 8.3 Service 启动（**唯一**拉起方）
 
 在 `rust_client/gr_service` 中：
@@ -392,16 +398,40 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 - Panel 剪贴板代码已注释，文本同步不依赖 Panel。
 - 连接断开后 2 秒内自动重连，进程不退出。
 
-### Phase 2 — 剪贴板文件 + echo 完善：**部分完成**
+### Phase 2 — 剪贴板文件 + OLE 虚拟文件流：**Done**（已人工验证复制/粘贴）
 
 | 项 | 状态 |
 |----|------|
 | UserProxy CF_HDROP 本地文件列表读取/写入 | **Done** — `clipboard/content.rs`, `win_platform.rs` |
 | UserProxy → Render `kRpClipboardFiles` | **Done** |
 | Render → UserProxy 文件 metadata 应用（本地路径存在时） | **Done** |
-| 文件剪贴板 echo 防回环（`files_signature` 回读登记 echo） | **Done** — `apply_remote_files` 写入后回读并 `set_remote_echo`，防止远端文件被轮询器回传 |
-| OLE 虚拟文件 / `kClipboardRespBuffer` 流式传输 | **Pending** — 记录 WARN 日志，待后续 port `panel_cp_virtual_file` |
+| 文件剪贴板 echo 防回环（`files_signature` 回读登记 echo） | **Done** |
+| OLE 虚拟文件 / `kClipboardReqBuffer` → Client → `kClipboardRespBuffer` 流式传输 | **Done** — `clipboard/virtual_file/{stream,coordinator,win_clipboard}.rs` |
+| Render 转发 Client `kClipboardRespBuffer` → UserProxy（`data_channel=true`） | **Done** — `plugin_net_event_router.cpp` |
+| `VirtualFileCoordinator` + COM `IDataObject`/`IStream` 粘贴拉流 | **Done** — `win_clipboard.rs`（`CFSTR_FILEDESCRIPTOR` / `CFSTR_FILECONTENTS`） |
+| Client `ref_path` 与 UserProxy 对齐（目录/混合选择保留文件夹结构） | **Done** — `tc_common_new/clipboard/clipboard_file_builder.cpp` + `content.rs` |
+| 粘贴完成后清空 OLE 剪贴板（Explorer 粘贴菜单变灰） | **Done** — `clear_ole_clipboard_after_operation()` |
 | Panel `panel_cp_virtual_file` / `panel_cp_file_stream` 注释 | Panel 剪贴板 inbound 已 `#if 0`；文件 WS 出站仍保留（无 UserProxy 替代前勿删） |
+
+**Phase 2 联调修复要点**（与 Panel `panel_cp_virtual_file` 对齐，勿随意加回）：
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| Explorer 粘贴菜单可点但无反应 | 安装时 `OleFlushClipboard` + 伪造 `CF_HDROP` GetData | 移除；仅保留 STA 消息泵 + 安装前 `EmptyClipboard` 重试 |
+| 粘贴文件 0 KB / 10s 超时 | `IStream::Read` 持锁等待，`on_resp_buffer` 同锁死锁 | `Arc<VirtualFileStreamCore>` + 内部 `Mutex<StreamState>`；等待时泵 COM 消息；读超时 60s |
+| 粘贴后菜单仍可点 | `EndOperation` 未清 OLE 剪贴板 | `OleFlushClipboard` + `OleSetClipboard(None)` + `platform.clear()` |
+| 文件夹结构丢失 / 混合选择丢文件 | `ref_path` 未按根目录分别处理 | 目录根前缀 `DirName/...`；目录+文件并列时各根独立展开 |
+| 文本写入在 OLE 占用后失败 | `write_text` 未先 `OleSetClipboard(None)` | `try_write_text` 与 `try_write_file_paths` 一致先释放 OLE |
+
+**自动化测试（Phase 2）**：82 项全通过（72 单元 + 10 集成），覆盖：
+- `virtual_file/stream`：分块读、index 校验、超时/退出、EOF、跨线程 `complete_read`
+- `virtual_file/coordinator`：session、outbound `data_channel` 封装、resp 路由
+- `proto`：`kClipboardReqBuffer` / `kClipboardRespBuffer` / AtBegin/AtEnd roundtrip
+- `mock_render`：自动应答 `ReqBuffer` 并返回 `RespBuffer`
+- `content`：目录结构、`ref_path`、混合目录+并列文件
+- 集成：虚拟文件 session 安装、`ReqBuffer`↔`RespBuffer` 往返、data_channel 下发
+
+**人工验收（2026-07-03）**：Client → 被控端复制文件/文件夹可粘贴；文件夹层级正确；混合选择完整；粘贴完成后目标目录不再可重复粘贴。
 
 ### Phase 3 — Service 集成与发布：**Done**
 
@@ -556,6 +586,10 @@ scripts\test_user_proxy.bat
 | I12 | Panel 已启动 | 确认 Panel 剪贴板路径已注释 | Panel 复制 **不再** 触发 `kRpClipboardEvent`（Render 无对应 log） | `win_panel_message_loop` 已注释 |
 | I13 | 完整三端 | `/media` 连接、画面、键鼠 | 与改动前一致 | 无新增 WS 错误 |
 | I14 | 完整三端 | 文件传输通道 `/file/transfer` | 不受影响 | `ws_panel_client` `data_channel` 分支仍工作 |
+| I15 | I1 + Client | Client 复制单个/多个文件 | 被控端可粘贴，大小正确 | UserProxy：`virtual file resp buffer applied` 早于 `IStream::Read done` |
+| I16 | I15 | Client 复制含子目录的文件夹 | 目标目录保留文件夹层级 | `ref_path` 含 `FolderName/...` |
+| I17 | I15 | Client 同时复制文件夹与并列文件 | 文件夹内容与并列文件均出现 | `content.rs` / `clipboard_file_builder` 各根独立 |
+| I18 | I15 粘贴完成 | 再次在目标处右键 | 粘贴菜单不可用（灰） | `clear_ole_clipboard_after_operation` |
 
 ### 10.6 回归清单（人工）
 
@@ -645,4 +679,5 @@ scripts\test_user_proxy.bat
 | 2026-07-02 | Phase 2/3：CF_HDROP 文件剪贴板、Service 拉起/停止 UserProxy、心跳与日志增强；131 项自动化测试 |
 | 2026-07-02 | 架构调整：UserProxy **仅**由 Service 拉起/守护；Guard 移除 UserProxy（服务端无界面 Service+Render） |
 | 2026-07-02 | 复评修复：① 文件剪贴板 echo 回环（`apply_remote_files` 回读登记 `files_signature`）；② UserProxy 改为**仅 WTS 用户令牌**拉起（`start_process_as_session_user`，不再走 SYSTEM 令牌路径）；③ 端口解析兼容 `--flag value` 形式；129 项自动化测试全通过 |
-| 2026-07-02 | C++ 编译验证（`build_official.bat incremental`）并修复：① `IsUserProxyConnected()` const 限定不一致（`gr_net_plugin` / `ws_plugin`）；② `plugin_net_ws` 缺链 `tc_rp_message`（`tcrp::RpMessage` 未解析符号）；③ `panel_clipboard_manager.cpp` `#if 0` 块尾悬空 `else` 编译错误。`plugin_net_ws.dll` / `GammaRayRender.exe` / `GammaRay.exe` 全部链接通过 |
+| 2026-07-02 | Phase 2 完成：OLE 虚拟文件剪贴板（`VirtualFileCoordinator` + COM `IDataObject`/`IStream`）、`kClipboardReqBuffer`/`kClipboardRespBuffer` data_channel 双向流、Render `kClipboardRespBuffer`→UserProxy 转发；78 项自动化测试全通过 |
+| 2026-07-03 | Phase 2 联调收尾：死锁修复、`ref_path` 目录/混合选择对齐、`EndOperation` 清 OLE 剪贴板、移除安装时伪造 HDROP；`clipboard_file_builder` 与 `collect_dist` 更新；人工验证 Client→被控端文件复制粘贴；82 项自动化测试全通过 |

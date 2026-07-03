@@ -1,8 +1,9 @@
-use std::sync::Arc;
 use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 
 use tracing::{error, info};
 
+use crate::clipboard::virtual_file::VirtualFileCoordinator;
 use crate::clipboard::{spawn_win_clipboard_listener, ClipboardService};
 use crate::config::{CliArgs, UserProxyConfig, USER_PROXY_LOCK_NAME};
 use crate::engine::UserProxyEngine;
@@ -29,9 +30,17 @@ impl UserProxyApp {
             config.render_ws_url()
         );
 
+        let virtual_files = VirtualFileCoordinator::new();
+        let (outbound_tx, outbound_rx) = std::sync::mpsc::channel();
+        virtual_files.set_outbound_sender(outbound_tx);
+
         let (win_backend, clip_rx) = spawn_win_clipboard_listener()?;
-        let clipboard = Arc::new(ClipboardService::new(Arc::new(win_backend)));
+        let clipboard = Arc::new(ClipboardService::with_virtual_files(
+            Arc::new(win_backend),
+            virtual_files,
+        ));
         let render_client = RenderClient::new(config);
+        spawn_virtual_file_outbound_forwarder(render_client.clone(), outbound_rx);
         let engine = Arc::new(UserProxyEngine::new(clipboard, render_client));
 
         Ok(Self {
@@ -55,6 +64,23 @@ impl UserProxyApp {
         }
         Ok(())
     }
+}
+
+fn spawn_virtual_file_outbound_forwarder(
+    client: Arc<RenderClient>,
+    outbound_rx: std::sync::mpsc::Receiver<Vec<u8>>,
+) {
+    std::thread::Builder::new()
+        .name("gr_user_proxy_vf_out".into())
+        .spawn(move || {
+            while let Ok(bytes) = outbound_rx.recv() {
+                let client = client.clone();
+                if let Err(err) = client.blocking_send_bytes(bytes) {
+                    error!("virtual file outbound send failed: {err:#}");
+                }
+            }
+        })
+        .expect("spawn virtual file outbound forwarder");
 }
 
 use clap::Parser;

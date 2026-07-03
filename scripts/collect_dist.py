@@ -27,6 +27,9 @@ SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmak
 SKIP_NAMES = {
     "avcodec-61.dll", "avdevice-61.dll", "avfilter-10.dll", "avformat-61.dll",
     "avutil-59.dll", "postproc-58.dll", "swresample-5.dll", "swscale-8.dll",
+    # Disabled in config_premium.cmake (PLUGIN_NET_UDP_ENABLED=OFF); stale build
+    # artifacts under src/gr_render/plugins/net_udp/ must not be repackaged.
+    "plugin_net_udp.dll",
 }
 
 # Test executable prefix
@@ -147,7 +150,7 @@ def main():
             if not os.path.isdir(plugin_build_dir):
                 continue
             for f in os.listdir(plugin_build_dir):
-                if f.startswith("plugin_") and f.endswith(".dll"):
+                if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
                     copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_dst, f))
             if os.path.isdir(plugin_src_dir):
                 for f in os.listdir(plugin_src_dir):
@@ -166,7 +169,7 @@ def main():
             continue
         os.makedirs(gr_plugins_client_dst, exist_ok=True)
         for f in os.listdir(plugin_build_dir):
-            if f.startswith("plugin_") and f.endswith(".dll"):
+            if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
                 copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_client_dst, f))
         if os.path.isdir(plugin_src_dir):
             for f in os.listdir(plugin_src_dir):

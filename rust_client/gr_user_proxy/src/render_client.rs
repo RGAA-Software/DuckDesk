@@ -11,8 +11,9 @@ use crate::config::{UserProxyConfig, RECONNECT_SECS};
 use crate::proto::{
     self, build_clipboard_text_event, build_heartbeat_message, build_raw_render_message,
     build_tc_clipboard_files_resp, build_tc_clipboard_info_resp, clipboard_files_from_tc,
-    clipboard_text_from_rp, parse_rp_message, parse_tc_message, tcrp::RpMessageType,
-    tc::MessageType, HEARTBEAT_INTERVAL_SECS,
+    clipboard_resp_buffer_from_tc, clipboard_text_from_rp, parse_rp_message, parse_tc_message,
+    stream_route_from_rp_raw, stream_route_from_tc, tcrp::RpMessageType, tc::MessageType,
+    HEARTBEAT_INTERVAL_SECS,
 };
 
 type WsSink = futures_util::stream::SplitSink<
@@ -56,6 +57,22 @@ impl RenderClient {
     }
 
     pub async fn send_bytes(&self, bytes: Vec<u8>) -> anyhow::Result<()> {
+        self.send_bytes_inner(bytes).await
+    }
+
+    pub fn blocking_send_bytes(&self, bytes: Vec<u8>) -> anyhow::Result<()> {
+        let runtime = tokio::runtime::Handle::try_current().ok();
+        if let Some(handle) = runtime {
+            handle.block_on(self.send_bytes_inner(bytes))
+        } else {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(self.send_bytes_inner(bytes))
+        }
+    }
+
+    async fn send_bytes_inner(&self, bytes: Vec<u8>) -> anyhow::Result<()> {
         let byte_len = bytes.len();
         let mut guard = self.sender.lock().await;
         let sender = guard
@@ -197,11 +214,7 @@ pub fn handle_inbound_rp(
         Ok(RpMessageType::KRpRawRenderMessage) => {
             if let Some(sub) = msg.raw_render_msg {
                 if sub.data_channel {
-                    warn!(
-                        "data_channel raw render received, stream_id={}, byte_len={}; virtual file stream pending",
-                        sub.stream_id,
-                        sub.msg.len()
-                    );
+                    handle_inbound_data_channel(&sub, clipboard);
                     return;
                 }
                 match parse_tc_message(&sub.msg) {
@@ -212,6 +225,56 @@ pub fn handle_inbound_rp(
         }
         Ok(other) => info!("ignored inbound rp type: {:?}", other),
         Err(_) => error!("unknown RpMessage type: {}", msg.r#type),
+    }
+}
+
+fn handle_inbound_data_channel(
+    sub: &proto::tcrp::RpRawRenderMessage,
+    clipboard: &crate::clipboard::ClipboardService,
+) {
+    let tc_msg = match parse_tc_message(&sub.msg) {
+        Ok(v) => v,
+        Err(err) => {
+            error!(
+                "parse data_channel tc::Message failed: {err}, stream_id={}, len={}",
+                sub.stream_id,
+                sub.msg.len()
+            );
+            return;
+        }
+    };
+    dispatch_resp_buffer(&tc_msg, clipboard, Some(stream_route_from_rp_raw(sub)));
+}
+
+fn dispatch_resp_buffer(
+    msg: &proto::tc::Message,
+    clipboard: &crate::clipboard::ClipboardService,
+    route: Option<proto::StreamRoute>,
+) {
+    if MessageType::try_from(msg.r#type) != Ok(MessageType::KClipboardRespBuffer) {
+        info!(
+            "ignored data_channel tc type: {:?}, stream_id={}",
+            msg.r#type,
+            route.as_ref().map(|r| r.stream_id.as_str()).unwrap_or("")
+        );
+        return;
+    }
+    let Some(resp) = clipboard_resp_buffer_from_tc(msg) else {
+        warn!("clipboard resp buffer missing payload");
+        return;
+    };
+    let Some(coordinator) = clipboard.virtual_file_coordinator() else {
+        warn!("clipboard resp buffer without virtual file coordinator");
+        return;
+    };
+    if coordinator.on_resp_buffer(resp) {
+        info!(
+            "virtual file resp buffer applied, stream_id={}",
+            route
+                .as_ref()
+                .map(|r| r.stream_id.as_str())
+                .unwrap_or(&msg.stream_id)
+        );
     }
 }
 
@@ -248,7 +311,8 @@ fn handle_inbound_tc(
                 let Some(files) = clipboard_files_from_tc(msg) else {
                     return;
                 };
-                if let Err(err) = clipboard.apply_remote_files(&files) {
+                let route = stream_route_from_tc(msg);
+                if let Err(err) = clipboard.apply_remote_files(&files, &route) {
                     error!("apply remote clipboard files failed: {err:#}");
                     return;
                 }
@@ -262,10 +326,7 @@ fn handle_inbound_tc(
             }
         }
         Ok(MessageType::KClipboardRespBuffer) => {
-            warn!(
-                "clipboard resp buffer received; virtual file stream handling pending, len={}",
-                msg.cp_resp_buffer.as_ref().map(|v| v.buffer.len()).unwrap_or(0)
-            );
+            dispatch_resp_buffer(msg, clipboard, Some(stream_route_from_tc(msg)));
         }
         Ok(other) => info!("ignored inbound tc type: {:?}", other),
         Err(_) => error!("unknown tc::Message type: {}", msg.r#type),

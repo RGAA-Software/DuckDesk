@@ -1,18 +1,22 @@
 pub mod backend;
 pub mod content;
 pub mod echo;
+pub mod virtual_file;
 pub mod win_listener;
 pub mod win_platform;
 
 use std::sync::Arc;
 
 use crate::clipboard::backend::ClipboardBackend;
-use crate::clipboard::content::{ClipboardContent, ClipboardFileEntry};
+use crate::clipboard::content::{files_signature, ClipboardContent, ClipboardFileEntry};
 use crate::clipboard::echo::{EchoFilter, SuppressOutboundGuard};
+use crate::clipboard::virtual_file::{VirtualFileCoordinator, VirtualFileSession};
+use crate::proto::StreamRoute;
 
 pub struct ClipboardService {
     pub echo: EchoFilter,
     backend: Arc<dyn ClipboardBackend>,
+    virtual_files: Option<Arc<VirtualFileCoordinator>>,
 }
 
 impl ClipboardService {
@@ -20,7 +24,23 @@ impl ClipboardService {
         Self {
             echo: EchoFilter::default(),
             backend,
+            virtual_files: None,
         }
+    }
+
+    pub fn with_virtual_files(
+        backend: Arc<dyn ClipboardBackend>,
+        virtual_files: Arc<VirtualFileCoordinator>,
+    ) -> Self {
+        Self {
+            echo: EchoFilter::default(),
+            backend,
+            virtual_files: Some(virtual_files),
+        }
+    }
+
+    pub fn virtual_file_coordinator(&self) -> Option<Arc<VirtualFileCoordinator>> {
+        self.virtual_files.clone()
     }
 
     pub fn apply_remote_text(&self, text: &str) -> anyhow::Result<()> {
@@ -35,7 +55,11 @@ impl ClipboardService {
         Ok(())
     }
 
-    pub fn apply_remote_files(&self, files: &[ClipboardFileEntry]) -> anyhow::Result<()> {
+    pub fn apply_remote_files(
+        &self,
+        files: &[ClipboardFileEntry],
+        route: &StreamRoute,
+    ) -> anyhow::Result<()> {
         if files.is_empty() {
             tracing::info!("no syncable files");
             return Ok(());
@@ -63,29 +87,42 @@ impl ClipboardService {
             })
             .collect();
 
-        if local_paths.is_empty() {
-            tracing::warn!(
-                "remote clipboard files require local paths or OLE virtual file stream, count={}",
-                files.len()
+        let _guard = SuppressOutboundGuard::new(&self.echo);
+
+        if local_paths.len() == files.len() {
+            self.backend.write_file_paths(&local_paths)?;
+            match self.backend.read_content() {
+                Ok(content) if content.has_files() => {
+                    self.echo
+                        .set_remote_echo(&files_signature(&content.files));
+                }
+                Ok(_) => {}
+                Err(err) => tracing::warn!("read back clipboard files for echo failed: {err:#}"),
+            }
+            tracing::info!(
+                "apply remote clipboard files via HDROP, count={}, paths={local_paths:?}",
+                local_paths.len()
             );
             return Ok(());
         }
 
-        let _guard = SuppressOutboundGuard::new(&self.echo);
-        self.backend.write_file_paths(&local_paths)?;
-        // Record echo from the read-back entries (paths may be canonicalized by
-        // the backend), so the poller does not send these files back to Render.
-        match self.backend.read_content() {
-            Ok(content) if content.has_files() => {
-                self.echo
-                    .set_remote_echo(&crate::clipboard::content::files_signature(&content.files));
-            }
-            Ok(_) => {}
-            Err(err) => tracing::warn!("read back clipboard files for echo failed: {err:#}"),
-        }
+        let Some(coordinator) = self.virtual_files.clone() else {
+            tracing::warn!(
+                "remote clipboard files require local paths or virtual file coordinator, count={}",
+                files.len()
+            );
+            return Ok(());
+        };
+
+        coordinator.install_session(VirtualFileSession {
+            route: route.clone(),
+            files: files.to_vec(),
+        });
+        self.backend.write_virtual_files(coordinator.clone())?;
+        self.echo.set_remote_echo(&files_signature(files));
         tracing::info!(
-            "apply remote clipboard files, count={}, paths={local_paths:?}",
-            local_paths.len()
+            "apply remote clipboard files via OLE virtual file, count={}",
+            files.len()
         );
         Ok(())
     }
@@ -130,12 +167,15 @@ mod tests {
 
         let (backend, _rx) = InMemoryClipboard::new_pair();
         let svc = ClipboardService::new(Arc::new(backend));
-        svc.apply_remote_files(&[ClipboardFileEntry {
-            full_path: file.display().to_string(),
-            file_name: "clip.txt".to_string(),
-            ref_path: "clip.txt".to_string(),
-            total_size: 1,
-        }])
+        svc.apply_remote_files(
+            &[ClipboardFileEntry {
+                full_path: file.display().to_string(),
+                file_name: "clip.txt".to_string(),
+                ref_path: "clip.txt".to_string(),
+                total_size: 1,
+            }],
+            &crate::proto::StreamRoute::default(),
+        )
         .expect("apply files");
 
         let content = svc.read_local_content().expect("read");
@@ -145,6 +185,38 @@ mod tests {
         // Echo must match the read-back signature so the poller does not loop
         // remote files back to Render.
         let signature = crate::clipboard::content::files_signature(&content.files);
+        assert!(svc.echo.should_skip_outbound(&signature));
+    }
+
+    #[test]
+    fn apply_remote_virtual_files_without_local_paths() {
+        let coordinator = crate::clipboard::virtual_file::VirtualFileCoordinator::new();
+        let (backend, _rx) = InMemoryClipboard::new_pair();
+        let svc = ClipboardService::with_virtual_files(Arc::new(backend.clone()), coordinator);
+        let route = crate::proto::StreamRoute {
+            stream_id: "s".to_string(),
+            device_id: "d".to_string(),
+        };
+        svc.apply_remote_files(
+            &[ClipboardFileEntry {
+                full_path: "Z:/missing/file.bin".to_string(),
+                file_name: "file.bin".to_string(),
+                ref_path: "file.bin".to_string(),
+                total_size: 100,
+            }],
+            &route,
+        )
+        .expect("apply virtual");
+
+        let content = backend.read_content().expect("read");
+        assert_eq!(content.files.len(), 1);
+        assert!(backend.virtual_session().is_some());
+        let signature = crate::clipboard::content::files_signature(&[ClipboardFileEntry {
+            full_path: "Z:/missing/file.bin".to_string(),
+            file_name: "file.bin".to_string(),
+            ref_path: "file.bin".to_string(),
+            total_size: 100,
+        }]);
         assert!(svc.echo.should_skip_outbound(&signature));
     }
 }

@@ -1,7 +1,10 @@
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::clipboard::backend::ClipboardBackend;
 use crate::clipboard::content::ClipboardContent;
+use crate::clipboard::virtual_file::VirtualFileCoordinator;
+use crate::clipboard::virtual_file::install_virtual_file_clipboard;
 use crate::clipboard::win_platform::WinClipboardPlatform;
 
 enum ClipboardRequest {
@@ -12,6 +15,10 @@ enum ClipboardRequest {
     },
     WriteFilePaths {
         paths: Vec<String>,
+        reply: Sender<anyhow::Result<()>>,
+    },
+    WriteVirtualFiles {
+        coordinator: Arc<VirtualFileCoordinator>,
         reply: Sender<anyhow::Result<()>>,
     },
 }
@@ -35,6 +42,10 @@ impl ClipboardBackend for WinClipboardWorker {
 
     fn write_file_paths(&self, paths: &[String]) -> anyhow::Result<()> {
         self.platform.write_file_paths(paths)
+    }
+
+    fn write_virtual_files(&self, coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+        install_virtual_file_clipboard(coordinator)
     }
 }
 
@@ -61,6 +72,16 @@ impl ClipboardBackend for WinClipboardBackend {
             paths: paths.to_vec(),
             reply: tx,
         })?;
+        rx.recv()?
+    }
+
+    fn write_virtual_files(&self, coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.request_tx
+            .send(ClipboardRequest::WriteVirtualFiles {
+                coordinator,
+                reply: tx,
+            })?;
         rx.recv()?
     }
 }
@@ -92,8 +113,14 @@ fn clipboard_worker_loop(notify_tx: Sender<()>, request_rx: Receiver<ClipboardRe
                 ClipboardRequest::WriteFilePaths { paths, reply } => {
                     let _ = reply.send(worker.write_file_paths(&paths));
                 }
+                ClipboardRequest::WriteVirtualFiles { coordinator, reply } => {
+                    let _ = reply.send(worker.write_virtual_files(coordinator));
+                }
             }
+            crate::clipboard::win_platform::pump_sta_messages();
         }
+
+        crate::clipboard::win_platform::pump_sta_messages();
 
         match worker.read_content() {
             Ok(content) => {
