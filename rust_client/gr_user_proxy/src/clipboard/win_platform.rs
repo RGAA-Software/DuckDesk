@@ -1,5 +1,7 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use windows::core::BOOL;
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL, HANDLE, POINT};
@@ -17,6 +19,24 @@ use super::content::{build_file_entries_from_paths, ClipboardContent};
 
 const CF_UNICODETEXT: u32 = 13;
 pub(crate) const CF_HDROP: u32 = 15;
+const HRESULT_ACCESS_DENIED: i32 = 0x80070005u32 as i32;
+
+static OLE_CLIPBOARD_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn set_ole_clipboard_active(active: bool) {
+    OLE_CLIPBOARD_ACTIVE.store(active, Ordering::SeqCst);
+}
+
+pub(crate) fn is_ole_clipboard_active() -> bool {
+    OLE_CLIPBOARD_ACTIVE.load(Ordering::SeqCst)
+}
+
+fn is_clipboard_access_denied(err: &anyhow::Error) -> bool {
+    if let Some(win_err) = err.downcast_ref::<windows::core::Error>() {
+        return win_err.code().0 == HRESULT_ACCESS_DENIED;
+    }
+    false
+}
 
 /// `GMEM_SHARE` — not exported from `Win32::System::Memory` in windows-rs.
 const GMEM_SHARE: u32 = 0x2000;
@@ -76,6 +96,16 @@ pub(crate) fn pump_sta_messages() {
             let _ = TranslateMessage(&msg);
             let _ = DispatchMessageW(&msg);
         }
+    }
+}
+
+/// Wait while continuing to pump COM/OLE messages (required for async IDataObject paste).
+pub(crate) fn wait_sta_messages(total: Duration) {
+    let start = std::time::Instant::now();
+    while start.elapsed() < total {
+        pump_sta_messages();
+        let remaining = total.saturating_sub(start.elapsed());
+        std::thread::sleep(remaining.min(Duration::from_millis(15)));
     }
 }
 
@@ -162,14 +192,20 @@ impl WinClipboardPlatform {
     }
 
     pub fn read_content(&self) -> anyhow::Result<ClipboardContent> {
+        if is_ole_clipboard_active() {
+            return Ok(ClipboardContent::default());
+        }
         for attempt in 0..20 {
             match Self::try_read_content() {
                 Ok(v) => return Ok(v),
                 Err(err) => {
+                    if is_clipboard_access_denied(&err) && is_ole_clipboard_active() {
+                        return Ok(ClipboardContent::default());
+                    }
                     if attempt == 19 {
                         return Err(err);
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    std::thread::sleep(Duration::from_millis(5));
                 }
             }
         }
@@ -383,7 +419,9 @@ mod tests {
     #[test]
     fn write_then_read_text_roundtrip() {
         let _lock = CLIPBOARD_TEST_LOCK.lock().unwrap();
+        super::set_ole_clipboard_active(false);
         let platform = WinClipboardPlatform::new();
+        platform.clear().expect("clear");
         platform.write_text("gr_user_proxy_roundtrip").expect("write");
         let read = platform.read_content().expect("read");
         assert_eq!(read.text.as_deref(), Some("gr_user_proxy_roundtrip"));

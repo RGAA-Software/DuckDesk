@@ -3097,7 +3097,7 @@ dependencies = [
 
 [[package]]
 name = "gr_auth_mgr"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "base64 0.22.1",
  "gr_base",
@@ -3111,7 +3111,7 @@ dependencies = [
 
 [[package]]
 name = "gr_base"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -3142,14 +3142,14 @@ dependencies = [
 
 [[package]]
 name = "gr_crash_reporter"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "gr_base",
 ]
 
 [[package]]
 name = "gr_guard"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "futures-util",
  "gr_base",
@@ -3161,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "gr_service"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "clap",
  "futures-util",
@@ -3178,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "gr_sysinfo"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "adlx",
  "anyhow",
@@ -3209,7 +3209,7 @@ dependencies = [
 
 [[package]]
 name = "gr_uninstall"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "clap",
  "gr_base",
@@ -3219,7 +3219,7 @@ dependencies = [
 
 [[package]]
 name = "gr_user_proxy"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -7339,7 +7339,7 @@ dependencies = [
 
 [[package]]
 name = "service_core"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "gr_base",
  "prost",
@@ -7353,7 +7353,7 @@ dependencies = [
 
 [[package]]
 name = "service_manager"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "clap",
  "service_core",

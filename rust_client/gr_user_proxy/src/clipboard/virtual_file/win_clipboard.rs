@@ -31,7 +31,9 @@ use windows_implement::implement;
 use crate::clipboard::content::ClipboardFileEntry;
 use crate::clipboard::virtual_file::coordinator::VirtualFileCoordinator;
 use crate::clipboard::virtual_file::stream::VirtualFileStreamCore;
-use crate::clipboard::win_platform::{clipboard_global_alloc_flags, pump_sta_messages, WinClipboardPlatform};
+use crate::clipboard::win_platform::{
+    clipboard_global_alloc_flags, pump_sta_messages, set_ole_clipboard_active, WinClipboardPlatform,
+};
 
 const CF_HDROP: u32 = 15;
 const DROPEFFECT_COPY: u32 = 1;
@@ -60,6 +62,7 @@ fn clear_ole_clipboard_after_operation() {
     let platform = WinClipboardPlatform::new();
     let _ = platform.clear();
     pump_sta_messages();
+    set_ole_clipboard_active(false);
 }
 
 fn com_err(code: u32) -> windows::core::Error {
@@ -148,29 +151,16 @@ fn build_file_group_descriptor(files: &[ClipboardFileEntry]) -> anyhow::Result<H
 struct VirtualFileStream {
     core: Arc<VirtualFileStreamCore>,
     coordinator: Arc<VirtualFileCoordinator>,
-    began: AtomicBool,
 }
 
 impl VirtualFileStream {
     fn new(core: Arc<VirtualFileStreamCore>, coordinator: Arc<VirtualFileCoordinator>) -> Self {
-        Self {
-            core,
-            coordinator,
-            began: AtomicBool::new(false),
-        }
+        Self { core, coordinator }
     }
 
     fn perform_read(&self, pv: *mut c_void, cb: u32, pcbread: *mut u32) -> HRESULT {
         if pv.is_null() || pcbread.is_null() {
             return S_FALSE;
-        }
-
-        if !self.began.swap(true, Ordering::SeqCst) {
-            let full_name = self.core.file().full_path.clone();
-            info!("virtual file IStream::Read begin, full_name={full_name}");
-            if let Err(err) = self.coordinator.send_req_at_begin(&full_name) {
-                warn!("virtual file req_at_begin failed: {err:#}");
-            }
         }
 
         let req = match self.core.begin_read(cb) {
@@ -343,6 +333,11 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
                 return Err(com_err(0x80004005));
             }
             info!("virtual file GetData FILECONTENTS, index={index}");
+            let full_name = self
+                .coordinator
+                .session_files()
+                .and_then(|files| files.get(index as usize).map(|file| file.full_path.clone()))
+                .unwrap_or_default();
             if let Some(prev) = self.active_stream.lock().expect("lock").take() {
                 drop(prev);
             }
@@ -350,6 +345,12 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
                 .coordinator
                 .activate_stream(index)
                 .ok_or_else(|| com_err(0x80004005))?;
+            if !full_name.is_empty() {
+                info!("virtual file req_at_begin, full_name={full_name}");
+                if let Err(err) = self.coordinator.send_req_at_begin(&full_name) {
+                    warn!("virtual file req_at_begin failed: {err:#}");
+                }
+            }
             let stream_obj: IStream =
                 VirtualFileStream::new(stream_arc, self.coordinator.clone()).into();
             *self.active_stream.lock().expect("lock") = Some(stream_obj.clone());
@@ -579,6 +580,7 @@ pub fn install_virtual_file_clipboard(
     }
 
     pump_sta_messages();
+    set_ole_clipboard_active(true);
     info!("virtual file clipboard installed");
     Ok(())
 }
@@ -627,6 +629,7 @@ mod tests {
         install_virtual_file_clipboard(coord).expect("install");
         unsafe {
             let _ = windows::Win32::System::Ole::OleSetClipboard(None);
+            super::set_ole_clipboard_active(false);
             let _guard = OpenClipboardGuard::open().expect("open");
             let _ = windows::Win32::System::DataExchange::EmptyClipboard();
         }

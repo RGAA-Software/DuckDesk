@@ -5,7 +5,9 @@ use crate::clipboard::backend::ClipboardBackend;
 use crate::clipboard::content::ClipboardContent;
 use crate::clipboard::virtual_file::VirtualFileCoordinator;
 use crate::clipboard::virtual_file::install_virtual_file_clipboard;
-use crate::clipboard::win_platform::WinClipboardPlatform;
+use crate::clipboard::win_platform::{
+    is_ole_clipboard_active, pump_sta_messages, wait_sta_messages, WinClipboardPlatform,
+};
 
 enum ClipboardRequest {
     ReadContent(Sender<anyhow::Result<ClipboardContent>>),
@@ -117,27 +119,29 @@ fn clipboard_worker_loop(notify_tx: Sender<()>, request_rx: Receiver<ClipboardRe
                     let _ = reply.send(worker.write_virtual_files(coordinator));
                 }
             }
-            crate::clipboard::win_platform::pump_sta_messages();
+            pump_sta_messages();
         }
 
-        crate::clipboard::win_platform::pump_sta_messages();
+        pump_sta_messages();
 
-        match worker.read_content() {
-            Ok(content) => {
-                let fingerprint = content.fingerprint();
-                if !content.is_empty() && fingerprint != last_fingerprint {
-                    last_fingerprint = fingerprint;
-                    tracing::info!(
-                        "local clipboard changed, has_text={}, file_count={}",
-                        content.has_text(),
-                        content.files.len()
-                    );
-                    let _ = notify_tx.send(());
+        if !is_ole_clipboard_active() {
+            match worker.read_content() {
+                Ok(content) => {
+                    let fingerprint = content.fingerprint();
+                    if !content.is_empty() && fingerprint != last_fingerprint {
+                        last_fingerprint = fingerprint;
+                        tracing::info!(
+                            "local clipboard changed, has_text={}, file_count={}",
+                            content.has_text(),
+                            content.files.len()
+                        );
+                        let _ = notify_tx.send(());
+                    }
                 }
+                Err(err) => tracing::debug!("clipboard poll read skipped: {err:#}"),
             }
-            Err(err) => tracing::error!("clipboard poll read failed: {err:#}"),
         }
-        std::thread::sleep(std::time::Duration::from_millis(250));
+        wait_sta_messages(std::time::Duration::from_millis(250));
     }
 }
 
@@ -148,9 +152,9 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn poll_interval_is_quarter_second() {
+    fn poll_wait_pumps_for_quarter_second() {
         let start = std::time::Instant::now();
-        std::thread::sleep(Duration::from_millis(250));
+        crate::clipboard::win_platform::wait_sta_messages(Duration::from_millis(250));
         assert!(start.elapsed() >= Duration::from_millis(200));
     }
 }
