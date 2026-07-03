@@ -4,6 +4,7 @@
 
 #include "skin_interface.h"
 #include "skin_context.h"
+#include "version_config.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/thread.h"
@@ -88,6 +89,10 @@ namespace tc
 
     bool SkinInterface::IsCoPhoneEnabled() {
         return false;
+    }
+
+    int SkinInterface::GetAppVersionCode() {
+        return PROJECT_VERSION_CODE;
     }
 
 }

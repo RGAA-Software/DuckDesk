@@ -9,4 +9,5 @@ set(SRCS
 )
 
 add_library(${PROJECT_NAME} ${SRCS})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/src/gr_base)
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg tc_common_new)

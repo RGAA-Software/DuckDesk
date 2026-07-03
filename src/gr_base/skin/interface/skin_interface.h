@@ -56,6 +56,9 @@ namespace tc
         // eg: 1.3.5
         virtual QString GetAppVersionName() = 0;
 
+        // eg: 30100 for 3.1.0
+        virtual int GetAppVersionCode();
+
         // eg: Premium / Pro ...
         virtual QString GetAppVersionMode() = 0;
 

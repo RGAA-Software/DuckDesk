@@ -1,2 +1,3 @@
 !define PRODUCT_VERSION "3.2.0"
+!define PRODUCT_VERSION_CODE 30200
 !define TARGET_TYPE "Official"

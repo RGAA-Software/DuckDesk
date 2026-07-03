@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
         help="New version in X.Y.Z form (for example 3.1.0).",
     )
     parser.add_argument(
+        "--code",
+        type=int,
+        help="Explicit version code override (default: major*10000 + minor*100 + patch).",
+    )
+    parser.add_argument(
         "--show",
         action="store_true",
         help="Only print current versions; do not modify files.",
@@ -60,6 +65,45 @@ def replace_once(path: Path, pattern: str, replacement: str, label: str) -> bool
     if new_text != text:
         path.write_text(new_text, encoding="utf-8", newline="\n")
     return True
+
+
+def semver_to_version_code(version: str) -> int:
+    major, minor, patch = (int(part) for part in version.split("."))
+    return major * 10000 + minor * 100 + patch
+
+
+def read_tc_app_version_code() -> int:
+    text = VERSION_CMAKE.read_text(encoding="utf-8")
+    match = re.search(r"set\(TC_APP_VERSION_CODE\s+(\d+)\)", text)
+    if not match:
+        raise SystemExit(f"Cannot read TC_APP_VERSION_CODE from {VERSION_CMAKE}")
+    return int(match.group(1))
+
+
+def update_tc_app_version_code(path: Path, version_code: int) -> None:
+    replace_once(
+        path,
+        r"set\(TC_APP_VERSION_CODE\s+\d+\)",
+        f"set(TC_APP_VERSION_CODE {version_code})",
+        "TC_APP_VERSION_CODE",
+    )
+
+
+def update_nsis_product_version_code(path: Path, version_code: int) -> None:
+    replace_once(
+        path,
+        r"!define PRODUCT_VERSION_CODE\s+\d+",
+        f"!define PRODUCT_VERSION_CODE {version_code}",
+        "PRODUCT_VERSION_CODE",
+    )
+
+
+def extract_nsis_version_code(path: Path) -> int | None:
+    match = re.search(
+        r"!define PRODUCT_VERSION_CODE\s+(\d+)",
+        path.read_text(encoding="utf-8"),
+    )
+    return int(match.group(1)) if match else None
 
 
 def update_tc_app_version(path: Path, version: str) -> None:
@@ -164,7 +208,12 @@ def read_version_for_target(kind: str, path: Path) -> str | None:
 
 
 def show_versions() -> None:
-    print("Current product versions:")
+    version_name = read_tc_app_version()
+    version_code = read_tc_app_version_code()
+    print(f"Current product version name: {version_name}")
+    print(f"Current product version code: {version_code}")
+    print()
+    print("Tracked version name locations:")
     seen: dict[str, list[str]] = {}
     for label, path, kind in version_targets():
         if not path.is_file():
@@ -178,13 +227,44 @@ def show_versions() -> None:
         seen.setdefault(version, []).append(label)
 
     print()
+    print("Tracked version code locations:")
+    code_seen: dict[int, list[str]] = {}
+    for label, path in (
+        ("C++ (TC_APP_VERSION_CODE)", VERSION_CMAKE),
+        ("NSIS main installer", ROOT / "setup" / "proj_version.nsh"),
+        ("NSIS panel package", ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh"),
+    ):
+        if not path.is_file():
+            print(f"  [missing] {label}: {path}")
+            continue
+        if path == VERSION_CMAKE:
+            code = read_tc_app_version_code()
+        else:
+            code = extract_nsis_version_code(path)
+        if code is None:
+            print(f"  [n/a]     {label}: {path}")
+            continue
+        print(f"  {code:<8}  {label}")
+        code_seen.setdefault(code, []).append(label)
+
+    print()
     if len(seen) == 1:
         only = next(iter(seen))
-        print(f"All tracked locations use {only}.")
+        print(f"All tracked version names use {only}.")
     elif seen:
-        print("Version mismatch detected:")
+        print("Version name mismatch detected:")
         for version, labels in sorted(seen.items()):
             print(f"  {version}:")
+            for label in labels:
+                print(f"    - {label}")
+
+    if len(code_seen) == 1:
+        only_code = next(iter(code_seen))
+        print(f"All tracked version codes use {only_code}.")
+    elif code_seen:
+        print("Version code mismatch detected:")
+        for code, labels in sorted(code_seen.items()):
+            print(f"  {code}:")
             for label in labels:
                 print(f"    - {label}")
 
@@ -205,12 +285,19 @@ def sync_cargo_locks() -> None:
         )
 
 
-def apply_version(version: str) -> None:
+def apply_version(version: str, version_code: int | None = None) -> None:
     validate_version(version)
+    code = version_code if version_code is not None else semver_to_version_code(version)
 
     update_tc_app_version(VERSION_CMAKE, version)
+    update_tc_app_version_code(VERSION_CMAKE, code)
     update_nsis_product_version(ROOT / "setup" / "proj_version.nsh", version)
+    update_nsis_product_version_code(ROOT / "setup" / "proj_version.nsh", code)
     update_nsis_product_version(ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh", version)
+    update_nsis_product_version_code(
+        ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh",
+        code,
+    )
 
     update_cargo_workspace_version(ROOT / "rust_client" / "Cargo.toml", version)
     update_cargo_workspace_version(ROOT / "rust_base" / "Cargo.toml", version)
@@ -230,7 +317,7 @@ def apply_version(version: str) -> None:
 
     sync_cargo_locks()
 
-    print(f"Updated unified product version to {version}.")
+    print(f"Updated unified product version to {version} (code {code}).")
     print()
     print("Next steps:")
     print("  1. Rebuild: .\\build_official.bat")
@@ -245,14 +332,29 @@ def self_test() -> None:
         root = Path(tmp)
 
         cmake = root / "version.cmake"
-        cmake.write_text("set(TC_APP_VERSION 1.0.0)\n", encoding="utf-8")
+        cmake.write_text(
+            "set(TC_APP_VERSION 1.0.0)\nset(TC_APP_VERSION_CODE 10000)\n",
+            encoding="utf-8",
+        )
         update_tc_app_version(cmake, "3.2.0")
-        assert cmake.read_text(encoding="utf-8") == "set(TC_APP_VERSION 3.2.0)\n"
+        update_tc_app_version_code(cmake, 30200)
+        assert cmake.read_text(encoding="utf-8") == (
+            "set(TC_APP_VERSION 3.2.0)\nset(TC_APP_VERSION_CODE 30200)\n"
+        )
 
         nsis = root / "proj_version.nsh"
-        nsis.write_text('!define PRODUCT_VERSION "1.0.0"\n', encoding="utf-8")
+        nsis.write_text(
+            '!define PRODUCT_VERSION "1.0.0"\n!define PRODUCT_VERSION_CODE 10000\n',
+            encoding="utf-8",
+        )
         update_nsis_product_version(nsis, "3.2.0")
-        assert nsis.read_text(encoding="utf-8") == '!define PRODUCT_VERSION "3.2.0"\n'
+        update_nsis_product_version_code(nsis, 30200)
+        assert nsis.read_text(encoding="utf-8") == (
+            '!define PRODUCT_VERSION "3.2.0"\n!define PRODUCT_VERSION_CODE 30200\n'
+        )
+
+        assert semver_to_version_code("3.2.0") == 30200
+        assert semver_to_version_code("10.20.30") == 102030
 
         workspace = root / "Cargo.toml"
         workspace.write_text(
@@ -284,10 +386,10 @@ def main() -> None:
         show_versions()
         if args.version is None and not args.show:
             print()
-            print("Usage: python set_app_version.py 3.2.0")
+            print("Usage: python set_app_version.py 3.2.0 [--code 30200]")
         return
 
-    apply_version(validate_version(args.version))
+    apply_version(validate_version(args.version), args.code)
 
 
 if __name__ == "__main__":
