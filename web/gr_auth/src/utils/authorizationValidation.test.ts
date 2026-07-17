@@ -29,6 +29,7 @@ describe('authorization validation', () => {
         days: 30,
         max_streams: 4,
         role: 1,
+        product: 'cms',
       },
     })
   })

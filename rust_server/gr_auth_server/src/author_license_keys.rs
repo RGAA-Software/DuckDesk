@@ -77,6 +77,7 @@ pub fn sign_authorization(
     app_secret: String,
     username: String,
     password: String,
+    product: String,
 ) -> Result<SignedLicense, String> {
     let license = AuthLicense {
         auth_id,
@@ -91,6 +92,7 @@ pub fn sign_authorization(
         app_secret,
         username,
         password,
+        product,
     };
     signer.sign(&license)
 }
@@ -115,6 +117,7 @@ pub fn sign_authorization_model(
         auth.app_secret.clone(),
         auth.username.clone(),
         auth.password.clone(),
+        auth.product.clone(),
     )
 }
 
@@ -141,6 +144,7 @@ mod tests {
             "secret".to_string(),
             "user".to_string(),
             "pass".to_string(),
+            "cms".to_string(),
         )
         .unwrap();
         let verifier =
@@ -170,6 +174,7 @@ mod tests {
             "secret".to_string(),
             "user".to_string(),
             "pass".to_string(),
+            "cms".to_string(),
         )
         .unwrap();
         assert!(signed.to_deploy_string().unwrap().contains('.'));

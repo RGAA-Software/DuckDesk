@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub const PRODUCT_CMS: &str = "cms";
+pub const PRODUCT_GOPICO: &str = "gopico";
+
+pub fn default_product_cms() -> String {
+    PRODUCT_CMS.to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Authorization {
     pub auth_id: String,
     pub auth_name: String,
@@ -22,6 +29,41 @@ pub struct Authorization {
     pub role: i32,
     #[serde(default)]
     pub used_time_ms: i64,
+    /// Product this authorization applies to: "cms" | "gopico".
+    #[serde(default = "default_product_cms")]
+    pub product: String,
+    /// Soft-revoke flag (DB only, not part of signed license payload).
+    #[serde(default)]
+    pub revoked: bool,
+    #[serde(default)]
+    pub revoked_at_ms: i64,
+}
+
+impl Default for Authorization {
+    fn default() -> Self {
+        Self {
+            auth_id: String::new(),
+            auth_name: String::new(),
+            machine_code: String::new(),
+            description: String::new(),
+            max_streams: 0,
+            appkey: String::new(),
+            app_secret: String::new(),
+            username: String::new(),
+            password: String::new(),
+            created_timestamp_ms: 0,
+            end_timestamp_ms: 0,
+            last_modify_timestamp: 0,
+            days: 0,
+            verify_server: String::new(),
+            deploy_str: String::new(),
+            role: 0,
+            used_time_ms: 0,
+            product: default_product_cms(),
+            revoked: false,
+            revoked_at_ms: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

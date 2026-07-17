@@ -25,12 +25,23 @@
   <el-table :data="tableData" stripe style="width: 100%">
     <el-table-column label="Auth ID" prop="auth_id" />
     <el-table-column label="名称" prop="auth_name" :min-width="50"/>
+    <el-table-column label="Product" prop="product" :min-width="70">
+      <template #default="scope">
+        {{ scope.row.product || 'cms' }}
+      </template>
+    </el-table-column>
     <el-table-column label="Machine Code" prop="machine_code" :min-width="120" />
     <el-table-column label="创建时间" prop="created_timestamp_ms" :formatter="formatDateCreateTime"/>
     <el-table-column label="结束时间" prop="end_timestamp_ms" :formatter="formatDateEndTime"/>
     <el-table-column label="授权时间(天)" prop="days" />
     <el-table-column label="剩余时间(天)" prop="left_days" />
-    <el-table-column align="left">
+    <el-table-column label="状态" :min-width="70">
+      <template #default="scope">
+        <el-tag v-if="scope.row.revoked" type="danger" size="small">已吊销</el-tag>
+        <el-tag v-else type="success" size="small">有效</el-tag>
+      </template>
+    </el-table-column>
+    <el-table-column align="left" :min-width="220">
       <template #header>
         <el-input v-model="search" size="default" placeholder="搜索" @keyup.enter="handleSearch"  />
       </template>
@@ -43,12 +54,12 @@
           修改
         </el-button>
         <el-button
-          v-if="deleteBtnVisible"
+          v-if="(scope.row.product || 'cms') === 'gopico' && !scope.row.revoked"
           size="small"
           type="danger"
-          @click="handleDelete(scope.$index, scope.row)"
+          @click="handleRevoke(scope.row)"
         >
-          删除
+          吊销
         </el-button>
       </template>
     </el-table-column>
@@ -116,8 +127,11 @@
           </el-select>
         </el-form-item>
 
-        <!-- max streams -->
-        <el-form-item label="Max Streams">
+        <el-form-item label="Product">
+          <el-input :model-value="selectedData.product || 'cms'" disabled></el-input>
+        </el-form-item>
+
+        <el-form-item :label="(selectedData.product || 'cms') === 'gopico' ? 'Max Devices' : 'Max Streams'">
           <el-input v-model="selectedData.max_streams" :disabled="selectedData.disable_modify"></el-input>
         </el-form-item>
 
@@ -204,6 +218,8 @@ interface Authorization {
   verify_server: string
   deploy_str: string
   role: number
+  product?: string
+  revoked?: boolean
   total: number
   //
   disable_modify: boolean
@@ -215,9 +231,9 @@ const tableData = ref<Authorization[]>([])
 const selectedData = ref<Authorization | null>(null)
 const dialogVisible = ref(false)
 const saveBtnVisible = ref(false)
-const deleteBtnVisible = ref(false)
 const totalAuthCount = ref(0)
 const isSaving = ref(false)
+const isRevoking = ref(false)
 
 const updateTableData = (items: Authorization[]) => {
   tableData.value = items
@@ -319,9 +335,18 @@ const handleModifyInfo = (row: Authorization) => {
   saveBtnVisible.value = true
 }
 
-const handleDelete = (index: number, row: Authorization) => {
-  void index
-  void row
+const handleRevoke = async (row: Authorization) => {
+  if (isRevoking.value) return
+  isRevoking.value = true
+  try {
+    await http.post('/gopico/revoke/authorization', { auth_id: row.auth_id })
+    await queryAuthorizations(currentPage.value, pageSize.value)
+    showMessage('已吊销')
+  } catch (err: any) {
+    showError(err, '吊销失败')
+  } finally {
+    isRevoking.value = false
+  }
 }
 
 const handleSave = async () => {
@@ -329,22 +354,30 @@ const handleSave = async () => {
   if (isSaving.value) return
   if (!validateSelectedAuthorization()) return
 
-  // 1. 组装后端需要的数据
-  const payload = {
-    auth_id: selectedData.value.auth_id,
-    days: Number(selectedData.value.days),
-    max_streams: Number(selectedData.value.max_streams),
-    role: Number(selectedData.value.role),
-  }
+  const isGopico = (selectedData.value.product || 'cms') === 'gopico'
+  const payload = isGopico
+    ? {
+        auth_id: selectedData.value.auth_id,
+        days: Number(selectedData.value.days),
+        max_devices: Number(selectedData.value.max_streams),
+        role: Number(selectedData.value.role),
+      }
+    : {
+        auth_id: selectedData.value.auth_id,
+        days: Number(selectedData.value.days),
+        max_streams: Number(selectedData.value.max_streams),
+        role: Number(selectedData.value.role),
+      }
 
   isSaving.value = true
   try {
-    // 2. 调用后台接口
-    await http.post('/update/authorization', payload)
+    await http.post(
+      isGopico ? '/gopico/update/authorization' : '/update/authorization',
+      payload,
+    )
     await queryAuthorizations(currentPage.value, pageSize.value)
-    // 3. 成功提示
     showMessage('修改成功')
-    dialogVisible.value = false // 关闭弹窗
+    dialogVisible.value = false
   } catch (err: any) {
     showError(err, '修改失败')
   } finally {

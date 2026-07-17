@@ -5,18 +5,22 @@ export const MAX_AUTH_STREAMS = 10000
 
 const VALID_CUSTOMER_ROLES = new Set([1, 2, 3])
 
+export type AuthProduct = 'cms' | 'gopico'
+
 export interface CreateAuthorizationForm {
   name: string
   machine_code: string
   role: string | number
   days: string | number
   max_streams: string | number
+  product?: AuthProduct | string
 }
 
 export interface UpdateAuthorizationForm {
   days: string | number
   max_streams: string | number
   role: string | number
+  product?: AuthProduct | string
 }
 
 export interface CreateAuthorizationPayload {
@@ -25,6 +29,7 @@ export interface CreateAuthorizationPayload {
   role: number
   days: number
   max_streams: number
+  product: AuthProduct
 }
 
 export interface UpdateAuthorizationPayload {
@@ -50,12 +55,19 @@ const validateDays = (days: number): ValidationResult<number> => {
   return { ok: true, value: days }
 }
 
-const validateMaxStreams = (maxStreams: number): ValidationResult<number> => {
+const validateMaxStreams = (
+  maxStreams: number,
+  product: AuthProduct = 'cms',
+): ValidationResult<number> => {
+  const label = product === 'gopico' ? 'Max Devices' : 'Max Streams'
   if (!Number.isInteger(maxStreams) || maxStreams < 1 || maxStreams > MAX_AUTH_STREAMS) {
-    return { ok: false, message: `Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间` }
+    return { ok: false, message: `${label} 必须在 1 到 ${MAX_AUTH_STREAMS} 之间` }
   }
   return { ok: true, value: maxStreams }
 }
+
+export const normalizeProduct = (product?: string): AuthProduct =>
+  product === 'gopico' ? 'gopico' : 'cms'
 
 const validateRole = (role: number): ValidationResult<number> => {
   if (!VALID_CUSTOMER_ROLES.has(role)) {
@@ -83,10 +95,12 @@ export const validateCreateAuthorization = (
     return { ok: false, message: `Machine Code 不能超过 ${MAX_MACHINE_CODE_LEN} 个字符` }
   }
 
+  const product = normalizeProduct(form.product)
+
   const daysResult = validateDays(days)
   if (!daysResult.ok) return daysResult
 
-  const maxStreamsResult = validateMaxStreams(maxStreams)
+  const maxStreamsResult = validateMaxStreams(maxStreams, product)
   if (!maxStreamsResult.ok) return maxStreamsResult
 
   const roleResult = validateRole(role)
@@ -100,6 +114,7 @@ export const validateCreateAuthorization = (
       role,
       days,
       max_streams: maxStreams,
+      product,
     },
   }
 }
@@ -110,11 +125,12 @@ export const validateUpdateAuthorization = (
   const days = toInteger(form.days)
   const maxStreams = toInteger(form.max_streams)
   const role = toInteger(form.role)
+  const product = normalizeProduct(form.product)
 
   const daysResult = validateDays(days)
   if (!daysResult.ok) return daysResult
 
-  const maxStreamsResult = validateMaxStreams(maxStreams)
+  const maxStreamsResult = validateMaxStreams(maxStreams, product)
   if (!maxStreamsResult.ok) return maxStreamsResult
 
   const roleResult = validateRole(role)

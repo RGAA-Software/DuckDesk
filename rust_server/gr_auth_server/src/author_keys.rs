@@ -8,5 +8,8 @@ pub const KEY_CREATE_AUTHORIZATION_MACHINE_CODE: &str = "machine_code";
 pub const KEY_CREATE_AUTHORIZATION_ROLE: &str = "role";
 pub const KEY_CREATE_AUTHORIZATION_DAYS: &str = "days";
 pub const KEY_CREATE_AUTHORIZATION_MAX_STREAMS: &str = "max_streams";
+pub const KEY_CREATE_AUTHORIZATION_MAX_DEVICES: &str = "max_devices";
+#[allow(dead_code)]
+pub const KEY_CREATE_AUTHORIZATION_PRODUCT: &str = "product";
 
 pub const KEY_CREATE_AUTHORIZATION_AUTH_ID: &str = "auth_id";
