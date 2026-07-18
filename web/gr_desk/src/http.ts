@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-// 获取基础URL
+// 获取基础URL：dev 环境指向本地 gr_desk_server，prod 同源
 const getBaseURL = () => {
   const { protocol, hostname, port } = window.location
 
@@ -12,25 +12,9 @@ const getBaseURL = () => {
   return `${protocol}//${hostname}${basePort}`
 }
 
-const getHostPort = () => {
-  const { hostname, port } = window.location
-
-  if (import.meta.env.DEV) {
-    return 'https://127.0.0.1:5001'
-  }
-
-  const basePort = port ? `:${port}` : ''
-  return `${hostname}${basePort}`
-}
-
-// 导出 baseURL 常量
-export const BASE_URL = getBaseURL()
-export const HOST_PORT = getHostPort()
-
 const axiosHttp = axios.create({
   baseURL: getBaseURL(),
   timeout: 5000,
-  headers: { 'X-Custom-Header': 'foobar' },
 })
 
 export default axiosHttp

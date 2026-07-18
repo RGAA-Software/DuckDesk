@@ -1,306 +1,69 @@
-<template>
-  <!--  #2979ff-->
-  <!--  <div class="h-12 flex justify-center items-center bg-orange-100">-->
-  <!--    <el-image-->
-  <!--      :src="warnIcon"-->
-  <!--      fit="cover"-->
-  <!--      style="width: 22px; height: 22px; cursor: pointer"-->
-  <!--    ></el-image>-->
-  <!--    <el-text class="!text-xl !pl-1 font-bold !text-gray-500">-->
-  <!--      www.godesk.uk{{ i18n.t('message.OnlyOfficialWebsite') }}-->
-  <!--    </el-text>-->
-  <!--  </div>-->
-
-  <el-row>
-    <el-col :span="4">
-      <div class="bg-white h-13 flex items-center justify-center">
-        <el-image
-          :src="logoIcon"
-          fit="cover"
-          style="width: 10rem; cursor: pointer"
-          @click="handleClickLogo"
-        ></el-image>
-      </div>
-    </el-col>
-
-    <el-col :span="16">
-      <div class="bg-white h-13">
-        <el-menu
-          :default-active="activeIndex"
-          class="!h-13 custom-menu flex justify-center"
-          mode="horizontal"
-          @select="handleSelect"
-          router
-        >
-          <el-menu-item
-            index="/main"
-            class="w-30 !text-base font-normal hover:font-bold [&.is-active]:font-bold"
-            @click="handleClickMainPage"
-            >{{ i18n.t('message.Home') }}
-          </el-menu-item>
-
-          <el-menu-item
-            index="/price"
-            class="w-30 !text-base font-normal hover:font-bold [&.is-active]:font-bold"
-            @click="handleClickPricePage"
-            >{{ i18n.t('message.Price') }}
-          </el-menu-item>
-
-          <el-menu-item
-            index="/docs"
-            class="w-30 !text-base font-normal hover:font-bold [&.is-active]:font-bold"
-            >{{ i18n.t('message.Docs') }}
-          </el-menu-item>
-        </el-menu>
-      </div>
-    </el-col>
-
-    <el-col :span="4">
-      <!-- bg-gray-200 -->
-      <div class="bg-white h-13 flex items-center">
-        <div class="flex justify-end w-full items-center">
-          <el-dropdown trigger="click" @command="handleTranslateClick">
-            <el-image
-              :src="transIcon"
-              fit="cover"
-              style="width: 20px; height: 20px; cursor: pointer"
-            ></el-image>
-
-            <template v-slot:dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="zh">简体中文</el-dropdown-item>
-                <el-dropdown-item command="en">English</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-
-          <div class="w-10"></div>
-
-          <el-image
-            :src="steamIcon"
-            fit="cover"
-            style="width: 30px; height: 30px; cursor: pointer"
-            @click="handleSteamClick"
-          ></el-image>
-
-          <div class="w-4"></div>
-
-          <el-image
-            :src="githubIcon"
-            fit="cover"
-            style="width: 30px; height: 30px; cursor: pointer"
-            @click="handleGithubClick"
-          ></el-image>
-
-          <div class="w-4"></div>
-        </div>
-      </div>
-    </el-col>
-  </el-row>
-
-  <el-main class="!pl-0 !pr-0">
-    <RouterView />
-  </el-main>
-
-  <div class="h-12" />
-  <el-divider />
-  <div class="h-60 flex justify-center">
-    <div style="width: 80px"></div>
-    <div class="w-80">
-      <div class="h-5"></div>
-      <div class="flex justify-center">
-        <el-image
-          :src="iconLogo"
-          fit="cover"
-          style="width: 60px; height: 60px; cursor: pointer"
-        ></el-image>
-        <div class="w-1" />
-        <div>
-          <div class="!text-2xl font-bold !h-8 !text-slate-800">GoDesk</div>
-          <div class="bg-blue-300 h-3">
-            <el-text class="!text-medium font-medium !text-white">Always Online</el-text>
-          </div>
-          <div class="bg-blue-400 h-3" />
-        </div>
-      </div>
-      <div class="h-5"></div>
-      <div class="flex justify-center">
-        <el-link class="h-6" !text-slate-700 @click="goTerms">条款</el-link>
-        <div class="w-3" />
-        <el-link class="h-6" !text-slate-700 @click="goPrivacy">隐私政策</el-link>
-      </div>
-    </div>
-
-    <div class="w-30" />
-    <div class="w-45">
-      <div class="h-5"></div>
-      <div class="">
-        <div class="font-medium !text-slate-800">合作与支持</div>
-        <div class="h-1" />
-        <el-link type="primary" class="h-6" @click="goContactUs">联系我们</el-link>
-        <p />
-        <el-link class="h-6 !text-slate-700" @click="goHelp">帮助中心</el-link>
-        <p />
-        <el-link class="h-6 !text-slate-700" @click="goIssue">提交工单</el-link>
-        <p />
-        <!--        <el-link class="h-6 !text-slate-700" @click="">关于GoDesk</el-link> <p/>-->
-      </div>
-    </div>
-
-    <ContactUs v-model="contactUsVisible" />
-
-    <!--  -->
-    <el-dialog v-model="issueVisible" :modal="false" modal-penetrable align-center>
-      <template #header>
-        <el-text class="!text-lg !text-slate-700">请填写您的问题</el-text>
-      </template>
-
-      <el-form :model="issue" label-width="auto" style="max-width: 600px">
-        <el-form-item label="您的问题*">
-          <el-input v-model="issue.title" />
-        </el-form-item>
-
-        <el-form-item label="怎么称呼您*">
-          <el-input v-model="issue.yourName" />
-        </el-form-item>
-
-        <el-form-item label="详细内容*">
-          <el-input
-            v-model="issue.desc"
-            :rows="2"
-            type="textarea"
-            placeholder="请输入您想要咨询的内容"
-          />
-        </el-form-item>
-
-        <el-form-item label="软件版本">
-          <el-input v-model="issue.version" />
-        </el-form-item>
-
-        <el-form-item label="操作系统版本">
-          <el-input v-model="issue.os" />
-        </el-form-item>
-
-        <el-form-item label="邮件">
-          <el-input v-model="issue.email" />
-        </el-form-item>
-
-        <el-form-item label="微信">
-          <el-input v-model="issue.wechat" />
-        </el-form-item>
-
-        <el-form-item label="QQ">
-          <el-input v-model="issue.qq" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="issueVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmIssue"> 提交 </el-button>
-        </div>
-      </template>
-    </el-dialog>
-  </div>
-</template>
-
 <script lang="ts" setup>
-import { computed, ref, warn } from 'vue'
-import githubIcon from '@/assets/ic_github.svg'
-import steamIcon from '@/assets/ic_steam.svg'
-import transIcon from '@/assets/icon/ic_translate.svg'
-import logoIcon from '@/assets/tc_logo_text_white_bg.png'
-import warnIcon from '@/assets/icon/ic_warn.svg'
-import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
-import emailIcon from '@/assets/icon/ic_email.svg'
-import githubLogo from '@/assets/icon/ic_github.svg'
-import bilibiliLogo from '@/assets/icon/ic_bilibili.svg'
-import steamLogo from '@/assets/icon/ic_steam.svg'
-import tiktokLogo from '@/assets/icon/ic_tiktok.svg'
-import youtubeLogo from '@/assets/icon/ic_youtube.svg'
-// 国际化
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import ContactUs from '@/components/ContactUs.vue'
-import axios from 'axios'
 import { ElNotification } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import axiosHttp from '@/http.ts'
+import ContactUs from '@/components/ContactUs.vue'
+import githubIcon from '@/assets/ic_github.svg'
+import transIcon from '@/assets/icon/ic_translate.svg'
+import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
 
-const i18n = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 
-const contactUsVisible = ref(false)
-const issueVisible = ref(false)
+// ---------- 导航 ----------
+const scrolled = ref(false)
+const mobileMenuVisible = ref(false)
 
-const handleClickLogo = () => {
-  console.log('main page clicked')
-  router.push('/main')
+const onScroll = () => {
+  scrolled.value = window.scrollY > 8
 }
 
-const handleClickMainPage = () => {
-  console.log('main page clicked')
-}
+onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
+onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
-const handleClickPricePage = () => {
-  console.log('download clicked')
+const navItems = computed(() => [
+  { path: '/main', label: t('nav.home') },
+  { path: '/price', label: t('nav.price') },
+  { path: '/docs', label: t('nav.docs') },
+])
+
+const isActive = (path: string) => route.path.startsWith(path)
+
+const goPage = (path: string) => {
+  mobileMenuVisible.value = false
+  router.push(path)
 }
 
 const handleGithubClick = () => {
-  console.log('github clicked')
   window.open('https://github.com/RGAA-Software/GammaRay', '_blank')
 }
 
-const handleSteamClick = () => {
-  console.log('steam-clicked')
-}
-
 const handleTranslateClick = (command: string) => {
-  console.log('translate-clicked', command)
   localStorage.setItem('language', command)
-  i18n.locale.value = localStorage.getItem('language') || 'zh'
+  locale.value = command
 }
 
-const activeIndex = computed(() => {
-  // 如果是 /docs 或 /docs/ 开头的路径
-  if (route.path.startsWith('/docs')) {
-    return '/docs'
-  }
-  // 如果是 /price 或 /price/ 开头的路径
-  if (route.path.startsWith('/price')) {
-    return '/price'
-  }
-  // 默认返回当前路径或首页
-  return route.path || '/main'
-})
-
-const handleSelect = (key: string, keyPath: string[]) => {
-  console.log(key, keyPath)
-}
-
-const goTerms = () => {
-  router.push('/terms')
-}
-
-const goPrivacy = () => {
-  router.push('/privacy')
-}
-
+// ---------- 页脚 ----------
+const contactUsVisible = ref(false)
 const goContactUs = () => {
   contactUsVisible.value = true
 }
+const goTerms = () => router.push('/terms')
+const goPrivacy = () => router.push('/privacy')
+const goHelp = () => router.push('/docs')
 
-const goHelp = () => {
-  router.push('/docs')
-}
-
-const goIssue = () => {
-  issueVisible.value = true
-}
+// ---------- 工单对话框 ----------
+const issueVisible = ref(false)
+const issueSubmitting = ref(false)
+const issueFormRef = ref<FormInstance>()
 
 interface Issue {
   title: string
-  yourName: ''
+  yourName: string
   desc: string
   version: string
   os: string
@@ -309,7 +72,7 @@ interface Issue {
   qq: string
 }
 
-const issue = ref<Issue>({
+const emptyIssue = (): Issue => ({
   title: '',
   yourName: '',
   desc: '',
@@ -320,14 +83,26 @@ const issue = ref<Issue>({
   qq: '',
 })
 
-async function confirmIssue() {
-  issueVisible.value = false
-  await postIssue()
+const issue = ref<Issue>(emptyIssue())
+
+const issueRules = computed<FormRules<Issue>>(() => ({
+  title: [{ required: true, message: t('issue.required'), trigger: 'blur' }],
+  yourName: [{ required: true, message: t('issue.required'), trigger: 'blur' }],
+  desc: [{ required: true, message: t('issue.required'), trigger: 'blur' }],
+}))
+
+const goIssue = () => {
+  issueVisible.value = true
 }
 
-async function postIssue() {
+async function confirmIssue() {
+  if (!issueFormRef.value) return
+  const valid = await issueFormRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  issueSubmitting.value = true
   try {
-    const { data } = await axiosHttp.post(
+    await axiosHttp.post(
       '/api/v1/create/new/issue',
       {
         title: issue.value.title,
@@ -337,46 +112,262 @@ async function postIssue() {
         os: issue.value.os,
         email: issue.value.email,
         wechat: issue.value.wechat,
-        qq: issue.value.wechat,
+        qq: issue.value.qq,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
+      { headers: { 'Content-Type': 'application/json' } },
     )
     ElNotification({
-      title: '提交成功',
-      message: '已收到您的咨询, 我们会尽快回复',
+      title: t('issue.successTitle'),
+      message: t('issue.successMessage'),
       type: 'primary',
     })
+    issueVisible.value = false
+    issue.value = emptyIssue()
+    issueFormRef.value?.clearValidate()
   } catch (error) {
     console.log('post issue failed: ', error)
     ElNotification({
-      title: '提交失败',
-      message: '请填写必要信息后再提交',
+      title: t('issue.failTitle'),
+      message: t('issue.failMessage'),
       type: 'warning',
     })
+  } finally {
+    issueSubmitting.value = false
   }
 }
 </script>
 
+<template>
+  <!-- 吸顶导航栏（实色 + 底部分隔线） -->
+  <header
+    class="sticky top-0 z-50 border-b transition-colors duration-200"
+    :class="scrolled ? 'bg-cyber-nav border-cyber-line' : 'bg-transparent border-transparent'"
+  >
+    <div class="section-container flex h-14 items-center justify-between">
+      <!-- Logo -->
+      <button class="flex items-center gap-2.5 cursor-pointer" @click="goPage('/main')">
+        <img :src="iconLogo" alt="GoDesk" class="h-8 w-8 logo-tint" />
+        <span class="font-tech text-lg font-bold tracking-[0.22em] text-cyber-text">GODESK</span>
+      </button>
+
+      <!-- 桌面端导航 -->
+      <nav class="hidden md:flex items-center gap-2">
+        <button
+          v-for="item in navItems"
+          :key="item.path"
+          class="nav-item font-tech"
+          :class="isActive(item.path) ? 'nav-item-active' : ''"
+          @click="goPage(item.path)"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
+
+      <!-- 桌面端右侧操作区 -->
+      <div class="hidden md:flex items-center gap-5">
+        <el-dropdown trigger="click" @command="handleTranslateClick">
+          <img :src="transIcon" alt="language" class="h-5 w-5 cursor-pointer invert opacity-70 hover:opacity-100 transition-opacity" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="zh">简体中文</el-dropdown-item>
+              <el-dropdown-item command="en">English</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <img
+          :src="githubIcon"
+          alt="GitHub"
+          class="h-6 w-6 cursor-pointer invert opacity-70 hover:opacity-100 transition-opacity"
+          @click="handleGithubClick"
+        />
+      </div>
+
+      <!-- 移动端汉堡按钮 -->
+      <button
+        class="md:hidden flex items-center justify-center h-10 w-10 text-cyber-text hover:bg-white/5 transition-colors cursor-pointer"
+        @click="mobileMenuVisible = true"
+      >
+        <el-icon :size="22"><Menu /></el-icon>
+      </button>
+    </div>
+  </header>
+
+  <!-- 移动端抽屉菜单 -->
+  <el-drawer v-model="mobileMenuVisible" direction="rtl" size="260px" :with-header="false">
+    <div class="flex flex-col gap-2 pt-6">
+      <button
+        v-for="item in navItems"
+        :key="item.path"
+        class="nav-item font-tech text-left !px-4 !py-3"
+        :class="isActive(item.path) ? 'nav-item-active' : ''"
+        @click="goPage(item.path)"
+      >
+        {{ item.label }}
+      </button>
+
+      <div class="divider-line my-4" />
+
+      <div class="flex items-center gap-5 px-4">
+        <el-dropdown trigger="click" @command="handleTranslateClick">
+          <img :src="transIcon" alt="language" class="h-5 w-5 cursor-pointer invert opacity-70" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="zh">简体中文</el-dropdown-item>
+              <el-dropdown-item command="en">English</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <img
+          :src="githubIcon"
+          alt="GitHub"
+          class="h-6 w-6 cursor-pointer invert opacity-70"
+          @click="handleGithubClick"
+        />
+      </div>
+    </div>
+  </el-drawer>
+
+  <!-- 页面主体 -->
+  <main>
+    <RouterView />
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="mt-20 border-t border-cyber-line bg-cyber-nav">
+    <div class="section-container grid gap-10 py-12 md:grid-cols-3">
+      <!-- 品牌区 -->
+      <div class="flex flex-col items-center md:items-start gap-3">
+        <div class="flex items-center gap-2.5">
+          <img :src="iconLogo" alt="GoDesk" class="h-9 w-9 logo-tint" />
+          <div>
+            <div class="font-tech text-lg font-bold tracking-[0.22em] text-cyber-text leading-5">GODESK</div>
+            <div class="font-tech text-[10px] tracking-[0.18em] text-cyber-green">{{ t('footer.slogan') }}</div>
+          </div>
+        </div>
+        <div class="flex gap-4 text-sm">
+          <el-link class="!text-cyber-muted hover:!text-cyber-text" :underline="false" @click="goTerms">
+            {{ t('footer.terms') }}
+          </el-link>
+          <el-link class="!text-cyber-muted hover:!text-cyber-text" :underline="false" @click="goPrivacy">
+            {{ t('footer.privacy') }}
+          </el-link>
+        </div>
+        <!-- 状态行 -->
+        <div class="mt-2 flex items-center gap-2 border border-cyber-line bg-cyber-bg2 px-3 py-1.5">
+          <span class="cyber-dot"></span>
+          <span class="font-tech text-[10px] tracking-[0.14em] text-cyber-muted">SYS.STATUS: ONLINE</span>
+        </div>
+      </div>
+
+      <!-- 合作与支持 -->
+      <div class="flex flex-col items-center md:items-start gap-2">
+        <div class="cyber-label mb-2">{{ t('footer.support') }}</div>
+        <el-link type="primary" class="h-6" :underline="false" @click="goContactUs">
+          {{ t('footer.contactUs') }}
+        </el-link>
+        <el-link class="h-6 !text-cyber-muted hover:!text-cyber-text" :underline="false" @click="goHelp">
+          {{ t('footer.helpCenter') }}
+        </el-link>
+        <el-link class="h-6 !text-cyber-muted hover:!text-cyber-text" :underline="false" @click="goIssue">
+          {{ t('footer.ticket') }}
+        </el-link>
+      </div>
+
+      <!-- 联系方式 -->
+      <div class="flex flex-col items-center md:items-start gap-2">
+        <div class="cyber-label mb-2">{{ t('footer.contactUs') }}</div>
+        <span class="font-tech text-sm text-cyber-muted">godesk-sales@outlook.com</span>
+        <span class="font-tech text-sm text-cyber-muted">www.godesk.uk</span>
+      </div>
+    </div>
+  </footer>
+
+  <ContactUs v-model="contactUsVisible" />
+
+  <!-- 提交工单对话框 -->
+  <el-dialog v-model="issueVisible" align-center class="!max-w-[92vw] !w-140">
+    <template #header>
+      <span class="font-tech text-base tracking-wider text-cyber-text">{{ t('issue.dialogTitle') }}</span>
+    </template>
+
+    <el-form ref="issueFormRef" :model="issue" :rules="issueRules" label-width="auto">
+      <el-form-item :label="t('issue.title')" prop="title">
+        <el-input v-model="issue.title" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.yourName')" prop="yourName">
+        <el-input v-model="issue.yourName" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.desc')" prop="desc">
+        <el-input
+          v-model="issue.desc"
+          :rows="2"
+          type="textarea"
+          :placeholder="t('issue.descPlaceholder')"
+        />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.version')" prop="version">
+        <el-input v-model="issue.version" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.os')" prop="os">
+        <el-input v-model="issue.os" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.email')" prop="email">
+        <el-input v-model="issue.email" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.wechat')" prop="wechat">
+        <el-input v-model="issue.wechat" />
+      </el-form-item>
+
+      <el-form-item :label="t('issue.qq')" prop="qq">
+        <el-input v-model="issue.qq" />
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="issueVisible = false">{{ t('issue.cancel') }}</el-button>
+        <el-button type="primary" :loading="issueSubmitting" @click="confirmIssue">
+          {{ t('issue.submit') }}
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+
 <style scoped>
-.custom-menu {
-  border-bottom: none !important;
+/* 品牌图标绿色化（蓝色 PNG 调色为荧光绿） */
+.logo-tint {
+  filter: hue-rotate(-80deg) saturate(1.4) brightness(1.1);
 }
 
-:deep(.el-menu-item) {
-  border-bottom: none !important;
+/* 导航项：等宽大写小字；激活 = 实心绿切角块 */
+.nav-item {
+  padding: 6px 18px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #adb5ae;
+  background: transparent;
+  cursor: pointer;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  transition: background 0.15s, color 0.15s;
 }
-
-:deep(.custom-menu .el-menu-item:hover) {
-  background-color: transparent !important;
-  border-bottom: none !important;
+.nav-item:hover {
+  background: #121713;
+  color: #f0f3ee;
 }
-
-:deep(.custom-menu .el-menu-item.is-active) {
-  background-color: transparent !important;
-  border-bottom: none !important;
+.nav-item-active,
+.nav-item-active:hover {
+  background: var(--green);
+  color: var(--accent-foreground);
+  font-weight: 700;
 }
 </style>

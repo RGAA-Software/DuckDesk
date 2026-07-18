@@ -3,49 +3,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   GoDesk Cyber Theme — 复刻 gopico AURIS Green Interface V6
+   近黑深绿灰底 + 荧光绿 + 45° 切角 + 等宽 HUD 排版
+   ============================================================ */
 :root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-}
+  --bg: #070908;
+  --bg2: #0b0e0c;
+  --panel: #111411;
+  --panel2: #151915;
+  --nav: #090c0a;
+  --line: #2b3a30;
+  --line2: #435448;
+  --frame: #344239;
+  --text: #eeefe9;
+  --muted: #90998f;
+  --green: #18d875;
+  --green-hover: #28e383;
+  --green-dark: #0ead5c;
+  --green-dim: #143523;
+  --accent-foreground: #06110a;
+  --amber: #d6a542;
+  --red: #ef5252;
+  --cut: 14px;
 
-.dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.141 0.005 285.823);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.141 0.005 285.823);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.274 0.006 286.033);
-  --input: oklch(0.274 0.006 286.033);
-  --ring: oklch(0.442 0.017 285.786);
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --popover: var(--panel2);
+  --popover-foreground: var(--text);
+  --primary: var(--green);
+  --primary-foreground: var(--accent-foreground);
+  --secondary: var(--panel2);
+  --secondary-foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --accent: var(--green-dim);
+  --accent-foreground: #06110a; /* 绿底上的文字（覆盖上方 shadcn 映射，勿重复定义） */
+  --destructive: var(--red);
+  --destructive-foreground: var(--text);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--green);
+  --radius: 0px;
+
+  --font-ui: "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-tech: "Consolas", "Cascadia Mono", "Microsoft YaHei", monospace;
 }
 
 @theme inline {
@@ -59,7 +62,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--panel2);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -69,27 +72,498 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-cyber-bg: var(--bg);
+  --color-cyber-bg2: var(--bg2);
+  --color-cyber-panel: var(--panel);
+  --color-cyber-panel2: var(--panel2);
+  --color-cyber-nav: var(--nav);
+  --color-cyber-line: var(--line);
+  --color-cyber-line2: var(--line2);
+  --color-cyber-frame: var(--frame);
+  --color-cyber-text: var(--text);
+  --color-cyber-muted: var(--muted);
+  --color-cyber-green: var(--green);
+  --color-cyber-green-hover: var(--green-hover);
+  --color-cyber-green-dim: var(--green-dim);
+  --color-cyber-amber: var(--amber);
+  --color-cyber-red: var(--red);
+
+  --font-tech: var(--font-tech);
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-radius: 0 !important;
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
   }
   body {
-    @apply bg-background text-foreground;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    @apply antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0e0c;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #344239;
+    border: 2px solid #0b0e0c;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #435448;
   }
 }
 
-html {
-  color-scheme: light dark;
+/* ---------------- 组件类 ---------------- */
+@layer components {
+  .section-container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* 切角面板：双层伪元素描边（clip-path 会裁 border，此为 gopico 标准技巧） */
+  .cyber-panel {
+    --cut: 14px;
+    background: var(--panel);
+    clip-path: polygon(
+      var(--cut) 0,
+      100% 0,
+      100% calc(100% - var(--cut)),
+      calc(100% - var(--cut)) 100%,
+      0 100%,
+      0 var(--cut)
+    );
+    position: relative;
+    isolation: isolate;
+  }
+  .cyber-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--frame);
+    clip-path: inherit;
+    z-index: -2;
+    pointer-events: none;
+  }
+  .cyber-panel::after {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    background: var(--panel);
+    clip-path: inherit;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* 绿色描边变体 */
+  .cyber-panel-green::before {
+    background: var(--green-dark);
+  }
+
+  /* 9px 切角按钮/输入框：渐变拼边框（gopico 设计稿原文技巧） */
+  .cyber-bevel-9 {
+    --bb: #3b4a3f;
+    --bf: #151916;
+    border: 0 !important;
+    outline: 0 !important;
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
+    box-shadow: none !important;
+    background-color: var(--bf) !important;
+    background-image:
+      linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+      linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+      linear-gradient(var(--bb), var(--bb)),
+      linear-gradient(var(--bb), var(--bb)),
+      linear-gradient(var(--bb), var(--bb)),
+      linear-gradient(var(--bb), var(--bb)) !important;
+    background-size:
+      9px 9px,
+      9px 9px,
+      calc(100% - 9px) 1px,
+      1px calc(100% - 9px),
+      calc(100% - 9px) 1px,
+      1px calc(100% - 9px) !important;
+    background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
+    background-repeat: no-repeat !important;
+  }
+
+  /* 等宽 HUD 标题（绿竖条 + 大写 + 字距） */
+  .cyber-title {
+    font-family: var(--font-tech);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+  }
+  .cyber-title::before {
+    content: "";
+    width: 3px;
+    height: 1em;
+    background: var(--green);
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  /* 等宽分组小标签 */
+  .cyber-label {
+    font-family: var(--font-tech);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #667067;
+  }
+
+  /* 方形状态点 */
+  .cyber-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+
+  /* 6px 切角 outline 标签 */
+  .cyber-tag {
+    font-family: var(--font-tech);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    color: #47e896;
+    border: 1px solid #2b8553;
+    background: transparent;
+  }
+
+  /* HUD 极淡网格背景（仅 hero 装饰） */
+  .bg-hud-grid {
+    background-image:
+      linear-gradient(rgba(24, 216, 117, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(24, 216, 117, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* KPI 大数字 + 底部细条 */
+  .kpi-num {
+    font-family: var(--font-tech);
+    font-size: 35px;
+    color: #f2f4ef;
+    line-height: 1.1;
+  }
+  .kpi-line {
+    height: 3px;
+    background: #202820;
+  }
+  .kpi-line > i {
+    display: block;
+    height: 100%;
+    background: var(--green);
+  }
+
+  /* 四角 L 形角标容器 */
+  .cyber-corners {
+    position: relative;
+  }
+  .cyber-corners::before,
+  .cyber-corners::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--green);
+    border-style: solid;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .cyber-corners::before {
+    top: -1px;
+    left: -1px;
+    border-width: 2px 0 0 2px;
+  }
+  .cyber-corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-width: 0 2px 2px 0;
+  }
+
+  /* 分隔线 */
+  .divider-line {
+    height: 1px;
+    width: 100%;
+    border: 0;
+    background: var(--line);
+  }
+
+  /* 滚动入场动画 */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 0.7s ease,
+      transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .reveal-visible {
+    opacity: 1;
+    transform: none;
+  }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ---------------- Element Plus 赛博化覆盖 ---------------- */
 html.dark {
-  color-scheme: dark;
+  --el-color-primary: #18d875;
+  --el-color-primary-dark-2: #0ead5c;
+  --el-color-primary-light-3: #47e896;
+  --el-color-primary-light-5: #1d5c3a;
+  --el-color-primary-light-7: #173d29;
+  --el-color-primary-light-8: #143523;
+  --el-color-primary-light-9: #10231a;
+  --el-color-success: #18d875;
+  --el-color-warning: #d6a542;
+  --el-color-danger: #ef5252;
+  --el-color-error: #ef5252;
+
+  --el-bg-color: #111411;
+  --el-bg-color-page: #070908;
+  --el-bg-color-overlay: #151915;
+  --el-text-color-primary: #eeefe9;
+  --el-text-color-regular: #c4cbc2;
+  --el-text-color-secondary: #90998f;
+  --el-text-color-placeholder: #667067;
+  --el-border-color: #2b3a30;
+  --el-border-color-light: #2b3a30;
+  --el-border-color-lighter: #263229;
+  --el-border-color-extra-light: #223028;
+  --el-border-color-hover: #435448;
+  --el-fill-color: #151915;
+  --el-fill-color-light: #111411;
+  --el-fill-color-lighter: #0d110e;
+  --el-fill-color-blank: #151916;
+  --el-border-radius-base: 0;
+  --el-border-radius-small: 0;
+  --el-border-radius-round: 0;
+  --el-font-family: var(--font-ui);
+  --el-box-shadow: none;
+  --el-box-shadow-light: none;
+  --el-box-shadow-lighter: none;
+  --el-box-shadow-dark: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
-html.light {
-  color-scheme: light;
+
+/* 按钮：9px 切角 + 渐变拼边框 */
+.el-button {
+  --bb: #3b4a3f;
+  --bf: #151916;
+  border: 0 !important;
+  outline: 0 !important;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
+  box-shadow: none !important;
+  background-color: var(--bf) !important;
+  background-image:
+    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)) !important;
+  background-size:
+    9px 9px,
+    9px 9px,
+    calc(100% - 9px) 1px,
+    1px calc(100% - 9px),
+    calc(100% - 9px) 1px,
+    1px calc(100% - 9px) !important;
+  background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
+  background-repeat: no-repeat !important;
+  font-family: var(--font-tech);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  height: 38px;
+  padding: 0 16px;
+  color: #d7ddd7 !important;
+  transition: none;
+}
+.el-button:hover {
+  --bb: #6b806f;
+  --bf: #1a211c;
+  color: #fff !important;
+}
+.el-button:active {
+  transform: translateY(1px);
+}
+.el-button--primary {
+  --bb: var(--green);
+  --bf: var(--green);
+  color: var(--accent-foreground) !important;
+  font-weight: 700;
+}
+.el-button--primary:hover {
+  --bb: var(--green-hover);
+  --bf: var(--green-hover);
+  color: var(--accent-foreground) !important;
+}
+.el-button--primary.is-plain {
+  --bb: #2b8553;
+  --bf: #10231a;
+  color: #47e896 !important;
+}
+.el-button--primary.is-plain:hover {
+  --bb: var(--green);
+  --bf: #143523;
+  color: #47e896 !important;
+}
+.el-button.is-loading {
+  opacity: 0.7;
+}
+
+/* 对话框：14px 切角双层描边 */
+.el-dialog {
+  --cut: 14px;
+  background: var(--panel) !important;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  ) !important;
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid var(--frame);
+  padding: 20px 24px;
+}
+.el-dialog__title,
+.el-dialog__header span {
+  font-family: var(--font-tech);
+  letter-spacing: 0.08em;
+}
+.el-form-item__label {
+  font-family: var(--font-tech);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #9ca59c !important;
+}
+
+/* 输入框 / 下拉框：9px 切角 */
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  --bb: #3b4a3f;
+  --bf: #151916;
+  border: 0 !important;
+  outline: 0 !important;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
+  box-shadow: none !important;
+  background-color: var(--bf) !important;
+  background-image:
+    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)),
+    linear-gradient(var(--bb), var(--bb)) !important;
+  background-size:
+    9px 9px,
+    9px 9px,
+    calc(100% - 9px) 1px,
+    1px calc(100% - 9px),
+    calc(100% - 9px) 1px,
+    1px calc(100% - 9px) !important;
+  background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
+  background-repeat: no-repeat !important;
+}
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  --bb: var(--green-dark);
+}
+
+/* 弹出层（下拉/气泡/通知） */
+.el-select-dropdown,
+.el-dropdown-menu,
+.el-popover.el-popper,
+.el-picker__popper.el-popper {
+  background: var(--panel2) !important;
+  border: 1px solid var(--frame) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5) !important;
+}
+.el-select-dropdown__item,
+.el-dropdown-menu__item {
+  font-family: var(--font-tech);
+  font-size: 12px;
+  color: #c4cbc2;
+}
+.el-select-dropdown__item.is-hovering,
+.el-select-dropdown__item:hover,
+.el-dropdown-menu__item:hover {
+  background: #1a211c !important;
+  color: var(--green) !important;
+}
+.el-select-dropdown__item.is-selected {
+  color: var(--green) !important;
+}
+.el-popper .el-popper__arrow::before {
+  background: var(--panel2) !important;
+  border-color: var(--frame) !important;
+}
+
+/* 通知 */
+.el-notification {
+  background: var(--panel) !important;
+  border: 1px solid var(--frame) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5) !important;
+}
+.el-notification__title {
+  font-family: var(--font-tech);
+  letter-spacing: 0.05em;
+}
+
+/* 抽屉 */
+.el-drawer {
+  background: var(--nav) !important;
+  border-left: 1px solid var(--line);
+}
+
+/* 轮播指示器：方块 */
+.el-carousel__indicator .el-carousel__button {
+  width: 16px;
+  height: 3px;
+  border-radius: 0;
+  background: #344239;
+}
+.el-carousel__indicator.is-active .el-carousel__button {
+  background: var(--green);
+}
+.el-carousel__arrow {
+  border-radius: 0;
+  background: rgba(17, 20, 17, 0.8);
+  border: 1px solid var(--frame);
+}
+.el-carousel__arrow:hover {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+/* 链接 */
+.el-link.el-link--primary {
+  --el-link-text-color: var(--green);
+  --el-link-hover-text-color: var(--green-hover);
 }

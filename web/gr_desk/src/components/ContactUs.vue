@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import axios from 'axios'
+import { useI18n } from 'vue-i18n'
 import { ElNotification } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import axiosHttp from '@/http.ts'
+
+const { t } = useI18n()
 
 interface Consult {
   title: string
@@ -14,7 +17,7 @@ interface Consult {
   qq: string
 }
 
-const consult = ref<Consult>({
+const emptyConsult = (): Consult => ({
   title: '',
   yourName: '',
   consultType: '',
@@ -23,6 +26,21 @@ const consult = ref<Consult>({
   wechat: '',
   qq: '',
 })
+
+const consult = ref<Consult>(emptyConsult())
+const formRef = ref<FormInstance>()
+const submitting = ref(false)
+
+const rules = computed<FormRules<Consult>>(() => ({
+  title: [{ required: true, message: t('consult.required'), trigger: 'blur' }],
+  yourName: [{ required: true, message: t('consult.required'), trigger: 'blur' }],
+  consultType: [{ required: true, message: t('consult.required'), trigger: 'change' }],
+  content: [{ required: true, message: t('consult.required'), trigger: 'blur' }],
+  email: [
+    { required: true, message: t('consult.required'), trigger: 'blur' },
+    { type: 'email', message: t('consult.emailInvalid'), trigger: 'blur' },
+  ],
+}))
 
 // 父组件传入的 v-model
 const props = defineProps<{
@@ -44,15 +62,13 @@ const close = () => {
 }
 
 async function confirm() {
-  // 内部业务逻辑
-  visible.value = false
+  if (!formRef.value) return
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
 
-  await postContact()
-}
-
-async function postContact() {
+  submitting.value = true
   try {
-    const { data } = await axiosHttp.post(
+    await axiosHttp.post(
       '/api/v1/create/new/consult',
       {
         title: consult.value.title,
@@ -61,83 +77,83 @@ async function postContact() {
         content: consult.value.content,
         email: consult.value.email,
         wechat: consult.value.wechat,
-        qq: consult.value.wechat,
+        qq: consult.value.qq,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
+      { headers: { 'Content-Type': 'application/json' } },
     )
-    console.log('data: ', data)
 
     ElNotification({
-      title: '提交成功',
-      message: '已收到您的咨询, 我们会尽快回复',
+      title: t('consult.successTitle'),
+      message: t('consult.successMessage'),
       type: 'primary',
     })
+    visible.value = false
+    consult.value = emptyConsult()
+    formRef.value?.clearValidate()
   } catch (error) {
     console.log('create consult error:', error)
     ElNotification({
-      title: '提交失败',
-      message: '请填写必要信息后再提交',
+      title: t('consult.failTitle'),
+      message: t('consult.failMessage'),
       type: 'warning',
     })
+  } finally {
+    submitting.value = false
   }
 }
 </script>
 
 <template>
-  <el-dialog v-model="visible" :modal="false" modal-penetrable align-center>
+  <el-dialog v-model="visible" align-center class="!max-w-[92vw] !w-140">
     <template #header>
-      <el-text class="!text-lg !text-slate-700">请填写您的咨询信息</el-text>
+      <span class="text-lg text-slate-200">{{ t('consult.dialogTitle') }}</span>
     </template>
 
-    <el-form :model="consult" label-width="auto" style="max-width: 600px">
-      <el-form-item label="您要咨询的是*">
+    <el-form ref="formRef" :model="consult" :rules="rules" label-width="auto">
+      <el-form-item :label="t('consult.title')" prop="title">
         <el-input v-model="consult.title" />
       </el-form-item>
 
-      <el-form-item label="怎么称呼您*">
+      <el-form-item :label="t('consult.yourName')" prop="yourName">
         <el-input v-model="consult.yourName" />
       </el-form-item>
 
-      <el-form-item label="合作类型*">
-        <el-select v-model="consult.consultType" placeholder="请选择合作类型">
-          <el-option label="个人" value="personal" />
-          <el-option label="企业" value="enterprise" />
+      <el-form-item :label="t('consult.type')" prop="consultType">
+        <el-select v-model="consult.consultType" :placeholder="t('consult.typePlaceholder')">
+          <el-option :label="t('consult.typePersonal')" value="personal" />
+          <el-option :label="t('consult.typeEnterprise')" value="enterprise" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="详细内容*">
+      <el-form-item :label="t('consult.content')" prop="content">
         <el-input
           v-model="consult.content"
           :rows="2"
           type="textarea"
-          placeholder="请输入您想要咨询的内容"
+          :placeholder="t('consult.contentPlaceholder')"
         />
       </el-form-item>
 
-      <el-form-item label="邮件*">
+      <el-form-item :label="t('consult.email')" prop="email">
         <el-input v-model="consult.email" />
       </el-form-item>
 
-      <el-form-item label="微信">
+      <el-form-item :label="t('consult.wechat')" prop="wechat">
         <el-input v-model="consult.wechat" />
       </el-form-item>
 
-      <el-form-item label="QQ">
+      <el-form-item :label="t('consult.qq')" prop="qq">
         <el-input v-model="consult.qq" />
       </el-form-item>
     </el-form>
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="close">取消</el-button>
-        <el-button type="primary" @click="confirm"> 提交 </el-button>
+        <el-button @click="close">{{ t('consult.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="confirm">
+          {{ t('consult.submit') }}
+        </el-button>
       </div>
     </template>
   </el-dialog>
 </template>
-
-<style scoped></style>

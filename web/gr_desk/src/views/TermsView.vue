@@ -1,9 +1,18 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+
+const { t } = useI18n()
+const router = useRouter()
+</script>
 
 <template>
   <div class="policy-page">
-    <el-card class="policy-card" shadow="never">
-      <h1>GoDesk 使用条款</h1>
+    <div class="policy-card cyber-panel">
+      <el-link type="primary" :underline="false" class="back-link" @click="router.push('/main')">
+        ← {{ t('legal.backHome') }}
+      </el-link>
+      <h1>{{ t('legal.termsTitle') }}</h1>
       <p class="update-time">最后更新日期：2025-12-01</p>
 
       <el-divider />
@@ -110,7 +119,7 @@
           因本条款产生的争议，应通过友好协商解决。
         </p>
       </section>
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -120,20 +129,31 @@
   margin: 0 auto;
   padding: 24px;
 }
+.policy-card {
+  padding: 32px;
+}
+.back-link {
+  margin-bottom: 16px;
+}
 .policy-card h1 {
+  font-family: var(--font-tech);
+  letter-spacing: 0.05em;
   font-size: 28px;
   margin-bottom: 8px;
+  color: var(--text);
 }
 .update-time {
-  color: #999;
+  color: var(--muted);
   font-size: 14px;
 }
 .policy-card h2 {
   margin-top: 28px;
+  color: var(--text);
 }
 .policy-card p,
 .policy-card li {
   line-height: 1.9;
+  color: var(--muted);
 }
 </style>
 

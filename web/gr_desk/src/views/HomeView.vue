@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import cloudIcon from '@/assets/icon/ic_cloud.svg'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+
 import downloadIcon from '@/assets/icon/ic_download.svg'
+import writeIcon from '@/assets/icon/ic_write.svg'
+import emailIcon from '@/assets/icon/ic_email.svg'
+import cnFlag from '@/assets/icon/ic_cn_flag.svg'
+import usFlag from '@/assets/icon/ic_us_flag.svg'
+
 import preview1 from '@/assets/preview/preview-1.png'
 import preview2 from '@/assets/preview/preview-2.png'
 import preview3 from '@/assets/preview/preview-3.png'
@@ -11,8 +19,7 @@ import webInfoFileTransfer from '@/assets/main/ic_file_transfer.svg'
 import webInfoSecurity from '@/assets/main/ic_private.svg'
 import webInfoConfigurable from '@/assets/main/ic_custmize.svg'
 import webInfoFast from '@/assets/main/ic_speed.svg'
-import checkOk from '@/assets/icon/ic_check_ok.svg'
-import heartIcon from '@/assets/icon/ic_heart.svg'
+
 import resGame from '@/assets/main/res-game.jpg'
 import resFinancial from '@/assets/main/res-financial.jpg'
 import resEnergy from '@/assets/main/res-energy.jpg'
@@ -21,20 +28,70 @@ import resMedical from '@/assets/main/res-medical.jpg'
 import resCatering from '@/assets/main/res-catering.jpg'
 import resEducation from '@/assets/main/res-education.jpg'
 import resSupport from '@/assets/main/res-support.jpg'
-import BottomDecoratorDivider from '@/components/BottomDecoratorDivider.vue'
-import emailIcon from '@/assets/icon/ic_email.svg'
-import writeIcon from '@/assets/icon/ic_write.svg'
-import cnFlag from '@/assets/icon/ic_cn_flag.svg'
-import usFlag from '@/assets/icon/ic_us_flag.svg'
-import { useRouter } from 'vue-router'
-import ContactUs from '@/components/ContactUs.vue'
-import { ref } from 'vue'
-import Globe from '@/components/Globe.vue'
 
+import DotGlobe from '@/components/DotGlobe.vue'
+import ContactUs from '@/components/ContactUs.vue'
+import FeatureSection from '@/components/FeatureSection.vue'
+
+const { t, tm } = useI18n()
 const router = useRouter()
 
-// 定义图片数组
+// 截图轮播
 const imageList = [preview1, preview4, preview2, preview3]
+
+// 轮播容器按 16:9 计算高度（el-carousel 需要显式高度）
+const carouselWrapRef = ref<HTMLElement>()
+const carouselHeight = ref('405px')
+let carouselObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (!carouselWrapRef.value) return
+  carouselObserver = new ResizeObserver((entries) => {
+    const width = entries[0]?.contentRect.width ?? 0
+    if (width > 0) {
+      carouselHeight.value = `${(width * 9) / 16}px`
+    }
+  })
+  carouselObserver.observe(carouselWrapRef.value)
+})
+
+onBeforeUnmount(() => {
+  carouselObserver?.disconnect()
+})
+
+// 行业方案配图（顺序与 locales industries.items 对应）
+const industryImages = [
+  resGame,
+  resEducation,
+  resFinancial,
+  resEnergy,
+  resArchitecture,
+  resMedical,
+  resSupport,
+  resCatering,
+]
+
+interface FeatureItem {
+  title: string
+  desc: string
+}
+
+const featureItems = (key: string): FeatureItem[] => tm(key) as FeatureItem[]
+
+const sections = computed(() => [
+  { key: 'experience', title: t('features.experience.title'), image: webInfoMain, imageLeft: false },
+  { key: 'fileTransfer', title: t('features.fileTransfer.title'), image: webInfoFileTransfer, imageLeft: true },
+  { key: 'security', title: t('features.security.title'), image: webInfoSecurity, imageLeft: false },
+  { key: 'custom', title: t('features.custom.title'), image: webInfoConfigurable, imageLeft: true },
+  { key: 'performance', title: t('features.performance.title'), image: webInfoFast, imageLeft: false },
+])
+
+const kpis = computed(() => tm('hero.kpis') as Array<{ num: string; label: string }>)
+
+const industryItems = computed(() => {
+  const names = tm('industries.items') as string[]
+  return names.map((name, i) => ({ name, image: industryImages[i] }))
+})
 
 function downloadKuaKe() {
   window.open('https://pan.quark.cn/s/bfe11452992b', '_blank')
@@ -55,500 +112,202 @@ const goContactUs = () => {
 </script>
 
 <template>
-  <!-- Contact us -->
   <ContactUs v-model="contactUsVisible" />
 
-  <div>
-    <div
-      class="bg-background relative flex size-full min-h-120 flex-col items-center justify-center overflow-hidden px-40 pt-8 pb-40 md:pb-60"
+  <!-- Hero：HUD 网格 + 点阵地球 + 等宽大标题 -->
+  <section class="bg-hud-grid relative flex min-h-[72vh] flex-col items-center justify-center overflow-hidden">
+    <h1
+      class="pointer-events-none relative z-10 text-center font-tech text-5xl md:text-7xl font-bold tracking-[0.18em] whitespace-pre-wrap text-cyber-text"
     >
-      <span
-        class="pointer-events-none bg-linear-to-b from-black to-gray-300/80 bg-clip-text text-center text-8xl leading-none font-semibold whitespace-pre-wrap text-transparent max-lg:-mt-12 dark:from-white dark:to-slate-900/10"
-      >
-        GoDesk
-      </span>
-      <Globe class="top-28" />
-      <!--        <div-->
-      <!--            class="pointer-events-none absolute inset-0 h-full bg-[radial-gradient(circle_at_50%_200%,rgba(0,0,0,0.2),rgba(255,255,255,0))]"-->
-      <!--        />-->
-    </div>
-  </div>
+      GO<span class="text-cyber-green">DESK</span>
+    </h1>
+    <p class="pointer-events-none relative z-10 mt-4 font-tech text-xs md:text-sm tracking-[0.14em] text-cyber-green">
+      {{ t('hero.status') }}<span class="cursor-blink">▌</span>
+    </p>
+    <DotGlobe class="top-16 md:top-24" />
+  </section>
 
-  <div class="h-14"></div>
+  <!-- 标语 + 下载 -->
+  <section v-reveal class="section-container flex flex-col items-center text-center">
+    <h2 class="text-3xl md:text-5xl font-bold">
+      <span class="text-cyber-text">{{ t('hero.slogan1') }}</span>
+      <span class="mx-2 text-cyber-green">//</span>
+      <span class="text-cyber-green">{{ t('hero.slogan2') }}</span>
+      <span class="mx-2 text-cyber-green">//</span>
+      <span class="text-cyber-text">{{ t('hero.slogan3') }}</span>
+    </h2>
 
-  <div class="bg-white flex justify-center">
-    <el-text class="!text-6xl font-bold !text-slate-800">极速</el-text>
-    <el-text class="!text-3xl font-bold !text-slate-800">•</el-text>
-    <el-text class="!text-6xl font-bold !text-blue-500">专注</el-text>
-    <el-text class="!text-3xl font-bold !text-blue-500">•</el-text>
-    <el-text class="!text-6xl font-bold !text-slate-800">远程办公和访问</el-text>
-  </div>
+    <p class="mt-4 max-w-2xl text-base text-cyber-muted">{{ t('hero.subtitle') }}</p>
 
-  <div class="h-4"></div>
-
-  <div class="bg-white flex justify-center">
-    <el-text class="!text-xl !text-slate-700"
-      >安全可靠,丝滑流畅,数据完全自主可控的远程办公和访问体验</el-text
-    >
-  </div>
-
-  <div class="h-8"></div>
-
-  <!--  <div class="bg-white flex justify-center">-->
-  <!--    <img-->
-  <!--      style="width: 760px"-->
-  <!--      src="../assets/main/web-main.jpg"-->
-  <!--    />-->
-  <!--  </div>-->
-
-  <!--  <div class="bg-white flex justify-center">-->
-  <!--    <TopDecoratorDivider />-->
-  <!--  </div>-->
-
-  <div class="h-6"></div>
-
-  <div class="bg-white flex justify-center">
-    <el-popover placement="right" :width="235" trigger="click">
-      <template #reference>
-        <el-button type="primary" class="w-32 !h-10" round>
-          <el-image
-            :src="downloadIcon"
-            fit="cover"
-            style="width: 20px; height: 20px; cursor: pointer"
-          ></el-image>
-          <span>下载</span>
-        </el-button>
-      </template>
-
-      <div class="w-full h-30 flex flex-col justify-center items-start">
-        <div class="flex pl-5">
-          <el-image :src="cnFlag" fit="cover" class="rounded-full w-8 h-8"></el-image>
-          <div class="w-3"></div>
-          <el-button @click="downloadKuaKe">下载(线路1)</el-button>
-        </div>
-
-        <div class="h-4"></div>
-
-        <div class="flex pl-5">
-          <el-image :src="usFlag" fit="cover" class="rounded-full w-8 h-8"></el-image>
-          <div class="w-3"></div>
-          <el-button @click="downloadGithub">下载(线路2)</el-button>
-        </div>
-      </div>
-    </el-popover>
-
-    <el-button type="primary" @click="goToPrice" class="w-32 !h-10" round>
-      <el-image
-        :src="cloudIcon"
-        fit="cover"
-        style="width: 20px; height: 20px; cursor: pointer"
-      ></el-image>
-      <div class="w-1"></div>
-      <span>自我部署</span>
-    </el-button>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="bg-white flex justify-center">
-    <!-- 1120 630 -->
-    <el-carousel :interval="5000" arrow="always" class="custom-carousel" height="745px">
-      <el-carousel-item v-for="(image, index) in imageList" :key="index">
-        <div class="w-full h-full bg-white rounded-xl border border-gray-400 overflow-hidden">
-          <el-image :src="image" class="w-full h-full" fit="cover" />
-        </div>
-      </el-carousel-item>
-    </el-carousel>
-  </div>
-
-  <div class="h-12"></div>
-
-  <!-- MAIN -->
-  <div class="flex justify-center">
-    <div shadow="hover" :body-style="{ padding: '0px' }">
-      <div class="flex justify-center">
-        <div class="w-140 h-105">
-          <div class="h-13"></div>
-          <el-text class="!text-5xl font-bold !text-slate-800 !pl-13">全新体验</el-text>
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">高清画质</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >多屏同显, 高至8K 4:4:4 60帧的全彩体验</el-text
-            >
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">体验UP</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">直连中转双网+RTC, 连接更流畅</el-text>
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">坚实稳定</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >持久稳定不卡顿, 字体清晰, 响应精准</el-text
-            >
-          </div>
-        </div>
-
-        <div class="w-140 h-105 flex justify-center">
-          <el-image :src="webInfoMain" class="!w-90 !h-90"></el-image>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <div>
-      <div class="flex justify-center">
-        <div class="w-140 h-105 flex justify-center">
-          <el-image :src="webInfoFileTransfer" class="!w-90 !h-90"></el-image>
-        </div>
-
-        <div class="w-30"></div>
-
-        <div class="w-140 h-100">
-          <div class="h-13"></div>
-          <el-text class="!text-5xl font-bold !text-slate-800 !pl-13">文件传输</el-text>
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">快速稳定</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">单个, 批量快速双向传输</el-text>
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">权限可控</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >文件传输权限隔离, 安全稳定不混乱</el-text
-            >
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">操作简洁</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">右键唤出菜单即可直接粘贴</el-text>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <div shadow="hover" :body-style="{ padding: '0px' }">
-      <div class="flex justify-center">
-        <div class="w-140 h-120">
-          <div class="h-11"></div>
-          <el-text class="!text-5xl font-bold !text-slate-800 !pl-13">自主安全</el-text>
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">数据主权</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >独立部署到您的机房, 数据完全可控</el-text
-            >
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">操作日志</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >访问, 文件传输全记录, 安全无小事</el-text
-            >
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">设备监控</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">无痕查看管理每台设备的工作状况</el-text>
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">屏幕录制</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">随时录制您的操作</el-text>
-          </div>
-        </div>
-        <div class="w-140 h-120 flex justify-center">
-          <el-image :src="webInfoSecurity" class="!w-90 !h-90"></el-image>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <div shadow="hover" :body-style="{ padding: '0px' }">
-      <div class="flex justify-center">
-        <div class="w-140 h-105 flex justify-center">
-          <el-image :src="webInfoConfigurable" class="!w-90 !h-90"></el-image>
-        </div>
-
-        <div class="w-30"></div>
-
-        <div class="w-140 h-100">
-          <div class="h-13"></div>
-          <el-text class="!text-5xl font-bold !text-slate-800 !pl-13">高级定制</el-text>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">按需修改</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">多项全面的配置供您选择</el-text>
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="heartIcon" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">联系我们定制方案</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-bold !text-slate-700"
-              >godesk-sales@outlook.com</el-text
-            >
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <div shadow="hover" :body-style="{ padding: '0px' }">
-      <div class="flex justify-center">
-        <div class="w-140 h-105">
-          <div class="h-13"></div>
-          <el-text class="!text-5xl font-bold !text-slate-800 !pl-13">性能拉满</el-text>
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">硬件加速</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >AMD Nvidia硬编码与全面,全彩(4:4:4)的硬解码</el-text
-            >
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">算法优化</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal">精准调控与数据控制到达</el-text>
-          </div>
-
-          <div class="h-5"></div>
-          <div class="h-10 flex items-center">
-            <div class="!pl-13" />
-            <el-image :src="checkOk" class="!w-7 !h-7"></el-image>
-            <el-text class="!pl-2 !text-xl font-bold !text-slate-700">资源效率</el-text>
-          </div>
-          <div>
-            <el-text class="!pl-22 !text-base font-normal"
-              >渲染效率高, 资源占用低, 可放心运行您的大型三维程序</el-text
-            >
-          </div>
-        </div>
-        <div class="w-140 h-105 flex justify-center">
-          <el-image :src="webInfoFast" class="!w-90 !h-90"></el-image>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <el-text class="!text-3xl font-bold !text-slate-800">您的行业解决方案</el-text>
-  </div>
-
-  <div class="h-10"></div>
-  <div class="flex justify-center">
-    <el-card :body-style="{ padding: '0px' }" shadow="hover" class="">
-      <el-image :src="resGame" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">游戏/动画/影视</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resEducation" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">教育</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resFinancial" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">金融</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resEnergy" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">能源/矿产</span>
-      </div>
-    </el-card>
-  </div>
-
-  <div class="h-12"></div>
-  <div class="flex justify-center">
-    <el-card :body-style="{ padding: '0px' }" shadow="hover" class="">
-      <el-image :src="resArchitecture" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">建筑</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resMedical" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">医疗与健康</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resSupport" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-700 font-bold text-lg">远程支持</span>
-      </div>
-    </el-card>
-
-    <div class="w-12"></div>
-    <el-card :body-style="{ padding: '0px' }" shadow="hover">
-      <el-image :src="resCatering" class="card-image"></el-image>
-      <div class="flex justify-center pt-4 pb-4">
-        <span class="!text-slate-800 font-bold text-lg">餐饮服务</span>
-      </div>
-    </el-card>
-  </div>
-
-  <div class="h-12"></div>
-
-  <div class="flex justify-center">
-    <el-text class="!text-3xl font-bold !text-slate-800">即刻体验企业级安全的远程办公</el-text>
-  </div>
-
-  <div class="h-10"></div>
-
-  <div class="bg-white flex justify-center">
-    <el-button type="primary" class="w-40 !h-10" round @click="goContactUs">
-      <el-image
-        :src="writeIcon"
-        fit="cover"
-        style="width: 20px; height: 20px; cursor: pointer"
-      ></el-image>
-      <div class="w-1"></div>
-      <span>给我们留言</span>
-    </el-button>
-
-    <div class="w-5"></div>
-
-    <div>
-      <el-popover placement="top" :width="235" trigger="click">
+    <div class="mt-8 flex flex-wrap justify-center gap-4">
+      <el-popover placement="bottom" :width="235" trigger="click">
         <template #reference>
-          <el-button type="primary" class="w-40 !h-10" round>
-            <el-image
-              :src="emailIcon"
-              fit="cover"
-              style="width: 20px; height: 20px; cursor: pointer"
-            ></el-image>
-            <div class="w-1"></div>
-            <span>给我们发邮件</span>
+          <el-button type="primary" class="!h-11 !px-8">
+            <el-image :src="downloadIcon" fit="cover" class="h-5 w-5" />
+            <span class="ml-1">{{ t('hero.download') }}</span>
           </el-button>
         </template>
 
-        <div class="w-full h-10 flex flex-col justify-center items-center">
-          <el-text class="!text-base !font-bold !text-slate-700">godesk-sales@outlook.com</el-text>
+        <div class="flex w-full flex-col gap-3 py-2">
+          <div class="flex items-center gap-3">
+            <el-image :src="cnFlag" fit="cover" class="h-8 w-8" />
+            <el-button @click="downloadKuaKe">{{ t('hero.downloadLine1') }}</el-button>
+          </div>
+          <div class="flex items-center gap-3">
+            <el-image :src="usFlag" fit="cover" class="h-8 w-8" />
+            <el-button @click="downloadGithub">{{ t('hero.downloadLine2') }}</el-button>
+          </div>
         </div>
       </el-popover>
-    </div>
-  </div>
 
-  <div class="h-16" />
-  <div class="bg-white flex justify-center">
-    <BottomDecoratorDivider />
-  </div>
+      <el-button class="!h-11 !px-8" @click="goToPrice">
+        <span>{{ t('hero.selfHost') }}</span>
+      </el-button>
+    </div>
+  </section>
+
+  <!-- KPI 数据条 -->
+  <section v-reveal class="section-container mt-14 md:mt-20">
+    <div class="cyber-panel grid grid-cols-2 gap-6 p-6 md:grid-cols-4 md:p-8">
+      <div v-for="kpi in kpis" :key="kpi.label" class="flex flex-col gap-2">
+        <div class="kpi-num">{{ kpi.num }}</div>
+        <div class="font-tech text-[11px] tracking-[0.14em] text-cyber-muted uppercase">{{ kpi.label }}</div>
+        <div class="kpi-line"><i style="width: 72%"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 产品截图轮播 -->
+  <section v-reveal class="section-container mt-14 md:mt-20">
+    <div class="cyber-label mb-4 text-center">// SCREENSHOTS</div>
+    <div ref="carouselWrapRef" class="cyber-corners mx-auto w-full max-w-6xl">
+      <el-carousel :interval="5000" arrow="always" :height="carouselHeight">
+        <el-carousel-item v-for="(image, index) in imageList" :key="index">
+          <div class="h-full w-full overflow-hidden border border-cyber-frame">
+            <el-image :src="image" class="h-full w-full" fit="cover" />
+          </div>
+        </el-carousel-item>
+      </el-carousel>
+    </div>
+  </section>
+
+  <!-- 卖点区块（图文交错） -->
+  <FeatureSection
+    v-for="(section, si) in sections"
+    :key="section.key"
+    :title="section.title"
+    :items="featureItems(`features.${section.key}.items`)"
+    :image="section.image"
+    :image-left="section.imageLeft"
+    :index="`0${si + 1}`"
+  >
+    <template v-if="section.key === 'custom'">
+      <p class="mt-2 pl-5 font-tech font-bold tracking-wider text-cyber-green">
+        {{ t('features.custom.email') }}
+      </p>
+    </template>
+  </FeatureSection>
+
+  <!-- 行业解决方案 -->
+  <section class="section-container mt-6 md:mt-10">
+    <h2 v-reveal class="cyber-title justify-center text-xl md:text-2xl font-bold text-cyber-text">
+      {{ t('industries.title') }}
+    </h2>
+
+    <div class="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">
+      <div
+        v-for="(item, index) in industryItems"
+        :key="item.name"
+        v-reveal="(index % 4) * 100"
+        class="industry-card group"
+      >
+        <div class="overflow-hidden">
+          <img
+            :src="item.image"
+            :alt="item.name"
+            class="aspect-[23/25] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        </div>
+        <div class="border-t border-cyber-line bg-cyber-bg2 py-2.5 text-center">
+          <span class="font-tech text-xs md:text-sm tracking-wider text-cyber-text">{{ item.name }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 底部 CTA -->
+  <section v-reveal class="section-container mt-16 md:mt-24">
+    <div class="cyber-panel cyber-panel-green cyber-corners flex flex-col items-center gap-6 px-6 py-12 text-center">
+      <div class="cyber-label">// READY</div>
+      <h2 class="font-tech text-xl md:text-2xl font-bold tracking-wider text-cyber-text">{{ t('cta.title') }}</h2>
+
+      <div class="flex flex-wrap justify-center gap-4">
+        <el-button type="primary" class="!h-11 !px-8" @click="goContactUs">
+          <el-image :src="writeIcon" fit="cover" class="h-5 w-5" />
+          <span class="ml-1">{{ t('cta.message') }}</span>
+        </el-button>
+
+        <el-popover placement="top" :width="265" trigger="click">
+          <template #reference>
+            <el-button class="!h-11 !px-8">
+              <el-image :src="emailIcon" fit="cover" class="h-5 w-5" />
+              <span class="ml-1">{{ t('cta.email') }}</span>
+            </el-button>
+          </template>
+
+          <div class="flex h-10 w-full items-center justify-center">
+            <span class="font-tech text-base font-bold">{{ t('cta.emailAddress') }}</span>
+          </div>
+        </el-popover>
+      </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.custom-main-carousel {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border: 2px solid #eeeeee;
-  border-radius: 5px;
+/* 行业卡片：切角边框 */
+.industry-card {
+  --cut: 9px;
+  background: var(--panel);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  position: relative;
+  isolation: isolate;
+}
+.industry-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--frame);
+  clip-path: inherit;
+  z-index: -2;
+  transition: background 0.2s;
+}
+.industry-card::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: var(--panel);
+  clip-path: inherit;
+  z-index: -1;
+}
+.industry-card:hover::before {
+  background: var(--green-dark);
 }
 
-.custom-carousel {
-  width: 1320px;
-  height: 745px;
+/* 终端光标闪烁 */
+.cursor-blink {
+  animation: blink 1s step-end infinite;
 }
-
-.card-image {
-  width: 230px;
-  height: 250px;
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
 }
 </style>

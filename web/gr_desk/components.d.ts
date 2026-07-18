@@ -12,21 +12,19 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    BottomDecoratorDivider: typeof import('./src/components/BottomDecoratorDivider.vue')['default']
     ContactUs: typeof import('./src/components/ContactUs.vue')['default']
-    Globe: typeof import('./src/components/Globe.vue')['default']
+    DotGlobe: typeof import('./src/components/DotGlobe.vue')['default']
+    FeatureSection: typeof import('./src/components/FeatureSection.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    TopDecoratorDivider: typeof import('./src/components/TopDecoratorDivider.vue')['default']
   }
 }
 
 // For TSX support
 declare global {
-  const BottomDecoratorDivider: typeof import('./src/components/BottomDecoratorDivider.vue')['default']
   const ContactUs: typeof import('./src/components/ContactUs.vue')['default']
-  const Globe: typeof import('./src/components/Globe.vue')['default']
+  const DotGlobe: typeof import('./src/components/DotGlobe.vue')['default']
+  const FeatureSection: typeof import('./src/components/FeatureSection.vue')['default']
   const RouterLink: typeof import('vue-router')['RouterLink']
   const RouterView: typeof import('vue-router')['RouterView']
-  const TopDecoratorDivider: typeof import('./src/components/TopDecoratorDivider.vue')['default']
 }
