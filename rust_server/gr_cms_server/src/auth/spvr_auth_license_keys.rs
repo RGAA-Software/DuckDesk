@@ -84,6 +84,9 @@ pub fn license_to_authorization(
         deploy_str,
         role: license.role,
         used_time_ms: 0,
+        product: license.product.clone(),
+        revoked: existing.map(|a| a.revoked).unwrap_or(false),
+        revoked_at_ms: existing.map(|a| a.revoked_at_ms).unwrap_or(0),
     }
 }
 
@@ -126,6 +129,7 @@ mod tests {
             app_secret: "secret-1".to_string(),
             username: "SpvrAdmin".to_string(),
             password: "p@ss1".to_string(),
+            product: "cms".to_string(),
         }
     }
 

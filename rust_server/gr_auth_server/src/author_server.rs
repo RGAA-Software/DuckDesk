@@ -3,6 +3,9 @@ use crate::author_handler::{
 };
 use crate::authorization_handler::{
     handle_create_new_authorization, handle_create_new_deploy_authorization,
+    handle_gopico_create_new_deploy_authorization, handle_gopico_query_authorizations,
+    handle_gopico_query_deploy_authorization_by_id, handle_gopico_revoke_authorization,
+    handle_gopico_update_authorization, handle_gopico_verify_online,
     handle_query_authorization_by_id, handle_query_authorization_by_name,
     handle_query_authorization_like_name, handle_query_authorizations,
     handle_query_deploy_authorization_by_id, handle_update_authorization,
@@ -167,6 +170,43 @@ pub fn build_router(web_dir: PathBuf) -> Router {
             post(handle_update_authorization)
                 .layer(middleware::from_fn(author_admin_filter::filter))
                 .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        // GoPico-specific routes
+        .route(
+            "/api/v1/gopico/create/new/deploy/authorization",
+            post(handle_gopico_create_new_deploy_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/gopico/update/authorization",
+            post(handle_gopico_update_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/gopico/query/authorizations",
+            get(handle_gopico_query_authorizations)
+                .layer(middleware::from_fn(author_page_size_filter::filter))
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/gopico/query/deploy/authorization/by/id",
+            get(handle_gopico_query_deploy_authorization_by_id)
+                .layer(middleware::from_fn(author_auth_id_filter::filter))
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/gopico/revoke/authorization",
+            post(handle_gopico_revoke_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/gopico/verify/online",
+            post(handle_gopico_verify_online),
         )
 }
 
@@ -461,6 +501,135 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn gopico_create_verify_online_and_revoke_flow() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+        use std::sync::Mutex;
+
+        // Serialize against other tests that mutate signer / memory store.
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _guard = LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+        let create_body = r#"{
+            "name": "gopico-e2e-customer",
+            "machine_code": "mc-gopico-e2e",
+            "days": 30,
+            "max_devices": 40,
+            "role": 1
+        }"#;
+
+        let create_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/create/new/deploy/authorization")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .header("content-type", "application/json")
+                    .body(Body::from(create_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(create_resp.status(), StatusCode::OK);
+        let create_bytes = to_bytes(create_resp.into_body(), usize::MAX).await.unwrap();
+        let create_json: Value = serde_json::from_slice(&create_bytes).unwrap();
+        assert_eq!(create_json["code"], 200);
+        let deploy = create_json["data"].as_str().expect("deploy string");
+        assert!(deploy.contains('.'));
+
+        // Online verify — valid.
+        let verify_body = format!(
+            r#"{{"data":"{}","machine_code":"mc-gopico-e2e"}}"#,
+            deploy
+        );
+        let verify_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/verify/online")
+                    .header("content-type", "application/json")
+                    .body(Body::from(verify_body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(verify_resp.status(), StatusCode::OK);
+        let verify_bytes = to_bytes(verify_resp.into_body(), usize::MAX).await.unwrap();
+        let verify_json: Value = serde_json::from_slice(&verify_bytes).unwrap();
+        assert_eq!(verify_json["code"], 200);
+        assert_eq!(verify_json["data"]["valid"], true);
+        assert_eq!(verify_json["data"]["max_devices"], 40);
+        assert_eq!(verify_json["data"]["product"], "gopico");
+        assert_eq!(verify_json["data"]["revoked"], false);
+        let auth_id = verify_json["data"]["auth_id"].as_str().unwrap().to_string();
+
+        // List gopico authorizations.
+        let list_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/gopico/query/authorizations?page=1&page_size=20")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(list_resp.status(), StatusCode::OK);
+        let list_bytes = to_bytes(list_resp.into_body(), usize::MAX).await.unwrap();
+        let list_json: Value = serde_json::from_slice(&list_bytes).unwrap();
+        let items = list_json["data"].as_array().unwrap();
+        assert!(items.iter().any(|i| i["auth_id"] == auth_id));
+        assert!(items.iter().all(|i| i["product"] == "gopico"));
+
+        // Revoke.
+        let revoke_body = format!(r#"{{"auth_id":"{auth_id}"}}"#);
+        let revoke_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/revoke/authorization")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .header("content-type", "application/json")
+                    .body(Body::from(revoke_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(revoke_resp.status(), StatusCode::OK);
+
+        // Online verify — revoked.
+        let verify2 = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/verify/online")
+                    .header("content-type", "application/json")
+                    .body(Body::from(verify_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(verify2.status(), StatusCode::OK);
+        let verify2_bytes = to_bytes(verify2.into_body(), usize::MAX).await.unwrap();
+        let verify2_json: Value = serde_json::from_slice(&verify2_bytes).unwrap();
+        assert_eq!(verify2_json["data"]["valid"], false);
+        assert_eq!(verify2_json["data"]["revoked"], true);
+        assert_eq!(verify2_json["data"]["reason"], "revoked");
+
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
     async fn verify_license_accepts_valid_signed_license() {
         let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
         let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
@@ -479,6 +648,7 @@ mod tests {
             app_secret: "secret".to_string(),
             username: "user".to_string(),
             password: "pass".to_string(),
+            product: "cms".to_string(),
         };
         let signed = gLicenseSigner
             .lock()

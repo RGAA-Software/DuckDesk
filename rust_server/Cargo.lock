@@ -953,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "builder"
-version = "0.1.0"
+version = "3.2.0"
 
 [[package]]
 name = "built"
@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "gr_auth_mgr"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "base64 0.22.1",
  "gr_base",
@@ -2614,7 +2614,7 @@ dependencies = [
 
 [[package]]
 name = "gr_auth_server"
-version = "0.1.0"
+version = "3.2.0"
 dependencies = [
  "argon2",
  "axum",
@@ -2646,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "gr_base"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "gr_cms_server"
-version = "3.0.0"
+version = "3.2.0"
 dependencies = [
  "arboard",
  "axum",
@@ -2728,7 +2728,7 @@ dependencies = [
 
 [[package]]
 name = "gr_desk_server"
-version = "0.1.0"
+version = "3.2.0"
 dependencies = [
  "axum",
  "axum-server",
@@ -2751,7 +2751,7 @@ dependencies = [
 
 [[package]]
 name = "gr_stat_server"
-version = "0.1.0"
+version = "3.2.0"
 dependencies = [
  "axum",
  "axum-server",
@@ -2774,7 +2774,7 @@ dependencies = [
 
 [[package]]
 name = "gr_updater"
-version = "0.1.0"
+version = "3.2.0"
 dependencies = [
  "adlx",
  "anyhow",
@@ -5243,7 +5243,7 @@ dependencies = [
 
 [[package]]
 name = "protocol"
-version = "2.0.1"
+version = "3.2.0"
 dependencies = [
  "prost",
  "prost-build",

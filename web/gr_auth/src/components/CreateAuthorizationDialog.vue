@@ -48,14 +48,31 @@ const handleCreate = async ()  => {
 
   isCreating.value = true
   try {
-    // 2. 调用后台接口
-    const res = await http.post('/create/new/deploy/authorization', validation.value)
+    const isGopico = validation.value.product === 'gopico'
+    const endpoint = isGopico
+      ? '/gopico/create/new/deploy/authorization'
+      : '/create/new/deploy/authorization'
+    const payload = isGopico
+      ? {
+          name: validation.value.name,
+          machine_code: validation.value.machine_code,
+          role: validation.value.role,
+          days: validation.value.days,
+          max_devices: validation.value.max_streams,
+        }
+      : {
+          name: validation.value.name,
+          machine_code: validation.value.machine_code,
+          role: validation.value.role,
+          days: validation.value.days,
+          max_streams: validation.value.max_streams,
+        }
+    const res = await http.post(endpoint, payload)
     deployInfo.value = res.data.data || ''
 
     authStore.triggerRefresh()
     visible.value = false
     deployDialogVisible.value = true
-    // 3. 成功提示
     errorMessage.value = '创建成功'
   } catch (err: any) {
     errorMessage.value = err.response?.data?.message || '创建失败'
@@ -89,8 +106,13 @@ const form = ref({
   machine_code: '',
   role: '',
   days: '',
-  max_streams: ''
+  max_streams: '',
+  product: 'cms' as 'cms' | 'gopico',
 })
+
+const seatLabel = computed(() =>
+  form.value.product === 'gopico' ? 'Max Devices' : 'Max Streams',
+)
 </script>
 
 <template>
@@ -144,6 +166,13 @@ const form = ref({
         <el-input v-model="form.machine_code"></el-input>
       </el-form-item>
 
+      <el-form-item label="Product">
+        <el-select v-model="form.product" placeholder="请选择">
+          <el-option label="CMS" value="cms"></el-option>
+          <el-option label="GoPico" value="gopico"></el-option>
+        </el-select>
+      </el-form-item>
+
       <!-- 用户角色 -->
       <el-form-item label="Customer Role">
         <el-select  v-model="form.role" placeholder="请选择">
@@ -162,8 +191,7 @@ const form = ref({
         </el-select>
       </el-form-item>
 
-      <!-- max streams -->
-      <el-form-item label="Max Streams">
+      <el-form-item :label="seatLabel">
         <el-input v-model="form.max_streams" type="number" min="1" :max="MAX_AUTH_STREAMS"></el-input>
       </el-form-item>
     </el-form>

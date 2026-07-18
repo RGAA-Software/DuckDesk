@@ -3,8 +3,9 @@ use crate::author_api_error::AuthorApiError::AppkeySecretNotPaired;
 use crate::author_http_util::{get_body, get_body_int, get_body_str, get_int_param, get_str_param};
 use crate::author_keys::{
     KEY_CREATE_AUTHORIZATION_AUTH_ID, KEY_CREATE_AUTHORIZATION_DAYS,
-    KEY_CREATE_AUTHORIZATION_MACHINE_CODE, KEY_CREATE_AUTHORIZATION_MAX_STREAMS,
-    KEY_CREATE_AUTHORIZATION_ROLE, KEY_CREATE_AUTHORIZATION_USER_NAME,
+    KEY_CREATE_AUTHORIZATION_MACHINE_CODE, KEY_CREATE_AUTHORIZATION_MAX_DEVICES,
+    KEY_CREATE_AUTHORIZATION_MAX_STREAMS, KEY_CREATE_AUTHORIZATION_ROLE,
+    KEY_CREATE_AUTHORIZATION_USER_NAME,
 };
 use crate::author_license_keys::sign_authorization_model;
 use crate::authorization_manager::AuthorizationError;
@@ -15,8 +16,9 @@ use axum::body::Body;
 use axum::extract::Query;
 use gr_auth_mgr::app_secret_util::is_appkey_secret_paired;
 use gr_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
-use gr_auth_mgr::authorization::{Authorization, AuthorizationVo};
+use gr_auth_mgr::authorization::{Authorization, AuthorizationVo, PRODUCT_GOPICO};
 use gr_base::{RespMessage, ok_resp};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -41,11 +43,7 @@ pub async fn handle_create_new_authorization(
         .await;
     match auth {
         Ok(auth) => Ok(Json(ok_resp(auth))),
-        Err(e) => match e {
-            AuthorizationError::AlreadyExist => Err(AuthorApiError::AlreadyExists),
-            AuthorizationError::DatabaseError => Err(AuthorApiError::DatabaseError),
-            _ => Err(AuthorApiError::DatabaseError),
-        },
+        Err(e) => Err(map_authorization_error(e)),
     }
 }
 
@@ -358,6 +356,295 @@ fn validate_customer_role(role: i32) -> Result<(), AuthorApiError> {
     Ok(())
 }
 
+fn map_authorization_error(e: AuthorizationError) -> AuthorApiError {
+    match e {
+        AuthorizationError::AlreadyExist => AuthorApiError::AlreadyExists,
+        AuthorizationError::NotFound => AuthorApiError::AuthorizationNotFound,
+        AuthorizationError::DatabaseError | AuthorizationError::TimeConvertError => {
+            AuthorApiError::DatabaseError
+        }
+    }
+}
+
+// --- GoPico-specific APIs -------------------------------------------------
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct GopicoOnlineVerifyResponse {
+    pub valid: bool,
+    pub reason: String,
+    pub expires_at_ms: i64,
+    pub max_devices: i32,
+    pub revoked: bool,
+    pub auth_id: String,
+    pub product: String,
+}
+
+pub async fn handle_gopico_create_new_deploy_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<String>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let input = parse_gopico_create_authorization_input(&r)?;
+
+    let auth = gAuthorizationManager
+        .gen_new_authorization_for_product(
+            input.name,
+            input.machine_code,
+            input.days,
+            input.max_streams,
+            input.role,
+            PRODUCT_GOPICO.to_string(),
+        )
+        .await
+        .map_err(|e| match e {
+            AuthorizationError::AlreadyExist => AuthorApiError::AlreadyExists,
+            _ => AuthorApiError::DatabaseError,
+        })?;
+
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let signed = sign_authorization_model(signer, &auth)
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    let deploy_str = signed
+        .to_deploy_string()
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    Ok(Json(ok_resp(deploy_str)))
+}
+
+pub async fn handle_gopico_update_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let input = parse_gopico_update_authorization_input(&r)?;
+
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(input.auth_id.clone())
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if auth.product != PRODUCT_GOPICO {
+        return Err(AuthorApiError::InvalidParams);
+    }
+
+    let mut auth = auth;
+    let current_ts = gr_base::get_current_timestamp();
+    auth.days = input.days;
+    auth.role = input.role;
+    auth.max_streams = input.max_streams;
+    auth.created_timestamp_ms = current_ts;
+    auth.end_timestamp_ms = current_ts + (input.days as i64) * 24 * 3600 * 1000;
+    auth.last_modify_timestamp = current_ts;
+    // Renewing clears soft-revoke so a fresh deploy can be issued.
+    auth.revoked = false;
+    auth.revoked_at_ms = 0;
+
+    if !gAuthorizationManager
+        .update_authorization(input.auth_id.clone(), auth)
+        .await
+    {
+        return Err(AuthorApiError::UpdateAuthFailed);
+    }
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(input.auth_id)
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    Ok(Json(ok_resp(auth)))
+}
+
+pub async fn handle_gopico_query_authorizations(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
+    let page = get_int_param(&query, "page")?;
+    let page_size = get_int_param(&query, "page_size")?;
+    let auth = gAuthorizationManager
+        .query_authorizations_by_product(PRODUCT_GOPICO.to_string(), page, page_size)
+        .await
+        .map_err(|_| AuthorApiError::AuthorizationNotFound)?;
+    Ok(Json(ok_resp(auth)))
+}
+
+pub async fn handle_gopico_query_deploy_authorization_by_id(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<String>>, AuthorApiError> {
+    let auth_id = get_str_param(&query, "auth_id")?;
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id)
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if auth.product != PRODUCT_GOPICO {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let signed = sign_authorization_model(signer, &auth)
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    let deploy_str = signed
+        .to_deploy_string()
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    Ok(Json(ok_resp(deploy_str)))
+}
+
+pub async fn handle_gopico_revoke_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    validate_auth_id(&auth_id)?;
+
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id.clone())
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if auth.product != PRODUCT_GOPICO {
+        return Err(AuthorApiError::InvalidParams);
+    }
+
+    let auth = gAuthorizationManager
+        .revoke_authorization(auth_id)
+        .await
+        .map_err(|e| match e {
+            AuthorizationError::NotFound => AuthorApiError::AuthorizationNotFound,
+            _ => AuthorApiError::UpdateAuthFailed,
+        })?;
+    Ok(Json(ok_resp(auth)))
+}
+
+pub async fn handle_gopico_verify_online(
+    body: Body,
+) -> Result<Json<RespMessage<GopicoOnlineVerifyResponse>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let value: Value =
+        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_str = get_body_str(&value, "data")?;
+    let machine_code = get_body_str(&value, "machine_code")?;
+
+    let signed =
+        SignedLicense::parse_deploy_string(&auth_str).map_err(|_| AuthorApiError::InvalidParams)?;
+
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let verifier = LicenseVerifier::from_public_key_bytes(&signer.public_key_bytes())
+        .map_err(|_| AuthorApiError::DatabaseError)?;
+
+    let now_ms = gr_base::get_current_timestamp();
+    let mut reason = String::new();
+    let mut valid = true;
+
+    if !verifier
+        .verify_signature(&signed)
+        .map_err(|_| AuthorApiError::DatabaseError)?
+    {
+        valid = false;
+        reason = "invalid_signature".to_string();
+    } else if signed.license.product != PRODUCT_GOPICO {
+        valid = false;
+        reason = "wrong_product".to_string();
+    } else if signed.license.machine_code != machine_code {
+        valid = false;
+        reason = "machine_mismatch".to_string();
+    } else if signed.license.expires_at_ms <= now_ms {
+        valid = false;
+        reason = "expired".to_string();
+    }
+
+    let mut revoked = false;
+    if valid {
+        match gAuthorizationManager
+            .query_authorization_by_id(signed.license.auth_id.clone())
+            .await
+        {
+            Some(auth) => {
+                if auth.revoked {
+                    valid = false;
+                    revoked = true;
+                    reason = "revoked".to_string();
+                } else if auth.product != PRODUCT_GOPICO {
+                    valid = false;
+                    reason = "wrong_product".to_string();
+                }
+            }
+            None => {
+                valid = false;
+                reason = "not_found".to_string();
+            }
+        }
+    }
+
+    Ok(Json(ok_resp(GopicoOnlineVerifyResponse {
+        valid,
+        reason,
+        expires_at_ms: signed.license.expires_at_ms,
+        max_devices: signed.license.max_streams,
+        revoked,
+        auth_id: signed.license.auth_id,
+        product: signed.license.product,
+    })))
+}
+
+fn parse_gopico_create_authorization_input(
+    body: &Value,
+) -> Result<CreateAuthorizationInput, AuthorApiError> {
+    let name = get_body_str(body, KEY_CREATE_AUTHORIZATION_USER_NAME)?;
+    let machine_code = get_body_str(body, KEY_CREATE_AUTHORIZATION_MACHINE_CODE)?;
+    let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
+    // Prefer max_devices; fall back to max_streams for convenience.
+    let max_streams = if body.get(KEY_CREATE_AUTHORIZATION_MAX_DEVICES).is_some() {
+        checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_DEVICES)?
+    } else {
+        checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?
+    };
+    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+
+    validate_name(&name)?;
+    validate_machine_code(&machine_code)?;
+    validate_days(days)?;
+    validate_max_streams(max_streams)?;
+    validate_customer_role(role)?;
+
+    Ok(CreateAuthorizationInput {
+        name,
+        machine_code,
+        days,
+        max_streams,
+        role,
+    })
+}
+
+fn parse_gopico_update_authorization_input(
+    body: &Value,
+) -> Result<UpdateAuthorizationInput, AuthorApiError> {
+    let auth_id = get_body_str(body, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
+    let max_streams = if body.get(KEY_CREATE_AUTHORIZATION_MAX_DEVICES).is_some() {
+        checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_DEVICES)?
+    } else {
+        checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?
+    };
+    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+
+    validate_auth_id(&auth_id)?;
+    validate_days(days)?;
+    validate_max_streams(max_streams)?;
+    validate_customer_role(role)?;
+
+    Ok(UpdateAuthorizationInput {
+        auth_id,
+        days,
+        max_streams,
+        role,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -528,5 +815,19 @@ mod tests {
         body["days"] = json!(i64::from(i32::MAX) + 1);
 
         assert!(parse_create_authorization_input(&body).is_err());
+    }
+
+    #[test]
+    fn gopico_create_accepts_max_devices() {
+        let body = json!({
+            "name": "gopico-a",
+            "machine_code": "mc-gopico",
+            "days": 30,
+            "max_devices": 40,
+            "role": 1
+        });
+        let input = parse_gopico_create_authorization_input(&body).unwrap();
+        assert_eq!(input.max_streams, 40);
+        assert_eq!(input.name, "gopico-a");
     }
 }

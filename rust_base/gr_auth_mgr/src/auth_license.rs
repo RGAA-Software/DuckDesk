@@ -1,7 +1,12 @@
+use crate::authorization::{default_product_cms, PRODUCT_CMS};
 use base64::{engine::general_purpose, Engine as _};
 use ring::rand::SystemRandom;
 use ring::signature::{self, Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use serde::{Deserialize, Serialize};
+
+fn is_default_product_cms(product: &str) -> bool {
+    product == PRODUCT_CMS
+}
 
 /// License metadata that is cryptographically signed by the auth server.
 /// This is the only information needed by the CMS to enforce authorization,
@@ -21,6 +26,13 @@ pub struct AuthLicense {
     pub app_secret: String,
     pub username: String,
     pub password: String,
+    /// Product this license applies to: "cms" | "gopico".
+    /// Omitted from JSON when "cms" so pre-existing signed deploy strings still verify.
+    #[serde(
+        default = "default_product_cms",
+        skip_serializing_if = "is_default_product_cms"
+    )]
+    pub product: String,
 }
 
 impl AuthLicense {
@@ -185,7 +197,61 @@ mod tests {
             app_secret: "secret-xyz".to_string(),
             username: "SpvrAdmin".to_string(),
             password: "p@ssw0rd".to_string(),
+            product: PRODUCT_CMS.to_string(),
         }
+    }
+
+    #[test]
+    fn legacy_deploy_without_product_defaults_to_cms() {
+        let (priv_key, pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        let verifier = LicenseVerifier::from_public_key_bytes(&pub_key).unwrap();
+
+        // Sign a CMS license (product omitted from canonical JSON).
+        let signed = signer.sign(&sample_license()).unwrap();
+        let deploy = signed.to_deploy_string().unwrap();
+        let parsed = SignedLicense::parse_deploy_string(&deploy).unwrap();
+        assert_eq!(parsed.license.product, PRODUCT_CMS);
+        assert!(verifier.verify_signature(&parsed).unwrap());
+
+        // Simulate a legacy payload that never had a product field.
+        let legacy_json = serde_json::json!({
+            "auth_id": "auth-123",
+            "auth_name": "customer-a",
+            "machine_code": "mc-abc",
+            "max_streams": 4,
+            "days": 30,
+            "role": 1,
+            "created_at_ms": 1000,
+            "expires_at_ms": 2_592_001_000i64,
+            "appkey": "appkey-xyz",
+            "app_secret": "secret-xyz",
+            "username": "SpvrAdmin",
+            "password": "p@ssw0rd"
+        });
+        let legacy: AuthLicense = serde_json::from_value(legacy_json).unwrap();
+        assert_eq!(legacy.product, PRODUCT_CMS);
+        // Re-serializing must omit product so old signatures remain valid.
+        let bytes = legacy.canonical_bytes().unwrap();
+        let as_value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(as_value.get("product").is_none());
+    }
+
+    #[test]
+    fn gopico_product_is_included_in_signed_payload() {
+        let (priv_key, pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        let verifier = LicenseVerifier::from_public_key_bytes(&pub_key).unwrap();
+        let mut license = sample_license();
+        license.product = crate::authorization::PRODUCT_GOPICO.to_string();
+        let signed = signer.sign(&license).unwrap();
+        let deploy = signed.to_deploy_string().unwrap();
+        let parsed = SignedLicense::parse_deploy_string(&deploy).unwrap();
+        assert_eq!(parsed.license.product, crate::authorization::PRODUCT_GOPICO);
+        assert!(verifier.verify_signature(&parsed).unwrap());
+        let as_value: serde_json::Value =
+            serde_json::from_slice(&parsed.license.canonical_bytes().unwrap()).unwrap();
+        assert_eq!(as_value["product"], "gopico");
     }
 
     #[test]

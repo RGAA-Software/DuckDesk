@@ -74,6 +74,7 @@ const fillValidForm = (vm: DialogVm) => {
     role: '1',
     days: '30',
     max_streams: '4',
+    product: 'cms',
   }
 }
 
@@ -119,6 +120,31 @@ describe('CreateAuthorizationDialog', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
     expect(store.refreshFlag).toBe(1)
     expect(vm.errorMessage).toBe('创建成功')
+  })
+
+  it('creates gopico authorization via gopico deploy API with max_devices', async () => {
+    vi.mocked(http.post).mockResolvedValue({
+      data: {
+        data: 'gopico-deploy',
+      },
+    })
+    const { wrapper } = mountDialog()
+    const vm = vmOf(wrapper)
+    fillValidForm(vm)
+    vm.form.product = 'gopico'
+    vm.form.max_streams = '40'
+
+    await vm.handleCreate()
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledWith('/gopico/create/new/deploy/authorization', {
+      name: 'customer-a',
+      machine_code: 'machine-a',
+      role: 1,
+      days: 30,
+      max_devices: 40,
+    })
+    expect(vm.deployInfo).toBe('gopico-deploy')
   })
 
   it('does not call create API for invalid input', async () => {
