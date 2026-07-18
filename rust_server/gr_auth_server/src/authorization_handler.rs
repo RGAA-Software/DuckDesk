@@ -16,7 +16,10 @@ use axum::body::Body;
 use axum::extract::Query;
 use gr_auth_mgr::app_secret_util::is_appkey_secret_paired;
 use gr_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
-use gr_auth_mgr::authorization::{Authorization, AuthorizationVo, PRODUCT_GOPICO};
+use gr_auth_mgr::authorization::{
+    Authorization, AuthorizationVo, MODE_LICENSED, MODE_TRIAL, PRODUCT_GOPICO, TRIAL_DAYS,
+    default_trial_max_devices, is_device_product,
+};
 use gr_base::{RespMessage, ok_resp};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -272,13 +275,12 @@ fn parse_create_authorization_input(
     let machine_code = get_body_str(body, KEY_CREATE_AUTHORIZATION_MACHINE_CODE)?;
     let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
     let max_streams = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?;
-    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+    let role = optional_body_role(body)?;
 
     validate_name(&name)?;
     validate_machine_code(&machine_code)?;
     validate_days(days)?;
     validate_max_streams(max_streams)?;
-    validate_customer_role(role)?;
 
     Ok(CreateAuthorizationInput {
         name,
@@ -295,12 +297,11 @@ fn parse_update_authorization_input(
     let auth_id = get_body_str(body, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
     let days = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_DAYS)?;
     let max_streams = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?;
-    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+    let role = optional_body_role(body)?;
 
     validate_auth_id(&auth_id)?;
     validate_days(days)?;
     validate_max_streams(max_streams)?;
-    validate_customer_role(role)?;
 
     Ok(UpdateAuthorizationInput {
         auth_id,
@@ -347,6 +348,18 @@ fn validate_max_streams(max_streams: i32) -> Result<(), AuthorApiError> {
         return Err(AuthorApiError::InvalidParams);
     }
     Ok(())
+}
+
+/// Customer role is deprecated: accepted (and validated) when present for
+/// backward compatibility, but optional and defaults to 1.
+fn optional_body_role(body: &Value) -> Result<i32, AuthorApiError> {
+    if body.get(KEY_CREATE_AUTHORIZATION_ROLE).is_some() {
+        let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+        validate_customer_role(role)?;
+        Ok(role)
+    } else {
+        Ok(1)
+    }
 }
 
 fn validate_customer_role(role: i32) -> Result<(), AuthorApiError> {
@@ -700,13 +713,12 @@ fn parse_gopico_create_authorization_input(
     } else {
         checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?
     };
-    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+    let role = optional_body_role(body)?;
 
     validate_name(&name)?;
     validate_machine_code(&machine_code)?;
     validate_days(days)?;
     validate_max_streams(max_streams)?;
-    validate_customer_role(role)?;
 
     Ok(CreateAuthorizationInput {
         name,
@@ -727,12 +739,11 @@ fn parse_gopico_update_authorization_input(
     } else {
         checked_body_i32(body, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?
     };
-    let role = checked_body_i32(body, KEY_CREATE_AUTHORIZATION_ROLE)?;
+    let role = optional_body_role(body)?;
 
     validate_auth_id(&auth_id)?;
     validate_days(days)?;
     validate_max_streams(max_streams)?;
-    validate_customer_role(role)?;
 
     Ok(UpdateAuthorizationInput {
         auth_id,
@@ -740,6 +751,252 @@ fn parse_gopico_update_authorization_input(
         max_streams,
         role,
     })
+}
+
+// --- Device self-registration & license pull --------------------------------
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct DevicePullResponse {
+    pub deploy_str: String,
+    pub auth_id: String,
+    pub mode: String,
+    pub days: i32,
+    pub max_devices: i32,
+    pub role: i32,
+    pub expires_at_ms: i64,
+    pub revoked: bool,
+    pub registered_new: bool,
+    pub server_time_ms: i64,
+    pub last_modify_timestamp: i64,
+}
+
+/// `POST /api/v1/device/pull` — devices (gopico / clientbox / goagent) call this
+/// periodically (and on demand) to fetch their latest license. Unknown devices
+/// are auto-registered in trial mode. No login required: the device code IS the
+/// identity; the signed license it receives only works on that device.
+///
+/// Body: `{ "product": "gopico|clientbox|goagent", "device_code": str,
+///          "client_version": str?, "client_status": str?, "os": str?,
+///          "device_count": int? }`
+pub async fn handle_device_pull(
+    body: Body,
+) -> Result<Json<RespMessage<DevicePullResponse>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let value: Value =
+        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let product = get_body_str(&value, "product")?;
+    let device_code = get_body_str(&value, "device_code")?;
+    validate_machine_code(&device_code)?;
+    if !is_device_product(&product) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    let opt_str = |key: &str| {
+        value
+            .get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    let client_version = opt_str("client_version");
+    let client_status = opt_str("client_status");
+    let client_os = opt_str("os");
+    let device_count = value
+        .get("device_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+
+    let now_ms = gr_base::get_current_timestamp();
+    let mut registered_new = false;
+
+    let auth = match gAuthorizationManager
+        .query_authorization_by_machine_code_product(&device_code, &product)
+        .await
+    {
+        Some(auth) => auth,
+        None => {
+            // Auto-register as a trial device.
+            let name = format!("{product}:{device_code}");
+            let created = gAuthorizationManager
+                .gen_new_authorization_for_product(
+                    name,
+                    device_code.clone(),
+                    TRIAL_DAYS,
+                    default_trial_max_devices(&product),
+                    1,
+                    product.clone(),
+                )
+                .await;
+            match created {
+                Ok(mut auth) => {
+                    auth.mode = MODE_TRIAL.to_string();
+                    if !gAuthorizationManager
+                        .update_authorization(auth.auth_id.clone(), auth.clone())
+                        .await
+                    {
+                        return Err(AuthorApiError::DatabaseError);
+                    }
+                    registered_new = true;
+                    auth
+                }
+                Err(AuthorizationError::AlreadyExist) => {
+                    // Lost a concurrent-registration race; re-query.
+                    gAuthorizationManager
+                        .query_authorization_by_machine_code_product(&device_code, &product)
+                        .await
+                        .ok_or(AuthorApiError::DatabaseError)?
+                }
+                Err(_) => return Err(AuthorApiError::DatabaseError),
+            }
+        }
+    };
+
+    // Telemetry: best-effort, never blocks the pull.
+    let _ = gAuthorizationManager
+        .update_client_report(
+            &auth.auth_id,
+            &client_version,
+            &client_status,
+            &client_os,
+            device_count,
+            now_ms,
+        )
+        .await;
+
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let signed = sign_authorization_model(signer, &auth)
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+    let deploy_str = signed
+        .to_deploy_string()
+        .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
+
+    Ok(Json(ok_resp(DevicePullResponse {
+        deploy_str,
+        auth_id: auth.auth_id,
+        mode: auth.mode,
+        days: auth.days,
+        max_devices: auth.max_streams,
+        role: auth.role,
+        expires_at_ms: auth.end_timestamp_ms,
+        revoked: auth.revoked,
+        registered_new,
+        server_time_ms: now_ms,
+        last_modify_timestamp: auth.last_modify_timestamp,
+    })))
+}
+
+/// `GET /api/v1/product/query/authorizations?product=&page=&page_size=` —
+/// admin lists device authorizations of one product category.
+pub async fn handle_product_query_authorizations(
+    query: Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
+    let product = get_str_param(&query, "product")?;
+    if !is_device_product(&product) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    let page = get_int_param(&query, "page")?;
+    let page_size = get_int_param(&query, "page_size")?;
+    let auth = gAuthorizationManager
+        .query_authorizations_by_product(product, page, page_size)
+        .await
+        .map_err(|_| AuthorApiError::AuthorizationNotFound)?;
+    Ok(Json(ok_resp(auth)))
+}
+
+/// `POST /api/v1/device/update/authorization` — admin edits a device
+/// authorization. Body: `{ auth_id, mode: "trial"|"licensed", days,
+/// max_devices (or max_streams), role }`.
+/// - `licensed`: validity window is re-anchored to now + days.
+/// - `trial`: days is forced to TRIAL_DAYS (pseudo-permanent).
+/// Switching mode clears soft-revoke so the next pull delivers a usable license.
+pub async fn handle_device_update_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    validate_auth_id(&auth_id)?;
+    let mode = get_body_str(&r, "mode")?;
+    if mode != MODE_TRIAL && mode != MODE_LICENSED {
+        return Err(AuthorApiError::InvalidParams);
+    }
+    let mut days = checked_body_i32(&r, KEY_CREATE_AUTHORIZATION_DAYS)?;
+    let max_streams = if r.get(KEY_CREATE_AUTHORIZATION_MAX_DEVICES).is_some() {
+        checked_body_i32(&r, KEY_CREATE_AUTHORIZATION_MAX_DEVICES)?
+    } else {
+        checked_body_i32(&r, KEY_CREATE_AUTHORIZATION_MAX_STREAMS)?
+    };
+    let role = optional_body_role(&r)?;
+    validate_days(days)?;
+    validate_max_streams(max_streams)?;
+
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id.clone())
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if !is_device_product(&auth.product) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+
+    if mode == MODE_TRIAL {
+        days = TRIAL_DAYS;
+    }
+
+    let mut auth = auth;
+    let current_ts = gr_base::get_current_timestamp();
+    auth.mode = mode;
+    auth.days = days;
+    auth.role = role;
+    auth.max_streams = max_streams;
+    auth.created_timestamp_ms = current_ts;
+    auth.end_timestamp_ms = current_ts + (days as i64) * 24 * 3600 * 1000;
+    auth.last_modify_timestamp = current_ts;
+    auth.revoked = false;
+    auth.revoked_at_ms = 0;
+
+    if !gAuthorizationManager
+        .update_authorization(auth_id.clone(), auth)
+        .await
+    {
+        return Err(AuthorApiError::UpdateAuthFailed);
+    }
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id)
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    Ok(Json(ok_resp(auth)))
+}
+
+/// `POST /api/v1/device/revoke/authorization` — admin soft-revokes a device
+/// authorization of any device product. Body: `{ auth_id }`.
+pub async fn handle_device_revoke_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<Authorization>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    validate_auth_id(&auth_id)?;
+
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id.clone())
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if !is_device_product(&auth.product) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+
+    let auth = gAuthorizationManager
+        .revoke_authorization(auth_id)
+        .await
+        .map_err(|e| match e {
+            AuthorizationError::NotFound => AuthorApiError::AuthorizationNotFound,
+            _ => AuthorApiError::UpdateAuthFailed,
+        })?;
+    Ok(Json(ok_resp(auth)))
 }
 
 #[cfg(test)]

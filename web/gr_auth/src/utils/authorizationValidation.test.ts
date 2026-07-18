@@ -14,7 +14,6 @@ const validCreateForm = () => ({
   machine_code: ' machine-a ',
   days: '30',
   max_streams: '4',
-  role: '1',
 })
 
 describe('authorization validation', () => {
@@ -28,14 +27,13 @@ describe('authorization validation', () => {
         machine_code: 'machine-a',
         days: 30,
         max_streams: 4,
-        role: 1,
         product: 'cms',
       },
     })
   })
 
   it('rejects missing create fields', () => {
-    for (const field of ['name', 'machine_code', 'days', 'max_streams', 'role'] as const) {
+    for (const field of ['name', 'machine_code', 'days', 'max_streams'] as const) {
       const form = validCreateForm()
       form[field] = ''
 
@@ -95,33 +93,15 @@ describe('authorization validation', () => {
     }
   })
 
-  it('accepts only supported customer roles', () => {
-    for (const role of ['1', '2', '3']) {
-      expect(validateCreateAuthorization({
-        ...validCreateForm(),
-        role,
-      })).toMatchObject({ ok: true })
-    }
-
-    for (const role of ['0', '-1', '4', '1.5', 'admin']) {
-      expect(validateCreateAuthorization({
-        ...validCreateForm(),
-        role,
-      })).toMatchObject({ ok: false })
-    }
-  })
-
   it('normalizes valid update input', () => {
     expect(validateUpdateAuthorization({
       days: '30',
       max_streams: '4',
-      role: '2',
     })).toEqual({
       ok: true,
       value: {
         days: 30,
         max_streams: 4,
-        role: 2,
       },
     })
   })
@@ -130,19 +110,11 @@ describe('authorization validation', () => {
     expect(validateUpdateAuthorization({
       days: '0',
       max_streams: '4',
-      role: '1',
     })).toMatchObject({ ok: false })
 
     expect(validateUpdateAuthorization({
       days: '30',
       max_streams: '0',
-      role: '1',
-    })).toMatchObject({ ok: false })
-
-    expect(validateUpdateAuthorization({
-      days: '30',
-      max_streams: '4',
-      role: '4',
     })).toMatchObject({ ok: false })
   })
 })

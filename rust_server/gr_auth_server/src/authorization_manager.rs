@@ -61,6 +61,15 @@ mod memory_store {
         true
     }
 
+    pub fn get_by_machine_code_product(machine_code: &str, product: &str) -> Option<Authorization> {
+        STORE
+            .lock()
+            .unwrap()
+            .values()
+            .find(|a| a.machine_code == machine_code && a.product == product)
+            .cloned()
+    }
+
     pub fn list_by_product(product: &str) -> Vec<Authorization> {
         let mut items: Vec<_> = STORE
             .lock()
@@ -223,6 +232,28 @@ impl AuthorizationManager {
             let c_authorization = gAuthorDatabase.lock().await.authorization();
             let filter = doc! {
                 "auth_name": name,
+            };
+            let r = c_authorization.lock().await.find_one(filter).await;
+            r.unwrap_or(None)
+        }
+    }
+
+    /// Find a device authorization by its device code (machine_code) + product.
+    pub async fn query_authorization_by_machine_code_product(
+        &self,
+        machine_code: &str,
+        product: &str,
+    ) -> Option<Authorization> {
+        #[cfg(test)]
+        {
+            return memory_store::get_by_machine_code_product(machine_code, product);
+        }
+        #[cfg(not(test))]
+        {
+            let c_authorization = gAuthorDatabase.lock().await.authorization();
+            let filter = doc! {
+                "machine_code": machine_code,
+                "product": product,
             };
             let r = c_authorization.lock().await.find_one(filter).await;
             r.unwrap_or(None)

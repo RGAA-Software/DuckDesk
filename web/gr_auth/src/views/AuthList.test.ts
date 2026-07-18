@@ -234,7 +234,6 @@ describe('AuthList', () => {
       ...authItem(),
       days: '7',
       max_streams: '2',
-      role: '2',
     })
     await vm.handleSave()
     await flushPromises()
@@ -243,7 +242,6 @@ describe('AuthList', () => {
       auth_id: 'auth-a',
       days: 7,
       max_streams: 2,
-      role: 2,
     })
     expect(http.get).toHaveBeenLastCalledWith('/query/authorizations', {
       params: {
@@ -284,7 +282,6 @@ describe('AuthList', () => {
       ...authItem(),
       days: '7',
       max_streams: '2',
-      role: '2',
     })
     await vm.handleSave()
     await flushPromises()
@@ -293,7 +290,6 @@ describe('AuthList', () => {
       auth_id: 'auth-a',
       days: 7,
       max_streams: 2,
-      role: 2,
     })
     expect(vm.errorDialogVisible).toBe(true)
     expect(vm.errorMessage).toBe('修改失败')
@@ -316,7 +312,6 @@ describe('AuthList', () => {
       ...authItem(),
       days: '7',
       max_streams: '2',
-      role: '2',
     })
     const firstSave = vm.handleSave()
     const secondSave = vm.handleSave()

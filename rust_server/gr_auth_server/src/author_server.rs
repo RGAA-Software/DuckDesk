@@ -3,14 +3,15 @@ use crate::author_handler::{
 };
 use crate::authorization_handler::{
     handle_create_new_authorization, handle_create_new_deploy_authorization,
+    handle_device_pull, handle_device_revoke_authorization, handle_device_update_authorization,
     handle_gopico_client_report, handle_gopico_create_new_deploy_authorization,
     handle_gopico_query_authorizations,
     handle_gopico_query_deploy_authorization_by_id, handle_gopico_revoke_authorization,
     handle_gopico_update_authorization, handle_gopico_verify_online,
-    handle_query_authorization_by_id, handle_query_authorization_by_name,
-    handle_query_authorization_like_name, handle_query_authorizations,
-    handle_query_deploy_authorization_by_id, handle_update_authorization,
-    handle_verify_appkey_secret, handle_verify_license,
+    handle_product_query_authorizations, handle_query_authorization_by_id,
+    handle_query_authorization_by_name, handle_query_authorization_like_name,
+    handle_query_authorizations, handle_query_deploy_authorization_by_id,
+    handle_update_authorization, handle_verify_appkey_secret, handle_verify_license,
 };
 use crate::filter::{
     author_admin_filter, author_auth_id_filter, author_login_token_filter, author_page_size_filter,
@@ -210,6 +211,27 @@ pub fn build_router(web_dir: PathBuf) -> Router {
             post(handle_gopico_verify_online),
         )
         .route("/api/v1/gopico/report", post(handle_gopico_client_report))
+        // Device self-registration & license pull (gopico / clientbox / goagent)
+        .route("/api/v1/device/pull", post(handle_device_pull))
+        .route(
+            "/api/v1/device/update/authorization",
+            post(handle_device_update_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/device/revoke/authorization",
+            post(handle_device_revoke_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/product/query/authorizations",
+            get(handle_product_query_authorizations)
+                .layer(middleware::from_fn(author_page_size_filter::filter))
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
 }
 
 #[cfg(test)]
@@ -235,6 +257,9 @@ mod tests {
             "test-secret-must-be-at-least-32-bytes".to_string()
         ));
     }
+
+    /// Shared lock for tests that mutate the memory store / global signer.
+    static STORE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn token_for(role: AuthorRole) -> String {
         AuthorClaims::new("TestUser".to_string(), role, 3600)
@@ -505,11 +530,7 @@ mod tests {
     #[tokio::test]
     async fn gopico_create_verify_online_and_revoke_flow() {
         use crate::authorization_manager::clear_authorization_memory_store;
-        use std::sync::Mutex;
-
-        // Serialize against other tests that mutate signer / memory store.
-        static LOCK: Mutex<()> = Mutex::new(());
-        let _guard = LOCK.lock().unwrap();
+        let _guard = STORE_LOCK.lock().unwrap();
         clear_authorization_memory_store();
         init_test_secret();
 
@@ -634,11 +655,7 @@ mod tests {
     #[tokio::test]
     async fn gopico_client_report_records_status() {
         use crate::authorization_manager::clear_authorization_memory_store;
-        use std::sync::Mutex;
-
-        // Serialize against other tests that mutate signer / memory store.
-        static LOCK: Mutex<()> = Mutex::new(());
-        let _guard = LOCK.lock().unwrap();
+        let _guard = STORE_LOCK.lock().unwrap();
         clear_authorization_memory_store();
         init_test_secret();
 
@@ -837,5 +854,291 @@ mod tests {
         let value: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["code"], 200);
         assert_eq!(value["data"], true);
+    }
+
+    #[tokio::test]
+    async fn device_pull_registers_updates_and_revokes() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+        let _guard = STORE_LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+
+        // 1. Unknown device pulls -> auto-registered as trial.
+        let pull_body = r#"{
+            "product": "clientbox",
+            "device_code": "dev-box-001",
+            "client_version": "1.0.0",
+            "client_status": "ok",
+            "os": "android",
+            "device_count": 1
+        }"#;
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/pull")
+                    .header("content-type", "application/json")
+                    .body(Body::from(pull_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        let data = &json["data"];
+        assert_eq!(data["registered_new"], true);
+        assert_eq!(data["mode"], "trial");
+        assert_eq!(data["max_devices"], 1);
+        assert_eq!(data["revoked"], false);
+        assert!(data["deploy_str"].as_str().unwrap().contains('.'));
+        let auth_id = data["auth_id"].as_str().unwrap().to_string();
+
+        // 2. Same device pulls again -> not registered again, same auth_id.
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/pull")
+                    .header("content-type", "application/json")
+                    .body(Body::from(pull_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["registered_new"], false);
+        assert_eq!(json["data"]["auth_id"], auth_id);
+
+        // 3. Admin switches it to licensed (30 days, 5 devices).
+        let update_body = format!(
+            r#"{{"auth_id":"{auth_id}","mode":"licensed","days":30,"max_devices":5,"role":2}}"#
+        );
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/update/authorization")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .header("content-type", "application/json")
+                    .body(Body::from(update_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["mode"], "licensed");
+        assert_eq!(json["data"]["days"], 30);
+        assert_eq!(json["data"]["max_streams"], 5);
+
+        // 4. Device pulls again -> sees licensed mode.
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/pull")
+                    .header("content-type", "application/json")
+                    .body(Body::from(pull_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["mode"], "licensed");
+        assert_eq!(json["data"]["days"], 30);
+        assert_eq!(json["data"]["max_devices"], 5);
+
+        // 5. Admin revokes -> next pull reports revoked.
+        let revoke_body = format!(r#"{{"auth_id":"{auth_id}"}}"#);
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/revoke/authorization")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .header("content-type", "application/json")
+                    .body(Body::from(revoke_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/device/pull")
+                    .header("content-type", "application/json")
+                    .body(Body::from(pull_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["revoked"], true);
+
+        // 6. Telemetry recorded by pull is visible in the product list.
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/product/query/authorizations?product=clientbox&page=1&page_size=20")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        let items = json["data"].as_array().unwrap();
+        let item = items
+            .iter()
+            .find(|i| i["machine_code"] == "dev-box-001")
+            .expect("device in clientbox list");
+        assert_eq!(item["client_version"], "1.0.0");
+        assert_eq!(item["client_os"], "android");
+        assert_eq!(item["product"], "clientbox");
+
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
+    async fn device_pull_and_update_validation() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+
+        let _guard = STORE_LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+        let post = |uri: &'static str, body: String, admin: bool| {
+            let router = router.clone();
+            async move {
+                let mut b = Request::builder()
+                    .method("POST")
+                    .uri(uri)
+                    .header("content-type", "application/json");
+                if admin {
+                    b = b.header("Authorization", token_for(AuthorRole::Admin));
+                }
+                router.oneshot(b.body(Body::from(body)).unwrap()).await.unwrap()
+            }
+        };
+
+        // 1. Invalid product -> 400.
+        let resp = post(
+            "/api/v1/device/pull",
+            r#"{"product":"cms","device_code":"dev-x"}"#.to_string(),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 2. Empty device_code -> 400.
+        let resp = post(
+            "/api/v1/device/pull",
+            r#"{"product":"gopico","device_code":"  "}"#.to_string(),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 3. Missing device_code -> 400.
+        let resp = post(
+            "/api/v1/device/pull",
+            r#"{"product":"gopico"}"#.to_string(),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 4. Register a goagent device, then admin sets trial mode explicitly:
+        //    days must be forced to TRIAL_DAYS (365000) regardless of input.
+        let resp = post(
+            "/api/v1/device/pull",
+            r#"{"product":"goagent","device_code":"dev-agent-t1"}"#.to_string(),
+            false,
+        )
+        .await;
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        let auth_id = json["data"]["auth_id"].as_str().unwrap().to_string();
+
+        let update = format!(
+            r#"{{"auth_id":"{auth_id}","mode":"trial","days":7,"max_devices":2,"role":1}}"#
+        );
+        let resp = post("/api/v1/device/update/authorization", update, true).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["mode"], "trial");
+        assert_eq!(json["data"]["days"], 365000);
+        assert_eq!(json["data"]["max_streams"], 2);
+
+        // 5. Invalid mode -> 400.
+        let update = format!(
+            r#"{{"auth_id":"{auth_id}","mode":"vip","days":7,"max_devices":2,"role":1}}"#
+        );
+        let resp = post("/api/v1/device/update/authorization", update, true).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 5b. Role is optional now (deprecated) -> update without role succeeds.
+        let update = format!(
+            r#"{{"auth_id":"{auth_id}","mode":"licensed","days":30,"max_devices":3}}"#
+        );
+        let resp = post("/api/v1/device/update/authorization", update, true).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["role"], 1); // defaulted
+        assert_eq!(json["data"]["days"], 30);
+
+        // 6. Product query rejects non-device product.
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/product/query/authorizations?product=cms&page=1&page_size=20")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 7. Admin APIs require login token.
+        let resp = post(
+            "/api/v1/device/update/authorization",
+            r#"{"auth_id":"x","mode":"trial","days":7,"max_devices":1,"role":1}"#.to_string(),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        clear_authorization_memory_store();
     }
 }

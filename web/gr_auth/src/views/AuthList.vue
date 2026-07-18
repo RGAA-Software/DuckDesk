@@ -135,15 +135,6 @@
           <el-input v-model="selectedData.max_streams" :disabled="selectedData.disable_modify"></el-input>
         </el-form-item>
 
-        <!-- user role -->
-        <el-form-item label="Customer Role">
-          <el-select v-model="selectedData.role" :disabled="selectedData.disable_modify">
-            <el-option label="1" value="1"></el-option>
-            <el-option label="2" value="2"></el-option>
-            <el-option label="3" value="3"></el-option>
-          </el-select>
-        </el-form-item>
-
         <!-- Authorization Information -->
         <el-form-item label="Deploy Information">
           <div class="deploy-wrapper">
@@ -264,7 +255,6 @@ const validateSelectedAuthorization = () => {
 
   selectedData.value.days = validation.value.days
   selectedData.value.max_streams = validation.value.max_streams
-  selectedData.value.role = validation.value.role
   return true
 }
 
@@ -360,13 +350,11 @@ const handleSave = async () => {
         auth_id: selectedData.value.auth_id,
         days: Number(selectedData.value.days),
         max_devices: Number(selectedData.value.max_streams),
-        role: Number(selectedData.value.role),
       }
     : {
         auth_id: selectedData.value.auth_id,
         days: Number(selectedData.value.days),
         max_streams: Number(selectedData.value.max_streams),
-        role: Number(selectedData.value.role),
       }
 
   isSaving.value = true

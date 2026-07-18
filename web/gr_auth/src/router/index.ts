@@ -12,16 +12,16 @@ const router = createRouter({
     {
       path: '/main',
       name: 'main',
-      redirect: '/main/auth-list',
+      redirect: '/main/device-auth',
       component: () => import('@/views/MainPanel.vue'),
       children: [
         {
-          path: 'auth-list',
-          component: () => import('@/views/AuthList.vue'),
+          path: 'device-auth',
+          component: () => import('@/views/DeviceAuthList.vue'),
         },
         {
-          path: 'gopico-auth-list',
-          component: () => import('@/views/GopicoAuthList.vue'),
+          path: 'auth-list',
+          component: () => import('@/views/AuthList.vue'),
         },
         {
           path: 'admin-list',

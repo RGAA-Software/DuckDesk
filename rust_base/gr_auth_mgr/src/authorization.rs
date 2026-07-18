@@ -2,10 +2,35 @@ use serde::{Deserialize, Serialize};
 
 pub const PRODUCT_CMS: &str = "cms";
 pub const PRODUCT_GOPICO: &str = "gopico";
+pub const PRODUCT_CLIENTBOX: &str = "clientbox";
+pub const PRODUCT_GOAGENT: &str = "goagent";
+
+pub const MODE_TRIAL: &str = "trial";
+pub const MODE_LICENSED: &str = "licensed";
 
 pub fn default_product_cms() -> String {
     PRODUCT_CMS.to_string()
 }
+
+pub fn default_mode() -> String {
+    MODE_LICENSED.to_string()
+}
+
+/// Products that support device self-registration & license pulling.
+pub fn is_device_product(product: &str) -> bool {
+    matches!(product, PRODUCT_GOPICO | PRODUCT_CLIENTBOX | PRODUCT_GOAGENT)
+}
+
+/// Default max devices for an auto-registered trial device.
+pub fn default_trial_max_devices(product: &str) -> i32 {
+    match product {
+        PRODUCT_GOPICO => 4,
+        _ => 1,
+    }
+}
+
+/// Days used for trial/pseudo-permanent licenses.
+pub const TRIAL_DAYS: i32 = 365000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Authorization {
@@ -29,9 +54,12 @@ pub struct Authorization {
     pub role: i32,
     #[serde(default)]
     pub used_time_ms: i64,
-    /// Product this authorization applies to: "cms" | "gopico".
+    /// Product this authorization applies to: "cms" | "gopico" | "clientbox" | "goagent".
     #[serde(default = "default_product_cms")]
     pub product: String,
+    /// Authorization mode: "trial" | "licensed". Existing rows default to "licensed".
+    #[serde(default = "default_mode")]
+    pub mode: String,
     /// Soft-revoke flag (DB only, not part of signed license payload).
     #[serde(default)]
     pub revoked: bool,
@@ -71,6 +99,7 @@ impl Default for Authorization {
             role: 0,
             used_time_ms: 0,
             product: default_product_cms(),
+            mode: default_mode(),
             revoked: false,
             revoked_at_ms: 0,
             client_version: String::new(),
