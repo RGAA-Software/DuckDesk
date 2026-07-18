@@ -43,13 +43,16 @@
 <template>
   <div class="w-screen h-screen">
     <el-container class="h-full">
-      <el-header class="flex items-center gap-4">
-        <el-text class="!text-lg font-bold" type="primary">授权管理系统</el-text>
-        <el-button v-if="isAdmin" type="primary" @click="openDialog" >创建授权</el-button>
-        <el-button :loading="isLoggingOut" :disabled="isLoggingOut" @click="logout" >退出登录</el-button>
+      <el-header class="app-header flex items-center gap-3">
+        <span class="logo-dot" />
+        <span class="app-title">授权管理系统</span>
+        <span class="app-badge">GoDesk</span>
+        <div class="flex-1" />
+        <el-button v-if="isAdmin" type="primary" @click="openDialog">创建授权</el-button>
+        <el-button :loading="isLoggingOut" :disabled="isLoggingOut" @click="logout">退出登录</el-button>
       </el-header>
-      <el-container>
-        <el-aside width="200px" class="">
+      <el-container class="app-body">
+        <el-aside width="216px" class="app-aside">
           <el-menu
             class="no-border-menu"
             :default-active="route.path"
@@ -72,7 +75,7 @@
 
           </el-menu>
         </el-aside>
-        <el-main class="bg-gray-100 !p-0 !m-0">
+        <el-main class="app-main">
           <RouterView/>
         </el-main>
       </el-container>
@@ -85,5 +88,74 @@
 <style scoped>
 .no-border-menu {
   border-right: none !important;
+}
+
+/* 顶栏 */
+.app-header {
+  height: 60px;
+  background: rgba(8, 12, 24, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--gd-line);
+}
+.logo-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gd-gradient);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.5);
+  flex: none;
+}
+.app-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: linear-gradient(120deg, #e8eefb 30%, #67e8f9 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.app-badge {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--gd-cyan);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+/* 侧边栏 */
+.app-body {
+  height: calc(100% - 60px);
+}
+.app-aside {
+  background: rgba(8, 12, 24, 0.55);
+  border-right: 1px solid var(--gd-line);
+  padding: 14px 10px;
+}
+.app-aside :deep(.el-menu-item) {
+  border-radius: 10px;
+  margin: 4px 0;
+  height: 44px;
+  color: var(--gd-text-2);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.app-aside :deep(.el-menu-item:hover) {
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--gd-cyan);
+}
+.app-aside :deep(.el-menu-item.is-active) {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.1));
+  color: #67e8f9;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--gd-cyan);
+}
+
+/* 内容区 */
+.app-main {
+  background: transparent;
+  padding: 20px 24px;
+  overflow: auto;
 }
 </style>

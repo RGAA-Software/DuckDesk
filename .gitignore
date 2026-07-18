@@ -42,3 +42,9 @@ certs/
 vc_redist.x64_cpy.exe
 src/gr_panel/src/tests/test_access_decrypt.exe
 src/gr_panel/src/tests/test_access_decrypt.obj
+
+# cross-build tooling (zig / cargo-zigbuild / shims)
+.tooling/
+
+# local server credentials (never commit)
+rust_server/gr_auth_server/tencent_server.txt
