@@ -87,6 +87,7 @@ pub fn license_to_authorization(
         product: license.product.clone(),
         revoked: existing.map(|a| a.revoked).unwrap_or(false),
         revoked_at_ms: existing.map(|a| a.revoked_at_ms).unwrap_or(0),
+        ..Default::default()
     }
 }
 

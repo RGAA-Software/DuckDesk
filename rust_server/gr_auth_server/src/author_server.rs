@@ -3,7 +3,8 @@ use crate::author_handler::{
 };
 use crate::authorization_handler::{
     handle_create_new_authorization, handle_create_new_deploy_authorization,
-    handle_gopico_create_new_deploy_authorization, handle_gopico_query_authorizations,
+    handle_gopico_client_report, handle_gopico_create_new_deploy_authorization,
+    handle_gopico_query_authorizations,
     handle_gopico_query_deploy_authorization_by_id, handle_gopico_revoke_authorization,
     handle_gopico_update_authorization, handle_gopico_verify_online,
     handle_query_authorization_by_id, handle_query_authorization_by_name,
@@ -208,6 +209,7 @@ pub fn build_router(web_dir: PathBuf) -> Router {
             "/api/v1/gopico/verify/online",
             post(handle_gopico_verify_online),
         )
+        .route("/api/v1/gopico/report", post(handle_gopico_client_report))
 }
 
 #[cfg(test)]
@@ -625,6 +627,165 @@ mod tests {
         assert_eq!(verify2_json["data"]["valid"], false);
         assert_eq!(verify2_json["data"]["revoked"], true);
         assert_eq!(verify2_json["data"]["reason"], "revoked");
+
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
+    async fn gopico_client_report_records_status() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+        use std::sync::Mutex;
+
+        // Serialize against other tests that mutate signer / memory store.
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _guard = LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+        let create_body = r#"{
+            "name": "gopico-report-customer",
+            "machine_code": "mc-report-e2e",
+            "days": 30,
+            "max_devices": 10,
+            "role": 1
+        }"#;
+        let create_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/create/new/deploy/authorization")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .header("content-type", "application/json")
+                    .body(Body::from(create_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let create_bytes = to_bytes(create_resp.into_body(), usize::MAX).await.unwrap();
+        let create_json: Value = serde_json::from_slice(&create_bytes).unwrap();
+        let deploy = create_json["data"].as_str().expect("deploy string");
+
+        // Client reports its status — accepted.
+        let report_body = format!(
+            r#"{{"data":"{deploy}","machine_code":"mc-report-e2e",
+                "client_version":"2.9.0","client_status":"valid",
+                "os":"windows","device_count":3}}"#
+        );
+        let report_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/report")
+                    .header("content-type", "application/json")
+                    .body(Body::from(report_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(report_resp.status(), StatusCode::OK);
+        let report_bytes = to_bytes(report_resp.into_body(), usize::MAX).await.unwrap();
+        let report_json: Value = serde_json::from_slice(&report_bytes).unwrap();
+        assert_eq!(report_json["code"], 200);
+        assert_eq!(report_json["data"]["accepted"], true);
+
+        // Report is visible in the authorization list.
+        let list_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/gopico/query/authorizations?page=1&page_size=20")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let list_bytes = to_bytes(list_resp.into_body(), usize::MAX).await.unwrap();
+        let list_json: Value = serde_json::from_slice(&list_bytes).unwrap();
+        let items = list_json["data"].as_array().unwrap();
+        let item = items
+            .iter()
+            .find(|i| i["auth_name"] == "gopico-report-customer")
+            .expect("reported authorization in list");
+        assert_eq!(item["client_version"], "2.9.0");
+        assert_eq!(item["client_status"], "valid");
+        assert_eq!(item["client_os"], "windows");
+        assert_eq!(item["client_device_count"], 3);
+        assert!(item["client_reported_at_ms"].as_i64().unwrap() > 0);
+
+        // Wrong machine code — rejected, previous report kept.
+        let bad_body = format!(
+            r#"{{"data":"{deploy}","machine_code":"mc-other-machine",
+                "client_version":"9.9.9","client_status":"valid"}}"#
+        );
+        let bad_resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/report")
+                    .header("content-type", "application/json")
+                    .body(Body::from(bad_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bad_bytes = to_bytes(bad_resp.into_body(), usize::MAX).await.unwrap();
+        let bad_json: Value = serde_json::from_slice(&bad_bytes).unwrap();
+        assert_eq!(bad_json["data"]["accepted"], false);
+        assert_eq!(bad_json["data"]["reason"], "machine_mismatch");
+
+        // Unknown auth_id (validly signed, but not in DB) — not_found.
+        let ghost = AuthLicense {
+            auth_id: "ghost-auth".to_string(),
+            auth_name: "ghost".to_string(),
+            machine_code: "mc-ghost".to_string(),
+            max_streams: 1,
+            days: 1,
+            role: 1,
+            created_at_ms: 0,
+            expires_at_ms: i64::MAX,
+            appkey: "k".to_string(),
+            app_secret: "s".to_string(),
+            username: "u".to_string(),
+            password: "p".to_string(),
+            product: "gopico".to_string(),
+        };
+        let ghost_deploy = gLicenseSigner
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .sign(&ghost)
+            .unwrap()
+            .to_deploy_string()
+            .unwrap();
+        let ghost_body = format!(
+            r#"{{"data":"{ghost_deploy}","machine_code":"mc-ghost",
+                "client_version":"1.0.0","client_status":"valid"}}"#
+        );
+        let ghost_resp = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/gopico/report")
+                    .header("content-type", "application/json")
+                    .body(Body::from(ghost_body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let ghost_bytes = to_bytes(ghost_resp.into_body(), usize::MAX).await.unwrap();
+        let ghost_json: Value = serde_json::from_slice(&ghost_bytes).unwrap();
+        assert_eq!(ghost_json["data"]["accepted"], false);
+        assert_eq!(ghost_json["data"]["reason"], "not_found");
 
         clear_authorization_memory_store();
     }

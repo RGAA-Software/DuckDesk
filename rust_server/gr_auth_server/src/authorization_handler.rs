@@ -369,6 +369,103 @@ fn map_authorization_error(e: AuthorizationError) -> AuthorApiError {
 // --- GoPico-specific APIs -------------------------------------------------
 
 #[derive(Debug, Default, Serialize, Deserialize)]
+pub struct GopicoClientReportResponse {
+    pub accepted: bool,
+    pub reason: String,
+}
+
+/// `POST /api/v1/gopico/report` — licensed clients periodically report their
+/// runtime status. No login required; the deploy string itself is the credential
+/// (Ed25519 signature + machine binding are verified before recording).
+///
+/// Body: `{ "data": deploy_str, "machine_code": str, "client_version": str,
+///          "client_status": str, "os": str, "device_count": int }`
+/// Note: expiry/revocation do NOT block reporting — reports from expired or
+/// revoked clients are exactly what an operator wants to see.
+pub async fn handle_gopico_client_report(
+    body: Body,
+) -> Result<Json<RespMessage<GopicoClientReportResponse>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let value: Value =
+        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_str = get_body_str(&value, "data")?;
+    let machine_code = get_body_str(&value, "machine_code")?;
+    let opt_str = |key: &str| {
+        value
+            .get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    let client_version = opt_str("client_version");
+    let client_status = opt_str("client_status");
+    let client_os = opt_str("os");
+    let device_count = value
+        .get("device_count")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) as i32;
+
+    let signed =
+        SignedLicense::parse_deploy_string(&auth_str).map_err(|_| AuthorApiError::InvalidParams)?;
+
+    let signer_guard = gLicenseSigner.lock().await;
+    let signer = signer_guard
+        .as_ref()
+        .ok_or(AuthorApiError::CantCreateAuthorization)?;
+    let verifier = LicenseVerifier::from_public_key_bytes(&signer.public_key_bytes())
+        .map_err(|_| AuthorApiError::DatabaseError)?;
+
+    let mut accepted = true;
+    let mut reason = String::new();
+
+    if !verifier
+        .verify_signature(&signed)
+        .map_err(|_| AuthorApiError::DatabaseError)?
+    {
+        accepted = false;
+        reason = "invalid_signature".to_string();
+    } else if signed.license.product != PRODUCT_GOPICO {
+        accepted = false;
+        reason = "wrong_product".to_string();
+    } else if signed.license.machine_code != machine_code {
+        accepted = false;
+        reason = "machine_mismatch".to_string();
+    } else {
+        let auth_id = signed.license.auth_id.clone();
+        match gAuthorizationManager
+            .query_authorization_by_id(auth_id.clone())
+            .await
+        {
+            Some(_) => {
+                let ok = gAuthorizationManager
+                    .update_client_report(
+                        &auth_id,
+                        &client_version,
+                        &client_status,
+                        &client_os,
+                        device_count,
+                        gr_base::get_current_timestamp(),
+                    )
+                    .await;
+                if !ok {
+                    accepted = false;
+                    reason = "update_failed".to_string();
+                }
+            }
+            None => {
+                accepted = false;
+                reason = "not_found".to_string();
+            }
+        }
+    }
+
+    Ok(Json(ok_resp(GopicoClientReportResponse {
+        accepted,
+        reason,
+    })))
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GopicoOnlineVerifyResponse {
     pub valid: bool,
     pub reason: String,

@@ -50,7 +50,7 @@ const mountAuthList = () => mount(AuthList, {
         template: '<div><slot /></div>',
       },
       ElTableColumn: {
-        template: '<div><slot name="header" /><slot /></div>',
+        template: '<div><slot name="header" /></div>',
       },
       ElPagination: {
         props: ['currentPage', 'pageSize', 'total'],

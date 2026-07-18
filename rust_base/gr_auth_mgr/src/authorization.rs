@@ -37,6 +37,17 @@ pub struct Authorization {
     pub revoked: bool,
     #[serde(default)]
     pub revoked_at_ms: i64,
+    /// Latest status report sent by the licensed client (DB only, never signed).
+    #[serde(default)]
+    pub client_version: String,
+    #[serde(default)]
+    pub client_status: String,
+    #[serde(default)]
+    pub client_os: String,
+    #[serde(default)]
+    pub client_device_count: i32,
+    #[serde(default)]
+    pub client_reported_at_ms: i64,
 }
 
 impl Default for Authorization {
@@ -62,6 +73,11 @@ impl Default for Authorization {
             product: default_product_cms(),
             revoked: false,
             revoked_at_ms: 0,
+            client_version: String::new(),
+            client_status: String::new(),
+            client_os: String::new(),
+            client_device_count: 0,
+            client_reported_at_ms: 0,
         }
     }
 }

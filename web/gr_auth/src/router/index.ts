@@ -20,6 +20,10 @@ const router = createRouter({
           component: () => import('@/views/AuthList.vue'),
         },
         {
+          path: 'gopico-auth-list',
+          component: () => import('@/views/GopicoAuthList.vue'),
+        },
+        {
           path: 'admin-list',
           meta: { requiresAdmin: true },
           component: () => import('@/views/AdminList.vue'),

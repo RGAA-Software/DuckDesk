@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Ticket, UserFilled } from '@element-plus/icons-vue'
+  import { Monitor, Ticket, UserFilled } from '@element-plus/icons-vue'
   import router from '@/router'
   import {RouterView, useRoute} from 'vue-router'
   import {computed, onMounted, ref} from "vue";
@@ -58,6 +58,11 @@
             <el-menu-item index="/main/auth-list">
               <el-icon><Ticket /></el-icon>
               <span>授权列表</span>
+            </el-menu-item>
+
+            <el-menu-item index="/main/gopico-auth-list">
+              <el-icon><Monitor /></el-icon>
+              <span>GoPico 授权</span>
             </el-menu-item>
 
             <el-menu-item v-if="isAdmin" index="/main/admin-list">

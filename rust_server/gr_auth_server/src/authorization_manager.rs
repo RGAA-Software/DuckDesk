@@ -170,6 +170,7 @@ impl AuthorizationManager {
             product,
             revoked: false,
             revoked_at_ms: 0,
+            ..Default::default()
         };
 
         if self.insert_authorization(auth.clone()).await {
@@ -401,6 +402,55 @@ impl AuthorizationManager {
                 .await;
             if let Err(e) = r {
                 tracing::error!("error updating auth: {}", e);
+                return false;
+            }
+            true
+        }
+    }
+
+    /// Record a status report sent by a licensed client (heartbeat-like).
+    /// Does NOT touch `last_modify_timestamp` — this is telemetry, not an admin edit.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_client_report(
+        &self,
+        auth_id: &str,
+        client_version: &str,
+        client_status: &str,
+        client_os: &str,
+        client_device_count: i32,
+        reported_at_ms: i64,
+    ) -> bool {
+        #[cfg(test)]
+        {
+            let Some(mut auth) = memory_store::get_by_id(auth_id) else {
+                return false;
+            };
+            auth.client_version = client_version.to_string();
+            auth.client_status = client_status.to_string();
+            auth.client_os = client_os.to_string();
+            auth.client_device_count = client_device_count;
+            auth.client_reported_at_ms = reported_at_ms;
+            return memory_store::update(auth_id, auth);
+        }
+        #[cfg(not(test))]
+        {
+            let c_authorization = gAuthorDatabase.lock().await.authorization();
+            let update_doc = doc! {
+                "$set": {
+                    "client_version": client_version,
+                    "client_status": client_status,
+                    "client_os": client_os,
+                    "client_device_count": client_device_count,
+                    "client_reported_at_ms": reported_at_ms,
+                }
+            };
+            let r = c_authorization
+                .lock()
+                .await
+                .update_one(doc! {"auth_id": auth_id}, update_doc)
+                .await;
+            if let Err(e) = r {
+                tracing::error!("error updating client report: {}", e);
                 return false;
             }
             true
