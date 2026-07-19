@@ -62,8 +62,8 @@ const goContactUs = () => {
       <button
         v-for="tab in tabs"
         :key="tab.key"
-        class="price-tab font-tech"
-        :class="{ 'price-tab-active': activeTab === tab.key }"
+        class="cyber-tab"
+        :class="{ 'cyber-tab-active': activeTab === tab.key }"
         :style="{ '--ta': tab.accent }"
         @click="activeTab = tab.key"
       >
@@ -156,14 +156,14 @@ const goContactUs = () => {
           </div>
         </el-popover>
 
-        <el-button type="primary" class="!h-11 !px-8" plain @click="goContactUs">
+        <el-button type="primary" class="!h-11 !px-8" @click="goContactUs">
           <el-image :src="writeIcon" fit="cover" class="h-5 w-5" />
-          <span class="ml-1">{{ t('cta.message') }}</span>
+          <span class="ml-1">{{ t('products.common.consult') }}</span>
         </el-button>
 
         <el-popover placement="top" :width="265" trigger="click">
           <template #reference>
-            <el-button class="!h-11 !px-8">
+            <el-button type="primary" class="!h-11 !px-8">
               <el-image :src="emailIcon" fit="cover" class="h-5 w-5" />
               <span class="ml-1">{{ t('cta.email') }}</span>
             </el-button>
@@ -274,10 +274,6 @@ const goContactUs = () => {
           <img :src="githubIcon" alt="" class="h-5 w-5" />
           <span class="ml-1">{{ t('products.common.github') }}</span>
         </el-button>
-        <el-button class="!h-11 !px-8" @click="goContactUs">
-          <el-image :src="writeIcon" fit="cover" class="h-5 w-5" />
-          <span class="ml-1">{{ t('products.common.consult') }}</span>
-        </el-button>
       </div>
     </section>
   </template>
@@ -286,31 +282,6 @@ const goContactUs = () => {
 </template>
 
 <style scoped>
-/* 产品分页切换 */
-.price-tab {
-  padding: 8px 22px;
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #adb5ae;
-  background: transparent;
-  border: 1px solid var(--frame);
-  cursor: pointer;
-  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.price-tab:hover {
-  color: #fff;
-  border-color: var(--ta);
-}
-.price-tab-active,
-.price-tab-active:hover {
-  background: var(--ta);
-  border-color: var(--ta);
-  color: #f2f8ff;
-  font-weight: 700;
-}
-
 /* GoXR 青色描边卡与 tag */
 .goxr-accent::before {
   background: var(--pa);

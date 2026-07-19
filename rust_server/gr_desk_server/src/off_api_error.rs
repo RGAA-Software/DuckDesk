@@ -22,6 +22,9 @@ pub enum OffApiError {
 
     #[error("Version info not found")]
     VersionNotFound,
+
+    #[error("Unauthorized")]
+    Unauthorized,
 }
 
 impl IntoResponse for OffApiError {
@@ -33,6 +36,7 @@ impl IntoResponse for OffApiError {
             OffApiError::ItemNotFound => (603, self.to_string()),
             OffApiError::InvalidVersionVerifyCode => (604, self.to_string()),
             OffApiError::VersionNotFound => (605, self.to_string()),
+            OffApiError::Unauthorized => (606, self.to_string()),
         };
 
         let body = Json(RespMessage::new_data(code, msg, ""));

@@ -172,7 +172,7 @@
 
   /* 9px 切角按钮/输入框：渐变拼边框（gopico 设计稿原文技巧） */
   .cyber-bevel-9 {
-    --bb: #3b4654;
+    --bb: #4e6175;
     --bf: #151a21;
     border: 0 !important;
     outline: 0 !important;
@@ -303,6 +303,35 @@
     background: var(--line);
   }
 
+  /* 赛博分页切换器（--ta 为激活色） */
+  .cyber-tab {
+    height: 34px;
+    padding: 0 22px;
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-tech);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #adb5ae;
+    background: transparent;
+    border: 1px solid var(--frame);
+    cursor: pointer;
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .cyber-tab:hover {
+    color: #fff;
+    border-color: var(--ta, var(--brand));
+  }
+  .cyber-tab-active,
+  .cyber-tab-active:hover {
+    background: var(--ta, var(--brand));
+    border-color: var(--ta, var(--brand));
+    color: #f2f8ff;
+    font-weight: 700;
+  }
+
   /* 滚动入场动画 */
   .reveal {
     opacity: 0;
@@ -367,7 +396,7 @@ html.dark {
 
 /* 按钮：9px 切角 + 渐变拼边框 */
 .el-button {
-  --bb: #3b4654;
+  --bb: #4e6175;
   --bf: #151a21;
   border: 0 !important;
   outline: 0 !important;
@@ -399,7 +428,7 @@ html.dark {
   transition: none;
 }
 .el-button:hover {
-  --bb: #6b7d8f;
+  --bb: #7d92a8;
   --bf: #1a222b;
   color: #fff !important;
 }
@@ -483,7 +512,7 @@ html.dark {
 .el-input__wrapper,
 .el-select__wrapper,
 .el-textarea__inner {
-  --bb: #3b4654;
+  --bb: #4e6175;
   --bf: #151a21;
   border: 0 !important;
   outline: 0 !important;
@@ -593,4 +622,57 @@ html.dark {
 .el-button--primary .el-image,
 .el-button--primary img {
   filter: brightness(0) invert(1);
+}
+
+/* 顶部“产品”下拉框：9px 切角 + 双层描边 */
+.product-dropdown.el-popper {
+  --cut: 9px;
+  background: var(--panel2) !important;
+  border: 0 !important;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  ) !important;
+  position: relative;
+  isolation: isolate;
+}
+.product-dropdown.el-popper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--frame);
+  clip-path: inherit;
+  z-index: -2;
+  pointer-events: none;
+}
+.product-dropdown.el-popper::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: var(--panel2);
+  clip-path: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+.product-dropdown .el-popper__arrow {
+  display: none;
+}
+.product-dropdown .el-dropdown-menu {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 6px;
+}
+.product-dropdown .el-dropdown-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+}
+.product-dropdown .el-dropdown-menu__item img {
+  width: 18px;
+  height: 18px;
 }

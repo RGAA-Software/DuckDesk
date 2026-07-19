@@ -9,6 +9,10 @@ import ContactUs from '@/components/ContactUs.vue'
 import githubIcon from '@/assets/ic_github.svg'
 import transIcon from '@/assets/icon/ic_translate.svg'
 import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
+import goxrLogo from '@/assets/products/goxr-logo.png'
+import cmonLogo from '@/assets/products/cybermonitor-logo.svg'
+import wechatIcon from '@/assets/icon/ic_wechat.svg'
+import emailIconFooter from '@/assets/icon/ic_email.svg'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -32,9 +36,9 @@ const navItems = computed(() => [
 ])
 
 const productItems = computed(() => [
-  { path: '/products/godesk', label: t('productNames.godesk'), accent: '#2f8fff' },
-  { path: '/products/goxr', label: t('productNames.goxr'), accent: '#2ac7c4' },
-  { path: '/products/cybermonitor', label: t('productNames.cybermonitor'), accent: '#7548d8' },
+  { path: '/products/godesk', label: t('productNames.godesk'), logo: iconLogo },
+  { path: '/products/goxr', label: t('productNames.goxr'), logo: goxrLogo },
+  { path: '/products/cybermonitor', label: t('productNames.cybermonitor'), logo: cmonLogo },
 ])
 
 const isActive = (path: string) => route.path.startsWith(path)
@@ -172,17 +176,15 @@ async function confirmIssue() {
           {{ t('nav.home') }}
         </button>
 
-        <el-dropdown trigger="hover" @command="goProduct">
+        <el-dropdown trigger="hover" popper-class="product-dropdown" @command="goProduct">
           <button class="nav-item font-tech" :class="isProductActive ? 'nav-item-active' : ''">
             {{ t('nav.products') }} ▾
           </button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-for="p in productItems" :key="p.path" :command="p.path">
-                <span class="flex items-center gap-2">
-                  <span class="inline-block h-2 w-2" :style="{ background: p.accent }"></span>
-                  {{ p.label }}
-                </span>
+                <img :src="p.logo" :alt="p.label" />
+                <span>{{ p.label }}</span>
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -231,7 +233,7 @@ async function confirmIssue() {
 
   <!-- 移动端抽屉菜单 -->
   <el-drawer v-model="mobileMenuVisible" direction="rtl" size="260px" :with-header="false">
-    <div class="flex flex-col gap-2 pt-6">
+    <div class="drawer-nav flex flex-col gap-2 pt-6">
       <button
         class="nav-item font-tech text-left !px-4 !py-3"
         :class="isActive('/main') ? 'nav-item-active' : ''"
@@ -244,11 +246,11 @@ async function confirmIssue() {
       <button
         v-for="p in productItems"
         :key="p.path"
-        class="nav-item font-tech text-left !px-4 !py-3 flex items-center gap-2"
+        class="nav-item font-tech text-left !px-4 !py-3 flex items-center gap-2.5"
         :class="isActive(p.path) ? 'nav-item-active' : ''"
         @click="goProduct(p.path)"
       >
-        <span class="inline-block h-2 w-2" :style="{ background: p.accent }"></span>
+        <img :src="p.logo" :alt="p.label" class="h-4.5 w-4.5" />
         {{ p.label }}
       </button>
 
@@ -334,8 +336,14 @@ async function confirmIssue() {
       <!-- 联系方式 -->
       <div class="flex flex-col items-center md:items-start gap-2">
         <div class="cyber-label mb-2">{{ t('footer.contactUs') }}</div>
-        <span class="font-tech text-sm text-cyber-muted">godesk-sales@outlook.com</span>
-        <span class="font-tech text-sm text-cyber-muted">www.godesk.uk</span>
+        <div class="flex items-center gap-2">
+          <img :src="emailIconFooter" alt="" class="h-4 w-4 footer-icon" />
+          <span class="font-tech text-sm text-cyber-muted">godesk-sales@outlook.com</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <img :src="wechatIcon" alt="" class="h-4.5 w-4.5 footer-icon" />
+          <span class="font-tech text-sm text-cyber-muted">AlmostDawn</span>
+        </div>
       </div>
     </div>
   </footer>
@@ -399,9 +407,13 @@ async function confirmIssue() {
 </template>
 
 <style scoped>
-/* 导航项：等宽大写小字；激活 = 实心蓝切角块 */
+/* 导航项：等宽大写小字；激活 = 实心蓝切角块；统一高度 */
 .nav-item {
-  padding: 6px 18px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -410,6 +422,19 @@ async function confirmIssue() {
   cursor: pointer;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
   transition: background 0.15s, color 0.15s;
+}
+/* 产品下拉触发器与直排导航项高度对齐 */
+:deep(.el-dropdown) {
+  display: inline-flex;
+  align-items: stretch;
+}
+/* 抽屉内导航项高度自适应 */
+.drawer-nav .nav-item {
+  height: auto;
+  justify-content: flex-start;
+}
+.footer-icon {
+  filter: invert(0.6);
 }
 .nav-item:hover {
   background: #121713;

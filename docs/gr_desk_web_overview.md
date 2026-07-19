@@ -194,6 +194,14 @@ GoDesk 远程桌面产品官方营销站（品牌指向 godesk.uk），package n
 - Hero 恢复覆盖式（标题压在点阵地球上，蓝色系）
 - 价格页改三个产品分页（自定义赛博 tab 切换器）：GoDesk 原定价 / GoXR（定制 UI 免费 + ¥1000/设备授权）/ CyberMonitor（完全免费 ¥0 + GitHub）
 
+### 3.11 2026-07-19 管理后台（/admin）
+
+- **安全修复**：query/mark 接口此前公网裸奔（任何人可拉取全部留言含联系方式），已加鉴权
+- 鉴权：exe 旁 `desk_settings.toml`（`[admin] password`，首次启动自动生成随机密码落盘，不进 git）；请求头 `X-Admin-Token`；`POST /api/v1/admin/verify` 登录校验；未授权返回 606
+- 后端新增：`off_settings.rs`（配置加载/生成）、`off_admin_handle.rs`（verify + check_admin_token）；query handlers 支持可选 `processed` 过滤；create handler 的 serde `.unwrap()` 改为 600（修复恶意请求 panic）
+- 前端：`/admin`（AdminLogin，sessionStorage 存密码）+ `/admin/panel`（AdminPanel：咨询/工单 cyber-tab、状态筛选、赛博表格、内容展开、标记已处理/恢复、翻页）；`src/adminHttp.ts`（自动带 token，606 跳登录；dev 走 vite 代理避免 CORS）
+- 管理密码仅存于服务器 `/root/off_site/desk_settings.toml`
+
 ## 4. 优化调整可考虑的方向（备忘）
 
 - 网页内容/视觉/交互优化（本次重点，待明确具体需求）

@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // 获取基础URL：dev 环境指向本地 gr_desk_server，prod 同源
-const getBaseURL = () => {
+export const getBaseURL = () => {
   const { protocol, hostname, port } = window.location
 
   if (import.meta.env.DEV) {

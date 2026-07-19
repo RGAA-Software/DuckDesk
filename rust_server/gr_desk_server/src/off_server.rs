@@ -2,6 +2,7 @@ use crate::consult::off_consult_handle::{
     create_new_consult, mark_consult_processed, query_consults,
 };
 use crate::issue::off_issue_handle::{create_new_issue, mark_issue_processed, query_issues};
+use crate::off_admin_handle::handle_admin_verify;
 use crate::off_context::OffContext;
 use crate::version::off_version_handle::{
     handle_query_product_version, handle_update_product_version,
@@ -73,6 +74,7 @@ impl OffServer {
                 "/api/v1/query/product/version",
                 get(handle_query_product_version),
             )
+            .route("/api/v1/admin/verify", post(handle_admin_verify))
             .with_state(context.clone());
 
         let http_router = router.clone();

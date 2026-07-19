@@ -1,4 +1,5 @@
 use crate::consult::off_consult::OffConsult;
+use crate::off_admin_handle::check_admin_token;
 use crate::off_api_error::OffApiError;
 use crate::off_api_keys::{
     KEY_CONSULT_TYPE, KEY_CONTENT, KEY_EMAIL, KEY_ITEM_ID, KEY_PROCESSED, KEY_QQ, KEY_TITLE,
@@ -9,6 +10,7 @@ use crate::off_http_utils::{get_body, get_int_param, get_int_param_or};
 use crate::{gOffConsultManager, gOffDatabase};
 use axum::body::Body;
 use axum::extract::{Query, State};
+use axum::http::HeaderMap;
 use axum::Json;
 use gr_base::{ok_resp, RespMessage};
 use mongodb::bson::doc;
@@ -25,7 +27,7 @@ pub async fn create_new_consult(
     let body = get_body(body).await?;
     tracing::info!("body: {}", body);
     let mut consult = OffConsult::default();
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str()).map_err(|_| OffApiError::InvalidParams)?;
     consult.item_id = ObjectId::new().to_string();
     consult.title = r[KEY_TITLE].as_str().unwrap().to_string();
     consult.your_name = r[KEY_YOUR_NAME].as_str().unwrap().to_string();
@@ -74,18 +76,27 @@ pub async fn create_new_consult(
 
 pub async fn query_consults(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
+    headers: HeaderMap,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<Vec<OffConsult>>>, OffApiError> {
+    check_admin_token(&headers)?;
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
+    // 可选 processed 过滤（0/1）
+    let mut filters: HashMap<String, bool> = HashMap::new();
+    if let Some(p) = query.get(KEY_PROCESSED) {
+        if let Ok(v) = p.parse::<i32>() {
+            filters.insert(KEY_PROCESSED.to_string(), v == 1);
+        }
+    }
     let consults = gOffConsultManager
         .lock()
         .await
-        .query_consults::<String>(
+        .query_consults::<bool>(
             page,
             page_size,
-            HashMap::default(),
+            filters,
             Some(String::from("created_ts")),
             Some(sort_time),
         )
@@ -95,10 +106,12 @@ pub async fn query_consults(
 
 pub async fn mark_consult_processed(
     State(_ctx): State<Arc<Mutex<OffContext>>>,
+    headers: HeaderMap,
     body: Body,
 ) -> Result<Json<RespMessage<String>>, OffApiError> {
+    check_admin_token(&headers)?;
     let body = get_body(body).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str()).map_err(|_| OffApiError::InvalidParams)?;
     let cid = r[KEY_ITEM_ID].as_str().unwrap().to_string();
     let p = r[KEY_PROCESSED].as_bool().unwrap();
     gOffConsultManager
