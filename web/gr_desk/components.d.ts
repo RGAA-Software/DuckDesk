@@ -14,7 +14,11 @@ declare module 'vue' {
   export interface GlobalComponents {
     ContactUs: typeof import('./src/components/ContactUs.vue')['default']
     DotGlobe: typeof import('./src/components/DotGlobe.vue')['default']
+    FeatureGrid: typeof import('./src/components/FeatureGrid.vue')['default']
     FeatureSection: typeof import('./src/components/FeatureSection.vue')['default']
+    ProductCard: typeof import('./src/components/ProductCard.vue')['default']
+    ProductHero: typeof import('./src/components/ProductHero.vue')['default']
+    ProductSection: typeof import('./src/components/ProductSection.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }
@@ -24,7 +28,11 @@ declare module 'vue' {
 declare global {
   const ContactUs: typeof import('./src/components/ContactUs.vue')['default']
   const DotGlobe: typeof import('./src/components/DotGlobe.vue')['default']
+  const FeatureGrid: typeof import('./src/components/FeatureGrid.vue')['default']
   const FeatureSection: typeof import('./src/components/FeatureSection.vue')['default']
+  const ProductCard: typeof import('./src/components/ProductCard.vue')['default']
+  const ProductHero: typeof import('./src/components/ProductHero.vue')['default']
+  const ProductSection: typeof import('./src/components/ProductSection.vue')['default']
   const RouterLink: typeof import('vue-router')['RouterLink']
   const RouterView: typeof import('vue-router')['RouterView']
 }

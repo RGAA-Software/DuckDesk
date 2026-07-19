@@ -1,8 +1,42 @@
 export default {
   nav: {
     home: '首页',
+    products: '产品',
     price: '定价',
     docs: '文档',
+  },
+  productNames: {
+    godesk: 'GoDesk 远程桌面',
+    goxr: 'GoXR Manager',
+    cybermonitor: 'CyberMonitor',
+  },
+  portal: {
+    status: '> PRODUCT_FAMILY // 3 PRODUCTS ONLINE',
+    slogan1: '远程桌面',
+    slogan2: 'XR 管控',
+    slogan3: '系统监控',
+    subtitle: '从远程办公到 XR 头显 fleet 管控，再到系统资源洞察 —— 一套自主可控的工具产品族',
+    viewProducts: '查看产品',
+    matrixTitle: '产品矩阵',
+    viewDetails: '了解详情',
+    cards: [
+      {
+        key: 'godesk',
+        tagline: '自我部署的远程办公和访问',
+        points: ['8K 4:4:4 全彩画质', '直连+中转双网', '数据完全自主可控'],
+      },
+      {
+        key: 'goxr',
+        tagline: 'XR 头显集中管控与同屏监控',
+        points: ['9/16 宫格画面墙', '应用批量安装升级', 'PICO 官方 SDK 集成'],
+      },
+      {
+        key: 'cybermonitor',
+        tagline: '任务管理器 + 硬件监控二合一',
+        points: ['双厂商 GPU 深度监控', 'Client/Host 远程集中监控', 'GPUI 现代界面'],
+      },
+    ],
+    highlightsTitle: '产品亮点',
   },
   hero: {
     slogan1: '极速',
@@ -73,6 +107,12 @@ export default {
     emailAddress: 'godesk-sales@outlook.com',
   },
   price: {
+    title: '产品价格',
+    tabs: {
+      godesk: 'GoDesk 远程桌面',
+      goxr: 'GoXR Manager',
+      cybermonitor: 'CyberMonitor',
+    },
     titleSelf: '自我部署',
     titleSolution: '解决方案',
     subtitle: '免费可用 按需付费',
@@ -104,6 +144,28 @@ export default {
       recommended: '推荐',
       features: ['免费定制LOGO/企业名称', '优先升级', '快速响应', '远程协助'],
       allUnlocked: '+全部功能解锁',
+    },
+    goxr: {
+      subtitle: 'XR 头显集中管控',
+      custom: {
+        name: '定制 UI',
+        price: '免费',
+        features: ['免费定制 LOGO / 企业名称', '免费定制界面风格', '随设备授权交付'],
+      },
+      device: {
+        name: '设备授权',
+        price: '¥1000/设备',
+        recommended: '按设备计费',
+        features: ['单台头显授权', 'PC 管理端 + PICO Agent + Android 瘦终端', '全部功能解锁', '授权在线刷新'],
+      },
+    },
+    cybermonitor: {
+      subtitle: '任务管理器 + 硬件监控二合一',
+      free: {
+        name: '完全免费',
+        price: '¥0',
+        features: ['全部功能免费', 'Client / Host 远程集中监控', '双厂商 GPU 深度监控', '开源透明'],
+      },
     },
   },
   docs: {
@@ -163,6 +225,67 @@ export default {
     successMessage: '已收到您的咨询, 我们会尽快回复',
     failTitle: '提交失败',
     failMessage: '请填写必要信息后再提交',
+  },
+  products: {
+    common: {
+      features: '核心功能',
+      preview: '界面预览',
+      scenes: '适用场景',
+      consult: '商务咨询',
+      download: '下载',
+      github: 'GitHub',
+      pricing: '查看定价',
+      docs: '查看文档',
+    },
+    godesk: {
+      status: '> REMOTE_DESKTOP // READY',
+      tagline: '安全可靠,丝滑流畅,数据完全自主可控的远程办公和访问体验',
+    },
+    goxr: {
+      status: '> XR_DEVICE_FLEET // ONLINE',
+      tagline: '面向 PICO 等 XR 头显的集中管控软件：一台 PC，管理整个头显 fleet',
+      archTitle: '三端架构',
+      pillars: [
+        { name: 'PC 管理端', desc: '集中管控中心：设备总览、宫格画面墙、应用仓库、批量任务与授权管理' },
+        { name: 'PICO Agent', desc: '头显内置代理：基于官方 PICO Enterprise SDK，屏幕/音频采集与远程命令执行' },
+        { name: 'Android 瘦终端', desc: '头显画面同屏到手机/盒子/电视，1:1 绑定，硬解低延迟' },
+      ],
+      features: [
+        { title: '设备总览与预警', desc: '设备状态一览，低电量、丢帧、流积压自动预警' },
+        { title: '宫格画面墙', desc: '1×1 至 4×4 多设备实时同屏，每格独立解码器' },
+        { title: '远程画面控制', desc: '触摸、按键、文本回传，48kHz 音频回传混音' },
+        { title: '应用仓库', desc: 'APK 资产库与版本对比，批量安装、卸载一键下发' },
+        { title: 'Agent 批量升级', desc: '按版本识别头显代理，批量推送静默升级' },
+        { title: '批量任务记录', desc: '安装、卸载、升级任务进度与历史全程追溯' },
+        { title: '文件传输', desc: '批量推送文件到头显，进度可查、可取消' },
+        { title: '设备授权管理', desc: '设备配额、试用与宽限期，授权在线刷新' },
+      ],
+      diffTitle: '差异化能力',
+      diffs: [
+        { title: '官方 PICO Enterprise SDK', desc: 'LBE 大空间、手势追踪、OTA、DeviceOwner 深度集成，而非通用 scrcpy 方案' },
+        { title: '单编码器多端共享', desc: 'PC 监控与电视同屏同时拉流，不增加头显编码负担' },
+        { title: '商用授权体系', desc: '设备配额、机器码绑定、试用与宽限期，与 GoDesk 共用授权基础设施' },
+      ],
+      scenes: ['门店演示', '展厅运营', '教育培训', '企业设备管理'],
+    },
+    cybermonitor: {
+      status: '> SYS_INSIGHT // MONITORING',
+      tagline: '任务管理器与硬件监控二合一：看得见的系统，管得住的资源',
+      features: [
+        { title: 'CPU 深度遥测', desc: '内核驱动直读真实 CPU 温度与每核频率，不依赖第三方软件' },
+        { title: '双厂商 GPU 监控', desc: 'NVIDIA + AMD 原生支持：显存、温度、风扇转速、编解码利用率' },
+        { title: '每进程 GPU 占用', desc: '任务管理器级 PDH 数据，谁在吃 GPU 一目了然' },
+        { title: '全资源趋势图', desc: 'CPU、内存、磁盘、网络 180 点实时历史曲线' },
+        { title: '进程管理', desc: '结束任务、进程树、暂停恢复、优先级与 CPU 亲和性' },
+        { title: '两级阈值告警', desc: '80% 警告、90% 严重，抑制防刷屏，多机聚合' },
+        { title: '远程集中监控', desc: 'Client 推送遥测，Host 集中多机 Dashboard 与跨机 Top10' },
+        { title: '现代 GPUI 界面', desc: 'Zed 同款 GPU 渲染引擎，亮暗双主题，轻量单 exe' },
+      ],
+      chTitle: 'Client / Host 远程监控架构',
+      chClient: { name: 'Client 采集端', desc: '轻量自包含单 exe，WebSocket + 二进制压缩推送遥测，支持 TLS 与断线重连' },
+      chHost: { name: 'Host 集中端', desc: '多机侧栏与在线状态、完整远程 Dashboard、跨机器 Top 10 进程、多机告警聚合' },
+      scenes: ['个人工作站', '多机运维值班', '渲染与计算节点', '企业 IT 管理'],
+    },
   },
   legal: {
     termsTitle: 'GoDesk 使用条款',

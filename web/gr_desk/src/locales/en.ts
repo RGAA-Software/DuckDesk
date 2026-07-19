@@ -1,8 +1,42 @@
 export default {
   nav: {
     home: 'Home',
+    products: 'Products',
     price: 'Pricing',
     docs: 'Docs',
+  },
+  productNames: {
+    godesk: 'GoDesk Remote Desktop',
+    goxr: 'GoXR Manager',
+    cybermonitor: 'CyberMonitor',
+  },
+  portal: {
+    status: '> PRODUCT_FAMILY // 3 PRODUCTS ONLINE',
+    slogan1: 'Remote Desktop',
+    slogan2: 'XR Management',
+    slogan3: 'System Monitor',
+    subtitle: 'From remote work to XR headset fleet management and system insight — a fully self-controlled product family',
+    viewProducts: 'Explore Products',
+    matrixTitle: 'Product Matrix',
+    viewDetails: 'Learn More',
+    cards: [
+      {
+        key: 'godesk',
+        tagline: 'Self-hosted remote work & access',
+        points: ['8K 4:4:4 full-color', 'Direct + relay dual-network', 'Fully self-controlled data'],
+      },
+      {
+        key: 'goxr',
+        tagline: 'Centralized XR headset management & monitoring',
+        points: ['9/16-tile video wall', 'Batch app install & upgrade', 'Official PICO SDK integration'],
+      },
+      {
+        key: 'cybermonitor',
+        tagline: 'Task manager + hardware monitor in one',
+        points: ['Dual-vendor GPU monitoring', 'Client/Host remote monitoring', 'Modern GPUI interface'],
+      },
+    ],
+    highlightsTitle: 'Highlights',
   },
   hero: {
     slogan1: 'Fast',
@@ -73,6 +107,12 @@ export default {
     emailAddress: 'godesk-sales@outlook.com',
   },
   price: {
+    title: 'Pricing',
+    tabs: {
+      godesk: 'GoDesk Remote Desktop',
+      goxr: 'GoXR Manager',
+      cybermonitor: 'CyberMonitor',
+    },
     titleSelf: 'Self-Hosted',
     titleSolution: 'Solution',
     subtitle: 'Free to use, pay as needed',
@@ -104,6 +144,28 @@ export default {
       recommended: 'Recommended',
       features: ['Free custom LOGO / company name', 'Priority upgrades', 'Rapid response', 'Remote assistance'],
       allUnlocked: '+ All features unlocked',
+    },
+    goxr: {
+      subtitle: 'Centralized XR headset management',
+      custom: {
+        name: 'Custom UI',
+        price: 'Free',
+        features: ['Free custom LOGO / company name', 'Free custom interface style', 'Delivered with device licenses'],
+      },
+      device: {
+        name: 'Device License',
+        price: '¥1000/device',
+        recommended: 'Per-device billing',
+        features: ['Single headset license', 'PC Manager + PICO Agent + Android thin client', 'All features unlocked', 'Online license refresh'],
+      },
+    },
+    cybermonitor: {
+      subtitle: 'Task manager + hardware monitor in one',
+      free: {
+        name: 'Completely Free',
+        price: '¥0',
+        features: ['All features free', 'Client / Host remote monitoring', 'Dual-vendor GPU monitoring', 'Open source'],
+      },
     },
   },
   docs: {
@@ -163,6 +225,67 @@ export default {
     successMessage: 'We have received your inquiry and will reply as soon as possible',
     failTitle: 'Submission failed',
     failMessage: 'Please fill in the required information and try again',
+  },
+  products: {
+    common: {
+      features: 'Key Features',
+      preview: 'Interface Preview',
+      scenes: 'Use Cases',
+      consult: 'Contact Sales',
+      download: 'Download',
+      github: 'GitHub',
+      pricing: 'View Pricing',
+      docs: 'View Docs',
+    },
+    godesk: {
+      status: '> REMOTE_DESKTOP // READY',
+      tagline: 'A secure, silky-smooth remote work and access experience with fully self-controlled data',
+    },
+    goxr: {
+      status: '> XR_DEVICE_FLEET // ONLINE',
+      tagline: 'Centralized management for PICO and other XR headsets: one PC for your entire headset fleet',
+      archTitle: 'Three-Part Architecture',
+      pillars: [
+        { name: 'PC Manager', desc: 'Control center: device overview, video wall, app repository, batch tasks and licensing' },
+        { name: 'PICO Agent', desc: 'Built-in headset agent on the official PICO Enterprise SDK: screen/audio capture and remote commands' },
+        { name: 'Android Thin Client', desc: 'Mirror headset display to phones, boxes and TVs; 1:1 binding with low-latency hardware decoding' },
+      ],
+      features: [
+        { title: 'Overview & Alerts', desc: 'Fleet status at a glance with automatic low-battery, frame-drop and stream warnings' },
+        { title: 'Video Wall', desc: '1×1 to 4×4 live multi-device tiles, each with an independent decoder' },
+        { title: 'Remote Control', desc: 'Touch, key and text injection with 48kHz audio playback and mixing' },
+        { title: 'App Repository', desc: 'APK asset library with version comparison and one-click batch install/uninstall' },
+        { title: 'Batch Agent Upgrade', desc: 'Detect agent versions and push silent upgrades to the whole fleet' },
+        { title: 'Task History', desc: 'Full traceability of install, uninstall and upgrade tasks' },
+        { title: 'File Transfer', desc: 'Push files to headsets in batch with progress tracking and cancellation' },
+        { title: 'License Management', desc: 'Device quotas, trial and grace periods with online license refresh' },
+      ],
+      diffTitle: 'What Sets It Apart',
+      diffs: [
+        { title: 'Official PICO Enterprise SDK', desc: 'Deep integration of LBE, hand tracking, OTA and DeviceOwner — not a generic scrcpy solution' },
+        { title: 'Single Encoder, Multiple Consumers', desc: 'PC monitoring and TV mirroring stream simultaneously with no extra load on the headset' },
+        { title: 'Commercial Licensing', desc: 'Device quotas, machine-code binding, trial and grace periods — shared with GoDesk' },
+      ],
+      scenes: ['Retail Demos', 'Showrooms', 'Education & Training', 'Enterprise Fleets'],
+    },
+    cybermonitor: {
+      status: '> SYS_INSIGHT // MONITORING',
+      tagline: 'Task manager meets hardware monitor: see your system, control your resources',
+      features: [
+        { title: 'Deep CPU Telemetry', desc: 'Kernel driver reads true CPU temperature and per-core frequency — no third-party tools' },
+        { title: 'Dual-Vendor GPU Monitoring', desc: 'Native NVIDIA + AMD support: VRAM, temperature, fan RPM, codec utilization' },
+        { title: 'Per-Process GPU Usage', desc: 'Task-Manager-grade PDH data — spot GPU hogs at a glance' },
+        { title: 'Full Trend Charts', desc: '180-point live history for CPU, memory, disk and network' },
+        { title: 'Process Management', desc: 'Kill, process tree, suspend/resume, priority and CPU affinity' },
+        { title: 'Two-Level Alerts', desc: '80% warning and 90% critical thresholds with anti-spam suppression' },
+        { title: 'Remote Monitoring', desc: 'Clients push telemetry; the Host aggregates multi-machine dashboards and cross-machine Top 10' },
+        { title: 'Modern GPUI Interface', desc: 'Zed-grade GPU rendering, light/dark themes, lightweight single exe' },
+      ],
+      chTitle: 'Client / Host Remote Monitoring',
+      chClient: { name: 'Client Agent', desc: 'Lightweight self-contained exe pushing compressed telemetry over WebSocket with TLS and auto-reconnect' },
+      chHost: { name: 'Host Console', desc: 'Machine sidebar with online status, full remote dashboards, cross-machine Top 10 processes and aggregated alerts' },
+      scenes: ['Personal Workstations', 'Ops Duty', 'Render & Compute Nodes', 'Enterprise IT'],
+    },
   },
   legal: {
     termsTitle: 'GoDesk Terms of Use',

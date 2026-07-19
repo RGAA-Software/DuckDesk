@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- 真透明背景：没有 background、没有底色矩形、没有 checkerboard。外层图标距离画布边缘 5px。 -->
+
+  <rect x="5" y="5" width="1014" height="1014" rx="150" fill="#7548D8"/>
+  <path d="
+    M 210 530
+    L 325 530
+    L 385 420
+    L 475 640
+    L 560 315
+    L 665 690
+    L 730 530
+    L 814 530"
+    fill="none" stroke="#FFFFFF" stroke-width="68" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

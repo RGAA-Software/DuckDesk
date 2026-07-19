@@ -176,6 +176,24 @@ GoDesk 远程桌面产品官方营销站（品牌指向 godesk.uk），package n
 - 首页新增 KPI 数据条（8K/144/4:4:4/双网）、终端风状态行 + 光标闪烁
 - 注意：`--accent-foreground` 在 :root 中若被重复定义会导致绿底绿字（曾踩坑，最终定义为 #06110a）
 
+### 3.9 2026-07-19 多产品门户改版
+
+- 站点从单品官网升级为产品家族门户：`/main` 门户主页（品牌 Hero + 产品矩阵 + 亮点带），产品详情页 `/products/godesk`（绿 #18d875）、`/products/goxr`（青 #2ac7c4）、`/products/cybermonitor`（紫 #7548d8）
+- 产品：GoDesk 远程桌面（现内容迁移）、GoXR Manager（gopico 套件：PC 管理端 + PICO Agent + Android 瘦终端，VR→Android 同屏）、CyberMonitor（CyberDesktop 套件资源监控，Client/Host 远程集中监控）
+- 主题色机制：产品页根节点设 `--pa` CSS 变量，组件（ProductHero/ProductSection/FeatureGrid/ProductCard）用 `var(--pa)` 取色
+- 新增组件：`ProductHero.vue`、`ProductSection.vue`、`FeatureGrid.vue`、`ProductCard.vue`；导航增加“产品▾”下拉（各带主题色方块）
+- 素材：logo 取自源项目（gopico-pc.png / ic_cyber_monitor.svg），产品界面图用 Playwright 截两个项目的高保真设计稿（gopico_design.html / cyber_monitor.html）存于 `src/assets/products/`
+- **重要修复**：vite `base` 由 `'./'` 改为 `'/'`——相对 base 在二级路由（/products/*）下资源路径解析错误导致白屏
+- GoXR 下载入口为商务咨询（无公开渠道）；CyberMonitor 指向 GitHub RGAA-Software/CyberDesktop
+
+### 3.10 2026-07-19 蓝色赛博主题 + 价格三分页
+
+- 主题色从荧光绿改回 GoDesk 品牌蓝：token 改名 `--green*` → `--brand*`（`--brand:#2f8fff / hover #58abff / dark #1e6fd6 / dim #132a45`），背景改蓝灰调暗色；产品主题色不变（GoXR 青 / CyberMonitor 紫），GoDesk 产品色 #2f8fff
+- 按钮文字/图标一致性：`.el-button--primary` 白字（`--accent-foreground:#f2f8ff`），按钮内图标统一 CSS filter（primary 白、默认 88% 亮）
+- 弹窗完整边框：`.el-dialog` 弃用 border+clip-path（角部缺边），改双层伪元素切角描边
+- Hero 恢复覆盖式（标题压在点阵地球上，蓝色系）
+- 价格页改三个产品分页（自定义赛博 tab 切换器）：GoDesk 原定价 / GoXR（定制 UI 免费 + ¥1000/设备授权）/ CyberMonitor（完全免费 ¥0 + GitHub）
+
 ## 4. 优化调整可考虑的方向（备忘）
 
 - 网页内容/视觉/交互优化（本次重点，待明确具体需求）

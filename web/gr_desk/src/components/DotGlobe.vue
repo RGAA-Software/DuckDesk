@@ -172,7 +172,7 @@ function draw(now: number) {
     const alpha = front ? 0.25 + z * 0.65 : 0.06
     const size = (front ? 1.1 + z * 0.9 : 0.8) * dpr
     ctx.beginPath()
-    ctx.fillStyle = `rgba(24, 216, 117, ${alpha.toFixed(3)})`
+    ctx.fillStyle = `rgba(47, 143, 255, ${alpha.toFixed(3)})`
     ctx.arc(sx, sy, size, 0, Math.PI * 2)
     ctx.fill()
   }
@@ -208,7 +208,7 @@ function draw(now: number) {
         ctx.lineTo(sx, sy)
       }
     }
-    ctx.strokeStyle = 'rgba(24, 216, 117, 0.22)'
+    ctx.strokeStyle = 'rgba(47, 143, 255, 0.22)'
     ctx.lineWidth = 1.2 * dpr
     ctx.stroke()
 
@@ -224,8 +224,8 @@ function draw(now: number) {
       )
       if (z > -0.15) {
         const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, 6 * dpr)
-        gradient.addColorStop(0, 'rgba(71, 232, 150, 0.9)')
-        gradient.addColorStop(1, 'rgba(71, 232, 150, 0)')
+        gradient.addColorStop(0, 'rgba(109, 179, 255, 0.9)')
+        gradient.addColorStop(1, 'rgba(109, 179, 255, 0)')
         ctx.beginPath()
         ctx.fillStyle = gradient
         ctx.arc(sx, sy, 6 * dpr, 0, Math.PI * 2)
@@ -240,13 +240,13 @@ function draw(now: number) {
     if (z < 0) continue
 
     ctx.beginPath()
-    ctx.fillStyle = `rgba(71, 232, 150, ${(0.5 + z * 0.5).toFixed(3)})`
+    ctx.fillStyle = `rgba(109, 179, 255, ${(0.5 + z * 0.5).toFixed(3)})`
     ctx.arc(sx, sy, 2.4 * dpr, 0, Math.PI * 2)
     ctx.fill()
 
     const pulse = reducedMotion ? 0.5 : (elapsed * 0.6 + m.phase) % 1
     ctx.beginPath()
-    ctx.strokeStyle = `rgba(71, 232, 150, ${((1 - pulse) * 0.5 * z).toFixed(3)})`
+    ctx.strokeStyle = `rgba(109, 179, 255, ${((1 - pulse) * 0.5 * z).toFixed(3)})`
     ctx.lineWidth = 1 * dpr
     ctx.arc(sx, sy, (2.4 + pulse * 10) * dpr, 0, Math.PI * 2)
     ctx.stroke()
@@ -315,12 +315,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="absolute inset-0 mx-auto aspect-[1/1] w-full max-w-[600px]"
+    class="absolute inset-0 mx-auto aspect-[1/1] w-full max-w-[min(600px,56vw)]"
     :class="[$props.class]"
   >
     <!-- 底部光晕 -->
     <div
-      class="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(24,216,117,0.16),transparent_65%)]"
+      class="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(47,143,255,0.16),transparent_65%)]"
     />
     <canvas
       ref="canvasRef"

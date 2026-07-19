@@ -31,7 +31,19 @@ const navItems = computed(() => [
   { path: '/docs', label: t('nav.docs') },
 ])
 
+const productItems = computed(() => [
+  { path: '/products/godesk', label: t('productNames.godesk'), accent: '#2f8fff' },
+  { path: '/products/goxr', label: t('productNames.goxr'), accent: '#2ac7c4' },
+  { path: '/products/cybermonitor', label: t('productNames.cybermonitor'), accent: '#7548d8' },
+])
+
 const isActive = (path: string) => route.path.startsWith(path)
+const isProductActive = computed(() => route.path.startsWith('/products'))
+
+const goProduct = (path: string) => {
+  mobileMenuVisible.value = false
+  router.push(path)
+}
 
 const goPage = (path: string) => {
   mobileMenuVisible.value = false
@@ -146,14 +158,38 @@ async function confirmIssue() {
     <div class="section-container flex h-14 items-center justify-between">
       <!-- Logo -->
       <button class="flex items-center gap-2.5 cursor-pointer" @click="goPage('/main')">
-        <img :src="iconLogo" alt="GoDesk" class="h-8 w-8 logo-tint" />
+        <img :src="iconLogo" alt="GoDesk" class="h-8 w-8" />
         <span class="font-tech text-lg font-bold tracking-[0.22em] text-cyber-text">GODESK</span>
       </button>
 
       <!-- 桌面端导航 -->
       <nav class="hidden md:flex items-center gap-2">
         <button
-          v-for="item in navItems"
+          class="nav-item font-tech"
+          :class="isActive('/main') ? 'nav-item-active' : ''"
+          @click="goPage('/main')"
+        >
+          {{ t('nav.home') }}
+        </button>
+
+        <el-dropdown trigger="hover" @command="goProduct">
+          <button class="nav-item font-tech" :class="isProductActive ? 'nav-item-active' : ''">
+            {{ t('nav.products') }} ▾
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="p in productItems" :key="p.path" :command="p.path">
+                <span class="flex items-center gap-2">
+                  <span class="inline-block h-2 w-2" :style="{ background: p.accent }"></span>
+                  {{ p.label }}
+                </span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+
+        <button
+          v-for="item in navItems.slice(1)"
           :key="item.path"
           class="nav-item font-tech"
           :class="isActive(item.path) ? 'nav-item-active' : ''"
@@ -197,7 +233,27 @@ async function confirmIssue() {
   <el-drawer v-model="mobileMenuVisible" direction="rtl" size="260px" :with-header="false">
     <div class="flex flex-col gap-2 pt-6">
       <button
-        v-for="item in navItems"
+        class="nav-item font-tech text-left !px-4 !py-3"
+        :class="isActive('/main') ? 'nav-item-active' : ''"
+        @click="goPage('/main')"
+      >
+        {{ t('nav.home') }}
+      </button>
+
+      <div class="cyber-label px-4 pt-2">{{ t('nav.products') }}</div>
+      <button
+        v-for="p in productItems"
+        :key="p.path"
+        class="nav-item font-tech text-left !px-4 !py-3 flex items-center gap-2"
+        :class="isActive(p.path) ? 'nav-item-active' : ''"
+        @click="goProduct(p.path)"
+      >
+        <span class="inline-block h-2 w-2" :style="{ background: p.accent }"></span>
+        {{ p.label }}
+      </button>
+
+      <button
+        v-for="item in navItems.slice(1)"
         :key="item.path"
         class="nav-item font-tech text-left !px-4 !py-3"
         :class="isActive(item.path) ? 'nav-item-active' : ''"
@@ -240,10 +296,10 @@ async function confirmIssue() {
       <!-- 品牌区 -->
       <div class="flex flex-col items-center md:items-start gap-3">
         <div class="flex items-center gap-2.5">
-          <img :src="iconLogo" alt="GoDesk" class="h-9 w-9 logo-tint" />
+          <img :src="iconLogo" alt="GoDesk" class="h-9 w-9" />
           <div>
             <div class="font-tech text-lg font-bold tracking-[0.22em] text-cyber-text leading-5">GODESK</div>
-            <div class="font-tech text-[10px] tracking-[0.18em] text-cyber-green">{{ t('footer.slogan') }}</div>
+            <div class="font-tech text-[10px] tracking-[0.18em] text-cyber-brand">{{ t('footer.slogan') }}</div>
           </div>
         </div>
         <div class="flex gap-4 text-sm">
@@ -343,12 +399,7 @@ async function confirmIssue() {
 </template>
 
 <style scoped>
-/* 品牌图标绿色化（蓝色 PNG 调色为荧光绿） */
-.logo-tint {
-  filter: hue-rotate(-80deg) saturate(1.4) brightness(1.1);
-}
-
-/* 导航项：等宽大写小字；激活 = 实心绿切角块 */
+/* 导航项：等宽大写小字；激活 = 实心蓝切角块 */
 .nav-item {
   padding: 6px 18px;
   font-size: 12px;
@@ -366,7 +417,7 @@ async function confirmIssue() {
 }
 .nav-item-active,
 .nav-item-active:hover {
-  background: var(--green);
+  background: var(--brand);
   color: var(--accent-foreground);
   font-weight: 700;
 }

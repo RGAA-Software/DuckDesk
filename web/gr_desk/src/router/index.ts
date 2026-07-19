@@ -14,6 +14,18 @@ const router = createRouter({
           component: () => import('@/views/HomeView.vue'),
         },
         {
+          path: 'products/godesk',
+          component: () => import('@/views/products/GodeskView.vue'),
+        },
+        {
+          path: 'products/goxr',
+          component: () => import('@/views/products/GoxrView.vue'),
+        },
+        {
+          path: 'products/cybermonitor',
+          component: () => import('@/views/products/CyberMonitorView.vue'),
+        },
+        {
           path: 'price',
           component: () => import('@/views/PriceView.vue'),
         },

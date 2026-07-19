@@ -8,21 +8,21 @@
    近黑深绿灰底 + 荧光绿 + 45° 切角 + 等宽 HUD 排版
    ============================================================ */
 :root {
-  --bg: #070908;
-  --bg2: #0b0e0c;
-  --panel: #111411;
-  --panel2: #151915;
-  --nav: #090c0a;
-  --line: #2b3a30;
-  --line2: #435448;
-  --frame: #344239;
-  --text: #eeefe9;
-  --muted: #90998f;
-  --green: #18d875;
-  --green-hover: #28e383;
-  --green-dark: #0ead5c;
-  --green-dim: #143523;
-  --accent-foreground: #06110a;
+  --bg: #07090c;
+  --bg2: #0b0e12;
+  --panel: #11151b;
+  --panel2: #151a21;
+  --nav: #090c10;
+  --line: #2b3540;
+  --line2: #435264;
+  --frame: #34404e;
+  --text: #eaeef2;
+  --muted: #8f98a3;
+  --brand: #2f8fff;
+  --brand-hover: #58abff;
+  --brand-dark: #1e6fd6;
+  --brand-dim: #132a45;
+  --accent-foreground: #f2f8ff;
   --amber: #d6a542;
   --red: #ef5252;
   --cut: 14px;
@@ -33,18 +33,17 @@
   --card-foreground: var(--text);
   --popover: var(--panel2);
   --popover-foreground: var(--text);
-  --primary: var(--green);
+  --primary: var(--brand);
   --primary-foreground: var(--accent-foreground);
   --secondary: var(--panel2);
   --secondary-foreground: var(--text);
   --muted-foreground: var(--muted);
-  --accent: var(--green-dim);
-  --accent-foreground: #06110a; /* 绿底上的文字（覆盖上方 shadcn 映射，勿重复定义） */
+  --accent: var(--brand-dim);
   --destructive: var(--red);
   --destructive-foreground: var(--text);
   --border: var(--line);
   --input: var(--line);
-  --ring: var(--green);
+  --ring: var(--brand);
   --radius: 0px;
 
   --font-ui: "Segoe UI", "Microsoft YaHei", sans-serif;
@@ -82,9 +81,9 @@
   --color-cyber-frame: var(--frame);
   --color-cyber-text: var(--text);
   --color-cyber-muted: var(--muted);
-  --color-cyber-green: var(--green);
-  --color-cyber-green-hover: var(--green-hover);
-  --color-cyber-green-dim: var(--green-dim);
+  --color-cyber-brand: var(--brand);
+  --color-cyber-brand-hover: var(--brand-hover);
+  --color-cyber-brand-dim: var(--brand-dim);
   --color-cyber-amber: var(--amber);
   --color-cyber-red: var(--red);
 
@@ -118,18 +117,18 @@
     background: #0b0e0c;
   }
   ::-webkit-scrollbar-thumb {
-    background: #344239;
+    background: #34404e;
     border: 2px solid #0b0e0c;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #435448;
+    background: #435264;
   }
 }
 
 /* ---------------- 组件类 ---------------- */
 @layer components {
   .section-container {
-    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 2xl:max-w-7xl;
   }
 
   /* 切角面板：双层伪元素描边（clip-path 会裁 border，此为 gopico 标准技巧） */
@@ -167,14 +166,14 @@
   }
 
   /* 绿色描边变体 */
-  .cyber-panel-green::before {
-    background: var(--green-dark);
+  .cyber-panel-accent::before {
+    background: var(--brand-dark);
   }
 
   /* 9px 切角按钮/输入框：渐变拼边框（gopico 设计稿原文技巧） */
   .cyber-bevel-9 {
-    --bb: #3b4a3f;
-    --bf: #151916;
+    --bb: #3b4654;
+    --bf: #151a21;
     border: 0 !important;
     outline: 0 !important;
     clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
@@ -210,7 +209,7 @@
     content: "";
     width: 3px;
     height: 1em;
-    background: var(--green);
+    background: var(--brand);
     margin-right: 12px;
     flex-shrink: 0;
   }
@@ -229,7 +228,7 @@
     display: inline-block;
     width: 7px;
     height: 7px;
-    background: var(--green);
+    background: var(--brand);
     flex-shrink: 0;
   }
 
@@ -240,34 +239,34 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 3px 8px;
-    color: #47e896;
-    border: 1px solid #2b8553;
+    color: #6db3ff;
+    border: 1px solid #2b5c85;
     background: transparent;
   }
 
   /* HUD 极淡网格背景（仅 hero 装饰） */
   .bg-hud-grid {
     background-image:
-      linear-gradient(rgba(24, 216, 117, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(24, 216, 117, 0.04) 1px, transparent 1px);
+      linear-gradient(rgba(47, 143, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47, 143, 255, 0.05) 1px, transparent 1px);
     background-size: 32px 32px;
   }
 
   /* KPI 大数字 + 底部细条 */
   .kpi-num {
     font-family: var(--font-tech);
-    font-size: 35px;
+    font-size: clamp(1.6rem, 2vw, 2.2rem);
     color: #f2f4ef;
     line-height: 1.1;
   }
   .kpi-line {
     height: 3px;
-    background: #202820;
+    background: #202832;
   }
   .kpi-line > i {
     display: block;
     height: 100%;
-    background: var(--green);
+    background: var(--brand);
   }
 
   /* 四角 L 形角标容器 */
@@ -280,7 +279,7 @@
     position: absolute;
     width: 14px;
     height: 14px;
-    border-color: var(--green);
+    border-color: var(--brand);
     border-style: solid;
     z-index: 2;
     pointer-events: none;
@@ -328,14 +327,14 @@
 
 /* ---------------- Element Plus 赛博化覆盖 ---------------- */
 html.dark {
-  --el-color-primary: #18d875;
-  --el-color-primary-dark-2: #0ead5c;
-  --el-color-primary-light-3: #47e896;
-  --el-color-primary-light-5: #1d5c3a;
-  --el-color-primary-light-7: #173d29;
-  --el-color-primary-light-8: #143523;
-  --el-color-primary-light-9: #10231a;
-  --el-color-success: #18d875;
+  --el-color-primary: #2f8fff;
+  --el-color-primary-dark-2: #1e6fd6;
+  --el-color-primary-light-3: #6db3ff;
+  --el-color-primary-light-5: #1d4470;
+  --el-color-primary-light-7: #16334f;
+  --el-color-primary-light-8: #12283e;
+  --el-color-primary-light-9: #0f1f30;
+  --el-color-success: #2f8fff;
   --el-color-warning: #d6a542;
   --el-color-danger: #ef5252;
   --el-color-error: #ef5252;
@@ -351,11 +350,11 @@ html.dark {
   --el-border-color-light: #2b3a30;
   --el-border-color-lighter: #263229;
   --el-border-color-extra-light: #223028;
-  --el-border-color-hover: #435448;
+  --el-border-color-hover: #435264;
   --el-fill-color: #151915;
   --el-fill-color-light: #111411;
   --el-fill-color-lighter: #0d110e;
-  --el-fill-color-blank: #151916;
+  --el-fill-color-blank: #151a21;
   --el-border-radius-base: 0;
   --el-border-radius-small: 0;
   --el-border-radius-round: 0;
@@ -368,8 +367,8 @@ html.dark {
 
 /* 按钮：9px 切角 + 渐变拼边框 */
 .el-button {
-  --bb: #3b4a3f;
-  --bf: #151916;
+  --bb: #3b4654;
+  --bf: #151a21;
   border: 0 !important;
   outline: 0 !important;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
@@ -400,39 +399,39 @@ html.dark {
   transition: none;
 }
 .el-button:hover {
-  --bb: #6b806f;
-  --bf: #1a211c;
+  --bb: #6b7d8f;
+  --bf: #1a222b;
   color: #fff !important;
 }
 .el-button:active {
   transform: translateY(1px);
 }
 .el-button--primary {
-  --bb: var(--green);
-  --bf: var(--green);
+  --bb: var(--brand);
+  --bf: var(--brand);
   color: var(--accent-foreground) !important;
   font-weight: 700;
 }
 .el-button--primary:hover {
-  --bb: var(--green-hover);
-  --bf: var(--green-hover);
+  --bb: var(--brand-hover);
+  --bf: var(--brand-hover);
   color: var(--accent-foreground) !important;
 }
 .el-button--primary.is-plain {
-  --bb: #2b8553;
-  --bf: #10231a;
-  color: #47e896 !important;
+  --bb: #2b5c85;
+  --bf: #0f1f30;
+  color: #6db3ff !important;
 }
 .el-button--primary.is-plain:hover {
-  --bb: var(--green);
-  --bf: #143523;
-  color: #47e896 !important;
+  --bb: var(--brand);
+  --bf: #12283e;
+  color: #6db3ff !important;
 }
 .el-button.is-loading {
   opacity: 0.7;
 }
 
-/* 对话框：14px 切角双层描边 */
+/* 对话框：14px 切角 + 双层伪元素完整描边 */
 .el-dialog {
   --cut: 14px;
   background: var(--panel) !important;
@@ -447,8 +446,26 @@ html.dark {
   position: relative;
   isolation: isolate;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
-  border: 1px solid var(--frame);
+  border: 0 !important;
   padding: 20px 24px;
+}
+.el-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--frame);
+  clip-path: inherit;
+  z-index: -2;
+  pointer-events: none;
+}
+.el-dialog::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: var(--panel);
+  clip-path: inherit;
+  z-index: -1;
+  pointer-events: none;
 }
 .el-dialog__title,
 .el-dialog__header span {
@@ -466,8 +483,8 @@ html.dark {
 .el-input__wrapper,
 .el-select__wrapper,
 .el-textarea__inner {
-  --bb: #3b4a3f;
-  --bf: #151916;
+  --bb: #3b4654;
+  --bf: #151a21;
   border: 0 !important;
   outline: 0 !important;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
@@ -493,7 +510,7 @@ html.dark {
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  --bb: var(--green-dark);
+  --bb: var(--brand-dark);
 }
 
 /* 弹出层（下拉/气泡/通知） */
@@ -514,11 +531,11 @@ html.dark {
 .el-select-dropdown__item.is-hovering,
 .el-select-dropdown__item:hover,
 .el-dropdown-menu__item:hover {
-  background: #1a211c !important;
-  color: var(--green) !important;
+  background: #1a222b !important;
+  color: var(--brand) !important;
 }
 .el-select-dropdown__item.is-selected {
-  color: var(--green) !important;
+  color: var(--brand) !important;
 }
 .el-popper .el-popper__arrow::before {
   background: var(--panel2) !important;
@@ -547,10 +564,10 @@ html.dark {
   width: 16px;
   height: 3px;
   border-radius: 0;
-  background: #344239;
+  background: #34404e;
 }
 .el-carousel__indicator.is-active .el-carousel__button {
-  background: var(--green);
+  background: var(--brand);
 }
 .el-carousel__arrow {
   border-radius: 0;
@@ -558,12 +575,22 @@ html.dark {
   border: 1px solid var(--frame);
 }
 .el-carousel__arrow:hover {
-  background: var(--green-dim);
-  color: var(--green);
+  background: var(--brand-dim);
+  color: var(--brand);
 }
 
 /* 链接 */
 .el-link.el-link--primary {
-  --el-link-text-color: var(--green);
-  --el-link-hover-text-color: var(--green-hover);
+  --el-link-text-color: var(--brand);
+  --el-link-hover-text-color: var(--brand-hover);
+}
+
+/* 按钮内文字与图标颜色一致 */
+.el-button .el-image,
+.el-button img {
+  filter: invert(0.88);
+}
+.el-button--primary .el-image,
+.el-button--primary img {
+  filter: brightness(0) invert(1);
 }
