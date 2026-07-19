@@ -1,3 +1,4 @@
+mod app_credential;
 mod author;
 mod author_api_error;
 mod author_appkey_generator;

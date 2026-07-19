@@ -146,6 +146,31 @@ const handleSave = async () => {
   }
 }
 
+// ---------- 删除 ----------
+const isDeleting = ref(false)
+const handleDelete = async (row: DeviceAuth) => {
+  if (isDeleting.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除设备 ${row.machine_code} 的授权记录吗？该操作不可恢复，设备下次拉取将重新注册为试用。`,
+      '删除授权',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning', confirmButtonClass: 'el-button--danger' },
+    )
+  } catch {
+    return
+  }
+  isDeleting.value = true
+  try {
+    await http.post('/device/delete/authorization', { auth_id: row.auth_id })
+    ElMessage.success('已删除')
+    await queryDevices()
+  } catch (err: any) {
+    showError(err, '删除失败')
+  } finally {
+    isDeleting.value = false
+  }
+}
+
 // ---------- 吊销 ----------
 const isRevoking = ref(false)
 const handleRevoke = async (row: DeviceAuth) => {
@@ -239,7 +264,7 @@ onMounted(async () => {
           <el-tag v-else type="success" size="small">有效</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :min-width="140" fixed="right">
+      <el-table-column label="操作" :min-width="210" fixed="right">
         <template #default="scope">
           <el-button size="small" type="primary" @click="openEdit(scope.row)">编辑授权</el-button>
           <el-button
@@ -250,6 +275,15 @@ onMounted(async () => {
             @click="handleRevoke(scope.row)"
           >
             吊销
+          </el-button>
+          <el-button
+            size="small"
+            type="danger"
+            plain
+            :loading="isDeleting"
+            @click="handleDelete(scope.row)"
+          >
+            删除
           </el-button>
         </template>
       </el-table-column>

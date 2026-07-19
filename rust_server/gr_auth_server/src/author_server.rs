@@ -3,7 +3,8 @@ use crate::author_handler::{
 };
 use crate::authorization_handler::{
     handle_create_new_authorization, handle_create_new_deploy_authorization,
-    handle_device_pull, handle_device_revoke_authorization, handle_device_update_authorization,
+    handle_device_delete_authorization, handle_device_pull, handle_device_revoke_authorization,
+    handle_device_update_authorization,
     handle_gopico_client_report, handle_gopico_create_new_deploy_authorization,
     handle_gopico_query_authorizations,
     handle_gopico_query_deploy_authorization_by_id, handle_gopico_revoke_authorization,
@@ -14,7 +15,8 @@ use crate::authorization_handler::{
     handle_update_authorization, handle_verify_appkey_secret, handle_verify_license,
 };
 use crate::filter::{
-    author_admin_filter, author_auth_id_filter, author_login_token_filter, author_page_size_filter,
+    app_credential_filter, author_admin_filter, author_auth_id_filter, author_login_token_filter,
+    author_page_size_filter,
 };
 use axum::routing::{get, get_service, post};
 use axum::{Router, middleware};
@@ -208,11 +210,20 @@ pub fn build_router(web_dir: PathBuf) -> Router {
         )
         .route(
             "/api/v1/gopico/verify/online",
-            post(handle_gopico_verify_online),
+            post(handle_gopico_verify_online)
+                .layer(middleware::from_fn(app_credential_filter::filter)),
         )
-        .route("/api/v1/gopico/report", post(handle_gopico_client_report))
+        .route(
+            "/api/v1/gopico/report",
+            post(handle_gopico_client_report)
+                .layer(middleware::from_fn(app_credential_filter::filter)),
+        )
         // Device self-registration & license pull (gopico / clientbox / goagent)
-        .route("/api/v1/device/pull", post(handle_device_pull))
+        .route(
+            "/api/v1/device/pull",
+            post(handle_device_pull)
+                .layer(middleware::from_fn(app_credential_filter::filter)),
+        )
         .route(
             "/api/v1/device/update/authorization",
             post(handle_device_update_authorization)
@@ -222,6 +233,12 @@ pub fn build_router(web_dir: PathBuf) -> Router {
         .route(
             "/api/v1/device/revoke/authorization",
             post(handle_device_revoke_authorization)
+                .layer(middleware::from_fn(author_admin_filter::filter))
+                .layer(middleware::from_fn(author_login_token_filter::filter)),
+        )
+        .route(
+            "/api/v1/device/delete/authorization",
+            post(handle_device_delete_authorization)
                 .layer(middleware::from_fn(author_admin_filter::filter))
                 .layer(middleware::from_fn(author_login_token_filter::filter)),
         )
@@ -1139,6 +1156,194 @@ mod tests {
         .await;
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
+    async fn device_delete_removes_authorization() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+        let _guard = STORE_LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+        let post = |uri: &'static str, body: String, admin: bool| {
+            let router = router.clone();
+            async move {
+                let mut b = Request::builder()
+                    .method("POST")
+                    .uri(uri)
+                    .header("content-type", "application/json");
+                if admin {
+                    b = b.header("Authorization", token_for(AuthorRole::Admin));
+                }
+                router.oneshot(b.body(Body::from(body)).unwrap()).await.unwrap()
+            }
+        };
+
+        // 1. Register a device via pull.
+        let resp = post(
+            "/api/v1/device/pull",
+            r#"{"product":"gopico","device_code":"dev-del-001"}"#.to_string(),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        let auth_id = json["data"]["auth_id"].as_str().unwrap().to_string();
+
+        // 2. Delete without token -> 401.
+        let resp = post(
+            "/api/v1/device/delete/authorization",
+            format!(r#"{{"auth_id":"{auth_id}"}}"#),
+            false,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. Admin deletes -> 200, data=true.
+        let resp = post(
+            "/api/v1/device/delete/authorization",
+            format!(r#"{{"auth_id":"{auth_id}"}}"#),
+            true,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"], true);
+
+        // 4. Device list for the product is now empty.
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/product/query/authorizations?product=gopico&page=1&page_size=20")
+                    .header("Authorization", token_for(AuthorRole::Admin))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"].as_array().unwrap().len(), 0);
+
+        // 5. Second delete -> 400 (not found).
+        let resp = post(
+            "/api/v1/device/delete/authorization",
+            format!(r#"{{"auth_id":"{auth_id}"}}"#),
+            true,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 6. Missing auth_id -> 400.
+        let resp = post(
+            "/api/v1/device/delete/authorization",
+            r#"{}"#.to_string(),
+            true,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
+    async fn app_credential_filter_protects_open_endpoints() {
+        use crate::app_credential as cred;
+        use crate::author_settings::AppCredentialSettings;
+        use crate::authorization_manager::clear_authorization_memory_store;
+        use crate::gAuthorSettings;
+        let _guard = STORE_LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let appkey = "0123456789abcdef0123456789abcdef".to_string();
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff".to_string();
+
+        {
+            let mut st = gAuthorSettings.lock().await;
+            st.require_app_credential = false;
+            st.app_credential = Some(AppCredentialSettings {
+                appkey: appkey.clone(),
+                app_secret: secret.clone(),
+            });
+        }
+
+        let router = test_router();
+        let body = r#"{"product":"gopico","device_code":"dev-cred-001"}"#;
+        let pull_req = |headers: Vec<(&str, String)>| {
+            let mut b = Request::builder()
+                .method("POST")
+                .uri("/api/v1/device/pull")
+                .header("content-type", "application/json");
+            for (k, v) in headers {
+                b = b.header(k, v);
+            }
+            b.body(Body::from(body)).unwrap()
+        };
+
+        // 1. require=false：无凭据也放行。
+        let resp = router.clone().oneshot(pull_req(vec![])).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        gAuthorSettings.lock().await.require_app_credential = true;
+
+        // 2. require=true：无头 → 401。
+        let resp = router.clone().oneshot(pull_req(vec![])).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. 错签 → 401。
+        let ts = gr_base::get_current_timestamp();
+        let resp = router
+            .clone()
+            .oneshot(pull_req(vec![
+                (cred::HEADER_APP_KEY, appkey.clone()),
+                (cred::HEADER_APP_TIMESTAMP, ts.to_string()),
+                (cred::HEADER_APP_SIGN, "00".repeat(32)),
+            ]))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 4. 正确签名 → 200。
+        let sign = cred::sign(&appkey, &secret, ts, body.as_bytes()).unwrap();
+        let resp = router
+            .clone()
+            .oneshot(pull_req(vec![
+                (cred::HEADER_APP_KEY, appkey.clone()),
+                (cred::HEADER_APP_TIMESTAMP, ts.to_string()),
+                (cred::HEADER_APP_SIGN, sign),
+            ]))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // 5. 错 appkey（签名也对不上）→ 401。
+        let sign = cred::sign(&appkey, &secret, ts, body.as_bytes()).unwrap();
+        let resp = router
+            .clone()
+            .oneshot(pull_req(vec![
+                (cred::HEADER_APP_KEY, "ffffffffffffffffffffffffffffffff".to_string()),
+                (cred::HEADER_APP_TIMESTAMP, ts.to_string()),
+                (cred::HEADER_APP_SIGN, sign),
+            ]))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // 恢复全局设置，避免影响其他测试。
+        let mut st = gAuthorSettings.lock().await;
+        st.require_app_credential = false;
+        st.app_credential = None;
         clear_authorization_memory_store();
     }
 }

@@ -5,16 +5,27 @@ use serde::Deserialize;
 const MIN_JWT_SECRET_LEN: usize = 32;
 const JWT_SECRET_LEN: usize = 48;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct AppCredentialSettings {
+    pub appkey: String,
+    pub app_secret: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct AuthorSettings {
     pub server_port: u16,
     pub db_path: String,
     // to verify authorization
     pub verify_server: String,
     pub bootstrap: BootstrapSettings,
+    /// 开放接口（device/pull、gopico/verify/online、gopico/report）是否强制
+    /// 校验接入凭据（appkey + HMAC 签名）。灰度期间可置 false。
+    #[serde(default)]
+    pub require_app_credential: bool,
+    pub app_credential: Option<AppCredentialSettings>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct BootstrapSettings {
     pub jwt_secret: String,
     pub admin_name: String,
@@ -118,6 +129,16 @@ impl AuthorSettings {
             "bootstrap.visitor_password",
             self.bootstrap.visitor_password.as_deref(),
         )?;
+        if self.require_app_credential {
+            let cred = self.app_credential.as_ref().ok_or_else(|| {
+                AuthorSettingsError::InvalidField {
+                    field: "app_credential",
+                    message: "required when require_app_credential is true",
+                }
+            })?;
+            validate_non_empty("app_credential.appkey", &cred.appkey)?;
+            validate_non_empty("app_credential.app_secret", &cred.app_secret)?;
+        }
         Ok(())
     }
 }
@@ -220,6 +241,8 @@ impl Default for AuthorSettings {
             db_path: "".to_string(),
             verify_server: "".to_string(),
             bootstrap: BootstrapSettings::default(),
+            require_app_credential: false,
+            app_credential: None,
         }
     }
 }

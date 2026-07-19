@@ -999,6 +999,36 @@ pub async fn handle_device_revoke_authorization(
     Ok(Json(ok_resp(auth)))
 }
 
+/// `POST /api/v1/device/delete/authorization` — admin hard-deletes a device
+/// authorization of any device product from the database. Body: `{ auth_id }`.
+/// 不可恢复，返回 data=true 表示删除成功。
+pub async fn handle_device_delete_authorization(
+    body: Body,
+) -> Result<Json<RespMessage<bool>>, AuthorApiError> {
+    let body = get_body(body).await?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| AuthorApiError::InvalidParams)?;
+    let auth_id = get_body_str(&r, KEY_CREATE_AUTHORIZATION_AUTH_ID)?;
+    validate_auth_id(&auth_id)?;
+
+    let auth = gAuthorizationManager
+        .query_authorization_by_id(auth_id.clone())
+        .await
+        .ok_or(AuthorApiError::AuthorizationNotFound)?;
+    if !is_device_product(&auth.product) {
+        return Err(AuthorApiError::InvalidParams);
+    }
+
+    gAuthorizationManager
+        .delete_authorization(auth_id)
+        .await
+        .map_err(|e| match e {
+            AuthorizationError::NotFound => AuthorApiError::AuthorizationNotFound,
+            _ => AuthorApiError::UpdateAuthFailed,
+        })?;
+    Ok(Json(ok_resp(true)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

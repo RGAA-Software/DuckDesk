@@ -61,6 +61,10 @@ mod memory_store {
         true
     }
 
+    pub fn remove(auth_id: &str) -> bool {
+        STORE.lock().unwrap().remove(auth_id).is_some()
+    }
+
     pub fn get_by_machine_code_product(machine_code: &str, product: &str) -> Option<Authorization> {
         STORE
             .lock()
@@ -408,6 +412,35 @@ impl AuthorizationManager {
             Ok(auth)
         } else {
             Err(AuthorizationError::DatabaseError)
+        }
+    }
+
+    /// 硬删除授权记录（从数据库彻底移除，不可恢复）。
+    pub async fn delete_authorization(&self, auth_id: String) -> Result<(), AuthorizationError> {
+        #[cfg(test)]
+        {
+            return if memory_store::remove(&auth_id) {
+                Ok(())
+            } else {
+                Err(AuthorizationError::NotFound)
+            };
+        }
+        #[cfg(not(test))]
+        {
+            let c_authorization = gAuthorDatabase.lock().await.authorization();
+            let r = c_authorization
+                .lock()
+                .await
+                .delete_one(doc! {"auth_id": auth_id})
+                .await;
+            match r {
+                Ok(res) if res.deleted_count > 0 => Ok(()),
+                Ok(_) => Err(AuthorizationError::NotFound),
+                Err(e) => {
+                    tracing::error!("error deleting auth: {}", e);
+                    Err(AuthorizationError::DatabaseError)
+                }
+            }
         }
     }
 

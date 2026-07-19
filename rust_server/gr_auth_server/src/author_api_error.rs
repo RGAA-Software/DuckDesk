@@ -44,6 +44,9 @@ pub enum AuthorApiError {
 
     #[error("Miss login token")]
     MissLoginToken,
+
+    #[error("Invalid app credential")]
+    InvalidAppCredential,
 }
 
 impl IntoResponse for AuthorApiError {
@@ -72,6 +75,7 @@ impl AuthorApiError {
             AuthorApiError::UpdateAuthFailed => 810,
             AuthorApiError::InvalidLoginToken => 811,
             AuthorApiError::MissLoginToken => 812,
+            AuthorApiError::InvalidAppCredential => 813,
         }
     }
 
@@ -87,7 +91,8 @@ impl AuthorApiError {
             | AuthorApiError::UpdateAuthFailed => StatusCode::BAD_REQUEST,
             AuthorApiError::InvalidPassword
             | AuthorApiError::InvalidLoginToken
-            | AuthorApiError::MissLoginToken => StatusCode::UNAUTHORIZED,
+            | AuthorApiError::MissLoginToken
+            | AuthorApiError::InvalidAppCredential => StatusCode::UNAUTHORIZED,
             AuthorApiError::MustBeAdministrator => StatusCode::FORBIDDEN,
             AuthorApiError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }

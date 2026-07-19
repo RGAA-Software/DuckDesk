@@ -1,3 +1,4 @@
+pub mod app_credential_filter;
 pub mod author_admin_filter;
 pub mod author_auth_id_filter;
 pub mod author_login_token_filter;
