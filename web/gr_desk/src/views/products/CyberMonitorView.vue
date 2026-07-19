@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import cmonLogo from '@/assets/products/cybermonitor-logo.svg'
@@ -7,7 +7,6 @@ import cmonOverview from '@/assets/products/cmon-ui-overview.jpg'
 import cmonGpu from '@/assets/products/cmon-ui-gpu.jpg'
 import githubIcon from '@/assets/ic_github.svg'
 
-import ContactUs from '@/components/ContactUs.vue'
 import ProductHero from '@/components/ProductHero.vue'
 import ProductSection from '@/components/ProductSection.vue'
 import FeatureGrid from '@/components/FeatureGrid.vue'
@@ -31,15 +30,10 @@ function goGithub() {
   window.open('https://github.com/RGAA-Software/CyberDesktop', '_blank')
 }
 
-const contactUsVisible = ref(false)
-const goContactUs = () => {
-  contactUsVisible.value = true
-}
 </script>
 
 <template>
   <div style="--pa: #7548d8">
-    <ContactUs v-model="contactUsVisible" />
 
     <!-- 产品 Hero -->
     <ProductHero
@@ -52,7 +46,6 @@ const goContactUs = () => {
         <img :src="githubIcon" alt="" class="h-5 w-5 invert" />
         <span class="ml-1">{{ t('products.common.github') }}</span>
       </el-button>
-      <el-button class="!h-11 !px-8" @click="goContactUs">{{ t('products.common.consult') }}</el-button>
     </ProductHero>
 
     <!-- 核心功能 -->
@@ -112,7 +105,6 @@ const goContactUs = () => {
             <img :src="githubIcon" alt="" class="h-5 w-5 invert" />
             <span class="ml-1">{{ t('products.common.github') }}</span>
           </el-button>
-          <el-button class="!h-11 !px-8" @click="goContactUs">{{ t('products.common.consult') }}</el-button>
         </div>
       </div>
     </section>

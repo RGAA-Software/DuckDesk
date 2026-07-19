@@ -3,8 +3,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import goxrLogo from '@/assets/products/goxr-logo.png'
-import goxrDashboard from '@/assets/products/goxr-ui-dashboard.jpg'
-import goxrWall from '@/assets/products/goxr-ui-wall.jpg'
+import goxrDashboard from '@/assets/products/xr_01.png'
+import goxrWall from '@/assets/products/xr_02.png'
 
 import ContactUs from '@/components/ContactUs.vue'
 import ProductHero from '@/components/ProductHero.vue'

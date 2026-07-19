@@ -5,21 +5,18 @@ import { useRouter } from 'vue-router'
 
 import downloadIcon from '@/assets/icon/ic_download.svg'
 import writeIcon from '@/assets/icon/ic_write.svg'
-import emailIcon from '@/assets/icon/ic_email.svg'
 import cnFlag from '@/assets/icon/ic_cn_flag.svg'
 import usFlag from '@/assets/icon/ic_us_flag.svg'
 import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
 
-import preview1 from '@/assets/preview/preview-1.png'
-import preview2 from '@/assets/preview/preview-2.png'
-import preview3 from '@/assets/preview/preview-3.png'
-import preview4 from '@/assets/preview/preview-4.png'
+import preview1 from '@/assets/preview/shot_1.png'
+import preview2 from '@/assets/preview/shot_2.png'
+import preview3 from '@/assets/preview/shot_3.png'
+import preview4 from '@/assets/preview/shot_5.png'
 
 import webInfoMain from '@/assets/main/ic_new_experience.svg'
 import webInfoFileTransfer from '@/assets/main/ic_file_transfer.svg'
 import webInfoSecurity from '@/assets/main/ic_private.svg'
-import webInfoConfigurable from '@/assets/main/ic_custmize.svg'
-import webInfoFast from '@/assets/main/ic_speed.svg'
 
 import resGame from '@/assets/main/res-game.jpg'
 import resFinancial from '@/assets/main/res-financial.jpg'
@@ -31,14 +28,13 @@ import resEducation from '@/assets/main/res-education.jpg'
 import resSupport from '@/assets/main/res-support.jpg'
 
 import ContactUs from '@/components/ContactUs.vue'
-import FeatureSection from '@/components/FeatureSection.vue'
 import ProductHero from '@/components/ProductHero.vue'
 
 const { t, tm } = useI18n()
 const router = useRouter()
 
 // 截图轮播
-const imageList = [preview1, preview4, preview2, preview3]
+const imageList = [preview1, preview2, preview3, preview4]
 
 // 轮播容器按 16:9 计算高度（el-carousel 需要显式高度）
 const carouselWrapRef = ref<HTMLElement>()
@@ -80,11 +76,9 @@ interface FeatureItem {
 const featureItems = (key: string): FeatureItem[] => tm(key) as FeatureItem[]
 
 const sections = computed(() => [
-  { key: 'experience', title: t('features.experience.title'), image: webInfoMain, imageLeft: false },
-  { key: 'fileTransfer', title: t('features.fileTransfer.title'), image: webInfoFileTransfer, imageLeft: true },
-  { key: 'security', title: t('features.security.title'), image: webInfoSecurity, imageLeft: false },
-  { key: 'custom', title: t('features.custom.title'), image: webInfoConfigurable, imageLeft: true },
-  { key: 'performance', title: t('features.performance.title'), image: webInfoFast, imageLeft: false },
+  { key: 'experience', title: t('features.experience.title'), image: webInfoMain },
+  { key: 'fileTransfer', title: t('features.fileTransfer.title'), image: webInfoFileTransfer },
+  { key: 'security', title: t('features.security.title'), image: webInfoSecurity },
 ])
 
 const kpis = computed(() => tm('hero.kpis') as Array<{ num: string; label: string }>)
@@ -149,7 +143,6 @@ const goContactUs = () => {
         <div v-for="kpi in kpis" :key="kpi.label" class="flex flex-col gap-2">
           <div class="kpi-num">{{ kpi.num }}</div>
           <div class="font-tech text-[11px] tracking-[0.14em] text-cyber-muted uppercase">{{ kpi.label }}</div>
-          <div class="kpi-line"><i style="width: 72%"></i></div>
         </div>
       </div>
     </section>
@@ -168,22 +161,35 @@ const goContactUs = () => {
       </div>
     </section>
 
-    <!-- 卖点区块（图文交错） -->
-    <FeatureSection
-      v-for="(section, si) in sections"
-      :key="section.key"
-      :title="section.title"
-      :items="featureItems(`features.${section.key}.items`)"
-      :image="section.image"
-      :image-left="section.imageLeft"
-      :index="`0${si + 1}`"
-    >
-      <template v-if="section.key === 'custom'">
-        <p class="mt-2 pl-5 font-tech font-bold tracking-wider text-cyber-brand">
-          {{ t('features.custom.email') }}
-        </p>
-      </template>
-    </FeatureSection>
+    <!-- 卖点卡片矩阵（统一图标尺寸与卡片高度，自动对齐） -->
+    <section v-reveal class="section-container mt-14 md:mt-20">
+      <div class="cyber-label mb-4 text-center">// FEATURES</div>
+      <div class="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="(section, si) in sections"
+          :key="section.key"
+          v-reveal="(si % 3) * 100"
+          class="feature-card cyber-panel flex flex-col p-6"
+        >
+          <div class="flex items-center gap-4">
+            <div class="feature-icon">
+              <img :src="section.image" :alt="section.title" class="h-9 w-9 object-contain" />
+            </div>
+            <h3 class="font-tech text-base font-bold tracking-wider text-cyber-text">{{ section.title }}</h3>
+          </div>
+
+          <ul class="mt-5 flex flex-col gap-4">
+            <li v-for="(item, i) in featureItems(`features.${section.key}.items`)" :key="i">
+              <div class="flex items-center gap-2.5">
+                <span class="cyber-dot"></span>
+                <span class="font-tech text-sm font-bold tracking-wider text-cyber-text">{{ item.title }}</span>
+              </div>
+              <p class="mt-1 pl-4.5 text-xs leading-relaxed text-cyber-muted">{{ item.desc }}</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
     <!-- 行业解决方案 -->
     <section class="section-container mt-6 md:mt-10">
@@ -224,18 +230,6 @@ const goContactUs = () => {
             <span class="ml-1">{{ t('cta.message') }}</span>
           </el-button>
 
-          <el-popover placement="top" :width="265" trigger="click">
-            <template #reference>
-              <el-button class="!h-11 !px-8">
-                <el-image :src="emailIcon" fit="cover" class="h-5 w-5" />
-                <span class="ml-1">{{ t('cta.email') }}</span>
-              </el-button>
-            </template>
-
-            <div class="flex h-10 w-full items-center justify-center">
-              <span class="font-tech text-base font-bold">{{ t('cta.emailAddress') }}</span>
-            </div>
-          </el-popover>
         </div>
       </div>
     </section>
@@ -243,6 +237,27 @@ const goContactUs = () => {
 </template>
 
 <style scoped>
+/* 卖点卡片：统一图标盒与悬停效果 */
+.feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border: 1px solid var(--frame);
+  background: var(--bg2, rgba(255, 255, 255, 0.03));
+}
+.feature-card {
+  transition: transform 0.2s;
+}
+.feature-card:hover {
+  transform: translateY(-3px);
+}
+.feature-card:hover::before {
+  background: var(--brand-dark);
+}
+
 /* 行业卡片：切角边框 */
 .industry-card {
   --cut: 9px;

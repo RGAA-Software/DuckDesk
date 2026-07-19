@@ -62,6 +62,7 @@ export default {
         { title: '高清画质', desc: '多屏同显, 高至8K 4:4:4 60帧的全彩体验' },
         { title: '体验UP', desc: '直连中转双网+RTC, 连接更流畅' },
         { title: '坚实稳定', desc: '持久稳定不卡顿, 字体清晰, 响应精准' },
+        { title: '硬件加速', desc: 'AMD Nvidia硬编码与全面,全彩(4:4:4)的硬解码' },
       ],
     },
     fileTransfer: {
@@ -70,6 +71,7 @@ export default {
         { title: '快速稳定', desc: '单个, 批量快速双向传输' },
         { title: '权限可控', desc: '文件传输权限隔离, 安全稳定不混乱' },
         { title: '操作简洁', desc: '右键唤出菜单即可直接粘贴' },
+        { title: '算法优化', desc: '精准调控与数据控制到达' },
       ],
     },
     security: {
@@ -79,20 +81,6 @@ export default {
         { title: '操作日志', desc: '访问, 文件传输全记录, 安全无小事' },
         { title: '设备监控', desc: '无痕查看管理每台设备的工作状况' },
         { title: '屏幕录制', desc: '随时录制您的操作' },
-      ],
-    },
-    custom: {
-      title: '高级定制',
-      items: [{ title: '按需修改', desc: '多项全面的配置供您选择' }],
-      contact: '联系我们定制方案',
-      email: 'godesk-sales@outlook.com',
-    },
-    performance: {
-      title: '性能拉满',
-      items: [
-        { title: '硬件加速', desc: 'AMD Nvidia硬编码与全面,全彩(4:4:4)的硬解码' },
-        { title: '算法优化', desc: '精准调控与数据控制到达' },
-        { title: '资源效率', desc: '渲染效率高, 资源占用低, 可放心运行您的大型三维程序' },
       ],
     },
   },
@@ -127,12 +115,11 @@ export default {
         '管理设备数不限',
         '同时控制2台设备',
         '高速文件传输',
-        '服务端N卡，A卡硬件加速',
         '画面尺寸自定义',
         '中继服务',
         '多屏同显同控',
         '画面截图, 视频录制',
-        '客户端Vulkan, D3D硬件加速',
+        '编解码硬件加速',
         '全彩4:4:4',
         '访问历史记录',
         '文件传输历史记录',
@@ -140,7 +127,7 @@ export default {
     },
     enterprise: {
       name: '企业合作',
-      price: '69$/席位/年',
+      price: '请联系我们',
       recommended: '推荐',
       features: ['免费定制LOGO/企业名称', '优先升级', '快速响应', '远程协助'],
       allUnlocked: '+全部功能解锁',
@@ -153,8 +140,8 @@ export default {
         features: ['免费定制 LOGO / 企业名称', '免费定制界面风格', '随设备授权交付'],
       },
       device: {
-        name: '设备授权',
-        price: '¥1000/设备',
+        name: '企业合作',
+        price: '请联系我们',
         recommended: '按设备计费',
         features: ['单台头显授权', 'PC 管理端 + PICO Agent + Android 瘦终端', '全部功能解锁', '授权在线刷新'],
       },
@@ -263,7 +250,7 @@ export default {
       ],
       features: [
         { title: '设备总览与预警', desc: '设备状态一览，低电量、丢帧、流积压自动预警' },
-        { title: '宫格画面墙', desc: '1×1 至 4×4 多设备实时同屏，每格独立解码器' },
+        { title: '宫格画面墙', desc: '多设备实时同屏，每格独立解码器' },
         { title: '远程画面控制', desc: '触摸、按键、文本回传，48kHz 音频回传混音' },
         { title: '应用仓库', desc: 'APK 资产库与版本对比，批量安装、卸载一键下发' },
         { title: 'Agent 批量升级', desc: '按版本识别头显代理，批量推送静默升级' },
@@ -275,7 +262,6 @@ export default {
       diffs: [
         { title: '官方 PICO Enterprise SDK', desc: 'LBE 大空间、手势追踪、OTA、DeviceOwner 深度集成，而非通用 scrcpy 方案' },
         { title: '单编码器多端共享', desc: 'PC 监控与电视同屏同时拉流，不增加头显编码负担' },
-        { title: '商用授权体系', desc: '设备配额、机器码绑定、试用与宽限期，与 GoDesk 共用授权基础设施' },
       ],
       scenes: ['门店演示', '展厅运营', '教育培训', '企业设备管理'],
     },

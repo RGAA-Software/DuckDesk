@@ -6,8 +6,8 @@ import { useRouter } from 'vue-router'
 import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
 import goxrLogo from '@/assets/products/goxr-logo.png'
 import cmonLogo from '@/assets/products/cybermonitor-logo.svg'
-import godeskShot from '@/assets/preview/preview-1.png'
-import goxrShot from '@/assets/products/goxr-ui-dashboard.jpg'
+import godeskShot from '@/assets/preview/shot_1.png'
+import goxrShot from '@/assets/products/xr_01.png'
 import cmonShot from '@/assets/products/cmon-ui-overview.jpg'
 
 import DotGlobe from '@/components/DotGlobe.vue'
@@ -142,7 +142,7 @@ const goContactUs = () => {
 
         <!-- 主视觉 -->
         <div class="w-full md:w-3/5">
-          <div class="cyber-panel cyber-corners highlight-shot p-2">
+          <div class="highlight-shot p-2">
             <img :src="card.shot" :alt="card.name" class="w-full" loading="lazy" />
           </div>
         </div>
@@ -166,9 +166,10 @@ const goContactUs = () => {
 </template>
 
 <style scoped>
-.highlight-shot::before {
-  background: var(--pa, var(--frame));
-  opacity: 0.6;
+/* 产品大图：矩形边框完全包裹，无切角 */
+.highlight-shot {
+  border: 1px solid var(--pa, var(--frame));
+  background: var(--panel);
 }
 .cursor-blink {
   animation: blink 1s step-end infinite;

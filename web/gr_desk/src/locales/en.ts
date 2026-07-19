@@ -62,6 +62,7 @@ export default {
         { title: 'HD Quality', desc: 'Multi-monitor display, up to 8K 4:4:4 full-color at 60 FPS' },
         { title: 'Better Experience', desc: 'Direct + relay dual-network with RTC for smoother connections' },
         { title: 'Rock Solid', desc: 'Long-lasting stability, crisp fonts, precise response' },
+        { title: 'Hardware Acceleration', desc: 'AMD & Nvidia hardware encoding and full-color (4:4:4) hardware decoding' },
       ],
     },
     fileTransfer: {
@@ -70,6 +71,7 @@ export default {
         { title: 'Fast & Stable', desc: 'Single or batch bidirectional transfers at high speed' },
         { title: 'Permission Control', desc: 'Isolated transfer permissions, secure and organized' },
         { title: 'Simple Operation', desc: 'Right-click menu to paste directly' },
+        { title: 'Algorithm Optimization', desc: 'Precise tuning and controlled data delivery' },
       ],
     },
     security: {
@@ -79,20 +81,6 @@ export default {
         { title: 'Operation Logs', desc: 'Full records of access and file transfers' },
         { title: 'Device Monitoring', desc: 'View and manage the status of every device' },
         { title: 'Screen Recording', desc: 'Record your operations anytime' },
-      ],
-    },
-    custom: {
-      title: 'Advanced Customization',
-      items: [{ title: 'On-Demand Changes', desc: 'A comprehensive set of configuration options' }],
-      contact: 'Contact us for a custom plan',
-      email: 'godesk-sales@outlook.com',
-    },
-    performance: {
-      title: 'Max Performance',
-      items: [
-        { title: 'Hardware Acceleration', desc: 'AMD & Nvidia hardware encoding and full-color (4:4:4) hardware decoding' },
-        { title: 'Algorithm Optimization', desc: 'Precise tuning and controlled data delivery' },
-        { title: 'Resource Efficiency', desc: 'Efficient rendering with low footprint — run your heavy 3D apps with confidence' },
       ],
     },
   },
@@ -127,12 +115,11 @@ export default {
         'Unlimited managed devices',
         'Control 2 devices simultaneously',
         'High-speed file transfer',
-        'Server-side Nvidia & AMD hardware acceleration',
         'Customizable display size',
         'Relay service',
         'Multi-monitor display & control',
         'Screenshots & video recording',
-        'Client-side Vulkan & D3D hardware acceleration',
+        'Hardware-accelerated encoding & decoding',
         'Full-color 4:4:4',
         'Access history',
         'File transfer history',
@@ -140,7 +127,7 @@ export default {
     },
     enterprise: {
       name: 'Enterprise',
-      price: '$69/seat/year',
+      price: 'Contact Us',
       recommended: 'Recommended',
       features: ['Free custom LOGO / company name', 'Priority upgrades', 'Rapid response', 'Remote assistance'],
       allUnlocked: '+ All features unlocked',
@@ -153,8 +140,8 @@ export default {
         features: ['Free custom LOGO / company name', 'Free custom interface style', 'Delivered with device licenses'],
       },
       device: {
-        name: 'Device License',
-        price: '¥1000/device',
+        name: 'Enterprise Partnership',
+        price: 'Contact Us',
         recommended: 'Per-device billing',
         features: ['Single headset license', 'PC Manager + PICO Agent + Android thin client', 'All features unlocked', 'Online license refresh'],
       },
@@ -263,7 +250,7 @@ export default {
       ],
       features: [
         { title: 'Overview & Alerts', desc: 'Fleet status at a glance with automatic low-battery, frame-drop and stream warnings' },
-        { title: 'Video Wall', desc: '1×1 to 4×4 live multi-device tiles, each with an independent decoder' },
+        { title: 'Video Wall', desc: 'Live multi-device tiles, each with an independent decoder' },
         { title: 'Remote Control', desc: 'Touch, key and text injection with 48kHz audio playback and mixing' },
         { title: 'App Repository', desc: 'APK asset library with version comparison and one-click batch install/uninstall' },
         { title: 'Batch Agent Upgrade', desc: 'Detect agent versions and push silent upgrades to the whole fleet' },
@@ -275,7 +262,6 @@ export default {
       diffs: [
         { title: 'Official PICO Enterprise SDK', desc: 'Deep integration of LBE, hand tracking, OTA and DeviceOwner — not a generic scrcpy solution' },
         { title: 'Single Encoder, Multiple Consumers', desc: 'PC monitoring and TV mirroring stream simultaneously with no extra load on the headset' },
-        { title: 'Commercial Licensing', desc: 'Device quotas, machine-code binding, trial and grace periods — shared with GoDesk' },
       ],
       scenes: ['Retail Demos', 'Showrooms', 'Education & Training', 'Enterprise Fleets'],
     },

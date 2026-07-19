@@ -338,11 +338,11 @@ async function confirmIssue() {
         <div class="cyber-label mb-2">{{ t('footer.contactUs') }}</div>
         <div class="flex items-center gap-2">
           <img :src="emailIconFooter" alt="" class="h-4 w-4 footer-icon" />
-          <span class="font-tech text-sm text-cyber-muted">godesk-sales@outlook.com</span>
+          <span class="font-tech text-sm text-cyber-muted">{{ t('consult.email') }}: godesk-sales@outlook.com</span>
         </div>
         <div class="flex items-center gap-2">
           <img :src="wechatIcon" alt="" class="h-4.5 w-4.5 footer-icon" />
-          <span class="font-tech text-sm text-cyber-muted">AlmostDawn</span>
+          <span class="font-tech text-sm text-cyber-muted">{{ t('consult.wechat') }}: AlmostDawn</span>
         </div>
       </div>
     </div>

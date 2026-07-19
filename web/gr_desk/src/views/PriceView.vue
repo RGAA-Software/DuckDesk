@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import checkIcon from '@/assets/icon/ic_check.svg'
 import warnIcon from '@/assets/icon/ic_warn.svg'
 import writeIcon from '@/assets/icon/ic_write.svg'
-import emailIcon from '@/assets/icon/ic_email.svg'
 import downloadIcon from '@/assets/icon/ic_download.svg'
 import cnFlag from '@/assets/icon/ic_cn_flag.svg'
 import usFlag from '@/assets/icon/ic_us_flag.svg'
@@ -161,18 +160,6 @@ const goContactUs = () => {
           <span class="ml-1">{{ t('products.common.consult') }}</span>
         </el-button>
 
-        <el-popover placement="top" :width="265" trigger="click">
-          <template #reference>
-            <el-button type="primary" class="!h-11 !px-8">
-              <el-image :src="emailIcon" fit="cover" class="h-5 w-5" />
-              <span class="ml-1">{{ t('cta.email') }}</span>
-            </el-button>
-          </template>
-
-          <div class="flex h-10 w-full items-center justify-center">
-            <span class="font-tech text-base font-bold">{{ t('cta.emailAddress') }}</span>
-          </div>
-        </el-popover>
       </div>
     </section>
   </template>
@@ -209,7 +196,7 @@ const goContactUs = () => {
         <div v-reveal="120" class="cyber-panel goxr-accent cyber-corners relative flex flex-col p-6 md:p-8">
           <span class="goxr-tag absolute -top-0 right-6">{{ t('price.goxr.device.recommended') }}</span>
 
-          <div class="cyber-label">// DEVICE LICENSE</div>
+          <div class="cyber-label">// ENTERPRISE</div>
           <h3 class="mt-2 font-tech text-lg font-bold tracking-wider text-cyber-text">{{ t('price.goxr.device.name') }}</h3>
           <p class="kpi-num mt-3" style="color: var(--pa)">{{ t('price.goxr.device.price') }}</p>
 

@@ -170,31 +170,43 @@
     background: var(--brand-dark);
   }
 
-  /* 9px 切角按钮/输入框：渐变拼边框（gopico 设计稿原文技巧） */
-  .cyber-bevel-9 {
+  /* 9px 切角盒（双层伪元素均匀 1px 描边，含斜边） */
+  .cyber-bevel-box {
+    --cut: 9px;
     --bb: #4e6175;
     --bf: #151a21;
+    position: relative;
+    isolation: isolate;
     border: 0 !important;
     outline: 0 !important;
-    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
     box-shadow: none !important;
-    background-color: var(--bf) !important;
-    background-image:
-      linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-      linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-      linear-gradient(var(--bb), var(--bb)),
-      linear-gradient(var(--bb), var(--bb)),
-      linear-gradient(var(--bb), var(--bb)),
-      linear-gradient(var(--bb), var(--bb)) !important;
-    background-size:
-      9px 9px,
-      9px 9px,
-      calc(100% - 9px) 1px,
-      1px calc(100% - 9px),
-      calc(100% - 9px) 1px,
-      1px calc(100% - 9px) !important;
-    background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
-    background-repeat: no-repeat !important;
+    background: transparent !important;
+    clip-path: polygon(
+      var(--cut) 0,
+      100% 0,
+      100% calc(100% - var(--cut)),
+      calc(100% - var(--cut)) 100%,
+      0 100%,
+      0 var(--cut)
+    ) !important;
+  }
+  .cyber-bevel-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--bb);
+    clip-path: inherit;
+    z-index: -2;
+    pointer-events: none;
+  }
+  .cyber-bevel-box::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    background: var(--bf);
+    clip-path: inherit;
+    z-index: -1;
+    pointer-events: none;
   }
 
   /* 等宽 HUD 标题（绿竖条 + 大写 + 字距） */
@@ -303,8 +315,11 @@
     background: var(--line);
   }
 
-  /* 赛博分页切换器（--ta 为激活色） */
+  /* 赛博分页切换器（--ta 为激活色；双层伪元素均匀 1px 描边） */
   .cyber-tab {
+    --bb: var(--frame);
+    --bf: transparent;
+    --cut: 9px;
     height: 34px;
     padding: 0 22px;
     display: inline-flex;
@@ -315,19 +330,48 @@
     text-transform: uppercase;
     color: #adb5ae;
     background: transparent;
-    border: 1px solid var(--frame);
+    border: 0;
     cursor: pointer;
-    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative;
+    isolation: isolate;
+    clip-path: polygon(
+      var(--cut) 0,
+      100% 0,
+      100% calc(100% - var(--cut)),
+      calc(100% - var(--cut)) 100%,
+      0 100%,
+      0 var(--cut)
+    );
+    transition: color 0.15s;
+  }
+  .cyber-tab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--bb);
+    clip-path: inherit;
+    z-index: -2;
+    pointer-events: none;
+    transition: background 0.15s;
+  }
+  .cyber-tab::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    background: var(--bf);
+    clip-path: inherit;
+    z-index: -1;
+    pointer-events: none;
+    transition: background 0.15s;
   }
   .cyber-tab:hover {
     color: #fff;
-    border-color: var(--ta, var(--brand));
+    --bb: var(--ta, var(--brand));
   }
   .cyber-tab-active,
   .cyber-tab-active:hover {
-    background: var(--ta, var(--brand));
-    border-color: var(--ta, var(--brand));
+    --bb: var(--ta, var(--brand));
+    --bf: var(--ta, var(--brand));
     color: #f2f8ff;
     font-weight: 700;
   }
@@ -394,7 +438,7 @@ html.dark {
   --el-box-shadow-dark: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* 按钮：9px 切角 + 渐变拼边框 */
+/* 按钮：9px 切角 + 双层伪元素均匀 1px 描边 */
 .el-button {
   --bb: #4e6175;
   --bf: #151a21;
@@ -402,23 +446,9 @@ html.dark {
   outline: 0 !important;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
   box-shadow: none !important;
-  background-color: var(--bf) !important;
-  background-image:
-    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)) !important;
-  background-size:
-    9px 9px,
-    9px 9px,
-    calc(100% - 9px) 1px,
-    1px calc(100% - 9px),
-    calc(100% - 9px) 1px,
-    1px calc(100% - 9px) !important;
-  background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
-  background-repeat: no-repeat !important;
+  background: transparent !important;
+  position: relative;
+  isolation: isolate;
   font-family: var(--font-tech);
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -426,6 +456,28 @@ html.dark {
   padding: 0 16px;
   color: #d7ddd7 !important;
   transition: none;
+}
+.el-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bb);
+  clip-path: inherit;
+  z-index: -2;
+  pointer-events: none;
+}
+.el-button::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: var(--bf);
+  clip-path: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+.el-button > span {
+  position: relative;
+  z-index: 1;
 }
 .el-button:hover {
   --bb: #7d92a8;
@@ -508,38 +560,58 @@ html.dark {
   color: #9ca59c !important;
 }
 
-/* 输入框 / 下拉框：9px 切角 */
+/* 输入框 / 下拉框：9px 切角 + 双层伪元素均匀 1px 描边 */
 .el-input__wrapper,
-.el-select__wrapper,
-.el-textarea__inner {
+.el-select__wrapper {
   --bb: #4e6175;
   --bf: #151a21;
   border: 0 !important;
   outline: 0 !important;
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px) !important;
   box-shadow: none !important;
-  background-color: var(--bf) !important;
-  background-image:
-    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-    linear-gradient(135deg, transparent 5.864px, var(--bb) 5.864px, var(--bb) 6.864px, transparent 6.864px),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)),
-    linear-gradient(var(--bb), var(--bb)) !important;
-  background-size:
-    9px 9px,
-    9px 9px,
-    calc(100% - 9px) 1px,
-    1px calc(100% - 9px),
-    calc(100% - 9px) 1px,
-    1px calc(100% - 9px) !important;
-  background-position: left top, right bottom, right top, right top, left bottom, left bottom !important;
-  background-repeat: no-repeat !important;
+  background: transparent !important;
+  position: relative;
+  isolation: isolate;
+}
+.el-input__wrapper::before,
+.el-select__wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bb);
+  clip-path: inherit;
+  z-index: -2;
+  pointer-events: none;
+}
+.el-input__wrapper::after,
+.el-select__wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: var(--bf);
+  clip-path: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* textarea 为替换元素不支持伪元素：用完整实线边框（直角） */
+.el-textarea__inner {
+  border: 1px solid #4e6175 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background-color: #151a21 !important;
+}
+.el-textarea__inner:focus {
+  border-color: var(--brand-dark) !important;
 }
 .el-input__wrapper.is-focus,
-.el-select__wrapper.is-focused,
-.el-textarea__inner:focus {
+.el-select__wrapper.is-focused {
   --bb: var(--brand-dark);
+}
+
+/* el-select 选中值/占位文本默认 z-index:-1，会被 wrapper 伪元素背景层遮盖，需抬高 */
+.el-select__wrapper .el-select__placeholder {
+  z-index: 1;
 }
 
 /* 弹出层（下拉/气泡/通知） */
