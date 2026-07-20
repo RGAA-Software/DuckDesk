@@ -6,7 +6,6 @@ import { ElNotification } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import axiosHttp from '@/http.ts'
 import ContactUs from '@/components/ContactUs.vue'
-import githubIcon from '@/assets/ic_github.svg'
 import transIcon from '@/assets/icon/ic_translate.svg'
 import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
 import goxrLogo from '@/assets/products/goxr-logo.png'
@@ -52,10 +51,6 @@ const goProduct = (path: string) => {
 const goPage = (path: string) => {
   mobileMenuVisible.value = false
   router.push(path)
-}
-
-const handleGithubClick = () => {
-  window.open('https://github.com/RGAA-Software/GammaRay', '_blank')
 }
 
 const handleTranslateClick = (command: string) => {
@@ -213,12 +208,6 @@ async function confirmIssue() {
           </template>
         </el-dropdown>
 
-        <img
-          :src="githubIcon"
-          alt="GitHub"
-          class="h-6 w-6 cursor-pointer invert opacity-70 hover:opacity-100 transition-opacity"
-          @click="handleGithubClick"
-        />
       </div>
 
       <!-- 移动端汉堡按钮 -->
@@ -277,12 +266,6 @@ async function confirmIssue() {
           </template>
         </el-dropdown>
 
-        <img
-          :src="githubIcon"
-          alt="GitHub"
-          class="h-6 w-6 cursor-pointer invert opacity-70"
-          @click="handleGithubClick"
-        />
       </div>
     </div>
   </el-drawer>
