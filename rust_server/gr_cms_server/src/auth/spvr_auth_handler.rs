@@ -1,132 +1,119 @@
-use crate::auth::spvr_auth_license_keys::license_to_authorization;
-use crate::auth::spvr_auth_manager::KEY_AUTHORIZATION;
+use crate::auth::spvr_auth_pull::{pull_once, PullOutcome};
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
-use crate::spvr_http_util::{get_body, get_body_data, get_body_str, get_body_str_or_empty};
+use crate::spvr_http_util::{get_body, get_body_str, get_body_str_or_empty};
 use crate::user::spvr_user_keys::{KEY_PASSWORD, KEY_USER_NAME};
-use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gSpvrContext};
+use crate::gAuthManager;
 use axum::body::Body;
-use axum::extract::{Query, State};
+use axum::extract::{ConnectInfo, State};
 use axum::Json;
-use gr_auth_mgr::auth_license::SignedLicense;
 use gr_auth_mgr::authorization::Authorization;
 use gr_auth_mgr::time_util;
 use gr_base::{get_current_timestamp, md5_hex, ok_resp, RespMessage};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-// Upload a new signed license. The auth server is the authority for
-// credentials (username/password/app_secret); they are carried in the signed
-// license and used verbatim.
-pub async fn handle_update_authorization(
+// Manually trigger one authorization pull from the auth server (网络上报授权模式,
+// 取代旧的手工上传 license 入口 update/authorization)。
+// 该接口在 appkey filter 白名单内（未授权时没有 appkey 可用），因此**只能返回
+// 不含凭据的安全状态**（AuthStatus）；登录凭据（username/password）仅对来自
+// 服务器本机的请求附带（用于登录页自动填充），远程请求一律为空。
+// 服务器已吊销时返回 authorized=false 的状态（拉取失败才返回错误，失败时本地
+// 已有授权保持不变）。
+pub async fn handle_pull_authorization(
     State(_context): State<Arc<Mutex<SpvrContext>>>,
-    Query(_params): Query<HashMap<String, String>>,
-    body: Body,
-) -> Result<Json<RespMessage<Authorization>>, SpvrApiError> {
-    let auth_str = get_body_data(body).await?;
-    tracing::info!(
-        "update/authorization: received deploy string, len={} preview='{}'",
-        auth_str.len(),
-        &auth_str[..auth_str.len().min(60)]
-    );
-
-    let verifier = gLicenseVerifier
-        .lock()
-        .await
-        .as_ref()
-        .map(Arc::clone)
-        .ok_or(SpvrApiError::InternalError)?;
-    let machine_code = gSpvrContext.lock().await.machine_code.clone();
-    let now_ms = get_current_timestamp();
-    tracing::info!(
-        "update/authorization: machine_code='{}' now_ms={}",
-        machine_code,
-        now_ms
-    );
-
-    let signed = SignedLicense::parse_deploy_string(&auth_str).map_err(|e| {
-        tracing::error!("update/authorization: parse_deploy_string failed: {}", e);
-        SpvrApiError::InvalidAuthorization
-    })?;
-
-    tracing::info!(
-        "update/authorization: parsed license OK, auth_id='{}' auth_name='{}' \
-         machine_code='{}' appkey='{}' username='{}' password_len={}",
-        signed.license.auth_id,
-        signed.license.auth_name,
-        signed.license.machine_code,
-        signed.license.appkey,
-        signed.license.username,
-        signed.license.password.len()
-    );
-
-    let verify_result = verifier.verify(&signed, &machine_code, now_ms);
-    match &verify_result {
-        Ok(true) => tracing::info!("update/authorization: signature+machine+expiry verify OK"),
-        Ok(false) => {
-            // Distinguish which check failed for debugging.
-            let sig_ok = verifier.verify_signature(&signed).unwrap_or(false);
-            let mc_ok = signed.license.machine_code == machine_code;
-            let exp_ok = signed.license.expires_at_ms > now_ms;
-            tracing::error!(
-                "update/authorization: verify returned false — \
-                 signature_ok={} machine_code_ok={} (license='{}' vs local='{}') \
-                 expiry_ok={} (expires_ms={} vs now_ms={})",
-                sig_ok,
-                mc_ok,
-                signed.license.machine_code,
-                machine_code,
-                exp_ok,
-                signed.license.expires_at_ms,
-                now_ms
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Result<Json<RespMessage<AuthStatus>>, SpvrApiError> {
+    let local = is_local_request(&addr);
+    match pull_once().await {
+        Ok(PullOutcome::Active(auth)) => {
+            tracing::info!(
+                "pull/authorization: success, auth_id='{}' mode='{}' days={} max_streams={} local={}",
+                auth.auth_id,
+                auth.mode,
+                auth.days,
+                auth.max_streams,
+                local
             );
+            Ok(Json(ok_resp(build_auth_status(auth, local).await)))
         }
-        Err(e) => tracing::error!("update/authorization: verify error: {}", e),
+        Ok(PullOutcome::Revoked) => {
+            tracing::warn!("pull/authorization: authorization revoked by auth server");
+            Ok(Json(ok_resp(build_auth_status(Authorization::default(), local).await)))
+        }
+        Err(e) => {
+            tracing::error!("pull/authorization: pull failed: {}", e);
+            Err(SpvrApiError::InternalError)
+        }
     }
+}
 
-    if !verify_result.map_err(|_| SpvrApiError::InvalidAuthorization)? {
-        return Err(SpvrApiError::InvalidAuthorization);
+/// 授权状态（安全视图）：供未登录/未授权的登录页展示。appkey/app_secret 一律
+/// 不下发；web 登录凭据（username/password）仅对服务器本机请求附带（登录页
+/// 自动填充用），远程请求为空串。
+#[derive(Serialize, Default)]
+pub struct AuthStatus {
+    /// 是否已有授权记录（试用或正式）。
+    pub authorized: bool,
+    /// 授权模式："trial" | "licensed"（未授权时为空串）。
+    pub mode: String,
+    pub days: i32,
+    pub max_streams: i32,
+    pub end_timestamp_ms: i64,
+    pub used_time_ms: i64,
+    /// 授权当前是否有效（未过期）。
+    pub valid: bool,
+    /// 本机机器码（xxxx-xxxx）。
+    pub machine_code: String,
+    /// web 登录用户名/密码：仅本机请求非空。
+    pub username: String,
+    pub password: String,
+}
+
+/// 仅当请求来自服务器本机（loopback 或本机任一网卡 IP）时才认为是本地请求。
+fn is_local_request(addr: &SocketAddr) -> bool {
+    let ip = addr.ip();
+    if ip.is_loopback() {
+        return true;
     }
+    if let Ok(ips) = gr_base::ip_util::get_clean_ipv4_addresses() {
+        return ips.iter().any(|local| std::net::IpAddr::V4(*local) == ip);
+    }
+    false
+}
 
-    let existing = gAuthManager.lock().await.get_auth().await;
-    let mut auth = license_to_authorization(&signed.license, Some(&existing), auth_str.clone());
+async fn build_auth_status(auth: Authorization, include_credentials: bool) -> AuthStatus {
+    let used_time_ms = gAuthManager.lock().await.get_used_time().await;
+    let now_ms = get_current_timestamp();
+    let (left_time_ms, expired) =
+        compute_auth_time_status(used_time_ms, auth.days, auth.end_timestamp_ms, now_ms);
+    let authorized = !auth.auth_id.is_empty();
+    let machine_code = crate::gSpvrContext.lock().await.machine_code.clone();
+    AuthStatus {
+        authorized,
+        mode: if authorized { auth.mode } else { String::new() },
+        days: auth.days,
+        max_streams: auth.max_streams,
+        end_timestamp_ms: auth.end_timestamp_ms,
+        used_time_ms,
+        valid: authorized && left_time_ms > 0 && !expired,
+        machine_code,
+        username: if include_credentials { auth.username } else { String::new() },
+        password: if include_credentials { auth.password } else { String::new() },
+    }
+}
 
-    // Derive app_secret from appkey so the appkey filter keeps working.
-    use gr_auth_mgr::app_secret_util::calculate_app_secret;
-    auth.app_secret = calculate_app_secret(auth.appkey.clone());
-
-    tracing::info!(
-        "update/authorization: authorization built, auth_id='{}' appkey='{}' \
-         app_secret='{}' username='{}' password='{}'",
-        auth.auth_id,
-        auth.appkey,
-        auth.app_secret,
-        auth.username,
-        auth.password
-    );
-
-    // save to db
-    gKvStorage
-        .lock()
-        .await
-        .put(KEY_AUTHORIZATION, auth_str.as_str());
-
-    // update key
-    gAuthManager.lock().await.update_key_used_time(&auth_str);
-
-    // update auth manager
-    gAuthManager.lock().await.update_auth(auth.clone()).await;
-
-    // used time
-    auth.used_time_ms = gAuthManager.lock().await.get_used_time().await;
-
-    tracing::info!(
-        "update/authorization: SUCCESS, auth stored in KvStorage and AuthManager"
-    );
-    Ok(Json(ok_resp(auth)))
+/// `GET /get/auth/status` — 登录页展示用授权状态（appkey filter 白名单接口）。
+pub async fn handle_get_auth_status(
+    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Result<Json<RespMessage<AuthStatus>>, SpvrApiError> {
+    let local = is_local_request(&addr);
+    let auth = gAuthManager.lock().await.get_auth().await;
+    Ok(Json(ok_resp(build_auth_status(auth, local).await)))
 }
 
 const KEY_OLD_PASSWORD: &str = "old_password";
@@ -167,11 +154,8 @@ pub async fn handle_update_auth_password(
     // server; we keep it as-is (the auth server is the authority for the
     // signed fields). The password change only affects the in-memory
     // Authorization so the web login uses the new password.
-    // save to db (preserve the existing deploy string)
-    if let Some(deploy_str) = gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
-        // deploy_str unchanged
-        let _ = deploy_str;
-    }
+    // 注意（已知行为，与旧模式"重启后恢复 license 密码"语义一致）：
+    // 周期 pull 会用服务器 license 里的密码覆盖回内存中的修改。
 
     // update auth manager
     gAuthManager.lock().await.update_auth(auth.clone()).await;
@@ -225,6 +209,8 @@ pub struct SanitizedAuthorization {
     pub end_timestamp_ms: i64,
     pub used_time_ms: i64,
     pub created_timestamp_ms: i64,
+    /// 授权模式："trial"（试用）| "licensed"（正式）。
+    pub mode: String,
 }
 
 impl From<Authorization> for SanitizedAuthorization {
@@ -242,6 +228,7 @@ impl From<Authorization> for SanitizedAuthorization {
             end_timestamp_ms: auth.end_timestamp_ms,
             used_time_ms: auth.used_time_ms,
             created_timestamp_ms: auth.created_timestamp_ms,
+            mode: auth.mode,
         }
     }
 }
@@ -304,7 +291,9 @@ pub async fn handle_verify_auth_account(
 
     let matched = auth.username == username && md5_hex(&auth.password).to_lowercase() == password;
     if matched {
-        Ok(Json(ok_resp("".to_string())))
+        // 登录本身就是凭据校验（license 里的 username/password），通过后将
+        // appkey 返回给前端保存，供后续受 appkey filter 保护的接口使用。
+        Ok(Json(ok_resp(auth.appkey)))
     } else {
         Err(SpvrApiError::PasswordInvalid)
     }
@@ -336,6 +325,7 @@ mod tests {
         assert_eq!(sanitized.app_secret, "secret-1");
         assert_eq!(sanitized.username, "user-1");
         assert_eq!(sanitized.created_timestamp_ms, 0);
+        assert_eq!(sanitized.mode, "licensed"); // Authorization::default().mode
         // Password is the only field that should remain hidden in the sanitized DTO.
         // (It is not part of SanitizedAuthorization.)
     }

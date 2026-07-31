@@ -1,5 +1,4 @@
-export function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp) // 毫秒级时间戳
+export function formatTimestamp(timestamp: number): string {  const date = new Date(timestamp) // 毫秒级时间戳
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0') // 月份从0开始
   const day = date.getDate().toString().padStart(2, '0')
@@ -144,5 +143,22 @@ function formatWithDecimalPlaces(value: number, maxDecimalPlaces: number): strin
 
   // 移除末尾的0
   return parseFloat(rounded.toFixed(maxDecimalPlaces)).toString();
+}
+
+/**
+ * 将毫秒时间间隔格式化为秒级精度："X天 HH:mm:ss"（不足 1 天为 "HH:mm:ss"）。
+ */
+export function formatDurationHMS(milliseconds: number): string {
+  if (typeof milliseconds !== 'number' || !Number.isFinite(milliseconds) || milliseconds < 0) {
+    return '00:00:00'
+  }
+  const totalSeconds = Math.floor(milliseconds / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const hms = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+  return days > 0 ? `${days}天 ${hms}` : hms
 }
 

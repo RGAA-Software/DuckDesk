@@ -35,11 +35,27 @@ def parse_args() -> argparse.Namespace:
         help="Only print current versions; do not modify files.",
     )
     parser.add_argument(
+        "--bump",
+        action="store_true",
+        help="Auto-increment the current version: patch += 1; when patch would reach "
+        "100, bump minor and reset patch to 0 (e.g. 3.2.99 -> 3.3.0).",
+    )
+    parser.add_argument(
         "--self-test",
         action="store_true",
         help="Run built-in replacement tests and exit.",
     )
     return parser.parse_args()
+
+
+def bump_version(version: str) -> str:
+    """patch += 1; patch 达到 100 时进位 minor 并归零。"""
+    major, minor, patch = (int(part) for part in version.split("."))
+    patch += 1
+    if patch >= 100:
+        minor += 1
+        patch = 0
+    return f"{major}.{minor}.{patch}"
 
 
 def validate_version(version: str) -> str:
@@ -178,6 +194,9 @@ def extract_cargo_package_version(path: Path) -> str | None:
 
 
 def version_targets() -> list[tuple[str, Path, str]]:
+    # 版本管理边界：GammaRay 相关的 exe（C++ 客户端、rust_client、rust_base）
+    # 统一由本脚本随 build_official 递增；rust_server 下的每个服务独立管理
+    # 自己的版本（见 rust_server/set_server_version.py）。
     return [
         ("C++ (TC_APP_VERSION)", VERSION_CMAKE, "cmake"),
         ("NSIS main installer", ROOT / "setup" / "proj_version.nsh", "nsis"),
@@ -185,13 +204,6 @@ def version_targets() -> list[tuple[str, Path, str]]:
         ("Rust client workspace", ROOT / "rust_client" / "Cargo.toml", "cargo_workspace"),
         ("Rust base workspace", ROOT / "rust_base" / "Cargo.toml", "cargo_workspace"),
         ("Rust base protocol", ROOT / "rust_base" / "protocol" / "Cargo.toml", "cargo_package"),
-        ("Rust server workspace", ROOT / "rust_server" / "Cargo.toml", "cargo_workspace"),
-        ("Rust gr_cms_server", ROOT / "rust_server" / "gr_cms_server" / "Cargo.toml", "cargo_package"),
-        ("Rust gr_auth_server", ROOT / "rust_server" / "gr_auth_server" / "Cargo.toml", "cargo_package"),
-        ("Rust gr_desk_server", ROOT / "rust_server" / "gr_desk_server" / "Cargo.toml", "cargo_package"),
-        ("Rust gr_updater", ROOT / "rust_server" / "gr_updater" / "Cargo.toml", "cargo_package"),
-        ("Rust gr_stat_server", ROOT / "rust_server" / "gr_stat_server" / "Cargo.toml", "cargo_package"),
-        ("Rust builder", ROOT / "rust_server" / "builder" / "Cargo.toml", "cargo_package"),
     ]
 
 
@@ -270,18 +282,30 @@ def show_versions() -> None:
 
 
 def sync_cargo_locks() -> None:
+    # 注意：不能用 `cargo generate-lockfile`——它会把所有依赖升到
+    # "latest compatible"（包括 git 依赖拉新 revision），曾导致 gpui 出现两个
+    # 不兼容 revision 使 gr_sysinfo 编译失败。`cargo metadata` 只做保守解析：
+    # 保留现有锁定版本，仅同步本地 workspace 包的版本号变更。
+    # rust_server 的 lock 由各服务自己的版本脚本同步（set_server_version.py）。
     for workspace in (
         ROOT / "rust_client",
         ROOT / "rust_base",
-        ROOT / "rust_server",
     ):
         manifest = workspace / "Cargo.toml"
         if not manifest.is_file():
             continue
-        print(f"Updating {workspace.name}/Cargo.lock ...")
+        print(f"Syncing {workspace.name}/Cargo.lock ...")
         subprocess.run(
-            ["cargo", "generate-lockfile", "--manifest-path", str(manifest)],
+            [
+                "cargo",
+                "metadata",
+                "--format-version",
+                "1",
+                "--manifest-path",
+                str(manifest),
+            ],
             check=True,
+            stdout=subprocess.DEVNULL,
         )
 
 
@@ -301,16 +325,9 @@ def apply_version(version: str, version_code: int | None = None) -> None:
 
     update_cargo_workspace_version(ROOT / "rust_client" / "Cargo.toml", version)
     update_cargo_workspace_version(ROOT / "rust_base" / "Cargo.toml", version)
-    update_cargo_workspace_version(ROOT / "rust_server" / "Cargo.toml", version)
 
     rust_packages = [
         ROOT / "rust_base" / "protocol" / "Cargo.toml",
-        ROOT / "rust_server" / "gr_cms_server" / "Cargo.toml",
-        ROOT / "rust_server" / "gr_auth_server" / "Cargo.toml",
-        ROOT / "rust_server" / "gr_desk_server" / "Cargo.toml",
-        ROOT / "rust_server" / "gr_updater" / "Cargo.toml",
-        ROOT / "rust_server" / "gr_stat_server" / "Cargo.toml",
-        ROOT / "rust_server" / "builder" / "Cargo.toml",
     ]
     for path in rust_packages:
         update_cargo_package_version(path, version)
@@ -356,6 +373,11 @@ def self_test() -> None:
         assert semver_to_version_code("3.2.0") == 30200
         assert semver_to_version_code("10.20.30") == 102030
 
+        assert bump_version("3.2.0") == "3.2.1"
+        assert bump_version("3.2.98") == "3.2.99"
+        assert bump_version("3.2.99") == "3.3.0"
+        assert bump_version("3.9.99") == "3.10.0"
+
         workspace = root / "Cargo.toml"
         workspace.write_text(
             '[workspace.package]\nversion = "2.0.1"\nedition = "2021"\n',
@@ -382,11 +404,19 @@ def main() -> None:
         self_test()
         return
 
+    if args.bump:
+        current = read_tc_app_version()
+        new_version = bump_version(current)
+        print(f"Bumping product version: {current} -> {new_version}")
+        apply_version(new_version)
+        return
+
     if args.show or args.version is None:
         show_versions()
         if args.version is None and not args.show:
             print()
             print("Usage: python set_app_version.py 3.2.0 [--code 30200]")
+            print("       python set_app_version.py --bump")
         return
 
     apply_version(validate_version(args.version), args.code)

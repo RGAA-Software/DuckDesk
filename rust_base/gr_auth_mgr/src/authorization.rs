@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const PRODUCT_CMS: &str = "cms";
+pub const PRODUCT_GODESK_CMS: &str = "godesk_cms";
 pub const PRODUCT_GOPICO: &str = "gopico";
 pub const PRODUCT_CLIENTBOX: &str = "clientbox";
 pub const PRODUCT_GOAGENT: &str = "goagent";
@@ -18,7 +19,10 @@ pub fn default_mode() -> String {
 
 /// Products that support device self-registration & license pulling.
 pub fn is_device_product(product: &str) -> bool {
-    matches!(product, PRODUCT_GOPICO | PRODUCT_CLIENTBOX | PRODUCT_GOAGENT)
+    matches!(
+        product,
+        PRODUCT_GOPICO | PRODUCT_CLIENTBOX | PRODUCT_GOAGENT | PRODUCT_GODESK_CMS
+    )
 }
 
 /// Default max devices for an auto-registered trial device.
@@ -54,7 +58,7 @@ pub struct Authorization {
     pub role: i32,
     #[serde(default)]
     pub used_time_ms: i64,
-    /// Product this authorization applies to: "cms" | "gopico" | "clientbox" | "goagent".
+    /// Product this authorization applies to: "cms" | "godesk_cms" | "gopico" | "clientbox" | "goagent".
     #[serde(default = "default_product_cms")]
     pub product: String,
     /// Authorization mode: "trial" | "licensed". Existing rows default to "licensed".
@@ -124,5 +128,27 @@ impl Authorization {
             authorization: self.clone(),
             total,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn device_products_include_godesk_cms_but_not_legacy_cms() {
+        assert!(is_device_product(PRODUCT_GOPICO));
+        assert!(is_device_product(PRODUCT_CLIENTBOX));
+        assert!(is_device_product(PRODUCT_GOAGENT));
+        assert!(is_device_product(PRODUCT_GODESK_CMS));
+        // Legacy manual-license product stays a non-device product.
+        assert!(!is_device_product(PRODUCT_CMS));
+        assert!(!is_device_product("unknown"));
+    }
+
+    #[test]
+    fn godesk_cms_trial_defaults_to_one_device() {
+        assert_eq!(default_trial_max_devices(PRODUCT_GODESK_CMS), 1);
+        assert_eq!(default_trial_max_devices(PRODUCT_GOPICO), 4);
     }
 }

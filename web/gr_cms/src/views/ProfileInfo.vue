@@ -2,10 +2,10 @@
 import { IpAudit, IpLockOne, IpSettingTwo, IpConnectionPoint } from 'vue-icons-plus/ip'
 import { onMounted, ref } from 'vue'
 import axiosHttp from '@/http.ts'
-import type { Authorization } from '@/entity/authorization.ts'
-import { formatTimestamp, formatTimeToDays } from '@/util/time.ts'
-import { ElNotification, type UploadFile } from 'element-plus'
-import { queryAuthorization, updateAuthorization } from '@/model/auth_api.ts'
+import { formatDurationHMS, formatTimestamp } from '@/util/time.ts'
+import { ElNotification } from 'element-plus'
+import { pullAuthorization } from '@/model/auth_api.ts'
+import { refreshSharedAuthorization, sharedAuthorization as authorization } from '@/model/auth_state.ts'
 import CryptoJS from 'crypto-js'
 
 const md5 = (input: string): string => {
@@ -16,14 +16,13 @@ import { useRouter } from 'vue-router'
 import {copyText} from "@/util/clipboard.ts";
 const router = useRouter()
 
-const authorization = ref<Authorization>()
 const newPassword = ref<string>('')
 const oldPassword = ref<string>('')
 const repeatOldPassword = ref<string>('')
 const accessInfo = ref<string>('')
 
 onMounted(async () => {
-  authorization.value = await queryAuthorization()
+  await refreshSharedAuthorization()
   await queryAccessInfo()
 })
 
@@ -76,28 +75,11 @@ async function handleChangePassword() {
   }
 }
 
-const handleSelectAuthFile = async (file: UploadFile) => {
-  console.log(file)
-  if (!file.raw) {
-    console.error('file not found', file)
-    return
-  }
-
-  const reader = new FileReader()
-  reader.readAsText(file.raw, 'utf-8')
-
-  reader.onload = async () => {
-    const content = reader.result as string
-    console.log('文件内容:', content)
-    authorization.value = await updateAuthorization(content)
-  }
-
-  reader.onerror = () => {
-    ElNotification({
-      message: '读取文件失败',
-      type: 'error',
-    })
-  }
+const handleRefreshAuth = async () => {
+  // pull 返回的是安全状态（不含凭据），完整授权信息需带 appkey 重新查询；
+  // 走共享状态，右上角（HomeView）授权状态会同步更新
+  await pullAuthorization()
+  await refreshSharedAuthorization()
 }
 
 //
@@ -218,7 +200,7 @@ async function handleCopyAccessInfo() {
             <div class="w-35 text-slate-500">授权天数</div>
             <div v-if="authorization" class="text-medium text-amber-600 font-semibold">
               {{ authorization?.days }}天, 已使用{{
-                authorization?.used_time_ms ? formatTimeToDays(authorization?.used_time_ms) : 0
+                authorization?.used_time_ms ? formatDurationHMS(authorization?.used_time_ms) : 0
               }}
             </div>
           </div>
@@ -244,9 +226,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-18">
             <div class="w-35 text-slate-500">更新授权</div>
             <div>
-              <el-upload :auto-upload="false" :on-change="handleSelectAuthFile" :limit="1">
-                <el-button type="primary">选择授权文件</el-button>
-              </el-upload>
+              <el-button type="primary" @click="handleRefreshAuth">刷新授权</el-button>
             </div>
           </div>
           <div class="h-2" />

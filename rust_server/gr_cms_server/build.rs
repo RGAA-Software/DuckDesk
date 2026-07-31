@@ -61,16 +61,6 @@ fn main() {
         eprintln!("copy settings failed: {}", e);
     }
 
-    // auth folder
-    let auth_folder = dest_folder.join("auth");
-    builder::create_dir_if_not_exists(auth_folder.to_str().unwrap()).unwrap();
-
-    // auth.info
-    let auth_path = auth_folder.clone().join("auth.info");
-    if let Err(e) = fs::copy("auth/auth.info", auth_path) {
-        eprintln!("** copy auth.info failed: {}", e);
-    }
-
     //remove web folder
     let web_folder = dest_folder.join("web");
     let _ = builder::delete_dir_if_exists(web_folder.to_str().unwrap());

@@ -1,6 +1,6 @@
 use crate::auth::spvr_auth_handler::{
-    handle_auth_valid, handle_get_authorization, handle_get_used_time, handle_update_auth_password,
-    handle_update_authorization, handle_verify_auth_account,
+    handle_auth_valid, handle_get_auth_status, handle_get_authorization, handle_get_used_time,
+    handle_pull_authorization, handle_update_auth_password, handle_verify_auth_account,
 };
 use crate::filter::spvr_appkey_filter;
 use crate::spvr_context::SpvrContext;
@@ -14,8 +14,12 @@ pub fn make_auth_router(context: Arc<Mutex<SpvrContext>>) -> Router<Arc<Mutex<Sp
 
     Router::new()
         .route(
-            "/update/authorization",
-            post(handle_update_authorization).layer(appkey_filter.clone()),
+            "/pull/authorization",
+            post(handle_pull_authorization).layer(appkey_filter.clone()),
+        )
+        .route(
+            "/get/auth/status",
+            get(handle_get_auth_status).layer(appkey_filter.clone()),
         )
         .route(
             "/get/authorization",

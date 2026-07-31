@@ -3,7 +3,7 @@ export const MAX_MACHINE_CODE_LEN = 256
 export const MAX_AUTH_DAYS = 365000
 export const MAX_AUTH_STREAMS = 10000
 
-export type AuthProduct = 'cms' | 'gopico'
+export type AuthProduct = 'cms' | 'gopico' | 'godesk_cms'
 
 export interface CreateAuthorizationForm {
   name: string
@@ -61,7 +61,7 @@ const validateMaxStreams = (
 }
 
 export const normalizeProduct = (product?: string): AuthProduct =>
-  product === 'gopico' ? 'gopico' : 'cms'
+  product === 'gopico' || product === 'godesk_cms' ? product : 'cms'
 
 export const validateCreateAuthorization = (
   form: CreateAuthorizationForm,

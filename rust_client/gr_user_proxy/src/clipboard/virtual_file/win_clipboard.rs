@@ -6,7 +6,7 @@ use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use windows::core::{BOOL, HRESULT, PCWSTR};
 use windows::Win32::Foundation::{HGLOBAL, S_FALSE, S_OK};
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
@@ -35,10 +35,8 @@ use crate::clipboard::win_platform::{
     clipboard_global_alloc_flags, pump_sta_messages, set_ole_clipboard_active, WinClipboardPlatform,
 };
 
-const CF_HDROP: u32 = 15;
 const DROPEFFECT_COPY: u32 = 1;
 const E_NOTIMPL: HRESULT = HRESULT(0x80004001u32 as i32);
-const DATA_E_FORMATETC: HRESULT = HRESULT(0x80040064u32 as i32);
 const CLIPBOARD_SET_RETRY_MS: u64 = 10;
 const CLIPBOARD_SET_MAX_RETRIES: usize = 20;
 const CLIPBOARD_CLEAR_MAX_RETRIES: usize = 100;
@@ -73,7 +71,6 @@ fn com_err(code: u32) -> windows::core::Error {
 struct ClipboardFormats {
     file_desc: u16,
     file_content: u16,
-    hdrop: u16,
     preferred_drop_effect: u16,
 }
 
@@ -83,7 +80,6 @@ impl ClipboardFormats {
             Ok(Self {
                 file_desc: RegisterClipboardFormatW(PCWSTR(CFSTR_FILEDESCRIPTOR.as_ptr())) as u16,
                 file_content: RegisterClipboardFormatW(PCWSTR(CFSTR_FILECONTENTS.as_ptr())) as u16,
-                hdrop: CF_HDROP as u16,
                 preferred_drop_effect: RegisterClipboardFormatW(PCWSTR(
                     CFSTR_PREFERREDDROPEFFECT.as_ptr(),
                 )) as u16,
@@ -306,6 +302,10 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
         }
         let format = unsafe { (*pformatetcin).cfFormat };
         let tymed = unsafe { (*pformatetcin).tymed };
+        debug!(
+            "virtual file GetData format={} tymed={} file_desc={} file_content={} preferred={}",
+            format, tymed, self.formats.file_desc, self.formats.file_content, self.formats.preferred_drop_effect
+        );
 
         if format == self.formats.file_desc && (tymed & TYMED_HGLOBAL.0 as u32) != 0 {
             let files = self.descriptor_files.lock().expect("lock").clone();
@@ -364,12 +364,6 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
             });
         }
 
-        // Panel advertises CF_HDROP in EnumFormatEtc but does not implement GetData for it;
-        // Explorer must use CFSTR_FILECONTENTS / IStream for virtual file paste.
-        if format == self.formats.hdrop {
-            return Err(com_err(0x80040064));
-        }
-
         if format == self.formats.preferred_drop_effect && (tymed & TYMED_HGLOBAL.0 as u32) != 0 {
             unsafe {
                 let mem = GlobalAlloc(clipboard_global_alloc_flags(), 4).map_err(|_| com_err(0x8007000E))?;
@@ -395,9 +389,12 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
             return HRESULT(0x80070057u32 as i32);
         }
         let format = unsafe { (*pformatetc).cfFormat };
+        debug!(
+            "virtual file QueryGetData format={} file_desc={} file_content={} preferred={}",
+            format, self.formats.file_desc, self.formats.file_content, self.formats.preferred_drop_effect
+        );
         if format == self.formats.file_desc
             || format == self.formats.file_content
-            || format == self.formats.hdrop
             || format == self.formats.preferred_drop_effect
         {
             S_OK
@@ -410,6 +407,7 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
         if dwdirection != DATADIR_GET.0 as u32 {
             return Err(com_err(0x80004001));
         }
+        debug!("virtual file EnumFormatEtc GET");
         let formats = [
             FORMATETC {
                 cfFormat: self.formats.file_desc,
@@ -424,13 +422,6 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
                 dwAspect: DVASPECT_CONTENT.0 as u32,
                 lindex: -1,
                 tymed: TYMED_ISTREAM.0 as u32,
-            },
-            FORMATETC {
-                cfFormat: self.formats.hdrop,
-                ptd: std::ptr::null_mut(),
-                dwAspect: DVASPECT_CONTENT.0 as u32,
-                lindex: -1,
-                tymed: TYMED_HGLOBAL.0 as u32,
             },
             FORMATETC {
                 cfFormat: self.formats.preferred_drop_effect,

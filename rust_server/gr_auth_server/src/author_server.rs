@@ -1160,6 +1160,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn device_pull_registers_godesk_cms_device() {
+        use crate::authorization_manager::clear_authorization_memory_store;
+        let _guard = STORE_LOCK.lock().unwrap();
+        clear_authorization_memory_store();
+        init_test_secret();
+
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
+
+        let router = test_router();
+        let pull = |body: &'static str| {
+            let router = router.clone();
+            async move {
+                router
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/api/v1/device/pull")
+                            .header("content-type", "application/json")
+                            .body(Body::from(body))
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+            }
+        };
+
+        // product=godesk_cms -> 200, auto-registered as a new trial device.
+        let resp = pull(r#"{"product":"godesk_cms","device_code":"1234-5678"}"#).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["code"], 200);
+        assert_eq!(json["data"]["registered_new"], true);
+        assert_eq!(json["data"]["mode"], "trial");
+        assert!(!json["data"]["deploy_str"].as_str().unwrap().is_empty());
+
+        // Second pull for the same device: known device, not registered_new.
+        let resp = pull(r#"{"product":"godesk_cms","device_code":"1234-5678"}"#).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["registered_new"], false);
+
+        // Legacy product=cms is still rejected (kept from the old manual flow).
+        let resp = pull(r#"{"product":"cms","device_code":"1234-5678"}"#).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        clear_authorization_memory_store();
+    }
+
+    #[tokio::test]
     async fn device_delete_removes_authorization() {
         use crate::authorization_manager::clear_authorization_memory_store;
         let _guard = STORE_LOCK.lock().unwrap();
@@ -1265,6 +1318,11 @@ mod tests {
         let _guard = STORE_LOCK.lock().unwrap();
         clear_authorization_memory_store();
         init_test_secret();
+
+        // 签名器是全局状态；本测试最先执行时必须自行准备，否则 device/pull 无法签发 license。
+        let (priv_key, _pub_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&priv_key).unwrap();
+        *gLicenseSigner.lock().await = Some(signer);
 
         let appkey = "0123456789abcdef0123456789abcdef".to_string();
         let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff".to_string();

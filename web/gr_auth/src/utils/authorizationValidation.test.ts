@@ -5,6 +5,7 @@ import {
   MAX_AUTH_NAME_LEN,
   MAX_AUTH_STREAMS,
   MAX_MACHINE_CODE_LEN,
+  normalizeProduct,
   validateCreateAuthorization,
   validateUpdateAuthorization,
 } from './authorizationValidation'
@@ -116,5 +117,29 @@ describe('authorization validation', () => {
       days: '30',
       max_streams: '0',
     })).toMatchObject({ ok: false })
+  })
+
+  it('recognizes godesk_cms and labels its max_streams as Max Streams', () => {
+    expect(normalizeProduct('godesk_cms')).toBe('godesk_cms')
+    expect(normalizeProduct('gopico')).toBe('gopico')
+    expect(normalizeProduct('unknown')).toBe('cms')
+
+    expect(validateUpdateAuthorization({
+      days: '30',
+      max_streams: '0',
+      product: 'godesk_cms',
+    })).toMatchObject({
+      ok: false,
+      message: `Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`,
+    })
+
+    expect(validateUpdateAuthorization({
+      days: '30',
+      max_streams: '0',
+      product: 'gopico',
+    })).toMatchObject({
+      ok: false,
+      message: `Max Devices 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`,
+    })
   })
 })

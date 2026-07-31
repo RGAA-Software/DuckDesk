@@ -59,6 +59,11 @@ echo.
 :: --- 3. Build desk server ---
 echo [3/4] Building desk server...
 cd /d "%SERVER_WORKSPACE%"
+python "%SERVER_WORKSPACE%\set_server_version.py" gr_desk_server --bump
+if errorlevel 1 (
+    echo ERROR: version bump failed.
+    exit /b 1
+)
 cargo build -p gr_desk_server --release
 if errorlevel 1 (
     echo ERROR: cargo build failed.

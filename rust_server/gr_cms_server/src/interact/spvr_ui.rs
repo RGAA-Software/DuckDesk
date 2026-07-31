@@ -1,5 +1,5 @@
 use crate::interact::spvr_lang::SpvrLanguage;
-use crate::{gAuthManager, gSpvrSettings};
+use crate::{gAuthManager, gSpvrContext, gSpvrSettings};
 use arboard::Clipboard;
 use egui::{Color32, RichText};
 use egui_notify::Toasts;
@@ -8,8 +8,6 @@ use gr_base::ip_util::get_clean_ipv4_addresses;
 use gr_base::{mongodb_util, redis_util};
 
 use std::cmp::PartialEq;
-use std::fs::File;
-use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use sysinfo::{Pid, ProcessesToUpdate, Signal, System};
@@ -45,6 +43,8 @@ pub struct SpvrUI {
     state: Arc<Mutex<SpvrUIState>>,
     selected_ip: String,
     total_ips: Vec<String>,
+    /// “刷新状态”按钮触发的授权 pull 结果回传通道（避免阻塞 UI 线程）。
+    pull_result_rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
 }
 
 impl SpvrUI {
@@ -102,6 +102,7 @@ impl SpvrUI {
             state,
             selected_ip,
             total_ips: ip_array,
+            pull_result_rx: None,
         };
         s.check_server_state();
         tracing::error!("will connect redis to test it 000");
@@ -279,27 +280,51 @@ impl eframe::App for SpvrUI {
                             }
 
                             ui.label(self.language.st_auth_state.as_str());
-                            let max_streams = self.state.lock().unwrap().auth.max_streams;
-                            let days = self.state.lock().unwrap().auth.days;
-                            let used_time = self.state.lock().unwrap().used_time;
+                            let (max_streams, days, used_time, auth_id_empty, mode) = {
+                                let s = self.state.lock().unwrap();
+                                (
+                                    s.auth.max_streams,
+                                    s.auth.days,
+                                    s.used_time,
+                                    s.auth.auth_id.is_empty(),
+                                    s.auth.mode.clone(),
+                                )
+                            };
+                            let mode_text = if auth_id_empty {
+                                if self.language.is_zh_cn() { "未授权" } else { "None" }
+                            } else if self.language.is_zh_cn() {
+                                match mode.as_str() {
+                                    "trial" => "试用",
+                                    "licensed" => "正式",
+                                    _ => "未知",
+                                }
+                            } else {
+                                match mode.as_str() {
+                                    "trial" => "Trial",
+                                    "licensed" => "Licensed",
+                                    _ => "Unknown",
+                                }
+                            };
                             let auth_state = if self.language.is_zh_cn() {
                                 format!(
-                                    "流路数: {}, 时间: {}天, 已使用: {}天",
+                                    "流路数: {}, 时间: {}天, 已使用: {}天, 模式: {}",
                                     max_streams,
                                     days,
-                                    milliseconds_to_days(used_time)
+                                    milliseconds_to_days(used_time),
+                                    mode_text
                                 )
                             } else {
                                 format!(
-                                    "Steams: {}, Days: {}, Used: {}",
+                                    "Steams: {}, Days: {}, Used: {}, Mode: {}",
                                     max_streams,
                                     days,
-                                    milliseconds_to_days(used_time)
+                                    milliseconds_to_days(used_time),
+                                    mode_text
                                 )
                             };
                             ui.label(auth_state.as_str());
 
-                            // operation
+                            // operation — 刷新状态：触发一次网络授权 pull（不阻塞 UI 线程）
                             if ui
                                 .add_sized(
                                     op_btn_size,
@@ -308,18 +333,80 @@ impl eframe::App for SpvrUI {
                                 .clicked()
                             {
                                 let state = self.state.clone();
+                                let machine_code = self.machine_code.clone();
+                                let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+                                self.pull_result_rx = Some(rx);
                                 tokio::task::spawn_blocking(move || {
                                     let rt = Handle::current();
-                                    let (auth, used_time) = rt.block_on(refresh_auth());
-                                    state.lock().unwrap().auth = auth;
-                                    state.lock().unwrap().used_time = used_time;
+                                    rt.block_on(async move {
+                                        // 面板进程：machine_code 需先写入 context
+                                        //（server 进程在启动时已写入）。
+                                        gSpvrContext.lock().await.update_machine_code(machine_code);
+                                        // 触发一次网络拉取。面板进程不持有 KvStorage
+                                        //（sled 由 server 进程独占），pull 结果只更新
+                                        // 本进程内存中的授权用于展示。
+                                        let r = crate::auth::spvr_auth_pull::pull_once()
+                                            .await
+                                            .map(|_| ());
+                                        if let Err(e) = &r {
+                                            tracing::error!("refresh: pull authorization failed: {}", e);
+                                        }
+                                        let (auth, used_time) = refresh_auth().await;
+                                        state.lock().unwrap().auth = auth;
+                                        state.lock().unwrap().used_time = used_time;
+                                        let _ = tx.send(r);
+                                    });
                                 });
-
-                                self.toasts
-                                    .success(self.language.operate_success.as_str())
-                                    .duration(Duration::from_secs(2));
                             }
 
+                            ui.end_row();
+
+                            // web 登录账号（license 携带的 username/password，
+                            // 仅本机面板可见，用于登录 CMS web 管理页）
+                            ui.label(if self.language.is_zh_cn() {
+                                "登录账号"
+                            } else {
+                                "Login Account"
+                            });
+                            let (login_user, login_pwd) = {
+                                let s = self.state.lock().unwrap();
+                                (s.auth.username.clone(), s.auth.password.clone())
+                            };
+                            let login_text = if login_user.is_empty() {
+                                "-".to_string()
+                            } else {
+                                format!("{} / {}", login_user, login_pwd)
+                            };
+                            ui.label(
+                                RichText::new(login_text.as_str())
+                                    .strong()
+                                    .color(Color32::WHITE)
+                                    .background_color(Color32::DARK_BLUE),
+                            );
+                            if ui
+                                .add_sized(
+                                    op_btn_size,
+                                    egui::Button::new(self.language.copy.as_str()),
+                                )
+                                .clicked()
+                            {
+                                let mut ok = false;
+                                if !login_user.is_empty() {
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        if let Ok(_r) = clipboard.set_text(login_text.as_str()) {
+                                            self.toasts
+                                                .success(self.language.copy_success.as_str())
+                                                .duration(Duration::from_secs(2));
+                                            ok = true;
+                                        }
+                                    }
+                                }
+                                if !ok {
+                                    self.toasts
+                                        .error(self.language.copy_success.as_str())
+                                        .duration(Duration::from_secs(2));
+                                }
+                            }
                             ui.end_row();
 
                             // update auth
@@ -461,6 +548,27 @@ impl eframe::App for SpvrUI {
                             ui.end_row();
                         });
 
+                    // 授权 pull 结果回传（channel，非阻塞轮询）
+                    let pull_result = self
+                        .pull_result_rx
+                        .as_ref()
+                        .and_then(|rx| rx.try_recv().ok());
+                    if let Some(result) = pull_result {
+                        match result {
+                            Ok(()) => {
+                                self.toasts
+                                    .success(self.language.operate_success.as_str())
+                                    .duration(Duration::from_secs(2));
+                            }
+                            Err(e) => {
+                                self.toasts
+                                    .error(format!("pull failed: {e}"))
+                                    .duration(Duration::from_secs(4));
+                            }
+                        }
+                        self.pull_result_rx = None;
+                    }
+
                     self.toasts.show(ctx);
                 });
             } else if self.main_page == MainPageType::PageServerState {
@@ -536,19 +644,12 @@ impl eframe::App for SpvrUI {
 }
 
 async fn refresh_auth() -> (Authorization, i64) {
-    // read the auth/auth.info
+    // reload the cached authorization (KvStorage; 面板进程未初始化 KvStorage 时
+    // load 为空操作，保留 pull_once 写入的内存授权)
     gAuthManager.lock().await.load().await;
     let auth = gAuthManager.lock().await.get_auth().await;
 
-    let mut used_time: i64 = 0;
-    let file = File::options().read(true).open("au.dat");
-    if let Ok(mut file) = file {
-        let mut buffer: String = String::default();
-        if let Ok(_size) = file.read_to_string(&mut buffer) {
-            if let Ok(value) = buffer.parse::<i64>() {
-                used_time = value;
-            }
-        }
-    }
+    // 已使用时间由服务器锚定的有效期推导（见 AuthManager::get_used_time）
+    let used_time = gAuthManager.lock().await.get_used_time().await;
     (auth, used_time)
 }

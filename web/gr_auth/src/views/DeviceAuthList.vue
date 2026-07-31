@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
 import http from '@/utils/http'
@@ -21,15 +21,22 @@ interface DeviceAuth {
   client_device_count: number
   client_reported_at_ms: number
   total: number
+  // CMS 的 web 登录凭据（license 携带，仅 godesk_cms 使用）
+  username: string
+  password: string
 }
 
 const categories = [
   { key: 'gopico', label: 'GoPico' },
   { key: 'clientbox', label: 'ClientBox' },
   { key: 'goagent', label: 'GoAgent' },
+  { key: 'godesk_cms', label: 'GoDesk CMS' },
 ]
 
 const activeTab = ref('gopico')
+
+// godesk_cms 的 max_streams 语义是流路数(Max Streams),其它产品是设备数(Max Devices)
+const maxStreamsLabel = computed(() => (activeTab.value === 'godesk_cms' ? '流路数' : '设备数'))
 const tableData = ref<DeviceAuth[]>([])
 const totalCount = ref(0)
 const pageSize = ref(20)
@@ -103,6 +110,8 @@ const editForm = ref({
   mode: 'licensed',
   days: 30,
   max_devices: 1,
+  username: '',
+  password: '',
 })
 
 const openEdit = (row: DeviceAuth) => {
@@ -112,8 +121,21 @@ const openEdit = (row: DeviceAuth) => {
     mode: row.mode === 'trial' ? 'trial' : 'licensed',
     days: row.mode === 'trial' ? 30 : row.days,
     max_devices: row.max_streams,
+    username: row.username || '',
+    password: row.password || '',
   }
   editDialogVisible.value = true
+}
+
+// 复制 CMS web 登录账号（仅 godesk_cms 有意义）
+const copyLoginAccount = async () => {
+  const text = `用户名: ${editForm.value.username}\n密码: ${editForm.value.password}`
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('登录账号已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 const handleSave = async () => {
@@ -125,7 +147,7 @@ const handleSave = async () => {
     }
   }
   if (!Number.isInteger(editForm.value.max_devices) || editForm.value.max_devices < 1) {
-    ElMessage.error('设备数必须是大于 0 的整数')
+    ElMessage.error(`${maxStreamsLabel.value}必须是大于 0 的整数`)
     return
   }
   isSaving.value = true
@@ -243,7 +265,7 @@ onMounted(async () => {
           {{ leftDays(scope.row) }}<span v-if="scope.row.mode !== 'trial'"> / {{ scope.row.days }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="设备数" prop="max_streams" :min-width="60" />
+      <el-table-column :label="maxStreamsLabel" prop="max_streams" :min-width="60" />
       <el-table-column label="到期时间" :min-width="130">
         <template #default="scope">
           {{ scope.row.mode === 'trial' ? '不限' : formatTime(scope.row.end_timestamp_ms) }}
@@ -320,12 +342,24 @@ onMounted(async () => {
       <el-form-item v-if="editForm.mode === 'licensed'" label="天数">
         <el-input-number v-model="editForm.days" :min="1" :max="365000" />
       </el-form-item>
-      <el-form-item label="设备数">
+      <el-form-item :label="maxStreamsLabel">
         <el-input-number v-model="editForm.max_devices" :min="1" :max="100000" />
       </el-form-item>
       <el-form-item v-if="editForm.mode === 'trial'" label="">
-        <span class="trial-tip">试用模式不限时间，仅受设备数限制</span>
+        <span class="trial-tip">试用模式不限时间，仅受{{ maxStreamsLabel }}限制</span>
       </el-form-item>
+      <template v-if="activeTab === 'godesk_cms'">
+        <el-form-item label="登录用户名">
+          <el-input :model-value="editForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="登录密码">
+          <el-input :model-value="editForm.password" disabled />
+        </el-form-item>
+        <el-form-item label="">
+          <el-button size="small" @click="copyLoginAccount">复制登录账号</el-button>
+          <span class="trial-tip" style="margin-left: 8px;">用于登录 CMS web 管理页</span>
+        </el-form-item>
+      </template>
     </el-form>
     <template #footer>
       <el-button @click="editDialogVisible = false">取消</el-button>

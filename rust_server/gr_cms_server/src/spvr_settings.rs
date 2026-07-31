@@ -3,6 +3,28 @@ use crate::{gAuthManager, gSpvrSettings};
 use gr_base::ip_util::get_clean_ipv4_addresses;
 use serde::Deserialize;
 
+pub const DEFAULT_AUTH_SERVER_URL: &str = "https://127.0.0.1:30400";
+pub const DEFAULT_AUTH_PULL_INTERVAL_SECS: u64 = 3600;
+
+fn default_auth_server_url() -> String {
+    DEFAULT_AUTH_SERVER_URL.to_string()
+}
+
+fn default_auth_pull_interval_secs() -> u64 {
+    DEFAULT_AUTH_PULL_INTERVAL_SECS
+}
+
+/// 接入凭据（与 auth server 的 [app_credential] 段一致）。
+/// appkey/app_secret 为空时 pull 请求不携带签名头（灰度期兼容
+/// auth server 端 require_app_credential=false）。
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct AppCredentialSettings {
+    #[serde(default)]
+    pub appkey: String,
+    #[serde(default)]
+    pub app_secret: String,
+}
+
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct SpvrSettings {
     pub server_name: String,
@@ -14,6 +36,18 @@ pub struct SpvrSettings {
     pub redis_url: String,
     pub ssl_cert: String,
     pub ssl_key: String,
+
+    /// 授权服务器地址（gr_auth_server）。
+    #[serde(default = "default_auth_server_url")]
+    pub auth_server_url: String,
+
+    /// 授权拉取周期（秒）。
+    #[serde(default = "default_auth_pull_interval_secs")]
+    pub auth_pull_interval_secs: u64,
+
+    /// 接入凭据（可选，与 auth server [app_credential] 段一致）。
+    #[serde(default)]
+    pub app_credential: AppCredentialSettings,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]

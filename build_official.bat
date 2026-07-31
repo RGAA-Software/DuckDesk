@@ -40,6 +40,11 @@ if "%VS_INSTALL_DIR%"=="" (
 call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
+rem Auto-increment the product version on every build:
+rem patch += 1; when patch would reach 100, minor += 1 and patch resets to 0.
+python "%~dp0set_app_version.py" --bump
+if errorlevel 1 exit /b %errorlevel%
+
 for /f "delims=" %%a in ('dir /b /ad "%VS_INSTALL_DIR%\VC\Tools\MSVC" ^| "%SystemRoot%\System32\sort.exe" /r ^| findstr.exe /r "^[0-9]"') do (
     set "VC_TOOLS_DIR=%VS_INSTALL_DIR%\VC\Tools\MSVC\%%a\bin\Hostx64\x64"
     goto :found_vc
@@ -54,11 +59,23 @@ if not "%VC_TOOLS_DIR%"=="" (
     echo Using VC libs: !VC_MSVC_DIR!\lib\x64
 )
 
-if /I "%1"=="incremental" (
-    echo Incremental build requested, skipping CMake configure...
+if /I "%1"=="full" (
+    echo Full build requested, running CMake configure...
+    goto :do_configure
+)
+if /I "%1"=="reconfigure" (
+    echo Reconfigure requested, running CMake configure...
+    goto :do_configure
+)
+rem Default: incremental build (skip CMake configure).
+rem Fall back to configure when the build tree does not exist yet.
+if exist "build_official\build.ninja" (
+    echo Incremental build, skipping CMake configure...
     goto :do_build
 )
+echo build_official not found, running CMake configure first...
 
+:do_configure
 cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 

@@ -88,6 +88,11 @@ echo.
 :: --- 3. Build auth server ---
 echo [3/4] Building auth server...
 cd /d "%SERVER_WORKSPACE%"
+python "%SERVER_WORKSPACE%\set_server_version.py" gr_auth_server --bump
+if errorlevel 1 (
+    echo ERROR: version bump failed.
+    exit /b 1
+)
 cargo build -p gr_auth_server --release
 if errorlevel 1 (
     echo ERROR: cargo build failed.

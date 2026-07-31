@@ -1,11 +1,8 @@
 use crate::auth::spvr_auth_license_keys::parse_and_verify_signed_license;
-use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gSpvrContext};
+use crate::{gKvStorage, gLicenseVerifier, gSpvrContext};
 use gr_auth_mgr::app_secret_util::calculate_app_secret;
-use gr_auth_mgr::auth_used_time::{sign_used_time, verify_used_time};
 use gr_auth_mgr::authorization::Authorization;
-use gr_base::{get_current_timestamp, md5_hex};
-use std::fs::File;
-use std::io::Write;
+use gr_base::get_current_timestamp;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -13,35 +10,32 @@ pub const KEY_AUTHORIZATION: &str = "authorization";
 
 pub struct AuthManager {
     auth: Arc<Mutex<Authorization>>,
-    key_used_time: String,
+    /// 最近一次 pull 时服务器返回的已使用时间（服务器口径；未拉取过为 0）。
+    server_used_time_ms: Arc<Mutex<i64>>,
 }
 
 impl AuthManager {
     pub fn new() -> AuthManager {
         AuthManager {
             auth: Default::default(),
-            key_used_time: "".to_string(),
+            server_used_time_ms: Arc::new(Mutex::new(0)),
         }
     }
 
-    /// Loads the authorization from KvStorage (cached deploy string) or
-    /// `auth/auth.info` (on-disk). Only signed license format is accepted.
+    /// Loads the authorization from the KvStorage cache (deploy string written
+    /// by the auth pull flow). Only signed license format is accepted.
     /// Returns `false` if no valid authorization is found; the server still
-    /// starts so the user can upload a license via the web UI.
+    /// starts — the background pull loop will fetch the authorization from
+    /// the auth server (网络上报授权模式，不再支持本地 license 文件)。
     pub async fn load(&mut self) -> bool {
-        let auth_str = if let Some(str) = gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
-            tracing::info!("load: found cached authorization in KvStorage (len={})", str.len());
-            str
-        } else {
-            match std::fs::read_to_string("auth/auth.info") {
-                Ok(s) => {
-                    tracing::info!("load: found auth/auth.info file (len={})", s.len());
-                    s
-                }
-                Err(e) => {
-                    tracing::info!("load: no auth/auth.info found ({}); starting unlicensed", e);
-                    return false;
-                }
+        let auth_str = match gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
+            Some(str) if !str.trim().is_empty() => {
+                tracing::info!("load: found cached authorization in KvStorage (len={})", str.len());
+                str
+            }
+            _ => {
+                tracing::info!("load: no cached authorization in KvStorage; starting unlicensed");
+                return false;
             }
         };
 
@@ -78,7 +72,6 @@ impl AuthManager {
                     auth.username,
                     auth.password.len()
                 );
-                self.update_key_used_time(&auth_str);
                 self.update_auth(auth).await;
                 true
             }
@@ -103,10 +96,6 @@ impl AuthManager {
         *auth_guard = auth;
     }
 
-    pub fn update_key_used_time(&mut self, auth_str: &String) {
-        self.key_used_time = format!("key_used_time:{}", md5_hex(auth_str));
-    }
-
     pub async fn verify_appkey(&self, appkey: String) -> bool {
         if appkey.is_empty() {
             return false;
@@ -115,94 +104,20 @@ impl AuthManager {
         self.auth.lock().await.appkey == appkey && self.auth.lock().await.app_secret == app_secret
     }
 
-    pub async fn start_count_down() {
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                // auth
-                let auth = gAuthManager.lock().await.get_auth().await;
-                if auth.auth_id.is_empty() {
-                    continue;
-                }
-
-                let key_used_time = gAuthManager.lock().await.key_used_time.clone();
-
-                // used time: verify existing signed record, increment, and write a new signed record
-                let storage = gKvStorage.lock().await;
-                let r = storage.get(key_used_time.as_str());
-                drop(storage);
-
-                let mut used_time_ms: i64 = 0;
-                if let Some(record) = r {
-                    match verify_used_time(&record, &auth) {
-                        Ok(v) => used_time_ms = v,
-                        Err(e) => {
-                            tracing::error!(
-                                "used-time record verification failed, resetting: {}",
-                                e
-                            );
-                            used_time_ms = 0;
-                        }
-                    }
-                }
-
-                used_time_ms += 5000;
-                let signed_record = sign_used_time(used_time_ms, auth.end_timestamp_ms, &auth);
-                gKvStorage
-                    .lock()
-                    .await
-                    .put(key_used_time.as_str(), signed_record.as_str());
-
-                // save a plain-number backup for the panel UI
-                let file = File::options()
-                    .write(true)
-                    .create(true)
-                    .append(false)
-                    .truncate(true)
-                    .open("au.dat");
-                if let Ok(mut file) = file {
-                    let _ = file.write_all(used_time_ms.to_string().as_bytes());
-                }
-            }
-        });
-    }
-
+    /// 已使用时间（毫秒）：**直接采用授权服务器计算并通过 pull 返回的值**，
+    /// 本地不做计时也不做时钟纠正。周期 pull 自动刷新；网络失败时沿用上一次
+    /// 拉到的值继续运行，只有 license 本身明确过期（end_timestamp_ms）才失效。
     pub async fn get_used_time(&self) -> i64 {
         let auth = self.get_auth().await;
         if auth.auth_id.is_empty() {
             return 0;
         }
-        let record = gKvStorage
-            .lock()
-            .await
-            .get(self.key_used_time.as_str())
-            .unwrap_or_default();
-        if record.is_empty() {
-            return 0;
-        }
-        match verify_used_time(&record, &auth) {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!("used-time verification failed: {}", e);
-                0
-            }
-        }
+        *self.server_used_time_ms.lock().await
     }
 
-    pub async fn clear_used_time(&self) {
-        let auth = self.get_auth().await;
-        if auth.auth_id.is_empty() {
-            gKvStorage
-                .lock()
-                .await
-                .put(self.key_used_time.as_str(), "0");
-            return;
-        }
-        let signed_record = sign_used_time(0, auth.end_timestamp_ms, &auth);
-        gKvStorage
-            .lock()
-            .await
-            .put(self.key_used_time.as_str(), signed_record.as_str());
+    /// 记录服务器返回的已使用时间（pull 成功后调用；吊销清零）。
+    pub async fn update_server_used_time(&self, used_time_ms: i64) {
+        *self.server_used_time_ms.lock().await = used_time_ms;
     }
 
     pub async fn is_auth_ok(&self, auth_id: String, auth_password: String) -> bool {

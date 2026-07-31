@@ -51,6 +51,14 @@ namespace tc
             if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
                 self->client_->ws_stream().binary(true);
                 self->client_->set_no_delay(true);
+
+                // Generate a fresh token for every connection attempt (including auto reconnect).
+                // The token has a short lifetime (60s), so reusing the original path on reconnect
+                // would cause the CMS token filter to reject the connection.
+                auto token = GenerateConnectionToken(self->appkey_);
+                auto path = std::format("/spvr/client?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
+                    self->appkey_, token.token, token.ts, token.nonce, self->device_id_, self->remote_device_id_, self->remote_device_ip_);
+                self->client_->set_upgrade_target(path);
             }
 
         })
@@ -90,11 +98,9 @@ namespace tc
         });
 
         // the /ws is the websocket upgraged target
-        auto token = GenerateConnectionToken(appkey_);
-        auto path = std::format("/spvr/client?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
-            appkey_, token.token, token.ts, token.nonce, device_id_, remote_device_id_, remote_device_ip_);
-        LOGI("will connect => {}:{}{}", host_, port_, path);
-        if (!client_->async_start(host_, port_, path)) {
+        // the concrete upgrade target (with a fresh token) is set in bind_init above
+        LOGI("will connect => {}:{}/spvr/client", host_, port_);
+        if (!client_->async_start(host_, port_)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }

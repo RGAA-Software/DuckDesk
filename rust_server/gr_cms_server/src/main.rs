@@ -59,11 +59,8 @@ use crate::user_device::spvr_user_device_manager::SpvrUserDeviceManager;
 use clap::Parser;
 use egui::IconData;
 use gr_auth_mgr::auth_license::LicenseVerifier;
-use gr_base::hwid_util::HardwareIdUtil;
 use gr_base::{kv_storage::KvStorage, log_util, redis_util};
 use redis::aio::ConnectionManager;
-use std::fs::File;
-use std::io::Read;
 use std::sync::Arc;
 use sys_locale::get_locale;
 use tokio::sync::Mutex;
@@ -123,7 +120,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let machine_code = HardwareIdUtil::generate_hardware_id();
+    let machine_code = gr_base::machine_code::generate_machine_code();
 
     if args.running_mode == "server" {
         run_as_server(machine_code).await;
@@ -158,20 +155,12 @@ async fn run_as_panel(machine_code: String) {
         SpvrLanguage::new_chinese()
     };
 
-    // read the auth/auth.info
+    // load the cached authorization (KvStorage; 面板进程未初始化 KvStorage 时为空操作)
     gAuthManager.lock().await.load().await;
     let auth = gAuthManager.lock().await.get_auth().await;
 
-    let mut used_time: i64 = 0;
-    let file = File::options().read(true).open("au.dat");
-    if let Ok(mut file) = file {
-        let mut buffer: String = String::default();
-        if let Ok(_size) = file.read_to_string(&mut buffer) {
-            if let Ok(value) = buffer.parse::<i64>() {
-                used_time = value;
-            }
-        }
-    }
+    // 已使用时间由服务器锚定的有效期推导（见 AuthManager::get_used_time）
+    let used_time: i64 = gAuthManager.lock().await.get_used_time().await;
 
     tracing::info!("used time: {}", used_time);
     tracing::info!("auth: {:#?}", auth);
@@ -301,12 +290,14 @@ async fn run_as_server(machine_code: String) {
     }
 
     // Auth Manager — load is best-effort: if no valid authorization is found
-    // (first run, expired license, etc.) the server still starts so the user
-    // can upload a new authorization via the web UI.
+    // (first run, expired license, etc.) the server still starts; the
+    // background pull loop will fetch the authorization from the auth server.
     if !gAuthManager.lock().await.load().await {
-        tracing::warn!("no valid authorization loaded; starting unlicensed — upload a license via the web UI");
+        tracing::warn!("no valid authorization loaded; starting unlicensed — will pull from the auth server");
     }
-    AuthManager::start_count_down().await;
+
+    // 网络上报授权：启动时立即 pull 一次，之后按 auth_pull_interval_secs 周期 pull。
+    crate::auth::spvr_auth_pull::start_pull_loop().await;
 
     let port = gSpvrSettings.lock().await.udp_broadcast_port;
     gSpvrContext.lock().await.broadcast_access_info(port).await;

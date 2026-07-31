@@ -8,6 +8,7 @@ pub mod ip_util;
 pub mod json_util;
 pub mod kv_storage;
 pub mod log_util;
+pub mod machine_code;
 pub mod path_util;
 pub mod mongodb_util;
 pub mod redis_util;

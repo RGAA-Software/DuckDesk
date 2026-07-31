@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import iconLogo from '@/assets/ic_logo.png'
-import { onMounted, ref } from 'vue'
-import { ElNotification, type UploadFile } from 'element-plus'
-import { queryAuthorization, updateAuthorization } from '@/model/auth_api.ts'
-import type { Authorization } from '@/entity/authorization.ts'
+import { computed, onMounted, ref } from 'vue'
+import { ElNotification } from 'element-plus'
+import { pullAuthorization, queryAuthStatus, type AuthStatus } from '@/model/auth_api.ts'
 import axiosHttp, { BASE_URL } from '@/http.ts'
 
 import CryptoJS from 'crypto-js'
@@ -14,14 +13,14 @@ const md5 = (input: string): string => {
 
 import { useRouter } from 'vue-router'
 import { copyText } from '@/util/clipboard.ts'
-import { downloadTxt } from '@/util/download.ts'
+import { formatTimestamp } from '@/util/time.ts'
 import { queryMachineCode } from '@/model/spvr_api.ts'
 const router = useRouter()
 
 const inputUsername = ref('')
 const inputPassword = ref('')
-const authorization = ref<Authorization>()
-const uploadAuthDialog = ref(false)
+const authStatus = ref<AuthStatus | null>(null)
+const refreshing = ref(false)
 const machineCode = ref('')
 
 onMounted(async () => {
@@ -36,13 +35,77 @@ onMounted(async () => {
   // query machine code
   machineCode.value = await queryMachineCode()
 
-  // query authorization
-  authorization.value = await queryAuthorization()
-  if (authorization.value) {
-    console.log('update authorization appkey', authorization.value.appkey)
-    localStorage.setItem('appkey', authorization.value.appkey)
+  // query authorization status
+  await refreshAuthStatus()
+})
+
+async function refreshAuthStatus() {
+  authStatus.value = await queryAuthStatus()
+  console.log('auth status:', authStatus.value)
+  autofillLogin(authStatus.value)
+}
+
+// 本机访问时后端会附带登录凭据，自动填入登录表单
+function autofillLogin(st: AuthStatus | null) {
+  if (st?.username) {
+    inputUsername.value = st.username
   }
-  console.log('auth: `', authorization?.value)
+  if (st?.password) {
+    inputPassword.value = st.password
+  }
+}
+
+async function handleRefreshAuth() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    const st = await pullAuthorization()
+    autofillLogin(st)
+    await refreshAuthStatus()
+  } finally {
+    refreshing.value = false
+  }
+}
+
+// 授权状态展示
+const authStatusText = computed(() => {
+  const st = authStatus.value
+  if (!st || !st.authorized) {
+    return '未授权'
+  }
+  if (st.mode === 'trial') {
+    return '试用中'
+  }
+  if (!st.valid) {
+    return '已过期'
+  }
+  return '已授权'
+})
+
+const authStatusType = computed(() => {
+  switch (authStatusText.value) {
+    case '已授权':
+      return 'success'
+    case '试用中':
+      return 'warning'
+    default:
+      return 'danger'
+  }
+})
+
+const authExpireText = computed(() => {
+  const st = authStatus.value
+  if (!st || !st.authorized) {
+    return ''
+  }
+  if (st.mode === 'trial') {
+    return '不限时间'
+  }
+  if (!st.end_timestamp_ms) {
+    return ''
+  }
+  const leftDays = Math.max(0, Math.ceil((st.end_timestamp_ms - Date.now()) / 24 / 3600 / 1000))
+  return `到期时间: ${formatTimestamp(st.end_timestamp_ms)} (剩余 ${leftDays} 天)`
 })
 
 async function handleLogin() {
@@ -56,13 +119,10 @@ async function handleLogin() {
 
 async function login(username: string, password: string) {
   try {
-    const resp = await axiosHttp.post(
-      '/api/v1/auth/control/verify/auth/account?appkey=' + localStorage.getItem('appkey'),
-      {
-        username: username,
-        password: md5(password),
-      },
-    )
+    const resp = await axiosHttp.post('/api/v1/auth/control/verify/auth/account', {
+      username: username,
+      password: md5(password),
+    })
     if (resp.status !== 200) {
       console.error('change password failed', resp)
       return false
@@ -77,6 +137,10 @@ async function login(username: string, password: string) {
       })
       return false
     } else {
+      // 登录成功后端返回 appkey，保存供后续受 appkey filter 保护的接口使用
+      if (data.data) {
+        localStorage.setItem('appkey', data.data)
+      }
       ElNotification({
         message: '登录成功',
         type: 'success',
@@ -93,50 +157,6 @@ async function login(username: string, password: string) {
     })
     return false
   }
-}
-
-const handleSelectAuthFile = async (file: UploadFile) => {
-  console.log(file)
-  if (!file.raw) {
-    console.error('file not found', file)
-    return
-  }
-
-  const reader = new FileReader()
-  reader.readAsText(file.raw, 'utf-8')
-
-  reader.onload = async () => {
-    const content = reader.result as string
-    console.log('文件内容:', content)
-    authorization.value = await updateAuthorization(content)
-    // update ui
-    if (authorization.value) {
-      inputUsername.value = authorization.value.username
-      inputPassword.value = authorization.value.password
-
-      localStorage.setItem('appkey', authorization.value.appkey)
-
-      uploadAuthDialog.value = true
-    }
-  }
-}
-
-async function handleCopyAuthInfo() {
-  const info = `地址: ${BASE_URL}\n账号: ${authorization.value?.username}\n密码: ${authorization.value?.password}`
-  await copyText(info)
-  ElNotification({
-    message: '保存成功',
-    type: 'success',
-  })
-}
-
-async function handleDownloadInfo() {
-  const info = `地址: ${BASE_URL}\n账号: ${authorization.value?.username}\n密码: ${authorization.value?.password}`
-  await downloadTxt('GoDesk_Account.txt', info)
-  ElNotification({
-    message: '下载成功',
-    type: 'success',
-  })
 }
 
 // copy machine code
@@ -200,27 +220,11 @@ async function handleCopyMachineCode() {
     </div>
 
     <div class="h-4" />
-
-    <div>
-      <div class="flex justify-center items-center">
-        <span class="text-slate-700 font-semibold">or</span>
-      </div>
-    </div>
   </div>
 
   <div>
     <div class="h-1" />
-    <div>
-      <div class="flex justify-center items-center">
-        <el-upload :auto-upload="false" :on-change="handleSelectAuthFile" :limit="1">
-          <el-button class="!text-small !font-semibold w-40" type="primary" link>
-            上传授权
-          </el-button>
-        </el-upload>
-      </div>
-    </div>
 
-    <div class="h-2" />
     <div class="flex justify-center items-center">
       <div class="w-100 flex justify-start items-center">
         <span class="">机器码:</span>
@@ -231,49 +235,26 @@ async function handleCopyMachineCode() {
       >
     </div>
 
-    <div class="h-5" />
-  </div>
+    <div class="h-2" />
 
-  <el-dialog
-    v-model="uploadAuthDialog"
-    title="账号密码信息"
-    :modal="false"
-    modal-penetrable
-    center
-    destroy-on-close
-    class="!w-100 font-bold"
-  >
-    <div class="">
-      <div class="h-2" />
-
-      <div class="flex justify-center">
-        <span class="w-12">账号</span>
-        <span class="w-22">{{ authorization?.username }}</span>
+    <div class="flex justify-center items-center">
+      <div class="w-100 flex justify-start items-center">
+        <span class="">授权状态:</span>
+        <el-tag class="ml-1" :type="authStatusType" size="small">{{ authStatusText }}</el-tag>
+        <span v-if="authExpireText" class="ml-2 text-slate-500 text-sm">{{ authExpireText }}</span>
       </div>
-
-      <div class="h-2" />
-
-      <div class="flex justify-center">
-        <span class="w-12">密码</span>
-        <span class="w-22">{{ authorization?.password }}</span>
-      </div>
-
-      <div class="h-2" />
-      <div class="flex justify-center">
-        <span class="text-amber-600 !font-normal"
-          >请复制保存此账号密码信息，若是遗忘，重新上传授权即可</span
-        >
-      </div>
+      <el-button
+        class="ml-2 w-22"
+        type="primary"
+        plain
+        :loading="refreshing"
+        @click="handleRefreshAuth"
+        >刷新状态</el-button
+      >
     </div>
 
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button type="primary" @click="handleCopyAuthInfo"> 复制信息 </el-button>
-        <el-button type="warning" @click="handleDownloadInfo"> 下载信息 </el-button>
-        <el-button type="danger" @click="uploadAuthDialog = false"> 关闭 </el-button>
-      </div>
-    </template>
-  </el-dialog>
+    <div class="h-5" />
+  </div>
 </template>
 
 <style scoped></style>

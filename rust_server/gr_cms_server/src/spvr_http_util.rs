@@ -1,32 +1,8 @@
 use crate::spvr_api_error::SpvrApiError;
 use axum::body::Body;
 use axum::extract::Query;
-use serde::Deserialize;
 use std::collections::HashMap;
 use tokio_stream::StreamExt;
-
-#[derive(Deserialize)]
-struct RequestBody {
-    data: String,
-}
-
-pub async fn get_body_data(body: Body) -> Result<String, SpvrApiError> {
-    let mut bytes = Vec::new();
-    let mut body_stream = body.into_data_stream();
-    while let Some(chunk) = body_stream.next().await {
-        let chunk = chunk.map_err(|_| SpvrApiError::InvalidParams)?;
-        bytes.extend_from_slice(&chunk);
-    }
-
-    let r = String::from_utf8(bytes).map_err(|_| SpvrApiError::InvalidParams)?;
-    let rb: RequestBody =
-        serde_json::from_str(r.as_str()).map_err(|_| SpvrApiError::InvalidParams)?;
-    if rb.data.is_empty() {
-        return Err(SpvrApiError::InvalidParams);
-    }
-
-    Ok(rb.data)
-}
 
 pub async fn get_body(body: Body) -> Result<String, SpvrApiError> {
     let mut bytes = Vec::new();

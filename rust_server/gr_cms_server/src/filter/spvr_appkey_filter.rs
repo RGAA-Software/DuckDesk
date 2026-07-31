@@ -16,24 +16,34 @@ struct AppkeyQueryParams {
 ///
 /// Note: when a router is mounted via axum's `nest()`, the middleware layered
 /// inside the nested router sees the path **with the nest prefix stripped**.
-/// For example `/api/v1/auth/control/update/authorization` is seen as
-/// `/update/authorization` by this filter. Therefore the whitelist stores the
+/// For example `/api/v1/auth/control/pull/authorization` is seen as
+/// `/pull/authorization` by this filter. Therefore the whitelist stores the
 /// stripped (post-nest) paths for nested routes, and full paths for routes
 /// mounted directly on the root router.
 ///
-/// `update/authorization` is whitelisted because it is the endpoint used to
-/// upload a new license when the current one is expired or invalid. Requiring
-/// a valid appkey here creates a dead loop: the old appkey is invalid (expired),
-/// so the update is rejected, but the only way to get a valid appkey is to
-/// update the authorization. The endpoint instead authenticates via Ed25519
-/// signature verification on the uploaded license.
+/// `pull/authorization` is whitelisted because it is the endpoint used to
+/// fetch a license from the auth server when the current one is missing or
+/// invalid. Requiring a valid appkey here creates a dead loop: there is no
+/// valid appkey until an authorization is pulled. The endpoint instead relies
+/// on the auth server being the authority for issuing signed licenses, and it
+/// MUST NOT return credential fields (see AuthStatus).
+///
+/// `verify/auth/account` is whitelisted because it IS the credential check
+/// (license username/password); on success it returns the appkey so the web
+/// UI can call appkey-protected endpoints afterwards.
+///
+/// `get/auth/status` is whitelisted so the login page can show the machine
+/// code / authorization state before any authorization exists. It returns a
+/// safe view without any credential fields.
 const APPKEY_FILTER_WHITELIST: &[&str] = &[
     // Nested under /api/v1/spvr/control -> stripped path
     "/servers/config",
     "/gen/access/info",
     "/gen/raw/access/info",
     // Nested under /api/v1/auth/control -> stripped path
-    "/update/authorization",
+    "/pull/authorization",
+    "/verify/auth/account",
+    "/get/auth/status",
     // Root-level static paths
     "/",
     "/favicon.ico",
@@ -124,12 +134,15 @@ mod tests {
     fn whitelist_uses_exact_paths() {
         // Exact whitelisted (stripped) paths must match.
         assert!(APPKEY_FILTER_WHITELIST.contains(&"/servers/config"));
-        assert!(APPKEY_FILTER_WHITELIST.contains(&"/update/authorization"));
+        assert!(APPKEY_FILTER_WHITELIST.contains(&"/pull/authorization"));
         assert!(APPKEY_FILTER_WHITELIST.contains(&"/"));
 
         // Other auth endpoints must NOT be whitelisted.
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/get/authorization"));
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/update/password"));
+        // Login & safe status endpoints ARE whitelisted (see doc comment).
+        assert!(APPKEY_FILTER_WHITELIST.contains(&"/verify/auth/account"));
+        assert!(APPKEY_FILTER_WHITELIST.contains(&"/get/auth/status"));
 
         // Substring or prefix variants must NOT be whitelisted (defense against bypasses).
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/servers/config/extra"));

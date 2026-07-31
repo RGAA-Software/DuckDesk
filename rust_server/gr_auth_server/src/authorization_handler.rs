@@ -768,6 +768,10 @@ pub struct DevicePullResponse {
     pub registered_new: bool,
     pub server_time_ms: i64,
     pub last_modify_timestamp: i64,
+    /// 服务器口径的已使用时间：days - 剩余，夹在 [0, days]。客户端直接展示，
+    /// 不做本地计时/时钟纠正（网络失败时沿用上一次拉到的值）。
+    #[serde(default)]
+    pub used_time_ms: i64,
 }
 
 /// `POST /api/v1/device/pull` — devices (gopico / clientbox / goagent) call this
@@ -872,6 +876,10 @@ pub async fn handle_device_pull(
         .to_deploy_string()
         .map_err(|_| AuthorApiError::CantCreateAuthorization)?;
 
+    // 服务器口径已使用时间：days - 剩余（锚定在服务器时钟上）。
+    let total_ms = (auth.days as i64) * 24 * 60 * 60 * 1000;
+    let used_time_ms = (total_ms - (auth.end_timestamp_ms - now_ms)).clamp(0, total_ms);
+
     Ok(Json(ok_resp(DevicePullResponse {
         deploy_str,
         auth_id: auth.auth_id,
@@ -884,6 +892,7 @@ pub async fn handle_device_pull(
         registered_new,
         server_time_ms: now_ms,
         last_modify_timestamp: auth.last_modify_timestamp,
+        used_time_ms,
     })))
 }
 

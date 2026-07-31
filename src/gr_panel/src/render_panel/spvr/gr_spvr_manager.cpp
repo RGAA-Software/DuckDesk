@@ -13,6 +13,26 @@
 namespace tc
 {
 
+    // Build a user-readable error message for a failed spvr api call.
+    // Well-known authorization/quota errors get localized texts; otherwise prefer
+    // the message returned by the CMS in the response body, then the generic text.
+    static QString MakeSpvrErrorMessage(const spvr::SpvrApiError& err, const std::string& server_message) {
+        QString detail;
+        if (err == spvr::SpvrApiError::kInvalidAppkey || err == spvr::SpvrApiError::kInvalidAuthorization) {
+            detail = tcTr("id_auth_invalid");
+        }
+        else if (err == spvr::SpvrApiError::kMaxStreamsReached) {
+            detail = tcTr("id_no_available_connection");
+        }
+        else if (!server_message.empty()) {
+            detail = QString::fromStdString(server_message);
+        }
+        else {
+            detail = spvr::SpvrApiErrorAsString(err).c_str();
+        }
+        return tcTr("id_op_error") + ":" + QString::number(static_cast<int>(err)) + " " + detail;
+    }
+
     GrSpvrManager::GrSpvrManager(const std::shared_ptr<GrContext>& context) {
         context_ = context;
         settings_ = GrSettings::Instance();
@@ -26,9 +46,9 @@ namespace tc
         if (!r.has_value()) {
             if (show_err_dialog) {
                 auto err = r.error();
+                auto server_message = spvr::SpvrApiLastErrorMessage();
                 context_->PostUITask([=]() {
-                    const QString msg = tcTr("id_op_error") + ":" + QString::number(static_cast<int>(err)) + " " + spvr::SpvrApiErrorAsString(err).c_str();
-                    TcDialog dialog(tcTr("id_error"), msg);
+                    TcDialog dialog(tcTr("id_error"), MakeSpvrErrorMessage(err, server_message));
                     dialog.exec();
                 });
             }
@@ -48,9 +68,9 @@ namespace tc
         if (!r.has_value()) {
             if (show_err_dialog) {
                 auto err = r.error();
+                auto server_message = spvr::SpvrApiLastErrorMessage();
                 context_->PostUITask([=]() {
-                    const QString msg = tcTr("id_op_error") + ":" + QString::number(static_cast<int>(err)) + " " + spvr::SpvrApiErrorAsString(err).c_str();
-                    TcDialog dialog(tcTr("id_error"), msg);
+                    TcDialog dialog(tcTr("id_error"), MakeSpvrErrorMessage(err, server_message));
                     dialog.exec();
                 });
             }

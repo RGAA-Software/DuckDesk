@@ -1,3 +1,4 @@
+pub mod app_credential;
 pub mod app_secret_util;
 pub mod auth_license;
 pub mod auth_token;

@@ -80,10 +80,13 @@ output\gr_cms_server\
 ├── gr_cms_server.exe
 ├── gr_cms_server_settings.toml
 ├── certs\          # cert.pem, key.pem, auth_license_public.key
-├── auth\           # auth.info license deploy string
 ├── web\            # built frontend assets
 └── uploads\        # runtime: logs, avatar, update_info
 ```
+
+The CMS pulls its authorization from the auth server at runtime
+(`auth_server_url` in `gr_cms_server_settings.toml`, see
+`docs/gr_cms_auth_pull.md`); no local license file is shipped.
 
 Run `output\gr_cms_server\gr_cms_server.exe --running-mode=server` and open
 `https://localhost:30500` (health check: `http://localhost:30499/ping`).
