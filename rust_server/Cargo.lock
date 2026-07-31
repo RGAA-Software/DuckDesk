@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "gr_cms_server"
-version = "3.2.9"
+version = "3.2.10"
 dependencies = [
  "arboard",
  "axum",
