@@ -28,11 +28,11 @@
 
 - `GammaRayService`
 - `GammaRayServiceManager`
-- `GammaRayGuard`
+- `GammaRayUserProxy`
 - `panel_companion.dll`
 - `tc_protection.dll`
 
-这些组件分别承担服务管理、守护、私有扩展逻辑和保护能力。
+这些组件分别承担服务管理、守护(含原 GammaRayGuard 的保活职责,已并入 UserProxy)、私有扩展逻辑和保护能力。
 
 ## 2. 主链路怎么跑起来
 

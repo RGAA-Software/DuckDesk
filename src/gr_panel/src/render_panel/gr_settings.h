@@ -78,7 +78,6 @@ namespace tc
     static const std::string kResTypeResize = "resize";
 
     static const std::string kGammaRayName = tc::kGammaRayExeName;
-    static const std::string kGammaRayGuardName = tc::kGammaRayGuardExeName;
     static const std::string kGammaRayRenderName = tc::kGammaRayRenderExeName;
     static const std::string kGammaRayClientInner = tc::kGammaRayClientInnerExeName;
     static const std::string kGammaRayService = tc::kGammaRayServiceExeName;

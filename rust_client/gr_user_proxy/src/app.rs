@@ -53,6 +53,17 @@ impl UserProxyApp {
 
     pub async fn run(self) -> anyhow::Result<()> {
         self.engine.start_render_loop();
+        match std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(std::path::PathBuf::from))
+        {
+            Some(app_dir) => {
+                crate::keepalive::spawn_keepalive_loop(app_dir);
+            }
+            None => {
+                error!("current_exe has no parent, keepalive loop disabled");
+            }
+        }
         loop {
             match self.clip_rx.recv() {
                 Ok(()) => self.engine.on_local_clipboard_update().await,

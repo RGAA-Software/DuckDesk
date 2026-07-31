@@ -131,7 +131,6 @@ fn kill_other_processes() {
     let targets = [
         "GammaRayRender.exe",
         "GammaRayClientInner.exe",
-        "GammaRayGuard.exe",
         "GammaRaySysInfo.exe",
         "GammaRayUserProxy.exe",
         "GammaRay.exe",

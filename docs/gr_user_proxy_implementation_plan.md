@@ -223,7 +223,7 @@ loop {
 
 ### 5.5 日志（需求 #4、#5）
 
-与 `gr_guard` / `gr_service` 一致，使用 `gr_base::log_util::init_log`：
+与 `gr_service` 一致，使用 `gr_base::log_util::init_log`（原 `gr_guard` 已删除，其保活日志也并入本文件）：
 
 | 项 | 值 |
 |----|-----|
@@ -351,7 +351,7 @@ members = [
 
 ### 8.2 根 `CMakeLists.txt`
 
-仿照 `GammaRayGuard_rust` 增加：
+仿照其他 Rust 组件增加（原 `GammaRayGuard_rust`/`GammaRayGuard_stage` 已随 Guard 删除）：
 
 ```cmake
 set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
@@ -537,7 +537,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 | `tests/integration.rs` | `integration_reconnects_after_server_drop` | Mock Render 断开后 2s 内重连 | 集成 |
 | `clipboard::backend` | `InMemoryClipboard` 系列 | 读写 / notify 不依赖 Win32 | 单元 |
 | `clipboard::win_platform` | `read_empty_after_clear` | Clear 后无文本 | 需 Windows，可 CI |
-| `gr_guard::process_monitor` | Guard 仅 Panel/SysInfo，不含 UserProxy | 单元 |
+| `gr_user_proxy::keepalive` | 进程名大小写不敏感匹配、tick 决策（缺谁拉谁）、initial check | 单元（原 `gr_guard::process_monitor` 用例迁入） |
 
 **统一入口：**
 
@@ -545,7 +545,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 scripts\test_user_proxy.bat
 ```
 
-等价于 `cargo test -p gr_user_proxy -p gr_service -p service_core`（Guard 与 UserProxy 生命周期无关，可单独 `cargo test -p gr_guard`）。
+等价于 `cargo test -p gr_user_proxy -p gr_service -p service_core`（原 `gr_guard` 已并入 `gr_user_proxy::keepalive`，随 `-p gr_user_proxy` 一起测试）。
 
 ### 10.3 Service 拉起与守护 UserProxy（运行时）
 

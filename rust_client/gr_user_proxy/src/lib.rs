@@ -1,6 +1,7 @@
 pub mod clipboard;
 pub mod config;
 pub mod engine;
+pub mod keepalive;
 pub mod logging;
 pub mod mock_render;
 pub mod proto;

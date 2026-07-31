@@ -129,10 +129,11 @@
 
 `StopAll()` 会关闭：
 
-- `GammaRayGuard.exe`
 - `GammaRayRender.exe`
 - `GammaRayClientInner.exe`
 - `GammaRaySysInfo.exe`
+
+（历史上还包含 `GammaRayGuard.exe`;Guard 已删除,保活并入 GammaRayUserProxy。）
 
 这说明 service 不只守护 render，也承担“整套附属进程清道夫”的角色。
 

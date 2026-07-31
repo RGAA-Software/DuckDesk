@@ -154,7 +154,6 @@ endif()
 set(GR_SYSINFO_EXE_NAME GammaRaySysInfo.exe)
 set(GR_SERVICE_EXE_NAME GammaRayService.exe)
 set(GR_SERVICE_MGR_EXE_NAME GammaRayServiceManager.exe)
-set(GR_GUARD_EXE_NAME GammaRayGuard.exe)
 set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 set(GR_CRASH_REPORTER_EXE_NAME GammaRayCrashReporter.exe)
 set(GR_UNINSTALL_EXE_NAME GammaRayUninstall.exe)
@@ -169,7 +168,6 @@ endif()
 set(GR_SYSINFO_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SYSINFO_EXE_NAME})
 set(GR_SERVICE_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_EXE_NAME})
 set(GR_SERVICE_MGR_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_MGR_EXE_NAME})
-set(GR_GUARD_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_GUARD_EXE_NAME})
 set(GR_USER_PROXY_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_USER_PROXY_EXE_NAME})
 set(GR_CRASH_REPORTER_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_CRASH_REPORTER_EXE_NAME})
 set(GR_UNINSTALL_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_UNINSTALL_EXE_NAME})
@@ -177,7 +175,6 @@ set(GR_UNINSTALL_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${
 set(GR_SYSINFO_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SYSINFO_EXE_NAME})
 set(GR_SERVICE_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_EXE_NAME})
 set(GR_SERVICE_MGR_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_MGR_EXE_NAME})
-set(GR_GUARD_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_GUARD_EXE_NAME})
 set(GR_USER_PROXY_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_USER_PROXY_EXE_NAME})
 set(GR_CRASH_REPORTER_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_CRASH_REPORTER_EXE_NAME})
 set(GR_UNINSTALL_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_UNINSTALL_EXE_NAME})
@@ -200,13 +197,6 @@ add_custom_target(GammaRayServiceManager_rust
         COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin GammaRayServiceManager ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRayServiceManager"
-        VERBATIM
-)
-
-add_custom_target(GammaRayGuard_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_guard --bin GammaRayGuard ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayGuard"
         VERBATIM
 )
 
@@ -242,13 +232,6 @@ add_custom_target(GammaRayServiceManager_stage
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SERVICE_MGR_RUST_EXE}" "${GR_SERVICE_MGR_STAGED_EXE}"
         DEPENDS GammaRayServiceManager_rust
         COMMENT "Staging Rust GammaRayServiceManager"
-        VERBATIM
-)
-
-add_custom_target(GammaRayGuard_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_GUARD_RUST_EXE}" "${GR_GUARD_STAGED_EXE}"
-        DEPENDS GammaRayGuard_rust
-        COMMENT "Staging Rust GammaRayGuard"
         VERBATIM
 )
 
@@ -304,7 +287,7 @@ add_dependencies(tc_build_premium_all
 
     ### from former tc_build_all (deps + rust stages)
     GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
-    GammaRayClientInner tc_relay_client tc_rtc_client tc_cp_message GammaRayGuard_stage GammaRayUserProxy_stage tc_hw_info
+    GammaRayClientInner tc_relay_client tc_rtc_client tc_cp_message GammaRayUserProxy_stage tc_hw_info
     GammaRayCrashReporter_stage GammaRaySysInfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
     plugin_was_audio_capture plugin_opus_encoder tc_sdk tc_qt_widget plugin_mock_video_stream tc_translator

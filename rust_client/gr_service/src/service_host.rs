@@ -555,7 +555,7 @@ mod tests {
     fn stop_managed_render_only_kills_render() {
         let mut runtime = test_runtime(vec![
             ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
-            ProcessSnapshot::new(2, "D:/GammaRayGuard.exe", ""),
+            ProcessSnapshot::new(2, "D:/UnrelatedApp.exe", ""),
             ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
             ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
             ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
@@ -571,7 +571,7 @@ mod tests {
     fn stop_control_event_only_kills_managed_processes() {
         let mut runtime = test_runtime(vec![
             ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
-            ProcessSnapshot::new(2, "D:/GammaRayGuard.exe", ""),
+            ProcessSnapshot::new(2, "D:/UnrelatedApp.exe", ""),
             ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
             ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
             ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),

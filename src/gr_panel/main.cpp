@@ -180,9 +180,6 @@ int main(int argc, char *argv[]) {
         auto auto_start = std::make_shared<tc::AutoStart>();
         auto path = QApplication::applicationFilePath().toStdString();
         auto_start->NewLogonTask((char*)"GammaRay_Panel_Start", (char*)path.c_str(), (char*)"--run_automatically", (char*)"GR");
-
-        //auto guard_path = QApplication::applicationDirPath() + "/" + kGammaRayGuardName.c_str();
-        //auto_start->NewTimeTask((char*)"GammaRay_Guard_Time_02", (char*)guard_path.toStdString().c_str(), NULL, (char*)"GR");
     }
 
     auto mon_detector = DxgiMonitorDetector::Instance();

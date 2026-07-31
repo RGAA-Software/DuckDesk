@@ -31,7 +31,6 @@ namespace tc
     class GrBaseStreamMessage;
     class GrRenderMsgProcessor;
     class ClipboardManager;
-    class GrGuardStarter;
     class PanelCompanion;
     class GrSpvrClient;
     class SpvrScanner;
@@ -156,9 +155,6 @@ namespace tc
 
         // clipboard manager
         std::shared_ptr<ClipboardManager> clipboard_mgr_ = nullptr;
-
-        // guard starter
-        std::shared_ptr<GrGuardStarter> guard_starter_ = nullptr;
 
         // is started by OS when logon?
         bool run_automatically_ = false;

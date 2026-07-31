@@ -274,7 +274,6 @@ impl ServiceManager {
 fn gamma_cleanup_process_names() -> &'static [&'static str] {
     &[
         "GammaRayRender.exe",
-        "GammaRayGuard.exe",
         "GammaRayClientInner.exe",
         "GammaRaySysInfo.exe",
         "GammaRayUserProxy.exe",
@@ -541,7 +540,6 @@ mod tests {
             gamma_cleanup_process_names(),
             &[
                 "GammaRayRender.exe",
-                "GammaRayGuard.exe",
                 "GammaRayClientInner.exe",
                 "GammaRaySysInfo.exe",
                 "GammaRayUserProxy.exe",

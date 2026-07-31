@@ -37,7 +37,6 @@
 #include "tc_common_new/win32/firewall_helper.h"
 #include "tc_common_new/shared_preference.h"
 #include "tc_common_new/message_notifier.h"
-#include "render_panel/gr_guard_starter.h"
 #include "tc_spvr_client/spvr_stream.h"
 #include "tc_spvr_client/spvr_device_api.h"
 #include "render_panel/gr_render_msg_processor.h"
@@ -138,7 +137,6 @@ namespace tc
         gr_connected_manager_ = std::make_shared<GrConnectedManager>(context_);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(context_);
         rd_msg_processor_ = std::make_shared<GrRenderMsgProcessor>(context_);
-        guard_starter_ = std::make_shared<GrGuardStarter>(context_);
 
         ws_panel_server_ = WsPanelServer::Make(shared_from_this());
         ws_panel_server_->Start();
@@ -409,7 +407,6 @@ namespace tc
         auto app_path = qApp->applicationDirPath() + "/" + kGammaRayName.c_str();
         auto render_path = qApp->applicationDirPath() + "/" + kGammaRayRenderName.c_str();
         auto client_inner_path = qApp->applicationDirPath() + "/" + kGammaRayClientInner.c_str();
-        auto guard_path = qApp->applicationDirPath() + "/" + kGammaRayGuardName.c_str();
         auto service_path = qApp->applicationDirPath() + "/" + kGammaRayService.c_str();
         auto fh = FirewallHelper::Instance();
 
@@ -419,8 +416,6 @@ namespace tc
         fh->RemoveProgramFromFirewall("GammaRayRenderOut");
         fh->RemoveProgramFromFirewall("GammaRayClientInnerIn");
         fh->RemoveProgramFromFirewall("GammaRayClientInnerOut");
-        fh->RemoveProgramFromFirewall("GammaRayGuardIn");
-        fh->RemoveProgramFromFirewall("GammaRayGuardOut");
         fh->RemoveProgramFromFirewall("GammaRayServiceIn");
         fh->RemoveProgramFromFirewall("GammaRayServiceOut");
 
@@ -430,8 +425,6 @@ namespace tc
         fh->AddProgramToFirewall(RulesInfo("GammaRayRenderOut", render_path.toStdString(), "", 2));
         fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerIn", client_inner_path.toStdString(), "", 1));
         fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerOut", client_inner_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayGuardIn", guard_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayGuardOut", guard_path.toStdString(), "", 2));
         fh->AddProgramToFirewall(RulesInfo("GammaRayServiceIn", service_path.toStdString(), "", 1));
         fh->AddProgramToFirewall(RulesInfo("GammaRayServiceOut", service_path.toStdString(), "", 2));
         auto fm_diff = TimeUtil::GetCurrentTimestamp()-begin_fm_ts;
@@ -439,7 +432,6 @@ namespace tc
         LOGI("app path: {}", app_path.toStdString());
         LOGI("render path: {}", render_path.toStdString());
         LOGI("client inner path: {}", client_inner_path.toStdString());
-        LOGI("client inner path: {}", guard_path.toStdString());
         LOGI("client inner path: {}", service_path.toStdString());
     }
 

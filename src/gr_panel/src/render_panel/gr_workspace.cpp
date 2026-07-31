@@ -681,7 +681,6 @@ namespace tc
                 }
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayRenderExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayUserProxyExeName);
-                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayGuardExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRaySysInfoExeName);
                 auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
                 LOGI("Force close current GammaRay process, pid={}", current_pid);

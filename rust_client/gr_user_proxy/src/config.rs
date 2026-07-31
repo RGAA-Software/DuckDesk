@@ -12,6 +12,10 @@ pub const DEFAULT_RENDER_HOST: &str = "127.0.0.1";
 pub const DEFAULT_RENDER_PORT: u16 = 20371;
 pub const DEFAULT_WS_PATH: &str = "/user-proxy";
 pub const RECONNECT_SECS: u64 = 2;
+pub const PANEL_EXE_NAME: &str = "GammaRay.exe";
+pub const SYSINFO_EXE_NAME: &str = "GammaRaySysInfo.exe";
+pub const PANEL_TASK_NAME: &str = "GammaRay_Panel_Start";
+pub const KEEPALIVE_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 #[command(name = "GammaRayUserProxy")]

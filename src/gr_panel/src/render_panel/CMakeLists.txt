@@ -96,8 +96,6 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_file_stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_virtual_file.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_guard_starter.cpp
-
     ${CMAKE_CURRENT_SOURCE_DIR}/spvr_scanner/spvr_scanner.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/user/gr_user_manager.cpp

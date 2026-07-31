@@ -1,4 +1,4 @@
-ï»¿;--------------------------------
+;--------------------------------
 ; Modern UI
 !include "MUI2.nsh"
 !include "x64.nsh"
@@ -50,34 +50,34 @@ Name "${PRODUCT_NAME}"
 
 ;--------------------------------
 ; Sections
-Section "å®‰è£…ä¸»ç¨‹åº" SecMain
+Section "°²×°Ö÷³ÌĞò" SecMain
 
     SetOutPath "$INSTDIR"
 
-    ; 1. è§£å‹ app.7z
+    ; 1. ½âÑ¹ app.7z
     File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
 	
 	; 2. 
 
-    ; 3. åˆ›å»ºå¿«æ·æ–¹å¼
+    ; 3. ´´½¨¿ì½İ·½Ê½
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\å¸è½½.lnk" "$INSTDIR\Uninstall.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Ğ¶ÔØ.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 4. æ³¨å†Œè¡¨ä¿¡æ¯ï¼ˆæ§åˆ¶é¢æ¿å¸è½½æ˜¾ç¤ºï¼‰
+    ; 4. ×¢²á±íĞÅÏ¢£¨¿ØÖÆÃæ°åĞ¶ÔØÏÔÊ¾£©
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "Publisher" "${COMPANY}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayVersion" "${PRODUCT_VERSION}"
 
-    ; è®¾ç½®ç¨‹åºä¸ºç®¡ç†å‘˜è¿è¡Œ
+    ; ÉèÖÃ³ÌĞòÎª¹ÜÀíÔ±ÔËĞĞ
     WriteRegStr HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe" "RUNASADMIN"
 
-    ; åˆ›å»ºå¸è½½ç¨‹åº
+    ; ´´½¨Ğ¶ÔØ³ÌĞò
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     Call LaunchLink
@@ -86,15 +86,18 @@ SectionEnd
 ;--------------------------------
 ; Uninstaller
 Section "Uninstall"
-    ; åˆ é™¤æ–‡ä»¶
+    ; É¾³ıÎÄ¼ş
     RMDir /r "$INSTDIR"
 
-    ; åˆ é™¤å¿«æ·æ–¹å¼
+    ; ÇåÀí¾É°æ Guard µÄµÇÂ¼¼Æ»®ÈÎÎñ(²»´æÔÚÊ±¾²Ä¬ºöÂÔ)
+    nsExec::ExecToLog 'schtasks /Delete /TN GammaRay_Guard_Start /F'
+
+    ; É¾³ı¿ì½İ·½Ê½
     Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.lnk"
     RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
 
-    ; åˆ é™¤æ³¨å†Œè¡¨
+    ; É¾³ı×¢²á±í
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
     DeleteRegKey HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers\$INSTDIR\${APPNAME}.exe"
 
@@ -102,10 +105,10 @@ SectionEnd
 
 ;--------------------------------
 Function .onInit
-    ; æ£€æŸ¥æ—§ç‰ˆæœ¬æ˜¯å¦è¿è¡Œ
+    ; ¼ì²é¾É°æ±¾ÊÇ·ñÔËĞĞ
     ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
     ${If} $R0 == 0
-        MessageBox MB_OK|MB_TOPMOST "å°†è‡ªåŠ¨å…³é—­å½“å‰æ­£åœ¨è¿è¡Œç¨‹åº,è¿›è¡Œä¸‹ä¸€æ­¥å®‰è£…"
+        MessageBox MB_OK|MB_TOPMOST "½«×Ô¶¯¹Ø±Õµ±Ç°ÕıÔÚÔËĞĞ³ÌĞò,½øĞĞÏÂÒ»²½°²×°"
         Call StopAndDeleteService
 		Call KillProcesses
 		
@@ -127,30 +130,35 @@ Function LaunchLink
 FunctionEnd
 
 Function StopAndDeleteService
-    nsExec::ExecToLog 'sc stop "GammaRayService"'
+    ; net stop ÊÇÍ¬²½µÄ:µÈ·şÎñÕæÕıÍ£Ö¹ºó²Å·µ»Ø,Õ¶¶Ï±£»îÔ´Í·
+    ; (·şÎñÃ¿ 3s À­Æğ render/UserProxy,UserProxy Ã¿ 5s À­Æğ panel/SysInfo)
+    nsExec::ExecToLog 'net stop "GammaRayService"'
     nsExec::ExecToLog 'sc delete "GammaRayService"'
 FunctionEnd
 
 Function un.StopAndDeleteService
-    nsExec::ExecToLog 'sc stop "GammaRayService"'
+    nsExec::ExecToLog 'net stop "GammaRayService"'
     nsExec::ExecToLog 'sc delete "GammaRayService"'
 FunctionEnd
 
 
 Function KillProcesses
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayGuard.exe'
+	; Ë³Ğò:ÏÈÉ±±£»îÕß(UserProxy),ÔÙÉ±±»±£»îÕß;SysInfo Ò»²¢´¦Àí
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
 FunctionEnd
 
 Function un.KillProcesses
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayGuard.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
+	nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
 FunctionEnd
