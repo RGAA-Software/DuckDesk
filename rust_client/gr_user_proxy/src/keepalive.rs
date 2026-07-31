@@ -147,6 +147,16 @@ pub struct KeepaliveTickOutcome {
     pub started_sysinfo: bool,
 }
 
+/// Keepalive loop state. The panel is started via `schtasks /Run`, which is
+/// asynchronous — the process may take several seconds to appear. Without a
+/// cooldown, every 5s tick would re-trigger the task and launch multiple
+/// panel instances (racing the SharedPreference/LevelDB LOCK and showing the
+/// "SharedPreference init failed" dialog).
+#[derive(Debug, Default)]
+pub struct KeepaliveState {
+    panel_respawn_not_before: Option<std::time::Instant>,
+}
+
 pub fn has_process_named(processes: &[ProcessEntry], exe_name: &str) -> bool {
     processes
         .iter()
@@ -157,6 +167,7 @@ pub fn run_keepalive_tick(
     lister: &dyn ProcessLister,
     spawner: &dyn ProcessSpawner,
     app_dir: &Path,
+    state: &mut KeepaliveState,
 ) -> Result<KeepaliveTickOutcome, String> {
     let processes = lister.list_processes()?;
     let panel_alive = has_process_named(&processes, PANEL_EXE_NAME);
@@ -168,11 +179,20 @@ pub fn run_keepalive_tick(
         started_sysinfo: false,
     };
 
-    if !panel_alive {
+    if panel_alive {
+        state.panel_respawn_not_before = None;
+    } else if state
+        .panel_respawn_not_before
+        .is_some_and(|not_before| std::time::Instant::now() < not_before)
+    {
+        info!("panel start already triggered, waiting for it to appear (cooldown)");
+    } else {
         warn!("GammaRay.exe missing, starting");
         let path = panel_exe_path(app_dir);
         info!("starting panel, path={}", path.display());
         spawner.start_panel(&path)?;
+        state.panel_respawn_not_before =
+            Some(std::time::Instant::now() + crate::config::PANEL_RESPAWN_COOLDOWN);
         outcome.started_panel = true;
     }
 
@@ -223,9 +243,10 @@ pub fn spawn_keepalive_loop(app_dir: PathBuf) -> tokio::task::JoinHandle<()> {
             error!("initial sysinfo check failed: {err}");
         }
         let mut interval = tokio::time::interval(KEEPALIVE_POLL_INTERVAL);
+        let mut state = KeepaliveState::default();
         loop {
             interval.tick().await;
-            if let Err(err) = run_keepalive_tick(&lister, &spawner, &app_dir) {
+            if let Err(err) = run_keepalive_tick(&lister, &spawner, &app_dir, &mut state) {
                 error!("keepalive tick failed: {err}");
             }
         }
@@ -296,8 +317,13 @@ mod tests {
             processes: vec![entry(PANEL_EXE_NAME), entry(SYSINFO_EXE_NAME)],
         };
         let spawner = RecordingSpawner::default();
-        let outcome =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
+        let outcome = run_keepalive_tick(
+            &lister,
+            &spawner,
+            Path::new("D:/GammaRay"),
+            &mut KeepaliveState::default(),
+        )
+        .expect("tick");
         assert_eq!(
             outcome,
             KeepaliveTickOutcome {
@@ -316,8 +342,13 @@ mod tests {
             processes: vec![entry(SYSINFO_EXE_NAME)],
         };
         let spawner = RecordingSpawner::default();
-        let outcome =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
+        let outcome = run_keepalive_tick(
+            &lister,
+            &spawner,
+            Path::new("D:/GammaRay"),
+            &mut KeepaliveState::default(),
+        )
+        .expect("tick");
         assert!(!outcome.panel_alive);
         assert!(outcome.started_panel);
         assert_eq!(
@@ -332,8 +363,13 @@ mod tests {
             processes: vec![entry(PANEL_EXE_NAME)],
         };
         let spawner = RecordingSpawner::default();
-        let outcome =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
+        let outcome = run_keepalive_tick(
+            &lister,
+            &spawner,
+            Path::new("D:/GammaRay"),
+            &mut KeepaliveState::default(),
+        )
+        .expect("tick");
         assert!(!outcome.sysinfo_alive);
         assert!(!outcome.started_panel);
         assert!(outcome.started_sysinfo);
@@ -347,8 +383,13 @@ mod tests {
     fn starts_all_targets_when_all_missing() {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
-        let outcome =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay")).expect("tick");
+        let outcome = run_keepalive_tick(
+            &lister,
+            &spawner,
+            Path::new("D:/GammaRay"),
+            &mut KeepaliveState::default(),
+        )
+        .expect("tick");
         assert!(outcome.started_panel);
         assert!(outcome.started_sysinfo);
         assert_eq!(
@@ -358,6 +399,46 @@ mod tests {
                 PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe"),
             ]
         );
+    }
+
+    #[test]
+    fn panel_respawn_is_suppressed_during_cooldown() {
+        // schtasks /Run 是异步的,panel 可能要几秒才出现;冷却期内不得重复拉起,
+        // 否则会起多个实例抢 godesk.dat 的 LOCK。
+        let lister = StaticLister { processes: vec![] };
+        let spawner = RecordingSpawner::default();
+        let mut state = KeepaliveState::default();
+        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 1");
+        assert!(first.started_panel);
+        let second =
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+                .expect("tick 2");
+        assert!(!second.started_panel, "cooldown must suppress respawn");
+        let panel_spawns = spawner
+            .paths
+            .lock()
+            .expect("lock")
+            .iter()
+            .filter(|p| p.ends_with(PANEL_EXE_NAME))
+            .count();
+        assert_eq!(panel_spawns, 1, "panel must be started only once");
+    }
+
+    #[test]
+    fn panel_cooldown_cleared_once_panel_alive() {
+        let spawner = RecordingSpawner::default();
+        let mut state = KeepaliveState::default();
+        let missing = StaticLister { processes: vec![] };
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 1");
+        assert!(state.panel_respawn_not_before.is_some());
+        let alive = StaticLister {
+            processes: vec![entry(PANEL_EXE_NAME)],
+        };
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 2");
+        assert!(state.panel_respawn_not_before.is_none());
     }
 
     #[test]

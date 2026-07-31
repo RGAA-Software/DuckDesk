@@ -16,6 +16,10 @@ pub const PANEL_EXE_NAME: &str = "GammaRay.exe";
 pub const SYSINFO_EXE_NAME: &str = "GammaRaySysInfo.exe";
 pub const PANEL_TASK_NAME: &str = "GammaRay_Panel_Start";
 pub const KEEPALIVE_POLL_INTERVAL: Duration = Duration::from_secs(5);
+/// After triggering a panel start (async via the scheduled task), wait this
+/// long before considering another respawn, so slow task-engine starts do not
+/// launch duplicate panel instances.
+pub const PANEL_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 #[command(name = "GammaRayUserProxy")]
