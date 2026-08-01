@@ -33,6 +33,7 @@ const activeMenu = computed(() => {
     '/resources',
     '/devices-list',
     'online-connection',
+    '/connection-monitor',
     '/security-internal',
     '/events',
     '/user-manager',
@@ -82,6 +83,11 @@ const handleClickLogo = async () => {
       <el-menu-item index="/online-connection">
         <el-icon><connection /></el-icon>
         <span class="">在线连接</span>
+      </el-menu-item>
+
+      <el-menu-item index="/connection-monitor">
+        <el-icon><Monitor /></el-icon>
+        <span class="">连接监控</span>
       </el-menu-item>
 
       <el-menu-item index="/security-internal">
