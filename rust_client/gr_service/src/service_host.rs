@@ -109,9 +109,22 @@ impl ServiceRuntime {
                 self.restart_desktop(spec)?;
                 Ok(None)
             }
-            Command::HeartBeat { index, .. } => {
+            Command::HeartBeat {
+                index, auth_info, ..
+            } => {
                 self.sync_process_state()?;
+                if let Some(auth_info) = auth_info {
+                    self.state.last_auth_info = Some(auth_info);
+                }
                 Ok(Some(self.state.heartbeat_response(index)))
+            }
+            Command::AuthInfo(auth_info) => {
+                info!(
+                    "received auth info, device_id={}, appkey={}, spvr={}:{}",
+                    auth_info.device_id, auth_info.appkey, auth_info.spvr_host, auth_info.spvr_port
+                );
+                self.state.last_auth_info = Some(auth_info);
+                Ok(None)
             }
             Command::CtrlAltDelete { .. } => {
                 self.windows_actions.send_ctrl_alt_delete()?;
@@ -250,6 +263,7 @@ pub async fn run_service(
     let service_task = tokio::spawn(async move { service.run_console().await });
     let monitor_task = tokio::spawn(monitor_loop(runtime.clone()));
     let control_task = tokio::spawn(control_loop(runtime.clone(), control_rx));
+    let cms_task = tokio::spawn(crate::cms_client::cms_client_loop(runtime.clone()));
 
     tokio::select! {
         result = service_task => {
@@ -265,6 +279,12 @@ pub async fn run_service(
             }
         }
         result = control_task => {
+            match result {
+                Ok(inner) => inner,
+                Err(err) => Err(err.to_string()),
+            }
+        }
+        result = cms_task => {
             match result {
                 Ok(inner) => inner,
                 Err(err) => Err(err.to_string()),
@@ -504,6 +524,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 3,
                 from: "panel".to_string(),
+                auth_info: None,
             })
             .unwrap()
             .unwrap();
@@ -511,6 +532,58 @@ mod tests {
             response.heart_beat_resp.unwrap().render_status_enum(),
             Some(service_core::RenderStatus::Working)
         );
+    }
+
+    fn test_auth_info() -> service_core::MsgAuthInfo {
+        service_core::MsgAuthInfo {
+            device_id: "dev-1".to_string(),
+            auth_id: "aid-1".to_string(),
+            auth_name: "license".to_string(),
+            machine_code: "mc".to_string(),
+            appkey: "ak-1".to_string(),
+            role: 1,
+            days: 365,
+            max_streams: 4,
+            end_timestamp_ms: 1_900_000_000_000,
+            spvr_host: "cms.example.com".to_string(),
+            spvr_port: 8443,
+        }
+    }
+
+    #[test]
+    fn heartbeat_with_auth_info_updates_state() {
+        let mut runtime = test_runtime(Vec::new());
+        let auth_info = test_auth_info();
+        runtime
+            .handle_command(Command::HeartBeat {
+                index: 1,
+                from: "panel".to_string(),
+                auth_info: Some(auth_info.clone()),
+            })
+            .unwrap();
+        assert_eq!(runtime.state.last_auth_info, Some(auth_info.clone()));
+
+        // A heartbeat without auth_info must not clear the recorded one.
+        runtime
+            .handle_command(Command::HeartBeat {
+                index: 2,
+                from: "panel".to_string(),
+                auth_info: None,
+            })
+            .unwrap();
+        assert_eq!(runtime.state.last_auth_info, Some(auth_info));
+    }
+
+    #[test]
+    fn auth_info_command_updates_state() {
+        let mut runtime = test_runtime(Vec::new());
+        assert!(runtime.state.last_auth_info.is_none());
+        let auth_info = test_auth_info();
+        let response = runtime
+            .handle_command(Command::AuthInfo(auth_info.clone()))
+            .unwrap();
+        assert!(response.is_none());
+        assert_eq!(runtime.state.last_auth_info, Some(auth_info));
     }
 
     #[test]

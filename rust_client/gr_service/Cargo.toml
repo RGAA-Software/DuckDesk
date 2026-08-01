@@ -9,7 +9,11 @@ path = "src/main.rs"
 
 [dependencies]
 gr_base = { path = "../../rust_base/gr_base" }
+gr_auth_mgr = { path = "../../rust_base/gr_auth_mgr" }
+protocol = { path = "../../rust_base/protocol" }
 service_core = { path = "./service_core" }
+prost = "0.14.1"
+rustls = "0.23"
 tokio = { version = "1.43.0", features = ["full"] }
 tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }
 futures-util = "0.3.31"

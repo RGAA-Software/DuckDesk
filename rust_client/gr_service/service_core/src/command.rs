@@ -1,4 +1,4 @@
-use crate::proto::{decode_service_message, ServiceMessageType};
+use crate::proto::{decode_service_message, MsgAuthInfo, ServiceMessageType};
 use crate::state::RenderLaunchSpec;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,7 +9,10 @@ pub enum Command {
     HeartBeat {
         index: i64,
         from: String,
+        /// Panel piggybacks its latest authorization info on heartbeats.
+        auth_info: Option<MsgAuthInfo>,
     },
+    AuthInfo(MsgAuthInfo),
     CtrlAltDelete {
         req_device_id: String,
         req_stream_id: String,
@@ -43,7 +46,12 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
             Command::HeartBeat {
                 index: heart_beat.index,
                 from: heart_beat.from,
+                auth_info: heart_beat.auth_info,
             }
+        }
+        ServiceMessageType::AuthInfo => {
+            let auth_info = message.auth_info.ok_or("missing auth_info payload")?;
+            Command::AuthInfo(auth_info)
         }
         ServiceMessageType::ReqCtrlAltDelete => {
             let request = message
@@ -65,7 +73,7 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
 mod tests {
     use super::*;
     use crate::proto::{
-        encode_service_message, MsgHeartBeat, MsgReqCtrlAltDelete, MsgRestartServer,
+        encode_service_message, MsgAuthInfo, MsgHeartBeat, MsgReqCtrlAltDelete, MsgRestartServer,
         MsgStartServer, ServiceMessage,
     };
 
@@ -106,6 +114,7 @@ mod tests {
             heart_beat: Some(MsgHeartBeat {
                 index: 42,
                 from: "panel".to_string(),
+                ..Default::default()
             }),
             ..Default::default()
         });
@@ -114,9 +123,57 @@ mod tests {
             result.command,
             Command::HeartBeat {
                 index: 42,
-                from: "panel".to_string()
+                from: "panel".to_string(),
+                auth_info: None,
             }
         );
+    }
+
+    #[test]
+    fn dispatch_heartbeat_carries_auth_info() {
+        let auth_info = MsgAuthInfo {
+            device_id: "dev-1".to_string(),
+            appkey: "ak-1".to_string(),
+            spvr_host: "cms.example.com".to_string(),
+            spvr_port: 443,
+            ..Default::default()
+        };
+        let bytes = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::HeartBeat as i32,
+            heart_beat: Some(MsgHeartBeat {
+                index: 1,
+                from: "panel".to_string(),
+                auth_info: Some(auth_info.clone()),
+            }),
+            ..Default::default()
+        });
+        let result = dispatch_message(&bytes).unwrap();
+        assert_eq!(
+            result.command,
+            Command::HeartBeat {
+                index: 1,
+                from: "panel".to_string(),
+                auth_info: Some(auth_info),
+            }
+        );
+    }
+
+    #[test]
+    fn dispatch_auth_info() {
+        let auth_info = MsgAuthInfo {
+            device_id: "dev-1".to_string(),
+            appkey: "ak-1".to_string(),
+            spvr_host: "cms.example.com".to_string(),
+            spvr_port: 8443,
+            ..Default::default()
+        };
+        let bytes = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::AuthInfo as i32,
+            auth_info: Some(auth_info.clone()),
+            ..Default::default()
+        });
+        let result = dispatch_message(&bytes).unwrap();
+        assert_eq!(result.command, Command::AuthInfo(auth_info));
     }
 
     #[test]

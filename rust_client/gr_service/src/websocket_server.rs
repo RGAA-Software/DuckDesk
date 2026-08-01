@@ -203,6 +203,7 @@ mod tests {
             heart_beat: Some(MsgHeartBeat {
                 index: 77,
                 from: "panel".to_string(),
+                ..Default::default()
             }),
             ..Default::default()
         };

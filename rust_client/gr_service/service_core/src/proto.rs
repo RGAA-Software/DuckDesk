@@ -7,9 +7,13 @@ mod generated {
 }
 
 pub use generated::{
-    MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer,
-    MsgStopServer, RenderStatus, ServiceMessage, ServiceMessageType,
+    MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer,
+    MsgStartServer, MsgStopServer, RenderStatus, ServiceMessage, ServiceMessageType,
 };
+
+// prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
+// and keeps Command/ServiceState's Eq derive working.
+impl Eq for MsgAuthInfo {}
 
 #[allow(non_upper_case_globals)]
 impl ServiceMessageType {
@@ -19,6 +23,7 @@ impl ServiceMessageType {
     pub const HeartBeat: Self = Self::KSrvHeartBeat;
     pub const HeartBeatResp: Self = Self::KSrvHeartBeatResp;
     pub const ReqCtrlAltDelete: Self = Self::KSrvReqCtrlAltDelete;
+    pub const AuthInfo: Self = Self::KSrvAuthInfo;
 }
 
 #[allow(non_upper_case_globals)]

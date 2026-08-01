@@ -1,6 +1,6 @@
 use crate::process::{ProcessKind, ProcessSnapshot};
 use crate::proto::{
-    MsgHeartBeatResp, MsgRestartServer, MsgStartServer, RenderStatus, ServiceMessage,
+    MsgAuthInfo, MsgHeartBeatResp, MsgRestartServer, MsgStartServer, RenderStatus, ServiceMessage,
     ServiceMessageType,
 };
 
@@ -29,6 +29,9 @@ pub struct ServiceState {
     pub last_restart_attempt: Option<std::time::Instant>,
     /// Consecutive failed restart attempts, drives the exponential backoff.
     pub consecutive_restart_failures: u32,
+    /// Latest authorization info pushed by the panel (via heartbeat or a
+    /// standalone AuthInfo message); drives the CMS client connection.
+    pub last_auth_info: Option<MsgAuthInfo>,
 }
 
 impl ServiceState {
