@@ -54,6 +54,13 @@ Section "安装主程序" SecMain
 
     SetOutPath "$INSTDIR"
 
+    ; Clean stale plugins/skins from previous installs.
+    ; Old DLLs no longer shipped (e.g. plugin_net_udp.dll) are ABI-incompatible
+    ; and crash the render process when the plugin loader scans this directory.
+    RMDir /r "$INSTDIR\gr_plugins"
+    RMDir /r "$INSTDIR\gr_plugins_client"
+    RMDir /r "$INSTDIR\gr_skins"
+
     ; 1. 解压 app.7z
     File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
