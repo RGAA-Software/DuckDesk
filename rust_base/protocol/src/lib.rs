@@ -2,12 +2,14 @@ use crate::relay::RelayMessageType;
 use crate::spvr_client::SpvrClientMessageType;
 use crate::spvr_panel::SpvrPanelMessageType;
 use crate::spvr_relay::SpvrRelayMessageType;
+use crate::spvr_service::SpvrServiceMessageType;
 
 pub mod grpc_relay;
 pub mod relay;
 pub mod spvr_client;
 pub mod spvr_panel;
 pub mod spvr_relay;
+pub mod spvr_service;
 
 impl PartialEq<RelayMessageType> for i32 {
     fn eq(&self, other: &RelayMessageType) -> bool {
@@ -29,6 +31,12 @@ impl PartialEq<SpvrPanelMessageType> for i32 {
 
 impl PartialEq<SpvrClientMessageType> for i32 {
     fn eq(&self, other: &SpvrClientMessageType) -> bool {
+        *self == (*other as i32)
+    }
+}
+
+impl PartialEq<SpvrServiceMessageType> for i32 {
+    fn eq(&self, other: &SpvrServiceMessageType) -> bool {
         *self == (*other as i32)
     }
 }

@@ -9,6 +9,8 @@
 #include "tc_common_new/message_notifier.h"
 #include "render_panel/gr_application.h"
 #include "render_panel/gr_app_messages.h"
+#include "render_panel/gr_settings.h"
+#include "render_panel/companion/panel_companion.h"
 #include "tc_service_message.pb.h"
 
 namespace tc
@@ -65,6 +67,8 @@ namespace tc
                 }
                 self->context_->SendAppMessage(MsgConnectedToService{});
             });
+
+            self->SendAuthInfo();
 
         })
         .bind_upgrade([]() {
@@ -124,7 +128,39 @@ namespace tc
         auto sub = msg.mutable_heart_beat();
         sub->set_index(hb_idx++);
         sub->set_from("panel");
+        FillAuthInfo(sub->mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
+    }
+
+    void GrServiceClient::SendAuthInfo() {
+        tc::ServiceMessage msg;
+        msg.set_type(ServiceMessageType::kSrvAuthInfo);
+        FillAuthInfo(msg.mutable_auth_info());
+        PostNetMessage(msg.SerializeAsString());
+    }
+
+    void GrServiceClient::FillAuthInfo(MsgAuthInfo* auth_info) {
+        if (!auth_info) {
+            return;
+        }
+        auto settings = GrSettings::Instance();
+        auth_info->set_device_id(settings->GetDeviceId());
+        auth_info->set_spvr_host(settings->GetSpvrServerHost());
+        auth_info->set_spvr_port(settings->GetSpvrServerPort());
+        auto companion = app_->GetCompanion();
+        auto auth = companion ? companion->GetAuth() : nullptr;
+        if (!auth) {
+            // auth may not be pulled from server yet, send with empty auth fields
+            return;
+        }
+        auth_info->set_auth_id(auth->auth_id_);
+        auth_info->set_auth_name(auth->auth_name_);
+        auth_info->set_machine_code(auth->machine_code_);
+        auth_info->set_appkey(auth->appkey_);
+        auth_info->set_role(static_cast<int>(auth->role_));
+        auth_info->set_days(auth->days_);
+        auth_info->set_max_streams(auth->max_streams_);
+        auth_info->set_end_timestamp_ms(auth->end_timestamp_ms_);
     }
 
     void GrServiceClient::PostNetMessage(const std::string& msg) {

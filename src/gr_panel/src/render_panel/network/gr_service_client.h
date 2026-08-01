@@ -17,6 +17,7 @@ namespace tc
     class GrApplication;
     class GrStatistics;
     class MessageListener;
+    class MsgAuthInfo;
 
     class GrServiceClient : public std::enable_shared_from_this<GrServiceClient> {
     public:
@@ -29,6 +30,8 @@ namespace tc
     private:
         void HeartBeat();
         void ParseMessage(const std::string& msg);
+        void SendAuthInfo();
+        void FillAuthInfo(MsgAuthInfo* auth_info);
 
     private:
         GrStatistics* statistics_ = nullptr;
