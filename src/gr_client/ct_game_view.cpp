@@ -133,6 +133,15 @@ namespace tc
             }
         });
 
+        // 连接/重连成功后,补发按下中的键鼠 release,避免远端按键卡死、鼠标粘连
+        msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {
+            ctx_->PostUITask([=, this]() {
+                if (video_widget_) {
+                    video_widget_->ReleaseAllPressedInputs();
+                }
+            });
+        });
+
         msg_listener_->Listen<MsgStreamShot>([=, this](const MsgStreamShot& msg) {
             ctx_->PostTask([=, this]() {
                 this->SnapshotStream();

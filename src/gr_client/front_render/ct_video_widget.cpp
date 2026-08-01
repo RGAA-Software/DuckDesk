@@ -1,4 +1,4 @@
-﻿#include "ct_video_widget.h"
+#include "ct_video_widget.h"
 
 #include "tc_message.pb.h"
 #include "ct_qt_key_converter.h"
@@ -31,7 +31,7 @@ namespace tc
         this->key_converter_ = std::make_shared<QtKeyConverter>();
         this->sdk_ = sdk;
         this->settings_ = Settings::Instance();
-        this->evt_cache_thread_ = Thread::Make("evt_cache_thread", 64);
+        this->evt_cache_thread_ = Thread::Make("evt_cache_thread", 256);
         this->evt_cache_thread_->Poll();
 	}
 
@@ -202,9 +202,20 @@ namespace tc
         key_event->set_timestamp(cur_time);
         msg->set_allocated_key_event(key_event);
 
-        if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
-            this->sdk_->PostMediaMessage(buffer);
+        // 记录按下状态(仅 UI 线程访问),用于重连后补发 release
+        if (down) {
+            pressed_keys_.insert(vk);
         }
+        else {
+            pressed_keys_.erase(vk);
+        }
+
+        // 与鼠标事件走同一个 FIFO 队列投递,保证键鼠事件有序
+        this->evt_cache_thread_->Post([=, this]() {
+            if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
+                sdk_->PostMediaMessage(buffer);
+            }
+        });
     }
 
     void VideoWidget::SendMouseEvent(const MouseEventDesc& mouse_event_desc) {
@@ -230,17 +241,63 @@ namespace tc
         mouse_event->set_released(mouse_event_desc.released);
         msg->set_allocated_mouse_event(mouse_event);
 
+        // 记录按下状态(仅 UI 线程访问),存下对应的 release flag,用于重连后补发 release
+        if (mouse_event_desc.pressed) {
+            int up_flag = 0;
+            if (mouse_event_desc.buttons == ButtonFlag::kLeftMouseButtonDown) { up_flag = ButtonFlag::kLeftMouseButtonUp; }
+            else if (mouse_event_desc.buttons == ButtonFlag::kMiddleMouseButtonDown) { up_flag = ButtonFlag::kMiddleMouseButtonUp; }
+            else if (mouse_event_desc.buttons == ButtonFlag::kRightMouseButtonDown) { up_flag = ButtonFlag::kRightMouseButtonUp; }
+            if (up_flag != 0) {
+                pressed_mouse_buttons_.insert(up_flag);
+            }
+        }
+        else if (mouse_event_desc.released) {
+            pressed_mouse_buttons_.erase(mouse_event_desc.buttons);
+        }
+
         this->evt_cache_thread_->Post([=, this]() {
             auto queuing_count = this->sdk_->GetQueuingMediaMsgCount();
-            while (queuing_count > 16) {
+            int wait_rounds = 0;
+            while (queuing_count > 16 && wait_rounds < 50) {
                 LOGI("queuing too many mouse event: {}, cache thread tasks: {}", queuing_count, evt_cache_thread_->TaskSize());
                 TimeUtil::DelayBySleep(1);
                 queuing_count = this->sdk_->GetQueuingMediaMsgCount();
+                ++wait_rounds;
+            }
+            // 队列持续积压时,仅丢弃纯移动事件;press/release/滚轮必须发送,避免远端按键卡死
+            if (queuing_count > 16 && !mouse_event_desc.pressed && !mouse_event_desc.released && mouse_event_desc.data == 0) {
+                LOGW("Drop pure mouse move event, queuing media messages: {}", queuing_count);
+                return;
             }
             if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
                 sdk_->PostMediaMessage(buffer);
             }
         });
+    }
+
+    void VideoWidget::ReleaseAllPressedInputs() {
+        // 重连成功后调用(仅 UI 线程),补发所有跟踪中的 key/mouse release 并清空,避免远端按键卡死、鼠标粘连
+        auto pressed_keys = pressed_keys_;
+        pressed_keys_.clear();
+        for (auto vk : pressed_keys) {
+            LOGI("Release tracked key after reconnected, vk: 0x{:x}", vk);
+            SendKeyEvent(vk, false);
+        }
+
+        auto pressed_buttons = pressed_mouse_buttons_;
+        pressed_mouse_buttons_.clear();
+        for (auto up_flag : pressed_buttons) {
+            LOGI("Release tracked mouse button after reconnected, flag: {}", up_flag);
+            MouseEventDesc mouse_event_desc;
+            mouse_event_desc.buttons = up_flag;
+            mouse_event_desc.released = true;
+            if (widget_width_ > 0 && widget_height_ > 0
+                && last_cursor_x_ != invalid_position && last_cursor_y_ != invalid_position) {
+                mouse_event_desc.x_ratio = ((float)last_cursor_x_) / ((float)(widget_width_));
+                mouse_event_desc.y_ratio = ((float)last_cursor_y_) / ((float)(widget_height_));
+            }
+            SendMouseEvent(mouse_event_desc);
+        }
     }
 
     void VideoWidget::RefreshImage(const std::shared_ptr<RawImage> &image) {
@@ -290,7 +347,7 @@ namespace tc
     void VideoWidget::RefreshRGBBuffer(const char* buf, int width, int height, int channel) {
         std::lock_guard<std::mutex> guard(buf_mtx_);
         int size = width * height * channel;
-        if (!rgb_buffer_) {
+        if (!rgb_buffer_ || (int)rgb_buffer_->Size() != size) {
             rgb_buffer_ = Data::Make(nullptr, size);
         }
         if (tex_width_ != width || tex_height_ != height) {

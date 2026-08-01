@@ -6,6 +6,7 @@
 #include <QResizeEvent>
 #include <memory>
 #include <map>
+#include <set>
 #include "sdk_messages.h"
 #include "gl/raw_image.h"
 #include "tc_common_new/fps_stat.h"
@@ -51,6 +52,8 @@ namespace tc
 		void OnKeyReleaseEvent(QKeyEvent* event);
         void RegisterMouseKeyboardEventCallback(const OnMouseKeyboardEventCallback& cbk);
         void SendKeyEvent(quint32 vk, bool down);
+        // 重连成功后调用(仅 UI 线程),补发所有按下中的键鼠 release,避免远端按键卡死
+        void ReleaseAllPressedInputs();
         RawImageFormat GetDisplayImageFormat();
         void SetDisplayImageFormat(RawImageFormat format);
         int GetCapturingMonitorWidth();
@@ -92,6 +95,9 @@ namespace tc
         int screen_size_ = 0;
         SdkCaptureMonitorInfo cap_mon_info_{};
         std::shared_ptr<Thread> evt_cache_thread_ = nullptr;
+        // 按下状态跟踪,仅在 UI 线程读写(SendKeyEvent/SendMouseEvent/ReleaseAllPressedInputs)
+        std::set<quint32> pressed_keys_;
+        std::set<int> pressed_mouse_buttons_;
         RawImageFormat raw_image_format_;
         FpsStat fps_stat_;
 
