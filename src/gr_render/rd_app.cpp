@@ -188,22 +188,26 @@ namespace tc
                     capture_plugin_->SetCaptureFps(settings_->encoder_.fps_);
                     capture_plugin_->SetCaptureErrorCallback([=, this](const MonitorCaptureError& err) {
                         LOGE("*** capture error: {}", (int)err);
-                        if (IsCurrentGdiCapture()) {
-                            LOGI("Already use GDI capture, ignore the error.");
-                            return;
-                        }
-                        if (monitor_changed_) {
-                            LOGI("Maybe montor changed, ignore this error now.");
-                            return;
-                        }
-                        // change to GDI
-                        // capture_plugin_->DisablePlugin();
-                        LOGI("Don't use DDA, will switch to GDI.");
-                        if (!SwitchGdiCapture() || !capture_plugin_) {
-                            LOGE("Switch to GDI failed or no capture plugin available.");
-                            return;
-                        }
-                        capture_plugin_->StartCapturing();
+                        // the callback runs on the capture thread, switching capture must be
+                        // done on the main thread, otherwise stopping DDA would join itself.
+                        PostGlobalTask([=, this]() {
+                            if (IsCurrentGdiCapture()) {
+                                LOGI("Already use GDI capture, ignore the error.");
+                                return;
+                            }
+                            if (monitor_changed_) {
+                                LOGI("Maybe montor changed, ignore this error now.");
+                                return;
+                            }
+                            // change to GDI
+                            // capture_plugin_->DisablePlugin();
+                            LOGI("Don't use DDA, will switch to GDI.");
+                            if (!SwitchGdiCapture() || !capture_plugin_) {
+                                LOGE("Switch to GDI failed or no capture plugin available.");
+                                return;
+                            }
+                            capture_plugin_->StartCapturing();
+                        });
                     });
                 }
                 else {
@@ -1140,8 +1144,30 @@ namespace tc
     }
 
     void RdApplication::Exit() {
+        // stop the statistics reporting at first: it runs on the context task pool
+        // and reads net plugins, so it must be silent before capturing stops
         if (app_timer_) {
             app_timer_->StopTimers();
+        }
+        if (ws_panel_client_) {
+            ws_panel_client_->Exit();
+            ws_panel_client_ = nullptr;
+        }
+        // stop capturing before tearing down other components.
+        // NOTE: plugins are globally loaded and share the process lifetime;
+        // do NOT call ReleaseAllPlugins() here — destroying/unloading them at exit
+        // races with encoder/IPC threads that still hold raw plugin pointers.
+        {
+            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
+            if (capture_plugin_) {
+                capture_plugin_->StopCapturing();
+            }
+            if (dda_capture_plugin_) {
+                dda_capture_plugin_->StopCapturing();
+            }
+            if (gdi_capture_plugin_) {
+                gdi_capture_plugin_->StopCapturing();
+            }
         }
         if (app_shared_info_) {
             app_shared_info_->Exit();
@@ -1154,10 +1180,6 @@ namespace tc
         }
         if (encoder_thread_) {
             encoder_thread_->Exit();
-        }
-        if (ws_panel_client_) {
-            ws_panel_client_->Exit();
-            ws_panel_client_ = nullptr;
         }
 
         exit_app_ = true;

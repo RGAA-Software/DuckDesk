@@ -429,10 +429,15 @@ namespace tc
     std::vector<std::shared_ptr<GrConnectedClientInfo>> WsPluginServer::GetConnectedClientInfo() {
         std::vector<std::shared_ptr<GrConnectedClientInfo>> clients_info;
         stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
+            std::string device_name;
+            {
+                std::lock_guard<std::mutex> lock(router->device_name_mtx_);
+                device_name = router->device_name_;
+            }
             clients_info.push_back(std::make_shared<GrConnectedClientInfo>(GrConnectedClientInfo {
                 .device_id_ = router->visitor_device_id_,
                 .stream_id_ = router->stream_id_,
-                .device_name_ = router->device_name_,
+                .device_name_ = device_name,
             }));
         });
         return clients_info;
@@ -443,6 +448,7 @@ namespace tc
             LOGI("*** OnClientHello, evt stream id: {}, router stream id: {}, device name: {}",
                  event->stream_id_, router->stream_id_, event->device_name_);
             if (router->stream_id_ == event->stream_id_) {
+                std::lock_guard<std::mutex> lock(router->device_name_mtx_);
                 router->device_name_ = event->device_name_;
             }
         });

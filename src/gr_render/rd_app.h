@@ -162,7 +162,7 @@ namespace tc
         DWORD main_thread_id_ = 0;
         // working capture plugin
         std::mutex capture_plugin_mtx_;
-        tc::GrMonitorCapturePlugin* capture_plugin_;
+        tc::GrMonitorCapturePlugin* capture_plugin_ = nullptr;
         tc::GrMonitorCapturePlugin* gdi_capture_plugin_ = nullptr;
         tc::GrMonitorCapturePlugin* dda_capture_plugin_ = nullptr;
         tc::GrDataProviderPlugin* data_provider_plugin = nullptr;

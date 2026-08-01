@@ -107,14 +107,19 @@ namespace tc
         auto queuing_msg_count = GetQueuingFtMsgCount();
         auto has_buffer = this->HasEnoughBufferForQueuingFtMessages();
         auto wait_count = 0;
-        while (queuing_msg_count > 256 ||  !has_buffer) {
+        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
+            if (rtc_servers_.Empty()) {
+                LOGW("===> Send file, no alive rtc server, drop the message.");
+                return false;
+            }
             TimeUtil::DelayBySleep(1);
             has_buffer = this->HasEnoughBufferForQueuingFtMessages();
             queuing_msg_count = GetQueuingFtMsgCount();
             wait_count++;
         }
-        if (wait_count > 0) {
-            //LOGI("===> Send file wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
+        if (wait_count >= 2000) {
+            LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+            return false;
         }
         rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
             srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
@@ -126,13 +131,20 @@ namespace tc
         auto queuing_msg_count = GetQueuingMediaMsgCount();
         auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
         auto wait_count = 0;
-        while (queuing_msg_count > 256 ||  !has_buffer) {
+        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
+            if (rtc_servers_.Empty()) {
+                LOGW("===> Send media, no alive rtc server, drop the message.");
+                return;
+            }
             TimeUtil::DelayBySleep(1);
             has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
             queuing_msg_count = GetQueuingMediaMsgCount();
             wait_count++;
         }
-        if (wait_count > 0) {
+        if (wait_count >= 2000) {
+            LOGW("===> Send media timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+        }
+        else if (wait_count > 0) {
             LOGI("===> Send media wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
         }
     }

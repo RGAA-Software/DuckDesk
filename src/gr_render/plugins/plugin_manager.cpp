@@ -5,6 +5,7 @@
 #include "plugin_manager.h"
 #include <filesystem>
 #include <cctype>
+#include <mutex>
 #include <toml++/toml.hpp>
 #include "rd_app.h"
 #include "plugin_ids.h"
@@ -229,14 +230,23 @@ namespace tc
     }
 
     void PluginManager::ReleaseAllPlugins() {
+        // reject new visitors first, the event callback registered in
+        // RegisterPluginEventsCallback also checks this flag before routing
         exiting_ = true;
-        for (const auto& [k, plugin] : plugins_) {
+        // wait until in-flight visitors leave, then detach the plugin map;
+        // OnStop/OnDestroy run outside the lock because plugins may fire
+        // events which re-enter the visiting functions
+        std::map<std::string, GrPluginInterface*> plugins;
+        {
+            std::unique_lock<std::shared_mutex> lock(plugins_mtx_);
+            plugins.swap(plugins_);
+        }
+        for (const auto& [k, plugin] : plugins) {
             plugin->OnStop();
         }
-        for (const auto& [k, plugin] : plugins_) {
+        for (const auto& [k, plugin] : plugins) {
             plugin->OnDestroy();
         }
-        plugins_.clear();
         plugin_libraries_.clear();
         evt_router_.reset();
     }
@@ -246,6 +256,7 @@ namespace tc
     }
 
     GrPluginInterface* PluginManager::GetPluginById(const std::string& id) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         if (!plugins_.contains(id)) {
             return nullptr;
         }
@@ -389,6 +400,7 @@ namespace tc
     }
 
     void PluginManager::VisitAllPlugins(const std::function<void(GrPluginInterface *)>&& visitor) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (visitor) {
                 visitor(plugin);
@@ -397,6 +409,7 @@ namespace tc
     }
 
     void PluginManager::VisitStreamPlugins(const std::function<void(GrStreamPlugin *)>&& visitor) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (plugin->GetPluginType() == GrPluginType::kStream) {
                 visitor((GrStreamPlugin *) plugin);
@@ -405,6 +418,7 @@ namespace tc
     }
 
     void PluginManager::VisitUtilPlugins(const std::function<void(GrPluginInterface *)>&& visitor) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (plugin->GetPluginType() == GrPluginType::kUtil) {
                 visitor(plugin);
@@ -413,6 +427,7 @@ namespace tc
     }
 
     void PluginManager::VisitEncoderPlugins(const std::function<void(GrVideoEncoderPlugin*)>&& visitor) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (plugin->GetPluginType() == GrPluginType::kEncoder) {
                 visitor((GrVideoEncoderPlugin *) plugin);
@@ -421,6 +436,7 @@ namespace tc
     }
 
     void PluginManager::VisitNetPlugins(const std::function<void(GrNetPlugin*)>&& visitor) {
+        std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (plugin->GetPluginType() == GrPluginType::kNet) {
                 visitor((GrNetPlugin*) plugin);
@@ -436,7 +452,14 @@ namespace tc
         auto weak_self = weak_from_this();
         context->PostTask([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->context_ || !self->evt_router_ || self->plugins_.empty()) {
+            if (!self || self->exiting_ || !self->context_ || !self->evt_router_) {
+                return;
+            }
+
+            // hold the shared lock for the whole visit, so ReleaseAllPlugins
+            // cannot destroy the plugins while they are in use here
+            std::shared_lock<std::shared_mutex> lock(self->plugins_mtx_);
+            if (self->plugins_.empty()) {
                 return;
             }
 

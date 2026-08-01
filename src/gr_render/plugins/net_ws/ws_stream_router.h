@@ -5,6 +5,7 @@
 #ifndef TC_APPLICATION_WS_PLUGIN_ROUTER_H
 #define TC_APPLICATION_WS_PLUGIN_ROUTER_H
 
+#include <mutex>
 #include "network/ws_router.h"
 #include "gr_render/plugin_interface/gr_net_plugin_type.h"
 //#include "network/wss_router.h"
@@ -39,6 +40,9 @@ namespace tc
         std::string visitor_device_id_;
         std::string stream_id_;
         unsigned int post_thread_id_ = 0;
+        // written on the network thread (client hello), read on the statistics
+        // thread (WsPluginServer::GetConnectedClientInfo), guarded by this mutex
+        std::mutex device_name_mtx_;
         std::string device_name_;
         NetChannelType nt_channel_type_;
     };

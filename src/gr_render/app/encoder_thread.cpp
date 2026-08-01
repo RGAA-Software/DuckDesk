@@ -67,6 +67,7 @@ namespace tc
             if (clear_encoders_) {
                 clear_encoders_ = false;
                 LOGW("clear all encoders!!!");
+                std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
                 encoder_plugins_.clear();
             }
 
@@ -313,7 +314,10 @@ namespace tc
                     }
                 }
 
-                encoder_plugins_[monitor_name] = target_encoder_plugin;
+                {
+                    std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
+                    encoder_plugins_[monitor_name] = target_encoder_plugin;
+                }
                 LOGI("Finally, we use encoder plugin: {}, version: {} for monitor: {}",
                      target_encoder_plugin->GetPluginName(), target_encoder_plugin->GetVersionName(), monitor_name);
 
@@ -381,7 +385,10 @@ namespace tc
                         if (encode_result.type_ == VideoEncoderErrorType::kEncodeFailed) {
                             LOGW("<!!> Encode failed, will release this encoder for display and disable hardware: {}", monitor_name);
                             target_encoder_plugin->Exit(monitor_name);
-                            encoder_plugins_.erase(monitor_name);
+                            {
+                                std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
+                                encoder_plugins_.erase(monitor_name);
+                            }
                             // disable hardware encoder
                             hardware_disabled_ = true;
                         }
@@ -497,12 +504,16 @@ namespace tc
     void EncoderThread::HandleD3DDeviceFailure(uint64_t adapter_uid) {
         PostEncTask([=, this]() {
             LOGW("Reset encoder pipeline after D3D device failure, adapter_uid={}", adapter_uid);
-            for (const auto& [monitor_name, plugin] : encoder_plugins_) {
+            std::map<std::string, GrVideoEncoderPlugin*> working_plugins;
+            {
+                std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
+                working_plugins.swap(encoder_plugins_);
+            }
+            for (const auto& [monitor_name, plugin] : working_plugins) {
                 if (plugin) {
                     plugin->Exit(monitor_name);
                 }
             }
-            encoder_plugins_.clear();
             last_video_frames_.clear();
             clear_encoders_ = false;
         });
@@ -513,6 +524,7 @@ namespace tc
     }
 
     std::map<std::string, GrVideoEncoderPlugin*> EncoderThread::GetWorkingVideoEncoderPlugins() {
+        std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
         return encoder_plugins_;
     }
 
@@ -521,6 +533,7 @@ namespace tc
     }
 
     GrVideoEncoderPlugin* EncoderThread::GetEncoderPluginForMonitor(const std::string& monitor_name) {
+        std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
         for (const auto& [name, plugin] : encoder_plugins_) {
             if (name == monitor_name) {
                 return plugin;

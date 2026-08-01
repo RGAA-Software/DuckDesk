@@ -5,6 +5,7 @@
 #ifndef GAMMARAY_VR_MANAGER_PLUGIN_H
 #define GAMMARAY_VR_MANAGER_PLUGIN_H
 
+#include <mutex>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 
 namespace tc
@@ -42,7 +43,16 @@ namespace tc
         void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
         void ReportRelayAlive(const std::string& device_id);
 
+        // relay_media_sdk_/relay_ft_sdk_ are reassigned by the relay monitor thread
+        // while statistics/encoder/sdk-callback threads read them, so every access
+        // must copy the shared_ptr under this lock
+        std::shared_ptr<RelayServerSdk> GetMediaSdk();
+        std::shared_ptr<RelayServerSdk> GetFtSdk();
+        void SetMediaSdk(const std::shared_ptr<RelayServerSdk>& sdk);
+        void SetFtSdk(const std::shared_ptr<RelayServerSdk>& sdk);
+
     private:
+        std::mutex sdks_mtx_;
         std::shared_ptr<RelayServerSdk> relay_media_sdk_ = nullptr;
         std::shared_ptr<RelayServerSdk> relay_ft_sdk_ = nullptr;
         std::atomic_uint64_t recv_relay_ft_msg_index_ = 0;

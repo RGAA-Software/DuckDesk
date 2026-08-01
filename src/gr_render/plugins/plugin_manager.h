@@ -9,6 +9,7 @@
 #include <string>
 #include <map>
 #include <atomic>
+#include <shared_mutex>
 #include "plugin_ids.h"
 #include "tc_common_new/win32/dynamic_library.h"
 #include "tc_common_new/concurrent_hashmap.h"
@@ -88,6 +89,8 @@ namespace tc
         RdSettings* settings_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
+        // guards plugins_: visitors take a shared lock, ReleaseAllPlugins takes an exclusive one
+        std::shared_mutex plugins_mtx_;
         std::map<std::string, GrPluginInterface*> plugins_;
         std::map<std::string, std::shared_ptr<DynamicLibrary>> plugin_libraries_;
         std::shared_ptr<PluginEventRouter> evt_router_ = nullptr;

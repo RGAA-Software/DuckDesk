@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <functional>
 #include <optional>
 #include "tc_capture_new/capture_message.h"
@@ -59,6 +60,7 @@ namespace tc
 
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
+        std::mutex encoder_plugins_mtx_;
         std::map<std::string, GrVideoEncoderPlugin*> encoder_plugins_;
         std::map<std::string, std::optional<CaptureVideoFrame>> last_video_frames_;
 
