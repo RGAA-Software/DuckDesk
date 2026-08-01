@@ -40,6 +40,10 @@ if "%VS_INSTALL_DIR%"=="" (
 call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
+rem VsDevCmd points VCPKG_ROOT to the VS-bundled vcpkg (no protobuf tools).
+rem Pin protoc from the project vcpkg for rust_base/protocol build.rs.
+if not defined PROTOC set "PROTOC=C:\source\vcpkg\installed\x64-windows-static-release\tools\protobuf\protoc.exe"
+
 rem Auto-increment the product version on every build:
 rem patch += 1; when patch would reach 100, minor += 1 and patch resets to 0.
 python "%~dp0set_app_version.py" --bump

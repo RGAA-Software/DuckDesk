@@ -339,6 +339,9 @@ impl ServerCertVerifier for NoCertVerifier {
 }
 
 fn tls_connector() -> Connector {
+    // 依赖图里同时存在 aws-lc-rs 与 ring 两个 provider 时,rustls 无法自动
+    // 选择,ClientConfig::builder() 会 panic。显式安装默认 provider(幂等)。
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let config = rustls::ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(NoCertVerifier))
