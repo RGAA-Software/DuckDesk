@@ -7,7 +7,6 @@ import usFlag from '@/assets/icon/ic_us_flag.svg'
 import icWindows from '@/assets/icon/ic_windows.svg'
 import icLinux from '@/assets/icon/ic_linux.svg'
 import icAndroid from '@/assets/icon/ic_android.svg'
-import githubIcon from '@/assets/ic_github.svg'
 import ContactUs from '@/components/ContactUs.vue'
 
 const { t, tm } = useI18n()
@@ -30,10 +29,6 @@ const cmonPlatforms = computed(() => tm('docs.cmonPlatforms') as PlatformGroup[]
 
 function goDocsPage() {
   window.open('https://docs.godesk.uk/', '_blank')
-}
-
-function goCyberGithub() {
-  window.open('https://github.com/RGAA-Software/CyberDesktop', '_blank')
 }
 
 const contactUsVisible = ref(false)
@@ -146,19 +141,7 @@ const goContactUs = () => {
 
   <!-- ============ CyberMonitor ============ -->
   <template v-if="activeTab === 'cybermonitor'">
-    <section v-reveal class="section-container flex flex-col items-center pt-10" style="--pa: #7548d8">
-      <div class="cyber-panel cyber-corners flex w-full max-w-sm flex-col items-center gap-5 p-8">
-        <div class="flex items-center gap-2 font-tech text-base font-bold tracking-wider text-cyber-text">
-          <span>{{ t('docs.githubDocs') }}</span>
-        </div>
-        <el-button type="primary" class="!h-10 !px-10" @click="goCyberGithub">
-          <img :src="githubIcon" alt="" class="h-5 w-5" />
-          <span class="ml-1">{{ t('products.common.github') }}</span>
-        </el-button>
-      </div>
-    </section>
-
-    <section v-reveal="120" class="section-container mt-12 md:mt-16" style="--pa: #7548d8">
+    <section v-reveal class="section-container pt-10" style="--pa: #7548d8">
       <h2 class="cyber-title justify-center text-xl md:text-2xl font-bold text-cyber-text">{{ t('docs.platforms') }}</h2>
 
       <div class="mx-auto mt-8 grid max-w-2xl gap-6 sm:grid-cols-2">

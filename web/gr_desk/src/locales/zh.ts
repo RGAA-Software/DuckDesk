@@ -44,8 +44,7 @@ export default {
     slogan3: '远程办公和访问',
     subtitle: '安全可靠,丝滑流畅,数据完全自主可控的远程办公和访问体验',
     download: '下载',
-    downloadLine1: '下载(线路1)',
-    downloadLine2: '下载(线路2)',
+    downloadLine1: '下载',
     selfHost: '自我部署',
     status: '> REMOTE_DESKTOP // 连接就绪',
     kpis: [
@@ -151,7 +150,7 @@ export default {
       free: {
         name: '完全免费',
         price: '¥0',
-        features: ['全部功能免费', 'Client / Host 远程集中监控', '双厂商 GPU 深度监控', '开源透明'],
+        features: ['全部功能免费', 'Client / Host 远程集中监控', '双厂商 GPU 深度监控'],
       },
     },
   },
@@ -172,7 +171,6 @@ export default {
       { name: 'Client 采集端', systems: ['Windows'] },
       { name: 'Host 集中端', systems: ['Windows'] },
     ],
-    githubDocs: '开源仓库与文档',
   },
   footer: {
     slogan: 'Always Online',
@@ -231,7 +229,6 @@ export default {
       scenes: '适用场景',
       consult: '商务咨询',
       download: '下载',
-      github: 'GitHub',
       pricing: '查看定价',
       docs: '查看文档',
     },
@@ -276,7 +273,7 @@ export default {
         { title: '进程管理', desc: '结束任务、进程树、暂停恢复、优先级与 CPU 亲和性' },
         { title: '两级阈值告警', desc: '80% 警告、90% 严重，抑制防刷屏，多机聚合' },
         { title: '远程集中监控', desc: 'Client 推送遥测，Host 集中多机 Dashboard 与跨机 Top10' },
-        { title: '现代 GPUI 界面', desc: 'Zed 同款 GPU 渲染引擎，亮暗双主题，轻量单 exe' },
+        { title: '现代 GPUI 界面', desc: 'GPU 渲染引擎，亮暗双主题，轻量单 exe' },
       ],
       chTitle: 'Client / Host 远程监控架构',
       chClient: { name: 'Client 采集端', desc: '轻量自包含单 exe，WebSocket + 二进制压缩推送遥测，支持 TLS 与断线重连' },

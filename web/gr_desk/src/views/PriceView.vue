@@ -7,8 +7,6 @@ import warnIcon from '@/assets/icon/ic_warn.svg'
 import writeIcon from '@/assets/icon/ic_write.svg'
 import downloadIcon from '@/assets/icon/ic_download.svg'
 import cnFlag from '@/assets/icon/ic_cn_flag.svg'
-import usFlag from '@/assets/icon/ic_us_flag.svg'
-import githubIcon from '@/assets/ic_github.svg'
 import ContactUs from '@/components/ContactUs.vue'
 
 const { t, tm } = useI18n()
@@ -34,14 +32,6 @@ const cmonFeatures = computed(() => tm('price.cybermonitor.free.features') as st
 
 function downloadKuaKe() {
   window.open('https://pan.quark.cn/s/bfe11452992b', '_blank')
-}
-
-function downloadGithub() {
-  window.open('https://github.com/RGAA-Software/GammaRay/releases', '_blank')
-}
-
-function goCyberGithub() {
-  window.open('https://github.com/RGAA-Software/CyberDesktop', '_blank')
 }
 
 const contactUsVisible = ref(false)
@@ -148,10 +138,6 @@ const goContactUs = () => {
               <el-image :src="cnFlag" fit="cover" class="h-8 w-8" />
               <el-button @click="downloadKuaKe">{{ t('hero.downloadLine1') }}</el-button>
             </div>
-            <div class="flex items-center gap-3">
-              <el-image :src="usFlag" fit="cover" class="h-8 w-8" />
-              <el-button @click="downloadGithub">{{ t('hero.downloadLine2') }}</el-button>
-            </div>
           </div>
         </el-popover>
 
@@ -255,14 +241,6 @@ const goContactUs = () => {
       </div>
     </section>
 
-    <section v-reveal class="section-container mt-12 md:mt-16">
-      <div class="flex flex-wrap justify-center gap-4">
-        <el-button type="primary" class="!h-11 !px-8" @click="goCyberGithub">
-          <img :src="githubIcon" alt="" class="h-5 w-5" />
-          <span class="ml-1">{{ t('products.common.github') }}</span>
-        </el-button>
-      </div>
-    </section>
   </template>
 
   <ContactUs v-model="contactUsVisible" />

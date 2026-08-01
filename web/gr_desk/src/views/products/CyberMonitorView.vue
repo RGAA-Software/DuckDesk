@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import cmonLogo from '@/assets/products/cybermonitor-logo.svg'
 import cmonOverview from '@/assets/products/cmon-ui-overview.jpg'
 import cmonGpu from '@/assets/products/cmon-ui-gpu.jpg'
-import githubIcon from '@/assets/ic_github.svg'
 
 import ProductHero from '@/components/ProductHero.vue'
 import ProductSection from '@/components/ProductSection.vue'
@@ -26,10 +25,6 @@ const chClient = computed(() => tm('products.cybermonitor.chClient') as KV)
 const chHost = computed(() => tm('products.cybermonitor.chHost') as KV)
 const scenes = computed(() => tm('products.cybermonitor.scenes') as string[])
 
-function goGithub() {
-  window.open('https://github.com/RGAA-Software/CyberDesktop', '_blank')
-}
-
 </script>
 
 <template>
@@ -42,10 +37,6 @@ function goGithub() {
       :status="t('products.cybermonitor.status')"
       :tagline="t('products.cybermonitor.tagline')"
     >
-      <el-button type="primary" class="!h-11 !px-8" @click="goGithub">
-        <img :src="githubIcon" alt="" class="h-5 w-5 invert" />
-        <span class="ml-1">{{ t('products.common.github') }}</span>
-      </el-button>
     </ProductHero>
 
     <!-- 核心功能 -->
@@ -93,21 +84,6 @@ function goGithub() {
       </div>
     </ProductSection>
 
-    <!-- CTA -->
-    <section v-reveal class="section-container mt-16 md:mt-24">
-      <div class="cyber-panel cyber-corners cta-panel flex flex-col items-center gap-6 px-6 py-12 text-center">
-        <div class="cyber-label">// OPEN SOURCE</div>
-        <h2 class="font-tech text-xl md:text-2xl font-bold tracking-wider text-cyber-text">
-          {{ t('productNames.cybermonitor') }}
-        </h2>
-        <div class="flex flex-wrap justify-center gap-4">
-          <el-button type="primary" class="!h-11 !px-8" @click="goGithub">
-            <img :src="githubIcon" alt="" class="h-5 w-5 invert" />
-            <span class="ml-1">{{ t('products.common.github') }}</span>
-          </el-button>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 

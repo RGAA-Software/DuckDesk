@@ -44,8 +44,7 @@ export default {
     slogan3: 'Remote Work & Access',
     subtitle: 'A secure, silky-smooth remote work and access experience with fully self-controlled data',
     download: 'Download',
-    downloadLine1: 'Download (Mirror 1)',
-    downloadLine2: 'Download (Mirror 2)',
+    downloadLine1: 'Download',
     selfHost: 'Self-Hosted',
     status: '> REMOTE_DESKTOP // READY',
     kpis: [
@@ -151,7 +150,7 @@ export default {
       free: {
         name: 'Completely Free',
         price: '¥0',
-        features: ['All features free', 'Client / Host remote monitoring', 'Dual-vendor GPU monitoring', 'Open source'],
+        features: ['All features free', 'Client / Host remote monitoring', 'Dual-vendor GPU monitoring'],
       },
     },
   },
@@ -172,7 +171,6 @@ export default {
       { name: 'Client Agent', systems: ['Windows'] },
       { name: 'Host Console', systems: ['Windows'] },
     ],
-    githubDocs: 'Open-source repo & docs',
   },
   footer: {
     slogan: 'Always Online',
@@ -231,7 +229,6 @@ export default {
       scenes: 'Use Cases',
       consult: 'Contact Sales',
       download: 'Download',
-      github: 'GitHub',
       pricing: 'View Pricing',
       docs: 'View Docs',
     },
@@ -276,7 +273,7 @@ export default {
         { title: 'Process Management', desc: 'Kill, process tree, suspend/resume, priority and CPU affinity' },
         { title: 'Two-Level Alerts', desc: '80% warning and 90% critical thresholds with anti-spam suppression' },
         { title: 'Remote Monitoring', desc: 'Clients push telemetry; the Host aggregates multi-machine dashboards and cross-machine Top 10' },
-        { title: 'Modern GPUI Interface', desc: 'Zed-grade GPU rendering, light/dark themes, lightweight single exe' },
+        { title: 'Modern GPUI Interface', desc: 'GPU rendering engine, light/dark themes, lightweight single exe' },
       ],
       chTitle: 'Client / Host Remote Monitoring',
       chClient: { name: 'Client Agent', desc: 'Lightweight self-contained exe pushing compressed telemetry over WebSocket with TLS and auto-reconnect' },

@@ -6,7 +6,6 @@ import { useRouter } from 'vue-router'
 import downloadIcon from '@/assets/icon/ic_download.svg'
 import writeIcon from '@/assets/icon/ic_write.svg'
 import cnFlag from '@/assets/icon/ic_cn_flag.svg'
-import usFlag from '@/assets/icon/ic_us_flag.svg'
 import iconLogo from '@/assets/icon/ic_trans_icon_blue.png'
 
 import preview1 from '@/assets/preview/shot_1.png'
@@ -92,10 +91,6 @@ function downloadKuaKe() {
   window.open('https://pan.quark.cn/s/bfe11452992b', '_blank')
 }
 
-function downloadGithub() {
-  window.open('https://github.com/RGAA-Software/GammaRay/releases', '_blank')
-}
-
 const contactUsVisible = ref(false)
 const goContactUs = () => {
   contactUsVisible.value = true
@@ -125,10 +120,6 @@ const goContactUs = () => {
           <div class="flex items-center gap-3">
             <el-image :src="cnFlag" fit="cover" class="h-8 w-8" />
             <el-button @click="downloadKuaKe">{{ t('hero.downloadLine1') }}</el-button>
-          </div>
-          <div class="flex items-center gap-3">
-            <el-image :src="usFlag" fit="cover" class="h-8 w-8" />
-            <el-button @click="downloadGithub">{{ t('hero.downloadLine2') }}</el-button>
           </div>
         </div>
       </el-popover>
