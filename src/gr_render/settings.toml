@@ -2,44 +2,9 @@
 author = "GoDesk"
 version = "1.0.1"
 
-# encoder settings
-[encoder]
-# auto
-# specify
-select-type = "auto"
-# h264
-# hevc
-format = "h264"
-# bitrate (M)
-bitrate = 5
-# origin
-# specify force scale to the resolution below
-encode-resolution-type = "origin"
-# force encoding resolution
-encode-width = 1280
-encode-height = 720
-
-# capture settings
-[capture]
-# enable audio capture or not
-enable-audio = true
-# audio capture method
-# inner
-# global
-audio-capture-type = "global"
-# enable video capture or not
-enable-video = true
-# video capture method
-# inner
-# global
-video-capture-type = "inner"
-
-# transmission settings
-[transmission]
-# websocket
-network-type = "websocket"
-# port
-listening-port = 20371
+# NOTE: encoder/capture/transmission settings were removed.
+# In desktop mode they are all overridden by command line args passed by the panel;
+# the render falls back to built-in defaults when running standalone.
 
 # application settings
 [application]

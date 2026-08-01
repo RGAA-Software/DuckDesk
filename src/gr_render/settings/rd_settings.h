@@ -31,12 +31,12 @@ namespace tc
             kSpecify,
         };
 
-        EncoderFormat encoder_format_;
+        EncoderFormat encoder_format_ = EncoderFormat::kH264;
         int fps_ = 60;
-        int bitrate_;
-        int encode_width_;
-        int encode_height_;
-        EncodeResolutionType encode_res_type_;
+        int bitrate_ = 6;
+        int encode_width_ = 1280;
+        int encode_height_ = 720;
+        EncodeResolutionType encode_res_type_ = EncodeResolutionType::kOrigin;
     };
 
     // capture
@@ -61,19 +61,19 @@ namespace tc
         }
 
     public:
-        bool enable_audio_;
-        CaptureAudioType capture_audio_type_;
-        bool enable_video_;
-        CaptureVideoType capture_video_type_;
-        bool send_video_frame_by_shm_;
+        bool enable_audio_ = true;
+        CaptureAudioType capture_audio_type_ = CaptureAudioType::kAudioGlobal;
+        bool enable_video_ = true;
+        CaptureVideoType capture_video_type_ = CaptureVideoType::kVideoInner;
+        bool send_video_frame_by_shm_ = false;
         std::string capture_audio_device_;
         bool mock_video_ = false;
     };
 
     // Transmission
     struct Transmission {
-        int listening_port_ = 0;
-        int udp_listen_port_ = 0;
+        int listening_port_ = 20371;
+        int udp_listen_port_ = 20381;
     };
 
     // RdApplication

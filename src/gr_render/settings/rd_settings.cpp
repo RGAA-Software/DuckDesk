@@ -26,56 +26,9 @@ namespace tc
         desc_.author_ = result["description"]["author"].value_or("");
         desc_.version_ = result["description"]["version"].value_or("0.0.1");
 
-        auto encoder_format = result["encoder"]["format"].value_or("h264");
-        encoder_.encoder_format_ = [&]() {
-            if (std::string(encoder_format) == std::string("h264")) {
-                return Encoder::EncoderFormat::kH264;
-            }
-            else if (std::string(encoder_format) == std::string("hevc")) {
-                return Encoder::EncoderFormat::kHEVC;
-            }
-            else {
-                return Encoder::EncoderFormat::kH264;
-            }
-        } ();
-
-        encoder_.bitrate_ = result["encoder"]["bitrate"].value_or(6);
-
-        if (std::string("origin") == result["encoder"]["encode-resolution-type"].value_or("origin")) {
-            encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kOrigin;
-        } else {
-            encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kSpecify;
-        }
-        encoder_.encode_width_ = result["encoder"]["encode-width"].value_or(1280);
-        encoder_.encode_height_ = result["encoder"]["encode-height"].value_or(720);
-
-        // capture
-        capture_.enable_audio_ = result["capture"]["enable-audio"].value_or(true);
-        std::string capture_audio_type_name = result["capture"]["audio-capture-type"].value_or("global");
-        capture_.capture_audio_type_ = [&]() -> Capture::CaptureAudioType {
-            if (capture_audio_type_name == "hook") {
-                return Capture::CaptureAudioType::kAudioInner;
-            }
-            else {
-                return Capture::CaptureAudioType::kAudioGlobal;
-            }
-        }();
-
-        capture_.enable_video_ = result["capture"]["enable-video"].value_or(true);
-        std::string capture_video_type_name = result["capture"]["video-capture-type"].value_or("hook");
-        capture_.capture_video_type_ = [&]() -> Capture::CaptureVideoType {
-            if (capture_video_type_name == "hook") {
-                return Capture::CaptureVideoType::kVideoInner;
-            }
-            else {
-                return Capture::CaptureVideoType::kCaptureScreen;
-            }
-        }();
-
-        capture_.send_video_frame_by_shm_ = result["capture"]["send-video-msg-by-shm"].value_or(false);
-
-        // transmission
-        transmission_.listening_port_ = result["transmission"]["listening-port"].value_or(20371);
+        // NOTE: encoder/capture/transmission are no longer read from this file.
+        // Desktop mode: the panel passes them as command line args (see UpdateSettings).
+        // Standalone: built-in defaults in rd_settings.h are used.
 
         // TargetApplication
         app_.game_path_ = result["application"]["game-path"].value_or("");
