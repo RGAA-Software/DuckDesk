@@ -25,6 +25,8 @@ use crate::net_client::spvr_client_ws_handler;
 use crate::net_cm::spvr_cm_ws_handler;
 use crate::net_panel::spvr_panel_router::make_panel_router;
 use crate::net_panel::spvr_panel_ws_handler;
+use crate::net_service::spvr_service_router::make_service_router;
+use crate::net_service::spvr_service_ws_handler;
 use crate::record::spvr_record_router::make_record_router;
 use crate::spvr_router::make_spvr_router;
 use crate::stream::spvr_stream_router::make_stream_router;
@@ -111,6 +113,11 @@ impl SpvrServer {
             )
             // connected panel
             .nest("/api/v1/panel/control", make_panel_router(context.clone()))
+            // connected service
+            .nest(
+                "/api/v1/service/control",
+                make_service_router(context.clone()),
+            )
             // connected client
             .nest(
                 "/api/v1/client/control",
@@ -139,6 +146,12 @@ impl SpvrServer {
             .route(
                 "/spvr/panel",
                 any(spvr_panel_ws_handler::panel_handler)
+                    .layer(middleware::from_fn(spvr_panel_token_filter_fn)),
+            )
+            // websocket; between GoDesk windows service and spvr
+            .route(
+                "/spvr/service",
+                any(spvr_service_ws_handler::service_handler)
                     .layer(middleware::from_fn(spvr_panel_token_filter_fn)),
             )
             // websocket; between website and spvr

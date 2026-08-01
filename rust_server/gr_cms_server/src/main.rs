@@ -19,6 +19,7 @@ mod interact;
 mod net_client;
 mod net_cm;
 mod net_panel;
+mod net_service;
 mod record;
 mod relay;
 mod spvr_database;
@@ -41,6 +42,7 @@ use crate::interact::spvr_ui::SpvrUIState;
 use crate::net_client::spvr_client_conn_mgr::SpvrClientConnManager;
 use crate::net_cm::spvr_cm_mgr::SpvrCMManager;
 use crate::net_panel::spvr_panel_conn_mgr::SpvrPanelConnManager;
+use crate::net_service::spvr_service_conn_mgr::SpvrServiceConnManager;
 use crate::record::spvr_file_transfer_manager::SpvrFileTransferManager;
 use crate::record::spvr_visit_manager::SpvrVisitManager;
 use crate::relay::relay_conn_mgr::RelayConnManager;
@@ -71,6 +73,7 @@ lazy_static::lazy_static! {
 
     pub static ref gSpvrClientConnMgr: Arc<SpvrClientConnManager> = Arc::new(SpvrClientConnManager::new());
     pub static ref gSpvrPanelConnMgr: Arc<SpvrPanelConnManager> = Arc::new(SpvrPanelConnManager::new());
+    pub static ref gSpvrServiceConnMgr: Arc<SpvrServiceConnManager> = Arc::new(SpvrServiceConnManager::new());
 
     pub static ref gSpvrContext: Arc<Mutex<SpvrContext>> = Arc::new(Mutex::new(SpvrContext::new()));
     pub static ref gSpvrStreamMgr: Arc<SpvrStreamManager> = SpvrStreamManager::new();
