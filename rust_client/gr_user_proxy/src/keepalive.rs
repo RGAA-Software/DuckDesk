@@ -155,6 +155,7 @@ pub struct KeepaliveTickOutcome {
 #[derive(Debug, Default)]
 pub struct KeepaliveState {
     panel_respawn_not_before: Option<std::time::Instant>,
+    sysinfo_respawn_not_before: Option<std::time::Instant>,
 }
 
 pub fn has_process_named(processes: &[ProcessEntry], exe_name: &str) -> bool {
@@ -196,11 +197,20 @@ pub fn run_keepalive_tick(
         outcome.started_panel = true;
     }
 
-    if !sysinfo_alive {
+    if sysinfo_alive {
+        state.sysinfo_respawn_not_before = None;
+    } else if state
+        .sysinfo_respawn_not_before
+        .is_some_and(|not_before| std::time::Instant::now() < not_before)
+    {
+        info!("sysinfo start already triggered, waiting for it to appear (cooldown)");
+    } else {
         warn!("GammaRaySysInfo.exe missing, starting");
         let path = sysinfo_exe_path(app_dir);
         info!("starting sysinfo, path={}", path.display());
         spawner.spawn_path(&path)?;
+        state.sysinfo_respawn_not_before =
+            Some(std::time::Instant::now() + crate::config::SYSINFO_RESPAWN_COOLDOWN);
         outcome.started_sysinfo = true;
     }
 
@@ -242,7 +252,14 @@ pub fn spawn_keepalive_loop(app_dir: PathBuf) -> tokio::task::JoinHandle<()> {
         if let Err(err) = run_initial_check(&lister, &spawner, &app_dir) {
             error!("initial sysinfo check failed: {err}");
         }
-        let mut interval = tokio::time::interval(KEEPALIVE_POLL_INTERVAL);
+        // First tick is delayed by the poll interval (plain `interval` fires
+        // immediately): the initial check above may have just spawned SysInfo,
+        // and an immediate tick could take a process snapshot before it shows
+        // up and spawn a duplicate.
+        let mut interval = tokio::time::interval_at(
+            tokio::time::Instant::now() + KEEPALIVE_POLL_INTERVAL,
+            KEEPALIVE_POLL_INTERVAL,
+        );
         let mut state = KeepaliveState::default();
         loop {
             interval.tick().await;
@@ -423,6 +440,50 @@ mod tests {
             .filter(|p| p.ends_with(PANEL_EXE_NAME))
             .count();
         assert_eq!(panel_spawns, 1, "panel must be started only once");
+    }
+
+    #[test]
+    fn sysinfo_respawn_is_suppressed_during_cooldown() {
+        // SysInfo 刚被拉起时可能还没出现在进程快照里(或直接启动即崩),
+        // 冷却期内不得重复拉起。
+        let lister = StaticLister {
+            processes: vec![entry(PANEL_EXE_NAME)],
+        };
+        let spawner = RecordingSpawner::default();
+        let mut state = KeepaliveState::default();
+        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 1");
+        assert!(first.started_sysinfo);
+        let second =
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+                .expect("tick 2");
+        assert!(!second.started_sysinfo, "cooldown must suppress respawn");
+        let sysinfo_spawns = spawner
+            .paths
+            .lock()
+            .expect("lock")
+            .iter()
+            .filter(|p| p.ends_with(SYSINFO_EXE_NAME))
+            .count();
+        assert_eq!(sysinfo_spawns, 1, "sysinfo must be started only once");
+    }
+
+    #[test]
+    fn sysinfo_cooldown_cleared_once_sysinfo_alive() {
+        let spawner = RecordingSpawner::default();
+        let mut state = KeepaliveState::default();
+        let missing = StaticLister {
+            processes: vec![entry(PANEL_EXE_NAME)],
+        };
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 1");
+        assert!(state.sysinfo_respawn_not_before.is_some());
+        let alive = StaticLister {
+            processes: vec![entry(PANEL_EXE_NAME), entry(SYSINFO_EXE_NAME)],
+        };
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/GammaRay"), &mut state)
+            .expect("tick 2");
+        assert!(state.sysinfo_respawn_not_before.is_none());
     }
 
     #[test]

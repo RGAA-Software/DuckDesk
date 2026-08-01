@@ -99,6 +99,10 @@ impl ServiceRuntime {
             }
             Command::StopDesktop => {
                 self.stop_desktop()?;
+                // Explicit stop must also clear the recorded launch, otherwise
+                // the monitor loop would pull the render back within 3s.
+                self.state.last_desktop_launch = None;
+                self.persist_state()?;
                 Ok(None)
             }
             Command::RestartDesktop(spec) => {
@@ -283,20 +287,33 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                     error!("sync_process_state failed: {err}");
                     continue;
                 }
+                if guard.state.desktop_alive {
+                    guard.state.reset_restart_backoff();
+                }
                 if guard.state.should_restart_desktop() {
                     if let Some(spec) = guard.state.last_desktop_launch.clone() {
-                        warn!("desktop render missing, restarting");
-                        if let Err(err) = guard.start_desktop(spec) {
-                            error!("restart desktop failed: {err}");
+                        if let Some(remaining) = guard.state.restart_backoff_remaining() {
+                            info!("desktop restart backoff active, remaining={remaining:?}");
+                        } else {
+                            warn!("desktop render missing, restarting");
+                            if let Err(err) = guard.start_desktop(spec) {
+                                error!("restart desktop failed: {err}");
+                                guard.state.note_restart_failure();
+                            }
                         }
                     }
                 } else if guard.state.should_restart_user_proxy() {
                     if let Some(spec) = guard.state.last_desktop_launch.clone() {
-                        warn!("user proxy missing while render alive, restarting");
-                        if let Err(err) = guard.start_user_proxy(&spec) {
-                            error!("restart user proxy failed: {err}");
+                        if let Some(remaining) = guard.state.restart_backoff_remaining() {
+                            info!("user proxy restart backoff active, remaining={remaining:?}");
+                        } else {
+                            warn!("user proxy missing while render alive, restarting");
+                            if let Err(err) = guard.start_user_proxy(&spec) {
+                                error!("restart user proxy failed: {err}");
+                                guard.state.note_restart_failure();
+                            }
+                            let _ = guard.sync_process_state();
                         }
-                        let _ = guard.sync_process_state();
                     }
                 }
             }
@@ -565,6 +582,45 @@ mod tests {
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
         assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
+    }
+
+    #[test]
+    fn stop_desktop_command_clears_launch_and_persists_cleared_state() {
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("gr_service_stop_desktop"),
+            std::env::temp_dir().join("gr_logs_stop_desktop"),
+        );
+        let mut runtime = ServiceRuntime::new(
+            config.clone(),
+            Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
+                1,
+                "D:/GammaRayRender.exe",
+                "--app_mode=desktop",
+            )])),
+            Arc::new(MockActions::new()),
+        );
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        runtime.handle_command(Command::StopDesktop).unwrap();
+        assert!(runtime.state.last_desktop_launch.is_none());
+        assert!(
+            !runtime.state.should_restart_desktop(),
+            "monitor loop must not pull the render back after an explicit stop"
+        );
+
+        // The cleared state must be persisted, or a service restart would
+        // resurrect the launch record and the monitor loop would restart it.
+        let mut reloaded = ServiceRuntime::new(
+            config,
+            Arc::new(MockProcessManager::new(Vec::new())),
+            Arc::new(MockActions::new()),
+        );
+        reloaded.load_persisted_state().unwrap();
+        assert!(reloaded.state.last_desktop_launch.is_none());
     }
 
     #[test]

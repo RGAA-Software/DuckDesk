@@ -20,6 +20,10 @@ pub const KEEPALIVE_POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// long before considering another respawn, so slow task-engine starts do not
 /// launch duplicate panel instances.
 pub const PANEL_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
+/// Same idea as `PANEL_RESPAWN_COOLDOWN`: a freshly spawned SysInfo may take a
+/// moment to appear in the process snapshot, and a crashing SysInfo must not
+/// be respawned every tick.
+pub const SYSINFO_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 #[command(name = "GammaRayUserProxy")]

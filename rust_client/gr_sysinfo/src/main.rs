@@ -39,6 +39,12 @@ async fn main() {
         "gr_sys_info".to_string(),
     );
 
+    let _instance = gr_sysinfo::single_instance::ensure_single_instance("GrSysInfo_SingleInstance");
+    if _instance.is_none() {
+        tracing::warn!("another GammaRaySysInfo instance is already running, exiting");
+        return;
+    }
+
     gSysPanelClient.lock().await.duration = args.duration.unwrap_or(1);
 
     tokio::spawn(async move {

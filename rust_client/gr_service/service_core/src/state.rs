@@ -24,6 +24,11 @@ pub struct ServiceState {
     pub desktop_pid: Option<u32>,
     pub user_proxy_alive: bool,
     pub stop_requested: bool,
+    /// Last time a monitor-loop restart was attempted (shared by the desktop
+    /// render and the user proxy restarts).
+    pub last_restart_attempt: Option<std::time::Instant>,
+    /// Consecutive failed restart attempts, drives the exponential backoff.
+    pub consecutive_restart_failures: u32,
 }
 
 impl ServiceState {
@@ -55,6 +60,35 @@ impl ServiceState {
 
     pub fn should_restart_desktop(&self) -> bool {
         !self.stop_requested && !self.desktop_alive && self.last_desktop_launch.is_some()
+    }
+
+    /// Record a failed monitor-loop restart attempt; failures drive the
+    /// exponential backoff in `restart_backoff_remaining`.
+    pub fn note_restart_failure(&mut self) {
+        self.last_restart_attempt = Some(std::time::Instant::now());
+        self.consecutive_restart_failures = self.consecutive_restart_failures.saturating_add(1);
+    }
+
+    /// Clear the restart backoff once the desktop render is observed alive.
+    pub fn reset_restart_backoff(&mut self) {
+        self.last_restart_attempt = None;
+        self.consecutive_restart_failures = 0;
+    }
+
+    /// Remaining cooldown before the next restart attempt is allowed.
+    /// Base 3s, doubled per consecutive failure, capped at 5 minutes.
+    /// `None` means a restart may be attempted immediately.
+    pub fn restart_backoff_remaining(&self) -> Option<std::time::Duration> {
+        let last_attempt = self.last_restart_attempt?;
+        let shift = self.consecutive_restart_failures.min(7);
+        let delay = (std::time::Duration::from_secs(3) * 2u32.pow(shift))
+            .min(std::time::Duration::from_secs(300));
+        let remaining = delay.saturating_sub(last_attempt.elapsed());
+        if remaining.is_zero() {
+            None
+        } else {
+            Some(remaining)
+        }
     }
 
     pub fn heartbeat_response(&self, index: i64) -> ServiceMessage {
@@ -147,5 +181,43 @@ mod tests {
             "--app_mode=desktop",
         )]);
         assert!(state.should_restart_user_proxy());
+    }
+
+    #[test]
+    fn restart_backoff_grows_with_consecutive_failures() {
+        let mut state = ServiceState::default();
+        assert!(state.restart_backoff_remaining().is_none());
+        state.note_restart_failure();
+        let first = state
+            .restart_backoff_remaining()
+            .expect("backoff after first failure");
+        state.note_restart_failure();
+        let second = state
+            .restart_backoff_remaining()
+            .expect("backoff after second failure");
+        assert!(
+            second > first,
+            "backoff must grow with failures: {first:?} -> {second:?}"
+        );
+    }
+
+    #[test]
+    fn restart_backoff_is_capped_at_five_minutes() {
+        let mut state = ServiceState::default();
+        state.consecutive_restart_failures = 30;
+        state.last_restart_attempt = Some(std::time::Instant::now());
+        let remaining = state.restart_backoff_remaining().expect("backoff");
+        assert!(remaining <= std::time::Duration::from_secs(300));
+    }
+
+    #[test]
+    fn restart_backoff_resets_after_render_observed_alive() {
+        let mut state = ServiceState::default();
+        state.note_restart_failure();
+        state.note_restart_failure();
+        assert!(state.restart_backoff_remaining().is_some());
+        state.reset_restart_backoff();
+        assert!(state.restart_backoff_remaining().is_none());
+        assert_eq!(state.consecutive_restart_failures, 0);
     }
 }
