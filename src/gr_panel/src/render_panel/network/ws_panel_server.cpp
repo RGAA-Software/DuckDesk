@@ -687,7 +687,9 @@ namespace tc
         }
         else if (proto_msg->type() == tcrp::kRpRelayAlive) {
             auto sub = proto_msg->relay_alive();
-            stat_->UpdateRelayAlive(sub.device_id(), sub.timestamp());
+            // 以 panel 实际收到消息的时刻为准:消息能到达即代表 relay 链路活着,
+            // render 侧的时间戳可能因任务队列排队而滞后数秒,会误判为离线。
+            stat_->UpdateRelayAlive(sub.device_id(), (int64_t)TimeUtil::GetCurrentTimestamp());
         }
         else if (proto_msg->type() == tcrp::kRpMonitorChanged) {
             context_->SendAppMessage(MsgMonitorChanged{});

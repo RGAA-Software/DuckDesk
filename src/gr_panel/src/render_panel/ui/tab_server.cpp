@@ -819,7 +819,8 @@ namespace tc
         auto device_id = settings_->GetDeviceId();
         if (!device_id.empty()) {
             auto current_ts = TimeUtil::GetCurrentTimestamp();
-            auto max_duration = 3500;
+            // 心跳 1s 一次;阈值放宽到 10s,容忍会话建立/高负载时的短暂拥塞
+            auto max_duration = 10000;
             {
                 auto sid = "server_" + device_id;
                 auto ts = stat_->GetRelayLastUpdateTimestamp(sid);

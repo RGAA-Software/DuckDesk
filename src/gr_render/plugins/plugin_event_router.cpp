@@ -302,15 +302,16 @@ namespace tc
     }
 
     void PluginEventRouter::ReportRelayAlive(const std::string& device_id, int64_t timestamp) {
-        app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpRelayAlive);
-            auto sub = msg.mutable_relay_alive();
-            sub->set_device_id(device_id);
-            sub->set_timestamp(timestamp);
-            auto buffer = RpProtoAsData(&msg);
-            app_->PostPanelMessage(buffer);
-        });
+        // 不走 PostGlobalTask:全局任务在 render 主线程消息循环上执行,
+        // 会话建立/高负载时主线程繁忙会把 alive 上报卡住数秒,导致 panel 指示灯误红。
+        // PostPanelMessage 直接投递到 ws 网络线程,任意线程调用都是安全的。
+        tcrp::RpMessage msg;
+        msg.set_type(tcrp::kRpRelayAlive);
+        auto sub = msg.mutable_relay_alive();
+        sub->set_device_id(device_id);
+        sub->set_timestamp(timestamp);
+        auto buffer = RpProtoAsData(&msg);
+        app_->PostPanelMessage(buffer);
     }
 
 }
