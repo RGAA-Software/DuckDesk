@@ -39,6 +39,7 @@ namespace tc
         void enterEvent(QEnterEvent *event) override;
         void leaveEvent(QEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
+        void mouseMoveEvent(QMouseEvent *event) override;
 
         void SetOnConnectListener(OnConnectListener&& listener);
         void SetOnMenuListener(OnMenuListener&& listener);
@@ -67,6 +68,8 @@ namespace tc
         bool relay_connected_ = false;
         bool spvr_connected_ = false;
         TcLabel* work_mode_ = nullptr;
+        QLabel* state_tooltip_ = nullptr;
+        QWidget* state_tooltip_container_ = nullptr;
     };
 
 }

@@ -155,16 +155,41 @@ int main(int argc, char *argv[]) {
     LOGI("  Debug: {}", options.debug);
     LOGI("  Skin: {}", options.skin_name);
 
-    // pipe
+    // pipe — 单实例:已有实例在监听时,SendHello 会成功并通知其前置显示,
+    // 本实例直接退出(不再继续启动,避免第二实例抢 SharedPreference 的 LOCK
+    // 弹 "Startup failed" 对话框)。
     auto rn_pipe = std::make_shared<GrRunningPipe>();
-    if (!rn_pipe->SendHello()) {
-        rn_pipe->StartListening([=]() {
-            if (g_workspace) {
-                g_workspace->showNormal();
-                g_workspace->raise();
-            }
-        });
+    if (rn_pipe->SendHello()) {
+        LOGI("Another panel instance is running, notified it to foreground, exit this one.");
+        return 0;
     }
+    rn_pipe->StartListening([=]() {
+        if (!g_workspace) {
+            return;
+        }
+        // 管道回调在工作线程,Qt 窗口操作必须投递到 UI 线程;
+        // 且 Windows 有前台锁定,raise 单独无效,需要激活 + 前台 hack。
+        QMetaObject::invokeMethod(g_workspace.get(), [=]() {
+            if (g_workspace->isMinimized()) {
+                g_workspace->showNormal();
+            }
+            g_workspace->raise();
+            g_workspace->activateWindow();
+#ifdef WIN32
+            auto hwnd = (HWND)g_workspace->winId();
+            auto fore = GetForegroundWindow();
+            if (fore) {
+                auto fore_tid = GetWindowThreadProcessId(fore, nullptr);
+                auto cur_tid = GetCurrentThreadId();
+                AttachThreadInput(cur_tid, fore_tid, TRUE);
+                SetForegroundWindow(hwnd);
+                AttachThreadInput(cur_tid, fore_tid, FALSE);
+            } else {
+                SetForegroundWindow(hwnd);
+            }
+#endif
+        }, Qt::QueuedConnection);
+    });
 
     // init sp
     auto data_dir = base_dir + "/gr_data";

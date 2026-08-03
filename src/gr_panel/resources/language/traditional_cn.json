@@ -2,11 +2,9 @@
   "app_name": "GoDesk",
   "id_settings": "設置",
   "id_refresh": "刷新",
-
   "id_appearance": "外觀",
   "id_language": "語言",
   "id_skin": "皮膚",
-
   "id_settings_general": "通用",
   "id_settings_network": "網路",
   "id_settings_security": "安全",
@@ -14,7 +12,6 @@
   "id_settings_controller": "控制端",
   "id_settings_other_clients": "移動客戶端",
   "id_settings_aboutme": "關於",
-
   "id_tab_remote_control": "遠程控制",
   "id_tab_server_status": "服務狀態",
   "id_tab_games": "安裝的遊戲",
@@ -22,12 +19,10 @@
   "id_tab_profile": "用戶",
   "id_tab_hardware": "硬體資訊",
   "id_co_phone": "手機協作",
-
   "id_security_visitor": "訪問記錄",
   "id_security_file_transfer": "檔傳輸",
   "id_security_visitor_history_logs": "訪問歷史記錄",
   "id_security_file_transfer_history_logs": "檔傳輸歷史記錄",
-
   "id_this_device": "此設備",
   "id_connect_information": "連接資訊",
   "id_detailed_information": "詳細連接資訊",
@@ -55,16 +50,12 @@
   "id_resize_resolution_h264_hint": "264編碼格式下,寬度不能超過3840,高度不能超過2160",
   "id_resize_resolution_h265_hint": "265編碼格式下,寬度不能超過7680,高度不能超過4320",
   "id_resize_resolution_ration_hint": "視頻寬度與高度之間(或者高度與寬度)的比例不能大於4",
-
   "id_screen_recording_settings": "錄屏設置",
-
   "id_screen_recording_path": "保存路徑",
-
   "id_cancel": "取消",
   "id_ok": "確定",
   "id_retry_conn": "重新連接",
-
-  "id_set" : "設置",
+  "id_set": "設置",
   "id_save": "保存",
   "id_network_settings": "網路設置",
   "id_websocket": "WSS串流",
@@ -278,7 +269,6 @@
   "id_consult_admin_to_change_password": "聯繫您的管理員修改密碼",
   "id_version_premium": "专业版",
   "id_version_opensource": "个人版",
-
   "id_client_network_disconnected": "連接已斷開, 正在重試",
   "id_gr_client": "GammaRay客戶端",
   "id_control": "控制",
@@ -326,15 +316,15 @@
   "id_has_connection": "已收到配置資訊, 等待視頻幀",
   "id_has_video_frame": "已收到視頻幀, 開始控制",
   "id_open_directory": "下载",
-  "id_remote_local_machine":"正在遠程本機",
-  "id_disconnect":"斷開",
-  "id_allow_access_to":"允許訪問:",
-  "id_voice":"聲音",
-  "id_file":"檔",
-  "id_key_mouse":"鍵鼠",
-  "id_access_hint":"請到設置介面去設置相關許可權",
-  "id_remote_disconnected":"對方已經主動斷開遠程連接.",
-  "id_run_other_service_instances":"您已經運行了其他服務實例,現在，我即將退出上一個實例",
+  "id_remote_local_machine": "正在遠程本機",
+  "id_disconnect": "斷開",
+  "id_allow_access_to": "允許訪問:",
+  "id_voice": "聲音",
+  "id_file": "檔",
+  "id_key_mouse": "鍵鼠",
+  "id_access_hint": "請到設置介面去設置相關許可權",
+  "id_remote_disconnected": "對方已經主動斷開遠程連接.",
+  "id_run_other_service_instances": "您已經運行了其他服務實例,現在，我即將退出上一個實例",
   "id_cant_request_auth": "無法獲取授權, 請檢查您的地址和端口配置.",
   "id_register_success": "註冊成功",
   "id_invalid_input": "非法輸入",
@@ -351,7 +341,6 @@
   "id_device_inactive": "設備已禁用，無法連接",
   "id_auth_invalid": "授權已失效",
   "id_net_error_no_cms_connection": "網路錯誤，無法連線到管理後台服務",
-
   "id_file_trans_desktop": "桌面",
   "id_file_trans_my_document": "我的文檔",
   "id_file_trans_my_music": "我的音樂",
@@ -467,5 +456,10 @@
   "id_file_trans_no_exists": "不存在",
   "id_file_trans_target_path_no_exists": "目標路徑不存在",
   "id_file_trans_rename_failed_name_occypy": "重命名失敗, 檔案名已經被佔用",
-  "id_file_trans_rename_failed_file_occypy": "重命名失敗, 請檢查檔是否被佔用"
+  "id_file_trans_rename_failed_file_occypy": "重命名失敗, 請檢查檔是否被佔用",
+  "id_state_direct": "直連",
+  "id_state_relay": "中轉",
+  "id_state_spvr": "管理服務",
+  "id_state_available": "可用",
+  "id_state_unavailable": "不可用"
 }

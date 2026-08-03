@@ -8,6 +8,11 @@
 #include <QPainterPath>
 #include <QPushButton>
 #include <QTimer>
+#include <QToolTip>
+#include <QMouseEvent>
+#include <QLabel>
+#include <QGraphicsDropShadowEffect>
+#include <QVBoxLayout>
 
 #include "tc_spvr_client/spvr_stream.h"
 #include "tc_common_new/uid_spacer.h"
@@ -15,15 +20,60 @@
 #include "tc_qt_widget/tc_font_manager.h"
 #include "tc_qt_widget/tc_pushbutton.h"
 #include "tc_qt_widget/tc_label.h"
+#include "tc_qt_widget/translator/tc_translator.h"
 #include "gr_base/ct_stream_item_net_type.h"
 
 namespace tc
 {
 
+    // 状态点 hover 提示框:白底黑字、柔影、扁平风(手绘背景)
+    class StateToolTip : public QLabel {
+    public:
+        explicit StateToolTip(QWidget* parent = nullptr) : QLabel(parent) {}
+    protected:
+        void paintEvent(QPaintEvent* ev) override {
+            QPainter p(this);
+            p.setRenderHint(QPainter::Antialiasing);
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(0xffffff));
+            p.drawRoundedRect(rect(), 4, 4);
+            QLabel::paintEvent(ev);
+        }
+    };
+
     StreamItemWidget::StreamItemWidget(const std::shared_ptr<spvr::SpvrStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
         this->item_ = item;
         this->bg_color_ = bg_color;
         this->setStyleSheet("background:#00000000;");
+        // 右上三个状态点 hover 提示需要持续追踪鼠标
+        this->setMouseTracking(true);
+
+        // 自定义 tooltip:白底黑字 + 边框 + 阴影
+        // 顶层窗口尺寸即 label 大小,阴影画在窗口外会被裁掉,
+        // 所以外套一层带透明边距的容器,把阴影画在容器内。
+        state_tooltip_container_ = new QWidget(nullptr);
+        state_tooltip_container_->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
+        state_tooltip_container_->setAttribute(Qt::WA_TranslucentBackground);
+        state_tooltip_container_->setAttribute(Qt::WA_ShowWithoutActivating);
+        auto tooltip_layout = new QVBoxLayout(state_tooltip_container_);
+        tooltip_layout->setContentsMargins(10, 10, 10, 10);
+        tooltip_layout->setSpacing(0);
+
+        state_tooltip_ = new StateToolTip(state_tooltip_container_);
+        state_tooltip_->setStyleSheet(R"(
+            QLabel {
+                color: #111111;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        )");
+        auto shadow = new QGraphicsDropShadowEffect(state_tooltip_container_);
+        shadow->setBlurRadius(24);
+        shadow->setOffset(0, 4);
+        shadow->setColor(QColor(0, 0, 0, 80));
+        state_tooltip_->setGraphicsEffect(shadow);
+        tooltip_layout->addWidget(state_tooltip_);
+        state_tooltip_container_->hide();
         if (icon_.isNull()) {
             if (item->HasRelayInfo()) {
                 icon_ = QPixmap::fromImage(QImage(":/resources/image/ic_windows_relay.svg"));
@@ -256,6 +306,9 @@ namespace tc
 
     void StreamItemWidget::leaveEvent(QEvent *event) {
         enter_ = false;
+        if (state_tooltip_container_) {
+            state_tooltip_container_->hide();
+        }
         update();
     }
 
@@ -266,6 +319,39 @@ namespace tc
         lbl_connecting_->setGeometry(15* 2 + btn_conn_->width(), y, lbl_connecting_->width(), lbl_connecting_->height());
         btn_option_->setGeometry(this->width() - btn_option_->width() - 13, y, btn_option_->width(), btn_option_->height());
         work_mode_->setGeometry(15 + btn_conn_->width() + 15, y, btn_conn_->width(), btn_conn_->height());
+    }
+
+    // 右上三个状态点的 hover 提示(几何与 paintEvent 保持一致)
+    void StreamItemWidget::mouseMoveEvent(QMouseEvent *event) {
+        QWidget::mouseMoveEvent(event);
+        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_spvr"};
+        const bool states[3] = {direct_connected_, relay_connected_, spvr_connected_};
+        const int margin_right = 50;
+        const int indicator_width = 10;
+        const int indicator_height = 8;
+        const int y = 10;
+        // 整个三点区域统一 hover:三行显示全部状态
+        QRect area(this->width() - margin_right, y, indicator_width * 3, indicator_height);
+        area.adjust(-3, -4, 3, 4);
+        const auto pos = event->position().toPoint();
+        if (area.contains(pos)) {
+            QStringList lines;
+            for (int i = 0; i < 3; i++) {
+                lines << QString("%1: %2")
+                        .arg(tcTr(name_ids[i]))
+                        .arg(tcTr(states[i] ? "id_state_available" : "id_state_unavailable"));
+            }
+            state_tooltip_->setText(lines.join("\n"));
+            state_tooltip_->adjustSize();
+            state_tooltip_container_->adjustSize();
+            state_tooltip_container_->move(event->globalPosition().toPoint() + QPoint(4, 4));
+            if (!state_tooltip_container_->isVisible()) {
+                state_tooltip_container_->show();
+            }
+            state_tooltip_container_->raise();
+            return;
+        }
+        state_tooltip_container_->hide();
     }
 
     void StreamItemWidget::SetOnConnectListener(OnConnectListener&& listener) {
