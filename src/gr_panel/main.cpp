@@ -164,30 +164,37 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     rn_pipe->StartListening([=]() {
+        LOGI("received foreground request from another instance, g_workspace={}", (void*)g_workspace.get());
         if (!g_workspace) {
             return;
         }
         // 管道回调在工作线程,Qt 窗口操作必须投递到 UI 线程;
         // 且 Windows 有前台锁定,raise 单独无效,需要激活 + 前台 hack。
         QMetaObject::invokeMethod(g_workspace.get(), [=]() {
-            if (g_workspace->isMinimized()) {
-                g_workspace->showNormal();
-            }
+#ifdef WIN32
+            auto hwnd = (HWND)g_workspace->winId();
+            // 最小化/隐藏都要先恢复
+            ShowWindow(hwnd, SW_RESTORE);
+#endif
+            g_workspace->setWindowState((g_workspace->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+            g_workspace->show();
             g_workspace->raise();
             g_workspace->activateWindow();
 #ifdef WIN32
-            auto hwnd = (HWND)g_workspace->winId();
             auto fore = GetForegroundWindow();
             if (fore) {
                 auto fore_tid = GetWindowThreadProcessId(fore, nullptr);
                 auto cur_tid = GetCurrentThreadId();
                 AttachThreadInput(cur_tid, fore_tid, TRUE);
                 SetForegroundWindow(hwnd);
+                BringWindowToTop(hwnd);
                 AttachThreadInput(cur_tid, fore_tid, FALSE);
             } else {
                 SetForegroundWindow(hwnd);
+                BringWindowToTop(hwnd);
             }
 #endif
+            LOGI("foreground request handled, minimized={}, hidden={}", g_workspace->isMinimized(), g_workspace->isHidden());
         }, Qt::QueuedConnection);
     });
 
