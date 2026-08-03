@@ -13,7 +13,8 @@ version = "1.0.1"
 # 2.steam://rungameid/xxx
 # 3.steam://open/bigpicture Steam Big Picture Mode
 
-game-path = "D:/Game/Dyson Sphere Program/DSPGAME.exe"
+# D:\\SteamLibrary\\steamapps\\common\\Flower girl 2\\Flower Girl 2.exe
+game-path = ""
 # Steam BIG Picture Mode
 #game-path = "steam://open/bigpicture"
 #game-path = "C:/software/u3d_demo/u3d_demo/u3d_shared_window_demo.exe"

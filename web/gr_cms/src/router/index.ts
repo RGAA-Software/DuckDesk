@@ -8,6 +8,7 @@ import UserManager from '@/views/UserManager.vue'
 import ProfileInfo from '@/views/ProfileInfo.vue'
 import OnlineConnection from '@/views/OnlineConnection.vue'
 import ConnectionMonitor from '@/views/ConnectionMonitor.vue'
+import VideoWall from '@/views/VideoWall.vue'
 import EventView from '@/views/EventView.vue'
 import LoginView from '@/views/LoginView.vue'
 
@@ -53,6 +54,15 @@ const router = createRouter({
           component: ConnectionMonitor,
           meta: {
             title: '连接监控',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: '/video-wall',
+          name: 'video-wall',
+          component: VideoWall,
+          meta: {
+            title: '多画面墙',
             requiresAuth: true,
           },
         },

@@ -119,13 +119,14 @@ namespace tc
     void PeerCallback::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver,
                                           const std::vector<rtc::scoped_refptr<webrtc::MediaStreamInterface>> &streams) {
         PeerConnectionObserver::OnAddTrack(receiver, streams);
-//        std::cout << "OnAddTrack..." << std::endl;
-//        auto track = receiver->track().get();
-//        std::cout<<"[info] on add track,kind:"<<track->kind()<<std::endl;
-//        if(track->kind() == "video" && video_receiver_) {
-//            auto cast_track = static_cast<webrtc::VideoTrackInterface*>(track);
-//            cast_track->AddOrUpdateSink(video_receiver_.get(), rtc::VideoSinkWants());
-//        }
+        auto track = receiver->track();
+        if (track && track->kind() == "audio") {
+            LOGI("OnAddTrack: remote audio track, id: {}", track->id());
+            if (audio_track_cbk_) {
+                audio_track_cbk_(rtc::scoped_refptr<webrtc::AudioTrackInterface>(
+                        static_cast<webrtc::AudioTrackInterface*>(track.get())));
+            }
+        }
     }
 
     void PeerCallback::OnTrack(rtc::scoped_refptr<webrtc::RtpTransceiverInterface> transceiver) {
@@ -135,6 +136,14 @@ namespace tc
 
     void PeerCallback::OnRemoveTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver) {
         PeerConnectionObserver::OnRemoveTrack(receiver);
+        auto track = receiver->track();
+        if (track && track->kind() == "audio") {
+            LOGI("OnRemoveTrack: remote audio track, id: {}", track->id());
+            if (remove_audio_track_cbk_) {
+                remove_audio_track_cbk_(rtc::scoped_refptr<webrtc::AudioTrackInterface>(
+                        static_cast<webrtc::AudioTrackInterface*>(track.get())));
+            }
+        }
     }
 
     void PeerCallback::OnInterestingUsage(int usage_pattern) {

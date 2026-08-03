@@ -5,10 +5,12 @@
 #include "ws_server.h"
 
 #include <memory>
+#include <filesystem>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/file.h"
+#include "tc_common_new/folder_util.h"
 #include "network/ws_media_router.h"
 #include "ws_stream_router.h"
 #include "ws_filetransfer_router.h"
@@ -26,6 +28,8 @@ static std::string kApiVerifySecurityPassword = "/verify/security/password";
 static std::string kApiGetRenderConfiguration = "/get/render/configuration";
 static std::string kApiPanelStreamMessage = "/panel/stream/message";
 static std::string kApiAllocLocalRtc = "/alloc/local/rtc";
+static std::string kUrlWebClient = "/web_client";
+static std::string kUrlWebClientWildcard = "/web_client/*";
 
 namespace tc
 {
@@ -135,6 +139,9 @@ namespace tc
                 http_handler_->HandleAllocLocalRtc(session_ptr, req, rep);
             }
         });
+
+        // static web client pages (SPA), served from {exe_dir}/web_client
+        AddWebClientRouter();
 
         if (listen_port_ <= 0) {
             LOGE("Listen port invalid: {}", listen_port_);
@@ -387,6 +394,59 @@ namespace tc
             }
             callback(path, session_ptr, req, rep);
         }, aop_log{}); //, http::enable_cache
+    }
+
+    void WsPluginServer::AddWebClientRouter() {
+        auto web_client_dir = std::filesystem::path(FolderUtil::GetCurrentFolderPath()) / "web_client";
+        std::error_code ec;
+        if (!std::filesystem::is_directory(web_client_dir, ec)) {
+            LOGW("web client dir not found: {}, skip /web_client hosting.", web_client_dir.string());
+            return;
+        }
+
+        // make rep.fill_file() resolve paths relative to the web client dir
+        server_->set_root_directory(web_client_dir);
+
+        // serve a file under the web client dir; fallback to index.html for SPA routes
+        auto fn_serve = [web_client_dir](http::web_request& req, http::web_response& rep) {
+            // url_path: "/web_client" or "/web_client/xxx"
+            std::string url_path(req.path());
+            std::string rel;
+            if (url_path.size() > kUrlWebClient.size()) {
+                rel = url_path.substr(kUrlWebClient.size());
+                while (!rel.empty() && (rel.front() == '/' || rel.front() == '\\')) {
+                    rel.erase(rel.begin());
+                }
+            }
+            std::error_code fs_ec;
+            if (rel.empty() || rel.find("..") != std::string::npos
+                || !std::filesystem::is_regular_file(web_client_dir / std::filesystem::path(rel), fs_ec)) {
+                rel = "index.html";
+            }
+            LOGI("web client request: {} => {}", url_path, rel);
+            // note: asio2 detail::make_filepath appends `path` with operator+= (no separator),
+            // so the path must carry a leading '/'
+            rep.fill_file(std::filesystem::path("/") / rel);
+        };
+
+        auto weak_self = weak_from_this();
+        // "/web_client" and "/web_client/" (trailing slashes are stripped by the router)
+        server_->bind<http::verb::get>(kUrlWebClient, [weak_self, fn_serve](std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) mutable {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            fn_serve(req, rep);
+        }, aop_log{});
+        // "/web_client/xxx"
+        server_->bind<http::verb::get>(kUrlWebClientWildcard, [weak_self, fn_serve](std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) mutable {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            fn_serve(req, rep);
+        }, aop_log{});
+        LOGI("host web client pages at /web_client/, dir: {}", web_client_dir.string());
     }
 
     void WsPluginServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {

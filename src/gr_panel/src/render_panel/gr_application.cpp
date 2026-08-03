@@ -418,6 +418,7 @@ namespace tc
         fh->RemoveProgramFromFirewall("GammaRayClientInnerOut");
         fh->RemoveProgramFromFirewall("GammaRayServiceIn");
         fh->RemoveProgramFromFirewall("GammaRayServiceOut");
+        fh->RemoveProgramFromFirewall("GammaRayRtcLocalUdpIn");
 
         fh->AddProgramToFirewall(RulesInfo("GammaRayIn", app_path.toStdString(), "", 1));
         fh->AddProgramToFirewall(RulesInfo("GammaRayOut", app_path.toStdString(), "", 2));
@@ -427,6 +428,8 @@ namespace tc
         fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerOut", client_inner_path.toStdString(), "", 2));
         fh->AddProgramToFirewall(RulesInfo("GammaRayServiceIn", service_path.toStdString(), "", 1));
         fh->AddProgramToFirewall(RulesInfo("GammaRayServiceOut", service_path.toStdString(), "", 2));
+        // WebRTC local direct connection (net_rtc_local), UDP port range: 60430-60490
+        fh->AddPortToFirewall("GammaRayRtcLocalUdpIn", "60430-60490", 17 /*UDP*/, 1 /*in*/);
         auto fm_diff = TimeUtil::GetCurrentTimestamp()-begin_fm_ts;
         LOGI("** Firewall init used: {}ms", fm_diff);
         LOGI("app path: {}", app_path.toStdString());

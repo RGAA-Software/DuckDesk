@@ -28,6 +28,7 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/h264_sei_helper.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/video_source_impl.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/audio_source_impl.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/remote_audio_sink.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

@@ -22,6 +22,8 @@ namespace tc
     using OnIceConnectedCallback = std::function<void()>;
     using OnIceDisConnectedCallback = std::function<void()>;
     using OnIceGatherCompletedCallback = std::function<void()>;
+    // 远端新增/移除音频轨(浏览器麦克风上行)
+    using OnAudioTrackCallback = std::function<void(rtc::scoped_refptr<webrtc::AudioTrackInterface> track)>;
 
     class RtcServer;
 
@@ -76,12 +78,22 @@ namespace tc
             ice_gather_completed_cbk_ = cbk;
         }
 
+        void SetOnAudioTrackCallback(OnAudioTrackCallback&& cbk) {
+            audio_track_cbk_ = cbk;
+        }
+
+        void SetOnRemoveAudioTrackCallback(OnAudioTrackCallback&& cbk) {
+            remove_audio_track_cbk_ = cbk;
+        }
+
     private:
         OnIceCallback ice_callback_;
         OnDataChannelCallback ch_callback_;
         OnIceConnectedCallback  ice_conn_cbk_;
         OnIceDisConnectedCallback ice_disconn_cbk_;
         OnIceGatherCompletedCallback ice_gather_completed_cbk_;
+        OnAudioTrackCallback audio_track_cbk_;
+        OnAudioTrackCallback remove_audio_track_cbk_;
     };
 
     class CreateSessCallback : public webrtc::CreateSessionDescriptionObserver {

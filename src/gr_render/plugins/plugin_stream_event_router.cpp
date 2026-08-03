@@ -100,6 +100,13 @@ namespace tc
                 plugin->OnEncodedVideoFrame(msg.monitor_name_, event->type_, event->data_, event->frame_index_,
                                             (int)event->frame_width_, (int)event->frame_height_, event->key_frame_);
             });
+            // net_rtc_local 也是编码帧消费者(WebRTC 复用主编码管线产物,
+            // 其 OnEncodedVideoFrame 把帧缓存给 RtcSharedVideoEncoder 取用)。
+            // 其它 net 插件不覆写该回调(基类空实现),不受影响。
+            plugin_manager_->VisitNetPlugins([=](GrNetPlugin *plugin) {
+                plugin->OnEncodedVideoFrame(msg.monitor_name_, event->type_, event->data_, event->frame_index_,
+                                            (int)event->frame_width_, (int)event->frame_height_, event->key_frame_);
+            });
         });
     }
 

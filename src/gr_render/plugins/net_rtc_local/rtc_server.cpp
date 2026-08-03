@@ -11,6 +11,7 @@
 #include "rtc_video_encoder_factory.h"
 #include "video_source_impl.h"
 #include "audio_source_impl.h"
+#include "remote_audio_sink.h"
 
 using namespace webrtc;
 
@@ -103,6 +104,15 @@ namespace tc
 
         });
 
+        // 远端音频轨(浏览器麦克风上行):接收解码后经 WASAPI 播放
+        peer_callback_->SetOnAudioTrackCallback([=, this](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+            this->OnRemoteAudioTrack(std::move(track));
+        });
+
+        peer_callback_->SetOnRemoveAudioTrackCallback([=, this](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+            this->OnRemoteAudioTrackRemoved(std::move(track));
+        });
+
         peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
             if (!media_data_channel_) {return;}
             auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
@@ -171,6 +181,10 @@ namespace tc
         media_deps.task_queue_factory = webrtc::CreateDefaultTaskQueueFactory();
         CreateSomeMediaDeps(media_deps);
 
+        // ADM 传 nullptr -> libwebrtc 内部创建平台默认 ADM(Windows CoreAudio/WASAPI)。
+        // 远端上行音频(浏览器麦克风)的解码由 ADM 播放线程驱动,经 AudioMixer
+        // 自动外放到默认扬声器;RemoteAudioSink 只做接收统计。
+        // 注意:dummy ADM 实测不会驱动解码(sink 收不到 PCM),不能用。
         peer_conn_factory_ = webrtc::CreatePeerConnectionFactory(
             network_thread_.get(), worker_thread_.get(), sig_thread_.get(),
             nullptr,
@@ -212,6 +226,12 @@ namespace tc
         audio_source_ = AudioSourceImpl::Create();
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
         peer_conn_->AddTrack(audio_track, { "audio1" });
+
+        // 首帧加速:即将开始发流,此刻主动请求主管线产 IDR,并清掉建连前
+        // 缓存的旧 delta 帧——保证 Encode 第一次取到的就是为本连接新产的
+        // 关键帧,避免"首帧是 delta → 浏览器解码失败 → 等下一轮 PLI"的慢路径。
+        plugin_->SetClearOlderFramesBaseline(TimeUtil::GetCurrentTimestamp());
+        plugin_->InsertIdr();
 
         // set remote sdp
         LOGI("Will set remote offer sdp.");
@@ -255,6 +275,34 @@ namespace tc
         event->mid_ = mid;
         event->sdp_mline_index_ = sdp_mline_index;
         plugin_->CallbackEvent(event);
+    }
+
+    void RtcServer::OnRemoteAudioTrack(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+        LOGI("OnRemoteAudioTrack: {}", track->id());
+        // 已有 sink(理论上一条连接只有一条上行音频轨),先清理
+        OnRemoteAudioTrackRemoved(remote_audio_track_);
+
+        // 播放走默认 ADM 自动外放;这里挂统计 sink 验证解码链路有数据
+        auto sink = RemoteAudioSink::Make();
+        track->AddSink(sink.get());
+        remote_audio_track_ = std::move(track);
+        remote_audio_sink_ = sink;
+        LOGI("Remote audio sink attached, browser mic will play via default ADM.");
+    }
+
+    void RtcServer::OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+        if (!remote_audio_sink_) {
+            return;
+        }
+        if (track && remote_audio_track_ && track->id() != remote_audio_track_->id()) {
+            return;
+        }
+        LOGI("OnRemoteAudioTrackRemoved");
+        if (remote_audio_track_) {
+            remote_audio_track_->RemoveSink(remote_audio_sink_.get());
+            remote_audio_track_ = nullptr;
+        }
+        remote_audio_sink_ = nullptr;
     }
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
@@ -346,6 +394,7 @@ namespace tc
 
     void RtcServer::Exit() {
         exit_ = true;
+        OnRemoteAudioTrackRemoved(remote_audio_track_);
         if (media_data_channel_) {
             media_data_channel_->Close();
         }

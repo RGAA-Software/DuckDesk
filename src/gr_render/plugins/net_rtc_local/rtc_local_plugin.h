@@ -7,6 +7,7 @@
 
 #include <map>
 #include <atomic>
+#include <mutex>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
 #include "rtc_local_encoded_frame.h"
@@ -66,6 +67,9 @@ namespace tc
 
     private:
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
+        // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
+        // webrtc 编码线程(PopEncodedVideoFrame)并发访问,必须加锁。
+        std::mutex encoded_video_frames_mtx_;
         std::unordered_map<uint16_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
         int64_t clear_baseline_timestamp_ = 0;
     };

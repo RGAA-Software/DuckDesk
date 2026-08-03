@@ -37,6 +37,30 @@ const handleCopyLink = async (index: number, device: Device) => {
   })
 }
 
+// 打开 render 托管的 Web 桌面(WebRTC 局域网直连页面)。
+// desktop_link: link://base64(json{did, ips[], rdpt, ...})
+const handleOpenWebDesktop = (index: number, device: Device) => {
+  try {
+    const raw = device.desktop_link.startsWith('link://')
+      ? device.desktop_link.substring(7)
+      : device.desktop_link
+    const info = JSON.parse(atob(raw))
+    // ips 元素可能是字符串,也可能是 {ip: "..."} 结构
+    const first = info.ips?.[0]
+    const ip = typeof first === 'string' ? first : first?.ip
+    const port = info.rdpt
+    if (!ip || !port) {
+      ElNotification({ message: '该设备的链接缺少 IP 或端口信息', type: 'error' })
+      return
+    }
+    const did = info.did || device.device_id
+    window.open(`http://${ip}:${port}/web_client/?deviceId=${did}`, '_blank', 'noopener,noreferrer')
+  } catch (e) {
+    console.error(e)
+    ElNotification({ message: '解析设备链接失败', type: 'error' })
+  }
+}
+
 const devices = ref<Device[]>([])
 // const tableRowClassName = ({ row, rowIndex }: { row: Device; rowIndex: number }) => {
 //   console.log('===> rowIndex: ', rowIndex, row)
@@ -273,6 +297,14 @@ const handleSearchDevices = async () => {
           <template #default="scope">
             <el-button size="small" @click="handleHardwareInfo(scope.$index, scope.row)">
               硬件
+            </el-button>
+
+            <el-button
+              size="small"
+              type="primary"
+              @click="handleOpenWebDesktop(scope.$index, scope.row)"
+            >
+              Web桌面
             </el-button>
 
             <el-button size="small" @click="handleActiveDevice(scope.$index, scope.row)">

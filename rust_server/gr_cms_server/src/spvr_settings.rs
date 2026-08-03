@@ -79,17 +79,24 @@ impl SpvrSettings {
         if ns.server_w3c_ip.is_empty() {
             tracing::warn!("server w3c_ip is empty, will read the machine info.");
 
-            let mut selected_ip = "".to_string();
-            let mut ip_array = Vec::new();
-            let ips = get_clean_ipv4_addresses();
-            if let Ok(ips) = ips {
-                for ip in ips {
-                    tracing::info!("===> IP: {}", ip.to_string());
-                    ip_array.push(ip.to_string());
+            // 优先用"首选真实 IPv4"(按 公网 > 192.168.1.x > 192.168.0.x > 10.0.0.x
+            // 排序),避免 VPN/虚拟网卡排在前面被选错;取不到再退回第一个干净 IP。
+            let mut selected_ip = match gr_base::ip_util::get_preferred_real_ipv4() {
+                Ok(Some(ip)) => ip.to_string(),
+                _ => String::new(),
+            };
+            if selected_ip.is_empty() {
+                let mut ip_array = Vec::new();
+                let ips = get_clean_ipv4_addresses();
+                if let Ok(ips) = ips {
+                    for ip in ips {
+                        tracing::info!("===> IP: {}", ip.to_string());
+                        ip_array.push(ip.to_string());
+                    }
                 }
-            }
-            if !ip_array.is_empty() {
-                selected_ip = ip_array[0].clone();
+                if !ip_array.is_empty() {
+                    selected_ip = ip_array[0].clone();
+                }
             }
             if selected_ip.is_empty() {
                 return;

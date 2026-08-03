@@ -2,6 +2,7 @@
 import iconLogo from '@/assets/ic_logo.png'
 
 import { Lock, MessageBox } from '@element-plus/icons-vue'
+import { IpGridNine } from 'vue-icons-plus/ip'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -34,6 +35,7 @@ const activeMenu = computed(() => {
     '/devices-list',
     'online-connection',
     '/connection-monitor',
+    '/video-wall',
     '/security-internal',
     '/events',
     '/user-manager',
@@ -88,6 +90,11 @@ const handleClickLogo = async () => {
       <el-menu-item index="/connection-monitor">
         <el-icon><Monitor /></el-icon>
         <span class="">连接监控</span>
+      </el-menu-item>
+
+      <el-menu-item index="/video-wall">
+        <el-icon><IpGridNine /></el-icon>
+        <span class="">多画面墙</span>
       </el-menu-item>
 
       <el-menu-item index="/security-internal">

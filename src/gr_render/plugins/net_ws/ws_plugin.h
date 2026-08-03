@@ -5,6 +5,7 @@
 #ifndef GAMMARAY_WS_PLUGIN_H
 #define GAMMARAY_WS_PLUGIN_H
 
+#include <mutex>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 
 namespace tc
@@ -44,12 +45,24 @@ namespace tc
         void OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) override;
         GrNetPlugin* GetLocalRtcPlugin();
 
+        // 记录当前编码输出的显示器名(Web 端输入回放需要 monitor_name)
+        void OnEncodedVideoFrame(const std::string& mon_name,
+                                 const GrPluginEncodedVideoType& video_type,
+                                 const std::shared_ptr<Data>& data,
+                                 uint64_t frame_index,
+                                 int frame_width,
+                                 int frame_height,
+                                 bool key) override;
+        std::string GetCapturingMonitorName();
+
     private:
         bool HasConnectedClients();
 
     private:
         std::shared_ptr<WsPluginServer> ws_server_ = nullptr;
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
+        std::mutex capturing_mon_mtx_;
+        std::string capturing_mon_name_;
     };
 
 }

@@ -1,4 +1,5 @@
 #include "rtc_video_encoder.h"
+#include <atomic>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "h264_sei_helper.h"
@@ -75,9 +76,8 @@ namespace tc
             if (!frame_types->empty()) {
                 if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
                     LOGI("Rtc request to insert an I Frame.");
-                    //plugin_->InsertIdr();
-                    //return WEBRTC_VIDEO_CODEC_OK;   // 为什么直接返回了呢？
-                    // to do inseridr
+                    // 请求主编码管线产一个 IDR,本次 Encode 继续等这个关键帧。
+                    plugin_->InsertIdr();
                 }
             }
         }
@@ -89,51 +89,10 @@ namespace tc
         }
 
         // to do encode
+        // 注意:这里不再对共享 NVENC/FrameCarrier 插件做重复 Init(旧代码每次
+        // Encode 都用假 monitor 名重置主编码器,会搞坏整条编码管线)。
+        // 本 encoder 只是"搬运工":等主编码管线产出同 frame_index 的编码帧。
 
-        tc::EncoderConfig encoder_config;
-        encoder_config.width = native_buffer->width();
-        encoder_config.height = native_buffer->height();
-        encoder_config.encode_width = native_buffer->width();
-        encoder_config.encode_height = native_buffer->height();
-
-        encoder_config.frame_resize = false;
-
-        encoder_config.codec_type = RdSettings::Instance()->encoder_.encoder_format_ == Encoder::EncoderFormat::kH264 ? tc::EVideoCodecType::kH264 : tc::EVideoCodecType::kHEVC;
-        encoder_config.enable_adaptive_quantization = true;
-        encoder_config.gop_size = -1;
-        encoder_config.quality_preset = 1;
-        // MUST have a value > 0
-        encoder_config.fps = RdSettings::Instance()->encoder_.fps_;
-        if (encoder_config.fps < 15 || encoder_config.fps > 120) {
-            encoder_config.fps = 60;
-        }
-        encoder_config.multi_pass = tc::ENvdiaEncMultiPass::kMultiPassDisabled;
-        encoder_config.rate_control_mode = tc::ERateControlMode::kRateControlModeCbr;
-        encoder_config.sample_desc_count = 1;
-        encoder_config.supports_intra_refresh = true;
-        encoder_config.texture_format = native_buffer->GetFrameFormat();
-        encoder_config.bitrate = RdSettings::Instance()->encoder_.bitrate_ * 1000000;
-        encoder_config.adapter_uid_ = native_buffer->GetAdapterUid();
-        encoder_config.enable_full_color_mode_ = false /*RdSettings::Instance()->EnableFullColorMode()*/;
-
-        //PrintEncoderConfig(encoder_config);
-
-        auto nvenc_plugin = static_cast<GrVideoEncoderPlugin*>(plugin_->GetPluginById(kNvencEncoderPluginId));
-        nvenc_plugin->Init(encoder_config, "monitor_name");
-
-        auto frame_carrier_plugin = static_cast<GrFrameCarrierPlugin*>(plugin_->GetPluginById(kFrameCarrierPluginId));
-        frame_carrier_plugin->InitFrameCarrier(GrCarrierParams{
-            .mon_name_ = "monitor_name",
-            .d3d_device_ = plugin_->d3d11_devices_[native_buffer->GetAdapterUid()],
-            .d3d_device_context_ = plugin_->d3d11_devices_context_[native_buffer->GetAdapterUid()],
-            .adapter_uid_ = native_buffer->GetAdapterUid(),
-            .enable_full_color_mode_ = false,
-        });
-
-
-
-
-        // noting
         auto beg_ts = TimeUtil::GetCurrentTimestamp();
         std::shared_ptr<RtcLocalEncodedVideoFrame> encoded_video_frame = nullptr;
         int try_count = 0;
@@ -147,28 +106,51 @@ namespace tc
             break;
         }
         if (!encoded_video_frame) {
-            plugin_->InsertIdr();
-            LOGE("Can't find video frame for index: {}, try : {}", frame.id(), try_count);
-            plugin_->PrintCachedVideoFrames();
-            return WEBRTC_VIDEO_CODEC_TIMEOUT;
+            // 主编码管线(可能因软编码较慢)还没有产出这一帧——静默丢帧即可,
+            // webrtc 会按实际产出节奏发送;不要反复 InsertIdr/返回 TIMEOUT。
+            static std::atomic_uint64_t drop_count = 0;
+            auto drops = ++drop_count;
+            if (drops == 1 || drops % 100 == 0) {
+                LOGW("drop frame, encoder pipeline behind, index: {}, total drops: {}", frame.id(), drops);
+            }
+            return WEBRTC_VIDEO_CODEC_OK;
         }
         plugin_->SetClearOlderFramesBaseline(encoded_video_frame->timestamp_);
         auto end_ts = TimeUtil::GetCurrentTimestamp();
         auto diff_ts = end_ts - beg_ts;
         //LOGI("wait frame used: {}ms, for index: {}", diff_ts, frame.id());
 
-        if (last_encoded_frame_index_ == 0) {
-            last_encoded_frame_index_ = frame.id();
-        }
-        auto diff_idx = frame.id() - last_encoded_frame_index_;
-        if (diff_idx > 1 && !encoded_video_frame->key_) {
-            LOGI("frame id not in sequence, current frame idx: {}, last frame index: {}, diff: {}", frame.id(), last_encoded_frame_index_, diff_idx);
-            plugin_->InsertIdr();
-            last_encoded_frame_index_ = 0;
-            return WEBRTC_VIDEO_CODEC_ERROR;
+        // 序号连续性以"编码帧自己的序号"为准(精确未命中时会回退取较新的缓存帧,
+        // webrtc 侧的 frame.id() 与编码序号不严格一致)。
+        auto encoded_idx = encoded_video_frame->frame_index_;
+
+        // 首帧策略:本 peer 尚未成功发出关键帧前,delta 帧一律丢弃——否则
+        // 浏览器拿到 delta 解码失败,只能等下一轮 PLI,首帧被拖慢十几秒。
+        if (mWaitIDRFrame && !encoded_video_frame->key_) {
+            static std::atomic_uint64_t pre_idr_drops = 0;
+            if (++pre_idr_drops % 100 == 1) {
+                LOGW("waiting first IDR, drop delta frame idx={} (total {})", encoded_idx, pre_idr_drops.load());
+            }
+            return WEBRTC_VIDEO_CODEC_OK;
         }
 
-        last_encoded_frame_index_ = frame.id();
+        if (last_encoded_frame_index_ == 0) {
+            last_encoded_frame_index_ = encoded_idx;
+        }
+        auto diff_idx = encoded_idx - last_encoded_frame_index_;
+        if (diff_idx > 1 && !encoded_video_frame->key_) {
+            // 编码序号跳变且不是关键帧:解码端无法接续,请主管线补 IDR,
+            // 本帧丢弃(返回 OK 静默),直到拿到关键帧再续。
+            LOGI("encoded frame idx gap, current: {}, last: {}, diff: {}, request IDR and drop", encoded_idx, last_encoded_frame_index_, diff_idx);
+            plugin_->InsertIdr();
+            last_encoded_frame_index_ = encoded_idx;
+            return WEBRTC_VIDEO_CODEC_OK;
+        }
+
+        last_encoded_frame_index_ = encoded_idx;
+        if (encoded_video_frame->key_) {
+            mWaitIDRFrame = false;
+        }
         // using
         webrtc::EncodedImage encodedImage;
         if (this->insert_timer_sei_) {

@@ -75,7 +75,24 @@ fn is_virtual_interface(interface_name: &str) -> bool {
         interface_lower.contains("wg") ||  // WireGuard
         interface_lower.contains("zerotier") ||
         interface_lower.contains("tailscale") ||
-        interface_lower.contains("openvpn")
+        interface_lower.contains("openvpn") ||
+        // 常见企业 VPN 客户端(深信服/奇安信/天融信/H3C/华为/思科/其他主流厂商)
+        interface_lower.contains("sangfor") ||
+        interface_lower.contains("easyconnect") ||
+        interface_lower.contains("sslvpn") ||
+        interface_lower.contains("secoclient") ||
+        interface_lower.contains("ruijie") ||
+        interface_lower.contains("inode") ||
+        interface_lower.contains("anyconnect") ||
+        interface_lower.contains("globalprotect") ||
+        interface_lower.contains("forticlient") ||
+        interface_lower.contains("pulse secure") ||
+        interface_lower.contains("cisco") ||
+        interface_lower.contains("wintun") ||
+        interface_lower.contains("qianxin") ||
+        interface_lower.contains("tianrongxin") ||
+        interface_lower.contains("uniagent") ||
+        interface_lower.contains("h3c")
     {
         //tracing::info!("2 IGNORE: {}", interface_name);
         return true;

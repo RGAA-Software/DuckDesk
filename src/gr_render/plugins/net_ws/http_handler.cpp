@@ -80,6 +80,8 @@ namespace tc
         obj["device_id"] = settings.device_id_;
         obj["relay_host"] = settings.relay_host_;
         obj["relay_port"] = std::atoi(settings.relay_port_.c_str());
+        // Web 端鼠标回放需要当前采集显示器名(event_replayer 按它定位坐标系)
+        obj["monitor_name"] = plugin_->GetCapturingMonitorName();
         SendOkJson(resp, obj.dump());
     }
 
@@ -98,6 +100,18 @@ namespace tc
         SendOkJson(resp, "");
     }
 
+    bool HttpHandler::VerifySafetyPassword(const std::unordered_map<std::string, std::string>& params) {
+        auto settings = plugin_->GetPluginSettingsInfo();
+        if (settings.device_safety_pwd_.empty()) {
+            return true;
+        }
+        auto value = GetParam(params, "safety_pwd_md5");
+        if (!value.has_value() || value.value().empty()) {
+            return false;
+        }
+        return settings.device_safety_pwd_ == value.value();
+    }
+
     void HttpHandler::HandleAllocLocalRtc(std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& resp) {
         auto& body = req.body();
         auto target = req.target();
@@ -108,6 +122,15 @@ namespace tc
              session_ptr->remote_address().c_str(), session_ptr->remote_port(),
              session_ptr->local_address().c_str(), session_ptr->local_port());
 
+        // verify security password first, same as /verify/security/password
+        auto params = GetQueryParams(req.query());
+        if (!VerifySafetyPassword(params)) {
+            resp.fill_json(WrapBasicInfo(kHandlerErrVerifySafetyPasswordFailed,
+                                         GetErrorMessage(kHandlerErrVerifySafetyPasswordFailed), std::string("")),
+                           http::status::forbidden);
+            return;
+        }
+
         std::string sdp;
         try {
             auto obj = nlohmann::json::parse(body);
@@ -117,7 +140,6 @@ namespace tc
             return;
         }
 
-        auto params = GetQueryParams(req.query());
         auto device_id = GetParam(params, "device_id");
         auto stream_id = GetParam(params, "stream_id");
         if (!device_id.has_value() || !stream_id.has_value() || sdp.empty()) {

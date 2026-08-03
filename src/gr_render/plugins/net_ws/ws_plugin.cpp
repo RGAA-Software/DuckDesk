@@ -195,4 +195,22 @@ namespace tc
         }
     }
 
+    void WsPlugin::OnEncodedVideoFrame(const std::string& mon_name,
+                                       const GrPluginEncodedVideoType& video_type,
+                                       const std::shared_ptr<Data>& data,
+                                       uint64_t frame_index,
+                                       int frame_width,
+                                       int frame_height,
+                                       bool key) {
+        if (!mon_name.empty()) {
+            std::lock_guard<std::mutex> lk(capturing_mon_mtx_);
+            capturing_mon_name_ = mon_name;
+        }
+    }
+
+    std::string WsPlugin::GetCapturingMonitorName() {
+        std::lock_guard<std::mutex> lk(capturing_mon_mtx_);
+        return capturing_mon_name_;
+    }
+
 }

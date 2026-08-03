@@ -12,6 +12,8 @@
 #include "tc_message_new/proto_converter.h"
 #include "tc_message_new/rp_proto_converter.h"
 #include "ws_plugin.h"
+#include "gr_render/plugins/plugin_ids.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 
 namespace tc
 {
@@ -91,6 +93,19 @@ namespace tc
 
         if (m.type() == tcrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
+            // 广播到所有网络插件:ws 走自身 PostProtoMessage;
+            // net 插件的 net_plugins_ 为空(plugin_manager 只给非 net 插件挂载),
+            // rtc/rtc_local 需经 total_plugins_ 按 id 找到后逐个投递(WebRTC 网页客户端走这里)
+            auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
+                plugin->PostProtoMessage(buffer, false);
+                for (const auto& id : { kNetRtcPluginId, kNetRtcLocalPluginId }) {
+                    if (auto p = plugin->GetPluginById(id); p && p != plugin) {
+                        if (auto np = dynamic_cast<GrNetPlugin*>(p)) {
+                            np->PostProtoMessage(buffer, false);
+                        }
+                    }
+                }
+            };
             if (clipboard_info.type() == tcrp::kRpClipboardText) {
                 LOGI("user-proxy clipboard text outbound, len={}", clipboard_info.msg().size());
                 tc::Message out;
@@ -98,7 +113,7 @@ namespace tc
                 auto sub = out.mutable_clipboard_info();
                 sub->set_type(ClipboardType::kClipboardText);
                 sub->set_msg(clipboard_info.msg());
-                plugin->PostProtoMessage(ProtoAsData(&out), false);
+                broadcast(ProtoAsData(&out));
             }
             else if (clipboard_info.type() == tcrp::kRpClipboardFiles && clipboard_info.files_size() > 0) {
                 LOGI("user-proxy clipboard files outbound, count={}", clipboard_info.files_size());
@@ -113,7 +128,7 @@ namespace tc
                     pf->set_ref_path(file.ref_path());
                     pf->set_total_size(file.total_size());
                 }
-                plugin->PostProtoMessage(ProtoAsData(&out), false);
+                broadcast(ProtoAsData(&out));
             }
             return;
         }

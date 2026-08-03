@@ -7,6 +7,7 @@
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
+#include "tc_common_new/time_util.h"
 #include "gr_render/plugins/plugin_ids.h"
 #include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "gr_render/plugin_interface/gr_plugin_context.h"
@@ -61,52 +62,64 @@ namespace tc
     void RtcLocalPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
         WaitForMediaChannelActive();
 
-        //rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-        //    srv->PostProtoMessage(msg, run_through);
-        //});
+        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            srv->PostProtoMessage(msg, run_through);
+        });
     }
 
     bool RtcLocalPlugin::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
         WaitForMediaChannelActive();
 
-        //rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-        //    srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
-        //});
+        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+        });
         return true;
     }
 
     bool RtcLocalPlugin::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        //auto queuing_msg_count = GetQueuingFtMsgCount();
-        //auto has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-        //auto wait_count = 0;
-        //while (queuing_msg_count > 256 ||  !has_buffer) {
-        //    TimeUtil::DelayBySleep(1);
-        //    has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-        //    queuing_msg_count = GetQueuingFtMsgCount();
-        //    wait_count++;
-        //}
-        //if (wait_count > 0) {
-        //    //LOGI("===> Send file wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
-        //}
-        //rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-        //    srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
-        //});
+        auto queuing_msg_count = GetQueuingFtMsgCount();
+        auto has_buffer = this->HasEnoughBufferForQueuingFtMessages();
+        auto wait_count = 0;
+        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
+            if (rtc_servers_.Empty()) {
+                LOGW("===> Send file, no alive rtc server, drop the message.");
+                return false;
+            }
+            TimeUtil::DelayBySleep(1);
+            has_buffer = this->HasEnoughBufferForQueuingFtMessages();
+            queuing_msg_count = GetQueuingFtMsgCount();
+            wait_count++;
+        }
+        if (wait_count >= 2000) {
+            LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+            return false;
+        }
+        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+        });
         return true;
     }
 
     void RtcLocalPlugin::WaitForMediaChannelActive() {
-        //auto queuing_msg_count = GetQueuingMediaMsgCount();
-        //auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
-        //auto wait_count = 0;
-        //while (queuing_msg_count > 256 ||  !has_buffer) {
-        //    TimeUtil::DelayBySleep(1);
-        //    has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
-        //    queuing_msg_count = GetQueuingMediaMsgCount();
-        //    wait_count++;
-        //}
-        //if (wait_count > 0) {
-        //    LOGI("===> Send media wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
-        //}
+        auto queuing_msg_count = GetQueuingMediaMsgCount();
+        auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
+        auto wait_count = 0;
+        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
+            if (rtc_servers_.Empty()) {
+                LOGW("===> Send media, no alive rtc server, drop the message.");
+                return;
+            }
+            TimeUtil::DelayBySleep(1);
+            has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
+            queuing_msg_count = GetQueuingMediaMsgCount();
+            wait_count++;
+        }
+        if (wait_count >= 2000) {
+            LOGW("===> Send media timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+        }
+        else if (wait_count > 0) {
+            LOGI("===> Send media wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
+        }
     }
 
     int RtcLocalPlugin::GetConnectedClientsCount() {
@@ -160,6 +173,13 @@ namespace tc
                              int frame_width,
                              int frame_height,
                              bool key) {
+        // 诊断:确认编码帧是否到达本插件(每 300 帧打一条)
+        static std::atomic_uint64_t encoded_frame_count = 0;
+        auto ecnt = ++encoded_frame_count;
+        if (ecnt == 1 || ecnt % 300 == 0) {
+            LOGI("OnEncodedVideoFrame #{}, idx={}, key={}, cache={}", ecnt, frame_index, key, encoded_video_frames_.size());
+        }
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         // clear old ones
         if (clear_baseline_timestamp_ > 0) {
             auto it = encoded_video_frames_.begin();
@@ -173,22 +193,28 @@ namespace tc
             }
         }
 
-        //auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
-        //encoded_video_frame->mon_name_ = mon_name;
-        //encoded_video_frame->video_type_ = (int)video_type;
-        //encoded_video_frame->data_ = data;
-        //encoded_video_frame->frame_index_ = frame_index;
-        //encoded_video_frame->frame_width_ = frame_width;
-        //encoded_video_frame->frame_height_ = frame_height;
-        //encoded_video_frame->key_ = key;
-        //encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        //encoded_video_frames_.insert({frame_index, encoded_video_frame});
+        auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
+        encoded_video_frame->mon_name_ = mon_name;
+        encoded_video_frame->video_type_ = (int)video_type;
+        encoded_video_frame->data_ = data;
+        encoded_video_frame->frame_index_ = frame_index;
+        encoded_video_frame->frame_width_ = frame_width;
+        encoded_video_frame->frame_height_ = frame_height;
+        encoded_video_frame->key_ = key;
+        encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+        encoded_video_frames_.insert({frame_index, encoded_video_frame});
 
     }
 
     // raw video frame
     // handle: D3D Shared texture handle
     void RtcLocalPlugin::OnRawVideoFrameSharedTexture(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
+        // 诊断:确认采集帧是否到达本插件(每 300 帧打一条)
+        static std::atomic_uint64_t raw_frame_count = 0;
+        auto cnt = ++raw_frame_count;
+        if (cnt == 1 || cnt % 300 == 0) {
+            LOGI("OnRawVideoFrameSharedTexture #{}, idx={}, {}x{}, handle={}, servers={}", cnt, frame_idx, frame_width, frame_height, handle, rtc_servers_.Size());
+        }
         rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
             rtc_server->OnNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
         });
@@ -207,21 +233,32 @@ namespace tc
     }
 
     std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index) {
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         if (encoded_video_frames_.contains(frame_index)) {
             auto encoded_frame = encoded_video_frames_[frame_index];
             encoded_video_frames_.erase(frame_index);
+            return encoded_frame;
+        }
+        // 精确序号未命中(编码管线比采集慢时会一直落空):退而取缓存里最新的一帧,
+        // 让 webrtc 以编码器的实际产出速率发送,而不是永远等 future 帧。
+        if (!encoded_video_frames_.empty()) {
+            auto it = std::prev(encoded_video_frames_.end());
+            auto encoded_frame = it->second;
+            encoded_video_frames_.erase(it);
             return encoded_frame;
         }
         return nullptr;
     }
 
     void RtcLocalPlugin::PrintCachedVideoFrames() {
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         for (const auto& [frame_idx, frame] : encoded_video_frames_) {
             LOGI("=> frame idx: {} , key: {}", frame_idx, frame->key_);
         }
     }
 
     void RtcLocalPlugin::SetClearOlderFramesBaseline(int64_t baseline_timestamp) {
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         clear_baseline_timestamp_ = baseline_timestamp;
     }
 

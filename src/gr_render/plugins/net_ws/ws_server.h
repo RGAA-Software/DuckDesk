@@ -47,6 +47,7 @@ namespace tc
     private:
         void AddUserProxyRouter();
         void AddWebsocketRouter(const std::string& path);
+        void AddWebClientRouter();
 
         void AddHttpRouter(const std::string& path,
                            std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback);

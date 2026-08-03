@@ -222,6 +222,21 @@ def main():
     if os.path.isfile(joystick_src):
         copy_file(joystick_src, os.path.join(dist_dir, "joystick.exe"))
 
+    # ------------------------------------------------------------------
+    # 9. Web client pages (frontend build output)  →  dist/web_client/
+    # ------------------------------------------------------------------
+    web_client_src = os.path.join(source_dir, "web", "gr_web_client", "dist")
+    if os.path.isdir(web_client_src):
+        web_client_dst = os.path.join(dist_dir, "web_client")
+        for root, dirs, files in os.walk(web_client_src):
+            rel_root = os.path.relpath(root, web_client_src)
+            dst_root = os.path.join(web_client_dst, rel_root) if rel_root != "." else web_client_dst
+            os.makedirs(dst_root, exist_ok=True)
+            for f in files:
+                shutil.copy2(os.path.join(root, f), os.path.join(dst_root, f))
+    else:
+        print(f"  - skip web_client (not found): {web_client_src}")
+
     print(f"\nDone. Dist folder: {dist_dir}")
 
 
