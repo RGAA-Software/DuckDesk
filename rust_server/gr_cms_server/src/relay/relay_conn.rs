@@ -116,6 +116,16 @@ impl RelayConn {
             m.from_device_id,
             self.client_net_info
         );
+        // 回复 kRelayHello:客户端 SDK 以此触发 hello 回调,panel 的中转指示灯
+        // 依赖这条回执(relay alive 时间戳)。
+        let reply = RelayMessage {
+            from_device_id: self.device_id.clone(),
+            r#type: relay::RelayMessageType::KRelayHello as i32,
+            hello: Some(relay::RelayHello { net_info: vec![] }),
+            ..Default::default()
+        };
+        use prost::Message as ProstMessage;
+        self.send_bin_message(Bytes::from(reply.encode_to_vec())).await;
     }
 
     pub async fn on_heartbeat(&mut self, m: RelayMessage) {
@@ -126,6 +136,19 @@ impl RelayConn {
             gRelayRoomMgr
                 .on_heartbeat_for_my_room(m.from_device_id)
                 .await;
+            // 回执心跳(kRelayHeartBeat,携带原 index):客户端用它更新
+            // relay alive 时间戳。不回的话 panel 的中转/中转文件灯永远红。
+            let reply = RelayMessage {
+                from_device_id: self.device_id.clone(),
+                r#type: relay::RelayMessageType::KRelayHeartBeat as i32,
+                heartbeat: Some(relay::RelayHeartBeat {
+                    index: heartbeat.index,
+                    net_info: vec![],
+                }),
+                ..Default::default()
+            };
+            use prost::Message as ProstMessage;
+            self.send_bin_message(Bytes::from(reply.encode_to_vec())).await;
         }
     }
 
