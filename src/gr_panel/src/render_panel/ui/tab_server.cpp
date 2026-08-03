@@ -824,24 +824,22 @@ namespace tc
                 auto sid = "server_" + device_id;
                 auto ts = stat_->GetRelayLastUpdateTimestamp(sid);
                 //LOGI("relay alive: {}, ts: {}, diff: {}ms", sid, ts, (current_ts - ts));
-                if (current_ts - ts < max_duration) {
-                    // alive
-                    relay_indicator_->SetState(TcCircleIndicator::State::kOk);
+                bool alive = current_ts - ts < max_duration;
+                if (alive != last_relay_alive_) {
+                    LOGI("relay indicator [{}] => {}", sid, alive ? "OK" : "ERROR");
+                    last_relay_alive_ = alive;
                 }
-                else {
-                    relay_indicator_->SetState(TcCircleIndicator::State::kError);
-                }
+                relay_indicator_->SetState(alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
             }
             {
                 auto sid = "ft_server_" + device_id;
                 auto ts = stat_->GetRelayLastUpdateTimestamp(sid);
-                if (current_ts - ts < max_duration) {
-                    // alive
-                    relay_ft_indicator_->SetState(TcCircleIndicator::State::kOk);
+                bool alive = current_ts - ts < max_duration;
+                if (alive != last_relay_ft_alive_) {
+                    LOGI("relay indicator [{}] => {}", sid, alive ? "OK" : "ERROR");
+                    last_relay_ft_alive_ = alive;
                 }
-                else {
-                    relay_ft_indicator_->SetState(TcCircleIndicator::State::kError);
-                }
+                relay_ft_indicator_->SetState(alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
             }
         }
         else {

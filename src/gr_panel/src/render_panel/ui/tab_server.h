@@ -68,6 +68,9 @@ namespace tc
         TcCircleIndicator* spvr_indicator_ = nullptr;
         TcCircleIndicator* relay_indicator_ = nullptr;
         TcCircleIndicator* relay_ft_indicator_ = nullptr;
+        // last computed alive state, for transition-only logging
+        bool last_relay_alive_ = false;
+        bool last_relay_ft_alive_ = false;
     };
 }
 
