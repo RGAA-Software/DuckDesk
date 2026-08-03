@@ -34,8 +34,8 @@ namespace tc
         int64_t GetQueuingFtMsgCount() override;
         bool HasEnoughBufferForQueuingMediaMessages() override;
         bool HasEnoughBufferForQueuingFtMessages() override;
-        bool AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
-                                      std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) override;
+        GrLocalRtcAllocResult AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
+                                                       std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) override;
 
         // data: encode video frame, h264/h265/...
         void OnEncodedVideoFrame(const std::string& mon_name,

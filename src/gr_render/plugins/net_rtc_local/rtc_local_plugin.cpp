@@ -262,14 +262,20 @@ namespace tc
         clear_baseline_timestamp_ = baseline_timestamp;
     }
 
-    bool RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,
-                                                  std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
+    GrLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,
+                                                                   std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
-        LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}", conn_id, req->sdp_.size());
+        LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
         auto opt_rtc_server = rtc_servers_.TryGet(conn_id);
         if (opt_rtc_server.has_value()) {
+            auto old_server = opt_rtc_server.value();
+            // 旧连接的 datachannel 仍活跃且调用方未确认接管:报告占用,由客户端决定
+            if (!req->takeover_ && old_server->IsDataChannelConnected()) {
+                LOGW("** Occupied by an active connection: {}", conn_id);
+                return GrLocalRtcAllocResult::kOccupied;
+            }
             LOGI("** Remove old one.");
-            opt_rtc_server.value()->Exit();
+            old_server->Exit();
             rtc_servers_.Remove(conn_id);
         }
 
@@ -286,7 +292,7 @@ namespace tc
         rtc_servers_.Insert(conn_id, rtc_server);
         LOGI("Insert to map, will return information");
 
-        return true;
+        return GrLocalRtcAllocResult::kOk;
     }
 
     std::string RtcLocalPlugin::AddCandidateIpToAnswer(const std::string& ip,const std::string& answer) {

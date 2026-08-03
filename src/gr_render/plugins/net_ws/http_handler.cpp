@@ -17,6 +17,7 @@ namespace tc
     constexpr auto kHandlerErrNoSafetyPasswordInRenderer = 701;
     constexpr auto kHandlerErrNoRtcLocalPlugin = 702;
     constexpr auto kHandlerErrCreateRtcLocalServerFailed = 703;
+    constexpr auto kHandlerErrRtcLocalOccupied = 704;
 
     HttpHandler::HttpHandler(WsPlugin* plugin) {
         this->plugin_ = plugin;
@@ -34,6 +35,9 @@ namespace tc
         }
         else if (code == kHandlerErrCreateRtcLocalServerFailed) {
             return "Create Rtc local server failed";
+        }
+        else if (code == kHandlerErrRtcLocalOccupied) {
+            return "Rtc local connection occupied";
         }
         return BaseHandler::GetErrorMessage(code);
     }
@@ -185,6 +189,10 @@ namespace tc
         rtc_req->req_ip_ = session_ptr->remote_address();
         rtc_req->sdp_ = sdp;
         rtc_req->content_type_ = content_type;
+        // takeover=1: 客户端已确认接管,直接顶掉同 stream_id 的现存连接
+        if (auto param = GetParam(params, "takeover"); param.has_value()) {
+            rtc_req->takeover_ = (param.value() == "1" || param.value() == "true");
+        }
 
         std::mutex cv_mtx;
         std::condition_variable cv;
@@ -193,7 +201,11 @@ namespace tc
             reply_info = reply;
             cv.notify_all();
         });
-        if (!r) {
+        if (r == GrLocalRtcAllocResult::kOccupied) {
+            SendErrorJson(resp, kHandlerErrRtcLocalOccupied);
+            return;
+        }
+        if (r != GrLocalRtcAllocResult::kOk) {
             SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
             return;
         }

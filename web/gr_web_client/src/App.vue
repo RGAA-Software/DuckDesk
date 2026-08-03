@@ -14,10 +14,12 @@ import { TlvReassembler } from './rtc/tlv'
 import FloatToolbar from './FloatToolbar.vue'
 
 // ---------- 信令契约(对齐 render net_ws http_handler.cpp)----------
-// POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)
+// POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)[&takeover=1]
 // 请求体: { "sdp": "<offer>" }
 // 响应: { "code":200, "message":"ok", "data": { "answer_sdp": "..." } }
+// code=704(kHandlerErrRtcLocalOccupied): 同 stream_id 已有活跃连接,需用户确认后带 takeover=1 重试
 const SIGNAL_URL = '/alloc/local/rtc'
+const SIGNAL_CODE_OCCUPIED = 704
 const DATA_CHANNEL_LABEL = 'media_data_channel' // render 端按此名字识别(rtc_server.cpp:81)
 const FT_DATA_CHANNEL_LABEL = 'ft_data_channel' // 文件传输通道(rtc_server.cpp:90)
 const ICE_GATHER_TIMEOUT_MS = 10000
@@ -99,6 +101,13 @@ const form = reactive({
   streamId: '',
   password: '',
 })
+
+// 流 ID 固定由设备 ID 派生,不允许随意填写:同一台设备的 stream_id 恒定,
+// 新连接会在 render 端顶掉同 stream_id 的旧连接(单路独占)。
+// 设备 ID 变化时自动联动更新。
+watch(() => form.deviceId, (id) => {
+  form.streamId = id ? `web_${id}` : ''
+}, { immediate: true })
 
 const status = ref<ConnStatus>('idle')
 const errorMsg = ref('')
@@ -446,25 +455,22 @@ function addLog(msg: string) {
   if (logs.value.length > 200) logs.value.shift()
 }
 
-// 从 URL query 带入参数:?deviceId=&streamId=&password=(明文)或 &pwd_md5=(预哈希)
-// deviceId + streamId + 密码(任一形式)齐全时自动连接
+// 从 URL query 带入参数:?deviceId=&password=(明文)或 &pwd_md5=(预哈希)
+// deviceId + 密码(任一形式)齐全时自动连接;流 ID 由设备 ID 派生,不从 URL 带入
 const pwdMd5Override = ref('')
 
 function loadQueryParams() {
   const q = new URLSearchParams(window.location.search)
   form.deviceId = q.get('deviceId') ?? ''
-  form.streamId = q.get('streamId') ?? ''
   form.password = q.get('password') ?? ''
   pwdMd5Override.value = q.get('pwd_md5') ?? ''
-  // URL 未带齐参数时用上次成功连接的 deviceId/streamId 预填(不存密码)
-  if (!form.deviceId || !form.streamId) {
+  // URL 未带设备 ID 时用上次成功连接的设备 ID 预填(不存密码)
+  if (!form.deviceId) {
     try {
       const last = JSON.parse(localStorage.getItem(LS_LAST_CONN) ?? '{}') as {
         deviceId?: string
-        streamId?: string
       }
-      if (!form.deviceId && last.deviceId) form.deviceId = last.deviceId
-      if (!form.streamId && last.streamId) form.streamId = last.streamId
+      if (last.deviceId) form.deviceId = last.deviceId
     } catch {
       /* localStorage 不可用或数据损坏时忽略 */
     }
@@ -545,8 +551,8 @@ function cleanup() {
 }
 
 async function connect() {
-  if (!form.deviceId || !form.streamId) {
-    errorMsg.value = '请填写设备 ID 和流 ID'
+  if (!form.deviceId) {
+    errorMsg.value = '请填写设备 ID'
     status.value = 'failed'
     return
   }
@@ -646,27 +652,43 @@ async function connect() {
     const localDesc = pc.localDescription
     if (!localDesc?.sdp) throw new Error('本地 SDP 为空')
 
-    const query = new URLSearchParams({
-      device_id: form.deviceId,
-      stream_id: form.streamId,
-      safety_pwd_md5: effectivePwdMd5(),
-    })
-    const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sdp: localDesc.sdp }),
-    })
-    if (!resp.ok) throw new Error(`信令请求失败: HTTP ${resp.status}`)
-    const result = (await resp.json()) as {
-      code?: number
-      message?: string
-      data?: { answer_sdp?: string }
+    // 发信令拿 answer;返回空字符串表示"连接被占用"(code 704),由调用方决定接管或放弃
+    const postSignal = async (takeover: boolean): Promise<string> => {
+      const query = new URLSearchParams({
+        device_id: form.deviceId,
+        stream_id: form.streamId,
+        safety_pwd_md5: effectivePwdMd5(),
+      })
+      if (takeover) query.set('takeover', '1')
+      const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sdp: localDesc.sdp }),
+      })
+      if (!resp.ok) throw new Error(`信令请求失败: HTTP ${resp.status}`)
+      const result = (await resp.json()) as {
+        code?: number
+        message?: string
+        data?: { answer_sdp?: string }
+      }
+      if (result.code === SIGNAL_CODE_OCCUPIED) return ''
+      if (result.code !== 200) {
+        throw new Error(`信令被拒: ${result.message ?? `code=${result.code}`}`)
+      }
+      const answer = result.data?.answer_sdp
+      if (!answer) throw new Error('信令响应缺少 answer_sdp')
+      return answer
     }
-    if (result.code !== 200) {
-      throw new Error(`信令被拒: ${result.message ?? `code=${result.code}`}`)
+
+    let answerSdp = await postSignal(false)
+    if (!answerSdp) {
+      // 该设备已有活跃连接:询问是否接管,同意则顶掉对方
+      if (!window.confirm('该设备当前已有连接在线,是否接管?(对方的连接将被断开)')) {
+        throw new Error('设备已被连接,未接管')
+      }
+      addLog('连接被占用,用户确认接管,带 takeover 重新发起信令')
+      answerSdp = await postSignal(true)
     }
-    const answerSdp = result.data?.answer_sdp
-    if (!answerSdp) throw new Error('信令响应缺少 answer_sdp')
 
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     addLog('已设置远端 answer,等待连接建立')
@@ -749,8 +771,8 @@ onMounted(() => {
   exposeClipboardPerfDebug()
   exposeInputConnDebug()
   document.addEventListener('pointerlockchange', onPointerLockChange)
-  // 参数齐全时自动连接(便于 CMS 跳转/无头测试)
-  if (form.deviceId && form.streamId && effectivePwdMd5()) {
+  // 参数齐全时自动连接(便于 CMS 跳转/无头测试);流 ID 已由设备 ID 派生
+  if (form.deviceId && effectivePwdMd5()) {
     manualConnect()
   }
 })
@@ -781,7 +803,9 @@ onBeforeUnmount(() => {
           <el-input v-model="form.deviceId" placeholder="deviceId" style="width: 140px" />
         </el-form-item>
         <el-form-item label="流 ID">
-          <el-input v-model="form.streamId" placeholder="streamId" style="width: 140px" />
+          <el-tooltip content="由设备 ID 自动生成,同一设备同时只允许一路连接" placement="bottom">
+            <el-input v-model="form.streamId" readonly placeholder="由设备 ID 生成" style="width: 140px" />
+          </el-tooltip>
         </el-form-item>
         <el-form-item label="密码">
           <el-input

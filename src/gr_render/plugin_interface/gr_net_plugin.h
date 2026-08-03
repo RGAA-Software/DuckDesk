@@ -45,6 +45,17 @@ namespace tc
         std::string req_ip_;
         std::string sdp_;
         GrLocalRtcContentType content_type_;
+        // true: 调用方已确认接管,直接顶掉同 stream_id 的现存连接;
+        // false: 若现存连接仍活跃,返回 kOccupied 让调用方去确认
+        bool takeover_ = false;
+    };
+
+    // alloc result of a local rtc instance
+    enum class GrLocalRtcAllocResult {
+        kOk,
+        // 同 stream_id 的连接仍在活跃,且未指定 takeover
+        kOccupied,
+        kFailed,
     };
 
     // local webrtc reply info
@@ -112,9 +123,9 @@ namespace tc
         virtual std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo();
 
         // alloc a new local rtc server
-        virtual bool AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
-                                              std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
-            return false;
+        virtual GrLocalRtcAllocResult AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
+                                                               std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
+            return GrLocalRtcAllocResult::kFailed;
         }
 
         // message ack
