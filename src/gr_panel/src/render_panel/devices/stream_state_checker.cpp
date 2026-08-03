@@ -15,7 +15,6 @@
 #include "render_panel/gr_settings.h"
 #include "render_panel/gr_application.h"
 #include "tc_spvr_client/spvr_device_api.h"
-#include "tc_spvr_client/spvr_device.h"
 
 namespace tc
 {
@@ -71,18 +70,14 @@ namespace tc
             }
 
             // check spvr
+            // online == the device holds a live panel connection to the spvr server,
+            // NOT just a registered record in the database.
             item->spvr_online_ = false;
             if (!item->remote_device_id_.empty()) {
-                auto opt_device = spvr::SpvrDeviceApi::QueryDevice(settings_->GetSpvrServerHost(),
-                                                                   settings_->GetSpvrServerPort(),
-                                                                   grApp->GetAppkey(),
-                                                                   item->remote_device_id_);
-                if (opt_device.has_value()) {
-                    auto device = opt_device.value();
-                    if (device && device->device_id_ == item->remote_device_id_) {
-                        item->spvr_online_ = true;
-                    }
-                }
+                item->spvr_online_ = spvr::SpvrDeviceApi::IsDeviceOnline(settings_->GetSpvrServerHost(),
+                                                                         settings_->GetSpvrServerPort(),
+                                                                         grApp->GetAppkey(),
+                                                                         item->remote_device_id_);
             }
         }
 
