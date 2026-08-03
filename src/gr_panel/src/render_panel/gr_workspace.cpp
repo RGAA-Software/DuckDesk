@@ -92,8 +92,28 @@ namespace tc
         sys_tray_icon_->show();
         connect(sys_tray_icon_, &QSystemTrayIcon::activated, this, [=, this](QSystemTrayIcon::ActivationReason reason) {
             if (QSystemTrayIcon::ActivationReason::DoubleClick == reason || QSystemTrayIcon::ActivationReason::Trigger == reason) {
-                this->showNormal();
+#ifdef WIN32
+                auto hwnd = (HWND)this->winId();
+                ShowWindow(hwnd, SW_RESTORE);
+#endif
+                this->setWindowState((this->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+                this->show();
                 this->raise();
+                this->activateWindow();
+#ifdef WIN32
+                auto fore = GetForegroundWindow();
+                if (fore) {
+                    auto fore_tid = GetWindowThreadProcessId(fore, nullptr);
+                    auto cur_tid = GetCurrentThreadId();
+                    AttachThreadInput(cur_tid, fore_tid, TRUE);
+                    SetForegroundWindow(hwnd);
+                    BringWindowToTop(hwnd);
+                    AttachThreadInput(cur_tid, fore_tid, FALSE);
+                } else {
+                    SetForegroundWindow(hwnd);
+                    BringWindowToTop(hwnd);
+                }
+#endif
             }
         });
 

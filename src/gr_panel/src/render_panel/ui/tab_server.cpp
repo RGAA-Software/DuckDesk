@@ -19,6 +19,8 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDesktopServices>
+#include <QUrl>
 #include "render_panel/gr_context.h"
 #include "render_panel/gr_settings.h"
 #include "render_panel/gr_app_messages.h"
@@ -345,7 +347,8 @@ namespace tc
                 auto msg = new QLineEdit(this);
                 lbl_detailed_info_ = msg;
                 msg->setAlignment(Qt::AlignLeft);
-                msg->setFixedWidth(330);
+                msg->setMinimumWidth(210);
+                msg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
                 msg->setFixedHeight(35);
                 auto info = std::format("link://{}", Base64::Base64Encode(context_->MakeDesktopLinkMessage()));
                 msg->setText(info.c_str());
@@ -354,17 +357,83 @@ namespace tc
                 msg->setEnabled(false);
                 layout->addWidget(msg);
 
-                layout->addSpacing(8);
+                layout->addSpacing(7);
 
                 auto btn_conn = new TcPushButton();
                 btn_conn->SetTextId("id_copy");
-                btn_conn->setFixedWidth(80);
+                btn_conn->setFixedWidth(55);
                 btn_conn->setFixedHeight(35);
                 layout->addWidget(btn_conn);
                 connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
                     QClipboard* clipboard = QApplication::clipboard();
                     clipboard->setText(msg->text());
                     context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
+                });
+
+                left_root->addSpacing(5);
+                left_root->addLayout(layout);
+            }
+
+            // Web client 网页客户端地址(可复制的直连 URL)
+            {
+                left_root->addSpacing(13);
+
+                {
+                    auto layout = new NoMarginHLayout();
+                    layout->setAlignment(Qt::AlignVCenter);
+
+                    auto title = new TcLabel(this);
+                    title->setFixedWidth(160);
+                    title->SetTextId("id_web_client_addr");
+                    title->setAlignment(Qt::AlignLeft);
+                    title->setStyleSheet(R"(font-size: 12px; font-weight:500;)");
+                    layout->addWidget(title, 0, Qt::AlignLeft);
+
+                    left_root->addLayout(layout);
+                }
+
+                auto layout = new NoMarginHLayout();
+                auto msg = new QLineEdit(this);
+                msg->setAlignment(Qt::AlignLeft);
+                msg->setMinimumWidth(210);
+                msg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+                msg->setFixedHeight(35);
+                std::string ip;
+                auto ips = context_->GetIps();
+                if (!ips.empty()) {
+                    ip = ips[0].ip_addr_;
+                }
+                auto url = std::format("http://{}:{}/web_client/?deviceId={}&password={}",
+                                       ip, settings_->GetRenderServerPort(), settings_->GetDeviceId(),
+                                       settings_->GetDeviceRandomPwd());
+                msg->setText(url.c_str());
+                msg->setCursorPosition(0);
+                msg->setStyleSheet(R"(font-size: 12px; padding-left: 5px; font-weight: 500; color: #2979ff;)");
+                msg->setEnabled(false);
+                layout->addWidget(msg);
+
+                layout->addSpacing(7);
+
+                auto btn_conn = new TcPushButton();
+                btn_conn->SetTextId("id_copy");
+                btn_conn->setFixedWidth(55);
+                btn_conn->setFixedHeight(35);
+                layout->addWidget(btn_conn);
+                connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
+                    QClipboard* clipboard = QApplication::clipboard();
+                    clipboard->setText(msg->text());
+                    context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
+                });
+
+                layout->addSpacing(6);
+
+                auto btn_open = new TcPushButton();
+                btn_open->SetTextId("id_open");
+                btn_open->setFixedWidth(55);
+                btn_open->setFixedHeight(35);
+                layout->addWidget(btn_open);
+                connect(btn_open, &QPushButton::clicked, this, [=, this]() {
+                    QDesktopServices::openUrl(QUrl(msg->text()));
                 });
 
                 left_root->addSpacing(5);

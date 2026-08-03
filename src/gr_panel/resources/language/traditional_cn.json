@@ -461,5 +461,7 @@
   "id_state_relay": "中轉",
   "id_state_spvr": "管理服務",
   "id_state_available": "可用",
-  "id_state_unavailable": "不可用"
+  "id_state_unavailable": "不可用",
+  "id_web_client_addr": "網頁客戶端",
+  "id_open": "打開"
 }

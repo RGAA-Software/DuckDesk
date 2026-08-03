@@ -488,5 +488,7 @@
   "id_state_relay": "中转",
   "id_state_spvr": "管理服务",
   "id_state_available": "可用",
-  "id_state_unavailable": "不可用"
+  "id_state_unavailable": "不可用",
+  "id_web_client_addr": "网页客户端",
+  "id_open": "打开"
 }

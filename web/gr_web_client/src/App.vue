@@ -14,7 +14,7 @@ import { TlvReassembler } from './rtc/tlv'
 import FloatToolbar from './FloatToolbar.vue'
 
 // ---------- 信令契约(对齐 render net_ws http_handler.cpp)----------
-// POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码)
+// POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)
 // 请求体: { "sdp": "<offer>" }
 // 响应: { "code":200, "message":"ok", "data": { "answer_sdp": "..." } }
 const SIGNAL_URL = '/alloc/local/rtc'
@@ -783,7 +783,7 @@ onBeforeUnmount(() => {
         <el-form-item label="流 ID">
           <el-input v-model="form.streamId" placeholder="streamId" style="width: 140px" />
         </el-form-item>
-        <el-form-item label="安全密码">
+        <el-form-item label="密码">
           <el-input
             v-model="form.password"
             type="password"

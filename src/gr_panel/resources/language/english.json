@@ -488,5 +488,7 @@
   "id_state_relay": "Relay",
   "id_state_spvr": "Manager",
   "id_state_available": "Available",
-  "id_state_unavailable": "Unavailable"
+  "id_state_unavailable": "Unavailable",
+  "id_web_client_addr": "Web Client",
+  "id_open": "Open"
 }

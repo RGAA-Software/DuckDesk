@@ -102,14 +102,27 @@ namespace tc
 
     bool HttpHandler::VerifySafetyPassword(const std::unordered_map<std::string, std::string>& params) {
         auto settings = plugin_->GetPluginSettingsInfo();
-        if (settings.device_safety_pwd_.empty()) {
+        if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
             return true;
         }
         auto value = GetParam(params, "safety_pwd_md5");
         if (!value.has_value() || value.value().empty()) {
             return false;
         }
-        return settings.device_safety_pwd_ == value.value();
+        // 安全密码:存的就是 MD5,直接比对
+        if (!settings.device_safety_pwd_.empty() && settings.device_safety_pwd_ == value.value()) {
+            return true;
+        }
+        // 临时(随机)密码:存的是明文,兼容"前端 md5 后传入"和"直接传明文"两种形式
+        if (!settings.device_random_pwd_.empty()) {
+            if (settings.device_random_pwd_ == value.value()) {
+                return true;
+            }
+            if (MD5::Hex(settings.device_random_pwd_) == value.value()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void HttpHandler::HandleAllocLocalRtc(std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& resp) {
