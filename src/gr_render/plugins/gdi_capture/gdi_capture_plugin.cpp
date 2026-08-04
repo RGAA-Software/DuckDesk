@@ -69,7 +69,7 @@ namespace tc
         if (name.empty()) {
             use_default_monitor = true;
         }
-        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}", name, use_default_monitor);
+        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
 
         if (!IsWorking()) {
             return;
@@ -155,7 +155,8 @@ namespace tc
             capture->RefreshScreen();
             capture->TryWakeOs();
         }
-        LOGI("OnNewClientConnected!");
+        // 注意:此事件会广播给所有采集插件,不代表本插件是当前激活的采集器
+        LOGI("OnNewClientConnected! (broadcast event, working: {})", IsWorking());
         NotifyCaptureMonitorInfo();
 
         SetCaptureMonitor(capturing_monitor_name_);

@@ -12,6 +12,8 @@
 #include "gr_plugin_context.h"
 #include "tc_common_new/snowflake_id.h"
 #include <tc_common_new/string_util.h>
+#include "tc_common_new/time_util.h"
+#include <atomic>
 
 extern "C"
 {
@@ -278,22 +280,50 @@ namespace tc
         return !net_plugins_.empty();
     }
 
+    // 单插件投递耗时超过该阈值时告警:net 插件串行分发,任一插件在分发线程上
+    // 阻塞都会拖垮整条媒体管线(曾因此导致 render 整体假死)。告警限频,每 10s 一条。
+    static constexpr int64_t kSlowPluginDispatchThresholdMs = 200;
+    static std::atomic<int64_t> last_slow_dispatch_log_ts = 0;
+
+    static void LogSlowPluginDispatch(const std::string& plugin_id, const char* api, int64_t cost_ms) {
+        auto now = (int64_t)tc::TimeUtil::GetCurrentTimestamp();
+        auto last = last_slow_dispatch_log_ts.load();
+        if (now - last >= 10000 && last_slow_dispatch_log_ts.compare_exchange_strong(last, now)) {
+            LOGW("Slow net plugin dispatch: {} cost {}ms in {}", plugin_id, cost_ms, api);
+        }
+    }
+
     void GrPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
+            auto begin = tc::TimeUtil::GetCurrentTimestamp();
             plugin->PostProtoMessage(msg, run_through);
+            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            if (cost > kSlowPluginDispatchThresholdMs) {
+                LogSlowPluginDispatch(plugin_id, "PostProtoMessage", cost);
+            }
         }
     }
 
     void GrPluginInterface::DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
+            auto begin = tc::TimeUtil::GetCurrentTimestamp();
             plugin->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            if (cost > kSlowPluginDispatchThresholdMs) {
+                LogSlowPluginDispatch(plugin_id, "PostTargetStreamProtoMessage", cost);
+            }
         }
     }
 
     void GrPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
+            auto begin = tc::TimeUtil::GetCurrentTimestamp();
             if (!plugin->PostTargetFileTransferProtoMessage(stream_id, msg, run_through)) {
                 LOGW("DispatchTargetFileTransferMessage failed in plugin: {}, stream: {}", plugin_id, stream_id);
+            }
+            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            if (cost > kSlowPluginDispatchThresholdMs) {
+                LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
             }
         }
     }

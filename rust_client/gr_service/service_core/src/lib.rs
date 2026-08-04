@@ -14,5 +14,5 @@ pub use proto::{
     MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer, RenderStatus,
     ServiceMessage, ServiceMessageType,
 };
-pub use state::{RenderLaunchSpec, ServiceState};
+pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};
 pub use storage::{PersistedServiceState, ServiceStorage};

@@ -122,6 +122,17 @@ namespace tc
             this->plugin_->CallbackEvent(event);
         });
 
+        // ICE 终态(Failed/Closed):立即置退出标记停止收发,并通知 plugin 将其
+        // 从 rtc_servers_ 中清除。注意:此回调运行在 libwebrtc 线程上,不能在此
+        // 直接 Exit()(会 Stop/join 当前线程),真正的资源回收由 plugin 延迟 Sweep。
+        peer_callback_->SetOnIceTerminalCallback([=, this]() {
+            LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", conn_id_);
+            exit_ = true;
+            if (plugin_) {
+                plugin_->NotifyRtcServerTerminal(conn_id_);
+            }
+        });
+
         peer_callback_->SetOnIceGatherCompletedCallback([=, this]() {
             LOGI("Ice Gather completed.");
             std::string answer_sdp;
@@ -333,6 +344,10 @@ namespace tc
         return !exit_ && media_data_channel_ && media_data_channel_->IsConnected();
     }
 
+    bool RtcServer::IsFtDataChannelConnected() {
+        return !exit_ && ft_data_channel_ && ft_data_channel_->IsConnected();
+    }
+
     uint32_t RtcServer::GetMediaPendingMessages() {
         return !exit_ && media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0;
     }
@@ -393,6 +408,10 @@ namespace tc
     }
 
     void RtcServer::Exit() {
+        // 幂等:ICE 终态 Sweep、takeover 替换、插件销毁等路径可能重复调用
+        if (cleaned_up_.exchange(true)) {
+            return;
+        }
         exit_ = true;
         OnRemoteAudioTrackRemoved(remote_audio_track_);
         if (media_data_channel_) {
@@ -416,6 +435,10 @@ namespace tc
         if (sig_thread_) {
             sig_thread_->Stop();
         }
+
+        // 打断 RtcServer <-> RtcDataChannel 的 shared_ptr 循环引用,避免泄漏
+        media_data_channel_ = nullptr;
+        ft_data_channel_ = nullptr;
 
         rtc::CleanupSSL();
     }

@@ -32,11 +32,30 @@ pub struct ServiceState {
     /// Latest authorization info pushed by the panel (via heartbeat or a
     /// standalone AuthInfo message); drives the CMS client connection.
     pub last_auth_info: Option<MsgAuthInfo>,
+    /// Last time an application-level heartbeat (`from = "render_*"`) was
+    /// received from the desktop render. Drives hung-render detection: the
+    /// process may be alive while its message loop is dead.
+    pub last_render_heartbeat: Option<std::time::Instant>,
+    /// When the current desktop render was launched (or first observed).
+    /// Used to grant a startup grace period before hung detection kicks in.
+    pub desktop_started_at: Option<std::time::Instant>,
 }
+
+/// Grace period after a (re)launch during which a missing render heartbeat
+/// is tolerated (process start, plugin load, first connection take time).
+pub const RENDER_STARTUP_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+/// Max silence from a running render before it is considered hung. The render
+/// heartbeats every 1s via RenderServiceClient, so 30s of silence means the
+/// main loop is dead even though the process still exists.
+pub const RENDER_HEARTBEAT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl ServiceState {
     pub fn update_desktop_launch(&mut self, launch: RenderLaunchSpec) {
         self.last_desktop_launch = Some(launch);
+        // A fresh launch resets the hung-detection baseline: new process gets
+        // a full startup grace period and its heartbeat starts from scratch.
+        self.desktop_started_at = Some(std::time::Instant::now());
+        self.last_render_heartbeat = None;
     }
 
     pub fn update_processes(&mut self, processes: &[ProcessSnapshot]) {
@@ -51,6 +70,39 @@ impl ServiceState {
             if process.is_user_proxy_process() {
                 self.user_proxy_alive = true;
             }
+        }
+        // The render may already be running when the service (re)starts (or
+        // the launch record was restored from disk); treat first observation
+        // as its start time so it still gets a startup grace period.
+        if self.desktop_alive && self.desktop_started_at.is_none() {
+            self.desktop_started_at = Some(std::time::Instant::now());
+        }
+        if !self.desktop_alive {
+            self.desktop_started_at = None;
+            self.last_render_heartbeat = None;
+        }
+    }
+
+    /// Record an application-level heartbeat arriving from the render process.
+    pub fn note_render_heartbeat(&mut self) {
+        self.last_render_heartbeat = Some(std::time::Instant::now());
+    }
+
+    /// True when the render process exists but its application-level heartbeat
+    /// has stopped (main loop hung) past the startup grace period.
+    pub fn render_hung(&self) -> bool {
+        if self.stop_requested || !self.desktop_alive || self.last_desktop_launch.is_none() {
+            return false;
+        }
+        if let Some(started_at) = self.desktop_started_at {
+            if started_at.elapsed() < RENDER_STARTUP_GRACE {
+                return false;
+            }
+        }
+        match self.last_render_heartbeat {
+            Some(ts) => ts.elapsed() > RENDER_HEARTBEAT_TIMEOUT,
+            // Past the grace period and still no heartbeat at all.
+            None => true,
         }
     }
 
@@ -222,5 +274,90 @@ mod tests {
         state.reset_restart_backoff();
         assert!(state.restart_backoff_remaining().is_none());
         assert_eq!(state.consecutive_restart_failures, 0);
+    }
+
+    fn hung_test_state() -> ServiceState {
+        let mut state = ServiceState::default();
+        state.update_desktop_launch(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        state.update_processes(&[ProcessSnapshot::new(
+            1,
+            "GammaRayRender.exe",
+            "--app_mode=desktop",
+        )]);
+        state
+    }
+
+    #[test]
+    fn render_not_hung_within_startup_grace() {
+        let state = hung_test_state();
+        // No heartbeat yet, but still inside the startup grace period.
+        assert!(!state.render_hung());
+    }
+
+    #[test]
+    fn render_hung_when_no_heartbeat_after_grace() {
+        let mut state = hung_test_state();
+        state.desktop_started_at =
+            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        assert!(state.render_hung());
+    }
+
+    #[test]
+    fn render_not_hung_with_fresh_heartbeat() {
+        let mut state = hung_test_state();
+        state.desktop_started_at =
+            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.note_render_heartbeat();
+        assert!(!state.render_hung());
+    }
+
+    #[test]
+    fn render_hung_with_stale_heartbeat() {
+        let mut state = hung_test_state();
+        state.desktop_started_at =
+            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.last_render_heartbeat = Some(
+            std::time::Instant::now() - RENDER_HEARTBEAT_TIMEOUT - std::time::Duration::from_secs(1),
+        );
+        assert!(state.render_hung());
+    }
+
+    #[test]
+    fn render_hung_requires_alive_launch_and_no_stop() {
+        let mut state = hung_test_state();
+        state.desktop_started_at =
+            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        // Explicit stop must suppress hung detection.
+        state.stop_requested = true;
+        assert!(!state.render_hung());
+        state.stop_requested = false;
+        // Process gone -> not "hung", the normal restart path handles it.
+        state.update_processes(&[]);
+        assert!(!state.render_hung());
+        // Launch record cleared (explicit stop) -> no hung detection either.
+        let mut state = hung_test_state();
+        state.desktop_started_at =
+            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.last_desktop_launch = None;
+        assert!(!state.render_hung());
+    }
+
+    #[test]
+    fn new_launch_resets_hung_baseline() {
+        let mut state = hung_test_state();
+        state.last_render_heartbeat = Some(
+            std::time::Instant::now() - RENDER_HEARTBEAT_TIMEOUT - std::time::Duration::from_secs(1),
+        );
+        state.update_desktop_launch(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        assert!(state.last_render_heartbeat.is_none());
+        assert!(!state.render_hung());
     }
 }

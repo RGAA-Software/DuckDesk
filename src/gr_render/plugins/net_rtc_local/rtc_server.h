@@ -31,6 +31,13 @@ namespace tc
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
+        bool IsFtDataChannelConnected();
+
+        // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
+        void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
+        // 请求退出:置 exit_ 标记,停止一切收发;真正的资源回收由 plugin 延迟 Sweep
+        void RequestExit() { exit_ = true; }
+        bool IsExitRequested() const { return exit_.load(); }
 
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
@@ -80,6 +87,9 @@ namespace tc
         std::shared_ptr<RtcDataChannel> media_data_channel_ = nullptr;
         std::shared_ptr<RtcDataChannel> ft_data_channel_ = nullptr;
         std::atomic<bool> exit_ = false;
+        // Exit 幂等标记:ICE 终态回调/插件 Sweep/takeover 替换都可能触发 Exit
+        std::atomic<bool> cleaned_up_ = false;
+        std::string conn_id_;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
 
         std::shared_ptr<VideoSourceImpl> video_source_ = nullptr;

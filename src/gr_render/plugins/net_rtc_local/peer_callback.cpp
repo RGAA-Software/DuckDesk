@@ -55,12 +55,22 @@ namespace tc
                 ice_conn_cbk_();
             }
         }
-        else if (new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionFailed
-            || new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionDisconnected
-            || new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionClosed) {
-            LOGI("ICE -- Closed.");
+        else if (new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionDisconnected) {
+            // 瞬态断开,可能恢复;仅上报统计事件,不做终态清理
+            LOGI("ICE -- Disconnected(transient).");
             if (ice_disconn_cbk_) {
                 ice_disconn_cbk_();
+            }
+        }
+        else if (new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionFailed
+            || new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionClosed) {
+            // 终态:连接不可恢复,通知上层释放此 RtcServer,避免死连接残留拖垮媒体投递
+            LOGW("ICE -- Terminal({}).", (int)new_state);
+            if (ice_disconn_cbk_) {
+                ice_disconn_cbk_();
+            }
+            if (ice_terminal_cbk_) {
+                ice_terminal_cbk_();
             }
         }
 

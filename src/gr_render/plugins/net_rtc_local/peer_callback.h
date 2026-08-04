@@ -21,6 +21,8 @@ namespace tc
     using OnDataChannelCallback = std::function<void(const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch)>;
     using OnIceConnectedCallback = std::function<void()>;
     using OnIceDisConnectedCallback = std::function<void()>;
+    // ICE 进入终态(Failed/Closed,不可恢复);Disconnected 为瞬态,不触发此回调
+    using OnIceTerminalCallback = std::function<void()>;
     using OnIceGatherCompletedCallback = std::function<void()>;
     // 远端新增/移除音频轨(浏览器麦克风上行)
     using OnAudioTrackCallback = std::function<void(rtc::scoped_refptr<webrtc::AudioTrackInterface> track)>;
@@ -74,6 +76,10 @@ namespace tc
             ice_disconn_cbk_ = cbk;
         }
 
+        void SetOnIceTerminalCallback(OnIceTerminalCallback&& cbk) {
+            ice_terminal_cbk_ = cbk;
+        }
+
         void SetOnIceGatherCompletedCallback(OnIceGatherCompletedCallback&& cbk) {
             ice_gather_completed_cbk_ = cbk;
         }
@@ -91,6 +97,7 @@ namespace tc
         OnDataChannelCallback ch_callback_;
         OnIceConnectedCallback  ice_conn_cbk_;
         OnIceDisConnectedCallback ice_disconn_cbk_;
+        OnIceTerminalCallback ice_terminal_cbk_;
         OnIceGatherCompletedCallback ice_gather_completed_cbk_;
         OnAudioTrackCallback audio_track_cbk_;
         OnAudioTrackCallback remove_audio_track_cbk_;

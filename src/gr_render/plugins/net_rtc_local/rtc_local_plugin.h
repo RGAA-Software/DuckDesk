@@ -61,8 +61,13 @@ namespace tc
         void PrintCachedVideoFrames();
         void SetClearOlderFramesBaseline(int64_t baseline_timestamp);
 
+        // RtcServer 在 ICE 终态(Failed/Closed)时回调,标记该连接待清理
+        void NotifyRtcServerTerminal(const std::string& conn_id);
+
     private:
         void WaitForMediaChannelActive();
+        // 定期清扫已终止的 RtcServer,防止死连接残留拖垮媒体投递
+        void SweepDeadRtcServers();
         static std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
 
     private:

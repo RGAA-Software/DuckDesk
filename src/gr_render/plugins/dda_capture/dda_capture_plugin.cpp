@@ -72,7 +72,13 @@ namespace tc
             LOGI("Will query Adapter: {}", adapter_index);
             res = factory1_->EnumAdapters1(adapter_index, &adapter1);
             if (res != S_OK) {
-                LOGE("EnumAdapters1 failed, index: {}", adapter_index);
+                // 枚举到尾部时返回 DXGI_ERROR_NOT_FOUND,属正常结束
+                if (res == DXGI_ERROR_NOT_FOUND) {
+                    LOGI("EnumAdapters1 finished, total adapters: {}", adapter_index);
+                }
+                else {
+                    LOGE("EnumAdapters1 failed, index: {}, res: 0x{:x}", adapter_index, res);
+                }
                 break;
             }
             D3D_FEATURE_LEVEL feature_level;
@@ -105,7 +111,11 @@ namespace tc
                 CComPtr<IDXGIOutput> output;
                 res = adapter1->EnumOutputs(monitor_index, &output);
                 if (res == DXGI_ERROR_NOT_FOUND) {
-                    LOGE("adapter1->EnumOutputs return DXGI_ERROR_NOT_FOUND,Please Check RDP connect.");
+                    // 枚举到尾部(或无输出的适配器,如未启用的虚拟显示器)的正常返回,
+                    // 不是错误;RDP 场景才可能真的无输出,仅在 0 号输出缺失时提示。
+                    if (monitor_index == 0) {
+                        LOGI("Adapter {} has no outputs (virtual display or RDP session?), skip.", adapter_index);
+                    }
                     break;
                 }
                 if (res == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE) {
@@ -334,7 +344,8 @@ namespace tc
         if (name.empty()) {
             use_default_monitor = true;
         }
-        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}", name, use_default_monitor);
+        // 注意:客户端连接事件会广播给所有采集插件,此日志不代表本插件是激活采集器
+        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
 
         // todo: capture all monitors at same time
         if (IsWorking()) {

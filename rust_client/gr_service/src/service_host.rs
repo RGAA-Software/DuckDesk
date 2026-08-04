@@ -110,9 +110,16 @@ impl ServiceRuntime {
                 Ok(None)
             }
             Command::HeartBeat {
-                index, auth_info, ..
+                index,
+                from,
+                auth_info,
             } => {
                 self.sync_process_state()?;
+                // 应用层心跳:render 主循环每秒上报(from = "render_{port}"),
+                // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
+                if from.starts_with("render_") {
+                    self.state.note_render_heartbeat();
+                }
                 if let Some(auth_info) = auth_info {
                     self.state.last_auth_info = Some(auth_info);
                 }
@@ -309,6 +316,20 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                 }
                 if guard.state.desktop_alive {
                     guard.state.reset_restart_backoff();
+                }
+                // 进程存活但应用层心跳超时 = render 主循环 hang,进程级检查
+                // 发现不了。杀掉后走下方既有重启逻辑(含 backoff)。
+                if guard.state.render_hung() {
+                    let pid = guard.state.desktop_pid;
+                    warn!("desktop render heartbeat expired, killing hung render, pid={pid:?}");
+                    if let Some(pid) = pid {
+                        if let Err(err) = guard.process_manager.kill_process(pid) {
+                            error!("kill hung render failed: {err}");
+                        }
+                    }
+                    let _ = guard.sync_process_state();
+                    // 复用 restart backoff,避免 kill/restart 连环抖动
+                    guard.state.note_restart_failure();
                 }
                 if guard.state.should_restart_desktop() {
                     if let Some(spec) = guard.state.last_desktop_launch.clone() {
@@ -548,6 +569,35 @@ mod tests {
             spvr_host: "cms.example.com".to_string(),
             spvr_port: 8443,
         }
+    }
+
+    #[test]
+    fn render_heartbeat_updates_hung_detection_baseline() {
+        let mut runtime = test_runtime(vec![ProcessSnapshot::new(
+            1,
+            "D:/GammaRayRender.exe",
+            "--app_mode=desktop",
+        )]);
+        assert!(runtime.state.last_render_heartbeat.is_none());
+        runtime
+            .handle_command(Command::HeartBeat {
+                index: 1,
+                from: "render_20371".to_string(),
+                auth_info: None,
+            })
+            .unwrap();
+        assert!(runtime.state.last_render_heartbeat.is_some());
+
+        // Panel heartbeats must not touch the render hung-detection baseline.
+        runtime.state.last_render_heartbeat = None;
+        runtime
+            .handle_command(Command::HeartBeat {
+                index: 2,
+                from: "panel".to_string(),
+                auth_info: None,
+            })
+            .unwrap();
+        assert!(runtime.state.last_render_heartbeat.is_none());
     }
 
     #[test]
