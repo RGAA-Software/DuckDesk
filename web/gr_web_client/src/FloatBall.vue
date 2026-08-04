@@ -826,6 +826,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   max-height: calc(100vh - 16px);
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 59;
   padding: 6px;
 }
@@ -871,6 +872,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
+  box-sizing: border-box;
   padding: 9px 10px;
   border: none;
   border-radius: 6px;

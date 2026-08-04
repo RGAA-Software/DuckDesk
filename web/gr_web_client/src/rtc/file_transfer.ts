@@ -140,6 +140,26 @@ export class FileTransferClient {
 
   constructor(opts: FileTransferOptions) {
     this.opts = opts
+    // 速度衰减:传输暂停(如对端无响应)时把残留的瞬时速度归零,避免误导
+    this.speedDecayTimer = window.setInterval(() => this.decaySpeeds(), 1000)
+  }
+
+  private speedDecayTimer = 0
+
+  // running 任务超过 2s 无进度增量 => 速度归零
+  private decaySpeeds() {
+    const now = Date.now()
+    let changed = false
+    for (const task of this.tasks.values()) {
+      if (task.state !== 'running' || task.speedBps <= 0) continue
+      const prev = this.speedSamples.get(task.taskId)
+      if (prev && now - prev.time > 2000) {
+        task.speedBps = 0
+        this.tasks.set(task.taskId, { ...task })
+        changed = true
+      }
+    }
+    if (changed) this.emitTasks()
   }
 
   private log(msg: string) {
@@ -535,6 +555,7 @@ export class FileTransferClient {
       this.failDownload(taskId, reason)
     }
     this.speedSamples.clear()
+    window.clearInterval(this.speedDecayTimer)
   }
 
   // ---------- 下载 ----------
