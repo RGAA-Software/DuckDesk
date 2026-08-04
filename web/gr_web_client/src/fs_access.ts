@@ -75,3 +75,13 @@ export async function writeFile(dir: FsDirHandle, name: string, data: Uint8Array
     await w.close()
   }
 }
+
+// 逐级创建/进入子目录(文件夹下载时还原目录结构用),返回最深层句柄
+export async function ensureDir(root: FsDirHandle, segments: string[]): Promise<FsDirHandle> {
+  let cur = root
+  for (const seg of segments) {
+    if (!seg) continue
+    cur = await cur.getDirectoryHandle(seg, { create: true })
+  }
+  return cur
+}

@@ -29,6 +29,7 @@ import {
   FT_OP_RENAME,
   FT_OP_GET_FILES_LIST,
   FT_OP_DOWNLOAD,
+  FT_OP_RECURSIVE_GET_FILES_LIST,
   FT_DIR_UPLOAD,
   FT_STATE_TRANSMITTING,
   FT_STATE_END,
@@ -88,6 +89,8 @@ function toNum(v: unknown): number {
 }
 
 export async function sha256Hex(data: Uint8Array): Promise<string> {
+  // 非安全上下文(http://IP 访问)没有 crypto.subtle;哈希仅作日志用途,不可因此阻断下载完成
+  if (typeof crypto === 'undefined' || !crypto.subtle) return ''
   const digest = await crypto.subtle.digest('SHA-256', data.slice().buffer)
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -279,19 +282,21 @@ export class FileTransferClient {
 
   // ---------- 列目录 ----------
 
-  listDir(path: string): Promise<{ path: string; files: RemoteFileInfo[] }> {
+  // recursive=true 时用 kRecursiveGetFilesList:render 返回该文件夹下所有子孙
+  // 文件夹+文件的扁平全路径列表(file_operate.cc RecursiveGetFilesList),供文件夹下载
+  listDir(path: string, recursive = false): Promise<{ path: string; files: RemoteFileInfo[] }> {
     const seq = ++this.operateSeq
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pendingLists.delete(seq)
         reject(new Error(`列目录超时: ${path}`))
-      }, RESP_TIMEOUT_MS)
+      }, recursive ? RESP_TIMEOUT_MS * 4 : RESP_TIMEOUT_MS) // 大目录递归遍历较慢,放宽超时
       this.pendingLists.set(seq, { resolve, reject, timer })
       this.sendMessage({
         type: MSG_TYPE_FILE_OPERATION_EVENT,
         fileOperateSequence: seq,
         fileOperateionsEvent: {
-          operateType: FT_OP_GET_FILES_LIST,
+          operateType: recursive ? FT_OP_RECURSIVE_GET_FILES_LIST : FT_OP_GET_FILES_LIST,
           pathOfFilelist: path,
         },
       })
@@ -662,7 +667,10 @@ export class FileTransferClient {
     if (task) this.touchTask({ ...task, total: dl.fileSize, transferred: dl.received })
 
     if (pkt.transmitState === FT_STATE_END) {
-      void this.finishDownload(pkt.taskId)
+      // 兜底:收尾阶段任何未预期异常都要把任务置为失败,不能留在"传输中"
+      void this.finishDownload(pkt.taskId).catch((err) => {
+        this.failDownload(pkt.taskId, `下载收尾失败: ${err instanceof Error ? err.message : String(err)}`)
+      })
     } else if (pkt.transmitState !== FT_STATE_TRANSMITTING) {
       this.failDownload(pkt.taskId, `下载中断, transmit_state=${pkt.transmitState}`)
     }
@@ -686,7 +694,9 @@ export class FileTransferClient {
     const name = dl.remotePath.split(/[\\/]/).pop() || 'download.bin'
     const task = this.tasks.get(taskId)
     if (task) this.touchTask({ ...task, state: 'done', total: data.length, transferred: data.length })
-    this.log(`下载完成: ${name} (${data.length} bytes, sha256=${sha256.slice(0, 16)}...)`)
+    this.log(
+      `下载完成: ${name} (${data.length} bytes${sha256 ? `, sha256=${sha256.slice(0, 16)}...` : ''})`,
+    )
     this.cleanupDownload(taskId)
     dl.done.resolve({ name, data, sha256 })
   }

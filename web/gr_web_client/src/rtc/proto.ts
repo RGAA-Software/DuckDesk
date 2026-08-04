@@ -43,6 +43,7 @@ export const FT_OP_CREATE_NEW_FOLDER = 2
 export const FT_OP_RENAME = 4
 export const FT_OP_GET_FILES_LIST = 5
 export const FT_OP_DOWNLOAD = 8
+export const FT_OP_RECURSIVE_GET_FILES_LIST = 9
 
 // FileTransDataPacket.TransmitDirection / TransmitState
 export const FT_DIR_UPLOAD = 0

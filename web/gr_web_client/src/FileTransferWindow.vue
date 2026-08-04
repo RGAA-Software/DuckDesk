@@ -22,7 +22,7 @@ import {
 } from '@tabler/icons-vue'
 import type { FileTransferApi } from './useFileTransfer'
 import type { RemoteFileInfo, TransferTask } from './rtc/file_transfer'
-import { fsAccessSupported, pickDirectory, listDir, writeFile } from './fs_access'
+import { fsAccessSupported, pickDirectory, listDir, writeFile, ensureDir } from './fs_access'
 import type { FsDirHandle, FsEntry, FsFileHandle } from './fs_access'
 
 const props = defineProps<{
@@ -153,6 +153,83 @@ async function downloadToLocal(item: RemoteFileInfo) {
   }
 }
 
+// 远端文件夹 -> 本地栏当前目录(递归列举 + 逐文件下载,还原目录结构)
+const folderBusy = ref(false)
+
+async function downloadFolderToLocal(item: RemoteFileInfo) {
+  const cur = localStack.value[localStack.value.length - 1]
+  if (!cur) {
+    ElMessage.warning('请先在左栏选择本地目录')
+    return
+  }
+  if (folderBusy.value) {
+    ElMessage.warning('另一个文件夹正在下载中,请稍候')
+    return
+  }
+  folderBusy.value = true
+  try {
+    const entries = await props.ft.listRemoteRecursive(item.path)
+    const rootDir = await ensureDir(cur, [item.name])
+    // 先建目录结构(保留空文件夹)
+    for (const e of entries) {
+      if (e.type !== 2) {
+        await ensureDir(rootDir, props.ft.relToFolder(item.path, e.path).split('/'))
+      }
+    }
+    let ok = 0
+    let fail = 0
+    for (const e of entries) {
+      if (e.type !== 2) continue
+      const r = await props.ft.downloadRaw(e)
+      if (!r) {
+        fail++
+        continue
+      }
+      try {
+        const segs = props.ft.relToFolder(item.path, e.path).split('/')
+        const dir = await ensureDir(rootDir, segs.slice(0, -1))
+        await writeFile(dir, segs[segs.length - 1], r.data)
+        props.ft.setTaskLocation(r.taskId, `${localPathText.value} / ${item.name} / ${segs.join(' / ')}`)
+        ok++
+      } catch (err) {
+        fail++
+        ElMessage.error(`写入本地文件失败: ${e.name} (${err instanceof Error ? err.message : String(err)})`)
+      }
+    }
+    if (fail === 0) {
+      ElMessage.success(`文件夹下载完成: ${item.name} (${ok} 个文件)`)
+    } else {
+      ElMessage.warning(`文件夹下载结束: ${item.name} (成功 ${ok},失败 ${fail})`)
+    }
+    await refreshLocal()
+  } catch (err) {
+    ElMessage.error(`下载文件夹失败: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    folderBusy.value = false
+  }
+}
+
+// 降级模式:文件夹打包成 zip 走浏览器保存
+async function downloadFolderByZip(item: RemoteFileInfo) {
+  if (folderBusy.value) {
+    ElMessage.warning('另一个文件夹正在下载中,请稍候')
+    return
+  }
+  folderBusy.value = true
+  try {
+    const { ok, fail } = await props.ft.downloadFolderZip(item)
+    if (fail === 0) {
+      ElMessage.success(`文件夹已打包下载: ${item.name}.zip (${ok} 个文件)`)
+    } else {
+      ElMessage.warning(`文件夹打包下载结束: 成功 ${ok},失败 ${fail}`)
+    }
+  } catch (err) {
+    ElMessage.error(`下载文件夹失败: ${err instanceof Error ? err.message : String(err)}`)
+  } finally {
+    folderBusy.value = false
+  }
+}
+
 // ---------- 降级模式:暂存区(不支持 File System Access API)----------
 interface StagingItem {
   id: number
@@ -225,7 +302,11 @@ function onRowDblClick(row: RemoteFileInfo) {
 }
 
 // 下载:支持 File System Access 时写入本地栏当前目录,否则浏览器保存
+// 文件夹:FS Access 模式递归还原目录结构;降级模式打包成 zip 保存
 function onDownload(item: RemoteFileInfo) {
+  if (item.type !== 2) {
+    return fsAccessSupported ? downloadFolderToLocal(item) : downloadFolderByZip(item)
+  }
   if (fsAccessSupported) {
     return downloadToLocal(item)
   }

@@ -4,6 +4,8 @@ import { ref } from 'vue'
 import { FileTransferClient } from './rtc/file_transfer'
 import type { RemoteFileInfo, TransferTask } from './rtc/file_transfer'
 import type { FsDirHandle, FsFileHandle } from './fs_access'
+import { buildZip } from './zip'
+import type { ZipEntry } from './zip'
 
 export function useFileTransfer() {
   let ftClient: FileTransferClient | null = null
@@ -140,6 +142,52 @@ export function useFileTransfer() {
     }
   }
 
+  // 递归列出远端文件夹内容(render 返回扁平全路径列表:子孙文件夹 + 文件)
+  async function listRemoteRecursive(path: string): Promise<RemoteFileInfo[]> {
+    if (!ftClient) throw new Error('文件传输未就绪')
+    const r = await ftClient.listDir(path, true)
+    return r.files
+  }
+
+  // 远端全路径 -> 相对 folderPath 的路径(/ 分隔);不匹配时退回文件名
+  function relToFolder(folderPath: string, fullPath: string): string {
+    const base = folderPath.replace(/[\\/]+$/, '').replace(/\\/g, '/')
+    const p = fullPath.replace(/\\/g, '/')
+    if (p.toLowerCase().startsWith(base.toLowerCase() + '/')) return p.slice(base.length + 1)
+    return p.split('/').pop() || fullPath
+  }
+
+  // 降级模式(无 File System Access)的文件夹下载:
+  // 递归列出后逐文件下载到内存,打包成 store-only zip 走浏览器保存
+  async function downloadFolderZip(item: RemoteFileInfo): Promise<{ ok: number; fail: number }> {
+    if (!ftClient) throw new Error('文件传输未就绪')
+    const entries = await listRemoteRecursive(item.path)
+    const zipEntries: ZipEntry[] = [{ name: `${item.name}/`, data: new Uint8Array(0) }]
+    // 先建目录条目(保留空文件夹)
+    for (const e of entries) {
+      if (e.type !== 2) {
+        zipEntries.push({ name: `${item.name}/${relToFolder(item.path, e.path)}/`, data: new Uint8Array(0) })
+      }
+    }
+    let ok = 0
+    let fail = 0
+    for (const e of entries) {
+      if (e.type !== 2) continue
+      const r = await downloadRaw(e)
+      if (!r) {
+        fail++
+        continue
+      }
+      zipEntries.push({ name: `${item.name}/${relToFolder(item.path, e.path)}`, data: r.data })
+      setTaskLocation(r.taskId, `浏览器下载目录(${item.name}.zip)`)
+      ok++
+    }
+    if (ok === 0 && fail > 0) throw new Error('文件夹内文件全部下载失败')
+    saveBlob(`${item.name}.zip`, buildZip(zipEntries))
+    log(`文件夹已打包下载: ${item.name}.zip (${ok} 个文件${fail ? `, 失败 ${fail}` : ''})`)
+    return { ok, fail }
+  }
+
   // 回填任务落点(下载保存位置)
   function setTaskLocation(taskId: string, location: string) {
     ftClient?.setTaskLocation(taskId, location)
@@ -208,6 +256,9 @@ export function useFileTransfer() {
     uploadFolder,
     downloadRaw,
     downloadAndSave,
+    listRemoteRecursive,
+    relToFolder,
+    downloadFolderZip,
     setTaskLocation,
     cancel,
     clearFinished,
