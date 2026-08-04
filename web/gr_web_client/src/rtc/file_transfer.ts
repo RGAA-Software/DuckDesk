@@ -74,6 +74,10 @@ const UPLOAD_WINDOW = 150
 // 无节制灌数据会把 SCTP 发送队列打满、拖垮整条 PeerConnection(实测 4MB 连发 ICE 直接 failed)
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024
 const RESP_TIMEOUT_MS = 30000
+// 上传空闲超时:这么久没收到 ack 且发送缓冲也不排水(对端彻底不收了)即判失败。
+// 注意 render 每 100 块(~6.4MB)才回一次 ack,慢链路上 ack 间隔本来就长,
+// 所以除了 ack,发送缓冲排水(bufferedamountlow,说明对端仍在接收)也要重置该计时器
+const UPLOAD_IDLE_TIMEOUT_MS = 45000
 
 function toNum(v: unknown): number {
   if (typeof v === 'number') return v
@@ -427,16 +431,12 @@ export class FileTransferClient {
     this.touchTask(task)
 
     const result = await new Promise<string>((resolve, reject) => {
-      const totalChunks = Math.max(1, Math.ceil(file.size / UPLOAD_CHUNK_SIZE))
-      const timer = window.setTimeout(() => {
-        this.failUpload(taskId, '上传超时')
-      }, Math.max(RESP_TIMEOUT_MS * 2, totalChunks * 1000))
       this.uploads.set(taskId, {
         ackedIndex: -1,
         waiters: [],
         done: { resolve, reject },
         cancelled: false,
-        timer,
+        timer: this.armUploadIdleTimer(taskId),
       })
       void this.runUpload(taskId, file, targetFilePath, task).catch((err) => {
         this.failUpload(taskId, err instanceof Error ? err.message : String(err))
@@ -445,14 +445,29 @@ export class FileTransferClient {
     return { taskId, targetFilePath: result }
   }
 
+  // 空闲超时:每次收到 ack 重置;超时无响应则判失败
+  private armUploadIdleTimer(taskId: string): number {
+    return window.setTimeout(() => {
+      this.failUpload(taskId, `上传超时(${UPLOAD_IDLE_TIMEOUT_MS / 1000}s 无回执)`)
+    }, UPLOAD_IDLE_TIMEOUT_MS)
+  }
+
   // datachannel 发送缓冲高水位等待:防止无节制发送撑爆 SCTP 队列
-  private waitSendBuffer(): Promise<void> {
+  private waitSendBuffer(taskId?: string): Promise<void> {
     const dc = this.opts.dc
     if (dc.bufferedAmount <= MAX_BUFFERED_BYTES) return Promise.resolve()
     return new Promise((resolve) => {
       dc.bufferedAmountLowThreshold = MAX_BUFFERED_BYTES / 2
       const onLow = () => {
         dc.removeEventListener('bufferedamountlow', onLow)
+        // 缓冲在排水 = 对端仍在接收,重置该上传的空闲超时
+        if (taskId) {
+          const up = this.uploads.get(taskId)
+          if (up) {
+            window.clearTimeout(up.timer)
+            up.timer = this.armUploadIdleTimer(taskId)
+          }
+        }
         resolve()
       }
       dc.addEventListener('bufferedamountlow', onLow)
@@ -468,7 +483,7 @@ export class FileTransferClient {
       // 滑动窗口:未 ack 块数达到上限时等 ack
       await this.waitUploadWindow(taskId, index)
       // 发送缓冲水位控制
-      await this.waitSendBuffer()
+      await this.waitSendBuffer(taskId)
       const isLast = index === totalChunks - 1
       const data = new Uint8Array(await file.slice(index * UPLOAD_CHUNK_SIZE, (index + 1) * UPLOAD_CHUNK_SIZE).arrayBuffer())
       this.sendMessage({
@@ -504,6 +519,9 @@ export class FileTransferClient {
     const up = this.uploads.get(resp.taskId)
     if (!up) return
     up.ackedIndex = Math.max(up.ackedIndex, toNum(resp.index))
+    // ack 说明对端活着,重置空闲超时
+    window.clearTimeout(up.timer)
+    up.timer = this.armUploadIdleTimer(resp.taskId)
     const waiters = up.waiters
     up.waiters = []
     for (const w of waiters) w()
