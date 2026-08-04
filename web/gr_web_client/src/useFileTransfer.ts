@@ -3,6 +3,7 @@
 import { ref } from 'vue'
 import { FileTransferClient } from './rtc/file_transfer'
 import type { RemoteFileInfo, TransferTask } from './rtc/file_transfer'
+import type { FsDirHandle, FsFileHandle } from './fs_access'
 
 export function useFileTransfer() {
   let ftClient: FileTransferClient | null = null
@@ -91,16 +92,47 @@ export function useFileTransfer() {
     }
   }
 
-  // 下载远端文件并触发浏览器保存
-  async function downloadAndSave(item: RemoteFileInfo) {
-    if (!ftClient) return
+  // 递归上传本地文件夹到远端目录(默认当前目录):
+  // 先在远端建文件夹(render 自动命名)再重命名为本地文件夹名,随后逐层上传内容。
+  // 重命名失败(远端已有同名文件夹)时退回使用自动生成的文件夹名。
+  async function uploadFolder(dir: FsDirHandle, targetDir?: string): Promise<void> {
+    if (!ftClient) throw new Error('文件传输未就绪')
+    const parent = targetDir ?? ftPath.value
+    const created = await ftClient.createFolder(parent)
+    let folderPath = created
+    try {
+      folderPath = await ftClient.renameFile(created, dir.name)
+    } catch {
+      log(`远端已存在同名文件夹「${dir.name}」,内容将上传到: ${created}`)
+    }
+    for await (const handle of dir.values()) {
+      if (handle.kind === 'file') {
+        const file = await (handle as FsFileHandle).getFile()
+        await ftClient.upload(file, folderPath)
+        log(`上传成功: ${dir.name}/${file.name}`)
+      } else {
+        await uploadFolder(handle as FsDirHandle, folderPath)
+      }
+    }
+  }
+
+  // 下载远端文件到内存(供 File System Access 写盘/浏览器保存;失败记日志并返回 null)
+  async function downloadRaw(item: RemoteFileInfo): Promise<{ name: string; data: Uint8Array; size: number } | null> {
+    if (!ftClient) return null
     try {
       const { name, data, size } = await ftClient.download(item.path)
-      saveBlob(name, data)
       log(`下载成功: ${name} (${size} bytes)`)
+      return { name, data, size }
     } catch (err) {
       log(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
+      return null
     }
+  }
+
+  // 下载远端文件并触发浏览器保存(无 File System Access API 时的降级路径)
+  async function downloadAndSave(item: RemoteFileInfo) {
+    const r = await downloadRaw(item)
+    if (r) saveBlob(r.name, r.data)
   }
 
   function saveBlob(name: string, data: Uint8Array) {
@@ -163,6 +195,8 @@ export function useFileTransfer() {
     enter,
     up,
     uploadFile,
+    uploadFolder,
+    downloadRaw,
     downloadAndSave,
     cancel,
     clearFinished,

@@ -9,7 +9,15 @@ import { sha256Hex } from './rtc/file_transfer'
 import { PerfCollector, EMPTY_PERF } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
 import { sendClipboardText, parseClipboardText } from './rtc/clipboard'
+import { decodeMessage } from './rtc/proto'
+import {
+  MSG_TYPE_HELLO,
+  MSG_TYPE_CLIPBOARD_INFO,
+  MSG_TYPE_SERVER_CONFIGURATION,
+  MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
+} from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
+import { ElMessage } from 'element-plus'
 import FloatBall from './FloatBall.vue'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
@@ -224,14 +232,53 @@ const remoteClipboard = ref('')
 // media_data_channel 接收侧 TLV 重组(>128KB 消息 render 会分片)
 const dcReassembler = new TlvReassembler()
 
+// ---------- 远端显示器配置(kServerConfiguration,含可用分辨率列表)----------
+// dc 打开后本端发 kHello,render 回推 config(rd_app.cpp:SendConfigurationBack)
+interface RemoteMonitor {
+  name: string
+  resolutions: Array<{ width: number; height: number }>
+  currentWidth: number
+  currentHeight: number
+  primary: boolean
+}
+const remoteMonitors = ref<RemoteMonitor[]>([])
+const capturingMonitor = ref('')
+
 function handleDcBinary(buf: ArrayBuffer) {
   for (const payload of dcReassembler.feed(buf)) {
-    const text = parseClipboardText(payload)
-    if (text !== null) {
-      remoteClipboard.value = text
-      addLog(`收到远端剪贴板文本 (${text.length} 字符): ${text.slice(0, 80)}`)
+    let msg: ReturnType<typeof decodeMessage> | null = null
+    try {
+      msg = decodeMessage(payload)
+    } catch {
+      continue
     }
-    // 其余二进制控制消息(配置/统计等)暂不处理
+    if (msg.type === MSG_TYPE_CLIPBOARD_INFO) {
+      const text = parseClipboardText(payload)
+      if (text !== null) {
+        remoteClipboard.value = text
+        addLog(`收到远端剪贴板文本 (${text.length} 字符): ${text.slice(0, 80)}`)
+      }
+    } else if (msg.type === MSG_TYPE_SERVER_CONFIGURATION && msg.config) {
+      const cfg = msg.config
+      remoteMonitors.value = (cfg.monitorsInfo ?? []).map((m) => ({
+        name: m.name,
+        resolutions: (m.resolutions ?? []).map((r) => ({ width: r.width, height: r.height })),
+        currentWidth: m.currentWidth,
+        currentHeight: m.currentHeight,
+        primary: m.primary,
+      }))
+      capturingMonitor.value = cfg.capturingMonitorName ?? ''
+      addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}`)
+    } else if (msg.type === MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT && msg.changeMonitorResolutionResult) {
+      const r = msg.changeMonitorResolutionResult
+      if (r.result) {
+        ElMessage.success(`分辨率已切换 (${r.monitorName})`)
+      } else {
+        ElMessage.error(`分辨率切换失败 (${r.monitorName})`)
+      }
+      addLog(`分辨率切换结果: ${r.monitorName} -> ${r.result ? '成功' : '失败'}`)
+    }
+    // 其余二进制控制消息(统计等)暂不处理
   }
 }
 
@@ -429,6 +476,8 @@ function cleanup() {
   perfCollector.stop()
   perf.value = { ...EMPTY_PERF }
   remoteClipboard.value = ''
+  remoteMonitors.value = []
+  capturingMonitor.value = ''
   ft.resetFt('连接已断开')
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
@@ -524,6 +573,17 @@ async function connect() {
     dc.binaryType = 'arraybuffer' // render 会推 kClipboardInfo 等二进制控制消息
     dc.onopen = () => {
       addLog(`datachannel "${DATA_CHANNEL_LABEL}" onopen`)
+      // 发 kHello 触发 render 回推 kServerConfiguration(显示器列表/可用分辨率/采集显示器名)
+      sendControlMessage(dc, form.deviceId, form.streamId, {
+        type: MSG_TYPE_HELLO,
+        hello: {
+          enableAudio: true,
+          enableVideo: true,
+          enableController: true,
+          clientType: 100, // ClientType.kUnknown
+          deviceName: 'web_client',
+        },
+      })
       void initInput()
     }
     dc.onmessage = (ev: MessageEvent) => {
@@ -783,6 +843,8 @@ onBeforeUnmount(() => {
       :gamepad-on="gamepadOn"
       :gamepad-status="gamepadStatus"
       :toggle-gamepad="toggleGamepad"
+      :monitors="remoteMonitors"
+      :capturing-monitor="capturingMonitor"
       :log="addLog"
     />
 

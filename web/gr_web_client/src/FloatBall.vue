@@ -4,8 +4,36 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  IconVolume,
+  IconVolumeOff,
+  IconMaximize,
+  IconMinimize,
+  IconPictureInPicture,
+  IconSettings,
+  IconDeviceDesktop,
+  IconTransfer,
+  IconPlayerRecord,
+  IconChartBar,
+  IconChevronRight,
+  IconCheck,
+  IconSend,
+  IconClipboardCopy,
+  IconKeyboard,
+  IconRefresh,
+  IconLock,
+  IconRestore,
+  IconGauge,
+  IconAspectRatio,
+  IconDevices,
+  IconMouse,
+  IconMicrophone,
+  IconDeviceGamepad2,
+} from '@tabler/icons-vue'
 import type { PerfStats } from './rtc/stats'
 import { SessionRecorder, recordFileName } from './rtc/recorder'
+import { MSG_TYPE_CHANGE_MONITOR_RESOLUTION } from './rtc/proto'
+import logoUrl from './assets/tc_icon.png'
 import {
   MSG_TYPE_HARD_UPDATE_DESKTOP,
   MSG_TYPE_LOCK_DEVICE,
@@ -14,6 +42,14 @@ import {
   MSG_TYPE_STOP_RENDER,
   MSG_TYPE_SWITCH_MONITOR,
 } from './rtc/control'
+
+interface MonitorSpec {
+  name: string
+  resolutions: Array<{ width: number; height: number }>
+  currentWidth: number
+  currentHeight: number
+  primary: boolean
+}
 
 const props = defineProps<{
   connected: boolean
@@ -39,6 +75,9 @@ const props = defineProps<{
   gamepadOn: boolean
   gamepadStatus: string
   toggleGamepad: () => void
+  // 远端显示器列表(kServerConfiguration,含可用分辨率)与当前采集显示器名
+  monitors: MonitorSpec[]
+  capturingMonitor: string
   log: (msg: string) => void
 }>()
 
@@ -56,6 +95,8 @@ const pos = reactive({ x: 0, y: 0 })
 const panelOpen = ref(false)
 // 二级子面板:null=收起,'control'=控制,'display'=显示
 const subPanel = ref<'' | 'control' | 'display'>('')
+// 三级子面板(挂在「显示」二级面板的菜单项上)
+const subSubPanel = ref<'' | 'fps' | 'resolution' | 'monitor'>('')
 
 function clampPos() {
   pos.x = Math.min(Math.max(0, pos.x), window.innerWidth - BALL_SIZE)
@@ -151,12 +192,16 @@ const PANEL_MAX_H = 440
 
 function togglePanel() {
   panelOpen.value = !panelOpen.value
-  if (!panelOpen.value) subPanel.value = ''
+  if (!panelOpen.value) {
+    subPanel.value = ''
+    subSubPanel.value = ''
+  }
 }
 
 function closePanel() {
   panelOpen.value = false
   subPanel.value = ''
+  subSubPanel.value = ''
 }
 
 // 球在右半屏时面板弹左侧,否则右侧
@@ -181,6 +226,15 @@ const subPanelStyle = computed(() => {
   return { left: `${left}px`, top: panelStyle.value.top, width: `${PANEL_W}px` }
 })
 
+// 三级子面板:从二级面板侧缘继续弹出(同侧)
+const subSubPanelStyle = computed(() => {
+  const vw = window.innerWidth
+  const subLeft = parseFloat(subPanelStyle.value.left)
+  let left = panelOnLeft.value ? subLeft - PANEL_GAP - PANEL_W : subLeft + PANEL_W + PANEL_GAP
+  left = Math.min(Math.max(8, left), vw - PANEL_W - 8)
+  return { left: `${left}px`, top: subPanelStyle.value.top, width: `${PANEL_W}px` }
+})
+
 // 点面板外收起(全局 pointerdown)
 function onGlobalPointerDown(ev: PointerEvent) {
   if (!panelOpen.value) return
@@ -193,6 +247,11 @@ function onGlobalPointerDown(ev: PointerEvent) {
 
 function toggleSubPanel(name: 'control' | 'display') {
   subPanel.value = subPanel.value === name ? '' : name
+  subSubPanel.value = ''
+}
+
+function toggleSubSubPanel(name: 'fps' | 'resolution' | 'monitor') {
+  subSubPanel.value = subSubPanel.value === name ? '' : name
 }
 
 // ---------- 快捷按钮行:声音/全屏/画中画 ----------
@@ -372,7 +431,7 @@ async function stopRender() {
   emit({ type: MSG_TYPE_STOP_RENDER, stopRender: {} }, '重启 render(kStopRender)')
 }
 
-// ---------- 显示子面板:帧率/切换显示器/锁定鼠标/麦克风/手柄 ----------
+// ---------- 显示子面板:帧率/分辨率/切换显示器/锁定鼠标/麦克风/手柄 ----------
 const fps = ref(0) // 0 = 未知(尚未由本端设置)
 const FPS_OPTIONS = [30, 60, 120]
 
@@ -380,29 +439,54 @@ function modifyFps(value: number) {
   // 对齐 BaseWorkspace::SendModifyFpsMessage(type=480,ModifyFps{fps})
   emit({ type: MSG_TYPE_MODIFY_FPS, modifyFps: { fps: value } }, `改帧率 -> ${value}`)
   fps.value = value
+  subSubPanel.value = ''
 }
 
-async function switchMonitor() {
-  // /get/render/configuration 目前只上报当前采集显示器名,无多显示器列表;
-  // 有列表时提供选择,否则按单显提示
-  try {
-    const resp = await fetch('/get/render/configuration')
-    const result = (await resp.json()) as {
-      code?: number
-      data?: { monitor_name?: string; monitors?: string[] }
-    }
-    const monitors = result.data?.monitors ?? []
-    if (monitors.length > 1) {
-      const current = result.data?.monitor_name ?? ''
-      const next = monitors.find((m) => m !== current) ?? monitors[0]
-      // 对齐 BaseWorkspace::SendSwitchMonitorMessage(type=170,SwitchMonitor{name})
-      emit({ type: MSG_TYPE_SWITCH_MONITOR, switchMonitor: { name: next } }, `切换显示器 -> ${next}`)
-    } else {
-      ElMessage.info('远端仅上报单个采集显示器,无需切换')
-    }
-  } catch {
-    ElMessage.warning('获取显示器列表失败')
-  }
+// render 未上报分辨率列表时的兜底常见档位
+const FALLBACK_RESOLUTIONS = [
+  { width: 1920, height: 1080 },
+  { width: 1600, height: 900 },
+  { width: 1366, height: 768 },
+  { width: 1280, height: 720 },
+]
+
+// 当前采集显示器(取不到时退化为列表第一个)
+const currentMonitor = computed(
+  () => props.monitors.find((m) => m.name === props.capturingMonitor) ?? props.monitors[0] ?? null,
+)
+const resolutionOptions = computed(() =>
+  currentMonitor.value?.resolutions.length ? currentMonitor.value.resolutions : FALLBACK_RESOLUTIONS,
+)
+// 当前分辨率:优先 config 里的 current_width/height,退化用性能面板的视频分辨率
+const currentResolution = computed(() => {
+  const m = currentMonitor.value
+  if (m && m.currentWidth > 0) return { width: m.currentWidth, height: m.currentHeight }
+  if (props.perf.width > 0) return { width: props.perf.width, height: props.perf.height }
+  return null
+})
+
+function isCurrentResolution(w: number, h: number): boolean {
+  return currentResolution.value?.width === w && currentResolution.value?.height === h
+}
+
+function changeResolution(w: number, h: number) {
+  const name = props.capturingMonitor || currentMonitor.value?.name || ''
+  // 对齐 ChangeMonitorResolution{type=200,monitor_name,target_width,target_height}
+  emit(
+    {
+      type: MSG_TYPE_CHANGE_MONITOR_RESOLUTION,
+      changeMonitorResolution: { monitorName: name, targetWidth: w, targetHeight: h },
+    },
+    `改分辨率 -> ${w}x${h} (${name || '默认显示器'})`,
+  )
+  subSubPanel.value = ''
+}
+
+// 切换显示器:列表来自 kServerConfiguration(monitors prop),不再走 /get/render/configuration
+function sendSwitchMonitor(name: string) {
+  // 对齐 BaseWorkspace::SendSwitchMonitorMessage(type=170,SwitchMonitor{name})
+  emit({ type: MSG_TYPE_SWITCH_MONITOR, switchMonitor: { name } }, `切换显示器 -> ${name}`)
+  subSubPanel.value = ''
 }
 
 // ---------- 剪贴板 ----------
@@ -483,12 +567,7 @@ onBeforeUnmount(() => {
     @pointermove="onBallPointerMove"
     @pointerup="onBallPointerUp"
   >
-    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="4" width="20" height="13" rx="2" stroke="#2b2f36" stroke-width="2" />
-      <path d="M8 21h8" stroke="#2b2f36" stroke-width="2" stroke-linecap="round" />
-      <path d="M12 17v4" stroke="#2b2f36" stroke-width="2" stroke-linecap="round" />
-      <path d="M6 11l3-3 3 3 3-3 3 3" stroke="#409eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
+    <img class="ball-logo" :src="logoUrl" alt="GammaRay" draggable="false" />
   </div>
 
   <!-- 主面板 -->
@@ -496,10 +575,12 @@ onBeforeUnmount(() => {
     <!-- 顶部快捷按钮行:声音/全屏/画中画 -->
     <div class="quick-row">
       <button class="quick-btn" :title="muted ? '取消静音' : '静音'" @click="toggleMute">
-        {{ muted ? '🔇' : '🔊' }}
+        <IconVolumeOff v-if="muted" :size="20" />
+        <IconVolume v-else :size="20" />
       </button>
       <button class="quick-btn" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
-        {{ isFullscreen ? '🗗' : '🗖' }}
+        <IconMinimize v-if="isFullscreen" :size="20" />
+        <IconMaximize v-else :size="20" />
       </button>
       <button
         class="quick-btn"
@@ -508,35 +589,35 @@ onBeforeUnmount(() => {
         title="画中画"
         @click="togglePip"
       >
-        🖼
+        <IconPictureInPicture :size="20" />
       </button>
     </div>
 
     <!-- 菜单列表 -->
     <div class="menu">
       <button class="menu-item" :class="{ open: subPanel === 'control' }" @click="toggleSubPanel('control')">
-        <span class="menu-icon">🎛</span>
+        <span class="menu-icon"><IconSettings :size="17" /></span>
         <span class="menu-text">控制</span>
-        <span class="menu-arrow">›</span>
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display')">
-        <span class="menu-icon">🖥</span>
+        <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
         <span class="menu-text">显示</span>
-        <span class="menu-arrow">›</span>
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :disabled="!ftReady" @click="openFileTransfer">
-        <span class="menu-icon">📂</span>
+        <span class="menu-icon"><IconTransfer :size="17" /></span>
         <span class="menu-text">文件传输</span>
         <span class="menu-state">{{ ftReady ? '' : '未就绪' }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="toggleRecord">
-        <span class="menu-icon">⏺</span>
+        <span class="menu-icon" :class="{ recording }"><IconPlayerRecord :size="17" /></span>
         <span class="menu-text" :class="{ recording }">
           {{ recording ? `停止录制 ${recordTimeText}` : '屏幕录制' }}
         </span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="togglePerf">
-        <span class="menu-icon">📊</span>
+        <span class="menu-icon"><IconChartBar :size="17" /></span>
         <span class="menu-text">统计</span>
         <span class="menu-state">{{ perfVisible ? '开' : '' }}</span>
       </button>
@@ -547,24 +628,30 @@ onBeforeUnmount(() => {
   <div v-if="panelOpen && subPanel === 'control'" ref="subPanelRef" class="ball-panel sub" :style="subPanelStyle">
     <div class="menu">
       <button class="menu-item" :disabled="!connected" @click="onSendClipboard">
+        <span class="menu-icon"><IconSend :size="16" /></span>
         <span class="menu-text">发送到远端剪贴板</span>
       </button>
       <button class="menu-item" :disabled="!remoteClipboard" @click="onCopyRemote">
+        <span class="menu-icon"><IconClipboardCopy :size="16" /></span>
         <span class="menu-text">复制远端到本地</span>
       </button>
       <div class="menu-item static">
         <el-checkbox v-model="viewOnly" class="view-only-checkbox">仅观看</el-checkbox>
       </div>
       <button class="menu-item" :disabled="!connected" @click="sendCtrlAltDelete">
+        <span class="menu-icon"><IconKeyboard :size="16" /></span>
         <span class="menu-text">Ctrl+Alt+Del</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="hardUpdate">
+        <span class="menu-icon"><IconRefresh :size="16" /></span>
         <span class="menu-text">刷新画面</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="lockDevice">
+        <span class="menu-icon"><IconLock :size="16" /></span>
         <span class="menu-text">锁定设备</span>
       </button>
       <button class="menu-item danger" :disabled="!connected" @click="stopRender">
+        <span class="menu-icon"><IconRestore :size="16" /></span>
         <span class="menu-text">重启 Render</span>
       </button>
     </div>
@@ -573,39 +660,131 @@ onBeforeUnmount(() => {
   <!-- 二级子面板:显示 -->
   <div v-if="panelOpen && subPanel === 'display'" ref="subPanelRef" class="ball-panel sub" :style="subPanelStyle">
     <div class="menu">
-      <div class="menu-item static fps-row">
+      <button
+        class="menu-item"
+        :class="{ open: subSubPanel === 'fps' }"
+        :disabled="!connected"
+        @click="toggleSubSubPanel('fps')"
+      >
+        <span class="menu-icon"><IconGauge :size="16" /></span>
         <span class="menu-text">帧率</span>
-        <span class="fps-options">
-          <button
-            v-for="f in FPS_OPTIONS"
-            :key="f"
-            class="fps-btn"
-            :class="{ active: fps === f }"
-            :disabled="!connected"
-            @click="modifyFps(f)"
-          >
-            {{ f }}
-          </button>
+        <span class="menu-state">{{ fps > 0 ? fps : '' }}</span>
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
+      </button>
+      <button
+        class="menu-item"
+        :class="{ open: subSubPanel === 'resolution' }"
+        :disabled="!connected"
+        @click="toggleSubSubPanel('resolution')"
+      >
+        <span class="menu-icon"><IconAspectRatio :size="16" /></span>
+        <span class="menu-text">分辨率</span>
+        <span class="menu-state">
+          {{ currentResolution ? `${currentResolution.width}×${currentResolution.height}` : '' }}
         </span>
-      </div>
-      <button class="menu-item" :disabled="!connected" @click="switchMonitor">
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
+      </button>
+      <button
+        class="menu-item"
+        :class="{ open: subSubPanel === 'monitor' }"
+        :disabled="!connected"
+        @click="toggleSubSubPanel('monitor')"
+      >
+        <span class="menu-icon"><IconDevices :size="16" /></span>
         <span class="menu-text">切换显示器</span>
+        <span class="menu-state">{{ capturingMonitor }}</span>
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="togglePointerLock">
+        <span class="menu-icon"><IconMouse :size="16" /></span>
         <span class="menu-text">锁定鼠标</span>
         <span class="menu-state">{{ pointerLocked ? '已锁定' : '' }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="props.toggleMic">
+        <span class="menu-icon"><IconMicrophone :size="16" /></span>
         <span class="menu-text">麦克风</span>
         <span class="menu-state">{{ micOn ? '开' : '关' }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="props.toggleGamepad">
+        <span class="menu-icon"><IconDeviceGamepad2 :size="16" /></span>
         <span class="menu-text">手柄</span>
         <span class="menu-state">{{ gamepadOn ? '开' : '关' }}</span>
       </button>
       <div v-if="gamepadOn" class="gamepad-status" :title="props.gamepadStatus">
-        🎮 {{ props.gamepadStatus || '检测中...' }}
+        {{ props.gamepadStatus || '检测中...' }}
       </div>
+    </div>
+  </div>
+
+  <!-- 三级子面板:帧率 -->
+  <div
+    v-if="panelOpen && subPanel === 'display' && subSubPanel === 'fps'"
+    class="ball-panel sub"
+    :style="subSubPanelStyle"
+  >
+    <div class="menu">
+      <button
+        v-for="f in FPS_OPTIONS"
+        :key="f"
+        class="menu-item"
+        @click="modifyFps(f)"
+      >
+        <span class="menu-icon check-icon"><IconCheck v-if="fps === f" :size="16" /></span>
+        <span class="menu-text" :class="{ current: fps === f }">{{ f }} fps</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 三级子面板:分辨率 -->
+  <div
+    v-if="panelOpen && subPanel === 'display' && subSubPanel === 'resolution'"
+    class="ball-panel sub"
+    :style="subSubPanelStyle"
+  >
+    <div class="menu">
+      <button
+        v-for="r in resolutionOptions"
+        :key="`${r.width}x${r.height}`"
+        class="menu-item"
+        @click="changeResolution(r.width, r.height)"
+      >
+        <span class="menu-icon check-icon">
+          <IconCheck v-if="isCurrentResolution(r.width, r.height)" :size="16" />
+        </span>
+        <span class="menu-text" :class="{ current: isCurrentResolution(r.width, r.height) }">
+          {{ r.width }} × {{ r.height }}
+        </span>
+      </button>
+      <div v-if="!currentMonitor?.resolutions.length" class="panel-note">
+        远端未上报分辨率列表,显示常见档位
+      </div>
+    </div>
+  </div>
+
+  <!-- 三级子面板:切换显示器(列表来自 kServerConfiguration) -->
+  <div
+    v-if="panelOpen && subPanel === 'display' && subSubPanel === 'monitor'"
+    class="ball-panel sub"
+    :style="subSubPanelStyle"
+  >
+    <div class="menu">
+      <button
+        v-for="m in monitors"
+        :key="m.name"
+        class="menu-item"
+        :disabled="m.name === capturingMonitor"
+        @click="sendSwitchMonitor(m.name)"
+      >
+        <span class="menu-icon check-icon">
+          <IconCheck v-if="m.name === capturingMonitor" :size="16" />
+        </span>
+        <span class="menu-text" :class="{ current: m.name === capturingMonitor }" :title="m.name">
+          {{ m.name }}
+          <template v-if="m.currentWidth > 0"> ({{ m.currentWidth }}×{{ m.currentHeight }})</template>
+          <template v-if="m.primary"> · 主</template>
+        </span>
+      </button>
+      <div v-if="!monitors.length" class="panel-note">远端未上报显示器列表</div>
     </div>
   </div>
 </template>
@@ -615,7 +794,7 @@ onBeforeUnmount(() => {
   position: fixed;
   width: 48px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: 50%;
   background: #fff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
   display: flex;
@@ -625,6 +804,12 @@ onBeforeUnmount(() => {
   user-select: none;
   touch-action: none;
   z-index: 60;
+}
+.ball-logo {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  pointer-events: none;
 }
 .float-ball:hover {
   background: #f5f5f5;
@@ -657,9 +842,12 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  font-size: 17px;
   cursor: pointer;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #303133;
 }
 .quick-btn:hover:not(:disabled) {
   background: #f5f5f5;
@@ -713,8 +901,14 @@ onBeforeUnmount(() => {
 }
 .menu-icon {
   width: 20px;
-  text-align: center;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #606266;
+}
+.menu-icon.recording {
+  color: #f56c6c;
 }
 .menu-text {
   flex: 1;
@@ -722,46 +916,29 @@ onBeforeUnmount(() => {
 .menu-text.recording {
   color: #f56c6c;
 }
+.menu-text.current {
+  color: #409eff;
+  font-weight: 600;
+}
 .menu-arrow {
   color: #909399;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
 }
 .menu-state {
   color: #909399;
   font-size: 12px;
 }
-.view-only-checkbox {
-  height: auto;
-}
-.fps-row {
-  justify-content: space-between;
-}
-.fps-options {
-  display: inline-flex;
-  gap: 4px;
-}
-.fps-btn {
-  min-width: 40px;
-  height: 26px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background: #fff;
-  font-size: 12px;
-  color: #303133;
-  cursor: pointer;
-}
-.fps-btn:hover:not(:disabled) {
-  border-color: #409eff;
+.check-icon {
   color: #409eff;
 }
-.fps-btn.active {
-  background: #409eff;
-  border-color: #409eff;
-  color: #fff;
+.panel-note {
+  padding: 4px 10px 8px;
+  color: #909399;
+  font-size: 12px;
 }
-.fps-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
+.view-only-checkbox {
+  height: auto;
 }
 .gamepad-status {
   padding: 2px 10px 6px;

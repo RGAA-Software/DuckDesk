@@ -14,9 +14,13 @@ protobuf.parse(tcMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), roo
 export const TcMessage = root.lookupType('tc.Message')
 
 // MessageType 枚举值(tc_message.proto)
+export const MSG_TYPE_HELLO = 0 // kHello
+export const MSG_TYPE_SERVER_CONFIGURATION = 2 // kServerConfiguration
 export const MSG_TYPE_KEY_EVENT = 50 // kKeyEvent
 export const MSG_TYPE_MOUSE_EVENT = 60 // kMouseEvent
 export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
+export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
+export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
 
 // ClipboardType(tc_message.proto:498-503)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -82,6 +86,21 @@ export function decodeMessage(payload: Uint8Array) {
     type: number
     deviceId?: string
     streamId?: string
+    // kServerConfiguration(type=2):render 在收到 kHello 后推送(含可用分辨率列表)
+    config?: {
+      monitorsInfo?: Array<{
+        name: string
+        resolutions?: Array<{ width: number; height: number }>
+        primary: boolean
+        currentWidth: number
+        currentHeight: number
+      }>
+      capturingMonitorName: string
+      fps: number
+      fileTransferEnabled: boolean
+    }
+    // kChangeMonitorResolutionResult(type=210):分辨率切换结果
+    changeMonitorResolutionResult?: { monitorName: string; result: boolean }
     fileOperateRespSequence?: unknown
     fileOperateRespCode?: number
     fileOperateRespMessage?: string
