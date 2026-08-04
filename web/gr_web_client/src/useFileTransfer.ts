@@ -117,12 +117,14 @@ export function useFileTransfer() {
   }
 
   // 下载远端文件到内存(供 File System Access 写盘/浏览器保存;失败记日志并返回 null)
-  async function downloadRaw(item: RemoteFileInfo): Promise<{ name: string; data: Uint8Array; size: number } | null> {
+  async function downloadRaw(
+    item: RemoteFileInfo,
+  ): Promise<{ taskId: string; name: string; data: Uint8Array; size: number } | null> {
     if (!ftClient) return null
     try {
-      const { name, data, size } = await ftClient.download(item.path)
+      const { taskId, name, data, size } = await ftClient.download(item.path)
       log(`下载成功: ${name} (${size} bytes)`)
-      return { name, data, size }
+      return { taskId, name, data, size }
     } catch (err) {
       log(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
       return null
@@ -132,7 +134,15 @@ export function useFileTransfer() {
   // 下载远端文件并触发浏览器保存(无 File System Access API 时的降级路径)
   async function downloadAndSave(item: RemoteFileInfo) {
     const r = await downloadRaw(item)
-    if (r) saveBlob(r.name, r.data)
+    if (r) {
+      saveBlob(r.name, r.data)
+      setTaskLocation(r.taskId, '浏览器下载目录')
+    }
+  }
+
+  // 回填任务落点(下载保存位置)
+  function setTaskLocation(taskId: string, location: string) {
+    ftClient?.setTaskLocation(taskId, location)
   }
 
   function saveBlob(name: string, data: Uint8Array) {
@@ -198,6 +208,7 @@ export function useFileTransfer() {
     uploadFolder,
     downloadRaw,
     downloadAndSave,
+    setTaskLocation,
     cancel,
     clearFinished,
     createFolder,

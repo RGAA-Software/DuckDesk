@@ -144,7 +144,9 @@ async function downloadToLocal(item: RemoteFileInfo) {
   }
   try {
     await writeFile(cur, r.name, r.data)
-    ElMessage.success(`已保存到本地: ${localPathText.value} / ${r.name}`)
+    const savedTo = `${localPathText.value} / ${r.name}`
+    props.ft.setTaskLocation(r.taskId, savedTo)
+    ElMessage.success(`已保存到本地: ${savedTo}`)
     await refreshLocal()
   } catch (err) {
     ElMessage.error(`写入本地文件失败: ${err instanceof Error ? err.message : String(err)}`)
@@ -307,8 +309,10 @@ function taskStateText(t: TransferTask): string {
   }
 }
 
+// 速度统一用 MB/s 小数表示(低于 1MB/s 也是 0.xx MB/s,不用 KB)
 function fmtSpeed(bps: number): string {
-  return bps > 0 ? `${props.ft.fmtSize(bps)}/s` : '-'
+  if (bps <= 0) return '-'
+  return `${(bps / 1024 / 1024).toFixed(2)} MB/s`
 }
 </script>
 
@@ -542,6 +546,11 @@ function fmtSpeed(bps: number): string {
           <el-table-column label="大小" width="90">
             <template #default="{ row }">
               {{ row.total > 0 ? ft.fmtSize(row.total) : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="位置" min-width="160">
+            <template #default="{ row }">
+              <span class="ftw-location" :title="row.location ?? ''">{{ row.location || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="进度" min-width="140">
@@ -819,5 +828,15 @@ function fmtSpeed(bps: number): string {
 }
 .ftw-state-error {
   color: #f56c6c;
+}
+.ftw-location {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #606266;
+  font-size: 12px;
+  vertical-align: middle;
 }
 </style>

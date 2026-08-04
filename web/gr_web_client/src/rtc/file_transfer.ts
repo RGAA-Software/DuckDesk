@@ -54,6 +54,8 @@ export interface TransferTask {
   speedBps: number
   state: 'running' | 'done' | 'error' | 'cancelled'
   error?: string
+  // 落点:上传=远端目标路径;下载=本地保存位置(完成后由调用方回填)
+  location?: string
 }
 
 export interface FileTransferOptions {
@@ -252,6 +254,14 @@ export class FileTransferClient {
     return Array.from(this.tasks.values())
   }
 
+  // 回填任务落点(下载完成后由调用方告知保存到了哪里)
+  setTaskLocation(taskId: string, location: string) {
+    const task = this.tasks.get(taskId)
+    if (!task) return
+    this.tasks.set(taskId, { ...task, location })
+    this.emitTasks()
+  }
+
   // 清除已结束(完成/失败/取消)的任务记录,传输中的保留
   clearFinishedTasks() {
     for (const [id, t] of this.tasks) {
@@ -412,6 +422,7 @@ export class FileTransferClient {
       transferred: 0,
       speedBps: 0,
       state: 'running',
+      location: targetFilePath,
     }
     this.touchTask(task)
 
