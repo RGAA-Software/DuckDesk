@@ -39,7 +39,32 @@ namespace tc
 
     void RtcLocalPlugin::On1Second() {
         GrPluginInterface::On1Second();
+        SweepDeadRtcServers();
+    }
 
+    void RtcLocalPlugin::NotifyRtcServerTerminal(const std::string& conn_id) {
+        LOGW("Rtc server terminal notified, conn_id: {}, will be swept.", conn_id);
+        rtc_servers_.Apply(conn_id, [](const std::shared_ptr<RtcServer>& srv) {
+            srv->RequestExit();
+        });
+    }
+
+    void RtcLocalPlugin::SweepDeadRtcServers() {
+        std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> dead_servers;
+        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            if (srv->IsExitRequested()) {
+                dead_servers.emplace_back(k, srv);
+            }
+        });
+        for (const auto& [k, srv] : dead_servers) {
+            auto removed = rtc_servers_.Remove(k);
+            if (removed.has_value() && removed.value() != srv) {
+                // 同 key 已被 takeover 的新实例占用,放回去,只清理旧的
+                rtc_servers_.Insert(k, removed.value());
+            }
+            LOGI("Sweep dead rtc server: {}", k);
+            srv->Exit();
+        }
     }
     
     bool RtcLocalPlugin::OnCreate(const tc::GrPluginParam &param) {
@@ -91,7 +116,13 @@ namespace tc
             wait_count++;
         }
         if (wait_count >= 2000) {
-            LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+            // 拥塞日志限频:每 10s 最多一条,避免长时间拥塞时刷爆日志
+            static std::atomic<int64_t> last_ft_timeout_log_ts = 0;
+            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
+            auto last = last_ft_timeout_log_ts.load();
+            if (now - last >= 10000 && last_ft_timeout_log_ts.compare_exchange_strong(last, now)) {
+                LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
+            }
             return false;
         }
         rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
@@ -101,10 +132,16 @@ namespace tc
     }
 
     void RtcLocalPlugin::WaitForMediaChannelActive() {
+        if (rtc_servers_.Empty()) {
+            return;
+        }
+        // 媒体路径最多等 100ms:此函数运行在帧分发线程上,长时间自旋会堵死
+        // 整个 render 消息循环。拥塞时直接放行投递(底层 channel 发送失败会自行丢弃)。
+        static constexpr int kMaxWaitMs = 100;
         auto queuing_msg_count = GetQueuingMediaMsgCount();
         auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
         auto wait_count = 0;
-        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
+        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < kMaxWaitMs) {
             if (rtc_servers_.Empty()) {
                 LOGW("===> Send media, no alive rtc server, drop the message.");
                 return;
@@ -114,36 +151,46 @@ namespace tc
             queuing_msg_count = GetQueuingMediaMsgCount();
             wait_count++;
         }
-        if (wait_count >= 2000) {
-            LOGW("===> Send media timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
-        }
-        else if (wait_count > 0) {
-            LOGI("===> Send media wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
+        // 拥塞日志限频:每 10s 最多一条,避免长时间拥塞时刷爆日志
+        static std::atomic<int64_t> last_congestion_log_ts = 0;
+        if (wait_count > 0) {
+            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
+            auto last = last_congestion_log_ts.load();
+            if (now - last >= 10000 && last_congestion_log_ts.compare_exchange_strong(last, now)) {
+                LOGW("===> Send media congested, wait for: {}ms, msg count: {}", wait_count, queuing_msg_count);
+            }
         }
     }
 
     int RtcLocalPlugin::GetConnectedClientsCount() {
-        bool has_connected_channel_ = false;
+        int count = 0;
         rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
-            //if (srv->IsDataChannelConnected()) {
-                has_connected_channel_ = true;
-            //}
+            if (srv->IsDataChannelConnected()) {
+                count++;
+            }
         });
-        return has_connected_channel_;
+        return count;
     }
 
     int64_t RtcLocalPlugin::GetQueuingMediaMsgCount() {
         uint32_t total_pending_messages = 0;
         rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            // 跳过死连接:其 pending 计数不会再变化,统计进来只会造成误判
+            if (!srv->IsDataChannelConnected()) {
+                return;
+            }
             total_pending_messages += srv->GetMediaPendingMessages();
         });
         return total_pending_messages;
     }
 
     int64_t RtcLocalPlugin::GetQueuingFtMsgCount() {
-        // TODO: 连接断开之后，清空srv中的计数
         uint32_t total_pending_messages = 0;
         rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            // 跳过死连接:其 pending 计数不会再变化,统计进来只会造成误判
+            if (!srv->IsFtDataChannelConnected()) {
+                return;
+            }
             total_pending_messages += srv->GetFtPendingMessages();
         });
         return total_pending_messages;
@@ -152,6 +199,10 @@ namespace tc
     bool RtcLocalPlugin::HasEnoughBufferForQueuingMediaMessages() {
         bool flag = true;
         rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            // 跳过死连接:死连接的 channel 缓冲永远是满的,会全票否决所有投递
+            if (!srv->IsDataChannelConnected()) {
+                return;
+            }
             flag &= srv->HasEnoughBufferForQueuingMediaMessages();
         });
         return flag;
@@ -160,6 +211,10 @@ namespace tc
     bool RtcLocalPlugin::HasEnoughBufferForQueuingFtMessages() {
         bool flag = true;
         rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            // 跳过死连接:死连接的 channel 缓冲永远是满的,会全票否决所有投递
+            if (!srv->IsFtDataChannelConnected()) {
+                return;
+            }
             flag &= srv->HasEnoughBufferForQueuingFtMessages();
         });
         return flag;
@@ -275,11 +330,17 @@ namespace tc
                 return GrLocalRtcAllocResult::kOccupied;
             }
             LOGI("** Remove old one.");
-            old_server->Exit();
+            // 先从 map 摘除,让新连接立即可建;
+            // Exit() 里 webrtc 线程 Stop() 可能因对端会话繁忙而长时间阻塞,
+            // 绝不能跑在调用方线程(HTTP 信令线程)上,否则 takeover 请求会挂死信令
             rtc_servers_.Remove(conn_id);
+            std::thread([old_server]() {
+                old_server->Exit();
+            }).detach();
         }
 
         auto rtc_server = RtcServer::Make(this);
+        rtc_server->SetConnId(conn_id);
         rtc_server->Start(req->stream_id_, req->sdp_);
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();
