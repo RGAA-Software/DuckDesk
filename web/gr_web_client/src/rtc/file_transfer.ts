@@ -15,12 +15,18 @@ import {
   encodeMessage,
   decodeMessage,
   MSG_TYPE_FILE_OPERATION_EVENT,
+  MSG_TYPE_FILE_OPERATE_RESP_RENAME,
   MSG_TYPE_FILE_OPERATE_RESP_GET_FILE_LIST,
+  MSG_TYPE_FILE_OPERATE_RESP_CREATE_NEW_FOLDER,
+  MSG_TYPE_FILE_OPERATE_RESP_DEL,
   MSG_TYPE_FILE_TRANS_RESP_UPLOAD,
   MSG_TYPE_FILE_TRANS_RESP_DOWNLOAD,
   MSG_TYPE_FILE_TRANS_DATA_PACKET,
   MSG_TYPE_FILE_TRANS_DATA_PACKET_RESPONSE,
   MSG_TYPE_FILE_TRANS_SAVE_FILE_EXCEPTION,
+  FT_OP_DEL,
+  FT_OP_CREATE_NEW_FOLDER,
+  FT_OP_RENAME,
   FT_OP_GET_FILES_LIST,
   FT_OP_DOWNLOAD,
   FT_DIR_UPLOAD,
@@ -44,6 +50,8 @@ export interface TransferTask {
   fileName: string
   total: number
   transferred: number
+  // 即时传输速度(bytes/s),传输中按进度增量采样,结束后归零
+  speedBps: number
   state: 'running' | 'done' | 'error' | 'cancelled'
   error?: string
 }
@@ -88,10 +96,23 @@ export class FileTransferClient {
   private taskSeq = 0
 
   private tasks = new Map<string, TransferTask>()
+  // 速度采样:taskId -> 上次采样的 {时间, 已传字节}
+  private speedSamples = new Map<string, { time: number; bytes: number }>()
 
   private pendingLists = new Map<
     number,
     { resolve: (r: { path: string; files: RemoteFileInfo[] }) => void; reject: (e: Error) => void; timer: number }
+  >()
+
+  // 重命名/新建文件夹/删除的请求-响应配对(fileOperateSequence -> 回调)
+  private pendingOps = new Map<
+    number,
+    {
+      expectType: number
+      resolve: (msg: ReturnType<typeof decodeMessage>) => void
+      reject: (e: Error) => void
+      timer: number
+    }
   >()
 
   private uploads = new Map<
@@ -160,6 +181,11 @@ export class FileTransferClient {
       case MSG_TYPE_FILE_OPERATE_RESP_GET_FILE_LIST:
         this.onFileList(msg)
         break
+      case MSG_TYPE_FILE_OPERATE_RESP_RENAME:
+      case MSG_TYPE_FILE_OPERATE_RESP_CREATE_NEW_FOLDER:
+      case MSG_TYPE_FILE_OPERATE_RESP_DEL:
+        this.onOperateResp(msg)
+        break
       case MSG_TYPE_FILE_TRANS_DATA_PACKET:
         this.onDataPacket(msg)
         break
@@ -180,6 +206,20 @@ export class FileTransferClient {
   // ---------- 任务状态 ----------
 
   private touchTask(task: TransferTask) {
+    // 速度采样:与上次采样的字节增量 / 时间增量(简单即时值)
+    const now = Date.now()
+    if (task.state === 'running') {
+      const prev = this.speedSamples.get(task.taskId)
+      if (prev && now > prev.time) {
+        task.speedBps = Math.max(0, Math.round(((task.transferred - prev.bytes) * 1000) / (now - prev.time)))
+      } else if (!prev) {
+        task.speedBps = 0
+      }
+      this.speedSamples.set(task.taskId, { time: now, bytes: task.transferred })
+    } else {
+      task.speedBps = 0
+      this.speedSamples.delete(task.taskId)
+    }
     this.tasks.set(task.taskId, { ...task })
     this.emitTasks()
   }
@@ -190,6 +230,17 @@ export class FileTransferClient {
 
   getTasks(): TransferTask[] {
     return Array.from(this.tasks.values())
+  }
+
+  // 清除已结束(完成/失败/取消)的任务记录,传输中的保留
+  clearFinishedTasks() {
+    for (const [id, t] of this.tasks) {
+      if (t.state !== 'running') {
+        this.tasks.delete(id)
+        this.speedSamples.delete(id)
+      }
+    }
+    this.emitTasks()
   }
 
   // ---------- 列目录 ----------
@@ -239,6 +290,88 @@ export class FileTransferClient {
     })
   }
 
+  // ---------- 重命名 / 新建文件夹 / 删除 ----------
+  // 与 listDir 同一套 fileOperateSequence 请求-响应配对,只是响应消息类型不同
+
+  private sendOperate(
+    expectType: number,
+    event: Record<string, unknown>,
+    timeoutError: string,
+  ): Promise<ReturnType<typeof decodeMessage>> {
+    const seq = ++this.operateSeq
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.pendingOps.delete(seq)
+        reject(new Error(timeoutError))
+      }, RESP_TIMEOUT_MS)
+      this.pendingOps.set(seq, { expectType, resolve, reject, timer })
+      this.sendMessage({
+        type: MSG_TYPE_FILE_OPERATION_EVENT,
+        fileOperateSequence: seq,
+        fileOperateionsEvent: event,
+      })
+    })
+  }
+
+  private onOperateResp(msg: ReturnType<typeof decodeMessage>) {
+    const seq = toNum(msg.fileOperateRespSequence)
+    const pending = this.pendingOps.get(seq)
+    if (!pending) {
+      this.log(`收到无对应请求的操作响应 type=${msg.type} seq=${seq}`)
+      return
+    }
+    if (msg.type !== pending.expectType) {
+      this.log(`操作响应类型不匹配 seq=${seq} expect=${pending.expectType} got=${msg.type}`)
+      return
+    }
+    this.pendingOps.delete(seq)
+    window.clearTimeout(pending.timer)
+    pending.resolve(msg)
+  }
+
+  // 在 parentPath 下新建文件夹(名字由 render 自动生成: 新建文件夹/新建文件夹(2)...)
+  async createFolder(parentPath: string): Promise<string> {
+    const msg = await this.sendOperate(
+      MSG_TYPE_FILE_OPERATE_RESP_CREATE_NEW_FOLDER,
+      { operateType: FT_OP_CREATE_NEW_FOLDER, pathOfCreateNewFolder: parentPath },
+      `新建文件夹超时: ${parentPath}`,
+    )
+    const resp = msg.fileOperateRespCreateNewFolder
+    if (!resp || !resp.ret) {
+      throw new Error(resp?.msgOfError || '新建文件夹失败')
+    }
+    this.log(`新建文件夹: ${resp.pathOfNewCreated}`)
+    return resp.pathOfNewCreated
+  }
+
+  async deleteFile(path: string): Promise<void> {
+    const msg = await this.sendOperate(
+      MSG_TYPE_FILE_OPERATE_RESP_DEL,
+      { operateType: FT_OP_DEL, pathsOfDel: [path] },
+      `删除超时: ${path}`,
+    )
+    const resp = msg.fileOperateRespDel
+    if (!resp || !resp.ret || (resp.pathsOfNoDel?.length ?? 0) > 0) {
+      throw new Error(resp?.msgOfError || '删除失败')
+    }
+    this.log(`删除成功: ${path}`)
+  }
+
+  // newName 仅文件名(不含路径),render 在同目录下重命名
+  async renameFile(path: string, newName: string): Promise<string> {
+    const msg = await this.sendOperate(
+      MSG_TYPE_FILE_OPERATE_RESP_RENAME,
+      { operateType: FT_OP_RENAME, pathOfRename: path, nameOfRename: newName },
+      `重命名超时: ${path}`,
+    )
+    const resp = msg.fileOperateRespRename
+    if (!resp || !resp.ret) {
+      throw new Error(resp?.msgOfError || '重命名失败')
+    }
+    this.log(`重命名: ${resp.pathOfOld} -> ${resp.pathOfNew}`)
+    return resp.pathOfNew
+  }
+
   // ---------- 上传 ----------
 
   private newTaskId(prefix: string): string {
@@ -257,6 +390,7 @@ export class FileTransferClient {
       fileName: file.name,
       total: file.size,
       transferred: 0,
+      speedBps: 0,
       state: 'running',
     }
     this.touchTask(task)
@@ -389,12 +523,18 @@ export class FileTransferClient {
       p.reject(new Error(reason))
       this.pendingLists.delete(seq)
     }
+    for (const [seq, p] of this.pendingOps) {
+      window.clearTimeout(p.timer)
+      p.reject(new Error(reason))
+      this.pendingOps.delete(seq)
+    }
     for (const taskId of Array.from(this.uploads.keys())) {
       this.failUpload(taskId, reason)
     }
     for (const taskId of Array.from(this.downloads.keys())) {
       this.failDownload(taskId, reason)
     }
+    this.speedSamples.clear()
   }
 
   // ---------- 下载 ----------
@@ -412,6 +552,7 @@ export class FileTransferClient {
       fileName: name,
       total: 0,
       transferred: 0,
+      speedBps: 0,
       state: 'running',
     })
 

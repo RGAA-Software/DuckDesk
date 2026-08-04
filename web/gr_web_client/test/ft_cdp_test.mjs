@@ -10,7 +10,7 @@ import path from 'node:path'
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const CDP_PORT = 9222
 const PAGE_URL =
-  'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=ft1&pwd_md5=698d51a19d8a121ce581499d7b701668'
+  'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=ft1&pwd_md5=81dc9bdb52d04dc20036dbd8313ed055'
 const UPLOAD_DIR = 'C:/Users/Public'
 const UPLOAD_NAME = `ft_web_test_${Date.now()}.txt`
 

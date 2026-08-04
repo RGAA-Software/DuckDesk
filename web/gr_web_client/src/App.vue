@@ -5,13 +5,14 @@ import { InputController } from './rtc/input'
 import { sendControlMessage } from './rtc/control'
 import { GamepadController } from './rtc/gamepad'
 import type { GamepadSnapshot } from './rtc/gamepad'
-import { FileTransferClient, sha256Hex } from './rtc/file_transfer'
-import type { RemoteFileInfo, TransferTask } from './rtc/file_transfer'
+import { sha256Hex } from './rtc/file_transfer'
 import { PerfCollector, EMPTY_PERF } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
 import { sendClipboardText, parseClipboardText } from './rtc/clipboard'
 import { TlvReassembler } from './rtc/tlv'
-import FloatToolbar from './FloatToolbar.vue'
+import FloatBall from './FloatBall.vue'
+import FileTransferWindow from './FileTransferWindow.vue'
+import { useFileTransfer } from './useFileTransfer'
 
 // ---------- 信令契约(对齐 render net_ws http_handler.cpp)----------
 // POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)[&takeover=1]
@@ -202,6 +203,21 @@ const perfCollector = new PerfCollector((s) => {
   perf.value = s
 })
 
+// 性能面板显示值(码率单位为 kbps,>=1000 转 Mbps)
+const perfBitrateText = computed(() => {
+  const kbps = perf.value.videoBitrateKbps
+  return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} Mbps` : `${kbps.toFixed(0)} kbps`
+})
+const perfResolutionText = computed(() =>
+  perf.value.width > 0 ? `${perf.value.width}×${perf.value.height}` : '-',
+)
+const perfLossText = computed(() => `${(perf.value.lossRate * 100).toFixed(1)}%`)
+const perfRttText = computed(() => (perf.value.rttMs > 0 ? `${perf.value.rttMs.toFixed(0)} ms` : '-'))
+const perfJitterText = computed(() => `${perf.value.jitterMs.toFixed(1)} ms`)
+
+// 底部日志面板:默认收起,顶部控制条「日志」按钮切换
+const logVisible = ref(false)
+
 // ---------- 剪贴板文本同步(kClipboardInfo,双向)----------
 // 远端(render 机器)最近一次广播的剪贴板文本
 const remoteClipboard = ref('')
@@ -268,135 +284,37 @@ function exposeClipboardPerfDebug() {
 }
 
 // ---------- 文件传输(ft_data_channel)----------
+// 状态与操作在 useFileTransfer composable;UI 在 FileTransferWindow.vue
 let ftDc: RTCDataChannel | null = null
-let ftClient: FileTransferClient | null = null
 const ftVisible = ref(false)
-const ftReady = ref(false)
-const ftPath = ref('/')
-const ftFiles = ref<RemoteFileInfo[]>([])
-const ftLoading = ref(false)
-const ftError = ref('')
-const ftTasks = ref<TransferTask[]>([])
-const ftFileInput = ref<HTMLInputElement | null>(null)
-
-function initFt() {
-  if (!ftDc) return
-  ftClient = new FileTransferClient({
-    dc: ftDc,
-    deviceId: form.deviceId,
-    streamId: form.streamId,
-    onLog: addLog,
-    onTasksChanged: (tasks) => {
-      ftTasks.value = tasks
-    },
-  })
-  ftReady.value = true
-  addLog('文件传输通道已就绪')
-  exposeFtDebug()
-  void ftRefresh('/')
-}
-
-async function ftRefresh(path?: string) {
-  if (!ftClient) return
-  const target = path ?? ftPath.value
-  ftLoading.value = true
-  ftError.value = ''
-  try {
-    const result = await ftClient.listDir(target)
-    ftPath.value = result.path || target
-    ftFiles.value = result.files
-  } catch (err) {
-    ftError.value = err instanceof Error ? err.message : String(err)
-  } finally {
-    ftLoading.value = false
-  }
-}
-
-function ftEnter(item: RemoteFileInfo) {
-  if (item.type === 2) return // 文件不进目录
-  void ftRefresh(item.path)
-}
-
-function ftUp() {
-  const p = ftPath.value.replace(/[\\/]+$/, '')
-  if (!p || p === '/') return // 已在根(盘符列表)
-  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
-  // "C:" 这一级再往上就是盘符列表
-  void ftRefresh(idx <= 2 ? '/' : p.slice(0, idx))
-}
-
-function ftPickFile() {
-  ftFileInput.value?.click()
-}
-
-async function onFtFileChosen(ev: Event) {
-  const inputEl = ev.target as HTMLInputElement
-  const file = inputEl.files?.[0]
-  inputEl.value = ''
-  if (!file || !ftClient) return
-  try {
-    await ftClient.upload(file, ftPath.value)
-    addLog(`上传成功: ${file.name}`)
-  } catch (err) {
-    addLog(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
-// 下载远端文件并触发浏览器保存
-async function ftDownloadAndSave(item: RemoteFileInfo) {
-  if (!ftClient) return
-  try {
-    const { name, data, size } = await ftClient.download(item.path)
-    saveBlob(name, data)
-    addLog(`下载成功: ${name} (${size} bytes)`)
-  } catch (err) {
-    addLog(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
-function saveBlob(name: string, data: Uint8Array) {
-  const url = URL.createObjectURL(new Blob([data.slice().buffer]))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-function ftCancel(task: TransferTask) {
-  ftClient?.cancel(task.taskId)
-}
-
-function fmtSize(size: number): string {
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-  if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
-  return `${(size / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
+const ft = useFileTransfer()
+const ftReady = ft.ftReady
 
 // 无头/CDP 调试用:window.__ft
 function exposeFtDebug() {
   const w = window as unknown as { __ft?: unknown }
   w.__ft = {
-    ready: () => ftReady.value,
-    listDir: (path: string) => ftClient?.listDir(path),
+    ready: () => ft.ftReady.value,
+    listDir: (path: string) => ft.client()?.listDir(path),
     uploadText: async (name: string, targetDir: string, content: string) => {
-      if (!ftClient) throw new Error('ft not ready')
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
       const bytes = new TextEncoder().encode(content)
       const file = new File([bytes.slice().buffer], name)
-      const result = await ftClient.upload(file, targetDir)
+      const result = await client.upload(file, targetDir)
       return { ...result, sha256: await sha256Hex(bytes) }
     },
     uploadFile: (file: File, targetDir: string) => {
-      if (!ftClient) throw new Error('ft not ready')
-      return ftClient.upload(file, targetDir)
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      return client.upload(file, targetDir)
     },
     download: async (path: string) => {
-      const r = await ftClient?.download(path)
+      const r = await ft.client()?.download(path)
       if (!r) throw new Error('ft not ready')
       return { taskId: r.taskId, name: r.name, size: r.size, sha256: r.sha256 }
     },
-    tasks: () => ftClient?.getTasks() ?? [],
+    tasks: () => ft.client()?.getTasks() ?? [],
   }
 }
 
@@ -511,16 +429,13 @@ function cleanup() {
   perfCollector.stop()
   perf.value = { ...EMPTY_PERF }
   remoteClipboard.value = ''
-  ftClient?.failAll('连接已断开')
-  ftClient = null
-  ftReady.value = false
-  ftTasks.value = []
+  ft.resetFt('连接已断开')
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
   micOn.value = false
   micTransceiver = null
-  const w = window as unknown as { __ft?: unknown; __pc?: RTCPeerConnection | null }
-  delete w.__ft
+  // __ft 调试钩子常驻(onMounted 时挂出,内部经 ft.client() 惰性取值),不随连接清理
+  const w = window as unknown as { __pc?: RTCPeerConnection | null }
   w.__pc = null
   if (ftDc) {
     ftDc.onopen = null
@@ -626,15 +541,14 @@ async function connect() {
     ftDc.binaryType = 'arraybuffer'
     ftDc.onopen = () => {
       addLog(`datachannel "${FT_DATA_CHANNEL_LABEL}" onopen`)
-      initFt()
+      ft.initFt(ftDc as RTCDataChannel, form.deviceId, form.streamId, addLog)
     }
     ftDc.onmessage = (ev: MessageEvent) => {
-      if (ev.data instanceof ArrayBuffer) ftClient?.handleChannelMessage(ev.data)
+      if (ev.data instanceof ArrayBuffer) ft.handleChannelMessage(ev.data)
     }
     ftDc.onclose = () => {
       addLog('ft datachannel onclose')
-      ftClient?.failAll('文件传输通道已断开')
-      ftReady.value = false
+      ft.resetFt('文件传输通道已断开')
     }
     ftDc.onerror = (ev: Event) => addLog(`ft datachannel onerror: ${String(ev)}`)
 
@@ -770,6 +684,7 @@ onMounted(() => {
   loadQueryParams()
   exposeClipboardPerfDebug()
   exposeInputConnDebug()
+  exposeFtDebug()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // 参数齐全时自动连接(便于 CMS 跳转/无头测试);流 ID 已由设备 ID 派生
   if (form.deviceId && effectivePwdMd5()) {
@@ -834,6 +749,9 @@ onBeforeUnmount(() => {
         </el-form-item>
         <el-form-item>
           <el-tag :type="statusType[status]">{{ statusLabel }}</el-tag>
+          <el-button size="small" class="log-toggle" @click="logVisible = !logVisible">
+            日志
+          </el-button>
         </el-form-item>
       </el-form>
       <el-alert
@@ -845,8 +763,8 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <!-- 悬浮工具条:本地功能 + 远程控制 -->
-    <FloatToolbar
+    <!-- 悬浮球:点开白色圆角菜单面板(本地功能 + 远程控制) -->
+    <FloatBall
       v-model:muted="muted"
       v-model:mic-on="micOn"
       v-model:view-only="viewOnly"
@@ -871,72 +789,40 @@ onBeforeUnmount(() => {
     <!-- 指针锁定提示(锁定期间物理光标隐藏,顶部常驻提示) -->
     <div v-if="pointerLocked" class="lock-hint">鼠标已锁定 · 相对模式 · Esc 退出</div>
 
-    <!-- 文件传输面板 -->
-    <el-drawer v-model="ftVisible" title="文件传输" size="520px">
-      <div class="ft-panel">
-        <div class="ft-path-bar">
-          <el-button size="small" :disabled="!ftReady || ftLoading" @click="ftUp">上级</el-button>
-          <el-input v-model="ftPath" size="small" class="ft-path-input" @keyup.enter="ftRefresh()" />
-          <el-button size="small" :loading="ftLoading" :disabled="!ftReady" @click="ftRefresh()">
-            刷新
-          </el-button>
-          <el-button size="small" type="primary" :disabled="!ftReady" @click="ftPickFile">
-            上传到此处
-          </el-button>
-          <input ref="ftFileInput" type="file" class="ft-file-input" @change="onFtFileChosen" />
-        </div>
-        <el-alert v-if="ftError" :title="ftError" type="error" :closable="false" class="ft-error" />
-        <el-table v-loading="ftLoading" :data="ftFiles" size="small" height="320">
-          <el-table-column label="名称">
-            <template #default="{ row }">
-              <el-link v-if="row.type !== 2" type="primary" @click="ftEnter(row)">
-                {{ row.type === 0 ? '💽' : '📁' }} {{ row.name }}
-              </el-link>
-              <span v-else>📄 {{ row.name }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="大小" width="100">
-            <template #default="{ row }">
-              {{ row.type === 2 ? fmtSize(row.size) : '' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80">
-            <template #default="{ row }">
-              <el-button v-if="row.type === 2" size="small" link type="primary" @click="ftDownloadAndSave(row)">
-                下载
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div v-if="ftTasks.length" class="ft-tasks">
-          <div v-for="t in ftTasks" :key="t.taskId" class="ft-task">
-            <span class="ft-task-name">
-              {{ t.direction === 'upload' ? '⬆' : '⬇' }} {{ t.fileName }}
-            </span>
-            <el-progress
-              class="ft-task-progress"
-              :percentage="t.total > 0 ? Math.floor((t.transferred / t.total) * 100) : 0"
-              :status="t.state === 'done' ? 'success' : t.state === 'error' || t.state === 'cancelled' ? 'exception' : undefined"
-            />
-            <el-button
-              v-if="t.state === 'running'"
-              size="small"
-              link
-              type="danger"
-              @click="ftCancel(t)"
-            >
-              取消
-            </el-button>
-            <span v-else class="ft-task-state">
-              {{ t.state === 'done' ? '完成' : t.state === 'error' ? `失败: ${t.error ?? ''}` : '已取消' }}
-            </span>
-          </div>
-        </div>
+    <!-- 性能面板:每 2s 采样 pc.getStats();码率为 WebRTC 自适应值(协议无改码率消息) -->
+    <div v-if="perfVisible" class="perf-panel">
+      <div class="perf-item">
+        <span class="perf-label">码率</span>
+        <span class="perf-value">{{ perfBitrateText }}</span>
       </div>
-    </el-drawer>
+      <div class="perf-item">
+        <span class="perf-label">帧率</span>
+        <span class="perf-value">{{ perf.fps.toFixed(0) }} fps</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">RTT</span>
+        <span class="perf-value">{{ perfRttText }}</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">丢包</span>
+        <span class="perf-value">{{ perfLossText }}</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">抖动</span>
+        <span class="perf-value">{{ perfJitterText }}</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">分辨率</span>
+        <span class="perf-value">{{ perfResolutionText }}</span>
+      </div>
+      <span class="perf-note">码率为 WebRTC 自适应,协议不支持手动指定</span>
+    </div>
 
-    <!-- 日志面板 -->
-    <div v-if="logs.length" class="log-panel">
+    <!-- 独立文件传输窗口(本地暂存区 / 远端文件 / 传输记录) -->
+    <FileTransferWindow v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
+
+    <!-- 日志面板(默认收起,顶部「日志」按钮切换) -->
+    <div v-if="logVisible && logs.length" class="log-panel">
       <div v-for="(line, i) in logs" :key="i" class="log-line">{{ line }}</div>
     </div>
   </div>
@@ -1004,47 +890,39 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
   word-break: break-all;
 }
-.ft-panel {
+.log-toggle {
+  margin-left: 8px;
+}
+.perf-panel {
+  position: absolute;
+  top: 64px;
+  right: 16px;
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(30, 30, 30, 0.9);
+  border-radius: 8px;
+  z-index: 30;
+}
+.perf-item {
+  display: inline-flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  min-width: 64px;
 }
-.ft-path-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.perf-label {
+  color: #888;
+  font-size: 11px;
 }
-.ft-path-input {
-  flex: 1;
+.perf-value {
+  color: #6f6;
+  font-family: monospace;
+  font-size: 13px;
 }
-.ft-file-input {
-  display: none;
-}
-.ft-error {
-  margin-bottom: 4px;
-}
-.ft-tasks {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ft-task {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ft-task-name {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-.ft-task-progress {
-  flex: 1;
-}
-.ft-task-state {
-  font-size: 12px;
-  color: #999;
+.perf-note {
+  color: #666;
+  font-size: 11px;
+  align-self: center;
 }
 </style>

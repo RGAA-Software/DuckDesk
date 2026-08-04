@@ -23,7 +23,10 @@ export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
 
 // 文件传输相关 MessageType(tc_message.proto:67-81)
 export const MSG_TYPE_FILE_OPERATION_EVENT = 260 // kFileOperationEvent
+export const MSG_TYPE_FILE_OPERATE_RESP_RENAME = 265 // kFileOperateRespRename
 export const MSG_TYPE_FILE_OPERATE_RESP_GET_FILE_LIST = 270 // kFileOperateRespGetFileList
+export const MSG_TYPE_FILE_OPERATE_RESP_CREATE_NEW_FOLDER = 280 // kFileOperateRespCreateNewFolder
+export const MSG_TYPE_FILE_OPERATE_RESP_DEL = 290 // kFileOperateRespDel
 export const MSG_TYPE_FILE_TRANS_RESP_UPLOAD = 300 // kFileTransRespUpload
 export const MSG_TYPE_FILE_TRANS_RESP_DOWNLOAD = 305 // kFileTransRespDownload
 export const MSG_TYPE_FILE_TRANS_DATA_PACKET = 311 // kFileTransDataPacket
@@ -31,6 +34,9 @@ export const MSG_TYPE_FILE_TRANS_DATA_PACKET_RESPONSE = 312 // kFileTransDataPac
 export const MSG_TYPE_FILE_TRANS_SAVE_FILE_EXCEPTION = 320 // kFileTransSaveFileException
 
 // FileOperateionsEvent.OperateType(tc_file_transfer.proto:142-153)
+export const FT_OP_DEL = 0
+export const FT_OP_CREATE_NEW_FOLDER = 2
+export const FT_OP_RENAME = 4
 export const FT_OP_GET_FILES_LIST = 5
 export const FT_OP_DOWNLOAD = 8
 
@@ -84,6 +90,23 @@ export function decodeMessage(payload: Uint8Array) {
       msgOfError: string
       path: string
       fileInfos: Array<{ type: number; name: string; path: string; size: unknown; date: unknown }>
+    }
+    fileOperateRespRename?: {
+      ret: boolean
+      pathOfOld: string
+      pathOfNew: string
+      msgOfError: string
+    }
+    fileOperateRespCreateNewFolder?: {
+      ret: boolean
+      pathOfParent: string
+      pathOfNewCreated: string
+      msgOfError: string
+    }
+    fileOperateRespDel?: {
+      ret: boolean
+      pathsOfNoDel: string[]
+      msgOfError: string
     }
     fileTransRespUpload?: {
       res: boolean
