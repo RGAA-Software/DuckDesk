@@ -76,6 +76,11 @@ export class InputController {
   private twoLastMidY = 0
   private twoWheelAcc = 0
 
+  // 切屏后更新回放坐标系(render 按 monitorName 定位屏幕几何)
+  setMonitorName(name: string) {
+    this.opts.monitorName = name
+  }
+
   constructor(opts: InputOptions) {
     this.opts = opts
   }

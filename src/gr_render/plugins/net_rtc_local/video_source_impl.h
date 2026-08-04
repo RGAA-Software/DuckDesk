@@ -18,7 +18,8 @@ namespace tc
 
     class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
-        NotifyFrameFrameBuffer(uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format) {
+        NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format) {
+            this->mon_name_ = mon_name;
             this->frame_idx_ = frame_idx;
             this->width_ = width;
             this->height_ = height;
@@ -55,7 +56,13 @@ namespace tc
             return adapter_uid_;
         }
 
+        // 采集该帧的显示器名:切屏检测/编码帧按屏名匹配用
+        [[nodiscard]] const std::string& GetMonName() {
+            return mon_name_;
+        }
+
     private:
+        std::string mon_name_;
         uint64_t frame_idx_ = 0;
         int width_ = 0;
         int height_ = 0;

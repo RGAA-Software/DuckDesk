@@ -14,6 +14,7 @@ import {
   MSG_TYPE_HELLO,
   MSG_TYPE_CLIPBOARD_INFO,
   MSG_TYPE_SERVER_CONFIGURATION,
+  MSG_TYPE_MONITOR_SWITCHED,
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
@@ -269,6 +270,12 @@ function handleDcBinary(buf: ArrayBuffer) {
       }))
       capturingMonitor.value = cfg.capturingMonitorName ?? ''
       addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}`)
+    } else if (msg.type === MSG_TYPE_MONITOR_SWITCHED && msg.monitorSwitched) {
+      // 切屏回包:更新当前采集显示器与输入回放坐标系(否则鼠标仍按旧屏几何映射)
+      const name = msg.monitorSwitched.name
+      capturingMonitor.value = name
+      input?.setMonitorName(name)
+      addLog(`采集显示器已切换 -> ${name}`)
     } else if (msg.type === MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT && msg.changeMonitorResolutionResult) {
       const r = msg.changeMonitorResolutionResult
       if (r.result) {

@@ -257,7 +257,7 @@ namespace tc
         encoded_video_frame->frame_height_ = frame_height;
         encoded_video_frame->key_ = key;
         encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        encoded_video_frames_.insert({frame_index, encoded_video_frame});
+        encoded_video_frames_.insert({mon_name + "#" + std::to_string(frame_index), encoded_video_frame});
 
     }
 
@@ -287,20 +287,24 @@ namespace tc
 
     }
 
-    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index) {
+    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index, const std::string& mon_name) {
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
-        if (encoded_video_frames_.contains(frame_index)) {
-            auto encoded_frame = encoded_video_frames_[frame_index];
-            encoded_video_frames_.erase(frame_index);
+        const auto exact_key = mon_name + "#" + std::to_string(frame_index);
+        if (encoded_video_frames_.contains(exact_key)) {
+            auto encoded_frame = encoded_video_frames_[exact_key];
+            encoded_video_frames_.erase(exact_key);
             return encoded_frame;
         }
-        // 精确序号未命中(编码管线比采集慢时会一直落空):退而取缓存里最新的一帧,
+        // 精确序号未命中(编码管线比采集慢时会一直落空):退而取同屏缓存里最新的一帧,
         // 让 webrtc 以编码器的实际产出速率发送,而不是永远等 future 帧。
-        if (!encoded_video_frames_.empty()) {
-            auto it = std::prev(encoded_video_frames_.end());
-            auto encoded_frame = it->second;
-            encoded_video_frames_.erase(it);
-            return encoded_frame;
+        // 只匹配同屏帧:切屏过渡期的旧屏残帧绝不能发给已切换的客户端。
+        for (auto it = encoded_video_frames_.end(); it != encoded_video_frames_.begin();) {
+            --it;
+            if (it->second->mon_name_ == mon_name) {
+                auto encoded_frame = it->second;
+                encoded_video_frames_.erase(it);
+                return encoded_frame;
+            }
         }
         return nullptr;
     }

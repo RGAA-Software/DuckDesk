@@ -57,7 +57,10 @@ namespace tc
         // image: Raw image
         void OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
 
-        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint16_t frame_index);
+        // 取主编码管线产出的编码帧:按 (mon_name, frame_index) 精确匹配,
+        // 未命中退而取同屏最新缓存帧(见实现);mon_name 隔离多屏序号空间,
+        // 切屏瞬间新旧屏同号帧不会互相覆盖/误取
+        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint16_t frame_index, const std::string& mon_name);
         void PrintCachedVideoFrames();
         void SetClearOlderFramesBaseline(int64_t baseline_timestamp);
 
@@ -74,8 +77,9 @@ namespace tc
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
         // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
         // webrtc 编码线程(PopEncodedVideoFrame)并发访问,必须加锁。
+        // key = mon_name + "#" + frame_index(各屏采集序号独立,必须带屏名区分)
         std::mutex encoded_video_frames_mtx_;
-        std::unordered_map<uint16_t, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        std::map<std::string, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
         int64_t clear_baseline_timestamp_ = 0;
     };
 

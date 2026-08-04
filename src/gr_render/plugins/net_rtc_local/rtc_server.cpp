@@ -388,6 +388,15 @@ namespace tc
             return;
         }
 
+        // 切屏:采集源显示器变化时重置序号基线,避免新旧屏独立序号被误判为丢帧
+        if (last_captured_mon_name_ != mon_name) {
+            if (!last_captured_mon_name_.empty()) {
+                LOGI("Capturing monitor switched: {} -> {}, reset frame index baseline.", last_captured_mon_name_, mon_name);
+            }
+            last_captured_mon_name_ = mon_name;
+            last_captured_frame_index_ = 0;
+        }
+
         if (last_captured_frame_index_ == 0) {
             last_captured_frame_index_ = frame_idx;
         }
@@ -398,7 +407,7 @@ namespace tc
         }
 
         auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
+        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
         webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
                 set_video_frame_buffer(buffer).
                 set_timestamp_us(us).

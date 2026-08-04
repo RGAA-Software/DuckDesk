@@ -93,11 +93,23 @@ namespace tc
         // Encode 都用假 monitor 名重置主编码器,会搞坏整条编码管线)。
         // 本 encoder 只是"搬运工":等主编码管线产出同 frame_index 的编码帧。
 
+        // 切屏:采集显示器变化 => 编码流来自另一块屏(新 SPS/PPS + 序号空间),
+        // 重新等 IDR 并重置序号基线,否则 delta 帧会让浏览器解码花屏
+        const auto& mon_name = native_buffer->GetMonName();
+        if (last_mon_name_ != mon_name) {
+            if (!last_mon_name_.empty()) {
+                LOGI("Encoder detected monitor switch: {} -> {}, wait IDR again.", last_mon_name_, mon_name);
+            }
+            last_mon_name_ = mon_name;
+            mWaitIDRFrame = true;
+            last_encoded_frame_index_ = 0;
+        }
+
         auto beg_ts = TimeUtil::GetCurrentTimestamp();
         std::shared_ptr<RtcLocalEncodedVideoFrame> encoded_video_frame = nullptr;
         int try_count = 0;
         while (try_count < 50) {
-            encoded_video_frame = plugin_->PopEncodedVideoFrame(frame.id());
+            encoded_video_frame = plugin_->PopEncodedVideoFrame(frame.id(), mon_name);
             if (!encoded_video_frame || !encoded_video_frame->data_) {
                 try_count++;
                 TimeUtil::DelayBySleep(2);

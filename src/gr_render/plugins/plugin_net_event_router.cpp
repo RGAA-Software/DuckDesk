@@ -432,6 +432,7 @@ namespace tc {
     }
 
     void PluginNetEventRouter::ProcessSwitchMonitor(std::shared_ptr<Message>&& msg) {
+        LOGI("ProcessSwitchMonitor, name: {}", msg->switch_monitor().name());
         app_->PostGlobalTask([=, this]() {
             auto sm = msg->switch_monitor();
             auto capture_plugin = app_->GetWorkingMonitorCapturePlugin();

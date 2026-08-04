@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <string>
 
 #include <modules/video_coding/codecs/h264/include/h264.h>
 #include <common_video/h264/h264_common.h>
@@ -54,6 +55,8 @@ namespace tc
         int encoder_index_ = 0;
         bool insert_timer_sei_ = true;
         uint16_t last_encoded_frame_index_ = 0;
+        // 当前绑定的采集显示器名:切屏时重置 IDR 等待与编码序号基线
+        std::string last_mon_name_;
     };
 
 } // namespace tc

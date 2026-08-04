@@ -102,6 +102,8 @@ namespace tc
 
         // last captured frame index
         uint64_t last_captured_frame_index_ = 0;
+        // 最近一次转发帧的采集显示器名(切屏时用于重置序号基线)
+        std::string last_captured_mon_name_;
     };
 
 }

@@ -19,6 +19,7 @@ export const MSG_TYPE_SERVER_CONFIGURATION = 2 // kServerConfiguration
 export const MSG_TYPE_KEY_EVENT = 50 // kKeyEvent
 export const MSG_TYPE_MOUSE_EVENT = 60 // kMouseEvent
 export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
+export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
 
@@ -100,6 +101,8 @@ export function decodeMessage(payload: Uint8Array) {
       fps: number
       fileTransferEnabled: boolean
     }
+    // kMonitorSwitched(type=180):采集显示器已切换(切屏回包,含最新显示器列表)
+    monitorSwitched?: { name: string; index: number }
     // kChangeMonitorResolutionResult(type=210):分辨率切换结果
     changeMonitorResolutionResult?: { monitorName: string; result: boolean }
     fileOperateRespSequence?: unknown

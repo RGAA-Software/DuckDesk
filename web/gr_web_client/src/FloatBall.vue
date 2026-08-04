@@ -184,6 +184,8 @@ function onBallPointerUp(ev: PointerEvent) {
 const ballRef = ref<HTMLElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
 const subPanelRef = ref<HTMLElement | null>(null)
+// 三级子面板(帧率/分辨率/切换显示器,同一时刻只渲染一个,共用一个 ref)
+const subSubPanelRef = ref<HTMLElement | null>(null)
 
 const PANEL_W = 250
 const PANEL_GAP = 8
@@ -242,6 +244,8 @@ function onGlobalPointerDown(ev: PointerEvent) {
   if (ballRef.value?.contains(t)) return
   if (panelRef.value?.contains(t)) return
   if (subPanelRef.value?.contains(t)) return
+  // 三级面板也必须排除,否则 pointerdown 先收起面板、click 永远到不了按钮
+  if (subSubPanelRef.value?.contains(t)) return
   closePanel()
 }
 
@@ -719,6 +723,7 @@ onBeforeUnmount(() => {
   <!-- 三级子面板:帧率 -->
   <div
     v-if="panelOpen && subPanel === 'display' && subSubPanel === 'fps'"
+    ref="subSubPanelRef"
     class="ball-panel sub"
     :style="subSubPanelStyle"
   >
@@ -738,6 +743,7 @@ onBeforeUnmount(() => {
   <!-- 三级子面板:分辨率 -->
   <div
     v-if="panelOpen && subPanel === 'display' && subSubPanel === 'resolution'"
+    ref="subSubPanelRef"
     class="ball-panel sub"
     :style="subSubPanelStyle"
   >
@@ -764,6 +770,7 @@ onBeforeUnmount(() => {
   <!-- 三级子面板:切换显示器(列表来自 kServerConfiguration) -->
   <div
     v-if="panelOpen && subPanel === 'display' && subSubPanel === 'monitor'"
+    ref="subSubPanelRef"
     class="ball-panel sub"
     :style="subSubPanelStyle"
   >
