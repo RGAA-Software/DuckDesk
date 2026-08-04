@@ -740,11 +740,25 @@ function exposeInputConnDebug() {
   }
 }
 
+// ---------- 被控端 render 版本(确认对端是否为旧版;旧版接口无 app_version 字段)----------
+const renderVersion = ref('')
+
+async function fetchRenderVersion() {
+  try {
+    const resp = await fetch('/get/render/configuration')
+    const result = (await resp.json()) as { code?: number; data?: { app_version?: string } }
+    renderVersion.value = result.data?.app_version || ''
+  } catch {
+    /* 接口不可达时保持空 */
+  }
+}
+
 onMounted(() => {
   loadQueryParams()
   exposeClipboardPerfDebug()
   exposeInputConnDebug()
   exposeFtDebug()
+  void fetchRenderVersion()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // 参数齐全时自动连接(便于 CMS 跳转/无头测试);流 ID 已由设备 ID 派生
   if (form.deviceId && effectivePwdMd5()) {
@@ -812,6 +826,12 @@ onBeforeUnmount(() => {
           <el-button size="small" class="log-toggle" @click="logVisible = !logVisible">
             日志
           </el-button>
+          <el-tooltip
+            :content="renderVersion ? `被控端 render 版本: ${renderVersion}` : '被控端为旧版本(未上报版本号)'"
+            placement="bottom"
+          >
+            <span class="render-version">v{{ renderVersion || '旧版' }}</span>
+          </el-tooltip>
         </el-form-item>
       </el-form>
       <el-alert
@@ -954,6 +974,13 @@ onBeforeUnmount(() => {
 }
 .log-toggle {
   margin-left: 8px;
+}
+.render-version {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
+  cursor: default;
+  user-select: none;
 }
 .perf-panel {
   position: absolute;

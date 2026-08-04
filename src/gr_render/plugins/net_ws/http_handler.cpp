@@ -2,6 +2,7 @@
 // Created by RGAA on 2023/12/20.
 //
 #include "http_handler.h"
+#include "version_config.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/md5.h"
 #include "tc_common_new/data.h"
@@ -86,6 +87,8 @@ namespace tc
         obj["relay_port"] = std::atoi(settings.relay_port_.c_str());
         // Web 端鼠标回放需要当前采集显示器名(event_replayer 按它定位坐标系)
         obj["monitor_name"] = plugin_->GetCapturingMonitorName();
+        // 供 Web 客户端展示,便于确认被控端是否为旧版本
+        obj["app_version"] = PROJECT_VERSION;
         SendOkJson(resp, obj.dump());
     }
 

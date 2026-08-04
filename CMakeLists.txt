@@ -56,6 +56,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_qt_widget)
 include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_client_sdk_new)
 ##Binary
+include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
 include_directories(${CMAKE_BINARY_DIR}/src/gr_panel)
 include_directories(${CMAKE_BINARY_DIR}/src/gr_deps/tc_message_new)
 include_directories(${CMAKE_BINARY_DIR}/src/gr_deps/tc_server_protocol)
