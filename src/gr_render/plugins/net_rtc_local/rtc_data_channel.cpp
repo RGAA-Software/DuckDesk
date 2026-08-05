@@ -54,6 +54,13 @@ namespace tc
     }
 
     void RtcDataChannel::OnMessage(const webrtc::DataBuffer &buffer) {
+        // ping 通道:8 字节时间戳原样回显,供 web client 实测 datachannel
+        // 往返延迟(输入通道诊断)。不经 TLV/协议解析,收到即回。
+        if (name_ == "ping_data_channel") {
+            webrtc::DataBuffer echo(buffer.data, true);
+            data_channel_->Send(echo);
+            return;
+        }
         if (buffer.data.size() < sizeof(NetTlvHeader)) {
             LOGE("RtcDataChannel TLV header too small: {}", buffer.data.size());
             return;

@@ -153,12 +153,26 @@ namespace tc
                 cap.support_h264_yuv444_ = false;
                 cap.support_hevc_yuv444_ = false;
             }
+            else if (EHardwareEncoder::kQsv == encoder_config.Hardware) {
+                cap.support_h264_yuv444_ = false;
+                cap.support_hevc_yuv444_ = false;
+            }
             else if(EHardwareEncoder::kNone == encoder_config.Hardware) {
                 cap.support_h264_yuv444_ = true;
                 cap.support_hevc_yuv444_ = true;
             }
         }
         return { cap };
+    }
+
+    void FFmpegEncoderPlugin::ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) {
+        // mon_name 为空(WebRTC 侧事件不带屏名)时应用到全部编码器
+        for (const auto& [monitor_index, video_encoder] : video_encoders_) {
+            if (mon_name.empty() || monitor_index == mon_name) {
+                video_encoder->SetTargetBitrate(bps);
+                video_encoder->SetTargetFps(fps);
+            }
+        }
     }
 
     void FFmpegEncoderPlugin::DisableHardware() {

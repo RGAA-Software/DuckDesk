@@ -38,6 +38,9 @@ namespace tc
         void ExitAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> GetWorkingCapturesInfo() override;
         std::optional<EncoderCapability> GetEncoderCapability(const std::string& monitor_name) override;
+        // 动态调整码率/帧率(WebRTC BWE 经 GrPluginConfigEncoder 事件随动):
+        // 码率走 x264 节流重开,fps 走编码输入侧跳帧,均不改 delta 链连续性
+        void ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
 
         void DisableHardware();
         bool IsHardwareEnabled();

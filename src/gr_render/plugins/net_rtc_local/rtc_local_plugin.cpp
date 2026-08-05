@@ -84,7 +84,41 @@ namespace tc
         return true;
     }
 
+    // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
+    // 这类 proto 消息。但 app 会把每个编码帧广播给所有 net 插件
+    // (plugin_stream_event_router.cpp VisitNetPlugins→PostProtoMessage),
+    // 之前照单全收经 SCTP 转发 => ~9Mbps 的 20KB/帧 消息洪水:
+    // render 每帧 PostTask+memcpy、WaitForMediaChannelActive 在帧分发线程自旋,
+    // Chrome 主线程每秒 60 次 20KB TLV 重组+proto 解码后丢弃——
+    // 主线程被淹正是 web 端"帧率低+完全不跟手"的根因(视频 RTP 轨本身健康)。
+    // wire 级窥探 tc.Message 首字段 type(field 1, varint),媒体帧直接丢弃。
+    static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
+        if (!msg || msg->Size() < 2) {
+            return false;
+        }
+        const auto* p = (const uint8_t*)msg->DataAddr();
+        if (p[0] != 0x08) { // field 1 (type), wire type varint
+            return false;
+        }
+        uint64_t type = 0;
+        int shift = 0;
+        size_t i = 1;
+        while (i < msg->Size() && i < 11) {
+            uint8_t b = p[i++];
+            type |= (uint64_t)(b & 0x7F) << shift;
+            if (!(b & 0x80)) {
+                break;
+            }
+            shift += 7;
+        }
+        // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
+        return type == 30 || type == 40;
+    }
+
     void RtcLocalPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+        if (IsMediaFrameMessage(msg)) {
+            return;
+        }
         WaitForMediaChannelActive();
 
         rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
@@ -93,6 +127,9 @@ namespace tc
     }
 
     bool RtcLocalPlugin::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+        if (IsMediaFrameMessage(msg)) {
+            return true;
+        }
         WaitForMediaChannelActive();
 
         rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
@@ -235,30 +272,33 @@ namespace tc
             LOGI("OnEncodedVideoFrame #{}, idx={}, key={}, cache={}", ecnt, frame_index, key, encoded_video_frames_.size());
         }
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
-        // clear old ones
-        if (clear_baseline_timestamp_ > 0) {
-            auto it = encoded_video_frames_.begin();
-            while (it != encoded_video_frames_.end()) {
-                if ((*it).second->timestamp_ <= clear_baseline_timestamp_) {
-                    it = encoded_video_frames_.erase(it);
-                }
-                else {
-                    it++;
-                }
-            }
-        }
 
         auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
         encoded_video_frame->mon_name_ = mon_name;
         encoded_video_frame->video_type_ = (int)video_type;
         encoded_video_frame->data_ = data;
+        encoded_video_frame->seq_ = ++encoded_seq_by_mon_[mon_name];
         encoded_video_frame->frame_index_ = frame_index;
         encoded_video_frame->frame_width_ = frame_width;
         encoded_video_frame->frame_height_ = frame_height;
         encoded_video_frame->key_ = key;
         encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        encoded_video_frames_.insert({mon_name + "#" + std::to_string(frame_index), encoded_video_frame});
+        encoded_video_frames_.insert({{mon_name, encoded_video_frame->seq_}, encoded_video_frame});
 
+        // 缓存上限:编码快于消费时淘汰该屏最旧帧(未消费就被淘汰的帧会让
+        // 消费端发现 seq gap,进而 InsertIdr 等关键帧续接)
+        auto first_of_mon = encoded_video_frames_.lower_bound({mon_name, 0});
+        auto end_of_mon = encoded_video_frames_.lower_bound({mon_name, UINT64_MAX});
+        size_t mon_count = 0;
+        for (auto it = first_of_mon; it != end_of_mon; ++it) {
+            (void)it;
+            ++mon_count;
+        }
+        while (mon_count > kMaxCachedFramesPerMon && first_of_mon != encoded_video_frames_.end()
+               && first_of_mon->first.first == mon_name) {
+            first_of_mon = encoded_video_frames_.erase(first_of_mon);
+            --mon_count;
+        }
     }
 
     // raw video frame
@@ -287,38 +327,42 @@ namespace tc
 
     }
 
-    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopEncodedVideoFrame(uint16_t frame_index, const std::string& mon_name) {
+    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
-        const auto exact_key = mon_name + "#" + std::to_string(frame_index);
-        if (encoded_video_frames_.contains(exact_key)) {
-            auto encoded_frame = encoded_video_frames_[exact_key];
-            encoded_video_frames_.erase(exact_key);
-            return encoded_frame;
+        out_gap = false;
+        // 该屏 seq 严格大于 after_seq 的最旧一帧(序消费,保证 H264 delta 链完整)
+        auto it = encoded_video_frames_.upper_bound({mon_name, after_seq});
+        if (it == encoded_video_frames_.end() || it->first.first != mon_name) {
+            return nullptr;
         }
-        // 精确序号未命中(编码管线比采集慢时会一直落空):退而取同屏缓存里最新的一帧,
-        // 让 webrtc 以编码器的实际产出速率发送,而不是永远等 future 帧。
-        // 只匹配同屏帧:切屏过渡期的旧屏残帧绝不能发给已切换的客户端。
-        for (auto it = encoded_video_frames_.end(); it != encoded_video_frames_.begin();) {
-            --it;
-            if (it->second->mon_name_ == mon_name) {
-                auto encoded_frame = it->second;
-                encoded_video_frames_.erase(it);
-                return encoded_frame;
-            }
+        // 最旧可取帧的 seq 跳号:中间有未消费的帧被缓存上限淘汰,delta 链已断
+        out_gap = (it->first.second != after_seq + 1);
+        auto encoded_frame = it->second;
+        encoded_video_frames_.erase(it);
+        return encoded_frame;
+    }
+
+    uint64_t RtcLocalPlugin::GetLatestEncodedSeq(const std::string& mon_name) {
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
+        auto it = encoded_seq_by_mon_.find(mon_name);
+        return it != encoded_seq_by_mon_.end() ? it->second : 0;
+    }
+
+    size_t RtcLocalPlugin::GetCachedFrameCount(const std::string& mon_name, uint64_t after_seq) {
+        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
+        size_t count = 0;
+        for (auto it = encoded_video_frames_.upper_bound({mon_name, after_seq});
+             it != encoded_video_frames_.end() && it->first.first == mon_name; ++it) {
+            ++count;
         }
-        return nullptr;
+        return count;
     }
 
     void RtcLocalPlugin::PrintCachedVideoFrames() {
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
-        for (const auto& [frame_idx, frame] : encoded_video_frames_) {
-            LOGI("=> frame idx: {} , key: {}", frame_idx, frame->key_);
+        for (const auto& [key, frame] : encoded_video_frames_) {
+            LOGI("=> mon: {}, seq: {}, key: {}", key.first, key.second, frame->key_);
         }
-    }
-
-    void RtcLocalPlugin::SetClearOlderFramesBaseline(int64_t baseline_timestamp) {
-        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
-        clear_baseline_timestamp_ = baseline_timestamp;
     }
 
     GrLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,

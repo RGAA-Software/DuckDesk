@@ -1,4 +1,4 @@
-// 鼠标/键盘输入采集与发送:经 media_data_channel 发送 NetTlvHeader + tc.Message
+// 鼠标/键盘输入采集与发送:经 input_data_channel 发送 NetTlvHeader + tc.Message
 // 协议对齐 src/gr_client/front_render/ct_video_widget.cpp 的 SendMouseEvent/SendKeyEvent
 import { packTlv } from './tlv'
 import { VK_MAP, isNumLockRelated, isCapsLockRelated } from './vk_map'
@@ -28,7 +28,6 @@ export interface InputOptions {
   onLog?: (msg: string) => void
 }
 
-const MOVE_THROTTLE_MS = 30
 // datachannel 发送缓冲超过该值时丢弃纯移动事件(按键/点击/滚轮不丢)
 const DROP_MOVE_BUFFERED_BYTES = 256 * 1024
 
@@ -43,6 +42,8 @@ const UP_FLAGS: Record<number, number> = { 0: BTN_LEFT_UP, 1: BTN_MIDDLE_UP, 2: 
 // 触屏手势状态机:none -> single(单指) -> two(双指) -> two-ending(双指已抬一指) -> rest(剩余手指忽略直到全部抬起)
 type TouchMode = 'none' | 'single' | 'two' | 'two-ending' | 'rest'
 
+type MovePos = { x: number; y: number; dx?: number; dy?: number }
+
 export class InputController {
   viewOnly = false
   // 指针锁定(相对鼠标)模式:mousemove 改发相对位移换算后的坐标
@@ -52,16 +53,20 @@ export class InputController {
   relativeMode = false
   // 最近一次发出的鼠标事件字段(CDP 调试用)
   lastMouse: Record<string, unknown> | null = null
+  // 诊断计数:DOM 鼠标移动事件总数 / 实际发出的输入消息总数(性能面板算速率)
+  domMoveEvents = 0
+  sentMessages = 0
 
   private opts: InputOptions
   private pktIndex = 0n
   private attached = false
-  private lastMoveSentAt = 0
-  private pendingMove: { x: number; y: number; dx?: number; dy?: number } | null = null
+  // rAF 合并:同帧内多次 mousemove 只在帧末补发最新点;帧内首次立即发送
+  private pendingMove: MovePos | null = null
+  private rafPending = false
+  private moveSentThisFrame = false
   // 相对模式虚拟光标位置(0~1 比例坐标,夹紧)
   private virtX = 0.5
   private virtY = 0.5
-  private moveTimer: number | null = null
   private wheelAcc = 0
   // ---- 触屏手势状态 ----
   private touchMode: TouchMode = 'none'
@@ -75,6 +80,14 @@ export class InputController {
   private twoLastMidX = 0
   private twoLastMidY = 0
   private twoWheelAcc = 0
+  // 视频几何缓存:避免每个 mousemove 强制 layout(getBoundingClientRect)
+  private cachedRect: DOMRect | null = null
+  private cachedDispW = 0
+  private cachedDispH = 0
+  private cachedOffX = 0
+  private cachedOffY = 0
+  private geoValid = false
+  private resizeObserver: ResizeObserver | null = null
 
   // 切屏后更新回放坐标系(render 按 monitorName 定位屏幕几何)
   setMonitorName(name: string) {
@@ -89,6 +102,7 @@ export class InputController {
     if (this.attached) return
     this.attached = true
     const v = this.opts.video
+    // mousemove 高频路径:不 preventDefault,用默认冒泡即可;不做 capture(避免抢其它监听)
     v.addEventListener('mousemove', this.onMouseMove)
     v.addEventListener('mousedown', this.onMouseDown)
     v.addEventListener('mouseup', this.onMouseUp)
@@ -103,6 +117,13 @@ export class InputController {
     window.addEventListener('keyup', this.onKeyUp)
     // 页面失焦时补发修饰键 release,防止远端按键卡死
     window.addEventListener('blur', this.onBlur)
+    v.addEventListener('resize', this.invalidateGeometry)
+    window.addEventListener('resize', this.invalidateGeometry)
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.invalidateGeometry())
+      this.resizeObserver.observe(v)
+    }
+    this.refreshGeometry()
   }
 
   detach() {
@@ -121,23 +142,55 @@ export class InputController {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
-    if (this.moveTimer !== null) {
-      window.clearTimeout(this.moveTimer)
-      this.moveTimer = null
-    }
+    v.removeEventListener('resize', this.invalidateGeometry)
+    window.removeEventListener('resize', this.invalidateGeometry)
+    this.resizeObserver?.disconnect()
+    this.resizeObserver = null
     this.pendingMove = null
+    this.rafPending = false
+    this.moveSentThisFrame = false
+    this.geoValid = false
     this.resetTouchState()
+  }
+
+  private invalidateGeometry = () => {
+    this.geoValid = false
+  }
+
+  private refreshGeometry(): boolean {
+    const v = this.opts.video
+    const rect = v.getBoundingClientRect()
+    const vw = v.videoWidth
+    const vh = v.videoHeight
+    if (rect.width <= 0 || rect.height <= 0 || vw <= 0 || vh <= 0) {
+      this.geoValid = false
+      return false
+    }
+    const scale = Math.min(rect.width / vw, rect.height / vh)
+    this.cachedRect = rect
+    this.cachedDispW = vw * scale
+    this.cachedDispH = vh * scale
+    this.cachedOffX = (rect.width - this.cachedDispW) / 2
+    this.cachedOffY = (rect.height - this.cachedDispH) / 2
+    this.geoValid = true
+    return true
+  }
+
+  private ensureGeometry(): boolean {
+    return this.geoValid || this.refreshGeometry()
   }
 
   private send(fields: Record<string, unknown>) {
     const dc = this.opts.dc
     if (dc.readyState !== 'open') return
+    // 仅 protobuf 编码 + TLV 打包;无 await/日志/DOM
     const payload = encodeMessage({
       deviceId: this.opts.deviceId,
       streamId: this.opts.streamId,
       ...fields,
     })
     dc.send(packTlv(payload, this.pktIndex++))
+    this.sentMessages++
   }
 
   // video 为 object-fit: contain,需剔除上下/左右黑边后归一化到 0~1;黑边内返回 null
@@ -151,26 +204,15 @@ export class InputController {
     return this.toRatio(e)
   }
 
-  // 视频实际显示尺寸(剔除 contain 黑边后),相对模式用来把像素位移换算成比例位移
   private displaySize(): { dispW: number; dispH: number } | null {
-    const v = this.opts.video
-    const rect = v.getBoundingClientRect()
-    const vw = v.videoWidth
-    const vh = v.videoHeight
-    if (rect.width <= 0 || rect.height <= 0 || vw <= 0 || vh <= 0) return null
-    const scale = Math.min(rect.width / vw, rect.height / vh)
-    return { dispW: vw * scale, dispH: vh * scale }
+    if (!this.ensureGeometry()) return null
+    return { dispW: this.cachedDispW, dispH: this.cachedDispH }
   }
 
   private toRatioPoint(clientX: number, clientY: number): { x: number; y: number } | null {
-    const v = this.opts.video
-    const rect = v.getBoundingClientRect()
-    const dims = this.displaySize()
-    if (!dims) return null
-    const offX = (rect.width - dims.dispW) / 2
-    const offY = (rect.height - dims.dispH) / 2
-    const x = (clientX - rect.left - offX) / dims.dispW
-    const y = (clientY - rect.top - offY) / dims.dispH
+    if (!this.ensureGeometry() || !this.cachedRect) return null
+    const x = (clientX - this.cachedRect.left - this.cachedOffX) / this.cachedDispW
+    const y = (clientY - this.cachedRect.top - this.cachedOffY) / this.cachedDispH
     if (x < 0 || x > 1 || y < 0 || y > 1) return null
     return { x, y }
   }
@@ -201,19 +243,23 @@ export class InputController {
       deltaY: extra?.deltaY ?? 0,
       timestamp: Date.now(),
     }
-    this.lastMouse = { ...mouseEvent }
+    this.lastMouse = mouseEvent
     this.send({
       type: MSG_TYPE_MOUSE_EVENT,
       mouseEvent,
     })
   }
 
-  private flushMove(pos: { x: number; y: number }, delta?: { x: number; y: number }) {
-    this.lastMoveSentAt = Date.now()
-    this.sendMouse(BTN_MOUSE_MOVE, pos, delta ? { deltaX: delta.x, deltaY: delta.y } : undefined)
+  private flushMove(pos: MovePos) {
+    this.sendMouse(
+      BTN_MOUSE_MOVE,
+      pos,
+      pos.dx !== undefined ? { deltaX: pos.dx, deltaY: pos.dy ?? 0 } : undefined,
+    )
   }
 
   private onMouseMove = (e: MouseEvent) => {
+    this.domMoveEvents++
     if (this.viewOnly) return
     if (this.relativeMode) {
       // 指针锁定期间 clientX 冻结,改用 movementX/Y 相对位移驱动虚拟光标
@@ -221,39 +267,42 @@ export class InputController {
       if (!dims) return
       this.virtX = Math.min(1, Math.max(0, this.virtX + e.movementX / dims.dispW))
       this.virtY = Math.min(1, Math.max(0, this.virtY + e.movementY / dims.dispH))
-      this.sendMoveThrottled({ x: this.virtX, y: this.virtY }, { x: e.movementX, y: e.movementY })
+      this.sendMoveCoalesced({ x: this.virtX, y: this.virtY, dx: e.movementX, dy: e.movementY })
       return
     }
     const pos = this.toRatio(e)
     if (!pos) return
-    this.sendMoveThrottled(pos)
+    this.sendMoveCoalesced(pos)
   }
 
-  // 节流的纯移动发送(鼠标与单指拖动共用):
-  // 发送缓冲积压时丢纯移动,不丢按键/点击(对齐 ct_video_widget.cpp 的丢包策略)
-  private sendMoveThrottled(pos: { x: number; y: number }, delta?: { x: number; y: number }) {
+  // 低延迟合并发送(鼠标与单指拖动共用):
+  // - 本帧首次移动:立即发送(0 等待,对齐旧 8ms 节流最坏延迟)
+  // - 同帧后续移动:只保留最新坐标,rAF 回调补发一次(对齐竞品/显示器刷新)
+  // - 发送缓冲积压时丢纯移动,不丢按键/点击
+  private sendMoveCoalesced(pos: MovePos) {
     if (this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) return
-    const now = Date.now()
-    if (now - this.lastMoveSentAt >= MOVE_THROTTLE_MS) {
-      if (this.moveTimer !== null) {
-        window.clearTimeout(this.moveTimer)
-        this.moveTimer = null
-      }
+    this.pendingMove = pos
+    if (!this.moveSentThisFrame) {
+      this.moveSentThisFrame = true
+      const p = this.pendingMove
       this.pendingMove = null
-      this.flushMove(pos, delta)
-    } else {
-      // 节流窗口内只保留最新坐标,到期补发
-      this.pendingMove = { ...pos, dx: delta?.x, dy: delta?.y }
-      if (this.moveTimer === null) {
-        this.moveTimer = window.setTimeout(() => {
-          this.moveTimer = null
-          if (this.pendingMove && !this.viewOnly) {
-            const p = this.pendingMove
+      this.flushMove(p)
+    }
+    if (!this.rafPending) {
+      this.rafPending = true
+      requestAnimationFrame(() => {
+        this.rafPending = false
+        this.moveSentThisFrame = false
+        if (this.pendingMove && !this.viewOnly) {
+          if (this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) {
             this.pendingMove = null
-            this.flushMove(p, p.dx !== undefined ? { x: p.dx, y: p.dy ?? 0 } : undefined)
+            return
           }
-        }, MOVE_THROTTLE_MS - (now - this.lastMoveSentAt))
-      }
+          const p = this.pendingMove
+          this.pendingMove = null
+          this.flushMove(p)
+        }
+      })
     }
   }
 
@@ -388,7 +437,7 @@ export class InputController {
       }
       if (this.longPressFired) return // 长按已触发右键,后续位移不再移动鼠标
       const pos = this.toRatioPoint(t.clientX, t.clientY)
-      if (pos) this.sendMoveThrottled(pos)
+      if (pos) this.sendMoveCoalesced(pos)
     } else if (this.touchMode === 'two' && e.touches.length >= 2) {
       // 双指拖动 -> 滚轮:跟踪两指中点纵向位移
       const mid = this.twoFingerMid(e.touches)

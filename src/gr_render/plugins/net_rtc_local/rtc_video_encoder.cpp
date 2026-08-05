@@ -76,6 +76,7 @@ namespace tc
             if (!frame_types->empty()) {
                 if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
                     LOGI("Rtc request to insert an I Frame.");
+                    ++win_idr_requested_;
                     // 请求主编码管线产一个 IDR,本次 Encode 继续等这个关键帧。
                     plugin_->InsertIdr();
                 }
@@ -94,7 +95,8 @@ namespace tc
         // 本 encoder 只是"搬运工":等主编码管线产出同 frame_index 的编码帧。
 
         // 切屏:采集显示器变化 => 编码流来自另一块屏(新 SPS/PPS + 序号空间),
-        // 重新等 IDR 并重置序号基线,否则 delta 帧会让浏览器解码花屏
+        // 重新等 IDR 并以新屏当前产出序号引导,只消费之后到达的帧,
+        // 否则旧屏残帧/delta 帧会让浏览器解码花屏
         const auto& mon_name = native_buffer->GetMonName();
         if (last_mon_name_ != mon_name) {
             if (!last_mon_name_.empty()) {
@@ -102,66 +104,77 @@ namespace tc
             }
             last_mon_name_ = mon_name;
             mWaitIDRFrame = true;
-            last_encoded_frame_index_ = 0;
+            consumed_seq_ = plugin_->GetLatestEncodedSeq(mon_name);
+            // 新屏 frame_index 序号空间不同,旧时间戳日志作废
+            input_ts_log_.clear();
+            has_last_sent_ts_ = false;
         }
 
-        auto beg_ts = TimeUtil::GetCurrentTimestamp();
-        std::shared_ptr<RtcLocalEncodedVideoFrame> encoded_video_frame = nullptr;
-        int try_count = 0;
-        while (try_count < 50) {
-            encoded_video_frame = plugin_->PopEncodedVideoFrame(frame.id(), mon_name);
-            if (!encoded_video_frame || !encoded_video_frame->data_) {
-                try_count++;
-                TimeUtil::DelayBySleep(2);
-                continue;
-            }
-            break;
+        // 记录当前输入帧时间戳,供编码帧发送时按 frame_index 回查真实采集时刻
+        input_ts_log_.push_back({ frame.id(), frame.timestamp(), frame.ntp_time_ms() });
+        while (input_ts_log_.size() > kMaxInputTsLog) {
+            input_ts_log_.pop_front();
         }
-        if (!encoded_video_frame) {
-            // 主编码管线(可能因软编码较慢)还没有产出这一帧——静默丢帧即可,
-            // webrtc 会按实际产出节奏发送;不要反复 InsertIdr/返回 TIMEOUT。
-            static std::atomic_uint64_t drop_count = 0;
-            auto drops = ++drop_count;
-            if (drops == 1 || drops % 100 == 0) {
-                LOGW("drop frame, encoder pipeline behind, index: {}, total drops: {}", frame.id(), drops);
-            }
+
+        // 按编码产出序号顺序取一帧。注意:不做任何忙等——编码器产出速率
+        // 低于采集/webrtc 调用速率是常态,没货就静默返回,
+        // webrtc 按编码器实际产出节奏发送即可,忙等只会阻塞 webrtc 编码线程打乱 pacing。
+        static std::atomic_uint64_t encode_calls = 0;
+        if (++encode_calls % 300 == 1) {
+            LOGI("Encode call #{}, mon={}, consumed_seq={}", encode_calls.load(), mon_name, consumed_seq_);
+        }
+        bool seq_gap = false;
+        auto encoded_video_frame = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+        if (!encoded_video_frame || !encoded_video_frame->data_) {
             return WEBRTC_VIDEO_CODEC_OK;
         }
-        plugin_->SetClearOlderFramesBaseline(encoded_video_frame->timestamp_);
-        auto end_ts = TimeUtil::GetCurrentTimestamp();
-        auto diff_ts = end_ts - beg_ts;
-        //LOGI("wait frame used: {}ms, for index: {}", diff_ts, frame.id());
+        consumed_seq_ = encoded_video_frame->seq_;
 
-        // 序号连续性以"编码帧自己的序号"为准(精确未命中时会回退取较新的缓存帧,
-        // webrtc 侧的 frame.id() 与编码序号不严格一致)。
-        auto encoded_idx = encoded_video_frame->frame_index_;
+        // 应急阀:缓存积压超过 ~0.5s(正常应趋近 0)说明生产持续快于消费,
+        // 继续发陈旧帧只会让浏览器抖动缓冲把延迟越抬越高(BWE 随之崩盘)。
+        // 快进到最新帧;跳过未发 delta 导致断链则补 IDR(节流)等关键帧。
+        auto pending = plugin_->GetCachedFrameCount(mon_name, consumed_seq_);
+        bool skipped_unsent = seq_gap;
+        if (pending > kMaxBacklogFrames) {
+            while (true) {
+                bool gap = false;
+                auto f = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, gap);
+                if (!f || !f->data_) {
+                    break;
+                }
+                skipped_unsent = skipped_unsent || gap;
+                consumed_seq_ = f->seq_;
+                encoded_video_frame = f;
+            }
+            skipped_unsent = true;
+            ++win_backlog_skips_;
+            LOGW("encoder backlog > {} frames, skip to newest seq={}", kMaxBacklogFrames, encoded_video_frame->seq_);
+        }
 
         // 首帧策略:本 peer 尚未成功发出关键帧前,delta 帧一律丢弃——否则
         // 浏览器拿到 delta 解码失败,只能等下一轮 PLI,首帧被拖慢十几秒。
         if (mWaitIDRFrame && !encoded_video_frame->key_) {
+            ++win_pre_idr_drops_;
             static std::atomic_uint64_t pre_idr_drops = 0;
-            if (++pre_idr_drops % 100 == 1) {
-                LOGW("waiting first IDR, drop delta frame idx={} (total {})", encoded_idx, pre_idr_drops.load());
+            if (++pre_idr_drops % 60 == 1) {
+                LOGW("waiting first IDR, drop delta frame seq={} (total {})", encoded_video_frame->seq_, pre_idr_drops.load());
             }
             return WEBRTC_VIDEO_CODEC_OK;
         }
 
-        if (last_encoded_frame_index_ == 0) {
-            last_encoded_frame_index_ = encoded_idx;
-        }
-        auto diff_idx = encoded_idx - last_encoded_frame_index_;
-        if (diff_idx > 1 && !encoded_video_frame->key_) {
-            // 编码序号跳变且不是关键帧:解码端无法接续,请主管线补 IDR,
-            // 本帧丢弃(返回 OK 静默),直到拿到关键帧再续。
-            LOGI("encoded frame idx gap, current: {}, last: {}, diff: {}, request IDR and drop", encoded_idx, last_encoded_frame_index_, diff_idx);
-            plugin_->InsertIdr();
-            last_encoded_frame_index_ = encoded_idx;
+        // 断链(缓存淘汰或应急快进跳过了未发 delta)且本帧不是关键帧:
+        // 解码端无法接续,请主管线补 IDR(节流防 IDR 风暴),本帧丢弃,直到拿到关键帧再续。
+        if (skipped_unsent && !encoded_video_frame->key_) {
+            ++win_chain_broken_;
+            LOGW("encoded chain broken at seq {}, request IDR and drop", encoded_video_frame->seq_);
+            RequestIdrThrottled();
+            mWaitIDRFrame = true;
             return WEBRTC_VIDEO_CODEC_OK;
         }
 
-        last_encoded_frame_index_ = encoded_idx;
         if (encoded_video_frame->key_) {
             mWaitIDRFrame = false;
+            ++win_key_sent_;
         }
         // using
         webrtc::EncodedImage encodedImage;
@@ -186,15 +199,72 @@ namespace tc
         else {
             encodedImage.SetEncodedData(webrtc::EncodedImageBuffer::Create((uint8_t*)encoded_video_frame->data_->DataAddr(), encoded_video_frame->data_->Size()));
         }
-        encodedImage.SetRtpTimestamp(frame.timestamp());
-        encodedImage.ntp_time_ms_ = frame.ntp_time_ms();
+        // 用被编码帧的真实采集时间戳(按 frame_index 回查输入日志),而非
+        // 当前输入帧的时间戳。详见头文件 input_ts_log_ 注释:盖错时间戳会让
+        // 浏览器抖动缓冲目标延迟失控抬升。编码帧滞后输入帧通常仅几十帧以内,
+        // 从尾部反向扫几下即可命中。
+        uint32_t send_rtp_ts = frame.timestamp();
+        int64_t send_ntp_ms = frame.ntp_time_ms();
+        const auto want_id = (uint16_t)(encoded_video_frame->frame_index_ & 0xFFFF);
+        bool ts_matched = false;
+        for (auto it = input_ts_log_.rbegin(); it != input_ts_log_.rend(); ++it) {
+            if (it->frame_id_ == want_id) {
+                send_rtp_ts = it->rtp_ts_;
+                send_ntp_ms = it->ntp_ms_;
+                ts_matched = true;
+                break;
+            }
+        }
+        if (!ts_matched) {
+            ++ts_lookup_miss_;
+        }
+        // 发送时间戳必须严格单调:ts_miss 回退会盖上"当前输入帧"(更新)的时间戳,
+        // 若发给一帧更旧的编码帧,后续正常回查的帧时间戳反而倒退——浏览器抖动缓冲
+        // 会把这种乱序解读为极端抖动,目标延迟失控抬升(实测涨到 100s+)。
+        if (has_last_sent_ts_) {
+            if ((int32_t)(send_rtp_ts - last_sent_rtp_ts_) <= 0) {
+                send_rtp_ts = last_sent_rtp_ts_ + 1;
+            }
+            if (send_ntp_ms <= last_sent_ntp_ms_) {
+                send_ntp_ms = last_sent_ntp_ms_ + 1;
+            }
+        }
+        last_sent_rtp_ts_ = send_rtp_ts;
+        last_sent_ntp_ms_ = send_ntp_ms;
+        has_last_sent_ts_ = true;
+        // 帧龄诊断:发送时刻 - 真实采集时刻(均为 wall clock),定位延迟积压位置
+        auto now_wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        auto frame_age_ms = now_wall_ms - send_ntp_ms;
+        send_age_sum_ += frame_age_ms;
+        if (frame_age_ms > send_age_max_) send_age_max_ = frame_age_ms;
+        encodedImage.SetRtpTimestamp(send_rtp_ts);
+        encodedImage.ntp_time_ms_ = send_ntp_ms;
         encodedImage._frameType = encoded_video_frame->key_ ? webrtc::VideoFrameType::kVideoFrameKey : webrtc::VideoFrameType::kVideoFrameDelta;
         encodedImage._encodedWidth = encoded_video_frame->frame_width_;
         encodedImage._encodedHeight = encoded_video_frame->frame_height_;
         webrtc::CodecSpecificInfo codec_specific;
         codec_specific.codecType = webrtc::VideoCodecType::kVideoCodecH264;
-        mEncodedImageCallback->OnEncodedImage(encodedImage, &codec_specific);
-        //LOGI("OnEncodedImage callback: {}", frame.id());
+        auto cb_result = mEncodedImageCallback->OnEncodedImage(encodedImage, &codec_specific);
+        static std::atomic_uint64_t sent_frames = 0;
+        if (++sent_frames % 300 == 1 || cb_result.error != webrtc::EncodedImageCallback::Result::OK) {
+            LOGI("sent encoded frame #{}, seq={}, key={}, size={}, cb_err={}, ts_miss={}, ts_log={}, age_avg={}ms, age_max={}ms, cache={}, "
+                 "win: keys={}, broken={}, idr_req={}, pre_idr_drops={}, backlog_skips={}",
+                 sent_frames.load(), encoded_video_frame->seq_, encoded_video_frame->key_,
+                 encoded_video_frame->data_->Size(), (int)cb_result.error, ts_lookup_miss_, input_ts_log_.size(),
+                 send_age_count_ > 0 ? send_age_sum_ / send_age_count_ : 0, send_age_max_,
+                 plugin_->GetCachedFrameCount(mon_name, consumed_seq_),
+                 win_key_sent_, win_chain_broken_, win_idr_requested_, win_pre_idr_drops_, win_backlog_skips_);
+            send_age_sum_ = 0;
+            send_age_max_ = 0;
+            send_age_count_ = 0;
+            win_key_sent_ = 0;
+            win_chain_broken_ = 0;
+            win_idr_requested_ = 0;
+            win_pre_idr_drops_ = 0;
+            win_backlog_skips_ = 0;
+        }
+        ++send_age_count_;
         ///// below old
 
         struct PassArgs
@@ -277,7 +347,16 @@ namespace tc
         info.implementation_name = "NullEncoder";
         info.supports_native_handle = true;
         info.is_hardware_accelerated = true;
-        info.has_trusted_rate_controller = false;
+        // trusted=true:关闭 webrtc 输入侧帧丢弃器,Encode 严格按采集速率调用。
+        // 之前 false 时,webrtc 的适配器会把生产/消费双双压到一个振荡的"目标 fps"
+        // (实测 23~51 秒级抖动,与码率无关)——生产与消费是两个独立实现的跳帧器,
+        // 相位漂移导致缓存交替打空/积压;打空时 Encode 空转返回,webrtc 把"帧送进
+        // 编码器却再没回来"记为编码器过载,进一步下调目标 fps,正反馈收敛在 ~30fps。
+        // 而且发送速率(35fps)长期低于 RTP 时间戳推进速率(60fps),浏览器抖动缓冲
+        // 判定每帧都越来越晚,目标延迟线性失控(实测 200s+)。
+        // BWE 死锁问题已由 RtcServer 的 SetBitrate 钉死(12M)兜底,pacing 不再
+        // 依赖本 flag 的 rate_settings 种子。生产=消费=采集速率,缓存始终有货。
+        info.has_trusted_rate_controller = true;
         //info.has_internal_source = false;
         info.supports_simulcast = false;
         int min,max;
@@ -298,6 +377,16 @@ namespace tc
         info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(1 * 1, start, min, max));
         info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(8192 * 8192, start, min, max));
         return info;
+    }
+
+    void RtcSharedVideoEncoder::RequestIdrThrottled() {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - mLastInsertIDRTime).count();
+        if (ms >= 800) {
+            mLastInsertIDRTime = now;
+            ++win_idr_requested_;
+            plugin_->InsertIdr();
+        }
     }
 
     void RtcSharedVideoEncoder::OnPacketLossRateUpdate(float packet_loss_rate)

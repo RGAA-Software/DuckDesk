@@ -22,6 +22,7 @@ export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
 export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
+export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
 
 // ClipboardType(tc_message.proto:498-503)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText

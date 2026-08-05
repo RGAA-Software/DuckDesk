@@ -86,6 +86,11 @@ namespace tc
 
         std::shared_ptr<RtcDataChannel> media_data_channel_ = nullptr;
         std::shared_ptr<RtcDataChannel> ft_data_channel_ = nullptr;
+        // 输入专用通道(web client 以 unreliable/unordered 创建,避免可靠通道
+        // 丢包时的队头阻塞造成操作不跟手);消息与 media 通道同路由进输入回放
+        std::shared_ptr<RtcDataChannel> input_data_channel_ = nullptr;
+        // 诊断 ping 通道:收到即原样回显,web 端实测 datachannel RTT
+        std::shared_ptr<RtcDataChannel> ping_data_channel_ = nullptr;
         std::atomic<bool> exit_ = false;
         // Exit 幂等标记:ICE 终态回调/插件 Sweep/takeover 替换都可能触发 Exit
         std::atomic<bool> cleaned_up_ = false;

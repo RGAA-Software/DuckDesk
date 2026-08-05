@@ -97,6 +97,30 @@ namespace tc
                     plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kFileTransfer, payload_msg);
                 });
             }
+            else if (name == "input_data_channel") {
+                // web client 的低延迟输入通道(unreliable/unordered)。
+                // 走 CallbackEventDirectly:跳过 OnClientEventCame→PostWorkTask
+                // 排队(插件 work 线程在高负载时可能多等数 ms),在 WebRTC
+                // 回调线程直接投递到 event_replayer→SendInput。
+                // 鼠标消息解析+SendInput 极轻量,不阻塞网络线程。
+                input_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+
+                input_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                    auto payload_msg = Data::Make(data.data(), data.size());
+                    auto event = std::make_shared<GrPluginNetClientEvent>();
+                    event->is_proto_ = true;
+                    event->socket_fd_ = 0;
+                    event->nt_plugin_type_ = NetPluginType::kWebRtc;
+                    event->nt_channel_type_ = NetChannelType::kMedia;
+                    event->message_ = payload_msg;
+                    event->from_plugin_ = plugin_;
+                    plugin_->CallbackEventDirectly(event);
+                });
+            }
+            else if (name == "ping_data_channel") {
+                // 诊断通道:RtcDataChannel::OnMessage 里收到即原样回显
+                ping_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+            }
         });
 
         // network state
@@ -238,10 +262,27 @@ namespace tc
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
         peer_conn_->AddTrack(audio_track, { "audio1" });
 
-        // 首帧加速:即将开始发流,此刻主动请求主管线产 IDR,并清掉建连前
-        // 缓存的旧 delta 帧——保证 Encode 第一次取到的就是为本连接新产的
-        // 关键帧,避免"首帧是 delta → 浏览器解码失败 → 等下一轮 PLI"的慢路径。
-        plugin_->SetClearOlderFramesBaseline(TimeUtil::GetCurrentTimestamp());
+        // BWE 初始种子:默认起始估计只有 300kbps,爬坡期 pacing 饿死视频码流,
+        // 而 BWE 又依赖码流动起来才能探测上行——鸡生蛋死锁,表现为视频完全发不出来。
+        // 给一个有意义的起点,后续仍由 BWE 按真实链路状况上下调整。
+        //
+        // 本地链路(loopback/局域网)直接把工作点钉在 12M:实测 GCC 的延迟估计
+        // 在客户端高负载(有头浏览器解码渲染)下会误判拥塞,目标码率/fps 在
+        // 1M~15M / 14~44fps 之间秒级震荡——x264 每 3s 被迫重开、生产速率被压到
+        // ~30fps,pacing 失配又反过来喂养延迟估计,形成延迟螺旋。
+        // 本插件只服务本地链路,容量充裕,钉死 min=start=max 让 GCC 无震荡空间;
+        // 链路侧其余自适应(IDR/pacing)不受影响。
+        webrtc::BitrateSettings bitrate_settings;
+        bitrate_settings.min_bitrate_bps = 12 * 1000 * 1000;
+        bitrate_settings.start_bitrate_bps = 12 * 1000 * 1000;
+        bitrate_settings.max_bitrate_bps = 12 * 1000 * 1000;
+        auto bitrate_err = peer_conn_->SetBitrate(bitrate_settings);
+        LOGI("SetBitrate seed: pinned min=start=max=12M, ok: {}", bitrate_err.ok());
+
+        // 首帧加速:即将开始发流,此刻主动请求主管线产 IDR。
+        // 建连前的旧帧无需清理:Encode 首次执行时会以当前产出序号引导
+        // (consumed_seq_ = GetLatestEncodedSeq),只消费之后新产的帧,
+        // 配合 mWaitIDRFrame 保证首帧必为关键帧。
         plugin_->InsertIdr();
 
         // set remote sdp
@@ -429,6 +470,12 @@ namespace tc
         if (ft_data_channel_) {
             ft_data_channel_->Close();
         }
+        if (input_data_channel_) {
+            input_data_channel_->Close();
+        }
+        if (ping_data_channel_) {
+            ping_data_channel_->Close();
+        }
         if (peer_conn_) {
             peer_conn_->Close();
             peer_conn_ = nullptr;
@@ -448,6 +495,8 @@ namespace tc
         // 打断 RtcServer <-> RtcDataChannel 的 shared_ptr 循环引用,避免泄漏
         media_data_channel_ = nullptr;
         ft_data_channel_ = nullptr;
+        input_data_channel_ = nullptr;
+        ping_data_channel_ = nullptr;
 
         rtc::CleanupSSL();
     }

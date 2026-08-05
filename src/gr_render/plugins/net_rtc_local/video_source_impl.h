@@ -5,9 +5,11 @@
 #ifndef TEST_WEBRTC_VIDEO_SOURCE_MOCK_H
 #define TEST_WEBRTC_VIDEO_SOURCE_MOCK_H
 
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include "tc_common_new/log.h"
 #include "tc_common_new/webrtc_helper.h"
 
@@ -78,6 +80,21 @@ namespace tc
         }
 
         void OnNotifyFrame(webrtc::VideoFrame& notify_frame) {
+            // 诊断:broadcaster 会按下游(VideoStreamEncoder)上报的 VideoSinkWants
+            // 静默丢帧——若 wants.max_framerate_fps 被协商/适配压低,采集 60fps
+            // 在这里就被砍半,Encode 消费节奏随之下降。定期打出当前 wants 与
+            // 推帧计数,与编码器 "Encode call #N" / "sent encoded frame" 对照。
+            static std::atomic_uint64_t push_count = 0;
+            auto cnt = ++push_count;
+            if (cnt == 1 || cnt % 300 == 0) {
+                auto wants = broadcaster_.wants();
+                LOGI("VideoSource push #{}, wants: active={}, max_fps={}, max_px={}, target_px={}, black={}",
+                     cnt, wants.is_active,
+                     wants.max_framerate_fps == std::numeric_limits<int>::max() ? -1 : wants.max_framerate_fps,
+                     wants.max_pixel_count == std::numeric_limits<int>::max() ? -1 : wants.max_pixel_count,
+                     wants.target_pixel_count.has_value() ? wants.target_pixel_count.value() : -1,
+                     wants.black_frames);
+            }
             broadcaster_.OnFrame(notify_frame);
         }
 

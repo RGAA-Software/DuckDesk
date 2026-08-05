@@ -6,7 +6,7 @@ import { sendControlMessage } from './rtc/control'
 import { GamepadController } from './rtc/gamepad'
 import type { GamepadSnapshot } from './rtc/gamepad'
 import { sha256Hex } from './rtc/file_transfer'
-import { PerfCollector, EMPTY_PERF } from './rtc/stats'
+import { PerfCollector, EMPTY_PERF, perfSummaryLine } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
 import { sendClipboardText, parseClipboardText } from './rtc/clipboard'
 import { decodeMessage } from './rtc/proto'
@@ -16,6 +16,7 @@ import {
   MSG_TYPE_SERVER_CONFIGURATION,
   MSG_TYPE_MONITOR_SWITCHED,
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
+  MSG_TYPE_SWITCH_FULL_COLOR_MODE,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
 import { ElMessage } from 'element-plus'
@@ -32,6 +33,8 @@ const SIGNAL_URL = '/alloc/local/rtc'
 const SIGNAL_CODE_OCCUPIED = 704
 const DATA_CHANNEL_LABEL = 'media_data_channel' // render 端按此名字识别(rtc_server.cpp:81)
 const FT_DATA_CHANNEL_LABEL = 'ft_data_channel' // 文件传输通道(rtc_server.cpp:90)
+const INPUT_DATA_CHANNEL_LABEL = 'input_data_channel' // 输入专用不可靠通道(render 端按此名字识别)
+const PING_DATA_CHANNEL_LABEL = 'ping_data_channel' // 诊断通道:render 收到即回显,实测 datachannel RTT
 const ICE_GATHER_TIMEOUT_MS = 10000
 
 type ConnStatus = 'idle' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
@@ -203,13 +206,41 @@ function toggleGamepad() {
 
 let pc: RTCPeerConnection | null = null
 let dc: RTCDataChannel | null = null
+let inputDc: RTCDataChannel | null = null
+let pingDc: RTCDataChannel | null = null
+let pingTimer: number | null = null
+const pingRttMs = ref(-1)
 let input: InputController | null = null
 
 // ---------- 性能面板(pc.getStats 采样)----------
 const perf = ref<PerfStats>({ ...EMPTY_PERF })
-const perfVisible = ref(false)
+// ?debug=1 打开页面即展开性能面板(诊断用)
+const perfVisible = ref(new URLSearchParams(window.location.search).get('debug') === '1')
+// 输入通道诊断的上一采样基准(算速率用)
+let lastInputSampleAt = 0
+let lastDomMoves = 0
+let lastInputSent = 0
 const perfCollector = new PerfCollector((s) => {
   perf.value = s
+  // 每个采样周期(2s)写一条紧凑诊断到日志面板,用户可直接复制发回;
+  // 附加输入通道指标:datachannel RTT、DOM 鼠标事件速率、实际发送速率、发送缓冲
+  const now = Date.now()
+  let extra = ` input_rtt=${pingRttMs.value >= 0 ? pingRttMs.value.toFixed(1) : '-'}ms buf=${inputDc?.bufferedAmount ?? 0}B`
+  if (lastInputSampleAt > 0 && now > lastInputSampleAt) {
+    const dt = (now - lastInputSampleAt) / 1000
+    if (input) {
+      extra += ` dom_ev=${((input.domMoveEvents - lastDomMoves) / dt).toFixed(0)}/s sent=${((input.sentMessages - lastInputSent) / dt).toFixed(0)}/s`
+    }
+    // 旧版 render 经 datachannel 灌视频帧时被本端丢弃的速率(应为 0)
+    extra += ` dc_media_drops=${(dcMediaDrops / dt).toFixed(0)}/s`
+    dcMediaDrops = 0
+  }
+  lastInputSampleAt = now
+  if (input) {
+    lastDomMoves = input.domMoveEvents
+    lastInputSent = input.sentMessages
+  }
+  addLog(perfSummaryLine(s) + extra)
 })
 
 // 性能面板显示值(码率单位为 kbps,>=1000 转 Mbps)
@@ -245,8 +276,30 @@ interface RemoteMonitor {
 const remoteMonitors = ref<RemoteMonitor[]>([])
 const capturingMonitor = ref('')
 
+// render 修复前(旧版本插件)会把每个编码视频帧也塞进 media_data_channel
+// (tc.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
+// 但逐帧 proto 解码会淹掉主线程。wire 级窥探 type 字段直接丢弃并计数。
+let dcMediaDrops = 0
+function isMediaFramePayload(p: Uint8Array): boolean {
+  if (p.length < 2 || p[0] !== 0x08) return false // field 1 (type), varint
+  let type = 0
+  let shift = 0
+  let i = 1
+  while (i < p.length && i < 11) {
+    const b = p[i++]
+    type |= (b & 0x7f) << shift
+    if (!(b & 0x80)) break
+    shift += 7
+  }
+  return type === 30 || type === 40
+}
+
 function handleDcBinary(buf: ArrayBuffer) {
   for (const payload of dcReassembler.feed(buf)) {
+    if (isMediaFramePayload(payload)) {
+      dcMediaDrops++
+      continue
+    }
     let msg: ReturnType<typeof decodeMessage> | null = null
     try {
       msg = decodeMessage(payload)
@@ -372,6 +425,29 @@ function exposeFtDebug() {
   }
 }
 
+// 压低 Chrome 视频抖动缓冲/播放余量(跟手性关键)。
+// playoutDelayHint=0:关掉自适应播放延迟;jitterBufferTarget=0:把目标缓冲钉到 0ms。
+// 不支持的浏览器属性不存在,静默忽略。轨 unmute 后再设一次(部分版本 ontrack 时尚未生效)。
+type LowLatencyReceiver = RTCRtpReceiver & {
+  playoutDelayHint?: number
+  jitterBufferTarget?: number
+}
+function applyLowLatencyPlayout(receiver: RTCRtpReceiver, track?: MediaStreamTrack) {
+  const apply = () => {
+    try {
+      const r = receiver as LowLatencyReceiver
+      r.playoutDelayHint = 0
+      r.jitterBufferTarget = 0
+    } catch {
+      /* ignore */
+    }
+  }
+  apply()
+  if (track && track.readyState !== 'live') {
+    track.addEventListener('unmute', apply, { once: true })
+  }
+}
+
 // 连接成功(datachannel 打开)后初始化输入回传:
 // 先从 render 拉取当前采集显示器名,event_replayer 按它定位回放坐标系。
 // 显示器名来自编码帧回调,首帧编码完成前接口返回空,故轮询等待
@@ -391,15 +467,15 @@ async function fetchMonitorName(): Promise<string> {
 }
 
 async function initInput() {
-  if (!dc || !videoRef.value) return
+  if (!inputDc || !videoRef.value) return
   const monitorName = await fetchMonitorName()
-  if (!dc || !videoRef.value) return // 等待期间已断开
+  if (!inputDc || !videoRef.value) return // 等待期间已断开
   if (!monitorName) {
     addLog('警告: 未获取到采集显示器名,鼠标事件可能被 render 丢弃')
   }
   input?.detach()
   input = new InputController({
-    dc,
+    dc: inputDc,
     deviceId: form.deviceId,
     streamId: form.streamId,
     monitorName,
@@ -501,6 +577,26 @@ function cleanup() {
     try { ftDc.close() } catch { /* ignore */ }
     ftDc = null
   }
+  if (pingTimer !== null) {
+    window.clearInterval(pingTimer)
+    pingTimer = null
+  }
+  pingRttMs.value = -1
+  if (pingDc) {
+    pingDc.onopen = null
+    pingDc.onmessage = null
+    pingDc.onclose = null
+    pingDc.onerror = null
+    try { pingDc.close() } catch { /* ignore */ }
+    pingDc = null
+  }
+  if (inputDc) {
+    inputDc.onopen = null
+    inputDc.onclose = null
+    inputDc.onerror = null
+    try { inputDc.close() } catch { /* ignore */ }
+    inputDc = null
+  }
   if (dc) {
     dc.onopen = null
     dc.onmessage = null
@@ -543,6 +639,7 @@ async function connect() {
 
     pc.ontrack = (ev: RTCTrackEvent) => {
       addLog(`ontrack: kind=${ev.track.kind}`)
+      applyLowLatencyPlayout(ev.receiver, ev.track)
       if (videoRef.value && ev.streams[0]) {
         videoRef.value.srcObject = ev.streams[0]
         hasVideo.value = true
@@ -567,7 +664,15 @@ async function connect() {
         } catch {
           /* ignore */
         }
-        if (pc) perfCollector.start(pc)
+        if (pc) {
+          // 连接就绪后对所有 receiver 再压一次播放延迟(防 ontrack 时机偏早未生效)
+          for (const receiver of pc.getReceivers()) {
+            if (receiver.track?.kind === 'video') {
+              applyLowLatencyPlayout(receiver, receiver.track)
+            }
+          }
+          perfCollector.start(pc)
+        }
         startConnWatchdog()
       } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         // 非手动断开(manualClose 时 cleanup 已摘掉本回调,closed 不会走到这里)自动重连
@@ -591,7 +696,18 @@ async function connect() {
           deviceName: 'web_client',
         },
       })
-      void initInput()
+      // ?force420=1:请求 render 关闭全彩(yuv444)模式。Chrome 无法硬解
+      // H264 High4:4:4,只能软解——1080p60 软解会丢帧+处理延迟飙升,
+      // 症状正是 fps 低+不跟手。与原生客户端同款消息(kSwitchFullColorMode),
+      // 注意该消息会改动 render 端保存的设置(原生端下次连接会按其自身设置再切换)
+      if (new URLSearchParams(window.location.search).get('force420') === '1') {
+        sendControlMessage(dc, form.deviceId, form.streamId, {
+          type: MSG_TYPE_SWITCH_FULL_COLOR_MODE,
+          switchFullColorMode: { enable: false },
+        })
+        addLog('已请求 render 关闭全彩模式(kSwitchFullColorMode: false, force420=1)')
+      }
+      // 输入初始化挪到 input_data_channel 的 onopen(输入走专用不可靠通道)
     }
     dc.onmessage = (ev: MessageEvent) => {
       if (ev.data instanceof ArrayBuffer) {
@@ -619,11 +735,63 @@ async function connect() {
     }
     ftDc.onerror = (ev: Event) => addLog(`ft datachannel onerror: ${String(ev)}`)
 
+    // 输入专用通道:不可靠(不重传)+不保序。鼠标移动/滚轮是高频绝对坐标事件,
+    // 走默认 ordered+reliable 通道时一旦丢包会产生队头阻塞(后续输入全部排队
+    // 等重传),表现为操作不跟手;丢一帧绝对坐标无副作用,下帧即覆盖,
+    // 与原生客户端 UDP 输入语义对齐。控制/剪贴板消息仍走可靠 media 通道。
+    inputDc = pc.createDataChannel(INPUT_DATA_CHANNEL_LABEL, {
+      ordered: false,
+      maxRetransmits: 0,
+    })
+    inputDc.binaryType = 'arraybuffer'
+    inputDc.onopen = () => {
+      addLog(`datachannel "${INPUT_DATA_CHANNEL_LABEL}" onopen (unreliable/unordered)`)
+      void (async () => {
+        // fetchMonitorName 依赖 media 通道回推配置,先等它就绪
+        for (let i = 0; i < 50 && dc?.readyState !== 'open'; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+        }
+        void initInput()
+      })()
+    }
+    inputDc.onclose = () => addLog('input datachannel onclose')
+    inputDc.onerror = (ev: Event) => addLog(`input datachannel onerror: ${String(ev)}`)
+
+    // 诊断 ping 通道:render 收到即原样回显。500ms 发一个 8 字节时间戳,
+    // 往返差即 datachannel RTT(输入通道延迟的直接度量,排除 ICE RTT 的混淆)
+    pingDc = pc.createDataChannel(PING_DATA_CHANNEL_LABEL, {
+      ordered: false,
+      maxRetransmits: 0,
+    })
+    pingDc.binaryType = 'arraybuffer'
+    pingDc.onopen = () => {
+      addLog(`datachannel "${PING_DATA_CHANNEL_LABEL}" onopen (echo)`)
+      pingTimer = window.setInterval(() => {
+        if (pingDc?.readyState !== 'open') return
+        const buf = new ArrayBuffer(8)
+        new DataView(buf).setFloat64(0, performance.now())
+        pingDc.send(buf)
+      }, 500)
+    }
+    pingDc.onmessage = (ev: MessageEvent) => {
+      if (ev.data instanceof ArrayBuffer && ev.data.byteLength === 8) {
+        pingRttMs.value = performance.now() - new DataView(ev.data).getFloat64(0)
+      }
+    }
+    pingDc.onclose = () => addLog('ping datachannel onclose')
+    pingDc.onerror = (ev: Event) => addLog(`ping datachannel onerror: ${String(ev)}`)
+
     const offer = await pc.createOffer({
       offerToReceiveAudio: true,
       offerToReceiveVideo: true,
     })
     await pc.setLocalDescription(offer)
+    // 诊断:SDP 里的帧率上限会压死 webrtc 输入侧推帧(VideoSinkWants.max_framerate)
+    const scanFr = (tag: string, sdp: string) => {
+      const lines = sdp.split('\n').filter((l) => /framerate|max-fr/i.test(l))
+      addLog(lines.length ? `${tag} 帧率相关: ${lines.map((l) => l.trim()).join(' | ')}` : `${tag} 无帧率上限行`)
+    }
+    scanFr('offer', offer.sdp ?? '')
 
     // 等 ICE gathering complete 再发 offer,不做 trickle
     addLog('等待 ICE gathering complete ...')
@@ -671,6 +839,7 @@ async function connect() {
       answerSdp = await postSignal(true)
     }
 
+    scanFr('answer', answerSdp)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     addLog('已设置远端 answer,等待连接建立')
   } catch (err) {
@@ -889,8 +1058,44 @@ onBeforeUnmount(() => {
         <span class="perf-value">{{ perf.fps.toFixed(0) }} fps</span>
       </div>
       <div class="perf-item">
+        <span class="perf-label">解码</span>
+        <span class="perf-value">{{ perf.decFps.toFixed(0) }} fps</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">丢帧</span>
+        <span class="perf-value">{{ perf.dropFps.toFixed(1) }}/s</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">解码耗时</span>
+        <span class="perf-value">{{ perf.decodeMs.toFixed(1) }} ms</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">处理耗时</span>
+        <span class="perf-value">{{ perf.procMs.toFixed(1) }} ms</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">解码器</span>
+        <span class="perf-value">{{ perf.decoder || '-' }}</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">卡顿</span>
+        <span class="perf-value">{{ perf.freezes }} 次/{{ perf.freezeMs.toFixed(0) }} ms</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">缓冲目标</span>
+        <span class="perf-value">{{ perf.jbTargetMs.toFixed(0) }} ms</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">缓冲实际</span>
+        <span class="perf-value">{{ perf.jbDelayMs.toFixed(0) }} ms</span>
+      </div>
+      <div class="perf-item">
         <span class="perf-label">RTT</span>
         <span class="perf-value">{{ perfRttText }}</span>
+      </div>
+      <div class="perf-item">
+        <span class="perf-label">输入RTT</span>
+        <span class="perf-value">{{ pingRttMs >= 0 ? pingRttMs.toFixed(1) + ' ms' : '-' }}</span>
       </div>
       <div class="perf-item">
         <span class="perf-label">丢包</span>
@@ -903,6 +1108,10 @@ onBeforeUnmount(() => {
       <div class="perf-item">
         <span class="perf-label">分辨率</span>
         <span class="perf-value">{{ perfResolutionText }}</span>
+      </div>
+      <div class="perf-item perf-path">
+        <span class="perf-label">路径</span>
+        <span class="perf-value">{{ perf.localCand || '?' }} ↔ {{ perf.remoteCand || '?' }}</span>
       </div>
       <span class="perf-note">码率为 WebRTC 自适应,协议不支持手动指定</span>
     </div>
@@ -930,6 +1139,8 @@ onBeforeUnmount(() => {
   object-fit: contain;
   /* 触屏手势交由 input.ts 处理,禁用浏览器默认滚动/缩放 */
   touch-action: none;
+  /* 避免额外滤镜/缩放合成层;独立层减少与 UI 叠层的合成延迟 */
+  transform: translateZ(0);
 }
 .remote-video.hidden {
   visibility: hidden;

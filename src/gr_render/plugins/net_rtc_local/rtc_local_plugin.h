@@ -57,12 +57,16 @@ namespace tc
         // image: Raw image
         void OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
 
-        // 取主编码管线产出的编码帧:按 (mon_name, frame_index) 精确匹配,
-        // 未命中退而取同屏最新缓存帧(见实现);mon_name 隔离多屏序号空间,
-        // 切屏瞬间新旧屏同号帧不会互相覆盖/误取
-        std::shared_ptr<RtcLocalEncodedVideoFrame> PopEncodedVideoFrame(uint16_t frame_index, const std::string& mon_name);
+        // 按编码产出序号顺序取帧:返回 mon_name 屏 seq > after_seq 的最旧一帧(严格按
+        // 编码器产出顺序消费,H264 delta 链不断裂;NVENC 跳帧编码时采集序号不连续,
+        // 不能再按采集序号匹配)。out_gap: 有未消费的帧被淘汰(缓存溢出)时为 true,
+        // 消费端应 InsertIdr 等关键帧续接。无新帧返回 nullptr。
+        std::shared_ptr<RtcLocalEncodedVideoFrame> PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap);
+        // 该屏当前最大产出序号(无则 0);新连接/切屏后以此引导,只消费之后到达的帧
+        uint64_t GetLatestEncodedSeq(const std::string& mon_name);
+        // 该屏缓存中 seq > after_seq 的未消费帧数(积压监控/应急阀用)
+        size_t GetCachedFrameCount(const std::string& mon_name, uint64_t after_seq);
         void PrintCachedVideoFrames();
-        void SetClearOlderFramesBaseline(int64_t baseline_timestamp);
 
         // RtcServer 在 ICE 终态(Failed/Closed)时回调,标记该连接待清理
         void NotifyRtcServerTerminal(const std::string& conn_id);
@@ -76,11 +80,14 @@ namespace tc
     private:
         tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
         // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
-        // webrtc 编码线程(PopEncodedVideoFrame)并发访问,必须加锁。
-        // key = mon_name + "#" + frame_index(各屏采集序号独立,必须带屏名区分)
+        // webrtc 编码线程(PopNextEncodedVideoFrame)并发访问,必须加锁。
+        // key = (mon_name, seq):按屏隔离 + 按产出序号数值有序
         std::mutex encoded_video_frames_mtx_;
-        std::map<std::string, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
-        int64_t clear_baseline_timestamp_ = 0;
+        std::map<std::pair<std::string, uint64_t>, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        // 每屏产出序号计数器(只在 OnEncodedVideoFrame 加锁自增)
+        std::map<std::string, uint64_t> encoded_seq_by_mon_;
+        // 每屏缓存上限(编码快于消费时淘汰最旧帧,消费端会发现 gap 并 InsertIdr)
+        static constexpr size_t kMaxCachedFramesPerMon = 90;
     };
 
 }

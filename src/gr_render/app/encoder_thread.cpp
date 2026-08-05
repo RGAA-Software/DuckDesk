@@ -31,6 +31,47 @@
 
 #define DEBUG_FILE 0
 
+namespace
+{
+    // 生产侧诊断:每 5s 输出一次编码线程负载,用于定位"采集 60fps 但编码只产出 40fps"
+    // 到底卡在哪一环:输入速率 / 主任务耗时 / 队列积压 / YUV->编码等待 / 纹理拷贝耗时
+    struct EncThreadDiag {
+        std::atomic_uint64_t in_frames{0};      // Encode() 调用次数(采集喂入速率)
+        std::atomic_int64_t  in_flight{0};      // enc 线程队列积压(post 时 ++,执行完 --)
+        std::atomic_uint64_t task_dones{0};     // enc 线程完成的主任务数
+        std::atomic_int64_t  task_time_sum{0};  // 主任务执行耗时累计(ms)
+        std::atomic_int64_t  task_time_max{0};
+        std::atomic_int64_t  copy_tex_sum{0};   // CopyTexture 耗时累计(ms)
+        std::atomic_uint64_t enc_posts{0};      // yuv 回调投递的编码任务数
+        std::atomic_int64_t  enc_wait_sum{0};   // 编码任务 post->run 等待累计(ms)
+        std::atomic_int64_t  enc_wait_max{0};
+        int64_t window_beg = 0;
+
+        void DumpIfDue() {
+            auto now = tc::TimeUtil::GetCurrentTimestamp();
+            if (window_beg == 0) { window_beg = now; return; }
+            auto wall = now - window_beg;
+            if (wall < 5000) return;
+            window_beg = now;
+            auto n_task = task_dones.exchange(0);
+            auto tsum = task_time_sum.exchange(0);
+            auto tmax = task_time_max.exchange(0);
+            auto csum = copy_tex_sum.exchange(0);
+            auto ep = enc_posts.exchange(0);
+            auto ewsum = enc_wait_sum.exchange(0);
+            auto ewmax = enc_wait_max.exchange(0);
+            auto in = in_frames.exchange(0);
+            LOGI("enc diag: wall={}ms, in_fps={:.1f}, backlog={}, task_avg={}ms, task_max={}ms, "
+                 "copy_tex_avg={}ms, enc_posts={}, enc_wait_avg={}ms, enc_wait_max={}ms",
+                 wall, wall > 0 ? in * 1000.0 / wall : 0.0, in_flight.load(),
+                 n_task > 0 ? tsum / (int64_t)n_task : 0, tmax,
+                 n_task > 0 ? csum / (int64_t)n_task : 0,
+                 ep, ep > 0 ? ewsum / (int64_t)ep : 0, ewmax);
+        }
+    };
+    EncThreadDiag g_enc_diag;
+}
+
 namespace tc
 {
 
@@ -63,7 +104,22 @@ namespace tc
         if (!frame_carrier_plugin_) {
             return;
         }
+        ++g_enc_diag.in_frames;
+        ++g_enc_diag.in_flight;
         PostEncTask([=, this]() {
+            auto diag_task_beg = TimeUtil::GetCurrentTimestamp();
+            struct DiagGuard {
+                int64_t beg_;
+                ~DiagGuard() {
+                    g_enc_diag.task_time_sum += TimeUtil::GetCurrentTimestamp() - beg_;
+                    auto d = TimeUtil::GetCurrentTimestamp() - beg_;
+                    auto prev = g_enc_diag.task_time_max.load();
+                    while (d > prev && !g_enc_diag.task_time_max.compare_exchange_weak(prev, d)) {}
+                    ++g_enc_diag.task_dones;
+                    --g_enc_diag.in_flight;
+                    g_enc_diag.DumpIfDue();
+                }
+            } diag_guard{diag_task_beg};
             if (clear_encoders_) {
                 clear_encoders_ = false;
                 LOGW("clear all encoders!!!");
@@ -282,7 +338,20 @@ namespace tc
                     }
 
                     if (!target_encoder_plugin) {
-                        LOGW("Init FFmpeg(kNvEnc) failed, will try FFmpeg(kAmf).");
+                        // Intel Quick Sync 兜底:无 N/A 卡的机器(如只有 Intel 核显)
+                        // 用 QSV 硬编,把 1080p 编码从 x264 软编的一个多大核上卸下来,
+                        // 否则软编与采集/同机浏览器抢 CPU,DDA 采集被压到 32~40fps。
+                        // 注意必须插在 FFmpeg(kAmf) 之前:kAmf 分支在 ffmpeg 插件内
+                        // 实际映射为 libx264 且总能初始化成功,排在它后面永远轮不到。
+                        LOGW("Init FFmpeg(kNvEnc) failed, will try FFmpeg(kQsv).");
+                        encoder_config.Hardware = EHardwareEncoder::kQsv;
+                        if (!is_mocking && !hardware_disabled_ && ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(ffmpeg_encoder_plugin, monitor_name);
+                        }
+                    }
+
+                    if (!target_encoder_plugin) {
+                        LOGW("Init FFmpeg(kQsv) failed, will try FFmpeg(kAmf).");
                         // 让ffmpeg尝试硬编码初始化
                         encoder_config.Hardware = EHardwareEncoder::kAmf;
                         if (ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
@@ -374,6 +443,7 @@ namespace tc
                 auto copy_texture_end = TimeUtil::GetCurrentTimestamp();
                 auto diff_copy_texture = copy_texture_end - beg;
                 stat_->CaptureInfo(monitor_name)->AppendCopyTextureDuration((int32_t)diff_copy_texture);
+                g_enc_diag.copy_tex_sum += diff_copy_texture;
 
                 //video_encoder_->Encode(target_texture, frame_index);
                 bool can_encode_texture = false;
@@ -430,8 +500,16 @@ namespace tc
 
                         // callback in YUV converter thread
                         if (target_encoder_plugin && !can_encode_texture) {
+                            auto enc_post_ts = TimeUtil::GetCurrentTimestamp();
+                            ++g_enc_diag.enc_posts;
+                            ++g_enc_diag.in_flight;
                             PostEncTask([=, this]() {
+                                auto enc_wait = TimeUtil::GetCurrentTimestamp() - enc_post_ts;
+                                g_enc_diag.enc_wait_sum += enc_wait;
+                                auto prev = g_enc_diag.enc_wait_max.load();
+                                while (enc_wait > prev && !g_enc_diag.enc_wait_max.compare_exchange_weak(prev, enc_wait)) {}
                                 auto encode_result = target_encoder_plugin->Encode(image, frame_index, cap_video_msg);
+                                --g_enc_diag.in_flight;
                                 if (!encode_result.Success()) {
                                     LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->, monitor: {}",
                                          target_encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
