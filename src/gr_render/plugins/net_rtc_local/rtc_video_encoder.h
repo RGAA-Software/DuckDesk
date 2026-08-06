@@ -64,30 +64,25 @@ namespace tc
         // 编码产出序号消费游标:严格按编码器产出顺序取帧(见 RtcLocalPlugin 注释),
         // 切屏/首连时以该屏当前最大序号引导,只消费之后到达的帧
         uint64_t consumed_seq_ = 0;
-        // 缓存积压应急阀值(帧):超过则快进丢弃陈旧帧
-        static constexpr size_t kMaxBacklogFrames = 30;
+        // 缓存积压应急阀值(帧):超过则快进到最新帧,避免发送陈旧画面
+        static constexpr size_t kMaxBacklogFrames = 2;
         // 当前绑定的采集显示器名:切屏时重置 IDR 等待与消费游标
         std::string last_mon_name_;
 
-        // 输入帧时间戳日志(到达序,frame.id() = 采集 frame_idx 低 16 位)。
-        // 编码帧是异步产出的:它对应的画面采集于若干毫秒前。发送时若直接
-        // 盖"当前输入帧"的 RTP/NTP 时间戳,当编码生产速率低于输入速率时,
-        // 发出的帧在 RTP 时间轴上留下空洞(37fps 的帧占了 60fps 的时间轴),
-        // 浏览器抖动缓冲判定帧严重迟到,目标延迟无上限抬升(实测 30s 内
-        // 2s->31s,画面越来越卡)。发送前按 frame_index 回查真实采集时刻。
+        // 输入帧时间戳日志:按完整 frame_index 回查采集 RTP/NTP(勿用低 16 位 id)。
         struct InputTsEntry {
-            uint16_t frame_id_;
+            uint64_t frame_index_;
             uint32_t rtp_ts_;
             int64_t ntp_ms_;
         };
         std::deque<InputTsEntry> input_ts_log_;
         static constexpr size_t kMaxInputTsLog = 600;
-        // 时间戳回查未命中计数(编码帧太老被清出窗口/切屏交界),定期随日志输出
         uint64_t ts_lookup_miss_ = 0;
-        // 发送时间戳单调性保护:回查未命中/快进退避时严禁时间戳倒退
+        // 发送时间戳单调性保护
         uint32_t last_sent_rtp_ts_ = 0;
         int64_t last_sent_ntp_ms_ = 0;
         bool has_last_sent_ts_ = false;
+        static constexpr uint32_t kRtpTicksPerFrame = 90000 / 60;
         // 帧龄诊断(发送时刻-采集时刻),300 帧窗口输出后清零
         int64_t send_age_sum_ = 0;
         int64_t send_age_max_ = 0;

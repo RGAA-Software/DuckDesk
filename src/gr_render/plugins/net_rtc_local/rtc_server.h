@@ -86,6 +86,8 @@ namespace tc
 
         rtc::scoped_refptr<webrtc::PeerConnectionInterface> peer_conn_ = nullptr;
         rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> peer_conn_factory_;
+        // Kept alive for factory lifetime; dummy ADM avoids mic-capture race.
+        rtc::scoped_refptr<webrtc::AudioDeviceModule> adm_;
         webrtc::PeerConnectionInterface::RTCConfiguration configuration_;
 
         std::shared_ptr<RtcDataChannel> media_data_channel_ = nullptr;
@@ -105,7 +107,7 @@ namespace tc
         rtc::scoped_refptr<VideoTrackSourceImpl> video_track_source_ = nullptr;
         rtc::scoped_refptr<AudioSourceImpl> audio_source_ = nullptr;
 
-        // 上行音频(浏览器麦克风):接收统计 sink;播放由 libwebrtc 默认 ADM 完成
+        // 上行音频(浏览器麦克风):统计 sink(dummy ADM 下不做自动外放)
         rtc::scoped_refptr<webrtc::AudioTrackInterface> remote_audio_track_ = nullptr;
         std::shared_ptr<RemoteAudioSink> remote_audio_sink_ = nullptr;
 

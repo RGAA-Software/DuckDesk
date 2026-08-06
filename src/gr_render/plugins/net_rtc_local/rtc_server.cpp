@@ -217,13 +217,15 @@ namespace tc
         media_deps.task_queue_factory = webrtc::CreateDefaultTaskQueueFactory();
         CreateSomeMediaDeps(media_deps);
 
-        // ADM 传 nullptr -> libwebrtc 内部创建平台默认 ADM(Windows CoreAudio/WASAPI)。
-        // 远端上行音频(浏览器麦克风)的解码由 ADM 播放线程驱动,经 AudioMixer
-        // 自动外放到默认扬声器;RemoteAudioSink 只做接收统计。
-        // 注意:dummy ADM 实测不会驱动解码(sink 收不到 PCM),不能用。
+        // Use dummy ADM from CreateSomeMediaDeps. nullptr would create Windows
+        // CoreAudio ADM whose capture thread races AudioSourceImpl::SendAudio
+        // into AudioSendStream::SendAudioData (FatalLog / 0x80000003).
+        // Outbound game audio uses AudioSourceImpl; inbound mic playout needs
+        // a dedicated WASAPI path when using dummy ADM.
+        adm_ = media_deps.adm;
         peer_conn_factory_ = webrtc::CreatePeerConnectionFactory(
             network_thread_.get(), worker_thread_.get(), sig_thread_.get(),
-            nullptr,
+            adm_,
             std::move(media_deps.audio_encoder_factory),
             std::move(media_deps.audio_decoder_factory),
             std::move(media_deps.video_encoder_factory),
@@ -338,12 +340,13 @@ namespace tc
         // 已有 sink(理论上一条连接只有一条上行音频轨),先清理
         OnRemoteAudioTrackRemoved(remote_audio_track_);
 
-        // 播放走默认 ADM 自动外放;这里挂统计 sink 验证解码链路有数据
+        // Factory uses dummy ADM (no mic capture race). Remote track sink is
+        // stats-only for now; browser-mic playout needs a dedicated WASAPI path.
         auto sink = RemoteAudioSink::Make();
         track->AddSink(sink.get());
         remote_audio_track_ = std::move(track);
         remote_audio_sink_ = sink;
-        LOGI("Remote audio sink attached, browser mic will play via default ADM.");
+        LOGI("Remote audio sink attached (stats only; dummy ADM, no auto playout).");
     }
 
     void RtcServer::OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
@@ -451,13 +454,17 @@ namespace tc
             LOGE("OnNewFrameCaptured, but diff size is: {}", diff);
         }
 
-        auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        // timestamp_us = Unix us. Do NOT set ntp_time_ms here: WebRTC fills NTP
+        // on the encode path; stuffing the wrong epoch caused DebugBreak crashes.
+        // RtcSharedVideoEncoder normalizes EncodedImage.ntp_time_ms_ before send.
+        const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
         auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
-        webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder().
-                set_video_frame_buffer(buffer).
-                set_timestamp_us(us).
-                set_id(frame_idx).
-                build();
+        webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder()
+                .set_video_frame_buffer(buffer)
+                .set_timestamp_us(now_us)
+                .set_id(static_cast<uint16_t>(frame_idx & 0xFFFF))
+                .build();
         video_source_->OnNotifyFrame(notify_frame);
     }
 

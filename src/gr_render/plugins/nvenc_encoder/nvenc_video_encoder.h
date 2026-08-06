@@ -71,6 +71,11 @@ namespace tc
         std::mutex encode_mtx_;
         std::atomic_uint32_t pending_bps_{0};
         std::atomic_uint32_t pending_fps_{0};
+        // WebRTC SetRates 在刷新/重连时每秒连打多次;全量 CreateDefaultEncoderParams+Reconfigure
+        // 会触发驱动/断言崩(历史上 0x80000003)。节流 + 忽略微小变化。
+        uint32_t applied_bps_{0};
+        uint32_t applied_fps_{0};
+        int64_t last_reconfigure_ms_{0};
     };
 
 }

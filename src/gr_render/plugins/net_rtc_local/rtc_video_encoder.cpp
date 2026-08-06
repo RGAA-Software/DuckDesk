@@ -1,5 +1,6 @@
 #include "rtc_video_encoder.h"
 #include <atomic>
+#include <chrono>
 #include "tc_common_new/log.h"
 #include "tc_common_new/time_util.h"
 #include "h264_sei_helper.h"
@@ -110,8 +111,8 @@ namespace tc
             has_last_sent_ts_ = false;
         }
 
-        // 记录当前输入帧时间戳,供编码帧发送时按 frame_index 回查真实采集时刻
-        input_ts_log_.push_back({ frame.id(), frame.timestamp(), frame.ntp_time_ms() });
+        // 记录当前输入帧时间戳,供编码帧发送时按完整 frame_index 回查
+        input_ts_log_.push_back({ native_buffer->GetFrameIdx(), frame.timestamp(), frame.ntp_time_ms() });
         while (input_ts_log_.size() > kMaxInputTsLog) {
             input_ts_log_.pop_front();
         }
@@ -205,10 +206,10 @@ namespace tc
         // 从尾部反向扫几下即可命中。
         uint32_t send_rtp_ts = frame.timestamp();
         int64_t send_ntp_ms = frame.ntp_time_ms();
-        const auto want_id = (uint16_t)(encoded_video_frame->frame_index_ & 0xFFFF);
+        const uint64_t want_idx = encoded_video_frame->frame_index_;
         bool ts_matched = false;
         for (auto it = input_ts_log_.rbegin(); it != input_ts_log_.rend(); ++it) {
-            if (it->frame_id_ == want_id) {
+            if (it->frame_index_ == want_idx) {
                 send_rtp_ts = it->rtp_ts_;
                 send_ntp_ms = it->ntp_ms_;
                 ts_matched = true;
@@ -218,24 +219,30 @@ namespace tc
         if (!ts_matched) {
             ++ts_lookup_miss_;
         }
-        // 发送时间戳必须严格单调:ts_miss 回退会盖上"当前输入帧"(更新)的时间戳,
-        // 若发给一帧更旧的编码帧,后续正常回查的帧时间戳反而倒退——浏览器抖动缓冲
-        // 会把这种乱序解读为极端抖动,目标延迟失控抬升(实测涨到 100s+)。
+        // Normalize to NTP epoch (ms since 1900). Accept either already-NTP or Unix.
+        constexpr int64_t kNtpJan1970Ms = 2208988800LL * 1000LL;
+        const int64_t unix_now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        if (send_ntp_ms <= 0) {
+            send_ntp_ms = unix_now_ms + kNtpJan1970Ms;
+        } else if (send_ntp_ms < kNtpJan1970Ms) {
+            send_ntp_ms += kNtpJan1970Ms;
+        }
+        // 发送时间戳必须严格单调。回退时按 90kHz/60 推进,绝不用 +1——
+        // +1 会让媒体时钟几乎停滞,Chrome 把到达的帧全部当成"太早"囤到 ~1s。
         if (has_last_sent_ts_) {
             if ((int32_t)(send_rtp_ts - last_sent_rtp_ts_) <= 0) {
-                send_rtp_ts = last_sent_rtp_ts_ + 1;
+                send_rtp_ts = last_sent_rtp_ts_ + kRtpTicksPerFrame;
             }
             if (send_ntp_ms <= last_sent_ntp_ms_) {
-                send_ntp_ms = last_sent_ntp_ms_ + 1;
+                send_ntp_ms = last_sent_ntp_ms_ + (1000 / 60);
             }
         }
         last_sent_rtp_ts_ = send_rtp_ts;
         last_sent_ntp_ms_ = send_ntp_ms;
         has_last_sent_ts_ = true;
-        // 帧龄诊断:发送时刻 - 真实采集时刻(均为 wall clock),定位延迟积压位置
-        auto now_wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        auto frame_age_ms = now_wall_ms - send_ntp_ms;
+        // 帧龄:发送时刻(unix) - 编码完成时记录的 wall clock(unix)
+        auto frame_age_ms = unix_now_ms - encoded_video_frame->timestamp_;
         send_age_sum_ += frame_age_ms;
         if (frame_age_ms > send_age_max_) send_age_max_ = frame_age_ms;
         encodedImage.SetRtpTimestamp(send_rtp_ts);

@@ -28,8 +28,15 @@ namespace tc
         encoder_config_ = config;
         e_buffer_format_ = DxgiFormatToNvEncFormat(static_cast<DXGI_FORMAT>(encoder_config_.texture_format));
        
-        LOGI("input_frame_width_ = {}, input_frame_height_ = {}, format = {:x} , m_pD3DRender->GetDevice() = {}, config.fps = {}, enable 444: {}",
-             config.width, config.height, (int)e_buffer_format_, (void *) d3d11_device_.Get(), config.fps, config.enable_full_color_mode_);
+        LOGI("input_frame_width_ = {}, input_frame_height_ = {}, dxgi_format = {} (0x{:x}), nvenc_format = 0x{:x}, m_pD3DRender->GetDevice() = {}, config.fps = {}, enable 444: {}",
+             config.width, config.height,
+             (int)encoder_config_.texture_format, (uint32_t)encoder_config_.texture_format,
+             (uint32_t)e_buffer_format_, (void *) d3d11_device_.Get(), config.fps, config.enable_full_color_mode_);
+        if (e_buffer_format_ == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
+            LOGE("Unsupported DXGI texture format for NVENC: {} (0x{:x})",
+                 (int)encoder_config_.texture_format, (uint32_t)encoder_config_.texture_format);
+            return false;
+        }
 
         if (!CreateNvEncoder()) {
             return false;
@@ -75,12 +82,32 @@ namespace tc
 
     bool NVENCVideoEncoder::ApplyPendingConfigLocked() {
         const uint32_t bps = pending_bps_.load();
-        const uint32_t fps = pending_fps_.load();
+        uint32_t fps = pending_fps_.load();
         if (bps == 0 || fps == 0 || !nv_encoder_) {
             return true;
         }
         pending_bps_.store(0);
         pending_fps_.store(0);
+        // Clamp: WebRTC sometimes reports framerate_fps=78/87 on reconnect; NVENC dislikes it.
+        if (fps < 15) fps = 15;
+        if (fps > 60) fps = 60;
+
+        constexpr int64_t kMinReconfigureIntervalMs = 2000;
+        const int64_t now_ms = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        const bool bps_changed = applied_bps_ == 0
+            || (bps > applied_bps_ ? (bps - applied_bps_) : (applied_bps_ - bps)) > applied_bps_ / 10; // >10%
+        const bool fps_changed = applied_fps_ == 0
+            || (fps > applied_fps_ ? (fps - applied_fps_) : (applied_fps_ - fps)) >= 5;
+        if (!bps_changed && !fps_changed) {
+            return true;
+        }
+        if (last_reconfigure_ms_ != 0 && (now_ms - last_reconfigure_ms_) < kMinReconfigureIntervalMs) {
+            // Keep pending so the next encode after the interval can apply the latest target.
+            pending_bps_.store(bps);
+            pending_fps_.store(fps);
+            return true;
+        }
+
         NV_ENC_RECONFIGURE_PARAMS reconfigureParams = { NV_ENC_RECONFIGURE_PARAMS_VER };
         NV_ENC_CONFIG encodeConfig = { NV_ENC_CONFIG_VER };
         reconfigureParams.reInitEncodeParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
@@ -98,7 +125,10 @@ namespace tc
                  fps, encoder_config_.width, encoder_config_.height, bps);
             return false;
         }
-        LOGE("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+        applied_bps_ = bps;
+        applied_fps_ = fps;
+        last_reconfigure_ms_ = now_ms;
+        LOGI("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
         return true;
     }
 
@@ -220,14 +250,13 @@ namespace tc
         //超低延迟流媒体
         //NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY = 3,                                     /**< Tune presets for ultra low latency streaming.
 
+        // LOW_LATENCY (not ULTRA): ULTRA tripped DebugBreak/0x80000003 on this driver path.
         NV_ENC_TUNING_INFO tuning_preset = NV_ENC_TUNING_INFO_LOW_LATENCY;
         nv_encoder_->CreateDefaultEncoderParams(&initialize_params, encoder_guid, quality_preset, tuning_preset);
 
         // custom params
         bool support_h264_yuv444 = nv_encoder_->SupportYuv444EncodeH264();
         bool support_hevc_yuv444 = nv_encoder_->SupportYuv444EncodeHevc();
-        LOGI("NVENC NvEncoderD3D11 support_h264_yuv444: {}", (int)support_h264_yuv444);
-        LOGI("NVENC NvEncoderD3D11 support_hevc_yuv444: {}", (int)support_hevc_yuv444);
         if (encoder_config_.enable_full_color_mode_) {
             if (EVideoCodecType::kH264 == encoder_config_.codec_type && support_h264_yuv444) {
                 //LOGI("NVENCVideoEncoder Initialize codec: kH264");
@@ -441,7 +470,10 @@ namespace tc
         switch (dxgiFormat) {
             case DXGI_FORMAT_NV12:
                 return NV_ENC_BUFFER_FORMAT_NV12;
-            case DXGI_FORMAT_B8G8R8A8_UNORM: // dda 
+            case DXGI_FORMAT_B8G8R8A8_UNORM: // dda
+            case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+            case DXGI_FORMAT_B8G8R8X8_UNORM:
+            case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
                 return NV_ENC_BUFFER_FORMAT_ARGB;
             case DXGI_FORMAT_R8G8B8A8_UNORM:
             case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:

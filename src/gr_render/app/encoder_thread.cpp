@@ -183,6 +183,41 @@ namespace tc
 
             bool full_color_mode_changed = false;
             auto target_encoder_plugin = GetEncoderPluginForMonitor(monitor_name);
+
+            // Size thrash (windowed ↔ exclusive fullscreen) used to Exit/recreate NVENC every
+            // few seconds and drop the WebRTC picture. Wait until the new size is stable.
+            // Important: do NOT pause the whole encode path for the debounce window — that made
+            // glass-to-glass lag feel like ~1s+ while fps stayed smooth on the last good size.
+            // Only drop frames whose capture size != current encoder; keep streaming matches.
+            constexpr int64_t kSizeChangeDebounceMs = 800;
+            if (frame_meta_info_changed && target_encoder_plugin) {
+                const auto new_size = std::make_pair(cap_video_msg.frame_width_, cap_video_msg.frame_height_);
+                const auto now_ms = TimeUtil::GetCurrentTimestamp();
+                auto& pending = pending_frame_size_[monitor_name];
+                auto& since = pending_frame_size_since_ms_[monitor_name];
+                if (pending != new_size) {
+                    pending = new_size;
+                    since = now_ms;
+                    LOGW("Capture size change pending {}x{} (debounce {}ms), keep current encoder",
+                         new_size.first, new_size.second, kSizeChangeDebounceMs);
+                }
+                if (now_ms - since < kSizeChangeDebounceMs) {
+                    auto enc_cfg = target_encoder_plugin->GetEncoderConfig(monitor_name);
+                    const bool size_matches_encoder = enc_cfg.has_value()
+                        && enc_cfg->width == cap_video_msg.frame_width_
+                        && enc_cfg->height == cap_video_msg.frame_height_;
+                    if (!size_matches_encoder) {
+                        return;
+                    }
+                    // Same as current encoder: keep encoding, suppress recreate for now.
+                    frame_meta_info_changed = false;
+                } else {
+                    LOGI("Capture size settled at {}x{}, recreating encoder", new_size.first, new_size.second);
+                }
+            } else if (!frame_meta_info_changed) {
+                pending_frame_size_.erase(monitor_name);
+                pending_frame_size_since_ms_.erase(monitor_name);
+            }
             if (target_encoder_plugin) {
                 auto encoder_config_res = target_encoder_plugin->GetEncoderConfig(monitor_name);
                 if (encoder_config_res.has_value()) {

@@ -54,13 +54,17 @@ namespace tc
             return adapter_uid_;
         }
 
-        [[nodiscard]] uint64_t GetFrameFormat() {
-            return adapter_uid_;
+        [[nodiscard]] uint64_t GetFrameFormat() const {
+            return frame_format_;
         }
 
         // 采集该帧的显示器名:切屏检测/编码帧按屏名匹配用
         [[nodiscard]] const std::string& GetMonName() {
             return mon_name_;
+        }
+
+        [[nodiscard]] uint64_t GetFrameIdx() const {
+            return frame_idx_;
         }
 
     private:

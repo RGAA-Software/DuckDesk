@@ -91,7 +91,7 @@ namespace tc
         // 每屏产出序号计数器(只在 OnEncodedVideoFrame 加锁自增)
         std::map<std::string, uint64_t> encoded_seq_by_mon_;
         // 每屏缓存上限(编码快于消费时淘汰最旧帧,消费端会发现 gap 并 InsertIdr)
-        static constexpr size_t kMaxCachedFramesPerMon = 90;
+        static constexpr size_t kMaxCachedFramesPerMon = 8;
     };
 
 }

@@ -63,6 +63,9 @@ namespace tc
         std::mutex encoder_plugins_mtx_;
         std::map<std::string, GrVideoEncoderPlugin*> encoder_plugins_;
         std::map<std::string, std::optional<CaptureVideoFrame>> last_video_frames_;
+        // Debounce capture size thrash (e.g. game briefly going fullscreen 1920↔3840).
+        std::map<std::string, std::pair<uint32_t, uint32_t>> pending_frame_size_;
+        std::map<std::string, int64_t> pending_frame_size_since_ms_;
 
         // frame carrier plugin
         GrFrameCarrierPlugin* frame_carrier_plugin_ = nullptr;
