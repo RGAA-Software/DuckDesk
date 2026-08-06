@@ -1,7 +1,7 @@
 // WebRTC 性能采样:每 2s 读 pc.getStats(),产出视频码率/帧率/RTT/丢包/抖动/分辨率,
 // 以及延迟/卡顿诊断关键指标:
-//   jbTargetMs  — 抖动缓冲目标均摊延迟(jitterBufferTargetDelay/emittedCount,ms)
-//   jbDelayMs   — 抖动缓冲实际均摊延迟(jitterBufferDelay/emittedCount,ms)
+//   jbTargetMs  — 采样窗口内抖动缓冲目标均摊(ΔtargetDelay/Δemitted,ms);勿用 lifetime 均值
+//   jbDelayMs   — 采样窗口内抖动缓冲实际均摊(Δdelay/Δemitted,ms)
 //   decodeMs    — 每帧解码耗时(软解 4:4:4 时会飙到几十 ms,直接拖垮 fps)
 //   procMs      — 每帧总处理耗时(解码+渲染排队,Chrome 收端处理不过来的直接证据)
 //   decoder     — 解码器实现(ExternalDecoder≈硬解;FFmpegDecoder=软解)
@@ -128,6 +128,9 @@ export class PerfCollector {
   private lastDropped = -1
   private lastDecodeTime = -1
   private lastProcDelay = -1
+  private lastJbDelay = -1
+  private lastJbTarget = -1
+  private lastJbEmitted = -1
   private lastKeyDecoded = -1
   private lastFreezes = -1
   private lastFreezeDur = -1
@@ -145,6 +148,9 @@ export class PerfCollector {
     this.lastDropped = -1
     this.lastDecodeTime = -1
     this.lastProcDelay = -1
+    this.lastJbDelay = -1
+    this.lastJbTarget = -1
+    this.lastJbEmitted = -1
     this.lastKeyDecoded = -1
     this.lastFreezes = -1
     this.lastFreezeDur = -1
@@ -185,6 +191,7 @@ export class PerfCollector {
     let freezes = -1
     let freezeDur = -1
     let jbDelay = -1
+    let jbTarget = -1
     let jbEmitted = -1
 
     // candidate-pair 引用 local/remote candidate 的 id,先收集候选表再回填
@@ -206,15 +213,12 @@ export class PerfCollector {
         freezes = r.freezeCount ?? 0
         freezeDur = r.totalFreezesDuration ?? 0
         jbDelay = r.jitterBufferDelay ?? 0
+        jbTarget = r.jitterBufferTargetDelay ?? 0
         jbEmitted = r.jitterBufferEmittedCount ?? 0
         out.fps = r.framesPerSecond ?? 0
         out.jitterMs = (r.jitter ?? 0) * 1000
         out.width = r.frameWidth ?? 0
         out.height = r.frameHeight ?? 0
-        // jitterBufferTargetDelay 是累计秒,需 /emittedCount 才是瞬时均摊 ms
-        // (与 webrtc-internals [jitterBufferTargetDelay/jitterBufferEmittedCount_in_ms] 一致)
-        const jbTarget = r.jitterBufferTargetDelay ?? 0
-        out.jbTargetMs = jbEmitted > 0 ? (jbTarget / jbEmitted) * 1000 : 0
         out.decoder = r.decoderImplementation ?? ''
       } else if (r.type === 'candidate-pair' && r.nominated) {
         out.rttMs = (r.currentRoundTripTime ?? 0) * 1000
@@ -250,9 +254,13 @@ export class PerfCollector {
         out.decodeMs = Math.max(0, ((decodeTime - this.lastDecodeTime) / dDecoded) * 1000)
         out.procMs = Math.max(0, ((procDelay - this.lastProcDelay) / dDecoded) * 1000)
       }
-    }
-    if (jbEmitted > 0 && jbDelay >= 0) {
-      out.jbDelayMs = (jbDelay / jbEmitted) * 1000
+      // JB 累计秒/累计帧 = lifetime 均值:会话早期曾 ~1s 时,UI 会长期显示偏高。
+      // 与 decode/proc 一样用采样窗口增量,才反映当前播放余量。
+      const dEmitted = jbEmitted - this.lastJbEmitted
+      if (dEmitted > 0 && this.lastJbEmitted >= 0) {
+        out.jbDelayMs = Math.max(0, ((jbDelay - this.lastJbDelay) / dEmitted) * 1000)
+        out.jbTargetMs = Math.max(0, ((jbTarget - this.lastJbTarget) / dEmitted) * 1000)
+      }
     }
     if (bytes >= 0) {
       this.lastBytes = bytes
@@ -262,6 +270,9 @@ export class PerfCollector {
       this.lastDropped = dropped
       this.lastDecodeTime = decodeTime
       this.lastProcDelay = procDelay
+      this.lastJbDelay = jbDelay
+      this.lastJbTarget = jbTarget
+      this.lastJbEmitted = jbEmitted
       this.lastKeyDecoded = keyDecoded
       this.lastFreezes = freezes
       this.lastFreezeDur = freezeDur

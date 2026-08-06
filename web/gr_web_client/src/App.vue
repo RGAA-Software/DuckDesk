@@ -458,24 +458,52 @@ function exposeFtDebug() {
 
 // 压低 Chrome 视频抖动缓冲/播放余量(跟手性关键)。
 // playoutDelayHint=0:关掉自适应播放延迟;jitterBufferTarget=0:把目标缓冲钉到 0ms。
-// 不支持的浏览器属性不存在,静默忽略。轨 unmute 后再设一次(部分版本 ontrack 时尚未生效)。
+// ontrack 时轨经常仍是 muted,此时赋值可能不生效;必须在 unmute / 连通后再设。
+// 不支持的浏览器属性不存在,静默忽略。
 type LowLatencyReceiver = RTCRtpReceiver & {
   playoutDelayHint?: number
   jitterBufferTarget?: number
 }
+let lowLatencyTimer: number | null = null
 function applyLowLatencyPlayout(receiver: RTCRtpReceiver, track?: MediaStreamTrack) {
   const apply = () => {
     try {
       const r = receiver as LowLatencyReceiver
       r.playoutDelayHint = 0
       r.jitterBufferTarget = 0
+      if (track && 'contentHint' in track) {
+        // motion: 优先低延迟,允许更多压缩伪影
+        ;(track as MediaStreamTrack & { contentHint?: string }).contentHint = 'motion'
+      }
     } catch {
       /* ignore */
     }
   }
   apply()
-  if (track && track.readyState !== 'live') {
+  // readyState===live 但 muted===true 是常见态,旧逻辑漏了 unmute 重试
+  if (track?.muted) {
     track.addEventListener('unmute', apply, { once: true })
+  }
+}
+function startLowLatencyKeepalive(pc: RTCPeerConnection) {
+  if (lowLatencyTimer != null) {
+    window.clearInterval(lowLatencyTimer)
+  }
+  const tick = () => {
+    for (const receiver of pc.getReceivers()) {
+      if (receiver.track?.kind === 'video') {
+        applyLowLatencyPlayout(receiver, receiver.track)
+      }
+    }
+  }
+  tick()
+  // Chrome 偶发把 target 拉回 ~1s;连通期间高频钉死为 0
+  lowLatencyTimer = window.setInterval(tick, 250)
+}
+function stopLowLatencyKeepalive() {
+  if (lowLatencyTimer != null) {
+    window.clearInterval(lowLatencyTimer)
+    lowLatencyTimer = null
   }
 }
 
@@ -655,8 +683,11 @@ const showStepList = computed(
 // 从 URL query 带入参数:
 //   推荐:?c=<URL-safe Base64 JSON{d,p?,m?}> (panel/CMS 生成,避免明文密码)
 //   兼容:?deviceId=&password= 或 &pwd_md5=(预哈希),便于本地调试
-// deviceId + 密码(任一形式)齐全时自动连接;流 ID 由设备 ID 派生,不从 URL 带入
+// deviceId 出现在 URL 时自动连接;密码可空(render 未设安全密码时放行)
+// 流 ID 由设备 ID 派生,不从 URL 带入
 const pwdMd5Override = ref('')
+/** true when URL/token explicitly supplied a device id (triggers auto-connect) */
+const autoConnectFromUrl = ref(false)
 
 function loadQueryParams() {
   const q = new URLSearchParams(window.location.search)
@@ -667,6 +698,7 @@ function loadQueryParams() {
       form.deviceId = decoded.deviceId
       form.password = decoded.password
       pwdMd5Override.value = decoded.pwdMd5
+      autoConnectFromUrl.value = !!decoded.deviceId
       addLog(`[connect] 已从 ?c= 解码连接参数 (deviceId=${decoded.deviceId})`)
     } else {
       addLog('[connect] ?c= 参数解码失败,将尝试明文 query')
@@ -676,7 +708,10 @@ function loadQueryParams() {
   if (!form.deviceId) form.deviceId = q.get('deviceId') ?? ''
   if (!form.password) form.password = q.get('password') ?? ''
   if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
-  // URL 未带设备 ID 时用上次成功连接的设备 ID 预填(不存密码)
+  if (q.get('deviceId') || q.get('c')) {
+    autoConnectFromUrl.value = !!form.deviceId
+  }
+  // URL 未带设备 ID 时用上次成功连接的设备 ID 预填(不存密码,不自动连)
   if (!form.deviceId) {
     try {
       const last = JSON.parse(localStorage.getItem(LS_LAST_CONN) ?? '{}') as {
@@ -721,6 +756,7 @@ function cleanup() {
   gamepadOn.value = false
   if (document.pointerLockElement) document.exitPointerLock()
   perfCollector.stop()
+  stopLowLatencyKeepalive()
   perf.value = { ...EMPTY_PERF }
   remoteClipboard.value = ''
   remoteMonitors.value = []
@@ -863,12 +899,8 @@ async function connect() {
           /* ignore */
         }
         if (pc) {
-          // 连接就绪后对所有 receiver 再压一次播放延迟(防 ontrack 时机偏早未生效)
-          for (const receiver of pc.getReceivers()) {
-            if (receiver.track?.kind === 'video') {
-              applyLowLatencyPlayout(receiver, receiver.track)
-            }
-          }
+          // 连接就绪后持续压播放延迟(ontrack 时常 muted,单次赋值不可靠)
+          startLowLatencyKeepalive(pc)
           perfCollector.start(pc)
         }
         startConnWatchdog()
@@ -1125,8 +1157,9 @@ onMounted(() => {
   exposeFtDebug()
   void fetchRenderVersion()
   document.addEventListener('pointerlockchange', onPointerLockChange)
-  // 参数齐全时自动连接(便于 CMS 跳转/无头测试);流 ID 已由设备 ID 派生
-  if (form.deviceId && effectivePwdMd5()) {
+  // URL 带了 deviceId/?c= 则自动连接(空密码也可,便于无头/本地调试)
+  if (autoConnectFromUrl.value && form.deviceId) {
+    addLog('[connect] URL 参数就绪,自动连接')
     manualConnect()
   }
 })
