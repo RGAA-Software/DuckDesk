@@ -10,6 +10,7 @@ import { sha256Hex } from './rtc/file_transfer'
 import { PerfCollector, EMPTY_PERF, perfSummaryLine } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
 import { sendClipboardText, parseClipboardText, canReadLocalClipboard } from './rtc/clipboard'
+import { decodeConnectToken } from './rtc/connect_token'
 import { decodeMessage } from './rtc/proto'
 import { applyDocumentTitle } from './locales/i18n'
 import logoUrl from './assets/tc_icon.png'
@@ -651,15 +652,30 @@ const showStepList = computed(
     (status.value === 'connected' && !hasVideo.value),
 )
 
-// 从 URL query 带入参数:?deviceId=&password=(明文)或 &pwd_md5=(预哈希)
+// 从 URL query 带入参数:
+//   推荐:?c=<URL-safe Base64 JSON{d,p?,m?}> (panel/CMS 生成,避免明文密码)
+//   兼容:?deviceId=&password= 或 &pwd_md5=(预哈希),便于本地调试
 // deviceId + 密码(任一形式)齐全时自动连接;流 ID 由设备 ID 派生,不从 URL 带入
 const pwdMd5Override = ref('')
 
 function loadQueryParams() {
   const q = new URLSearchParams(window.location.search)
-  form.deviceId = q.get('deviceId') ?? ''
-  form.password = q.get('password') ?? ''
-  pwdMd5Override.value = q.get('pwd_md5') ?? ''
+  const token = q.get('c')
+  if (token) {
+    const decoded = decodeConnectToken(token)
+    if (decoded) {
+      form.deviceId = decoded.deviceId
+      form.password = decoded.password
+      pwdMd5Override.value = decoded.pwdMd5
+      addLog(`[connect] 已从 ?c= 解码连接参数 (deviceId=${decoded.deviceId})`)
+    } else {
+      addLog('[connect] ?c= 参数解码失败,将尝试明文 query')
+    }
+  }
+  // 明文 query 可覆盖/补齐(调试用);token 已填时不再被空明文冲掉
+  if (!form.deviceId) form.deviceId = q.get('deviceId') ?? ''
+  if (!form.password) form.password = q.get('password') ?? ''
+  if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
   // URL 未带设备 ID 时用上次成功连接的设备 ID 预填(不存密码)
   if (!form.deviceId) {
     try {

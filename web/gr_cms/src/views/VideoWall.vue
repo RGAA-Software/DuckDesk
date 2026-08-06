@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElNotification } from 'element-plus'
 import type { Device } from '@/entity/device.ts'
 import { queryDevices } from '@/model/device_api.ts'
+import { buildWebClientUrl } from '@/util/web_client_url.ts'
 
 type CellStatus = 'connecting' | 'loaded' | 'unreachable'
 
@@ -50,11 +51,11 @@ function parseDesktopLink(device: Device): { did: string; ip: string; port: stri
 }
 
 function buildSrc(cell: WallCell): string {
-  let url = `http://${cell.ip}:${cell.port}/web_client/?deviceId=${cell.deviceId}&streamId=wall-${cell.deviceId}`
-  if (cell.password) {
-    url += `&password=${encodeURIComponent(cell.password)}`
-  }
-  return url
+  // ?c= 编码 deviceId/password,与 panel / web_client 对齐
+  return buildWebClientUrl(cell.ip, cell.port, {
+    deviceId: cell.deviceId,
+    password: cell.password || undefined,
+  })
 }
 
 function clearLoadTimer(deviceId: string) {

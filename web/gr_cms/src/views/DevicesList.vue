@@ -38,7 +38,8 @@ const handleCopyLink = async (index: number, device: Device) => {
 }
 
 // 打开 render 托管的 Web 桌面(WebRTC 局域网直连页面)。
-// desktop_link: link://base64(json{did, ips[], rdpt, ...})
+// desktop_link: link://base64(json{did, ips[], rdpt, rpwd, ...})
+// web 入口用 ?c= URL-safe Base64,避免明文 deviceId/password
 const handleOpenWebDesktop = (index: number, device: Device) => {
   try {
     const raw = device.desktop_link.startsWith('link://')
@@ -54,7 +55,12 @@ const handleOpenWebDesktop = (index: number, device: Device) => {
       return
     }
     const did = info.did || device.device_id
-    window.open(`http://${ip}:${port}/web_client/?deviceId=${did}`, '_blank', 'noopener,noreferrer')
+    const password = typeof info.rpwd === 'string' ? info.rpwd : ''
+    window.open(
+      buildWebClientUrl(ip, port, { deviceId: did, password }),
+      '_blank',
+      'noopener,noreferrer',
+    )
   } catch (e) {
     console.error(e)
     ElNotification({ message: '解析设备链接失败', type: 'error' })
@@ -76,6 +82,7 @@ import { type ComponentSize, ElNotification } from 'element-plus'
 import type { Device } from '@/entity/device.ts'
 import { formatTimestamp } from '@/util/time.ts'
 import { copyText } from '@/util/clipboard.ts'
+import { buildWebClientUrl } from '@/util/web_client_url.ts'
 import { queryDevices, updateDeviceActive } from '@/model/device_api.ts'
 const pageSize = ref(20)
 const currentPage = ref(1)

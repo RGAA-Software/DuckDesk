@@ -2,7 +2,7 @@
 // 与 float_controller_panel.cpp(白色圆角卡片:顶部快捷按钮行 + 菜单项 + 右侧二级子面板)
 // API 与旧 FloatToolbar.vue 完全兼容(props/models 不变),App.vue 只需换组件名
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -160,6 +160,8 @@ function restorePos() {
 }
 
 function onWindowResize() {
+  viewport.w = window.innerWidth
+  viewport.h = window.innerHeight
   restorePos()
 }
 
@@ -211,14 +213,46 @@ const subSubPanelRef = ref<HTMLElement | null>(null)
 
 const PANEL_W = 250
 const PANEL_GAP = 8
-// 面板最大高度估计值,用于垂直方向防超出(实际 max-height 由 CSS 兜底)
+/** 面板距视口上下边的安全距离 */
+const PANEL_SAFE = 16
+/** 主面板估计高度(仅用于初始 top 防溢出) */
 const PANEL_MAX_H = 440
+/** 子菜单至少保留的可视高度;不够则整体上移 */
+const SUB_PANEL_MIN_H = 180
+
+// 视口尺寸(resize 时更新,驱动面板 maxHeight 重算)
+const viewport = reactive({ w: window.innerWidth, h: window.innerHeight })
+
+// 子菜单顶部对齐触发 item(水平对齐),而非主面板顶部
+const subPanelAnchorTop = ref(0)
+const subSubPanelAnchorTop = ref(0)
+
+/** 飞出菜单定位:优先与 item 顶对齐;底部留安全距;空间不足时上移并限制 maxHeight 滚动 */
+function placeFlyout(preferredTop: number, minH = SUB_PANEL_MIN_H): { top: number; maxHeight: number } {
+  const vh = viewport.h
+  let top = Math.max(PANEL_SAFE, preferredTop)
+  let maxHeight = vh - top - PANEL_SAFE
+  if (maxHeight < minH) {
+    top = Math.max(PANEL_SAFE, vh - PANEL_SAFE - minH)
+    maxHeight = vh - top - PANEL_SAFE
+  }
+  maxHeight = Math.max(120, maxHeight)
+  return { top, maxHeight }
+}
+
+function captureAnchorTop(ev?: Event): number {
+  const el = ev?.currentTarget as HTMLElement | null | undefined
+  if (el?.getBoundingClientRect) return el.getBoundingClientRect().top
+  return parseFloat(panelStyle.value.top) || PANEL_SAFE
+}
 
 function togglePanel() {
   panelOpen.value = !panelOpen.value
   if (!panelOpen.value) {
     subPanel.value = ''
     subSubPanel.value = ''
+    subPanelAnchorTop.value = 0
+    subSubPanelAnchorTop.value = 0
   }
 }
 
@@ -226,37 +260,46 @@ function closePanel() {
   panelOpen.value = false
   subPanel.value = ''
   subSubPanel.value = ''
+  subPanelAnchorTop.value = 0
+  subSubPanelAnchorTop.value = 0
 }
 
 // 球在右半屏时面板弹左侧,否则右侧
 const panelOnLeft = computed(() => pos.x + BALL_SIZE / 2 > window.innerWidth / 2)
 
 const panelStyle = computed(() => {
-  const vw = window.innerWidth
-  const vh = window.innerHeight
+  const vw = viewport.w
+  const vh = viewport.h
   let left = panelOnLeft.value ? pos.x - PANEL_GAP - PANEL_W : pos.x + BALL_SIZE + PANEL_GAP
-  left = Math.min(Math.max(8, left), vw - PANEL_W - 8)
+  left = Math.min(Math.max(PANEL_SAFE, left), vw - PANEL_W - PANEL_SAFE)
   let top = pos.y + BALL_SIZE / 2 - 60
-  top = Math.min(Math.max(8, top), vh - PANEL_MAX_H - 8)
-  return { left: `${left}px`, top: `${top}px`, width: `${PANEL_W}px` }
+  top = Math.min(Math.max(PANEL_SAFE, top), vh - PANEL_MAX_H - PANEL_SAFE)
+  const maxHeight = Math.max(120, vh - top - PANEL_SAFE)
+  return { left: `${left}px`, top: `${top}px`, width: `${PANEL_W}px`, maxHeight: `${maxHeight}px` }
 })
 
-// 二级子面板:从主面板侧缘弹出(与主面板同侧)
+// 二级子面板:从主面板侧缘弹出,顶部与点击的 menu-item 对齐;底部安全距内滚动
 const subPanelStyle = computed(() => {
-  const vw = window.innerWidth
+  const vw = viewport.w
   const mainLeft = parseFloat(panelStyle.value.left)
   let left = panelOnLeft.value ? mainLeft - PANEL_GAP - PANEL_W : mainLeft + PANEL_W + PANEL_GAP
-  left = Math.min(Math.max(8, left), vw - PANEL_W - 8)
-  return { left: `${left}px`, top: panelStyle.value.top, width: `${PANEL_W}px` }
+  left = Math.min(Math.max(PANEL_SAFE, left), vw - PANEL_W - PANEL_SAFE)
+  const { top, maxHeight } = placeFlyout(
+    subPanelAnchorTop.value || parseFloat(panelStyle.value.top),
+  )
+  return { left: `${left}px`, top: `${top}px`, width: `${PANEL_W}px`, maxHeight: `${maxHeight}px` }
 })
 
-// 三级子面板:从二级面板侧缘继续弹出(同侧)
+// 三级子面板:从二级面板侧缘继续弹出,顶部与二级里点击的 item 对齐;底部安全距内滚动
 const subSubPanelStyle = computed(() => {
-  const vw = window.innerWidth
+  const vw = viewport.w
   const subLeft = parseFloat(subPanelStyle.value.left)
   let left = panelOnLeft.value ? subLeft - PANEL_GAP - PANEL_W : subLeft + PANEL_W + PANEL_GAP
-  left = Math.min(Math.max(8, left), vw - PANEL_W - 8)
-  return { left: `${left}px`, top: subPanelStyle.value.top, width: `${PANEL_W}px` }
+  left = Math.min(Math.max(PANEL_SAFE, left), vw - PANEL_W - PANEL_SAFE)
+  const { top, maxHeight } = placeFlyout(
+    subSubPanelAnchorTop.value || subPanelAnchorTop.value || parseFloat(panelStyle.value.top),
+  )
+  return { left: `${left}px`, top: `${top}px`, width: `${PANEL_W}px`, maxHeight: `${maxHeight}px` }
 })
 
 // 点面板外收起(全局 pointerdown)
@@ -271,13 +314,34 @@ function onGlobalPointerDown(ev: PointerEvent) {
   closePanel()
 }
 
-function toggleSubPanel(name: 'control' | 'display' | 'language') {
-  subPanel.value = subPanel.value === name ? '' : name
+function toggleSubPanel(name: 'control' | 'display' | 'language', ev?: Event) {
+  if (subPanel.value === name) {
+    subPanel.value = ''
+    subSubPanel.value = ''
+    return
+  }
+  subPanelAnchorTop.value = captureAnchorTop(ev)
+  subPanel.value = name
   subSubPanel.value = ''
+  subSubPanelAnchorTop.value = 0
+  // 打开后按实际 DOM 再校准一次(避免事件目标不是按钮本身)
+  void nextTick(() => {
+    const open = panelRef.value?.querySelector('.menu-item.open') as HTMLElement | null
+    if (open) subPanelAnchorTop.value = open.getBoundingClientRect().top
+  })
 }
 
-function toggleSubSubPanel(name: 'fps' | 'resolution' | 'monitor') {
-  subSubPanel.value = subSubPanel.value === name ? '' : name
+function toggleSubSubPanel(name: 'fps' | 'resolution' | 'monitor', ev?: Event) {
+  if (subSubPanel.value === name) {
+    subSubPanel.value = ''
+    return
+  }
+  subSubPanelAnchorTop.value = captureAnchorTop(ev)
+  subSubPanel.value = name
+  void nextTick(() => {
+    const open = subPanelRef.value?.querySelector('.menu-item.open') as HTMLElement | null
+    if (open) subSubPanelAnchorTop.value = open.getBoundingClientRect().top
+  })
 }
 
 // ---------- 快捷按钮行:声音/全屏/画中画 ----------
@@ -651,12 +715,12 @@ onBeforeUnmount(() => {
 
     <!-- 菜单列表 -->
     <div class="menu">
-      <button class="menu-item" :class="{ open: subPanel === 'control' }" @click="toggleSubPanel('control')">
+      <button class="menu-item" :class="{ open: subPanel === 'control' }" @click="toggleSubPanel('control', $event)">
         <span class="menu-icon"><IconSettings :size="17" /></span>
         <span class="menu-text">{{ t('float.control') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
-      <button class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display')">
+      <button class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display', $event)">
         <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
         <span class="menu-text">{{ t('float.display') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
@@ -682,7 +746,7 @@ onBeforeUnmount(() => {
         <span class="menu-text">{{ t('float.logs') }}</span>
         <span class="menu-state">{{ logVisible ? t('float.on') : '' }}</span>
       </button>
-      <button class="menu-item" :class="{ open: subPanel === 'language' }" @click="toggleSubPanel('language')">
+      <button class="menu-item" :class="{ open: subPanel === 'language' }" @click="toggleSubPanel('language', $event)">
         <span class="menu-icon"><IconLanguage :size="17" /></span>
         <span class="menu-text">{{ t('lang.label') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
@@ -762,7 +826,7 @@ onBeforeUnmount(() => {
         class="menu-item"
         :class="{ open: subSubPanel === 'fps' }"
         :disabled="!connected"
-        @click="toggleSubSubPanel('fps')"
+        @click="toggleSubSubPanel('fps', $event)"
       >
         <span class="menu-icon"><IconGauge :size="16" /></span>
         <span class="menu-text">{{ t('float.fps') }}</span>
@@ -773,7 +837,7 @@ onBeforeUnmount(() => {
         class="menu-item"
         :class="{ open: subSubPanel === 'resolution' }"
         :disabled="!connected"
-        @click="toggleSubSubPanel('resolution')"
+        @click="toggleSubSubPanel('resolution', $event)"
       >
         <span class="menu-icon"><IconAspectRatio :size="16" /></span>
         <span class="menu-text">{{ t('float.resolution') }}</span>
@@ -786,7 +850,7 @@ onBeforeUnmount(() => {
         class="menu-item"
         :class="{ open: subSubPanel === 'monitor' }"
         :disabled="!connected"
-        @click="toggleSubSubPanel('monitor')"
+        @click="toggleSubSubPanel('monitor', $event)"
       >
         <span class="menu-icon"><IconDevices :size="16" /></span>
         <span class="menu-text">{{ t('float.switchMonitor') }}</span>
@@ -925,11 +989,20 @@ onBeforeUnmount(() => {
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-  max-height: calc(100vh - 16px);
+  /* max-height 由 style 按 top+底部安全距动态设置,过长内容在此滚动 */
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   z-index: 59;
   padding: 6px;
+  box-sizing: border-box;
+}
+.ball-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.ball-panel::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
 }
 .quick-row {
   display: flex;

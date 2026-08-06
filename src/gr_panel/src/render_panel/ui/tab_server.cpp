@@ -53,6 +53,7 @@
 #include "tc_spvr_client/spvr_device.h"
 #include "tc_common_new/base64.h"
 #include "tc_common_new/tc_aes.h"
+#include <nlohmann/json.hpp>
 #include "render_panel/devices/running_stream_manager.h"
 #include "render_panel/database/stream_db_operator.h"
 #include "render_panel/gr_workspace.h"
@@ -802,9 +803,21 @@ namespace tc
         if (!ips.empty()) {
             ip = ips[0].ip_addr_;
         }
-        auto url = std::format("http://{}:{}/web_client/?deviceId={}&password={}",
-                               ip, settings_->GetRenderServerPort(), settings_->GetDeviceId(),
-                               settings_->GetDeviceRandomPwd());
+        // 与 web/gr_web_client connect_token 对齐:?c= URL-safe Base64(JSON{d,p})
+        // 避免地址栏直接暴露 deviceId/password 明文
+        nlohmann::json payload;
+        payload["d"] = settings_->GetDeviceId();
+        payload["p"] = settings_->GetDeviceRandomPwd();
+        auto b64 = Base64::Base64Encode(payload.dump());
+        for (char& ch : b64) {
+            if (ch == '+') ch = '-';
+            else if (ch == '/') ch = '_';
+        }
+        while (!b64.empty() && b64.back() == '=') {
+            b64.pop_back();
+        }
+        auto url = std::format("http://{}:{}/web_client/?c={}",
+                               ip, settings_->GetRenderServerPort(), b64);
         edt_web_client_url_->setText(QString::fromStdString(url));
         edt_web_client_url_->setCursorPosition(0);
     }
