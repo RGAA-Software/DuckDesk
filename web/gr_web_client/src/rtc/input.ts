@@ -42,14 +42,13 @@ const UP_FLAGS: Record<number, number> = { 0: BTN_LEFT_UP, 1: BTN_MIDDLE_UP, 2: 
 // 触屏手势状态机:none -> single(单指) -> two(双指) -> two-ending(双指已抬一指) -> rest(剩余手指忽略直到全部抬起)
 type TouchMode = 'none' | 'single' | 'two' | 'two-ending' | 'rest'
 
-type MovePos = { x: number; y: number; dx?: number; dy?: number }
+type MovePos = { x: number; y: number }
 
 export class InputController {
   viewOnly = false
-  // 指针锁定(相对鼠标)模式:mousemove 改发相对位移换算后的坐标
-  // 注:回放侧 win_event_replayer.cpp 忽略 delta_x/delta_y(始终 MOUSEEVENTF_ABSOLUTE),
-  // ButtonFlag 也无相对移动标志位,故页内维护虚拟光标位置,换算成绝对坐标发送;
-  // deltaX/deltaY 字段顺带填上原始位移(回放侧目前忽略,仅供前向兼容/调试)
+  // 指针锁定(相对鼠标)模式:用 movementX/Y 更新虚拟光标比例坐标后发送。
+  // client 只上报 ratio(+按键);相对位移由 server 根据绝对坐标换算。
+  // ButtonFlag 无相对移动标志位,故相对模式页内维护虚拟光标再发 ratio。
   relativeMode = false
   // 最近一次发出的鼠标事件字段(CDP 调试用)
   lastMouse: Record<string, unknown> | null = null
@@ -60,10 +59,18 @@ export class InputController {
   private opts: InputOptions
   private pktIndex = 0n
   private attached = false
-  // rAF 合并:同帧内多次 mousemove 只在帧末补发最新点;帧内首次立即发送
+  // rAF 合并:同帧内多次 mousemove 只在帧末补发最新 ratio;帧内首次立即发送
   private pendingMove: MovePos | null = null
   private rafPending = false
   private moveSentThisFrame = false
+  // 当前按下的鼠标键(0/1/2);按住拖动时不因缓冲积压丢 MOVE
+  private buttonsHeld = new Set<number>()
+  // 上次已发送的画面内像素位置,用于拖出画面/抬起前补发最新 ratio
+  private lastSentPxX: number | null = null
+  private lastSentPxY: number | null = null
+  // 触屏单指拖动:上一采样点,用于去重
+  private lastTouchClientX: number | null = null
+  private lastTouchClientY: number | null = null
   // 相对模式虚拟光标位置(0~1 比例坐标,夹紧)
   private virtX = 0.5
   private virtY = 0.5
@@ -102,10 +109,10 @@ export class InputController {
     if (this.attached) return
     this.attached = true
     const v = this.opts.video
-    // mousemove 高频路径:不 preventDefault,用默认冒泡即可;不做 capture(避免抢其它监听)
-    v.addEventListener('mousemove', this.onMouseMove)
+    // mousemove/mouseup 挂 window:按住拖出 video 外仍能带上 client delta(避免 video+window 双挂导致重复)
     v.addEventListener('mousedown', this.onMouseDown)
-    v.addEventListener('mouseup', this.onMouseUp)
+    window.addEventListener('mousemove', this.onMouseMove)
+    window.addEventListener('mouseup', this.onMouseUp)
     v.addEventListener('wheel', this.onWheel, { passive: false })
     v.addEventListener('contextmenu', this.onContextMenu)
     // 触屏手势:单指拖动=移动 / 单指tap=左键 / 单指长按=右键 / 双指拖动=滚轮 / 双指tap=中键
@@ -130,9 +137,9 @@ export class InputController {
     if (!this.attached) return
     this.attached = false
     const v = this.opts.video
-    v.removeEventListener('mousemove', this.onMouseMove)
     v.removeEventListener('mousedown', this.onMouseDown)
-    v.removeEventListener('mouseup', this.onMouseUp)
+    window.removeEventListener('mousemove', this.onMouseMove)
+    window.removeEventListener('mouseup', this.onMouseUp)
     v.removeEventListener('wheel', this.onWheel)
     v.removeEventListener('contextmenu', this.onContextMenu)
     v.removeEventListener('touchstart', this.onTouchStart)
@@ -150,6 +157,9 @@ export class InputController {
     this.rafPending = false
     this.moveSentThisFrame = false
     this.geoValid = false
+    this.buttonsHeld.clear()
+    this.lastSentPxX = null
+    this.lastSentPxY = null
     this.resetTouchState()
   }
 
@@ -230,7 +240,28 @@ export class InputController {
     return { x: this.virtX, y: this.virtY }
   }
 
+  private describeButton(button: number): string {
+    const parts: string[] = []
+    if (button & BTN_MOUSE_MOVE) parts.push('MOVE')
+    if (button & BTN_LEFT_DOWN) parts.push('LDOWN')
+    if (button & BTN_LEFT_UP) parts.push('LUP')
+    if (button & BTN_MIDDLE_DOWN) parts.push('MDOWN')
+    if (button & BTN_MIDDLE_UP) parts.push('MUP')
+    if (button & BTN_RIGHT_DOWN) parts.push('RDOWN')
+    if (button & BTN_RIGHT_UP) parts.push('RUP')
+    if (button & BTN_WHEEL) parts.push('WHEEL')
+    return `${parts.join('|') || 'NONE'}(${button})`
+  }
+
+  private markSentPos(pos: { x: number; y: number }) {
+    if (!this.ensureGeometry()) return
+    this.lastSentPxX = pos.x * this.cachedDispW
+    this.lastSentPxY = pos.y * this.cachedDispH
+  }
+
   private sendMouse(button: number, pos: { x: number; y: number }, extra?: { data?: number; pressed?: boolean; released?: boolean; deltaX?: number; deltaY?: number }) {
+    const deltaX = extra?.deltaX ?? 0
+    const deltaY = extra?.deltaY ?? 0
     const mouseEvent = {
       monitorName: this.opts.monitorName,
       xRatio: pos.x,
@@ -239,49 +270,76 @@ export class InputController {
       data: extra?.data ?? 0,
       pressed: extra?.pressed ?? false,
       released: extra?.released ?? false,
-      deltaX: extra?.deltaX ?? 0,
-      deltaY: extra?.deltaY ?? 0,
+      deltaX,
+      deltaY,
       timestamp: Date.now(),
     }
     this.lastMouse = mouseEvent
+    const dragging = this.buttonsHeld.size > 0 && button === BTN_MOUSE_MOVE
+    if (button !== BTN_MOUSE_MOVE || (extra?.data ?? 0) !== 0 || dragging) {
+      this.opts.onLog?.(
+        `[InputSend] mouse ${this.describeButton(button)} pressed=${!!extra?.pressed} released=${!!extra?.released} data=${extra?.data ?? 0} ratio=(${pos.x.toFixed(4)},${pos.y.toFixed(4)}) monitor=${this.opts.monitorName} dc=${this.opts.dc.readyState}`,
+      )
+    }
     this.send({
       type: MSG_TYPE_MOUSE_EVENT,
       mouseEvent,
     })
+    if (button === BTN_MOUSE_MOVE || extra?.pressed || extra?.released) {
+      this.markSentPos(pos)
+    }
   }
 
   private flushMove(pos: MovePos) {
-    this.sendMouse(
-      BTN_MOUSE_MOVE,
-      pos,
-      pos.dx !== undefined ? { deltaX: pos.dx, deltaY: pos.dy ?? 0 } : undefined,
-    )
+    // 只发 ratio;相对位移由 server 换算
+    this.sendMouse(BTN_MOUSE_MOVE, pos)
+  }
+
+  private flushPendingMoveNow() {
+    if (!this.pendingMove) return
+    const p = this.pendingMove
+    this.pendingMove = null
+    this.flushMove(p)
   }
 
   private onMouseMove = (e: MouseEvent) => {
     this.domMoveEvents++
     if (this.viewOnly) return
+    // 未按键时仅处理落在 video 上的移动
+    if (this.buttonsHeld.size === 0 && e.target !== this.opts.video && !this.opts.video.contains(e.target as Node)) {
+      return
+    }
+    const dx = e.movementX
+    const dy = e.movementY
+    if (dx === 0 && dy === 0) return
+
     if (this.relativeMode) {
-      // 指针锁定期间 clientX 冻结,改用 movementX/Y 相对位移驱动虚拟光标
+      // movement 仅用于更新本地虚拟光标 ratio,不作为协议 delta
       const dims = this.displaySize()
       if (!dims) return
-      this.virtX = Math.min(1, Math.max(0, this.virtX + e.movementX / dims.dispW))
-      this.virtY = Math.min(1, Math.max(0, this.virtY + e.movementY / dims.dispH))
-      this.sendMoveCoalesced({ x: this.virtX, y: this.virtY, dx: e.movementX, dy: e.movementY })
+      this.virtX = Math.min(1, Math.max(0, this.virtX + dx / dims.dispW))
+      this.virtY = Math.min(1, Math.max(0, this.virtY + dy / dims.dispH))
+      this.sendMoveCoalesced({ x: this.virtX, y: this.virtY })
       return
     }
     const pos = this.toRatio(e)
-    if (!pos) return
-    this.sendMoveCoalesced(pos)
+    if (!pos) {
+      if (this.buttonsHeld.size === 0 || this.lastSentPxX === null || this.lastSentPxY === null) return
+      if (!this.ensureGeometry()) return
+      const x = Math.min(1, Math.max(0, (this.lastSentPxX + dx) / this.cachedDispW))
+      const y = Math.min(1, Math.max(0, (this.lastSentPxY + dy) / this.cachedDispH))
+      this.sendMoveCoalesced({ x, y })
+      return
+    }
+    this.sendMoveCoalesced({ x: pos.x, y: pos.y })
   }
 
-  // 低延迟合并发送(鼠标与单指拖动共用):
-  // - 本帧首次移动:立即发送(0 等待,对齐旧 8ms 节流最坏延迟)
-  // - 同帧后续移动:只保留最新坐标,rAF 回调补发一次(对齐竞品/显示器刷新)
-  // - 发送缓冲积压时丢纯移动,不丢按键/点击
+  // 低延迟合并发送(鼠标与单指拖动共用):只保留最新 ratio
+  // 空闲纯移动可在缓冲积压时丢;按住拖动不丢
   private sendMoveCoalesced(pos: MovePos) {
-    if (this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) return
-    this.pendingMove = pos
+    const dragging = this.buttonsHeld.size > 0
+    if (!dragging && this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) return
+    this.pendingMove = { x: pos.x, y: pos.y }
     if (!this.moveSentThisFrame) {
       this.moveSentThisFrame = true
       const p = this.pendingMove
@@ -294,7 +352,7 @@ export class InputController {
         this.rafPending = false
         this.moveSentThisFrame = false
         if (this.pendingMove && !this.viewOnly) {
-          if (this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) {
+          if (this.buttonsHeld.size === 0 && this.opts.dc.bufferedAmount > DROP_MOVE_BUFFERED_BYTES) {
             this.pendingMove = null
             return
           }
@@ -307,22 +365,58 @@ export class InputController {
   }
 
   private onMouseDown = (e: MouseEvent) => {
-    if (this.viewOnly) return
+    if (this.viewOnly) {
+      this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, viewOnly`)
+      return
+    }
     const flag = DOWN_FLAGS[e.button]
-    if (!flag) return
+    if (!flag) {
+      this.opts.onLog?.(`[InputSend] drop mousedown unmapped button=${e.button}`)
+      return
+    }
     const pos = this.eventPos(e)
-    if (!pos) return
+    if (!pos) {
+      this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, outside video content area`)
+      return
+    }
     e.preventDefault()
+    this.flushPendingMoveNow()
+    this.buttonsHeld.add(e.button)
+    this.markSentPos(pos)
     this.sendMouse(flag, pos, { pressed: true })
   }
 
   private onMouseUp = (e: MouseEvent) => {
-    if (this.viewOnly) return
+    if (this.viewOnly) {
+      this.opts.onLog?.(`[InputSend] drop mouseup button=${e.button}, viewOnly`)
+      return
+    }
     const flag = UP_FLAGS[e.button]
-    if (!flag) return
-    const pos = this.eventPos(e)
-    if (!pos) return
+    if (!flag) {
+      this.opts.onLog?.(`[InputSend] drop mouseup unmapped button=${e.button}`)
+      return
+    }
+    if (!this.buttonsHeld.has(e.button)) return
+    const pos = this.eventPos(e) ?? (this.lastSentPxX !== null && this.lastSentPxY !== null && this.ensureGeometry()
+      ? { x: this.lastSentPxX / this.cachedDispW, y: this.lastSentPxY / this.cachedDispH }
+      : null)
+    if (!pos) {
+      this.opts.onLog?.(`[InputSend] drop mouseup button=${e.button}, outside video content area`)
+      this.buttonsHeld.delete(e.button)
+      return
+    }
     e.preventDefault()
+    this.flushPendingMoveNow()
+    // 抬起前补发最新 ratio MOVE,供 server 换算相对位移
+    if (this.lastSentPxX !== null && this.lastSentPxY !== null && this.ensureGeometry()) {
+      const lastX = this.lastSentPxX / this.cachedDispW
+      const lastY = this.lastSentPxY / this.cachedDispH
+      if (Math.abs(pos.x - lastX) > 1e-6 || Math.abs(pos.y - lastY) > 1e-6) {
+        this.opts.onLog?.(`[InputSend] pre-release move ratio=(${pos.x.toFixed(4)},${pos.y.toFixed(4)})`)
+        this.sendMouse(BTN_MOUSE_MOVE, pos)
+      }
+    }
+    this.buttonsHeld.delete(e.button)
     this.sendMouse(flag, pos, { released: true })
   }
 
@@ -362,6 +456,8 @@ export class InputController {
     this.longPressFired = false
     this.twoMoved = false
     this.twoWheelAcc = 0
+    this.lastTouchClientX = null
+    this.lastTouchClientY = null
   }
 
   // tap/长按共用:在某点完成一次 按下+抬起
@@ -387,6 +483,8 @@ export class InputController {
       this.touchMode = 'single'
       this.touchStartX = t.clientX
       this.touchStartY = t.clientY
+      this.lastTouchClientX = t.clientX
+      this.lastTouchClientY = t.clientY
       this.touchMoved = false
       this.longPressFired = false
       // 单指长按 -> 右键
@@ -437,7 +535,14 @@ export class InputController {
       }
       if (this.longPressFired) return // 长按已触发右键,后续位移不再移动鼠标
       const pos = this.toRatioPoint(t.clientX, t.clientY)
-      if (pos) this.sendMoveCoalesced(pos)
+      if (!pos) return
+      if (this.lastTouchClientX !== null && this.lastTouchClientY !== null
+        && t.clientX === this.lastTouchClientX && t.clientY === this.lastTouchClientY) {
+        return
+      }
+      this.lastTouchClientX = t.clientX
+      this.lastTouchClientY = t.clientY
+      this.sendMoveCoalesced({ x: pos.x, y: pos.y })
     } else if (this.touchMode === 'two' && e.touches.length >= 2) {
       // 双指拖动 -> 滚轮:跟踪两指中点纵向位移
       const mid = this.twoFingerMid(e.touches)
@@ -508,7 +613,10 @@ export class InputController {
 
   private sendKey(e: KeyboardEvent, down: boolean) {
     const vk = VK_MAP[e.code]
-    if (vk === undefined) return
+    if (vk === undefined) {
+      this.opts.onLog?.(`[InputSend] drop key unmapped code=${e.code} down=${down}`)
+      return
+    }
     let numLockStatus = -1
     let capsLockStatus = -1
     let statusCheck = LOCK_KEY_DONT_CARE
@@ -519,6 +627,9 @@ export class InputController {
       capsLockStatus = e.getModifierState('CapsLock') ? 1 : 0
       statusCheck = LOCK_KEY_CHECK_CAPS_LOCK
     }
+    this.opts.onLog?.(
+      `[InputSend] key code=${e.code} vk=0x${vk.toString(16)} down=${down} dc=${this.opts.dc.readyState}`,
+    )
     this.send({
       type: MSG_TYPE_KEY_EVENT,
       keyEvent: {

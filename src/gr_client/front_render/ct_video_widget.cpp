@@ -19,9 +19,47 @@
 #include <qdebug.h>
 
 #include "tc_common_new/const_auto.h"
+#include <string>
 
 namespace tc
 {
+
+    namespace {
+        const char* QtMouseButtonName(Qt::MouseButton button) {
+            switch (button) {
+                case Qt::LeftButton: return "Left";
+                case Qt::RightButton: return "Right";
+                case Qt::MiddleButton: return "Middle";
+                case Qt::BackButton: return "Back";
+                case Qt::ForwardButton: return "Forward";
+                default: return "Other";
+            }
+        }
+
+        std::string DescribeButtonFlags(int buttons) {
+            std::string s;
+            auto append = [&](const char* name) {
+                if (!s.empty()) s += "|";
+                s += name;
+            };
+            if (buttons & ButtonFlag::kMouseMove) append("MOVE");
+            if (buttons & ButtonFlag::kLeftMouseButtonDown) append("LDOWN");
+            if (buttons & ButtonFlag::kLeftMouseButtonUp) append("LUP");
+            if (buttons & ButtonFlag::kMiddleMouseButtonDown) append("MDOWN");
+            if (buttons & ButtonFlag::kMiddleMouseButtonUp) append("MUP");
+            if (buttons & ButtonFlag::kRightMouseButtonDown) append("RDOWN");
+            if (buttons & ButtonFlag::kRightMouseButtonUp) append("RUP");
+            if (buttons & ButtonFlag::kMouseEventWheel) append("WHEEL");
+            if (buttons & ButtonFlag::kMouseEventHWheel) append("HWHEEL");
+            if (s.empty()) s = "NONE";
+            return s + "(" + std::to_string(buttons) + ")";
+        }
+
+        bool IsPureMouseMove(const MouseEventDesc& d) {
+            return !d.pressed && !d.released && d.data == 0
+                && (d.buttons == 0 || d.buttons == ButtonFlag::kMouseMove);
+        }
+    }
 
 	VideoWidget::VideoWidget(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdk>& sdk, int dup_idx) {
         TimeDuration dr("VideoWidget");
@@ -43,31 +81,42 @@ namespace tc
 	}
 
 	void VideoWidget::OnMouseMoveEvent(QMouseEvent* event, int widget_width, int widget_height) {
-        auto curr_pos = event->pos();
-        MouseEventDesc mouse_event_desc;
-        mouse_event_desc.buttons = 0;
-        mouse_event_desc.buttons |= ButtonFlag::kMouseMove;
-        mouse_event_desc.x_ratio = ((float)curr_pos.x()) / ((float)(widget_width));
-        mouse_event_desc.y_ratio = ((float)curr_pos.y()) / ((float)(widget_height));
-
-        if (last_cursor_x_ != invalid_position && last_cursor_y_ != invalid_position) {
-            mouse_event_desc.dx = curr_pos.x() - last_cursor_x_;
-            mouse_event_desc.dy = curr_pos.y() - last_cursor_y_;
+        if (widget_width <= 0 || widget_height <= 0) {
+            return;
         }
-	    if (last_cursor_x_ == invalid_position) {
-	        last_cursor_x_ = curr_pos.x();
-	    }
-	    if (last_cursor_y_ == invalid_position) {
-	        last_cursor_y_ = curr_pos.y();
-	    }
-	    cat ts = TimeUtil::GetCurrentTimestamp();
-	    cat diff = ts - last_cursor_ts_;
-        if (std::abs(mouse_event_desc.dx) < 2 && std::abs(mouse_event_desc.dy) < 2 || diff < 2) {
-            //LOGI("Ignore the Mouse, dx: {}, dy: {}", mouse_event_desc.dx, mouse_event_desc.dy);
+        auto curr_pos = event->pos();
+        // 首次只建立基准点
+        if (last_cursor_x_ == invalid_position || last_cursor_y_ == invalid_position) {
+            last_cursor_x_ = curr_pos.x();
+            last_cursor_y_ = curr_pos.y();
+            last_cursor_ts_ = TimeUtil::GetCurrentTimestamp();
             return;
         }
 
-	    last_cursor_ts_ = ts;
+        const int dx = curr_pos.x() - last_cursor_x_;
+        const int dy = curr_pos.y() - last_cursor_y_;
+        if (dx == 0 && dy == 0) {
+            return;
+        }
+
+        const bool button_held = event->buttons() != Qt::NoButton;
+        const cat ts = TimeUtil::GetCurrentTimestamp();
+        const cat diff = ts - last_cursor_ts_;
+        // client 只上报 ratio;相对位移由 server 根据绝对坐标换算。
+        // 空闲移动节流;按住拖动必须连续上报新 ratio(游戏中键转视角)。
+        if (!button_held) {
+            if ((std::abs(dx) < 2 && std::abs(dy) < 2) || diff < 2) {
+                return;
+            }
+        }
+
+        MouseEventDesc mouse_event_desc;
+        mouse_event_desc.buttons = ButtonFlag::kMouseMove;
+        mouse_event_desc.x_ratio = ((float)curr_pos.x()) / ((float)widget_width);
+        mouse_event_desc.y_ratio = ((float)curr_pos.y()) / ((float)widget_height);
+        // 只发 ratio;相对位移由 server 换算(delta_* 保持默认 0)
+
+        last_cursor_ts_ = ts;
         last_cursor_x_ = curr_pos.x();
         last_cursor_y_ = curr_pos.y();
         SendMouseEvent(mouse_event_desc);
@@ -92,6 +141,19 @@ namespace tc
         mouse_event_desc.pressed = true;
         mouse_event_desc.x_ratio = ((float)curr_pos.x()) / ((float)(widget_width));
         mouse_event_desc.y_ratio = ((float)curr_pos.y()) / ((float)(widget_height));
+        last_cursor_x_ = curr_pos.x();
+        last_cursor_y_ = curr_pos.y();
+        last_cursor_ts_ = TimeUtil::GetCurrentTimestamp();
+        if (pressed_button == 0) {
+            LOGW("[InputSend] mouse press ignored, unmapped Qt button={} buttons=0x{:x} pos=({},{}) size={}x{}",
+                 QtMouseButtonName(event->button()), static_cast<unsigned>(event->buttons()),
+                 curr_pos.x(), curr_pos.y(), widget_width, widget_height);
+        } else {
+            LOGI("[InputSend] mouse press qt={} -> {} ratio=({:.4f},{:.4f}) pos=({},{}) size={}x{}",
+                 QtMouseButtonName(event->button()), DescribeButtonFlags(pressed_button),
+                 mouse_event_desc.x_ratio, mouse_event_desc.y_ratio,
+                 curr_pos.x(), curr_pos.y(), widget_width, widget_height);
+        }
         SendMouseEvent(mouse_event_desc);
 
         context_->SendAppMessage(MsgClientMousePressed {
@@ -101,6 +163,23 @@ namespace tc
 
 	void VideoWidget::OnMouseReleaseEvent(QMouseEvent* event, int widget_width, int widget_height) {
         auto curr_pos = event->pos();
+        // 抬起前若位置有变化,先补发 MOVE(仅 ratio),供 server 换算相对位移
+        if (widget_width > 0 && widget_height > 0
+            && last_cursor_x_ != invalid_position && last_cursor_y_ != invalid_position) {
+            if (curr_pos.x() != last_cursor_x_ || curr_pos.y() != last_cursor_y_) {
+                MouseEventDesc move_desc;
+                move_desc.buttons = ButtonFlag::kMouseMove;
+                move_desc.x_ratio = ((float)curr_pos.x()) / ((float)widget_width);
+                move_desc.y_ratio = ((float)curr_pos.y()) / ((float)widget_height);
+                LOGI("[InputSend] pre-release move ratio=({:.4f},{:.4f})",
+                     move_desc.x_ratio, move_desc.y_ratio);
+                SendMouseEvent(move_desc);
+                last_cursor_x_ = curr_pos.x();
+                last_cursor_y_ = curr_pos.y();
+                last_cursor_ts_ = TimeUtil::GetCurrentTimestamp();
+            }
+        }
+
         MouseEventDesc mouse_event_desc;
         auto released_button = 0;
         if (event->button() == Qt::LeftButton) {
@@ -116,6 +195,16 @@ namespace tc
         mouse_event_desc.released = true;
         mouse_event_desc.x_ratio = ((float)curr_pos.x()) / ((float)(widget_width));
         mouse_event_desc.y_ratio = ((float)curr_pos.y()) / ((float)(widget_height));
+        if (released_button == 0) {
+            LOGW("[InputSend] mouse release ignored, unmapped Qt button={} buttons=0x{:x} pos=({},{})",
+                 QtMouseButtonName(event->button()), static_cast<unsigned>(event->buttons()),
+                 curr_pos.x(), curr_pos.y());
+        } else {
+            LOGI("[InputSend] mouse release qt={} -> {} ratio=({:.4f},{:.4f}) pos=({},{})",
+                 QtMouseButtonName(event->button()), DescribeButtonFlags(released_button),
+                 mouse_event_desc.x_ratio, mouse_event_desc.y_ratio,
+                 curr_pos.x(), curr_pos.y());
+        }
         SendMouseEvent(mouse_event_desc);
 	}
 
@@ -137,7 +226,14 @@ namespace tc
             if(angle_delta.y() != 0) {
                 mouse_event_desc.data = angle_delta.y();
             }
+            LOGI("[InputSend] mouse wheel data={} angle=({},{}) pixel=({},{}) ratio=({:.4f},{:.4f})",
+                 mouse_event_desc.data, angle_delta.x(), angle_delta.y(),
+                 event->pixelDelta().x(), event->pixelDelta().y(),
+                 mouse_event_desc.x_ratio, mouse_event_desc.y_ratio);
             SendMouseEvent(mouse_event_desc);
+        } else {
+            LOGW("[InputSend] mouse wheel ignored, empty angleDelta pixel=({},{})",
+                 event->pixelDelta().x(), event->pixelDelta().y());
         }
 	}
 
@@ -165,9 +261,10 @@ namespace tc
 
     void VideoWidget::SendKeyEvent(quint32 vk, bool down) {
         if (settings_->only_viewing_) {
+            LOGW("[InputSend] drop key vk=0x{:x} down={}, only_viewing", vk, down);
             return;
         }
-        //LOGI("*VK: 0x{:x}, down: {}", vk, down);
+        LOGI("[InputSend] key vk=0x{:x} down={}", vk, down);
         short num_lock_state = -1;
         if (vk >= VK_NUMPAD0 && vk <= VK_DIVIDE || vk == VK_NUMLOCK
             || vk == VK_HOME || vk == VK_END || vk == VK_PRIOR || vk == VK_NEXT
@@ -214,12 +311,20 @@ namespace tc
         this->evt_cache_thread_->Post([=, this]() {
             if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
                 sdk_->PostMediaMessage(buffer);
+                LOGI("[InputSend] key posted vk=0x{:x} down={} bytes={}", vk, down, buffer->Size());
+            } else {
+                LOGE("[InputSend] key encode/post failed vk=0x{:x} down={} sdk={}", vk, down, sdk_ != nullptr);
             }
         });
     }
 
     void VideoWidget::SendMouseEvent(const MouseEventDesc& mouse_event_desc) {
         if (!sdk_ || settings_->only_viewing_) {
+            if (!IsPureMouseMove(mouse_event_desc)) {
+                LOGW("[InputSend] drop mouse {}, sdk={} only_viewing={}",
+                     DescribeButtonFlags(mouse_event_desc.buttons),
+                     sdk_ != nullptr, settings_->only_viewing_);
+            }
             return;
         }
 
@@ -255,22 +360,46 @@ namespace tc
             pressed_mouse_buttons_.erase(mouse_event_desc.buttons);
         }
 
+        // 按住拖动时的 MOVE(仅 ratio)也打日志,便于对照 server-rel
+        const bool dragging = !pressed_mouse_buttons_.empty()
+            && IsPureMouseMove(mouse_event_desc);
+        const bool significant = !IsPureMouseMove(mouse_event_desc) || dragging;
+        if (significant) {
+            LOGI("[InputSend] queue mouse {} pressed={} released={} data={} ratio=({:.4f},{:.4f}) monitor={} drag={}",
+                 DescribeButtonFlags(mouse_event_desc.buttons),
+                 mouse_event_desc.pressed, mouse_event_desc.released, mouse_event_desc.data,
+                 mouse_event_desc.x_ratio, mouse_event_desc.y_ratio,
+                 cap_mon_info_.mon_name_, dragging);
+        }
+
+        // 捕获按住状态:工作线程回调里 pressed_mouse_buttons_ 可能已变化
+        const bool keep_move_when_busy = !pressed_mouse_buttons_.empty()
+            || mouse_event_desc.pressed || mouse_event_desc.released || mouse_event_desc.data != 0;
+
         this->evt_cache_thread_->Post([=, this]() {
             auto queuing_count = this->sdk_->GetQueuingMediaMsgCount();
             int wait_rounds = 0;
             while (queuing_count > 16 && wait_rounds < 50) {
-                LOGI("queuing too many mouse event: {}, cache thread tasks: {}", queuing_count, evt_cache_thread_->TaskSize());
+                LOGI("[InputSend] queuing too many mouse event: {}, cache thread tasks: {}",
+                     queuing_count, evt_cache_thread_->TaskSize());
                 TimeUtil::DelayBySleep(1);
                 queuing_count = this->sdk_->GetQueuingMediaMsgCount();
                 ++wait_rounds;
             }
-            // 队列持续积压时,仅丢弃纯移动事件;press/release/滚轮必须发送,避免远端按键卡死
-            if (queuing_count > 16 && !mouse_event_desc.pressed && !mouse_event_desc.released && mouse_event_desc.data == 0) {
-                LOGW("Drop pure mouse move event, queuing media messages: {}", queuing_count);
+            // 队列持续积压时,仅丢弃空闲纯移动;按住拖动/press/release/滚轮必须发送
+            if (queuing_count > 16 && !keep_move_when_busy) {
+                LOGW("[InputSend] drop pure mouse move, queuing media messages: {}", queuing_count);
                 return;
             }
             if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
                 sdk_->PostMediaMessage(buffer);
+                if (significant) {
+                    LOGI("[InputSend] mouse posted {} bytes={} queue={}",
+                         DescribeButtonFlags(mouse_event_desc.buttons), buffer->Size(), queuing_count);
+                }
+            } else if (significant) {
+                LOGE("[InputSend] mouse encode/post failed {} sdk={}",
+                     DescribeButtonFlags(mouse_event_desc.buttons), sdk_ != nullptr);
             }
         });
     }

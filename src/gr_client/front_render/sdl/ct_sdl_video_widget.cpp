@@ -31,6 +31,7 @@ namespace tc
         }
 
         grabKeyboard();
+        setMouseTracking(true);
 
         LOGE("sdl widget init success. \n");
 

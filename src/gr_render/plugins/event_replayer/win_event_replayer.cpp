@@ -6,37 +6,99 @@
 #include "tc_message.pb.h"
 #include "tc_common_new/log.h"
 #include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
+#include <cstdio>
+#include <string>
 
 namespace tc
 {
-    const uint32_t kExtendedKeys[] = {
-        VK_DELETE, VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_NUMLOCK,
-        VK_RCONTROL, VK_RMENU, VK_RETURN, VK_DIVIDE, VK_LWIN,
-        VK_RWIN, VK_HOME, VK_PRIOR, VK_NEXT, VK_END, VK_INSERT,
-    };
+    namespace {
+        const uint32_t kExtendedKeys[] = {
+            VK_DELETE, VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_NUMLOCK,
+            VK_RCONTROL, VK_RMENU, VK_RETURN, VK_DIVIDE, VK_LWIN,
+            VK_RWIN, VK_HOME, VK_PRIOR, VK_NEXT, VK_END, VK_INSERT,
+        };
 
-    void WinSendEvent(INPUT* input) {
+        bool IsPureMouseMove(int buttons) {
+            return buttons == 0 || buttons == ButtonFlag::kMouseMove;
+        }
+
+        std::string DescribeButtonFlags(int buttons) {
+            std::string s;
+            auto append = [&](const char* name) {
+                if (!s.empty()) s += "|";
+                s += name;
+            };
+            if (buttons & ButtonFlag::kMouseMove) append("MOVE");
+            if (buttons & ButtonFlag::kLeftMouseButtonDown) append("LDOWN");
+            if (buttons & ButtonFlag::kLeftMouseButtonUp) append("LUP");
+            if (buttons & ButtonFlag::kMiddleMouseButtonDown) append("MDOWN");
+            if (buttons & ButtonFlag::kMiddleMouseButtonUp) append("MUP");
+            if (buttons & ButtonFlag::kRightMouseButtonDown) append("RDOWN");
+            if (buttons & ButtonFlag::kRightMouseButtonUp) append("RUP");
+            if (buttons & ButtonFlag::kMouseEventWheel) append("WHEEL");
+            if (buttons & ButtonFlag::kMouseEventHWheel) append("HWHEEL");
+            if (s.empty()) s = "NONE";
+            return s + "(" + std::to_string(buttons) + ")";
+        }
+
+        std::string DescribeDwFlags(DWORD flags) {
+            std::string s;
+            auto append = [&](const char* name) {
+                if (!s.empty()) s += "|";
+                s += name;
+            };
+            if (flags & MOUSEEVENTF_MOVE) append("MOVE");
+            if (flags & MOUSEEVENTF_LEFTDOWN) append("LEFTDOWN");
+            if (flags & MOUSEEVENTF_LEFTUP) append("LEFTUP");
+            if (flags & MOUSEEVENTF_RIGHTDOWN) append("RIGHTDOWN");
+            if (flags & MOUSEEVENTF_RIGHTUP) append("RIGHTUP");
+            if (flags & MOUSEEVENTF_MIDDLEDOWN) append("MIDDLEDOWN");
+            if (flags & MOUSEEVENTF_MIDDLEUP) append("MIDDLEUP");
+            if (flags & MOUSEEVENTF_WHEEL) append("WHEEL");
+            if (flags & MOUSEEVENTF_HWHEEL) append("HWHEEL");
+            if (flags & MOUSEEVENTF_ABSOLUTE) append("ABSOLUTE");
+            if (flags & MOUSEEVENTF_VIRTUALDESK) append("VIRTUALDESK");
+            if (s.empty()) s = "NONE";
+            char hex[16];
+            std::snprintf(hex, sizeof(hex), "%08lX", static_cast<unsigned long>(flags));
+            return s + "(0x" + hex + ")";
+        }
+    }
+
+    // 返回是否注入成功;失败时带 GetLastError
+    bool WinSendEvent(INPUT* input) {
         if (!input) {
-            return;
+            LOGE("[InputReplay] WinSendEvent null INPUT");
+            return false;
         }
-        bool is_ok = true;
-        if (SendInput(1, input, sizeof(INPUT)) != 1) {
-            HDESK desk = OpenInputDesktop(0, FALSE, GENERIC_ALL);
-            if (desk) {
-                if (!SetThreadDesktop(desk)) {
-                }
-                if (SendInput(1, input, sizeof(INPUT)) == 1) {
-                } else {
-                    is_ok = false;
-                }
-                CloseDesktop(desk);
-            } else {
-                is_ok = false;
-            }
+        SetLastError(0);
+        if (SendInput(1, input, sizeof(INPUT)) == 1) {
+            return true;
         }
-        if(!is_ok) {
-            LOGE("SendInput error");
+        const DWORD first_err = GetLastError();
+        HDESK desk = OpenInputDesktop(0, FALSE, GENERIC_ALL);
+        if (!desk) {
+            LOGE("[InputReplay] SendInput failed err={}, OpenInputDesktop failed err={}",
+                 first_err, GetLastError());
+            return false;
         }
+        if (!SetThreadDesktop(desk)) {
+            LOGE("[InputReplay] SendInput failed err={}, SetThreadDesktop failed err={}",
+                 first_err, GetLastError());
+            CloseDesktop(desk);
+            return false;
+        }
+        SetLastError(0);
+        const bool ok = SendInput(1, input, sizeof(INPUT)) == 1;
+        if (!ok) {
+            LOGE("[InputReplay] SendInput retry on input desktop failed err={} (first_err={})",
+                 GetLastError(), first_err);
+        } else {
+            LOGW("[InputReplay] SendInput succeeded after switching to input desktop (first_err={})",
+                 first_err);
+        }
+        CloseDesktop(desk);
+        return ok;
     }
 
     INPUT GenerateScanCodeInput(uint16_t scancode, bool down, bool extend) {
@@ -75,12 +137,13 @@ namespace tc
         bool down = event.down();
         uint32_t vk_code = event.key_code();
         if (vk_code > 255) {
-            LOGE("Error vk: {}", vk_code);
+            LOGE("[InputReplay] invalid vk: {}", vk_code);
             return;
         }
 
         current_key_status_[vk_code] = down;
         if (!IsKeyPermitted(vk_code)) {
+            LOGW("[InputReplay] key blocked by policy, vk=0x{:x} down={}", vk_code, down);
             current_key_status_[vk_code] =!down;
             return;
         }
@@ -102,6 +165,7 @@ namespace tc
         }
 
         if(control_pressed_ && menu_pressed_ && delete_pressed_ && !shift_pressed_ && !win_pressed_) {
+            LOGW("[InputReplay] swallow Ctrl+Alt+Delete combo, vk=0x{:x} down={}", vk_code, down);
             return;
         }
         UINT vsc = MapVirtualKey(vk_code, MAPVK_VK_TO_VSC);
@@ -112,7 +176,9 @@ namespace tc
                 break;
             }
         }
-        //LOGI("vk code: {}, down: {}, scancode: {}, extend: {}", vk_code, down, vsc, extend);
+        LOGI("[InputReplay] key vk=0x{:x} down={} scancode=0x{:x} extend={} numLock={} capsLock={} check={}",
+             vk_code, down, vsc, extend, event.num_lock_status(), event.caps_lock_status(),
+             static_cast<int>(event.status_check()));
         ReplayKeyEvent(vsc, extend, event);
     }
 
@@ -169,12 +235,100 @@ namespace tc
         WinSendEvent(&up);
     }
 
+    void WinEventReplayer::UpdateHeldButtons(int buttons) {
+        if (buttons & ButtonFlag::kLeftMouseButtonDown) left_held_ = true;
+        if (buttons & ButtonFlag::kLeftMouseButtonUp) left_held_ = false;
+        if (buttons & ButtonFlag::kMiddleMouseButtonDown) middle_held_ = true;
+        if (buttons & ButtonFlag::kMiddleMouseButtonUp) middle_held_ = false;
+        if (buttons & ButtonFlag::kRightMouseButtonDown) right_held_ = true;
+        if (buttons & ButtonFlag::kRightMouseButtonUp) right_held_ = false;
+    }
+
+    bool WinEventReplayer::InjectServerRelFromAbs(int abs_x, int abs_y, int buttons, bool log_it) {
+        const int far_left = virtual_desktop_bound_rectangle_info_.far_left_;
+        const int far_top = virtual_desktop_bound_rectangle_info_.far_top_;
+        const int far_right = virtual_desktop_bound_rectangle_info_.far_right_;
+        const int far_bottom = virtual_desktop_bound_rectangle_info_.far_bottom_;
+        const int desk_w = far_right - far_left - 1;
+        const int desk_h = far_bottom - far_top - 1;
+        if (desk_w <= 0 || desk_h <= 0) {
+            return false;
+        }
+        const int dest_x = far_left + static_cast<int>((static_cast<long long>(abs_x) * desk_w) / 65535);
+        const int dest_y = far_top + static_cast<int>((static_cast<long long>(abs_y) * desk_h) / 65535);
+        POINT cur{};
+        if (!GetCursorPos(&cur)) {
+            return false;
+        }
+        int diff_x = dest_x - cur.x;
+        int diff_y = dest_y - cur.y;
+        if (diff_x == 0 && diff_y == 0) {
+            return false;
+        }
+
+        // 单次相对位移不超过鼠标加速第一阈值,避免系统加倍
+        int threshold = 6;
+        int mouse_params[3] = {0, 0, 0};
+        if (SystemParametersInfo(SPI_GETMOUSE, 0, mouse_params, 0) && mouse_params[0] > 0) {
+            threshold = mouse_params[0];
+        }
+
+        auto send_rel = [&](int rx, int ry) {
+            INPUT evt{};
+            evt.type = INPUT_MOUSE;
+            evt.mi.dx = rx;
+            evt.mi.dy = ry;
+            evt.mi.dwFlags = MOUSEEVENTF_MOVE;
+            evt.mi.dwExtraInfo = 0;
+            evt.mi.mouseData = 0;
+            evt.mi.time = 0;
+            const bool ok = WinSendEvent(&evt);
+            if (!log_it) {
+                return;
+            }
+            if (ok) {
+                LOGI("[InputReplay] SendInput ok {} tag=server-rel dwFlags={} rel=({},{}) dest=({},{}) cur=({},{})",
+                     DescribeButtonFlags(buttons), DescribeDwFlags(MOUSEEVENTF_MOVE),
+                     rx, ry, dest_x, dest_y, cur.x, cur.y);
+            } else {
+                LOGE("[InputReplay] SendInput FAIL {} tag=server-rel rel=({},{})",
+                     DescribeButtonFlags(buttons), rx, ry);
+            }
+        };
+
+        const int count_x = std::abs(diff_x) / threshold;
+        const int count_y = std::abs(diff_y) / threshold;
+        const int unit_x = diff_x > 0 ? threshold : -threshold;
+        const int unit_y = diff_y > 0 ? threshold : -threshold;
+        if (count_x > count_y) {
+            for (int i = 0; i < count_y; ++i) send_rel(unit_x, unit_y);
+            for (int i = 0; i < count_x - count_y; ++i) send_rel(unit_x, 0);
+        } else {
+            for (int i = 0; i < count_x; ++i) send_rel(unit_x, unit_y);
+            for (int i = 0; i < count_y - count_x; ++i) send_rel(0, unit_y);
+        }
+        const int rem_x = diff_x % threshold;
+        const int rem_y = diff_y % threshold;
+        if (rem_x != 0 || rem_y != 0) {
+            send_rel(rem_x, rem_y);
+        }
+        return true;
+    }
+
     void WinEventReplayer::HandleMouseEvent(const tc::MouseEvent& event) {
         float x_ratio = event.x_ratio();
         float y_ratio = event.y_ratio();
         std::string monitor_name = event.monitor_name();
         int button = event.button();
         int data = event.data();
+        const bool dragging = left_held_ || middle_held_ || right_held_;
+        // 纯移动不打日志;按键/滚轮/按住拖动要打
+        if (!IsPureMouseMove(button) || data != 0 || dragging) {
+            LOGI("[InputReplay] recv mouse btn={} data={} pressed={} released={} ratio=({:.4f},{:.4f}) monitor={} held=L{}M{}R{}",
+                 DescribeButtonFlags(button), data, event.pressed(), event.released(),
+                 x_ratio, y_ratio, monitor_name,
+                 left_held_, middle_held_, right_held_);
+        }
         ReplayMouseEvent(monitor_name, x_ratio, y_ratio, button, data);
     }
 
@@ -186,7 +340,8 @@ namespace tc
         //}
 
         if (monitors_.empty()) {
-            LOGE("Don't have capturing monitor info.");
+            LOGE("[InputReplay] drop mouse {}, no capturing monitor info (monitor={})",
+                 DescribeButtonFlags(buttons), monitor_name);
             return;
         }
         auto func_find_monitor = [&]() -> CaptureMonitorInfo {
@@ -200,12 +355,15 @@ namespace tc
 
         auto target_monitor = func_find_monitor();
         if (!target_monitor.Valid()) {
-            LOGE("Invalid monitor for name: {}", monitor_name);
+            std::string known;
+            for (const auto& mon : monitors_) {
+                if (!known.empty()) known += ",";
+                known += mon.name_;
+            }
+            LOGE("[InputReplay] drop mouse {}, invalid monitor='{}' known=[{}] count={}",
+                 DescribeButtonFlags(buttons), monitor_name, known, monitors_.size());
             return;
         }
-        // LOGI("monitor idx: {}, left: {}, bottom: {}, v-left: {}, v-bottom: {}",
-        //      monitor_index, target_monitor.left_, target_monitor.bottom_,
-        //      target_monitor.virtual_left_, target_monitor.virtual_bottom_);
         int x = (
             x_ratio * target_monitor.Width()
             +
@@ -222,14 +380,33 @@ namespace tc
             /
             (virtual_desktop_bound_rectangle_info_.far_bottom_ - virtual_desktop_bound_rectangle_info_.far_top_ - 1);
 
-        
+        const bool dragging = left_held_ || middle_held_ || right_held_;
+        if (!IsPureMouseMove(buttons) || data != 0 || dragging) {
+            LOGI("[InputReplay] map mouse {} -> abs=({},{}) monitor={} size={}x{} desk=[{},{}]-[{},{}]",
+                 DescribeButtonFlags(buttons), x, y, monitor_name,
+                 target_monitor.Width(), target_monitor.Height(),
+                 virtual_desktop_bound_rectangle_info_.far_left_,
+                 virtual_desktop_bound_rectangle_info_.far_top_,
+                 virtual_desktop_bound_rectangle_info_.far_right_,
+                 virtual_desktop_bound_rectangle_info_.far_bottom_);
+        }
         SendMouseEvent(x, y, buttons, data);
     }
 
     void WinEventReplayer::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& msg) {
         monitors_ = msg.monitors_;
         virtual_desktop_bound_rectangle_info_ = msg.virtual_desktop_bound_rectangle_info_;
-        LOGI("UpdateCaptureMonitorInfo, monitor count: {}", monitors_.size());
+        std::string names;
+        for (const auto& mon : monitors_) {
+            if (!names.empty()) names += ",";
+            names += mon.name_;
+        }
+        LOGI("[InputReplay] UpdateCaptureMonitorInfo count={} monitors=[{}] desk=[{},{}]-[{},{}]",
+             monitors_.size(), names,
+             virtual_desktop_bound_rectangle_info_.far_left_,
+             virtual_desktop_bound_rectangle_info_.far_top_,
+             virtual_desktop_bound_rectangle_info_.far_right_,
+             virtual_desktop_bound_rectangle_info_.far_bottom_);
     }
 
     void WinEventReplayer::ReplayVirtualDesktopMouseEvent(float x_ratio, float y_ratio, int buttons, int data) {
@@ -239,10 +416,30 @@ namespace tc
     }
 
     void WinEventReplayer::SendMouseEvent(int x, int y, int buttons, int data) {
-        INPUT evt;
-        evt.type = INPUT_MOUSE;
-        evt.mi.dx = x;
-        evt.mi.dy = y;
+        const bool dragging = left_held_ || middle_held_ || right_held_;
+        const bool significant = !IsPureMouseMove(buttons) || data != 0 || dragging;
+        auto inject_abs = [&](DWORD dw_flags, int mouse_data, const char* tag) {
+            INPUT evt{};
+            evt.type = INPUT_MOUSE;
+            evt.mi.dx = x;
+            evt.mi.dy = y;
+            evt.mi.dwFlags = dw_flags;
+            evt.mi.dwExtraInfo = 0;
+            evt.mi.mouseData = mouse_data;
+            evt.mi.time = 0;
+            const bool ok = WinSendEvent(&evt);
+            if (!significant) {
+                return;
+            }
+            if (ok) {
+                LOGI("[InputReplay] SendInput ok {} tag={} dwFlags={} mouseData={} abs=({},{})",
+                     DescribeButtonFlags(buttons), tag, DescribeDwFlags(dw_flags), mouse_data, x, y);
+            } else {
+                LOGE("[InputReplay] SendInput FAIL {} tag={} dwFlags={} mouseData={} abs=({},{})",
+                     DescribeButtonFlags(buttons), tag, DescribeDwFlags(dw_flags), mouse_data, x, y);
+            }
+        };
+
         int target_buttons = 0;
         if (buttons & ButtonFlag::kMouseMove) {
             target_buttons |= MOUSEEVENTF_MOVE;
@@ -268,15 +465,36 @@ namespace tc
         if (buttons & ButtonFlag::kMouseEventWheel) {
             target_buttons |= MOUSEEVENTF_WHEEL;
         }
+        if (buttons & ButtonFlag::kMouseEventHWheel) {
+            target_buttons |= MOUSEEVENTF_HWHEEL;
+        }
 
         target_buttons |= MOUSEEVENTF_ABSOLUTE;
         target_buttons |= MOUSEEVENTF_VIRTUALDESK;
 
-        evt.mi.dwFlags = target_buttons;
-        evt.mi.dwExtraInfo = 0;
-        evt.mi.mouseData = data;
-        evt.mi.time = 0;
-        WinSendEvent(&evt);
+        // 按下:先绝对 MOVE 定位,再 down。相对位移由后续拖动 MOVE 在 server 侧换算。
+        const bool is_button_down =
+            (target_buttons & (MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_MIDDLEDOWN)) != 0;
+        if (is_button_down) {
+            inject_abs(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, 0, "pre-down-move");
+            target_buttons &= ~MOUSEEVENTF_MOVE;
+            inject_abs(static_cast<DWORD>(target_buttons), data, "down");
+            UpdateHeldButtons(buttons);
+            return;
+        }
+
+        // 移动/抬起等:server 用绝对目标与当前光标差换算相对 MOVE(游戏/UE),再发绝对事件同步光标。
+        // client 只提供 ratio,不使用 client delta_*。
+        const bool need_rel =
+            (buttons & ButtonFlag::kMouseMove) != 0
+            || (target_buttons & (MOUSEEVENTF_LEFTUP | MOUSEEVENTF_RIGHTUP | MOUSEEVENTF_MIDDLEUP)) != 0
+            || dragging;
+        if (need_rel) {
+            InjectServerRelFromAbs(x, y, buttons, significant);
+        }
+
+        inject_abs(static_cast<DWORD>(target_buttons), data, "evt");
+        UpdateHeldButtons(buttons);
     }
 
     void WinEventReplayer::HandleFocusOutEvent() {

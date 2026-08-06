@@ -455,8 +455,11 @@ namespace tc
                 auto update_device =  opt_update_device.value();
                 if (update_device && !update_device->gen_random_pwd_.empty()) {
                     settings_->SetDeviceRandomPwd(update_device->gen_random_pwd_);
-                    // todo: notify random password updated
-
+                    context_->SendAppMessage(MsgRandomPasswordUpdated {
+                        .device_id_ = settings_->GetDeviceId(),
+                        .device_random_pwd_ = update_device->gen_random_pwd_,
+                    });
+                    context_->SendAppMessage(MsgSyncSettingsToRender{});
                 }
             }
         }

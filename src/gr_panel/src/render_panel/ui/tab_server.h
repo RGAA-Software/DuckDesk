@@ -44,6 +44,7 @@ namespace tc
 
     private:
         void UpdateQRCode();
+        void UpdateWebClientUrl();
         void SetDeviceRandomPwdVisibility();
         void UpdateServerState();
 
@@ -56,6 +57,7 @@ namespace tc
         QLabel* lbl_machine_random_pwd_ = nullptr;
         QLineEdit* edt_machine_name_ = nullptr;
         QLineEdit* lbl_detailed_info_ = nullptr;
+        QLineEdit* edt_web_client_url_ = nullptr;
         TcQRWidget* lbl_qr_code_ = nullptr;
         RoundImageDisplay* qr_avatar_ = nullptr;
         StreamContent* stream_content_ = nullptr;

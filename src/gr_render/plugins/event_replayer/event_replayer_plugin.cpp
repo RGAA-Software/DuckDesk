@@ -64,6 +64,7 @@ namespace tc
             ProcessKeyboardEvent(msg);
         }
         else if (msg->type() == MessageType::kFocusOutEvent) {
+            LOGI("[InputReplay] focus-out, release modifiers, stream={}", stream_id);
             if (replayer_) {
                 replayer_->HandleFocusOutEvent();
             }
@@ -78,17 +79,19 @@ namespace tc
     }
 
     void EventReplayerPlugin::ProcessMouseEvent(std::shared_ptr<Message> msg) const {
-        // global / inner
-        if (replayer_) {
-            replayer_->HandleMouseEvent(msg->mouse_event());
+        if (!replayer_) {
+            LOGE("[InputReplay] drop mouse, replayer not ready, stream={}", msg->stream_id());
+            return;
         }
+        replayer_->HandleMouseEvent(msg->mouse_event());
     }
 
     void EventReplayerPlugin::ProcessKeyboardEvent(std::shared_ptr<Message> msg) const {
-        // global / inner
-        if (replayer_) {
-            replayer_->HandleKeyEvent(msg->key_event());
+        if (!replayer_) {
+            LOGE("[InputReplay] drop key, replayer not ready, stream={}", msg->stream_id());
+            return;
         }
+        replayer_->HandleKeyEvent(msg->key_event());
     }
 
     void EventReplayerPlugin::OnClientDisconnected(const std::string &visitor_device_id, const std::string &stream_id) {

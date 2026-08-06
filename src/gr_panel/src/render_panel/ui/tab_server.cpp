@@ -394,23 +394,15 @@ namespace tc
 
                 auto layout = new NoMarginHLayout();
                 auto msg = new QLineEdit(this);
+                edt_web_client_url_ = msg;
                 msg->setAlignment(Qt::AlignLeft);
                 msg->setMinimumWidth(210);
                 msg->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
                 msg->setFixedHeight(35);
-                std::string ip;
-                auto ips = context_->GetIps();
-                if (!ips.empty()) {
-                    ip = ips[0].ip_addr_;
-                }
-                auto url = std::format("http://{}:{}/web_client/?deviceId={}&password={}",
-                                       ip, settings_->GetRenderServerPort(), settings_->GetDeviceId(),
-                                       settings_->GetDeviceRandomPwd());
-                msg->setText(url.c_str());
-                msg->setCursorPosition(0);
                 msg->setStyleSheet(R"(font-size: 12px; padding-left: 5px; font-weight: 500; color: #2979ff;)");
                 msg->setEnabled(false);
                 layout->addWidget(msg);
+                UpdateWebClientUrl();
 
                 layout->addSpacing(7);
 
@@ -791,11 +783,30 @@ namespace tc
             lbl_detailed_info_->setCursorPosition(0);
         }
 
+        // 设备 ID / 临时密码变化时同步刷新网页客户端直连地址
+        UpdateWebClientUrl();
+
         context_->PostTask([=, this]() {
             auto dev_mgr = grApp->GetDeviceManager();
             dev_mgr->UpdateDesktopLink(desktop_link, desktop_link_raw);
         });
 
+    }
+
+    void TabServer::UpdateWebClientUrl() {
+        if (!edt_web_client_url_) {
+            return;
+        }
+        std::string ip;
+        auto ips = context_->GetIps();
+        if (!ips.empty()) {
+            ip = ips[0].ip_addr_;
+        }
+        auto url = std::format("http://{}:{}/web_client/?deviceId={}&password={}",
+                               ip, settings_->GetRenderServerPort(), settings_->GetDeviceId(),
+                               settings_->GetDeviceRandomPwd());
+        edt_web_client_url_->setText(QString::fromStdString(url));
+        edt_web_client_url_->setCursorPosition(0);
     }
 
     void TabServer::resizeEvent(QResizeEvent *event) {
