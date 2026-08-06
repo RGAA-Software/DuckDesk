@@ -56,6 +56,10 @@ namespace tc
 
         void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
 
+        // Local loopback PCM → outbound WebRTC audio track (RTP).
+        // samples = sample rate (Hz), matching OnRawAudioData convention.
+        void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits);
+
     private:
         void CreatePeerConnectionFactory();
         void CreatePeerConnection();

@@ -11,7 +11,6 @@
 #include "tc_common_new/win32/dxgi_mon_detector.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/string_util.h"
-#include "tc_common_new/win32/audio_device_helper.h"
 #include "render_panel/gr_app_messages.h"
 #include "tc_common_new/ip_util.h"
 #include "tc_qt_widget/tc_label.h"
@@ -386,57 +385,9 @@ namespace tc
                 connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
                     bool enabled = state == 2;
                     settings_->SetCaptureAudio(enabled);
-                    cb_capture_audio_device_name_->setEnabled(enabled);
                 });
             }
-
-            // Capture Audio
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_capture_audio_device");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QComboBox(this);
-                cb_capture_audio_device_name_ = edit;
-                edit->setEnabled(settings_->IsCaptureAudioEnabled());
-                edit->setFixedSize(input_size);
-
-                auto devices = AudioDeviceHelper::DetectAudioDevices();
-
-                int idx = 0;
-                int target_idx = -1;
-                int default_idx = -1;
-                for (const auto& device : devices) {
-                    edit->addItem(device.name_.c_str());
-                    if (settings_->capture_audio_device_ == device.id_) {
-                        target_idx = idx;
-                    }
-                    if (device.default_device_) {
-                        default_idx = idx;
-                    }
-                    idx++;
-                }
-                if (target_idx != -1) {
-                    edit->setCurrentIndex(target_idx);
-                } else {
-                    if (default_idx != -1) {
-                        edit->setCurrentIndex(default_idx);
-                    }
-                    settings_->SetCaptureAudioDeviceId("");
-                }
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-
-                connect(edit, &QComboBox::currentIndexChanged, this, [=, this](int idx) {
-                    auto target_device_id = devices.at(idx).id_;
-                    settings_->SetCaptureAudioDeviceId(target_device_id);
-                });
-            }
+            // Audio capture always follows the OS default playback device (no panel picker).
             column1_layout->addLayout(segment_layout);
         }
 
@@ -521,15 +472,7 @@ namespace tc
                     settings_->SetResHeight(res_height);
                 }
 
-                auto audio_devices = AudioDeviceHelper::DetectAudioDevices();
-                auto audio_device_name = cb_capture_audio_device_name_->currentText().toStdString();
-                for (const auto& dev : audio_devices) {
-                    if (dev.name_ == audio_device_name) {
-                        settings_->SetCaptureAudioDeviceId(dev.id_);
-                    }
-                }
-
-                // Load again
+                // Reload from storage to keep in-memory settings consistent.
                 settings_->Load();
 
                 TcDialog dialog(tcTr("id_tips"), tcTr("id_save_settings_restart_renderer"), nullptr);

@@ -21,8 +21,6 @@
 #include "tc_common_new/message_notifier.h"
 #include "tc_common_new/shared_preference.h"
 #include "tc_common_new/win32/dxgi_mon_detector.h"
-#include "tc_common_new/win32/audio_device_helper.h"
-
 namespace tc
 {
 
@@ -47,7 +45,8 @@ namespace tc
         capture_audio_type_ = sp_->Get(kStCaptureAudioType, "global");
         capture_video_ = sp_->Get(kStCaptureVideo, "true");
         capture_video_type_ = sp_->Get(kStCaptureVideoType, "global");
-        capture_audio_device_ = sp_->Get(kStCaptureAudioDevice, "");
+        // Deprecated: capture always follows OS default playback device in the plugin.
+        capture_audio_device_.clear();
 
         network_listening_ip_ = sp_->Get(kStListeningIp, "");
         webrtc_enabled_ = sp_->Get(kStWebRTCEnabled, kStTrue);
@@ -57,15 +56,6 @@ namespace tc
         file_transfer_folder_ = sp_->Get(kStFileTransferFolder, "");
         if (file_transfer_folder_.empty()) {
             file_transfer_folder_ = qApp->applicationDirPath().toStdString();
-        }
-
-        if (capture_audio_device_.empty()) {
-            auto audio_devices = AudioDeviceHelper::DetectAudioDevices();
-            for (const auto& dev : audio_devices) {
-                if (dev.default_device_) {
-                    SetCaptureAudioDeviceId(dev.id_);
-                }
-            }
         }
     }
 

@@ -521,6 +521,11 @@ namespace tc
                         self->plugin_manager_->VisitStreamPlugins([=](GrStreamPlugin *plugin) {
                             plugin->OnRawAudioData(data, samples, channels, bits);
                         });
+                        // net_rtc_local consumes raw PCM for the WebRTC audio RTP track
+                        // (encoded Opus over DataChannel is intentionally dropped there).
+                        self->plugin_manager_->VisitNetPlugins([=](GrNetPlugin *plugin) {
+                            plugin->OnRawAudioData(data, samples, channels, bits);
+                        });
                     });
                 }
                 // statistics

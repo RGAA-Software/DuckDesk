@@ -17,7 +17,9 @@
 #include <QPainter>
 #include <QStandardPaths>
 #include <QPointer>
+#include <QEventLoop>
 #include <thread>
+#include <chrono>
 
 #include "tc_qt_widget/custom_tab_btn.h"
 #include "tc_qt_widget/widget_helper.h"
@@ -682,27 +684,43 @@ namespace tc
     void GrWorkspace::ForceStopAllPrograms(bool uninstall_service) {
         TcDialog dialog(tcTr("id_exit"), uninstall_service ? tcTr("id_uninstall_gammaray_msg") : tcTr("id_exit_gammaray_msg"), this);
         if (dialog.exec() == kDoneOk) {
+            // 关键:通过 service WS 发 StopDesktop,清掉持久化的 last_desktop_launch。
+            // 否则只杀 Render 进程时,仍在跑的 GammaRayService 监控循环会马上把它拉起来
+            // (日志: desktop render missing, restarting)。
+            if (auto render_ctrl = app_->GetContext()->GetRenderController()) {
+                LOGI("Request service StopDesktop before exit (clear persisted launch).");
+                render_ctrl->StopServer();
+            }
+            // StopServer 走 async_send;必须等消息发出并被 service 处理后再断开 client,
+            // 否则 PrepareForShutdown 会立刻掐掉连接,StopDesktop 丢失。
+            QApplication::processEvents(QEventLoop::AllEvents, 100);
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
             app_->PrepareForShutdown();
             this->hide();
             this->setEnabled(false);
             auto srv_mgr = this->app_->GetContext()->GetServiceManager();
-            std::thread([srv_mgr, uninstall_service]() {
-                // 1. 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
+            const auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
+            std::thread([srv_mgr, uninstall_service, current_pid]() {
+                // 再等一会,确保 service 侧已杀 render + persist clear
+                std::this_thread::sleep_for(std::chrono::milliseconds(800));
+
+                // 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
                 LOGI("Force close all GammaRayClientInner processes first.");
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayClientInnerExeName);
 
                 if (srv_mgr) {
-                    if (uninstall_service) {
-                        srv_mgr->Remove(true);
-                    }
-                    else {
-                        srv_mgr->Stop();
-                    }
+                    // stop(+optional uninstall) service, then kill leftovers including panel.
+                    // 比单纯 Stop()+本进程 Terminate 更可靠:ServiceManager 有权限清托管进程。
+                    LOGI("ShutdownDetached uninstall={}, panel_pid={}", uninstall_service, current_pid);
+                    srv_mgr->ShutdownDetached(uninstall_service, current_pid);
+                    // 兜底:若 ServiceManager 未能提权/启动失败,本进程再杀一轮
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
                 }
+
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayRenderExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayUserProxyExeName);
                 tc::ProcessHelper::CloseProcessesByName(tc::kGammaRaySysInfoExeName);
-                auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
                 LOGI("Force close current GammaRay process, pid={}", current_pid);
                 tc::ProcessHelper::CloseProcess(current_pid);
             }).detach();

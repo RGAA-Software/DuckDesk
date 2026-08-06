@@ -327,6 +327,24 @@ namespace tc
 
     }
 
+    void RtcLocalPlugin::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
+        if (!data || data->Size() == 0) {
+            return;
+        }
+        static std::atomic_uint64_t audio_cb_count = 0;
+        auto cnt = ++audio_cb_count;
+        if (cnt == 1 || cnt % 500 == 0) {
+            LOGI("OnRawAudioData #{}, bytes={}, rate={} ch={} bits={}, peers={}",
+                 cnt, data->Size(), samples, channels, bits, rtc_servers_.Size());
+        }
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (!srv || srv->IsExitRequested()) {
+                return;
+            }
+            srv->OnRawAudioData(data, samples, channels, bits);
+        });
+    }
+
     std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         out_gap = false;

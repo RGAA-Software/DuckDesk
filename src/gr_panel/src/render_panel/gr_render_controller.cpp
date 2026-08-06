@@ -86,6 +86,8 @@ namespace tc
 
     std::vector<std::string> GrRenderController::GetArgs() {
         auto settings = GrSettings::Instance();
+        // Always refresh from disk so restart picks up the latest capture device, etc.
+        settings->Load();
         std::vector<std::string> args;
         args.push_back(std::format("--app_mode={}", "desktop"));
         args.push_back(std::format("--{}={}", kStEncoderSelectType, settings->encoder_select_type_));
@@ -105,7 +107,7 @@ namespace tc
         args.push_back(std::format("--{}={}", kStWebRTCEnabled, settings->webrtc_enabled_));
         args.push_back(std::format("--{}={}", kStUdpKcpEnabled, settings->udp_kcp_enabled_));
         args.push_back(std::format("--{}={}", kStUdpListenPort, settings->udp_listen_port_));
-        args.push_back(std::format("--{}={}", kStCaptureAudioDevice, Base64::Base64Encode(settings->capture_audio_device_)));
+        // Capture audio always uses the OS default device inside the plugin; do not pass a device id.
         args.push_back(std::format("--{}={}", kStAppGamePath, ""));
         args.push_back(std::format("--{}={}", kStAppGameArgs, ""));
         args.push_back(std::format("--{}={}", kStDebugBlock, false));

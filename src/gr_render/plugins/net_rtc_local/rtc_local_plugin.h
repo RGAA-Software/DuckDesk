@@ -57,6 +57,10 @@ namespace tc
         // image: Raw image
         void OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
 
+        // Local loopback PCM → each RtcServer outbound audio track (RTP).
+        // samples = sample rate (Hz).
+        void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) override;
+
         // 按编码产出序号顺序取帧:返回 mon_name 屏 seq > after_seq 的最旧一帧(严格按
         // 编码器产出顺序消费,H264 delta 链不断裂;NVENC 跳帧编码时采集序号不连续,
         // 不能再按采集序号匹配)。out_gap: 有未消费的帧被淘汰(缓存溢出)时为 true,

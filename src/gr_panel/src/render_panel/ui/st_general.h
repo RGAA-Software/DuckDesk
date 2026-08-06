@@ -30,7 +30,6 @@ namespace tc
         QLineEdit* et_res_height_ = nullptr;
         QCheckBox* cb_resize_res_ = nullptr;
         QComboBox* cb_capture_monitor_ = nullptr;
-        QComboBox* cb_capture_audio_device_name_ = nullptr;
     };
 
 }

@@ -221,6 +221,13 @@ impl ServiceRuntime {
             ControlEvent::Stop => {
                 warn!("received service stop control event");
                 self.request_stop();
+                // SCM stop must clear the persisted launch. Otherwise a later
+                // service start (or a failed panel exit that only killed render)
+                // would reload last_desktop_launch and pull GammaRayRender back.
+                self.state.last_desktop_launch = None;
+                if let Err(err) = self.persist_state() {
+                    warn!("persist cleared launch on service stop failed: {err}");
+                }
                 let result = self.stop_managed_render();
                 if result.is_ok() {
                     info!("service stop control event handled successfully");
@@ -755,9 +762,18 @@ mod tests {
             ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
             ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
         ]);
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
         runtime.handle_control_event(ControlEvent::Stop).unwrap();
         runtime.sync_process_state().unwrap();
         assert!(!runtime.state.desktop_alive);
+        assert!(
+            runtime.state.last_desktop_launch.is_none(),
+            "SCM stop must clear persisted launch so render is not resurrected"
+        );
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
         assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));

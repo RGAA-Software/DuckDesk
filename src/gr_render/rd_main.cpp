@@ -126,7 +126,9 @@ void UpdateSettings(RdSettings* settings) {
     else {
         settings->capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
     }
-    settings->capture_.capture_audio_device_ = Base64::Base64Decode(FLAGS_capture_audio_device);
+    // Ignored: audio capture plugin always uses the OS default playback device.
+    settings->capture_.capture_audio_device_.clear();
+    (void)FLAGS_capture_audio_device;
     settings->transmission_.listening_port_ = FLAGS_network_listen_port;
     settings->transmission_.udp_listen_port_ = FLAGS_udp_listen_port;
 
@@ -196,7 +198,7 @@ void PrintInputArgs() {
     LOGI("webrtc enabled: {}", FLAGS_webrtc_enabled);
     LOGI("network_listen_port: {}", FLAGS_network_listen_port);
     LOGI("udp_listen_port: {}", FLAGS_udp_listen_port);
-    LOGI("capture audio device: {}", Base64::Base64Decode(FLAGS_capture_audio_device));
+    LOGI("capture audio device: <os-default>");
     LOGI("app_game_path: {}", FLAGS_app_game_path);
     LOGI("app_game_args: {}", FLAGS_app_game_args);
     LOGI("block debug: {}", FLAGS_debug_block);

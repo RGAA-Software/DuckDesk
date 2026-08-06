@@ -114,7 +114,8 @@ namespace tc
                             {"name", filename},
                             {"base_path", base_path},
                             {"base_data_path", base_data_path},
-                            {"capture_audio_device_id", settings_->capture_.capture_audio_device_},
+                            // Always empty: MiniAudio loopback follows the OS default device.
+                            {"capture_audio_device_id", std::string("")},
                             {"ws-listen-port", (int64_t)settings_->transmission_.listening_port_},
                             {"udp-listen-port", (int64_t)settings_->transmission_.udp_listen_port_},
                             {"device_id", settings_->device_id_},

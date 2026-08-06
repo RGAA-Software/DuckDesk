@@ -12,6 +12,7 @@
 #include "video_source_impl.h"
 #include "audio_source_impl.h"
 #include "remote_audio_sink.h"
+#include "tc_common_new/data.h"
 
 using namespace webrtc;
 
@@ -250,8 +251,11 @@ namespace tc
         // video source
         video_source_ = std::make_shared<VideoSourceImpl>(plugin_);
         video_track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, video_source_);
+        // video/audio 必须挂同一 MediaStream id,否则 web 端若直接用
+        // ontrack.streams[0] 赋值 srcObject,后到的轨会覆盖先到的(有画面无声)。
+        static constexpr const char* kMediaStreamId = "godesk_media";
         auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source_, "video_track_source_1");
-        auto rtc_error_or = peer_conn_->AddTrack(video_track, { "video_track_1" });
+        auto rtc_error_or = peer_conn_->AddTrack(video_track, { kMediaStreamId });
         if (!rtc_error_or.ok()) {
             LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
             return;
@@ -260,7 +264,7 @@ namespace tc
         // audio source
         audio_source_ = AudioSourceImpl::Create();
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
-        peer_conn_->AddTrack(audio_track, { "audio1" });
+        peer_conn_->AddTrack(audio_track, { kMediaStreamId });
 
         // BWE 初始种子:默认起始估计只有 300kbps,爬坡期 pacing 饿死视频码流,
         // 而 BWE 又依赖码流动起来才能探测上行——鸡生蛋死锁,表现为视频完全发不出来。
@@ -455,6 +459,13 @@ namespace tc
                 set_id(frame_idx).
                 build();
         video_source_->OnNotifyFrame(notify_frame);
+    }
+
+    void RtcServer::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
+        if (exit_ || !audio_source_ || !data || data->Size() == 0) {
+            return;
+        }
+        audio_source_->SendAudio(data->DataAddr(), data->Size(), samples, channels, bits);
     }
 
     void RtcServer::Exit() {

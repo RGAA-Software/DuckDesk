@@ -653,11 +653,34 @@ async function connect() {
     micTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' })
 
     pc.ontrack = (ev: RTCTrackEvent) => {
-      addLog(`ontrack: kind=${ev.track.kind}`)
       applyLowLatencyPlayout(ev.receiver, ev.track)
-      if (videoRef.value && ev.streams[0]) {
-        videoRef.value.srcObject = ev.streams[0]
+      const el = videoRef.value
+      if (!el) {
+        addLog(`ontrack: kind=${ev.track.kind} (no video element yet)`)
+        return
+      }
+      // render 端 video/audio 可能落在不同 MediaStream id 上;直接 srcObject=streams[0]
+      // 会互相覆盖(后到的轨把先到的踢掉)——典型症状:有画面但始终无声。
+      // 统一汇入同一个 MediaStream,保证 video+audio 同挂在 <video> 上。
+      let ms = el.srcObject as MediaStream | null
+      if (!ms) {
+        ms = new MediaStream()
+        el.srcObject = ms
+      }
+      if (!ms.getTrackById(ev.track.id)) {
+        ms.addTrack(ev.track)
+      }
+      if (ev.track.kind === 'video') {
         hasVideo.value = true
+      }
+      const kinds = ms.getTracks().map((t) => `${t.kind}:${t.readyState}`).join(',')
+      addLog(
+        `ontrack: kind=${ev.track.kind} muted=${ev.track.muted} enabled=${ev.track.enabled} ` +
+          `streamIds=${ev.streams.map((s) => s.id).join('|') || '-'} el=[${kinds}] pageMuted=${muted.value}`,
+      )
+      // 有声轨时提醒:默认静音是为了过 autoplay 策略,需点悬浮球取消静音
+      if (ev.track.kind === 'audio' && muted.value) {
+        addLog('已收到远端音频轨;页面默认静音,请点悬浮球扬声器图标取消静音')
       }
     }
 
