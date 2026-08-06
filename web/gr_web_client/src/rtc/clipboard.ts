@@ -11,6 +11,16 @@ import { encodeMessage, decodeMessage, MSG_TYPE_CLIPBOARD_INFO, CLIPBOARD_TYPE_T
 
 let pktIndex = 0n
 
+/** Browser can read local clipboard (secure context + Clipboard API). */
+export function canReadLocalClipboard(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.isSecureContext === true &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.readText === 'function'
+  )
+}
+
 export function sendClipboardText(
   dc: RTCDataChannel | null,
   deviceId: string,

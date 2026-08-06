@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import CryptoJS from 'crypto-js'
 import { InputController } from './rtc/input'
 import { sendControlMessage } from './rtc/control'
@@ -8,8 +9,10 @@ import type { GamepadSnapshot } from './rtc/gamepad'
 import { sha256Hex } from './rtc/file_transfer'
 import { PerfCollector, EMPTY_PERF, perfSummaryLine } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
-import { sendClipboardText, parseClipboardText } from './rtc/clipboard'
+import { sendClipboardText, parseClipboardText, canReadLocalClipboard } from './rtc/clipboard'
 import { decodeMessage } from './rtc/proto'
+import { applyDocumentTitle } from './locales/i18n'
+import logoUrl from './assets/tc_icon.png'
 import {
   MSG_TYPE_HELLO,
   MSG_TYPE_CLIPBOARD_INFO,
@@ -24,6 +27,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import FloatBall from './FloatBall.vue'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
+
+const { t } = useI18n()
+
+const MAX_LOG_LINES = 8000
+const clipboardAvailable = canReadLocalClipboard()
 
 // ---------- 信令契约(对齐 render net_ws http_handler.cpp)----------
 // POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)[&takeover=1]
@@ -86,14 +94,16 @@ function scheduleReconnect(reason: string) {
   if (reconnectCount.value >= MAX_AUTO_RECONNECT) {
     status.value = 'failed'
     errorMsg.value = `连接${reason},自动重连 ${MAX_AUTO_RECONNECT} 次后仍失败`
+    setConnectStep(connectStep.value === 'idle' ? 'init' : connectStep.value, errorMsg.value)
     addLog(errorMsg.value)
     return
   }
   reconnectCount.value += 1
   status.value = 'reconnecting'
   errorMsg.value = ''
-  addLog(
-    `连接${reason},${RECONNECT_DELAY_MS / 1000}s 后自动重连(第 ${reconnectCount.value}/${MAX_AUTO_RECONNECT} 次)`,
+  setConnectStep(
+    'reconnect',
+    `${reason}, ${RECONNECT_DELAY_MS / 1000}s 后第 ${reconnectCount.value}/${MAX_AUTO_RECONNECT} 次`,
   )
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null
@@ -121,6 +131,7 @@ const form = reactive({
 // 设备 ID 变化时自动联动更新。
 watch(() => form.deviceId, (id) => {
   form.streamId = id ? `web_${id}` : ''
+  applyDocumentTitle(id)
 }, { immediate: true })
 
 const status = ref<ConnStatus>('idle')
@@ -276,6 +287,7 @@ interface RemoteMonitor {
 }
 const remoteMonitors = ref<RemoteMonitor[]>([])
 const capturingMonitor = ref('')
+const remoteFps = ref(0)
 
 // render 修复前(旧版本插件)会把每个编码视频帧也塞进 media_data_channel
 // (tc.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
@@ -323,7 +335,10 @@ function handleDcBinary(buf: ArrayBuffer) {
         primary: m.primary,
       }))
       capturingMonitor.value = cfg.capturingMonitorName ?? ''
-      addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}`)
+      if (typeof cfg.fps === 'number' && cfg.fps > 0) {
+        remoteFps.value = cfg.fps
+      }
+      addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}, fps=${remoteFps.value || '-'}`)
     } else if (msg.type === MSG_TYPE_MONITOR_SWITCHED && msg.monitorSwitched) {
       // 切屏回包:更新当前采集显示器与输入回放坐标系(否则鼠标仍按旧屏几何映射)
       const name = msg.monitorSwitched.name
@@ -511,12 +526,130 @@ watch(pointerLocked, (v) => {
   input?.setRelativeMode(v)
 })
 
+const logBodyRef = ref<HTMLElement | null>(null)
+
 function addLog(msg: string) {
   const line = `[${new Date().toLocaleTimeString()}] ${msg}`
   console.log(line)
   logs.value.push(line)
-  if (logs.value.length > 200) logs.value.shift()
+  while (logs.value.length > MAX_LOG_LINES) {
+    logs.value.shift()
+  }
+  void nextTick(() => {
+    const el = logBodyRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
 }
+
+/** 连接流程步骤(与 connect() 实际阶段对齐,供加载页与 console 诊断) */
+type ConnectStep =
+  | 'idle'
+  | 'init'
+  | 'negotiate'
+  | 'ice'
+  | 'signal'
+  | 'answer'
+  | 'peer'
+  | 'channels'
+  | 'video'
+  | 'reconnect'
+  | 'failed'
+  | 'done'
+
+const CONNECT_FLOW_STEPS: ConnectStep[] = [
+  'init',
+  'negotiate',
+  'ice',
+  'signal',
+  'answer',
+  'peer',
+  'channels',
+  'video',
+]
+
+const connectStep = ref<ConnectStep>('idle')
+const connectStepDetail = ref('')
+
+function setConnectStep(step: ConnectStep, detail = '') {
+  connectStep.value = step
+  connectStepDetail.value = detail
+  const idx = CONNECT_FLOW_STEPS.indexOf(step)
+  const progress =
+    idx >= 0 ? ` [${idx + 1}/${CONNECT_FLOW_STEPS.length}]` : ''
+  const label = t(`loading.steps.${step}`)
+  const line = detail
+    ? `[connect]${progress} ${label} — ${detail}`
+    : `[connect]${progress} ${label}`
+  // addLog 同步写日志面板并 console.log,便于出问题后在 DevTools 定位
+  addLog(line)
+}
+
+const connectStepIndex = computed(() => CONNECT_FLOW_STEPS.indexOf(connectStep.value))
+
+function stepItemState(step: ConnectStep): 'done' | 'active' | 'pending' {
+  if (connectStep.value === 'failed') {
+    const failAt = connectStepIndex.value
+    const i = CONNECT_FLOW_STEPS.indexOf(step)
+    if (failAt < 0) return 'pending'
+    if (i < failAt) return 'done'
+    if (i === failAt) return 'active'
+    return 'pending'
+  }
+  if (connectStep.value === 'done' || (status.value === 'connected' && hasVideo.value)) {
+    return 'done'
+  }
+  const cur = connectStepIndex.value
+  const i = CONNECT_FLOW_STEPS.indexOf(step)
+  if (cur < 0) return 'pending'
+  if (i < cur) return 'done'
+  if (i === cur) return 'active'
+  return 'pending'
+}
+
+function clearLogs() {
+  logs.value = []
+}
+
+function selectAllLogs() {
+  const el = logBodyRef.value
+  if (!el) return
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+}
+
+function deselectAllLogs() {
+  window.getSelection()?.removeAllRanges()
+}
+
+const showLoading = computed(
+  () =>
+    status.value === 'idle' ||
+    status.value === 'connecting' ||
+    status.value === 'reconnecting' ||
+    status.value === 'failed' ||
+    (status.value === 'connected' && !hasVideo.value),
+)
+
+const loadingHint = computed(() => {
+  if (status.value === 'failed') return errorMsg.value || t('status.failed')
+  if (status.value === 'idle') return t('loading.idleHint')
+  if (connectStepDetail.value) return connectStepDetail.value
+  if (connectStep.value && connectStep.value !== 'idle') {
+    return t(`loading.steps.${connectStep.value}`)
+  }
+  return t('loading.hint')
+})
+
+const showStepList = computed(
+  () =>
+    status.value === 'connecting' ||
+    status.value === 'reconnecting' ||
+    status.value === 'failed' ||
+    (status.value === 'connected' && !hasVideo.value),
+)
 
 // 从 URL query 带入参数:?deviceId=&password=(明文)或 &pwd_md5=(预哈希)
 // deviceId + 密码(任一形式)齐全时自动连接;流 ID 由设备 ID 派生,不从 URL 带入
@@ -576,6 +709,7 @@ function cleanup() {
   remoteClipboard.value = ''
   remoteMonitors.value = []
   capturingMonitor.value = ''
+  remoteFps.value = 0
   ft.resetFt('连接已断开')
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
@@ -636,11 +770,13 @@ async function connect() {
   if (!form.deviceId) {
     errorMsg.value = '请填写设备 ID'
     status.value = 'failed'
+    setConnectStep('init', errorMsg.value)
     return
   }
   cleanup()
   status.value = 'connecting'
   errorMsg.value = ''
+  setConnectStep('init', `deviceId=${form.deviceId} streamId=${form.streamId}`)
 
   try {
     // 不配置任何 iceServers:render 端会把 candidate 改写为客户端可达地址
@@ -672,6 +808,9 @@ async function connect() {
       }
       if (ev.track.kind === 'video') {
         hasVideo.value = true
+        setConnectStep('done', `video track ${ev.track.id}`)
+      } else if (!hasVideo.value) {
+        setConnectStep('video', `收到 ${ev.track.kind} 轨,仍等待视频`)
       }
       const kinds = ms.getTracks().map((t) => `${t.kind}:${t.readyState}`).join(',')
       addLog(
@@ -687,12 +826,17 @@ async function connect() {
     pc.onconnectionstatechange = () => {
       const state = pc?.connectionState
       addLog(`connectionState: ${state}`)
-      if (state === 'connected') {
+      if (state === 'connecting') {
+        setConnectStep('peer', `connectionState=${state}`)
+      } else if (state === 'connected') {
         // 连接(或重连)成功:取消挂起的重连、清零重试计数
         cancelReconnectTimer()
         reconnectCount.value = 0
         manualClose = false
         status.value = 'connected'
+        if (!hasVideo.value) {
+          setConnectStep('channels', 'P2P 已连通,等待通道与画面')
+        }
         // 记忆本次连接参数,下次打开页面预填(不存密码)
         try {
           localStorage.setItem(
@@ -723,6 +867,9 @@ async function connect() {
     dc.binaryType = 'arraybuffer' // render 会推 kClipboardInfo 等二进制控制消息
     dc.onopen = () => {
       addLog(`datachannel "${DATA_CHANNEL_LABEL}" onopen`)
+      if (!hasVideo.value) {
+        setConnectStep('video', `控制通道 ${DATA_CHANNEL_LABEL} 已打开`)
+      }
       // 发 kHello 触发 render 回推 kServerConfiguration(显示器列表/可用分辨率/采集显示器名)
       sendControlMessage(dc, form.deviceId, form.streamId, {
         type: MSG_TYPE_HELLO,
@@ -819,6 +966,7 @@ async function connect() {
     pingDc.onclose = () => addLog('ping datachannel onclose')
     pingDc.onerror = (ev: Event) => addLog(`ping datachannel onerror: ${String(ev)}`)
 
+    setConnectStep('negotiate')
     const offer = await pc.createOffer({
       offerToReceiveAudio: true,
       offerToReceiveVideo: true,
@@ -832,9 +980,9 @@ async function connect() {
     scanFr('offer', offer.sdp ?? '')
 
     // 等 ICE gathering complete 再发 offer,不做 trickle
-    addLog('等待 ICE gathering complete ...')
+    setConnectStep('ice', `iceGatheringState=${pc.iceGatheringState}`)
     await waitIceGatheringComplete(pc)
-    addLog('ICE gathering 完成,发送信令')
+    setConnectStep('signal', 'ICE 完成,准备 POST /alloc/local/rtc')
 
     const localDesc = pc.localDescription
     if (!localDesc?.sdp) throw new Error('本地 SDP 为空')
@@ -847,6 +995,7 @@ async function connect() {
         safety_pwd_md5: effectivePwdMd5(),
       })
       if (takeover) query.set('takeover', '1')
+      setConnectStep('signal', takeover ? 'takeover=1 重新请求信令' : 'POST 信令中')
       const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -877,12 +1026,14 @@ async function connect() {
       answerSdp = await postSignal(true)
     }
 
+    setConnectStep('answer', `answer_sdp length=${answerSdp.length}`)
     scanFr('answer', answerSdp)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-    addLog('已设置远端 answer,等待连接建立')
+    setConnectStep('peer', `connectionState=${pc.connectionState} ice=${pc.iceConnectionState}`)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     addLog(`连接失败: ${msg}`)
+    const failedAt = CONNECT_FLOW_STEPS.includes(connectStep.value) ? connectStep.value : 'init'
     cleanup()
     if (!manualClose && reconnectCount.value > 0) {
       // 自动重连过程中的失败:计入重试,继续排队下一次
@@ -890,6 +1041,7 @@ async function connect() {
     } else {
       status.value = 'failed'
       errorMsg.value = msg
+      setConnectStep(failedAt, msg)
     }
   }
 }
@@ -909,27 +1061,10 @@ function disconnect() {
   cleanup()
   status.value = 'idle'
   errorMsg.value = ''
+  connectStep.value = 'idle'
+  connectStepDetail.value = ''
   addLog('已断开')
 }
-
-const statusText: Record<ConnStatus, string> = {
-  idle: '未连接',
-  connecting: '连接中',
-  connected: '已连接',
-  failed: '失败',
-  reconnecting: '重连中',
-}
-const statusType: Record<ConnStatus, 'info' | 'warning' | 'success' | 'danger'> = {
-  idle: 'info',
-  connecting: 'warning',
-  connected: 'success',
-  failed: 'danger',
-  reconnecting: 'warning',
-}
-// 重连中带上第几次
-const statusLabel = computed(() =>
-  status.value === 'reconnecting' ? `重连中(第 ${reconnectCount.value} 次)` : statusText[status.value],
-)
 
 // 无头/CDP 调试用:window.__input / window.__conn / window.__gamepad
 function exposeInputConnDebug() {
@@ -989,7 +1124,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page">
-    <!-- 远端画面全屏显示 -->
     <video
       ref="videoRef"
       class="remote-video"
@@ -999,74 +1133,55 @@ onBeforeUnmount(() => {
       :class="{ hidden: !hasVideo }"
     ></video>
 
-    <!-- 顶部控制条 -->
-    <div class="toolbar">
-      <el-form inline @submit.prevent>
-        <el-form-item label="设备 ID">
-          <el-input v-model="form.deviceId" placeholder="deviceId" style="width: 140px" />
-        </el-form-item>
-        <el-form-item label="流 ID">
-          <el-tooltip content="由设备 ID 自动生成,同一设备同时只允许一路连接" placement="bottom">
-            <el-input v-model="form.streamId" readonly placeholder="由设备 ID 生成" style="width: 140px" />
-          </el-tooltip>
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input
-            v-model="form.password"
-            type="password"
-            show-password
-            placeholder="password"
-            style="width: 160px"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="status === 'connecting'"
-            :disabled="status === 'connected' || status === 'reconnecting'"
-            @click="manualConnect"
-          >
-            {{ status === 'failed' ? '重新连接' : '连接' }}
-          </el-button>
-          <el-button
-            v-if="status === 'connected' || status === 'connecting' || status === 'reconnecting'"
-            @click="disconnect"
-          >
-            断开
-          </el-button>
-        </el-form-item>
-        <el-form-item>
-          <el-tag :type="statusType[status]">{{ statusLabel }}</el-tag>
-          <el-button size="small" class="log-toggle" @click="logVisible = !logVisible">
-            日志
-          </el-button>
-          <el-tooltip
-            :content="renderVersion ? `被控端 render 版本: ${renderVersion}` : '被控端为旧版本(未上报版本号)'"
-            placement="bottom"
-          >
-            <span class="render-version">v{{ renderVersion || '旧版' }}</span>
-          </el-tooltip>
-        </el-form-item>
-      </el-form>
-      <el-alert
-        v-if="status === 'failed' && errorMsg"
-        :title="errorMsg"
-        type="error"
-        :closable="false"
-        class="error-alert"
-      />
+    <!-- 连接/等画面/失败加载页(无顶部参数条,参数由 URL 带入) -->
+    <div v-if="showLoading" class="loading-page">
+      <img class="loading-logo" :src="logoUrl" alt="GoDesk" />
+      <div class="loading-title">
+        {{ status === 'failed' ? t('status.failed') : t('loading.title') }}
+      </div>
+      <div class="loading-hint" :class="{ error: status === 'failed' }">{{ loadingHint }}</div>
+      <div
+        v-if="showStepList && connectStepIndex >= 0"
+        class="loading-step-meta"
+      >
+        {{ t('loading.stepProgress', { current: connectStepIndex + 1, total: CONNECT_FLOW_STEPS.length }) }}
+        · {{ t(`loading.steps.${connectStep}`) }}
+      </div>
+      <ol v-if="showStepList" class="loading-steps">
+        <li
+          v-for="step in CONNECT_FLOW_STEPS"
+          :key="step"
+          class="loading-step"
+          :class="stepItemState(step)"
+        >
+          <span class="step-mark" />
+          <span class="step-text">{{ t(`loading.steps.${step}`) }}</span>
+        </li>
+      </ol>
+      <div v-if="status !== 'failed' && status !== 'idle'" class="loading-spinner" />
+      <button
+        v-if="status === 'failed' || status === 'idle'"
+        type="button"
+        class="loading-action"
+        @click="manualConnect"
+      >
+        {{ status === 'failed' ? t('app.reconnect') : t('app.connect') }}
+      </button>
     </div>
 
-    <!-- 悬浮球:点开白色圆角菜单面板(本地功能 + 远程控制) -->
     <FloatBall
       v-model:muted="muted"
       v-model:mic-on="micOn"
       v-model:view-only="viewOnly"
       v-model:ft-visible="ftVisible"
       v-model:perf-visible="perfVisible"
+      v-model:log-visible="logVisible"
       :connected="status === 'connected'"
+      :can-disconnect="status === 'connected' || status === 'connecting' || status === 'reconnecting'"
       :ft-ready="ftReady"
       :perf="perf"
+      :remote-fps="remoteFps"
+      :clipboard-available="clipboardAvailable"
       :remote-clipboard="remoteClipboard"
       :send="sendControl"
       :send-clipboard-to-remote="sendClipboardToRemote"
@@ -1079,88 +1194,102 @@ onBeforeUnmount(() => {
       :toggle-gamepad="toggleGamepad"
       :monitors="remoteMonitors"
       :capturing-monitor="capturingMonitor"
+      :disconnect="disconnect"
       :log="addLog"
     />
 
-    <!-- 指针锁定提示(锁定期间物理光标隐藏,顶部常驻提示) -->
-    <div v-if="pointerLocked" class="lock-hint">鼠标已锁定 · 相对模式 · Esc 退出</div>
+    <div v-if="pointerLocked" class="lock-hint">{{ t('app.pointerLocked') }}</div>
 
-    <!-- 性能面板:每 2s 采样 pc.getStats();码率为 WebRTC 自适应值(协议无改码率消息) -->
-    <div v-if="perfVisible" class="perf-panel">
-      <div class="perf-item">
-        <span class="perf-label">码率</span>
-        <span class="perf-value">{{ perfBitrateText }}</span>
+    <!-- 右下角:统计 + 日志 -->
+    <div v-if="perfVisible || logVisible" class="side-dock">
+      <div v-if="perfVisible" class="perf-panel">
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.bitrate') }}</span>
+          <span class="perf-value">{{ perfBitrateText }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.fps') }}</span>
+          <span class="perf-value">{{ perf.fps.toFixed(0) }} fps</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.decode') }}</span>
+          <span class="perf-value">{{ perf.decFps.toFixed(0) }} fps</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.drop') }}</span>
+          <span class="perf-value">{{ perf.dropFps.toFixed(1) }}/s</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.decodeMs') }}</span>
+          <span class="perf-value">{{ perf.decodeMs.toFixed(1) }} ms</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.procMs') }}</span>
+          <span class="perf-value">{{ perf.procMs.toFixed(1) }} ms</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.decoder') }}</span>
+          <span class="perf-value">{{ perf.decoder || '-' }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.freeze') }}</span>
+          <span class="perf-value">{{
+            t('perf.freezeValue', { count: perf.freezes, ms: perf.freezeMs.toFixed(0) })
+          }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.jbTarget') }}</span>
+          <span class="perf-value">{{ perf.jbTargetMs.toFixed(0) }} ms</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.jbActual') }}</span>
+          <span class="perf-value">{{ perf.jbDelayMs.toFixed(0) }} ms</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.rtt') }}</span>
+          <span class="perf-value">{{ perfRttText }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.inputRtt') }}</span>
+          <span class="perf-value">{{ pingRttMs >= 0 ? pingRttMs.toFixed(1) + ' ms' : '-' }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.loss') }}</span>
+          <span class="perf-value">{{ perfLossText }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.jitter') }}</span>
+          <span class="perf-value">{{ perfJitterText }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">{{ t('perf.resolution') }}</span>
+          <span class="perf-value">{{ perfResolutionText }}</span>
+        </div>
+        <div class="perf-item perf-path">
+          <span class="perf-label">{{ t('perf.path') }}</span>
+          <span class="perf-value">{{ perf.localCand || '?' }} ↔ {{ perf.remoteCand || '?' }}</span>
+        </div>
+        <div class="perf-note">{{ t('perf.note') }}</div>
       </div>
-      <div class="perf-item">
-        <span class="perf-label">帧率</span>
-        <span class="perf-value">{{ perf.fps.toFixed(0) }} fps</span>
+
+      <div v-if="logVisible" class="log-panel">
+        <div class="log-toolbar">
+          <span class="log-title">{{ t('logPanel.title') }}</span>
+          <span class="log-meta">{{ t('logPanel.lines', { n: logs.length }) }} · {{ t('logPanel.maxHint', { n: MAX_LOG_LINES }) }}</span>
+          <div class="log-actions">
+            <button type="button" @click="selectAllLogs">{{ t('logPanel.selectAll') }}</button>
+            <button type="button" @click="deselectAllLogs">{{ t('logPanel.deselectAll') }}</button>
+            <button type="button" @click="clearLogs">{{ t('logPanel.clear') }}</button>
+          </div>
+        </div>
+        <div ref="logBodyRef" class="log-body">
+          <div v-if="!logs.length" class="log-empty">{{ t('logPanel.empty') }}</div>
+          <div v-for="(line, i) in logs" :key="i" class="log-line">{{ line }}</div>
+        </div>
       </div>
-      <div class="perf-item">
-        <span class="perf-label">解码</span>
-        <span class="perf-value">{{ perf.decFps.toFixed(0) }} fps</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">丢帧</span>
-        <span class="perf-value">{{ perf.dropFps.toFixed(1) }}/s</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">解码耗时</span>
-        <span class="perf-value">{{ perf.decodeMs.toFixed(1) }} ms</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">处理耗时</span>
-        <span class="perf-value">{{ perf.procMs.toFixed(1) }} ms</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">解码器</span>
-        <span class="perf-value">{{ perf.decoder || '-' }}</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">卡顿</span>
-        <span class="perf-value">{{ perf.freezes }} 次/{{ perf.freezeMs.toFixed(0) }} ms</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">缓冲目标</span>
-        <span class="perf-value">{{ perf.jbTargetMs.toFixed(0) }} ms</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">缓冲实际</span>
-        <span class="perf-value">{{ perf.jbDelayMs.toFixed(0) }} ms</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">RTT</span>
-        <span class="perf-value">{{ perfRttText }}</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">输入RTT</span>
-        <span class="perf-value">{{ pingRttMs >= 0 ? pingRttMs.toFixed(1) + ' ms' : '-' }}</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">丢包</span>
-        <span class="perf-value">{{ perfLossText }}</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">抖动</span>
-        <span class="perf-value">{{ perfJitterText }}</span>
-      </div>
-      <div class="perf-item">
-        <span class="perf-label">分辨率</span>
-        <span class="perf-value">{{ perfResolutionText }}</span>
-      </div>
-      <div class="perf-item perf-path">
-        <span class="perf-label">路径</span>
-        <span class="perf-value">{{ perf.localCand || '?' }} ↔ {{ perf.remoteCand || '?' }}</span>
-      </div>
-      <span class="perf-note">码率为 WebRTC 自适应,协议不支持手动指定</span>
     </div>
 
-    <!-- 独立文件传输窗口(本地暂存区 / 远端文件 / 传输记录) -->
     <FileTransferWindow v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
-
-    <!-- 日志面板(默认收起,顶部「日志」按钮切换) -->
-    <div v-if="logVisible && logs.length" class="log-panel">
-      <div v-for="(line, i) in logs" :key="i" class="log-line">{{ line }}</div>
-    </div>
   </div>
 </template>
 
@@ -1183,23 +1312,9 @@ onBeforeUnmount(() => {
 .remote-video.hidden {
   visibility: hidden;
 }
-.toolbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: 10px 16px 0;
-  background: rgba(30, 30, 30, 0.85);
-}
-.toolbar :deep(.el-form-item__label) {
-  color: #eee;
-}
-.error-alert {
-  margin-bottom: 10px;
-}
 .lock-hint {
   position: absolute;
-  top: 64px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 14px;
@@ -1210,64 +1325,227 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 20;
 }
-.log-panel {
+.loading-page {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 30vh;
-  overflow-y: auto;
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.7);
-  color: #9f9;
-  font-family: monospace;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: radial-gradient(ellipse at center, #1a2332 0%, #0b0f14 70%);
+  color: #e8eef7;
+}
+.loading-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+.loading-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.loading-hint {
+  font-size: 13px;
+  color: #9aa7b8;
+  max-width: 420px;
+  text-align: center;
+  padding: 0 16px;
+}
+.loading-hint.error {
+  color: #f89898;
+}
+.loading-step-meta {
   font-size: 12px;
-  pointer-events: none;
+  color: #7f93ad;
+  margin-top: 2px;
 }
-.log-line {
-  white-space: pre-wrap;
-  word-break: break-all;
+.loading-steps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  width: min(320px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
 }
-.log-toggle {
-  margin-left: 8px;
+.loading-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #6b7c90;
 }
-.render-version {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #909399;
-  cursor: default;
-  user-select: none;
+.loading-step.done {
+  color: #8fca9a;
+}
+.loading-step.active {
+  color: #e8eef7;
+  font-weight: 600;
+}
+.loading-step.active .step-mark {
+  border-color: #5b9cff;
+  background: #5b9cff;
+  box-shadow: 0 0 0 3px rgba(91, 156, 255, 0.25);
+}
+.loading-step.done .step-mark {
+  border-color: #5cb86a;
+  background: #5cb86a;
+}
+.step-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid #4a5a6e;
+  flex-shrink: 0;
+  background: transparent;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  margin-top: 8px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #5b9cff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-action {
+  margin-top: 10px;
+  padding: 8px 22px;
+  border: none;
+  border-radius: 8px;
+  background: #3d7eff;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.loading-action:hover {
+  background: #5b9cff;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.side-dock {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 96px);
+  pointer-events: auto;
 }
 .perf-panel {
-  position: absolute;
-  top: 64px;
-  right: 16px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 10px;
-  background: rgba(30, 30, 30, 0.9);
-  border-radius: 8px;
-  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 10px;
+  padding: 10px 12px;
+  background: rgba(20, 24, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .perf-item {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
-  min-width: 64px;
+  min-width: 0;
+}
+.perf-item.perf-path {
+  grid-column: 1 / -1;
 }
 .perf-label {
-  color: #888;
+  color: #8b95a5;
   font-size: 11px;
 }
 .perf-value {
-  color: #6f6;
-  font-family: monospace;
-  font-size: 13px;
+  color: #7dffa0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
 }
 .perf-note {
-  color: #666;
+  grid-column: 1 / -1;
+  color: #6a7380;
   font-size: 11px;
-  align-self: center;
+}
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  max-height: min(42vh, 420px);
+  background: rgba(12, 16, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+.log-title {
+  color: #e8eef7;
+  font-size: 13px;
+  font-weight: 600;
+}
+.log-meta {
+  color: #8b95a5;
+  font-size: 11px;
+  flex: 1;
+}
+.log-actions {
+  display: flex;
+  gap: 6px;
+}
+.log-actions button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d7dee8;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.log-actions button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.log-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 10px;
+  user-select: text;
+}
+.log-empty {
+  color: #6a7380;
+  font-size: 12px;
+  padding: 12px 0;
+}
+.log-line {
+  color: #9fefb0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+@media (max-width: 640px) {
+  .perf-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

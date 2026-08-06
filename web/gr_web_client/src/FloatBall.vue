@@ -2,7 +2,8 @@
 // 与 float_controller_panel.cpp(白色圆角卡片:顶部快捷按钮行 + 菜单项 + 右侧二级子面板)
 // API 与旧 FloatToolbar.vue 完全兼容(props/models 不变),App.vue 只需换组件名
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   IconVolume,
@@ -29,7 +30,12 @@ import {
   IconMouse,
   IconMicrophone,
   IconDeviceGamepad2,
+  IconFileText,
+  IconLanguage,
+  IconPlugConnectedX,
 } from '@tabler/icons-vue'
+import { setAppLocale } from './locales/i18n'
+import type { AppLocale } from './locales/index'
 import type { PerfStats } from './rtc/stats'
 import { SessionRecorder, recordFileName } from './rtc/recorder'
 import { MSG_TYPE_CHANGE_MONITOR_RESOLUTION } from './rtc/proto'
@@ -51,7 +57,8 @@ interface MonitorSpec {
   primary: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(
+  defineProps<{
   connected: boolean
   // ft_data_channel 是否已就绪
   ftReady: boolean
@@ -78,8 +85,22 @@ const props = defineProps<{
   // 远端显示器列表(kServerConfiguration,含可用分辨率)与当前采集显示器名
   monitors: MonitorSpec[]
   capturingMonitor: string
+  remoteFps?: number
+  clipboardAvailable?: boolean
+  /** 是否可断开(连接中/已连接/重连中) */
+  canDisconnect?: boolean
+  /** 断开当前会话(App.vue disconnect) */
+  disconnect: () => void
   log: (msg: string) => void
-}>()
+}>(),
+  {
+    remoteFps: 0,
+    clipboardAvailable: false,
+    canDisconnect: false,
+  },
+)
+
+const { t, locale } = useI18n()
 
 // 与 App 双向绑定的本地状态
 const muted = defineModel<boolean>('muted', { required: true })
@@ -87,14 +108,15 @@ const micOn = defineModel<boolean>('micOn', { required: true })
 const viewOnly = defineModel<boolean>('viewOnly', { required: true })
 const ftVisible = defineModel<boolean>('ftVisible', { required: true })
 const perfVisible = defineModel<boolean>('perfVisible', { required: true })
+const logVisible = defineModel<boolean>('logVisible', { required: true })
 
 // ---------- 悬浮球位置(比例持久化)----------
 const BALL_SIZE = 48
 const LS_POS_KEY = 'gr_web_client.float_ball_pos'
 const pos = reactive({ x: 0, y: 0 })
 const panelOpen = ref(false)
-// 二级子面板:null=收起,'control'=控制,'display'=显示
-const subPanel = ref<'' | 'control' | 'display'>('')
+// 二级子面板:null=收起,'control'=控制,'display'=显示,'language'=语言
+const subPanel = ref<'' | 'control' | 'display' | 'language'>('')
 // 三级子面板(挂在「显示」二级面板的菜单项上)
 const subSubPanel = ref<'' | 'fps' | 'resolution' | 'monitor'>('')
 
@@ -249,7 +271,7 @@ function onGlobalPointerDown(ev: PointerEvent) {
   closePanel()
 }
 
-function toggleSubPanel(name: 'control' | 'display') {
+function toggleSubPanel(name: 'control' | 'display' | 'language') {
   subPanel.value = subPanel.value === name ? '' : name
   subSubPanel.value = ''
 }
@@ -284,7 +306,7 @@ async function togglePip(): Promise<boolean> {
   const v = props.getVideo()
   if (!v) return false
   if (!('requestPictureInPicture' in v) || !document.pictureInPictureEnabled) {
-    ElMessage.warning('当前浏览器不支持画中画')
+    ElMessage.warning(t('float.pipUnsupported'))
     return false
   }
   try {
@@ -294,14 +316,14 @@ async function togglePip(): Promise<boolean> {
       // 全屏与 PiP 互斥:先退全屏再进 PiP
       if (document.fullscreenElement) {
         await document.exitFullscreen()
-        props.log('已退出全屏以进入画中画')
+        props.log(t('float.pipExitFullscreen'))
       }
       await v.requestPictureInPicture()
     }
     pipActive.value = !!document.pictureInPictureElement
     return pipActive.value
   } catch (err) {
-    ElMessage.warning(`画中画失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.warning(t('float.pipFail', { err: err instanceof Error ? err.message : String(err) }))
     return false
   }
 }
@@ -325,18 +347,18 @@ const recordTimeText = computed(() => {
 function startRecord(): boolean {
   if (recording.value) return true
   if (!SessionRecorder.supported()) {
-    ElMessage.warning('当前浏览器不支持 MediaRecorder 录制')
+    ElMessage.warning(t('float.recordUnsupported'))
     return false
   }
   const stream = props.getVideo()?.srcObject as MediaStream | null
   if (!stream) {
-    ElMessage.warning('尚无远端视频流,无法录制')
+    ElMessage.warning(t('float.recordNoStream'))
     return false
   }
   try {
     recorder.start(stream)
   } catch (err) {
-    ElMessage.warning(`启动录制失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.warning(t('float.recordStartFail', { err: err instanceof Error ? err.message : String(err) }))
     return false
   }
   recording.value = true
@@ -344,7 +366,7 @@ function startRecord(): boolean {
   recordTimer = window.setInterval(() => {
     recordSeconds.value += 1
   }, 1000)
-  props.log(`开始录制 (${recorder.mimeType || '浏览器默认 webm'})`)
+  props.log(t('float.recordStarted', { mime: recorder.mimeType || t('float.recordDefaultMime') }))
   return true
 }
 
@@ -365,11 +387,17 @@ async function stopRecord(download = true): Promise<{ size: number; mimeType: st
       a.click()
       URL.revokeObjectURL(url)
     }
-    props.log(`录制完成: ${(r.blob.size / 1024).toFixed(1)} KB, ${r.seconds.toFixed(1)}s, ${r.mimeType}`)
+    props.log(
+      t('float.recordDone', {
+        size: (r.blob.size / 1024).toFixed(1),
+        seconds: r.seconds.toFixed(1),
+        mime: r.mimeType,
+      }),
+    )
     return { size: r.blob.size, mimeType: r.mimeType }
   } catch (err) {
     recording.value = false
-    ElMessage.warning(`停止录制失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.warning(t('float.recordStopFail', { err: err instanceof Error ? err.message : String(err) }))
     return null
   }
 }
@@ -393,55 +421,65 @@ async function togglePointerLock() {
   try {
     await v.requestPointerLock()
   } catch (err) {
-    ElMessage.warning(`锁定鼠标失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.warning(t('float.lockMouseFail', { err: err instanceof Error ? err.message : String(err) }))
   }
 }
 
 // ---------- 控制消息(走 media_data_channel)----------
 function emit(fields: Record<string, unknown>, desc: string) {
   if (props.send(fields)) {
-    props.log(`已发送控制消息: ${desc}`)
+    props.log(t('float.ctrlSent', { desc }))
   } else {
-    ElMessage.warning('数据通道未连接,发送失败')
+    ElMessage.warning(t('float.dcNotReady'))
   }
 }
 
 function sendCtrlAltDelete() {
   // 对齐 ProtoMessageMaker::MakeCtrlAltDelete(type=330,空 ReqCtrlAltDelete 子消息)
-  emit({ type: MSG_TYPE_REQ_CTRL_ALT_DELETE, reqCtrlAltDelete: {} }, 'Ctrl+Alt+Del')
+  emit({ type: MSG_TYPE_REQ_CTRL_ALT_DELETE, reqCtrlAltDelete: {} }, t('float.ctrlAltDel'))
 }
 
 function hardUpdate() {
   // 对齐 BaseWorkspace::SendHardUpdateDesktopMessage(type=341,无子消息)
-  emit({ type: MSG_TYPE_HARD_UPDATE_DESKTOP }, '刷新画面(kHardUpdateDesktop)')
+  emit({ type: MSG_TYPE_HARD_UPDATE_DESKTOP }, t('float.refreshDesc'))
 }
 
 function lockDevice() {
   // 对齐 ProtoMessageMaker::MakeLockDevice(type=328,空 LockDevice 子消息)
-  emit({ type: MSG_TYPE_LOCK_DEVICE, lockDevice: {} }, '锁屏(kLockDevice)')
+  emit({ type: MSG_TYPE_LOCK_DEVICE, lockDevice: {} }, t('float.lockDesc'))
 }
 
 async function stopRender() {
   try {
-    await ElMessageBox.confirm('将结束远端 render 进程(服务会自动拉起),确认重启?', '重启 Render', {
+    await ElMessageBox.confirm(t('float.restartConfirm'), t('float.restartConfirmTitle'), {
       type: 'warning',
-      confirmButtonText: '重启',
-      cancelButtonText: '取消',
+      confirmButtonText: t('float.restart'),
+      cancelButtonText: t('float.cancel'),
     })
   } catch {
     return
   }
   // 对齐 ProtoMessageMaker::MakeStopRender(type=329,空 StopRender 子消息)
-  emit({ type: MSG_TYPE_STOP_RENDER, stopRender: {} }, '重启 render(kStopRender)')
+  emit({ type: MSG_TYPE_STOP_RENDER, stopRender: {} }, t('float.restartDesc'))
 }
 
 // ---------- 显示子面板:帧率/分辨率/切换显示器/锁定鼠标/麦克风/手柄 ----------
 const fps = ref(0) // 0 = 未知(尚未由本端设置)
-const FPS_OPTIONS = [30, 60, 120]
+const FPS_OPTIONS = [15, 30, 60, 90, 120, 144]
+
+// 对齐 Windows:用宿主上报的当前 fps 作为选中项;本端改帧率后以本地选择为准,
+// 仅在 remoteFps 变化(收到新配置)时同步。
+watch(
+  () => props.remoteFps,
+  (r) => {
+    if (r > 0) fps.value = r
+  },
+  { immediate: true },
+)
 
 function modifyFps(value: number) {
   // 对齐 BaseWorkspace::SendModifyFpsMessage(type=480,ModifyFps{fps})
-  emit({ type: MSG_TYPE_MODIFY_FPS, modifyFps: { fps: value } }, `改帧率 -> ${value}`)
+  emit({ type: MSG_TYPE_MODIFY_FPS, modifyFps: { fps: value } }, t('float.modifyFps', { n: value }))
   fps.value = value
   subSubPanel.value = ''
 }
@@ -481,7 +519,7 @@ function changeResolution(w: number, h: number) {
       type: MSG_TYPE_CHANGE_MONITOR_RESOLUTION,
       changeMonitorResolution: { monitorName: name, targetWidth: w, targetHeight: h },
     },
-    `改分辨率 -> ${w}x${h} (${name || '默认显示器'})`,
+    t('float.modifyRes', { w, h, name: name || t('float.defaultMonitor') }),
   )
   subSubPanel.value = ''
 }
@@ -489,22 +527,22 @@ function changeResolution(w: number, h: number) {
 // 切换显示器:列表来自 kServerConfiguration(monitors prop),不再走 /get/render/configuration
 function sendSwitchMonitor(name: string) {
   // 对齐 BaseWorkspace::SendSwitchMonitorMessage(type=170,SwitchMonitor{name})
-  emit({ type: MSG_TYPE_SWITCH_MONITOR, switchMonitor: { name } }, `切换显示器 -> ${name}`)
+  emit({ type: MSG_TYPE_SWITCH_MONITOR, switchMonitor: { name } }, t('float.switchMonitorDesc', { name }))
   subSubPanel.value = ''
 }
 
 // ---------- 剪贴板 ----------
 async function onSendClipboard() {
   if (!(await props.sendClipboardToRemote())) {
-    ElMessage.warning('读取本地剪贴板失败(需用户授权)或内容为空')
+    ElMessage.warning(t('clipboard.sendFail'))
   }
 }
 
 async function onCopyRemote() {
   if (await props.copyRemoteToLocal()) {
-    ElMessage.success('已复制到本地剪贴板')
+    ElMessage.success(t('clipboard.copyOk'))
   } else {
-    ElMessage.warning('暂无远端剪贴板内容或写入失败')
+    ElMessage.warning(t('clipboard.copyFail'))
   }
 }
 
@@ -517,6 +555,20 @@ function openFileTransfer() {
 
 function togglePerf() {
   perfVisible.value = !perfVisible.value
+}
+
+function toggleLog() {
+  logVisible.value = !logVisible.value
+}
+
+function pickLocale(loc: AppLocale) {
+  setAppLocale(loc)
+  subPanel.value = ''
+}
+
+function onDisconnect() {
+  closePanel()
+  props.disconnect()
 }
 
 // 无头/CDP 调试用:window.__pip / window.__rec
@@ -566,7 +618,7 @@ onBeforeUnmount(() => {
     class="float-ball"
     :class="{ dragging }"
     :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
-    title="控制面板"
+    :title="t('float.panelTitle')"
     @pointerdown="onBallPointerDown"
     @pointermove="onBallPointerMove"
     @pointerup="onBallPointerUp"
@@ -578,11 +630,11 @@ onBeforeUnmount(() => {
   <div v-if="panelOpen" ref="panelRef" class="ball-panel" :style="panelStyle">
     <!-- 顶部快捷按钮行:声音/全屏/画中画 -->
     <div class="quick-row">
-      <button class="quick-btn" :title="muted ? '取消静音' : '静音'" @click="toggleMute">
+      <button class="quick-btn" :title="muted ? t('float.unmute') : t('float.mute')" @click="toggleMute">
         <IconVolumeOff v-if="muted" :size="20" />
         <IconVolume v-else :size="20" />
       </button>
-      <button class="quick-btn" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">
+      <button class="quick-btn" :title="isFullscreen ? t('float.exitFullscreen') : t('float.fullscreen')" @click="toggleFullscreen">
         <IconMinimize v-if="isFullscreen" :size="20" />
         <IconMaximize v-else :size="20" />
       </button>
@@ -590,7 +642,7 @@ onBeforeUnmount(() => {
         class="quick-btn"
         :class="{ active: pipActive }"
         :disabled="!connected"
-        title="画中画"
+        :title="t('float.pip')"
         @click="togglePip"
       >
         <IconPictureInPicture :size="20" />
@@ -601,29 +653,61 @@ onBeforeUnmount(() => {
     <div class="menu">
       <button class="menu-item" :class="{ open: subPanel === 'control' }" @click="toggleSubPanel('control')">
         <span class="menu-icon"><IconSettings :size="17" /></span>
-        <span class="menu-text">控制</span>
+        <span class="menu-text">{{ t('float.control') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display')">
         <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
-        <span class="menu-text">显示</span>
+        <span class="menu-text">{{ t('float.display') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :disabled="!ftReady" @click="openFileTransfer">
         <span class="menu-icon"><IconTransfer :size="17" /></span>
-        <span class="menu-text">文件传输</span>
-        <span class="menu-state">{{ ftReady ? '' : '未就绪' }}</span>
+        <span class="menu-text">{{ t('float.fileTransfer') }}</span>
+        <span class="menu-state">{{ ftReady ? '' : t('float.notReady') }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="toggleRecord">
         <span class="menu-icon" :class="{ recording }"><IconPlayerRecord :size="17" /></span>
         <span class="menu-text" :class="{ recording }">
-          {{ recording ? `停止录制 ${recordTimeText}` : '屏幕录制' }}
+          {{ recording ? t('float.stopRecord', { time: recordTimeText }) : t('float.record') }}
         </span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="togglePerf">
         <span class="menu-icon"><IconChartBar :size="17" /></span>
-        <span class="menu-text">统计</span>
-        <span class="menu-state">{{ perfVisible ? '开' : '' }}</span>
+        <span class="menu-text">{{ t('float.stats') }}</span>
+        <span class="menu-state">{{ perfVisible ? t('float.on') : '' }}</span>
+      </button>
+      <button class="menu-item" @click="toggleLog">
+        <span class="menu-icon"><IconFileText :size="17" /></span>
+        <span class="menu-text">{{ t('float.logs') }}</span>
+        <span class="menu-state">{{ logVisible ? t('float.on') : '' }}</span>
+      </button>
+      <button class="menu-item" :class="{ open: subPanel === 'language' }" @click="toggleSubPanel('language')">
+        <span class="menu-icon"><IconLanguage :size="17" /></span>
+        <span class="menu-text">{{ t('lang.label') }}</span>
+        <span class="menu-arrow"><IconChevronRight :size="15" /></span>
+      </button>
+      <button
+        class="menu-item danger"
+        :disabled="!props.canDisconnect"
+        @click="onDisconnect"
+      >
+        <span class="menu-icon"><IconPlugConnectedX :size="17" /></span>
+        <span class="menu-text">{{ t('float.disconnect') }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 二级子面板:语言 -->
+  <div v-if="panelOpen && subPanel === 'language'" ref="subPanelRef" class="ball-panel sub" :style="subPanelStyle">
+    <div class="menu">
+      <button class="menu-item" @click="pickLocale('zh')">
+        <span class="menu-icon check-icon"><IconCheck v-if="locale === 'zh'" :size="16" /></span>
+        <span class="menu-text" :class="{ current: locale === 'zh' }">{{ t('lang.zh') }}</span>
+      </button>
+      <button class="menu-item" @click="pickLocale('en')">
+        <span class="menu-icon check-icon"><IconCheck v-if="locale === 'en'" :size="16" /></span>
+        <span class="menu-text" :class="{ current: locale === 'en' }">{{ t('lang.en') }}</span>
       </button>
     </div>
   </div>
@@ -631,32 +715,42 @@ onBeforeUnmount(() => {
   <!-- 二级子面板:控制 -->
   <div v-if="panelOpen && subPanel === 'control'" ref="subPanelRef" class="ball-panel sub" :style="subPanelStyle">
     <div class="menu">
-      <button class="menu-item" :disabled="!connected" @click="onSendClipboard">
+      <button
+        v-if="props.clipboardAvailable"
+        class="menu-item"
+        :disabled="!connected"
+        @click="onSendClipboard"
+      >
         <span class="menu-icon"><IconSend :size="16" /></span>
-        <span class="menu-text">发送到远端剪贴板</span>
+        <span class="menu-text">{{ t('clipboard.sendRemote') }}</span>
       </button>
-      <button class="menu-item" :disabled="!remoteClipboard" @click="onCopyRemote">
+      <button
+        v-if="props.clipboardAvailable"
+        class="menu-item"
+        :disabled="!remoteClipboard"
+        @click="onCopyRemote"
+      >
         <span class="menu-icon"><IconClipboardCopy :size="16" /></span>
-        <span class="menu-text">复制远端到本地</span>
+        <span class="menu-text">{{ t('clipboard.copyLocal') }}</span>
       </button>
       <div class="menu-item static">
-        <el-checkbox v-model="viewOnly" class="view-only-checkbox">仅观看</el-checkbox>
+        <el-checkbox v-model="viewOnly" class="view-only-checkbox">{{ t('float.viewOnly') }}</el-checkbox>
       </div>
       <button class="menu-item" :disabled="!connected" @click="sendCtrlAltDelete">
         <span class="menu-icon"><IconKeyboard :size="16" /></span>
-        <span class="menu-text">Ctrl+Alt+Del</span>
+        <span class="menu-text">{{ t('float.ctrlAltDel') }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="hardUpdate">
         <span class="menu-icon"><IconRefresh :size="16" /></span>
-        <span class="menu-text">刷新画面</span>
+        <span class="menu-text">{{ t('float.refreshScreen') }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="lockDevice">
         <span class="menu-icon"><IconLock :size="16" /></span>
-        <span class="menu-text">锁定设备</span>
+        <span class="menu-text">{{ t('float.lockDevice') }}</span>
       </button>
       <button class="menu-item danger" :disabled="!connected" @click="stopRender">
         <span class="menu-icon"><IconRestore :size="16" /></span>
-        <span class="menu-text">重启 Render</span>
+        <span class="menu-text">{{ t('float.restartRender') }}</span>
       </button>
     </div>
   </div>
@@ -671,7 +765,7 @@ onBeforeUnmount(() => {
         @click="toggleSubSubPanel('fps')"
       >
         <span class="menu-icon"><IconGauge :size="16" /></span>
-        <span class="menu-text">帧率</span>
+        <span class="menu-text">{{ t('float.fps') }}</span>
         <span class="menu-state">{{ fps > 0 ? fps : '' }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
@@ -682,7 +776,7 @@ onBeforeUnmount(() => {
         @click="toggleSubSubPanel('resolution')"
       >
         <span class="menu-icon"><IconAspectRatio :size="16" /></span>
-        <span class="menu-text">分辨率</span>
+        <span class="menu-text">{{ t('float.resolution') }}</span>
         <span class="menu-state">
           {{ currentResolution ? `${currentResolution.width}×${currentResolution.height}` : '' }}
         </span>
@@ -695,27 +789,27 @@ onBeforeUnmount(() => {
         @click="toggleSubSubPanel('monitor')"
       >
         <span class="menu-icon"><IconDevices :size="16" /></span>
-        <span class="menu-text">切换显示器</span>
+        <span class="menu-text">{{ t('float.switchMonitor') }}</span>
         <span class="menu-state">{{ capturingMonitor }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="togglePointerLock">
         <span class="menu-icon"><IconMouse :size="16" /></span>
-        <span class="menu-text">锁定鼠标</span>
-        <span class="menu-state">{{ pointerLocked ? '已锁定' : '' }}</span>
+        <span class="menu-text">{{ t('float.lockMouse') }}</span>
+        <span class="menu-state">{{ pointerLocked ? t('float.locked') : '' }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="props.toggleMic">
         <span class="menu-icon"><IconMicrophone :size="16" /></span>
-        <span class="menu-text">麦克风</span>
-        <span class="menu-state">{{ micOn ? '开' : '关' }}</span>
+        <span class="menu-text">{{ t('float.mic') }}</span>
+        <span class="menu-state">{{ micOn ? t('float.on') : t('float.off') }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="props.toggleGamepad">
         <span class="menu-icon"><IconDeviceGamepad2 :size="16" /></span>
-        <span class="menu-text">手柄</span>
-        <span class="menu-state">{{ gamepadOn ? '开' : '关' }}</span>
+        <span class="menu-text">{{ t('float.gamepad') }}</span>
+        <span class="menu-state">{{ gamepadOn ? t('float.on') : t('float.off') }}</span>
       </button>
       <div v-if="gamepadOn" class="gamepad-status" :title="props.gamepadStatus">
-        {{ props.gamepadStatus || '检测中...' }}
+        {{ props.gamepadStatus || t('float.detecting') }}
       </div>
     </div>
   </div>
@@ -735,7 +829,7 @@ onBeforeUnmount(() => {
         @click="modifyFps(f)"
       >
         <span class="menu-icon check-icon"><IconCheck v-if="fps === f" :size="16" /></span>
-        <span class="menu-text" :class="{ current: fps === f }">{{ f }} fps</span>
+        <span class="menu-text" :class="{ current: fps === f }">{{ t('float.fpsUnit', { n: f }) }}</span>
       </button>
     </div>
   </div>
@@ -762,7 +856,7 @@ onBeforeUnmount(() => {
         </span>
       </button>
       <div v-if="!currentMonitor?.resolutions.length" class="panel-note">
-        远端未上报分辨率列表,显示常见档位
+        {{ t('float.noResolutionList') }}
       </div>
     </div>
   </div>
@@ -788,10 +882,10 @@ onBeforeUnmount(() => {
         <span class="menu-text" :class="{ current: m.name === capturingMonitor }" :title="m.name">
           {{ m.name }}
           <template v-if="m.currentWidth > 0"> ({{ m.currentWidth }}×{{ m.currentHeight }})</template>
-          <template v-if="m.primary"> · 主</template>
+          <template v-if="m.primary"> · {{ t('float.primary') }}</template>
         </span>
       </button>
-      <div v-if="!monitors.length" class="panel-note">远端未上报显示器列表</div>
+      <div v-if="!monitors.length" class="panel-note">{{ t('float.noMonitorList') }}</div>
     </div>
   </div>
 </template>
@@ -905,8 +999,12 @@ onBeforeUnmount(() => {
 .menu-item.static {
   cursor: default;
 }
-.menu-item.danger .menu-text {
+.menu-item.danger .menu-text,
+.menu-item.danger .menu-icon {
   color: #f56c6c;
+}
+.menu-item.danger:hover:not(:disabled) {
+  background: #fef0f0;
 }
 .menu-icon {
   width: 20px;

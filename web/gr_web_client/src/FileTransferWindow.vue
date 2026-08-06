@@ -4,6 +4,7 @@
 // 下半部:统计条 + 传输记录表格
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   IconX,
@@ -30,9 +31,10 @@ const props = defineProps<{
   ft: FileTransferApi
 }>()
 
+const { t } = useI18n()
 const visible = defineModel<boolean>('visible', { required: true })
 
-const title = computed(() => `文件传输[web_${props.deviceId}]`)
+const title = computed(() => t('ft.title', { id: props.deviceId }))
 
 // ---------- 本地栏:File System Access 文件夹浏览 ----------
 const localRoot = ref<FsDirHandle | null>(null)
@@ -59,7 +61,7 @@ async function refreshLocal() {
     const names = new Set(localEntries.value.map((e) => e.name))
     selected.value = new Set([...selected.value].filter((n) => names.has(n)))
   } catch (err) {
-    ElMessage.error(`读取本地目录失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.error(t('ft.readLocalFail', { err: err instanceof Error ? err.message : String(err) }))
   } finally {
     localLoading.value = false
   }
@@ -106,7 +108,9 @@ async function uploadEntry(entry: FsEntry): Promise<boolean> {
     }
     return true
   } catch (err) {
-    ElMessage.error(`上传失败: ${entry.name} (${err instanceof Error ? err.message : String(err)})`)
+    ElMessage.error(
+      t('ft.uploadFail', { name: entry.name, err: err instanceof Error ? err.message : String(err) }),
+    )
     return false
   }
 }
@@ -134,22 +138,22 @@ async function uploadSelected() {
 async function downloadToLocal(item: RemoteFileInfo) {
   const cur = localStack.value[localStack.value.length - 1]
   if (!cur) {
-    ElMessage.warning('请先在左栏选择本地目录')
+    ElMessage.warning(t('ft.pickLocalFirst'))
     return
   }
   const r = await props.ft.downloadRaw(item)
   if (!r) {
-    ElMessage.error(`下载失败: ${item.name}`)
+    ElMessage.error(t('ft.downloadFail', { name: item.name }))
     return
   }
   try {
     await writeFile(cur, r.name, r.data)
     const savedTo = `${localPathText.value} / ${r.name}`
     props.ft.setTaskLocation(r.taskId, savedTo)
-    ElMessage.success(`已保存到本地: ${savedTo}`)
+    ElMessage.success(t('ft.savedLocal', { path: savedTo }))
     await refreshLocal()
   } catch (err) {
-    ElMessage.error(`写入本地文件失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.error(t('ft.writeFail', { err: err instanceof Error ? err.message : String(err) }))
   }
 }
 
@@ -159,11 +163,11 @@ const folderBusy = ref(false)
 async function downloadFolderToLocal(item: RemoteFileInfo) {
   const cur = localStack.value[localStack.value.length - 1]
   if (!cur) {
-    ElMessage.warning('请先在左栏选择本地目录')
+    ElMessage.warning(t('ft.pickLocalFirst'))
     return
   }
   if (folderBusy.value) {
-    ElMessage.warning('另一个文件夹正在下载中,请稍候')
+    ElMessage.warning(t('ft.folderBusy'))
     return
   }
   folderBusy.value = true
@@ -193,17 +197,19 @@ async function downloadFolderToLocal(item: RemoteFileInfo) {
         ok++
       } catch (err) {
         fail++
-        ElMessage.error(`写入本地文件失败: ${e.name} (${err instanceof Error ? err.message : String(err)})`)
+        ElMessage.error(
+          t('ft.writeFileFail', { name: e.name, err: err instanceof Error ? err.message : String(err) }),
+        )
       }
     }
     if (fail === 0) {
-      ElMessage.success(`文件夹下载完成: ${item.name} (${ok} 个文件)`)
+      ElMessage.success(t('ft.folderDone', { name: item.name, n: ok }))
     } else {
-      ElMessage.warning(`文件夹下载结束: ${item.name} (成功 ${ok},失败 ${fail})`)
+      ElMessage.warning(t('ft.folderPartial', { name: item.name, ok, fail }))
     }
     await refreshLocal()
   } catch (err) {
-    ElMessage.error(`下载文件夹失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.error(t('ft.folderFail', { err: err instanceof Error ? err.message : String(err) }))
   } finally {
     folderBusy.value = false
   }
@@ -212,19 +218,19 @@ async function downloadFolderToLocal(item: RemoteFileInfo) {
 // 降级模式:文件夹打包成 zip 走浏览器保存
 async function downloadFolderByZip(item: RemoteFileInfo) {
   if (folderBusy.value) {
-    ElMessage.warning('另一个文件夹正在下载中,请稍候')
+    ElMessage.warning(t('ft.folderBusy'))
     return
   }
   folderBusy.value = true
   try {
     const { ok, fail } = await props.ft.downloadFolderZip(item)
     if (fail === 0) {
-      ElMessage.success(`文件夹已打包下载: ${item.name}.zip (${ok} 个文件)`)
+      ElMessage.success(t('ft.zipDone', { name: item.name, n: ok }))
     } else {
-      ElMessage.warning(`文件夹打包下载结束: 成功 ${ok},失败 ${fail}`)
+      ElMessage.warning(t('ft.zipPartial', { ok, fail }))
     }
   } catch (err) {
-    ElMessage.error(`下载文件夹失败: ${err instanceof Error ? err.message : String(err)}`)
+    ElMessage.error(t('ft.folderFail', { err: err instanceof Error ? err.message : String(err) }))
   } finally {
     folderBusy.value = false
   }
@@ -277,7 +283,12 @@ async function uploadAll() {
         await props.ft.uploadFile(item.file)
         removeStaging(item.id)
       } catch (err) {
-        ElMessage.error(`上传失败: ${item.file.name} (${err instanceof Error ? err.message : String(err)})`)
+        ElMessage.error(
+          t('ft.uploadFail', {
+            name: item.file.name,
+            err: err instanceof Error ? err.message : String(err),
+          }),
+        )
       }
     }
     await props.ft.refresh()
@@ -316,7 +327,7 @@ function onDownload(item: RemoteFileInfo) {
 async function onCreateFolder() {
   try {
     await props.ft.createFolder()
-    ElMessage.success('新建文件夹成功')
+    ElMessage.success(t('ft.mkdirOk'))
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : String(err))
   }
@@ -325,11 +336,11 @@ async function onCreateFolder() {
 async function onRename(item: RemoteFileInfo) {
   let newName = ''
   try {
-    const r = await ElMessageBox.prompt('输入新名称(仅文件名,不含路径)', `重命名: ${item.name}`, {
+    const r = await ElMessageBox.prompt(t('ft.renamePrompt'), t('ft.renameTitle', { name: item.name }), {
       inputValue: item.name,
-      inputValidator: (v) => (!!v && !/[/\\]/.test(v)) || '名称不能为空且不能包含 / \\',
-      confirmButtonText: '重命名',
-      cancelButtonText: '取消',
+      inputValidator: (v) => (!!v && !/[/\\]/.test(v)) || t('ft.renameInvalid'),
+      confirmButtonText: t('ft.rename'),
+      cancelButtonText: t('common.cancel'),
     })
     newName = r.value
   } catch {
@@ -337,7 +348,7 @@ async function onRename(item: RemoteFileInfo) {
   }
   try {
     await props.ft.renameRemote(item, newName)
-    ElMessage.success('重命名成功')
+    ElMessage.success(t('ft.renameOk'))
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : String(err))
   }
@@ -345,17 +356,17 @@ async function onRename(item: RemoteFileInfo) {
 
 async function onDelete(item: RemoteFileInfo) {
   try {
-    await ElMessageBox.confirm(`确认删除「${item.name}」?该操作不可恢复。`, '删除', {
+    await ElMessageBox.confirm(t('ft.deleteConfirm', { name: item.name }), t('ft.deleteTitle'), {
       type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
+      confirmButtonText: t('ft.delete'),
+      cancelButtonText: t('common.cancel'),
     })
   } catch {
     return
   }
   try {
     await props.ft.deleteRemote(item)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('ft.deleteOk'))
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : String(err))
   }
@@ -377,16 +388,16 @@ function taskPercent(t: TransferTask): number {
   return t.total > 0 ? Math.min(100, Math.floor((t.transferred / t.total) * 100)) : 0
 }
 
-function taskStateText(t: TransferTask): string {
-  switch (t.state) {
+function taskStateText(task: TransferTask): string {
+  switch (task.state) {
     case 'running':
-      return '传输中'
+      return t('ft.stateRunning')
     case 'done':
-      return '完成'
+      return t('ft.stateDone')
     case 'cancelled':
-      return '已取消'
+      return t('ft.stateCancelled')
     default:
-      return '失败'
+      return t('ft.stateError')
   }
 }
 
@@ -403,7 +414,7 @@ function fmtSpeed(bps: number): string {
       <!-- 标题栏 -->
       <div class="ftw-titlebar">
         <span class="ftw-title">{{ title }}</span>
-        <button class="ftw-close" title="关闭" @click="visible = false">
+        <button class="ftw-close" :title="t('common.close')" @click="visible = false">
           <IconX :size="18" />
         </button>
       </div>
@@ -414,15 +425,15 @@ function fmtSpeed(bps: number): string {
         <div class="ftw-pane">
           <template v-if="fsAccessSupported">
             <div class="ftw-pane-header">
-              <span class="ftw-pane-title">本地</span>
+              <span class="ftw-pane-title">{{ t('ft.local') }}</span>
               <el-button size="small" @click="pickLocalDir">
-                <el-icon><IconFolderOpen /></el-icon>&nbsp;选择目录
+                <el-icon><IconFolderOpen /></el-icon>&nbsp;{{ t('ft.pickDir') }}
               </el-button>
               <el-button size="small" :disabled="localStack.length <= 1" @click="localUp">
-                <el-icon><IconArrowLeft /></el-icon>&nbsp;上级
+                <el-icon><IconArrowLeft /></el-icon>&nbsp;{{ t('ft.up') }}
               </el-button>
               <el-button size="small" :disabled="!localRoot || localLoading" @click="refreshLocal">
-                <el-icon><IconRefresh /></el-icon>&nbsp;刷新
+                <el-icon><IconRefresh /></el-icon>&nbsp;{{ t('ft.refresh') }}
               </el-button>
               <el-button
                 size="small"
@@ -431,14 +442,14 @@ function fmtSpeed(bps: number): string {
                 :loading="uploading"
                 @click="uploadSelected"
               >
-                <el-icon><IconUpload /></el-icon>&nbsp;上传选中({{ selectedCount }})
+                <el-icon><IconUpload /></el-icon>&nbsp;{{ t('ft.uploadSelected', { n: selectedCount }) }}
               </el-button>
             </div>
             <div v-if="localRoot" class="ftw-local-path" :title="localPathText">
               {{ localPathText }}
             </div>
             <div v-if="!localRoot" class="ftw-local-empty">
-              点「选择目录」挑选一个本地文件夹,即可与远端互传文件
+              {{ t('ft.localEmpty') }}
             </div>
             <div v-else v-loading="localLoading" class="ftw-local-list">
               <div
@@ -464,7 +475,7 @@ function fmtSpeed(bps: number): string {
                   link
                   type="primary"
                   :disabled="!ft.ftReady.value"
-                  :title="e.kind === 'file' ? '上传到远端当前目录' : '递归上传文件夹到远端当前目录'"
+                  :title="e.kind === 'file' ? t('ft.uploadFileTip') : t('ft.uploadFolderTip')"
                   @click="uploadEntry(e)"
                 >
                   <el-icon><IconUpload /></el-icon>
@@ -476,8 +487,8 @@ function fmtSpeed(bps: number): string {
           <!-- 降级:暂存区 -->
           <template v-else>
             <div class="ftw-pane-header">
-              <span class="ftw-pane-title">本地(待传文件)</span>
-              <el-button size="small" @click="pickFiles">选择文件</el-button>
+              <span class="ftw-pane-title">{{ t('ft.localStaging') }}</span>
+              <el-button size="small" @click="pickFiles">{{ t('ft.pickFiles') }}</el-button>
               <el-button
                 size="small"
                 type="primary"
@@ -485,7 +496,7 @@ function fmtSpeed(bps: number): string {
                 :loading="uploading"
                 @click="uploadAll"
               >
-                全部上传
+                {{ t('ft.uploadAll') }}
               </el-button>
               <input ref="fileInput" type="file" multiple class="ftw-file-input" @change="onFilesChosen" />
             </div>
@@ -496,7 +507,7 @@ function fmtSpeed(bps: number): string {
               @dragleave.prevent="dragOver = false"
               @drop.prevent="onDrop"
             >
-              <div v-if="!staging.length" class="ftw-drop-hint">拖拽文件到此处,或点「选择文件」</div>
+              <div v-if="!staging.length" class="ftw-drop-hint">{{ t('ft.dropHint') }}</div>
               <div v-for="s in staging" :key="s.id" class="ftw-staging-item">
                 <el-icon class="ftw-entry-icon"><IconFile /></el-icon>
                 <span class="ftw-staging-name" :title="s.file.name">{{ s.file.name }}</span>
@@ -514,9 +525,9 @@ function fmtSpeed(bps: number): string {
         <!-- 右栏:远端 -->
         <div class="ftw-pane">
           <div class="ftw-pane-header">
-            <span class="ftw-pane-title">远端</span>
+            <span class="ftw-pane-title">{{ t('ft.remote') }}</span>
             <el-button size="small" :disabled="!ft.ftReady.value || ft.ftLoading.value" @click="ft.up()">
-              <el-icon><IconArrowLeft /></el-icon>&nbsp;上级
+              <el-icon><IconArrowLeft /></el-icon>&nbsp;{{ t('ft.up') }}
             </el-button>
             <el-input
               v-model="ft.ftPath.value"
@@ -531,10 +542,10 @@ function fmtSpeed(bps: number): string {
               :disabled="!ft.ftReady.value"
               @click="ft.refresh()"
             >
-              <el-icon><IconRefresh /></el-icon>&nbsp;刷新
+              <el-icon><IconRefresh /></el-icon>&nbsp;{{ t('ft.refresh') }}
             </el-button>
             <el-button size="small" :disabled="!ft.ftReady.value" @click="onCreateFolder">
-              <el-icon><IconFolderPlus /></el-icon>&nbsp;新建文件夹
+              <el-icon><IconFolderPlus /></el-icon>&nbsp;{{ t('ft.createFolder') }}
             </el-button>
           </div>
           <el-alert
@@ -552,7 +563,7 @@ function fmtSpeed(bps: number): string {
               height="100%"
               @row-dblclick="onRowDblClick"
             >
-              <el-table-column label="名称" min-width="200">
+              <el-table-column :label="t('ft.name')" min-width="200">
                 <template #default="{ row }">
                   <span class="ftw-file-name" :title="row.path">
                     <el-icon class="ftw-entry-icon">
@@ -564,25 +575,25 @@ function fmtSpeed(bps: number): string {
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="大小" width="100">
+              <el-table-column :label="t('ft.size')" width="100">
                 <template #default="{ row }">
                   {{ row.type === 2 ? ft.fmtSize(row.size) : '-' }}
                 </template>
               </el-table-column>
-              <el-table-column label="修改日期" width="150">
+              <el-table-column :label="t('ft.modified')" width="150">
                 <template #default="{ row }">
                   {{ fmtDate(row.date) }}
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="150" fixed="right">
+              <el-table-column :label="t('ft.actions')" width="150" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" link type="primary" title="下载到本地" @click="onDownload(row)">
+                  <el-button size="small" link type="primary" :title="t('ft.download')" @click="onDownload(row)">
                     <el-icon><IconDownload /></el-icon>
                   </el-button>
-                  <el-button size="small" link type="primary" title="重命名" @click="onRename(row)">
+                  <el-button size="small" link type="primary" :title="t('ft.rename')" @click="onRename(row)">
                     <el-icon><IconEdit /></el-icon>
                   </el-button>
-                  <el-button size="small" link type="danger" title="删除" @click="onDelete(row)">
+                  <el-button size="small" link type="danger" :title="t('ft.delete')" @click="onDelete(row)">
                     <el-icon><IconTrash /></el-icon>
                   </el-button>
                 </template>
@@ -595,7 +606,7 @@ function fmtSpeed(bps: number): string {
       <!-- 下半部:统计条 + 传输记录 -->
       <div class="ftw-bottom">
         <div class="ftw-stats">
-          <span>任务: {{ statTotal }} / 完成 {{ statDone }} / 失败 {{ statFailed }}</span>
+          <span>{{ t('ft.stats', { total: statTotal, done: statDone, failed: statFailed }) }}</span>
           <span class="ftw-speed up">
             <el-icon><IconUpload /></el-icon> {{ fmtSpeed(upSpeed) }}
           </span>
@@ -603,38 +614,38 @@ function fmtSpeed(bps: number): string {
             <el-icon><IconDownload /></el-icon> {{ fmtSpeed(downSpeed) }}
           </span>
           <el-button size="small" class="ftw-clear" :disabled="!statDone && !statFailed" @click="ft.clearFinished()">
-            清除已完成
+            {{ t('ft.clearFinished') }}
           </el-button>
         </div>
         <div class="ftw-table-wrap">
           <el-table :data="tasks" size="small" height="100%">
-          <el-table-column label="方向" width="80">
+          <el-table-column :label="t('ft.direction')" width="80">
             <template #default="{ row }">
               <span class="ftw-direction">
                 <el-icon>
                   <IconUpload v-if="row.direction === 'upload'" />
                   <IconDownload v-else />
                 </el-icon>
-                {{ row.direction === 'upload' ? '上传' : '下载' }}
+                {{ row.direction === 'upload' ? t('ft.upload') : t('ft.downloadDir') }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="文件名" min-width="180">
+          <el-table-column :label="t('ft.fileName')" min-width="180">
             <template #default="{ row }">
               <span class="ftw-file-name" :title="row.fileName">{{ row.fileName }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="大小" width="90">
+          <el-table-column :label="t('ft.size')" width="90">
             <template #default="{ row }">
               {{ row.total > 0 ? ft.fmtSize(row.total) : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="位置" min-width="160">
+          <el-table-column :label="t('ft.location')" min-width="160">
             <template #default="{ row }">
               <span class="ftw-location" :title="row.location ?? ''">{{ row.location || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="进度" min-width="140">
+          <el-table-column :label="t('ft.progress')" min-width="140">
             <template #default="{ row }">
               <el-progress
                 :percentage="taskPercent(row)"
@@ -642,19 +653,19 @@ function fmtSpeed(bps: number): string {
               />
             </template>
           </el-table-column>
-          <el-table-column label="速度" width="100">
+          <el-table-column :label="t('ft.speed')" width="100">
             <template #default="{ row }">
               {{ row.state === 'running' ? fmtSpeed(row.speedBps) : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="80">
+          <el-table-column :label="t('ft.state')" width="80">
             <template #default="{ row }">
               <span :class="{ 'ftw-state-error': row.state === 'error' }" :title="row.error ?? ''">
                 {{ taskStateText(row) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="70">
+          <el-table-column :label="t('ft.actions')" width="70">
             <template #default="{ row }">
               <el-button
                 v-if="row.state === 'running'"
@@ -663,7 +674,7 @@ function fmtSpeed(bps: number): string {
                 type="danger"
                 @click="ft.cancel(row)"
               >
-                取消
+                {{ t('ft.cancel') }}
               </el-button>
             </template>
           </el-table-column>
