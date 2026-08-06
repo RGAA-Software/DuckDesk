@@ -87,7 +87,77 @@ if errorlevel 1 exit /b %errorlevel%
 echo ----------------------BUILD START------------------------
 echo ---------------------------------------------------------
 echo ---------------------------------------------------------
+
+rem Always rebuild frontends so collect_dist packages fresh assets.
+call :build_npm_web "web\gr_web_client" "web_client"
+if errorlevel 1 exit /b %errorlevel%
+call :build_npm_web "web\gr_cms" "gr_cms"
+if errorlevel 1 exit /b %errorlevel%
+
 cmake --build build_official -j18
 if errorlevel 1 exit /b %errorlevel%
 
 endlocal
+exit /b 0
+
+rem ---------------------------------------------------------------------------
+rem Build a Vite/npm frontend and wipe stale hashed outputs.
+rem   %1 = project path relative to repo root (e.g. web\gr_web_client)
+rem   %2 = collect_dist folder name under build_official\dist (e.g. web_client)
+rem ---------------------------------------------------------------------------
+:build_npm_web
+set "WEB_PROJ_DIR=%~dp0%~1"
+set "WEB_DIST_NAME=%~2"
+if not exist "%WEB_PROJ_DIR%\package.json" (
+    echo ERROR: web project not found: %WEB_PROJ_DIR%
+    exit /b 1
+)
+
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: npm not found in PATH. Install Node.js and retry.
+    exit /b 1
+)
+
+echo ----------------------WEB FRONTEND-----------------------
+echo Building: %WEB_PROJ_DIR%  -^>  build_official\dist\%WEB_DIST_NAME%
+
+rem Wipe previous outputs so hashed vite assets cannot linger.
+if exist "%WEB_PROJ_DIR%\dist" (
+    echo Removing stale %WEB_PROJ_DIR%\dist ...
+    rmdir /s /q "%WEB_PROJ_DIR%\dist"
+)
+if exist "%~dp0build_official\dist\%WEB_DIST_NAME%" (
+    echo Removing stale %~dp0build_official\dist\%WEB_DIST_NAME% ...
+    rmdir /s /q "%~dp0build_official\dist\%WEB_DIST_NAME%"
+)
+
+pushd "%WEB_PROJ_DIR%"
+rem Always sync deps so package.json additions cannot leave a stale node_modules.
+echo npm ci...
+call npm ci
+if errorlevel 1 (
+    echo npm ci failed, falling back to npm install...
+    call npm install
+    if errorlevel 1 (
+        popd
+        echo ERROR: npm install failed in %~1
+        exit /b 1
+    )
+)
+echo npm run build...
+call npm run build
+if errorlevel 1 (
+    popd
+    echo ERROR: npm run build failed in %~1
+    exit /b 1
+)
+popd
+
+if not exist "%WEB_PROJ_DIR%\dist\index.html" (
+    echo ERROR: %~1 build did not produce dist\index.html
+    exit /b 1
+)
+echo Frontend build OK: %WEB_PROJ_DIR%\dist
+echo ---------------------------------------------------------
+exit /b 0

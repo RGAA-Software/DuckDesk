@@ -223,19 +223,29 @@ def main():
         copy_file(joystick_src, os.path.join(dist_dir, "joystick.exe"))
 
     # ------------------------------------------------------------------
-    # 9. Web client pages (frontend build output)  →  dist/web_client/
+    # 9. Web frontends (vite build output) → dist/<name>/
     # ------------------------------------------------------------------
-    web_client_src = os.path.join(source_dir, "web", "gr_web_client", "dist")
-    if os.path.isdir(web_client_src):
-        web_client_dst = os.path.join(dist_dir, "web_client")
-        for root, dirs, files in os.walk(web_client_src):
-            rel_root = os.path.relpath(root, web_client_src)
-            dst_root = os.path.join(web_client_dst, rel_root) if rel_root != "." else web_client_dst
-            os.makedirs(dst_root, exist_ok=True)
-            for f in files:
-                shutil.copy2(os.path.join(root, f), os.path.join(dst_root, f))
-    else:
-        print(f"  - skip web_client (not found): {web_client_src}")
+    def collect_web_frontend(rel_src_parts, dst_name):
+        src = os.path.join(source_dir, *rel_src_parts)
+        dst = os.path.join(dist_dir, dst_name)
+        if not os.path.isdir(src):
+            print(f"ERROR: {dst_name} build output not found: {src}", file=sys.stderr)
+            print(
+                f"Run build_official.bat or: cd {'/'.join(rel_src_parts[:-1])} && npm run build",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not os.path.isfile(os.path.join(src, "index.html")):
+            print(f"ERROR: {dst_name} dist is incomplete (missing index.html): {src}", file=sys.stderr)
+            sys.exit(1)
+        # Replace atomically so stale vite hashed assets cannot linger.
+        if os.path.isdir(dst):
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+        print(f"  + {dst_name}/  (from {src})")
+
+    collect_web_frontend(("web", "gr_web_client", "dist"), "web_client")
+    collect_web_frontend(("web", "gr_cms", "dist"), "gr_cms")
 
     print(f"\nDone. Dist folder: {dist_dir}")
 
