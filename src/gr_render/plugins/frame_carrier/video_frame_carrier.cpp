@@ -55,14 +55,16 @@ namespace tc
     bool VideoFrameCarrier::D3D11Texture2DLockMutex(const ComPtr<ID3D11Texture2D>& texture2d) {
         HRESULT res;
         ComPtr<IDXGIKeyedMutex> key_mutex;
-        res = texture2d.As<IDXGIKeyedMutex>(&key_mutex);
-        if (FAILED(res)) {
-            LOGE("D3D11Texture2DReleaseMutex IDXGIKeyedMutex. error\n");
-            return false;
+        res = texture2d.As(&key_mutex);
+        if (FAILED(res) || !key_mutex) {
+            // Plain SHARED textures (e.g. current DDA path) have no keyed mutex.
+            return true;
         }
-        res = key_mutex->AcquireSync(0x0, 17/*INFINITE*/);
+        // Game-hook SharedTexture uses SHARED_KEYEDMUTEX; must acquire before GPU access
+        // or CopyResource fails and the destination stays black (zero-init).
+        res = key_mutex->AcquireSync(0x0, INFINITE);
         if (FAILED(res)) {
-            LOGE("D3D11Texture2DReleaseMutex AcquireSync failed.\n");
+            LOGE("D3D11Texture2DLockMutex AcquireSync failed: {:x}", (uint32_t)res);
             return false;
         }
         return true;
@@ -71,27 +73,26 @@ namespace tc
     bool VideoFrameCarrier::D3D11Texture2DReleaseMutex(const ComPtr<ID3D11Texture2D>& texture2d) {
         HRESULT res;
         ComPtr<IDXGIKeyedMutex> key_mutex;
-        res = texture2d.As<IDXGIKeyedMutex>(&key_mutex);
-        if (FAILED(res)) {
-            LOGE("D3D11Texture2DReleaseMutex IDXGIKeyedMutex. error\n");
-            return false;
+        res = texture2d.As(&key_mutex);
+        if (FAILED(res) || !key_mutex) {
+            return true;
         }
         res = key_mutex->ReleaseSync(0x0);
         if (FAILED(res)) {
-            LOGE("D3D11Texture2DReleaseMutex ReleaseSync failed.\n");
+            LOGE("D3D11Texture2DReleaseMutex ReleaseSync failed: {:x}", (uint32_t)res);
             return false;
         }
         return true;
     }
 
     bool VideoFrameCarrier::CopyID3D11Texture2D(const ComPtr<ID3D11Texture2D>& shared_texture) {
-        //if (!D3D11Texture2DLockMutex(shared_texture)) {
-        //    LOGE("D3D11Texture2DLockMutex error");
-        //    return false;
-        //}
-        //std::shared_ptr<void> auto_release_texture2D_mutex((void *) nullptr, [=, this](void *temp) {
-        //    D3D11Texture2DReleaseMutex(shared_texture);
-        //});
+        if (!D3D11Texture2DLockMutex(shared_texture)) {
+            LOGE("D3D11Texture2DLockMutex error");
+            return false;
+        }
+        std::shared_ptr<void> auto_release_texture2D_mutex((void *) nullptr, [=, this](void *temp) {
+            D3D11Texture2DReleaseMutex(shared_texture);
+        });
 
         HRESULT res;
         D3D11_TEXTURE2D_DESC desc;
@@ -126,15 +127,17 @@ namespace tc
             createDesc.MipLevels = 1;
             createDesc.ArraySize = 1;
             createDesc.SampleDesc.Count = 1;
-            //createDesc.Usage = D3D11_USAGE_DEFAULT;
-            //createDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-            createDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            createDesc.Usage = D3D11_USAGE_STAGING;
+            // DEFAULT for NVENC CopyResource; STAGING as encode source can yield black on some paths.
+            createDesc.Usage = D3D11_USAGE_DEFAULT;
+            createDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+            createDesc.CPUAccessFlags = 0;
             res = curDevice->CreateTexture2D(&createDesc, NULL, texture2d_.GetAddressOf());
             if (FAILED(res)) {
-                LOGE("desktop capture create texture failed with:{}", StringUtil::GetErrorStr(res).c_str());
+                LOGE("frame carrier create texture failed with:{} format={}",
+                     StringUtil::GetErrorStr(res).c_str(), (int)desc.Format);
                 return false;
             }
+            LOGI("frame carrier texture: {}x{} dxgi_format={}", desc.Width, desc.Height, (int)desc.Format);
         }
         ComPtr<ID3D11DeviceContext> ctx;
         curDevice->GetImmediateContext(&ctx);

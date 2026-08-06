@@ -5,28 +5,29 @@ version = "1.0.1"
 # NOTE: encoder/capture/transmission settings were removed.
 # In desktop mode they are all overridden by command line args passed by the panel;
 # the render falls back to built-in defaults when running standalone.
+# Listen port in isolate mode: pass --network_listen_port (see scripts/start_render_hook.bat).
 
 # application settings
 [application]
+# desktop | game-hook
+mode = "game-hook"
 # game-path
 # 1.exe path，attention: UE games use exe in specific subdir => "XXGame/Binaries/Win64/XXGame.exe
 # 2.steam://rungameid/xxx
 # 3.steam://open/bigpicture Steam Big Picture Mode
 
-# D:\\SteamLibrary\\steamapps\\common\\Flower girl 2\\Flower Girl 2.exe
+# Fill locally for game-hook debug; do not commit machine-specific paths.
 game-path = ""
+#game-path = "D:\\path\\to\\Game.exe"
 # Steam BIG Picture Mode
 #game-path = "steam://open/bigpicture"
-#game-path = "C:/software/u3d_demo/u3d_demo/u3d_shared_window_demo.exe"
 
-#
 game-arguments = ""
 #game-arguments = "-force-d3d11 -D3D11 -dx11"
 #game-arguments = "-force-d3d12 -D3D12 -dx12"
 
-# useless now
+# unused by current launcher
 hide-after-started = false
-# useless now
 force-fullscreen = false
 
 # capture method

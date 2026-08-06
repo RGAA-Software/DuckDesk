@@ -46,6 +46,7 @@ namespace tc
 
     private:
         void AddUserProxyRouter();
+        void AddIpcRouter();
         void AddWebsocketRouter(const std::string& path);
         void AddWebClientRouter();
 

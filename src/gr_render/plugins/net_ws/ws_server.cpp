@@ -16,6 +16,7 @@
 #include "ws_filetransfer_router.h"
 #include "ws_user_proxy_router.h"
 #include "gr_render/plugin_interface/gr_plugin_events.h"
+#include "tc_capture_new/capture_message.h"
 #include "ws_plugin.h"
 #include "tc_common_new/url_helper.h"
 #include "http_handler.h"
@@ -23,6 +24,7 @@
 static std::string kUrlMedia = "/media";
 static std::string kUrlFileTransfer = "/file/transfer";
 static std::string kUrlUserProxy = "/user-proxy";
+static std::string kUrlIpc = "/ipc";
 static std::string kApiPing = "/api/ping";
 static std::string kApiVerifySecurityPassword = "/verify/security/password";
 static std::string kApiGetRenderConfiguration = "/get/render/configuration";
@@ -101,6 +103,8 @@ namespace tc
         // media websocket
         AddWebsocketRouter(kUrlMedia);
         AddWebsocketRouter(kUrlFileTransfer);
+        // game-hook DLL (tc_graphics) posts CaptureVideoFrame here
+        AddIpcRouter();
 #if GR_USER_PROXY_ENABLED
         AddUserProxyRouter();
 #endif
@@ -257,6 +261,49 @@ namespace tc
                 }
             })
         );
+    }
+
+    void WsPluginServer::AddIpcRouter() {
+        // Injected tc_graphics.dll connects here and posts CaptureVideoFrame blobs.
+        // Forward via plugin event bus (same path as DDA capture) — no link to rdApp.
+        auto weak_self = weak_from_this();
+        server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
+            .on("message", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
+                auto self = weak_self.lock();
+                if (!self || self->exiting_ || !self->plugin_) {
+                    return;
+                }
+                if (data.size() < sizeof(CaptureBaseMessage)) {
+                    return;
+                }
+                auto base_msg = (const CaptureBaseMessage*)data.data();
+                if (base_msg->type_ != kCaptureVideoFrame) {
+                    return;
+                }
+                if (data.size() != sizeof(CaptureVideoFrame)) {
+                    LOGE("IPC CaptureVideoFrame size mismatch: got {}, expect {}",
+                         data.size(), sizeof(CaptureVideoFrame));
+                    return;
+                }
+                auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
+                memcpy(&event->frame_, data.data(), sizeof(CaptureVideoFrame));
+                self->plugin_->CallbackEvent(event);
+            })
+            .on("open", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr) {
+                auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                sess_ptr->ws_stream().binary(true);
+                sess_ptr->set_no_delay(true);
+                LOGI("IPC (/ipc) client connected from {}:{}",
+                     sess_ptr->remote_address().c_str(), sess_ptr->remote_port());
+            })
+            .on("close", [](std::shared_ptr<asio2::http_session> &sess_ptr) {
+                LOGI("IPC (/ipc) client disconnected");
+            })
+        );
+        LOGI("Registered websocket route: {}", kUrlIpc);
     }
 
     void WsPluginServer::AddWebsocketRouter(const std::string &path) {

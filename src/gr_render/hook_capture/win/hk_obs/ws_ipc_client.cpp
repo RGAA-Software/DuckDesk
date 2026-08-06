@@ -18,63 +18,65 @@ namespace tc
     }
 
     void WsIpcClient::Start() {
-        wss_client_ = std::make_shared<asio2::wss_client>();
-        wss_client_->set_connect_timeout(std::chrono::seconds(2));
-        wss_client_->bind_init([&]() {
-            wss_client_->ws_stream().binary(true);
+        // Host net_ws listens with asio2::http_server (plain WS). Using wss_client here
+        // previously made the injected DLL unable to connect to /ipc.
+        ws_client_ = std::make_shared<asio2::ws_client>();
+        ws_client_->set_auto_reconnect(true);
+        ws_client_->set_timeout(std::chrono::seconds(2));
+        ws_client_->bind_init([&]() {
+            ws_client_->ws_stream().binary(true);
+            ws_client_->set_no_delay(true);
         })
         .bind_connect([&]() {
             if (asio2::get_last_error()) {
-                LOGI("ws client connect msg: {}", asio2::get_last_error_msg());
+                LOGE("ws ipc client connect failed: {} {}",
+                     asio2::last_error_val(), asio2::last_error_msg());
             } else {
-                LOGI("ws client connect msg success.");
+                LOGI("ws ipc client connected to 127.0.0.1:{}/ipc", port_);
             }
         })
         .bind_upgrade([&]() {
             if (asio2::get_last_error()) {
-                LOGI("update failed : {}", asio2::get_last_error_msg());
+                LOGE("ws ipc upgrade failed: {}", asio2::last_error_msg());
             } else {
-                const websocket::response_type &rep = wss_client_->get_upgrade_response();
-                auto it = rep.find(http::field::authentication_results);
-                if (it != rep.end()) {
-                    beast::string_view auth = it->value();
-                    LOGI("auth == 200 OK ? : {}", (auth == "200 OK"));
-                }
-                LOGI("update success...");
+                LOGI("ws ipc upgrade success");
             }
         })
+        .bind_disconnect([&]() {
+            LOGW("ws ipc client disconnected from /ipc");
+        })
         .bind_recv([&](std::string_view data) {
-//                auto msg = std::make_shared<tc::Message>();
-//                auto ok = msg->ParseFromArray(data.data(), data.size());
-//                if (!ok) {
-//                    LOGI("Parse to ipc message failed. recv data size: {}", (int) data.size());
-//                    return;
-//                }
             this->DispatchIpcMessage(data);
         });
 
-        LOGI("will start at :{}, {}", port_, "/ipc");
-        if (!wss_client_->async_start("127.0.0.1", port_, "/ipc")) {
-            LOGI("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+        LOGI("ws ipc client starting: 127.0.0.1:{} /ipc", port_);
+        if (!ws_client_->async_start("127.0.0.1", port_, "/ipc")) {
+            LOGE("ws ipc async_start failure: {} {}",
+                 asio2::last_error_val(), asio2::last_error_msg());
         }
-        LOGI("After start ws client....");
     }
 
     void WsIpcClient::Exit() {
-        if (wss_client_) {
-            wss_client_->stop();
+        if (ws_client_) {
+            ws_client_->stop();
         }
     }
 
     void WsIpcClient::PostIpcMessage(const std::string& msg) {
-        if (!wss_client_) {
+        if (!ws_client_) {
             LOGE("ws ipc client is null.");
             return;
         }
-        wss_client_->async_send(msg);
+        if (!ws_client_->is_started()) {
+            return;
+        }
+        ws_client_->async_send(msg);
     }
 
     void WsIpcClient::DispatchIpcMessage(std::string_view msg) {
+        if (!ipc_cbk_ || msg.size() < sizeof(CaptureBaseMessage)) {
+            return;
+        }
         auto base_msg = (CaptureBaseMessage*)msg.data();
         if (base_msg->type_ == kMouseEventMessage) {
             if (msg.size() != sizeof(MouseEventMessage)) {
@@ -87,7 +89,7 @@ namespace tc
         }
         else if (base_msg->type_ == kKeyboardEventMessage) {
             if (msg.size() != sizeof(KeyboardEventMessage)) {
-                LOGE("msg size != sizeof(KeyboardEventMessage), msg size: {}, event size: {}", msg.size(), sizeof(MouseEventMessage));
+                LOGE("msg size != sizeof(KeyboardEventMessage), msg size: {}, event size: {}", msg.size(), sizeof(KeyboardEventMessage));
                 return;
             }
             auto kem = std::make_shared<KeyboardEventMessage>();

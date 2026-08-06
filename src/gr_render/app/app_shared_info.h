@@ -5,14 +5,10 @@
 #ifndef TC_APPLICATION_APP_SHARED_INFO_H
 #define TC_APPLICATION_APP_SHARED_INFO_H
 
-#include <map>
+#include <cstdint>
+#include <filesystem>
 #include <memory>
-#include <functional>
 #include <string>
-
-//#include <Poco/NamedEvent.h>
-//#include <Poco/SharedMemory.h>
-//#include <Poco/NamedMutex.h>
 
 #include "tc_capture_new/capture_message.h"
 
@@ -21,22 +17,22 @@ namespace tc
 
     class RdContext;
 
-    // write information to shared memory, so the dll can read the shm after it is injected.
+    // Writes hook bootstrap config for the injected DLL (ipc port + DXGI offsets).
+    // Uses a small file under Public\GoDesk\hook_boot\ — NOT shared memory.
+    // Ongoing frame IPC is plain WebSocket /ipc.
     class AppSharedInfo {
     public:
         static std::shared_ptr<AppSharedInfo> Make(const std::shared_ptr<RdContext>& ctx);
+        static std::filesystem::path BootConfigPath(uint32_t pid);
 
         explicit AppSharedInfo(const std::shared_ptr<RdContext>& ctx);
-        // write data to target shared memory
+        // Compatible entry: shm_name like "application_shm_{pid}" → file bootstrap.
         void WriteData(const std::string& shm_name, const std::string& data);
+        bool WriteBootConfig(uint32_t pid, const std::string& data);
         void Exit();
 
     private:
-        void GuaranteeTargetMemory(const std::string& shm_name);
-
-    private:
         std::shared_ptr<RdContext> context_ = nullptr;
-//        std::map<std::string, std::shared_ptr<Poco::SharedMemory>> target_memories_;
     };
 
 }

@@ -826,72 +826,102 @@ std::wstring GetDllPath(HMODULE module) {
 }
 
 static HookManager *g_hook_manager = HookManager::Instance();
+static HANDLE g_hook_init_thread = NULL;
+
+// Heavy work (file I/O, WS client / asio threads, detours) must NOT run under
+// DllMain loader lock — that deadlocks LoadLibrary and makes inject time out.
+static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
+    HINSTANCE hinst = (HINSTANCE)param;
+    wchar_t name[MAX_PATH];
+
+    g_hook_manager->Init();
+
+    std::wstring dll_path = GetDllPath(hinst);
+    g_hook_manager->dll_path_ = dll_path;
+
+    // Boot config is a small file (port + DXGI offsets). Frame IPC is WS /ipc only.
+    if (!g_hook_manager->app_shared_msg_ || g_hook_manager->app_shared_msg_->ipc_port_ == 0) {
+        auto fallback_log = std::format(L"{}/tc_graphics_boot_fail.log", dll_path);
+        tc::Logger::InitLog(fallback_log, true);
+        LOGE("Hook boot config missing — refuse to hook (avoid crashing the game)");
+        return 0;
+    }
+
+    auto log_path = std::format(L"{}/tc_graphics_{}.log", dll_path, g_hook_manager->app_shared_msg_->ipc_port_);
+    tc::Logger::InitLog(log_path, true);
+    g_hook_manager->StartIpcClient();
+    g_hook_manager->DumpSharedMessage();
+
+    LOGI("Dll path: {}", StringUtil::ToUTF8(dll_path));
+
+    g_hook_manager->HookMethods();
+
+    if (!init_dll()) {
+        LOGE("[OBS] Duplicate hook library");
+        return 0;
+    }
+
+    HANDLE cur_thread = NULL;
+    bool success = DuplicateHandle(GetCurrentProcess(),
+                                   GetCurrentThread(),
+                                   GetCurrentProcess(), &cur_thread,
+                                   SYNCHRONIZE, false, 0);
+    if (!success) {
+        LOGE("[OBS] Failed to get current thread handle");
+    }
+
+    if (!init_signals()) {
+        LOGE("init signals failed.");
+        return 0;
+    }
+    if (!init_system_path()) {
+        LOGE("init system path failed.");
+        return 0;
+    }
+    if (!init_hook_info()) {
+        LOGE("init hook info failed.");
+        return 0;
+    }
+    if (!init_mutexes()) {
+        LOGE("init mutexes failed.");
+        return 0;
+    }
+
+    /* this prevents the library from being automatically unloaded
+     * by the next FreeLibrary call */
+    GetModuleFileNameW(hinst, name, MAX_PATH);
+    LoadLibraryW(name);
+    LOGI("LoadLibrary: {}", StringUtil::ToUTF8(name));
+
+    capture_thread = CreateThread(
+            NULL, 0, (LPTHREAD_START_ROUTINE) main_capture_thread,
+            (LPVOID) cur_thread, 0, 0);
+    if (!capture_thread) {
+        if (cur_thread) {
+            CloseHandle(cur_thread);
+        }
+        LOGE("CreateThread for main_capture_thread failed");
+        return 0;
+    }
+    LOGI("CreateThread for main_capture_thread success.");
+    return 0;
+}
 
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1) {
     if (reason == DLL_PROCESS_ATTACH) {
-        wchar_t name[MAX_PATH];
-
         dll_inst = hinst;
-        g_hook_manager->Init();
-
-        std::wstring dll_path = GetDllPath(hinst);
-        g_hook_manager->dll_path_ = dll_path;
-        auto log_path = std::format(L"{}/tc_graphics_{}.log", dll_path, g_hook_manager->app_shared_msg_->ipc_port_);
-        tc::Logger::InitLog(log_path, true);
-        g_hook_manager->StartIpcClient();
-        g_hook_manager->DumpSharedMessage();
-
-        LOGI("Dll path: {}", StringUtil::ToUTF8(dll_path));
-
-        g_hook_manager->HookMethods();
-
-        if (!init_dll()) {
-            LOGE("[OBS] Duplicate hook library");
-            return false;
+        DisableThreadLibraryCalls(hinst);
+        // Defer all real init so CreateRemoteThread(LoadLibrary) can return quickly.
+        g_hook_init_thread = CreateThread(NULL, 0, HookDeferredInitThread, (LPVOID)hinst, 0, NULL);
+        if (!g_hook_init_thread) {
+            return FALSE;
         }
-
-        HANDLE cur_thread;
-        bool success = DuplicateHandle(GetCurrentProcess(),
-                                       GetCurrentThread(),
-                                       GetCurrentProcess(), &cur_thread,
-                                       SYNCHRONIZE, false, 0);
-
-        if (!success)
-            LOGE("[OBS] Failed to get current thread handle");
-
-        if (!init_signals()) {
-            LOGE("init signals failed.");
-            return false;
-        }
-        if (!init_system_path()) {
-            LOGE("init system path failed.");
-            return false;
-        }
-        if (!init_hook_info()) {
-            LOGE("init hook info failed.");
-            return false;
-        }
-        if (!init_mutexes()) {
-            LOGE("init mutexes failed.");
-            return false;
-        }
-
-        /* this prevents the library from being automatically unloaded
-         * by the next FreeLibrary call */
-        GetModuleFileNameW(hinst, name, MAX_PATH);
-        LoadLibraryW(name);
-        LOGI("LoadLibrary: {}", StringUtil::ToUTF8(name));
-
-        capture_thread = CreateThread(
-                NULL, 0, (LPTHREAD_START_ROUTINE) main_capture_thread,
-                (LPVOID) cur_thread, 0, 0);
-        if (!capture_thread) {
-            CloseHandle(cur_thread);
-            return false;
-        }
-        LOGI("CreateThread for main_capture_thread success.");
-
     } else if (reason == DLL_PROCESS_DETACH) {
+        if (g_hook_init_thread) {
+            WaitForSingleObject(g_hook_init_thread, 1000);
+            CloseHandle(g_hook_init_thread);
+            g_hook_init_thread = NULL;
+        }
         if (!dup_hook_mutex) {
             return true;
         }

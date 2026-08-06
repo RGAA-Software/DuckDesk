@@ -10,6 +10,7 @@
 #include "tc_common_new/file_util.h"
 #include "tc_common_new/log.h"
 #include "rd_context.h"
+#include "rd_app.h"
 #include "settings/rd_settings.h"
 #include "app/steam_game.h"
 #include "app/app_messages.h"
@@ -128,7 +129,8 @@ namespace tc
             args.push_back(arg);
         }
 
-        LOGI("we will use normal method to start, exe: {}", u8_exec);
+        LOGI("we will use normal method to start, exe: {}, args: [{}]",
+             u8_exec, settings_->app_.game_arguments_);
         target_pid_ = ProcessUtil::StartProcess(u8_exec, args, true, false);
         LOGI("After started, the pid is: {}", target_pid_);
         return target_pid_ > 0;
@@ -259,12 +261,16 @@ namespace tc
                 //
                 AddFoundPid(process);
 
-                // before inject
-                MsgBeforeInject msg_before_inject{
+                // Sync boot file BEFORE inject (SendAppMessage is async and races).
+                if (rdApp) {
+                    rdApp->PrepareGameHookBoot(process->pid_);
+                } else {
+                    LOGE("rdApp null, cannot write hook boot config before inject");
+                }
+                context_->SendAppMessage(MsgBeforeInject{
                     .steam_app_ = target_app,
                     .pid_ = process->pid_,
-                };
-                context_->SendAppMessage(msg_before_inject);
+                });
 
                 bool injected = InjectDll(process->pid_, 0, process->is_x86_, kX86DllName, kX64DllName);
                 this->injected_ = injected;
@@ -325,25 +331,41 @@ namespace tc
             AddFoundPid(target_process_info);
         }
         if (settings_->capture_.IsVideoInnerCapture()){
+            if (this->injected_) {
+                return;
+            }
             auto result = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
             auto process_exe_name = FileUtil::GetFileNameFromPath(target_process_info->exe_full_path_);
             if (result.ok_ && result.value_) {
                 LOGI("Pid: {} for: {} is already injected....", target_process_info->pid_, process_exe_name);
+                this->injected_ = true;
                 return;
-            } else {
-                LOGI("Not injected, will inject for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
             }
+            LOGI("Not injected, will inject for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
 
             AddFoundPid(target_process_info);
 
-            // before inject
-            MsgBeforeInject msg_before_inject{
+            // Sync boot file BEFORE inject (SendAppMessage is async and races).
+            if (rdApp) {
+                rdApp->PrepareGameHookBoot(target_process_info->pid_);
+            } else {
+                LOGE("rdApp null, cannot write hook boot config before inject");
+            }
+            context_->SendAppMessage(MsgBeforeInject{
                 .pid_ = target_process_info->pid_,
-            };
-            context_->SendAppMessage(msg_before_inject);
+            });
 
             bool injected = InjectDll(target_process_info->pid_, target_process_info->thread_id_,
                                       target_process_info->is_x86_, kX86DllName, kX64DllName);
+            // DllMain used to block >4s under loader lock; inject helper then
+            // timed out even when the module was actually mapped. Treat mapped DLL as OK.
+            if (!injected) {
+                auto again = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
+                if (again.ok_ && again.value_) {
+                    LOGW("Injector timed out/failed but tc_graphics.dll is mapped — treat as success");
+                    injected = true;
+                }
+            }
             this->injected_ = injected;
             if (injected) {
                 LOGI("Inject success for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
@@ -361,8 +383,12 @@ namespace tc
     }
 
     bool AppManagerWinImpl::InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll) {
-        // "C:/xxx/inject-helper64.exe" "C:\ProgramData\obs-studio-hook\graphics-hook64.dll" 1 40780
-        auto current_exe_path = StringUtil::ToUTF8(std::filesystem::current_path().wstring());
+        // OBS inject-helper style: "<injector> <dll> <is_thread> <pid>"
+        // Prefer the render exe folder (same as collect_dist) over process cwd.
+        auto current_exe_path = GetExeFolderPath();
+        if (current_exe_path.empty()) {
+            current_exe_path = StringUtil::ToUTF8(std::filesystem::current_path().wstring());
+        }
         auto injector_path = std::format("{}/{}", current_exe_path, kInjectorName);
         StringUtil::Replace(injector_path, "\\", "/");
         auto target_dll = std::format("{}/{}", current_exe_path, x64_dll);

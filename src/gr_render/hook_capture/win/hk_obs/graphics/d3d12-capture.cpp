@@ -311,11 +311,18 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap) {
                 capture_video_frame_msg.adapter_uid_ = adapter_uid.value();
             }
 
+            // Flush before IPC so the consumer never opens a still-queued black shared tex.
+            data.context11->Flush();
+
+#if ENABLE_SHM
             auto msg_data = CaptureMessageMaker::ConvertMessageToData<CaptureVideoFrame>(capture_video_frame_msg);
             hook_mgr->Send(std::move(msg_data));
+#else
+            auto msg_data = CaptureMessageMaker::ConvertMessageToString(capture_video_frame_msg);
+            hook_mgr->Send(msg_data);
+#endif
 
             data.device11on12->ReleaseWrappedResources(&backbuffer, 1);
-            data.context11->Flush();
 
             if (!dxgi_1_4) {
                 if (++data.cur_backbuffer >= data.backbuffer_count)

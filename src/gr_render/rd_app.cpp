@@ -114,6 +114,8 @@ namespace tc
         context_->Init();
 
         // shared_from_this() below requires this object to be created by RdApplication::Make().
+        // Assign early so net_ws /ipc can late-bind OnIpcVideoFrame during plugin Start().
+        rdApp = shared_from_this();
         plugin_manager_ = PluginManager::Make(shared_from_this());
         context_->SetPluginManager(plugin_manager_);
 
@@ -229,7 +231,6 @@ namespace tc
         // desktop manager
         desktop_mgr_ = WinDesktopManager::Make(context_);
 
-        rdApp = shared_from_this();
         main_thread_id_ = GetCurrentThreadId();
 
         MSG msg{};
@@ -271,8 +272,10 @@ namespace tc
     void RdApplication::InitMessages() {
         auto weak_self = weak_from_this();
         msg_listener_->Listen<MsgBeforeInject>([=, this](const MsgBeforeInject& msg) {
+            // Prefer PrepareGameHookBoot() called synchronously before InjectDll.
+            // This async path is a fallback only.
             if (settings_->capture_.IsVideoInnerCapture()) {
-                this->WriteBoostUpInfoForPid(msg.pid_);
+                this->PrepareGameHookBoot(msg.pid_);
             }
         });
 
@@ -614,38 +617,28 @@ namespace tc
     }
 
     void RdApplication::StartProcessWithHook() {
-#if 0
-        msg_listener_->Listen<MsgVideoFrameEncoded>([=, this](const MsgVideoFrameEncoded& msg) {
-            auto net_msg = NetMessageMaker::MakeVideoFrameMsg([=]() -> tc::VideoType {
-                return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? tc::VideoType::kNetH264 : tc::VideoType::kNetHevc;
-            } (), msg.data_, msg.frame_index_, msg.frame_width_, msg.frame_height_, msg.key_frame_, msg.monitor_name_,
-            msg.monitor_left_, msg.monitor_top_, msg.monitor_right_, msg.monitor_bottom_);
-
-            if (settings_->app_.debug_enabled_) {
-                if (!debug_encode_file_) {
-                    debug_encode_file_ = File::OpenForWriteB("1.debug_after_encode.h264");
-                }
-                debug_encode_file_->Append(msg.data_->AsString());
-                LOGI("encoded frame callback, size: {}x{}, buffer size: {}", msg.frame_width_, msg.frame_height_, msg.data_->Size());
+        // Frames arrive via /ipc → GrPluginCapturedVideoFrameEvent → CaptureVideoFrame
+        // on the app bus (same event as DDA). Encode → PluginStreamEventRouter → web.
+        msg_listener_->Listen<CaptureVideoFrame>([=, this](const CaptureVideoFrame& msg) {
+            if (!HasConnectedPeer()) {
+                return;
             }
-            PostNetMessage(net_msg);
+            encoder_thread_->Encode(msg);
         });
 
-        auto fn_start_process = [=, this]() {
-            bool ok = app_manager_->StartProcessWithHook();
-            if (!ok) {
-                LOGE("StartProcessWithHook failed.");
-            }
-        };
-
-        bool is_steam_app = settings_->app_.IsSteamUrl();
-        // steam app
-        if (is_steam_app) {
-            fn_start_process();
+        LOGI("StartProcessWithHook: game_path={}, capture_method={}",
+             settings_->app_.game_path_,
+             (int)settings_->app_.inject_method_);
+        if (settings_->app_.game_path_.empty()) {
+            LOGE("StartProcessWithHook: game-path is empty, cannot start game.");
             return;
         }
-        fn_start_process();
-#endif
+        bool ok = app_manager_->StartProcessWithHook();
+        if (!ok) {
+            LOGE("StartProcessWithHook failed for: {}", settings_->app_.game_path_);
+        } else {
+            LOGI("StartProcessWithHook requested OK, inject timer will attach tc_graphics.dll");
+        }
     }
 
     void RdApplication::StartProcessWithScreenCapture() {
@@ -719,16 +712,31 @@ namespace tc
         return plugin_manager_->GetTotalConnectedClientsCount();
     }
 
-    void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) const {
+    void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) {
+        PrepareGameHookBoot(pid);
+    }
+
+    void RdApplication::PrepareGameHookBoot(uint32_t pid) {
         if (!app_shared_message_) {
-            LOGE("Don't have app_shared_message_");
+            LOGE("PrepareGameHookBoot: no AppSharedMessage (offsets/port)");
             return;
         }
-        auto shm_name = std::format("application_shm_{}", pid);
-        std::string shm_buffer;
-        shm_buffer.resize(sizeof(AppSharedMessage));
-        memcpy(shm_buffer.data(), app_shared_message_.get(), sizeof(AppSharedMessage));
-        app_shared_info_->WriteData(shm_name, shm_buffer);
+        if (!app_shared_info_) {
+            LOGE("PrepareGameHookBoot: no AppSharedInfo writer");
+            return;
+        }
+        // Ensure WS frame path (never SHM for video frames).
+        settings_->capture_.send_video_frame_by_shm_ = false;
+        app_shared_message_->ipc_port_ = settings_->transmission_.listening_port_;
+        app_shared_message_->self_size_ = sizeof(AppSharedMessage);
+        app_shared_message_->enable_hook_events_ = 1;
+
+        std::string buffer;
+        buffer.resize(sizeof(AppSharedMessage));
+        memcpy(buffer.data(), app_shared_message_.get(), sizeof(AppSharedMessage));
+        if (!app_shared_info_->WriteBootConfig(pid, buffer)) {
+            LOGE("PrepareGameHookBoot failed for pid {}", pid);
+        }
     }
 
     void RdApplication::SendAudioSpectrumMessage() const {

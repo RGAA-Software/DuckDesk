@@ -31,6 +31,11 @@ namespace tc
         // Standalone: built-in defaults in rd_settings.h are used.
 
         // TargetApplication
+        auto mode = result["application"]["mode"].value_or("desktop");
+        application_mode_ = (std::string(mode) == "game-hook")
+            ? ApplicationMode::kGameHook
+            : ApplicationMode::kDesktop;
+
         app_.game_path_ = result["application"]["game-path"].value_or("");
         app_.game_arguments_ = result["application"]["game-arguments"].value_or("");
         app_.hide_after_started_ = result["application"]["hide-after-started"].value_or(false);
@@ -52,7 +57,22 @@ namespace tc
         app_.debug_enabled_ = result["application"]["debug-enabled"].value_or(false);
         app_.event_replay_mode_ = std::string("global") == result["application"]["event-replay-mode"].value_or("global")
                                   ? TargetApplication::EventReplayMode::kGlobal : TargetApplication::EventReplayMode::kHookInner;
+
+        // When isolate/standalone, mode drives capture type before any CLI override.
+        ApplyApplicationMode();
         return true;
+    }
+
+    void RdSettings::ApplyApplicationMode() {
+        if (application_mode_ == ApplicationMode::kGameHook) {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
+            app_mode_ = AppMode::kInnerCapture;
+            LOGI("application.mode=game-hook → inner capture + start/inject game");
+        } else {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
+            app_mode_ = AppMode::kDesktop;
+            LOGI("application.mode=desktop → screen capture");
+        }
     }
 
     std::string RdSettings::Dump() {
@@ -74,6 +94,7 @@ namespace tc
         ss << "Transmission: \n";
         ss << "  - listening port: " << transmission_.listening_port_ << std::endl;
         ss << "RdApplication: \n";
+        ss << "  - application mode: " << (application_mode_ == ApplicationMode::kGameHook ? "game-hook" : "desktop") << std::endl;
         ss << "  - game path: " << app_.game_path_ << std::endl;
         ss << "  - game arguments: " << app_.game_arguments_ << std::endl;
         ss << "  - steam app:" << std::endl;

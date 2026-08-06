@@ -22,8 +22,21 @@ namespace tc
     void
     WsIpcRouter::OnMessage(std::shared_ptr<asio2::http_session> &sess_ptr, int64_t socket_fd, std::string_view data) {
         WsRouter::OnMessage(sess_ptr, socket_fd, data);
+        if (data.size() < sizeof(CaptureBaseMessage)) {
+            LOGE("IPC message too small: {}", data.size());
+            return;
+        }
         auto base_msg = (CaptureBaseMessage *) data.data();
-        auto app = Get<std::shared_ptr<RdApplication>>("app");
+        std::shared_ptr<RdApplication> app;
+        try {
+            app = Get<std::shared_ptr<RdApplication>>("app");
+        } catch (...) {
+            app = rdApp;
+        }
+        if (!app) {
+            LOGE("IPC video frame dropped: RdApplication not available");
+            return;
+        }
         if (base_msg->type_ == kCaptureVideoFrame) {
             auto msg = std::make_shared<CaptureVideoFrame>();
             if (data.size() != sizeof(CaptureVideoFrame)) {

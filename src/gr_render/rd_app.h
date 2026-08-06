@@ -84,6 +84,8 @@ namespace tc
         std::shared_ptr<RdContext> GetContext() { return context_; }
         std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
         void OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const;
+        // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
+        void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
         std::shared_ptr<PluginManager> GetPluginManager();
         tc::GrMonitorCapturePlugin* GetWorkingMonitorCapturePlugin();
@@ -117,7 +119,7 @@ namespace tc
         void InitAppTimer();
         void InitMessages();
         void InitAudioCapture();
-        void WriteBoostUpInfoForPid(uint32_t pid) const;
+        void WriteBoostUpInfoForPid(uint32_t pid);
         void StartProcessWithHook();
         void StartProcessWithScreenCapture();
         bool HasConnectedPeer() const;

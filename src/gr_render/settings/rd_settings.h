@@ -115,6 +115,12 @@ namespace tc
         kInnerCapture,
     };
 
+    // High-level launch mode from settings.toml [application].mode
+    enum class ApplicationMode {
+        kDesktop,
+        kGameHook,
+    };
+
     class RdSettings {
     public:
 
@@ -128,12 +134,18 @@ namespace tc
         void LoadSettingsFromDatabase();
         bool EnableFullColorMode();
         void SetFullColorMode(bool enable);
+        bool IsGameHookMode() const {
+            return application_mode_ == ApplicationMode::kGameHook;
+        }
+        // Apply mode → capture_video_type_ / app_mode_ (used after CLI overrides when needed).
+        void ApplyApplicationMode();
     public:
         Description desc_;
         Encoder encoder_{};
         Capture capture_{};
         Transmission transmission_{};
         TargetApplication app_;
+        ApplicationMode application_mode_ = ApplicationMode::kDesktop;
 
         bool block_debug_ = false;
         std::string panel_server_host_ = "127.0.0.1";

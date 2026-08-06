@@ -54,29 +54,28 @@ namespace tc
             desc11.ArraySize = 1;
             desc11.SampleDesc.Count = 1;
             desc11.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-//			desc11.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-            desc11.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+            // Match working DDA path: plain SHARED. KEYEDMUTEX without consumer Acquire
+            // (or without producer Flush) yields a cross-process black texture.
+            desc11.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
             desc11.Usage = D3D11_USAGE_DEFAULT;
-
-            // JUST TEST...
-//            desc11.BindFlags = 0;
-//            desc11.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-//            desc11.Usage = D3D11_USAGE_STAGING;
-//            desc11.SampleDesc.Quality = 0;
 
             auto hr = device->CreateTexture2D(&desc11, nullptr, &texture_);
             if (FAILED(hr)) {
-                LOGE("create_d3d11_stage_surface: failed to create texture_ {} , {}", hr, GetLastError());
+                LOGE("create_d3d11_stage_surface: failed to create texture_ {} , {} format={}",
+                     hr, GetLastError(), (int)in_desc.Format);
                 return false;
             }
 
             this->curr_desc_ = in_desc;
-            LOGI("Create D3DTexture2D success...");
+            LOGI("Create D3DTexture2D success: {}x{} format={}", desc11.Width, desc11.Height, (int)desc11.Format);
         }
 
-        //
-        LockMutex();
+        if (!LockMutex()) {
+            return false;
+        }
         context->CopyResource(texture_, src);
+        // Cross-process shared textures stay black until the producer GPU queue is flushed.
+        context->Flush();
         ReleaseMutex();
 
         return true;
@@ -108,19 +107,19 @@ namespace tc
 
     bool SharedTexture::LockMutex() {
         if (!texture_) {
-            LOGI("SharedTexture texture_ is null ");
+            LOGE("SharedTexture texture_ is null");
             return false;
         }
         HRESULT hres;
         CComPtr<IDXGIKeyedMutex> key_mutex;
-        hres = texture_.QueryInterface<IDXGIKeyedMutex>(&key_mutex);
-        if (FAILED(hres)) {
-            printf("D3D11Texture2DReleaseMutex IDXGIKeyedMutex. error\n");
-            return false;
+        hres = texture_.QueryInterface(&key_mutex);
+        if (FAILED(hres) || !key_mutex) {
+            // Plain SHARED — nothing to acquire.
+            return true;
         }
         hres = key_mutex->AcquireSync(0, INFINITE);
         if (FAILED(hres)) {
-            printf("D3D11Texture2DReleaseMutex AcquireSync failed.\n");
+            LOGE("SharedTexture AcquireSync failed: {:x}", (uint32_t)hres);
             return false;
         }
         return true;
@@ -128,18 +127,18 @@ namespace tc
 
     bool SharedTexture::ReleaseMutex() {
         if (!texture_) {
-            LOGI("SharedTexture texture_ is null");
+            LOGE("SharedTexture texture_ is null");
             return false;
         }
         HRESULT hres;
         CComPtr<IDXGIKeyedMutex> key_mutex;
-        if (FAILED(hres = texture_.QueryInterface<IDXGIKeyedMutex>(&key_mutex))) {
-            printf("D3D11Texture2DReleaseMutex IDXGIKeyedMutex. error\n");
-            return false;
+        hres = texture_.QueryInterface(&key_mutex);
+        if (FAILED(hres) || !key_mutex) {
+            return true;
         }
         hres = key_mutex->ReleaseSync(0);
         if (FAILED(hres)) {
-            printf("D3D11Texture2DReleaseMutex ReleaseSync failed.\n");
+            LOGE("SharedTexture ReleaseSync failed: {:x}", (uint32_t)hres);
             return false;
         }
         return true;
