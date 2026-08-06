@@ -12,6 +12,8 @@
 #include <dxgi.h>
 #include <wrl/client.h>
 #include <any>
+#include <atomic>
+#include <mutex>
 #include "tc_common_new/fps_stat.h"
 
 using namespace Microsoft::WRL;
@@ -43,6 +45,7 @@ namespace tc
         void FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS& initialize_params, int refreshRate, int renderWidth, int renderHeight, uint64_t bitrate_bps);
         static NV_ENC_BUFFER_FORMAT DxgiFormatToNvEncFormat(DXGI_FORMAT dxgiFormat);
         bool CreateNvEncoder();
+        bool ApplyPendingConfigLocked();
 
     private:
         std::shared_ptr<NvEncoder> nv_encoder_ = nullptr;
@@ -61,6 +64,13 @@ namespace tc
         bool enable_yuv444_ = false;
 
         bool has_transmit_frames_ = false;
+
+        // ConfigEncoder 常在全局/插件线程触发,而 Encode 在 encoder_thread。
+        // NVENC Reconfigure 与 EncodeFrame 并发会卡死(切屏新建第二路 encoder 时尤其易中招)。
+        // Config 只写入 pending,真正 Reconfigure 串到 Encode 路径并加锁。
+        std::mutex encode_mtx_;
+        std::atomic_uint32_t pending_bps_{0};
+        std::atomic_uint32_t pending_fps_{0};
     };
 
 }

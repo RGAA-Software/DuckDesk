@@ -27,6 +27,7 @@
 #include "tc_message_new/rp_proto_converter.h"
 #include "gr_render/plugins/net_ws/ws_user_proxy_router.h"
 #include "gr_render/plugin_interface/gr_net_plugin.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "tc_common_new/win32/process_helper.h"
 #include "tc_capture_new/capture_message_maker.h"
 #include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
@@ -83,6 +84,23 @@ namespace tc {
 
         // report it
         ReportClientConnected(event);
+
+        // WebRTC 接入时若主管线已是 H265/全彩:浏览器解不了,主动提示
+        if (event->conn_type_ == "RTC") {
+            const bool full_color = settings_->EnableFullColorMode();
+            const bool hevc = full_color
+                || statistics_->video_encoder_format_ == Encoder::EncoderFormat::kHEVC;
+            if (hevc) {
+                const std::string reason = full_color ? "full_color" : "encoder_format";
+                LOGW("WebRTC connected while pipeline is H265 ({}), notify client", reason);
+                auto tip = NetMessageMaker::MakeVideoCodecChanged(tc::VideoType::kNetHevc, full_color, reason);
+                plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                    if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
+                        plugin->PostProtoMessage(tip, false);
+                    }
+                });
+            }
+        }
     }
 
     void PluginNetEventRouter::ProcessClientDisConnectedEvent(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event) {

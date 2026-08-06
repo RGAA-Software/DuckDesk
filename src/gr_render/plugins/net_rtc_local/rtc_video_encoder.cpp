@@ -240,6 +240,15 @@ namespace tc
         if (frame_age_ms > send_age_max_) send_age_max_ = frame_age_ms;
         encodedImage.SetRtpTimestamp(send_rtp_ts);
         encodedImage.ntp_time_ms_ = send_ntp_ms;
+        // RTC factory 只协商 H264。全彩模式主管线会出 HEVC,绝不能再当 H264 塞给浏览器。
+        if (encoded_video_frame->video_type_ == (int)GrPluginEncodedVideoType::kH265) {
+            static std::atomic_uint64_t hevc_drops = 0;
+            if (++hevc_drops % 120 == 1) {
+                LOGW("RTC drops HEVC frame seq={} (factory is H264-only); disable full-color for WebRTC",
+                     encoded_video_frame->seq_);
+            }
+            return WEBRTC_VIDEO_CODEC_OK;
+        }
         encodedImage._frameType = encoded_video_frame->key_ ? webrtc::VideoFrameType::kVideoFrameKey : webrtc::VideoFrameType::kVideoFrameDelta;
         encodedImage._encodedWidth = encoded_video_frame->frame_width_;
         encodedImage._encodedHeight = encoded_video_frame->frame_height_;

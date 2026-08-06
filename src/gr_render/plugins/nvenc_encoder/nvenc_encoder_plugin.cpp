@@ -142,8 +142,15 @@ namespace tc
         if (bps == 0 || fps == 0) {
             return;
         }
-        // todo: target encoder == mon_name
+        // mon_name 为空时给所有屏挂 pending;有名字时只动目标屏。
+        // 实际 Reconfigure 延迟到各 encoder 的 Encode 路径,避免与 EncodeFrame 跨线程并发。
         for (const auto& [mon, encoder] : video_encoders_) {
+            if (!encoder) {
+                continue;
+            }
+            if (!mon_name.empty() && mon != mon_name) {
+                continue;
+            }
             encoder->Config(bps, fps);
         }
     }

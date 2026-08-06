@@ -35,6 +35,9 @@ namespace tc
 
         static std::shared_ptr<Data> MakeMonitorSwitched(const std::string& name, const int& mon_index);
 
+        // render -> client: 编码格式切换(H264/H265)
+        static std::shared_ptr<Data> MakeVideoCodecChanged(tc::VideoType video_type, bool full_color, const std::string& reason);
+
     };
 
 }

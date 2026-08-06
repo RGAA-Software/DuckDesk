@@ -17,9 +17,10 @@ import {
   MSG_TYPE_MONITOR_SWITCHED,
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
   MSG_TYPE_SWITCH_FULL_COLOR_MODE,
+  MSG_TYPE_VIDEO_CODEC_CHANGED,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import FloatBall from './FloatBall.vue'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
@@ -337,6 +338,20 @@ function handleDcBinary(buf: ArrayBuffer) {
         ElMessage.error(`分辨率切换失败 (${r.monitorName})`)
       }
       addLog(`分辨率切换结果: ${r.monitorName} -> ${r.result ? '成功' : '失败'}`)
+    } else if (msg.type === MSG_TYPE_VIDEO_CODEC_CHANGED && msg.videoCodecChanged) {
+      const c = msg.videoCodecChanged
+      // VideoType: kNetH264=0, kNetHevc=1
+      if (c.videoType === 1) {
+        const reason = c.fullColor ? '全彩模式' : '编码设置'
+        addLog(`远端编码已切换为 H.265/HEVC (${reason})`)
+        ElMessageBox.alert(
+          `远端已切换为 H.265/HEVC 编码（${reason}）。\n\n当前浏览器 WebRTC 仅支持 H.264，画面可能无法显示。\n请关闭全彩模式，或改用 Windows 客户端（支持 H.265）。`,
+          '编码格式不兼容',
+          { confirmButtonText: '知道了', type: 'warning' },
+        ).catch(() => {})
+      } else {
+        addLog(`远端编码已切换为 H.264`)
+      }
     }
     // 其余二进制控制消息(统计等)暂不处理
   }

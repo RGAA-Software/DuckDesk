@@ -4,6 +4,7 @@
 
 #include "encoder_thread.h"
 #include <d3d11.h>
+#include <memory>
 #include <wrl/client.h>
 #include "rd_app.h"
 #include "rd_context.h"
@@ -24,10 +25,14 @@
 #include "tc_common_new/win32/d3d_render.h"
 #include "tc_common_new/win32/d3d_debug_helper.h"
 #include "gr_render/plugins/plugin_manager.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "gr_render/plugin_interface/gr_stream_plugin.h"
+#include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "gr_render/plugin_interface/gr_video_encoder_plugin.h"
 #include "gr_render/plugin_interface/gr_frame_carrier_plugin.h"
 #include "gr_render/plugin_interface/gr_frame_processor_plugin.h"
+#include "network/net_message_maker.h"
+#include "tc_message.pb.h"
 
 #define DEBUG_FILE 0
 
@@ -85,7 +90,9 @@ namespace tc
         context_ = app->GetContext();
         settings_ = RdSettings::Instance();
         plugin_manager_ = context_->GetPluginManager();
-        enc_thread_ = Thread::Make("encoder_thread", 5);
+        // 队列过小会频繁丢弃未执行任务;丢弃时若已 ++in_flight 会泄漏并把 backlog 抬飞。
+        // 32 足以吸收短时尖峰,同时仍会在持续过载时丢最旧帧保实时性。
+        enc_thread_ = Thread::Make("encoder_thread", 32);
         enc_thread_->Poll();
 
         // frame carrier
@@ -106,7 +113,13 @@ namespace tc
         }
         ++g_enc_diag.in_frames;
         ++g_enc_diag.in_flight;
+        // 捕获到 lambda 里:任务被队列挤掉未执行时,shared_ptr 析构也会 --in_flight,避免 backlog 泄漏。
+        auto inflight_guard = std::shared_ptr<void>(nullptr, [](void*) {
+            --g_enc_diag.in_flight;
+        });
         PostEncTask([=, this]() {
+            // 保持 inflight_guard 存活到本任务结束;若任务被队列挤掉未执行,lambda 析构时仍会 --in_flight
+            (void)inflight_guard;
             auto diag_task_beg = TimeUtil::GetCurrentTimestamp();
             struct DiagGuard {
                 int64_t beg_;
@@ -116,7 +129,6 @@ namespace tc
                     auto prev = g_enc_diag.task_time_max.load();
                     while (d > prev && !g_enc_diag.task_time_max.compare_exchange_weak(prev, d)) {}
                     ++g_enc_diag.task_dones;
-                    --g_enc_diag.in_flight;
                     g_enc_diag.DumpIfDue();
                 }
             } diag_guard{diag_task_beg};
@@ -188,7 +200,15 @@ namespace tc
                 LOGI("EncoderThread target_encoder_plugin is nullptr, will create encoder.");
             }
 
-            if (full_color_mode_changed || frame_meta_info_changed || encoder_format_ != settings->encoder_.encoder_format_
+            // 全彩强制 HEVC 只影响本次有效格式,不得改写 settings 里用户/启动参数选定的 encoder_format_,
+            // 否则关全彩后会永久卡在 HEVC(WebRTC/多数 Win 端按 H264 解 → 黑屏)。
+            const auto effective_format = settings_->EnableFullColorMode()
+                ? Encoder::EncoderFormat::kHEVC
+                : settings->encoder_.encoder_format_;
+            const bool switched_to_hevc = (effective_format == Encoder::EncoderFormat::kHEVC
+                                          && encoder_format_ != Encoder::EncoderFormat::kHEVC);
+
+            if (full_color_mode_changed || frame_meta_info_changed || encoder_format_ != effective_format
                 || !target_encoder_plugin || !target_encoder_plugin->IsPluginEnabled()) {
                 if (target_encoder_plugin) {
                     // todo : Test it!
@@ -212,13 +232,12 @@ namespace tc
                     encoder_config.frame_resize = true;
                 }
 
-                // If the full-color mode is selected, HEVC is mandated, as most 264 hardware decoders do not support full-color
                 if (settings_->EnableFullColorMode()) {
-                    settings->encoder_.encoder_format_ = Encoder::EncoderFormat::kHEVC;
-                    LOGI("full color mode, use HEVC");
+                    LOGI("full color mode, use HEVC (settings format kept: {})", (int)settings->encoder_.encoder_format_);
                 }
 
-                encoder_config.codec_type = settings->encoder_.encoder_format_ == Encoder::EncoderFormat::kH264 ? tc::EVideoCodecType::kH264 : tc::EVideoCodecType::kHEVC;
+                encoder_config.codec_type = effective_format == Encoder::EncoderFormat::kH264
+                    ? tc::EVideoCodecType::kH264 : tc::EVideoCodecType::kHEVC;
                 encoder_config.enable_adaptive_quantization = true;
                 encoder_config.gop_size = -1;
                 encoder_config.quality_preset = 1;
@@ -391,9 +410,9 @@ namespace tc
                      target_encoder_plugin->GetPluginName(), target_encoder_plugin->GetVersionName(), monitor_name);
 
                 auto video_type = [=]() -> GrPluginEncodedVideoType {
-                    if (settings->encoder_.encoder_format_ == Encoder::EncoderFormat::kH264) {
+                    if (effective_format == Encoder::EncoderFormat::kH264) {
                         return GrPluginEncodedVideoType::kH264;
-                    } else if (settings->encoder_.encoder_format_ == Encoder::EncoderFormat::kHEVC) {
+                    } else if (effective_format == Encoder::EncoderFormat::kHEVC) {
                         return GrPluginEncodedVideoType::kH265;
                     } else {
                         return GrPluginEncodedVideoType::kH264;
@@ -407,10 +426,27 @@ namespace tc
                     });
                 });
 
-                stat_->video_encoder_format_ = settings->encoder_.encoder_format_;
+                stat_->video_encoder_format_ = effective_format;
 
-                encoder_format_ = settings->encoder_.encoder_format_;
+                encoder_format_ = effective_format;
                 last_video_frames_[monitor_name] = cap_video_msg;
+
+                // Win 客户端可解 H265;WebRTC 只协商 H264。切到 H265 时若有 RTC 连接则下发提示。
+                if (switched_to_hevc) {
+                    const bool full_color = settings_->EnableFullColorMode();
+                    const std::string reason = full_color ? "full_color" : "encoder_format";
+                    auto tip = NetMessageMaker::MakeVideoCodecChanged(tc::VideoType::kNetHevc, full_color, reason);
+                    plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                        if (!plugin || plugin->GetPluginId() != kNetRtcLocalPluginId) {
+                            return;
+                        }
+                        if (plugin->GetConnectedClientsCount() <= 0) {
+                            return;
+                        }
+                        LOGW("Notify WebRTC clients: pipeline switched to H265 ({})", reason);
+                        plugin->PostProtoMessage(tip, false);
+                    });
+                }
             }
 
             // from texture handle
@@ -503,13 +539,17 @@ namespace tc
                             auto enc_post_ts = TimeUtil::GetCurrentTimestamp();
                             ++g_enc_diag.enc_posts;
                             ++g_enc_diag.in_flight;
+                            auto yuv_inflight = std::shared_ptr<void>(nullptr, [](void*) {
+                                --g_enc_diag.in_flight;
+                            });
                             PostEncTask([=, this]() {
+                                // yuv_inflight 捕获保活到任务结束(含被队列挤掉未执行)时再 --in_flight
+                                (void)yuv_inflight;
                                 auto enc_wait = TimeUtil::GetCurrentTimestamp() - enc_post_ts;
                                 g_enc_diag.enc_wait_sum += enc_wait;
                                 auto prev = g_enc_diag.enc_wait_max.load();
                                 while (enc_wait > prev && !g_enc_diag.enc_wait_max.compare_exchange_weak(prev, enc_wait)) {}
                                 auto encode_result = target_encoder_plugin->Encode(image, frame_index, cap_video_msg);
-                                --g_enc_diag.in_flight;
                                 if (!encode_result.Success()) {
                                     LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->, monitor: {}",
                                          target_encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);

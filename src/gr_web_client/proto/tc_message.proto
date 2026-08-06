@@ -123,6 +123,9 @@ enum MessageType {
   // render -> client
   kHardwareInfo = 520;
 
+  // render -> client: 编码格式已切换(如全彩导致 H264→H265)
+  kVideoCodecChanged = 530;
+
 }
 
 enum VideoType {
@@ -624,6 +627,16 @@ message HardwareInfo {
   float current_cpu_freq = 2;
 }
 
+// render -> client
+// 主管线编码格式变化通知。Windows 客户端可解 H265;
+// WebRTC/浏览器通常只协商 H264,收到 H265 时需提示用户关闭全彩或改用桌面客户端。
+message VideoCodecChanged {
+  VideoType video_type = 1;
+  bool full_color = 2;
+  // 人类可读原因,如 "full_color" / "encoder_format"
+  string reason = 3;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -698,4 +711,5 @@ message Message {
   DisconnectConnection disconnect_connection = 500;
 
   HardwareInfo hw_info = 510;
+  VideoCodecChanged video_codec_changed = 520;
 }

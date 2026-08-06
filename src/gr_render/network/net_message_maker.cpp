@@ -257,4 +257,14 @@ namespace tc
         return ProtoAsData(&msg);
     }
 
+    std::shared_ptr<Data> NetMessageMaker::MakeVideoCodecChanged(tc::VideoType video_type, bool full_color, const std::string& reason) {
+        tc::Message msg;
+        msg.set_type(kVideoCodecChanged);
+        auto* body = msg.mutable_video_codec_changed();
+        body->set_video_type(video_type);
+        body->set_full_color(full_color);
+        body->set_reason(reason);
+        return ProtoAsData(&msg);
+    }
+
 }

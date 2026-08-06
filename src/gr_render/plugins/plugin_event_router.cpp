@@ -4,6 +4,7 @@
 
 #include "plugin_event_router.h"
 #include <fstream>
+#include <unordered_set>
 #include "rd_app.h"
 #include "rd_context.h"
 #include "tc_message.pb.h"
@@ -155,7 +156,15 @@ namespace tc
             app_->PostGlobalTask([=, this]() {
                 auto plugins = app_->GetWorkingVideoEncoderPlugins();
                 auto target_event = std::dynamic_pointer_cast<GrPluginConfigEncoder>(event);
+                // GetWorkingVideoEncoderPlugins 按屏索引,多屏会指向同一 plugin 实例;
+                // 去重后再 Config,避免对同一 NVENC 插件连打多次。
+                std::unordered_set<GrVideoEncoderPlugin*> unique_plugins;
                 for (const auto& [mon_name, plugin] : plugins) {
+                    if (plugin) {
+                        unique_plugins.insert(plugin);
+                    }
+                }
+                for (auto* plugin : unique_plugins) {
                     plugin->ConfigEncoder(target_event->mon_name_, target_event->bps_, target_event->fps_);
                 }
             });

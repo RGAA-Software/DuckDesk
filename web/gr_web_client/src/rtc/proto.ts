@@ -23,6 +23,7 @@ export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
 export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
+export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
 
 // ClipboardType(tc_message.proto:498-503)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -106,6 +107,8 @@ export function decodeMessage(payload: Uint8Array) {
     monitorSwitched?: { name: string; index: number }
     // kChangeMonitorResolutionResult(type=210):分辨率切换结果
     changeMonitorResolutionResult?: { monitorName: string; result: boolean }
+    // kVideoCodecChanged(type=530):编码格式切换(H264/H265)
+    videoCodecChanged?: { videoType: number; fullColor: boolean; reason: string }
     fileOperateRespSequence?: unknown
     fileOperateRespCode?: number
     fileOperateRespMessage?: string

@@ -58,6 +58,7 @@ namespace tc
     }
 
     void NVENCVideoEncoder::Shutdown() {
+        std::lock_guard<std::mutex> lk(encode_mtx_);
         if (nv_encoder_) {
             if (has_transmit_frames_) {
                 std::vector<std::vector<uint8_t>> out_packet;
@@ -72,7 +73,40 @@ namespace tc
         return Transmit(tex2d, frame_index, extra);
     }
 
+    bool NVENCVideoEncoder::ApplyPendingConfigLocked() {
+        const uint32_t bps = pending_bps_.load();
+        const uint32_t fps = pending_fps_.load();
+        if (bps == 0 || fps == 0 || !nv_encoder_) {
+            return true;
+        }
+        pending_bps_.store(0);
+        pending_fps_.store(0);
+        NV_ENC_RECONFIGURE_PARAMS reconfigureParams = { NV_ENC_RECONFIGURE_PARAMS_VER };
+        NV_ENC_CONFIG encodeConfig = { NV_ENC_CONFIG_VER };
+        reconfigureParams.reInitEncodeParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
+        reconfigureParams.reInitEncodeParams.encodeConfig = &encodeConfig;
+        FillEncodeConfig(reconfigureParams.reInitEncodeParams, fps, encoder_config_.width, encoder_config_.height, bps);
+        reconfigureParams.reInitEncodeParams.maxEncodeWidth = encoder_config_.width;
+        reconfigureParams.reInitEncodeParams.maxEncodeHeight = encoder_config_.height;
+        try {
+            if (!nv_encoder_->Reconfigure(&reconfigureParams)) {
+                LOGE("NvEnc Reconfigure failed fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+                return false;
+            }
+        } catch (NVENCException& e) {
+            LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", (int)e.getErrorCode(), e.what(),
+                 fps, encoder_config_.width, encoder_config_.height, bps);
+            return false;
+        }
+        LOGE("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+        return true;
+    }
+
     bool NVENCVideoEncoder::Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
+        std::lock_guard<std::mutex> lk(encode_mtx_);
+        if (!ApplyPendingConfigLocked()) {
+            return false;
+        }
         auto beg = TimeUtil::GetCurrentTimestamp();
         std::vector<std::vector<uint8_t>> out_packet;
         const NvEncInputFrame *input_frame = nv_encoder_->GetNextInputFrame();
@@ -443,33 +477,13 @@ namespace tc
         return true;
     }
 
-    // TODO: in the same thread with Encode
-    // field: fps_, bps_
-    bool NVENCVideoEncoder::Config( uint32_t bps, uint32_t fps) {
-        NV_ENC_RECONFIGURE_PARAMS reconfigureParams = { NV_ENC_RECONFIGURE_PARAMS_VER };
-        NV_ENC_CONFIG encodeConfig = { NV_ENC_CONFIG_VER };
-        reconfigureParams.reInitEncodeParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
-        reconfigureParams.reInitEncodeParams.encodeConfig = &encodeConfig;
-        //reconfigureParams.forceIDR = true;
-        FillEncodeConfig(reconfigureParams.reInitEncodeParams, fps, encoder_config_.width, encoder_config_.height, bps);
-        reconfigureParams.reInitEncodeParams.maxEncodeWidth = encoder_config_.width;
-        reconfigureParams.reInitEncodeParams.maxEncodeHeight = encoder_config_.height;
-
-        bool r = false;
-        try {
-            r = nv_encoder_->Reconfigure(&reconfigureParams);
-        }
-        catch (NVENCException e) {
-            LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", (int)e.getErrorCode(), e.what(),
-                 fps, encoder_config_.width, encoder_config_.height, bps
-            );
+    // 只暂存目标码率/帧率,真正 Reconfigure 在 Encode/Transmit(同线程+同锁)里执行。
+    bool NVENCVideoEncoder::Config(uint32_t bps, uint32_t fps) {
+        if (bps == 0 || fps == 0) {
             return false;
         }
-        if (!r) {
-            LOGE("NvEnc Reconfigure failed fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
-            return false;
-        }
-        LOGE("NvEnc Reconfigure success, to: fps: {}, size: {}x{} bps: {}", fps, encoder_config_.width, encoder_config_.height, bps);
+        pending_bps_.store(bps);
+        pending_fps_.store(fps);
         return true;
     }
 
