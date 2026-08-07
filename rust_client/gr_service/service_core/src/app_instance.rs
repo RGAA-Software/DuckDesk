@@ -223,7 +223,8 @@ impl AppInstanceRegistry {
         serde_json::to_string(&self.summaries()).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Allocate listen_port: use req.listen_port if >0 and free; else pick from pool.
+    /// Allocate listen_port: use preferred if >0 (error if taken); else
+    /// last_used+1 (default start 32000), wrapping within the pool for free slots.
     pub fn allocate_port(&self, preferred: i32) -> Result<u16, String> {
         if preferred > 0 {
             let p = preferred as u16;
@@ -232,10 +233,25 @@ impl AppInstanceRegistry {
             }
             return Ok(p);
         }
-        for p in self.port_range_start..=self.port_range_end {
+        let last = self.used_ports.keys().copied().max();
+        let mut candidate = match last {
+            Some(p) => p.saturating_add(1).max(self.port_range_start),
+            None => self.port_range_start,
+        };
+        if candidate > self.port_range_end {
+            candidate = self.port_range_start;
+        }
+        let mut p = candidate;
+        let span = (self.port_range_end - self.port_range_start) as usize + 1;
+        for _ in 0..span {
             if !self.used_ports.contains_key(&p) {
                 return Ok(p);
             }
+            p = if p >= self.port_range_end {
+                self.port_range_start
+            } else {
+                p + 1
+            };
         }
         Err("no free listen_port in pool".to_string())
     }

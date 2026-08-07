@@ -122,9 +122,18 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                     _ = interval.tick() => {
                         hb_index += 1;
                         let (render_alive, auth_json, instances_json) = {
-                            let guard = hb_runtime.lock().await;
+                            let mut guard = hb_runtime.lock().await;
+                            guard.reap_dead_app_instances();
+                            let has_active = guard.app_registry.list().iter().any(|r| {
+                                matches!(
+                                    r.state,
+                                    service_core::AppInstanceState::Starting
+                                        | service_core::AppInstanceState::Running
+                                        | service_core::AppInstanceState::Stopping
+                                )
+                            });
                             (
-                                guard.state.desktop_alive || !guard.app_registry.list().is_empty(),
+                                guard.state.desktop_alive || has_active,
                                 guard
                                     .state
                                     .last_auth_info
@@ -498,14 +507,27 @@ fn handle_cms_command(
                 "",
             ))),
             Err(err) => {
-                error!("cms stop app failed: {err}");
-                Some(encode_message(&stop_app_result_message(
-                    &device_id,
-                    &request_id,
-                    &instance_id,
-                    false,
-                    &err,
-                )))
+                // Service restarted / registry lost: treat as already stopped so CMS
+                // does not stick in Stopping with "unknown instance_id".
+                if err.contains("unknown instance_id") {
+                    warn!("cms stop: {err} — treat as already stopped");
+                    Some(encode_message(&stop_app_result_message(
+                        &device_id,
+                        &request_id,
+                        &instance_id,
+                        true,
+                        "",
+                    )))
+                } else {
+                    error!("cms stop app failed: {err}");
+                    Some(encode_message(&stop_app_result_message(
+                        &device_id,
+                        &request_id,
+                        &instance_id,
+                        false,
+                        &err,
+                    )))
+                }
             }
         },
     }

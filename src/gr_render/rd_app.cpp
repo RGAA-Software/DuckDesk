@@ -231,6 +231,11 @@ namespace tc
             }
         }
 
+        if (init_failed_) {
+            LOGE("RdApplication abort after game-hook start failure: {}", init_error_);
+            return -1;
+        }
+
         // desktop manager
         desktop_mgr_ = WinDesktopManager::Make(context_);
 
@@ -718,11 +723,16 @@ namespace tc
              (int)settings_->app_.inject_method_);
         if (settings_->app_.game_path_.empty()) {
             LOGE("StartProcessWithHook: game-path is empty, cannot start game.");
+            init_failed_ = true;
+            init_error_ = "game-path is empty";
             return;
         }
         bool ok = app_manager_->StartProcessWithHook();
         if (!ok) {
             LOGE("StartProcessWithHook failed for: {}", settings_->app_.game_path_);
+            // Fail fast so Service can report to CMS (no orphan Render without game).
+            init_failed_ = true;
+            init_error_ = std::format("StartProcessWithHook failed: {}", settings_->app_.game_path_);
         } else {
             LOGI("StartProcessWithHook requested OK, inject timer will attach tc_graphics.dll");
         }
@@ -1326,8 +1336,7 @@ namespace tc
 
     int WinApplication::Run() {
         LoadDxAddress();
-        RdApplication::Run();
-        return 0;
+        return RdApplication::Run();
     }
 
     void WinApplication::Exit() {

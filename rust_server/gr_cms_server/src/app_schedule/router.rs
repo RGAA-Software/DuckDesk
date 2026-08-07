@@ -1,6 +1,7 @@
 use crate::app_schedule::handler::{
-    handle_create_application, handle_create_placement, handle_list_applications,
-    handle_list_instances, handle_list_placements, handle_start_instance, handle_stop_instance,
+    handle_create_application, handle_create_placement, handle_delete_app, handle_list_app_rows,
+    handle_list_applications, handle_list_instances, handle_list_placements, handle_next_port,
+    handle_save_app, handle_start_instance, handle_stop_instance,
 };
 use crate::filter::spvr_appkey_filter;
 use crate::spvr_context::SpvrContext;
@@ -20,6 +21,22 @@ pub fn make_app_schedule_router(
         .route(
             "/app/list",
             get(handle_list_applications).layer(middleware::from_fn(spvr_appkey_filter::filter)),
+        )
+        .route(
+            "/app/rows",
+            get(handle_list_app_rows).layer(middleware::from_fn(spvr_appkey_filter::filter)),
+        )
+        .route(
+            "/app/save",
+            post(handle_save_app).layer(middleware::from_fn(spvr_appkey_filter::filter)),
+        )
+        .route(
+            "/app/delete/{app_id}",
+            post(handle_delete_app).layer(middleware::from_fn(spvr_appkey_filter::filter)),
+        )
+        .route(
+            "/app/next-port",
+            get(handle_next_port).layer(middleware::from_fn(spvr_appkey_filter::filter)),
         )
         .route(
             "/app/placement/create",

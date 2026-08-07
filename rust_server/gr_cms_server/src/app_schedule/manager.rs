@@ -9,13 +9,21 @@ use protocol::spvr_service::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::Mutex;
+use std::time::Duration;
+use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
+
+/// How long HTTP start waits for Service StartAppInstanceResult before failing.
+const START_RESULT_TIMEOUT: Duration = Duration::from_secs(25);
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Application {
     pub app_id: String,
     pub name: String,
+    /// Absolute game exe path shown/edited in CMS Web.
+    #[serde(default)]
+    pub game_path: String,
+    /// Relative/file name sent to Service (derived from game_path).
     pub game_exe_rel: String,
     pub default_game_args: String,
     pub encoder_fps: i32,
@@ -23,6 +31,98 @@ pub struct Application {
     pub encoder_format: String,
     pub webrtc_enabled: bool,
     pub websocket_enabled: bool,
+    /// Preferred listen port (default assigned from 32000 upward).
+    #[serde(default)]
+    pub listen_port: i32,
+}
+
+/// Flattened row for CMS Web list/edit.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppRowVo {
+    pub app_id: String,
+    pub placement_id: String,
+    pub name: String,
+    pub device_id: String,
+    pub game_path: String,
+    pub listen_port: i32,
+    pub default_game_args: String,
+    pub encoder_fps: i32,
+    pub encoder_bitrate: i32,
+    pub encoder_format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveAppReq {
+    /// Empty/None = create; set = update.
+    pub app_id: Option<String>,
+    pub name: String,
+    pub device_id: String,
+    /// Absolute path to game exe.
+    pub game_path: String,
+    pub default_game_args: Option<String>,
+    pub encoder_fps: Option<i32>,
+    pub encoder_bitrate: Option<i32>,
+    pub encoder_format: Option<String>,
+    /// 0 / None = auto next free port from 32000.
+    pub listen_port: Option<i32>,
+}
+
+const DEFAULT_LISTEN_PORT_START: i32 = 32000;
+
+/// Split absolute game path into (install_root, game_exe_rel=file_name).
+pub fn split_game_path(game_path: &str) -> Result<(String, String), String> {
+    let raw = game_path.trim();
+    if raw.is_empty() {
+        return Err("程序路径不能为空".to_string());
+    }
+    let path = std::path::Path::new(raw);
+    if !path.is_absolute() {
+        return Err("程序路径必须是绝对路径，例如 D:\\games\\app.exe".to_string());
+    }
+    let file = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "程序路径无效".to_string())?;
+    let parent = path
+        .parent()
+        .and_then(|p| p.to_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "程序路径缺少目录".to_string())?;
+    Ok((parent.to_string(), file.to_string()))
+}
+
+fn join_game_path(install_root: &str, game_exe_rel: &str) -> String {
+    if game_exe_rel.trim().is_empty() {
+        return install_root.to_string();
+    }
+    let root = install_root.trim_end_matches(['\\', '/']);
+    format!("{root}\\{game_exe_rel}")
+}
+
+/// Prefer absolute `game_path` when present; heal legacy rows where `game_exe_rel`
+/// was mistakenly stored as an absolute path (Service rejects those).
+fn resolve_start_paths(
+    game_path: &str,
+    install_root: &str,
+    game_exe_rel: &str,
+) -> Result<(String, String), String> {
+    let path = game_path.trim();
+    if !path.is_empty() {
+        return split_game_path(path);
+    }
+    let rel = game_exe_rel.trim();
+    if rel.is_empty() {
+        return Err("程序路径无效".to_string());
+    }
+    if std::path::Path::new(rel).is_absolute() {
+        return split_game_path(rel);
+    }
+    let root = install_root.trim();
+    if root.is_empty() {
+        return Err("install_root is empty".to_string());
+    }
+    Ok((root.to_string(), rel.to_string()))
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -66,6 +166,10 @@ pub struct CreateApplicationReq {
     pub encoder_fps: Option<i32>,
     pub encoder_bitrate: Option<i32>,
     pub encoder_format: Option<String>,
+    #[serde(default)]
+    pub game_path: Option<String>,
+    #[serde(default)]
+    pub listen_port: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +196,8 @@ struct Inner {
     instances: HashMap<String, AppInstance>,
     /// request_id -> instance_id
     request_index: HashMap<String, String>,
+    /// HTTP start waits here until Service posts StartAppInstanceResult.
+    start_waiters: HashMap<String, oneshot::Sender<AppInstance>>,
 }
 
 pub struct AppScheduleManager {
@@ -116,9 +222,15 @@ impl AppScheduleManager {
         if req.name.trim().is_empty() || req.game_exe_rel.trim().is_empty() {
             return Err("name and game_exe_rel required".to_string());
         }
+        let game_path = req
+            .game_path
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         let app = Application {
             app_id: self.next_id("app"),
             name: req.name.trim().to_string(),
+            game_path,
             game_exe_rel: req.game_exe_rel.trim().to_string(),
             default_game_args: req.default_game_args.unwrap_or_default(),
             encoder_fps: req.encoder_fps.unwrap_or(60),
@@ -128,6 +240,7 @@ impl AppScheduleManager {
                 .unwrap_or_else(|| "h264".to_string()),
             webrtc_enabled: true,
             websocket_enabled: true,
+            listen_port: req.listen_port.unwrap_or(0),
         };
         {
             let mut g = self.inner.lock().await;
@@ -141,6 +254,312 @@ impl AppScheduleManager {
 
     pub async fn list_applications(&self) -> Vec<Application> {
         self.inner.lock().await.apps.values().cloned().collect()
+    }
+
+    pub async fn list_app_rows(&self) -> Vec<AppRowVo> {
+        let g = self.inner.lock().await;
+        let mut rows = Vec::new();
+        for p in g.placements.values() {
+            let Some(app) = g.apps.get(&p.app_id) else {
+                continue;
+            };
+            let game_path = if !app.game_path.trim().is_empty() {
+                app.game_path.clone()
+            } else {
+                join_game_path(&p.install_root, &app.game_exe_rel)
+            };
+            rows.push(AppRowVo {
+                app_id: app.app_id.clone(),
+                placement_id: p.placement_id.clone(),
+                name: app.name.clone(),
+                device_id: p.device_id.clone(),
+                game_path,
+                listen_port: app.listen_port,
+                default_game_args: app.default_game_args.clone(),
+                encoder_fps: app.encoder_fps,
+                encoder_bitrate: app.encoder_bitrate,
+                encoder_format: app.encoder_format.clone(),
+            });
+        }
+        rows.sort_by(|a, b| a.name.cmp(&b.name));
+        rows
+    }
+
+    fn collect_used_ports_locked(g: &Inner, exclude_app_id: Option<&str>) -> Vec<i32> {
+        let mut used = Vec::new();
+        for app in g.apps.values() {
+            if exclude_app_id.is_some_and(|id| id == app.app_id) {
+                continue;
+            }
+            if app.listen_port > 0 {
+                used.push(app.listen_port);
+            }
+        }
+        for inst in g.instances.values() {
+            if matches!(
+                inst.state,
+                InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
+            ) && inst.listen_port > 0
+            {
+                used.push(inst.listen_port);
+            }
+        }
+        used
+    }
+
+    pub async fn suggest_next_port(&self) -> i32 {
+        let g = self.inner.lock().await;
+        let used = Self::collect_used_ports_locked(&g, None);
+        let max = used.into_iter().max().unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
+        (max + 1).max(DEFAULT_LISTEN_PORT_START)
+    }
+
+    fn ensure_port_available_locked(
+        g: &Inner,
+        port: i32,
+        exclude_app_id: Option<&str>,
+    ) -> Result<(), String> {
+        if port < DEFAULT_LISTEN_PORT_START {
+            return Err(format!("端口不能小于 {DEFAULT_LISTEN_PORT_START}"));
+        }
+        for app in g.apps.values() {
+            if exclude_app_id.is_some_and(|id| id == app.app_id) {
+                continue;
+            }
+            if app.listen_port == port {
+                return Err(format!("端口 {port} 已被应用「{}」占用", app.name));
+            }
+        }
+        for inst in g.instances.values() {
+            if matches!(
+                inst.state,
+                InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
+            ) && inst.listen_port == port
+            {
+                return Err(format!(
+                    "端口 {port} 正被实例 {} 使用中",
+                    inst.instance_id
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Create or update application + machine placement from a single Web form.
+    pub async fn save_app(&self, req: SaveAppReq) -> Result<AppRowVo, String> {
+        if req.name.trim().is_empty() {
+            return Err("请填写应用名称".to_string());
+        }
+        if req.device_id.trim().is_empty() {
+            return Err("请选择机器".to_string());
+        }
+        let (install_root, game_exe_rel) = split_game_path(&req.game_path)?;
+        let game_path = req.game_path.trim().to_string();
+        let device_id = req.device_id.trim().to_string();
+        let editing_id = req
+            .app_id
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        let app_id = editing_id
+            .clone()
+            .unwrap_or_else(|| self.next_id("app"));
+
+        let (app, placement, stale_placement_ids) = {
+            let mut g = self.inner.lock().await;
+            let listen_port = match req.listen_port.unwrap_or(0) {
+                p if p > 0 => {
+                    Self::ensure_port_available_locked(&g, p, editing_id.as_deref())?;
+                    p
+                }
+                _ => {
+                    let used = Self::collect_used_ports_locked(&g, editing_id.as_deref());
+                    let max = used
+                        .into_iter()
+                        .max()
+                        .unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
+                    (max + 1).max(DEFAULT_LISTEN_PORT_START)
+                }
+            };
+
+            let existing = editing_id
+                .as_ref()
+                .map(|id| {
+                    g.apps
+                        .get(id)
+                        .cloned()
+                        .ok_or_else(|| format!("应用不存在: {id}"))
+                })
+                .transpose()?;
+
+            if let Some(ref app_id) = editing_id {
+                for inst in g.instances.values() {
+                    if inst.app_id == *app_id
+                        && matches!(
+                            inst.state,
+                            InstanceState::Starting
+                                | InstanceState::Running
+                                | InstanceState::Stopping
+                        )
+                        && inst.device_id != device_id
+                    {
+                        return Err("应用运行中，不能更换机器".to_string());
+                    }
+                }
+            }
+
+            let app = Application {
+                app_id: app_id.clone(),
+                name: req.name.trim().to_string(),
+                game_path: game_path.clone(),
+                game_exe_rel: game_exe_rel.clone(),
+                default_game_args: req
+                    .default_game_args
+                    .unwrap_or_else(|| {
+                        existing
+                            .as_ref()
+                            .map(|e| e.default_game_args.clone())
+                            .unwrap_or_default()
+                    }),
+                encoder_fps: req
+                    .encoder_fps
+                    .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_fps).unwrap_or(60)),
+                encoder_bitrate: req.encoder_bitrate.unwrap_or_else(|| {
+                    existing.as_ref().map(|e| e.encoder_bitrate).unwrap_or(20)
+                }),
+                encoder_format: req.encoder_format.unwrap_or_else(|| {
+                    existing
+                        .as_ref()
+                        .map(|e| e.encoder_format.clone())
+                        .unwrap_or_else(|| "h264".to_string())
+                }),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port,
+            };
+
+            let mut keep_placement_id: Option<String> = None;
+            let mut stale = Vec::new();
+            let old_keys: Vec<(String, String)> = g
+                .placement_by_app_device
+                .keys()
+                .filter(|(aid, _)| aid == &app.app_id)
+                .cloned()
+                .collect();
+            for key in old_keys {
+                if let Some(pid) = g.placement_by_app_device.remove(&key) {
+                    if key.1 == device_id {
+                        keep_placement_id = Some(pid);
+                    } else {
+                        g.placements.remove(&pid);
+                        stale.push(pid);
+                    }
+                }
+            }
+
+            let placement = if let Some(pid) = keep_placement_id {
+                let mut p = g.placements.remove(&pid).unwrap_or(AppPlacement {
+                    placement_id: pid.clone(),
+                    app_id: app.app_id.clone(),
+                    device_id: device_id.clone(),
+                    install_root: install_root.clone(),
+                });
+                p.app_id = app.app_id.clone();
+                p.device_id = device_id.clone();
+                p.install_root = install_root.clone();
+                p
+            } else {
+                AppPlacement {
+                    placement_id: format!("plc-{}", &Uuid::new_v4().to_string()[..8]),
+                    app_id: app.app_id.clone(),
+                    device_id: device_id.clone(),
+                    install_root: install_root.clone(),
+                }
+            };
+
+            g.apps.insert(app.app_id.clone(), app.clone());
+            g.placement_by_app_device.insert(
+                (placement.app_id.clone(), placement.device_id.clone()),
+                placement.placement_id.clone(),
+            );
+            g.placements
+                .insert(placement.placement_id.clone(), placement.clone());
+            (app, placement, stale)
+        };
+
+        for pid in stale_placement_ids {
+            let _ = crate::app_schedule::store::delete_placement(&pid).await;
+        }
+        let _ = crate::app_schedule::store::upsert_application(&app).await;
+        let _ = crate::app_schedule::store::upsert_placement(&placement).await;
+
+        Ok(AppRowVo {
+            app_id: app.app_id,
+            placement_id: placement.placement_id,
+            name: app.name,
+            device_id: placement.device_id,
+            game_path: app.game_path,
+            listen_port: app.listen_port,
+            default_game_args: app.default_game_args,
+            encoder_fps: app.encoder_fps,
+            encoder_bitrate: app.encoder_bitrate,
+            encoder_format: app.encoder_format,
+        })
+    }
+
+    pub async fn delete_app(&self, app_id: &str) -> Result<(), String> {
+        let to_delete = {
+            let g = self.inner.lock().await;
+            for inst in g.instances.values() {
+                if inst.app_id == app_id
+                    && matches!(
+                        inst.state,
+                        InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
+                    )
+                {
+                    return Err("应用运行中，请先停止再删除".to_string());
+                }
+            }
+            if !g.apps.contains_key(app_id) {
+                return Err(format!("应用不存在: {app_id}"));
+            }
+            let plc_ids: Vec<String> = g
+                .placements
+                .values()
+                .filter(|p| p.app_id == app_id)
+                .map(|p| p.placement_id.clone())
+                .collect();
+            plc_ids
+        };
+
+        {
+            let mut g = self.inner.lock().await;
+            g.apps.remove(app_id);
+            for pid in &to_delete {
+                if let Some(p) = g.placements.remove(pid) {
+                    g.placement_by_app_device
+                        .remove(&(p.app_id, p.device_id));
+                }
+            }
+            // Drop stopped instances of this app from memory.
+            let inst_ids: Vec<String> = g
+                .instances
+                .values()
+                .filter(|i| i.app_id == app_id)
+                .map(|i| i.instance_id.clone())
+                .collect();
+            for iid in inst_ids {
+                if let Some(i) = g.instances.remove(&iid) {
+                    g.request_index.remove(&i.request_id);
+                }
+            }
+        }
+        let _ = crate::app_schedule::store::delete_application(app_id).await;
+        for pid in to_delete {
+            let _ = crate::app_schedule::store::delete_placement(&pid).await;
+        }
+        Ok(())
     }
 
     pub async fn create_placement(&self, req: CreatePlacementReq) -> Result<AppPlacement, String> {
@@ -203,6 +622,9 @@ impl AppScheduleManager {
             (app, placement)
         };
 
+        let (install_root, game_exe_rel) =
+            resolve_start_paths(&app.game_path, &placement.install_root, &app.game_exe_rel)?;
+
         // Service must be online.
         let conn = match gSpvrServiceConnMgr.get_conn(req.device_id.clone()).await {
             Ok(c) => c,
@@ -211,7 +633,16 @@ impl AppScheduleManager {
 
         let request_id = self.next_id("req");
         let instance_id = self.next_id("inst");
-        let listen_port = req.listen_port.unwrap_or(0);
+        // Prefer explicit start override; else the app's saved port; else Service auto.
+        let listen_port = match req.listen_port.unwrap_or(0) {
+            p if p > 0 => p,
+            _ if app.listen_port > 0 => app.listen_port,
+            _ => 0,
+        };
+        if listen_port > 0 {
+            let g = self.inner.lock().await;
+            Self::ensure_port_available_locked(&g, listen_port, Some(app.app_id.as_str()))?;
+        }
         let inst = AppInstance {
             instance_id: instance_id.clone(),
             request_id: request_id.clone(),
@@ -238,8 +669,8 @@ impl AppScheduleManager {
             request_id: request_id.clone(),
             instance_id: instance_id.clone(),
             app_id: app.app_id,
-            install_root: placement.install_root,
-            game_exe_rel: app.game_exe_rel,
+            install_root,
+            game_exe_rel,
             game_arguments: app.default_game_args,
             listen_port,
             encoder_fps: app.encoder_fps,
@@ -249,13 +680,20 @@ impl AppScheduleManager {
             websocket_enabled: app.websocket_enabled,
         };
 
+        let (wait_tx, wait_rx) = oneshot::channel();
+        {
+            let mut g = self.inner.lock().await;
+            g.start_waiters.insert(request_id.clone(), wait_tx);
+        }
+
         let ok = conn.lock().await.send_start_app_instance(start).await;
         if !ok {
             let snapshot = {
                 let mut g = self.inner.lock().await;
+                g.start_waiters.remove(&request_id);
                 if let Some(i) = g.instances.get_mut(&instance_id) {
                     i.state = InstanceState::Failed;
-                    i.error = "send to service failed".to_string();
+                    i.error = "下发到 Service 失败".to_string();
                     Some(i.clone())
                 } else {
                     None
@@ -264,9 +702,49 @@ impl AppScheduleManager {
             if let Some(failed) = snapshot {
                 let _ = crate::app_schedule::store::upsert_instance(&failed).await;
             }
-            return Err("send to service failed".to_string());
+            return Err("下发到 Service 失败".to_string());
         }
-        Ok(inst)
+
+        // Block HTTP until Service reports success/failure so Web can toast the error.
+        match tokio::time::timeout(START_RESULT_TIMEOUT, wait_rx).await {
+            Ok(Ok(final_inst)) => {
+                if matches!(final_inst.state, InstanceState::Failed) {
+                    let msg = if final_inst.error.is_empty() {
+                        "启动失败".to_string()
+                    } else {
+                        final_inst.error.clone()
+                    };
+                    Err(msg)
+                } else {
+                    Ok(final_inst)
+                }
+            }
+            Ok(Err(_)) => Err("启动结果通道已关闭".to_string()),
+            Err(_) => {
+                let snapshot = {
+                    let mut g = self.inner.lock().await;
+                    g.start_waiters.remove(&request_id);
+                    if let Some(i) = g.instances.get_mut(&instance_id) {
+                        if matches!(i.state, InstanceState::Starting) {
+                            i.state = InstanceState::Failed;
+                            i.error = "等待 Service 启动结果超时".to_string();
+                        }
+                        Some(i.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(failed) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&failed).await;
+                    return Err(if failed.error.is_empty() {
+                        "等待 Service 启动结果超时".to_string()
+                    } else {
+                        failed.error
+                    });
+                }
+                Err("等待 Service 启动结果超时".to_string())
+            }
+        }
     }
 
     pub async fn stop_instance(&self, instance_id: &str) -> Result<AppInstance, String> {
@@ -290,17 +768,47 @@ impl AppScheduleManager {
         };
         let _ = crate::app_schedule::store::upsert_instance(&stopping).await;
 
-        let conn = gSpvrServiceConnMgr
-            .get_conn(device_id.clone())
-            .await
-            .map_err(|_| format!("service offline: {device_id}"))?;
+        let conn = match gSpvrServiceConnMgr.get_conn(device_id.clone()).await {
+            Ok(c) => c,
+            Err(_) => {
+                // Service gone: nothing left to stop — clear sticky Stopping.
+                let snapshot = {
+                    let mut g = self.inner.lock().await;
+                    if let Some(i) = g.instances.get_mut(instance_id) {
+                        i.state = InstanceState::Stopped;
+                        i.pid = 0;
+                        i.error.clear();
+                        Some(i.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(s) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&s).await;
+                }
+                return Err(format!("service offline: {device_id}（已标记为停止）"));
+            }
+        };
         let stop = SpvrServiceStopAppInstance {
             request_id,
             instance_id: instance_id.to_string(),
         };
         let ok = conn.lock().await.send_stop_app_instance(stop).await;
         if !ok {
-            return Err("send stop failed".to_string());
+            let snapshot = {
+                let mut g = self.inner.lock().await;
+                if let Some(i) = g.instances.get_mut(instance_id) {
+                    i.state = InstanceState::Failed;
+                    i.error = "下发停止失败".to_string();
+                    Some(i.clone())
+                } else {
+                    None
+                }
+            };
+            if let Some(s) = snapshot {
+                let _ = crate::app_schedule::store::upsert_instance(&s).await;
+            }
+            return Err("下发停止失败".to_string());
         }
         let g = self.inner.lock().await;
         Ok(g.instances.get(instance_id).cloned().unwrap())
@@ -320,6 +828,7 @@ impl AppScheduleManager {
             );
             return;
         };
+        let waiter = g.start_waiters.remove(&result.request_id);
         let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
             if result.ok {
                 inst.state = InstanceState::Running;
@@ -339,8 +848,11 @@ impl AppScheduleManager {
             None
         };
         drop(g);
-        if let Some(inst) = snapshot {
+        if let Some(inst) = snapshot.clone() {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+        }
+        if let (Some(tx), Some(inst)) = (waiter, snapshot) {
+            let _ = tx.send(inst);
         }
     }
 
@@ -349,15 +861,26 @@ impl AppScheduleManager {
         device_id: String,
         result: SpvrServiceStopAppInstanceResult,
     ) {
+        let already_gone = !result.ok
+            && (result.error.contains("unknown instance_id")
+                || result.error.contains("unknown instance"));
+        let treat_stopped = result.ok || already_gone;
         let mut g = self.inner.lock().await;
         let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
             // Also match by instance_id directly
             if let Some(inst) = g.instances.get_mut(&result.instance_id) {
-                if result.ok {
+                if treat_stopped {
                     inst.state = InstanceState::Stopped;
+                    inst.pid = 0;
+                    inst.error.clear();
                 } else {
+                    // Do not leave Stopping forever on stop failure.
+                    inst.state = InstanceState::Failed;
                     inst.error = result.error;
                 }
+                let snap = inst.clone();
+                drop(g);
+                let _ = crate::app_schedule::store::upsert_instance(&snap).await;
             } else {
                 tracing::warn!(
                     "stop result unknown request {} from {}",
@@ -368,10 +891,12 @@ impl AppScheduleManager {
             return;
         };
         let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
-            if result.ok {
+            if treat_stopped {
                 inst.state = InstanceState::Stopped;
                 inst.pid = 0;
+                inst.error.clear();
             } else {
+                inst.state = InstanceState::Failed;
                 inst.error = result.error;
             }
             Some(inst.clone())
@@ -380,6 +905,69 @@ impl AppScheduleManager {
         };
         drop(g);
         if let Some(inst) = snapshot {
+            let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+        }
+    }
+
+    /// Align CMS Running/Stopping with what Service reports in HB.
+    /// After Service restart the local registry is empty; clear stale active states.
+    /// Only `running`/`starting`/`stopping` rows in HB count as alive — a ghost
+    /// `stopped` entry with the same instance_id must not keep CMS in Running.
+    pub async fn reconcile_from_service_hb(&self, device_id: String, instances_json: &str) {
+        #[derive(Deserialize)]
+        struct Reported {
+            instance_id: String,
+            #[serde(default)]
+            state: String,
+        }
+        let reported: Vec<Reported> = if instances_json.trim().is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_str(instances_json).unwrap_or_default()
+        };
+        let active_ids: std::collections::HashSet<String> = reported
+            .into_iter()
+            .filter(|r| {
+                let s = r.state.to_ascii_lowercase();
+                // Empty state: older Service builds omitted it — treat as present/active.
+                s.is_empty()
+                    || s == "running"
+                    || s == "starting"
+                    || s == "stopping"
+            })
+            .map(|r| r.instance_id)
+            .collect();
+
+        let snapshots = {
+            let mut g = self.inner.lock().await;
+            let mut out = Vec::new();
+            for inst in g.instances.values_mut() {
+                if inst.device_id != device_id {
+                    continue;
+                }
+                if !matches!(
+                    inst.state,
+                    InstanceState::Running | InstanceState::Stopping
+                ) {
+                    continue;
+                }
+                if active_ids.contains(&inst.instance_id) {
+                    continue;
+                }
+                tracing::info!(
+                    "reconcile: device {} instance {} was {:?} but not active in service HB — mark stopped",
+                    device_id,
+                    inst.instance_id,
+                    inst.state
+                );
+                inst.state = InstanceState::Stopped;
+                inst.pid = 0;
+                inst.error.clear();
+                out.push(inst.clone());
+            }
+            out
+        };
+        for inst in snapshots {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
         }
     }
@@ -445,6 +1033,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                game_path: None,
+                listen_port: None,
             })
             .await
             .unwrap();
@@ -489,6 +1079,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                game_path: None,
+                listen_port: None,
             })
             .await
             .unwrap();
@@ -526,6 +1118,7 @@ mod tests {
         let app = Application {
             app_id: "app-1".into(),
             name: "N".into(),
+            game_path: r"D:\a\g.exe".into(),
             game_exe_rel: "g.exe".into(),
             default_game_args: String::new(),
             encoder_fps: 60,
@@ -533,6 +1126,7 @@ mod tests {
             encoder_format: "h264".into(),
             webrtc_enabled: true,
             websocket_enabled: true,
+            listen_port: 32000,
         };
         let placement = AppPlacement {
             placement_id: "plc-1".into(),
@@ -593,6 +1187,7 @@ mod tests {
             Application {
                 app_id: "a".into(),
                 name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
                 game_exe_rel: "e".into(),
                 default_game_args: String::new(),
                 encoder_fps: 60,
@@ -600,6 +1195,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
+                listen_port: 32001,
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -636,5 +1232,219 @@ mod tests {
         let i = &mgr.list_instances().await[0];
         assert_eq!(i.state, InstanceState::Failed);
         assert_eq!(i.error, "exe not found");
+    }
+
+    #[tokio::test]
+    async fn stop_unknown_instance_marks_stopped() {
+        let mgr = AppScheduleManager::new();
+        mgr.inject_for_test(
+            Application {
+                app_id: "a".into(),
+                name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
+                game_exe_rel: "e".into(),
+                default_game_args: String::new(),
+                encoder_fps: 60,
+                encoder_bitrate: 20,
+                encoder_format: "h264".into(),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port: 32000,
+            },
+            AppPlacement {
+                placement_id: "p".into(),
+                app_id: "a".into(),
+                device_id: "d".into(),
+                install_root: r"D:\x".into(),
+            },
+            AppInstance {
+                instance_id: "i".into(),
+                request_id: "r-stop".into(),
+                app_id: "a".into(),
+                device_id: "d".into(),
+                placement_id: "p".into(),
+                state: InstanceState::Stopping,
+                listen_port: 32000,
+                pid: 1,
+                error: String::new(),
+                web_client_hint: String::new(),
+            },
+        )
+        .await;
+        mgr.on_stop_result(
+            "d".into(),
+            SpvrServiceStopAppInstanceResult {
+                request_id: "r-stop".into(),
+                instance_id: "i".into(),
+                ok: false,
+                error: "unknown instance_id i".into(),
+            },
+        )
+        .await;
+        let i = &mgr.list_instances().await[0];
+        assert_eq!(i.state, InstanceState::Stopped);
+        assert!(i.error.is_empty());
+    }
+
+    #[tokio::test]
+    async fn reconcile_clears_stale_running() {
+        let mgr = AppScheduleManager::new();
+        mgr.inject_for_test(
+            Application {
+                app_id: "a".into(),
+                name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
+                game_exe_rel: "e".into(),
+                default_game_args: String::new(),
+                encoder_fps: 60,
+                encoder_bitrate: 20,
+                encoder_format: "h264".into(),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port: 32000,
+            },
+            AppPlacement {
+                placement_id: "p".into(),
+                app_id: "a".into(),
+                device_id: "dev-1".into(),
+                install_root: r"D:\x".into(),
+            },
+            AppInstance {
+                instance_id: "ghost".into(),
+                request_id: "r".into(),
+                app_id: "a".into(),
+                device_id: "dev-1".into(),
+                placement_id: "p".into(),
+                state: InstanceState::Running,
+                listen_port: 32000,
+                pid: 99,
+                error: String::new(),
+                web_client_hint: String::new(),
+            },
+        )
+        .await;
+        mgr.reconcile_from_service_hb("dev-1".into(), "[]").await;
+        let i = &mgr.list_instances().await[0];
+        assert_eq!(i.state, InstanceState::Stopped);
+        assert_eq!(i.pid, 0);
+    }
+
+    #[tokio::test]
+    async fn reconcile_ignores_stopped_hb_entries() {
+        let mgr = AppScheduleManager::new();
+        mgr.inject_for_test(
+            Application {
+                app_id: "a".into(),
+                name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
+                game_exe_rel: "e".into(),
+                default_game_args: String::new(),
+                encoder_fps: 60,
+                encoder_bitrate: 20,
+                encoder_format: "h264".into(),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port: 32000,
+            },
+            AppPlacement {
+                placement_id: "p".into(),
+                app_id: "a".into(),
+                device_id: "dev-1".into(),
+                install_root: r"D:\x".into(),
+            },
+            AppInstance {
+                instance_id: "ghost".into(),
+                request_id: "r".into(),
+                app_id: "a".into(),
+                device_id: "dev-1".into(),
+                placement_id: "p".into(),
+                state: InstanceState::Running,
+                listen_port: 32000,
+                pid: 99,
+                error: String::new(),
+                web_client_hint: String::new(),
+            },
+        )
+        .await;
+        // Same id still listed, but Service says stopped → CMS must clear Running.
+        mgr.reconcile_from_service_hb(
+            "dev-1".into(),
+            r#"[{"instance_id":"ghost","state":"stopped"}]"#,
+        )
+        .await;
+        let i = &mgr.list_instances().await[0];
+        assert_eq!(i.state, InstanceState::Stopped);
+    }
+
+    #[test]
+    fn split_absolute_game_path() {
+        let (root, rel) =
+            split_game_path(r"D:\1_test_games\CarGame\Binaries\Win64\VehicleGame.exe").unwrap();
+        assert_eq!(root, r"D:\1_test_games\CarGame\Binaries\Win64");
+        assert_eq!(rel, "VehicleGame.exe");
+        assert!(split_game_path("relative\\a.exe").is_err());
+    }
+
+    #[test]
+    fn resolve_start_paths_heals_absolute_exe_rel() {
+        let abs = r"D:\games\Binaries\Win64\game.exe";
+        let (root, rel) = resolve_start_paths("", r"D:\stale", abs).unwrap();
+        assert_eq!(root, r"D:\games\Binaries\Win64");
+        assert_eq!(rel, "game.exe");
+        let (root2, rel2) = resolve_start_paths(abs, r"D:\ignored", "also-ignored.exe").unwrap();
+        assert_eq!((root2, rel2), (root, rel));
+    }
+
+    #[tokio::test]
+    async fn save_app_assigns_incremental_ports_and_rejects_conflict() {
+        let mgr = AppScheduleManager::new();
+        let a1 = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "A".into(),
+                device_id: "m1".into(),
+                game_path: r"D:\games\a\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(a1.listen_port, 32000);
+        let a2 = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "B".into(),
+                device_id: "m1".into(),
+                game_path: r"D:\games\b\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(a2.listen_port, 32001);
+        let err = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "C".into(),
+                device_id: "m2".into(),
+                game_path: r"D:\games\c\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+                listen_port: Some(32000),
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("占用"));
+
+        mgr.delete_app(&a1.app_id).await.unwrap();
+        assert_eq!(mgr.list_app_rows().await.len(), 1);
     }
 }

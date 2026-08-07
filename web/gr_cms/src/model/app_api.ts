@@ -1,12 +1,5 @@
 import axiosHttp from '@/http.ts'
-import type {
-  AppInstance,
-  Application,
-  AppPlacement,
-  CreateApplicationReq,
-  CreatePlacementReq,
-  StartInstanceReq,
-} from '@/entity/app_schedule.ts'
+import type { AppInstance, AppRow, SaveAppReq, StartInstanceReq } from '@/entity/app_schedule.ts'
 
 function appkeyParams() {
   return { appkey: localStorage.getItem('appkey') }
@@ -21,49 +14,68 @@ async function unwrapList<T>(path: string): Promise<T[] | null> {
   return resp.data.data as T[]
 }
 
-async function unwrapOne<T>(promise: Promise<{ status: number; data: any }>): Promise<T | null> {
-  const resp = await promise
-  if (resp.status !== 200 || resp.data?.code !== 200) {
-    console.error('app api failed', resp)
-    return null
+export async function listAppRows(): Promise<AppRow[] | null> {
+  return unwrapList<AppRow>('/api/v1/app/control/app/rows')
+}
+
+export async function nextPort(): Promise<number | null> {
+  const resp = await axiosHttp.get('/api/v1/app/control/app/next-port', { params: appkeyParams() })
+  if (resp.status !== 200 || resp.data?.code !== 200) return null
+  return resp.data.data as number
+}
+
+export async function saveApp(req: SaveAppReq): Promise<{ ok: true; data: AppRow } | { ok: false; message: string }> {
+  const resp = await axiosHttp.post('/api/v1/app/control/app/save', req, { params: appkeyParams() })
+  if (resp.status !== 200) {
+    return { ok: false, message: '网络错误' }
   }
-  return resp.data.data as T
+  if (resp.data?.code !== 200) {
+    return { ok: false, message: resp.data?.message || '保存失败' }
+  }
+  return { ok: true, data: resp.data.data as AppRow }
 }
 
-export async function listApplications(): Promise<Application[] | null> {
-  return unwrapList<Application>('/api/v1/app/control/app/list')
-}
-
-export async function createApplication(req: CreateApplicationReq): Promise<Application | null> {
-  return unwrapOne(
-    axiosHttp.post('/api/v1/app/control/app/create', req, { params: appkeyParams() }),
+export async function deleteApp(appId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const resp = await axiosHttp.post(
+    `/api/v1/app/control/app/delete/${encodeURIComponent(appId)}`,
+    null,
+    { params: appkeyParams() },
   )
-}
-
-export async function listPlacements(): Promise<AppPlacement[] | null> {
-  return unwrapList<AppPlacement>('/api/v1/app/control/app/placement/list')
-}
-
-export async function createPlacement(req: CreatePlacementReq): Promise<AppPlacement | null> {
-  return unwrapOne(
-    axiosHttp.post('/api/v1/app/control/app/placement/create', req, { params: appkeyParams() }),
-  )
+  if (resp.status !== 200) return { ok: false, message: '网络错误' }
+  if (resp.data?.code !== 200) {
+    return { ok: false, message: resp.data?.message || '删除失败' }
+  }
+  return { ok: true }
 }
 
 export async function listInstances(): Promise<AppInstance[] | null> {
   return unwrapList<AppInstance>('/api/v1/app/control/app/instance/list')
 }
 
-export async function startInstance(req: StartInstanceReq): Promise<AppInstance | null> {
-  return unwrapOne(
-    axiosHttp.post('/api/v1/app/control/app/instance/start', req, { params: appkeyParams() }),
-  )
+export async function startInstance(
+  req: StartInstanceReq,
+): Promise<{ ok: true; data: AppInstance } | { ok: false; message: string }> {
+  const resp = await axiosHttp.post('/api/v1/app/control/app/instance/start', req, {
+    params: appkeyParams(),
+  })
+  if (resp.status !== 200) return { ok: false, message: '网络错误' }
+  if (resp.data?.code !== 200) {
+    return { ok: false, message: resp.data?.message || '启动失败' }
+  }
+  return { ok: true, data: resp.data.data as AppInstance }
 }
 
-export async function stopInstance(instanceId: string): Promise<AppInstance | null> {
-  return unwrapOne(
-    axiosHttp.post(`/api/v1/app/control/app/instance/stop/${encodeURIComponent(instanceId)}`, null, {
-      params: appkeyParams(),
-    }),
+export async function stopInstance(
+  instanceId: string,
+): Promise<{ ok: true; data: AppInstance } | { ok: false; message: string }> {
+  const resp = await axiosHttp.post(
+    `/api/v1/app/control/app/instance/stop/${encodeURIComponent(instanceId)}`,
+    null,
+    { params: appkeyParams() },
   )
+  if (resp.status !== 200) return { ok: false, message: '网络错误' }
+  if (resp.data?.code !== 200) {
+    return { ok: false, message: resp.data?.message || '停止失败' }
+  }
+  return { ok: true, data: resp.data.data as AppInstance }
 }

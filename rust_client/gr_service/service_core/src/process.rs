@@ -21,6 +21,8 @@ pub struct ProcessSnapshot {
     pub pid: u32,
     pub exe_path: String,
     pub cmdline: String,
+    /// WMI ParentProcessId when available.
+    pub parent_pid: Option<u32>,
 }
 
 impl ProcessSnapshot {
@@ -29,7 +31,20 @@ impl ProcessSnapshot {
             pid,
             exe_path: exe_path.into(),
             cmdline: cmdline.into(),
+            parent_pid: None,
         }
+    }
+
+    pub fn with_parent(mut self, parent_pid: u32) -> Self {
+        self.parent_pid = Some(parent_pid);
+        self
+    }
+
+    pub fn exe_name(&self) -> &str {
+        self.exe_path
+            .rsplit(['\\', '/'])
+            .next()
+            .unwrap_or(self.exe_path.as_str())
     }
 
     pub fn render_mode(&self) -> RenderMode {
@@ -81,6 +96,42 @@ impl ProcessSnapshot {
     pub fn is_game_hook_render_process(&self) -> bool {
         self.kind() == ProcessKind::GameHookRender
     }
+
+    pub fn exe_path_eq(&self, other: &str) -> bool {
+        normalize_exe_key(&self.exe_path) == normalize_exe_key(other)
+    }
+}
+
+fn normalize_exe_key(path: &str) -> String {
+    path.replace('/', "\\").to_ascii_lowercase()
+}
+
+/// Root pid + all descendants (by parent_pid), children first then root.
+pub fn collect_process_tree(processes: &[ProcessSnapshot], root_pid: u32) -> Vec<u32> {
+    let mut children: Vec<u32> = Vec::new();
+    let mut stack = vec![root_pid];
+    let mut seen = std::collections::HashSet::from([root_pid]);
+    while let Some(pid) = stack.pop() {
+        for p in processes {
+            if p.parent_pid == Some(pid) && seen.insert(p.pid) {
+                children.push(p.pid);
+                stack.push(p.pid);
+            }
+        }
+    }
+    // Kill descendants before the root process.
+    children.push(root_pid);
+    children
+}
+
+/// Match running processes to the absolute game exe path for this instance.
+pub fn find_pids_for_game_exe(processes: &[ProcessSnapshot], game_path: &str) -> Vec<u32> {
+    let key = normalize_exe_key(game_path);
+    processes
+        .iter()
+        .filter(|p| normalize_exe_key(&p.exe_path) == key)
+        .map(|p| p.pid)
+        .collect()
 }
 
 #[cfg(test)]
@@ -127,5 +178,29 @@ mod tests {
         let process = ProcessSnapshot::new(1, "D:/GammaRayUserProxy.exe", "--render-port=20371");
         assert!(process.is_user_proxy_process());
         assert!(process.is_managed_clipboard_process());
+    }
+
+    #[test]
+    fn collect_process_tree_children_before_root() {
+        let procs = vec![
+            ProcessSnapshot::new(10, "D:/GammaRayRender.exe", "--app_mode=game-hook"),
+            ProcessSnapshot::new(20, r"D:\games\game.exe", "").with_parent(10),
+            ProcessSnapshot::new(21, r"D:\games\helper.exe", "").with_parent(20),
+            ProcessSnapshot::new(99, r"D:\other.exe", "").with_parent(1),
+        ];
+        assert_eq!(collect_process_tree(&procs, 10), vec![20, 21, 10]);
+    }
+
+    #[test]
+    fn find_game_exe_by_path_or_name() {
+        let procs = vec![
+            ProcessSnapshot::new(1, r"D:\1_test_games\CarGame\Binaries\Win64\VehicleGame-Win64-Shipping.exe", ""),
+            ProcessSnapshot::new(2, r"C:\Windows\notepad.exe", ""),
+        ];
+        let hits = find_pids_for_game_exe(
+            &procs,
+            r"D:/1_test_games/CarGame/Binaries/Win64/VehicleGame-Win64-Shipping.exe",
+        );
+        assert_eq!(hits, vec![1]);
     }
 }

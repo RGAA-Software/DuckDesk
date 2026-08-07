@@ -1,6 +1,7 @@
 export interface Application {
   app_id: string
   name: string
+  game_path?: string
   game_exe_rel: string
   default_game_args: string
   encoder_fps: number
@@ -8,6 +9,7 @@ export interface Application {
   encoder_format: string
   webrtc_enabled: boolean
   websocket_enabled: boolean
+  listen_port?: number
 }
 
 export interface AppPlacement {
@@ -32,19 +34,30 @@ export interface AppInstance {
   web_client_hint: string
 }
 
-export interface CreateApplicationReq {
+/** Flattened app row from CMS /app/rows */
+export interface AppRow {
+  app_id: string
+  placement_id: string
   name: string
-  game_exe_rel: string
+  device_id: string
+  game_path: string
+  listen_port: number
+  default_game_args: string
+  encoder_fps: number
+  encoder_bitrate: number
+  encoder_format: string
+}
+
+export interface SaveAppReq {
+  app_id?: string
+  name: string
+  device_id: string
+  game_path: string
   default_game_args?: string
   encoder_fps?: number
   encoder_bitrate?: number
   encoder_format?: string
-}
-
-export interface CreatePlacementReq {
-  app_id: string
-  device_id: string
-  install_root: string
+  listen_port?: number
 }
 
 export interface StartInstanceReq {

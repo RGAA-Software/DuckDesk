@@ -107,6 +107,9 @@ impl SpvrServiceConn {
             self.render_alive = sub.render_alive;
             self.auth_info_json = sub.auth_info_json;
             self.instances_json = sub.instances_json;
+            crate::app_schedule::gAppScheduleManager
+                .reconcile_from_service_hb(self.device_id.clone(), &self.instances_json)
+                .await;
             self.send_heartbeat(hb_index, self.device_id.clone()).await;
         } else if m.msg_type == SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult {
             if let Some(sub) = m.start_app_instance_result {

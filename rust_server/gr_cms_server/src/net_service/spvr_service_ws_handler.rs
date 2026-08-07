@@ -1,3 +1,4 @@
+use crate::app_schedule::gAppScheduleManager;
 use crate::gSpvrServiceConnMgr;
 use crate::net_service::spvr_service_conn::SpvrServiceConn;
 use crate::spvr_context::SpvrContext;
@@ -67,8 +68,11 @@ async fn handle_socket(
             }
         }
 
-        // remove
-        gSpvrServiceConnMgr.remove_conn(device_id).await;
+        // remove — Service gone: clear sticky Running/Stopping on this device.
+        gSpvrServiceConnMgr.remove_conn(device_id.clone()).await;
+        gAppScheduleManager
+            .reconcile_from_service_hb(device_id, "[]")
+            .await;
     });
 
     tokio::select! {

@@ -49,6 +49,7 @@ pub struct WindowsProcessManager;
 #[serde(rename_all = "PascalCase")]
 struct Win32Process {
     process_id: u32,
+    parent_process_id: Option<u32>,
     executable_path: Option<String>,
     command_line: Option<String>,
     name: Option<String>,
@@ -64,14 +65,17 @@ impl ProcessManager for WindowsProcessManager {
     fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         let com = COMLibrary::new().map_err(|err| err.to_string())?;
         let wmi = WMIConnection::new(com).map_err(|err| err.to_string())?;
-        let query = "SELECT ProcessId, ExecutablePath, CommandLine, Name FROM Win32_Process";
+        let query =
+            "SELECT ProcessId, ParentProcessId, ExecutablePath, CommandLine, Name FROM Win32_Process";
         let rows: Vec<Win32Process> = wmi.raw_query(query).map_err(|err| err.to_string())?;
         Ok(rows
             .into_iter()
             .map(|row| {
                 let exe_path = row.executable_path.or(row.name).unwrap_or_default();
                 let cmdline = row.command_line.unwrap_or_default();
-                ProcessSnapshot::new(row.process_id, exe_path, cmdline)
+                let mut snap = ProcessSnapshot::new(row.process_id, exe_path, cmdline);
+                snap.parent_pid = row.parent_process_id;
+                snap
             })
             .collect())
     }

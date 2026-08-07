@@ -247,6 +247,13 @@ impl ServiceRuntime {
             })?;
 
         let instance_id = req.instance_id.clone();
+        let game_path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+        if !game_path.is_file() {
+            return Err(format!(
+                "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
+                game_path.display()
+            ));
+        }
         let record = self
             .app_registry
             .begin_start(&work_dir, req)
@@ -255,8 +262,12 @@ impl ServiceRuntime {
         let port = record.listen_port;
         let launch = record.launch.clone();
         info!(
-            "start app instance {}, work_dir={}, port={}, args={:?}",
-            instance_id, launch.work_dir, port, launch.args
+            "start app instance {}, game={}, work_dir={}, port={}, args={:?}",
+            instance_id,
+            game_path.display(),
+            launch.work_dir,
+            port,
+            launch.args
         );
         if let Err(err) = self.process_manager.start_process_as_active_user(
             &launch.work_dir,
@@ -264,16 +275,34 @@ impl ServiceRuntime {
             &launch.args,
         ) {
             let _ = self.app_registry.mark_failed(&instance_id, err.clone());
-            return Err(err);
+            return Err(format!("启动 Render 失败: {err}"));
         }
-        // Resolve pid by matching game-hook cmdline listen_port.
-        let pid = self
-            .find_game_hook_pid_by_port(port)
-            .ok_or_else(|| {
-                let msg = format!("started but pid not found for port {port}");
+        // Resolve pid by matching game-hook cmdline listen_port (brief retry).
+        let pid = match self.wait_game_hook_pid_by_port(port, 40, 100) {
+            Some(pid) => pid,
+            None => {
+                let msg = format!("Render 已启动但未找到监听端口 {port} 的进程");
                 let _ = self.app_registry.mark_failed(&instance_id, msg.clone());
-                msg
-            })?;
+                return Err(msg);
+            }
+        };
+
+        // Game-hook must actually launch the game; otherwise report failure to CMS.
+        let game_path_str = game_path.to_string_lossy().to_string();
+        if !self.wait_game_process(&game_path_str, 50, 200) {
+            let msg = format!(
+                "游戏进程未启动: {}（Render 已退出或启动游戏失败，请核对程序路径）",
+                game_path.display()
+            );
+            warn!("app instance {instance_id}: {msg}");
+            let processes = self.process_manager.list_processes().unwrap_or_default();
+            for kill_pid in service_core::process::collect_process_tree(&processes, pid) {
+                let _ = self.process_manager.kill_process(kill_pid);
+            }
+            let _ = self.app_registry.mark_failed(&instance_id, msg.clone());
+            return Err(msg);
+        }
+
         self.app_registry.mark_running(&instance_id, pid)?;
         Ok((port, pid))
     }
@@ -294,18 +323,110 @@ impl ServiceRuntime {
         None
     }
 
+    fn wait_game_hook_pid_by_port(
+        &self,
+        port: u16,
+        attempts: u32,
+        sleep_ms: u64,
+    ) -> Option<u32> {
+        for _ in 0..attempts {
+            if let Some(pid) = self.find_game_hook_pid_by_port(port) {
+                return Some(pid);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
+        }
+        None
+    }
+
+    fn wait_game_process(&self, game_path: &str, attempts: u32, sleep_ms: u64) -> bool {
+        for _ in 0..attempts {
+            if let Ok(processes) = self.process_manager.list_processes() {
+                if !service_core::process::find_pids_for_game_exe(&processes, game_path).is_empty()
+                {
+                    return true;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
+        }
+        false
+    }
+
+    /// Drop registry entries whose Render process is gone (killed outside CMS stop).
+    /// Called before CMS heartbeats so HB no longer claims ghost "running" instances.
+    pub fn reap_dead_app_instances(&mut self) {
+        use service_core::AppInstanceState;
+        let candidates: Vec<(String, u16, Option<u32>)> = self
+            .app_registry
+            .list()
+            .into_iter()
+            .filter(|r| {
+                matches!(
+                    r.state,
+                    AppInstanceState::Running | AppInstanceState::Stopping
+                )
+            })
+            .map(|r| (r.instance_id.clone(), r.listen_port, r.pid))
+            .collect();
+        if candidates.is_empty() {
+            return;
+        }
+        for (instance_id, listen_port, pid) in candidates {
+            if let Some(live_pid) = self.find_game_hook_pid_by_port(listen_port) {
+                if pid != Some(live_pid) {
+                    let _ = self.app_registry.mark_running(&instance_id, live_pid);
+                }
+                continue;
+            }
+            // No game-hook render on the listen port → instance is gone.
+            info!(
+                "reap dead app instance {instance_id}: listen_port={listen_port} pid={pid:?} gone"
+            );
+            let _ = self.app_registry.mark_stopped(&instance_id);
+        }
+    }
+
     pub fn stop_app_instance(&mut self, instance_id: &str) -> Result<(), String> {
         let rec = self.app_registry.begin_stop(instance_id)?.clone();
         info!(
             "stop app instance {}, pid={:?}, port={}",
             instance_id, rec.pid, rec.listen_port
         );
-        if let Some(pid) = rec.pid {
-            if self.app_registry.should_kill_pid_for_instance(instance_id, pid) {
-                let _ = self.process_manager.kill_process(pid);
+        let render_pid = rec
+            .pid
+            .filter(|pid| {
+                self.app_registry
+                    .should_kill_pid_for_instance(instance_id, *pid)
+            })
+            .or_else(|| self.find_game_hook_pid_by_port(rec.listen_port));
+
+        let processes = self.process_manager.list_processes().unwrap_or_default();
+        let mut kill_pids: Vec<u32> = Vec::new();
+        if let Some(pid) = render_pid {
+            kill_pids.extend(service_core::process::collect_process_tree(
+                &processes, pid,
+            ));
+        }
+        if let Ok(game_path) =
+            service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel)
+        {
+            for pid in service_core::process::find_pids_for_game_exe(
+                &processes,
+                &game_path.to_string_lossy(),
+            ) {
+                if !kill_pids.contains(&pid) {
+                    kill_pids.push(pid);
+                }
             }
-        } else if let Some(pid) = self.find_game_hook_pid_by_port(rec.listen_port) {
-            let _ = self.process_manager.kill_process(pid);
+        }
+
+        info!(
+            "stop app instance {} will kill pids={:?} (render+game tree)",
+            instance_id, kill_pids
+        );
+        for pid in kill_pids {
+            if let Err(err) = self.process_manager.kill_process(pid) {
+                warn!("kill pid {pid} for instance {instance_id} failed: {err}");
+            }
         }
         self.app_registry.mark_stopped(instance_id)?;
         Ok(())
@@ -910,6 +1031,15 @@ mod tests {
 
     #[test]
     fn start_and_stop_app_instance_does_not_touch_desktop() {
+        let work_dir = std::env::temp_dir().join(format!(
+            "gr_work_app_inst_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&work_dir);
+        let render_path = work_dir.join("GammaRayRender.exe");
+        std::fs::write(&render_path, b"fake").unwrap();
+        let work_dir_s = work_dir.to_string_lossy().to_string();
+
         let config = ServiceConfig::new(
             20375,
             std::env::temp_dir().join("gr_data_app_inst"),
@@ -926,8 +1056,8 @@ mod tests {
             Arc::new(MockActions::new()),
         );
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            work_dir: work_dir_s.clone(),
+            app_path: render_path.to_string_lossy().to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
 
@@ -941,6 +1071,12 @@ mod tests {
             service_core::AppInstanceState::Running
         );
 
+        // Simulate game process launched as child of game-hook render.
+        let game_path = r"D:\apps\CarGame\Binaries\Win64\game.exe";
+        manager.processes.lock().unwrap().push(
+            ProcessSnapshot::new(5555, game_path, "").with_parent(pid),
+        );
+
         // desktop still listed
         assert!(manager
             .list_processes()
@@ -949,9 +1085,11 @@ mod tests {
             .any(|p| p.pid == 1 && p.cmdline.contains("desktop")));
 
         runtime.stop_app_instance("inst-1").unwrap();
-        assert!(manager.kills.lock().unwrap().contains(&pid));
+        let kills = manager.kills.lock().unwrap().clone();
+        assert!(kills.contains(&pid), "must kill render");
+        assert!(kills.contains(&5555), "must kill game child");
         // desktop pid not killed
-        assert!(!manager.kills.lock().unwrap().contains(&1));
+        assert!(!kills.contains(&1));
         assert!(manager
             .list_processes()
             .unwrap()

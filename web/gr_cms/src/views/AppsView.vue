@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage, ElNotification } from 'element-plus'
-import type {
-  AppInstance,
-  Application,
-  AppPlacement,
-  InstanceState,
-} from '@/entity/app_schedule.ts'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { AppInstance, AppRow, InstanceState } from '@/entity/app_schedule.ts'
 import {
-  createApplication,
-  createPlacement,
-  listApplications,
+  deleteApp,
+  listAppRows,
   listInstances,
-  listPlacements,
+  nextPort,
+  saveApp,
   startInstance,
   stopInstance,
 } from '@/model/app_api.ts'
@@ -22,81 +17,137 @@ import type { ServiceConn } from '@/entity/service_conn.ts'
 import type { Device } from '@/entity/device.ts'
 import { buildGameHookClientUrl } from '@/util/web_client_url.ts'
 
-const POLL_MS = 5000
+interface ViewRow extends AppRow {
+  instance?: AppInstance
+  online: boolean
+}
 
-const apps = ref<Application[]>([])
-const placements = ref<AppPlacement[]>([])
+const POLL_MS = 4000
+const rowsRaw = ref<AppRow[]>([])
 const instances = ref<AppInstance[]>([])
 const services = ref<ServiceConn[]>([])
 const devices = ref<Device[]>([])
 const loading = ref(false)
+const saving = ref(false)
+const dialogVisible = ref(false)
+const editing = ref(false)
 
-const createAppVisible = ref(false)
-const createPlcVisible = ref(false)
-const startVisible = ref(false)
-
-const appForm = ref({
+const form = ref({
+  app_id: '',
   name: '',
-  game_exe_rel: '',
+  device_id: '',
+  game_path: '',
   default_game_args: '',
   encoder_fps: 60,
   encoder_bitrate: 20,
   encoder_format: 'h264',
+  listen_port: 32000,
 })
 
-const plcForm = ref({
-  app_id: '',
-  device_id: '',
-  install_root: '',
-})
+const onlineIds = computed(() => new Set(services.value.map((s) => s.device_id)))
 
-const startForm = ref({
-  app_id: '',
-  device_id: '',
-  listen_port: 0 as number,
-})
-
-const onlineDeviceIds = computed(() => new Set(services.value.map((s) => s.device_id)))
-
-const placementsForStart = computed(() =>
-  placements.value.filter((p) => p.app_id === startForm.value.app_id),
+const rows = computed<ViewRow[]>(() =>
+  rowsRaw.value.map((row) => {
+    const seqOf = (id: string) => {
+      const m = id.match(/^(?:inst|req)-(\d+)-/)
+      return m ? Number(m[1]) : 0
+    }
+    // Only bind live states. Historical failed/stopped must not sticky-display
+    // as the current row (e.g. "失败 / game_exe_rel must be relative" after game is gone).
+    const active = instances.value
+      .filter(
+        (i) =>
+          i.app_id === row.app_id &&
+          i.device_id === row.device_id &&
+          (i.state === 'running' || i.state === 'starting' || i.state === 'stopping'),
+      )
+      .slice()
+      .sort((a, b) => seqOf(b.instance_id) - seqOf(a.instance_id))[0]
+    return {
+      ...row,
+      instance: active,
+      online: onlineIds.value.has(row.device_id),
+    }
+  }),
 )
 
-function appName(appId: string): string {
-  return apps.value.find((a) => a.app_id === appId)?.name || appId
+function stateOf(row: ViewRow): InstanceState {
+  return row.instance?.state || 'stopped'
 }
 
 function stateTag(state: InstanceState): 'success' | 'warning' | 'danger' | 'info' {
+  if (state === 'running') return 'success'
+  if (state === 'starting' || state === 'stopping') return 'warning'
+  if (state === 'failed') return 'danger'
+  return 'info'
+}
+
+function stateText(state: InstanceState): string {
   switch (state) {
     case 'running':
-      return 'success'
+      return '运行中'
     case 'starting':
+      return '启动中'
     case 'stopping':
-      return 'warning'
+      return '停止中'
     case 'failed':
-      return 'danger'
+      return '失败'
     default:
-      return 'info'
+      return '已停止'
   }
 }
 
 function deviceIp(deviceId: string): string {
-  const d = devices.value.find((x) => x.device_id === deviceId)
-  return d?.device_ip_addr || ''
+  return devices.value.find((d) => d.device_id === deviceId)?.device_ip_addr || '127.0.0.1'
+}
+
+async function resetFormForCreate() {
+  editing.value = false
+  const port = (await nextPort()) ?? 32000
+  form.value = {
+    app_id: '',
+    name: '',
+    device_id: '',
+    game_path: '',
+    default_game_args: '',
+    encoder_fps: 60,
+    encoder_bitrate: 20,
+    encoder_format: 'h264',
+    listen_port: port,
+  }
+}
+
+async function openCreate() {
+  await resetFormForCreate()
+  dialogVisible.value = true
+}
+
+function openEdit(row: ViewRow) {
+  editing.value = true
+  form.value = {
+    app_id: row.app_id,
+    name: row.name,
+    device_id: row.device_id,
+    game_path: row.game_path,
+    default_game_args: row.default_game_args || '',
+    encoder_fps: row.encoder_fps || 60,
+    encoder_bitrate: row.encoder_bitrate || 20,
+    encoder_format: row.encoder_format || 'h264',
+    listen_port: row.listen_port || 32000,
+  }
+  dialogVisible.value = true
 }
 
 async function refresh() {
   loading.value = true
   try {
-    const [a, p, i, s, d] = await Promise.all([
-      listApplications(),
-      listPlacements(),
+    const [r, i, s, d] = await Promise.all([
+      listAppRows(),
       listInstances(),
       queryAllServiceConn(),
       queryDevices('', '', '', '', 1, 200),
     ])
-    if (a) apps.value = a
-    if (p) placements.value = p
+    if (r) rowsRaw.value = r
     if (i) instances.value = i
     if (s) services.value = s
     if (d) devices.value = d
@@ -105,102 +156,121 @@ async function refresh() {
   }
 }
 
-async function submitCreateApp() {
-  if (!appForm.value.name.trim() || !appForm.value.game_exe_rel.trim()) {
-    ElMessage.warning('请填写应用名与相对路径')
+async function submitSave() {
+  const f = form.value
+  if (!f.name.trim()) {
+    ElMessage.warning('请填写应用名称')
     return
   }
-  const created = await createApplication({
-    name: appForm.value.name.trim(),
-    game_exe_rel: appForm.value.game_exe_rel.trim(),
-    default_game_args: appForm.value.default_game_args || undefined,
-    encoder_fps: appForm.value.encoder_fps,
-    encoder_bitrate: appForm.value.encoder_bitrate,
-    encoder_format: appForm.value.encoder_format,
-  })
-  if (!created) {
-    ElMessage.error('创建应用失败')
+  if (!f.device_id) {
+    ElMessage.warning('请选择机器')
     return
   }
-  ElMessage.success('已创建应用')
-  createAppVisible.value = false
-  appForm.value = {
-    name: '',
-    game_exe_rel: '',
-    default_game_args: '',
-    encoder_fps: 60,
-    encoder_bitrate: 20,
-    encoder_format: 'h264',
+  if (!f.game_path.trim()) {
+    ElMessage.warning('请填写程序路径')
+    return
   }
+  if (!f.listen_port || f.listen_port < 32000) {
+    ElMessage.warning('端口需 ≥ 32000')
+    return
+  }
+  saving.value = true
+  try {
+    const result = await saveApp({
+      app_id: editing.value ? f.app_id : undefined,
+      name: f.name.trim(),
+      device_id: f.device_id,
+      game_path: f.game_path.trim(),
+      default_game_args: f.default_game_args || undefined,
+      encoder_fps: f.encoder_fps,
+      encoder_bitrate: f.encoder_bitrate,
+      encoder_format: f.encoder_format,
+      listen_port: f.listen_port,
+    })
+    if (!result.ok) {
+      ElMessage.error(result.message)
+      return
+    }
+    ElMessage.success(editing.value ? '已更新' : '已保存')
+    dialogVisible.value = false
+    await refresh()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete(row: ViewRow) {
+  try {
+    await ElMessageBox.confirm(`确定删除应用「${row.name}」？`, '删除确认', { type: 'warning' })
+  } catch {
+    return
+  }
+  const result = await deleteApp(row.app_id)
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success('已删除')
   await refresh()
 }
 
-async function submitCreatePlc() {
-  if (!plcForm.value.app_id || !plcForm.value.device_id || !plcForm.value.install_root.trim()) {
-    ElMessage.warning('请选择应用、机器并填写安装根目录')
+async function handleStart(row: ViewRow) {
+  if (!row.online) {
+    ElMessage.error('机器不在线')
     return
   }
-  const created = await createPlacement({
-    app_id: plcForm.value.app_id,
-    device_id: plcForm.value.device_id,
-    install_root: plcForm.value.install_root.trim(),
+  const st = stateOf(row)
+  if (st === 'running' || st === 'starting') {
+    ElMessage.warning('已在运行或启动中')
+    return
+  }
+  const result = await startInstance({
+    app_id: row.app_id,
+    device_id: row.device_id,
+    listen_port: row.listen_port || undefined,
   })
-  if (!created) {
-    ElMessage.error('创建放置失败（可能已存在或参数无效）')
+  if (!result.ok) {
+    ElMessage.error({ message: result.message || '启动失败', duration: 8000, showClose: true })
+    await refresh()
     return
   }
-  ElMessage.success('已创建放置')
-  createPlcVisible.value = false
-  plcForm.value = { app_id: '', device_id: '', install_root: '' }
+  if (result.data.state === 'failed') {
+    ElMessage.error({
+      message: result.data.error || '启动失败',
+      duration: 8000,
+      showClose: true,
+    })
+    await refresh()
+    return
+  }
+  ElMessage.success(`启动成功（端口 ${result.data.listen_port || row.listen_port}）`)
   await refresh()
 }
 
-async function submitStart() {
-  if (!startForm.value.app_id || !startForm.value.device_id) {
-    ElMessage.warning('请选择应用与目标机器')
+async function handleStop(row: ViewRow) {
+  const id = row.instance?.instance_id
+  if (!id) {
+    ElMessage.warning('没有可停止的实例')
     return
   }
-  if (!onlineDeviceIds.value.has(startForm.value.device_id)) {
-    ElMessage.error('目标 Service 不在线')
-    return
-  }
-  const inst = await startInstance({
-    app_id: startForm.value.app_id,
-    device_id: startForm.value.device_id,
-    listen_port: startForm.value.listen_port || undefined,
-  })
-  if (!inst) {
-    ElMessage.error('启动失败（无 Placement / Service 离线）')
-    return
-  }
-  ElMessage.success(`已下发启动：${inst.instance_id}`)
-  startVisible.value = false
-  await refresh()
-}
-
-async function handleStop(row: AppInstance) {
-  const r = await stopInstance(row.instance_id)
-  if (!r) {
-    ElMessage.error('停止失败')
+  const result = await stopInstance(id)
+  if (!result.ok) {
+    ElMessage.error(result.message)
     return
   }
   ElMessage.success('已下发停止')
   await refresh()
 }
 
-function handleOpenClient(row: AppInstance) {
-  if (row.state !== 'running' || !row.listen_port) {
-    ElNotification({ message: '实例未就绪（需 running 且有 listen_port）', type: 'warning' })
+function handleOpenClient(row: ViewRow) {
+  const inst = row.instance
+  if (!inst || inst.state !== 'running' || !inst.listen_port) {
+    ElMessage.warning('请先启动并等到「运行中」')
     return
   }
-  const ip = deviceIp(row.device_id)
-  if (!ip) {
-    ElNotification({ message: '找不到设备 IP，请确认设备已上报 desktop_link', type: 'error' })
-    return
-  }
-  const url = buildGameHookClientUrl(ip, row.listen_port, {
+  const url = buildGameHookClientUrl(deviceIp(row.device_id), inst.listen_port, {
     deviceId: row.device_id,
-    instanceId: row.instance_id,
+    instanceId: inst.instance_id,
   })
   window.open(url, '_blank', 'noopener,noreferrer')
 }
@@ -219,135 +289,94 @@ onUnmounted(() => {
   <div class="p-4" v-loading="loading">
     <div class="flex items-center justify-between mb-4">
       <div>
-        <div class="text-lg font-semibold">应用调度</div>
-        <div class="text-sm text-gray-500">
-          Application → Placement（每机 install_root）→ 启停 game-hook 实例并打开 Client
-        </div>
+        <div class="text-lg font-semibold">应用</div>
+        <div class="text-sm text-gray-500">新建 → 选机器 → 填程序路径和端口 → 保存；列表里编辑/启停</div>
       </div>
       <div class="flex gap-2">
         <el-button @click="refresh">刷新</el-button>
-        <el-button type="primary" @click="createAppVisible = true">新建应用</el-button>
-        <el-button @click="createPlcVisible = true">新建放置</el-button>
-        <el-button type="success" @click="startVisible = true">启动实例</el-button>
+        <el-button type="primary" @click="openCreate">新建应用</el-button>
       </div>
     </div>
 
-    <el-card class="mb-4" shadow="never">
-      <template #header>应用目录</template>
-      <el-table :data="apps" size="small">
-        <el-table-column prop="name" label="名称" min-width="120" />
-        <el-table-column prop="app_id" label="app_id" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="game_exe_rel" label="相对路径" min-width="180" show-overflow-tooltip />
-        <el-table-column label="编码" min-width="120">
-          <template #default="{ row }">
-            {{ row.encoder_format }} / {{ row.encoder_fps }}fps / {{ row.encoder_bitrate }}Mbps
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <el-alert
+      v-if="services.length === 0"
+      class="mb-3"
+      type="warning"
+      :closable="false"
+      title="当前没有在线 Service。请先让目标机器的 GammaRayService 连上 CMS。"
+    />
 
-    <el-card class="mb-4" shadow="never">
-      <template #header>
-        <div class="flex justify-between">
-          <span>机器放置</span>
-          <span class="text-xs text-gray-400">在线 Service: {{ services.length }}</span>
-        </div>
-      </template>
-      <el-table :data="placements" size="small">
-        <el-table-column label="应用" min-width="120">
-          <template #default="{ row }">{{ appName(row.app_id) }}</template>
-        </el-table-column>
-        <el-table-column prop="device_id" label="device_id" min-width="140" />
-        <el-table-column label="在线" width="80">
-          <template #default="{ row }">
-            <el-tag :type="onlineDeviceIds.has(row.device_id) ? 'success' : 'info'" size="small">
-              {{ onlineDeviceIds.has(row.device_id) ? '在线' : '离线' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="install_root" label="install_root" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="placement_id" label="placement_id" min-width="120" show-overflow-tooltip />
-      </el-table>
-    </el-card>
+    <el-table :data="rows" size="small" empty-text="还没有应用，点右上角「新建应用」">
+      <el-table-column prop="name" label="名称" min-width="110" />
+      <el-table-column label="机器" min-width="140">
+        <template #default="{ row }">
+          <div>{{ row.device_id }}</div>
+          <el-tag :type="row.online ? 'success' : 'info'" size="small" class="mt-1">
+            {{ row.online ? '在线' : '离线' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="程序路径" min-width="260" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="path-pre">{{ row.game_path }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="listen_port" label="端口" width="80" />
+      <el-table-column label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="stateTag(stateOf(row))" size="small">{{ stateText(stateOf(row)) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="错误" min-width="220" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.instance?.error" class="err-text">{{ row.instance.error }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="280" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button
+            link
+            type="success"
+            :disabled="!row.online || stateOf(row) === 'running' || stateOf(row) === 'starting'"
+            @click="handleStart(row)"
+          >
+            启动
+          </el-button>
+          <el-button
+            link
+            type="danger"
+            :disabled="!row.instance || stateOf(row) === 'stopped' || stateOf(row) === 'stopping'"
+            @click="handleStop(row)"
+          >
+            停止
+          </el-button>
+          <el-button link type="primary" :disabled="stateOf(row) !== 'running'" @click="handleOpenClient(row)">
+            打开
+          </el-button>
+          <el-button
+            link
+            type="danger"
+            :disabled="stateOf(row) === 'running' || stateOf(row) === 'starting' || stateOf(row) === 'stopping'"
+            @click="handleDelete(row)"
+          >
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
-    <el-card shadow="never">
-      <template #header>运行实例</template>
-      <el-table :data="instances" size="small">
-        <el-table-column label="应用" min-width="110">
-          <template #default="{ row }">{{ appName(row.app_id) }}</template>
-        </el-table-column>
-        <el-table-column prop="device_id" label="机器" min-width="120" />
-        <el-table-column prop="instance_id" label="instance_id" min-width="160" show-overflow-tooltip />
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="stateTag(row.state)" size="small">{{ row.state }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="listen_port" label="端口" width="80" />
-        <el-table-column prop="pid" label="PID" width="80" />
-        <el-table-column prop="error" label="错误" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              :disabled="row.state !== 'running'"
-              @click="handleOpenClient(row)"
-            >
-              打开 Client
-            </el-button>
-            <el-button
-              link
-              type="danger"
-              :disabled="row.state === 'stopped' || row.state === 'failed' || row.state === 'stopping'"
-              @click="handleStop(row)"
-            >
-              停止
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <el-dialog v-model="createAppVisible" title="新建应用" width="520px">
-      <el-form label-width="110px">
-        <el-form-item label="名称" required>
-          <el-input v-model="appForm.name" placeholder="CarGame" />
-        </el-form-item>
-        <el-form-item label="相对路径" required>
-          <el-input v-model="appForm.game_exe_rel" placeholder="CarGame/CarGame.exe" />
-        </el-form-item>
-        <el-form-item label="启动参数">
-          <el-input v-model="appForm.default_game_args" placeholder="可选" />
-        </el-form-item>
-        <el-form-item label="编码">
-          <div class="flex gap-2 w-full">
-            <el-input v-model="appForm.encoder_format" style="width: 90px" />
-            <el-input-number v-model="appForm.encoder_fps" :min="1" :max="120" />
-            <el-input-number v-model="appForm.encoder_bitrate" :min="1" :max="200" />
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="createAppVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCreateApp">创建</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="createPlcVisible" title="新建放置" width="520px">
-      <el-form label-width="110px">
-        <el-form-item label="应用" required>
-          <el-select v-model="plcForm.app_id" class="w-full" filterable placeholder="选择应用">
-            <el-option
-              v-for="a in apps"
-              :key="a.app_id"
-              :label="`${a.name} (${a.app_id})`"
-              :value="a.app_id"
-            />
-          </el-select>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editing ? '编辑应用' : '新建应用'"
+      width="560px"
+    >
+      <el-form label-width="100px">
+        <el-form-item label="应用名称" required>
+          <el-input v-model="form.name" placeholder="例如 CarGame" />
         </el-form-item>
         <el-form-item label="机器" required>
-          <el-select v-model="plcForm.device_id" class="w-full" filterable placeholder="在线 Service">
+          <el-select v-model="form.device_id" class="w-full" filterable placeholder="选择在线机器">
             <el-option
               v-for="s in services"
               :key="s.device_id"
@@ -356,52 +385,58 @@ onUnmounted(() => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="install_root" required>
-          <el-input v-model="plcForm.install_root" placeholder="D:\Games" />
+        <el-form-item label="程序路径" required>
+          <el-input
+            v-model="form.game_path"
+            class="path-input"
+            placeholder="完整绝对路径；目录名里的连续空格必须保留"
+          />
+          <div class="text-xs text-gray-400 mt-1">
+            勿从网页表格复制路径（浏览器会把连续空格压成一个）。请从资源管理器地址栏粘贴。
+          </div>
+        </el-form-item>
+        <el-form-item label="端口" required>
+          <el-input-number v-model="form.listen_port" :min="32000" :max="65535" />
+          <span class="ml-2 text-xs text-gray-400">默认从 32000 递增；若已被占用会提示</span>
+        </el-form-item>
+        <el-form-item label="启动参数">
+          <el-input v-model="form.default_game_args" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="编码">
+          <div class="flex gap-2 items-center flex-wrap">
+            <el-select v-model="form.encoder_format" style="width: 100px">
+              <el-option label="h264" value="h264" />
+              <el-option label="h265" value="h265" />
+            </el-select>
+            <el-input-number v-model="form.encoder_fps" :min="1" :max="120" />
+            <span class="text-xs text-gray-400">fps</span>
+            <el-input-number v-model="form.encoder_bitrate" :min="1" :max="200" />
+            <span class="text-xs text-gray-400">Mbps</span>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createPlcVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCreatePlc">创建</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="startVisible" title="启动实例" width="520px">
-      <el-form label-width="110px">
-        <el-form-item label="应用" required>
-          <el-select
-            v-model="startForm.app_id"
-            class="w-full"
-            filterable
-            @change="startForm.device_id = ''"
-          >
-            <el-option
-              v-for="a in apps"
-              :key="a.app_id"
-              :label="`${a.name} (${a.app_id})`"
-              :value="a.app_id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="机器" required>
-          <el-select v-model="startForm.device_id" class="w-full" filterable>
-            <el-option
-              v-for="p in placementsForStart"
-              :key="p.placement_id"
-              :label="`${p.device_id}${onlineDeviceIds.has(p.device_id) ? ' (在线)' : ' (离线)'} — ${p.install_root}`"
-              :value="p.device_id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="端口">
-          <el-input-number v-model="startForm.listen_port" :min="0" :max="65535" />
-          <span class="ml-2 text-xs text-gray-400">0 = Service 自动分配</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="startVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitStart">启动</el-button>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.path-pre {
+  white-space: pre;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+.path-input :deep(.el-input__inner) {
+  white-space: pre;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.err-text {
+  color: #dc2626;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+}
+</style>

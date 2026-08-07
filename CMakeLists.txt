@@ -275,7 +275,7 @@ add_dependencies(tc_build_premium_all
     plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
     plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_nvenc_encoder
     plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets
-    plugin_net_rtc_local plugin_ssl_proxy
+    plugin_net_rtc_local
 
     ### client
     plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
