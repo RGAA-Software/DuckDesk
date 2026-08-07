@@ -42,6 +42,7 @@
 #include "rd_statistics.h"
 #include "network/render_service_client.h"
 #include "gr_render/plugins/plugin_manager.h"
+#include "gr_render/plugins/plugin_ids.h"
 #include "gr_render/plugin_interface/gr_stream_plugin.h"
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
@@ -675,9 +676,18 @@ namespace tc
     }
 
     void RdApplication::PostIpcMessage(const std::string& msg) const {
-        if (settings_->capture_.IsVideoInnerCapture()) {
-            PostNetMessage(Data::From(msg));
+        if (!settings_->capture_.IsVideoInnerCapture() || msg.empty()) {
+            return;
         }
+        auto data = Data::From(msg);
+        // Host → injected DLL over /ipc (WsPlugin only). Do not VisitNetPlugins for this
+        // virtual: unrebuilt net plugin DLLs lack the trailing vtable slot and crash.
+        plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+            if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
+                return;
+            }
+            plugin->PostIpcBinaryMessage(data);
+        });
     }
 
     void RdApplication::PostNetMessage(std::shared_ptr<Data> msg) const {

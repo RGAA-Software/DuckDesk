@@ -110,6 +110,18 @@ namespace tc
         }
     }
 
+    void WsPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+        if (!IsWorking() || !msg || !ws_server_) {
+            return;
+        }
+        plugin_context_->PostWorkTask([=, this]() {
+            if (IsStoppingOrDestroyed() || !ws_server_) {
+                return;
+            }
+            ws_server_->PostIpcBinaryMessage(msg);
+        });
+    }
+
     bool WsPlugin::IsUserProxyConnected() {
         if (IsWorking() && ws_server_) {
             return ws_server_->IsUserProxyConnected();

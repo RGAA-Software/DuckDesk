@@ -74,13 +74,19 @@ namespace tc
     }
 
     SHORT HookedGetAsyncKeyState(int vKey) {
-        //LOGI("HookedGetAsyncKeyState: {}", vKey);
-        return origin_GetAsyncKeyState_(vKey);
+        auto hm = HookManager::Instance();
+        if (hm->app_shared_msg_ && hm->app_shared_msg_->enable_hook_events_ != 0) {
+            return hm->ProcessHookedGetAsyncKeyState(vKey);
+        }
+        return origin_GetAsyncKeyState_ ? origin_GetAsyncKeyState_(vKey) : 0;
     }
 
     SHORT HookedGetKeyState(int vKey) {
-       // LOGI("HookedGetKeyState: {}", vKey);
-        return origin_GetAsyncKeyState_(vKey);
+        auto hm = HookManager::Instance();
+        if (hm->app_shared_msg_ && hm->app_shared_msg_->enable_hook_events_ != 0) {
+            return hm->ProcessHookedGetKeyState(vKey);
+        }
+        return origin_GetKeyState_ ? origin_GetKeyState_(vKey) : 0;
     }
 
     HRESULT HookedDirectInput8Create(
@@ -333,28 +339,41 @@ namespace tc
             UINT cbSizeHeader) {
 
         if (uiCommand != RID_INPUT || hRawInput) {
-            LOGI("ignore the message...1");
             return origin_GetRawInputData_(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
         }
         if (!pData) {
             if (!pcbSize) {
                 return 0;
             }
-            LOGI("Need a PostMessage... message size: {}", messages_.Size());
             *pcbSize = sizeof(RAWINPUT);
             return 0;
         }
         if (!pcbSize || *pcbSize < sizeof(RAWINPUT)) {
-            LOGI("ignore the message...2");
-            return -1;
+            return static_cast<UINT>(-1);
         }
 
         if (messages_.Empty()) {
-            return 0;//origin_GetRawInputData_(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+            return 0;
         }
 
         auto msg = messages_.Front();
         messages_.PopFront();
+        // First consume: drop stale queued events (Unity/UE restart can leave a backlog).
+        if (raw_input_first_invoke_) {
+            int dropped = 0;
+            while (!messages_.Empty()) {
+                auto next = messages_.Front();
+                messages_.PopFront();
+                if (next.has_value() && next.value()) {
+                    msg = next;
+                }
+                ++dropped;
+            }
+            if (dropped > 0) {
+                LOGI("GetRawInputData first invoke: dropped {} stale events", dropped);
+            }
+            raw_input_first_invoke_ = false;
+        }
         if (!msg.has_value() || !msg.value()) {
             return 0;
         }
@@ -364,24 +383,28 @@ namespace tc
         if (msg.value()->type_ == kKeyboardEventMessage) {
             auto keyboard_msg = std::static_pointer_cast<KeyboardEventMessage>(msg.value());
             bool down = keyboard_msg->down_;
-            int k = keyboard_msg->key_;
+            int k = static_cast<int>(keyboard_msg->key_);
             raw_input->header.dwType = RIM_TYPEKEYBOARD;
             raw_input->data.keyboard.VKey = k;
             raw_input->data.keyboard.MakeCode = MapVirtualKey(k, MAPVK_VK_TO_VSC);
-            raw_input->data.keyboard.Flags = down ? RI_KEY_MAKE  : RI_KEY_BREAK;
+            raw_input->data.keyboard.Flags = down ? RI_KEY_MAKE : RI_KEY_BREAK;
             raw_input->data.keyboard.Message = down ? WM_KEYDOWN : WM_KEYUP;
-            LOGI("vkey: {}, down: {}, makecode:{}", k, down, raw_input->data.keyboard.MakeCode);
-
-        } else if (msg.value()->type_ == kMouseEventMessage) {
+            return sizeof(RAWINPUT);
+        }
+        if (msg.value()->type_ == kMouseEventMessage) {
             auto mouse_msg = std::static_pointer_cast<MouseEventMessage>(msg.value());
 
             raw_input->header.dwType = RIM_TYPEMOUSE;
-            if (mouse_msg->absolute_) {
-                raw_input->data.mouse.lLastX = mouse_msg->x_;
-                raw_input->data.mouse.lLastY = mouse_msg->y_;
+            // Prefer relative deltas for look/camera; absolute screen for click-only.
+            if (mouse_msg->delta_x_ != 0 || mouse_msg->delta_y_ != 0) {
+                raw_input->data.mouse.lLastX = mouse_msg->delta_x_;
+                raw_input->data.mouse.lLastY = mouse_msg->delta_y_;
+                raw_input->data.mouse.usFlags = MOUSE_MOVE_RELATIVE;
+            } else if (mouse_msg->absolute_) {
+                raw_input->data.mouse.lLastX = static_cast<LONG>(mouse_msg->x_);
+                raw_input->data.mouse.lLastY = static_cast<LONG>(mouse_msg->y_);
                 raw_input->data.mouse.usFlags = MOUSE_MOVE_ABSOLUTE;
-            }
-            else {
+            } else {
                 raw_input->data.mouse.lLastX = mouse_msg->delta_x_;
                 raw_input->data.mouse.lLastY = mouse_msg->delta_y_;
                 raw_input->data.mouse.usFlags = MOUSE_MOVE_RELATIVE;
@@ -389,42 +412,26 @@ namespace tc
 
             if (mouse_msg->data_) {
                 raw_input->data.mouse.ulButtons |= RI_MOUSE_WHEEL;
-                raw_input->data.mouse.usButtonData = mouse_msg->data_;
+                raw_input->data.mouse.usButtonData = static_cast<USHORT>(mouse_msg->data_);
             }
 
             if (mouse_msg->pressed_) {
                 if (mouse_msg->button_ == ButtonFlag::kLeftMouseButtonDown) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_LEFT_BUTTON_DOWN;
-                }
-                else if (mouse_msg->button_ == ButtonFlag::kMiddleMouseButtonDown) {
+                } else if (mouse_msg->button_ == ButtonFlag::kMiddleMouseButtonDown) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_MIDDLE_BUTTON_DOWN;
-                }
-                else if (mouse_msg->button_ == ButtonFlag::kRightMouseButtonDown) {
+                } else if (mouse_msg->button_ == ButtonFlag::kRightMouseButtonDown) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_RIGHT_BUTTON_DOWN;
                 }
-            }
-            else if (mouse_msg->released_) {
+            } else if (mouse_msg->released_) {
                 if (mouse_msg->button_ == ButtonFlag::kLeftMouseButtonUp) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_LEFT_BUTTON_UP;
-                }
-                else if (mouse_msg->button_ == ButtonFlag::kMiddleMouseButtonUp) {
+                } else if (mouse_msg->button_ == ButtonFlag::kMiddleMouseButtonUp) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_MIDDLE_BUTTON_UP;
-                }
-                else if (mouse_msg->button_ == ButtonFlag::kRightMouseButtonUp) {
+                } else if (mouse_msg->button_ == ButtonFlag::kRightMouseButtonUp) {
                     raw_input->data.mouse.ulButtons |= RI_MOUSE_RIGHT_BUTTON_UP;
                 }
             }
-
-#if 1
-            LOGI("------------------------Replay-----------------------------");
-            LOGI("button: {}, pressed: {}, released: {}", mouse_msg->button_, mouse_msg->pressed_, mouse_msg->released_);
-            LOGI("uiCommand: {}, dwType: {}", uiCommand, raw_input->header.dwType);
-            LOGI("usFlags: {}", raw_input->data.mouse.usFlags);
-            LOGI("lLastX: {}, lLastY: {}", raw_input->data.mouse.lLastX, raw_input->data.mouse.lLastY);
-            LOGI("ulButtons: {}, usButtonData: {}", raw_input->data.mouse.ulButtons, raw_input->data.mouse.usButtonData);
-            //LOGI("cursor pos.x : {}, pos.y : {}", cursor_position.x, cursor_position.y);
-            LOGI("........................Replay.............................");
-#endif
             return sizeof(RAWINPUT);
         }
         return origin_GetRawInputData_(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
@@ -462,98 +469,214 @@ namespace tc
         return origin_WindowFromPoint_(Point);
     }
 
+    HWND HookManager::ResolveInputHwnd(uint64_t hwnd_from_msg) const {
+        auto hwnd = reinterpret_cast<HWND>(hwnd_from_msg);
+        if (hwnd && IsWindow(hwnd)) {
+            return hwnd;
+        }
+        return FocusSpoofHwnd();
+    }
+
+    void HookManager::UpdateModifierState(uint32_t key, bool down, uint32_t caps_lock_state) {
+        if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT) {
+            shift_pressed_.store(down, std::memory_order_relaxed);
+        }
+        if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL) {
+            control_pressed_.store(down, std::memory_order_relaxed);
+        }
+        if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU) {
+            menu_pressed_.store(down, std::memory_order_relaxed);
+        }
+        if (key >= 'A' && key <= 'Z') {
+            caps_lock_status_.store(static_cast<SHORT>(caps_lock_state), std::memory_order_relaxed);
+        }
+        if (key == VK_CAPITAL) {
+            caps_lock_status_.store(static_cast<SHORT>(caps_lock_state), std::memory_order_relaxed);
+        }
+    }
+
+    SHORT HookManager::ProcessHookedGetKeyState(int vKey) const {
+        switch (vKey) {
+            case VK_CAPITAL:
+                return caps_lock_status_.load(std::memory_order_relaxed);
+            case VK_CONTROL:
+            case VK_LCONTROL:
+            case VK_RCONTROL:
+                return control_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            case VK_LSHIFT:
+            case VK_RSHIFT:
+            case VK_SHIFT:
+                return shift_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            case VK_MENU:
+            case VK_LMENU:
+            case VK_RMENU:
+                return menu_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            default:
+                break;
+        }
+        return origin_GetKeyState_ ? origin_GetKeyState_(vKey) : 0;
+    }
+
+    SHORT HookManager::ProcessHookedGetAsyncKeyState(int vKey) const {
+        switch (vKey) {
+            case VK_CAPITAL:
+                return caps_lock_status_.load(std::memory_order_relaxed);
+            case VK_CONTROL:
+            case VK_LCONTROL:
+            case VK_RCONTROL:
+                return control_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            case VK_LSHIFT:
+            case VK_RSHIFT:
+            case VK_SHIFT:
+                return shift_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            case VK_MENU:
+            case VK_LMENU:
+            case VK_RMENU:
+                return menu_pressed_.load(std::memory_order_relaxed) ? static_cast<SHORT>(0x8000) : 0;
+            default:
+                break;
+        }
+        return origin_GetAsyncKeyState_ ? origin_GetAsyncKeyState_(vKey) : 0;
+    }
+
     void HookManager::GenerateMouseEvent(const std::shared_ptr<CaptureBaseMessage>& msg) {
         auto message = std::static_pointer_cast<MouseEventMessage>(msg);
-        hwnd_ = (HWND)message->hwnd_;
-        cursor_in_screen_position_.x = message->x_;
-        cursor_in_screen_position_.y = message->y_;
+        HWND hwnd = ResolveInputHwnd(message->hwnd_);
+        if (!hwnd) {
+            static thread_local uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 100) == 0) {
+                LOGW("GenerateMouseEvent: no hwnd, drop n={}", s_n);
+            }
+            return;
+        }
+        hwnd_ = hwnd;
+        cursor_in_screen_position_.x = static_cast<LONG>(message->x_);
+        cursor_in_screen_position_.y = static_cast<LONG>(message->y_);
+
+        {
+            static thread_local uint64_t s_ok = 0;
+            const auto n = ++s_ok;
+            if (n <= 5 || (n % 200) == 0) {
+                LOGI("GenerateMouseEvent: n={} hwnd={:x} xy=({},{}) btn={} pressed={} released={}",
+                     n, reinterpret_cast<uint64_t>(hwnd), message->x_, message->y_,
+                     message->button_, message->pressed_, message->released_);
+            }
+        }
 
         POINT client_area_point = {
-            .x = (LONG)message->x_,
-            .y = (LONG)message->y_,
+            .x = static_cast<LONG>(message->x_),
+            .y = static_cast<LONG>(message->y_),
         };
-        ScreenToClient((HWND)hwnd_, &client_area_point);
+        ScreenToClient(hwnd, &client_area_point);
 
-        bool bVisible = (::GetWindowLong(hwnd_, GWL_STYLE) & WS_VISIBLE) != 0;
-        bool v = IsWindowVisible(hwnd_);
-
-        LOGI("handle: {:x}, Cursor in screen pos : {},{}  cursor in client pos: {},{}",
-             message->hwnd_, cursor_in_screen_position_.x, cursor_in_screen_position_.y, client_area_point.x, client_area_point.y);
-
-        auto hwnd = (HWND)message->hwnd_;
         static bool active = false;
         if (!active) {
             PostMessage(hwnd, WM_ACTIVATE, WA_ACTIVE, 0);
             active = true;
         }
-        //PostMessage(hwnd, WM_ACTIVATE, WA_ACTIVE, 0);
-        BOOL bRet = PostMessage(hwnd, WM_SETFOCUS, 0, 0);
+        PostMessage(hwnd, WM_SETFOCUS, 0, 0);
 
-        /*
-         * Key State Masks for Mouse Messages
-         */
         DWORD mouse_key_state_flags = 0;
         UINT event = WM_MOUSEMOVE;
         if (message->pressed_) {
             if (message->button_ == ButtonFlag::kLeftMouseButtonDown) {
                 event = WM_LBUTTONDOWN;
                 mouse_key_state_flags = MK_LBUTTON;
-                LOGI("Left mouse button pressed.....");
-            }
-            else if (message->button_ == ButtonFlag::kRightMouseButtonDown) {
+            } else if (message->button_ == ButtonFlag::kRightMouseButtonDown) {
                 event = WM_RBUTTONDOWN;
                 mouse_key_state_flags = MK_RBUTTON;
-            }
-            else if (message->button_ == ButtonFlag::kMiddleMouseButtonDown) {
+            } else if (message->button_ == ButtonFlag::kMiddleMouseButtonDown) {
                 event = WM_MBUTTONDOWN;
                 mouse_key_state_flags = MK_MBUTTON;
             }
-        }
-        else if (message->released_) {
+        } else if (message->released_) {
             if (message->button_ == ButtonFlag::kLeftMouseButtonUp) {
                 event = WM_LBUTTONUP;
                 mouse_key_state_flags = MK_LBUTTON;
-                LOGI("Left mouse button Release------");
-            }
-            else if (message->button_ == ButtonFlag::kRightMouseButtonUp) {
+            } else if (message->button_ == ButtonFlag::kRightMouseButtonUp) {
                 event = WM_RBUTTONUP;
                 mouse_key_state_flags = MK_RBUTTON;
-            }
-            else if (message->button_ == ButtonFlag::kMiddleMouseButtonUp) {
+            } else if (message->button_ == ButtonFlag::kMiddleMouseButtonUp) {
                 event = WM_MBUTTONUP;
                 mouse_key_state_flags = MK_MBUTTON;
             }
         }
 
-        // UE4 滚轮消息模拟
         if (message->data_) {
-            bRet = PostMessage(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, message->data_), MAKELPARAM(client_area_point.x, client_area_point.y));
+            PostMessage(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, message->data_),
+                        MAKELPARAM(client_area_point.x, client_area_point.y));
         }
 
-        PostMessage(hwnd, WM_MOUSEMOVE, mouse_key_state_flags, MAKELPARAM(client_area_point.x, client_area_point.y));
-        PostMessage(hwnd, event, mouse_key_state_flags, MAKELPARAM(client_area_point.x, client_area_point.y));
-        PostMessage(hwnd, WM_INPUT, 0, (LPARAM)NULL);
+        PostMessage(hwnd, WM_MOUSEMOVE, mouse_key_state_flags,
+                    MAKELPARAM(client_area_point.x, client_area_point.y));
+        if (event != WM_MOUSEMOVE) {
+            PostMessage(hwnd, event, mouse_key_state_flags,
+                        MAKELPARAM(client_area_point.x, client_area_point.y));
+        }
+        PostMessage(hwnd, WM_INPUT, 0, (LPARAM)nullptr);
     }
 
     void HookManager::GenerateKeyboardEvent(const std::shared_ptr<CaptureBaseMessage>& m) {
         auto key_msg = std::static_pointer_cast<KeyboardEventMessage>(m);
-
-        int msg;
-        LPARAM lp = 0;
-        if (key_msg->down_) {
-            msg = WM_KEYDOWN;
-        } else {
-            // repeat count for the current message.
-            lp = 1;
-            // previous key state
-            lp |= 1 << 30;
-            // transition state
-            lp |= 1 << 31;
-            msg = WM_KEYUP;
+        HWND hwnd = ResolveInputHwnd(key_msg->hwnd_);
+        if (!hwnd) {
+            static thread_local uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 100) == 0) {
+                LOGW("GenerateKeyboardEvent: no hwnd, drop n={}", s_n);
+            }
+            return;
         }
 
-        PostMessage((HWND)key_msg->hwnd_, msg, key_msg->key_, lp);
-        PostMessage((HWND)key_msg->hwnd_, WM_INPUT, 0, (LPARAM)NULL);
+        const uint32_t k = key_msg->key_;
+        const bool down = key_msg->down_ != 0;
+        {
+            static thread_local uint64_t s_ok = 0;
+            const auto n = ++s_ok;
+            if (n <= 5 || (n % 200) == 0) {
+                LOGI("GenerateKeyboardEvent: n={} hwnd={:x} key=0x{:x} down={}",
+                     n, reinterpret_cast<uint64_t>(hwnd), k, down);
+            }
+        }
+        UpdateModifierState(k, down, key_msg->caps_lock_state_);
+
+        int msg = down ? WM_KEYDOWN : WM_KEYUP;
+        LPARAM lp = 0;
+        if (!down) {
+            lp = 1;            // repeat count
+            lp |= 1 << 30;     // previous key state
+            lp |= 1 << 31;     // transition state
+        }
+
+        UINT vsc = 0;
+        if (k == VK_SHIFT) {
+            vsc = MapVirtualKey(VK_LSHIFT, MAPVK_VK_TO_VSC_EX);
+        } else {
+            vsc = MapVirtualKey(k, MAPVK_VK_TO_VSC_EX);
+        }
+        lp |= static_cast<LPARAM>(vsc) << 16;
+
+        static constexpr uint32_t kExtendedKeys[] = {
+            VK_DELETE, VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_NUMLOCK,
+            VK_RCONTROL, VK_RMENU, VK_DIVIDE, VK_LWIN, VK_RWIN,
+            VK_HOME, VK_PRIOR, VK_NEXT, VK_END, VK_INSERT,
+        };
+        for (uint32_t ek : kExtendedKeys) {
+            if (ek == k) {
+                lp |= 1 << 24;
+                break;
+            }
+        }
+
+        // UE often needs KEYUP twice for some keys (streamer parity).
+        const int exec_count = down ? 1 : 2;
+        for (int i = 0; i < exec_count; ++i) {
+            PostMessage(hwnd, msg, k, lp);
+        }
+        // Unity/UE RawInput: caller already PushIpcMessage'd once; duplicate + WM_INPUT×2
+        // (streamer HandleKeyEvent) so GetRawInputData sees the key.
+        PushIpcMessage(m);
+        PostMessage(hwnd, WM_INPUT, 0, (LPARAM)nullptr);
+        PostMessage(hwnd, WM_INPUT, 0, (LPARAM)nullptr);
     }
 
     void HookManager::DumpSharedMessage() {

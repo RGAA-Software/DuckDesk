@@ -223,6 +223,7 @@ void PrintInputArgs() {
     LOGI("relay enabled: {}", FLAGS_relay_enabled);
     LOGI("language: {}", FLAGS_language);
     LOGI("app mode: {} => {}", FLAGS_app_mode, (int)settings->app_mode_);
+    LOGI("event replay mode: {} (0=global,1=inner)", (int)settings->app_.event_replay_mode_);
     LOGI("appkey : {}", FLAGS_appkey);
     LOGI("--------------In args end----------------");
 }

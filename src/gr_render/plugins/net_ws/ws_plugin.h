@@ -32,6 +32,7 @@ namespace tc
 
         void PostUserProxyMessage(std::shared_ptr<Data> msg) override;
         bool IsUserProxyConnected() override;
+        void PostIpcBinaryMessage(std::shared_ptr<Data> msg) override;
 
         bool IsOnlyAudioClients() override;
         int GetConnectedClientsCount() override;

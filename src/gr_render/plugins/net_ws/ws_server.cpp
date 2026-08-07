@@ -75,6 +75,10 @@ namespace tc
             }
             else if (self->ft_routers_.Remove(socket_fd).has_value()) {
             }
+            else if (self->ipc_sessions_.Remove(socket_fd).has_value()) {
+                LOGI("IPC (/ipc) session removed on disconnect, remaining={}",
+                     self->ipc_sessions_.Size());
+            }
         });
 
         server_->support_websocket(true);
@@ -167,6 +171,34 @@ namespace tc
         stream_routers_.ApplyAll([=](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
             router->PostBinaryMessage(msg);
         });
+    }
+
+    void WsPluginServer::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+        if (!msg || msg->Size() <= 0) {
+            return;
+        }
+        const std::string payload = msg->AsString();
+        int sent = 0;
+        ipc_sessions_.ApplyAll([&](const uint64_t&, const std::shared_ptr<asio2::http_session>& sess) {
+            if (!sess || !sess->is_started()) {
+                return;
+            }
+            sess->async_send(payload);
+            ++sent;
+        });
+        if (sent == 0) {
+            static std::atomic<uint64_t> s_drop{0};
+            const auto n = ++s_drop;
+            if (n == 1 || (n % 100) == 0) {
+                LOGW("PostIpcBinaryMessage: no /ipc session, drop n={} bytes={}", n, payload.size());
+            }
+        } else {
+            static std::atomic<uint64_t> s_ok{0};
+            const auto n = ++s_ok;
+            if (n <= 5 || (n % 200) == 0) {
+                LOGI("PostIpcBinaryMessage: sent n={} sessions={} bytes={}", n, sent, payload.size());
+            }
+        }
     }
 
     bool WsPluginServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
@@ -330,11 +362,21 @@ namespace tc
                 }
                 sess_ptr->ws_stream().binary(true);
                 sess_ptr->set_no_delay(true);
-                LOGI("IPC (/ipc) client connected from {}:{}",
-                     sess_ptr->remote_address().c_str(), sess_ptr->remote_port());
+                const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
+                self->ipc_sessions_.Insert(socket_fd, sess_ptr);
+                LOGI("IPC (/ipc) client connected from {}:{} fd={} sessions={}",
+                     sess_ptr->remote_address().c_str(), sess_ptr->remote_port(), socket_fd,
+                     self->ipc_sessions_.Size());
             })
-            .on("close", [](std::shared_ptr<asio2::http_session> &sess_ptr) {
-                LOGI("IPC (/ipc) client disconnected");
+            .on("close", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr) {
+                auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
+                const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
+                self->ipc_sessions_.Remove(socket_fd);
+                LOGI("IPC (/ipc) client disconnected fd={} remaining={}", socket_fd,
+                     self->ipc_sessions_.Size());
             })
         );
         LOGI("Registered websocket route: {}", kUrlIpc);

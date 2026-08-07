@@ -109,6 +109,8 @@ export class InputController {
     if (this.attached) return
     this.attached = true
     const v = this.opts.video
+    // video 默认可聚焦,否则点画面后焦点仍停在侧栏 INPUT,WASD 会被 isFormTarget 丢掉
+    if (v.tabIndex < 0) v.tabIndex = 0
     // mousemove/mouseup 挂 window:按住拖出 video 外仍能带上 client delta(避免 video+window 双挂导致重复)
     v.addEventListener('mousedown', this.onMouseDown)
     window.addEventListener('mousemove', this.onMouseMove)
@@ -238,6 +240,34 @@ export class InputController {
 
   virtualPos(): { x: number; y: number } {
     return { x: this.virtX, y: this.virtY }
+  }
+
+  /** Headless/CDP: inject absolute click + key without relying on DOM hit-testing. */
+  testSend(opts?: { x?: number; y?: number; keyCode?: string }) {
+    const x = opts?.x ?? 0.5
+    const y = opts?.y ?? 0.5
+    const pos = { x, y }
+    this.sendMouse(BTN_MOUSE_MOVE, pos)
+    this.sendMouse(BTN_LEFT_DOWN, pos, { pressed: true })
+    this.sendMouse(BTN_LEFT_UP, pos, { released: true })
+    const code = opts?.keyCode ?? 'KeyW'
+    const vk = VK_MAP[code]
+    if (vk !== undefined) {
+      for (const down of [true, false]) {
+        this.send({
+          type: MSG_TYPE_KEY_EVENT,
+          keyEvent: {
+            keyCode: vk,
+            down,
+            numLockStatus: -1,
+            capsLockStatus: -1,
+            statusCheck: LOCK_KEY_DONT_CARE,
+            timestamp: Date.now(),
+          },
+        })
+      }
+    }
+    return { ok: true, dc: this.opts.dc.readyState, lastMouse: this.lastMouse, keyVk: vk ?? null }
   }
 
   private describeButton(button: number): string {
@@ -380,6 +410,12 @@ export class InputController {
       return
     }
     e.preventDefault()
+    // 抢回键盘焦点,否则侧栏/参数 INPUT 仍吃 WASD
+    try {
+      this.opts.video.focus({ preventScroll: true })
+    } catch {
+      this.opts.video.focus()
+    }
     this.flushPendingMoveNow()
     this.buttonsHeld.add(e.button)
     this.markSentPos(pos)
@@ -644,12 +680,19 @@ export class InputController {
   }
 
   private isFormTarget(e: KeyboardEvent): boolean {
-    const t = e.target as HTMLElement | null
-    return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+    // 用 activeElement: key 事件的 target 常是焦点元素;侧栏表单抢焦点时必须丢掉,避免误注入
+    const t = (document.activeElement as HTMLElement | null) || (e.target as HTMLElement | null)
+    if (!t) return false
+    if (t === this.opts.video || this.opts.video.contains(t)) return false
+    return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.tagName === 'SELECT'
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
-    if (this.viewOnly || this.isFormTarget(e)) return
+    if (this.viewOnly) return
+    if (this.isFormTarget(e)) {
+      this.opts.onLog?.(`[InputSend] drop key ${e.code}: focus on form, click video first`)
+      return
+    }
     e.preventDefault()
     this.sendKey(e, true)
   }

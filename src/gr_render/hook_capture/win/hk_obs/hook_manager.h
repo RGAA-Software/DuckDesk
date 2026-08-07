@@ -9,6 +9,7 @@
 #include <memory>
 #include <functional>
 #include <queue>
+#include <atomic>
 #include "tc_capture_new/capture_message.h"
 #include "tc_common_new/concurrent_queue.h"
 #include "hook_api.h"
@@ -54,6 +55,10 @@ namespace tc
                 UINT cbSizeHeader);
         BOOL ProcessHookedGetCursorPos(LPPOINT lpPoint);
 
+        // Virtual modifier / caps state for background hook-inner input (streamer parity).
+        SHORT ProcessHookedGetKeyState(int vKey) const;
+        SHORT ProcessHookedGetAsyncKeyState(int vKey) const;
+
         [[nodiscard]]
         HWND ProcessHookedGetForegroundWindow() const;
 
@@ -73,6 +78,8 @@ namespace tc
         void GenerateMouseEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
         void GenerateKeyboardEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
         void FocusSpoofWatcherMain();
+        void UpdateModifierState(uint32_t key, bool down, uint32_t caps_lock_state);
+        [[nodiscard]] HWND ResolveInputHwnd(uint64_t hwnd_from_msg) const;
 
     public:
         uint32_t current_pid_{};
@@ -81,7 +88,7 @@ namespace tc
         uint64_t frame_index_ = 0;
 
         tc::ConcurrentQueue<std::shared_ptr<CaptureBaseMessage>> messages_;
-        POINT cursor_in_screen_position_;
+        POINT cursor_in_screen_position_{};
 
         std::shared_ptr<AppSharedInfoReader> shared_info_reader_ = nullptr;
         std::shared_ptr<AppSharedMessage> app_shared_msg_ = nullptr;
@@ -94,6 +101,12 @@ namespace tc
         HWND own_game_hwnd_ = nullptr;
         HANDLE focus_spoof_watcher_ = nullptr;
         volatile long focus_spoof_stop_ = 0;
+
+        std::atomic_bool shift_pressed_{false};
+        std::atomic_bool control_pressed_{false};
+        std::atomic_bool menu_pressed_{false};
+        std::atomic<SHORT> caps_lock_status_{0};
+        bool raw_input_first_invoke_{true};
     };
 
     static GetRawInputBuffer_t origin_GetRawInputBuffer_;

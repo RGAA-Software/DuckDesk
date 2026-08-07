@@ -1121,6 +1121,9 @@ function exposeInputConnDebug() {
     lastMouse: () => input?.lastMouse ?? null,
     relative: () => input?.relativeMode ?? false,
     virtualPos: () => input?.virtualPos() ?? null,
+    attached: () => !!input,
+    testSend: (opts?: { x?: number; y?: number; keyCode?: string }) =>
+      input?.testSend(opts) ?? { ok: false, reason: 'input not ready' },
   }
   w.__conn = {
     status: () => status.value,
@@ -1176,6 +1179,7 @@ onBeforeUnmount(() => {
     <video
       ref="videoRef"
       class="remote-video"
+      tabindex="0"
       autoplay
       playsinline
       :muted="muted"

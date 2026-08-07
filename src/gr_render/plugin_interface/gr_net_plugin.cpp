@@ -35,6 +35,9 @@ namespace tc
         return false;
     }
 
+    void GrNetPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+    }
+
     void GrNetPlugin::OnClientEventCame(bool is_proto,
                                         int64_t socket_fd,
                                         const NetPluginType& nt_plugin_type,

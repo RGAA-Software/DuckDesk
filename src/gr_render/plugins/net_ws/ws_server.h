@@ -31,6 +31,7 @@ namespace tc
         void Exit();
 
         void PostNetMessage(std::shared_ptr<Data> msg);
+        void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
         bool PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
         bool PostTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
         int GetConnectedClientsCount();
@@ -65,6 +66,8 @@ namespace tc
         WsDataPtr ws_data_ = nullptr;
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
+        // Injected tc_graphics.dll sessions on /ipc (host → game input downlink).
+        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
 
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
         std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;

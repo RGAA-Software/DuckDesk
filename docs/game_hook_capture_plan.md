@@ -4,7 +4,8 @@
 > 目标：`mode = "game-hook"` 时，单独启动一个 `GammaRayRender`，启动游戏、注入采集 DLL，用 web client 看见游戏画面。  
 > 约束：本期**不经过** panel / `gr_service`；多 render 编排后置。  
 > OBS 对照：`D:\source\obs-studio\plugins\win-capture`（`game-capture.c` / `graphics-hook` / `inject-helper`）。  
-> 音频梳理：[`game_hook_audio_capture.md`](./game_hook_audio_capture.md)（PID process-loopback / MiniAudio 补丁 / Hook fallback）。
+> 音频梳理：[`game_hook_audio_capture.md`](./game_hook_audio_capture.md)（PID process-loopback / MiniAudio 补丁 / Hook fallback）。  
+> 输入：game-hook **强制** `event-replay-mode=inner`（进程内注入，禁止 OS `SendInput`）。
 
 ---
 
@@ -15,6 +16,7 @@
 3. 默认 HTTP 端口 `32000`（`--network_listen_port`）
 4. 注入 `tc_graphics.dll`（OBS 移植）
 5. 浏览器打开 `http://127.0.0.1:32000/web_client/?deviceId=debug1`，**看到游戏画面**
+6. 鼠标/键盘可控制游戏（焦点可在浏览器；经 `/ipc` → `HookManager` PostMessage + RawInput）
 
 ---
 
@@ -63,6 +65,15 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
         ▼
 浏览器 http://127.0.0.1:20371/web_client/?deviceId=debug1
   （空密码时 auth 放行；先连 peer 再出画，HasConnectedPeer 门闩）
+
+输入（game-hook / event-replay-mode=inner）:
+  浏览器 mouse/key → PluginNetEventRouter
+    → CaptureMessageMaker(Mouse/KeyboardEventMessage)
+    → RdApplication::PostIpcMessage → **仅** WsPlugin::PostIpcBinaryMessage → /ipc 下行
+    → tc_graphics WsIpcClient → HookManager
+       PostMessage(WM_*) + GetRawInputData 队列 + 虚拟 GetCursorPos
+  ※ desktop 仍走 EventReplayer → SendInput（global）；inner 时跳过 EventReplayer，避免双路径
+  ※ PostIpc 不可 Visit 全部 NetPlugin：旧 DLL 缺 trailing vtable 槽会崩溃
 ```
 
 ---
@@ -78,6 +89,7 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
 | `StartProcessWithHook`（仅 game-hook） | 已有 |
 | net_ws 注册 `/ipc` | 已有 |
 | DLL 明文 WS `/ipc` + shared texture | 已有 |
+| hook-inner 输入 Host→`/ipc`→DLL | 已有 |
 | service / 多 render | **后置** |
 
 ---

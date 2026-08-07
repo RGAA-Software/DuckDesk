@@ -145,8 +145,15 @@ namespace tc {
                 return;
             }
 
-            // notify to all plugins
+            // notify to all plugins (skip EventReplayer SendInput when hook-inner)
+            const bool hook_inner = !settings_->app_.IsGlobalReplayMode();
+            const bool is_input = msg->type() == MessageType::kMouseEvent ||
+                                  msg->type() == MessageType::kKeyEvent;
             plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
+                if (hook_inner && is_input &&
+                    plugin->GetPluginId() == kEventReplayerPluginId) {
+                    return;
+                }
                 plugin->OnMessage(msg);
             });
 
@@ -313,6 +320,18 @@ namespace tc {
                     ProcessModifyFps(std::move(msg));
                     break;
                 }
+                case MessageType::kMouseEvent: {
+                    if (!settings_->app_.IsGlobalReplayMode()) {
+                        ProcessMouseEvent(std::move(msg));
+                    }
+                    break;
+                }
+                case MessageType::kKeyEvent: {
+                    if (!settings_->app_.IsGlobalReplayMode()) {
+                        ProcessKeyboardEvent(std::move(msg));
+                    }
+                    break;
+                }
 //                case kFocusOutEvent: {
 //                    ProcessFocusOutEvent();
 //                    break;
@@ -356,56 +375,84 @@ namespace tc {
 
     void PluginNetEventRouter::ProcessMouseEvent(std::shared_ptr<Message>&& msg) {
         if (settings_->app_.IsGlobalReplayMode()) {
-            if (settings_->can_be_operated_) {
-                //win_event_replayer_->HandleMessage(msg);
-            }
-        } else {
-            //1. convert to ipc message
-            const auto& mouse_event = msg->mouse_event();
-            auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
-            auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
-            RECT rect{0,0,0,0};
-            if (!ProcessHelper::GetWindowPositionByHwnd((HWND)hwnd, rect)) {
-                LOGE("GetWindowPositionByHwnd failed for HWND: {}", hwnd_ptr);
-                return;
-            }
-
-            int app_width = rect.right - rect.left;
-            int app_height = rect.bottom - rect.top;
-
-            auto x = rect.left + app_width * mouse_event.x_ratio();
-            auto y = rect.top + app_height * mouse_event.y_ratio();
-
-            //LOGI("window rect:{},{},{}x{}, x:{}, y: {}", rect.left, rect.top, app_width, app_height, (int)x, (int)y);
-            auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(hwnd_ptr, (int)x, (int)y,
-                                                                  mouse_event.button(), mouse_event.data(),
-                                                                  mouse_event.delta_x(), mouse_event.delta_y(),
-                                                                  mouse_event.pressed(), mouse_event.released());
-            auto msg_str = CaptureMessageMaker::ConvertMessageToString(mouse_event_msg);
-
-            //2. post it
-            PostIpcMessage(msg_str);
+            // Desktop: EventReplayerPlugin handles via OnMessage → SendInput.
+            return;
         }
+        if (!settings_->can_be_operated_) {
+            return;
+        }
+        const auto& mouse_event = msg->mouse_event();
+        auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
+        auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
+        if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
+            static thread_local uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 100) == 0) {
+                LOGW("hook-inner mouse: no game HWND yet, drop n={}", s_n);
+            }
+            return;
+        }
+        RECT rect{0, 0, 0, 0};
+        if (!ProcessHelper::GetWindowPositionByHwnd(static_cast<HWND>(hwnd), rect)) {
+            LOGE("GetWindowPositionByHwnd failed for HWND: {:x}", hwnd_ptr);
+            return;
+        }
+
+        int app_width = rect.right - rect.left;
+        int app_height = rect.bottom - rect.top;
+        if (app_width <= 0 || app_height <= 0) {
+            LOGW("hook-inner mouse: invalid window size {}x{}", app_width, app_height);
+            return;
+        }
+
+        auto x = rect.left + app_width * mouse_event.x_ratio();
+        auto y = rect.top + app_height * mouse_event.y_ratio();
+
+        auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(
+            hwnd_ptr, (int)x, (int)y, mouse_event.button(), mouse_event.data(),
+            mouse_event.delta_x(), mouse_event.delta_y(), mouse_event.pressed(),
+            mouse_event.released());
+        {
+            static thread_local uint64_t s_n = 0;
+            const auto n = ++s_n;
+            if (n <= 5 || (n % 200) == 0) {
+                LOGI("hook-inner mouse: n={} hwnd={:x} screen=({},{}) ratio=({:.3f},{:.3f}) btn={}",
+                     n, hwnd_ptr, (int)x, (int)y, mouse_event.x_ratio(), mouse_event.y_ratio(),
+                     mouse_event.button());
+            }
+        }
+        PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(mouse_event_msg));
     }
 
     void PluginNetEventRouter::ProcessKeyboardEvent(std::shared_ptr<Message>&& msg) {
-        bool global_events = settings_->app_.event_replay_mode_ == TargetApplication::EventReplayMode::kGlobal;
-        if (global_events) {
-            if (settings_->can_be_operated_) {
-                //win_event_replayer_->HandleMessage(msg);
-            }
-        } else {
-            // 1. convert to ipc message
-            const auto& key_event = msg->key_event();
-            auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
-            auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
-
-            auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(hwnd_ptr, key_event.key_code(), key_event.down(),
-                key_event.num_lock_status(), key_event.caps_lock_status());
-            auto msg_str = CaptureMessageMaker::ConvertMessageToString(keyboard_msg);
-            // 2. post it
-            PostIpcMessage(msg_str);
+        if (settings_->app_.IsGlobalReplayMode()) {
+            return;
         }
+        if (!settings_->can_be_operated_) {
+            return;
+        }
+        const auto& key_event = msg->key_event();
+        auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
+        auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
+        if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
+            static thread_local uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 100) == 0) {
+                LOGW("hook-inner key: no game HWND yet, drop n={}", s_n);
+            }
+            return;
+        }
+
+        auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(
+            hwnd_ptr, key_event.key_code(), key_event.down(), key_event.num_lock_status(),
+            key_event.caps_lock_status());
+        {
+            static thread_local uint64_t s_n = 0;
+            const auto n = ++s_n;
+            if (n <= 5 || (n % 200) == 0) {
+                LOGI("hook-inner key: n={} hwnd={:x} key=0x{:x} down={}",
+                     n, hwnd_ptr, key_event.key_code(), key_event.down());
+            }
+        }
+        PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(keyboard_msg));
     }
 
     void PluginNetEventRouter::PostIpcMessage(const std::string& msg) {

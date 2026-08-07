@@ -83,6 +83,13 @@ Get-Process -Name 'GammaRayRender' -ErrorAction SilentlyContinue | Stop-Process 
 Start-Sleep -Seconds 1
 
 Copy-Item -LiteralPath $SrcToml -Destination (Join-Path $Dist 'settings.toml') -Force
+# game-hook forces event-replay-mode=inner in ApplyApplicationMode; keep toml consistent for humans.
+$tomlPath = Join-Path $Dist 'settings.toml'
+if (Test-Path -LiteralPath $tomlPath) {
+    $toml = Get-Content -LiteralPath $tomlPath -Raw
+    $toml = $toml -replace 'event-replay-mode\s*=\s*"[^"]*"', 'event-replay-mode = "inner"'
+    Set-Content -LiteralPath $tomlPath -Value $toml -NoNewline
+}
 
 $argList = @(
     '--logfile',

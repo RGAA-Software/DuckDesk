@@ -67,7 +67,10 @@ namespace tc
         if (application_mode_ == ApplicationMode::kGameHook) {
             capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
             app_mode_ = AppMode::kInnerCapture;
-            LOGI("application.mode=game-hook → inner capture + start/inject game");
+            // Multi-instance cloud gaming: in-process inject only (never OS SendInput).
+            app_.event_replay_mode_ = TargetApplication::EventReplayMode::kHookInner;
+            LOGI("application.mode=game-hook → inner capture + start/inject game "
+                 "(force event-replay-mode=inner)");
         } else {
             capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
             app_mode_ = AppMode::kDesktop;

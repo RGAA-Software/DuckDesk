@@ -133,6 +133,10 @@ namespace tc
 
         }
 
+        // Appended at end to avoid shifting existing GrNetPlugin vtable slots.
+        // Binary CaptureMessage blob to injected game DLL over /ipc (game-hook input).
+        virtual void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
+
     protected:
         NetSyncInfo sync_info_{};
 
