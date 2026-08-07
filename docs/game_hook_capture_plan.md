@@ -29,13 +29,14 @@ settings.toml
 scripts/start_render_hook.bat
   - 工作目录 = build_official/dist
   - 同步 settings.toml（仅 game-path / capture-method 等）
-  - 启动时显式传参：--app_mode=game-hook --capture_video_type=inner --network_listen_port=32000 ...
+  - 启动时显式传参：--app_mode=game-hook --app_game_path=<Base64 UTF-8> --capture_video_type=inner ...
         │
         ▼
 RdSettings::LoadSettings → UpdateSettings(CLI) → ApplyApplicationMode
   - CLI --app_mode 优先；未传则用 toml application.mode
+  - --app_game_path 为 Base64(UTF-8)，解码后覆盖 toml game-path（避开会话代码页）
   - game-hook → inner + 启游戏；desktop → 屏幕采集且不启游戏
-  - game-path / capture-method 仍来自 toml
+  - capture-method 仍来自 toml
         │
         ▼
 RdApplication::Run
@@ -128,7 +129,7 @@ scripts\run_game_hook_render.bat
 cd /d build_official\dist
 copy /Y ..\..\src\gr_render\settings.toml settings.toml
 rem fill game-path in settings.toml
-GammaRayRender.exe --logfile --app_mode=game-hook --capture_video_type=inner --network_listen_port=32000
+GammaRayRender.exe --logfile --app_mode=game-hook --app_game_path=<Base64 UTF-8 path> --capture_video_type=inner --network_listen_port=32000
 ```
 
 浏览器：
