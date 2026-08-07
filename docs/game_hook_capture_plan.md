@@ -28,17 +28,18 @@ settings.toml
         ▼
 scripts/start_render_hook.bat
   - 工作目录 = build_official/dist
-  - 同步 src/gr_render/settings.toml
-  - 启动 GammaRayRender.exe --isolate --logfile --network_listen_port=32000
+  - 同步 settings.toml（仅 game-path / capture-method 等）
+  - 启动时显式传参：--app_mode=game-hook --capture_video_type=inner --network_listen_port=32000 ...
         │
         ▼
-RdSettings::LoadSettings
-  - 读 mode → 强制 capture=inner, app_mode=inner_capture
-  - 读 game-path / capture-method
+RdSettings::LoadSettings → UpdateSettings(CLI) → ApplyApplicationMode
+  - CLI --app_mode 优先；未传则用 toml application.mode
+  - game-hook → inner + 启游戏；desktop → 屏幕采集且不启游戏
+  - game-path / capture-method 仍来自 toml
         │
         ▼
 RdApplication::Run
-  - 不启动 DDA/GDI（inner）
+  - mode=game-hook：不启动 DDA/GDI
   - StartProcessWithHook() → CreateProcess(game)
   - AppManager 定时 InjectCaptureDll（tc_graphics_util.exe）
   - 注入前同步写 boot 文件（非 SHM）:
@@ -71,10 +72,10 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
 | `tc_graphics.dll` / `tc_graphics_util.exe`（OBS 移植） | 已有 |
 | 定时注入 + SHM bootstrap | 已有 |
 | `OnIpcVideoFrame` → encode → 推流 | 已有 |
-| `application.mode` 读取 | **缺口** |
-| `StartProcessWithHook` 被 `#if 0` | **缺口** |
-| net_ws 注册 `/ipc` | **缺口** |
-| DLL `wss_client` vs host 明文 `http_server` | **缺口（协议不一致）** |
+| `application.mode` 读取（desktop / game-hook） | 已有 |
+| `StartProcessWithHook`（仅 game-hook） | 已有 |
+| net_ws 注册 `/ipc` | 已有 |
+| DLL 明文 WS `/ipc` + shared texture | 已有 |
 | service / 多 render | **后置** |
 
 ---
@@ -83,10 +84,10 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
 
 ### Phase A — 配置与启动
 
-1. `rd_settings` 读取 `application.mode`
-2. `game-hook` → `kVideoInner` + `kInnerCapture`；`desktop` → 屏幕采集
-3. `--isolate` 时以 toml 为准（脚本使用）
-4. 恢复 `RdApplication::StartProcessWithHook`（只负责起游戏；编码走现有 plugin 路由）
+1. `rd_settings` 读取 `application.mode`；CLI `--app_mode` 可覆盖
+2. `game-hook` → `kVideoInner` + 启游戏注入；`desktop` → 屏幕采集且不启 `game-path`
+3. panel：`--app_mode=desktop`；hook 脚本：`--app_mode=game-hook` + 其它启动参数
+4. `RdApplication::StartProcessWithHook`（只负责起游戏；编码走现有 plugin 路由）
 
 ### Phase B — IPC 帧通道
 
@@ -126,13 +127,14 @@ scripts\run_game_hook_render.bat
 ```bat
 cd /d build_official\dist
 copy /Y ..\..\src\gr_render\settings.toml settings.toml
-GammaRayRender.exe --isolate --logfile
+rem fill game-path in settings.toml
+GammaRayRender.exe --logfile --app_mode=game-hook --capture_video_type=inner --network_listen_port=32000
 ```
 
 浏览器：
 
 ```
-http://127.0.0.1:20371/web_client/?deviceId=debug1
+http://127.0.0.1:32000/web_client/?deviceId=debug1
 ```
 
 日志：

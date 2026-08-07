@@ -10,8 +10,20 @@ cd /d "%REPO_ROOT%"
 
 set "DIST=%REPO_ROOT%\build_official\dist"
 set "SRC_TOML=%REPO_ROOT%\src\gr_render\settings.toml"
+
+rem ===== launch parameters =====
 set "PORT=32000"
 set "DEVICE_ID=debug1"
+set "APP_MODE=game-hook"
+set "CAPTURE_VIDEO=true"
+set "CAPTURE_VIDEO_TYPE=inner"
+set "CAPTURE_AUDIO=true"
+set "CAPTURE_AUDIO_TYPE=global"
+set "WEBRTC_ENABLED=true"
+set "WEBSOCKET_ENABLED=true"
+set "ENCODER_FPS=60"
+set "ENCODER_BITRATE=20"
+set "ENCODER_FORMAT=h264"
 set "WEB_URL=http://127.0.0.1:%PORT%/web_client/?deviceId=%DEVICE_ID%"
 
 if not exist "%DIST%\GammaRayRender.exe" (
@@ -50,18 +62,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem Verify mode / game-path quickly.
-findstr /I /C:"mode = \"game-hook\"" "%DIST%\settings.toml" >nul
-if errorlevel 1 (
-    echo WARNING: settings.toml may not set mode = "game-hook"
-)
+echo.
+echo Args: --app_mode=%APP_MODE% --capture_video_type=%CAPTURE_VIDEO_TYPE% --network_listen_port=%PORT%
+echo game-path: from settings.toml
 findstr /I /C:"game-path" "%DIST%\settings.toml"
 
 echo.
-echo Starting GammaRayRender.exe --isolate --network_listen_port=%PORT% ...
+echo Starting GammaRayRender.exe ...
 rem Use PowerShell Start-Process so the render breaks away from the parent job
 rem object (cmd "start" children get killed when Cursor/agent shells exit).
-powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\GammaRayRender.exe' -ArgumentList '--isolate','--logfile','--network_listen_port=%PORT%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
+powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\GammaRayRender.exe' -ArgumentList '--logfile','--app_mode=%APP_MODE%','--capture_video=%CAPTURE_VIDEO%','--capture_video_type=%CAPTURE_VIDEO_TYPE%','--capture_audio=%CAPTURE_AUDIO%','--capture_audio_type=%CAPTURE_AUDIO_TYPE%','--webrtc_enabled=%WEBRTC_ENABLED%','--websocket_enabled=%WEBSOCKET_ENABLED%','--encoder_fps=%ENCODER_FPS%','--encoder_bitrate=%ENCODER_BITRATE%','--encoder_format=%ENCODER_FORMAT%','--network_listen_port=%PORT%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
 if errorlevel 1 (
     echo ERROR: failed to Start-Process GammaRayRender.exe
     exit /b 1

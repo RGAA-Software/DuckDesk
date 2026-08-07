@@ -137,7 +137,8 @@ namespace tc
         bool IsGameHookMode() const {
             return application_mode_ == ApplicationMode::kGameHook;
         }
-        // Apply mode → capture_video_type_ / app_mode_ (used after CLI overrides when needed).
+        // Apply toml application.mode → capture_video_type_ / app_mode_.
+        // Call after CLI UpdateSettings so mode stays toml-driven.
         void ApplyApplicationMode();
     public:
         Description desc_;

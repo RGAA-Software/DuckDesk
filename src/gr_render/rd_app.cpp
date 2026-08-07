@@ -220,10 +220,11 @@ namespace tc
         }
 
         if (settings_->capture_.enable_video_) {
-            if (settings_->capture_.capture_video_type_ == Capture::CaptureVideoType::kVideoInner) {
+            // application.mode in settings.toml decides path:
+            // game-hook → start/inject game; desktop → screen capture (never launch game-path).
+            if (settings_->IsGameHookMode()) {
                 StartProcessWithHook();
-            }
-            else if (settings_->capture_.capture_video_type_ == Capture::CaptureVideoType::kCaptureScreen) {
+            } else {
                 StartProcessWithScreenCapture();
             }
         }
@@ -619,6 +620,10 @@ namespace tc
     void RdApplication::StartProcessWithHook() {
         // Frames arrive via /ipc → GrPluginCapturedVideoFrameEvent → CaptureVideoFrame
         // on the app bus (same event as DDA). Encode → PluginStreamEventRouter → web.
+        if (!settings_->IsGameHookMode()) {
+            LOGI("StartProcessWithHook skipped: application.mode is desktop");
+            return;
+        }
         msg_listener_->Listen<CaptureVideoFrame>([=, this](const CaptureVideoFrame& msg) {
             if (!HasConnectedPeer()) {
                 return;

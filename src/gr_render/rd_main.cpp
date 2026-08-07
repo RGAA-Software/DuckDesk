@@ -19,7 +19,6 @@ using namespace tc;
 
 DEFINE_int32(steam_app_id, 0, "steam app id");
 DEFINE_bool(logfile, true, "log to file");
-DEFINE_bool(isolate, false, "use settings.toml for mode/game; CLI encoder/capture/panel args ignored (listen ports still applied)");
 
 // encoder
 DEFINE_string(encoder_select_type, "auto", "auto/specify");
@@ -81,7 +80,7 @@ DEFINE_bool(relay_enabled, true, "");
 
 DEFINE_int32(language, 0, "");
 
-DEFINE_string(app_mode, "", "app mode");
+DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
 // appkey
 DEFINE_string(appkey, "", "appkey");
 
@@ -165,12 +164,12 @@ void UpdateSettings(RdSettings* settings) {
     settings->relay_enabled_ = FLAGS_relay_enabled;
     // language
     settings->language_ = FLAGS_language;
-    // app mode
+    // app mode: explicit CLI overrides settings.toml application.mode
     if (FLAGS_app_mode == "desktop") {
-        settings->app_mode_ = AppMode::kDesktop;
+        settings->application_mode_ = ApplicationMode::kDesktop;
     }
-    else if (FLAGS_app_mode == "inner_capture") {
-        settings->app_mode_ = AppMode::kInnerCapture;
+    else if (FLAGS_app_mode == "game-hook" || FLAGS_app_mode == "inner_capture") {
+        settings->application_mode_ = ApplicationMode::kGameHook;
     }
 
     // appkey
@@ -254,22 +253,13 @@ int main(int argc, char** argv) {
     // run in high level
     tc::ProcessUtil::SetProcessInHighLevel();
 
-    // 1. load from config.toml
+    // 1. settings.toml defaults (application.mode / game-path / capture-method)
+    // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
+    // 3. ApplyApplicationMode syncs capture path + whether to launch game-path
     auto settings = RdSettings::Instance();
     settings->LoadSettings("settings.toml");
-    if (!FLAGS_isolate) {
-        UpdateSettings(settings);
-        // CLI can set capture_video_type / app_mode; if toml says game-hook and
-        // CLI did not force desktop, re-assert game-hook mapping when app_mode empty.
-        if (settings->IsGameHookMode() && FLAGS_app_mode.empty() && FLAGS_capture_video_type == "inner") {
-            settings->ApplyApplicationMode();
-        }
-    } else {
-        // isolate: mode/game already applied in LoadSettings; still honor listen ports
-        // (toml no longer has transmission.*; scripts pass --network_listen_port).
-        settings->transmission_.listening_port_ = FLAGS_network_listen_port;
-        settings->transmission_.udp_listen_port_ = FLAGS_udp_listen_port;
-    }
+    UpdateSettings(settings);
+    settings->ApplyApplicationMode();
     settings->LoadSettingsFromDatabase();
 
     // Log

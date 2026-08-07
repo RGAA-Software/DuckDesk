@@ -3,14 +3,16 @@ author = "GoDesk"
 version = "1.0.1"
 
 # NOTE: encoder/capture/transmission settings were removed.
-# In desktop mode they are all overridden by command line args passed by the panel;
+# In desktop mode they are overridden by command line args from the panel;
 # the render falls back to built-in defaults when running standalone.
-# Listen port in isolate mode: pass --network_listen_port (see scripts/start_render_hook.bat).
+# Listen port for standalone debug: pass --network_listen_port (see scripts/start_render_hook.bat).
 
 # application settings
 [application]
 # desktop | game-hook
-mode = "game-hook"
+# default desktop for panel (screen capture; game-path is NOT launched).
+# game-hook debug: pass --app_mode=game-hook (see scripts/start_render_hook.bat).
+mode = "desktop"
 # game-path
 # 1.exe path，attention: UE games use exe in specific subdir => "XXGame/Binaries/Win64/XXGame.exe
 # 2.steam://rungameid/xxx
@@ -41,3 +43,4 @@ debug-enabled = false
 # global => replay events by SendInput
 # inner => replay events in process
 event-replay-mode = "global"
+

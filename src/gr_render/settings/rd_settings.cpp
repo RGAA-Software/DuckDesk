@@ -58,7 +58,7 @@ namespace tc
         app_.event_replay_mode_ = std::string("global") == result["application"]["event-replay-mode"].value_or("global")
                                   ? TargetApplication::EventReplayMode::kGlobal : TargetApplication::EventReplayMode::kHookInner;
 
-        // When isolate/standalone, mode drives capture type before any CLI override.
+        // Mode drives capture type; rd_main re-applies after CLI UpdateSettings.
         ApplyApplicationMode();
         return true;
     }
@@ -71,7 +71,7 @@ namespace tc
         } else {
             capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
             app_mode_ = AppMode::kDesktop;
-            LOGI("application.mode=desktop → screen capture");
+            LOGI("application.mode=desktop → screen capture (game-path not launched)");
         }
     }
 
