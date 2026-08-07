@@ -12,6 +12,7 @@ mod spvr_handler;
 mod spvr_server;
 mod spvr_settings;
 
+mod app_schedule;
 mod auth;
 mod config;
 mod event;
@@ -74,6 +75,7 @@ lazy_static::lazy_static! {
     pub static ref gSpvrClientConnMgr: Arc<SpvrClientConnManager> = Arc::new(SpvrClientConnManager::new());
     pub static ref gSpvrPanelConnMgr: Arc<SpvrPanelConnManager> = Arc::new(SpvrPanelConnManager::new());
     pub static ref gSpvrServiceConnMgr: Arc<SpvrServiceConnManager> = Arc::new(SpvrServiceConnManager::new());
+
 
     pub static ref gSpvrContext: Arc<Mutex<SpvrContext>> = Arc::new(Mutex::new(SpvrContext::new()));
     pub static ref gSpvrStreamMgr: Arc<SpvrStreamManager> = SpvrStreamManager::new();
@@ -267,6 +269,7 @@ async fn run_as_server(machine_code: String) {
         tracing::error!("Database initialization failed");
         return;
     }
+    crate::app_schedule::gAppScheduleManager.load_from_db().await;
 
     // Redis
     let redis_url = gSpvrSettings.lock().await.redis_url.clone();

@@ -1,11 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use service_core::app_instance::extract_listen_port;
 use service_core::command::Command;
 use service_core::config::ServiceConfig;
 use service_core::storage::PersistedRenderLaunchSpec;
 use service_core::storage::ServiceStorage;
-use service_core::{PersistedServiceState, RenderLaunchSpec, ServiceState};
+use service_core::{
+    AppInstanceRegistry, PersistedServiceState, RenderLaunchSpec, ServiceState, StartAppRequest,
+};
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, warn};
 
@@ -20,6 +23,7 @@ pub struct ServiceRuntime {
     pub process_manager: Arc<dyn ProcessManager>,
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
+    pub app_registry: AppInstanceRegistry,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -48,6 +52,7 @@ impl ServiceRuntime {
             process_manager,
             windows_actions,
             state: ServiceState::default(),
+            app_registry: AppInstanceRegistry::new(),
             stop_tx,
         }
     }
@@ -190,6 +195,10 @@ impl ServiceRuntime {
         let processes = self.process_manager.list_processes()?;
         let mut killed = 0usize;
         for process in processes {
+            // Never kill CMS game-hook instances from desktop stop.
+            if process.is_game_hook_render_process() {
+                continue;
+            }
             if process.is_managed_clipboard_process() {
                 info!(
                     "stopping managed desktop process, pid={}, exe_path={}, cmdline={}",
@@ -201,6 +210,89 @@ impl ServiceRuntime {
         }
         self.sync_process_state()?;
         info!("stop desktop finished, killed_managed_count={killed}");
+        Ok(())
+    }
+
+    /// CMS-scheduled game-hook instance start. Returns (listen_port, pid).
+    pub fn start_app_instance(&mut self, req: StartAppRequest) -> Result<(u16, u32), String> {
+        // Prefer last desktop work_dir (GoDesk dist); else service exe directory.
+        let work_dir = self
+            .state
+            .last_desktop_launch
+            .as_ref()
+            .map(|s| s.work_dir.clone())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                std::env::current_exe().ok().and_then(|p| {
+                    p.parent()
+                        .map(|d| d.to_string_lossy().to_string())
+                        .filter(|s| !s.is_empty())
+                })
+            })
+            .unwrap_or_else(|| ".".to_string());
+
+        let instance_id = req.instance_id.clone();
+        let record = self
+            .app_registry
+            .begin_start(&work_dir, req)
+            .map_err(|e| e)?
+            .clone();
+        let port = record.listen_port;
+        let launch = record.launch.clone();
+        info!(
+            "start app instance {}, work_dir={}, port={}, args={:?}",
+            instance_id, launch.work_dir, port, launch.args
+        );
+        if let Err(err) = self.process_manager.start_process_as_active_user(
+            &launch.work_dir,
+            &launch.app_path,
+            &launch.args,
+        ) {
+            let _ = self.app_registry.mark_failed(&instance_id, err.clone());
+            return Err(err);
+        }
+        // Resolve pid by matching game-hook cmdline listen_port.
+        let pid = self
+            .find_game_hook_pid_by_port(port)
+            .ok_or_else(|| {
+                let msg = format!("started but pid not found for port {port}");
+                let _ = self.app_registry.mark_failed(&instance_id, msg.clone());
+                msg
+            })?;
+        self.app_registry.mark_running(&instance_id, pid)?;
+        Ok((port, pid))
+    }
+
+    fn find_game_hook_pid_by_port(&self, port: u16) -> Option<u32> {
+        let processes = self.process_manager.list_processes().ok()?;
+        for p in processes {
+            if !p.is_game_hook_render_process() {
+                continue;
+            }
+            if extract_listen_port(&p.cmdline.split_whitespace().map(|s| s.to_string()).collect::<Vec<_>>())
+                == Some(port)
+                || p.cmdline.contains(&format!("--network_listen_port={port}"))
+            {
+                return Some(p.pid);
+            }
+        }
+        None
+    }
+
+    pub fn stop_app_instance(&mut self, instance_id: &str) -> Result<(), String> {
+        let rec = self.app_registry.begin_stop(instance_id)?.clone();
+        info!(
+            "stop app instance {}, pid={:?}, port={}",
+            instance_id, rec.pid, rec.listen_port
+        );
+        if let Some(pid) = rec.pid {
+            if self.app_registry.should_kill_pid_for_instance(instance_id, pid) {
+                let _ = self.process_manager.kill_process(pid);
+            }
+        } else if let Some(pid) = self.find_game_hook_pid_by_port(rec.listen_port) {
+            let _ = self.process_manager.kill_process(pid);
+        }
+        self.app_registry.mark_stopped(instance_id)?;
         Ok(())
     }
 
@@ -401,6 +493,7 @@ mod tests {
         launches: StdMutex<Vec<RenderLaunchSpec>>,
         session_user_launches: StdMutex<Vec<RenderLaunchSpec>>,
         kills: StdMutex<Vec<u32>>,
+        next_pid: StdMutex<u32>,
     }
 
     impl MockProcessManager {
@@ -410,6 +503,7 @@ mod tests {
                 launches: StdMutex::new(Vec::new()),
                 session_user_launches: StdMutex::new(Vec::new()),
                 kills: StdMutex::new(Vec::new()),
+                next_pid: StdMutex::new(1000),
             }
         }
     }
@@ -440,10 +534,13 @@ mod tests {
                 args: args.to_vec(),
             };
             self.launches.lock().unwrap().push(spec.clone());
+            let mut next = self.next_pid.lock().unwrap();
+            let pid = *next;
+            *next += 1;
             self.processes
                 .lock()
                 .unwrap()
-                .push(ProcessSnapshot::new(99, app_path, args.join(" ")));
+                .push(ProcessSnapshot::new(pid, app_path, args.join(" ")));
             Ok(())
         }
 
@@ -777,5 +874,115 @@ mod tests {
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
         assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
+    }
+
+    fn sample_start_req(id: &str, port: i32) -> StartAppRequest {
+        StartAppRequest {
+            request_id: format!("req-{id}"),
+            instance_id: id.to_string(),
+            app_id: "app-car".to_string(),
+            install_root: r"D:\apps\CarGame".to_string(),
+            game_exe_rel: r"Binaries\Win64\game.exe".to_string(),
+            game_arguments: String::new(),
+            listen_port: port,
+            encoder_fps: 60,
+            encoder_bitrate: 20,
+            encoder_format: "h264".to_string(),
+            webrtc_enabled: true,
+            websocket_enabled: true,
+        }
+    }
+
+    #[test]
+    fn start_and_stop_app_instance_does_not_touch_desktop() {
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("gr_data_app_inst"),
+            std::env::temp_dir().join("gr_logs_app_inst"),
+        );
+        let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
+            1,
+            "D:/GammaRayRender.exe",
+            "--app_mode=desktop",
+        )]));
+        let mut runtime = ServiceRuntime::new(
+            config,
+            manager.clone(),
+            Arc::new(MockActions::new()),
+        );
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+
+        let (port, pid) = runtime
+            .start_app_instance(sample_start_req("inst-1", 32111))
+            .unwrap();
+        assert_eq!(port, 32111);
+        assert!(pid >= 1000);
+        assert_eq!(
+            runtime.app_registry.get("inst-1").unwrap().state,
+            service_core::AppInstanceState::Running
+        );
+
+        // desktop still listed
+        assert!(manager
+            .list_processes()
+            .unwrap()
+            .iter()
+            .any(|p| p.pid == 1 && p.cmdline.contains("desktop")));
+
+        runtime.stop_app_instance("inst-1").unwrap();
+        assert!(manager.kills.lock().unwrap().contains(&pid));
+        // desktop pid not killed
+        assert!(!manager.kills.lock().unwrap().contains(&1));
+        assert!(manager
+            .list_processes()
+            .unwrap()
+            .iter()
+            .any(|p| p.pid == 1));
+    }
+
+    #[test]
+    fn stop_desktop_skips_game_hook_processes() {
+        let mut runtime = test_runtime(vec![
+            ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
+            ProcessSnapshot::new(
+                2,
+                "D:/GammaRayRender.exe",
+                "--app_mode=game-hook --network_listen_port=32000",
+            ),
+            ProcessSnapshot::new(3, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
+        ]);
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        runtime.stop_desktop().unwrap();
+        let left = runtime.process_manager.list_processes().unwrap();
+        assert!(left.iter().any(|p| p.pid == 2), "game-hook must survive desktop stop");
+        assert!(!left.iter().any(|p| p.pid == 1));
+    }
+
+    #[test]
+    fn multi_app_instances_same_machine_different_ports() {
+        let mut runtime = test_runtime(Vec::new());
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: "D:/app".to_string(),
+            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        let (p1, id1) = runtime
+            .start_app_instance(sample_start_req("a", 32201))
+            .unwrap();
+        let (p2, id2) = runtime
+            .start_app_instance(sample_start_req("b", 32202))
+            .unwrap();
+        assert_eq!(p1, 32201);
+        assert_eq!(p2, 32202);
+        assert_ne!(id1, id2);
+        assert_eq!(runtime.app_registry.list().len(), 2);
     }
 }

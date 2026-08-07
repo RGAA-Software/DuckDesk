@@ -25,6 +25,7 @@ pub struct SpvrServiceConn {
     pub hb_index: i64,
     pub render_alive: bool,
     pub auth_info_json: String,
+    pub instances_json: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -37,6 +38,8 @@ pub struct SpvrServiceConnVo {
     pub hb_index: i64,
     pub render_alive: bool,
     pub auth_info_json: String,
+    #[serde(default)]
+    pub instances_json: String,
 }
 
 impl SpvrServiceConn {
@@ -58,6 +61,7 @@ impl SpvrServiceConn {
             hb_index: 0,
             render_alive: false,
             auth_info_json: "".to_string(),
+            instances_json: "".to_string(),
         }
     }
 
@@ -71,6 +75,7 @@ impl SpvrServiceConn {
             hb_index: self.hb_index,
             render_alive: self.render_alive,
             auth_info_json: self.auth_info_json.to_string(),
+            instances_json: self.instances_json.to_string(),
         }
     }
 
@@ -101,7 +106,20 @@ impl SpvrServiceConn {
             self.hb_index = hb_index;
             self.render_alive = sub.render_alive;
             self.auth_info_json = sub.auth_info_json;
+            self.instances_json = sub.instances_json;
             self.send_heartbeat(hb_index, self.device_id.clone()).await;
+        } else if m.msg_type == SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult {
+            if let Some(sub) = m.start_app_instance_result {
+                crate::app_schedule::gAppScheduleManager
+                    .on_start_result(self.device_id.clone(), sub)
+                    .await;
+            }
+        } else if m.msg_type == SpvrServiceMessageType::KSpvrServiceStopAppInstanceResult {
+            if let Some(sub) = m.stop_app_instance_result {
+                crate::app_schedule::gAppScheduleManager
+                    .on_stop_result(self.device_id.clone(), sub)
+                    .await;
+            }
         }
 
         true
@@ -129,8 +147,33 @@ impl SpvrServiceConn {
             device_id,
             render_alive: false,
             auth_info_json: "".to_string(),
+            instances_json: "".to_string(),
         });
         self.send_bin_message_vec(sv_msg.encode_to_vec()).await;
+    }
+
+    pub async fn send_start_app_instance(
+        &mut self,
+        start: protocol::spvr_service::SpvrServiceStartAppInstance,
+    ) -> bool {
+        let mut sv_msg = SpvrServiceMessage::default();
+        sv_msg.set_msg_type(SpvrServiceMessageType::KSpvrServiceStartAppInstance);
+        sv_msg.device_id = self.device_id.clone();
+        sv_msg.start_app_instance = Some(start);
+        self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
+            .await
+    }
+
+    pub async fn send_stop_app_instance(
+        &mut self,
+        stop: protocol::spvr_service::SpvrServiceStopAppInstance,
+    ) -> bool {
+        let mut sv_msg = SpvrServiceMessage::default();
+        sv_msg.set_msg_type(SpvrServiceMessageType::KSpvrServiceStopAppInstance);
+        sv_msg.device_id = self.device_id.clone();
+        sv_msg.stop_app_instance = Some(stop);
+        self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
+            .await
     }
 
     pub async fn send_bin_message_vec(&mut self, data: Vec<u8>) {

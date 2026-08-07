@@ -1,3 +1,4 @@
+use crate::app_schedule::manager::{AppInstance, AppPlacement, Application};
 use crate::device::spvr_device::SpvrDevice;
 use crate::event::spvr_event::SpvrEvent;
 use crate::gSpvrSettings;
@@ -35,6 +36,10 @@ pub struct SpvrDatabase {
     pub c_client_conn: Option<Arc<Mutex<Collection<SpvrClientConnVo>>>>,
     // update
     pub c_update_info: Option<Arc<Mutex<Collection<UpdateInfo>>>>,
+    // CMS app schedule
+    pub c_app: Option<Arc<Mutex<Collection<Application>>>>,
+    pub c_app_placement: Option<Arc<Mutex<Collection<AppPlacement>>>>,
+    pub c_app_instance: Option<Arc<Mutex<Collection<AppInstance>>>>,
 }
 
 impl SpvrDatabase {
@@ -119,6 +124,37 @@ impl SpvrDatabase {
 
                 let c_update_info: Collection<UpdateInfo> = database.collection("c_update_info");
                 self.c_update_info = Some(Arc::new(Mutex::new(c_update_info)));
+
+                let c_app: Collection<Application> = database.collection("c_app");
+                let app_index = IndexModel::builder()
+                    .keys(doc! { "app_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_app.create_index(app_index).await {
+                    tracing::warn!("create c_app app_id index failed: {}", e);
+                }
+                self.c_app = Some(Arc::new(Mutex::new(c_app)));
+
+                let c_app_placement: Collection<AppPlacement> =
+                    database.collection("c_app_placement");
+                let plc_index = IndexModel::builder()
+                    .keys(doc! { "placement_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_app_placement.create_index(plc_index).await {
+                    tracing::warn!("create c_app_placement index failed: {}", e);
+                }
+                self.c_app_placement = Some(Arc::new(Mutex::new(c_app_placement)));
+
+                let c_app_instance: Collection<AppInstance> = database.collection("c_app_instance");
+                let inst_index = IndexModel::builder()
+                    .keys(doc! { "instance_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_app_instance.create_index(inst_index).await {
+                    tracing::warn!("create c_app_instance index failed: {}", e);
+                }
+                self.c_app_instance = Some(Arc::new(Mutex::new(c_app_instance)));
 
                 true
             }

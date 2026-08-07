@@ -4,6 +4,7 @@ use crate::config::{RENDER_EXE_NAME, USER_PROXY_EXE_NAME};
 pub enum RenderMode {
     Desktop,
     Inner,
+    GameHook,
     Unknown,
 }
 
@@ -11,6 +12,7 @@ pub enum RenderMode {
 pub enum ProcessKind {
     DesktopRender,
     InnerRender,
+    GameHookRender,
     Other,
 }
 
@@ -33,7 +35,10 @@ impl ProcessSnapshot {
     pub fn render_mode(&self) -> RenderMode {
         if self.cmdline.contains("--app_mode=desktop") {
             RenderMode::Desktop
+        } else if self.cmdline.contains("--app_mode=game-hook") {
+            RenderMode::GameHook
         } else if self.cmdline.contains("--app_mode=inner") {
+            // Legacy alias; prefer game-hook for CMS-scheduled apps.
             RenderMode::Inner
         } else {
             RenderMode::Unknown
@@ -67,8 +72,14 @@ impl ProcessSnapshot {
         match self.render_mode() {
             RenderMode::Desktop => ProcessKind::DesktopRender,
             RenderMode::Inner => ProcessKind::InnerRender,
+            RenderMode::GameHook => ProcessKind::GameHookRender,
             RenderMode::Unknown => ProcessKind::Other,
         }
+    }
+
+    /// Managed by CMS app-instance stop (never desktop).
+    pub fn is_game_hook_render_process(&self) -> bool {
+        self.kind() == ProcessKind::GameHookRender
     }
 }
 
@@ -88,6 +99,20 @@ mod tests {
     fn detect_inner_mode() {
         let process = ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=inner");
         assert_eq!(process.kind(), ProcessKind::InnerRender);
+    }
+
+    #[test]
+    fn detect_game_hook_mode() {
+        let process = ProcessSnapshot::new(
+            1,
+            "D:/GammaRayRender.exe",
+            "--app_mode=game-hook --network_listen_port=32000",
+        );
+        assert_eq!(process.render_mode(), RenderMode::GameHook);
+        assert_eq!(process.kind(), ProcessKind::GameHookRender);
+        assert!(process.is_game_hook_render_process());
+        assert!(!ProcessSnapshot::new(2, "D:/GammaRayRender.exe", "--app_mode=desktop")
+            .is_game_hook_render_process());
     }
 
     #[test]

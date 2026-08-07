@@ -21,7 +21,10 @@ use gr_auth_mgr::app_secret_util::calculate_app_secret;
 use gr_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use protocol::spvr_service::{
     SpvrServiceHeartBeat, SpvrServiceHello, SpvrServiceMessage, SpvrServiceMessageType,
+    SpvrServiceStartAppInstance, SpvrServiceStartAppInstanceResult, SpvrServiceStopAppInstance,
+    SpvrServiceStopAppInstanceResult,
 };
+use service_core::StartAppRequest;
 
 use crate::service_host::ServiceRuntime;
 
@@ -118,20 +121,26 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                 tokio::select! {
                     _ = interval.tick() => {
                         hb_index += 1;
-                        let (render_alive, auth_json) = {
+                        let (render_alive, auth_json, instances_json) = {
                             let guard = hb_runtime.lock().await;
                             (
-                                guard.state.desktop_alive,
+                                guard.state.desktop_alive || !guard.app_registry.list().is_empty(),
                                 guard
                                     .state
                                     .last_auth_info
                                     .as_ref()
                                     .map(auth_info_to_json)
                                     .unwrap_or_default(),
+                                guard.app_registry.instances_json(),
                             )
                         };
-                        let frame =
-                            encode_message(&heartbeat_message(hb_index, &device_id, render_alive, &auth_json));
+                        let frame = encode_message(&heartbeat_message(
+                            hb_index,
+                            &device_id,
+                            render_alive,
+                            &auth_json,
+                            &instances_json,
+                        ));
                         if !send_frame(&hb_sender, frame).await {
                             break;
                         }
@@ -141,8 +150,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             }
         });
 
-        // receive loop: server pushes nothing critical yet, but closing the
-        // stream must trigger a reconnect
+        // receive loop: handle Start/Stop app commands from CMS
         let mut should_stop = false;
         loop {
             tokio::select! {
@@ -151,6 +159,24 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                         Some(Ok(TungsteniteMessage::Close(_))) => {
                             warn!("cms closed the connection");
                             break;
+                        }
+                        Some(Ok(TungsteniteMessage::Binary(bin))) => {
+                            match parse_cms_inbound(&bin) {
+                                Ok(Some(cmd)) => {
+                                    let reply = {
+                                        let mut guard = runtime.lock().await;
+                                        handle_cms_command(&mut guard, cmd)
+                                    };
+                                    if let Some(frame) = reply {
+                                        if !send_frame(&sender, frame).await {
+                                            warn!("send cms command result failed, reconnecting");
+                                            break;
+                                        }
+                                    }
+                                }
+                                Ok(None) => {}
+                                Err(err) => warn!("cms inbound parse error: {err}"),
+                            }
                         }
                         Some(Ok(_)) => {}
                         Some(Err(err)) => {
@@ -243,6 +269,10 @@ fn hello_message(device_id: &str, appkey: &str) -> SpvrServiceMessage {
             version: env!("CARGO_PKG_VERSION").to_string(),
         }),
         heartbeat: None,
+        start_app_instance: None,
+        stop_app_instance: None,
+        start_app_instance_result: None,
+        stop_app_instance_result: None,
     }
 }
 
@@ -251,6 +281,7 @@ fn heartbeat_message(
     device_id: &str,
     render_alive: bool,
     auth_info_json: &str,
+    instances_json: &str,
 ) -> SpvrServiceMessage {
     SpvrServiceMessage {
         msg_type: SpvrServiceMessageType::KSpvrServiceHeartBeat as i32,
@@ -261,12 +292,223 @@ fn heartbeat_message(
             device_id: device_id.to_string(),
             render_alive,
             auth_info_json: auth_info_json.to_string(),
+            instances_json: instances_json.to_string(),
+        }),
+        start_app_instance: None,
+        stop_app_instance: None,
+        start_app_instance_result: None,
+        stop_app_instance_result: None,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CmsInboundCommand {
+    StartApp(StartAppRequest),
+    StopApp {
+        request_id: String,
+        instance_id: String,
+    },
+}
+
+/// Parse a CMS binary frame into an inbound command (if any).
+pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, String> {
+    let msg = SpvrServiceMessage::decode(bytes).map_err(|e| e.to_string())?;
+    match SpvrServiceMessageType::try_from(msg.msg_type) {
+        Ok(SpvrServiceMessageType::KSpvrServiceStartAppInstance) => {
+            let s = msg
+                .start_app_instance
+                .ok_or("missing start_app_instance")?;
+            Ok(Some(CmsInboundCommand::StartApp(StartAppRequest {
+                request_id: s.request_id,
+                instance_id: s.instance_id,
+                app_id: s.app_id,
+                install_root: s.install_root,
+                game_exe_rel: s.game_exe_rel,
+                game_arguments: s.game_arguments,
+                listen_port: s.listen_port,
+                encoder_fps: s.encoder_fps,
+                encoder_bitrate: s.encoder_bitrate,
+                encoder_format: s.encoder_format,
+                webrtc_enabled: s.webrtc_enabled,
+                websocket_enabled: s.websocket_enabled,
+            })))
+        }
+        Ok(SpvrServiceMessageType::KSpvrServiceStopAppInstance) => {
+            let s = msg.stop_app_instance.ok_or("missing stop_app_instance")?;
+            Ok(Some(CmsInboundCommand::StopApp {
+                request_id: s.request_id,
+                instance_id: s.instance_id,
+            }))
+        }
+        Ok(SpvrServiceMessageType::KSpvrServiceHello)
+        | Ok(SpvrServiceMessageType::KSpvrServiceHeartBeat)
+        | Ok(SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult)
+        | Ok(SpvrServiceMessageType::KSpvrServiceStopAppInstanceResult) => Ok(None),
+        Err(_) => Err(format!("unknown spvr service msg_type {}", msg.msg_type)),
+    }
+}
+
+pub fn start_app_result_message(
+    device_id: &str,
+    request_id: &str,
+    instance_id: &str,
+    ok: bool,
+    error: &str,
+    listen_port: i32,
+    pid: u32,
+) -> SpvrServiceMessage {
+    SpvrServiceMessage {
+        msg_type: SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult as i32,
+        device_id: device_id.to_string(),
+        hello: None,
+        heartbeat: None,
+        start_app_instance: None,
+        stop_app_instance: None,
+        start_app_instance_result: Some(SpvrServiceStartAppInstanceResult {
+            request_id: request_id.to_string(),
+            instance_id: instance_id.to_string(),
+            ok,
+            error: error.to_string(),
+            listen_port,
+            pid,
+        }),
+        stop_app_instance_result: None,
+    }
+}
+
+pub fn stop_app_result_message(
+    device_id: &str,
+    request_id: &str,
+    instance_id: &str,
+    ok: bool,
+    error: &str,
+) -> SpvrServiceMessage {
+    SpvrServiceMessage {
+        msg_type: SpvrServiceMessageType::KSpvrServiceStopAppInstanceResult as i32,
+        device_id: device_id.to_string(),
+        hello: None,
+        heartbeat: None,
+        start_app_instance: None,
+        stop_app_instance: None,
+        start_app_instance_result: None,
+        stop_app_instance_result: Some(SpvrServiceStopAppInstanceResult {
+            request_id: request_id.to_string(),
+            instance_id: instance_id.to_string(),
+            ok,
+            error: error.to_string(),
         }),
     }
 }
 
+pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u8> {
+    SpvrServiceMessage {
+        msg_type: SpvrServiceMessageType::KSpvrServiceStartAppInstance as i32,
+        device_id: device_id.to_string(),
+        hello: None,
+        heartbeat: None,
+        start_app_instance: Some(SpvrServiceStartAppInstance {
+            request_id: req.request_id.clone(),
+            instance_id: req.instance_id.clone(),
+            app_id: req.app_id.clone(),
+            install_root: req.install_root.clone(),
+            game_exe_rel: req.game_exe_rel.clone(),
+            game_arguments: req.game_arguments.clone(),
+            listen_port: req.listen_port,
+            encoder_fps: req.encoder_fps,
+            encoder_bitrate: req.encoder_bitrate,
+            encoder_format: req.encoder_format.clone(),
+            webrtc_enabled: req.webrtc_enabled,
+            websocket_enabled: req.websocket_enabled,
+        }),
+        stop_app_instance: None,
+        start_app_instance_result: None,
+        stop_app_instance_result: None,
+    }
+    .encode_to_vec()
+}
+
+pub fn encode_stop_app_command(device_id: &str, request_id: &str, instance_id: &str) -> Vec<u8> {
+    SpvrServiceMessage {
+        msg_type: SpvrServiceMessageType::KSpvrServiceStopAppInstance as i32,
+        device_id: device_id.to_string(),
+        hello: None,
+        heartbeat: None,
+        start_app_instance: None,
+        stop_app_instance: Some(SpvrServiceStopAppInstance {
+            request_id: request_id.to_string(),
+            instance_id: instance_id.to_string(),
+        }),
+        start_app_instance_result: None,
+        stop_app_instance_result: None,
+    }
+    .encode_to_vec()
+}
+
 fn encode_message(message: &SpvrServiceMessage) -> Vec<u8> {
     message.encode_to_vec()
+}
+
+fn handle_cms_command(
+    runtime: &mut crate::service_host::ServiceRuntime,
+    cmd: CmsInboundCommand,
+) -> Option<Vec<u8>> {
+    let device_id = runtime
+        .state
+        .last_auth_info
+        .as_ref()
+        .map(|a| a.device_id.clone())
+        .unwrap_or_default();
+    match cmd {
+        CmsInboundCommand::StartApp(req) => {
+            let request_id = req.request_id.clone();
+            let instance_id = req.instance_id.clone();
+            match runtime.start_app_instance(req) {
+                Ok((port, pid)) => Some(encode_message(&start_app_result_message(
+                    &device_id,
+                    &request_id,
+                    &instance_id,
+                    true,
+                    "",
+                    port as i32,
+                    pid,
+                ))),
+                Err(err) => {
+                    error!("cms start app failed: {err}");
+                    Some(encode_message(&start_app_result_message(
+                        &device_id,
+                        &request_id,
+                        &instance_id,
+                        false,
+                        &err,
+                        0,
+                        0,
+                    )))
+                }
+            }
+        }
+        CmsInboundCommand::StopApp {
+            request_id,
+            instance_id,
+        } => match runtime.stop_app_instance(&instance_id) {
+            Ok(()) => Some(encode_message(&stop_app_result_message(
+                &device_id,
+                &request_id,
+                &instance_id,
+                true,
+                "",
+            ))),
+            Err(err) => {
+                error!("cms stop app failed: {err}");
+                Some(encode_message(&stop_app_result_message(
+                    &device_id,
+                    &request_id,
+                    &instance_id,
+                    false,
+                    &err,
+                )))
+            }
+        },
+    }
 }
 
 /// Serialize the panel-pushed authorization info as a JSON object, field by field.
@@ -414,9 +656,10 @@ mod tests {
 
     #[test]
     fn heartbeat_message_carries_index_and_liveness() {
-        let message = heartbeat_message(7, "dev-1", true, "{\"a\":1}");
+        let message = heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]");
         assert_eq!(message.msg_type, SpvrServiceMessageType::KSpvrServiceHeartBeat);
         let heartbeat = message.heartbeat.unwrap();
+        assert_eq!(heartbeat.instances_json, "[{\"instance_id\":\"i1\"}]");
         assert_eq!(heartbeat.hb_index, 7);
         assert_eq!(heartbeat.device_id, "dev-1");
         assert!(heartbeat.render_alive);
@@ -430,5 +673,60 @@ mod tests {
         let decoded = SpvrServiceMessage::decode(bytes.as_slice()).unwrap();
         assert_eq!(decoded.msg_type, SpvrServiceMessageType::KSpvrServiceHello);
         assert_eq!(decoded.hello.unwrap().appkey, "ak-1");
+    }
+
+    #[test]
+    fn parse_start_and_stop_commands_round_trip() {
+        let req = StartAppRequest {
+            request_id: "req-1".into(),
+            instance_id: "inst-1".into(),
+            app_id: "app-1".into(),
+            install_root: r"D:\apps\Car".into(),
+            game_exe_rel: r"Binaries\game.exe".into(),
+            game_arguments: "-dx11".into(),
+            listen_port: 32000,
+            encoder_fps: 60,
+            encoder_bitrate: 20,
+            encoder_format: "h264".into(),
+            webrtc_enabled: true,
+            websocket_enabled: true,
+        };
+        let bytes = encode_start_app_command("dev-1", &req);
+        match parse_cms_inbound(&bytes).unwrap().unwrap() {
+            CmsInboundCommand::StartApp(got) => {
+                assert_eq!(got.instance_id, "inst-1");
+                assert_eq!(got.install_root, r"D:\apps\Car");
+                assert_eq!(got.listen_port, 32000);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+
+        let stop = encode_stop_app_command("dev-1", "req-2", "inst-1");
+        match parse_cms_inbound(&stop).unwrap().unwrap() {
+            CmsInboundCommand::StopApp {
+                request_id,
+                instance_id,
+            } => {
+                assert_eq!(request_id, "req-2");
+                assert_eq!(instance_id, "inst-1");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn start_result_message_encodes_ok_and_error() {
+        let ok = start_app_result_message("dev-1", "r", "i", true, "", 32001, 99);
+        assert_eq!(
+            ok.msg_type,
+            SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult
+        );
+        let body = ok.start_app_instance_result.unwrap();
+        assert!(body.ok);
+        assert_eq!(body.listen_port, 32001);
+        assert_eq!(body.pid, 99);
+
+        let fail = start_app_result_message("dev-1", "r", "i", false, "boom", 0, 0);
+        assert!(!fail.start_app_instance_result.unwrap().ok);
     }
 }

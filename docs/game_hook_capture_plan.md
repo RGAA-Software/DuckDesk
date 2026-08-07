@@ -124,8 +124,8 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
 
 ### Phase E — 后置（出画后再做）
 
-- Service 拉起 game-hook render
-- 多实例端口 / launch spec
+- Service 拉起 game-hook render → 见 [`cms_app_schedule_plan.md`](./cms_app_schedule_plan.md)（CMS 多机调度，P3 已落地）
+- 多实例端口 / launch spec → 同上
 - EasyHook `prepare` 路径
 
 ---

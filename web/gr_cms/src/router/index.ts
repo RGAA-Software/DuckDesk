@@ -11,6 +11,7 @@ import ConnectionMonitor from '@/views/ConnectionMonitor.vue'
 import VideoWall from '@/views/VideoWall.vue'
 import EventView from '@/views/EventView.vue'
 import LoginView from '@/views/LoginView.vue'
+import AppsView from '@/views/AppsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -63,6 +64,15 @@ const router = createRouter({
           component: VideoWall,
           meta: {
             title: '多画面墙',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: '/apps',
+          name: 'apps',
+          component: AppsView,
+          meta: {
+            title: '应用调度',
             requiresAuth: true,
           },
         },

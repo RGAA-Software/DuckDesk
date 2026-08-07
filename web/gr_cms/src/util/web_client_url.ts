@@ -1,4 +1,6 @@
-/** 与 gr_web_client connect_token 对齐: ?c= URL-safe Base64(JSON{d,p?,m?}) */
+/** 与 gr_web_client connect_token 对齐: ?c= URL-safe Base64(JSON{d,p?,m?})
+ *  game-hook 调度另支持明文 ?deviceId=&instanceId=（局域网调试）
+ */
 
 function encodeConnectToken(input: {
   deviceId: string
@@ -20,4 +22,17 @@ export function buildWebClientUrl(
   input: { deviceId: string; password?: string; pwdMd5?: string },
 ): string {
   return `http://${ip}:${port}/web_client/?c=${encodeConnectToken(input)}`
+}
+
+/** game-hook 实例入口：device_id + instance_id + listen_port */
+export function buildGameHookClientUrl(
+  ip: string,
+  port: string | number,
+  input: { deviceId: string; instanceId: string },
+): string {
+  const q = new URLSearchParams({
+    deviceId: input.deviceId,
+    instanceId: input.instanceId,
+  })
+  return `http://${ip}:${port}/web_client/?${q.toString()}`
 }

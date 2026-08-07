@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "gr_auth_mgr"
-version = "3.3.0"
+version = "3.3.3"
 dependencies = [
  "base64 0.22.1",
  "gr_base",
@@ -2646,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "gr_base"
-version = "3.3.0"
+version = "3.3.3"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -5263,7 +5263,7 @@ dependencies = [
 
 [[package]]
 name = "protocol"
-version = "3.3.0"
+version = "3.3.3"
 dependencies = [
  "prost",
  "prost-build",

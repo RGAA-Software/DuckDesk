@@ -708,6 +708,10 @@ function loadQueryParams() {
   if (!form.deviceId) form.deviceId = q.get('deviceId') ?? ''
   if (!form.password) form.password = q.get('password') ?? ''
   if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
+  const instanceId = q.get('instanceId') ?? ''
+  if (instanceId) {
+    addLog(`[connect] instanceId=${instanceId}`)
+  }
   if (q.get('deviceId') || q.get('c')) {
     autoConnectFromUrl.value = !!form.deviceId
   }

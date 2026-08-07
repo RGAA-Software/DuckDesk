@@ -25,6 +25,7 @@ use crate::net_client::spvr_client_ws_handler;
 use crate::net_cm::spvr_cm_ws_handler;
 use crate::net_panel::spvr_panel_router::make_panel_router;
 use crate::net_panel::spvr_panel_ws_handler;
+use crate::app_schedule::router::make_app_schedule_router;
 use crate::net_service::spvr_service_router::make_service_router;
 use crate::net_service::spvr_service_ws_handler;
 use crate::record::spvr_record_router::make_record_router;
@@ -117,6 +118,11 @@ impl SpvrServer {
             .nest(
                 "/api/v1/service/control",
                 make_service_router(context.clone()),
+            )
+            // CMS app schedule (game-hook multi-machine)
+            .nest(
+                "/api/v1/app/control",
+                make_app_schedule_router(context.clone()),
             )
             // connected client
             .nest(

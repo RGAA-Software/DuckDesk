@@ -19,6 +19,73 @@ pub struct SpvrServiceHeartBeat {
     /// json format authorization info reported by the panel (may be empty)
     #[prost(string, tag = "4")]
     pub auth_info_json: ::prost::alloc::string::String,
+    /// json array of local app instance summaries (may be empty)
+    /// \[{instance_id, app_id, listen_port, pid, state}, ...\]
+    #[prost(string, tag = "5")]
+    pub instances_json: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SpvrServiceStartAppInstance {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub app_id: ::prost::alloc::string::String,
+    /// Absolute install root on this machine (Placement.install_root)
+    #[prost(string, tag = "4")]
+    pub install_root: ::prost::alloc::string::String,
+    /// Relative exe path under install_root (Application.game_exe_rel)
+    #[prost(string, tag = "5")]
+    pub game_exe_rel: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub game_arguments: ::prost::alloc::string::String,
+    /// 0 = Service allocates an available port
+    #[prost(int32, tag = "7")]
+    pub listen_port: i32,
+    #[prost(int32, tag = "8")]
+    pub encoder_fps: i32,
+    #[prost(int32, tag = "9")]
+    pub encoder_bitrate: i32,
+    #[prost(string, tag = "10")]
+    pub encoder_format: ::prost::alloc::string::String,
+    #[prost(bool, tag = "11")]
+    pub webrtc_enabled: bool,
+    #[prost(bool, tag = "12")]
+    pub websocket_enabled: bool,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SpvrServiceStopAppInstance {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub instance_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SpvrServiceStartAppInstanceResult {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub ok: bool,
+    #[prost(string, tag = "4")]
+    pub error: ::prost::alloc::string::String,
+    #[prost(int32, tag = "5")]
+    pub listen_port: i32,
+    #[prost(uint32, tag = "6")]
+    pub pid: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SpvrServiceStopAppInstanceResult {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub ok: bool,
+    #[prost(string, tag = "4")]
+    pub error: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SpvrServiceMessage {
@@ -30,12 +97,30 @@ pub struct SpvrServiceMessage {
     pub hello: ::core::option::Option<SpvrServiceHello>,
     #[prost(message, optional, tag = "30")]
     pub heartbeat: ::core::option::Option<SpvrServiceHeartBeat>,
+    #[prost(message, optional, tag = "40")]
+    pub start_app_instance: ::core::option::Option<SpvrServiceStartAppInstance>,
+    #[prost(message, optional, tag = "50")]
+    pub stop_app_instance: ::core::option::Option<SpvrServiceStopAppInstance>,
+    #[prost(message, optional, tag = "60")]
+    pub start_app_instance_result: ::core::option::Option<
+        SpvrServiceStartAppInstanceResult,
+    >,
+    #[prost(message, optional, tag = "70")]
+    pub stop_app_instance_result: ::core::option::Option<
+        SpvrServiceStopAppInstanceResult,
+    >,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum SpvrServiceMessageType {
     KSpvrServiceHello = 0,
     KSpvrServiceHeartBeat = 1,
+    /// CMS -> Service
+    KSpvrServiceStartAppInstance = 2,
+    KSpvrServiceStopAppInstance = 3,
+    /// Service -> CMS
+    KSpvrServiceStartAppInstanceResult = 4,
+    KSpvrServiceStopAppInstanceResult = 5,
 }
 impl SpvrServiceMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -46,6 +131,14 @@ impl SpvrServiceMessageType {
         match self {
             Self::KSpvrServiceHello => "kSpvrServiceHello",
             Self::KSpvrServiceHeartBeat => "kSpvrServiceHeartBeat",
+            Self::KSpvrServiceStartAppInstance => "kSpvrServiceStartAppInstance",
+            Self::KSpvrServiceStopAppInstance => "kSpvrServiceStopAppInstance",
+            Self::KSpvrServiceStartAppInstanceResult => {
+                "kSpvrServiceStartAppInstanceResult"
+            }
+            Self::KSpvrServiceStopAppInstanceResult => {
+                "kSpvrServiceStopAppInstanceResult"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -53,6 +146,14 @@ impl SpvrServiceMessageType {
         match value {
             "kSpvrServiceHello" => Some(Self::KSpvrServiceHello),
             "kSpvrServiceHeartBeat" => Some(Self::KSpvrServiceHeartBeat),
+            "kSpvrServiceStartAppInstance" => Some(Self::KSpvrServiceStartAppInstance),
+            "kSpvrServiceStopAppInstance" => Some(Self::KSpvrServiceStopAppInstance),
+            "kSpvrServiceStartAppInstanceResult" => {
+                Some(Self::KSpvrServiceStartAppInstanceResult)
+            }
+            "kSpvrServiceStopAppInstanceResult" => {
+                Some(Self::KSpvrServiceStopAppInstanceResult)
+            }
             _ => None,
         }
     }

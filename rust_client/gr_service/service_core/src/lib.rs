@@ -1,3 +1,4 @@
+pub mod app_instance;
 pub mod command;
 pub mod config;
 pub mod process;
@@ -6,6 +7,10 @@ pub mod state;
 pub mod storage;
 pub mod windows_util;
 
+pub use app_instance::{
+    build_game_hook_launch_spec, build_web_client_url, resolve_game_path, AppInstanceRegistry,
+    AppInstanceState, AppInstanceSummary, StartAppRequest, APP_MODE_GAME_HOOK,
+};
 pub use command::{Command, DispatchResult};
 pub use config::{ServiceConfig, DEFAULT_SERVICE_NAME, DEFAULT_SERVICE_PATH};
 pub use process::{ProcessKind, ProcessSnapshot, RenderMode};

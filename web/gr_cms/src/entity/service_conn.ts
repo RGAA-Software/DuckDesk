@@ -8,6 +8,8 @@ export interface ServiceConn {
   hb_index: number
   render_alive: boolean
   auth_info_json: string
+  /** Service HeartBeat 上报的本机实例摘要 JSON */
+  instances_json?: string
 }
 
 // auth_info_json 解析后的授权信息

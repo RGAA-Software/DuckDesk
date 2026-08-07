@@ -99,6 +99,7 @@ mod tests {
             hb_index: 3,
             render_alive: true,
             auth_info_json: "{}".to_string(),
+            instances_json: "[]".to_string(),
         }))
     }
 
@@ -173,6 +174,7 @@ mod tests {
                 device_id: "d1".to_string(),
                 render_alive: false,
                 auth_info_json: "{\"a\":1}".to_string(),
+                instances_json: "[]".to_string(),
             });
             assert!(
                 c.process_message("test".to_string(), axum::body::Bytes::from(hb.encode_to_vec()))

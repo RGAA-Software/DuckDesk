@@ -36,6 +36,7 @@ const activeMenu = computed(() => {
     'online-connection',
     '/connection-monitor',
     '/video-wall',
+    '/apps',
     '/security-internal',
     '/events',
     '/user-manager',
@@ -95,6 +96,11 @@ const handleClickLogo = async () => {
       <el-menu-item index="/video-wall">
         <el-icon><IpGridNine /></el-icon>
         <span class="">多画面墙</span>
+      </el-menu-item>
+
+      <el-menu-item index="/apps">
+        <el-icon><Grid /></el-icon>
+        <span class="">应用调度</span>
       </el-menu-item>
 
       <el-menu-item index="/security-internal">
