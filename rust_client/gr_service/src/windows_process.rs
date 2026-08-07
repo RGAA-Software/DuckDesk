@@ -116,9 +116,25 @@ impl ProcessManager for WindowsProcessManager {
                         Ok(())
                     }
                     Err(wts_err) => {
-                        let combined = format!("{service_err}; fallback failed: {wts_err}");
-                        error!("start process as active user failed: {}", combined);
-                        Err(combined)
+                        // Console / non-SYSTEM runs lack SeTcbPrivilege / WTSQueryUserToken.
+                        // Fall back to a normal CreateProcess in the current session so
+                        // CMS game-hook scheduling can still be exercised locally.
+                        warn!(
+                            "token launch paths failed ({service_err}; {wts_err}); trying direct CreateProcess"
+                        );
+                        match start_process_direct(work_dir, app_path, args) {
+                            Ok(()) => {
+                                info!("start process finished by direct CreateProcess fallback");
+                                Ok(())
+                            }
+                            Err(direct_err) => {
+                                let combined = format!(
+                                    "{service_err}; fallback failed: {wts_err}; direct failed: {direct_err}"
+                                );
+                                error!("start process as active user failed: {}", combined);
+                                Err(combined)
+                            }
+                        }
                     }
                 }
             }
@@ -346,6 +362,31 @@ unsafe fn create_process_with_token(
             launch_method, command, work_dir, err
         );
         Err(format!("CreateProcessAsUserW failed: {err}"))
+    }
+}
+
+fn start_process_direct(work_dir: &str, app_path: &str, args: &[String]) -> Result<(), String> {
+    info!(
+        "direct CreateProcess begin, work_dir={}, app_path={}, args={:?}",
+        work_dir, app_path, args
+    );
+    let mut cmd = std::process::Command::new(app_path);
+    cmd.args(args)
+        .current_dir(work_dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    match cmd.spawn() {
+        Ok(child) => {
+            info!("direct CreateProcess succeeded, pid={}", child.id());
+            // Detach: do not wait; Windows keeps the process after Child drop.
+            std::mem::forget(child);
+            Ok(())
+        }
+        Err(err) => {
+            error!("direct CreateProcess failed: {err}");
+            Err(format!("direct CreateProcess failed: {err}"))
+        }
     }
 }
 

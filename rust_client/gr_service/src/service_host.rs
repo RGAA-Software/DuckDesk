@@ -215,21 +215,36 @@ impl ServiceRuntime {
 
     /// CMS-scheduled game-hook instance start. Returns (listen_port, pid).
     pub fn start_app_instance(&mut self, req: StartAppRequest) -> Result<(u16, u32), String> {
-        // Prefer last desktop work_dir (GoDesk dist); else service exe directory.
-        let work_dir = self
-            .state
-            .last_desktop_launch
-            .as_ref()
-            .map(|s| s.work_dir.clone())
-            .filter(|s| !s.is_empty())
-            .or_else(|| {
-                std::env::current_exe().ok().and_then(|p| {
-                    p.parent()
-                        .map(|d| d.to_string_lossy().to_string())
-                        .filter(|s| !s.is_empty())
-                })
+        // Prefer last desktop work_dir (GoDesk dist) when it still exists; else
+        // service exe directory / current_dir (console local runs).
+        let candidate_dirs = [
+            self.state
+                .last_desktop_launch
+                .as_ref()
+                .map(|s| s.work_dir.clone())
+                .unwrap_or_default(),
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()))
+                .unwrap_or_default(),
+            std::env::current_dir()
+                .ok()
+                .map(|d| d.to_string_lossy().to_string())
+                .unwrap_or_default(),
+        ];
+        let work_dir = candidate_dirs
+            .into_iter()
+            .find(|d| {
+                !d.is_empty()
+                    && std::path::Path::new(d).is_dir()
+                    && std::path::Path::new(d)
+                        .join(service_core::config::RENDER_EXE_NAME)
+                        .is_file()
             })
-            .unwrap_or_else(|| ".".to_string());
+            .ok_or_else(|| {
+                "no valid work_dir with GammaRayRender.exe (desktop launch / service exe dir)"
+                    .to_string()
+            })?;
 
         let instance_id = req.instance_id.clone();
         let record = self

@@ -7,7 +7,6 @@ use tokio::sync::Mutex;
 use tracing::info;
 
 use crate::service_host::ServiceRuntime;
-use crate::websocket_server::WebsocketService;
 use crate::windows_actions::WindowsActions;
 use crate::windows_process::WindowsProcessManager;
 
@@ -34,9 +33,9 @@ pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
             Arc::new(WindowsProcessManager::new()),
             Arc::new(WindowsActions::new()),
         )));
-        let service = WebsocketService::new(runtime.clone());
-        info!("running websocket service in console mode");
-        service.run_console().await?;
+        info!("running service stack in console mode (ws + cms + monitor)");
+        // Same task set as the Windows service entry: WS for Panel, CMS client for scheduling.
+        crate::service_host::run_service(runtime, None).await?;
         return Ok(());
     }
 
