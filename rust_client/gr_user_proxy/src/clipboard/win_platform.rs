@@ -350,45 +350,13 @@ impl WinClipboardPlatform {
     }
 
     fn try_write_file_paths(paths: &[String]) -> anyhow::Result<()> {
-        let mut wide_paths = Vec::new();
-        for path in paths {
-            wide_paths.extend(
-                OsStr::new(path)
-                    .encode_wide()
-                    .chain(std::iter::once(0)),
-            );
-        }
-        wide_paths.push(0);
-
-        let header_size = std::mem::size_of::<DropFiles>();
-        let payload_bytes = wide_paths.len() * 2;
-        let total_bytes = header_size + payload_bytes;
+        let path_refs: Vec<&str> = paths.iter().map(|p| p.as_str()).collect();
 
         release_ole_clipboard_owner();
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
-            let mem = GlobalAlloc(clipboard_global_alloc_flags(), total_bytes)
-                .map_err(|err| anyhow::anyhow!("GlobalAlloc failed: {err}"))?;
-            let base = GlobalLock(mem);
-            if base.is_null() {
-                let _ = GlobalFree(Some(mem));
-                anyhow::bail!("GlobalLock failed");
-            }
-
-            let drop_files = DropFiles {
-                p_files: header_size as u32,
-                pt: POINT { x: 0, y: 0 },
-                f_nc: BOOL(0),
-                f_wide: BOOL(1),
-            };
-            std::ptr::write(base as *mut DropFiles, drop_files);
-            std::ptr::copy_nonoverlapping(
-                wide_paths.as_ptr() as *const u8,
-                base.add(header_size) as *mut u8,
-                payload_bytes,
-            );
-            global_unlock(mem)?;
+            let mem = build_hdrop_global(&path_refs)?;
             if let Err(err) = SetClipboardData(CF_HDROP, Some(HANDLE(mem.0))) {
                 let _ = GlobalFree(Some(mem));
                 anyhow::bail!("SetClipboardData files failed: {err}");

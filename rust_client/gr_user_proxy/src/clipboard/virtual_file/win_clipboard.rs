@@ -116,26 +116,22 @@ fn build_file_group_descriptor(files: &[ClipboardFileEntry]) -> anyhow::Result<H
             const MAX_NAME: usize = 260;
             let copy_len = name.len().min(MAX_NAME - 1);
             for (i, ch) in name.iter().take(copy_len).enumerate() {
-                unsafe {
-                    (*fd).cFileName[i] = *ch;
-                }
+                (*fd).cFileName[i] = *ch;
             }
 
             let size = file.total_size.max(0) as u64;
-            unsafe {
-                (*fd).dwFlags = (FD_FILESIZE.0
-                    | FD_ATTRIBUTES.0
-                    | FD_WRITESTIME.0
-                    | FD_CREATETIME.0
-                    | FD_PROGRESSUI.0) as u32;
-                (*fd).nFileSizeLow = (size & 0xFFFF_FFFF) as u32;
-                (*fd).nFileSizeHigh = (size >> 32) as u32;
-                (*fd).dwFileAttributes = FILE_ATTRIBUTE_NORMAL.0;
-                let ft = GetSystemTimeAsFileTime();
-                (*fd).ftCreationTime = ft;
-                (*fd).ftLastWriteTime = ft;
-                (*fd).ftLastAccessTime = ft;
-            }
+            (*fd).dwFlags = (FD_FILESIZE.0
+                | FD_ATTRIBUTES.0
+                | FD_WRITESTIME.0
+                | FD_CREATETIME.0
+                | FD_PROGRESSUI.0) as u32;
+            (*fd).nFileSizeLow = (size & 0xFFFF_FFFF) as u32;
+            (*fd).nFileSizeHigh = (size >> 32) as u32;
+            (*fd).dwFileAttributes = FILE_ATTRIBUTE_NORMAL.0;
+            let ft = GetSystemTimeAsFileTime();
+            (*fd).ftCreationTime = ft;
+            (*fd).ftLastWriteTime = ft;
+            (*fd).ftLastAccessTime = ft;
         }
 
         let _ = GlobalUnlock(mem);
