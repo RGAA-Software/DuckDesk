@@ -4,6 +4,7 @@
 
 #include "ws_server.h"
 
+#include <atomic>
 #include <memory>
 #include <filesystem>
 #include "tc_common_new/log.h"
@@ -264,8 +265,8 @@ namespace tc
     }
 
     void WsPluginServer::AddIpcRouter() {
-        // Injected tc_graphics.dll connects here and posts CaptureVideoFrame blobs.
-        // Forward via plugin event bus (same path as DDA capture) — no link to rdApp.
+        // Injected tc_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
+        // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
         auto weak_self = weak_from_this();
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
             .on("message", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
@@ -277,17 +278,50 @@ namespace tc
                     return;
                 }
                 auto base_msg = (const CaptureBaseMessage*)data.data();
-                if (base_msg->type_ != kCaptureVideoFrame) {
+                if (base_msg->type_ == kCaptureVideoFrame) {
+                    if (data.size() != sizeof(CaptureVideoFrame)) {
+                        LOGE("IPC CaptureVideoFrame size mismatch: got {}, expect {}",
+                             data.size(), sizeof(CaptureVideoFrame));
+                        return;
+                    }
+                    auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
+                    memcpy(&event->frame_, data.data(), sizeof(CaptureVideoFrame));
+                    self->plugin_->CallbackEvent(event);
                     return;
                 }
-                if (data.size() != sizeof(CaptureVideoFrame)) {
-                    LOGE("IPC CaptureVideoFrame size mismatch: got {}, expect {}",
-                         data.size(), sizeof(CaptureVideoFrame));
+                if (base_msg->type_ == kCaptureAudioFrame) {
+                    if (data.size() < sizeof(IpcCaptureAudioFrame)) {
+                        LOGE("IPC audio frame too small: {}", data.size());
+                        return;
+                    }
+                    const auto* hdr = reinterpret_cast<const IpcCaptureAudioFrame*>(data.data());
+                    const size_t expect = sizeof(IpcCaptureAudioFrame) + hdr->data_length;
+                    if (data.size() != expect || hdr->data_length == 0) {
+                        LOGE("IPC audio size mismatch: got={}, expect={}, pcm={}", data.size(),
+                             expect, hdr->data_length);
+                        return;
+                    }
+                    auto pcm = Data::Make(data.data() + sizeof(IpcCaptureAudioFrame),
+                                          static_cast<int>(hdr->data_length));
+                    if (!pcm) {
+                        LOGE("IPC audio: Data::Make failed pcm={}", hdr->data_length);
+                        return;
+                    }
+                    auto event = std::make_shared<GrPluginRawAudioFrameEvent>();
+                    event->full_data_ = pcm;
+                    event->sample_rate_ = static_cast<int>(hdr->samples_);
+                    event->channels_ = static_cast<int>(hdr->channels_);
+                    event->bits_ = static_cast<int>(hdr->bits_);
+                    static std::atomic<uint64_t> s_audio_rx{0};
+                    const auto n = ++s_audio_rx;
+                    if (n == 1 || (n % 200) == 0) {
+                        LOGI("IPC audio rx→RawAudioEvent: n={} idx={} {}Hz {}ch {}bit pcm={}", n,
+                             hdr->frame_index_, hdr->samples_, hdr->channels_, hdr->bits_,
+                             hdr->data_length);
+                    }
+                    self->plugin_->CallbackEvent(event);
                     return;
                 }
-                auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
-                memcpy(&event->frame_, data.data(), sizeof(CaptureVideoFrame));
-                self->plugin_->CallbackEvent(event);
             })
             .on("open", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr) {
                 auto self = weak_self.lock();

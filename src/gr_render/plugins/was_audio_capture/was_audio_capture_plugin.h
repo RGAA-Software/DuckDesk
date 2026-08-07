@@ -5,6 +5,8 @@
 #ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 #define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 
+#include <mutex>
+
 #include "gr_render/plugin_interface/gr_data_provider_plugin.h"
 
 namespace tc
@@ -26,10 +28,18 @@ namespace tc
         void StartProviding() override;
         void StopProviding() override;
 
+        void SetAudioLoopbackProcessId(uint32_t pid) override;
+        uint32_t GetAudioLoopbackProcessId() const override;
+        bool IsProviding() const override;
+        int GetLastStartError() const override;
+
     private:
+        mutable std::mutex provide_mu_;
         int samples_ = 0;
         int channels_ = 0;
         int bits_ = 0;
+        int last_start_error_ = 0;
+        uint32_t loopback_process_id_ = 0;
         std::shared_ptr<IAudioCapture> audio_capture_ = nullptr;
     };
 

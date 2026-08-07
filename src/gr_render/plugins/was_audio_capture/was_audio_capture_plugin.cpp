@@ -6,6 +6,7 @@
 #include "audio_capture.h"
 #include "gr_render/plugins/plugin_ids.h"
 #include "miniaudio_audio_capture.h"
+#include "process_loopback_audio_capture.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/memory_stat.h"
 #include "gr_render/plugin_interface/gr_plugin_events.h"
@@ -22,11 +23,11 @@ namespace tc
     }
 
     std::string WasAudioCapturePlugin::GetVersionName() {
-        return "1.2.0";
+        return "1.3.0";
     }
 
     uint32_t WasAudioCapturePlugin::GetVersionCode() {
-        return 120;
+        return 130;
     }
 
     void WasAudioCapturePlugin::On1Second() {
@@ -39,13 +40,13 @@ namespace tc
     }
 
     std::string WasAudioCapturePlugin::GetPluginDescription() {
-        return "MiniAudio WASAPI default-device loopback capture";
+        return "MiniAudio WASAPI loopback (desktop default mix, or per-PID process-loopback)";
     }
 
     bool WasAudioCapturePlugin::OnCreate(const tc::GrPluginParam& param) {
         GrDataProviderPlugin::OnCreate(param);
         MemoryStat::Instance();
-        LOGI("[WasAudioCapturePlugin] OnCreate (follow OS default playback device)");
+        LOGI("[WasAudioCapturePlugin] OnCreate");
         return true;
     }
 
@@ -53,9 +54,32 @@ namespace tc
         LOGI("[WasAudioCapturePlugin] OnCommand: {}", command);
     }
 
+    void WasAudioCapturePlugin::SetAudioLoopbackProcessId(uint32_t pid) {
+        std::lock_guard lock(provide_mu_);
+        loopback_process_id_ = pid;
+        LOGI("[WasAudioCapturePlugin] SetAudioLoopbackProcessId pid={}", pid);
+    }
+
+    uint32_t WasAudioCapturePlugin::GetAudioLoopbackProcessId() const {
+        std::lock_guard lock(provide_mu_);
+        return loopback_process_id_;
+    }
+
+    bool WasAudioCapturePlugin::IsProviding() const {
+        std::lock_guard lock(provide_mu_);
+        return audio_capture_ != nullptr;
+    }
+
+    int WasAudioCapturePlugin::GetLastStartError() const {
+        std::lock_guard lock(provide_mu_);
+        return last_start_error_;
+    }
+
     void WasAudioCapturePlugin::StartProviding() {
-        LOGI("[WasAudioCapturePlugin] StartProviding, audio_enabled={}",
-             sys_settings_.audio_enabled_);
+        std::lock_guard lock(provide_mu_);
+        last_start_error_ = 0;
+        LOGI("[WasAudioCapturePlugin] StartProviding, audio_enabled={}, loopback_pid={}",
+             sys_settings_.audio_enabled_, loopback_process_id_);
 
         if (audio_capture_) {
             LOGW("[WasAudioCapturePlugin] previous capture still alive, stopping it first");
@@ -63,8 +87,16 @@ namespace tc
             audio_capture_.reset();
         }
 
-        audio_capture_ = MiniAudioCapture::Make();
+        if (loopback_process_id_ != 0) {
+            // Keep native WASAPI process-loopback for production (proven).
+            // MiniAudio PID path is patched (ActivateAudioInterfaceAsync); see
+            // test_miniaudio_pid_loopback — switch only after more soak testing.
+            audio_capture_ = ProcessLoopbackAudioCapture::Make(loopback_process_id_);
+        } else {
+            audio_capture_ = MiniAudioCapture::Make();
+        }
         if (!audio_capture_) {
+            last_start_error_ = -1;
             LOGE("[WasAudioCapturePlugin] MiniAudioCapture::Make failed");
             return;
         }
@@ -105,24 +137,24 @@ namespace tc
         });
 
         const int start_ret = audio_capture_->Start();
+        last_start_error_ = start_ret;
         if (start_ret != 0) {
-            LOGE("[WasAudioCapturePlugin] Start failed, ret={}", start_ret);
+            LOGE("[WasAudioCapturePlugin] Start failed, ret={}, pid={}", start_ret, loopback_process_id_);
             audio_capture_.reset();
             return;
         }
-        LOGI("[WasAudioCapturePlugin] StartProviding OK");
+        LOGI("[WasAudioCapturePlugin] StartProviding OK ({})",
+             loopback_process_id_ ? "PID process-loopback" : "default device loopback");
     }
 
     void WasAudioCapturePlugin::StopProviding() {
+        std::lock_guard lock(provide_mu_);
         LOGI("[WasAudioCapturePlugin] StopProviding");
         if (!audio_capture_) {
             LOGW("[WasAudioCapturePlugin] StopProviding: capture already null");
             return;
         }
-        audio_capture_->Pause();
         audio_capture_->Stop();
         audio_capture_.reset();
-        LOGI("[WasAudioCapturePlugin] StopProviding done");
     }
-
 }

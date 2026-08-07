@@ -64,10 +64,21 @@ namespace tc
 
     void WsIpcClient::PostIpcMessage(const std::string& msg) {
         if (!ws_client_) {
-            LOGE("ws ipc client is null.");
+            static uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 200) == 0) {
+                LOGE("ws ipc PostIpcMessage: client is null, drop {} bytes n={}", msg.size(), s_n);
+            }
             return;
         }
         if (!ws_client_->is_started()) {
+            static uint64_t s_n = 0;
+            if (++s_n == 1 || (s_n % 200) == 0) {
+                LOGE("ws ipc PostIpcMessage: not started, drop {} bytes n={}", msg.size(), s_n);
+            }
+            return;
+        }
+        if (msg.empty()) {
+            LOGE("ws ipc PostIpcMessage: empty payload");
             return;
         }
         ws_client_->async_send(msg);

@@ -3,6 +3,7 @@
 //
 
 #include "ws_ipc_router.h"
+#include <atomic>
 #include "tc_common_new/data.h"
 #include "tc_common_new/log.h"
 #include "tc_capture_new/capture_message.h"
@@ -34,7 +35,8 @@ namespace tc
             app = rdApp;
         }
         if (!app) {
-            LOGE("IPC video frame dropped: RdApplication not available");
+            LOGE("IPC frame dropped: RdApplication not available type=0x{:x} size={}",
+                 base_msg->type_, data.size());
             return;
         }
         if (base_msg->type_ == kCaptureVideoFrame) {
@@ -46,6 +48,40 @@ namespace tc
             }
             memcpy(msg.get(), data.data(), data.size());
             app->OnIpcVideoFrame(msg);
+        } else if (base_msg->type_ == kCaptureAudioFrame) {
+            if (data.size() < sizeof(IpcCaptureAudioFrame)) {
+                LOGE("IPC audio frame too small: {}", data.size());
+                return;
+            }
+            const auto* hdr = reinterpret_cast<const IpcCaptureAudioFrame*>(data.data());
+            const size_t expect = sizeof(IpcCaptureAudioFrame) + hdr->data_length;
+            if (data.size() != expect || hdr->data_length == 0) {
+                LOGE("IPC audio size mismatch: got={}, expect={}, pcm={}", data.size(), expect,
+                     hdr->data_length);
+                return;
+            }
+            CaptureAudioFrame frame;
+            frame.type_ = kCaptureAudioFrame;
+            frame.data_length = hdr->data_length;
+            frame.frame_index_ = hdr->frame_index_;
+            frame.samples_ = hdr->samples_;
+            frame.channels_ = hdr->channels_;
+            frame.bits_ = hdr->bits_;
+            frame.full_data_ = Data::Make(data.data() + sizeof(IpcCaptureAudioFrame),
+                                          static_cast<int>(hdr->data_length));
+            if (!frame.full_data_) {
+                LOGE("IPC audio: Data::Make failed pcm={}", hdr->data_length);
+                return;
+            }
+            static std::atomic<uint64_t> s_audio_rx{0};
+            const auto n = ++s_audio_rx;
+            if (n == 1 || (n % 200) == 0) {
+                LOGI("IPC audio rx: n={} idx={} {}Hz {}ch {}bit pcm={}", n, hdr->frame_index_,
+                     hdr->samples_, hdr->channels_, hdr->bits_, hdr->data_length);
+            }
+            app->OnIpcAudioFrame(frame);
+        } else {
+            LOGW("IPC unknown type=0x{:x} size={}", base_msg->type_, data.size());
         }
     }
 

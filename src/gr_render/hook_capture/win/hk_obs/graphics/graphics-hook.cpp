@@ -16,6 +16,8 @@
 #include "tc_common_new/process_util.h"
 #include "hook_manager.h"
 #include "offsets/get-graphics-offsets.h"
+#include "../../hk_audio/HookCoreApi.h"
+#include <filesystem>
 #include <string>
 
 #endif
@@ -847,14 +849,29 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
         return 0;
     }
 
-    auto log_path = std::format(L"{}/tc_graphics_{}.log", dll_path, g_hook_manager->app_shared_msg_->ipc_port_);
+    // dll_path is a full file path; put logs next to the DLL, not under ".../tc_graphics.dll/".
+    auto log_path = (std::filesystem::path(dll_path).parent_path() /
+                     std::format(L"tc_graphics_{}.log", g_hook_manager->app_shared_msg_->ipc_port_))
+                        .wstring();
     tc::Logger::InitLog(log_path, true);
     g_hook_manager->StartIpcClient();
     g_hook_manager->DumpSharedMessage();
 
     LOGI("Dll path: {}", StringUtil::ToUTF8(dll_path));
 
-    g_hook_manager->HookMethods();
+    // In-process WASAPI audio hook when host boot says so (OS without process-loopback).
+    if (g_hook_manager->app_shared_msg_->enable_hook_audio_) {
+        LOGI("Boot enable_hook_audio=1 → installing multi-API in-process audio hooks");
+        if (!tc::HookCoreApi::Instance()->Init()) {
+            LOGE("In-process audio capture init failed");
+        }
+    } else {
+        LOGI("Boot enable_hook_audio=0 → skip in-process audio hook (use process-loopback on host)");
+    }
+
+    // Focus spoof (own-window as foreground) so background / multi-open instances
+    // keep emitting audio. Also installs input hooks when enable_hook_events=1.
+    g_hook_manager->StartFocusSpoof();
 
     if (!init_dll()) {
         LOGE("[OBS] Duplicate hook library");

@@ -36,7 +36,6 @@ if (WIN32)
     set(DLL_SRCS
         win/client_manager.cpp
         win/dll_main.cpp
-        win/client_ipc_manager.cpp
 
         ## hk_utils
         win/hk_utils/env.h

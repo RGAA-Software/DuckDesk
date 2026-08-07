@@ -17,6 +17,7 @@
 #include "tc_encoder_new/video_encoder_factory.h"
 #include "tc_capture_new/capture_message.h"
 #include "tc_capture_new/capture_message_maker.h"
+#include "tc_capture_new/process_loopback_support.h"
 #include "app/app_manager.h"
 #include "app/app_manager_factory.h"
 #include "app/app_messages.h"
@@ -281,7 +282,55 @@ namespace tc
         });
 
         msg_listener_->Listen<MsgObsInjected>([=, this](const MsgObsInjected& msg) {
-
+            // Game-hook audio: start/restart host capture as PID process-loopback (never device mix).
+            if (!settings_->capture_.IsVideoInnerCapture() || msg.pid_ == 0) {
+                return;
+            }
+            if (!PreferProcessLoopbackCapture()) {
+                LOGI("MsgObsInjected pid={}: skip host PID loopback (force_hook={} os_supported={})",
+                     msg.pid_, ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported());
+                return;
+            }
+            // MUST NOT run MiniAudio/WASAPI ActivateAudioInterfaceAsync on the UI/message
+            // thread: the async activation needs a pumping thread and will stall ~20s then
+            // fail, producing no CaptureAudioFrame (video still works on other threads).
+            PostGlobalTask([weak_self, pid = msg.pid_]() {
+                auto self = weak_self.lock();
+                if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
+                    LOGE("MsgObsInjected: cannot start PID audio (app/plugin missing) pid={}", pid);
+                    return;
+                }
+                LOGI("MsgObsInjected: schedule PID process-loopback on worker pid={}", pid);
+                if (self->audio_capture_thread_ && self->audio_capture_thread_->IsJoinable()) {
+                    LOGI("MsgObsInjected: stopping previous audio worker before restart");
+                    self->audio_capture_plugin_->StopProviding();
+                    self->audio_capture_thread_->Join();
+                }
+                self->audio_capture_plugin_->SetAudioLoopbackProcessId(pid);
+                self->audio_capture_thread_ = Thread::MakeOnceTask([weak_self, pid]() {
+                    auto self = weak_self.lock();
+                    if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
+                        return;
+                    }
+                    // WASAPI process-loopback activation expects COM on this thread.
+                    // Do not CoUninitialize here: MiniAudio keeps the device alive after return.
+                    const HRESULT co_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                    LOGI("PID audio worker: Stop+Start begin pid={} CoInitializeEx=0x{:08x}", pid,
+                         static_cast<unsigned>(co_hr));
+                    self->audio_capture_plugin_->StopProviding();
+                    self->audio_capture_plugin_->SetAudioLoopbackProcessId(pid);
+                    self->audio_capture_plugin_->StartProviding();
+                    const bool ok = self->audio_capture_plugin_->IsProviding();
+                    const int err = self->audio_capture_plugin_->GetLastStartError();
+                    if (ok) {
+                        LOGI("PID audio worker: StartProviding OK pid={}", pid);
+                    } else {
+                        LOGE("PID audio worker: StartProviding FAILED pid={} err={} "
+                             "(no host capture; in-process hook disabled when loopback supported)",
+                             pid, err);
+                    }
+                }, "pid audio capture", false);
+            });
         });
 
         msg_listener_->Listen<MsgTimer16>([=, this](const MsgTimer16& msg) {
@@ -499,6 +548,11 @@ namespace tc
 
         msg_listener_->Listen<CaptureAudioFrame>([=, this] (const CaptureAudioFrame& frame) {
             if (!HasConnectedPeer()) {
+                static thread_local uint64_t s_drop = 0;
+                if (++s_drop == 1 || (s_drop % 500) == 0) {
+                    LOGW("CaptureAudioFrame: no connected peer, drop n={} idx={}", s_drop,
+                         frame.frame_index_);
+                }
                 return;
             }
 
@@ -507,6 +561,11 @@ namespace tc
             int bits = (int)frame.bits_;
 
             if (frame.full_data_) {
+                static thread_local uint64_t s_enc = 0;
+                if (++s_enc == 1 || (s_enc % 200) == 0) {
+                    LOGI("CaptureAudioFrame→encode: n={} {}Hz {}ch {}bit bytes={}", s_enc, samples,
+                         channels, bits, frame.full_data_->Size());
+                }
                 audio_encoder_plugin_->Encode(frame.full_data_, samples, channels, bits);
 
                 auto stat = RdStatistics::Instance();
@@ -581,9 +640,22 @@ namespace tc
             }
         });
 
-        audio_capture_thread_ = Thread::MakeOnceTask([=, this]() {
-            audio_capture_plugin_->StartProviding();
-        }, "global audio capture", false);
+        // Desktop: start default-device loopback immediately.
+        // Game-hook: wait for MsgObsInjected → PID process-loopback (never device mix).
+        // If OS lacks process-loopback, rely on in-process WASAPI hook only.
+        if (settings_->capture_.IsVideoInnerCapture()) {
+            if (PreferProcessLoopbackCapture()) {
+                LOGI("game-hook audio: defer until inject (PID process-loopback)");
+            } else {
+                LOGI("game-hook audio: in-process hook path "
+                     "(force_hook={} os_supported={}; do not start host device-mix)",
+                     ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported());
+            }
+        } else {
+            audio_capture_thread_ = Thread::MakeOnceTask([=, this]() {
+                audio_capture_plugin_->StartProviding();
+            }, "global audio capture", false);
+        }
     }
 
     void RdApplication::PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg) {
@@ -713,6 +785,27 @@ namespace tc
         encoder_thread_->Encode(*msg);
     }
 
+    void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) const {
+        // Same bus as MiniAudio / plugin audio capture → encode → clients.
+        if (!context_) {
+            LOGE("OnIpcAudioFrame: context_ null, drop frame idx={} pcm={}",
+                 frame.frame_index_, frame.full_data_ ? frame.full_data_->Size() : 0);
+            return;
+        }
+        if (!frame.full_data_ || frame.full_data_->Size() <= 0) {
+            LOGE("OnIpcAudioFrame: empty pcm idx={} {}Hz {}ch", frame.frame_index_, frame.samples_,
+                 frame.channels_);
+            return;
+        }
+        static thread_local uint64_t s_n = 0;
+        if (++s_n == 1 || (s_n % 200) == 0) {
+            LOGI("OnIpcAudioFrame: n={} idx={} {}Hz {}ch {}bit bytes={} → bus", s_n,
+                 frame.frame_index_, frame.samples_, frame.channels_, frame.bits_,
+                 frame.full_data_->Size());
+        }
+        context_->SendAppMessage(frame);
+    }
+
     bool RdApplication::HasConnectedPeer() const {
         return plugin_manager_->GetTotalConnectedClientsCount();
     }
@@ -730,11 +823,17 @@ namespace tc
             LOGE("PrepareGameHookBoot: no AppSharedInfo writer");
             return;
         }
-        // Ensure WS frame path (never SHM for video frames).
-        settings_->capture_.send_video_frame_by_shm_ = false;
         app_shared_message_->ipc_port_ = settings_->transmission_.listening_port_;
         app_shared_message_->self_size_ = sizeof(AppSharedMessage);
         app_shared_message_->enable_hook_events_ = 1;
+        // Prefer OS process-loopback when available; otherwise (or GODESK_FORCE_HOOK_AUDIO=1)
+        // enable in-process WASAPI/XAudio2 hook.
+        const bool prefer_pid = PreferProcessLoopbackCapture();
+        app_shared_message_->enable_hook_audio_ = prefer_pid ? 0u : 1u;
+        LOGI("PrepareGameHookBoot pid={}: prefer_pid_loopback={}, force_hook={}, "
+             "os_supported={}, enable_hook_audio={}",
+             pid, prefer_pid, ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported(),
+             app_shared_message_->enable_hook_audio_);
 
         std::string buffer;
         buffer.resize(sizeof(AppSharedMessage));

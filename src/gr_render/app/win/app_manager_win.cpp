@@ -16,6 +16,7 @@
 #include "app/app_messages.h"
 #include "tc_common_new/win32/process_helper.h"
 #include "tc_common_new/win32/win_helper.h"
+#include "tc_capture_new/process_loopback_support.h"
 #include <shellapi.h>
 #include <filesystem>
 #include <sstream>
@@ -91,8 +92,9 @@ namespace tc
                  folder_path, folder_path.size(), sizeof(inject_params.host_exe_folder));
         }
         inject_params.listening_port = settings_->transmission_.listening_port_;
-        inject_params.shm_client_to_host_buffer_size = 0;//settings_->GetShmBufferSize();
-        inject_params.send_video_frame_by_shm = settings_->capture_.send_video_frame_by_shm_;
+        // Kept in sync with hook_boot AppSharedMessage::enable_hook_audio_ (OBS inject path uses boot file).
+        // GODESK_FORCE_HOOK_AUDIO=1 forces in-process hook even when PID loopback is available.
+        inject_params.enable_hook_audio = PreferProcessLoopbackCapture() ? 0u : 1u;
 
         // steam prefix
         if (is_steam_url) {

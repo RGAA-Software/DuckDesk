@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <string>
 #include <thread>
 
 #include "tc_common_new/log.h"
@@ -14,9 +15,18 @@ namespace tc
 		return desc ? desc : "unknown";
 	}
 
+	MiniAudioCapture::MiniAudioCapture(uint32_t loopback_process_id)
+		: loopback_process_id_(loopback_process_id) {}
+
 	AudioCapturePtr MiniAudioCapture::Make() {
-		auto capture = std::make_shared<MiniAudioCapture>();
+		auto capture = std::shared_ptr<MiniAudioCapture>(new MiniAudioCapture(0));
 		LOGI("[MiniAudioCapture] Make (OS default playback loopback)");
+		return capture;
+	}
+
+	AudioCapturePtr MiniAudioCapture::MakeForProcess(uint32_t process_id) {
+		auto capture = std::shared_ptr<MiniAudioCapture>(new MiniAudioCapture(process_id));
+		LOGI("[MiniAudioCapture] MakeForProcess pid={}", process_id);
 		return capture;
 	}
 
@@ -65,23 +75,31 @@ namespace tc
 		device_config.dataCallback = DataCallback;
 		device_config.notificationCallback = NotificationCallback;
 		device_config.pUserData = this;
-		// nullptr => current OS default render endpoint.
+		// nullptr => current OS default render endpoint (or process-loopback virtual device).
 		device_config.capture.pDeviceID = nullptr;
-		// Allow WASAPI auto stream routing notifications when default device changes.
-		device_config.wasapi.noAutoStreamRouting = MA_FALSE;
+		if (loopback_process_id_ != 0) {
+			// Per-PID capture for multi-instance game-hook. Do NOT fall back to device mix.
+			device_config.wasapi.loopbackProcessID = loopback_process_id_;
+			device_config.wasapi.loopbackProcessExclude = MA_FALSE;
+			device_config.wasapi.noAutoStreamRouting = MA_TRUE;
+		} else {
+			// Desktop: allow WASAPI auto stream routing when default device changes.
+			device_config.wasapi.noAutoStreamRouting = MA_FALSE;
+		}
 
 		result = ma_device_init(&context_, &device_config, &device_);
 		if (result != MA_SUCCESS) {
-			LOGE("[MiniAudioCapture] ma_device_init(loopback default) failed: {} ({})",
-				 (int)result, ResultStr(result));
+			LOGE("[MiniAudioCapture] ma_device_init(loopback{}) failed: {} ({}) pid={}",
+				 loopback_process_id_ ? " process" : " default",
+				 (int)result, ResultStr(result), loopback_process_id_);
 			CleanupUnlocked();
 			return (int)result;
 		}
 		device_inited_ = true;
 
-		LOGI("[MiniAudioCapture] device opened: name=\"{}\", format={}Hz/{}ch/{}bit",
+		LOGI("[MiniAudioCapture] device opened: name=\"{}\", pid={}, format={}Hz/{}ch/{}bit",
 			 device_.capture.name[0] ? device_.capture.name : "<unnamed>",
-			 kSampleRate, kChannels, kBits);
+			 loopback_process_id_, kSampleRate, kChannels, kBits);
 
 		if (format_callback_) {
 			format_callback_(kSampleRate, kChannels, kBits);
@@ -89,15 +107,18 @@ namespace tc
 			LOGW("[MiniAudioCapture] format_callback_ is null");
 		}
 
+		// Allow DataCallback during ma_device_start (WASAPI may deliver first buffers there).
+		running_ = true;
 		result = ma_device_start(&device_);
 		if (result != MA_SUCCESS) {
+			running_ = false;
 			LOGE("[MiniAudioCapture] ma_device_start failed: {} ({})", (int)result, ResultStr(result));
 			CleanupUnlocked();
 			return (int)result;
 		}
 
-		running_ = true;
-		LOGI("[MiniAudioCapture] started OK (default loopback {}Hz {}ch {}bit)",
+		LOGI("[MiniAudioCapture] started OK ({} {}Hz {}ch {}bit)",
+			 loopback_process_id_ ? "PID process-loopback" : "default loopback",
 			 kSampleRate, kChannels, kBits);
 		return 0;
 	}
@@ -113,7 +134,8 @@ namespace tc
 			LOGW("[MiniAudioCapture] Start: cleaning leftover device/context state");
 			CleanupUnlocked();
 		}
-		LOGI("[MiniAudioCapture] Start begin (OS default playback loopback)");
+		LOGI("[MiniAudioCapture] Start begin ({})",
+			 loopback_process_id_ ? "PID process-loopback" : "OS default playback loopback");
 		return OpenAndStartUnlocked();
 	}
 

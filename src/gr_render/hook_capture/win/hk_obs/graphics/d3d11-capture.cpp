@@ -292,12 +292,7 @@ void d3d11_capture(void *swap_ptr, void *back_buffer_ptr) {
     if (adapter_uid.has_value()) {
         capture_video_frame_msg.adapter_uid_ = adapter_uid.value();
     }
-#if ENABLE_SHM
-    auto msg_data = CaptureMessageMaker::ConvertMessageToData(capture_video_frame_msg);
-    hook_mgr->Send(std::move(msg_data));
-#else
     auto msg_data = CaptureMessageMaker::ConvertMessageToString(capture_video_frame_msg);
     hook_mgr->Send(msg_data);
-#endif
     back_buffer->Release();
 }

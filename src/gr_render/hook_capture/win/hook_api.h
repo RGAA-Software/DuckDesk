@@ -53,6 +53,8 @@ typedef SHORT (*GetAsyncKeyState_t)(int vKey);
 typedef SHORT (*GetKeyState_t)(int nVirtKey);
 typedef BOOL (WINAPI *IsWindowVisibleHooked_t)(_In_ HWND hWnd);
 typedef HWND (WINAPI *GetForegroundWindowHooked_t)(VOID);
+typedef HWND (WINAPI *GetActiveWindow_t)(VOID);
+typedef HWND (WINAPI *GetFocus_t)(VOID);
 
 typedef HRESULT (*DirectInput8Create_t)(
         HINSTANCE hinst,

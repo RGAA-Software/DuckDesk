@@ -84,6 +84,8 @@ namespace tc
         std::shared_ptr<RdContext> GetContext() { return context_; }
         std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
         void OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const;
+        // In-process hook audio from tc_graphics.dll via /ipc.
+        void OnIpcAudioFrame(const CaptureAudioFrame& frame) const;
         // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
         void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);

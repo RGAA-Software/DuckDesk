@@ -3,7 +3,8 @@
 > 状态：进行中（2026-08）  
 > 目标：`mode = "game-hook"` 时，单独启动一个 `GammaRayRender`，启动游戏、注入采集 DLL，用 web client 看见游戏画面。  
 > 约束：本期**不经过** panel / `gr_service`；多 render 编排后置。  
-> OBS 对照：`D:\source\obs-studio\plugins\win-capture`（`game-capture.c` / `graphics-hook` / `inject-helper`）。
+> OBS 对照：`D:\source\obs-studio\plugins\win-capture`（`game-capture.c` / `graphics-hook` / `inject-helper`）。  
+> 音频梳理：[`game_hook_audio_capture.md`](./game_hook_audio_capture.md)（PID process-loopback / MiniAudio 补丁 / Hook fallback）。
 
 ---
 
@@ -71,7 +72,7 @@ WsPluginServer /ipc → WsIpcRouter → OnIpcVideoFrame
 | 组件 | 状态 |
 |------|------|
 | `tc_graphics.dll` / `tc_graphics_util.exe`（OBS 移植） | 已有 |
-| 定时注入 + SHM bootstrap | 已有 |
+| 定时注入 + file bootstrap（WS `/ipc`，非帧 SHM） | 已有 |
 | `OnIpcVideoFrame` → encode → 推流 | 已有 |
 | `application.mode` 读取（desktop / game-hook） | 已有 |
 | `StartProcessWithHook`（仅 game-hook） | 已有 |
@@ -155,8 +156,8 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 | `hook_capture/win/hk_obs/` → `tc_graphics.dll` | `plugins/win-capture/graphics-hook/` |
 | `hk_obs/injector` → `tc_graphics_util.exe` | `plugins/win-capture/inject-helper/` |
 | `AppManagerWinImpl::InjectDll` | `game-capture.c` inject 调用链 |
-| `AppSharedMessage` / `application_shm_{pid}` | `graphics-hook-info` / hook config |
-| WS `/ipc` + shared HANDLE | OBS 主要为 shared memory / texture |
+| `AppSharedMessage` / boot file `application_{pid}.bin` | `graphics-hook-info` / hook config |
+| WS `/ipc` + shared texture HANDLE | OBS 帧元数据多为 SHM；GPU 纹理仍可走 shared HANDLE / shmem texture |
 
 有注入、Present hook、共享纹理问题时，优先 diff 上述 OBS 文件的最新实现。
 

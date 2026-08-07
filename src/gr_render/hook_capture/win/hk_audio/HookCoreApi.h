@@ -1,78 +1,56 @@
 #pragma once
 
-#include <mmdeviceapi.h>
 #include <audioclient.h>
+#include <mmdeviceapi.h>
 
-#include "easyhook/easyhook.h"
-#include "hk_utils/hook_api.hpp"
+#include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+
+#include "AudioMixer.h"
 #include "SimpleAudioFormatConverter.h"
 
-#define DllImport   __declspec( dllimport )
-#define DllExport   __declspec( dllexport )
+namespace tc {
 
-namespace tc
-{
+class AudioShare;
 
-	typedef HRESULT(STDMETHODCALLTYPE* FUNC_GetBuffer)(
-		IAudioRenderClient* thiz,
-		UINT32 NumFramesRequested,
-		BYTE** ppData);
+// enable_hook_audio=1: hook common Windows playback APIs and mix into AudioShare.
+// Covers multi-device / multi-instance init (BGM + SFX often use separate clients).
+class HookCoreApi {
+public:
+    struct StreamFormat {
+        SimpleAudioFormat format = SimpleAudioFormat::kPCM_S16;
+        int samples = 48000;
+        int channels = 2;
+        int bits = 16;
+        int block_align = 4;
+    };
 
-	typedef HRESULT(STDMETHODCALLTYPE* FUNC_ReleaseBuffer)(
-		IAudioRenderClient* thiz,
-		UINT32 NumFramesWritten,
-		DWORD dwFlags);
+    static HookCoreApi* Instance() {
+        static HookCoreApi api;
+        return &api;
+    }
 
-	typedef HRESULT(STDMETHODCALLTYPE* FUNC_GetMixFormat)(
-		IAudioClient* thiz,
-		WAVEFORMATEX** ppDeviceFormat);
+    bool Init();
+    void Shutdown();
 
-	typedef HRESULT(STDMETHODCALLTYPE* FUNC_Initialize)(
-		IAudioClient* thiz,
-		AUDCLNT_SHAREMODE ShareMode,
-		DWORD StreamFlags,
-		REFERENCE_TIME hnsBufferDuration,
-		REFERENCE_TIME hnsPeriodicity,
-		const WAVEFORMATEX* pFormat,
-		LPCGUID AudioSessionGuid);
-	
-	class AudioShare;
+    std::shared_ptr<AudioShare> audio_share;
+    std::shared_ptr<AudioMixer> mixer;
 
-	class HookCoreApi {
-	public:
+    std::mutex state_mu_;
+    std::unordered_map<IAudioClient*, StreamFormat> client_formats_;
+    std::unordered_map<IAudioRenderClient*, StreamFormat> render_formats_;
+    std::unordered_map<IAudioRenderClient*, char*> render_buffers_;
+    std::unordered_set<void*> patched_render_vtbls_;
 
-		static HookCoreApi* Instance() {
-			static HookCoreApi api;
-			return &api;
-		}
+    void PatchRenderClientVtable(IAudioRenderClient* rc);
 
-		HookCoreApi();
-		~HookCoreApi();
+private:
+    HookCoreApi() = default;
+    bool InitWasapiRenderHooks();
 
-		bool Init();
+    bool hooked_ = false;
+};
 
-	public:
-		SimpleAudioFormat format;
-		int samples = 0;
-		int channels = 0;
-		int bits = 0;
-		int block_align = 0;
-		char* buffer = nullptr;
-
-		std::shared_ptr<AudioShare> audio_share = nullptr;
-
-	private:
-		
-		tc::HookApi api_GetBuffer;
-		tc::HookApi api_ReleaseBuffer;
-		tc::HookApi api_GetMixFormat;
-		tc::HookApi api_Initialize;
-
-	};
-
-	static FUNC_GetBuffer		origin_GetBuffer = nullptr;
-	static FUNC_ReleaseBuffer	origin_ReleaseBuffer = nullptr;
-	static FUNC_GetMixFormat	origin_GetMixFormat = nullptr;
-	static FUNC_Initialize		origin_Initialize = nullptr;
-
-}
+}  // namespace tc

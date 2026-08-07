@@ -18,7 +18,6 @@ namespace tc
 {
 
     class Data;
-    class ClientIpcManager;
     class SharedTexture;
     class AppSharedInfoReader;
     class AppSharedMessage;
@@ -33,7 +32,6 @@ namespace tc
         }
 
         void Init();
-        void Send(std::shared_ptr<Data>&& data);
         void Send(const std::string& msg);
         inline uint64_t AppendFrameIndex() { return frame_index_++; }
         void PushIpcMessage(const std::shared_ptr<CaptureBaseMessage>& msg);
@@ -44,6 +42,9 @@ namespace tc
             return m;
         }
         void HookMethods();
+        // Focus spoof for background / multi-instance audio: make this process
+        // believe its own game window is foreground even when OS focus is elsewhere.
+        void StartFocusSpoof();
 
         UINT ProcessHookedGetRawInputData(
                 HRAWINPUT hRawInput,
@@ -58,6 +59,12 @@ namespace tc
 
         HWND ProcessWindowFromPoint(_In_ POINT Point) const;
 
+        // Preferred spoof target: mouse IPC hwnd, else auto-discovered own window.
+        [[nodiscard]]
+        HWND FocusSpoofHwnd() const;
+        bool WantFocusSpoof() const;
+        void RefreshOwnGameHwnd();
+
         void DumpSharedMessage();
 
         void StartIpcClient();
@@ -65,13 +72,11 @@ namespace tc
     private:
         void GenerateMouseEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
         void GenerateKeyboardEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
+        void FocusSpoofWatcherMain();
 
     public:
         uint32_t current_pid_{};
         std::wstring dll_path_;
-#if ENABLE_SHM
-        std::shared_ptr<ClientIpcManager> client_ipc_mgr_ = nullptr;
-#endif
         std::shared_ptr<SharedTexture> shared_texture_ = nullptr;
         uint64_t frame_index_ = 0;
 
@@ -83,7 +88,12 @@ namespace tc
 
         std::shared_ptr<WsIpcClient> ws_ipc_client_ = nullptr;
 
+        // Set by mouse IPC from host (streaming input target).
         HWND hwnd_ = nullptr;
+        // Auto-discovered top-level window of this process (multi-open audio).
+        HWND own_game_hwnd_ = nullptr;
+        HANDLE focus_spoof_watcher_ = nullptr;
+        volatile long focus_spoof_stop_ = 0;
     };
 
     static GetRawInputBuffer_t origin_GetRawInputBuffer_;
@@ -99,6 +109,8 @@ namespace tc
     static DirectInput8Create_t origin_DirectInput8Create_;
     static IsWindowVisibleHooked_t origin_IsWindowVisibleHooked_;
     static GetForegroundWindowHooked_t origin_GetForegroundWindowHooked_;
+    static GetActiveWindow_t origin_GetActiveWindow_;
+    static GetFocus_t origin_GetFocus_;
     static WindowFromPoint_t origin_WindowFromPoint_;
     static ClipCursor_t origin_ClipCursor_;
 }

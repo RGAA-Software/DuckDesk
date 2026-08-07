@@ -1,24 +1,36 @@
 #include "SimpleAudioFormatConverter.h"
 
 #include <vector>
-#include "common/RData.h"
 
-namespace tc
-{
+#include "tc_common_new/data.h"
 
-	std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(std::shared_ptr<Data> origin) {
-		return CvtF32ToS16((char*)origin->CStr(), origin->Size());
-	}
+namespace tc {
 
-	std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(char* origin, int origin_size) {
-		int s32_size = origin_size / sizeof(int);
-		auto f32_data = (float*)origin;
-		std::vector<int16_t> result;
-		for (int i = 0; i < s32_size; i++) {
-			int16_t value = f32_data[i] * 32768;
-			result.push_back(value);
-		}
-		return Data::Make((char*)result.data(), result.size() * 2);
-	}
-
+std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(std::shared_ptr<Data> origin) {
+    if (!origin) {
+        return nullptr;
+    }
+    return CvtF32ToS16(origin->DataAddr(), static_cast<int>(origin->Size()));
 }
+
+std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(char* origin, int origin_size) {
+    if (!origin || origin_size <= 0) {
+        return nullptr;
+    }
+    const int sample_count = origin_size / static_cast<int>(sizeof(float));
+    auto* f32 = reinterpret_cast<float*>(origin);
+    std::vector<int16_t> result(static_cast<size_t>(sample_count));
+    for (int i = 0; i < sample_count; i++) {
+        float v = f32[i];
+        if (v > 1.0f) {
+            v = 1.0f;
+        } else if (v < -1.0f) {
+            v = -1.0f;
+        }
+        result[static_cast<size_t>(i)] = static_cast<int16_t>(v * 32767.0f);
+    }
+    return Data::Make(reinterpret_cast<char*>(result.data()),
+                      result.size() * sizeof(int16_t));
+}
+
+}  // namespace tc

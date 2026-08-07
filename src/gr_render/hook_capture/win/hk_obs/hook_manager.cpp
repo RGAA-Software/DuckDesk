@@ -4,7 +4,6 @@
 
 #include "hook_manager.h"
 #include "tc_common_new/data.h"
-#include "client_ipc_manager.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "hk_video/shared_texture.h"
@@ -20,36 +19,22 @@ namespace tc
     void HookManager::Init() {
         auto pid = GetCurrentProcessId();
         current_pid_ = pid;
-        auto shm_name = std::format("application_shm_{}", pid);
-        shared_info_reader_ = AppSharedInfoReader::Make(shm_name);
+        // Name kept for boot-file lookup compatibility (file under hook_boot/, not SHM).
+        auto boot_name = std::format("application_shm_{}", pid);
+        shared_info_reader_ = AppSharedInfoReader::Make(boot_name);
         app_shared_msg_ = shared_info_reader_->ReadData();
-#if ENABLE_SHM
-        client_ipc_mgr_ = ClientIpcManager::Make();
-        client_ipc_mgr_->Init(pid, kHostToClientShmSize);
-        client_ipc_mgr_->WaitForMessage();
-        client_ipc_mgr_->RegisterHelloMessageCallback([=, this](std::shared_ptr<CaptureHelloMessage>&& msg) {
-            LOGI("Hello msg : present:{}, present1: {}, resize: {}, release: {}", msg->dxgi_present, msg->dxgi_present1, msg->dxgi_resize, msg->dxgi_release);
-        });
-        client_ipc_mgr_->RegisterIpcMessageCallback([=, this](const std::shared_ptr<CaptureBaseMessage>& msg, const std::shared_ptr<Data>& data) {
-            this->PushIpcMessage(msg);
-            if (msg->type_ == kMouseEventMessage) {
-                this->GenerateMouseEvent(msg);
-            }
-            else if (msg->type_ == kKeyboardEventMessage) {
-                this->GenerateKeyboardEvent(msg);
-            }
-        });
-#endif
         shared_texture_ = std::make_shared<SharedTexture>();
     }
 
-    void HookManager::Send(std::shared_ptr<Data>&& data) {
-#if ENABLE_SHM
-        client_ipc_mgr_->Send(std::move(data));
-#endif
-    }
-
     void HookManager::Send(const std::string& msg) {
+        if (msg.empty()) {
+            LOGE("HookManager::Send: empty message");
+            return;
+        }
+        if (!ws_ipc_client_) {
+            LOGE("HookManager::Send: ws_ipc_client_ null, drop {} bytes", msg.size());
+            return;
+        }
         ws_ipc_client_->PostIpcMessage(msg);
     }
 
@@ -109,24 +94,63 @@ namespace tc
     }
 
     BOOL WINAPI HookedIsWindowVisible(HWND hWnd) {
-        //LOGI("HookedIsWindowVisible");
-        return true;
+        auto hm = HookManager::Instance();
+        // Keep own game window visible to the process (background / multi-open).
+        if (hm->WantFocusSpoof()) {
+            const HWND spoof = hm->FocusSpoofHwnd();
+            if (spoof && (hWnd == spoof || !hWnd)) {
+                return TRUE;
+            }
+        }
+        return origin_IsWindowVisibleHooked_(hWnd);
     }
 
     HWND WINAPI HookedGetForegroundWindow(VOID) {
-        auto hwnd = HookManager::Instance()->ProcessHookedGetForegroundWindow();
-        //LOGI("HookedGetForegroundWindow: {}", (void*)hwnd);
-        return hwnd;
+        auto hm = HookManager::Instance();
+        if (hm->WantFocusSpoof()) {
+            if (HWND spoof = hm->FocusSpoofHwnd()) {
+                return spoof;
+            }
+        }
+        return origin_GetForegroundWindowHooked_();
+    }
+
+    HWND WINAPI HookedGetActiveWindow(VOID) {
+        auto hm = HookManager::Instance();
+        if (hm->WantFocusSpoof()) {
+            if (HWND spoof = hm->FocusSpoofHwnd()) {
+                return spoof;
+            }
+        }
+        return origin_GetActiveWindow_ ? origin_GetActiveWindow_() : nullptr;
+    }
+
+    HWND WINAPI HookedGetFocus(VOID) {
+        auto hm = HookManager::Instance();
+        if (hm->WantFocusSpoof()) {
+            if (HWND spoof = hm->FocusSpoofHwnd()) {
+                return spoof;
+            }
+        }
+        return origin_GetFocus_ ? origin_GetFocus_() : nullptr;
     }
 
     HWND HookedWindowFromPoint(_In_ POINT Point) {
-        //LOGI("HookedWindowFromPoint: {},{}", Point.x, Point.y);
-        return HookManager::Instance()->ProcessWindowFromPoint(Point);
+        auto hm = HookManager::Instance();
+        // Only rewrite hit-testing when streaming input events are enabled.
+        if (hm->app_shared_msg_ && hm->app_shared_msg_->enable_hook_events_ &&
+            hm->FocusSpoofHwnd()) {
+            return hm->ProcessWindowFromPoint(Point);
+        }
+        return origin_WindowFromPoint_(Point);
     }
 
     BOOL HookedClipCursor(_In_opt_ CONST RECT *lpRect) {
-        LOGI("ClipCursor");
-        return TRUE; //origin_ClipCursor_(lpRect);//
+        auto hm = HookManager::Instance();
+        if (!hm->app_shared_msg_ || hm->app_shared_msg_->enable_hook_events_ == 0) {
+            return origin_ClipCursor_(lpRect);
+        }
+        return TRUE;
     }
 
     void HookManager::HookMethods() {
@@ -176,11 +200,22 @@ namespace tc
             auto r = DetourAttach(&(PVOID &)origin_IsWindowVisibleHooked_, &(PVOID &) HookedIsWindowVisible);
             LOGI("Hook IsWindowVisible result: {}", r);
         }
-        //GetForegroundWindow
+        //GetForegroundWindow / GetActiveWindow / GetFocus — keep audio alive
+        // when the OS focus is on another instance or desktop window.
         {
             origin_GetForegroundWindowHooked_ = GetProcAddressByName<GetForegroundWindowHooked_t>(L"User32", "GetForegroundWindow");
             auto r = DetourAttach(&(PVOID &)origin_GetForegroundWindowHooked_, &(PVOID &) HookedGetForegroundWindow);
             LOGI("Hook GetForegroundWindow result: {}", r);
+        }
+        {
+            origin_GetActiveWindow_ = GetProcAddressByName<GetActiveWindow_t>(L"User32", "GetActiveWindow");
+            auto r = DetourAttach(&(PVOID &)origin_GetActiveWindow_, &(PVOID &) HookedGetActiveWindow);
+            LOGI("Hook GetActiveWindow result: {}", r);
+        }
+        {
+            origin_GetFocus_ = GetProcAddressByName<GetFocus_t>(L"User32", "GetFocus");
+            auto r = DetourAttach(&(PVOID &)origin_GetFocus_, &(PVOID &) HookedGetFocus);
+            LOGI("Hook GetFocus result: {}", r);
         }
         //
         {
@@ -195,6 +230,99 @@ namespace tc
             LOGI("Hook ClipCursor result: {}", r);
         }
         DetourTransactionCommit();
+    }
+
+    bool HookManager::WantFocusSpoof() const {
+        if (!app_shared_msg_) {
+            return false;
+        }
+        // Audio hook and/or input events: both need the game to think it is focused
+        // so multi-open background instances keep playing sound.
+        return app_shared_msg_->enable_hook_audio_ != 0 ||
+               app_shared_msg_->enable_hook_events_ != 0;
+    }
+
+    HWND HookManager::FocusSpoofHwnd() const {
+        if (hwnd_ && IsWindow(hwnd_)) {
+            return hwnd_;
+        }
+        if (own_game_hwnd_ && IsWindow(own_game_hwnd_)) {
+            return own_game_hwnd_;
+        }
+        return nullptr;
+    }
+
+    void HookManager::RefreshOwnGameHwnd() {
+        struct Ctx {
+            DWORD pid = 0;
+            HWND best = nullptr;
+            LONG best_area = 0;
+        } ctx;
+        ctx.pid = current_pid_ ? current_pid_ : GetCurrentProcessId();
+        EnumWindows(
+            [](HWND w, LPARAM lp) -> BOOL {
+                auto* c = reinterpret_cast<Ctx*>(lp);
+                DWORD wpid = 0;
+                GetWindowThreadProcessId(w, &wpid);
+                if (wpid != c->pid) {
+                    return TRUE;
+                }
+                // Do not call IsWindowVisible here — it may already be hooked.
+                if (GetWindow(w, GW_OWNER) != nullptr) {
+                    return TRUE;
+                }
+                if ((GetWindowLongW(w, GWL_STYLE) & WS_VISIBLE) == 0) {
+                    return TRUE;
+                }
+                RECT rc{};
+                if (!GetClientRect(w, &rc)) {
+                    return TRUE;
+                }
+                const LONG area = (rc.right - rc.left) * (rc.bottom - rc.top);
+                if (area > c->best_area) {
+                    c->best_area = area;
+                    c->best = w;
+                }
+                return TRUE;
+            },
+            reinterpret_cast<LPARAM>(&ctx));
+        if (ctx.best && ctx.best != own_game_hwnd_) {
+            own_game_hwnd_ = ctx.best;
+            LOGI("FocusSpoof: own game hwnd={:x} area={}", reinterpret_cast<uint64_t>(ctx.best),
+                 ctx.best_area);
+        }
+    }
+
+    void HookManager::FocusSpoofWatcherMain() {
+        for (int i = 0; i < 1200 && !focus_spoof_stop_; i++) {
+            RefreshOwnGameHwnd();
+            if (own_game_hwnd_) {
+                // Keep refreshing occasionally in case the main window is recreated.
+                Sleep(1000);
+            } else {
+                Sleep(50);
+            }
+        }
+    }
+
+    void HookManager::StartFocusSpoof() {
+        if (!WantFocusSpoof()) {
+            LOGI("FocusSpoof: not needed (audio/events both off)");
+            return;
+        }
+        RefreshOwnGameHwnd();
+        HookMethods();
+        if (!focus_spoof_watcher_) {
+            focus_spoof_stop_ = 0;
+            focus_spoof_watcher_ = CreateThread(
+                nullptr, 0,
+                [](LPVOID p) -> DWORD {
+                    reinterpret_cast<HookManager*>(p)->FocusSpoofWatcherMain();
+                    return 0;
+                },
+                this, 0, nullptr);
+        }
+        LOGI("FocusSpoof: started (GetForegroundWindow/GetActiveWindow/GetFocus → own hwnd)");
     }
 
     UINT HookManager::ProcessHookedGetRawInputData(
@@ -319,7 +447,7 @@ namespace tc
     }
 
     HWND HookManager::ProcessHookedGetForegroundWindow() const {
-        return hwnd_;
+        return FocusSpoofHwnd();
     }
 
     HWND HookManager::ProcessWindowFromPoint(_In_ POINT Point) const {
@@ -432,6 +560,8 @@ namespace tc
         LOGI("----Begin AppSharedMessage----");
         LOGI("ipc port: {}", app_shared_msg_->ipc_port_);
         LOGI("msg size: {}", app_shared_msg_->self_size_);
+        LOGI("enable_hook_events: {}", app_shared_msg_->enable_hook_events_);
+        LOGI("enable_hook_audio: {}", app_shared_msg_->enable_hook_audio_);
         LOGI("Hello msg : present:{:x}, present1: {:x}, resize: {:x}, release: {:x}",
              app_shared_msg_->dxgi_present, app_shared_msg_->dxgi_present1, app_shared_msg_->dxgi_resize, app_shared_msg_->dxgi_release);
         LOGI("----End AppSharedMessage----");

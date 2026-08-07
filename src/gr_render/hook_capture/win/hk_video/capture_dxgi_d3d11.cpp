@@ -10,7 +10,6 @@
 #include <d3d11.h>
 #include <fstream>
 
-#include "client_ipc_manager.h"
 #include "capture_message.h"
 #include "tc_common_new/data.h"
 #include "tc_common_new/log.h"
@@ -154,97 +153,13 @@ namespace tc_capture_d3d11
             return;
         }
 
-        auto client_manager = ClientManager::Instance();
-        auto send_video_frame_by_handle = !client_manager->GetInjectParams()->send_video_frame_by_shm;
-        if (send_video_frame_by_handle){
-            // 暂时在这里获取 adapter_uid， 不过获取的太频繁了
-            auto adapter_uid = tc::GetAdapterUid(device_);
-            CaptureVideoFrame capture_video_frame_msg{};
-            capture_video_frame_msg.type_ = kCaptureVideoFrame;
-            capture_video_frame_msg.capture_type_ = kCaptureVideoByHandle;
-            capture_video_frame_msg.data_length = 0;
-            capture_video_frame_msg.frame_width_ = desc.Width;
-            capture_video_frame_msg.frame_height_ = desc.Height;
-            capture_video_frame_msg.frame_index_ = g_frame_index;
-            capture_video_frame_msg.handle_ = shared_texture->GetSharedHandle();;
-            capture_video_frame_msg.frame_format_ = desc.Format;
-            if(adapter_uid.has_value()) {
-                capture_video_frame_msg.adapter_uid_ = adapter_uid.value();
-            }
-            //capture_video_frame_msg.adapter_uid_ = 78007;
-            auto data = Data::Make(nullptr, sizeof(CaptureVideoFrame));
-            memcpy(data->DataAddr(), &capture_video_frame_msg, sizeof(CaptureVideoFrame));
-            ClientIpcManager::Instance()->Send(data);
-            LOGI("by handle, Send with handle : {} ", g_frame_index);
+        // EasyHook legacy path: SHM frame IPC removed. Use OBS tc_graphics + WS /ipc.
+        static bool s_logged = false;
+        if (!s_logged) {
+            s_logged = true;
+            LOGE("EasyHook capture_dxgi: SHM/ClientIpcManager removed; frames not sent. "
+                 "Use OBS inject (tc_graphics).");
         }
-        else {
-            D3D11_TEXTURE2D_DESC desc;
-            shared_texture->texture_->GetDesc(&desc);
-
-            auto width = desc.Width;
-            auto height = desc.Height;
-            std::string msg = " --> width : " + std::to_string(width) + " height : " + std::to_string(height);
-            LOGI(msg);
-
-            std::vector<uint8_t> yuv_frame_data_;
-            yuv_frame_data_.resize(1.5 * width * height);
-            size_t pixel_size = width * height;
-
-            const int uv_stride = width >> 1;
-            uint8_t* y = yuv_frame_data_.data();
-            uint8_t* u = y + pixel_size;
-            uint8_t* v = u + (pixel_size >> 2);
-
-            CComPtr<IDXGISurface> staging_surface = nullptr;
-            hr = shared_texture->texture_->QueryInterface(IID_PPV_ARGS(&staging_surface));
-            if (FAILED(hr)) {
-                LOGE("!QueryInterface(IDXGISurface) err");
-                return;
-            }
-            DXGI_MAPPED_RECT mapped_rect{};
-            hr = staging_surface->Map(&mapped_rect, DXGI_MAP_READ);
-            if (FAILED(hr)) {
-                LOGE("!Map(IDXGISurface)");
-                return;
-            }
-
-            //LOGI("the format is : " + std::to_string(desc.Format));
-
-//            {
-//                std::ofstream rgba_file("capture_yuv_tex.rgba", std::ios::binary);
-//                rgba_file.write((char*)mapped_rect.pBits, width * height * 4);
-//                rgba_file.close();
-//            }
-
-            if (DXGI_FORMAT_B8G8R8A8_UNORM == desc.Format) {
-                libyuv::ARGBToI420(mapped_rect.pBits, mapped_rect.Pitch, y, width, u, uv_stride, v, uv_stride, width, height);
-            }
-            else if (DXGI_FORMAT_R8G8B8A8_UNORM == desc.Format) {
-                libyuv::ABGRToI420(mapped_rect.pBits, mapped_rect.Pitch, y, width, u, uv_stride, v, uv_stride, width, height);
-            }
-            else {
-                libyuv::ARGBToI420(mapped_rect.pBits, mapped_rect.Pitch, y, width, u, uv_stride, v, uv_stride, width, height);
-            }
-
-            LOGI("by shm, desc.Format: " + std::to_string(desc.Format) + " the yuv size : " + std::to_string(yuv_frame_data_.size()));
-//            std::ofstream yuv_file("capture_yuv_tex.yuv", std::ios::binary);
-//            yuv_file.write((char*)yuv_frame_data_.data(), width * height * 1.5);
-//            yuv_file.close();
-
-            CaptureVideoFrame capture_video_frame_msg{};
-            capture_video_frame_msg.type_ = kCaptureVideoFrame;
-            capture_video_frame_msg.data_length = yuv_frame_data_.size();
-            capture_video_frame_msg.capture_type_ = kCaptureVideoBySharedMemory;
-            capture_video_frame_msg.frame_width_ = width;
-            capture_video_frame_msg.frame_height_ = height;
-            capture_video_frame_msg.frame_index_ = g_frame_index;
-            capture_video_frame_msg.handle_ = 0;
-            auto data = Data::Make(nullptr, sizeof(CaptureVideoFrame) + yuv_frame_data_.size());
-            memcpy(data->DataAddr(), &capture_video_frame_msg, sizeof(CaptureVideoFrame));
-            memcpy(data->DataAddr() + sizeof(CaptureVideoFrame), yuv_frame_data_.data(), yuv_frame_data_.size());
-            ClientIpcManager::Instance()->Send(data);
-        }
-
         g_frame_index++;
     }
 

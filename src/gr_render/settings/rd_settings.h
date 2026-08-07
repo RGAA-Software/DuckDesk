@@ -65,7 +65,6 @@ namespace tc
         CaptureAudioType capture_audio_type_ = CaptureAudioType::kAudioGlobal;
         bool enable_video_ = true;
         CaptureVideoType capture_video_type_ = CaptureVideoType::kVideoInner;
-        bool send_video_frame_by_shm_ = false;
         std::string capture_audio_device_;
         bool mock_video_ = false;
     };
