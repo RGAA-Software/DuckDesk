@@ -1,6 +1,6 @@
 # CMS 多机应用调度计划
 
-> 状态：P3 已落地（2026-08）  
+> 状态：P3 已落地（2026-08）；状态同步与联调修复见 [`cms_app_schedule_state.md`](./cms_app_schedule_state.md)  
 > 目标：CMS Web 配置应用与机器放置，向多台 Service 下发启停；Service 起停 game-hook Render 并回执；可打开 WebRTC Client。  
 > 依赖：game-hook 出画/音频/inner 输入已打通（见 [`game_hook_capture_plan.md`](./game_hook_capture_plan.md)）。
 
@@ -112,11 +112,15 @@ Stop 对称：只杀目标 `instance_id`，不影响同机其它实例与 deskto
 
 | Method | Path | 说明 |
 |--------|------|------|
-| POST | `/api/v1/app/control/app/create` | 创建 Application |
-| GET | `/api/v1/app/control/app/list` | 列表 |
-| POST | `/api/v1/app/control/app/placement/create` | 机器放置 |
+| POST | `/api/v1/app/control/app/create` | 创建 Application（低层） |
+| GET | `/api/v1/app/control/app/list` | Application 列表 |
+| GET | `/api/v1/app/control/app/rows` | Web 用：应用+放置合成行 |
+| GET | `/api/v1/app/control/app/next-port` | 建议下一 listen_port |
+| POST | `/api/v1/app/control/app/save` | Web 用：创建/更新应用+放置 |
+| POST | `/api/v1/app/control/app/delete/{app_id}` | 删除应用 |
+| POST | `/api/v1/app/control/app/placement/create` | 机器放置（低层） |
 | GET | `/api/v1/app/control/app/placement/list` | 放置列表 |
-| POST | `/api/v1/app/control/app/instance/start` | 调度启动 |
+| POST | `/api/v1/app/control/app/instance/start` | 调度启动（等 Service 回执） |
 | POST | `/api/v1/app/control/app/instance/stop/{instance_id}` | 停止 |
 | GET | `/api/v1/app/control/app/instance/list` | 实例列表 |
 
@@ -128,8 +132,10 @@ Stop 对称：只杀目标 `instance_id`，不影响同机其它实例与 deskto
 - CMS 同应用两机 Placement；离线/无 Placement 失败；Start/Stop Result 状态机
 - Proto Start/Stop 编解码 round-trip
 - CMS Web：`web_client_url` game-hook URL 拼装
+- 状态恢复：`unknown instance_id`→Stopped、HB 对账、忽略 HB 中 stopped 条目、绝对路径治愈
 
-后续：真实多机联调（P4）、自动调度 / ready / 公网入口（P5）。
+后续：真实多机联调（P4）、自动调度 / ready / 公网入口（P5）。  
+联调问题与状态同步细则：[`cms_app_schedule_state.md`](./cms_app_schedule_state.md)。
 
 ---
 
@@ -139,4 +145,6 @@ Stop 对称：只杀目标 `instance_id`，不影响同机其它实例与 deskto
 2. `install_root`/`game_exe_rel` 拼错 → Start 失败回执。  
 3. 端口冲突 → Service 分配端口并回报。  
 4. 停应用勿杀 `--app_mode=desktop`。  
-5. Proto 变更后需同步 rebuild `protocol` crate（CMS + Service）。
+5. Proto 变更后需同步 rebuild `protocol` crate（CMS + Service）。  
+6. Render/游戏被外部杀死后，依赖 Service 心跳 reap + CMS HB 对账，否则列表会短暂假「运行中」。  
+7. 勿再引入实例级占用 `listen_port+1` 的反代（曾与同机多实例冲突）。
