@@ -8,8 +8,9 @@ pub mod storage;
 pub mod windows_util;
 
 pub use app_instance::{
-    build_game_hook_launch_spec, build_web_client_url, resolve_game_path, AppInstanceRegistry,
-    AppInstanceState, AppInstanceSummary, StartAppRequest, APP_MODE_GAME_HOOK,
+    build_game_hook_launch_spec, build_web_client_url, cmdline_has_listen_port,
+    pid_belongs_to_instance, port_bindable, resolve_game_path, AppInstanceRegistry,
+    AppInstanceState, AppInstanceSummary, StartAppRequest, APP_MODE_GAME_HOOK, FINISHED_RECORD_TTL,
 };
 pub use command::{Command, DispatchResult};
 pub use config::{ServiceConfig, DEFAULT_SERVICE_NAME, DEFAULT_SERVICE_PATH};

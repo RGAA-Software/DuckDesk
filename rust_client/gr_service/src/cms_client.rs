@@ -32,6 +32,7 @@ type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteM
 
 const CONNECT_TIMEOUT_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 2;
+const RECONNECT_MAX_DELAY_SECS: u64 = 30;
 const HEARTBEAT_INTERVAL_SECS: u64 = 5;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 
@@ -48,6 +49,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
     };
     let sender: Arc<Mutex<Option<WsSink>>> = Arc::new(Mutex::new(None));
     let mut hb_index: i64 = 0;
+    let mut reconnect_delay = RECONNECT_DELAY_SECS;
 
     loop {
         // wait until the panel has delivered the authorization info
@@ -72,6 +74,8 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         );
 
         *sender.lock().await = None;
+        // Endpoint without credentials for logs (the URL carries appkey+token).
+        let endpoint = cms_endpoint(&auth_info.spvr_host, auth_info.spvr_port);
         let connect = tokio_tungstenite::connect_async_tls_with_config(
             url.clone(),
             None,
@@ -80,17 +84,19 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         );
         let stream = match timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS), connect).await {
             Ok(Ok((stream, _response))) => {
-                info!("connected to cms: {url}");
+                info!("connected to cms {endpoint}");
                 stream
             }
             Ok(Err(err)) => {
-                error!("connect to cms {url} failed: {err}");
-                sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+                error!("connect to cms {endpoint} failed: {err}");
+                sleep(Duration::from_secs(reconnect_delay)).await;
+                reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
                 continue;
             }
             Err(_) => {
-                error!("connect to cms {url} timed out");
-                sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+                error!("connect to cms {endpoint} timed out");
+                sleep(Duration::from_secs(reconnect_delay)).await;
+                reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
                 continue;
             }
         };
@@ -102,9 +108,12 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         let hello = encode_message(&hello_message(&auth_info.device_id, &auth_info.appkey));
         if !send_frame(&sender, hello).await {
             warn!("send hello to cms failed, reconnecting");
-            sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+            sleep(Duration::from_secs(reconnect_delay)).await;
+            reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
             continue;
         }
+        // Connected and greeted: reset the reconnect backoff.
+        reconnect_delay = RECONNECT_DELAY_SECS;
 
         // heartbeat task: reports render liveness + the latest auth info as JSON
         let hb_sender = sender.clone();
@@ -172,16 +181,14 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                         Some(Ok(TungsteniteMessage::Binary(bin))) => {
                             match parse_cms_inbound(&bin) {
                                 Ok(Some(cmd)) => {
-                                    let reply = {
-                                        let mut guard = runtime.lock().await;
-                                        handle_cms_command(&mut guard, cmd)
-                                    };
-                                    if let Some(frame) = reply {
-                                        if !send_frame(&sender, frame).await {
-                                            warn!("send cms command result failed, reconnecting");
-                                            break;
-                                        }
-                                    }
+                                    // Start/Stop 可能耗时数秒(等 render 监听端口、
+                                    // 等游戏进程),派生独立任务处理并异步回传结果,
+                                    // 接收循环与心跳不被阻塞。
+                                    spawn_cms_command_handler(
+                                        runtime.clone(),
+                                        sender.clone(),
+                                        cmd,
+                                    );
                                 }
                                 Ok(None) => {}
                                 Err(err) => warn!("cms inbound parse error: {err}"),
@@ -215,7 +222,8 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             "will reconnect to cms, sender strong_count={}",
             Arc::strong_count(&sender)
         );
-        sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+        sleep(Duration::from_secs(reconnect_delay)).await;
+        reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
     }
 }
 
@@ -253,6 +261,11 @@ async fn send_frame(sender: &Arc<Mutex<Option<WsSink>>>, frame: Vec<u8>) -> bool
             false
         }
     }
+}
+
+/// Endpoint string safe for logs: no appkey/token query params.
+fn cms_endpoint(host: &str, port: i32) -> String {
+    format!("wss://{host}:{port}/spvr/service")
 }
 
 fn build_cms_url(
@@ -457,80 +470,93 @@ fn encode_message(message: &SpvrServiceMessage) -> Vec<u8> {
     message.encode_to_vec()
 }
 
-fn handle_cms_command(
-    runtime: &mut crate::service_host::ServiceRuntime,
+/// Handle a CMS command in its own task so the receive loop stays responsive.
+/// The result message is sent back asynchronously when the operation finishes.
+fn spawn_cms_command_handler(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    sender: Arc<Mutex<Option<WsSink>>>,
     cmd: CmsInboundCommand,
-) -> Option<Vec<u8>> {
-    let device_id = runtime
-        .state
-        .last_auth_info
-        .as_ref()
-        .map(|a| a.device_id.clone())
-        .unwrap_or_default();
-    match cmd {
-        CmsInboundCommand::StartApp(req) => {
-            let request_id = req.request_id.clone();
-            let instance_id = req.instance_id.clone();
-            match runtime.start_app_instance(req) {
-                Ok((port, pid)) => Some(encode_message(&start_app_result_message(
-                    &device_id,
-                    &request_id,
-                    &instance_id,
-                    true,
-                    "",
-                    port as i32,
-                    pid,
-                ))),
-                Err(err) => {
-                    error!("cms start app failed: {err}");
-                    Some(encode_message(&start_app_result_message(
-                        &device_id,
-                        &request_id,
-                        &instance_id,
-                        false,
-                        &err,
-                        0,
-                        0,
-                    )))
-                }
-            }
-        }
-        CmsInboundCommand::StopApp {
-            request_id,
-            instance_id,
-        } => match runtime.stop_app_instance(&instance_id) {
-            Ok(()) => Some(encode_message(&stop_app_result_message(
-                &device_id,
-                &request_id,
-                &instance_id,
-                true,
-                "",
-            ))),
-            Err(err) => {
-                // Service restarted / registry lost: treat as already stopped so CMS
-                // does not stick in Stopping with "unknown instance_id".
-                if err.contains("unknown instance_id") {
-                    warn!("cms stop: {err} — treat as already stopped");
-                    Some(encode_message(&stop_app_result_message(
+) {
+    tokio::spawn(async move {
+        let device_id = {
+            let guard = runtime.lock().await;
+            guard
+                .state
+                .last_auth_info
+                .as_ref()
+                .map(|a| a.device_id.clone())
+                .unwrap_or_default()
+        };
+        let reply = match cmd {
+            CmsInboundCommand::StartApp(req) => {
+                let request_id = req.request_id.clone();
+                let instance_id = req.instance_id.clone();
+                match ServiceRuntime::start_app_instance(&runtime, req).await {
+                    Ok((port, pid)) => Some(encode_message(&start_app_result_message(
                         &device_id,
                         &request_id,
                         &instance_id,
                         true,
                         "",
-                    )))
-                } else {
-                    error!("cms stop app failed: {err}");
-                    Some(encode_message(&stop_app_result_message(
-                        &device_id,
-                        &request_id,
-                        &instance_id,
-                        false,
-                        &err,
-                    )))
+                        port as i32,
+                        pid,
+                    ))),
+                    Err(err) => {
+                        error!("cms start app failed: {err}");
+                        Some(encode_message(&start_app_result_message(
+                            &device_id,
+                            &request_id,
+                            &instance_id,
+                            false,
+                            &err,
+                            0,
+                            0,
+                        )))
+                    }
                 }
             }
-        },
-    }
+            CmsInboundCommand::StopApp {
+                request_id,
+                instance_id,
+            } => match ServiceRuntime::stop_app_instance(&runtime, &instance_id).await {
+                Ok(()) => Some(encode_message(&stop_app_result_message(
+                    &device_id,
+                    &request_id,
+                    &instance_id,
+                    true,
+                    "",
+                ))),
+                Err(err) => {
+                    // Service restarted / registry lost: treat as already stopped so CMS
+                    // does not stick in Stopping with "unknown instance_id".
+                    if err.contains("unknown instance_id") {
+                        warn!("cms stop: {err} — treat as already stopped");
+                        Some(encode_message(&stop_app_result_message(
+                            &device_id,
+                            &request_id,
+                            &instance_id,
+                            true,
+                            "",
+                        )))
+                    } else {
+                        error!("cms stop app failed: {err}");
+                        Some(encode_message(&stop_app_result_message(
+                            &device_id,
+                            &request_id,
+                            &instance_id,
+                            false,
+                            &err,
+                        )))
+                    }
+                }
+            },
+        };
+        if let Some(frame) = reply {
+            if !send_frame(&sender, frame).await {
+                warn!("send cms command result failed");
+            }
+        }
+    });
 }
 
 /// Serialize the panel-pushed authorization info as a JSON object, field by field.
@@ -645,6 +671,14 @@ mod tests {
             url,
             "wss://cms.example.com:8443/spvr/service?appkey=ak-1&token=deadbeef&ts=1234567890&nonce=cafe&device_id=dev-1"
         );
+    }
+
+    #[test]
+    fn log_endpoint_carries_no_credentials() {
+        let endpoint = cms_endpoint("cms.example.com", 8443);
+        assert_eq!(endpoint, "wss://cms.example.com:8443/spvr/service");
+        assert!(!endpoint.contains("appkey"));
+        assert!(!endpoint.contains("token"));
     }
 
     #[test]

@@ -2,11 +2,13 @@
 //! Desktop render remains a separate single-slot path in ServiceState.
 
 use crate::config::RENDER_EXE_NAME;
+use crate::process::ProcessSnapshot;
 use crate::state::RenderLaunchSpec;
 use gr_base::crypto_util::base64_encode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 pub const APP_MODE_GAME_HOOK: &str = "game-hook";
 pub const DEFAULT_ENCODER_FPS: i32 = 60;
@@ -15,6 +17,8 @@ pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
 /// Port pool when CMS sends listen_port=0.
 pub const DEFAULT_PORT_RANGE_START: u16 = 32000;
 pub const DEFAULT_PORT_RANGE_END: u16 = 32999;
+/// How long finished (stopped/failed) records are kept before prune removes them.
+pub const FINISHED_RECORD_TTL: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -54,6 +58,18 @@ pub struct AppInstanceRecord {
     pub state: AppInstanceState,
     pub error: String,
     pub launch: RenderLaunchSpec,
+    /// Set when the instance reaches stopped/failed; used by prune_finished.
+    pub finished_at: Option<Instant>,
+}
+
+impl AppInstanceRecord {
+    /// Active states are reported in heartbeat summaries and keep the port reserved.
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self.state,
+            AppInstanceState::Starting | AppInstanceState::Running | AppInstanceState::Stopping
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +176,31 @@ pub fn extract_listen_port(args: &[String]) -> Option<u16> {
     None
 }
 
+/// True if the cmdline carries an exact `--network_listen_port={port}` token.
+/// Token-boundary safe: port 3200 must not match 32000 (substring pitfall).
+pub fn cmdline_has_listen_port(cmdline: &str, port: u16) -> bool {
+    let args: Vec<String> = cmdline.split_whitespace().map(|s| s.to_string()).collect();
+    extract_listen_port(&args) == Some(port)
+}
+
+/// Identity check before killing: the pid must currently be this instance's
+/// game-hook render (exact listen-port match) or its game exe (path match).
+/// Guards against Windows pid reuse killing an innocent process tree.
+pub fn pid_belongs_to_instance(
+    processes: &[ProcessSnapshot],
+    listen_port: u16,
+    game_path: &Path,
+    pid: u32,
+) -> bool {
+    let Some(p) = processes.iter().find(|p| p.pid == pid) else {
+        return false;
+    };
+    if p.is_game_hook_render_process() {
+        return cmdline_has_listen_port(&p.cmdline, listen_port);
+    }
+    p.exe_path_eq(&game_path.to_string_lossy())
+}
+
 pub fn is_game_hook_launch(spec: &RenderLaunchSpec) -> bool {
     spec.args
         .iter()
@@ -199,9 +240,13 @@ impl AppInstanceRegistry {
         self.instances.values().collect()
     }
 
+    /// Only active states (starting/running/stopping) are reported in the
+    /// heartbeat; CMS reconcile treats absence as stopped, and stop/start
+    /// failures are already delivered via explicit result messages.
     pub fn summaries(&self) -> Vec<AppInstanceSummary> {
         self.instances
             .values()
+            .filter(|r| r.is_active())
             .map(|r| AppInstanceSummary {
                 instance_id: r.instance_id.clone(),
                 app_id: r.app_id.clone(),
@@ -223,13 +268,26 @@ impl AppInstanceRegistry {
         serde_json::to_string(&self.summaries()).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Allocate listen_port: use preferred if >0 (error if taken); else
-    /// last_used+1 (default start 32000), wrapping within the pool for free slots.
+    /// Allocate listen_port: use preferred if >0 (error if out of range, taken,
+    /// or occupied on the OS); else last_used+1 (default start 32000), wrapping
+    /// within the pool for free slots.
     pub fn allocate_port(&self, preferred: i32) -> Result<u16, String> {
         if preferred > 0 {
+            if preferred > i32::from(u16::MAX) {
+                return Err(format!("listen_port {preferred} out of u16 range"));
+            }
             let p = preferred as u16;
+            if p < self.port_range_start || p > self.port_range_end {
+                return Err(format!(
+                    "listen_port {p} out of range [{}-{}]",
+                    self.port_range_start, self.port_range_end
+                ));
+            }
             if self.used_ports.contains_key(&p) {
                 return Err(format!("listen_port {p} already in use"));
+            }
+            if !port_bindable(p) {
+                return Err(format!("listen_port {p} is occupied on the OS"));
             }
             return Ok(p);
         }
@@ -244,7 +302,9 @@ impl AppInstanceRegistry {
         let mut p = candidate;
         let span = (self.port_range_end - self.port_range_start) as usize + 1;
         for _ in 0..span {
-            if !self.used_ports.contains_key(&p) {
+            // OS probe catches orphan renders / foreign processes the registry
+            // does not track (e.g. after a failed start left a live render).
+            if !self.used_ports.contains_key(&p) && port_bindable(p) {
                 return Ok(p);
             }
             p = if p >= self.port_range_end {
@@ -303,6 +363,7 @@ impl AppInstanceRegistry {
             state: AppInstanceState::Starting,
             error: String::new(),
             launch,
+            finished_at: None,
         };
         self.instances.insert(req.instance_id.clone(), record);
         Ok(self.instances.get(&req.instance_id).unwrap())
@@ -313,6 +374,13 @@ impl AppInstanceRegistry {
             .instances
             .get_mut(instance_id)
             .ok_or_else(|| format!("unknown instance_id {instance_id}"))?;
+        // A concurrent Stop may have finished the record while the start task
+        // was still waiting; never resurrect a finished instance.
+        if matches!(rec.state, AppInstanceState::Stopped | AppInstanceState::Failed) {
+            return Err(format!(
+                "instance {instance_id} already stopped/failed, refusing mark_running"
+            ));
+        }
         rec.pid = Some(pid);
         rec.state = AppInstanceState::Running;
         rec.error.clear();
@@ -328,6 +396,7 @@ impl AppInstanceRegistry {
         rec.state = AppInstanceState::Failed;
         rec.error = error.into();
         rec.pid = None;
+        rec.finished_at = Some(Instant::now());
         self.used_ports.remove(&port);
         Ok(())
     }
@@ -349,11 +418,46 @@ impl AppInstanceRegistry {
             .instances
             .get_mut(instance_id)
             .ok_or_else(|| format!("unknown instance_id {instance_id}"))?;
+        // A stale stop task must not clobber a record a concurrent Start
+        // has just re-registered as Starting.
+        if matches!(rec.state, AppInstanceState::Starting) {
+            return Err(format!(
+                "instance {instance_id} is starting, refusing stale mark_stopped"
+            ));
+        }
         let port = rec.listen_port;
         rec.state = AppInstanceState::Stopped;
         rec.pid = None;
+        rec.finished_at = Some(Instant::now());
         self.used_ports.remove(&port);
         Ok(())
+    }
+
+    /// Drop finished (stopped/failed) records older than max_age so the
+    /// registry does not grow unboundedly. Active records are always kept.
+    pub fn prune_finished(&mut self, max_age: Duration) {
+        let now = Instant::now();
+        self.instances.retain(|_, rec| {
+            if rec.is_active() {
+                return true;
+            }
+            match rec.finished_at {
+                Some(finished) => now.duration_since(finished) < max_age,
+                None => true,
+            }
+        });
+    }
+
+    /// Remove a record entirely (reap of a failed instance whose orphan
+    /// render has been cleaned up).
+    pub fn remove(&mut self, instance_id: &str) -> bool {
+        match self.instances.remove(instance_id) {
+            Some(rec) => {
+                self.used_ports.remove(&rec.listen_port);
+                true
+            }
+            None => false,
+        }
     }
 
     /// True if stop should kill this pid (game-hook instance), never desktop.
@@ -362,6 +466,21 @@ impl AppInstanceRegistry {
             Some(rec) => rec.pid == Some(pid) && is_game_hook_launch(&rec.launch),
             None => false,
         }
+    }
+}
+
+/// OS-level occupancy probe: true if the port can be bound right now.
+/// Catches orphan renders / foreign processes the registry does not track.
+/// Probes both IPv4 and IPv6 wildcards; either stack occupied counts as
+/// unavailable. A host without an IPv6 stack (probe fails for a reason
+/// other than address-in-use) is NOT treated as occupied.
+pub fn port_bindable(port: u16) -> bool {
+    if std::net::TcpListener::bind(("0.0.0.0", port)).is_err() {
+        return false;
+    }
+    match std::net::TcpListener::bind(("::", port)) {
+        Ok(_) => true,
+        Err(e) => e.kind() != std::io::ErrorKind::AddrInUse,
     }
 }
 
@@ -513,5 +632,134 @@ mod tests {
             .begin_start(r"D:\GoDesk", sample_req("two", 0))
             .unwrap_err();
         assert!(err.contains("no free listen_port"));
+    }
+
+    #[test]
+    fn port_bindable_detects_v4_and_v6_occupancy() {
+        // IPv4 occupancy must fail the probe, and free again on release.
+        // (Wildcard bind: on Windows a specific-address bind does not always
+        // block a later wildcard bind.)
+        let v4 = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let port = v4.local_addr().unwrap().port();
+        assert!(!port_bindable(port), "v4-occupied port must be unbindable");
+        drop(v4);
+        assert!(port_bindable(port), "released port must be bindable");
+
+        // IPv6 wildcard occupancy must also fail the probe (skipped on hosts
+        // without an IPv6 stack). Note: on Windows a specific-address bind
+        // (e.g. ::1) does not block a later wildcard bind, so use [::].
+        if let Ok(v6) = std::net::TcpListener::bind(("::", 0)) {
+            let port = v6.local_addr().unwrap().port();
+            assert!(!port_bindable(port), "v6-occupied port must be unbindable");
+        }
+    }
+
+    #[test]
+    fn preferred_port_out_of_range_rejected() {
+        let mut reg = AppInstanceRegistry::new();
+        for port in [80, 31999, 33000, 70000] {
+            let err = reg
+                .begin_start(r"D:\GoDesk", sample_req("x", port))
+                .unwrap_err();
+            assert!(err.contains("out of range") || err.contains("out of u16 range"));
+        }
+        reg.begin_start(r"D:\GoDesk", sample_req("ok", 32600)).unwrap();
+    }
+
+    #[test]
+    fn listen_port_token_boundary() {
+        // Substring pitfall: port 3200 must not match "--network_listen_port=32000".
+        assert!(!cmdline_has_listen_port(
+            "GammaRayRender.exe --app_mode=game-hook --network_listen_port=32000",
+            3200
+        ));
+        assert!(cmdline_has_listen_port(
+            "GammaRayRender.exe --app_mode=game-hook --network_listen_port=32000 --capture_video=true",
+            32000
+        ));
+        // Token at end of cmdline also matches.
+        assert!(cmdline_has_listen_port(
+            "GammaRayRender.exe --network_listen_port=32001",
+            32001
+        ));
+        assert!(!cmdline_has_listen_port("GammaRayRender.exe", 32000));
+    }
+
+    #[test]
+    fn pid_identity_check_before_kill() {
+        use crate::process::ProcessSnapshot;
+        let game_path = Path::new(r"D:\apps\CarGame\Binaries\Win64\game.exe");
+        let processes = vec![
+            ProcessSnapshot::new(
+                100,
+                "D:/GoDesk/GammaRayRender.exe",
+                "--app_mode=game-hook --network_listen_port=32000",
+            ),
+            ProcessSnapshot::new(
+                101,
+                "D:/GoDesk/GammaRayRender.exe",
+                "--app_mode=game-hook --network_listen_port=32005",
+            ),
+            ProcessSnapshot::new(102, r"D:\apps\CarGame\Binaries\Win64\game.exe", ""),
+            ProcessSnapshot::new(103, "C:/Windows/notepad.exe", ""),
+        ];
+        // Own render with matching port.
+        assert!(pid_belongs_to_instance(&processes, 32000, game_path, 100));
+        // Render of another instance (different port).
+        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 101));
+        // Own game exe (path match, case/separator-insensitive).
+        assert!(pid_belongs_to_instance(&processes, 32000, game_path, 102));
+        // Pid reuse: an innocent process now owns the recorded pid.
+        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 103));
+        // Pid no longer exists at all.
+        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 999));
+    }
+
+    #[test]
+    fn summaries_only_report_active_states() {
+        let mut reg = AppInstanceRegistry::new();
+        reg.begin_start(r"D:\GoDesk", sample_req("s1", 32700)).unwrap();
+        reg.mark_running("s1", 10).unwrap();
+        reg.begin_stop("s1").unwrap();
+        reg.mark_stopped("s1").unwrap();
+        reg.begin_start(r"D:\GoDesk", sample_req("f1", 32701)).unwrap();
+        reg.mark_failed("f1", "boom").unwrap();
+        reg.begin_start(r"D:\GoDesk", sample_req("r1", 32702)).unwrap();
+        let sums = reg.summaries();
+        assert_eq!(sums.len(), 1);
+        assert_eq!(sums[0].instance_id, "r1");
+        assert_eq!(sums[0].state, "starting");
+    }
+
+    #[test]
+    fn prune_finished_removes_aged_records() {
+        let mut reg = AppInstanceRegistry::new();
+        reg.begin_start(r"D:\GoDesk", sample_req("old", 32710)).unwrap();
+        reg.mark_failed("old", "boom").unwrap();
+        reg.begin_start(r"D:\GoDesk", sample_req("new", 32711)).unwrap();
+        reg.begin_stop("new").unwrap();
+        reg.mark_stopped("new").unwrap();
+        reg.begin_start(r"D:\GoDesk", sample_req("act", 32712)).unwrap();
+        // Age the "old" record beyond the TTL; "new" stays fresh.
+        reg.instances.get_mut("old").unwrap().finished_at =
+            Some(Instant::now() - FINISHED_RECORD_TTL - Duration::from_secs(1));
+        reg.prune_finished(FINISHED_RECORD_TTL);
+        assert!(reg.get("old").is_none());
+        assert!(reg.get("new").is_some(), "fresh finished record kept");
+        assert!(reg.get("act").is_some(), "active record kept");
+    }
+
+    #[test]
+    fn finished_record_rejects_stale_state_transitions() {
+        let mut reg = AppInstanceRegistry::new();
+        reg.begin_start(r"D:\GoDesk", sample_req("g", 32720)).unwrap();
+        reg.begin_stop("g").unwrap();
+        reg.mark_stopped("g").unwrap();
+        // A start task that was still waiting must not resurrect the record.
+        assert!(reg.mark_running("g", 55).is_err());
+        // A stale stop task must not clobber a re-started record.
+        reg.begin_start(r"D:\GoDesk", sample_req("g", 32721)).unwrap();
+        assert!(reg.mark_stopped("g").is_err());
+        assert_eq!(reg.get("g").unwrap().state, AppInstanceState::Starting);
     }
 }

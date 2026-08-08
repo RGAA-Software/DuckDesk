@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use service_core::app_instance::extract_listen_port;
+use service_core::app_instance::{cmdline_has_listen_port, pid_belongs_to_instance};
 use service_core::command::Command;
 use service_core::config::ServiceConfig;
 use service_core::storage::PersistedRenderLaunchSpec;
 use service_core::storage::ServiceStorage;
 use service_core::{
     AppInstanceRegistry, PersistedServiceState, RenderLaunchSpec, ServiceState, StartAppRequest,
+    FINISHED_RECORD_TTL,
 };
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, warn};
@@ -214,9 +215,106 @@ impl ServiceRuntime {
     }
 
     /// CMS-scheduled game-hook instance start. Returns (listen_port, pid).
-    pub fn start_app_instance(&mut self, req: StartAppRequest) -> Result<(u16, u32), String> {
-        // Prefer last desktop work_dir (GoDesk dist) when it still exists; else
-        // service exe directory / current_dir (console local runs).
+    ///
+    /// Async + narrow locking: the registry is only locked while reading or
+    /// mutating it; the multi-second process waits run unlocked so heartbeats
+    /// and other instances are not blocked.
+    pub async fn start_app_instance(
+        runtime: &Arc<Mutex<ServiceRuntime>>,
+        req: StartAppRequest,
+    ) -> Result<(u16, u32), String> {
+        let game_path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+        if !game_path.is_file() {
+            return Err(format!(
+                "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
+                game_path.display()
+            ));
+        }
+        let (record, process_manager) = {
+            let mut guard = runtime.lock().await;
+            let work_dir = guard.pick_app_work_dir()?;
+            let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
+            (record, guard.process_manager.clone())
+        };
+        let instance_id = record.instance_id.clone();
+        let port = record.listen_port;
+        let launch = record.launch.clone();
+        info!(
+            "start app instance {}, game={}, work_dir={}, port={}, args={:?}",
+            instance_id,
+            game_path.display(),
+            launch.work_dir,
+            port,
+            launch.args
+        );
+        if let Err(err) = process_manager.start_process_as_active_user(
+            &launch.work_dir,
+            &launch.app_path,
+            &launch.args,
+        ) {
+            let mut guard = runtime.lock().await;
+            let _ = guard.app_registry.mark_failed(&instance_id, err.clone());
+            return Err(format!("启动 Render 失败: {err}"));
+        }
+        // Resolve pid by matching game-hook cmdline listen_port (brief retry).
+        let pid = match wait_game_hook_pid_by_port(&process_manager, port, 40, 100).await {
+            Some(pid) => pid,
+            None => {
+                let msg = format!("Render 已启动但未找到监听端口 {port} 的进程");
+                warn!("app instance {instance_id}: {msg}");
+                // spawn 可能已成功但 WMI/参数匹配没跟上:再查一次并杀树兜底,
+                // 确认清干净再 mark_failed,避免孤儿进程占用端口。
+                if let Some(orphan_pid) = find_game_hook_pid_by_port(&process_manager, port) {
+                    warn!("killing orphaned render pid={orphan_pid} on port {port}");
+                    kill_process_tree(&process_manager, orphan_pid);
+                    if wait_game_hook_pid_by_port(&process_manager, port, 10, 100)
+                        .await
+                        .is_some()
+                    {
+                        error!("orphan render on port {port} still alive after kill");
+                    }
+                }
+                let mut guard = runtime.lock().await;
+                let _ = guard.app_registry.mark_failed(&instance_id, msg.clone());
+                return Err(msg);
+            }
+        };
+
+        // Game-hook must actually launch the game; otherwise report failure to CMS.
+        let game_path_str = game_path.to_string_lossy().to_string();
+        if !wait_game_process(&process_manager, &game_path_str, 50, 200).await {
+            let msg = format!(
+                "游戏进程未启动: {}（Render 已退出或启动游戏失败，请核对程序路径）",
+                game_path.display()
+            );
+            warn!("app instance {instance_id}: {msg}");
+            kill_process_tree(&process_manager, pid);
+            let mut guard = runtime.lock().await;
+            let _ = guard.app_registry.mark_failed(&instance_id, msg.clone());
+            return Err(msg);
+        }
+
+        let mut guard = runtime.lock().await;
+        if let Err(err) = guard.app_registry.mark_running(&instance_id, pid) {
+            // 等待期间并发 Stop 已终结该实例:杀掉刚拉起的进程树,避免孤儿。
+            warn!("start app instance {instance_id}: {err}; killing spawned tree");
+            drop(guard);
+            kill_process_tree(&process_manager, pid);
+            let processes = process_manager.list_processes().unwrap_or_default();
+            for game_pid in
+                service_core::process::find_pids_for_game_exe(&processes, &game_path_str)
+            {
+                let _ = process_manager.kill_process(game_pid);
+            }
+            return Err(err);
+        }
+        Ok((port, pid))
+    }
+
+    /// Pick a work_dir containing GammaRayRender.exe for game-hook launches.
+    /// Prefer last desktop work_dir (GoDesk dist) when it still exists; else
+    /// service exe directory / current_dir (console local runs).
+    fn pick_app_work_dir(&self) -> Result<String, String> {
         let candidate_dirs = [
             self.state
                 .last_desktop_launch
@@ -232,7 +330,7 @@ impl ServiceRuntime {
                 .map(|d| d.to_string_lossy().to_string())
                 .unwrap_or_default(),
         ];
-        let work_dir = candidate_dirs
+        candidate_dirs
             .into_iter()
             .find(|d| {
                 !d.is_empty()
@@ -244,174 +342,123 @@ impl ServiceRuntime {
             .ok_or_else(|| {
                 "no valid work_dir with GammaRayRender.exe (desktop launch / service exe dir)"
                     .to_string()
-            })?;
-
-        let instance_id = req.instance_id.clone();
-        let game_path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
-        if !game_path.is_file() {
-            return Err(format!(
-                "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
-                game_path.display()
-            ));
-        }
-        let record = self
-            .app_registry
-            .begin_start(&work_dir, req)
-            .map_err(|e| e)?
-            .clone();
-        let port = record.listen_port;
-        let launch = record.launch.clone();
-        info!(
-            "start app instance {}, game={}, work_dir={}, port={}, args={:?}",
-            instance_id,
-            game_path.display(),
-            launch.work_dir,
-            port,
-            launch.args
-        );
-        if let Err(err) = self.process_manager.start_process_as_active_user(
-            &launch.work_dir,
-            &launch.app_path,
-            &launch.args,
-        ) {
-            let _ = self.app_registry.mark_failed(&instance_id, err.clone());
-            return Err(format!("启动 Render 失败: {err}"));
-        }
-        // Resolve pid by matching game-hook cmdline listen_port (brief retry).
-        let pid = match self.wait_game_hook_pid_by_port(port, 40, 100) {
-            Some(pid) => pid,
-            None => {
-                let msg = format!("Render 已启动但未找到监听端口 {port} 的进程");
-                let _ = self.app_registry.mark_failed(&instance_id, msg.clone());
-                return Err(msg);
-            }
-        };
-
-        // Game-hook must actually launch the game; otherwise report failure to CMS.
-        let game_path_str = game_path.to_string_lossy().to_string();
-        if !self.wait_game_process(&game_path_str, 50, 200) {
-            let msg = format!(
-                "游戏进程未启动: {}（Render 已退出或启动游戏失败，请核对程序路径）",
-                game_path.display()
-            );
-            warn!("app instance {instance_id}: {msg}");
-            let processes = self.process_manager.list_processes().unwrap_or_default();
-            for kill_pid in service_core::process::collect_process_tree(&processes, pid) {
-                let _ = self.process_manager.kill_process(kill_pid);
-            }
-            let _ = self.app_registry.mark_failed(&instance_id, msg.clone());
-            return Err(msg);
-        }
-
-        self.app_registry.mark_running(&instance_id, pid)?;
-        Ok((port, pid))
-    }
-
-    fn find_game_hook_pid_by_port(&self, port: u16) -> Option<u32> {
-        let processes = self.process_manager.list_processes().ok()?;
-        for p in processes {
-            if !p.is_game_hook_render_process() {
-                continue;
-            }
-            if extract_listen_port(&p.cmdline.split_whitespace().map(|s| s.to_string()).collect::<Vec<_>>())
-                == Some(port)
-                || p.cmdline.contains(&format!("--network_listen_port={port}"))
-            {
-                return Some(p.pid);
-            }
-        }
-        None
-    }
-
-    fn wait_game_hook_pid_by_port(
-        &self,
-        port: u16,
-        attempts: u32,
-        sleep_ms: u64,
-    ) -> Option<u32> {
-        for _ in 0..attempts {
-            if let Some(pid) = self.find_game_hook_pid_by_port(port) {
-                return Some(pid);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
-        }
-        None
-    }
-
-    fn wait_game_process(&self, game_path: &str, attempts: u32, sleep_ms: u64) -> bool {
-        for _ in 0..attempts {
-            if let Ok(processes) = self.process_manager.list_processes() {
-                if !service_core::process::find_pids_for_game_exe(&processes, game_path).is_empty()
-                {
-                    return true;
-                }
-            }
-            std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
-        }
-        false
+            })
     }
 
     /// Drop registry entries whose Render process is gone (killed outside CMS stop).
-    /// Called before CMS heartbeats so HB no longer claims ghost "running" instances.
+    /// Also reaps Failed records: if the render is actually alive (e.g. the pid
+    /// lookup timed out during start), kill the tree and remove the record so the
+    /// port is really freed. Called before CMS heartbeats so HB no longer claims
+    /// ghost "running" instances.
     pub fn reap_dead_app_instances(&mut self) {
         use service_core::AppInstanceState;
-        let candidates: Vec<(String, u16, Option<u32>)> = self
+        self.app_registry.prune_finished(FINISHED_RECORD_TTL);
+        let candidates: Vec<(String, u16, Option<u32>, AppInstanceState)> = self
             .app_registry
             .list()
             .into_iter()
             .filter(|r| {
                 matches!(
                     r.state,
-                    AppInstanceState::Running | AppInstanceState::Stopping
+                    AppInstanceState::Running | AppInstanceState::Stopping | AppInstanceState::Failed
                 )
             })
-            .map(|r| (r.instance_id.clone(), r.listen_port, r.pid))
+            .map(|r| {
+                (
+                    r.instance_id.clone(),
+                    r.listen_port,
+                    r.pid,
+                    r.state.clone(),
+                )
+            })
             .collect();
         if candidates.is_empty() {
             return;
         }
-        for (instance_id, listen_port, pid) in candidates {
-            if let Some(live_pid) = self.find_game_hook_pid_by_port(listen_port) {
-                if pid != Some(live_pid) {
-                    let _ = self.app_registry.mark_running(&instance_id, live_pid);
+        let process_manager = self.process_manager.clone();
+        for (instance_id, listen_port, pid, state) in candidates {
+            match find_game_hook_pid_by_port(&process_manager, listen_port) {
+                Some(live_pid) => {
+                    if state == AppInstanceState::Failed {
+                        warn!(
+                            "reap failed app instance {instance_id}: render pid={live_pid} still alive on port {listen_port}, killing tree"
+                        );
+                        kill_process_tree(&process_manager, live_pid);
+                        self.app_registry.remove(&instance_id);
+                    } else if pid != Some(live_pid) {
+                        let _ = self.app_registry.mark_running(&instance_id, live_pid);
+                    }
                 }
-                continue;
+                None => {
+                    // Failed with no live render: leave the record for prune_finished.
+                    if state == AppInstanceState::Failed {
+                        continue;
+                    }
+                    // No game-hook render on the listen port → instance is gone.
+                    info!(
+                        "reap dead app instance {instance_id}: listen_port={listen_port} pid={pid:?} gone"
+                    );
+                    let _ = self.app_registry.mark_stopped(&instance_id);
+                }
             }
-            // No game-hook render on the listen port → instance is gone.
-            info!(
-                "reap dead app instance {instance_id}: listen_port={listen_port} pid={pid:?} gone"
-            );
-            let _ = self.app_registry.mark_stopped(&instance_id);
         }
     }
 
-    pub fn stop_app_instance(&mut self, instance_id: &str) -> Result<(), String> {
-        let rec = self.app_registry.begin_stop(instance_id)?.clone();
+    /// Async + narrow locking, mirroring start_app_instance.
+    pub async fn stop_app_instance(
+        runtime: &Arc<Mutex<ServiceRuntime>>,
+        instance_id: &str,
+    ) -> Result<(), String> {
+        let (rec, process_manager) = {
+            let mut guard = runtime.lock().await;
+            let rec = guard.app_registry.begin_stop(instance_id)?.clone();
+            (rec, guard.process_manager.clone())
+        };
         info!(
             "stop app instance {}, pid={:?}, port={}",
             instance_id, rec.pid, rec.listen_port
         );
-        let render_pid = rec
-            .pid
-            .filter(|pid| {
-                self.app_registry
-                    .should_kill_pid_for_instance(instance_id, *pid)
-            })
-            .or_else(|| self.find_game_hook_pid_by_port(rec.listen_port));
+        let processes = process_manager.list_processes().unwrap_or_default();
+        let game_path =
+            service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel).ok();
 
-        let processes = self.process_manager.list_processes().unwrap_or_default();
         let mut kill_pids: Vec<u32> = Vec::new();
+        let mut identity_mismatch = false;
+        // Kill 前校验 pid 当前身份:render 崩溃后 Windows 会复用 pid,只比数值
+        // 会把占用该 pid 的无辜进程整棵树 TerminateProcess。
+        let recorded_render_pid = rec
+            .pid
+            .filter(|_| service_core::app_instance::is_game_hook_launch(&rec.launch));
+        let render_pid = recorded_render_pid
+            .and_then(|pid| {
+                let belongs = game_path
+                    .as_ref()
+                    .map(|gp| pid_belongs_to_instance(&processes, rec.listen_port, gp, pid))
+                    .unwrap_or(false);
+                if belongs {
+                    Some(pid)
+                } else if processes.iter().any(|p| p.pid == pid) {
+                    warn!(
+                        "stop app instance {instance_id}: recorded pid {pid} is no longer the game-hook render/game, skipping (pid reuse?)"
+                    );
+                    identity_mismatch = true;
+                    None
+                } else {
+                    // Recorded pid is gone entirely — nothing to kill for it.
+                    None
+                }
+            })
+            .or_else(|| find_game_hook_pid_by_port(&process_manager, rec.listen_port));
+
         if let Some(pid) = render_pid {
             kill_pids.extend(service_core::process::collect_process_tree(
                 &processes, pid,
             ));
         }
-        if let Ok(game_path) =
-            service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel)
-        {
+        if let Some(gp) = game_path.as_ref() {
             for pid in service_core::process::find_pids_for_game_exe(
                 &processes,
-                &game_path.to_string_lossy(),
+                &gp.to_string_lossy(),
             ) {
                 if !kill_pids.contains(&pid) {
                     kill_pids.push(pid);
@@ -419,16 +466,34 @@ impl ServiceRuntime {
             }
         }
 
+        if kill_pids.is_empty() && identity_mismatch {
+            return Err(format!(
+                "instance {instance_id} recorded pid is now owned by an unrelated process, refusing to kill"
+            ));
+        }
+
         info!(
             "stop app instance {} will kill pids={:?} (render+game tree)",
             instance_id, kill_pids
         );
         for pid in kill_pids {
-            if let Err(err) = self.process_manager.kill_process(pid) {
+            if let Err(err) = process_manager.kill_process(pid) {
                 warn!("kill pid {pid} for instance {instance_id} failed: {err}");
             }
         }
-        self.app_registry.mark_stopped(instance_id)?;
+        // kill 后按端口复查:进程仍在监听时不能 mark_stopped,否则端口被释放,
+        // 下一个实例分配同端口直接撞车。此时返回 Err 让 CMS 标 failed。
+        if wait_game_hook_pid_by_port(&process_manager, rec.listen_port, 10, 100)
+            .await
+            .is_some()
+        {
+            return Err(format!(
+                "instance {instance_id} render still alive on port {} after kill",
+                rec.listen_port
+            ));
+        }
+        let mut guard = runtime.lock().await;
+        guard.app_registry.mark_stopped(instance_id)?;
         Ok(())
     }
 
@@ -486,6 +551,63 @@ impl ServiceRuntime {
                 info!("session unlock");
                 Ok(())
             }
+        }
+    }
+}
+
+fn find_game_hook_pid_by_port(process_manager: &Arc<dyn ProcessManager>, port: u16) -> Option<u32> {
+    let processes = process_manager.list_processes().ok()?;
+    for p in processes {
+        if !p.is_game_hook_render_process() {
+            continue;
+        }
+        // Exact token match only: substring matching would hit port 3200 on
+        // "--network_listen_port=32000".
+        if cmdline_has_listen_port(&p.cmdline, port) {
+            return Some(p.pid);
+        }
+    }
+    None
+}
+
+async fn wait_game_hook_pid_by_port(
+    process_manager: &Arc<dyn ProcessManager>,
+    port: u16,
+    attempts: u32,
+    sleep_ms: u64,
+) -> Option<u32> {
+    for _ in 0..attempts {
+        if let Some(pid) = find_game_hook_pid_by_port(process_manager, port) {
+            return Some(pid);
+        }
+        tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+    }
+    None
+}
+
+async fn wait_game_process(
+    process_manager: &Arc<dyn ProcessManager>,
+    game_path: &str,
+    attempts: u32,
+    sleep_ms: u64,
+) -> bool {
+    for _ in 0..attempts {
+        if let Ok(processes) = process_manager.list_processes() {
+            if !service_core::process::find_pids_for_game_exe(&processes, game_path).is_empty()
+            {
+                return true;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+    }
+    false
+}
+
+fn kill_process_tree(process_manager: &Arc<dyn ProcessManager>, root_pid: u32) {
+    let processes = process_manager.list_processes().unwrap_or_default();
+    for pid in service_core::process::collect_process_tree(&processes, root_pid) {
+        if let Err(err) = process_manager.kill_process(pid) {
+            warn!("kill tree pid {pid} failed: {err}");
         }
     }
 }
@@ -630,6 +752,7 @@ mod tests {
         session_user_launches: StdMutex<Vec<RenderLaunchSpec>>,
         kills: StdMutex<Vec<u32>>,
         next_pid: StdMutex<u32>,
+        fail_kills: StdMutex<bool>,
     }
 
     impl MockProcessManager {
@@ -640,6 +763,7 @@ mod tests {
                 session_user_launches: StdMutex::new(Vec::new()),
                 kills: StdMutex::new(Vec::new()),
                 next_pid: StdMutex::new(1000),
+                fail_kills: StdMutex::new(false),
             }
         }
     }
@@ -650,6 +774,9 @@ mod tests {
         }
 
         fn kill_process(&self, pid: u32) -> Result<(), String> {
+            if *self.fail_kills.lock().unwrap() {
+                return Err("mock kill denied".to_string());
+            }
             self.kills.lock().unwrap().push(pid);
             self.processes
                 .lock()
@@ -670,13 +797,33 @@ mod tests {
                 args: args.to_vec(),
             };
             self.launches.lock().unwrap().push(spec.clone());
-            let mut next = self.next_pid.lock().unwrap();
-            let pid = *next;
-            *next += 1;
+            let pid = {
+                let mut next = self.next_pid.lock().unwrap();
+                let pid = *next;
+                *next += 1;
+                pid
+            };
             self.processes
                 .lock()
                 .unwrap()
                 .push(ProcessSnapshot::new(pid, app_path, args.join(" ")));
+            // 模拟 game-hook render 拉起游戏子进程,wait_game_process 才能通过。
+            if args.iter().any(|a| a == "--app_mode=game-hook") {
+                if let Some(b64) = args.iter().find_map(|a| a.strip_prefix("--app_game_path=")) {
+                    if let Ok(game_path) = gr_base::crypto_util::base64_decode(b64) {
+                        let game_pid = {
+                            let mut next = self.next_pid.lock().unwrap();
+                            let pid = *next;
+                            *next += 1;
+                            pid
+                        };
+                        self.processes
+                            .lock()
+                            .unwrap()
+                            .push(ProcessSnapshot::new(game_pid, game_path, "").with_parent(pid));
+                    }
+                }
+            }
             Ok(())
         }
 
@@ -1012,12 +1159,12 @@ mod tests {
         assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
     }
 
-    fn sample_start_req(id: &str, port: i32) -> StartAppRequest {
+    fn sample_start_req(id: &str, port: i32, install_root: &str) -> StartAppRequest {
         StartAppRequest {
             request_id: format!("req-{id}"),
             instance_id: id.to_string(),
             app_id: "app-car".to_string(),
-            install_root: r"D:\apps\CarGame".to_string(),
+            install_root: install_root.to_string(),
             game_exe_rel: r"Binaries\Win64\game.exe".to_string(),
             game_arguments: String::new(),
             listen_port: port,
@@ -1029,17 +1176,35 @@ mod tests {
         }
     }
 
-    #[test]
-    fn start_and_stop_app_instance_does_not_touch_desktop() {
-        let work_dir = std::env::temp_dir().join(format!(
-            "gr_work_app_inst_{}",
-            std::process::id()
-        ));
+    /// Temp work_dir with a fake GammaRayRender.exe + temp game exe; start
+    /// validation requires both to exist on disk.
+    struct AppTestDirs {
+        work_dir_s: String,
+        render_path: std::path::PathBuf,
+        game_root_s: String,
+        game_exe: std::path::PathBuf,
+    }
+
+    fn make_app_test_dirs(tag: &str) -> AppTestDirs {
+        let base = std::env::temp_dir().join(format!("gr_app_test_{tag}_{}", std::process::id()));
+        let work_dir = base.join("work");
         let _ = std::fs::create_dir_all(&work_dir);
         let render_path = work_dir.join("GammaRayRender.exe");
         std::fs::write(&render_path, b"fake").unwrap();
-        let work_dir_s = work_dir.to_string_lossy().to_string();
+        let game_exe = base.join(r"game\Binaries\Win64\game.exe");
+        let _ = std::fs::create_dir_all(game_exe.parent().unwrap());
+        std::fs::write(&game_exe, b"fake").unwrap();
+        AppTestDirs {
+            work_dir_s: work_dir.to_string_lossy().to_string(),
+            render_path,
+            game_root_s: base.join("game").to_string_lossy().to_string(),
+            game_exe,
+        }
+    }
 
+    #[tokio::test]
+    async fn start_and_stop_app_instance_does_not_touch_desktop() {
+        let dirs = make_app_test_dirs("startstop");
         let config = ServiceConfig::new(
             20375,
             std::env::temp_dir().join("gr_data_app_inst"),
@@ -1056,26 +1221,39 @@ mod tests {
             Arc::new(MockActions::new()),
         );
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: work_dir_s.clone(),
-            app_path: render_path.to_string_lossy().to_string(),
+            work_dir: dirs.work_dir_s.clone(),
+            app_path: dirs.render_path.to_string_lossy().to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
+        let runtime = Arc::new(Mutex::new(runtime));
 
-        let (port, pid) = runtime
-            .start_app_instance(sample_start_req("inst-1", 32111))
-            .unwrap();
+        let (port, pid) = ServiceRuntime::start_app_instance(
+            &runtime,
+            sample_start_req("inst-1", 32111, &dirs.game_root_s),
+        )
+        .await
+        .unwrap();
         assert_eq!(port, 32111);
         assert!(pid >= 1000);
         assert_eq!(
-            runtime.app_registry.get("inst-1").unwrap().state,
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("inst-1")
+                .unwrap()
+                .state,
             service_core::AppInstanceState::Running
         );
-
-        // Simulate game process launched as child of game-hook render.
-        let game_path = r"D:\apps\CarGame\Binaries\Win64\game.exe";
-        manager.processes.lock().unwrap().push(
-            ProcessSnapshot::new(5555, game_path, "").with_parent(pid),
-        );
+        // Mock spawn already launched the game as a child of the render.
+        let game_pid = manager
+            .processes
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|p| p.exe_path_eq(&dirs.game_exe.to_string_lossy()))
+            .map(|p| p.pid)
+            .expect("game child process");
 
         // desktop still listed
         assert!(manager
@@ -1084,10 +1262,12 @@ mod tests {
             .iter()
             .any(|p| p.pid == 1 && p.cmdline.contains("desktop")));
 
-        runtime.stop_app_instance("inst-1").unwrap();
+        ServiceRuntime::stop_app_instance(&runtime, "inst-1")
+            .await
+            .unwrap();
         let kills = manager.kills.lock().unwrap().clone();
         assert!(kills.contains(&pid), "must kill render");
-        assert!(kills.contains(&5555), "must kill game child");
+        assert!(kills.contains(&game_pid), "must kill game child");
         // desktop pid not killed
         assert!(!kills.contains(&1));
         assert!(manager
@@ -1095,6 +1275,116 @@ mod tests {
             .unwrap()
             .iter()
             .any(|p| p.pid == 1));
+    }
+
+    #[tokio::test]
+    async fn stop_app_instance_refuses_to_kill_reused_pid() {
+        let dirs = make_app_test_dirs("reuse");
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("gr_data_app_reuse"),
+            std::env::temp_dir().join("gr_logs_app_reuse"),
+        );
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: dirs.work_dir_s.clone(),
+            app_path: dirs.render_path.to_string_lossy().to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        let runtime = Arc::new(Mutex::new(runtime));
+
+        let (_, pid) = ServiceRuntime::start_app_instance(
+            &runtime,
+            sample_start_req("inst-r", 32220, &dirs.game_root_s),
+        )
+        .await
+        .unwrap();
+
+        // Render crashes and Windows reuses its pid for an innocent process;
+        // the game process exits too.
+        {
+            let mut processes = manager.processes.lock().unwrap();
+            processes.retain(|p| p.pid != pid && p.parent_pid != Some(pid));
+            processes.push(ProcessSnapshot::new(pid, "C:/Windows/notepad.exe", ""));
+        }
+
+        let err = ServiceRuntime::stop_app_instance(&runtime, "inst-r")
+            .await
+            .unwrap_err();
+        assert!(err.contains("refusing to kill"), "unexpected: {err}");
+        // The innocent process must survive, and nothing may have been killed.
+        assert!(manager
+            .list_processes()
+            .unwrap()
+            .iter()
+            .any(|p| p.pid == pid && p.exe_path.contains("notepad")));
+        assert!(manager.kills.lock().unwrap().is_empty());
+        // Record must not be marked stopped.
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("inst-r")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Stopping
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_app_instance_kill_failure_keeps_port_reserved() {
+        let dirs = make_app_test_dirs("killfail");
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("gr_data_app_killfail"),
+            std::env::temp_dir().join("gr_logs_app_killfail"),
+        );
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: dirs.work_dir_s.clone(),
+            app_path: dirs.render_path.to_string_lossy().to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        let runtime = Arc::new(Mutex::new(runtime));
+
+        ServiceRuntime::start_app_instance(
+            &runtime,
+            sample_start_req("inst-k", 32221, &dirs.game_root_s),
+        )
+        .await
+        .unwrap();
+
+        *manager.fail_kills.lock().unwrap() = true;
+        let err = ServiceRuntime::stop_app_instance(&runtime, "inst-k")
+            .await
+            .unwrap_err();
+        assert!(err.contains("still alive"), "unexpected: {err}");
+        {
+            let guard = runtime.lock().await;
+            let rec = guard.app_registry.get("inst-k").unwrap();
+            // Not stopped: the port stays reserved so a new instance cannot collide.
+            assert_eq!(rec.state, service_core::AppInstanceState::Stopping);
+            assert!(guard.app_registry.allocate_port(32221).is_err());
+        }
+
+        // Once kills work again, stop succeeds.
+        *manager.fail_kills.lock().unwrap() = false;
+        ServiceRuntime::stop_app_instance(&runtime, "inst-k")
+            .await
+            .unwrap();
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("inst-k")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Stopped
+        );
     }
 
     #[test]
@@ -1119,23 +1409,40 @@ mod tests {
         assert!(!left.iter().any(|p| p.pid == 1));
     }
 
-    #[test]
-    fn multi_app_instances_same_machine_different_ports() {
-        let mut runtime = test_runtime(Vec::new());
+    #[tokio::test]
+    async fn multi_app_instances_same_machine_different_ports() {
+        let dirs = make_app_test_dirs("multi");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime = ServiceRuntime::new(
+            ServiceConfig::new(
+                20375,
+                std::env::temp_dir().join("gr_data_app_multi"),
+                std::env::temp_dir().join("gr_logs_app_multi"),
+            ),
+            manager,
+            Arc::new(MockActions::new()),
+        );
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            work_dir: dirs.work_dir_s.clone(),
+            app_path: dirs.render_path.to_string_lossy().to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
-        let (p1, id1) = runtime
-            .start_app_instance(sample_start_req("a", 32201))
-            .unwrap();
-        let (p2, id2) = runtime
-            .start_app_instance(sample_start_req("b", 32202))
-            .unwrap();
+        let runtime = Arc::new(Mutex::new(runtime));
+        let (p1, id1) = ServiceRuntime::start_app_instance(
+            &runtime,
+            sample_start_req("a", 32201, &dirs.game_root_s),
+        )
+        .await
+        .unwrap();
+        let (p2, id2) = ServiceRuntime::start_app_instance(
+            &runtime,
+            sample_start_req("b", 32202, &dirs.game_root_s),
+        )
+        .await
+        .unwrap();
         assert_eq!(p1, 32201);
         assert_eq!(p2, 32202);
         assert_ne!(id1, id2);
-        assert_eq!(runtime.app_registry.list().len(), 2);
+        assert_eq!(runtime.lock().await.app_registry.list().len(), 2);
     }
 }
