@@ -66,6 +66,18 @@ pub async fn delete_placement(placement_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn delete_instances_by_app(app_id: &str) -> Result<(), String> {
+    let db = gSpvrDatabase.lock().await;
+    let Some(coll) = db.c_app_instance.as_ref() else {
+        return Ok(());
+    };
+    let coll = coll.lock().await;
+    coll.delete_many(doc! { "app_id": app_id })
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub async fn load_all() -> Result<(Vec<Application>, Vec<AppPlacement>, Vec<AppInstance>), String> {
     let db = gSpvrDatabase.lock().await;
     let (Some(c_app), Some(c_plc), Some(c_inst)) =

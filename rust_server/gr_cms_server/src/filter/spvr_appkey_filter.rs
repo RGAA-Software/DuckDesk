@@ -54,6 +54,11 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
     let full_uri = req.uri().to_string();
 
+    // force_authorize=false: skip all appkey checks (local/test deployments).
+    if crate::spvr_settings::is_auth_bypassed().await {
+        return next.run(req).await;
+    }
+
     if APPKEY_FILTER_WHITELIST.contains(&path)
         || path.starts_with("/static/")
         || path.starts_with("/web/")

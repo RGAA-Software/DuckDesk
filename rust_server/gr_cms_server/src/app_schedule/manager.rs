@@ -68,6 +68,7 @@ pub struct SaveAppReq {
 }
 
 const DEFAULT_LISTEN_PORT_START: i32 = 32000;
+const DEFAULT_LISTEN_PORT_END: i32 = 32999;
 
 /// Split absolute game path into (install_root, game_exe_rel=file_name).
 pub fn split_game_path(game_path: &str) -> Result<(String, String), String> {
@@ -307,11 +308,26 @@ impl AppScheduleManager {
         used
     }
 
-    pub async fn suggest_next_port(&self) -> i32 {
+    /// Suggest the next free listen port for the Web form. Capped at
+    /// `DEFAULT_LISTEN_PORT_END`: past the pool tail fall back to the first
+    /// free port from the pool start; error when the pool is exhausted
+    /// (same wording as save_app auto-assign).
+    pub async fn suggest_next_port(&self) -> Result<i32, String> {
         let g = self.inner.lock().await;
         let used = Self::collect_used_ports_locked(&g, None);
-        let max = used.into_iter().max().unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
-        (max + 1).max(DEFAULT_LISTEN_PORT_START)
+        let max = used.iter().copied().max().unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
+        let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
+        if next <= DEFAULT_LISTEN_PORT_END {
+            return Ok(next);
+        }
+        for port in DEFAULT_LISTEN_PORT_START..=DEFAULT_LISTEN_PORT_END {
+            if !used.contains(&port) {
+                return Ok(port);
+            }
+        }
+        Err(format!(
+            "端口已用完（{DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END}）"
+        ))
     }
 
     fn ensure_port_available_locked(
@@ -319,8 +335,10 @@ impl AppScheduleManager {
         port: i32,
         exclude_app_id: Option<&str>,
     ) -> Result<(), String> {
-        if port < DEFAULT_LISTEN_PORT_START {
-            return Err(format!("端口不能小于 {DEFAULT_LISTEN_PORT_START}"));
+        if !(DEFAULT_LISTEN_PORT_START..=DEFAULT_LISTEN_PORT_END).contains(&port) {
+            return Err(format!(
+                "端口必须在 {DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END} 之间"
+            ));
         }
         for app in g.apps.values() {
             if exclude_app_id.is_some_and(|id| id == app.app_id) {
@@ -379,7 +397,13 @@ impl AppScheduleManager {
                         .into_iter()
                         .max()
                         .unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
-                    (max + 1).max(DEFAULT_LISTEN_PORT_START)
+                    let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
+                    if next > DEFAULT_LISTEN_PORT_END {
+                        return Err(format!(
+                            "端口已用完（{DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END}）"
+                        ));
+                    }
+                    next
                 }
             };
 
@@ -559,6 +583,9 @@ impl AppScheduleManager {
         for pid in to_delete {
             let _ = crate::app_schedule::store::delete_placement(&pid).await;
         }
+        // Drop this app's instances from DB too, otherwise a CMS restart would
+        // reload them as orphans.
+        let _ = crate::app_schedule::store::delete_instances_by_app(app_id).await;
         Ok(())
     }
 
@@ -650,7 +677,10 @@ impl AppScheduleManager {
             device_id: req.device_id.clone(),
             placement_id: placement.placement_id.clone(),
             state: InstanceState::Starting,
-            listen_port: 0,
+            // Pre-occupy the expected port so a concurrent Start of the same
+            // app fails the port check; the Service receipt overwrites it if
+            // it actually bound elsewhere.
+            listen_port,
             pid: 0,
             error: String::new(),
             web_client_hint: String::new(),
@@ -691,6 +721,7 @@ impl AppScheduleManager {
             let snapshot = {
                 let mut g = self.inner.lock().await;
                 g.start_waiters.remove(&request_id);
+                g.request_index.remove(&request_id);
                 if let Some(i) = g.instances.get_mut(&instance_id) {
                     i.state = InstanceState::Failed;
                     i.error = "下发到 Service 失败".to_string();
@@ -724,6 +755,9 @@ impl AppScheduleManager {
                 let snapshot = {
                     let mut g = self.inner.lock().await;
                     g.start_waiters.remove(&request_id);
+                    // Drop the request mapping so a late receipt cannot find
+                    // this instance and resurrect it after we report Failed.
+                    g.request_index.remove(&request_id);
                     if let Some(i) = g.instances.get_mut(&instance_id) {
                         if matches!(i.state, InstanceState::Starting) {
                             i.state = InstanceState::Failed;
@@ -774,6 +808,7 @@ impl AppScheduleManager {
                 // Service gone: nothing left to stop — clear sticky Stopping.
                 let snapshot = {
                     let mut g = self.inner.lock().await;
+                    g.request_index.remove(&request_id);
                     if let Some(i) = g.instances.get_mut(instance_id) {
                         i.state = InstanceState::Stopped;
                         i.pid = 0;
@@ -797,9 +832,11 @@ impl AppScheduleManager {
         if !ok {
             let snapshot = {
                 let mut g = self.inner.lock().await;
+                let g = &mut *g;
                 if let Some(i) = g.instances.get_mut(instance_id) {
                     i.state = InstanceState::Failed;
                     i.error = "下发停止失败".to_string();
+                    g.request_index.remove(&i.request_id);
                     Some(i.clone())
                 } else {
                     None
@@ -819,7 +856,8 @@ impl AppScheduleManager {
         device_id: String,
         result: SpvrServiceStartAppInstanceResult,
     ) {
-        let mut g = self.inner.lock().await;
+        let mut guard = self.inner.lock().await;
+        let g = &mut *guard;
         let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
             tracing::warn!(
                 "start result unknown request_id {} from {}",
@@ -830,24 +868,46 @@ impl AppScheduleManager {
         };
         let waiter = g.start_waiters.remove(&result.request_id);
         let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
-            if result.ok {
-                inst.state = InstanceState::Running;
-                inst.listen_port = result.listen_port;
-                inst.pid = result.pid;
-                inst.error.clear();
-                inst.web_client_hint = format!(
-                    "/web_client/?deviceId={}&instanceId={}",
-                    inst.device_id, inst.instance_id
+            if inst.device_id != device_id {
+                tracing::warn!(
+                    "start result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
+                    device_id,
+                    instance_id,
+                    inst.device_id
                 );
+                None
+            } else if result.ok && matches!(inst.state, InstanceState::Failed) {
+                // Late receipt after the wait already timed out: the user saw
+                // the failure and may have retried — do not resurrect. If the
+                // process really came up, the next HB reconcile restores it.
+                tracing::warn!(
+                    "late ok start result for failed instance {} from {} — ignored",
+                    instance_id,
+                    device_id
+                );
+                None
             } else {
-                inst.state = InstanceState::Failed;
-                inst.error = result.error;
+                if result.ok {
+                    inst.state = InstanceState::Running;
+                    inst.listen_port = result.listen_port;
+                    inst.pid = result.pid;
+                    inst.error.clear();
+                    inst.web_client_hint = format!(
+                        "/web_client/?deviceId={}&instanceId={}",
+                        inst.device_id, inst.instance_id
+                    );
+                } else {
+                    inst.state = InstanceState::Failed;
+                    inst.error = result.error;
+                    // Terminal state: drop the request mapping.
+                    g.request_index.remove(&result.request_id);
+                }
+                Some(inst.clone())
             }
-            Some(inst.clone())
         } else {
             None
         };
-        drop(g);
+        drop(guard);
         if let Some(inst) = snapshot.clone() {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
         }
@@ -865,10 +925,20 @@ impl AppScheduleManager {
             && (result.error.contains("unknown instance_id")
                 || result.error.contains("unknown instance"));
         let treat_stopped = result.ok || already_gone;
-        let mut g = self.inner.lock().await;
+        let mut guard = self.inner.lock().await;
+        let g = &mut *guard;
         let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
             // Also match by instance_id directly
             if let Some(inst) = g.instances.get_mut(&result.instance_id) {
+                if inst.device_id != device_id {
+                    tracing::warn!(
+                        "stop result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
+                        device_id,
+                        result.instance_id,
+                        inst.device_id
+                    );
+                    return;
+                }
                 if treat_stopped {
                     inst.state = InstanceState::Stopped;
                     inst.pid = 0;
@@ -878,8 +948,9 @@ impl AppScheduleManager {
                     inst.state = InstanceState::Failed;
                     inst.error = result.error;
                 }
+                g.request_index.remove(&inst.request_id);
                 let snap = inst.clone();
-                drop(g);
+                drop(guard);
                 let _ = crate::app_schedule::store::upsert_instance(&snap).await;
             } else {
                 tracing::warn!(
@@ -891,26 +962,39 @@ impl AppScheduleManager {
             return;
         };
         let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
-            if treat_stopped {
-                inst.state = InstanceState::Stopped;
-                inst.pid = 0;
-                inst.error.clear();
+            if inst.device_id != device_id {
+                tracing::warn!(
+                    "stop result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
+                    device_id,
+                    instance_id,
+                    inst.device_id
+                );
+                None
             } else {
-                inst.state = InstanceState::Failed;
-                inst.error = result.error;
+                if treat_stopped {
+                    inst.state = InstanceState::Stopped;
+                    inst.pid = 0;
+                    inst.error.clear();
+                } else {
+                    inst.state = InstanceState::Failed;
+                    inst.error = result.error;
+                }
+                // Terminal state: drop the request mapping.
+                g.request_index.remove(&result.request_id);
+                Some(inst.clone())
             }
-            Some(inst.clone())
         } else {
             None
         };
-        drop(g);
+        drop(guard);
         if let Some(inst) = snapshot {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
         }
     }
 
-    /// Align CMS Running/Stopping with what Service reports in HB.
-    /// After Service restart the local registry is empty; clear stale active states.
+    /// Align CMS state with what Service reports in HB — in both directions:
+    /// active in CMS but missing from HB => stopped; active in HB but
+    /// stopped/failed in CMS => revived to Running (pid/port backfilled).
     /// Only `running`/`starting`/`stopping` rows in HB count as alive — a ghost
     /// `stopped` entry with the same instance_id must not keep CMS in Running.
     pub async fn reconcile_from_service_hb(&self, device_id: String, instances_json: &str) {
@@ -919,84 +1003,172 @@ impl AppScheduleManager {
             instance_id: String,
             #[serde(default)]
             state: String,
+            #[serde(default)]
+            pid: u32,
+            #[serde(default)]
+            listen_port: i32,
         }
         let reported: Vec<Reported> = if instances_json.trim().is_empty() {
             Vec::new()
         } else {
-            serde_json::from_str(instances_json).unwrap_or_default()
+            match serde_json::from_str(instances_json) {
+                Ok(v) => v,
+                Err(e) => {
+                    // A malformed packet is not "no instances" — skip this
+                    // round instead of wiping every Running instance.
+                    tracing::warn!(
+                        "reconcile: bad instances_json from device {}: {} — reconcile skipped",
+                        device_id,
+                        e
+                    );
+                    return;
+                }
+            }
         };
-        let active_ids: std::collections::HashSet<String> = reported
-            .into_iter()
-            .filter(|r| {
-                let s = r.state.to_ascii_lowercase();
-                // Empty state: older Service builds omitted it — treat as present/active.
-                s.is_empty()
-                    || s == "running"
-                    || s == "starting"
-                    || s == "stopping"
-            })
-            .map(|r| r.instance_id)
+        // Empty state: legacy Service builds omitted the field — treat the row
+        // as present/active. Newer proto builds always carry an explicit state.
+        let is_active = |state: &str| {
+            let s = state.to_ascii_lowercase();
+            s.is_empty() || s == "running" || s == "starting" || s == "stopping"
+        };
+        let active: HashMap<String, &Reported> = reported
+            .iter()
+            .filter(|r| is_active(&r.state))
+            .map(|r| (r.instance_id.clone(), r))
             .collect();
 
-        let snapshots = {
+        let (snapshots, known_ids) = {
             let mut g = self.inner.lock().await;
+            let g = &mut *g;
             let mut out = Vec::new();
             for inst in g.instances.values_mut() {
                 if inst.device_id != device_id {
                     continue;
                 }
-                if !matches!(
-                    inst.state,
-                    InstanceState::Running | InstanceState::Stopping
-                ) {
-                    continue;
+                match inst.state {
+                    InstanceState::Running | InstanceState::Stopping => {
+                        if !active.contains_key(&inst.instance_id) {
+                            tracing::info!(
+                                "reconcile: device {} instance {} was {:?} but not active in service HB — mark stopped",
+                                device_id,
+                                inst.instance_id,
+                                inst.state
+                            );
+                            inst.state = InstanceState::Stopped;
+                            inst.pid = 0;
+                            inst.error.clear();
+                            g.request_index.remove(&inst.request_id);
+                            out.push(inst.clone());
+                        }
+                    }
+                    InstanceState::Stopped | InstanceState::Failed => {
+                        if let Some(rep) = active.get(&inst.instance_id) {
+                            tracing::info!(
+                                "reconcile: device {} instance {} was {:?} but active in service HB — restore running (pid={} port={})",
+                                device_id,
+                                inst.instance_id,
+                                inst.state,
+                                rep.pid,
+                                rep.listen_port
+                            );
+                            inst.state = InstanceState::Running;
+                            inst.pid = rep.pid;
+                            if rep.listen_port > 0 {
+                                inst.listen_port = rep.listen_port;
+                            }
+                            inst.error.clear();
+                            out.push(inst.clone());
+                        }
+                    }
+                    // Starting: still waiting for the start receipt; HB alone
+                    // must not flip it either way.
+                    InstanceState::Starting => {}
                 }
-                if active_ids.contains(&inst.instance_id) {
-                    continue;
-                }
-                tracing::info!(
-                    "reconcile: device {} instance {} was {:?} but not active in service HB — mark stopped",
-                    device_id,
-                    inst.instance_id,
-                    inst.state
+            }
+            let known: std::collections::HashSet<String> = g
+                .instances
+                .values()
+                .filter(|i| i.device_id == device_id)
+                .map(|i| i.instance_id.clone())
+                .collect();
+            (out, known)
+        };
+        for r in &reported {
+            if !known_ids.contains(&r.instance_id) {
+                tracing::debug!(
+                    "reconcile: service HB reports unknown instance {} on device {}",
+                    r.instance_id,
+                    device_id
                 );
+            }
+        }
+        for inst in snapshots {
+            let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+        }
+    }
+
+    /// CMS restarted while waiting for a receipt: transitional states would
+    /// otherwise live forever. starting => failed, stopping => stopped.
+    /// Returns true when the instance was healed (caller must persist it).
+    fn heal_instance_after_restart(inst: &mut AppInstance) -> bool {
+        match inst.state {
+            InstanceState::Starting => {
+                inst.state = InstanceState::Failed;
+                inst.error = "CMS restarted".to_string();
+                true
+            }
+            InstanceState::Stopping => {
                 inst.state = InstanceState::Stopped;
                 inst.pid = 0;
                 inst.error.clear();
-                out.push(inst.clone());
+                true
             }
-            out
-        };
-        for inst in snapshots {
-            let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+            _ => false,
         }
     }
 
     pub async fn load_from_db(&self) {
         match crate::app_schedule::store::load_all().await {
             Ok((apps, placements, instances)) => {
-                let mut g = self.inner.lock().await;
-                for app in apps {
-                    g.apps.insert(app.app_id.clone(), app);
-                }
-                for p in placements {
-                    g.placement_by_app_device.insert(
-                        (p.app_id.clone(), p.device_id.clone()),
-                        p.placement_id.clone(),
+                let healed = {
+                    let mut g = self.inner.lock().await;
+                    for app in apps {
+                        g.apps.insert(app.app_id.clone(), app);
+                    }
+                    for p in placements {
+                        g.placement_by_app_device.insert(
+                            (p.app_id.clone(), p.device_id.clone()),
+                            p.placement_id.clone(),
+                        );
+                        g.placements.insert(p.placement_id.clone(), p);
+                    }
+                    let mut healed = Vec::new();
+                    for mut i in instances {
+                        if Self::heal_instance_after_restart(&mut i) {
+                            tracing::info!(
+                                "load: heal stale transitional instance {} -> {:?} (CMS restarted)",
+                                i.instance_id,
+                                i.state
+                            );
+                            healed.push(i.clone());
+                        } else {
+                            g.request_index
+                                .insert(i.request_id.clone(), i.instance_id.clone());
+                        }
+                        g.instances.insert(i.instance_id.clone(), i);
+                    }
+                    tracing::info!(
+                        "app schedule loaded from mongo: apps={} placements={} instances={} healed={}",
+                        g.apps.len(),
+                        g.placements.len(),
+                        g.instances.len(),
+                        healed.len()
                     );
-                    g.placements.insert(p.placement_id.clone(), p);
+                    healed
+                };
+                for i in healed {
+                    let _ = crate::app_schedule::store::upsert_instance(&i).await;
                 }
-                for i in instances {
-                    g.request_index
-                        .insert(i.request_id.clone(), i.instance_id.clone());
-                    g.instances.insert(i.instance_id.clone(), i);
-                }
-                tracing::info!(
-                    "app schedule loaded from mongo: apps={} placements={} instances={}",
-                    g.apps.len(),
-                    g.placements.len(),
-                    g.instances.len()
-                );
             }
             Err(e) => tracing::warn!("load app schedule from mongo failed: {e}"),
         }
@@ -1446,5 +1618,226 @@ mod tests {
 
         mgr.delete_app(&a1.app_id).await.unwrap();
         assert_eq!(mgr.list_app_rows().await.len(), 1);
+    }
+
+    fn app_with_port(app_id: &str, listen_port: i32) -> Application {
+        Application {
+            app_id: app_id.into(),
+            name: format!("n-{app_id}"),
+            game_path: r"D:\x\e.exe".into(),
+            game_exe_rel: "e.exe".into(),
+            default_game_args: String::new(),
+            encoder_fps: 60,
+            encoder_bitrate: 20,
+            encoder_format: "h264".into(),
+            webrtc_enabled: true,
+            websocket_enabled: true,
+            listen_port,
+        }
+    }
+
+    #[tokio::test]
+    async fn suggest_next_port_increments_from_pool_start() {
+        let mgr = AppScheduleManager::new();
+        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32000);
+        {
+            let mut g = mgr.inner.lock().await;
+            g.apps.insert("a".into(), app_with_port("a", 32000));
+            g.apps.insert("b".into(), app_with_port("b", 32001));
+        }
+        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32002);
+    }
+
+    #[tokio::test]
+    async fn suggest_next_port_wraps_to_first_free_after_pool_end() {
+        let mgr = AppScheduleManager::new();
+        {
+            let mut g = mgr.inner.lock().await;
+            g.apps.insert("a".into(), app_with_port("a", 32999));
+        }
+        // max+1 exceeds the pool: suggest the first free port from the start.
+        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32000);
+        {
+            let mut g = mgr.inner.lock().await;
+            g.apps.insert("b".into(), app_with_port("b", 32000));
+        }
+        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32001);
+    }
+
+    #[tokio::test]
+    async fn suggest_next_port_errors_when_pool_full() {
+        let mgr = AppScheduleManager::new();
+        {
+            let mut g = mgr.inner.lock().await;
+            for port in 32000..=32999 {
+                let id = format!("a-{port}");
+                g.apps.insert(id.clone(), app_with_port(&id, port));
+            }
+        }
+        let err = mgr.suggest_next_port().await.unwrap_err();
+        assert!(err.contains("端口已用完"), "{err}");
+        assert!(err.contains("32000-32999"), "{err}");
+    }
+
+    fn fixture(state: InstanceState) -> (Application, AppPlacement, AppInstance) {
+        (
+            Application {
+                app_id: "a".into(),
+                name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
+                game_exe_rel: "e".into(),
+                default_game_args: String::new(),
+                encoder_fps: 60,
+                encoder_bitrate: 20,
+                encoder_format: "h264".into(),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port: 32000,
+            },
+            AppPlacement {
+                placement_id: "p".into(),
+                app_id: "a".into(),
+                device_id: "d".into(),
+                install_root: r"D:\x".into(),
+            },
+            AppInstance {
+                instance_id: "i".into(),
+                request_id: "r".into(),
+                app_id: "a".into(),
+                device_id: "d".into(),
+                placement_id: "p".into(),
+                state,
+                listen_port: 32000,
+                pid: 0,
+                error: String::new(),
+                web_client_hint: String::new(),
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn reconcile_skips_on_bad_json() {
+        let mgr = AppScheduleManager::new();
+        let (app, plc, inst) = fixture(InstanceState::Running);
+        mgr.inject_for_test(app, plc, inst).await;
+        // Malformed packet must not be treated as "no instances".
+        mgr.reconcile_from_service_hb("d".into(), "{not-json").await;
+        assert_eq!(
+            mgr.list_instances().await[0].state,
+            InstanceState::Running
+        );
+    }
+
+    #[tokio::test]
+    async fn reconcile_revives_stopped_and_failed_from_hb() {
+        let mgr = AppScheduleManager::new();
+        let (app, plc, mut inst) = fixture(InstanceState::Stopped);
+        inst.pid = 0;
+        inst.error = "boom".into();
+        mgr.inject_for_test(app, plc, inst).await;
+        mgr.reconcile_from_service_hb(
+            "d".into(),
+            r#"[{"instance_id":"i","state":"running","pid":777,"listen_port":32010}]"#,
+        )
+        .await;
+        let i = &mgr.list_instances().await[0];
+        assert_eq!(i.state, InstanceState::Running);
+        assert_eq!(i.pid, 777);
+        assert_eq!(i.listen_port, 32010);
+        assert!(i.error.is_empty());
+
+        // Failed instances are revived too.
+        let mgr2 = AppScheduleManager::new();
+        let (app, plc, mut inst) = fixture(InstanceState::Failed);
+        inst.error = "timeout".into();
+        mgr2.inject_for_test(app, plc, inst).await;
+        mgr2
+            .reconcile_from_service_hb("d".into(), r#"[{"instance_id":"i","state":"running"}]"#)
+            .await;
+        assert_eq!(mgr2.list_instances().await[0].state, InstanceState::Running);
+    }
+
+    #[tokio::test]
+    async fn late_start_result_does_not_revive_failed() {
+        let mgr = AppScheduleManager::new();
+        let (app, plc, mut inst) = fixture(InstanceState::Failed);
+        inst.error = "等待 Service 启动结果超时".into();
+        mgr.inject_for_test(app, plc, inst).await;
+        mgr.on_start_result(
+            "d".into(),
+            SpvrServiceStartAppInstanceResult {
+                request_id: "r".into(),
+                instance_id: "i".into(),
+                ok: true,
+                error: String::new(),
+                listen_port: 32055,
+                pid: 4242,
+            },
+        )
+        .await;
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Failed);
+    }
+
+    #[tokio::test]
+    async fn start_result_device_mismatch_ignored() {
+        let mgr = AppScheduleManager::new();
+        let (app, plc, inst) = fixture(InstanceState::Starting);
+        mgr.inject_for_test(app, plc, inst).await;
+        mgr.on_start_result(
+            "other-dev".into(),
+            SpvrServiceStartAppInstanceResult {
+                request_id: "r".into(),
+                instance_id: "i".into(),
+                ok: true,
+                error: String::new(),
+                listen_port: 32055,
+                pid: 4242,
+            },
+        )
+        .await;
+        assert_eq!(
+            mgr.list_instances().await[0].state,
+            InstanceState::Starting
+        );
+    }
+
+    #[tokio::test]
+    async fn heal_instance_after_restart_fixes_transitional_states() {
+        let (_, _, mut inst) = fixture(InstanceState::Starting);
+        assert!(AppScheduleManager::heal_instance_after_restart(&mut inst));
+        assert_eq!(inst.state, InstanceState::Failed);
+        assert_eq!(inst.error, "CMS restarted");
+
+        let (_, _, mut inst) = fixture(InstanceState::Stopping);
+        inst.pid = 5;
+        assert!(AppScheduleManager::heal_instance_after_restart(&mut inst));
+        assert_eq!(inst.state, InstanceState::Stopped);
+        assert_eq!(inst.pid, 0);
+
+        let (_, _, mut inst) = fixture(InstanceState::Running);
+        assert!(!AppScheduleManager::heal_instance_after_restart(&mut inst));
+        assert_eq!(inst.state, InstanceState::Running);
+    }
+
+    #[tokio::test]
+    async fn save_app_rejects_port_out_of_range() {
+        let mgr = AppScheduleManager::new();
+        for port in [31999, 33000] {
+            let err = mgr
+                .save_app(SaveAppReq {
+                    app_id: None,
+                    name: "P".into(),
+                    device_id: "m1".into(),
+                    game_path: r"D:\games\p\game.exe".into(),
+                    default_game_args: None,
+                    encoder_fps: None,
+                    encoder_bitrate: None,
+                    encoder_format: None,
+                    listen_port: Some(port),
+                })
+                .await
+                .unwrap_err();
+            assert!(err.contains("32000-32999"), "port {port}: {err}");
+        }
     }
 }

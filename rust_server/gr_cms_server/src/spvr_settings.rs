@@ -14,6 +14,15 @@ fn default_auth_pull_interval_secs() -> u64 {
     DEFAULT_AUTH_PULL_INTERVAL_SECS
 }
 
+fn default_force_authorize() -> bool {
+    true
+}
+
+/// 鉴权是否放行（force_authorize=false 时所有 WS/HTTP 鉴权过滤直接通过）。
+pub async fn is_auth_bypassed() -> bool {
+    !gSpvrSettings.lock().await.force_authorize
+}
+
 /// 接入凭据（与 auth server 的 [app_credential] 段一致）。
 /// appkey/app_secret 为空时 pull 请求不携带签名头（灰度期兼容
 /// auth server 端 require_app_credential=false）。
@@ -48,6 +57,12 @@ pub struct SpvrSettings {
     /// 接入凭据（可选，与 auth server [app_credential] 段一致）。
     #[serde(default)]
     pub app_credential: AppCredentialSettings,
+
+    /// true = 强制鉴权（WS token 过滤 + HTTP appkey 过滤）；
+    /// false = 鉴权一律放行（本机/测试用）。缺省 true，部署测试环境时在
+    /// gr_cms_server_settings.toml 显式写 force_authorize = false。
+    #[serde(default = "default_force_authorize")]
+    pub force_authorize: bool,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]

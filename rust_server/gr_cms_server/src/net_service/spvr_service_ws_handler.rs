@@ -11,7 +11,12 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+
+/// Wait before reconciling with an empty instance list after a disconnect —
+/// ~2-3 HB periods, so a brief TCP blip does not mark live instances stopped.
+const DISCONNECT_RECONCILE_DELAY: Duration = Duration::from_secs(15);
 
 pub(crate) async fn service_handler(
     State(context): State<Arc<Mutex<SpvrContext>>>,
@@ -27,7 +32,13 @@ pub(crate) async fn service_handler(
     };
     tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
     for (k, v) in query.iter() {
-        tracing::info!("ws query param {}:{}", k, v);
+        // Never log credentials in full — prefix only.
+        let shown = if k.contains("token") || k.contains("appkey") || k.contains("secret") {
+            format!("{}...", &v[..v.len().min(8)])
+        } else {
+            v.clone()
+        };
+        tracing::info!("ws query param {}:{}", k, shown);
     }
     let params = query.0.clone();
     ws.on_upgrade(move |socket| handle_socket(context.clone(), params, socket, addr))
@@ -54,7 +65,7 @@ async fn handle_socket(
             SpvrServiceConn::new(context.clone(), sender, device_id.clone(), appkey.clone())
                 .await;
         let spvr_conn = Arc::new(Mutex::new(service_conn));
-        gSpvrServiceConnMgr
+        let epoch = gSpvrServiceConnMgr
             .add_conn(device_id.clone(), spvr_conn.clone())
             .await;
 
@@ -68,11 +79,22 @@ async fn handle_socket(
             }
         }
 
-        // remove — Service gone: clear sticky Running/Stopping on this device.
-        gSpvrServiceConnMgr.remove_conn(device_id.clone()).await;
-        gAppScheduleManager
-            .reconcile_from_service_hb(device_id, "[]")
+        // Compare-and-remove so a reconnect's newer connection survives.
+        gSpvrServiceConnMgr
+            .remove_conn(device_id.clone(), &spvr_conn)
             .await;
+        // Do NOT reconcile immediately: a TCP blip would permanently mark live
+        // instances stopped. Wait a few HB periods; if the device reconnects
+        // meanwhile (epoch bumped by add_conn), cancel the reconcile.
+        tokio::spawn(async move {
+            tokio::time::sleep(DISCONNECT_RECONCILE_DELAY).await;
+            if gSpvrServiceConnMgr.epoch() != epoch {
+                return;
+            }
+            gAppScheduleManager
+                .reconcile_from_service_hb(device_id, "[]")
+                .await;
+        });
     });
 
     tokio::select! {

@@ -27,6 +27,11 @@ async fn verify_and_run(
     check_max_streams: bool,
 ) -> Response {
     let path = req.uri().path();
+    // force_authorize=false: skip all token checks (local/test deployments).
+    if crate::spvr_settings::is_auth_bypassed().await {
+        tracing::info!("ws filter: BYPASS (force_authorize=false) path='{}'", path);
+        return next.run(req).await;
+    }
     let query = req.uri().query().unwrap_or("");
     let params = match serde_urlencoded::from_str::<WsTokenQueryParams>(query) {
         Ok(p) => p,
@@ -193,6 +198,7 @@ mod tests {
     #[tokio::test]
     async fn client_rejects_when_auth_not_loaded() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager.lock().await.update_auth(Default::default()).await;
 
         let response = client_router()
@@ -211,6 +217,7 @@ mod tests {
     #[tokio::test]
     async fn client_rejects_invalid_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -233,6 +240,7 @@ mod tests {
     #[tokio::test]
     async fn client_accepts_valid_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -256,6 +264,7 @@ mod tests {
     #[tokio::test]
     async fn client_rejects_when_max_streams_reached() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -283,6 +292,7 @@ mod tests {
     #[tokio::test]
     async fn panel_accepts_valid_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -306,6 +316,7 @@ mod tests {
     #[tokio::test]
     async fn panel_rejects_missing_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -328,6 +339,7 @@ mod tests {
     #[tokio::test]
     async fn website_accepts_valid_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -351,6 +363,7 @@ mod tests {
     #[tokio::test]
     async fn website_rejects_invalid_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = true;
         gAuthManager
             .lock()
             .await
@@ -368,5 +381,26 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn client_bypassed_when_force_authorize_false() {
+        let _guard = TOKEN_TEST_LOCK.lock().unwrap();
+        crate::gSpvrSettings.lock().await.force_authorize = false;
+        // No authorization loaded, no appkey/token params: must still pass.
+        gAuthManager.lock().await.update_auth(Default::default()).await;
+
+        let response = client_router()
+            .oneshot(
+                Request::builder()
+                    .uri("/spvr/client")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        crate::gSpvrSettings.lock().await.force_authorize = true;
     }
 }

@@ -128,6 +128,14 @@ impl SpvrServiceConn {
         true
     }
 
+    /// Proactively close the websocket (used when a fresher connection for the
+    /// same device replaces this one). After this, sends fail fast.
+    pub async fn close(&mut self) {
+        if let Some(sender) = self.sender.take() {
+            let _ = sender.lock().await.send(Message::Close(None)).await;
+        }
+    }
+
     async fn send_hello(&mut self, device_id: String) {
         let mut sv_msg = SpvrServiceMessage::default();
         sv_msg.set_msg_type(SpvrServiceMessageType::KSpvrServiceHello);

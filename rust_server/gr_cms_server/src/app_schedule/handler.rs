@@ -70,9 +70,13 @@ pub async fn handle_delete_app(
 pub async fn handle_next_port(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
 ) -> Result<Json<RespMessage<i32>>, SpvrApiError> {
-    Ok(Json(ok_resp(
-        gAppScheduleManager.suggest_next_port().await,
-    )))
+    match gAppScheduleManager.suggest_next_port().await {
+        Ok(port) => Ok(Json(ok_resp(port))),
+        Err(e) => {
+            tracing::warn!("suggest next port failed: {e}");
+            Ok(err_msg(e))
+        }
+    }
 }
 
 pub async fn handle_create_placement(

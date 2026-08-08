@@ -3,25 +3,51 @@ use crate::net_service::spvr_service_conn::{
 };
 use crate::spvr_api_error::SpvrApiError;
 use egui::ahash::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct SpvrServiceConnManager {
     connections: Mutex<HashMap<String, SpvrServiceConnPtr>>,
+    /// Bumped on every add_conn; disconnect handlers capture it to detect a
+    /// reconnect during the delayed-reconcile window.
+    epoch: AtomicU64,
 }
 
 impl SpvrServiceConnManager {
     pub fn new() -> Self {
         Self {
             connections: Mutex::new(Default::default()),
+            epoch: AtomicU64::new(0),
         }
     }
 
-    pub async fn add_conn(&self, device_id: String, conn: SpvrServiceConnPtr) {
-        self.connections.lock().await.insert(device_id, conn);
+    /// Insert conn and return the new epoch. A stale connection for the same
+    /// device_id is proactively closed so its recv loop ends.
+    pub async fn add_conn(&self, device_id: String, conn: SpvrServiceConnPtr) -> u64 {
+        let old = self.connections.lock().await.insert(device_id, conn);
+        let epoch = self.epoch.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Some(old) = old {
+            old.lock().await.close().await;
+        }
+        epoch
     }
 
-    pub async fn remove_conn(&self, device_id: String) {
-        self.connections.lock().await.remove(&device_id);
+    pub fn epoch(&self) -> u64 {
+        self.epoch.load(Ordering::Relaxed)
+    }
+
+    /// Compare-and-remove: only evict if the stored connection is the exact
+    /// same Arc — otherwise a slow recv_task of an old connection would wipe
+    /// the newer connection of a reconnecting device.
+    pub async fn remove_conn(&self, device_id: String, conn: &SpvrServiceConnPtr) {
+        let mut conns = self.connections.lock().await;
+        if conns
+            .get(&device_id)
+            .is_some_and(|cur| Arc::ptr_eq(cur, conn))
+        {
+            conns.remove(&device_id);
+        }
     }
 
     pub async fn get_conn(&self, device_id: String) -> Result<SpvrServiceConnPtr, SpvrApiError> {
@@ -108,17 +134,41 @@ mod tests {
         let mgr = SpvrServiceConnManager::new();
         assert_eq!(mgr.get_all_conn_count().await, 0);
 
-        mgr.add_conn("d1".to_string(), make_conn("d1", "appkey-1"))
-            .await;
+        let c1 = make_conn("d1", "appkey-1");
+        mgr.add_conn("d1".to_string(), c1.clone()).await;
         mgr.add_conn("d2".to_string(), make_conn("d2", "appkey-1"))
             .await;
         assert_eq!(mgr.get_all_conn_count().await, 2);
         assert_eq!(mgr.is_service_online("d1".to_string()).await.unwrap(), true);
 
-        mgr.remove_conn("d1".to_string()).await;
+        mgr.remove_conn("d1".to_string(), &c1).await;
         assert_eq!(mgr.get_all_conn_count().await, 1);
         assert!(mgr.get_conn("d1".to_string()).await.is_err());
         assert!(mgr.get_conn("d2".to_string()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn remove_conn_keeps_newer_connection() {
+        let mgr = SpvrServiceConnManager::new();
+        let old = make_conn("d1", "appkey-1");
+        let e1 = mgr.add_conn("d1".to_string(), old.clone()).await;
+        // Same device reconnects: new conn replaces the old one, epoch bumps.
+        let new = make_conn("d1", "appkey-1");
+        let e2 = mgr.add_conn("d1".to_string(), new.clone()).await;
+        assert!(e2 > e1);
+        assert_eq!(mgr.get_all_conn_count().await, 1);
+
+        // Stale recv_task of the old connection must not evict the new one.
+        mgr.remove_conn("d1".to_string(), &old).await;
+        assert_eq!(mgr.get_all_conn_count().await, 1);
+        assert!(Arc::ptr_eq(
+            &mgr.get_conn("d1".to_string()).await.unwrap(),
+            &new
+        ));
+
+        // Removing with the current conn works.
+        mgr.remove_conn("d1".to_string(), &new).await;
+        assert_eq!(mgr.get_all_conn_count().await, 0);
     }
 
     #[tokio::test]

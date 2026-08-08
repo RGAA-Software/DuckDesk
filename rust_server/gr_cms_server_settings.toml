@@ -41,6 +41,11 @@ auth_pull_interval_secs = 3600
 
 # 接入凭据（与 auth server 的 [app_credential] 段一致）
 # 为空则 pull 请求不携带签名头（兼容 auth server require_app_credential=false）
+# force_authorize: true = enforce WS token / HTTP appkey auth;
+# false = bypass all auth checks (local/testing). Default when missing: true.
+force_authorize = false
+
 [app_credential]
 appkey = ""
 app_secret = ""
+
