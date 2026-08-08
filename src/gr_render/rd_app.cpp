@@ -4,6 +4,7 @@
 
 #include "rd_app.h"
 #include <windows.h>
+#include <random>
 #include "rd_context.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
@@ -318,9 +319,14 @@ namespace tc
                     if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
                         return;
                     }
-                    // WASAPI process-loopback activation expects COM on this thread.
-                    // Do not CoUninitialize here: MiniAudio keeps the device alive after return.
+                    // MiniAudio manages COM itself: ma_context_init CoInitializeEx's the
+                    // calling thread and ma_context_uninit balances it, and its WASAPI
+                    // worker thread CoInitializeEx/CoUninitialize's itself (miniaudio.h).
+                    // ProcessLoopbackAudioCapture also initializes COM on its own capture
+                    // thread. So this thread's COM init is only for the duration of
+                    // Stop/StartProviding and must be paired before the thread exits.
                     const HRESULT co_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                    const bool co_init = (co_hr == S_OK || co_hr == S_FALSE);
                     LOGI("PID audio worker: Stop+Start begin pid={} CoInitializeEx=0x{:08x}", pid,
                          static_cast<unsigned>(co_hr));
                     self->audio_capture_plugin_->StopProviding();
@@ -334,6 +340,9 @@ namespace tc
                         LOGE("PID audio worker: StartProviding FAILED pid={} err={} "
                              "(no host capture; in-process hook disabled when loopback supported)",
                              pid, err);
+                    }
+                    if (co_init) {
+                        CoUninitialize();
                     }
                 }, "pid audio capture", false);
             });
@@ -860,6 +869,7 @@ namespace tc
         memcpy(buffer.data(), app_shared_message_.get(), sizeof(AppSharedMessage));
         if (!app_shared_info_->WriteBootConfig(pid, buffer)) {
             LOGE("PrepareGameHookBoot failed for pid {}", pid);
+            return;
         }
     }
 
@@ -1308,6 +1318,12 @@ namespace tc
         }
         if (app_shared_info_) {
             app_shared_info_->Exit();
+        }
+        // Stop audio capture before teardown: otherwise the capture thread keeps
+        // invoking data callbacks into components that are being destroyed.
+        // The plugin object itself is NOT destroyed (it shares the process lifetime).
+        if (audio_capture_plugin_) {
+            audio_capture_plugin_->StopProviding();
         }
         if (audio_capture_thread_ && audio_capture_thread_->IsJoinable()) {
             audio_capture_thread_->Join();

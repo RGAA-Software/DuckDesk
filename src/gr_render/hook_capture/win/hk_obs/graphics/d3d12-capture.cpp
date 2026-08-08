@@ -299,7 +299,7 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap) {
             D3D11_TEXTURE2D_DESC desc;
             data.copy_tex->GetDesc(&desc);
             auto adapter_uid = tc::GetAdapterUid(data.device11);
-            tc::CaptureVideoFrame capture_video_frame_msg{};
+            tc::IpcCaptureVideoFrame capture_video_frame_msg{};
             capture_video_frame_msg.capture_type_ = kCaptureVideoByHandle;
             capture_video_frame_msg.data_length = 0;
             capture_video_frame_msg.frame_width_ = desc.Width;

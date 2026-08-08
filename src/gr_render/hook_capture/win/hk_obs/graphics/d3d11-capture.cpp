@@ -281,7 +281,7 @@ void d3d11_capture(void *swap_ptr, void *back_buffer_ptr) {
     D3D11_TEXTURE2D_DESC desc;
     data.texture->GetDesc(&desc);
     auto adapter_uid = tc::GetAdapterUid(data.device);
-    CaptureVideoFrame capture_video_frame_msg{};
+    IpcCaptureVideoFrame capture_video_frame_msg{};
     capture_video_frame_msg.capture_type_ = kCaptureVideoByHandle;
     capture_video_frame_msg.data_length = 0;
     capture_video_frame_msg.frame_width_ = desc.Width;

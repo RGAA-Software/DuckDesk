@@ -20,6 +20,7 @@
 #include <shellapi.h>
 #include <filesystem>
 #include <sstream>
+#include <chrono>
 
 #pragma comment(lib, "Shell32.lib")
 
@@ -27,15 +28,29 @@ namespace tc
 {
 
     constexpr auto kInjectorName = "tc_graphics_util.exe";
+    // 暂无 32 位版 tc_graphics.dll，32 位游戏明确拒绝注入（见 InjectDll）
     constexpr auto kX86DllName = "";
     constexpr auto kX64DllName = "tc_graphics.dll";
+
+    // 注入重试策略：100ms 起步指数退避到 5s，最多 60 次后放弃
+    // 注入失败固定重试间隔（不指数退避、不设次数上限，尽快出画面）
+    constexpr int kInjectRetryIntervalMs = 100;
+    // injected_ 置位后周期性存活检查：连续 3 次失败才重置（避免误伤偶发检测失败）
+    constexpr int kInjectAliveMaxFailCount = 3;
+    constexpr int kInjectAliveCheckIntervalMs = 1000;
+    // gave_up 后探测游戏重启的间隔（目标消失/换 pid 则恢复注入）
+    constexpr int kInjectGaveUpProbeIntervalMs = 3000;
 
     AppManagerWinImpl::AppManagerWinImpl(const std::shared_ptr<RdContext>& ctx) : AppManager(ctx) {
         settings_ = RdSettings::Instance();
     }
 
     AppManagerWinImpl::~AppManagerWinImpl() {
-
+        inject_worker_exit_ = true;
+        inject_cv_.notify_all();
+        if (inject_worker_ && inject_worker_->joinable()) {
+            inject_worker_->join();
+        }
     }
 
     void AppManagerWinImpl::Init() {
@@ -43,6 +58,11 @@ namespace tc
 
         steam_game_ = std::make_shared<SteamGame>(context_);
         //steam_game_->RequestSteamGames();
+
+        // 注入流程跑在独立 worker 线程（内部自带退避/存活检查），消息线程只投递请求
+        inject_worker_ = std::make_shared<std::thread>([=, this]() {
+            this->InjectWorkerLoop();
+        });
 
         if (settings_->capture_.IsVideoInnerCapture()) {
             msg_listener_->Listen<MsgTimer100>([=, this](const auto &msg) {
@@ -134,7 +154,7 @@ namespace tc
         LOGI("we will use normal method to start, exe: {}, args: [{}]",
              u8_exec, settings_->app_.game_arguments_);
         target_pid_ = ProcessUtil::StartProcess(u8_exec, args, true, false);
-        LOGI("After started, the pid is: {}", target_pid_);
+        LOGI("After started, the pid is: {}", target_pid_.load());
         return target_pid_ > 0;
     }
 
@@ -185,33 +205,171 @@ namespace tc
     }
 
     void AppManagerWinImpl::InjectCaptureDllIfNeeded() {
+        // 只投递请求：真正的注入（含同步等待 injector 数秒）在 worker 线程上执行，
+        // 避免 100ms 定时器在任务线程上阻塞
         if (this->injected_) {
             return;
         }
-        bool is_steam_url = settings_->app_.IsSteamUrl();
-        if (!is_steam_url) {
-            InjectCaptureDllForNormalApp();
-            return;
-        }
-        InjectCaptureDllForSteamApp();
+        inject_requested_ = true;
+        inject_cv_.notify_all();
     }
 
-    void AppManagerWinImpl::InjectCaptureDllForSteamApp() {
+    void AppManagerWinImpl::InjectWorkerLoop() {
+        while (!inject_worker_exit_) {
+            if (!settings_->capture_.IsVideoInnerCapture()) {
+                std::unique_lock<std::mutex> lock(inject_mtx_);
+                inject_cv_.wait_for(lock, std::chrono::milliseconds(1000));
+                continue;
+            }
+
+            if (injected_) {
+                // 已注入：低频检查目标进程存活且 DLL 仍映射，游戏崩溃重开后重新走注入流程
+                std::this_thread::sleep_for(std::chrono::milliseconds(kInjectAliveCheckIntervalMs));
+                if (inject_worker_exit_) {
+                    break;
+                }
+                VerifyInjectedStillAlive();
+                continue;
+            }
+
+            if (inject_gave_up_) {
+                {
+                    std::unique_lock<std::mutex> lock(inject_mtx_);
+                    inject_cv_.wait_for(lock, std::chrono::milliseconds(kInjectGaveUpProbeIntervalMs));
+                }
+                if (inject_worker_exit_) {
+                    break;
+                }
+                // 低频探测：游戏重启（旧 pid 消失 / 同 exe 新 pid）则恢复注入流程。
+                // 32 位拒绝场景新 pid 会再次快速拒绝，由本分支 3s 间隔压着，可接受
+                if (inject_gave_up_) {
+                    ProbeGaveUpTargetGone();
+                }
+                continue;
+            }
+
+            if (!inject_requested_.exchange(false)) {
+                std::unique_lock<std::mutex> lock(inject_mtx_);
+                inject_cv_.wait_for(lock, std::chrono::milliseconds(500));
+                continue;
+            }
+
+            bool is_steam_url = settings_->app_.IsSteamUrl();
+            bool attempted = !is_steam_url ? InjectCaptureDllForNormalApp()
+                                           : InjectCaptureDllForSteamApp();
+
+            if (injected_ || inject_gave_up_ || inject_worker_exit_) {
+                continue;
+            }
+            if (!attempted) {
+                // 目标进程还没出现（游戏未启动/未加载完），不算注入失败，低频等待
+                std::unique_lock<std::mutex> lock(inject_mtx_);
+                inject_cv_.wait_for(lock, std::chrono::milliseconds(500));
+                continue;
+            }
+
+            // 固定 100ms 间隔重试，不设上限——尽快出画面优先。仅打节流日志便于观察。
+            // 权限不足（ACCESS_DENIED）同样持续重试——用户可能随后以管理员重启 Render。
+            ++inject_attempts_;
+            if (inject_attempts_ == 1 || (inject_attempts_ % 100) == 0) {
+                LOGW("Inject capture dll: attempt {} failed, keep retrying every {}ms, game: {}",
+                     inject_attempts_, kInjectRetryIntervalMs, settings_->app_.game_path_);
+            }
+            std::unique_lock<std::mutex> lock(inject_mtx_);
+            inject_cv_.wait_for(lock, std::chrono::milliseconds(kInjectRetryIntervalMs));
+        }
+        LOGI("Inject worker loop exit.");
+    }
+
+    void AppManagerWinImpl::VerifyInjectedStillAlive() {
+        uint32_t pid = target_pid_;
+        if (pid <= 0) {
+            return;
+        }
+        bool alive = false;
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (process) {
+            DWORD exit_code = 0;
+            alive = GetExitCodeProcess(process, &exit_code) && exit_code == STILL_ACTIVE;
+            CloseHandle(process);
+        }
+        bool dll_mapped = false;
+        if (alive) {
+            auto result = WinHelper::IsDllInjected(pid, kX86DllName, kX64DllName);
+            dll_mapped = result.ok_ && result.value_;
+        }
+        if (alive && dll_mapped) {
+            inject_alive_fail_count_ = 0;
+            return;
+        }
+        // 连续失败才重置，避免"游戏正常但 DLL 检测偶发失败"导致误触发重注入
+        ++inject_alive_fail_count_;
+        if (inject_alive_fail_count_ < kInjectAliveMaxFailCount) {
+            return;
+        }
+        LOGW("Target pid: {} gone or tc_graphics.dll unmapped (alive: {}, mapped: {}), will re-inject.",
+             pid, alive, dll_mapped);
+        inject_alive_fail_count_ = 0;
+        injected_ = false;
+        ResetInjectRetryState();
+    }
+
+    void AppManagerWinImpl::ResetInjectRetryState() {
+        inject_attempts_ = 0;
+        inject_gave_up_ = false;
+    }
+
+    void AppManagerWinImpl::ProbeGaveUpTargetGone() {
+        const uint32_t pid = last_inject_target_pid_.load();
+        bool recover = false;
+        if (pid > 0) {
+            bool alive = false;
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+            if (process) {
+                DWORD exit_code = 0;
+                alive = GetExitCodeProcess(process, &exit_code) && exit_code == STILL_ACTIVE;
+                CloseHandle(process);
+            }
+            if (!alive) {
+                LOGW("Inject gave-up target pid: {} gone (game restarted?), resume injection.", pid);
+                recover = true;
+            }
+        }
+        if (!recover && !settings_->app_.IsSteamUrl() && !settings_->app_.game_path_.empty()) {
+            // 普通 app：同 exe 出现了新 pid（换了实例），也恢复注入；steam 场景靠
+            // 上面的"旧 pid 消失"覆盖，恢复后由正常注入流程重新发现新 pid
+            const auto target_exe_name = FileUtil::GetFileNameFromPath(settings_->app_.game_path_);
+            for (const auto& process : ProcessHelper::GetProcessList(false)) {
+                if (process->pid_ != pid &&
+                    FileUtil::GetFileNameFromPath(process->exe_full_path_) == target_exe_name) {
+                    LOGW("Found new pid: {} for exe: {} (gave-up pid: {}), resume injection.",
+                         process->pid_, target_exe_name, pid);
+                    recover = true;
+                    break;
+                }
+            }
+        }
+        if (recover) {
+            ResetInjectRetryState();
+        }
+    }
+
+    bool AppManagerWinImpl::InjectCaptureDllForSteamApp() {
         std::vector<std::string> split_path;
         StringUtil::Split(settings_->app_.game_path_, split_path, "/");
         if (split_path.empty()) {
-            return;
+            return false;
         }
         auto steam_id = std::atoi(split_path.at(split_path.size()-1).c_str());
         if (steam_id <= 0) {
-            return;
+            return false;
         }
 
         if (!steam_game_->Ready()) {
             LOGW("Steam not ready.");
             steam_game_->RequestSteamGames();
             if (!steam_game_->Ready()) {
-                return;
+                return false;
             }
         }
 
@@ -221,7 +379,7 @@ namespace tc
             return app->app_id_ == steam_id;
         });
         if (it == installed_games.end()) {
-            return;
+            return false;
         }
         SteamAppPtr target_app = *it;
 
@@ -235,9 +393,11 @@ namespace tc
                     //LOGI("find target process exe: {}", exe_name);
                     auto ret = WinHelper::FindHwndByPid(process->pid_);
                     if (ret.ok_ && ret.value_) {
-                        DWORD process_id;
+                        DWORD process_id = 0;
                         auto thread_id = GetWindowThreadProcessId(ret.value_, &process_id);
-                        process->thread_id_ = thread_id;
+                        if (thread_id != 0 && process_id == process->pid_) {
+                            process->thread_id_ = thread_id;
+                        }
                         //LOGI("xxx PID:{} , TID:{}, origin PID:{}", process_id, thread_id, process.pid_);
                     }
                     processes_info.push_back(process);
@@ -253,46 +413,76 @@ namespace tc
 
         // inject it
         if (settings_->capture_.IsVideoInnerCapture()) {
-            for (const auto &process: processes_info) {
-                auto result = WinHelper::IsDllInjected(process->pid_, kX86DllName, kX64DllName);
-                auto process_exe_name = FileUtil::GetFileNameFromPath(process->exe_full_path_);
-                if (result.ok_ && result.value_) {
-                    continue;
+            if (processes_info.empty()) {
+                return false;
+            }
+            // 多候选进程（如 Steam launcher 与游戏本体同名）只注入一个：
+            // 优先有可见主窗口的进程，其次最大 pid（通常最后创建）
+            ProcessInfoPtr target_process_info = nullptr;
+            for (const auto& process : processes_info) {
+                if (process->thread_id_ > 0) {
+                    target_process_info = process;
+                    break;
                 }
-
-                //
-                AddFoundPid(process);
-
-                // Sync boot file BEFORE inject (SendAppMessage is async and races).
-                if (rdApp) {
-                    rdApp->PrepareGameHookBoot(process->pid_);
-                } else {
-                    LOGE("rdApp null, cannot write hook boot config before inject");
-                }
-                context_->SendAppMessage(MsgBeforeInject{
-                    .steam_app_ = target_app,
-                    .pid_ = process->pid_,
-                });
-
-                bool injected = InjectDll(process->pid_, 0, process->is_x86_, kX86DllName, kX64DllName);
-                this->injected_ = injected;
-                if (injected) {
-                    LOGI("Inject success for pid: {}, exe: {}", process->pid_, process_exe_name);
-                    target_pid_ = process->pid_;
-                    MsgObsInjected msg_injected;
-                    msg_injected.steam_app_ = target_app;
-                    msg_injected.pid_ = process->pid_;
-                    context_->SendAppMessage(msg_injected);
-                } else {
-                    LOGE("Inject capture dll failed for pid: {}, is x86:{}, exe: {}", process->pid_, process->is_x86_, process_exe_name);
+                if (!target_process_info || process->pid_ > target_process_info->pid_) {
+                    target_process_info = process;
                 }
             }
+
+            auto result = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
+            auto process_exe_name = FileUtil::GetFileNameFromPath(target_process_info->exe_full_path_);
+            if (result.ok_ && result.value_) {
+                this->injected_ = true;
+                target_pid_ = target_process_info->pid_;
+                ResetInjectRetryState();
+                return true;
+            }
+
+            //
+            AddFoundPid(target_process_info);
+
+            // Sync boot file BEFORE inject (SendAppMessage is async and races).
+            if (rdApp) {
+                rdApp->PrepareGameHookBoot(target_process_info->pid_);
+            } else {
+                LOGE("rdApp null, cannot write hook boot config before inject");
+            }
+            context_->SendAppMessage(MsgBeforeInject{
+                .steam_app_ = target_app,
+                .pid_ = target_process_info->pid_,
+            });
+
+            bool injected = InjectDll(target_process_info->pid_, target_process_info->thread_id_,
+                                      target_process_info->is_x86_, kX86DllName, kX64DllName);
+            // DllMain used to block >4s under loader lock; inject helper then
+            // timed out even when the module was actually mapped. Treat mapped DLL as OK.
+            if (!injected) {
+                auto again = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
+                if (again.ok_ && again.value_) {
+                    LOGW("Injector timed out/failed but tc_graphics.dll is mapped — treat as success");
+                    injected = true;
+                }
+            }
+            if (injected) {
+                LOGI("Inject success for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
+                this->injected_ = true;
+                target_pid_ = target_process_info->pid_;
+                ResetInjectRetryState();
+                MsgObsInjected msg_injected;
+                msg_injected.steam_app_ = target_app;
+                msg_injected.pid_ = target_process_info->pid_;
+                context_->SendAppMessage(msg_injected);
+            } else {
+                LOGE("Inject capture dll failed for pid: {}, is x86:{}, exe: {}",
+                     target_process_info->pid_, target_process_info->is_x86_, process_exe_name);
+            }
         }
+        return true;
     }
 
-    void AppManagerWinImpl::InjectCaptureDllForNormalApp() {
+    bool AppManagerWinImpl::InjectCaptureDllForNormalApp() {
         if (target_pid_ <= 0) {
-            return;
+            return false;
         }
 
         auto processes = ProcessHelper::GetProcessList(false);
@@ -306,13 +496,13 @@ namespace tc
             }
         }
         if (!target_process_info) {
-            LOGI("Can't find process info now: {}", target_pid_);
-            return;
+            LOGI("Can't find process info now: {}", target_pid_.load());
+            return false;
         }
 
         if (!target_process_info->Valid()) {
             auto target_exe_name = FileUtil::GetFileNameFromPath(settings_->app_.game_path_);
-            LOGE("Can't find app to inject, pid: {}, search for by exe: {}", target_pid_, target_exe_name);
+            LOGE("Can't find app to inject, pid: {}, search for by exe: {}", target_pid_.load(), target_exe_name);
             uint32_t pid_by_exe = 0;
             for (const auto& process : processes) {
                 auto process_exe_name = FileUtil::GetFileNameFromPath(process->exe_full_path_);
@@ -324,7 +514,7 @@ namespace tc
             }
             if (pid_by_exe == 0) {
                 LOGE("find by exe failed, return.");
-                return;
+                return false;
             }
             target_pid_ = pid_by_exe;
         }
@@ -334,14 +524,15 @@ namespace tc
         }
         if (settings_->capture_.IsVideoInnerCapture()){
             if (this->injected_) {
-                return;
+                return true;
             }
             auto result = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
             auto process_exe_name = FileUtil::GetFileNameFromPath(target_process_info->exe_full_path_);
             if (result.ok_ && result.value_) {
                 LOGI("Pid: {} for: {} is already injected....", target_process_info->pid_, process_exe_name);
                 this->injected_ = true;
-                return;
+                ResetInjectRetryState();
+                return true;
             }
             LOGI("Not injected, will inject for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
 
@@ -371,6 +562,8 @@ namespace tc
             this->injected_ = injected;
             if (injected) {
                 LOGI("Inject success for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
+                target_pid_ = target_process_info->pid_;
+                ResetInjectRetryState();
                 MsgObsInjected msg_injected;
                 SteamAppPtr mock_app = SteamApp::Make();
                 mock_app->exes_.push_back(settings_->app_.game_path_);
@@ -382,9 +575,11 @@ namespace tc
                      target_process_info->is_x86_, process_exe_name);
             }
         }
+        return true;
     }
 
     bool AppManagerWinImpl::InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll) {
+        last_inject_target_pid_ = pid;
         // OBS inject-helper style: "<injector> <dll> <is_thread> <pid>"
         // Prefer the render exe folder (same as collect_dist) over process cwd.
         auto current_exe_path = GetExeFolderPath();
@@ -395,6 +590,53 @@ namespace tc
         StringUtil::Replace(injector_path, "\\", "/");
         auto target_dll = std::format("{}/{}", current_exe_path, x64_dll);
         StringUtil::Replace(target_dll, "\\", "/");
+
+        // 32 位目标明确拒绝：暂无 32 位 tc_graphics.dll，且 inject-library 会把
+        // 64 位 LoadLibraryW 地址写进 WoW64 进程（行为未定义，可能崩游戏）。
+        // 记 permanent failure，停止重试
+        if (is_x86) {
+            inject_gave_up_ = true;
+            LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 tc_graphics.dll）", pid);
+            return false;
+        }
+        {
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+            if (process) {
+                BOOL wow64 = FALSE;
+                bool target_is_x86 = IsWow64Process(process, &wow64) && wow64;
+                CloseHandle(process);
+                if (target_is_x86) {
+                    inject_gave_up_ = true;
+                    LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 tc_graphics.dll）", pid);
+                    return false;
+                }
+            }
+        }
+
+        // 权限/完整性检查：目标以管理员运行而 Render 为普通权限时，injector 内
+        // open_process(PROCESS_ALL_ACCESS) 永远失败，这里提前探测给出明确报错。
+        // 此类失败与其它失败一样持续重试（用户可能随后以管理员重启 Render）
+        {
+            HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+            if (!process) {
+                DWORD err = GetLastError();
+                if (err == ERROR_ACCESS_DENIED) {
+                    // 日志节流：同一报错最多每 5s 一条
+                    static std::atomic<int64_t> s_last_denied_log_ms{0};
+                    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count();
+                    if (now_ms - s_last_denied_log_ms.load() >= 5000) {
+                        s_last_denied_log_ms = now_ms;
+                        LOGE("OpenProcess(PROCESS_ALL_ACCESS) denied for pid: {}, "
+                             "游戏以管理员权限运行，请以管理员权限运行 Render", pid);
+                    }
+                } else {
+                    LOGW("OpenProcess failed for pid: {}, err: {}", pid, err);
+                }
+                return false;
+            }
+            CloseHandle(process);
+        }
 
         LOGI("Inject: {} {} pid: {}, tid: {}", injector_path, target_dll, pid, tid);
 

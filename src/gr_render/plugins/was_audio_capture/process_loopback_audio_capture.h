@@ -23,16 +23,20 @@ public:
     int Start() override;
     int Pause() override;
     int Stop() override;
+    bool IsFatalStop() const override { return fatal_stop_.load(); }
 
 private:
     void CaptureThreadMain();
+    void NotifyStopOnce();
 
     uint32_t pid_ = 0;
     std::mutex mu_;
     std::atomic<bool> want_running_{false};
     std::atomic<bool> running_{false};
+    std::atomic<bool> stop_notified_{false};
+    std::atomic<bool> fatal_stop_{false};
     std::thread worker_;
-    int samples_ = 44100;
+    int samples_ = 48000;
     int channels_ = 2;
     int bits_ = 16;
 };

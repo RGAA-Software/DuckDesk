@@ -17,6 +17,7 @@
 #include "hook_manager.h"
 #include "offsets/get-graphics-offsets.h"
 #include "../../hk_audio/HookCoreApi.h"
+#include <atomic>
 #include <filesystem>
 #include <string>
 
@@ -829,6 +830,13 @@ std::wstring GetDllPath(HMODULE module) {
 
 static HookManager *g_hook_manager = HookManager::Instance();
 static HANDLE g_hook_init_thread = NULL;
+// Set by DllMain DETACH (FreeLibrary path) so the deferred init thread stops
+// at the next checkpoint instead of touching freed global state.
+static std::atomic<bool> g_dll_unloading{false};
+
+static inline bool dll_unloading() {
+    return g_dll_unloading.load(std::memory_order_acquire);
+}
 
 // Heavy work (file I/O, WS client / asio threads, detours) must NOT run under
 // DllMain loader lock — that deadlocks LoadLibrary and makes inject time out.
@@ -837,6 +845,9 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
     wchar_t name[MAX_PATH];
 
     g_hook_manager->Init();
+    if (dll_unloading()) {
+        return 0;
+    }
 
     std::wstring dll_path = GetDllPath(hinst);
     g_hook_manager->dll_path_ = dll_path;
@@ -907,8 +918,16 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
     /* this prevents the library from being automatically unloaded
      * by the next FreeLibrary call */
     GetModuleFileNameW(hinst, name, MAX_PATH);
+    if (dll_unloading()) {
+        // DETACH is tearing down under the loader lock right now; do not pin
+        // the DLL or touch global state that free_hook() is releasing.
+        return 0;
+    }
     LoadLibraryW(name);
     LOGI("LoadLibrary: {}", StringUtil::ToUTF8(name));
+    if (dll_unloading()) {
+        return 0;
+    }
 
     capture_thread = CreateThread(
             NULL, 0, (LPTHREAD_START_ROUTINE) main_capture_thread,
@@ -934,10 +953,28 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1) {
             return FALSE;
         }
     } else if (reason == DLL_PROCESS_DETACH) {
+        // lpReserved != NULL → the process is exiting: other threads may
+        // already be dead and Detours teardown (DetourUpdateThread on dead
+        // threads) is unsafe. Leave everything mapped and return immediately.
+        if (unused1 != NULL) {
+            return TRUE;
+        }
+
+        // FreeLibrary path: full teardown. Signal the deferred init thread
+        // first so it stops at the next checkpoint instead of running into
+        // state that free_hook() is about to release.
+        g_dll_unloading.store(true, std::memory_order_release);
         if (g_hook_init_thread) {
-            WaitForSingleObject(g_hook_init_thread, 1000);
+            DWORD wr = WaitForSingleObject(g_hook_init_thread, 3000);
             CloseHandle(g_hook_init_thread);
             g_hook_init_thread = NULL;
+            if (wr != WAIT_OBJECT_0) {
+                // The deferred thread is stuck (e.g. blocked on the loader
+                // lock we hold). Tearing down now would leave it running on
+                // freed state — leak instead of crashing the game.
+                LOGE("[OBS] DETACH: init thread still running, skip teardown");
+                return TRUE;
+            }
         }
         if (!dup_hook_mutex) {
             return true;
@@ -945,9 +982,14 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1) {
 
         if (capture_thread) {
             stop_loop = true;
-            WaitForSingleObject(capture_thread, 300);
+            WaitForSingleObject(capture_thread, 2000);
             CloseHandle(capture_thread);
+            capture_thread = NULL;
         }
+
+        // Remove audio hooks (restore vtables + DetourDetach) before the DLL
+        // image goes away, so no dangling detour can fire after unload.
+        tc::HookCoreApi::Instance()->Shutdown();
 
         free_hook();
     }

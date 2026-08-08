@@ -59,6 +59,14 @@ std::unordered_map<void*, FuncGetBuffer> g_orig_getbuffer;
 std::unordered_map<void*, FuncReleaseBuffer> g_orig_releasebuffer;
 std::unordered_set<void*> g_hooked_enum_vtbls;
 
+// Probe fallback formats keyed by IAudioRenderClient VTABLE (the vtable is
+// shared per COM class). Clients created BEFORE injection never pass through
+// Hook_Initialize / Hook_GetService, so render_formats_ has nothing for them;
+// the probe mix format (system mix, usually 48k/2ch/f32) is cached here as a
+// last resort. Estimation risk is observable via g_rb_probe_fmt logs.
+// Guarded by g_vtbl_mu. Never cleared by probe cleanup; cleared in Shutdown.
+std::unordered_map<void*, HookCoreApi::StreamFormat> g_probe_fmt_by_vtbl;
+
 FuncEnumEndpoints origin_EnumAudioEndpoints = nullptr;
 FuncGetDefault origin_GetDefaultAudioEndpoint = nullptr;
 
@@ -67,6 +75,8 @@ std::atomic<uint64_t> g_rb_posted{0};
 std::atomic<uint64_t> g_gb_calls{0};
 std::atomic<uint64_t> g_rb_null_buf{0};
 std::atomic<uint64_t> g_rb_silent{0};
+std::atomic<uint64_t> g_rb_bad_fmt{0};
+std::atomic<uint64_t> g_rb_probe_fmt{0};
 std::atomic<uint64_t> g_activate_count{0};
 std::atomic<uint64_t> g_init_count{0};
 thread_local char* g_tls_render_buf = nullptr;
@@ -88,6 +98,21 @@ bool PatchSlot(void** slot, void* detour) {
     return true;
 }
 
+// Undo PatchSlot: only writes back when the slot still points at our detour.
+void RestoreSlot(void** slot, void* detour, void* orig) {
+    if (!slot || !detour || !orig) {
+        return;
+    }
+    DWORD old = 0;
+    if (!VirtualProtect(slot, sizeof(void*), PAGE_EXECUTE_READWRITE, &old)) {
+        return;
+    }
+    if (*slot == detour) {
+        *slot = orig;
+    }
+    VirtualProtect(slot, sizeof(void*), old, &old);
+}
+
 HookCoreApi::StreamFormat ParseFormat(const WAVEFORMATEX* format) {
     HookCoreApi::StreamFormat sf{};
     if (!format) {
@@ -97,19 +122,8 @@ HookCoreApi::StreamFormat ParseFormat(const WAVEFORMATEX* format) {
     sf.channels = static_cast<int>(format->nChannels);
     sf.bits = static_cast<int>(format->wBitsPerSample);
     sf.block_align = static_cast<int>(format->nBlockAlign);
-    sf.format = SimpleAudioFormat::kPCM_S16;
-    if (format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
-        (format->wBitsPerSample == 32 && format->wFormatTag != WAVE_FORMAT_PCM)) {
-        sf.format = SimpleAudioFormat::kPCM_F32;
-    }
-    if (format->wFormatTag == WAVE_FORMAT_EXTENSIBLE && format->cbSize >= 22) {
-        const auto* ext = reinterpret_cast<const WAVEFORMATEXTENSIBLE*>(format);
-        if (IsEqualGUID(ext->SubFormat, KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)) {
-            sf.format = SimpleAudioFormat::kPCM_F32;
-        } else if (IsEqualGUID(ext->SubFormat, KSDATAFORMAT_SUBTYPE_PCM)) {
-            sf.format = SimpleAudioFormat::kPCM_S16;
-        }
-    }
+    // Unfolds WAVEFORMATEXTENSIBLE SubFormat; unsupported layouts stay invalid.
+    sf.valid = ResolveWaveFormat(format, sf.format);
     if (sf.block_align <= 0 && sf.channels > 0 && sf.bits > 0) {
         sf.block_align = sf.channels * (sf.bits / 8);
     }
@@ -224,12 +238,26 @@ HRESULT STDMETHODCALLTYPE Hook_ReleaseBuffer(IAudioRenderClient* thiz,
         auto fit = api->render_formats_.find(thiz);
         if (fit != api->render_formats_.end()) {
             sf = fit->second;
-        } else {
-            sf.samples = 48000;
-            sf.channels = 2;
-            sf.bits = 32;
-            sf.block_align = 8;
-            sf.format = SimpleAudioFormat::kPCM_F32;
+        }
+        // No per-client format: probe-vtable fallback below; if still invalid
+        // the frame is dropped, never guessed.
+    }
+    if (!sf.valid) {
+        // Client created before injection (never saw Hook_Initialize/GetService):
+        // fall back to the probe mix format cached for this client's vtable.
+        auto* obj = reinterpret_cast<ComObj*>(thiz);
+        std::lock_guard lock(g_vtbl_mu);
+        if (obj && obj->vtbl) {
+            auto it = g_probe_fmt_by_vtbl.find(obj->vtbl);
+            if (it != g_probe_fmt_by_vtbl.end() && it->second.valid) {
+                sf = it->second;
+                const auto n = g_rb_probe_fmt.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (n == 1 || (n % 500) == 0) {
+                    LOGW("WASAPI ReleaseBuffer: probe fallback fmt for pre-injection client {} "
+                         "n={} ({}Hz {}ch {}bit)",
+                         static_cast<const void*>(thiz), n, sf.samples, sf.channels, sf.bits);
+                }
+            }
         }
     }
     if (!buf && g_tls_render_client == thiz) {
@@ -247,7 +275,14 @@ HRESULT STDMETHODCALLTYPE Hook_ReleaseBuffer(IAudioRenderClient* thiz,
     }
 
     float peak = 0.f;
-    if (buf && num_frames > 0 && !silent && sf.block_align > 0) {
+    if (buf && num_frames > 0 && !silent && !sf.valid) {
+        // Format unknown/unsupported — drop instead of reading with a guessed layout.
+        const auto bad = g_rb_bad_fmt.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (bad == 1 || (bad % 500) == 0) {
+            LOGW("WASAPI ReleaseBuffer: drop frame, unknown format n={}", bad);
+        }
+    }
+    if (buf && num_frames > 0 && !silent && sf.valid && sf.block_align > 0) {
         const int bytes = static_cast<int>(num_frames) * sf.block_align;
         if (bytes > 0) {
             peak = BufferPeak(buf, (std::min)(bytes, 2048), sf.format);
@@ -267,11 +302,12 @@ HRESULT STDMETHODCALLTYPE Hook_ReleaseBuffer(IAudioRenderClient* thiz,
             clients = api->render_formats_.size();
         }
         LOGI("WASAPI ReleaseBuffer: calls={} posted={} null_buf={} silent={} "
-             "getbuffer={} peak={:.6f} clients={}",
+             "getbuffer={} probe_fmt={} peak={:.6f} clients={}",
              n, g_rb_posted.load(std::memory_order_relaxed),
              g_rb_null_buf.load(std::memory_order_relaxed),
              g_rb_silent.load(std::memory_order_relaxed),
-             g_gb_calls.load(std::memory_order_relaxed), peak, clients);
+             g_gb_calls.load(std::memory_order_relaxed),
+             g_rb_probe_fmt.load(std::memory_order_relaxed), peak, clients);
     }
 
     FuncReleaseBuffer orig = nullptr;
@@ -357,11 +393,14 @@ HRESULT STDMETHODCALLTYPE Hook_GetService(IAudioClient* thiz, REFIID riid, void*
             if (it != api->client_formats_.end()) {
                 sf = it->second;
             } else {
-                sf.format = SimpleAudioFormat::kPCM_F32;
-                sf.samples = 48000;
-                sf.channels = 2;
-                sf.bits = 32;
-                sf.block_align = 8;
+                // No Initialize seen for this client — keep sf invalid so
+                // ReleaseBuffer drops frames instead of guessing 48k/f32.
+                static std::atomic<uint64_t> s_no_fmt{0};
+                const auto n = s_no_fmt.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (n == 1 || (n % 200) == 0) {
+                    LOGW("WASAPI GetService: no client format for {} n={}",
+                         static_cast<const void*>(thiz), n);
+                }
             }
             api->render_formats_[rc] = sf;
         }
@@ -465,6 +504,65 @@ void EnsureEnumeratorHooked(IMMDeviceEnumerator* enumerator) {
     g_hooked_enum_vtbls.insert(obj->vtbl);
 }
 
+// Conservative probe: open a shared-mode stream just far enough to resolve
+// the IAudioRenderClient vtable and patch it (the vtable is shared per COM
+// class, so render clients the game created BEFORE injection get hooked too),
+// then close everything. Deliberately minimal: shared mode, 0 flags — no
+// EVENTCALLBACK, no LOOPBACK, no exclusive, and the stream is never Started.
+// (An earlier probe silenced the game because it kept a running stream /
+// used the wrong flags; Initialize+GetService+Release is what any normal app
+// does when opening and immediately closing a shared stream.)
+void ProbeRenderClientVtable(IAudioClient* ac) {
+    if (!ac) {
+        return;
+    }
+    auto* api = HookCoreApi::Instance();
+    WAVEFORMATEX* mix = nullptr;
+    HRESULT hr = ac->GetMixFormat(&mix);
+    if (FAILED(hr) || !mix) {
+        LOGE("AudioHook probe: GetMixFormat failed 0x{:08x}", static_cast<unsigned>(hr));
+        return;
+    }
+    // Cache the mix format by render-client vtable below so pre-injection
+    // clients (no per-client format) can fall back to it in ReleaseBuffer.
+    const auto probe_sf = ParseFormat(mix);
+    hr = ac->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 0, 0, mix, nullptr);
+    CoTaskMemFree(mix);
+    if (FAILED(hr)) {
+        LOGE("AudioHook probe: Initialize failed 0x{:08x}", static_cast<unsigned>(hr));
+        return;
+    }
+    IAudioRenderClient* rc = nullptr;
+    hr = ac->GetService(__uuidof(IAudioRenderClient), reinterpret_cast<void**>(&rc));
+    if (SUCCEEDED(hr) && rc) {
+        api->PatchRenderClientVtable(rc);
+        if (probe_sf.valid) {
+            auto* obj = reinterpret_cast<ComObj*>(rc);
+            if (obj && obj->vtbl) {
+                std::lock_guard lock(g_vtbl_mu);
+                g_probe_fmt_by_vtbl[obj->vtbl] = probe_sf;
+            }
+        }
+        rc->Release();
+        LOGI("AudioHook probe: RenderClient vtable patched via probe rc={} fmt_valid={}",
+             static_cast<const void*>(rc), probe_sf.valid);
+    } else {
+        LOGE("AudioHook probe: GetService(IAudioRenderClient) failed 0x{:08x}",
+             static_cast<unsigned>(hr));
+    }
+    // Drop probe leftovers so dead pointers do not linger in the state maps
+    // (the probe client/render client are released right after). The per-vtable
+    // fallback cache (g_probe_fmt_by_vtbl) deliberately survives this cleanup.
+    {
+        std::lock_guard lock(api->state_mu_);
+        if (rc) {
+            api->render_formats_.erase(rc);
+            api->render_buffers_.erase(rc);
+        }
+        api->client_formats_.erase(ac);
+    }
+}
+
 }  // namespace
 
 void HookCoreApi::PatchRenderClientVtable(IAudioRenderClient* rc) {
@@ -561,10 +659,11 @@ bool HookCoreApi::InitWasapiRenderHooks() {
 
     EnsureEnumeratorHooked(enumerator);
 
-    // Hook Activate on every active render device. Do NOT Initialize a probe
-    // client here — that was silencing the game's subsequent WASAPI/XAudio2
-    // graph in this process. RenderClient vtables are patched lazily in
-    // Hook_GetService when the game creates them.
+    // Hook Activate on every active render device, then run a conservative
+    // probe (GetMixFormat + shared-mode Initialize + GetService + Release) so
+    // the IAudioRenderClient class vtable is patched even when the game built
+    // its audio graph BEFORE we were injected — the lazy Hook_GetService path
+    // alone never fires in that case.
     IMMDeviceCollection* coll = nullptr;
     UINT count = 0;
     if (SUCCEEDED(enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &coll)) && coll) {
@@ -573,12 +672,12 @@ bool HookCoreApi::InitWasapiRenderHooks() {
             IMMDevice* dev = nullptr;
             if (SUCCEEDED(coll->Item(i, &dev)) && dev) {
                 EnsureDeviceActivateHooked(dev);
-                // Soft-touch Activate to resolve IAudioClient vtable without Initialize.
                 IAudioClient* ac = nullptr;
                 if (SUCCEEDED(dev->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
                                             reinterpret_cast<void**>(&ac))) &&
                     ac) {
                     EnsureAudioClientHooked(ac);
+                    ProbeRenderClientVtable(ac);
                     ac->Release();
                 }
                 dev->Release();
@@ -594,6 +693,7 @@ bool HookCoreApi::InitWasapiRenderHooks() {
                                            reinterpret_cast<void**>(&ac))) &&
                 ac) {
                 EnsureAudioClientHooked(ac);
+                ProbeRenderClientVtable(ac);
                 ac->Release();
             }
             device->Release();
@@ -604,16 +704,19 @@ bool HookCoreApi::InitWasapiRenderHooks() {
     bool ok = false;
     size_t activate_n = 0;
     size_t client_n = 0;
+    size_t render_n = 0;
     {
         std::lock_guard lock(g_vtbl_mu);
         activate_n = g_orig_activate.size();
         client_n = g_orig_initialize.size();
-        // RenderClient patched lazily; Activate+Initialize hooks are enough to start.
+        render_n = g_orig_getbuffer.size();
+        // Activate+Initialize hooks are enough to start; RenderClient probe is
+        // best-effort on top (games that open streams later still hit the lazy path).
         ok = activate_n > 0 && client_n > 0;
     }
     LOGI("WASAPI multi-device hooks ready ok={} endpoints={} activate_vtbls={} "
-         "client_vtbls={} (RenderClient lazy)",
-         ok, count, activate_n, client_n);
+         "client_vtbls={} render_vtbls={} (probe)",
+         ok, count, activate_n, client_n, render_n);
 
     enumerator->Release();
     if (need_uninit) {
@@ -623,9 +726,55 @@ bool HookCoreApi::InitWasapiRenderHooks() {
 }
 
 void HookCoreApi::Shutdown() {
+    // Idempotent: after the first run every map below is empty, so repeat
+    // calls are no-ops. Called from DllMain DETACH (FreeLibrary path only).
     HookWaveOut::Instance()->Stop();
     HookDirectSound::Instance()->Stop();
     HookXAudio2::Instance()->Stop();
+
+    // Restore every patched vtable slot so no dangling pointer into this DLL
+    // survives the unload.
+    {
+        std::lock_guard lock(g_vtbl_mu);
+        for (auto& [vtbl, orig] : g_orig_activate) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[3],
+                        reinterpret_cast<void*>(&Hook_Activate), reinterpret_cast<void*>(orig));
+        }
+        for (auto& [vtbl, orig] : g_orig_initialize) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[3],
+                        reinterpret_cast<void*>(&Hook_Initialize), reinterpret_cast<void*>(orig));
+        }
+        for (auto& [vtbl, orig] : g_orig_getservice) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[14],
+                        reinterpret_cast<void*>(&Hook_GetService), reinterpret_cast<void*>(orig));
+        }
+        for (auto& [vtbl, orig] : g_orig_getbuffer) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[3],
+                        reinterpret_cast<void*>(&Hook_GetBuffer), reinterpret_cast<void*>(orig));
+        }
+        for (auto& [vtbl, orig] : g_orig_releasebuffer) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[4],
+                        reinterpret_cast<void*>(&Hook_ReleaseBuffer), reinterpret_cast<void*>(orig));
+        }
+        for (auto* vtbl : g_hooked_enum_vtbls) {
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[3],
+                        reinterpret_cast<void*>(&Hook_EnumAudioEndpoints),
+                        reinterpret_cast<void*>(origin_EnumAudioEndpoints));
+            RestoreSlot(&static_cast<ComVtable*>(vtbl)->func[4],
+                        reinterpret_cast<void*>(&Hook_GetDefaultAudioEndpoint),
+                        reinterpret_cast<void*>(origin_GetDefaultAudioEndpoint));
+        }
+        g_orig_activate.clear();
+        g_orig_initialize.clear();
+        g_orig_getservice.clear();
+        g_orig_getbuffer.clear();
+        g_orig_releasebuffer.clear();
+        g_hooked_enum_vtbls.clear();
+        g_probe_fmt_by_vtbl.clear();
+        origin_EnumAudioEndpoints = nullptr;
+        origin_GetDefaultAudioEndpoint = nullptr;
+    }
+
     SetGlobalAudioMixer(nullptr);
     mixer.reset();
     audio_share.reset();
@@ -637,6 +786,7 @@ void HookCoreApi::Shutdown() {
         patched_render_vtbls_.clear();
     }
     hooked_ = false;
+    LOGI("AudioHook: shutdown complete, all vtable patches restored");
 }
 
 }  // namespace tc

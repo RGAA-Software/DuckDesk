@@ -49,8 +49,9 @@ namespace tc
             this->DispatchIpcMessage(data);
         });
 
-        LOGI("ws ipc client starting: 127.0.0.1:{} /ipc", port_);
-        if (!ws_client_->async_start("127.0.0.1", port_, "/ipc")) {
+        std::string ipc_path = "/ipc";
+        LOGI("ws ipc client starting: 127.0.0.1:{}/ipc", port_);
+        if (!ws_client_->async_start("127.0.0.1", port_, ipc_path)) {
             LOGE("ws ipc async_start failure: {} {}",
                  asio2::last_error_val(), asio2::last_error_msg());
         }

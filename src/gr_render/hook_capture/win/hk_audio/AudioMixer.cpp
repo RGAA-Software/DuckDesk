@@ -12,7 +12,7 @@
 namespace tc {
 namespace {
 
-constexpr size_t kMaxQueue = 512;
+constexpr size_t kMaxQueueBytes = 16 * 1024 * 1024;  // byte-based, not packet count
 constexpr size_t kFlushFrames = 48000 / 50;  // 20ms @ 48k
 
 int16_t ClampS16(float v) {
@@ -62,6 +62,15 @@ std::vector<int16_t> AudioMixer::ToS16(const void* data,
                 v = -1.f;
             }
             out[static_cast<size_t>(i)] = static_cast<int16_t>(v * 32767.f);
+        }
+        return out;
+    }
+    if (format != SimpleAudioFormat::kPCM_S16) {
+        // Unsupported format must never be reinterpreted as s16.
+        static std::atomic<uint64_t> s_n{0};
+        const auto n = s_n.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (n == 1 || (n % 200) == 0) {
+            LOGW("AudioMixer: drop packet, unsupported format={} n={}", static_cast<int>(format), n);
         }
         return out;
     }
@@ -140,12 +149,21 @@ void AudioMixer::Push(const void* data,
     pkt.channels = channels > 0 ? channels : 2;
     pkt.tag = source_tag ? source_tag : "?";
 
+    const size_t pkt_bytes = pkt.s16.size() * sizeof(int16_t);
+    uint64_t dropped = 0;
     {
         std::lock_guard lock(q_mu_);
-        if (q_.size() >= kMaxQueue) {
+        // Byte-based cap: drop oldest until the new packet fits.
+        while (q_bytes_ + pkt_bytes > kMaxQueueBytes && !q_.empty()) {
+            q_bytes_ -= q_.front().s16.size() * sizeof(int16_t);
             q_.pop();
+            dropped = dropped_.fetch_add(1, std::memory_order_relaxed) + 1;
         }
+        q_bytes_ += pkt_bytes;
         q_.push(std::move(pkt));
+    }
+    if (dropped && (dropped == 1 || (dropped % 100) == 0)) {
+        LOGW("AudioMixer: queue over {} bytes, dropped oldest n={}", kMaxQueueBytes, dropped);
     }
     pushed_.fetch_add(1, std::memory_order_relaxed);
     q_cv_.notify_one();
@@ -164,6 +182,7 @@ void AudioMixer::WorkerMain() {
                 continue;
             }
             pkt = std::move(q_.front());
+            q_bytes_ -= pkt.s16.size() * sizeof(int16_t);
             q_.pop();
         }
 

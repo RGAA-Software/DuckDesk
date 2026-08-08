@@ -15,7 +15,7 @@
 namespace tc {
 namespace {
 
-constexpr size_t kMaxQueuedPackets = 256;
+constexpr size_t kMaxQueueBytes = 16 * 1024 * 1024;  // byte-based, not packet count
 
 #if 0  // WAV dump disabled — keep for local debug only
 #pragma pack(push, 1)
@@ -101,17 +101,21 @@ void AudioShare::PostAudioData(std::shared_ptr<Data> data) {
         pkt.channels = src_channels_;
     }
 
-    bool dropped = false;
+    const size_t pkt_bytes = static_cast<size_t>(pkt.data->Size());
+    uint64_t dropped = 0;
     {
         std::lock_guard lock(q_mu_);
-        if (q_.size() >= kMaxQueuedPackets) {
+        // Byte-based cap: drop oldest until the new packet fits.
+        while (q_bytes_ + pkt_bytes > kMaxQueueBytes && !q_.empty()) {
+            q_bytes_ -= static_cast<size_t>(q_.front().data ? q_.front().data->Size() : 0);
             q_.pop();
-            dropped = true;
+            dropped = dropped_.fetch_add(1, std::memory_order_relaxed) + 1;
         }
+        q_bytes_ += pkt_bytes;
         q_.push(std::move(pkt));
     }
-    if (dropped) {
-        LOGW("AudioShare: queue full ({}), dropped oldest", kMaxQueuedPackets);
+    if (dropped && (dropped == 1 || (dropped % 100) == 0)) {
+        LOGW("AudioShare: queue over {} bytes, dropped oldest n={}", kMaxQueueBytes, dropped);
     }
     q_cv_.notify_one();
 }
@@ -162,6 +166,7 @@ void AudioShare::WorkerMain() {
                 continue;
             }
             pkt = std::move(q_.front());
+            q_bytes_ -= static_cast<size_t>(pkt.data ? pkt.data->Size() : 0);
             q_.pop();
         }
 

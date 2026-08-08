@@ -63,10 +63,12 @@ private:
     std::mutex q_mu_;
     std::condition_variable q_cv_;
     std::queue<Packet> q_;
+    size_t q_bytes_ = 0;  // guarded by q_mu_
     std::atomic<bool> stop_{false};
     std::thread worker_;
     std::atomic<uint64_t> pushed_{0};
     std::atomic<uint64_t> mixed_{0};
+    std::atomic<uint64_t> dropped_{0};
 
     // Soft mix accumulator (worker-only).
     std::vector<float> acc_;

@@ -7,8 +7,13 @@
 
 #include "app_shared_info.h"
 
+#include <Windows.h>
+#include <aclapi.h>
+#include <sddl.h>
+
 #include <filesystem>
 #include <fstream>
+#include <vector>
 
 #include "tc_common_new/folder_util.h"
 #include "tc_common_new/log.h"
@@ -20,6 +25,55 @@ namespace tc
 
         std::filesystem::path HookBootDir() {
             return std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"hook_boot";
+        }
+
+        // hook_boot lives under C:\Users\Public — any local user could otherwise read
+        // the boot file, steal the /ipc token and forge /ipc connections. Replace the
+        // inherited DACL with a protected one: only the current user / SYSTEM /
+        // Administrators can access the file.
+        void RestrictBootFileAcl(const std::filesystem::path& path) {
+            HANDLE token = nullptr;
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+                LOGW("RestrictBootFileAcl: OpenProcessToken failed, err={}", GetLastError());
+                return;
+            }
+            DWORD len = 0;
+            GetTokenInformation(token, TokenUser, nullptr, 0, &len);
+            std::vector<BYTE> buf(len);
+            const bool got_user = len > 0 && GetTokenInformation(token, TokenUser, buf.data(), len, &len);
+            CloseHandle(token);
+            if (!got_user) {
+                LOGW("RestrictBootFileAcl: GetTokenInformation failed, err={}", GetLastError());
+                return;
+            }
+            auto* token_user = reinterpret_cast<TOKEN_USER*>(buf.data());
+            LPWSTR sid_str = nullptr;
+            if (!ConvertSidToStringSidW(token_user->User.Sid, &sid_str)) {
+                LOGW("RestrictBootFileAcl: ConvertSidToStringSid failed, err={}", GetLastError());
+                return;
+            }
+            // D:P = protected DACL (drops inherited ACEs, e.g. Everyone from Public).
+            const std::wstring sddl =
+                std::format(L"D:P(A;;FA;;;{})(A;;FA;;;SY)(A;;FA;;;BA)", sid_str);
+            LocalFree(sid_str);
+            PSECURITY_DESCRIPTOR sd = nullptr;
+            if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    sddl.c_str(), SDDL_REVISION_1, &sd, nullptr)) {
+                LOGW("RestrictBootFileAcl: SDDL convert failed, err={}", GetLastError());
+                return;
+            }
+            PACL dacl = nullptr;
+            BOOL present = FALSE, defaulted = FALSE;
+            GetSecurityDescriptorDacl(sd, &present, &dacl, &defaulted);
+            const DWORD rc = SetNamedSecurityInfoW(
+                const_cast<LPWSTR>(path.wstring().c_str()), SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                nullptr, nullptr, present ? dacl : nullptr, nullptr);
+            LocalFree(sd);
+            if (rc != ERROR_SUCCESS) {
+                LOGW("RestrictBootFileAcl: SetNamedSecurityInfo failed rc={} path={}",
+                     rc, StringUtil::ToUTF8(path.wstring()));
+            }
         }
 
     } // namespace
@@ -73,6 +127,7 @@ namespace tc
                 LOGE("Write hook boot file failed: {}", StringUtil::ToUTF8(path.wstring()));
                 return false;
             }
+            RestrictBootFileAcl(path);
             LOGI("Wrote hook boot config (WS IPC bootstrap, not SHM): {} ({} bytes)",
                  StringUtil::ToUTF8(path.wstring()), data.size());
             return true;

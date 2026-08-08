@@ -50,6 +50,15 @@ int inject_library_obf(HANDLE process, const wchar_t *dll,
 
 	/* -------------------------------- */
 
+	/* Refuse WoW64 (32-bit) targets: injecting a 64-bit LoadLibraryW
+	 * address into a 32-bit process is undefined and may crash the game. */
+	{
+		BOOL x86 = FALSE;
+		if (IsWow64Process(process, &x86) && x86) {
+			return INJECT_ERROR_X86_TARGET_NOT_SUPPORTED;
+		}
+	}
+
 	size = (wcslen(dll) + 1) * sizeof(wchar_t);
 	mem = virtual_alloc_ex(process, NULL, size, MEM_RESERVE | MEM_COMMIT,
 			       PAGE_READWRITE);

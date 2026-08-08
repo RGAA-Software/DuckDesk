@@ -8,6 +8,8 @@
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <mutex>
+#include <set>
 #include "network/ws_router.h"
 #include "tc_common_new/concurrent_hashmap.h"
 #include <asio2/asio2.hpp>

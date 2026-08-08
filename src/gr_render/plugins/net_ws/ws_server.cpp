@@ -34,6 +34,12 @@ static std::string kApiAllocLocalRtc = "/alloc/local/rtc";
 static std::string kUrlWebClient = "/web_client";
 static std::string kUrlWebClientWildcard = "/web_client/*";
 
+// /ipc carries raw captured frames up and user keyboard/mouse events down.
+// It must only ever talk to the injected dll on the same machine.
+static bool IsLoopbackAddress(const std::string& addr) {
+    return addr == "127.0.0.1" || addr == "::1" || addr == "::ffff:127.0.0.1";
+}
+
 namespace tc
 {
 
@@ -309,16 +315,63 @@ namespace tc
                 if (data.size() < sizeof(CaptureBaseMessage)) {
                     return;
                 }
-                auto base_msg = (const CaptureBaseMessage*)data.data();
-                if (base_msg->type_ == kCaptureVideoFrame) {
-                    if (data.size() != sizeof(CaptureVideoFrame)) {
-                        LOGE("IPC CaptureVideoFrame size mismatch: got {}, expect {}",
-                             data.size(), sizeof(CaptureVideoFrame));
+                // POD wire format: first field is magic for video frames.
+                const auto first_u32 = *reinterpret_cast<const uint32_t*>(data.data());
+                if (first_u32 == kIpcCaptureVideoFrameMagic) {
+                    if (data.size() != sizeof(IpcCaptureVideoFrame)) {
+                        LOGE("IPC IpcCaptureVideoFrame size mismatch: got {}, expect {}",
+                             data.size(), sizeof(IpcCaptureVideoFrame));
+                        return;
+                    }
+                    const auto* ipc_msg = reinterpret_cast<const IpcCaptureVideoFrame*>(data.data());
+                    if (ipc_msg->version_ != kIpcCaptureVideoFrameVersion
+                        || ipc_msg->type_ != kCaptureVideoFrame) {
+                        LOGW("IPC video frame version/type mismatch: ver={} type={:#x}, drop "
+                             "(render and tc_graphics.dll must be updated together)",
+                             ipc_msg->version_, ipc_msg->type_);
+                        return;
+                    }
+                    if (ipc_msg->frame_width_ < 16 || ipc_msg->frame_width_ > 8192
+                        || ipc_msg->frame_height_ < 16 || ipc_msg->frame_height_ > 8192) {
+                        static std::atomic<uint64_t> s_bad_size{0};
+                        const auto n = ++s_bad_size;
+                        if (n == 1 || (n % 100) == 0) {
+                            LOGW("IPC video frame invalid size: {}x{}, drop n={}",
+                                 ipc_msg->frame_width_, ipc_msg->frame_height_, n);
+                        }
                         return;
                     }
                     auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
-                    memcpy(&event->frame_, data.data(), sizeof(CaptureVideoFrame));
+                    auto& frame = event->frame_;
+                    frame.capture_type_ = ipc_msg->capture_type_;
+                    frame.data_length = 0;
+                    frame.frame_width_ = ipc_msg->frame_width_;
+                    frame.frame_height_ = ipc_msg->frame_height_;
+                    frame.frame_index_ = ipc_msg->frame_index_;
+                    frame.frame_format_ = ipc_msg->frame_format_;
+                    frame.handle_ = ipc_msg->handle_;
+                    frame.adapter_uid_ = ipc_msg->adapter_uid_;
+                    memcpy(frame.display_name_, ipc_msg->display_name_, sizeof(frame.display_name_));
+                    frame.display_name_[sizeof(frame.display_name_) - 1] = 0;
+                    frame.monitor_index_ = ipc_msg->monitor_index_;
+                    frame.left_ = ipc_msg->left_;
+                    frame.top_ = ipc_msg->top_;
+                    frame.right_ = ipc_msg->right_;
+                    frame.bottom_ = ipc_msg->bottom_;
+                    frame.request_idr_ = ipc_msg->request_idr_ != 0;
+                    // raw_image_ stays null — never deserialized from the wire.
                     self->plugin_->CallbackEvent(event);
+                    return;
+                }
+                auto base_msg = (const CaptureBaseMessage*)data.data();
+                if (base_msg->type_ == kCaptureVideoFrame) {
+                    // Legacy non-POD blob (old dll): refuse it, it used to memcpy a shared_ptr.
+                    static std::atomic<uint64_t> s_legacy{0};
+                    const auto n = ++s_legacy;
+                    if (n == 1 || (n % 100) == 0) {
+                        LOGW("IPC legacy CaptureVideoFrame blob rejected n={} "
+                             "(upgrade tc_graphics.dll)", n);
+                    }
                     return;
                 }
                 if (base_msg->type_ == kCaptureAudioFrame) {
@@ -360,6 +413,19 @@ namespace tc
                 if (!self || self->exiting_) {
                     return;
                 }
+                const std::string remote_addr(sess_ptr->remote_address().c_str());
+                if (!IsLoopbackAddress(remote_addr)) {
+                    // /ipc is for the injected dll only; refuse remote peers so they
+                    // can neither push forged frames nor sniff the input downlink.
+                    LOGW("IPC (/ipc) rejected non-loopback client {}:{}, closing",
+                         remote_addr, sess_ptr->remote_port());
+                    sess_ptr->stop();
+                    return;
+                }
+                // Token auth removed (2026-08-08): /ipc is loopback-only, and all
+                // processes on the same machine are trusted. The dll still sends
+                // ?token=... and the server still registers boot tokens, but
+                // presentation is no longer required (kept for forward compat).
                 sess_ptr->ws_stream().binary(true);
                 sess_ptr->set_no_delay(true);
                 const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();

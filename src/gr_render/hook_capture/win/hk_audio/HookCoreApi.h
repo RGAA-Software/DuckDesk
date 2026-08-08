@@ -25,6 +25,8 @@ public:
         int channels = 2;
         int bits = 16;
         int block_align = 4;
+        // False when the real format is unknown/unsupported — drop, never guess.
+        bool valid = false;
     };
 
     static HookCoreApi* Instance() {

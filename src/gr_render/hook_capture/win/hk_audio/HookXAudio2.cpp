@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <unordered_map>
 
@@ -42,17 +43,31 @@ constexpr int kSourceVoiceSubmitBuffer = 21;
 XAudio2CreateFn origin_XAudio2Create = nullptr;
 
 std::mutex g_voice_mu;
-std::unordered_map<IXAudio2SourceVoice*, WAVEFORMATEX> g_voice_fmt;
+// Full extensible copy so SubFormat survives (cbSize=0 truncation misjudged
+// 32-bit int PCM as float).
+std::unordered_map<IXAudio2SourceVoice*, WAVEFORMATEXTENSIBLE> g_voice_fmt;
 std::unordered_map<void*, CreateSourceVoiceFn> g_orig_create_voice;
 std::unordered_map<void*, SubmitSourceBufferFn> g_orig_submit;
 std::atomic<uint64_t> g_submit_calls{0};
 std::atomic<uint64_t> g_submit_posted{0};
+std::atomic<uint64_t> g_submit_no_fmt{0};
+std::atomic<uint64_t> g_submit_chunked{0};
 std::atomic<uint64_t> g_voices{0};
 
 bool AttachExport(void** target, void* detour) {
     DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
+    DetourUpdateAllThreads();
     if (DetourAttach(target, detour) != NO_ERROR) {
+        DetourTransactionAbort();
+        return false;
+    }
+    return DetourTransactionCommit() == NO_ERROR;
+}
+
+bool DetachExport(void** target, void* detour) {
+    DetourTransactionBegin();
+    DetourUpdateAllThreads();
+    if (DetourDetach(target, detour) != NO_ERROR) {
         DetourTransactionAbort();
         return false;
     }
@@ -75,23 +90,19 @@ bool PatchSlot(void** slot, void* detour) {
     return true;
 }
 
-SimpleAudioFormat FormatFromWave(const WAVEFORMATEX* fmt) {
-    if (!fmt) {
-        return SimpleAudioFormat::kPCM_S16;
+// Undo PatchSlot: only writes back when the slot still points at our detour.
+void RestoreSlot(void** slot, void* detour, void* orig) {
+    if (!slot || !detour || !orig) {
+        return;
     }
-    if (fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
-        (fmt->wBitsPerSample == 32 && fmt->wFormatTag != WAVE_FORMAT_PCM)) {
-        return SimpleAudioFormat::kPCM_F32;
+    DWORD old = 0;
+    if (!VirtualProtect(slot, sizeof(void*), PAGE_EXECUTE_READWRITE, &old)) {
+        return;
     }
-    return SimpleAudioFormat::kPCM_S16;
-}
-
-bool IsPcmLike(const WAVEFORMATEX* fmt) {
-    if (!fmt || fmt->nChannels == 0 || fmt->nSamplesPerSec == 0 || fmt->nBlockAlign == 0) {
-        return false;
+    if (*slot == detour) {
+        *slot = orig;
     }
-    return fmt->wFormatTag == WAVE_FORMAT_PCM || fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ||
-           fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE;
+    VirtualProtect(slot, sizeof(void*), old, &old);
 }
 
 HRESULT STDMETHODCALLTYPE Hook_SubmitSourceBuffer(IXAudio2SourceVoice* thiz,
@@ -116,7 +127,7 @@ HRESULT STDMETHODCALLTYPE Hook_SubmitSourceBuffer(IXAudio2SourceVoice* thiz,
     float peak = 0.f;
     bool have_fmt = false;
     if (buffer && buffer->pAudioData && buffer->AudioBytes > 0 && !wma) {
-        WAVEFORMATEX fmt{};
+        WAVEFORMATEXTENSIBLE fmt{};
         {
             std::lock_guard lock(g_voice_mu);
             auto it = g_voice_fmt.find(thiz);
@@ -125,38 +136,48 @@ HRESULT STDMETHODCALLTYPE Hook_SubmitSourceBuffer(IXAudio2SourceVoice* thiz,
                 have_fmt = true;
             }
         }
-        if (!have_fmt) {
-            fmt.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-            fmt.nChannels = 2;
-            fmt.nSamplesPerSec = 48000;
-            fmt.wBitsPerSample = 32;
-            fmt.nBlockAlign = 8;
-            fmt.nAvgBytesPerSec = 48000 * 8;
-        }
-        if (IsPcmLike(&fmt)) {
-            const auto sfmt = FormatFromWave(&fmt);
+        SimpleAudioFormat sfmt = SimpleAudioFormat::kPCM_S16;
+        // Unknown/unsupported format: drop instead of fabricating 48k/f32 and
+        // reading the buffer with the wrong layout.
+        if (!have_fmt || !ResolveWaveFormat(&fmt.Format, sfmt)) {
+            const auto n = g_submit_no_fmt.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (n == 1 || (n % 200) == 0) {
+                LOGW("XAudio2 Submit: drop buffer, unknown format have_fmt={} n={}",
+                     have_fmt ? 1 : 0, n);
+            }
+        } else {
             UINT32 bytes = buffer->AudioBytes;
             const char* data = reinterpret_cast<const char*>(buffer->pAudioData);
-            if (buffer->PlayBegin > 0 && fmt.nBlockAlign > 0) {
+            if (buffer->PlayBegin > 0 && fmt.Format.nBlockAlign > 0) {
                 const size_t skip =
-                    static_cast<size_t>(buffer->PlayBegin) * fmt.nBlockAlign;
+                    static_cast<size_t>(buffer->PlayBegin) * fmt.Format.nBlockAlign;
                 if (skip < bytes) {
                     data += skip;
                     bytes -= static_cast<UINT32>(skip);
                 }
             }
-            if (buffer->PlayLength > 0 && fmt.nBlockAlign > 0) {
-                const UINT32 play_bytes = buffer->PlayLength * fmt.nBlockAlign;
+            if (buffer->PlayLength > 0 && fmt.Format.nBlockAlign > 0) {
+                const UINT32 play_bytes = buffer->PlayLength * fmt.Format.nBlockAlign;
                 if (play_bytes < bytes) {
                     bytes = play_bytes;
                 }
             }
-            if (bytes > 0) {
-                peak = BufferPeak(data, static_cast<int>((std::min)(bytes, 2048u)), sfmt);
-                if (peak > 1.0e-5f && !WasapiCaptureActive()) {
-                    PushHookedPcm(data, static_cast<int>(bytes), sfmt,
-                                  static_cast<int>(fmt.nSamplesPerSec),
-                                  static_cast<int>(fmt.nChannels), "XAudio2");
+            // A single submit can carry tens of MB — push in ~1s chunks so the
+            // mixer queue stays bounded and latency does not spike.
+            const UINT32 chunk = static_cast<UINT32>(
+                (std::max)(1ul, static_cast<unsigned long>(fmt.Format.nSamplesPerSec) *
+                                    fmt.Format.nBlockAlign));
+            if (bytes > chunk) {
+                g_submit_chunked.fetch_add(1, std::memory_order_relaxed);
+            }
+            for (size_t off = 0; off < bytes; off += chunk) {
+                const UINT32 n = static_cast<UINT32>(
+                    (std::min)(static_cast<size_t>(chunk), bytes - off));
+                peak = BufferPeak(data + off, static_cast<int>((std::min)(n, 2048u)), sfmt);
+                if (peak > 1.0e-5f) {
+                    PushHookedPcm(data + off, static_cast<int>(n), sfmt,
+                                  static_cast<int>(fmt.Format.nSamplesPerSec),
+                                  static_cast<int>(fmt.Format.nChannels), "XAudio2");
                     g_submit_posted.fetch_add(1, std::memory_order_relaxed);
                 }
             }
@@ -221,8 +242,9 @@ HRESULT STDMETHODCALLTYPE Hook_CreateSourceVoice(IXAudio2* thiz,
         return hr;
     }
     {
-        WAVEFORMATEX stored = *format;
-        stored.cbSize = 0;
+        WAVEFORMATEXTENSIBLE stored{};
+        const size_t copy = (std::min)(sizeof(stored), sizeof(WAVEFORMATEX) + format->cbSize);
+        std::memcpy(&stored, format, copy);
         std::lock_guard lock(g_voice_mu);
         g_voice_fmt[*pp] = stored;
     }
@@ -310,6 +332,29 @@ void HookXAudio2::Stop() {
         CloseHandle(static_cast<HANDLE>(watcher_));
         watcher_ = nullptr;
     }
+    if (installed_) {
+        installed_ = 0;
+        DetachExport(reinterpret_cast<void**>(&origin_XAudio2Create),
+                     reinterpret_cast<void*>(&Hook_XAudio2Create));
+    }
+    // Restore every patched vtable slot so nothing dangles after unload.
+    {
+        std::lock_guard lock(g_voice_mu);
+        for (auto& [vtbl, orig] : g_orig_create_voice) {
+            RestoreSlot(&static_cast<Vtable*>(vtbl)->func[kIxAudio2CreateSourceVoice],
+                        reinterpret_cast<void*>(&Hook_CreateSourceVoice),
+                        reinterpret_cast<void*>(orig));
+        }
+        for (auto& [vtbl, orig] : g_orig_submit) {
+            RestoreSlot(&static_cast<Vtable*>(vtbl)->func[kSourceVoiceSubmitBuffer],
+                        reinterpret_cast<void*>(&Hook_SubmitSourceBuffer),
+                        reinterpret_cast<void*>(orig));
+        }
+        g_orig_create_voice.clear();
+        g_orig_submit.clear();
+        g_voice_fmt.clear();
+    }
+    LOGI("XAudio2 hooks removed");
 }
 
 void HookXAudio2::WatcherMain() {
@@ -339,6 +384,30 @@ bool HookXAudio2::TryInstall() {
     IXAudio2* tmp = nullptr;
     if (SUCCEEDED(create(&tmp, 0, XAUDIO2_DEFAULT_PROCESSOR)) && tmp) {
         PatchCreateSourceVoice(tmp);
+        // Also patch the source-voice vtable proactively: voices the game
+        // created BEFORE injection share this class vtable, and the lazy
+        // HookVoiceSubmit path only fires on new CreateSourceVoice calls.
+        // Creating a voice is graph-local (no mastering voice, nothing is
+        // started), so this cannot silence the game's audio.
+        WAVEFORMATEX fmt{};
+        fmt.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+        fmt.nChannels = 2;
+        fmt.nSamplesPerSec = 48000;
+        fmt.nAvgBytesPerSec = 48000 * 8;
+        fmt.nBlockAlign = 8;
+        fmt.wBitsPerSample = 32;
+        IXAudio2SourceVoice* voice = nullptr;
+        // tmp's vtable is patched by now, so this runs through
+        // Hook_CreateSourceVoice → HookVoiceSubmit.
+        if (SUCCEEDED(tmp->CreateSourceVoice(&voice, &fmt)) && voice) {
+            HookVoiceSubmit(voice);  // no-op if the hook already patched it
+            voice->DestroyVoice();
+            std::lock_guard lock(g_voice_mu);
+            g_voice_fmt.erase(voice);  // probe leftover, pointer is dead now
+            LOGI("XAudio2: source-voice vtable patched via temp voice");
+        } else {
+            LOGE("XAudio2: temp CreateSourceVoice failed, voices stay lazy-hooked");
+        }
         tmp->Release();
     }
     origin_XAudio2Create = create;

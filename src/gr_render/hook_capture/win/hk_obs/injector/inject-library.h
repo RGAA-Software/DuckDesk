@@ -5,6 +5,8 @@
 #define INJECT_ERROR_INVALID_PARAMS -2
 #define INJECT_ERROR_OPEN_PROCESS_FAIL -3
 #define INJECT_ERROR_UNLIKELY_FAIL -4
+/* 目标为 WoW64（32 位）进程：64 位 LoadLibraryW 地址写入其行为未定义，明确拒绝 */
+#define INJECT_ERROR_X86_TARGET_NOT_SUPPORTED -5
 
 extern int inject_library_obf(HANDLE process, const wchar_t *dll,
 			      const char *create_remote_thread_obf,

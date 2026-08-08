@@ -46,6 +46,11 @@ namespace tc
             stop_callback_ = cbk;
 		}
 
+		// True when the capture thread itself terminated on a fatal device error
+		// (e.g. AUDCLNT_E_DEVICE_INVALIDATED), as opposed to a normal Stop().
+		// Queried from the stop callback to decide on auto-restart.
+		virtual bool IsFatalStop() const { return false; }
+
 	protected:
 		OnPrepareCallback prepare_callback_{nullptr };
 		OnFormatCallback format_callback_{nullptr };
