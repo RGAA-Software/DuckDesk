@@ -42,6 +42,7 @@ namespace tc
 
     bool WsPlugin::OnCreate(const tc::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
+        game_hook_mode_ = GetConfigStringParam("app_mode") == "game-hook";
         auto listen_port = GetConfigIntParam("ws-listen-port");
         auto config_listen_port = GetConfigIntParam("listen-port");
         if (config_listen_port > 0) {
@@ -222,6 +223,12 @@ namespace tc
 
     std::string WsPlugin::GetCapturingMonitorName() {
         std::lock_guard<std::mutex> lk(capturing_mon_mtx_);
+        if (capturing_mon_name_.empty() && game_hook_mode_) {
+            // game hook 模式输入按游戏窗口 rect 换算,不需要显示器名;
+            // hook 编码帧不带 mon_name,直接给占位名,
+            // 否则 Web 端要轮询 /get/render/configuration 15s 才启用输入回传
+            return "game_hook";
+        }
         return capturing_mon_name_;
     }
 

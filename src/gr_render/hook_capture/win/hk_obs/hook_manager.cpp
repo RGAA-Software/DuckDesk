@@ -40,9 +40,94 @@ namespace tc
 
     void HookManager::PushIpcMessage(const std::shared_ptr<CaptureBaseMessage>& msg) {
         if (messages_.Size() > 512) {
+            static uint64_t s_dropped = 0;
+            const auto n = ++s_dropped;
+            if (n == 1 || (n % 100) == 0) {
+                LOGW("PushIpcMessage: queue full, drop oldest n={}", n);
+            }
             messages_.PopFront();
         }
         messages_.PushBack(msg);
+    }
+
+    void HookManager::ResetInputState() {
+        int dropped = 0;
+        while (!messages_.Empty()) {
+            messages_.PopFront();
+            ++dropped;
+        }
+        last_raw_cursor_valid_ = false;
+        raw_input_first_invoke_ = true;
+        shift_pressed_.store(false, std::memory_order_relaxed);
+        control_pressed_.store(false, std::memory_order_relaxed);
+        menu_pressed_.store(false, std::memory_order_relaxed);
+        // 新客户端接入：强制下一次输入事件立即重新断言焦点
+        last_focus_assert_ms_.store(0, std::memory_order_relaxed);
+        LOGI("ResetInputState: dropped {} queued events", dropped);
+    }
+
+    void HookManager::AssertGameFocus(HWND hwnd) {
+        const int64_t now_ms = static_cast<int64_t>(GetTickCount64());
+        const int64_t last_ms = last_focus_assert_ms_.load(std::memory_order_relaxed);
+        if (last_ms != 0 && now_ms - last_ms <= 500) {
+            return;
+        }
+        // 参考 streamer 实战经验：
+        // - UE4 高频 WM_ACTIVATE 会出按钮卡住/点击失效,故每事件场景用 WM_ACTIVATEAPP;
+        // - Unity 失焦恢复需要窗口级 WM_ACTIVATE(streamer 对 Unity 用 100/300ms 定时器发);
+        // 这里 500ms 节流三个一起发,兼顾两者,持续对抗 OS 真实焦点变化带来的
+        // WM_KILLFOCUS/WM_ACTIVATE(WA_INACTIVE)/WM_ACTIVATEAPP(FALSE)。
+        PostMessage(hwnd, WM_ACTIVATE, WA_ACTIVE, 0);
+        PostMessage(hwnd, WM_ACTIVATEAPP, TRUE, 0);
+        PostMessage(hwnd, WM_SETFOCUS, 0, 0);
+        last_focus_assert_ms_.store(now_ms, std::memory_order_relaxed);
+        static uint64_t s_n = 0;
+        const auto n = ++s_n;
+        if (n <= 5 || (n % 200) == 0) {
+            LOGI("AssertGameFocus: n={} hwnd={:x}", n, reinterpret_cast<uint64_t>(hwnd));
+        }
+    }
+
+    // ---- FocusGuard: 子类化游戏窗口,吞掉 OS 真实失焦消息 ----
+    // WH_CALLWNDPROC 只能观察无法阻止投递,必须替换 WndProc 才能真正吞掉。
+    // 目前同时只子类化一个窗口(输入目标窗口),窗口重建时切换。
+    static HWND g_focus_guard_hwnd = nullptr;
+    static WNDPROC g_focus_guard_origin = nullptr;
+
+    static LRESULT CALLBACK GameFocusGuardWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+        if (msg == WM_KILLFOCUS
+            || (msg == WM_ACTIVATE && wp == WA_INACTIVE)
+            || (msg == WM_ACTIVATEAPP && wp == FALSE)) {
+            // 吞掉:游戏永远不知道自己失焦(远程注入输入依赖游戏自认为有焦点)
+            static uint64_t s_n = 0;
+            const auto n = ++s_n;
+            if (n <= 5 || (n % 100) == 0) {
+                LOGI("FocusGuard: swallowed {} n={} hwnd={:x}",
+                     msg == WM_KILLFOCUS ? "WM_KILLFOCUS" : (msg == WM_ACTIVATE ? "WM_ACTIVATE(INACTIVE)" : "WM_ACTIVATEAPP(FALSE)"),
+                     n, reinterpret_cast<uint64_t>(hwnd));
+            }
+            return 0;
+        }
+        return CallWindowProc(g_focus_guard_origin, hwnd, msg, wp, lp);
+    }
+
+    void HookManager::EnsureGameWindowSubclassed(HWND hwnd) {
+        if (!hwnd || !IsWindow(hwnd)) {
+            return;
+        }
+        if (g_focus_guard_hwnd == hwnd) {
+            return;
+        }
+        auto origin = reinterpret_cast<WNDPROC>(
+            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(GameFocusGuardWndProc)));
+        if (origin) {
+            g_focus_guard_origin = origin;
+            g_focus_guard_hwnd = hwnd;
+            LOGI("FocusGuard: subclassed game hwnd={:x}", reinterpret_cast<uint64_t>(hwnd));
+        } else {
+            LOGW("FocusGuard: subclass failed hwnd={:x} err={}",
+                 reinterpret_cast<uint64_t>(hwnd), GetLastError());
+        }
     }
 
     UINT WINAPI HookedGetRawInputData(
@@ -159,6 +244,34 @@ namespace tc
         return TRUE;
     }
 
+    BOOL WINAPI HookedSetCursorPos(int x, int y) {
+        auto hm = HookManager::Instance();
+        if (!hm->app_shared_msg_ || hm->app_shared_msg_->enable_hook_events_ == 0) {
+            return origin_SetCursorPos_ ? origin_SetCursorPos_(x, y) : TRUE;
+        }
+        hm->OnGameSetCursorPos(x, y);
+        return TRUE;
+    }
+
+    int WINAPI HookedGetSystemMetrics(int nIndex) {
+        auto hm = HookManager::Instance();
+        if (nIndex == SM_REMOTESESSION && hm->app_shared_msg_
+            && (hm->app_shared_msg_->enable_hook_events_ != 0
+                || hm->app_shared_msg_->enable_hook_audio_ != 0)) {
+            // 伪装成本地会话：部分游戏/引擎在远程会话(SM_REMOTESESSION=1)下会禁用功能
+            return 0;
+        }
+        return origin_GetSystemMetrics_ ? origin_GetSystemMetrics_(nIndex) : 0;
+    }
+
+    void HookManager::OnGameSetCursorPos(int x, int y) {
+        // 游戏主动居中/锁定光标（UE/Unity 视角模式常见）：
+        // 吞掉对物理光标的修改，只同步内部伪造光标，
+        // 这样游戏随后读 GetCursorPos 拿到的就是它刚设置的值
+        cursor_in_screen_position_.x = x;
+        cursor_in_screen_position_.y = y;
+    }
+
     void HookManager::HookMethods() {
         DetourRestoreAfterWith();
         DetourTransactionBegin();
@@ -234,6 +347,18 @@ namespace tc
             origin_ClipCursor_ = GetProcAddressByName<ClipCursor_t>(L"User32", "ClipCursor");
             auto r = DetourAttach(&(PVOID &)origin_ClipCursor_, &(PVOID &) HookedClipCursor);
             LOGI("Hook ClipCursor result: {}", r);
+        }
+        // SetCursorPos
+        {
+            origin_SetCursorPos_ = GetProcAddressByName<SetCursorPos_t>(L"User32", "SetCursorPos");
+            auto r = DetourAttach(&(PVOID &)origin_SetCursorPos_, &(PVOID &) HookedSetCursorPos);
+            LOGI("Hook SetCursorPos result: {}", r);
+        }
+        // GetSystemMetrics (SM_REMOTESESSION spoof)
+        {
+            origin_GetSystemMetrics_ = GetProcAddressByName<GetSystemMetrics_t>(L"User32", "GetSystemMetrics");
+            auto r = DetourAttach(&(PVOID &)origin_GetSystemMetrics_, &(PVOID &) HookedGetSystemMetrics);
+            LOGI("Hook GetSystemMetrics result: {}", r);
         }
         DetourTransactionCommit();
     }
@@ -394,21 +519,52 @@ namespace tc
         if (msg.value()->type_ == kMouseEventMessage) {
             auto mouse_msg = std::static_pointer_cast<MouseEventMessage>(msg.value());
 
-            raw_input->header.dwType = RIM_TYPEMOUSE;
-            // Prefer relative deltas for look/camera; absolute screen for click-only.
-            if (mouse_msg->delta_x_ != 0 || mouse_msg->delta_y_ != 0) {
-                raw_input->data.mouse.lLastX = mouse_msg->delta_x_;
-                raw_input->data.mouse.lLastY = mouse_msg->delta_y_;
-                raw_input->data.mouse.usFlags = MOUSE_MOVE_RELATIVE;
-            } else if (mouse_msg->absolute_) {
-                raw_input->data.mouse.lLastX = static_cast<LONG>(mouse_msg->x_);
-                raw_input->data.mouse.lLastY = static_cast<LONG>(mouse_msg->y_);
-                raw_input->data.mouse.usFlags = MOUSE_MOVE_ABSOLUTE;
-            } else {
-                raw_input->data.mouse.lLastX = mouse_msg->delta_x_;
-                raw_input->data.mouse.lLastY = mouse_msg->delta_y_;
-                raw_input->data.mouse.usFlags = MOUSE_MOVE_RELATIVE;
+            // 游戏消费慢于事件到达时，把队列里连续的纯移动事件合并成最新一条，
+            // 否则积压会导致操作延迟/拖动卡顿（相对位移总量不变，中间位置可丢）
+            auto is_pure_move = [](const std::shared_ptr<CaptureBaseMessage>& m) {
+                if (!m || m->type_ != kMouseEventMessage) {
+                    return false;
+                }
+                auto mm = std::static_pointer_cast<MouseEventMessage>(m);
+                return !mm->pressed_ && !mm->released_ && mm->data_ == 0;
+            };
+            int merged = 0;
+            if (is_pure_move(msg.value())) {
+                while (!messages_.Empty()) {
+                    auto next = messages_.Front();
+                    if (!next.has_value() || !is_pure_move(next.value())) {
+                        break;
+                    }
+                    messages_.PopFront();
+                    mouse_msg = std::static_pointer_cast<MouseEventMessage>(next.value());
+                    ++merged;
+                }
             }
+
+            raw_input->header.dwType = RIM_TYPEMOUSE;
+            // 客户端只发比例，render 已换算成屏幕绝对坐标；
+            // 这里用相邻两次绝对坐标差分出相对位移（RawInput 游戏读相对位移）
+            const LONG cur_x = static_cast<LONG>(mouse_msg->x_);
+            const LONG cur_y = static_cast<LONG>(mouse_msg->y_);
+            LONG dx = 0, dy = 0;
+            if (last_raw_cursor_valid_) {
+                dx = cur_x - last_raw_cursor_.x;
+                dy = cur_y - last_raw_cursor_.y;
+            }
+            last_raw_cursor_.x = cur_x;
+            last_raw_cursor_.y = cur_y;
+            last_raw_cursor_valid_ = true;
+            {
+                static thread_local uint64_t s_n = 0;
+                const auto n = ++s_n;
+                if (n <= 5 || (n % 200) == 0) {
+                    LOGI("RawInput mouse: n={} abs=({},{}) delta=({},{}) merged={}",
+                         n, cur_x, cur_y, dx, dy, merged);
+                }
+            }
+            raw_input->data.mouse.lLastX = dx;
+            raw_input->data.mouse.lLastY = dy;
+            raw_input->data.mouse.usFlags = MOUSE_MOVE_RELATIVE;
 
             if (mouse_msg->data_) {
                 raw_input->data.mouse.ulButtons |= RI_MOUSE_WHEEL;
@@ -569,12 +725,8 @@ namespace tc
         };
         ScreenToClient(hwnd, &client_area_point);
 
-        static bool active = false;
-        if (!active) {
-            PostMessage(hwnd, WM_ACTIVATE, WA_ACTIVE, 0);
-            active = true;
-        }
-        PostMessage(hwnd, WM_SETFOCUS, 0, 0);
+        EnsureGameWindowSubclassed(hwnd);
+        AssertGameFocus(hwnd);
 
         DWORD mouse_key_state_flags = 0;
         UINT event = WM_MOUSEMOVE;
@@ -626,6 +778,9 @@ namespace tc
             }
             return;
         }
+
+        EnsureGameWindowSubclassed(hwnd);
+        AssertGameFocus(hwnd);
 
         const uint32_t k = key_msg->key_;
         const bool down = key_msg->down_ != 0;
@@ -694,6 +849,10 @@ namespace tc
         ws_ipc_client_ = WsIpcClient::Make((int)app_shared_msg_->ipc_port_);
         ws_ipc_client_->Start();
         ws_ipc_client_->RegisterIpcMessageCallback([=, this](const std::shared_ptr<CaptureBaseMessage>& msg) {
+            if (msg->type_ == kCaptureResetInputMessage) {
+                this->ResetInputState();
+                return;
+            }
             this->PushIpcMessage(msg);
             if (msg->type_ == kMouseEventMessage) {
                 this->GenerateMouseEvent(msg);

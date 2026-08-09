@@ -82,6 +82,15 @@ namespace tc {
             .begin_timestamp_ = event->begin_timestamp_,
         });
 
+        // hook 模式：新客户端连接时让 DLL 丢弃积压事件并重置差分基准/修饰键，
+        // 否则上一会话的残留会让游戏先看到一个巨大的位移跳变，且积压导致开始几秒无响应
+        if (!settings_->app_.IsGlobalReplayMode() && settings_->can_be_operated_) {
+            auto reset_msg = CaptureResetInputMessage{};
+            PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(reset_msg));
+            pressed_keys_.clear();
+            pressed_mouse_buttons_.clear();
+        }
+
         // report it
         ReportClientConnected(event);
 
@@ -116,6 +125,29 @@ namespace tc {
         plugin_manager_->VisitAllPlugins([=](GrPluginInterface* plugin) {
             plugin->OnClientDisconnected(event->visitor_device_id_, event->stream_id_);
         });
+
+        // hook 模式：客户端断开时补发所有按下的键/鼠标键的释放事件，
+        // 否则游戏内按键会一直处于按住状态
+        if (!settings_->app_.IsGlobalReplayMode() && settings_->can_be_operated_
+            && (!pressed_keys_.empty() || !pressed_mouse_buttons_.empty())) {
+            if (auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
+                hwnd && IsWindow(static_cast<HWND>(hwnd))) {
+                auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
+                for (auto key : pressed_keys_) {
+                    auto msg = CaptureMessageMaker::MakeKeyboardEventMessage(hwnd_ptr, key, 0, 0, 0);
+                    PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(msg));
+                }
+                for (auto btn : pressed_mouse_buttons_) {
+                    auto msg = CaptureMessageMaker::MakeMouseEventMessage(
+                        hwnd_ptr, last_mouse_x_, last_mouse_y_, btn, 0, false, true);
+                    PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(msg));
+                }
+                LOGI("client disconnected: released {} keys, {} mouse buttons",
+                     pressed_keys_.size(), pressed_mouse_buttons_.size());
+            }
+            pressed_keys_.clear();
+            pressed_mouse_buttons_.clear();
+        }
 
         // report it
         ReportClientDisConnected(event);
@@ -407,10 +439,18 @@ namespace tc {
         auto x = rect.left + app_width * mouse_event.x_ratio();
         auto y = rect.top + app_height * mouse_event.y_ratio();
 
+        // 记录当前按下的鼠标键 / 最近一次坐标，用于客户端断开时补发释放事件
+        if (mouse_event.pressed()) {
+            pressed_mouse_buttons_.insert(mouse_event.button());
+        } else if (mouse_event.released()) {
+            pressed_mouse_buttons_.erase(mouse_event.button());
+        }
+        last_mouse_x_ = (int)x;
+        last_mouse_y_ = (int)y;
+
         auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(
             hwnd_ptr, (int)x, (int)y, mouse_event.button(), mouse_event.data(),
-            mouse_event.delta_x(), mouse_event.delta_y(), mouse_event.pressed(),
-            mouse_event.released());
+            mouse_event.pressed(), mouse_event.released());
         {
             static thread_local uint64_t s_n = 0;
             const auto n = ++s_n;
@@ -439,6 +479,13 @@ namespace tc {
                 LOGW("hook-inner key: no game HWND yet, drop n={}", s_n);
             }
             return;
+        }
+
+        // 记录当前按下的键，用于客户端断开时补发释放事件
+        if (key_event.down()) {
+            pressed_keys_.insert(key_event.key_code());
+        } else {
+            pressed_keys_.erase(key_event.key_code());
         }
 
         auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(

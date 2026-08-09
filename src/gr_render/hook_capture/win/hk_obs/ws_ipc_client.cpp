@@ -108,6 +108,15 @@ namespace tc
             memcpy(kem.get(), msg.data(), msg.size());
             ipc_cbk_(kem);
         }
+        else if (base_msg->type_ == kCaptureResetInputMessage) {
+            if (msg.size() != sizeof(CaptureResetInputMessage)) {
+                LOGE("msg size != sizeof(CaptureResetInputMessage), msg size: {}", msg.size());
+                return;
+            }
+            auto rim = std::make_shared<CaptureResetInputMessage>();
+            memcpy(rim.get(), msg.data(), msg.size());
+            ipc_cbk_(rim);
+        }
     }
 
 }

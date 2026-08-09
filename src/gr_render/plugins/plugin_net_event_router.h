@@ -8,6 +8,7 @@
 #include <string>
 #include <memory>
 #include <string_view>
+#include <set>
 #include "gr_render/plugin_interface/gr_plugin_events.h"
 
 namespace tc
@@ -83,6 +84,12 @@ namespace tc
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
+
+        // hook 模式：跟踪按下的键/鼠标键，客户端断开时补发释放事件
+        std::set<uint32_t> pressed_keys_;
+        std::set<int32_t> pressed_mouse_buttons_;
+        int last_mouse_x_ = 0;
+        int last_mouse_y_ = 0;
     };
 }
 

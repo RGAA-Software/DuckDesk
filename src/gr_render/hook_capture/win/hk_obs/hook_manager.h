@@ -54,6 +54,8 @@ namespace tc
                 PUINT pcbSize,
                 UINT cbSizeHeader);
         BOOL ProcessHookedGetCursorPos(LPPOINT lpPoint);
+        // 游戏主动 SetCursorPos（视角居中/锁定）时同步内部伪造光标
+        void OnGameSetCursorPos(int x, int y);
 
         // Virtual modifier / caps state for background hook-inner input (streamer parity).
         SHORT ProcessHookedGetKeyState(int vKey) const;
@@ -77,6 +79,17 @@ namespace tc
     private:
         void GenerateMouseEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
         void GenerateKeyboardEvent(const std::shared_ptr<CaptureBaseMessage>& msg);
+        // 客户端新连接：清积压事件 + 重置差分基准/修饰键状态
+        void ResetInputState();
+
+        // 向游戏窗口断言焦点（节流 500ms）。游戏窗口可能因真实焦点变化、
+        // 全屏/窗口化切换收到 OS 发来的 WM_KILLFOCUS，之后 Unity/UE 会忽略
+        // 注入的输入；只在首次事件断言一次不可靠，需要在事件流中持续重新断言。
+        void AssertGameFocus(HWND hwnd);
+        // 兜底：子类化游戏窗口 WndProc，直接吞掉 OS 发来的失焦消息
+        // (WM_KILLFOCUS / WM_ACTIVATE(WA_INACTIVE) / WM_ACTIVATEAPP(FALSE)),
+        // 让游戏永远不知道自己失焦。窗口重建(hwnd 变化)时自动重新子类化。
+        void EnsureGameWindowSubclassed(HWND hwnd);
         void FocusSpoofWatcherMain();
         void UpdateModifierState(uint32_t key, bool down, uint32_t caps_lock_state);
         [[nodiscard]] HWND ResolveInputHwnd(uint64_t hwnd_from_msg) const;
@@ -107,6 +120,15 @@ namespace tc
         std::atomic_bool menu_pressed_{false};
         std::atomic<SHORT> caps_lock_status_{0};
         bool raw_input_first_invoke_{true};
+
+        // RawInput 合成：上一次的绝对坐标，用于差分出相对位移
+        // （客户端只发比例，render 换算成屏幕绝对坐标，这里相邻两次差分）
+        POINT last_raw_cursor_{};
+        bool last_raw_cursor_valid_{false};
+
+        // 最近一次向游戏窗口断言焦点(WM_ACTIVATEAPP/WM_SETFOCUS)的时间(GetTickCount64 ms)。
+        // 0 表示需要立即重新断言（首次事件 / ResetInputState 后）。
+        std::atomic<int64_t> last_focus_assert_ms_{0};
     };
 
     static GetRawInputBuffer_t origin_GetRawInputBuffer_;
@@ -126,6 +148,7 @@ namespace tc
     static GetFocus_t origin_GetFocus_;
     static WindowFromPoint_t origin_WindowFromPoint_;
     static ClipCursor_t origin_ClipCursor_;
+    static GetSystemMetrics_t origin_GetSystemMetrics_;
 }
 
 #endif //TC_APPLICATION_HOOK_MANAGER_H

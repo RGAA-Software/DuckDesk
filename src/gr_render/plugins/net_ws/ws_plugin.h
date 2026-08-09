@@ -64,6 +64,8 @@ namespace tc
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
         std::mutex capturing_mon_mtx_;
         std::string capturing_mon_name_;
+        // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings 单例是独立副本不可用
+        bool game_hook_mode_ = false;
     };
 
 }

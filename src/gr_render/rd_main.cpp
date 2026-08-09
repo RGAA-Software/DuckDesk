@@ -247,6 +247,11 @@ bool CanWeRun(const std::wstring& lock_path) {
 }
 
 int main(int argc, char** argv) {
+    // hook 模式下 render 需要按游戏窗口真实物理像素换算鼠标坐标；
+    // 不设 DPI aware 时 GetClientRect/ClientToScreen 会被系统虚拟化（如 4K@150% 下只有 2560x1440），
+    // 导致游戏内光标位置整体偏向左上角
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     // dump

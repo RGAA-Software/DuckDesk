@@ -123,7 +123,10 @@ namespace tc
                             {"relay_host", settings_->relay_host_},
                             {"relay_port", settings_->relay_port_},
                             {"language", (int64_t)settings_->language_},
-                            {"appkey", settings_->appkey_}
+                            {"appkey", settings_->appkey_},
+                            // 插件 DLL 内的 RdSettings::Instance() 是独立副本(header 内 static),
+                            // 模式必须由 exe 侧显式下发
+                            {"app_mode", std::string(settings_->IsGameHookMode() ? "game-hook" : "desktop")}
                         },
                     };
 

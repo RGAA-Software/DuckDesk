@@ -66,6 +66,7 @@ typedef HRESULT (*DirectInput8Create_t)(
 
 typedef HWND (WINAPI* WindowFromPoint_t)(_In_ POINT Point);
 typedef BOOL (WINAPI* ClipCursor_t)(_In_opt_ CONST RECT *lpRect);
+typedef int (WINAPI* GetSystemMetrics_t)(int nIndex);
 
 // hook api
 
