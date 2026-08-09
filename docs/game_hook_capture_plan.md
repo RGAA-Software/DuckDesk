@@ -270,3 +270,36 @@ UE Bootstrap 约定：外壳 exe 的 `RT_RCDATA` 资源 **201 = 真 exe 相对�
 
 - 同名多实例游戏按完整路径匹配后取第一个注入（与单实例假设一致）。
 - 非 UE 外壳（无 201 资源）不做启发式 view 发现——有需求时再迁移 dolit 的通用 boot/view 状态机。
+
+## 11. 事件重放与焦点保持（2026-08-09/10）
+
+### 11.1 输入链路
+
+Web 客户端 datachannel 鼠标/键盘事件（`x_ratio`/`y_ratio`）→ render `plugin_net_event_router` 按游戏窗口实时 rect 换算成屏幕绝对坐标 → /ipc → DLL `hook_manager` 两路注入：
+
+- **WM 消息路**：`WM_MOUSEMOVE`/按钮/键盘 + `WM_INPUT` 触发游戏消息泵读取；
+- **RawInput 路**：`GetRawInputData` hook，用相邻两次绝对坐标差分合成相对位移（Unity/UE 视角转动读这个）。
+
+### 11.2 修复清单
+
+1. **DPI 感知**：`rd_main` 首行 `SetProcessDpiAwarenessContext(PerMonitorV2)`。非 aware 时 4K@150% 下窗口 rect 被虚拟化成 2560x1440，游戏按物理 3840x2160 解释，光标整体偏左上约 2/3。
+2. **RawInput 差分 + 纯移动合并**：游戏消费慢于事件到达时，连续纯移动事件合并取最新（中间位置可丢、相对总量不变），治"开始无响应 + 拖动卡顿"。删除 `MouseEventMessage` 的 `delta_x_/delta_y_/absolute_` 字段（客户端只发比例，字段无人赋值，纯误导）。
+3. **连接重置**：`kCaptureResetInputMessage`(0x0007)。新客户端连接时 DLL 清积压队列、重置差分基准与修饰键状态；治"上一会话残留导致开局大跳变/几秒无响应"。
+4. **断连补发释放**：render 跟踪按下的键/鼠标键，客户端断开时补发全部 release，治游戏内按键卡死。
+5. **首连 15s 输入延迟**：Web 端 `initInput` 会轮询 `/get/render/configuration` 的 `monitor_name`（桌面模式按它定位回放坐标系，首帧编码前为空，最多等 15s）。hook 模式按游戏窗口 rect 换算根本不需要它——ws 插件在 game-hook 模式直接返回占位名 `game_hook`。⚠️ 坑：`RdSettings::Instance()` 是头文件内 static，插件 DLL 拿到的是**独立副本单例**（默认值 desktop），模式必须由 exe 经插件创建参数 `app_mode` 显式下发。
+6. **`SetCursorPos` hook**：游戏主动居中/锁定光标时只同步内部伪造光标、不动物理光标（UE/Unity 视角模式）。
+7. **`GetSystemMetrics(SM_REMOTESESSION)=0`**：伪装本地会话，避免游戏在远程会话下禁用功能。
+8. **焦点保持（双保险）**：
+   - `AssertGameFocus`：输入事件流中 500ms 节流补发 `WM_ACTIVATE(WA_ACTIVE)` + `WM_ACTIVATEAPP(TRUE)` + `WM_SETFOCUS`，新连接强制立即重断言。参考 streamer 实战：UE4 高频 `WM_ACTIVATE` 会卡按钮（用 `WM_ACTIVATEAPP`），Unity 失焦恢复需要窗口级 `WM_ACTIVATE`（streamer 对 Unity 用 100/300ms 定时器）。
+   - `FocusGuard`：子类化游戏窗口 `WndProc`，直接吞掉 OS 真实失焦消息 `WM_KILLFOCUS` / `WM_ACTIVATE(WA_INACTIVE)` / `WM_ACTIVATEAPP(FALSE)`，游戏永远不知道自己失焦。`WH_CALLWNDPROC` 只能观察不能拦截，必须替换 `WndProc`；窗口重建（hwnd 变化）时自动重新子类化。
+
+### 11.3 验证
+
+- 无头：`RENDER_PORT=32101 DEVICE_ID=e2e-machine-1 node scripts/cdp_game_hook_input.mjs`（走页面 `__input.testSend` 真实发送链路；注意 render 同时只服务一个客户端，用户浏览器占线时无头会连不上）。
+- 戴森球（Unity，32101）实测：4K@150% 全屏 ↔ 窗口化切换、宿主机切走焦点再回来，输入均保持有效；DLL 日志 `FocusGuard: swallowed` 确认三类失焦消息全被吞掉。
+
+### 11.4 已知限制 / 待办
+
+- 纯移动合并只在 RawInput 路生效，WM 消息路仍逐条投递（游戏消息泵自身有合并）。
+- CMS reconcile 曾误判存活实例"心跳缺失"并回收（service 侧 `reap_dead_app_instances` 按端口单次探测，疑似瞬态失败），未复现未修；service 目前 `--console` 无文件日志，再发需先补日志。
+- 停止实例偶发报 `render still alive after kill`（实际进程已死），停止流程的存活检查逻辑有误。

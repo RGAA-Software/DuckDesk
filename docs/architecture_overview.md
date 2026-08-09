@@ -86,7 +86,7 @@ CMS Web「启动」→ CMS manager 按 (app_id, device_id) 找 placement
 
 ## 7. 专题文档索引
 
-- game-hook 采集/注入总纲：`game_hook_capture_plan.md`（含 §10 UE boot/view）
+- game-hook 采集/注入总纲：`game_hook_capture_plan.md`（含 §10 UE boot/view、§11 事件重放与焦点保持）
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - CMS 调度状态与测试：`cms_app_schedule_plan.md`、`cms_app_schedule_state.md`
 - 构建/部署：`../build_doc.md`、`gammaray/How_to_*.md`
