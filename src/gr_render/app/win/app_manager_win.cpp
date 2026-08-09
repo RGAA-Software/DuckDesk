@@ -486,6 +486,28 @@ namespace tc
 
         auto processes = ProcessHelper::GetProcessList(false);
         ProcessInfoPtr target_process_info = nullptr;
+
+        // UE boot/view：外壳（target_pid_）只是启动器，注入目标是 view 真游戏
+        // 进程——按 service 解析下发的完整路径精确匹配。view 尚未出现时返回
+        // false（不算注入失败，worker 走低频等待，外壳初始化完成后下一轮命中）。
+        const std::string& view_path = settings_->app_.game_view_path_;
+        if (!view_path.empty()) {
+            auto norm_view = StringUtil::ToLowerCpy(view_path);
+            StringUtil::Replace(norm_view, "/", "\\");
+            for (const auto& process : processes) {
+                auto norm_exe = StringUtil::ToLowerCpy(process->exe_full_path_);
+                StringUtil::Replace(norm_exe, "/", "\\");
+                if (norm_exe == norm_view) {
+                    target_process_info = process;
+                    break;
+                }
+            }
+            if (!target_process_info || !target_process_info->Valid()) {
+                return false;
+            }
+            LOGI("UE view process found: pid={}, exe={}",
+                 target_process_info->pid_, target_process_info->exe_full_path_);
+        } else {
         for (const auto& process : processes) {
             if (process->pid_ == target_pid_) {
                 target_process_info = process;
@@ -516,6 +538,7 @@ namespace tc
                 return false;
             }
             target_pid_ = pid_by_exe;
+        }
         }
 
         if (settings_->capture_.capture_video_type_ == Capture::kCaptureScreen) {

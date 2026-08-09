@@ -95,6 +95,9 @@ namespace tc
     public:
         std::string game_path_{};
         std::string game_arguments_{};
+        // UE boot/view：真游戏(view)进程完整路径，由 service 解析外壳资源下发；
+        // 非空时注入目标是该路径的进程而不是 game_path_ 拉起的外壳进程。
+        std::string game_view_path_{};
         bool hide_after_started_{};
         bool force_fullscreen_{};
         InjectMethod inject_method_{kEasyHook};

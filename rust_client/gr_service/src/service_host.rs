@@ -240,9 +240,10 @@ impl ServiceRuntime {
         let port = record.listen_port;
         let launch = record.launch.clone();
         info!(
-            "start app instance {}, game={}, work_dir={}, port={}, args={:?}",
+            "start app instance {}, game={}, view={:?}, work_dir={}, port={}, args={:?}",
             instance_id,
             game_path.display(),
+            record.view_game_path,
             launch.work_dir,
             port,
             launch.args
@@ -298,6 +299,10 @@ impl ServiceRuntime {
         if let Err(err) = guard.app_registry.mark_running(&instance_id, pid) {
             // 等待期间并发 Stop 已终结该实例:杀掉刚拉起的进程树,避免孤儿。
             warn!("start app instance {instance_id}: {err}; killing spawned tree");
+            let view_path = guard
+                .app_registry
+                .get(&instance_id)
+                .and_then(|r| r.view_game_path.clone());
             drop(guard);
             kill_process_tree(&process_manager, pid);
             let processes = process_manager.list_processes().unwrap_or_default();
@@ -305,6 +310,15 @@ impl ServiceRuntime {
                 service_core::process::find_pids_for_game_exe(&processes, &game_path_str)
             {
                 let _ = process_manager.kill_process(game_pid);
+            }
+            // UE view 进程同样兜底清理。
+            if let Some(view_path) = view_path {
+                for view_pid in service_core::process::find_pids_for_game_exe(
+                    &processes,
+                    &view_path.to_string_lossy(),
+                ) {
+                    let _ = process_manager.kill_process(view_pid);
+                }
             }
             return Err(err);
         }
@@ -459,6 +473,18 @@ impl ServiceRuntime {
             for pid in service_core::process::find_pids_for_game_exe(
                 &processes,
                 &gp.to_string_lossy(),
+            ) {
+                if !kill_pids.contains(&pid) {
+                    kill_pids.push(pid);
+                }
+            }
+        }
+        // UE boot/view：外壳可能拉起真游戏后先行退出，boot 树杀不到已成孤儿的
+        // view 进程，按 view 路径补杀。
+        if let Some(view_path) = rec.view_game_path.as_ref() {
+            for pid in service_core::process::find_pids_for_game_exe(
+                &processes,
+                &view_path.to_string_lossy(),
             ) {
                 if !kill_pids.contains(&pid) {
                     kill_pids.push(pid);

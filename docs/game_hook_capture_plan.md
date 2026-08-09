@@ -237,3 +237,36 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 ### 9.4 注入重试策略调整（2026-08-08）
 
 - 保留独立 worker 线程，但**去掉指数退避与 60 次上限**：失败后固定 100ms 重试、永不放弃（尽快出画面优先）；失败日志节流（第 1 次及每 100 次一条）。gave_up 仅剩 32 位拒绝场景（仍由 9.2 的复活探测覆盖）。
+
+---
+
+## 10. UE 启动器/真游戏分离：boot/view 双路径（2026-08-09）
+
+### 10.1 问题
+
+UE 打包游戏顶层 exe 是 bootstrap 外壳（如 `VehicleGame.exe`），真正渲染进程是 `Binaries\Win64\XXX-Win64-Shipping.exe`。配外壳路径时注入外壳（无 swapchain）永远无画面、音频绑错进程、`wait_game_process` 假通过。
+
+### 10.2 方案（迁移 dolit/streamer 的 boot/view 双路径）
+
+UE Bootstrap 约定：外壳 exe 的 `RT_RCDATA` 资源 **201 = 真 exe 相对路径、202 = 基础参数**（参考 `D:\dolit\streamer\src\common\ue_resource_parser.cc`）。资源给出精确 view 路径，无需 dolit 的窗口/后代启发式猜测。
+
+- **service 层解析**（`service_core/ue_bootstrap.rs`）：`LoadLibraryExW(LOAD_LIBRARY_AS_DATAFILE | DONT_RESOLVE_DLL_REFERENCES)` 读资源（不执行目标代码）；路径 canonicalize 后剥掉 Windows `\\?\` verbatim 前缀（否则与 `QueryFullProcessImageNameW` 比较必失败）；`is_file()` 校验，失败/非 UE 一律回退单路径现状。
+- **外壳照常启动**：CMS 配置不变（填外壳或内层 exe 均可）；service 的拉起/`wait_game_process`/监控都还在 boot 上。
+- **下发 view 路径**：launch spec 追加 `--app_game_view_path=Base64(view 绝对路径)`；实例记录 `view_game_path`。
+- **render 注入 view**：`InjectCaptureDllForNormalApp` 在 view 路径非空时按完整路径精确匹配（UTF-8、忽略大小写与分隔符）发现 view 进程；未出现返回 `attempted=false` 走低频等待（外壳初始化完下一轮命中）；boot 文件本来就是每次注入前按目标 pid 写（`app_manager_win.cpp:542`），view pid 天然正确；`MsgObsInjected.pid_` = view pid → 音频 PID loopback 自动绑对。
+- **停止**：杀 boot 树 + 按 view 路径补杀（覆盖外壳拉起真游戏后先退出的孤儿场景）。
+- **不合并 202 参数**：boot 外壳自己会读 201/202 并透传命令行给 view 子进程，202 的 base_args 并入我们传给 boot 的参数会导致项目名重复。
+
+### 10.3 顺手修复
+
+- service 发的游戏参数 flag `--app_game_arguments` 改为 `--app_game_args`（render gflags 只认后者；严格解析下配参数 render 起不来）。service 侧 `escape_arg` 会引号包裹含空格的参数，gflags 能整串接收。
+
+### 10.4 验证
+
+- 单测：`service_core` 57/57（含 UE 资源解析、view 参数透传、`\\?\` 剥离）；`UE_BOOT_EXE=<外壳路径> cargo test -p service_core real_ue -- --ignored` 可对真实游戏做集成验证。
+- E2E（2026-08-09）：CMS 配外壳路径 `D:\1_test_games\CarGame  汽车\VehicleGame.exe` 启动 → render 日志 `UE view process found` + `Inject success`（pid 为 `VehicleGame-Win64-Shipping.exe`）→ 无头 `PASS mode=pid-loopback heard=true`（视频 62fps）→ CMS 停止后 boot/view/render 全部清理。
+
+### 10.5 已知限制
+
+- 同名多实例游戏按完整路径匹配后取第一个注入（与单实例假设一致）。
+- 非 UE 外壳（无 201 资源）不做启发式 view 发现——有需求时再迁移 dolit 的通用 boot/view 状态机。

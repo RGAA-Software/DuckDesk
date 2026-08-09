@@ -53,6 +53,8 @@ DEFINE_string(capture_audio_device, "", "capture audio device");
 // application
 // --app_game_path is Base64(UTF-8 path) to avoid Windows argv code-page issues (spaces/Chinese).
 DEFINE_string(app_game_path, "", "Base64-encoded UTF-8 game path");
+// --app_game_view_path: Base64(UTF-8)，UE 外壳场景的真游戏进程完整路径（service 解析下发）
+DEFINE_string(app_game_view_path, "", "Base64-encoded UTF-8 UE view (real game) exe path");
 DEFINE_string(app_game_args, "", "");
 
 DEFINE_bool(debug_block, false, "block the render process");
@@ -135,6 +137,9 @@ void UpdateSettings(RdSettings* settings) {
     // app: path arrives as Base64(UTF-8); decode with existing Base64 helper (no ACP convert).
     if (!FLAGS_app_game_path.empty()) {
         settings->app_.game_path_ = Base64::Base64Decode(FLAGS_app_game_path);
+    }
+    if (!FLAGS_app_game_view_path.empty()) {
+        settings->app_.game_view_path_ = Base64::Base64Decode(FLAGS_app_game_view_path);
     }
     if (!FLAGS_app_game_args.empty()) {
         settings->app_.game_arguments_ = FLAGS_app_game_args;

@@ -4,6 +4,7 @@
 use crate::config::RENDER_EXE_NAME;
 use crate::process::ProcessSnapshot;
 use crate::state::RenderLaunchSpec;
+use crate::ue_bootstrap::UeViewInfo;
 use gr_base::crypto_util::base64_encode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -58,6 +59,9 @@ pub struct AppInstanceRecord {
     pub state: AppInstanceState,
     pub error: String,
     pub launch: RenderLaunchSpec,
+    /// UE bootstrap 解析出的真游戏(view)进程路径；None 表示非 UE 外壳，
+    /// boot 即 view（注入目标就是启动的游戏进程本身）。
+    pub view_game_path: Option<PathBuf>,
     /// Set when the instance reaches stopped/failed; used by prune_finished.
     pub finished_at: Option<Instant>,
 }
@@ -115,11 +119,14 @@ pub fn encode_game_path_b64(game_path: &Path) -> String {
 }
 
 /// Build GammaRayRender launch spec for a game-hook app instance.
+/// `game_path` is the boot exe (launched normally); when `view` is set the
+/// render discovers and injects that real game process instead of the boot.
 pub fn build_game_hook_launch_spec(
     work_dir: impl Into<String>,
     req: &StartAppRequest,
     listen_port: u16,
     game_path: &Path,
+    view: Option<&UeViewInfo>,
 ) -> RenderLaunchSpec {
     let work_dir = work_dir.into();
     let app_path = PathBuf::from(&work_dir).join(RENDER_EXE_NAME);
@@ -154,9 +161,14 @@ pub fn build_game_hook_launch_spec(
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
     ];
+    if let Some(v) = view {
+        args.push(format!(
+            "--app_game_view_path={}",
+            encode_game_path_b64(&v.view_path)
+        ));
+    }
     if !req.game_arguments.trim().is_empty() {
-        // Passed through settings/CLI if render supports it later; keep as opaque marker for now.
-        args.push(format!("--app_game_arguments={}", req.game_arguments.trim()));
+        args.push(format!("--app_game_args={}", req.game_arguments.trim()));
     }
     RenderLaunchSpec {
         work_dir,
@@ -349,8 +361,12 @@ impl AppInstanceRegistry {
             }
         }
         let game_path = resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+        // UE bootstrap 外壳：解析真游戏(view)进程路径，render 注入它以代替外壳。
+        // 注意：boot 外壳自己也会读 201/202 并把命令行透传给 view 子进程，
+        // 所以 202 的 base_args 不并入我们传给 boot 的参数（避免项目名重复）。
+        let view = crate::ue_bootstrap::resolve_ue_bootstrap(&game_path);
         let port = self.allocate_port(req.listen_port)?;
-        let launch = build_game_hook_launch_spec(work_dir, &req, port, &game_path);
+        let launch = build_game_hook_launch_spec(work_dir, &req, port, &game_path, view.as_ref());
         self.used_ports.insert(port, req.instance_id.clone());
         let record = AppInstanceRecord {
             request_id: req.request_id.clone(),
@@ -363,6 +379,7 @@ impl AppInstanceRegistry {
             state: AppInstanceState::Starting,
             error: String::new(),
             launch,
+            view_game_path: view.map(|v| v.view_path),
             finished_at: None,
         };
         self.instances.insert(req.instance_id.clone(), record);
@@ -530,7 +547,7 @@ mod tests {
     fn launch_spec_is_game_hook_with_b64_path_and_port() {
         let req = sample_req("i1", 32010);
         let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
-        let spec = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game);
+        let spec = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, None);
         assert!(is_game_hook_launch(&spec));
         assert!(spec.app_path.ends_with(RENDER_EXE_NAME));
         assert_eq!(extract_listen_port(&spec.args), Some(32010));
@@ -543,6 +560,50 @@ mod tests {
         let decoded = gr_base::crypto_util::base64_decode(b64).unwrap();
         assert!(decoded.contains("VehicleGame"));
         assert!(spec.args.iter().any(|a| a == "--capture_video_type=inner"));
+    }
+
+    #[test]
+    fn launch_spec_carries_view_path_and_game_args() {
+        let req = sample_req("i1", 32010);
+        let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
+        let view = UeViewInfo {
+            view_path: game.clone(),
+            base_args: None,
+        };
+        let spec = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, Some(&view));
+        // view path is passed base64-encoded like the boot path.
+        let view_arg = spec
+            .args
+            .iter()
+            .find(|a| a.starts_with("--app_game_view_path="))
+            .expect("view path arg");
+        let b64 = view_arg.strip_prefix("--app_game_view_path=").unwrap();
+        let decoded = gr_base::crypto_util::base64_decode(b64).unwrap();
+        assert!(decoded.contains("VehicleGame"));
+        // game args flag must match render's gflags name (app_game_args).
+        assert!(spec.args.iter().any(|a| a == "--app_game_args=-dx11"));
+        assert!(!spec.args.iter().any(|a| a.starts_with("--app_game_arguments")));
+        // Without a view, no view arg is emitted.
+        let spec_no_view = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, None);
+        assert!(!spec_no_view
+            .args
+            .iter()
+            .any(|a| a.starts_with("--app_game_view_path=")));
+    }
+
+    #[test]
+    fn non_ue_launch_args_pass_through_unchanged() {
+        // sample_req 的 exe 不存在，resolve_ue_bootstrap 返回 None：
+        // 验证 begin_start 在非 UE 路径下参数原样传递、无 view 路径。
+        let mut reg = AppInstanceRegistry::new();
+        let req = sample_req("ue", 32800);
+        let rec = reg.begin_start(r"D:\GoDesk", req).unwrap();
+        assert!(rec
+            .launch
+            .args
+            .iter()
+            .any(|a| a == "--app_game_args=-dx11"));
+        assert!(rec.view_game_path.is_none());
     }
 
     #[test]
