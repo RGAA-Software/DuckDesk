@@ -675,7 +675,7 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                     guard.state.reset_restart_backoff();
                 }
                 // 进程存活但应用层心跳超时 = render 主循环 hang,进程级检查
-                // 发现不了。杀掉后走下方既有重启逻辑(含 backoff)。
+                // 发现不了。杀掉后走下方既有重启逻辑(固定间隔重试)。
                 if guard.state.render_hung() {
                     let pid = guard.state.desktop_pid;
                     warn!("desktop render heartbeat expired, killing hung render, pid={pid:?}");
@@ -685,13 +685,13 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                         }
                     }
                     let _ = guard.sync_process_state();
-                    // 复用 restart backoff,避免 kill/restart 连环抖动
+                    // 复用 restart 冷却,避免 kill/restart 连环抖动
                     guard.state.note_restart_failure();
                 }
                 if guard.state.should_restart_desktop() {
                     if let Some(spec) = guard.state.last_desktop_launch.clone() {
                         if let Some(remaining) = guard.state.restart_backoff_remaining() {
-                            info!("desktop restart backoff active, remaining={remaining:?}");
+                            info!("desktop restart cooldown active, remaining={remaining:?}");
                         } else {
                             warn!("desktop render missing, restarting");
                             if let Err(err) = guard.start_desktop(spec) {
@@ -703,7 +703,7 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
                 } else if guard.state.should_restart_user_proxy() {
                     if let Some(spec) = guard.state.last_desktop_launch.clone() {
                         if let Some(remaining) = guard.state.restart_backoff_remaining() {
-                            info!("user proxy restart backoff active, remaining={remaining:?}");
+                            info!("user proxy restart cooldown active, remaining={remaining:?}");
                         } else {
                             warn!("user proxy missing while render alive, restarting");
                             if let Err(err) = guard.start_user_proxy(&spec) {

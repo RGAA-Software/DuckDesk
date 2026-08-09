@@ -32,7 +32,6 @@ namespace tc
     constexpr auto kX86DllName = "";
     constexpr auto kX64DllName = "tc_graphics.dll";
 
-    // 注入重试策略：100ms 起步指数退避到 5s，最多 60 次后放弃
     // 注入失败固定重试间隔（不指数退避、不设次数上限，尽快出画面）
     constexpr int kInjectRetryIntervalMs = 100;
     // injected_ 置位后周期性存活检查：连续 3 次失败才重置（避免误伤偶发检测失败）
@@ -59,7 +58,7 @@ namespace tc
         steam_game_ = std::make_shared<SteamGame>(context_);
         //steam_game_->RequestSteamGames();
 
-        // 注入流程跑在独立 worker 线程（内部自带退避/存活检查），消息线程只投递请求
+        // 注入流程跑在独立 worker 线程（内部自带固定间隔重试/存活检查），消息线程只投递请求
         inject_worker_ = std::make_shared<std::thread>([=, this]() {
             this->InjectWorkerLoop();
         });

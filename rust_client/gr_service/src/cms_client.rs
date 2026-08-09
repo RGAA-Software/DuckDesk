@@ -32,8 +32,7 @@ type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteM
 
 const CONNECT_TIMEOUT_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 2;
-const RECONNECT_MAX_DELAY_SECS: u64 = 30;
-const HEARTBEAT_INTERVAL_SECS: u64 = 5;
+const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 
 /// WSS client loop towards the CMS (gr_cms_server) `/spvr/service` endpoint.
@@ -49,7 +48,6 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
     };
     let sender: Arc<Mutex<Option<WsSink>>> = Arc::new(Mutex::new(None));
     let mut hb_index: i64 = 0;
-    let mut reconnect_delay = RECONNECT_DELAY_SECS;
 
     loop {
         // wait until the panel has delivered the authorization info
@@ -89,14 +87,12 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             }
             Ok(Err(err)) => {
                 error!("connect to cms {endpoint} failed: {err}");
-                sleep(Duration::from_secs(reconnect_delay)).await;
-                reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
+                sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
                 continue;
             }
             Err(_) => {
                 error!("connect to cms {endpoint} timed out");
-                sleep(Duration::from_secs(reconnect_delay)).await;
-                reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
+                sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
                 continue;
             }
         };
@@ -108,12 +104,9 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         let hello = encode_message(&hello_message(&auth_info.device_id, &auth_info.appkey));
         if !send_frame(&sender, hello).await {
             warn!("send hello to cms failed, reconnecting");
-            sleep(Duration::from_secs(reconnect_delay)).await;
-            reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
+            sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
             continue;
         }
-        // Connected and greeted: reset the reconnect backoff.
-        reconnect_delay = RECONNECT_DELAY_SECS;
 
         // heartbeat task: reports render liveness + the latest auth info as JSON
         let hb_sender = sender.clone();
@@ -222,8 +215,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             "will reconnect to cms, sender strong_count={}",
             Arc::strong_count(&sender)
         );
-        sleep(Duration::from_secs(reconnect_delay)).await;
-        reconnect_delay = (reconnect_delay * 2).min(RECONNECT_MAX_DELAY_SECS);
+        sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
     }
 }
 

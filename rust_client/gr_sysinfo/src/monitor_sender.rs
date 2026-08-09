@@ -1,4 +1,3 @@
-use std::cmp;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -102,8 +101,8 @@ fn spawn_sender_thread(
             let mut active_revision = 0_u64;
             let mut target = String::new();
             let mut ws = None;
-            let mut reconnect_delay = Duration::from_secs(1);
-            const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(30);
+            // Fixed retry interval: no exponential backoff, keep retrying forever.
+            const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
             loop {
                 let desired_snapshot = desired.lock().map(|value| value.clone()).unwrap_or_default();
@@ -113,7 +112,6 @@ fn spawn_sender_thread(
                 if !desired_snapshot.enabled {
                     ws = None;
                     active_revision = desired_snapshot.revision;
-                    reconnect_delay = Duration::from_secs(1);
                     update_status(&status, false, current_target, "Idle", "");
                     sleep(Duration::from_millis(300)).await;
                     continue;
@@ -130,7 +128,6 @@ fn spawn_sender_thread(
                     match timeout(Duration::from_secs(5), connect_async(&current_target)).await {
                         Ok(Ok((stream, _))) => {
                             ws = Some(stream);
-                            reconnect_delay = Duration::from_secs(1);
                             update_status(&status, true, current_target, "Connected", "");
                             tracing::info!(
                                 "monitor sender connected to {}",
@@ -149,12 +146,10 @@ fn spawn_sender_thread(
                             tracing::warn!(
                                 "monitor sender connect failed: {}, retry in {:?}, target={}",
                                 err_str,
-                                reconnect_delay,
+                                RECONNECT_DELAY,
                                 current_target
                             );
-                            sleep(reconnect_delay).await;
-                            reconnect_delay =
-                                cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                            sleep(RECONNECT_DELAY).await;
                             continue;
                         }
                         Err(_) => {
@@ -167,12 +162,10 @@ fn spawn_sender_thread(
                             );
                             tracing::warn!(
                                 "monitor sender connect timeout, retry in {:?}, target={}",
-                                reconnect_delay,
+                                RECONNECT_DELAY,
                                 current_target
                             );
-                            sleep(reconnect_delay).await;
-                            reconnect_delay =
-                                cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                            sleep(RECONNECT_DELAY).await;
                             continue;
                         }
                     }
@@ -216,8 +209,7 @@ fn spawn_sender_thread(
                         );
                         tracing::error!("monitor sender send failed: {}", err_str);
                         ws = None;
-                        sleep(reconnect_delay).await;
-                        reconnect_delay = cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                        sleep(RECONNECT_DELAY).await;
                         continue;
                     }
                     Err(_) => {
@@ -230,8 +222,7 @@ fn spawn_sender_thread(
                         );
                         tracing::error!("monitor sender send timeout (10s)");
                         ws = None;
-                        sleep(reconnect_delay).await;
-                        reconnect_delay = cmp::min(reconnect_delay * 2, MAX_RECONNECT_DELAY);
+                        sleep(RECONNECT_DELAY).await;
                         continue;
                     }
                 }

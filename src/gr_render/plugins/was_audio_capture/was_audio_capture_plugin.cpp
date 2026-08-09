@@ -9,7 +9,6 @@
 #endif
 #include <Windows.h>
 
-#include <algorithm>
 #include <chrono>
 
 #include "audio_capture.h"
@@ -24,10 +23,8 @@
 namespace tc
 {
     namespace {
-        // 致命错误自动重启：2s 起步指数退避到 30s，连续失败 5 次放弃
-        constexpr int kRestartDelayStartMs = 2000;
-        constexpr int kRestartDelayMaxMs = 30000;
-        constexpr int kRestartMaxConsecutiveFails = 5;
+        // 致命错误自动重启：固定 2s 间隔、无限重试（目标进程退出则放弃）
+        constexpr int kRestartDelayMs = 2000;
     }
 
     WasAudioCapturePlugin::~WasAudioCapturePlugin() {
@@ -89,7 +86,7 @@ namespace tc
         std::lock_guard lock(provide_mu_);
         loopback_process_id_ = pid;
         {
-            // pid 变更：取消挂起的自动重启并清零退避（新目标是全新会话）
+            // pid 变更：取消挂起的自动重启并清零重试状态（新目标是全新会话）
             std::lock_guard rst_lock(restart_mu_);
             ResetRestartStateLocked();
         }
@@ -116,7 +113,7 @@ namespace tc
         last_start_error_ = 0;
         if (!internal_restart_.load()) {
             // 外部 Start（流重连 / MsgObsInjected 等）：新会话，取消挂起的自动
-            // 重启并清零退避；worker 内部重启走 internal_restart_ 跳过此重置
+            // 重启并清零重试状态；worker 内部重启走 internal_restart_ 跳过此重置
             std::lock_guard rst_lock(restart_mu_);
             ResetRestartStateLocked();
         }
@@ -209,7 +206,7 @@ namespace tc
         std::lock_guard lock(provide_mu_);
         LOGI("[WasAudioCapturePlugin] StopProviding");
         {
-            // 主动停止（含 Render 退出路径）：取消挂起的自动重启并清零退避
+            // 主动停止（含 Render 退出路径）：取消挂起的自动重启并清零重试状态
             std::lock_guard rst_lock(restart_mu_);
             ResetRestartStateLocked();
         }
@@ -231,32 +228,21 @@ namespace tc
         if (restart_exit_) {
             return;
         }
-        if (ScheduleRestartLocked()) {
-            LOGW("[WasAudioCapturePlugin] capture fatal stop, pid={}, auto-restart #{} in {}ms",
-                 capture_pid, restart_fail_count_, restart_pending_delay_ms_);
-        } else {
-            LOGE("[WasAudioCapturePlugin] capture fatal stop, pid={}, give up after {} "
-                 "consecutive failures", capture_pid, kRestartMaxConsecutiveFails);
-        }
+        ScheduleRestartLocked();
+        LOGW("[WasAudioCapturePlugin] capture fatal stop, pid={}, auto-restart #{} in {}ms",
+             capture_pid, restart_fail_count_, restart_pending_delay_ms_);
     }
 
-    bool WasAudioCapturePlugin::ScheduleRestartLocked() {
+    void WasAudioCapturePlugin::ScheduleRestartLocked() {
         ++restart_fail_count_;
-        if (restart_fail_count_ > kRestartMaxConsecutiveFails) {
-            restart_pending_ = false;
-            return false;
-        }
         restart_pending_ = true;
-        restart_pending_delay_ms_ = restart_delay_ms_;
-        restart_delay_ms_ = (std::min)(restart_delay_ms_ * 2, kRestartDelayMaxMs);
+        restart_pending_delay_ms_ = kRestartDelayMs;
         restart_cv_.notify_all();
-        return true;
     }
 
     void WasAudioCapturePlugin::ResetRestartStateLocked() {
         restart_pending_ = false;
         restart_fail_count_ = 0;
-        restart_delay_ms_ = kRestartDelayStartMs;
         ++restart_generation_;
         restart_cv_.notify_all();
     }
@@ -312,15 +298,11 @@ namespace tc
             const int start_err = GetLastStartError();
             lock.lock();
             if (start_err != 0 && !restart_exit_) {
-                // Start 本身失败（如 activate 超时）也算一次失败，继续退避重试
-                if (ScheduleRestartLocked()) {
-                    LOGW("[WasAudioCapturePlugin] auto-restart Start failed err={}, pid={}, "
-                         "retry #{} in {}ms",
-                         start_err, pid, restart_fail_count_, restart_pending_delay_ms_);
-                } else {
-                    LOGE("[WasAudioCapturePlugin] auto-restart give up after {} consecutive "
-                         "failures, pid={}", kRestartMaxConsecutiveFails, pid);
-                }
+                // Start 本身失败（如 activate 超时）也算一次失败，继续固定间隔重试
+                ScheduleRestartLocked();
+                LOGW("[WasAudioCapturePlugin] auto-restart Start failed err={}, pid={}, "
+                     "retry #{} in {}ms",
+                     start_err, pid, restart_fail_count_, restart_pending_delay_ms_);
             }
         }
         LOGI("[WasAudioCapturePlugin] restart worker exit");

@@ -27,7 +27,8 @@ pub struct ServiceState {
     /// Last time a monitor-loop restart was attempted (shared by the desktop
     /// render and the user proxy restarts).
     pub last_restart_attempt: Option<std::time::Instant>,
-    /// Consecutive failed restart attempts, drives the exponential backoff.
+    /// Consecutive failed restart attempts (informational; the retry
+    /// interval is fixed, retries never stop).
     pub consecutive_restart_failures: u32,
     /// Latest authorization info pushed by the panel (via heartbeat or a
     /// standalone AuthInfo message); drives the CMS client connection.
@@ -117,8 +118,8 @@ impl ServiceState {
         !self.stop_requested && !self.desktop_alive && self.last_desktop_launch.is_some()
     }
 
-    /// Record a failed monitor-loop restart attempt; failures drive the
-    /// exponential backoff in `restart_backoff_remaining`.
+    /// Record a failed monitor-loop restart attempt. The retry interval is
+    /// fixed (no exponential backoff); the failure count is informational.
     pub fn note_restart_failure(&mut self) {
         self.last_restart_attempt = Some(std::time::Instant::now());
         self.consecutive_restart_failures = self.consecutive_restart_failures.saturating_add(1);
@@ -131,13 +132,12 @@ impl ServiceState {
     }
 
     /// Remaining cooldown before the next restart attempt is allowed.
-    /// Base 3s, doubled per consecutive failure, capped at 5 minutes.
+    /// Fixed 3s interval, never grows and never gives up (2026-08-08:
+    /// exponential backoff removed per product requirement).
     /// `None` means a restart may be attempted immediately.
     pub fn restart_backoff_remaining(&self) -> Option<std::time::Duration> {
         let last_attempt = self.last_restart_attempt?;
-        let shift = self.consecutive_restart_failures.min(7);
-        let delay = (std::time::Duration::from_secs(3) * 2u32.pow(shift))
-            .min(std::time::Duration::from_secs(300));
+        let delay = std::time::Duration::from_secs(3);
         let remaining = delay.saturating_sub(last_attempt.elapsed());
         if remaining.is_zero() {
             None
@@ -239,30 +239,30 @@ mod tests {
     }
 
     #[test]
-    fn restart_backoff_grows_with_consecutive_failures() {
+    fn restart_backoff_is_fixed_regardless_of_failures() {
         let mut state = ServiceState::default();
         assert!(state.restart_backoff_remaining().is_none());
-        state.note_restart_failure();
-        let first = state
+        for _ in 0..5 {
+            state.note_restart_failure();
+        }
+        let remaining = state
             .restart_backoff_remaining()
-            .expect("backoff after first failure");
-        state.note_restart_failure();
-        let second = state
-            .restart_backoff_remaining()
-            .expect("backoff after second failure");
+            .expect("cooldown after failures");
+        // Fixed 3s interval: never grows with the failure count.
         assert!(
-            second > first,
-            "backoff must grow with failures: {first:?} -> {second:?}"
+            remaining <= std::time::Duration::from_secs(3),
+            "retry interval must stay fixed: {remaining:?}"
         );
+        assert!(!remaining.is_zero());
     }
 
     #[test]
-    fn restart_backoff_is_capped_at_five_minutes() {
+    fn restart_backoff_never_caps_or_gives_up() {
         let mut state = ServiceState::default();
         state.consecutive_restart_failures = 30;
         state.last_restart_attempt = Some(std::time::Instant::now());
-        let remaining = state.restart_backoff_remaining().expect("backoff");
-        assert!(remaining <= std::time::Duration::from_secs(300));
+        let remaining = state.restart_backoff_remaining().expect("cooldown");
+        assert!(remaining <= std::time::Duration::from_secs(3));
     }
 
     #[test]

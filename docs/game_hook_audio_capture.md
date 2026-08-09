@@ -406,10 +406,19 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 ### 13.5 第二轮追加（2026-08-08）
 
 1. 注入前已建 WASAPI render client 格式兜底：probe mix format 按 render client vtable 缓存（`g_probe_fmt_by_vtbl`），`Hook_ReleaseBuffer` 查不到 per-client 格式时按 vtable 兜底（`probe_fmt` 计数可观测），不再整局丢帧。
-2. PID 采集致命错误有界自动重启：`IsFatalStop()` 区分致命退出与主动 Stop；重启 worker 延迟 2s 退避至 30s、连续失败 5 次放弃；目标 pid 已退出直接放弃；StopProviding/pid 变更取消挂起重启（generation 防竞态）。
+2. PID 采集致命错误自动重启：`IsFatalStop()` 区分致命退出与主动 Stop；重启 worker 固定 2s 间隔、无限重试（13.7 起取消 2s→30s 退避与 5 次上限）；目标 pid 已退出直接放弃；StopProviding/pid 变更取消挂起重启（generation 防竞态）。
 3. /ipc token 鉴权 + boot ACL（校验与管道均已移除）：见 `game_hook_capture_plan.md` §9.1 / §9.3。
 4. 验证：pid-loopback 与 hook 两种模式无头均 PASS heard=true。
 
 ### 13.6 注入重试策略调整（2026-08-08）
 
 - 13.3 第 1 条中的「指数退避 100ms→5s、60 次上限」已按需求回退：失败后固定 100ms 重试、不设上限（尽快出画面优先），日志节流；worker 线程方案保留。gave_up 仅剩 32 位拒绝场景。
+
+### 13.7 全项目取消指数退避（2026-08-08）
+
+按需求「不要任何指数回退重试，一直重试即可」，统一为固定间隔无限重试：
+
+1. Service ↔ CMS 重连：固定 2s（原 2s→30s 指数退避）；心跳 5s→3s（`cms_client.rs`）。
+2. 桌面 render / user_proxy 重启冷却：固定 3s（原 3s 起步翻倍、封顶 5 分钟；`service_core/state.rs`，失败计数仅作日志）。
+3. gr_sysinfo monitor_sender 重连：固定 1s（原 1s→30s 指数退避）。
+4. PID 音频采集致命错误自动重启：固定 2s、取消 5 次放弃上限（仅目标进程退出才放弃）。

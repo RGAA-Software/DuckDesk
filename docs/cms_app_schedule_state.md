@@ -201,7 +201,7 @@ scripts\service_test_ctl.bat stop           rem 停止
 2. 依次启动：两个 Render/游戏均起来；`netstat` 可见对应端口 LISTEN。  
 3. 「打开」两个 Client，页面均非空。  
 4. CMS 停止 → 状态到已停止；进程退出。  
-5. 外部杀掉 Render/游戏 → 约一个心跳周期（~5s）内 CMS 从「运行中」变为「已停止」。  
+5. 外部杀掉 Render/游戏 → 约一个心跳周期（~3s）内 CMS 从「运行中」变为「已停止」。  
 6. 重启 Service 后对仍显示 Stopping/Running 的旧实例 → 心跳对账清成 Stopped。  
 7. 故意错误路径启动 → toast 明确错误，列表不永久粘「失败」。
 
@@ -278,7 +278,7 @@ cargo test -p gr_service
 6. 端口校验 `[32000, 32999]` + `TcpListener` bind 探测 OS 占用。
 7. `find_game_hook_pid_by_port` 删除 contains 子串分支（3200 误中 32000），只留 token 边界精确匹配。
 8. HB summaries 只报活跃状态；终态记录 10 分钟 TTL 清理（`prune_finished`）。
-9. CMS URL 日志脱敏；重连退避 2s→30s。
+9. CMS URL 日志脱敏；重连固定 2s（2026-08-08 起取消 2s→30s 指数退避），心跳 3s。
 10. 测试：`service_core` 51/51、`gr_service` 32/32 通过（含 pid 复用误杀防护、token 边界、端口校验等新测试）。
 
 ### 10.3 第二轮追加（2026-08-08）
