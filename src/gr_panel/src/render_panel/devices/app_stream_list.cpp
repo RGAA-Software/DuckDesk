@@ -399,55 +399,62 @@ namespace tc
         auto direct_render_result = RenderApi::GetRenderConfiguration(target_item->stream_host_, target_item->stream_port_);
         if (direct_render_result.has_value() && !target_item->force_relay_) {
             LOGI("We can connect directly: {}:{}", target_item->stream_host_, target_item->stream_port_);
-            // verify security password
-            if (!target_item->remote_device_safety_pwd_.empty()) {
-                auto r = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_, target_item->remote_device_safety_pwd_);
-                auto ok = r.value_or(false);
-                for (;;) {
-                    LOGI("VerifySecurityPassword result: {}", ok);
-                    if (!ok) {
-                        LOGI("VerifySecurityPassword result 1: {}", ok);
-                        InputRemotePwdDialog dlg_input_pwd(context_);
-                        if (dlg_input_pwd.exec() == 1) {
+            // verify device password before launching the client(same idea as the relay flow):
+            // safety pwd(md5) preferred, fall back to md5(random pwd); re-ask on failure.
+            // note: an empty candidate is fine, the render passes it when the device has no password.
+            auto candidate_pwd_md5 = !target_item->remote_device_safety_pwd_.empty()
+                                     ? target_item->remote_device_safety_pwd_
+                                     : (!target_item->remote_device_random_pwd_.empty()
+                                        ? MD5::Hex(target_item->remote_device_random_pwd_) : std::string(""));
+            auto ok = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_,
+                                                        candidate_pwd_md5).value_or(false);
+            for (;;) {
+                LOGI("VerifySecurityPassword result: {}", ok);
+                if (ok) {
+                    break;
+                }
+                InputRemotePwdDialog dlg_input_pwd(context_);
+                if (dlg_input_pwd.exec() == 1) {
+                    return;
+                }
+                auto input_password = dlg_input_pwd.GetInputPassword();
+                if (input_password.isEmpty()) {
+                    context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_input_necessary_info"));
+                    continue;
+                }
+
+                // md5 pwd
+                auto pwd_md5 = MD5::Hex(input_password.toStdString());
+
+                ok = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_,
+                                                       pwd_md5).value_or(false);
+                if (!ok) {
+                    context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_password_invalid_msg"));
+                }
+                else {
+                    // use it right away for this launch(DB update below is async)
+                    target_item->remote_device_safety_pwd_ = pwd_md5;
+                    // update to database
+                    QPointer<AppStreamList> self(this);
+                    context_->PostDBTask([self, target_item, pwd_md5]() {
+                        if (!self) {
                             return;
                         }
-                        auto input_password = dlg_input_pwd.GetInputPassword();
-                        if (input_password.isEmpty()) {
-                            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_input_necessary_info"));
-                            continue;
-                        }
-
-                        // md5 pwd
-                        auto pwd_md5 = MD5::Hex(input_password.toStdString());
-
-                        r = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_,
-                                                              pwd_md5);
-                        ok = r.value_or(false);
-                        if (!ok) {
-                            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_password_invalid_msg"));
-                        }
-                        else {
-                            // update to database
-                            QPointer<AppStreamList> self(this);
-                            context_->PostDBTask([self, target_item, pwd_md5]() {
-                                if (!self) {
-                                    return;
-                                }
-                                auto mgr = self->context_->GetStreamDBManager();
-                                mgr->UpdateStreamSafetyPwd(target_item->stream_id_, pwd_md5);
-                                self->LoadStreamItems();
-                            });
-                            break;
-                        }
-                    }
-                    else {
-                        break;
-                    }
+                        auto mgr = self->context_->GetStreamDBManager();
+                        mgr->UpdateStreamSafetyPwd(target_item->stream_id_, pwd_md5);
+                        self->LoadStreamItems();
+                    });
+                    break;
                 }
             }
 
-            // start via websocket
-            running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebSocket, true);
+            // start via webrtc or websocket, depends on the "use_webrtc" option
+            if (target_item->use_webrtc_) {
+                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
+            }
+            else {
+                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebSocket, true);
+            }
         }
         else {
             // we can't connect directly

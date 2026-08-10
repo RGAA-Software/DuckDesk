@@ -83,7 +83,8 @@ namespace tc
                     make_column("force_software", &spvr::SpvrStream::force_software_, default_value(false)),
                     make_column("wait_debug", &spvr::SpvrStream::wait_debug_, default_value(false)),
                     make_column("force_gdi_capture", &spvr::SpvrStream::force_gdi_capture_, default_value(false)),
-                    make_column("disable_vulkan_render", &spvr::SpvrStream::disable_vulkan_render_, default_value(false))
+                    make_column("disable_vulkan_render", &spvr::SpvrStream::disable_vulkan_render_, default_value(false)),
+                    make_column("use_webrtc", &spvr::SpvrStream::use_webrtc_, default_value(true))
                 ),
                 make_table("visit_record",
                     make_column("id", &VisitRecord::id_, primary_key()),

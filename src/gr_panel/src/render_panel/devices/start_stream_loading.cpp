@@ -78,6 +78,9 @@ namespace tc
             else if (network_type == kStreamItemNtTypeRelay) {
                 nt_type = tcTr("id_relay").toStdString();
             }
+            else if (network_type == kStreamItemNtTypeWebRTCDirect) {
+                nt_type = "RTC Local";
+            }
 
             QString pre_msg = tcTr("id_start_streaming");
             auto lbl_title = new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, tc::SpaceId(stream_name)).c_str());
