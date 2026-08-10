@@ -88,13 +88,20 @@ echo ----------------------BUILD START------------------------
 echo ---------------------------------------------------------
 echo ---------------------------------------------------------
 
-rem Always rebuild frontends so collect_dist packages fresh assets.
+rem Always rebuild the web client frontend so collect_dist packages fresh assets.
 call :build_npm_web "web\gr_web_client" "web_client"
-if errorlevel 1 exit /b %errorlevel%
-call :build_npm_web "web\gr_cms" "gr_cms"
 if errorlevel 1 exit /b %errorlevel%
 
 cmake --build build_official -j18
+if errorlevel 1 exit /b %errorlevel%
+
+rem Build and deploy the three rust servers (frontend + exe + copy to output\).
+rem Each script is self-contained and can also be run standalone.
+call "%~dp0build_gr_cms_server.bat"
+if errorlevel 1 exit /b %errorlevel%
+call "%~dp0build_gr_auth_server.bat"
+if errorlevel 1 exit /b %errorlevel%
+call "%~dp0build_gr_desk_server.bat"
 if errorlevel 1 exit /b %errorlevel%
 
 endlocal

@@ -338,7 +338,7 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     print()
     print("Next steps:")
     print("  1. Rebuild: .\\build_official.bat")
-    print("  2. Rebuild servers if needed: .\\build_servers.bat")
+    print("  2. Rebuild servers if needed: .\\build_gr_cms_server.bat / build_gr_auth_server.bat / build_gr_desk_server.bat")
     print("  3. Repackage installers under setup/ and src/gr_panel/package/")
 
 
