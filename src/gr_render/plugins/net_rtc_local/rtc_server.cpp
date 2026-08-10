@@ -13,6 +13,8 @@
 #include "audio_source_impl.h"
 #include "remote_audio_sink.h"
 #include "tc_common_new/data.h"
+#include <atomic>
+#include <format>
 
 using namespace webrtc;
 
@@ -250,23 +252,71 @@ namespace tc
         }
         this->peer_conn_ = result.value();
 
-        // video source
-        video_source_ = std::make_shared<VideoSourceImpl>(plugin_);
-        video_track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, video_source_);
-        // video/audio 必须挂同一 MediaStream id,否则 web 端若直接用
-        // ontrack.streams[0] 赋值 srcObject,后到的轨会覆盖先到的(有画面无声)。
+        // video sources/tracks
+        // offer 里的 video m-line 数决定布局:
+        // - 1 条(web/旧客户端): 单动态 track,接收所有屏的帧(旧行为,
+        //   编码器侧的切屏等 IDR 逻辑不变,web 端切屏继续可用);
+        // - >=2 条(新 Windows 客户端): 每台显示器一条静态 track,帧按 mon_name
+        //   路由,根治单 track 混流(两屏帧交替 → 反复"切屏等 IDR"的风暴)。
+        int offer_video_mlines = 0;
+        {
+            size_t pos = 0;
+            while ((pos = offer_sdp_.find("m=video", pos)) != std::string::npos) {
+                ++offer_video_mlines;
+                pos += 7;
+            }
+        }
+        auto monitors = plugin_->GetRtcTrackMonitors();
+        multi_track_mode_ = offer_video_mlines > 1 && !monitors.empty();
         static constexpr const char* kMediaStreamId = "godesk_media";
-        auto video_track = peer_conn_factory_->CreateVideoTrack(video_track_source_, "video_track_source_1");
-        auto rtc_error_or = peer_conn_->AddTrack(video_track, { kMediaStreamId });
-        if (!rtc_error_or.ok()) {
-            LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
-            return;
+        if (multi_track_mode_) {
+            int track_index = 0;
+            for (const auto& m : monitors) {
+                MonitorVideoTrack mvt;
+                mvt.mon_name_ = m.name_;
+                mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
+                mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
+                auto video_track = peer_conn_factory_->CreateVideoTrack(mvt.track_source_, std::format("video_track_{}", track_index));
+                // 每条 track 独立 stream id,客户端按 receiver->stream_ids() 区分屏
+                auto rtc_error_or = peer_conn_->AddTrack(video_track, { std::format("{}_{}", kMediaStreamId, track_index) });
+                if (!rtc_error_or.ok()) {
+                    LOGE("peer connection add video track {} failed. with {}", track_index, rtc_error_or.error().message());
+                    return;
+                }
+                video_tracks_.push_back(mvt);
+                ++track_index;
+            }
+            LOGI("Multi-track mode: created {} video track(s), offer video m-lines: {}", video_tracks_.size(), offer_video_mlines);
+            // 多 track = 客户端声明要多屏:让采集端产出所有显示器的帧,
+            // 否则非当前屏的 track 永远等不到帧(采集端默认只采当前屏)
+            plugin_->EnableAllMonitorCapture();
+        }
+        else {
+            MonitorVideoTrack mvt;  // mon_name_ 为空 = 接收所有屏的动态 track(旧行为)
+            mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
+            mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
+            // video/audio 必须挂同一 MediaStream id,否则 web 端若直接用
+            // ontrack.streams[0] 赋值 srcObject,后到的轨会覆盖先到的(有画面无声)。
+            auto video_track = peer_conn_factory_->CreateVideoTrack(mvt.track_source_, "video_track_source_1");
+            auto rtc_error_or = peer_conn_->AddTrack(video_track, { kMediaStreamId });
+            if (!rtc_error_or.ok()) {
+                LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
+                return;
+            }
+            video_tracks_.push_back(mvt);
         }
 
         // audio source
         audio_source_ = AudioSourceImpl::Create();
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
-        peer_conn_->AddTrack(audio_track, { kMediaStreamId });
+        // 多 track 模式下音频用独立 stream id,避免和多路 video 混在同一 stream;
+        // 单 track 模式保持与 video 同 stream(web 端 srcObject 需要)
+        if (multi_track_mode_) {
+            peer_conn_->AddTrack(audio_track, { std::format("{}_audio", kMediaStreamId) });
+        }
+        else {
+            peer_conn_->AddTrack(audio_track, { kMediaStreamId });
+        }
 
         // BWE 初始种子:默认起始估计只有 300kbps,爬坡期 pacing 饿死视频码流,
         // 而 BWE 又依赖码流动起来才能探测上行——鸡生蛋死锁,表现为视频完全发不出来。
@@ -427,7 +477,7 @@ namespace tc
     }
 
     void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
-        if (!video_source_) {
+        if (video_tracks_.empty()) {
             LOGE("Don't have video source");
             return;
         }
@@ -436,22 +486,36 @@ namespace tc
             return;
         }
 
-        // 切屏:采集源显示器变化时重置序号基线,避免新旧屏独立序号被误判为丢帧
-        if (last_captured_mon_name_ != mon_name) {
-            if (!last_captured_mon_name_.empty()) {
-                LOGI("Capturing monitor switched: {} -> {}, reset frame index baseline.", last_captured_mon_name_, mon_name);
+        // 按屏路由:多 track 模式每条 track 只发自己那块屏的帧;
+        // 单 track(动态)模式接收所有屏,编码器侧处理切屏
+        MonitorVideoTrack* target = nullptr;
+        if (!multi_track_mode_) {
+            target = &video_tracks_[0];
+        }
+        else {
+            for (auto& t : video_tracks_) {
+                if (t.mon_name_ == mon_name) {
+                    target = &t;
+                    break;
+                }
             }
-            last_captured_mon_name_ = mon_name;
-            last_captured_frame_index_ = 0;
+            if (!target) {
+                // 建连后新增的显示器没有对应 track(加 track 需重新协商),限速日志后丢弃
+                static std::atomic_uint64_t unknown_mon_drops = 0;
+                if (++unknown_mon_drops % 300 == 1) {
+                    LOGW("OnNewFrameCaptured, no video track for monitor: {}", mon_name);
+                }
+                return;
+            }
         }
 
-        if (last_captured_frame_index_ == 0) {
-            last_captured_frame_index_ = frame_idx;
+        if (target->last_frame_index_ == 0) {
+            target->last_frame_index_ = frame_idx;
         }
-        auto diff = frame_idx - last_captured_frame_index_;
-        last_captured_frame_index_ = frame_idx;
+        auto diff = frame_idx - target->last_frame_index_;
+        target->last_frame_index_ = frame_idx;
         if (diff > 1) {
-            LOGE("OnNewFrameCaptured, but diff size is: {}", diff);
+            LOGE("OnNewFrameCaptured [{}], but diff size is: {}", mon_name, diff);
         }
 
         // timestamp_us = Unix us. Do NOT set ntp_time_ms here: WebRTC fills NTP
@@ -465,7 +529,16 @@ namespace tc
                 .set_timestamp_us(now_us)
                 .set_id(static_cast<uint16_t>(frame_idx & 0xFFFF))
                 .build();
-        video_source_->OnNotifyFrame(notify_frame);
+        target->source_->OnNotifyFrame(notify_frame);
+    }
+
+    std::vector<std::string> RtcServer::GetVideoTrackMonitors() const {
+        std::vector<std::string> names;
+        names.reserve(video_tracks_.size());
+        for (const auto& t : video_tracks_) {
+            names.push_back(t.mon_name_);
+        }
+        return names;
     }
 
     void RtcServer::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {

@@ -7,6 +7,7 @@
 
 #include "gr_plugin_interface.h"
 #include "gr_net_plugin_type.h"
+#include <vector>
 
 namespace tc
 {
@@ -59,9 +60,24 @@ namespace tc
     };
 
     // local webrtc reply info
+    class GrLocalRtcMonitorInfo {
+    public:
+        std::string name_;
+        int width_ = 0;
+        int height_ = 0;
+        // 虚拟桌面坐标,客户端多屏布局/鼠标坐标映射用
+        int left_ = 0;
+        int top_ = 0;
+        int right_ = 0;
+        int bottom_ = 0;
+    };
+
     class GrLocalRtcReplyInfo {
     public:
         std::string answer_sdp_;
+        // 显示器列表(枚举顺序,与 video track 顺序一致),供多 track 客户端做
+        // track→mon_name 映射;web/旧客户端忽略此字段
+        std::vector<GrLocalRtcMonitorInfo> monitors_;
     };
 
     class GrNetPlugin : public GrPluginInterface {

@@ -21,6 +21,14 @@ namespace tc
     class VideoTrackSourceImpl;
     class RemoteAudioSink;
 
+    // 一路 video track 对应一台显示器:每条 track 只发自己那块屏的帧
+    struct MonitorVideoTrack {
+        std::string mon_name_;
+        std::shared_ptr<VideoSourceImpl> source_;
+        rtc::scoped_refptr<VideoTrackSourceImpl> track_source_;
+        uint64_t last_frame_index_ = 0;
+    };
+
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
         static std::shared_ptr<RtcServer> Make(RtcLocalPlugin* plugin);
@@ -55,6 +63,9 @@ namespace tc
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
         void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
+
+        // 信令用:本连接 video track 的显示器名列表(按 track 顺序)
+        std::vector<std::string> GetVideoTrackMonitors() const;
 
         // Local loopback PCM → outbound WebRTC audio track (RTP).
         // samples = sample rate (Hz), matching OnRawAudioData convention.
@@ -103,18 +114,16 @@ namespace tc
         std::string conn_id_;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
 
-        std::shared_ptr<VideoSourceImpl> video_source_ = nullptr;
-        rtc::scoped_refptr<VideoTrackSourceImpl> video_track_source_ = nullptr;
+        // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,
+        // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true,
+        // 每台显示器一条静态 track,帧按 mon_name 路由
+        bool multi_track_mode_ = false;
+        std::vector<MonitorVideoTrack> video_tracks_;
         rtc::scoped_refptr<AudioSourceImpl> audio_source_ = nullptr;
 
         // 上行音频(浏览器麦克风):统计 sink(dummy ADM 下不做自动外放)
         rtc::scoped_refptr<webrtc::AudioTrackInterface> remote_audio_track_ = nullptr;
         std::shared_ptr<RemoteAudioSink> remote_audio_sink_ = nullptr;
-
-        // last captured frame index
-        uint64_t last_captured_frame_index_ = 0;
-        // 最近一次转发帧的采集显示器名(切屏时用于重置序号基线)
-        std::string last_captured_mon_name_;
     };
 
 }

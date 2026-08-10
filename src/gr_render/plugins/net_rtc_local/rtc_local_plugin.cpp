@@ -4,6 +4,7 @@
 
 #include "rtc_local_plugin.h"
 #include "rtc_server.h"
+#include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
@@ -91,28 +92,61 @@ namespace tc
     // render 每帧 PostTask+memcpy、WaitForMediaChannelActive 在帧分发线程自旋,
     // Chrome 主线程每秒 60 次 20KB TLV 重组+proto 解码后丢弃——
     // 主线程被淹正是 web 端"帧率低+完全不跟手"的根因(视频 RTP 轨本身健康)。
-    // wire 级窥探 tc.Message 首字段 type(field 1, varint),媒体帧直接丢弃。
+    // wire 级扫描 tc.Message 的 type 字段(field 10, varint, tag=0x50),媒体帧直接丢弃。
+    // 注意:type 不是 field 1;device_id/stream_id 可能在前,必须按 wire 格式逐字段跳过。
     static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
         if (!msg || msg->Size() < 2) {
             return false;
         }
         const auto* p = (const uint8_t*)msg->DataAddr();
-        if (p[0] != 0x08) { // field 1 (type), wire type varint
+        const size_t n = msg->Size();
+        size_t i = 0;
+        auto read_varint = [&](uint64_t& out) -> bool {
+            out = 0;
+            int shift = 0;
+            while (i < n && shift < 64) {
+                uint8_t b = p[i++];
+                out |= (uint64_t)(b & 0x7F) << shift;
+                if (!(b & 0x80)) {
+                    return true;
+                }
+                shift += 7;
+            }
             return false;
-        }
-        uint64_t type = 0;
-        int shift = 0;
-        size_t i = 1;
-        while (i < msg->Size() && i < 11) {
-            uint8_t b = p[i++];
-            type |= (uint64_t)(b & 0x7F) << shift;
-            if (!(b & 0x80)) {
+        };
+        // 逐字段扫描,找到 field 10(type)为止;负载按 wire type 跳过
+        while (i < n) {
+            uint64_t tag = 0;
+            if (!read_varint(tag)) {
+                return false;
+            }
+            const uint32_t field = (uint32_t)(tag >> 3);
+            const uint32_t wire = (uint32_t)(tag & 0x7);
+            if (field == 10 && wire == 0) {
+                uint64_t type = 0;
+                if (!read_varint(type)) {
+                    return false;
+                }
+                // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
+                return type == 30 || type == 40;
+            }
+            switch (wire) {
+            case 0: { uint64_t v; if (!read_varint(v)) { return false; } break; }
+            case 1: i += 8; break;
+            case 2: {
+                uint64_t len = 0;
+                if (!read_varint(len)) { return false; }
+                i += (size_t)len;
                 break;
             }
-            shift += 7;
+            case 5: i += 4; break;
+            default: return false; // group 等不支持,视为非媒体帧
+            }
+            if (i > n) {
+                return false;
+            }
         }
-        // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
-        return type == 30 || type == 40;
+        return false;
     }
 
     void RtcLocalPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
@@ -383,6 +417,40 @@ namespace tc
         }
     }
 
+    std::vector<CaptureMonitorInfo> RtcLocalPlugin::GetRtcTrackMonitors() {
+        std::vector<CaptureMonitorInfo> result;
+        // 插件没有直达 app 的通道,经 total_plugins_ 找工作中的采集插件(DDA 优先,GDI 兜底)
+        for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
+            auto capture_plugin = dynamic_cast<GrMonitorCapturePlugin*>(GetPluginById(plugin_id));
+            if (!capture_plugin) {
+                continue;
+            }
+            result = capture_plugin->GetCaptureMonitorInfo();
+            if (!result.empty()) {
+                break;
+            }
+        }
+        if ((int)result.size() > kMaxRtcVideoTracks) {
+            result.resize(kMaxRtcVideoTracks);
+        }
+        return result;
+    }
+
+    void RtcLocalPlugin::EnableAllMonitorCapture() {
+        // 与 GetRtcTrackMonitors 同一选取逻辑(DDA 优先,GDI 兜底)
+        for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
+            auto capture_plugin = dynamic_cast<GrMonitorCapturePlugin*>(GetPluginById(plugin_id));
+            if (!capture_plugin) {
+                continue;
+            }
+            if (capture_plugin->GetCapturingMonitorName() != kAllMonitorsNameSign) {
+                LOGI("Multi-track session: switch capture to ALL monitors.");
+                capture_plugin->SetCaptureMonitor(kAllMonitorsNameSign);
+            }
+            break;
+        }
+    }
+
     GrLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,
                                                                    std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
@@ -414,6 +482,18 @@ namespace tc
             auto reply = std::make_shared<GrLocalRtcReplyInfo>(GrLocalRtcReplyInfo {
                 .answer_sdp_ = new_answer,
             });
+            // 显示器列表(与 video track 同序),多 track 客户端据此做 track→mon_name 映射
+            for (const auto& m : GetRtcTrackMonitors()) {
+                reply->monitors_.push_back(GrLocalRtcMonitorInfo {
+                    .name_ = m.name_,
+                    .width_ = (int)m.Width(),
+                    .height_ = (int)m.Height(),
+                    .left_ = (int)m.left_,
+                    .top_ = (int)m.top_,
+                    .right_ = (int)m.right_,
+                    .bottom_ = (int)m.bottom_,
+                });
+            }
             callback(reply);
         });
         rtc_servers_.Insert(conn_id, rtc_server);

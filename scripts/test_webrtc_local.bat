@@ -60,6 +60,10 @@ rem --- fixed test parameters (mirror running_stream_manager.cpp defaults) -----
 set "VISITOR_DEVICE_ID=900000001"
 set "STREAM_ID=webrtc_local_test1"
 
+rem --- optional 5th arg: split windows (multi-screen, one window per monitor) -
+set "SPLIT_WINDOWS=%~5"
+if "%SPLIT_WINDOWS%"=="" set "SPLIT_WINDOWS=false"
+
 echo ============================================
 echo WebRTC Local test
 echo   client : %CLIENT_EXE%
@@ -73,8 +77,8 @@ echo ============================================
     --appkey=test_appkey ^
     --spvr_host=127.0.0.1 ^
     --spvr_port=30500 ^
-    --audio=true ^
-    --clipboard=true ^
+    --audio=1 ^
+    --clipboard=1 ^
     --stream_id=%STREAM_ID% ^
     --conn_type=desktop ^
     --network_type=webrtc_direct ^
@@ -94,7 +98,7 @@ echo ============================================
     --my_host=127.0.0.1 ^
     --language=0 ^
     --only_viewing=false ^
-    --split_windows=false ^
+    --split_windows=%SPLIT_WINDOWS% ^
     --max_num_of_screen=4 ^
     --display_logo=0 ^
     --develop_mode=1 ^

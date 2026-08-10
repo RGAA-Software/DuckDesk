@@ -210,6 +210,23 @@ namespace tc
 
         nlohmann::json obj;
         obj["answer_sdp"] = reply_info->answer_sdp_;
+        // 显示器列表(与 video track 同序):多 track 客户端做 track→mon_name 映射,
+        // 并据此决定下次 offer 声明几条 video m-line;web/旧客户端忽略此字段
+        auto monitors = nlohmann::json::array();
+        int mon_index = 0;
+        for (const auto& m : reply_info->monitors_) {
+            monitors.push_back({
+                {"name", m.name_},
+                {"width", m.width_},
+                {"height", m.height_},
+                {"left", m.left_},
+                {"top", m.top_},
+                {"right", m.right_},
+                {"bottom", m.bottom_},
+                {"index", mon_index++},
+            });
+        }
+        obj["monitors"] = monitors;
         SendOkJson(static_cast<http::web_response &>(resp), obj.dump());
     }
 }

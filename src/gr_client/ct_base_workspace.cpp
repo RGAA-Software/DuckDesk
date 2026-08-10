@@ -421,6 +421,7 @@ namespace tc
                 return;
             }
             if (!audio_player_) {
+                LOGI("Init audio player, freq: {}, channels: {}, bits: {}", samples, channels, bits);
                 audio_player_ = std::make_shared<AudioPlayer>();
                 context_->PostUITask([=, this]() {
                     audio_player_->Init(samples, channels);

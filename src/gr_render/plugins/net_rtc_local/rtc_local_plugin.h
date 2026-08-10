@@ -9,6 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
+#include "tc_capture_new/monitor_util.h"
 #include "tc_common_new/concurrent_hashmap.h"
 #include "rtc_local_encoded_frame.h"
 #include "tc_common_new/concurrent_type.h"
@@ -74,6 +75,14 @@ namespace tc
 
         // RtcServer 在 ICE 终态(Failed/Closed)时回调,标记该连接待清理
         void NotifyRtcServerTerminal(const std::string& conn_id);
+
+        // 本机显示器列表(枚举顺序,上限 kMaxRtcVideoTracks),供 RtcServer 建多 track
+        // 及信令返回 monitors 列表;空表示采集插件未就绪(回退单 track 旧行为)
+        std::vector<CaptureMonitorInfo> GetRtcTrackMonitors();
+        // 多 track 会话需要所有屏的帧:让工作中的采集插件采集全部显示器
+        // (客户端 offer 多条 video m-line 即声明要多屏,不再依赖 UI 的 SwitchMonitor)
+        void EnableAllMonitorCapture();
+        static constexpr int kMaxRtcVideoTracks = 4;
 
     private:
         void WaitForMediaChannelActive();
