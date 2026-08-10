@@ -67,6 +67,11 @@ echo.
 rem --- [2/3] Build the Rust server ---
 echo [2/3] Building Rust server: %SERVER_NAME% ^(release^)
 cd /d "%REPO_ROOT%\rust_server"
+rem cmake-rs (used by aws-lc-sys) does not recognize VS 18 and panics with
+rem "unsupported or unknown VisualStudio version: 18.0". When the caller
+rem (build_official.bat) activated a VS 18 environment, force the Ninja
+rem generator so cmake-rs skips VS detection. Standalone runs keep the default.
+if "%VisualStudioVersion:~0,2%"=="18" set "CMAKE_GENERATOR=Ninja"
 cargo build --release -p %SERVER_NAME%
 if errorlevel 1 (
     echo ERROR: cargo build failed for %SERVER_NAME%.

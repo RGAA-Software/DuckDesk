@@ -51,3 +51,4 @@ rust_server/gr_auth_server/tencent_server.txt
 rust_server/gr_desk_server/tencent_server.txt
 rust_server/gr_desk_server/desk_settings.toml
 rust_server/gr_desk_server/admin_password.txt
+_make_setup.log
