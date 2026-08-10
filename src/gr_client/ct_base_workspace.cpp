@@ -1,4 +1,4 @@
-﻿//
+//
 // Created by RGAA on 2023-12-27.
 //
 #include "gr_client/ct_base_workspace.h"
@@ -296,6 +296,15 @@ namespace tc
                         ProcessUtil::KillProcess(QApplication::applicationPid());
                     }
                 }
+            });
+        });
+
+        // webrtc local: render rejected the device password(HTTP 403), tell the user and quit
+        msg_listener_->Listen<SdkMsgRtcLocalAuthFailed>([=, this](const SdkMsgRtcLocalAuthFailed& msg) {
+            context_->PostUITask([=, this]() {
+                auto box = SizedMessageBox::MakeErrorOkBox(tcTr("id_warning"), tcTr("id_rtc_local_pwd_error"));
+                box->exec();
+                ProcessUtil::KillProcess(QApplication::applicationPid());
             });
         });
 

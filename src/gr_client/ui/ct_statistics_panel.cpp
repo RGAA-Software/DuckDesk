@@ -316,7 +316,7 @@ namespace tc
                                 return "WS";
                             }
                             else if (settings_->network_type_ == ClientNetworkType::kWebRtc) {
-                                return "RTC";
+                                return "WebRTC Local";
                             }
                             else if (settings_->network_type_ == ClientNetworkType::kUdpKcp) {
                                 return "UDP";

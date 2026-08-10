@@ -56,27 +56,13 @@ namespace tc
             return;
         }
 
-        auto settings = plugin_->GetPluginSettingsInfo();
-        const auto& safety_pwd_md5 = value.value();
-        if (safety_pwd_md5.empty() && !settings.device_safety_pwd_.empty()) {
-            SendErrorJson(resp, kHandlerErrParams);
-            return;
-        }
-
-        LOGI("request param, safety pwd md5: {}", safety_pwd_md5);
-        if (settings.device_safety_pwd_.empty()) {
-            SendOkJson(resp, "");
-            //SendErrorJson(resp, kHandlerErrNoSafetyPasswordInRenderer);
-            return;
-        }
-
-        LOGI("device safety pwd : {}", settings.device_safety_pwd_);
-        if (settings.device_safety_pwd_ != safety_pwd_md5) {
+        // same rules as /alloc/local/rtc: accept safety pwd(md5) or random pwd(plain/md5),
+        // and pass when the device has no password at all
+        if (!VerifySafetyPassword(params)) {
             SendErrorJson(resp, kHandlerErrVerifySafetyPasswordFailed);
+            return;
         }
-        else {
-            SendOkJson(resp, "");
-        }
+        SendOkJson(resp, "");
     }
 
     void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web_response& resp) {

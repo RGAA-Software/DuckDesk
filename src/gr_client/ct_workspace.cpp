@@ -125,7 +125,8 @@ namespace tc
                 if (!game_views_.empty()) {
                     if (game_views_[kMainGameViewIndex]) {
                         game_views_[kMainGameViewIndex]->RefreshCapturedMonitorInfo(info);
-                        if (this->params_->support_vulkan_) {  
+                        // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                        if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
                             uintptr_t obj = reinterpret_cast<uintptr_t>(game_views_[kMainGameViewIndex]);
                             pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
                             game_views_[kMainGameViewIndex]->UpdateFullColorState(image->full_color_);
@@ -140,7 +141,8 @@ namespace tc
                 if (game_views_.size() > info.mon_index_) {
                     if (game_views_[info.mon_index_]) {
                         game_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
-                        if (this->params_->support_vulkan_) {
+                        // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                        if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
                             pl_vulkan_->RenderFrame(reinterpret_cast<uintptr_t>(game_views_[info.mon_index_]), image->vulkan_av_frame_);
                         }
                         else {

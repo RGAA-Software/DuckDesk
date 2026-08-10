@@ -212,6 +212,9 @@ void ParseCommandLine(QApplication& app) {
         else if (g_nt_type_ == kStreamItemNtTypeRelay) {
             return ClientNetworkType::kRelay;
         }
+        else if (g_nt_type_ == kStreamItemNtTypeWebRTCDirect || g_nt_type_ == kStreamItemNtTypeWebRTC) {
+            return ClientNetworkType::kWebRtc;
+        }
         else {
             return ClientNetworkType::kWebsocket;
         }
@@ -557,6 +560,8 @@ int main(int argc, char** argv) {
         .relay_appkey_ = settings->relay_appkey_,
         .debug_ = settings->wait_debug_,
         .force_gdi_ = settings->force_gdi_,
+        .remote_device_random_pwd_ = settings->remote_device_random_pwd_,
+        .remote_device_safety_pwd_ = settings->remote_device_safety_pwd_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();

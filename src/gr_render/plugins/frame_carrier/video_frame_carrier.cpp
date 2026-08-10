@@ -292,8 +292,44 @@ namespace tc
     bool VideoFrameCarrier::MapRawTexture(const ComPtr<ID3D11Texture2D>& texture, DXGI_FORMAT format, int height,
                                           std::function<void(const std::shared_ptr<Image>&)>&& rgba_cbk,
                                           std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
+        // The texture coming from CopyTexture is DEFAULT-usage (GPU encoders like NVENC consume it
+        // directly), which is not CPU-mappable. CPU encoders (ffmpeg/QSV) need a STAGING readback copy.
+        ComPtr<ID3D11Texture2D> map_source = texture;
+        D3D11_TEXTURE2D_DESC src_desc{};
+        texture->GetDesc(&src_desc);
+        const bool cpu_readable = src_desc.Usage == D3D11_USAGE_STAGING
+                                  && (src_desc.CPUAccessFlags & D3D11_CPU_ACCESS_READ);
+        if (!cpu_readable) {
+            bool need_create = true;
+            if (map_staging_texture_) {
+                D3D11_TEXTURE2D_DESC staging_desc{};
+                map_staging_texture_->GetDesc(&staging_desc);
+                need_create = staging_desc.Width != src_desc.Width
+                              || staging_desc.Height != src_desc.Height
+                              || staging_desc.Format != src_desc.Format;
+            }
+            if (need_create) {
+                D3D11_TEXTURE2D_DESC staging_desc = src_desc;
+                staging_desc.Usage = D3D11_USAGE_STAGING;
+                staging_desc.BindFlags = 0;
+                staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                staging_desc.MiscFlags = 0;
+                map_staging_texture_ = nullptr;
+                auto hr = d3d11_device_->CreateTexture2D(&staging_desc, nullptr, map_staging_texture_.GetAddressOf());
+                if (FAILED(hr)) {
+                    LOGE("MapRawTexture create staging texture failed: {:x}", (uint32_t)hr);
+                    return false;
+                }
+                LOGI("MapRawTexture staging texture: {}x{} dxgi_format={}", staging_desc.Width, staging_desc.Height, (int)staging_desc.Format);
+            }
+            ComPtr<ID3D11DeviceContext> ctx;
+            d3d11_device_->GetImmediateContext(&ctx);
+            ctx->CopyResource(map_staging_texture_.Get(), texture.Get());
+            map_source = map_staging_texture_;
+        }
+
         CComPtr<IDXGISurface> staging_surface = nullptr;
-        auto hr = texture->QueryInterface(IID_PPV_ARGS(&staging_surface));
+        auto hr = map_source->QueryInterface(IID_PPV_ARGS(&staging_surface));
         if (FAILED(hr)) {
             LOGE("MapRawTexture !QueryInterface(IDXGISurface) err");
             return false;
