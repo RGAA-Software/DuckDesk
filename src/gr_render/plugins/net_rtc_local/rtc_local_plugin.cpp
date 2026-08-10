@@ -305,34 +305,39 @@ namespace tc
         if (ecnt == 1 || ecnt % 300 == 0) {
             LOGI("OnEncodedVideoFrame #{}, idx={}, key={}, cache={}", ecnt, frame_index, key, encoded_video_frames_.size());
         }
-        std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
+        {
+            std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
 
-        auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
-        encoded_video_frame->mon_name_ = mon_name;
-        encoded_video_frame->video_type_ = (int)video_type;
-        encoded_video_frame->data_ = data;
-        encoded_video_frame->seq_ = ++encoded_seq_by_mon_[mon_name];
-        encoded_video_frame->frame_index_ = frame_index;
-        encoded_video_frame->frame_width_ = frame_width;
-        encoded_video_frame->frame_height_ = frame_height;
-        encoded_video_frame->key_ = key;
-        encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        encoded_video_frames_.insert({{mon_name, encoded_video_frame->seq_}, encoded_video_frame});
+            auto encoded_video_frame = std::make_shared<RtcLocalEncodedVideoFrame>();
+            encoded_video_frame->mon_name_ = mon_name;
+            encoded_video_frame->video_type_ = (int)video_type;
+            encoded_video_frame->data_ = data;
+            encoded_video_frame->seq_ = ++encoded_seq_by_mon_[mon_name];
+            encoded_video_frame->frame_index_ = frame_index;
+            encoded_video_frame->frame_width_ = frame_width;
+            encoded_video_frame->frame_height_ = frame_height;
+            encoded_video_frame->key_ = key;
+            encoded_video_frame->timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+            encoded_video_frames_.insert({{mon_name, encoded_video_frame->seq_}, encoded_video_frame});
 
-        // 缓存上限:编码快于消费时淘汰该屏最旧帧(未消费就被淘汰的帧会让
-        // 消费端发现 seq gap,进而 InsertIdr 等关键帧续接)
-        auto first_of_mon = encoded_video_frames_.lower_bound({mon_name, 0});
-        auto end_of_mon = encoded_video_frames_.lower_bound({mon_name, UINT64_MAX});
-        size_t mon_count = 0;
-        for (auto it = first_of_mon; it != end_of_mon; ++it) {
-            (void)it;
-            ++mon_count;
+            // 缓存上限:编码快于消费时淘汰该屏最旧帧(未消费就被淘汰的帧会让
+            // 消费端发现 seq gap,进而 InsertIdr 等关键帧续接)
+            auto first_of_mon = encoded_video_frames_.lower_bound({mon_name, 0});
+            auto end_of_mon = encoded_video_frames_.lower_bound({mon_name, UINT64_MAX});
+            size_t mon_count = 0;
+            for (auto it = first_of_mon; it != end_of_mon; ++it) {
+                (void)it;
+                ++mon_count;
+            }
+            while (mon_count > kMaxCachedFramesPerMon && first_of_mon != encoded_video_frames_.end()
+                   && first_of_mon->first.first == mon_name) {
+                first_of_mon = encoded_video_frames_.erase(first_of_mon);
+                --mon_count;
+            }
         }
-        while (mon_count > kMaxCachedFramesPerMon && first_of_mon != encoded_video_frames_.end()
-               && first_of_mon->first.first == mon_name) {
-            first_of_mon = encoded_video_frames_.erase(first_of_mon);
-            --mon_count;
-        }
+
+        // 唤醒可能正在 WaitForEncodedFrame 的 webrtc 编码线程(锁外 notify)
+        encoded_video_frames_cv_.notify_all();
     }
 
     // raw video frame
@@ -392,6 +397,25 @@ namespace tc
         auto encoded_frame = it->second;
         encoded_video_frames_.erase(it);
         return encoded_frame;
+    }
+
+    bool RtcLocalPlugin::WaitForEncodedFrame(const std::string& mon_name, uint64_t after_seq, int timeout_ms) {
+        std::unique_lock<std::mutex> lk(encoded_video_frames_mtx_);
+        return encoded_video_frames_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms), [&]() {
+            auto it = encoded_video_frames_.upper_bound({mon_name, after_seq});
+            return it != encoded_video_frames_.end() && it->first.first == mon_name;
+        });
+    }
+
+    void RtcLocalPlugin::InsertIdr(const std::string& mon_name) {
+        if (mon_name.empty()) {
+            // 广播旧行为(新连接首帧 IDR 等需要所有屏的场景)
+            GrPluginInterface::InsertIdr();
+            return;
+        }
+        auto event = std::make_shared<GrPluginInsertIdrEvent>();
+        event->mon_name_ = mon_name;
+        CallbackEvent(event);
     }
 
     uint64_t RtcLocalPlugin::GetLatestEncodedSeq(const std::string& mon_name) {

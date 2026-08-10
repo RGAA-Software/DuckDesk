@@ -50,6 +50,11 @@ namespace tc
         insert_idr_ = true;
     }
 
+    void GrVideoEncoderPlugin::InsertIdr(const std::string& mon_name) {
+        // 默认实现:无视屏名,全量补 IDR(保持未 override 插件的旧行为)
+        InsertIdr();
+    }
+
     void GrVideoEncoderPlugin::On1Second() {
         if (client_side_media_recording_) {
             InsertIdr();

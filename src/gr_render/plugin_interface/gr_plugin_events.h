@@ -110,6 +110,11 @@ namespace tc
         GrPluginInsertIdrEvent() : GrPluginBaseEvent() {
             event_type_ = GrPluginEventType::kPluginInsertIdrEvent;
         }
+    public:
+        // 目标显示器名:空 = 广播给所有屏(旧行为,WS/Relay 等调用方不变);
+        // 非空 = 只给该屏的编码器补 IDR(RTC 多 track 时按屏定向,
+        // 避免一条 track 的 PLI 让所有屏同时刷 IDR)
+        std::string mon_name_;
     };
 
     // GrPluginEncodedVideoFrameEvent

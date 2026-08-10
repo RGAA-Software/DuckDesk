@@ -118,6 +118,10 @@ namespace tc
         bool OnCreate(const tc::GrPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
+        // 按屏补 IDR:mon_name 为空时退化为全量 InsertIdr()。
+        // 基类默认实现就是退化逻辑,有多屏编码器实例的插件(NVENC/FFmpeg)
+        // 应 override 成只给目标屏置位。
+        virtual void InsertIdr(const std::string& mon_name);
         void On1Second() override;
 
         virtual bool CanEncodeTexture();

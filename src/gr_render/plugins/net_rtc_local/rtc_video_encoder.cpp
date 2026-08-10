@@ -49,10 +49,17 @@ namespace tc
         ss << " kbps target bitrat:" << parameters.target_bitrate.get_sum_kbps();
         ss << " kbps bandwidth_allocation:" << parameters.bandwidth_allocation.kbps();
         ss << " kbps fps:" << parameters.framerate_fps;
+        ss << " mon:" << last_mon_name_;
         LOGI("SetRates: {}", ss.str());
         mTargetBitrate = parameters.bitrate.get_sum_bps();
 
         auto event = std::make_shared<GrPluginConfigEncoder>();
+        // 按屏定向:多 track 时每条 track 的 BWE 只调整自己那块屏的编码器,
+        // 否则空 mon_name 会被广播到所有屏,静态屏 track 的低 fps/低码率
+        // 会每秒覆盖活跃屏 track 刚写下的配置(两条 BWE 互踩)。
+        // last_mon_name_ 由 Encode 维护,与 SetRates 同在 libwebrtc encoder
+        // task queue 上执行,无线程竞争;尚未 Encode 过时为空,退化为广播旧行为。
+        event->mon_name_ = last_mon_name_;
         event->bps_ = parameters.bitrate.get_sum_bps();
         event->fps_ = parameters.framerate_fps;
         plugin_->CallbackEvent(event);
@@ -73,21 +80,22 @@ namespace tc
             return WEBRTC_VIDEO_CODEC_ERR_PARAMETER;
         }
 
-        if (frame_types) {
-            if (!frame_types->empty()) {
-                if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
-                    LOGI("Rtc request to insert an I Frame.");
-                    ++win_idr_requested_;
-                    // 请求主编码管线产一个 IDR,本次 Encode 继续等这个关键帧。
-                    plugin_->InsertIdr();
-                }
-            }
-        }
-
         rtc::scoped_refptr<NotifyFrameFrameBuffer> native_buffer = rtc::scoped_refptr<NotifyFrameFrameBuffer>(static_cast<NotifyFrameFrameBuffer*>(buffer.get()));
         if (!native_buffer) {
             RTC_LOG(LS_WARNING) << "Dynamic cast to NotifyFrameFrameBuffer failed";
             return WEBRTC_VIDEO_CODEC_ERR_PARAMETER;
+        }
+
+        if (frame_types) {
+            if (!frame_types->empty()) {
+                if (frame_types->at(0) == webrtc::VideoFrameType::kVideoFrameKey) {
+                    LOGI("Rtc request to insert an I Frame, mon: {}", native_buffer->GetMonName());
+                    ++win_idr_requested_;
+                    // 请求主编码管线产一个 IDR,本次 Encode 继续等这个关键帧。
+                    // 按屏定向:多 track 时只给本 track 的屏补 IDR,其它屏不受 PLI 波及。
+                    plugin_->InsertIdr(native_buffer->GetMonName());
+                }
+            }
         }
 
         // to do encode
@@ -126,6 +134,16 @@ namespace tc
         }
         bool seq_gap = false;
         auto encoded_video_frame = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+        if (!encoded_video_frame || !encoded_video_frame->data_) {
+            // 有界等待(≠忙等):Encode 由采集帧驱动,此刻本采集帧的编码通常
+            // 即将完成(NVENC 管线延迟 ~10ms)。等它产出立即发出,把"只能搬
+            // 上一帧"的固有拾取延迟(实测 age_avg 26ms)压到管线延迟以内。
+            // 8ms < 16.6ms 帧周期,给 encoder queue 留有余量;超时按现状
+            // 空转返回,不打乱 pacing。新帧到达时插件侧 cv 会立即唤醒。
+            if (plugin_->WaitForEncodedFrame(mon_name, consumed_seq_, 8)) {
+                encoded_video_frame = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+            }
+        }
         if (!encoded_video_frame || !encoded_video_frame->data_) {
             return WEBRTC_VIDEO_CODEC_OK;
         }
@@ -401,7 +419,8 @@ namespace tc
         if (ms >= 800) {
             mLastInsertIDRTime = now;
             ++win_idr_requested_;
-            plugin_->InsertIdr();
+            // 按屏定向:断链重建只给本 track 的屏补 IDR
+            plugin_->InsertIdr(last_mon_name_);
         }
     }
 

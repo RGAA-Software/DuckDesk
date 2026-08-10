@@ -8,6 +8,7 @@
 #include <map>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_capture_new/monitor_util.h"
 #include "tc_common_new/concurrent_hashmap.h"
@@ -67,6 +68,14 @@ namespace tc
         // 不能再按采集序号匹配)。out_gap: 有未消费的帧被淘汰(缓存溢出)时为 true,
         // 消费端应 InsertIdr 等关键帧续接。无新帧返回 nullptr。
         std::shared_ptr<RtcLocalEncodedVideoFrame> PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap);
+        // 有界等待该屏 seq > after_seq 的编码帧到达(Encode 首次 Pop 为空时调用),
+        // 等到返回 true。用于把"采集帧驱动的 Encode 只能搬上一帧"的固有 1.5 帧
+        // 拾取延迟压缩到编码管线延迟以内;超时返回 false,调用方按现状空转返回。
+        bool WaitForEncodedFrame(const std::string& mon_name, uint64_t after_seq, int timeout_ms);
+        // 按屏补 IDR:mon_name 为空时广播(基类旧行为),非空只给目标屏编码器补
+        void InsertIdr(const std::string& mon_name);
+        // 暴露基类无参版本,避免上面的重载把 GrPluginInterface::InsertIdr() 隐藏掉
+        using GrPluginInterface::InsertIdr;
         // 该屏当前最大产出序号(无则 0);新连接/切屏后以此引导,只消费之后到达的帧
         uint64_t GetLatestEncodedSeq(const std::string& mon_name);
         // 该屏缓存中 seq > after_seq 的未消费帧数(积压监控/应急阀用)
@@ -97,6 +106,8 @@ namespace tc
         // key = (mon_name, seq):按屏隔离 + 按产出序号数值有序
         std::mutex encoded_video_frames_mtx_;
         std::map<std::pair<std::string, uint64_t>, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
+        // 新编码帧到达时唤醒 WaitForEncodedFrame(与上面的 mutex 配对使用)
+        std::condition_variable encoded_video_frames_cv_;
         // 每屏产出序号计数器(只在 OnEncodedVideoFrame 加锁自增)
         std::map<std::string, uint64_t> encoded_seq_by_mon_;
         // 每屏缓存上限(编码快于消费时淘汰最旧帧,消费端会发现 gap 并 InsertIdr)

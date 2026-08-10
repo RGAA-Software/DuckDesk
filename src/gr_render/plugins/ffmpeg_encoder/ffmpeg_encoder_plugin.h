@@ -28,6 +28,7 @@ namespace tc
         bool OnCreate(const tc::GrPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
+        void InsertIdr(const std::string& mon_name) override;
         bool IsWorking() override;
 
         bool HasEncoderForMonitor(const std::string& monitor_name) override;

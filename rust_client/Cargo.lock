@@ -3178,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "gr_auth_mgr"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "base64 0.22.1",
  "gr_base",
@@ -3192,7 +3192,7 @@ dependencies = [
 
 [[package]]
 name = "gr_base"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -3223,14 +3223,14 @@ dependencies = [
 
 [[package]]
 name = "gr_crash_reporter"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "gr_base",
 ]
 
 [[package]]
 name = "gr_service"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "clap",
  "futures-util",
@@ -3251,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "gr_sysinfo"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "adlx",
  "anyhow",
@@ -3282,7 +3282,7 @@ dependencies = [
 
 [[package]]
 name = "gr_uninstall"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "clap",
  "gr_base",
@@ -3292,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "gr_user_proxy"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "anyhow",
  "clap",
@@ -6379,7 +6379,7 @@ checksum = "95067976aca6421a523e491fce939a3e65249bac4b977adee0ee9771568e8aa3"
 
 [[package]]
 name = "protocol"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "prost 0.14.4",
  "prost-build 0.14.4",
@@ -7536,7 +7536,7 @@ dependencies = [
 
 [[package]]
 name = "service_core"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "gr_base",
  "prost 0.13.5",
@@ -7550,7 +7550,7 @@ dependencies = [
 
 [[package]]
 name = "service_manager"
-version = "3.3.13"
+version = "3.3.18"
 dependencies = [
  "clap",
  "service_core",

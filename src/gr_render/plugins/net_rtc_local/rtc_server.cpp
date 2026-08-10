@@ -322,18 +322,24 @@ namespace tc
         // 而 BWE 又依赖码流动起来才能探测上行——鸡生蛋死锁,表现为视频完全发不出来。
         // 给一个有意义的起点,后续仍由 BWE 按真实链路状况上下调整。
         //
-        // 本地链路(loopback/局域网)直接把工作点钉在 12M:实测 GCC 的延迟估计
+        // 本地链路(loopback/局域网)直接把工作点钉住:实测 GCC 的延迟估计
         // 在客户端高负载(有头浏览器解码渲染)下会误判拥塞,目标码率/fps 在
         // 1M~15M / 14~44fps 之间秒级震荡——x264 每 3s 被迫重开、生产速率被压到
         // ~30fps,pacing 失配又反过来喂养延迟估计,形成延迟螺旋。
-        // 本插件只服务本地链路,容量充裕,钉死 min=start=max 让 GCC 无震荡空间;
+        // 本插件只服务本地链路,钉死 min=start=max 让 GCC 无震荡空间;
         // 链路侧其余自适应(IDR/pacing)不受影响。
+        //
+        // 钉值取 24M(原 12M):pacer 按此速率放包,钉值翻倍让 IDR 等大帧的
+        // 排空时间减半(73KB: 49ms→24ms),直接削掉 pacing 段延迟;loopback/
+        // 有线 LAN 容量充裕,Wi-Fi 直连也留有余量。实测双 track 总分配
+        // ~11.3M 已到 12M 上限,24M 给双屏高动态场景留出头空间。
+        static constexpr int kLocalLinkBitrateBps = 24 * 1000 * 1000;
         webrtc::BitrateSettings bitrate_settings;
-        bitrate_settings.min_bitrate_bps = 12 * 1000 * 1000;
-        bitrate_settings.start_bitrate_bps = 12 * 1000 * 1000;
-        bitrate_settings.max_bitrate_bps = 12 * 1000 * 1000;
+        bitrate_settings.min_bitrate_bps = kLocalLinkBitrateBps;
+        bitrate_settings.start_bitrate_bps = kLocalLinkBitrateBps;
+        bitrate_settings.max_bitrate_bps = kLocalLinkBitrateBps;
         auto bitrate_err = peer_conn_->SetBitrate(bitrate_settings);
-        LOGI("SetBitrate seed: pinned min=start=max=12M, ok: {}", bitrate_err.ok());
+        LOGI("SetBitrate seed: pinned min=start=max={}M, ok: {}", kLocalLinkBitrateBps / 1000000, bitrate_err.ok());
 
         // 首帧加速:即将开始发流,此刻主动请求主管线产 IDR。
         // 建连前的旧帧无需清理:Encode 首次执行时会以当前产出序号引导

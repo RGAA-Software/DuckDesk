@@ -65,6 +65,18 @@ namespace tc
         }
     }
 
+    void NvencEncoderPlugin::InsertIdr(const std::string& mon_name) {
+        if (mon_name.empty()) {
+            InsertIdr();
+            return;
+        }
+        // 只给目标屏补 IDR,其它屏的 delta 链不动(RTC 多 track 按屏定向)
+        auto it = video_encoders_.find(mon_name);
+        if (it != video_encoders_.end() && it->second) {
+            it->second->InsertIdr();
+        }
+    }
+
     bool NvencEncoderPlugin::IsWorking() {
         return plugin_enabled_ && !video_encoders_.empty();
     }

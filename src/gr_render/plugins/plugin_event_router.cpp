@@ -108,10 +108,13 @@ namespace tc
                                                              target_event->frame_size_);
         }
         else if (event->event_type_ == GrPluginEventType::kPluginInsertIdrEvent) {
+            auto target_event = std::dynamic_pointer_cast<GrPluginInsertIdrEvent>(event);
+            // mon_name_ 为空 = 广播所有屏(旧行为);非空 = 只给目标屏补 IDR
+            const auto mon_name = target_event ? target_event->mon_name_ : "";
             plugin_manager_->VisitEncoderPlugins([=, this](GrVideoEncoderPlugin* plugin) {
                 // TODO:
                 //LOGI("Insert IDR for plugin: {}", plugin->GetPluginName());
-                plugin->InsertIdr();
+                plugin->InsertIdr(mon_name);
             });
         }
         else if (event->event_type_ == GrPluginEventType::kPluginRelayPausedEvent) {
