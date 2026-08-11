@@ -60,6 +60,27 @@ const nodeForm = ref({
   listen_port: 32000,
 })
 
+// 节列表弹窗（分页）
+const nodeListVisible = ref(false)
+const nodeListAppId = ref('')
+const nodePage = ref(1)
+const nodePageSize = ref(8)
+
+const nodeListApp = computed<ViewRow | undefined>(() =>
+  rows.value.find((r) => r.app_id === nodeListAppId.value),
+)
+const pagedNodes = computed<ViewNode[]>(() => {
+  const nodes = nodeListApp.value?.nodes || []
+  const start = (nodePage.value - 1) * nodePageSize.value
+  return nodes.slice(start, start + nodePageSize.value)
+})
+
+function openNodeList(row: ViewRow) {
+  nodeListAppId.value = row.app_id
+  nodePage.value = 1
+  nodeListVisible.value = true
+}
+
 const onlineIds = computed(() => new Set(services.value.map((s) => s.device_id)))
 
 function seqOf(id: string): number {
@@ -304,6 +325,10 @@ async function handleDeleteNode(node: ViewNode) {
   }
   ElMessage.success('已删除')
   await refresh()
+  // 弹窗分页：当前页删空后回退一页
+  if (pagedNodes.value.length === 0 && nodePage.value > 1) {
+    nodePage.value -= 1
+  }
 }
 
 /** 应用级启动:CMS 自动挑选一个空闲节。 */
@@ -407,7 +432,7 @@ onUnmounted(() => {
       <div>
         <div class="text-lg font-semibold">应用</div>
         <div class="text-sm text-gray-500">
-          应用是模板；节 = 机器 + 端口。展开行管理节，应用启动会自动挑选一个空闲节
+          应用是模板；节 = 机器 + 端口。点「N 个节」管理节，应用启动会自动挑选一个空闲节
         </div>
       </div>
       <div class="flex gap-2">
@@ -424,83 +449,18 @@ onUnmounted(() => {
       title="当前没有在线 Service。请先让目标机器的 GammaRayService 连上 CMS。"
     />
 
-    <el-table :data="rows" size="small" row-key="app_id" empty-text="还没有应用，点右上角「新建应用」">
-      <el-table-column type="expand">
-        <template #default="{ row }">
-          <div class="px-6 py-2">
-            <el-table :data="row.nodes" size="small" row-key="node_id" empty-text="还没有节，点「新建节」添加">
-              <el-table-column prop="name" label="节" min-width="90" />
-              <el-table-column label="机器" min-width="140">
-                <template #default="{ row: node }">
-                  <div>{{ node.device_id }}</div>
-                  <el-tag :type="node.online ? 'success' : 'info'" size="small" class="mt-1">
-                    {{ node.online ? '在线' : '离线' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="listen_port" label="端口" width="80" />
-              <el-table-column label="状态" width="100">
-                <template #default="{ row: node }">
-                  <el-tag :type="stateTag(stateOf(node))" size="small">
-                    {{ stateText(stateOf(node)) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="错误" min-width="220" show-overflow-tooltip>
-                <template #default="{ row: node }">
-                  <span v-if="node.instance?.error" class="err-text">{{ node.instance.error }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="300" fixed="right">
-                <template #default="{ row: node }">
-                  <el-button
-                    link
-                    type="success"
-                    :disabled="!node.online || stateOf(node) === 'running' || stateOf(node) === 'starting'"
-                    @click="handleStartNode(node)"
-                  >
-                    启动
-                  </el-button>
-                  <el-button
-                    link
-                    type="danger"
-                    :disabled="!node.instance || stateOf(node) === 'stopped' || stateOf(node) === 'stopping'"
-                    @click="handleStop(node)"
-                  >
-                    停止
-                  </el-button>
-                  <el-button
-                    link
-                    type="primary"
-                    :disabled="stateOf(node) !== 'running'"
-                    @click="handleOpenClient(node)"
-                  >
-                    打开
-                  </el-button>
-                  <el-button link type="primary" @click="openNodeEdit(node)">编辑</el-button>
-                  <el-button
-                    link
-                    type="danger"
-                    :disabled="stateOf(node) === 'running' || stateOf(node) === 'starting' || stateOf(node) === 'stopping'"
-                    @click="handleDeleteNode(node)"
-                  >
-                    删除
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </template>
-      </el-table-column>
+    <el-table :data="rows" size="small" empty-text="还没有应用，点右上角「新建应用」">
       <el-table-column prop="name" label="名称" min-width="110" />
       <el-table-column label="程序路径" min-width="260" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="path-pre">{{ row.game_path }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="节" width="120">
+      <el-table-column label="节" width="150">
         <template #default="{ row }">
-          <el-tag size="small" type="info">{{ row.nodes.length }} 个节</el-tag>
+          <el-button link type="primary" @click="openNodeList(row)">
+            {{ row.nodes.length }} 个节
+          </el-button>
           <el-tag v-if="runningCount(row) > 0" size="small" type="success" class="ml-1">
             {{ runningCount(row) }} 运行中
           </el-tag>
@@ -522,6 +482,92 @@ onUnmounted(() => {
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog
+      v-model="nodeListVisible"
+      :title="nodeListApp ? `「${nodeListApp.name}」的节` : '节列表'"
+      width="960px"
+    >
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm text-gray-500">
+          共 {{ nodeListApp?.nodes.length || 0 }} 个节；节启动只影响本行，应用启动会自动挑选空闲节
+        </span>
+        <el-button v-if="nodeListApp" type="primary" size="small" @click="openNodeCreate(nodeListApp)">
+          新建节
+        </el-button>
+      </div>
+      <el-table :data="pagedNodes" size="small" empty-text="还没有节，点右上角「新建节」添加">
+        <el-table-column prop="name" label="节" min-width="90" />
+        <el-table-column label="机器" min-width="140">
+          <template #default="{ row: node }">
+            <div>{{ node.device_id }}</div>
+            <el-tag :type="node.online ? 'success' : 'info'" size="small" class="mt-1">
+              {{ node.online ? '在线' : '离线' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="listen_port" label="端口" width="80" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row: node }">
+            <el-tag :type="stateTag(stateOf(node))" size="small">
+              {{ stateText(stateOf(node)) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="错误" min-width="200" show-overflow-tooltip>
+          <template #default="{ row: node }">
+            <span v-if="node.instance?.error" class="err-text">{{ node.instance.error }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="300" fixed="right">
+          <template #default="{ row: node }">
+            <el-button
+              link
+              type="success"
+              :disabled="!node.online || stateOf(node) === 'running' || stateOf(node) === 'starting'"
+              @click="handleStartNode(node)"
+            >
+              启动
+            </el-button>
+            <el-button
+              link
+              type="danger"
+              :disabled="!node.instance || stateOf(node) === 'stopped' || stateOf(node) === 'stopping'"
+              @click="handleStop(node)"
+            >
+              停止
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="stateOf(node) !== 'running'"
+              @click="handleOpenClient(node)"
+            >
+              打开
+            </el-button>
+            <el-button link type="primary" @click="openNodeEdit(node)">编辑</el-button>
+            <el-button
+              link
+              type="danger"
+              :disabled="stateOf(node) === 'running' || stateOf(node) === 'starting' || stateOf(node) === 'stopping'"
+              @click="handleDeleteNode(node)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="flex justify-end mt-3">
+        <el-pagination
+          v-model:current-page="nodePage"
+          v-model:page-size="nodePageSize"
+          :total="nodeListApp?.nodes.length || 0"
+          :page-sizes="[8, 16, 32]"
+          layout="total, sizes, prev, pager, next"
+          small
+        />
+      </div>
+    </el-dialog>
 
     <el-dialog
       v-model="dialogVisible"
@@ -568,6 +614,7 @@ onUnmounted(() => {
       v-model="nodeDialogVisible"
       :title="nodeEditing ? '编辑节' : '新建节'"
       width="520px"
+      append-to-body
     >
       <el-form label-width="100px">
         <el-form-item label="节名称">

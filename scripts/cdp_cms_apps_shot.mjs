@@ -11,6 +11,8 @@ const APPKEY = process.env.APPKEY || '49727717a74720a863f007dcdb13324e'
 const OUT = process.env.OUT || `cms_apps_${Date.now()}.png`
 const CDP_PORT = Number(process.env.CDP_PORT || 9490)
 const EXPAND = process.env.EXPAND === '1'
+const CLICK_NODES_APP = process.env.CLICK_NODES_APP || '' // app name; click its「N 个节」to open the node dialog
+const CLICK_PAGE_2 = process.env.CLICK_PAGE_2 === '1'
 const CLICK_START_APP = process.env.CLICK_START_APP || '' // app name; click its 启动 to capture the error toast
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -86,6 +88,39 @@ console.log('[page]', JSON.stringify(info))
 if (EXPAND) {
   await evaluate(`document.querySelectorAll('.el-table__expand-icon').forEach(e => e.click()); 'ok'`)
   await sleep(3000)
+}
+
+if (CLICK_NODES_APP) {
+  const clicked = await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.el-table__row')]
+    const row = rows.find(r => r.innerText.includes('${CLICK_NODES_APP}'))
+    if (!row) return 'row-not-found'
+    const btn = [...row.querySelectorAll('button')].find(b => /个节/.test(b.innerText))
+    if (!btn) return 'btn-not-found'
+    btn.click()
+    return 'clicked'
+  })()`)
+  console.log('[click-nodes]', clicked)
+  await sleep(2500)
+  if (CLICK_PAGE_2) {
+    await evaluate(`(() => {
+      const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.innerText.includes('的节'))
+      const next = dlg?.querySelector('.el-pagination .btn-next')
+      if (next) next.click()
+      return 'next'
+    })()`)
+    await sleep(1500)
+  }
+  const dlgInfo = await evaluate(`(() => {
+    const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.innerText.includes('的节'))
+    if (!dlg) return 'dialog-not-found'
+    return {
+      rows: dlg.querySelectorAll('.el-table__row').length,
+      pages: [...dlg.querySelectorAll('.el-pager li')].map(e => e.innerText).join(','),
+      total: dlg.querySelector('.el-pagination__total')?.innerText || '',
+    }
+  })()`)
+  console.log('[dialog]', JSON.stringify(dlgInfo))
 }
 
 if (CLICK_START_APP) {
