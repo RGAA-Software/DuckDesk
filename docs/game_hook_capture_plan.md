@@ -428,3 +428,48 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 - **版本 bump 文件要随修复一起提交**(`rust_*/Cargo.toml`、`setup/proj_version.nsh`、
   `src/gr_base/version.cmake` 等,构建脚本自动改);`tests/` 目录不要提交
   (含 `.remote_admin.md` 明文凭据)。
+
+
+## 15. 游戏死亡自动重启 + 重新 hook（2026-08-11）
+
+### 15.1 问题
+
+game-hook 模式下游戏进程死了（崩溃/被杀）后：
+
+1. **没人重启游戏**——`StartProcessWithHook` 只在 render 启动时调一次；
+2. **普通 app 路径 hook 不回来**——`InjectCaptureDllForNormalApp` 按 `target_pid_`
+   精确匹配进程，游戏被外部重启（新 pid）后永远匹配不上（Steam 路径按 exe 名
+   每轮发现，无此问题）；
+3. service 的 `reap_dead_app_instances` 只监控 render 进程，不管游戏——实例永远
+   停在 running 但无画面。
+
+### 15.2 方案：render 侧游戏看门狗
+
+`app_manager_win.cpp` 新增 `EnsureGameRunning()`，挂在注入 worker 循环每轮开头
+（1s 节流，仅 game-hook 模式）：
+
+- **普通 app**：`target_pid_` 死了先按 exe 文件名扫进程列表——找到同名新 pid
+  （外部手动重启）则**收养**（更新 `target_pid_` + 重置注入状态，不重复启动）；
+  扫不到则重启。
+- **UE boot/view**：view 进程没了且 boot 也死了 → 重启 boot；view 没了但 boot
+  残留（`view_ever_seen_` 区分"首轮加载中"）→ 杀残留 boot 再重启，避免双外壳。
+- **Steam**：任一游戏 exe 进程在跑即存活；全没了重启（ShellExecute url）。
+  冷启动宽限 60s（`kSteamRelaunchGraceMs`），拉起 url 后进程几十秒才出现，
+  期间不重复拉。
+- 重启经 `StartProcessWithHook()`，5s 节流（`kGameRestartMinIntervalMs`），
+  不限次数永不放弃（同 §9.4 注入重试风格；连续崩溃的游戏 5s 一次循环拉起，
+  日志可见——已知取舍）。
+- `MarkGameLaunched()`：每次成功拉起游戏后置 `game_ever_seen_` + 刷新节流计时；
+  看门狗只在游戏拉起/存活过至少一次后才介入，不与首轮启动竞争。
+
+### 15.3 验证（.70，CMS 实例 + headless CDP）
+
+- **Dyson（Unity，普通路径，32000）**：杀 `DSPGAME.exe` → 日志 `Game process
+  gone, restarting game` + 115ms 后 `Inject success`（新 pid）→ 截图恢复主菜单 ✅
+- **CarGame（UE4 boot/view，32002）**：杀 `VehicleGame-Win64-Shipping.exe` →
+  日志重启 boot 外壳 + `UE view process found`（新 pid）+ `Inject success` →
+  截图恢复起跑线画面 ✅
+- CMS 停实例后 boot/view/render 全部清理 ✅
+- 部署 render exe 注意：service 会自动拉起桌面 render 锁住 exe，copy 必失败——
+  `tests\_deploy_render_exe_70.bat` 先 `sc stop GammaRayService` 再拷贝，拷完重启
+  service。

@@ -45,6 +45,14 @@ namespace tc
         // gave_up 状态下的低频探测：目标进程消失或同 exe 出现新 pid（游戏重启）
         // 则清除 gave_up 并恢复注入流程
         void ProbeGaveUpTargetGone();
+        // 游戏看门狗（仅 game-hook 模式）：游戏进程死了则重新拉起（5s 节流），
+        // 被外部手动重启（同 exe 新 pid）则收养新 pid 交给注入流程 re-hook。
+        // 仅在游戏成功跑起来过一次（game_ever_seen_）之后才介入，避免与首轮启动竞争。
+        void EnsureGameRunning();
+        // StartProcessWithHook 成功拉起游戏后调用：标记"游戏拉起过"，并刷新重启节流计时
+        void MarkGameLaunched();
+        // 进程是否存活（OpenProcess + STILL_ACTIVE）
+        static bool IsProcessAlive(uint32_t pid);
         bool InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll);
         void AddFoundPid(const ProcessInfoPtr& target_pi);
         static WindowInfos SearchWindowByPid(uint32_t pid);
@@ -71,6 +79,13 @@ namespace tc
         // 最近一次实际尝试注入的目标 pid（含失败/32 位拒绝），gave_up 探测用它
         // 判断游戏是否已重启（steam 场景 target_pid_ 在注入成功前一直是 0）
         std::atomic<uint32_t> last_inject_target_pid_ = 0;
+
+        // 游戏看门狗状态：游戏拉起/存活过一次之后才允许自动重启（避免首轮启动阶段误介入）
+        std::atomic<bool> game_ever_seen_ = false;
+        // UE view 进程出现过才置位：区分"首轮加载中"与"view 崩溃后外壳残留"
+        std::atomic<bool> view_ever_seen_ = false;
+        std::atomic<int64_t> last_game_restart_ms_ = 0;
+        std::atomic<int64_t> last_watchdog_check_ms_ = 0;
 
     };
 

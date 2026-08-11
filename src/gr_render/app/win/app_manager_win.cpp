@@ -39,6 +39,11 @@ namespace tc
     constexpr int kInjectAliveCheckIntervalMs = 1000;
     // gave_up 后探测游戏重启的间隔（目标消失/换 pid 则恢复注入）
     constexpr int kInjectGaveUpProbeIntervalMs = 3000;
+    // 游戏看门狗：存活检查间隔 / 自动重启最小间隔（不限次数、永不放弃，同注入重试策略）
+    constexpr int64_t kGameWatchdogCheckIntervalMs = 1000;
+    constexpr int64_t kGameRestartMinIntervalMs = 5000;
+    // steam 游戏冷启动慢（拉起 url 后进程可能几十秒才出现），这段时间内不得重复拉 url
+    constexpr int64_t kSteamRelaunchGraceMs = 60000;
 
     AppManagerWinImpl::AppManagerWinImpl(const std::shared_ptr<RdContext>& ctx) : AppManager(ctx) {
         settings_ = RdSettings::Instance();
@@ -118,6 +123,7 @@ namespace tc
         // steam prefix
         if (is_steam_url) {
             ShellExecuteW(nullptr, nullptr, exec.c_str(), nullptr, nullptr , SW_SHOW );
+            MarkGameLaunched();
             return true;
         }
 
@@ -154,7 +160,17 @@ namespace tc
              u8_exec, settings_->app_.game_arguments_);
         target_pid_ = ProcessUtil::StartProcess(u8_exec, args, true, false);
         LOGI("After started, the pid is: {}", target_pid_.load());
+        if (target_pid_ > 0) {
+            MarkGameLaunched();
+        }
         return target_pid_ > 0;
+    }
+
+    void AppManagerWinImpl::MarkGameLaunched() {
+        // 看门狗据此确认"游戏拉起过至少一次"，并以其作为 steam 冷启动宽限的计时起点
+        game_ever_seen_ = true;
+        last_game_restart_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
     bool AppManagerWinImpl::StartProcess() {
@@ -220,6 +236,9 @@ namespace tc
                 inject_cv_.wait_for(lock, std::chrono::milliseconds(1000));
                 continue;
             }
+
+            // 游戏看门狗：游戏死了自动拉起 + 收养外部重启的新 pid（内部 1s 节流）
+            EnsureGameRunning();
 
             if (injected_) {
                 // 已注入：低频检查目标进程存活且 DLL 仍映射，游戏崩溃重开后重新走注入流程
@@ -351,6 +370,124 @@ namespace tc
         if (recover) {
             ResetInjectRetryState();
         }
+    }
+
+    bool AppManagerWinImpl::IsProcessAlive(uint32_t pid) {
+        if (pid <= 0) {
+            return false;
+        }
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!process) {
+            return false;
+        }
+        DWORD exit_code = 0;
+        bool alive = GetExitCodeProcess(process, &exit_code) && exit_code == STILL_ACTIVE;
+        CloseHandle(process);
+        return alive;
+    }
+
+    void AppManagerWinImpl::EnsureGameRunning() {
+        if (!settings_->IsGameHookMode()) {
+            return;
+        }
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (now_ms - last_watchdog_check_ms_.load() < kGameWatchdogCheckIntervalMs) {
+            return;
+        }
+        last_watchdog_check_ms_ = now_ms;
+
+        bool need_restart = false;
+        if (settings_->app_.IsSteamUrl()) {
+            // steam：任一已安装游戏 exe 进程在跑即视为存活；
+            // 注入流程每轮按 exe 名自行发现新 pid，无需收养
+            if (!steam_game_ || !steam_game_->Ready()) {
+                return;
+            }
+            std::vector<std::string> split_path;
+            StringUtil::Split(settings_->app_.game_path_, split_path, "/");
+            if (split_path.empty()) {
+                return;
+            }
+            auto steam_id = std::atoi(split_path.at(split_path.size()-1).c_str());
+            auto installed_games = steam_game_->GetInstalledGames();
+            auto it = std::find_if(installed_games.begin(), installed_games.end(), [steam_id](const SteamAppPtr& app) {
+                return app->app_id_ == steam_id;
+            });
+            if (it == installed_games.end()) {
+                return;
+            }
+            auto processes = ProcessHelper::GetProcessList(false);
+            for (const auto& process : processes) {
+                auto exe_name = FileUtil::GetFileNameFromPath(process->exe_full_path_);
+                if (std::find((*it)->exe_names_.begin(), (*it)->exe_names_.end(), exe_name) != (*it)->exe_names_.end()) {
+                    game_ever_seen_ = true;
+                    return;
+                }
+            }
+            // 冷启动宽限：拉起 url 后游戏进程可能几十秒才出现，期间不得重复拉
+            need_restart = game_ever_seen_ &&
+                (now_ms - last_game_restart_ms_.load() >= kSteamRelaunchGraceMs);
+        } else if (!settings_->app_.game_view_path_.empty()) {
+            // UE boot/view：view 进程在 → 存活；view 不在但 boot 还活着：
+            // 首轮加载中（view 还没出现过）则等待；view 出现过说明这次是 view 崩了，
+            // 残留的外壳一并杀掉再走重启，避免双外壳
+            auto norm_view = StringUtil::ToLowerCpy(settings_->app_.game_view_path_);
+            StringUtil::Replace(norm_view, "/", "\\");
+            for (const auto& process : ProcessHelper::GetProcessList(false)) {
+                auto norm_exe = StringUtil::ToLowerCpy(process->exe_full_path_);
+                StringUtil::Replace(norm_exe, "/", "\\");
+                if (norm_exe == norm_view) {
+                    game_ever_seen_ = true;
+                    view_ever_seen_ = true;
+                    return;
+                }
+            }
+            if (IsProcessAlive(target_pid_)) {
+                if (!view_ever_seen_) {
+                    return;
+                }
+                LOGW("UE view process gone but boot pid: {} still alive, killing lingering boot.", target_pid_.load());
+                ProcessUtil::KillProcess(target_pid_);
+            }
+            need_restart = game_ever_seen_;
+        } else {
+            // 普通 app
+            if (IsProcessAlive(target_pid_)) {
+                game_ever_seen_ = true;
+                return;
+            }
+            // 外部手动重启（同 exe 名新 pid）→ 收养，交给注入流程 re-hook，不重复启动
+            if (!settings_->app_.game_path_.empty()) {
+                const auto target_exe_name = FileUtil::GetFileNameFromPath(settings_->app_.game_path_);
+                for (const auto& process : ProcessHelper::GetProcessList(false)) {
+                    if (process->pid_ != target_pid_.load() &&
+                        FileUtil::GetFileNameFromPath(process->exe_full_path_) == target_exe_name) {
+                        LOGW("Game restarted externally, adopt new pid: {} (old: {}), will re-inject.",
+                             process->pid_, target_pid_.load());
+                        target_pid_ = process->pid_;
+                        injected_ = false;
+                        inject_alive_fail_count_ = 0;
+                        ResetInjectRetryState();
+                        return;
+                    }
+                }
+            }
+            need_restart = game_ever_seen_;
+        }
+
+        if (!need_restart) {
+            return;
+        }
+        if (now_ms - last_game_restart_ms_.load() < kGameRestartMinIntervalMs) {
+            return;
+        }
+        last_game_restart_ms_ = now_ms;
+        LOGW("Game process gone, restarting game: {}", settings_->app_.game_path_);
+        injected_ = false;
+        inject_alive_fail_count_ = 0;
+        ResetInjectRetryState();
+        StartProcessWithHook();
     }
 
     bool AppManagerWinImpl::InjectCaptureDllForSteamApp() {
