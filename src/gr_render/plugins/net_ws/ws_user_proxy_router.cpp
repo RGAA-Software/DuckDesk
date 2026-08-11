@@ -5,6 +5,7 @@
 #include "ws_user_proxy_router.h"
 
 #include <asio2/asio2.hpp>
+#include <functional>
 #include "tc_common_new/data.h"
 #include "tc_common_new/log.h"
 #include "tc_render_panel_message.pb.h"
@@ -91,20 +92,28 @@ namespace tc
             return;
         }
 
-        if (m.type() == tcrp::kRpClipboardEvent) {
-            const auto& clipboard_info = m.clipboard_info();
-            // 广播到所有网络插件:ws 走自身 PostProtoMessage;
-            // net 插件的 net_plugins_ 为空(plugin_manager 只给非 net 插件挂载),
-            // rtc/rtc_local 需经 total_plugins_ 按 id 找到后逐个投递(WebRTC 网页客户端走这里)
-            auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
-                plugin->PostProtoMessage(buffer, false);
-                for (const auto& id : { kNetRtcPluginId, kNetRtcLocalPluginId }) {
-                    if (auto p = plugin->GetPluginById(id); p && p != plugin) {
-                        if (auto np = dynamic_cast<GrNetPlugin*>(p)) {
-                            np->PostProtoMessage(buffer, false);
-                        }
+        // 投递到所有网络插件:ws 走自身;net 插件的 net_plugins_ 为空
+        // (plugin_manager 只给非 net 插件挂载),需经 total_plugins_ 按 id 找到后
+        // 逐个投递。必须覆盖 rtc/rtc_local(WebRTC 网页客户端)和 relay/udp(原生
+        // 客户端主路径)——此前白名单只有 rtc,relay 客户端永远收不到远端消息。
+        auto for_each_net_plugin = [&](const std::function<void(GrNetPlugin*)>& fn) {
+            fn(plugin);
+            for (const auto& id : { kNetRtcPluginId, kNetRtcLocalPluginId,
+                                    kRelayPluginId, kNetUdpPluginId }) {
+                if (auto p = plugin->GetPluginById(id); p && p != plugin) {
+                    if (auto np = dynamic_cast<GrNetPlugin*>(p)) {
+                        fn(np);
                     }
                 }
+            }
+        };
+
+        if (m.type() == tcrp::kRpClipboardEvent) {
+            const auto& clipboard_info = m.clipboard_info();
+            auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
+                for_each_net_plugin([&](GrNetPlugin* np) {
+                    np->PostProtoMessage(buffer, false);
+                });
             };
             if (clipboard_info.type() == tcrp::kRpClipboardText) {
                 LOGI("user-proxy clipboard text outbound, len={}", clipboard_info.msg().size());
@@ -136,11 +145,15 @@ namespace tc
         if (m.type() == tcrp::kRpRawRenderMessage) {
             const auto& sub = m.raw_render_msg();
             auto buffer = Data::From(sub.msg());
-            if (sub.data_channel()) {
-                plugin->PostTargetFileTransferProtoMessage(sub.stream_id(), buffer, sub.run_through());
-            } else {
-                plugin->PostProtoMessage(buffer, sub.run_through());
-            }
+            // 与 broadcast 同理:按 stream 投递也要覆盖 relay/udp,否则原生客户端
+            // (relay) 收不到 userproxy 的定向消息(剪切板文件取数应答等)
+            for_each_net_plugin([&](GrNetPlugin* np) {
+                if (sub.data_channel()) {
+                    np->PostTargetFileTransferProtoMessage(sub.stream_id(), buffer, sub.run_through());
+                } else {
+                    np->PostProtoMessage(buffer, sub.run_through());
+                }
+            });
             return;
         }
 
