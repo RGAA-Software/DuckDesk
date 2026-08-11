@@ -172,17 +172,27 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         D3D11_TEXTURE2D_DESC desc;
         texture2d_->GetDesc(&desc);
         D3D11_VIEWPORT vp = {0.0f, 0.0f, (FLOAT)desc.Width, (FLOAT)desc.Height, 0.0f, 1.0f};
+        // 与 hook 端同理:immediate context 可能继承其他插件留下的 scissor/blend/depth
+        // 状态,显式重置,防止 Draw 被裁剪成小块。
+        D3D11_RECT full_scissor = {0, 0, (LONG)desc.Width, (LONG)desc.Height};
 
         auto ctx = d3d11_device_context_;
         ctx->IASetInputLayout(nullptr);
         ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         ctx->VSSetShader(conv_vs_.Get(), nullptr, 0);
         ctx->PSSetShader(conv_ps_.Get(), nullptr, 0);
+        ctx->HSSetShader(nullptr, nullptr, 0);
+        ctx->DSSetShader(nullptr, nullptr, 0);
+        ctx->GSSetShader(nullptr, nullptr, 0);
         ID3D11ShaderResourceView* srvs[] = {srv.Get()};
         ctx->PSSetShaderResources(0, 1, srvs);
         ID3D11RenderTargetView* rtvs[] = {rtv.Get()};
         ctx->OMSetRenderTargets(1, rtvs, nullptr);
+        ctx->OMSetBlendState(nullptr, nullptr, 0xffffffff);
+        ctx->OMSetDepthStencilState(nullptr, 0);
         ctx->RSSetViewports(1, &vp);
+        ctx->RSSetScissorRects(1, &full_scissor);
+        ctx->RSSetState(nullptr);
         ctx->Draw(3, 0);
         // 解除绑定,避免 SRV/RTV 残留影响后续 CopyResource / NVENC。
         ID3D11ShaderResourceView* null_srvs[] = {nullptr};

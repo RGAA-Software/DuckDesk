@@ -91,16 +91,27 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             return false;
         }
         D3D11_VIEWPORT vp = {0.0f, 0.0f, (FLOAT)curr_desc_.Width, (FLOAT)curr_desc_.Height, 0.0f, 1.0f};
+        // 借用游戏的 immediate context 画画,必须显式重置继承来的状态:
+        // 游戏(UE Slate/UMG 裁剪)常留着小的 scissor rect 或自定义 blend/depth 状态,
+        // 不重置的话 Draw 会被裁剪成一个小块、或混入错误的混合结果。
+        D3D11_RECT full_scissor = {0, 0, (LONG)curr_desc_.Width, (LONG)curr_desc_.Height};
 
         context->IASetInputLayout(nullptr);
         context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         context->VSSetShader(conv_vs_, nullptr, 0);
         context->PSSetShader(conv_ps_, nullptr, 0);
+        context->HSSetShader(nullptr, nullptr, 0);
+        context->DSSetShader(nullptr, nullptr, 0);
+        context->GSSetShader(nullptr, nullptr, 0);
         ID3D11ShaderResourceView* srvs[] = {srv};
         context->PSSetShaderResources(0, 1, srvs);
         ID3D11RenderTargetView* rtvs[] = {rtv};
         context->OMSetRenderTargets(1, rtvs, nullptr);
+        context->OMSetBlendState(nullptr, nullptr, 0xffffffff);
+        context->OMSetDepthStencilState(nullptr, 0);
         context->RSSetViewports(1, &vp);
+        context->RSSetScissorRects(1, &full_scissor);
+        context->RSSetState(nullptr);
         context->Draw(3, 0);
         // 解除绑定,避免 SRV/RTV 残留影响后续拷贝。
         ID3D11ShaderResourceView* null_srvs[] = {nullptr};

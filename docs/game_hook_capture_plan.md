@@ -332,3 +332,99 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 
 - 共享纹理跨进程无锁（plain SHARED，无 keyed mutex）：理论上有撕裂风险，实测未见；11on12 上 keyed mutex 不可创建（见 12.2.4），暂无更好同步手段。
 - 10bit→8bit 转换在 hook 进程内消耗游戏 GPU 的一次全屏 blit，开销可忽略但存在。
+
+## 13. 画面残缺回归：blit 继承游戏管线状态（2026-08-11 第二轮）
+
+### 13.1 问题
+
+第 12 节修复上线后，UE4 / UE5(-dx11) / UE5(D3D12) 画面变成"全黑 + 左上角 UI 文字 +
+右上角一小块实时场景"(1920x1080 帧里只有约 260x95 的区域有内容）；Unity 游戏正常。
+
+### 13.2 定位过程
+
+1. 在消费端 `VideoFrameCarrier::CopyTexture` 临时加 `DebugOutDDS` 同时 dump
+   **hook 产出的共享纹理**和 **carrier 拷贝后的纹理**——两者内容一致且已残缺,
+   证明问题在 hook 生产端,carrier/编码器无辜。
+2. 根因：第 12 节新增的 10bit→8bit 转换 `BlitConvertToBgra` 在 **Present 时刻借用
+   游戏的 immediate context** 画画,只设了 VS/PS/SRV/RTV/viewport,没有重置其余
+   继承状态。UE 的 Slate/UMG 裁剪会在 context 上留下**小的 scissor rect**
+   (且光栅状态 ScissorEnable=TRUE),Draw 被裁剪成一小块——每帧只有 scissor 覆盖的
+   屏幕区域被拷贝,其余区域保持初始黑色。UI 文字区域因曾被某个 scissor 覆盖而显示
+   (且 UI 静止,看起来"正常"),场景区域则只有最后一次 scissor 覆盖的一小块在动。
+
+### 13.3 修复
+
+`BlitConvertToBgra`(hook 端 `hk_video/shared_texture.cpp` 与消费端
+`video_frame_carrier.cpp` 两处同款)Draw 前显式重置全部继承状态:
+
+- `RSSetState(nullptr)`(默认光栅 ScissorEnable=FALSE)+ `RSSetScissorRects(全屏)`
+- `OMSetBlendState(nullptr)` / `OMSetDepthStencilState(nullptr, 0)`
+- `HS/DS/GS` 置空(防止游戏留下的 hull/domain/geometry shader 参与本次 Draw)
+
+### 13.4 验证(.70,CMS 应用调度实例 + headless CDP 截图)
+
+- UE5-AAA `-dx11`(32001):完整画面 ✅
+- UE5-AAA 默认 D3D12(32001,临时去掉 -dx11 参数):完整画面,40s+ 无 TDR ✅
+- UE4 CarGame(32002):完整画面 ✅
+- 验证工具:`scripts/cdp_stream_screenshot.mjs`(WEB_URL 环境变量指向实例
+  web_client,等待 video 起来后 Page.captureScreenshot)
+- 实例启停走 CMS API:`/api/v1/app/control/app/instance/start|stop`(appkey 见
+  CMS 日志 log_spvr*.log 的 `stored_appkey`)
+
+
+## 14. 调试方法论与踩坑记录(2026-08-11)
+
+本次"画面残缺"问题的完整排查流程,整理成可复用的套路。
+
+### 14.1 排查套路:先分端,再定位
+
+画面类问题(黑屏/残缺/花屏)第一步永远是**区分生产端和消费端**:
+
+1. 在生产端(hook)产出共享纹理处 dump 一帧(`DebugOutDDS`,见
+   `video_frame_carrier.cpp` 里曾临时加入的实现),同时在消费端拷贝后再 dump 一帧。
+2. 两份 DDS 转 PNG 对比(工具 `tests/dds_to_png.py`,本地跑):
+   - 生产端已残缺 → 问题在 hook/capture 链路,carrier、编码器、网络、web 全部排除;
+   - 生产端完整、消费端残缺 → 问题在 carrier 拷贝或之后的链路。
+3. **不要只看 web_client 的显示效果就下结论**。web 端看到的异常可能来自
+   capture、carrier、编码、传输、解码、渲染任何一环,逐环 dump 才能少走弯路。
+
+本次就是靠这个直接锁定:hook 借游戏 immediate context 做 10bit→8bit blit 时,
+继承了 UE Slate 留下的小 scissor rect(ScissorEnable=TRUE),Draw 被裁剪。
+
+### 14.2 复现/验证工具链(.70 远程调试全流程)
+
+1. **改代码 + 增量编译**:`cmd //c "build_official\_build_inc.bat <target>"`
+   (hook 相关 target:`plugin_frame_carrier`、`tc_graphics`;改 hk_video 头文件
+   还会带动 gr_render / gr_service 重编)。
+2. **部署 .70**:`tests\_deploy_hookfix_70.bat`(杀 render+游戏进程 → 拷贝 dll →
+   服务自动拉起 render)。
+3. **起实例**:CMS API `POST /api/v1/app/control/app/instance/start`
+   (appkey 从 `output/gr_cms_server/logs/gr_cms_server/log_spvr*.log` 找最新
+   `stored_appkey`,会随 CMS 重启轮换)。
+4. **无头截图验证**:`scripts/cdp_stream_screenshot.mjs`,用法:
+   `WEB_URL="http://10.0.0.70:<port>/web_client/?deviceId=990405157&instanceId=<inst>" OUT=x.png node scripts/cdp_stream_screenshot.mjs`
+   等 video 流起来后 Page.captureScreenshot,比远程桌面看画面快且可留档。
+5. **收尾**:停测试实例、恢复 CMS 里改过的启动参数、清理 .70 上的调试 dds/bat。
+
+### 14.3 踩过的坑(不要再踩)
+
+- **借用游戏的 D3D11 immediate context 画画,必须重置全部继承状态**:
+  scissor rect、光栅状态、blend、depth-stencil、HS/DS/GS,缺一不可。只设
+  VS/PS/SRV/RTV/viewport 不够——UE 的 UI 裁剪状态一定会留下来(本次根因)。
+  更稳妥的长期方向是自建独立 context 或 command list。
+- **Git Bash 内联跑 `net use` / `taskkill` 必炸**(密码里的 `&&`、UNC 路径转义)。
+  一律写成 bat 文件再执行;bat 必须 CRLF 行尾,Write 之后
+  `sed -i 's/$/\r/'` 补一下,否则 cmd 解析出错。
+- **部署 .70 前必须先杀 render 和游戏进程**,否则 dll 被占用 copy 静默失败,
+  会拿着旧 dll 白测一轮。CMS 实例的游戏进程被杀后实例可能标 failed,
+  重启实例即可,不是代码问题。
+- **CMS 应用配置是共享状态**:为测试改的启动参数(如临时去掉 `-dx11`)测完
+  立刻恢复原值,否则下次别人/自己跑默认路径测的是错的东西。
+- **调试代码(`DebugOutDDS` 之类)验证完立刻删掉再编一版部署复验**,
+  不要带着 dump 代码收尾——每帧写盘会拖垮采集性能。
+- **appkey 会过期**:CMS 重启后旧 appkey 失效,API 返回登录页 HTML
+  (status 200 但 body 是 html),表现为前端"保存失败"/接口返回一堆
+  `<!DOCTYPE html>`。从 CMS 日志找最新 `stored_appkey` 即可。
+- **版本 bump 文件要随修复一起提交**(`rust_*/Cargo.toml`、`setup/proj_version.nsh`、
+  `src/gr_base/version.cmake` 等,构建脚本自动改);`tests/` 目录不要提交
+  (含 `.remote_admin.md` 明文凭据)。
