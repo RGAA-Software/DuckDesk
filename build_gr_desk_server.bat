@@ -31,6 +31,12 @@ rem Subdirectory under output\%SERVER_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=static"
 set "OUTPUT_DIR=%REPO_ROOT%\output\%SERVER_NAME%"
 
+rem aws-lc-sys needs a real NASM. Its fallback prebuilt-nasm shim script
+rem breaks cmake configure under Git Bash (the .sh variant gets selected,
+rem which the Ninja generator cannot identify), so use the repo-vendored
+rem NASM instead of relying on whatever happens to be on the machine.
+set "PATH=%REPO_ROOT%\tools\nasm;%PATH%"
+
 echo ============================================
 echo Building %SERVER_NAME%
 echo ============================================
@@ -40,6 +46,11 @@ rem --- Check prerequisites ---
 call :check_tool npm
 if errorlevel 1 exit /b 1
 call :check_tool cargo
+if errorlevel 1 exit /b 1
+rem NASM is required by aws-lc-sys (vendored under tools\nasm, PATH set above).
+rem Ninja is checked later, after the VS2026 environment is activated -
+rem VS bundles its own ninja, which is not on PATH before that.
+call :check_tool nasm
 if errorlevel 1 exit /b 1
 
 rem --- [1/3] Build the frontend ---
@@ -67,11 +78,51 @@ echo.
 rem --- [2/3] Build the Rust server ---
 echo [2/3] Building Rust server: %SERVER_NAME% ^(release^)
 cd /d "%REPO_ROOT%\rust_server"
+
+rem --- Build environment: VS2026 (VS 18) + Ninja -------------------------
+rem This project builds the Rust servers with VS2026 only. If the caller has
+rem not already activated a VS 18 environment (e.g. build_official.bat),
+rem locate VS2026 and activate it here.
+if not "%VisualStudioVersion:~0,2%"=="18" (
+    set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+    set "VS_INSTALL_DIR="
+    if exist "!VSWHERE!" (
+        for /f "usebackq tokens=*" %%i in (`"!VSWHERE!" -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL_DIR=%%i"
+    )
+    if "!VS_INSTALL_DIR!"=="" (
+        if exist "%ProgramFiles%\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\Community"
+        if exist "%ProgramFiles%\Microsoft Visual Studio\18\Professional\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\Professional"
+        if exist "%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\Enterprise"
+        if exist "%ProgramFiles%\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\BuildTools"
+    )
+    if "!VS_INSTALL_DIR!"=="" (
+        echo ERROR: Visual Studio 2026 ^(VS 18^) with MSVC x64 tools was not found.
+        echo        The Rust servers require VS2026 to build.
+        exit /b 1
+    )
+    echo Activating VS2026 build environment: !VS_INSTALL_DIR!
+    call "!VS_INSTALL_DIR!\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+    if errorlevel 1 exit /b 1
+)
+
+rem Ninja is required (CMAKE_GENERATOR=Ninja is forced below). Checked only
+rem now because VsDevCmd puts the VS-bundled ninja on PATH.
+call :check_tool ninja
+if errorlevel 1 exit /b 1
+
 rem cmake-rs (used by aws-lc-sys) does not recognize VS 18 and panics with
-rem "unsupported or unknown VisualStudio version: 18.0". When the caller
-rem (build_official.bat) activated a VS 18 environment, force the Ninja
-rem generator so cmake-rs skips VS detection. Standalone runs keep the default.
-if "%VisualStudioVersion:~0,2%"=="18" set "CMAKE_GENERATOR=Ninja"
+rem "unsupported or unknown VisualStudio version: 18.0", so force the Ninja
+rem generator to make cmake-rs skip VS detection. This must be UNCONDITIONAL:
+rem aws-lc-sys caches its cmake build dir under target\, and alternating
+rem generators (Ninja vs "Visual Studio 17 2022") between runs makes cmake
+rem fail with "generator ... does not match the generator used previously".
+set "CMAKE_GENERATOR=Ninja"
+
+rem aws-lc-sys generates err_data.c via `go run`. A globally-set GOOS=linux
+rem makes go cross-compile Linux binaries that cannot run on Windows
+rem ("executable file not found in %PATH%"), so pin GOOS for this build.
+set "GOOS=windows"
+
 cargo build --release -p %SERVER_NAME%
 if errorlevel 1 (
     echo ERROR: cargo build failed for %SERVER_NAME%.
