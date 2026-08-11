@@ -473,3 +473,44 @@ game-hook 模式下游戏进程死了（崩溃/被杀）后：
 - 部署 render exe 注意：service 会自动拉起桌面 render 锁住 exe，copy 必失败——
   `tests\_deploy_render_exe_70.bat` 先 `sc stop GammaRayService` 再拷贝，拷完重启
   service。
+
+### 15.4 客户端死亡/重启通知（kGameStatusChanged=540）
+
+看门狗重启期间客户端无新帧，没有提示的话用户以为卡死（§15.1 的"白屏/定格"
+误报正来源于此）。新增全链路通知：
+
+- **proto**（`tc_message_new/tc_message.proto`，web 两份副本同步）：
+  `kGameStatusChanged=540` + `GameStatusChanged{status,detail}`
+  （0=运行/恢复，1=死亡，2=重启中），挂在 `Message.game_status_changed=530`。
+- **render**：`NetMessageMaker::MakeGameStatusChanged`；
+  `AppManagerWinImpl::NotifyGameStatus` 走 `rdApp->PostNetMessage` 广播
+  （ws + rtc_local 插件都会收到，rtc_local 只过滤媒体帧 30/40，540 正常转发）。
+  看门狗重启/收养外部重启时发 `kGameRestarting`。
+- **恢复时机**：注入成功 ≠ 画面恢复（冷启动游戏出首帧要几十秒），所以
+  `kGameRunning` 不在注入处发——`waiting_first_frame_` 原子标志置位后，
+  Init 里注册的 `CaptureVideoFrame` 监听在**重启后第一帧到达时**才发恢复。
+- **web 客户端**（`App.vue` + `proto.ts`）：收到 540，`status=2` 弹持久
+  warning「游戏重启中」（`duration:0`，重启期间一直在），`status=0` 关掉并
+  弹 5s success「游戏已恢复」。
+
+### 15.5 通知验证（.70，同客户端跨杀游戏）
+
+`tests\cdp_freeze_check_70.mjs` 保持同一 headless 客户端连接，杀游戏后观察。
+页面侧临时注入 `window.__lastMsgs` 记录 datachannel 收到的消息类型（验证完已撤，
+web 产物重新 build 部署）：
+
+- 杀 `DSPGAME.exe` → 看门狗 16:30:35.998 重启 → 客户端 16:30:36.160 收到
+  `{t:540,s:2}`（~160ms 到达）→ 16:30:39.115 收到 `{t:540,s:0}`（首帧恢复）。
+- 脚本检测到 540 立即连拍截图：warning「游戏重启中」与 success「游戏已恢复」
+  弹窗均在右上角实际渲染 ✅。
+- 早前"通知没见到"是验证手段不可靠：`innerText` 漏隐藏面板、10s 截图间隔
+  错过短窗口（本次 Dyson 热重启仅 ~3s）。
+
+### 15.6 远程杀游戏的坑（taskkill RPC 认证）
+
+`tests\_kill_game_70.bat`（taskkill /s /u /p）原本可用，某次起 .70 上
+taskkill/schtasks 的 RPC 认证持续 LOGON_FAILURE / Access denied，而同一密码的
+`net use`、`sc`、C$ 拷贝全部正常。绕法：`tests\_remote_kill_70.bat` 走 SCM
+通道——把一次性 `taskkill /f /im <image>` 注册成服务让 SYSTEM 本地执行
+（`sc start` 报 1053 属预期，实际 kill 在 ~30-60s 后落地），随后删服务。
+验证脚本需留足观察窗口（OBSERVE_MS≥120s）覆盖这个延迟。

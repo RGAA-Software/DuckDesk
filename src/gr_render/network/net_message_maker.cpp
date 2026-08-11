@@ -267,4 +267,13 @@ namespace tc
         return ProtoAsData(&msg);
     }
 
+    std::shared_ptr<Data> NetMessageMaker::MakeGameStatusChanged(tc::GameStatusChanged::GameStatus status, const std::string& detail) {
+        tc::Message msg;
+        msg.set_type(kGameStatusChanged);
+        auto* body = msg.mutable_game_status_changed();
+        body->set_status(status);
+        body->set_detail(detail);
+        return ProtoAsData(&msg);
+    }
+
 }

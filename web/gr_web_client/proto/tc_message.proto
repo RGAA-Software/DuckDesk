@@ -1,4 +1,4 @@
-﻿syntax = "proto3";
+syntax = "proto3";
 
 package tc;
 
@@ -125,6 +125,9 @@ enum MessageType {
 
   // render -> client: 编码格式已切换(如全彩导致 H264→H265)
   kVideoCodecChanged = 530;
+
+  // render -> client: game-hook 游戏进程状态变化(死亡/重启/恢复)
+  kGameStatusChanged = 540;
 
 }
 
@@ -637,6 +640,23 @@ message VideoCodecChanged {
   string reason = 3;
 }
 
+// render -> client
+// game-hook 模式下游戏进程状态变化：死亡后看门狗自动重启期间客户端无新帧，
+// 用此消息提示用户"游戏异常退出，正在重启"，恢复后提示"已恢复"。
+message GameStatusChanged {
+  enum GameStatus {
+    // 注入成功/画面恢复
+    kGameRunning = 0;
+    // 检测到游戏进程退出（保留，当前由 kGameRestarting 一并表达）
+    kGameDied = 1;
+    // 看门狗正在重启游戏（含收养外部重启的场景）
+    kGameRestarting = 2;
+  }
+  GameStatus status = 1;
+  // 人类可读说明（如游戏路径）
+  string detail = 2;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -712,4 +732,5 @@ message Message {
 
   HardwareInfo hw_info = 510;
   VideoCodecChanged video_codec_changed = 520;
+  GameStatusChanged game_status_changed = 530;
 }

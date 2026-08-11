@@ -11,6 +11,7 @@
 #include "tc_common_new/log.h"
 #include "rd_context.h"
 #include "rd_app.h"
+#include "network/net_message_maker.h"
 #include "settings/rd_settings.h"
 #include "app/steam_game.h"
 #include "app/app_messages.h"
@@ -62,6 +63,13 @@ namespace tc
 
         steam_game_ = std::make_shared<SteamGame>(context_);
         //steam_game_->RequestSteamGames();
+
+        // 重启后第一帧到达 → 通知客户端"游戏已恢复"（waiting_first_frame_ 由看门狗置位）
+        msg_listener_->Listen<CaptureVideoFrame>([=, this](const auto& msg) {
+            if (waiting_first_frame_.exchange(false)) {
+                NotifyGameStatus(tc::GameStatusChanged::kGameRunning, "");
+            }
+        });
 
         // 注入流程跑在独立 worker 线程（内部自带固定间隔重试/存活检查），消息线程只投递请求
         inject_worker_ = std::make_shared<std::thread>([=, this]() {
@@ -171,6 +179,14 @@ namespace tc
         game_ever_seen_ = true;
         last_game_restart_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    void AppManagerWinImpl::NotifyGameStatus(tc::GameStatusChanged::GameStatus status, const std::string& detail) {
+        // 广播给所有已连接客户端（ws / rtc_local 插件路由），游戏死亡重启期间
+        // 客户端无新帧，靠这个消息让用户知道在重启而不是卡死
+        if (rdApp) {
+            rdApp->PostNetMessage(NetMessageMaker::MakeGameStatusChanged(status, detail));
+        }
     }
 
     bool AppManagerWinImpl::StartProcess() {
@@ -469,6 +485,9 @@ namespace tc
                         injected_ = false;
                         inject_alive_fail_count_ = 0;
                         ResetInjectRetryState();
+                        waiting_first_frame_ = true;
+                        NotifyGameStatus(tc::GameStatusChanged::kGameRestarting,
+                                         "game restarted externally, re-hooking");
                         return;
                     }
                 }
@@ -484,6 +503,8 @@ namespace tc
         }
         last_game_restart_ms_ = now_ms;
         LOGW("Game process gone, restarting game: {}", settings_->app_.game_path_);
+        waiting_first_frame_ = true;
+        NotifyGameStatus(tc::GameStatusChanged::kGameRestarting, settings_->app_.game_path_);
         injected_ = false;
         inject_alive_fail_count_ = 0;
         ResetInjectRetryState();

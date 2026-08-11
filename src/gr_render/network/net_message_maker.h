@@ -38,6 +38,9 @@ namespace tc
         // render -> client: 编码格式切换(H264/H265)
         static std::shared_ptr<Data> MakeVideoCodecChanged(tc::VideoType video_type, bool full_color, const std::string& reason);
 
+        // game-hook 游戏状态通知（死亡重启/恢复），见 tc_message.proto GameStatusChanged
+        static std::shared_ptr<Data> MakeGameStatusChanged(tc::GameStatusChanged::GameStatus status, const std::string& detail);
+
     };
 
 }

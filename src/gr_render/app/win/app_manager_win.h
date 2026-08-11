@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include "app/app_manager.h"
 #include "tc_common_new/win32/process_helper.h"
+#include "tc_message.pb.h"
 
 namespace tc
 {
@@ -51,6 +52,8 @@ namespace tc
         void EnsureGameRunning();
         // StartProcessWithHook 成功拉起游戏后调用：标记"游戏拉起过"，并刷新重启节流计时
         void MarkGameLaunched();
+        // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
+        void NotifyGameStatus(tc::GameStatusChanged::GameStatus status, const std::string& detail);
         // 进程是否存活（OpenProcess + STILL_ACTIVE）
         static bool IsProcessAlive(uint32_t pid);
         bool InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll);
@@ -84,6 +87,9 @@ namespace tc
         std::atomic<bool> game_ever_seen_ = false;
         // UE view 进程出现过才置位：区分"首轮加载中"与"view 崩溃后外壳残留"
         std::atomic<bool> view_ever_seen_ = false;
+        // 看门狗重启（或收养外部重启）后置位；重启后第一帧到达才向客户端发"已恢复"——
+        // 注入成功时游戏往往还在冷启动（注入仅需几十 ms，出画面要几十秒）
+        std::atomic<bool> waiting_first_frame_ = false;
         std::atomic<int64_t> last_game_restart_ms_ = 0;
         std::atomic<int64_t> last_watchdog_check_ms_ = 0;
 

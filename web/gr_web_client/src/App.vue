@@ -22,9 +22,10 @@ import {
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
   MSG_TYPE_SWITCH_FULL_COLOR_MODE,
   MSG_TYPE_VIDEO_CODEC_CHANGED,
+  MSG_TYPE_GAME_STATUS_CHANGED,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import FloatBall from './FloatBall.vue'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
@@ -367,6 +368,28 @@ function handleDcBinary(buf: ArrayBuffer) {
         ).catch(() => {})
       } else {
         addLog(`远端编码已切换为 H.264`)
+      }
+    } else if (msg.type === MSG_TYPE_GAME_STATUS_CHANGED && msg.gameStatusChanged) {
+      // game-hook 游戏状态:0=运行/恢复, 2=死亡后看门狗重启中
+      const g = msg.gameStatusChanged
+      if (g.status === 2) {
+        addLog(`游戏异常退出,正在自动重启 (${g.detail || '-'})`)
+        ElNotification.closeAll()
+        ElNotification({
+          title: '游戏重启中',
+          message: '游戏异常退出，正在自动重启，画面将在游戏恢复后继续…',
+          type: 'warning',
+          duration: 0,
+        })
+      } else if (g.status === 0) {
+        addLog(`游戏已恢复 (${g.detail || '-'})`)
+        ElNotification.closeAll()
+        ElNotification({
+          title: '游戏已恢复',
+          message: '游戏已重启完成，画面恢复。',
+          type: 'success',
+          duration: 5000,
+        })
       }
     }
     // 其余二进制控制消息(统计等)暂不处理
