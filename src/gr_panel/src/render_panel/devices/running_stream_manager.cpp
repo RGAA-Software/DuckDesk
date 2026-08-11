@@ -246,6 +246,9 @@ namespace tc
             << std::format("--gl_backend={}", settings_->gl_backend_).c_str()
             << std::format("--force_direct={}", item->force_direct_ ? 1 : 0).c_str()
             ;
+        if (network_type == kStreamItemNtTypeUdpDirect) {
+            arguments << std::format("--udp_port={}", settings_->udp_listen_port_).c_str();
+        }
         LOGI("Start client inner args:");
         for (auto& arg : arguments) {
             LOGI("{}", arg.toStdString());

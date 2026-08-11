@@ -55,6 +55,9 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_port("port", "Port", "9999", "0");
     parser.addOption(opt_port);
 
+    QCommandLineOption opt_udp_port("udp_port", "UDP media port for udp_direct mode", "value", "");
+    parser.addOption(opt_udp_port);
+
     QCommandLineOption opt_spvr_host("spvr_host", "Spvr Host", "xx.xx.xx.xx", "");
     parser.addOption(opt_spvr_host);
 
@@ -189,6 +192,14 @@ void ParseCommandLine(QApplication& app) {
     auto settings = tc::Settings::Instance();
     settings->host_ = g_remote_host_;
     settings->port_ = g_remote_port_;
+
+    // udp_direct 的 UDP 媒体端口,panel 侧默认下发 20381
+    {
+        auto value = parser.value(opt_udp_port);
+        if (!value.isEmpty()) {
+            settings->udp_port_ = value.toInt();
+        }
+    }
     settings->appkey_ = parser.value(opt_appkey).toStdString();
 
     // spvr
@@ -214,6 +225,9 @@ void ParseCommandLine(QApplication& app) {
         }
         else if (g_nt_type_ == kStreamItemNtTypeWebRTCDirect || g_nt_type_ == kStreamItemNtTypeWebRTC) {
             return ClientNetworkType::kWebRtc;
+        }
+        else if (g_nt_type_ == kStreamItemNtTypeUdpDirect) {
+            return ClientNetworkType::kUdpDirect;
         }
         else {
             return ClientNetworkType::kWebsocket;
@@ -480,6 +494,7 @@ int main(int argc, char** argv) {
 
     LOGI("host: {}", g_remote_host_);
     LOGI("port: {}", g_remote_port_);
+    LOGI("udp port: {}", settings->udp_port_);
     LOGI("appkey: {}", settings->appkey_);
     LOGI("spvr host: {}", settings->spvr_host_);
     LOGI("spvr port: {}", settings->spvr_port_);
@@ -516,6 +531,10 @@ int main(int argc, char** argv) {
     auto visitor_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
     auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}",
                                   bare_remote_device_id, settings->stream_id_, visitor_device_id, settings->force_gdi_);
+    if (settings->network_type_ == ClientNetworkType::kUdpDirect) {
+        // udp_direct 模式下 ws 仅作控制面,通知 render 过滤媒体帧(视频走 UDP)
+        media_path += "&udp_media=1";
+    }
     auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}",
                                   bare_remote_device_id, settings->stream_id_, visitor_device_id);
     auto target_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
@@ -536,6 +555,7 @@ int main(int argc, char** argv) {
         .enable_controller_ = false,
         .ip_ = host,
         .port_ = port,
+        .udp_port_ = settings->udp_port_,
         .media_path_ = media_path,
         .ft_path_ = ft_path,
         .client_type_ = ClientType::kUnknown,

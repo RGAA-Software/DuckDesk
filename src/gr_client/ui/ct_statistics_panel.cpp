@@ -318,6 +318,9 @@ namespace tc
                             else if (settings_->network_type_ == ClientNetworkType::kWebRtc) {
                                 return "WebRTC Local";
                             }
+                            else if (settings_->network_type_ == ClientNetworkType::kUdpDirect) {
+                                return "UDP Direct";
+                            }
                             else if (settings_->network_type_ == ClientNetworkType::kUdpKcp) {
                                 return "UDP";
                             }

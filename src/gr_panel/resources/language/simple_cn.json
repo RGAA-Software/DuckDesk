@@ -266,6 +266,7 @@
   "id_force_relay": "强制使用中转服务",
   "id_force_direct": "强制直连",
   "id_use_webrtc": "强制RTC",
+  "id_use_udp": "UDP直连(云游戏低延迟)",
   "id_manager_server": "管理服务",
   "id_relay_server": "中转服务",
   "id_relay_ft_server": "中转文件服务",

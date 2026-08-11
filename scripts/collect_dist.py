@@ -27,9 +27,6 @@ SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmak
 SKIP_NAMES = {
     "avcodec-61.dll", "avdevice-61.dll", "avfilter-10.dll", "avformat-61.dll",
     "avutil-59.dll", "postproc-58.dll", "swresample-5.dll", "swscale-8.dll",
-    # Disabled in config_premium.cmake (PLUGIN_NET_UDP_ENABLED=OFF); stale build
-    # artifacts under src/gr_render/plugins/net_udp/ must not be repackaged.
-    "plugin_net_udp.dll",
 }
 
 # Test executable prefix

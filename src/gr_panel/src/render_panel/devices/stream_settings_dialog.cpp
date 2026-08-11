@@ -296,6 +296,7 @@ namespace tc
                 if (state == Qt::Checked) {
                     cb_force_direct_->setChecked(false);
                     cb_use_webrtc_->setChecked(false);
+                    cb_use_udp_->setChecked(false);
                 }
             });
             layout->addWidget(cb);
@@ -347,6 +348,7 @@ namespace tc
                 if (state == Qt::Checked) {
                     cb_force_relay_->setChecked(false);
                     cb_use_webrtc_->setChecked(false);
+                    cb_use_udp_->setChecked(false);
                 }
             });
             layout->addWidget(cb);
@@ -411,6 +413,56 @@ namespace tc
             auto tooltip = new TcToolTip(this);
             tooltip->setFixedSize(275, 70);
             tooltip->SetText("Prefer WebRTC when connecting directly.");
+            tooltip->hide();
+            btn_tips->SetOnImageButtonHovering([=](QWidget* w) {
+                auto w_pos = w->mapToGlobal(QPoint(0,0));
+                tooltip->move(w_pos.x() - tooltip->width() - 5, w_pos.y());
+                tooltip->show();
+            });
+            btn_tips->SetOnImageButtonLeaved([=](QWidget* w) {
+                tooltip->hide();
+            });
+
+            layout->addSpacing(question_gap);
+            layout->addWidget(btn_tips);
+
+            layout->addStretch();
+            content_layout->addLayout(layout);
+        }
+
+        content_layout->addSpacing(item_gap);
+        // Use UDP
+        {
+            auto layout = new NoMarginHLayout();
+
+            auto label = new TcLabel(this);
+            label->setFixedWidth(item_width);
+            label->SetTextId("id_use_udp");
+            label->setStyleSheet(R"(color: #333333; font-weight: 700; font-size:13px;)");
+            label->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
+            layout->addWidget(label);
+            layout->addSpacing(10);
+
+            auto cb = new QCheckBox(this);
+            cb->setChecked(stream_item_->use_udp_);
+            cb_use_udp_ = cb;
+            connect(cb, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
+                if (state == Qt::Checked) {
+                    cb_force_relay_->setChecked(false);
+                    cb_force_direct_->setChecked(false);
+                }
+            });
+            layout->addWidget(cb);
+
+            auto btn_tips = new TcImageButton(":/resources/image/ic_question.svg", QSize(20, 20));
+            btn_tips->SetColor(0xffffff, 0xf1f1f1, 0xeeeeee);
+            btn_tips->SetRoundRadius(11);
+            btn_tips->setFixedSize(22, 22);
+
+            //tooltip
+            auto tooltip = new TcToolTip(this);
+            tooltip->setFixedSize(275, 70);
+            tooltip->SetText("Prefer UDP(GameStream style) when connecting directly.");
             tooltip->hide();
             btn_tips->SetOnImageButtonHovering([=](QWidget* w) {
                 auto w_pos = w->mapToGlobal(QPoint(0,0));
@@ -771,6 +823,7 @@ namespace tc
                 stream_item_->force_gdi_capture_ = cb_force_gdi_capture_->isChecked();
                 stream_item_->disable_vulkan_render_ = cb_disable_vulkan_render_->isChecked();
                 stream_item_->use_webrtc_ = cb_use_webrtc_->isChecked();
+                stream_item_->use_udp_ = cb_use_udp_->isChecked();
                 db_mgr_->UpdateStream(stream_item_);
                 this->close();
             });

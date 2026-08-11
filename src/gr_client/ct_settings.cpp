@@ -95,7 +95,8 @@ namespace tc
     }
 
     bool Settings::IsDirectMode() {
-        return network_type_ == ClientNetworkType::kWebsocket;
+        // udp_direct 也是直连(ws 控制面 + UDP 媒体面,不经 relay)
+        return network_type_ == ClientNetworkType::kWebsocket || network_type_ == ClientNetworkType::kUdpDirect;
     }
 
     void Settings::Dump() {

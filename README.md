@@ -80,5 +80,5 @@
 ![](docs/gammaray/images/client_status.jpg)
 
 ### License
-##### You are permitted to use these codes free in personal, but DO NOT use it in business. If you want to use it in commerce, please contact us at: hollow.ichigo.yoo@gmail.com chengdudreamer@gmail.com
-##### 个人免费使用，请勿私自商用，如有商用需求，请联系我们。
+##### This project is licensed under the GNU General Public License v3.0 (GPLv3). You may use, modify and redistribute these codes under the terms of the GPLv3, including for commercial purposes, as long as derivative works are also licensed under the GPLv3.
+##### 本项目采用 GNU General Public License v3.0 (GPLv3) 开源协议。你可以在 GPLv3 条款下自由使用、修改和再发布本代码（包括商用），但衍生作品必须同样以 GPLv3 开源。

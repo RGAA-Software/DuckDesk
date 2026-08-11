@@ -37,6 +37,9 @@ namespace tc
 
     public:
         bool enable_video_ = true;
+        // udp_media=1 的客户端:媒体帧由 net_udp 插件裸 UDP 直发,本 ws 会话
+        // 只承担控制面,kVideoFrame/kAudioFrame proto 不再下发(见 ws_server.cpp)
+        bool udp_media_ = false;
         std::string visitor_device_id_;
         std::string stream_id_;
         unsigned int post_thread_id_ = 0;

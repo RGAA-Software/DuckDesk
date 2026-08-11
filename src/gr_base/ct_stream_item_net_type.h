@@ -14,6 +14,7 @@ namespace tc
     static std::string kStreamItemNtTypeUdpKcp = "udp_kcp";
     static std::string kStreamItemNtTypeRelay = "relay";
     static std::string kStreamItemNtTypeWebRTCDirect = "webrtc_direct";
+    static std::string kStreamItemNtTypeUdpDirect = "udp_direct";
     static std::string kStreamItemNtTypeWebRTC = "webrtc";
 
     static std::string kStreamItemConnTypeDirect = "direct";

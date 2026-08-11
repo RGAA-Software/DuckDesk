@@ -56,6 +56,66 @@ namespace tc
         }
     };
 
+    // wire 级扫描 tc.Message 的 type 字段(field 10, varint, tag=0x50),
+    // 识别 kVideoFrame(30)——与 rtc_local_plugin.cpp 的
+    // IsMediaFrameMessage 同一做法(不引 protobuf 头,避免 absl 冲突)。
+    // udp_media 客户端的视频帧走 UDP,ws 下发前用它过滤(音频 P1 仍走 ws)。
+    static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
+        if (!msg || msg->Size() < 2) {
+            return false;
+        }
+        const auto* p = (const uint8_t*)msg->DataAddr();
+        const size_t n = (size_t)msg->Size();
+        size_t i = 0;
+        auto read_varint = [&](uint64_t& out) -> bool {
+            out = 0;
+            int shift = 0;
+            while (i < n && shift < 64) {
+                uint8_t b = p[i++];
+                out |= (uint64_t)(b & 0x7F) << shift;
+                if (!(b & 0x80)) {
+                    return true;
+                }
+                shift += 7;
+            }
+            return false;
+        };
+        // 逐字段扫描,找到 field 10(type)为止;负载按 wire type 跳过
+        while (i < n) {
+            uint64_t tag = 0;
+            if (!read_varint(tag)) {
+                return false;
+            }
+            const uint32_t field = (uint32_t)(tag >> 3);
+            const uint32_t wire = (uint32_t)(tag & 0x7);
+            if (field == 10 && wire == 0) {
+                uint64_t type = 0;
+                if (!read_varint(type)) {
+                    return false;
+                }
+                // tc_message.proto: kVideoFrame = 30
+                // 注意:音频(kAudioFrame=40)不过滤——P1 阶段音频仍走 ws(P2 才迁 UDP)
+                return type == 30;
+            }
+            switch (wire) {
+            case 0: { uint64_t v; if (!read_varint(v)) { return false; } break; }
+            case 1: i += 8; break;
+            case 2: {
+                uint64_t len = 0;
+                if (!read_varint(len)) { return false; }
+                i += (size_t)len;
+                break;
+            }
+            case 5: i += 4; break;
+            default: return false; // group 等不支持,视为非媒体帧
+            }
+            if (i > n) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     WsPluginServer::WsPluginServer(tc::WsPlugin* plugin, uint16_t listen_port){
         this->plugin_ = plugin;
         this->listen_port_ = listen_port;
@@ -174,7 +234,12 @@ namespace tc
     }
 
     void WsPluginServer::PostNetMessage(std::shared_ptr<Data> msg) {
+        const bool is_media_frame = IsMediaFrameMessage(msg);
         stream_routers_.ApplyAll([=](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
+            // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
+            if (is_media_frame && router->udp_media_) {
+                return;
+            }
             router->PostBinaryMessage(msg);
         });
     }
@@ -209,10 +274,15 @@ namespace tc
 
     bool WsPluginServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
         bool found_target_stream = false;
+        const bool is_media_frame = IsMediaFrameMessage(msg);
         stream_routers_.ApplyAll([=, &found_target_stream](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
             if (stream_id == router->stream_id_ || stream_id.empty()) {
-                router->PostBinaryMessage(msg);
                 found_target_stream = true;
+                // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
+                if (is_media_frame && router->udp_media_) {
+                    return;
+                }
+                router->PostBinaryMessage(msg);
             }
         });
         return found_target_stream;
@@ -509,6 +579,12 @@ namespace tc
                         return false;
                     } ();
                 }
+                // udp_media=1:客户端媒体走 net_udp 插件裸 UDP 通道,
+                // 本 ws 会话只承担控制面(媒体帧 proto 在下发处跳过)
+                bool udp_media = false;
+                if (params.contains("udp_media")) {
+                    udp_media = params["udp_media"] == "1";
+                }
 
                 LOGI("Force GDI : {}", force_gdi);
 
@@ -531,6 +607,7 @@ namespace tc
                     self->plugin_->CallbackEvent(event);
 
                     auto router = WsStreamRouter::Make(self->ws_data_, only_audio, visitor_device_id, stream_id);
+                    router->udp_media_ = udp_media;
                     self->stream_routers_.Insert(socket_fd, router);
                     self->NotifyMediaClientConnected(router->conn_id_, router->stream_id_, visitor_device_id);
                     router->OnOpen(sess_ptr);

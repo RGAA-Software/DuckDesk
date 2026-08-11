@@ -265,6 +265,7 @@
   "id_re_password": "Repeat Password",
   "id_force_relay": "Force Relay",
   "id_use_webrtc": "Force RTC",
+  "id_use_udp": "UDP Direct(Low Latency for Cloud Gaming)",
   "id_force_direct": "Force Direct",
   "id_manager_server": "Manager",
   "id_relay_server": "Relay",

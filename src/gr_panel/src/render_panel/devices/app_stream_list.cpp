@@ -448,8 +448,11 @@ namespace tc
                 }
             }
 
-            // start via webrtc or websocket, depends on the "use_webrtc" option
-            if (target_item->use_webrtc_) {
+            // start via udp, webrtc or websocket, depends on the "use_udp"/"use_webrtc" options
+            if (target_item->use_udp_) {
+                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeUdpDirect, true);
+            }
+            else if (target_item->use_webrtc_) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
             }
             else {
