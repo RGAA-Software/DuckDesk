@@ -63,6 +63,8 @@ namespace tc
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
         void OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
+        // CPU 采集(GDI/mock)裸帧通知,无纹理 handle
+        void OnNewRawFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height);
 
         // 信令用:本连接 video track 的显示器名列表(按 track 顺序)
         std::vector<std::string> GetVideoTrackMonitors() const;
@@ -74,6 +76,9 @@ namespace tc
     private:
         void CreatePeerConnectionFactory();
         void CreatePeerConnection();
+        // 按屏路由 + 构造 NotifyFrameFrameBuffer 推给 video source(OnNewFrameCaptured/
+        // OnNewRawFrameCaptured 的公共尾部)
+        void DispatchCapturedFrameNotify(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
         void CreateSomeMediaDeps(webrtc::PeerConnectionFactoryDependencies& media_deps);
 
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);

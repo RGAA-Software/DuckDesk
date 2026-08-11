@@ -377,15 +377,19 @@ namespace tc
 
                 if (!target_encoder_plugin) {
                     LOGI("Hardware disabled? {}", hardware_disabled_.load());
+                    // GDI 采集产出 CPU 裸帧,走 Encode(Image) 路径;NVENC/AMF 只实现纹理编码,
+                    // Encode(Image) 基类返回 kNotImplemented。选了它们会在编码失败→清空→重建
+                    // 中原地死循环,永远出不了图,必须直接跳到 FFmpeg 链(其 kNvEnc/kQsv 硬编
+                    // 由 ffmpeg 内部完成 CPU→GPU 上传)。
                     auto nvenc_encoder_plugin = plugin_manager_->GetNvencEncoderPlugin();
-                    if (!is_mocking && !hardware_disabled_ && nvenc_encoder_plugin && nvenc_encoder_plugin->IsPluginEnabled() && nvenc_encoder_plugin->Init(encoder_config, monitor_name)) {
+                    if (!is_gdi_capture && !is_mocking && !hardware_disabled_ && nvenc_encoder_plugin && nvenc_encoder_plugin->IsPluginEnabled() && nvenc_encoder_plugin->Init(encoder_config, monitor_name)) {
                         select_encoder_with_capability_func(nvenc_encoder_plugin, monitor_name);
                     }
 
                     if (!target_encoder_plugin) {
-                        LOGW("Init NVENC failed, will try AMF.");
+                        LOGW("Init NVENC {}failed, will try AMF.", is_gdi_capture ? "skipped(GDI raw frames), " : "");
                         auto amf_encoder_plugin = plugin_manager_->GetAmfEncoderPlugin();
-                        if (!is_mocking && !hardware_disabled_  && amf_encoder_plugin && amf_encoder_plugin->IsPluginEnabled() && amf_encoder_plugin->Init(encoder_config, monitor_name)) {
+                        if (!is_gdi_capture && !is_mocking && !hardware_disabled_  && amf_encoder_plugin && amf_encoder_plugin->IsPluginEnabled() && amf_encoder_plugin->Init(encoder_config, monitor_name)) {
                             select_encoder_with_capability_func(amf_encoder_plugin, monitor_name);
                         }
                     }
@@ -647,7 +651,9 @@ namespace tc
                         });
                     }
                     context_->PostStreamPluginTask([=, this]() {
-                        plugin_manager_->VisitStreamPlugins([=, this](GrStreamPlugin* plugin) {
+                        // VisitAllPlugins:rtc_local 等 kNet 插件也要收裸帧通知
+                        // (GDI/mock 时它靠这个驱动 WebRTC 视频源),与纹理路径一致
+                        plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
                             plugin->OnRawVideoFrameYuv(monitor_name, cap_video_msg.frame_index_, cap_video_msg.frame_width_, cap_video_msg.frame_height_, image);
                         });
                     });

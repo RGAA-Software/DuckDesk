@@ -112,6 +112,11 @@ namespace tc
         std::map<std::string, uint64_t> encoded_seq_by_mon_;
         // 每屏缓存上限(编码快于消费时淘汰最旧帧,消费端会发现 gap 并 InsertIdr)
         static constexpr size_t kMaxCachedFramesPerMon = 8;
+        // 最近一次 shared-texture 采集帧时间戳:非 0 且很新说明 DDA 纹理路径在工作,
+        // OnRawVideoFrameYuv 的裸帧喂 webrtc 要抑制(DDA+CPU 编码回退时两者都会到,
+        // 重复喂会让 webrtc Encode 双倍消费 seq,断链)。纯 GDI/mock 时没有
+        // shared-texture 事件,由 YUV 裸帧路径驱动 webrtc。
+        std::atomic<int64_t> last_shared_tex_ts_{0};
     };
 
 }

@@ -491,6 +491,21 @@ namespace tc
             LOGE("Invalid texture handle");
             return;
         }
+        DispatchCapturedFrameNotify(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
+    }
+
+    // CPU 采集(GDI/mock)的裸帧通知:没有共享纹理,handle 置 0。
+    // NotifyFrameFrameBuffer 只是"有帧了"的载体,像素从不经 webrtc 传递
+    // (RtcVideoEncoder 用预编码码流替换),所以 handle=0 无影响。
+    void RtcServer::OnNewRawFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
+        if (video_tracks_.empty()) {
+            LOGE("Don't have video source");
+            return;
+        }
+        DispatchCapturedFrameNotify(mon_name, frame_idx, frame_width, frame_height, 0, 0, 0);
+    }
+
+    void RtcServer::DispatchCapturedFrameNotify(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
 
         // 按屏路由:多 track 模式每条 track 只发自己那块屏的帧;
         // 单 track(动态)模式接收所有屏,编码器侧处理切屏

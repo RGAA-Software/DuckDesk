@@ -349,6 +349,7 @@ namespace tc
         if (cnt == 1 || cnt % 300 == 0) {
             LOGI("OnRawVideoFrameSharedTexture #{}, idx={}, {}x{}, handle={}, servers={}", cnt, frame_idx, frame_width, frame_height, handle, rtc_servers_.Size());
         }
+        last_shared_tex_ts_ = TimeUtil::GetCurrentTimestamp();
         rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
             rtc_server->OnNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
         });
@@ -363,7 +364,21 @@ namespace tc
     // raw video frame in yuv(I420) format
     // image: Raw image
     void RtcLocalPlugin::OnRawVideoFrameYuv(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
-
+        // CPU 采集(GDI/mock)没有 shared-texture 事件,WebRTC 的视频源只能从这里
+        // 拿到"有帧了"的通知——否则 webrtc 编码线程永远不调 Encode,预编码码流
+        // 在缓存里积压到淘汰,客户端黑屏。DDA 路径(含 CPU 编码回退)已由
+        // OnRawVideoFrameSharedTexture 喂过,这里抑制避免双倍消费 seq。
+        if (TimeUtil::GetCurrentTimestamp() - last_shared_tex_ts_.load() < 1000) {
+            return;
+        }
+        static std::atomic_uint64_t raw_yuv_count = 0;
+        auto cnt = ++raw_yuv_count;
+        if (cnt == 1 || cnt % 300 == 0) {
+            LOGI("OnRawVideoFrameYuv notify webrtc #{}, idx={}, {}x{}, servers={}", cnt, frame_idx, frame_width, frame_height, rtc_servers_.Size());
+        }
+        rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+            rtc_server->OnNewRawFrameCaptured(mon_name, frame_idx, frame_width, frame_height);
+        });
     }
 
     void RtcLocalPlugin::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
