@@ -1,11 +1,13 @@
 use crate::app_schedule::gAppScheduleManager;
 use crate::app_schedule::manager::{
     AppInstance, AppNode, AppPlacement, AppRowVo, Application, CreateApplicationReq,
-    CreatePlacementReq, SaveAppReq, SaveNodeReq, StartInstanceReq,
+    CreatePlacementReq, InstanceState, SaveAppReq, SaveNodeReq, StartInstanceReq,
 };
+use crate::gDeviceManager;
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
 use axum::extract::{Path, Query, State};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
 use gr_base::{ok_resp, RespMessage};
 use std::collections::HashMap;
@@ -14,6 +16,71 @@ use tokio::sync::Mutex;
 
 fn err_msg<T: Default + serde::Serialize>(msg: String) -> Json<RespMessage<T>> {
     Json(RespMessage::new_message(600, msg, T::default()))
+}
+
+/// 启动完成后的落地页:302 到该实例 render 的 web_client。
+/// 浏览器直接打开 launch 链接 = 选节点/指定节点 → 启动 → 进流。
+async fn launch_redirect(inst: AppInstance) -> Response {
+    if inst.state == InstanceState::Failed {
+        let msg = if inst.error.is_empty() {
+            "启动失败".to_string()
+        } else {
+            inst.error
+        };
+        return err_msg::<String>(msg).into_response();
+    }
+    let ip = match gDeviceManager.query_device_by_id(inst.device_id.clone()).await {
+        Ok(d) => {
+            let ip = d.get_ip_from_link();
+            if ip.is_empty() {
+                "127.0.0.1".to_string()
+            } else {
+                ip
+            }
+        }
+        Err(e) => {
+            tracing::warn!("query device {} for launch redirect failed: {e}", inst.device_id);
+            "127.0.0.1".to_string()
+        }
+    };
+    let hint = if inst.web_client_hint.is_empty() {
+        format!(
+            "/web_client/?deviceId={}&instanceId={}",
+            inst.device_id, inst.instance_id
+        )
+    } else {
+        inst.web_client_hint.clone()
+    };
+    Redirect::to(&format!("http://{ip}:{}{hint}", inst.listen_port)).into_response()
+}
+
+/// GET /app/launch/{app_id}:自动挑选一个空闲节点启动,然后 302 进 web client。
+pub async fn handle_launch_app(Path(app_id): Path<String>) -> Response {
+    match gAppScheduleManager
+        .start_instance(StartInstanceReq {
+            app_id,
+            device_id: None,
+            listen_port: None,
+        })
+        .await
+    {
+        Ok(inst) => launch_redirect(inst).await,
+        Err(e) => {
+            tracing::warn!("launch app failed: {e}");
+            err_msg::<String>(e).into_response()
+        }
+    }
+}
+
+/// GET /app/node/launch/{node_id}:在指定节点上启动,然后 302 进 web client。
+pub async fn handle_launch_node(Path(node_id): Path<String>) -> Response {
+    match gAppScheduleManager.start_node(&node_id).await {
+        Ok(inst) => launch_redirect(inst).await,
+        Err(e) => {
+            tracing::warn!("launch node failed: {e}");
+            err_msg::<String>(e).into_response()
+        }
+    }
 }
 
 pub async fn handle_create_application(

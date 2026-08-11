@@ -102,7 +102,11 @@ POST /api/v1/app/control/app/instance/start   {app_id}        ← 路径不变,�
 | POST | `/api/v1/app/control/app/node/start/{node_id}` | 节点启动 |
 | POST | `/api/v1/app/control/app/instance/start` | **语义改为自动选节点**（body 只需 app_id；旧 device_id/listen_port 字段忽略） |
 | GET | `/api/v1/app/control/app/next-port?device_id=` | 按机建议端口 |
+| GET | `/api/v1/app/control/app/launch/{app_id}` | **启动链接（应用级）**：自动选空闲节点并启动，成功 303 跳转到 `http://{节点机IP}:{节点端口}{web_client_hint}`；启动失败返回 JSON 错误 |
+| GET | `/api/v1/app/control/app/node/launch/{node_id}` | **启动链接（节点级）**：指定节点启动，成功 303 同上；节点离线/已在运行返回 JSON 错误 |
 | 其余 | instance/stop、instance/list | 不变（instance 增加 `node_id` 字段） |
+
+launch 路由说明：GET 是为了让链接可直接放进浏览器地址栏/收藏夹；请求会挂起等待启动回执（≤25s，浏览器表现为转圈）；跳转目标 IP 取节点机的 `get_ip_from_link()`，失败回退 `127.0.0.1`；`web_client_hint` 为空时自动拼 `/web_client/?deviceId=..&instanceId=..`。鉴权与现有接口一致（`?appkey=`），链接明文携带 appkey，属既定模型。
 
 `AppRowVo` → 应用视图；新增 `AppNodeVo{ node_id, name, device_id, listen_port, install_root, last_run_at, instance?: {instance_id,state,error,pid} }`。
 
@@ -110,8 +114,9 @@ POST /api/v1/app/control/app/instance/start   {app_id}        ← 路径不变,�
 
 - 应用表格新增 **「节点」列**（首列 expand）：展开为该应用的节点子表：
   `节点名 | 机器(在线?) | 端口 | 状态 | 错误 | 操作(启动/停止/打开/编辑/删除)`
-- 应用行操作：**启动**（自动选节点，成功 toast 显示命中节点与端口）、**新建节点**、编辑、删除。
-- 节点行操作：**启动/停止/打开 Client**（URL 与现规则一致，端口=节点端口）、编辑、删除。
+- 应用行操作：**启动**（自动选节点，成功 toast 显示命中节点与端口）、**链接**（复制应用级启动链接 `/app/launch/{app_id}`，浏览器打开即自动选节点启动并跳转 web client；无节点时禁用）、**新建节点**、编辑、删除。
+- 节点行操作：**启动/停止/打开 Client**（URL 与现规则一致，端口=节点端口）、**链接**（复制节点级启动链接 `/app/node/launch/{node_id}`；离线或运行中禁用）、编辑、删除。
+- 启动链接统一为 `http://{CMS主机}/api/v1/app/control/app/...launch...?appkey=...`，复制后可发给他人或放收藏夹。
 - 「打开」仍按活跃实例的 `listen_port` 拼 URL，逻辑不变。
 - 应用行状态列改为聚合：`3节点 · 1运行 2空闲`。
 

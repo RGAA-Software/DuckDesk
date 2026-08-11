@@ -424,6 +424,27 @@ function handleOpenClient(node: ViewNode) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+/** CMS 启动链接:浏览器打开 = 自动选节点/指定节点 → 启动 → 302 进 web client。 */
+function launchUrl(path: string): string {
+  return `${window.location.origin}/api/v1/app/control${path}?appkey=${localStorage.getItem('appkey')}`
+}
+
+async function copyLaunchUrl(path: string) {
+  const url = launchUrl(path)
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch {
+    // 非安全上下文等场景退化
+    const ta = document.createElement('textarea')
+    ta.value = url
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  ElMessage.success({ message: `启动链接已复制，发给任何人即可一键启动进流`, duration: 4000 })
+}
+
 let timer: number | undefined
 onMounted(async () => {
   await refresh()
@@ -474,7 +495,7 @@ onUnmounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="260" fixed="right">
+      <el-table-column label="操作" width="320" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button link type="primary" @click="openNodeCreate(row)">新建节点</el-button>
@@ -485,6 +506,14 @@ onUnmounted(() => {
             @click="handleStart(row)"
           >
             启动
+          </el-button>
+          <el-button
+            link
+            type="primary"
+            :disabled="row.nodes.length === 0"
+            @click="copyLaunchUrl(`/app/launch/${row.app_id}`)"
+          >
+            链接
           </el-button>
           <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
@@ -528,7 +557,7 @@ onUnmounted(() => {
             <span v-if="node.instance?.error" class="err-text">{{ node.instance.error }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row: node }">
             <el-button
               link
@@ -553,6 +582,14 @@ onUnmounted(() => {
               @click="handleOpenClient(node)"
             >
               打开
+            </el-button>
+            <el-button
+              link
+              type="primary"
+              :disabled="!node.online || stateOf(node) === 'running' || stateOf(node) === 'starting'"
+              @click="copyLaunchUrl(`/app/node/launch/${node.node_id}`)"
+            >
+              链接
             </el-button>
             <el-button link type="primary" @click="openNodeEdit(node)">编辑</el-button>
             <el-button
