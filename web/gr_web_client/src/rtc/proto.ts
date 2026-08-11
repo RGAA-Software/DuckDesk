@@ -23,6 +23,7 @@ export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
 export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
+export const MSG_TYPE_CONNECTION_TAKEN_OVER = 550 // kConnectionTakenOver (render -> client)
 export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
 export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render -> client)
 

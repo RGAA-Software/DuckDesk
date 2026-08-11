@@ -224,6 +224,7 @@
   "id_spvr_network_unavailable": "Can't access Supervisor server.",
   "id_cant_get_local_device_info": "Can't get device information, please check your server.",
   "id_remote_device_offline": "Remote device is offline. Do you want to reconnect ?",
+  "id_connection_taken_over": "The connection has been taken over by another client.",
   "id_start_control": "Start Control",
   "id_stop_control": "Stop Control",
   "id_device_offline": "Device is offline",

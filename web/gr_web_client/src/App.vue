@@ -21,6 +21,7 @@ import {
   MSG_TYPE_MONITOR_SWITCHED,
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
   MSG_TYPE_SWITCH_FULL_COLOR_MODE,
+  MSG_TYPE_CONNECTION_TAKEN_OVER,
   MSG_TYPE_VIDEO_CODEC_CHANGED,
   MSG_TYPE_GAME_STATUS_CHANGED,
 } from './rtc/proto'
@@ -369,6 +370,16 @@ function handleDcBinary(buf: ArrayBuffer) {
       } else {
         addLog(`远端编码已切换为 H.264`)
       }
+    } else if (msg.type === MSG_TYPE_CONNECTION_TAKEN_OVER) {
+      // 被其它客户端接管:主机踢人前会先发这条消息。按手动断开处理
+      // (置 manualClose,阻止 connectionstatechange 触发自动重连),并明确提示
+      addLog('连接已被其它客户端接管')
+      disconnect()
+      ElMessageBox.alert(
+        '连接已被其它客户端接管。',
+        '连接已断开',
+        { confirmButtonText: '知道了', type: 'warning' },
+      ).catch(() => {})
     } else if (msg.type === MSG_TYPE_GAME_STATUS_CHANGED && msg.gameStatusChanged) {
       // game-hook 游戏状态:0=运行/恢复, 2=死亡后看门狗重启中
       const g = msg.gameStatusChanged

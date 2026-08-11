@@ -9,6 +9,7 @@
 #include "tc_common_new/file.h"
 #include "tc_common_new/image.h"
 #include "tc_common_new/time_util.h"
+#include "tc_common_new/data.h"
 #include "gr_render/plugins/plugin_ids.h"
 #include "gr_render/plugin_interface/gr_plugin_events.h"
 #include "gr_render/plugin_interface/gr_plugin_context.h"
@@ -494,21 +495,52 @@ namespace tc
                                                                    std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
         LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
-        auto opt_rtc_server = rtc_servers_.TryGet(conn_id);
-        if (opt_rtc_server.has_value()) {
-            auto old_server = opt_rtc_server.value();
+
+        // 单路独占:web 与原生客户端都走 rtc local,stream_id 各不相同
+        // (web 固定为 web_<device_id>,原生用自己的 stream id),只按 conn_id
+        // 判断占用跨端对不上,必须全局判断:任意一路仍活跃的连接都算占用。
+        std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> old_servers;
+        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+            old_servers.emplace_back(k, srv);
+        });
+        if (!old_servers.empty()) {
             // 旧连接的 datachannel 仍活跃且调用方未确认接管:报告占用,由客户端决定
-            if (!req->takeover_ && old_server->IsDataChannelConnected()) {
-                LOGW("** Occupied by an active connection: {}", conn_id);
-                return GrLocalRtcAllocResult::kOccupied;
+            // (web 弹确认后带 takeover=1 重试;原生客户端收到 704 会自动带 takeover 重试)
+            if (!req->takeover_) {
+                for (const auto& [k, srv] : old_servers) {
+                    if (srv->IsDataChannelConnected()) {
+                        LOGW("** Occupied by an active connection: {}", k);
+                        return GrLocalRtcAllocResult::kOccupied;
+                    }
+                }
             }
-            LOGI("** Remove old one.");
-            // 先从 map 摘除,让新连接立即可建;
+            LOGI("** Remove {} old connection(s).", old_servers.size());
+            // 顶掉之前先通知旧客户端"连接被接管"(kConnectionTakenOver),
+            // 让它给出明确提示并停止重连,而不是表现成一次普通断线。
+            // tc.Message{ type: kConnectionTakenOver(550) } 的 wire 字节:
+            // type 是 field 10(varint, tag=0x50),550 的 varint 编码为 A6 04;
+            // 两端客户端都只按 type 分发、子消息留空即可。不引 protobuf 头,
+            // 本目标 webrtc 内置 absl 与 vcpkg absl 头文件会冲突(同
+            // IsMediaFrameMessage 的 wire 级处理思路)。
+            static const char kKickMsgBytes[] = { (char)0x50, (char)0xA6, (char)0x04 };
+            auto kick_data = Data::Make(kKickMsgBytes, sizeof(kKickMsgBytes));
+            for (const auto& [k, srv] : old_servers) {
+                if (srv) {
+                    srv->PostProtoMessage(kick_data, true);
+                }
+            }
+            // 先从 map 整体摘除,让新连接立即可建;
             // Exit() 里 webrtc 线程 Stop() 可能因对端会话繁忙而长时间阻塞,
             // 绝不能跑在调用方线程(HTTP 信令线程)上,否则 takeover 请求会挂死信令
-            rtc_servers_.Remove(conn_id);
-            std::thread([old_server]() {
-                old_server->Exit();
+            rtc_servers_.Clear();
+            std::thread([old_servers = std::move(old_servers)]() {
+                // 给"被接管"通知留出 SCTP 发送时间,再销毁旧连接
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                for (const auto& [k, srv] : old_servers) {
+                    if (srv) {
+                        srv->Exit();
+                    }
+                }
             }).detach();
         }
 

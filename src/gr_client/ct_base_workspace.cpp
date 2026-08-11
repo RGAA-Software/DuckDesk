@@ -308,6 +308,20 @@ namespace tc
             });
         });
 
+        // render 主动断开本连接:被其它客户端接管。通知在通道关闭前到达,
+        // 先置 remote_force_closed_ 抑制随后的断线重连弹窗
+        msg_listener_->Listen<SdkMsgConnectionTakenOver>([=, this](const SdkMsgConnectionTakenOver& msg) {
+            if (remote_force_closed_) {
+                return;
+            }
+            remote_force_closed_ = true;
+            context_->PostUITask([=, this]() {
+                auto box = SizedMessageBox::MakeErrorOkBox(tcTr("id_warning"), tcTr("id_connection_taken_over"));
+                box->exec();
+                ProcessUtil::KillProcess(QApplication::applicationPid());
+            });
+        });
+
         // step 2
         msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>([=, this](const SdkMsgFirstConfigInfoCallback& msg) {
             main_progress_->StepForward();

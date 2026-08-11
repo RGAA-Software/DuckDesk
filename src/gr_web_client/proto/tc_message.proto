@@ -129,6 +129,11 @@ enum MessageType {
   // render -> client: game-hook 游戏进程状态变化(死亡/重启/恢复)
   kGameStatusChanged = 540;
 
+  // render -> client: 连接被其它客户端接管(单路独占,新连接顶掉旧连接时
+  // 主机先发给被顶掉的旧客户端;与 kDisconnectConnection 区分——
+  // 后者是面板/对端主动断开)
+  kConnectionTakenOver = 550;
+
 }
 
 enum VideoType {
@@ -624,6 +629,12 @@ message DisconnectConnection {
   string device_name = 4;
 }
 
+// render -> client: 连接被其它客户端接管(当前不携带内容,保留扩展位)
+message ConnectionTakenOver {
+  // 接管方的标识(可空,暂由客户端自行填充场景)
+  string by_device_name = 1;
+}
+
 // render -> client
 message HardwareInfo {
   bytes hw_info = 1;
@@ -733,4 +744,5 @@ message Message {
   HardwareInfo hw_info = 510;
   VideoCodecChanged video_codec_changed = 520;
   GameStatusChanged game_status_changed = 530;
+  ConnectionTakenOver connection_taken_over = 540;
 }
