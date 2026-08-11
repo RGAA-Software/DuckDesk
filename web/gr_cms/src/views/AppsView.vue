@@ -487,6 +487,7 @@ onUnmounted(() => {
       v-model="nodeListVisible"
       :title="nodeListApp ? `「${nodeListApp.name}」的节` : '节列表'"
       width="960px"
+      :close-on-click-modal="false"
     >
       <div class="flex justify-between items-center mb-2">
         <span class="text-sm text-gray-500">
@@ -573,6 +574,7 @@ onUnmounted(() => {
       v-model="dialogVisible"
       :title="editing ? '编辑应用' : '新建应用'"
       width="560px"
+      :close-on-click-modal="false"
     >
       <el-form label-width="100px">
         <el-form-item label="应用名称" required>
@@ -615,6 +617,7 @@ onUnmounted(() => {
       :title="nodeEditing ? '编辑节' : '新建节'"
       width="520px"
       append-to-body
+      :close-on-click-modal="false"
     >
       <el-form label-width="100px">
         <el-form-item label="节名称">
