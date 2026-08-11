@@ -166,7 +166,7 @@ namespace tc
 
         LOGI("we will use normal method to start, exe: {}, args: [{}]",
              u8_exec, settings_->app_.game_arguments_);
-        target_pid_ = ProcessUtil::StartProcess(u8_exec, args, true, false);
+        target_pid_ = LaunchGameProcess(u8_exec, args);
         LOGI("After started, the pid is: {}", target_pid_.load());
         if (target_pid_ > 0) {
             MarkGameLaunched();
@@ -231,8 +231,17 @@ namespace tc
             args.push_back(arg);
         }
         LOGI("we will use normal method to start, exe: {}", u8_exec);
-        target_pid_ = ProcessUtil::StartProcess(u8_exec, args, true, false);
+        target_pid_ = LaunchGameProcess(u8_exec, args);
         return ret;
+    }
+
+    uint32_t AppManagerWinImpl::LaunchGameProcess(const std::string& u8_exec, const std::vector<std::string>& args) {
+        uint32_t pid = ProcessUtil::StartProcessAsCurrentUser(u8_exec, args);
+        if (pid == 0) {
+            LOGW("StartProcessAsCurrentUser failed, fallback to CreateProcess (SYSTEM context)");
+            pid = ProcessUtil::StartProcess(u8_exec, args, true, false);
+        }
+        return pid;
     }
 
     void AppManagerWinImpl::InjectCaptureDllIfNeeded() {

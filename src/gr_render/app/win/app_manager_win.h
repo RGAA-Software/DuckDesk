@@ -52,6 +52,9 @@ namespace tc
         void EnsureGameRunning();
         // StartProcessWithHook 成功拉起游戏后调用：标记"游戏拉起过"，并刷新重启节流计时
         void MarkGameLaunched();
+        // 拉起游戏进程：优先以控制台会话登录用户身份（SYSTEM 直接拉会落在
+        // SYSTEM profile，游戏网络/用户配置不对），拿不到 token 回退普通 CreateProcess
+        uint32_t LaunchGameProcess(const std::string& u8_exec, const std::vector<std::string>& args);
         // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
         void NotifyGameStatus(tc::GameStatusChanged::GameStatus status, const std::string& detail);
         // 进程是否存活（OpenProcess + STILL_ACTIVE）
