@@ -13,6 +13,9 @@ project(tc_graphics)
 
 set(CMAKE_CXX_STANDARD 23)
 add_definitions(-DCOMPILE_VULKAN_HOOK)
+# UE5 等新游戏默认 D3D12 渲染:d3d12-capture(command queue hook)必须编进去,
+# 否则 DXGI Present hook 之外没有 D3D12 纹理拷贝路径,UE5 默认配置永远采不到画面
+add_definitions(-DCOMPILE_D3D12_HOOK)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 

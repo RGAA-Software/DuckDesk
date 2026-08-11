@@ -14,7 +14,7 @@
 #include "tc_common_new/log.h"
 #include "hook_manager.h"
 #include "hk_video/d3d_utils.h"
-#include "capture_message_maker.h"
+#include "tc_capture_new/capture_message_maker.h"
 
 using namespace tc;
 
@@ -294,6 +294,9 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap) {
 
             auto hook_mgr = tc::HookManager::Instance();
             auto shared_texture = hook_mgr->shared_texture_;
+            // SharedTexture 内部统一:非 8bit 格式(如 UE5 的 R10G10B10A2)先转成
+            // B8G8R8A8 再共享(11on12 上 KEYEDMUTEX/NTHANDLE 纹理创建会 E_INVALIDARG,
+            // 只能 plain SHARED;跨进程并发访问稳定性靠消费端长生命周期持有打开句柄)。
             shared_texture->CopyCapturedTexture(data.device11, data.context11, data.copy_tex);
 
             D3D11_TEXTURE2D_DESC desc;
@@ -398,8 +401,9 @@ manually_get_d3d12_addrs(HMODULE d3d12_module,
 
     bool success = false;
     ID3D12Device *device;
-    if (SUCCEEDED(create(NULL, D3D_FEATURE_LEVEL_11_0,
-                         IID_PPV_ARGS(&device)))) {
+    const HRESULT create_hr = create(NULL, D3D_FEATURE_LEVEL_11_0,
+                                     IID_PPV_ARGS(&device));
+    if (SUCCEEDED(create_hr)) {
         D3D12_COMMAND_QUEUE_DESC desc{};
         ID3D12CommandQueue *queue;
         HRESULT hr =
@@ -417,7 +421,7 @@ manually_get_d3d12_addrs(HMODULE d3d12_module,
 
         device->Release();
     } else {
-        hlog("Failed to create D3D12 device");
+        hlog_hr("Failed to create D3D12 device", create_hr);
     }
 
     return success;
@@ -431,20 +435,22 @@ bool hook_d3d12(void) {
         d3d12_module = get_system_module("d3d12.dll");
         if (!d3d12_module) {
             LOGE("can't load d3d12...");
+            return false;
         }
-        return false;
     }
 
     PFN_ExecuteCommandLists execute_command_lists_addr = nullptr;
     if (!manually_get_d3d12_addrs(d3d12_module,
                                   &execute_command_lists_addr)) {
-        hlog("Failed to get D3D12 values");
-        return true;
+        // 返回 false 让 capture loop 下轮重试——游戏启动早期(或 GPU 状态
+        // 未就绪时) D3D12CreateDevice 可能失败,不能当作已 hook。
+        hlog("Failed to get D3D12 values, will retry");
+        return false;
     }
 
     if (!execute_command_lists_addr) {
         hlog("Invalid D3D12 values");
-        return true;
+        return false;
     }
 
     DetourTransactionBegin();

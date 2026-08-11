@@ -4,6 +4,8 @@
 
 #include "video_frame_carrier.h"
 #include <atlcomcli.h>
+#include <d3d11_1.h>
+#include <d3dcompiler.h>
 #include <limits>
 #include <libyuv/convert.h>
 #include <libyuv/convert_from_argb.h>
@@ -60,8 +62,7 @@ namespace tc
             // Plain SHARED textures (e.g. current DDA path) have no keyed mutex.
             return true;
         }
-        // Game-hook SharedTexture uses SHARED_KEYEDMUTEX; must acquire before GPU access
-        // or CopyResource fails and the destination stays black (zero-init).
+        // 仅当纹理带 SHARED_KEYEDMUTEX 时才需要 acquire;plain SHARED 直接返回。
         res = key_mutex->AcquireSync(0x0, INFINITE);
         if (FAILED(res)) {
             LOGE("D3D11Texture2DLockMutex AcquireSync failed: {:x}", (uint32_t)res);
@@ -85,6 +86,113 @@ namespace tc
         return true;
     }
 
+    bool VideoFrameCarrier::IsEncoderFriendlyFormat(DXGI_FORMAT format) {
+        return format == DXGI_FORMAT_B8G8R8A8_UNORM
+               || format == DXGI_FORMAT_B8G8R8X8_UNORM
+               || format == DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
+
+    bool VideoFrameCarrier::EnsureConvertShaders() {
+        if (conv_vs_ && conv_ps_) {
+            return true;
+        }
+        if (conv_shader_failed_) {
+            return false;
+        }
+        // d3dcompiler_47.dll 是 Win10+ 系统组件,运行时加载避免新增链接依赖。
+        HMODULE d3dcompiler = LoadLibraryA("d3dcompiler_47.dll");
+        if (!d3dcompiler) {
+            LOGE("EnsureConvertShaders: d3dcompiler_47.dll not found");
+            conv_shader_failed_ = true;
+            return false;
+        }
+        auto d3d_compile = (pD3DCompile) GetProcAddress(d3dcompiler, "D3DCompile");
+        if (!d3d_compile) {
+            LOGE("EnsureConvertShaders: D3DCompile not found");
+            conv_shader_failed_ = true;
+            return false;
+        }
+        // 全屏三角形:SV_VertexID 生成,无需 input layout;PS 按像素 Load 做格式转换。
+        const char* hlsl = R"(
+float4 VSMain(uint vid : SV_VertexID) : SV_Position {
+    float2 p = float2((vid << 1) & 2, vid & 2);
+    return float4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
+}
+Texture2D tex0 : register(t0);
+float4 PSMain(float4 pos : SV_Position) : SV_Target {
+    return tex0.Load(int3((int2)pos.xy, 0));
+}
+)";
+        ComPtr<ID3DBlob> vs_blob, ps_blob, err_blob;
+        HRESULT hr = d3d_compile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr,
+                                 "VSMain", "vs_4_0", 0, 0, &vs_blob, &err_blob);
+        if (FAILED(hr)) {
+            LOGE("EnsureConvertShaders: VS compile failed: {:x}", (uint32_t)hr);
+            conv_shader_failed_ = true;
+            return false;
+        }
+        hr = d3d_compile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr,
+                         "PSMain", "ps_4_0", 0, 0, &ps_blob, &err_blob);
+        if (FAILED(hr)) {
+            LOGE("EnsureConvertShaders: PS compile failed: {:x}", (uint32_t)hr);
+            conv_shader_failed_ = true;
+            return false;
+        }
+        hr = d3d11_device_->CreateVertexShader(vs_blob->GetBufferPointer(),
+                                               vs_blob->GetBufferSize(), nullptr, &conv_vs_);
+        if (FAILED(hr)) {
+            LOGE("EnsureConvertShaders: CreateVertexShader failed: {:x}", (uint32_t)hr);
+            conv_shader_failed_ = true;
+            return false;
+        }
+        hr = d3d11_device_->CreatePixelShader(ps_blob->GetBufferPointer(),
+                                              ps_blob->GetBufferSize(), nullptr, &conv_ps_);
+        if (FAILED(hr)) {
+            LOGE("EnsureConvertShaders: CreatePixelShader failed: {:x}", (uint32_t)hr);
+            conv_shader_failed_ = true;
+            return false;
+        }
+        LOGI("EnsureConvertShaders: 10bit->8bit convert shaders ready");
+        return true;
+    }
+
+    bool VideoFrameCarrier::BlitConvertToBgra(const ComPtr<ID3D11Texture2D>& src) {
+        ComPtr<ID3D11ShaderResourceView> srv;
+        HRESULT hr = d3d11_device_->CreateShaderResourceView(src.Get(), nullptr, &srv);
+        if (FAILED(hr)) {
+            LOGE("BlitConvertToBgra: CreateShaderResourceView failed: {:x}", (uint32_t)hr);
+            return false;
+        }
+        ComPtr<ID3D11RenderTargetView> rtv;
+        hr = d3d11_device_->CreateRenderTargetView(texture2d_.Get(), nullptr, &rtv);
+        if (FAILED(hr)) {
+            LOGE("BlitConvertToBgra: CreateRenderTargetView failed: {:x}", (uint32_t)hr);
+            return false;
+        }
+        D3D11_TEXTURE2D_DESC desc;
+        texture2d_->GetDesc(&desc);
+        D3D11_VIEWPORT vp = {0.0f, 0.0f, (FLOAT)desc.Width, (FLOAT)desc.Height, 0.0f, 1.0f};
+
+        auto ctx = d3d11_device_context_;
+        ctx->IASetInputLayout(nullptr);
+        ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ctx->VSSetShader(conv_vs_.Get(), nullptr, 0);
+        ctx->PSSetShader(conv_ps_.Get(), nullptr, 0);
+        ID3D11ShaderResourceView* srvs[] = {srv.Get()};
+        ctx->PSSetShaderResources(0, 1, srvs);
+        ID3D11RenderTargetView* rtvs[] = {rtv.Get()};
+        ctx->OMSetRenderTargets(1, rtvs, nullptr);
+        ctx->RSSetViewports(1, &vp);
+        ctx->Draw(3, 0);
+        // 解除绑定,避免 SRV/RTV 残留影响后续 CopyResource / NVENC。
+        ID3D11ShaderResourceView* null_srvs[] = {nullptr};
+        ctx->PSSetShaderResources(0, 1, null_srvs);
+        ID3D11RenderTargetView* null_rtvs[] = {nullptr};
+        ctx->OMSetRenderTargets(1, null_rtvs, nullptr);
+        ctx->Flush();
+        return true;
+    }
+
     bool VideoFrameCarrier::CopyID3D11Texture2D(const ComPtr<ID3D11Texture2D>& shared_texture) {
         if (!D3D11Texture2DLockMutex(shared_texture)) {
             LOGE("D3D11Texture2DLockMutex error");
@@ -97,6 +205,11 @@ namespace tc
         HRESULT res;
         D3D11_TEXTURE2D_DESC desc;
         shared_texture->GetDesc(&desc);
+
+        // UE5(D3D12) 默认 R10G10B10A2 swapchain,NVENC H264 编码 10bit 输入会失败
+        // 甚至导致 GPU TDR(device hung)。统一转成 B8G8R8A8 再走原有编码管线。
+        const bool need_convert = !IsEncoderFriendlyFormat(desc.Format);
+        const DXGI_FORMAT dst_format = need_convert ? DXGI_FORMAT_B8G8R8A8_UNORM : desc.Format;
 
         ComPtr<ID3D11Device> curDevice;
         shared_texture->GetDevice(&curDevice);
@@ -112,7 +225,7 @@ namespace tc
                 texture2d_->GetDesc(&sharedTextureDesc);
                 if (desc.Width != sharedTextureDesc.Width ||
                     desc.Height != sharedTextureDesc.Height ||
-                    desc.Format != sharedTextureDesc.Format) {
+                    dst_format != sharedTextureDesc.Format) {
                     texture2d_ = nullptr;
                 }
             }
@@ -121,7 +234,7 @@ namespace tc
         if (!texture2d_) {
             D3D11_TEXTURE2D_DESC createDesc;
             ZeroMemory(&createDesc, sizeof(createDesc));
-            createDesc.Format = desc.Format;
+            createDesc.Format = dst_format;
             createDesc.Width = desc.Width;
             createDesc.Height = desc.Height;
             createDesc.MipLevels = 1;
@@ -137,11 +250,19 @@ namespace tc
                      StringUtil::GetErrorStr(res).c_str(), (int)desc.Format);
                 return false;
             }
-            LOGI("frame carrier texture: {}x{} dxgi_format={}", desc.Width, desc.Height, (int)desc.Format);
+            LOGI("frame carrier texture: {}x{} dxgi_format={} (src_format={})",
+                 desc.Width, desc.Height, (int)dst_format, (int)desc.Format);
         }
         ComPtr<ID3D11DeviceContext> ctx;
         curDevice->GetImmediateContext(&ctx);
-        ctx->CopyResource(texture2d_.Get(), shared_texture.Get());
+        if (need_convert) {
+            if (!EnsureConvertShaders() || !BlitConvertToBgra(shared_texture)) {
+                LOGE("CopyID3D11Texture2D: convert to BGRA failed, src format={}", (int)desc.Format);
+                return false;
+            }
+        } else {
+            ctx->CopyResource(texture2d_.Get(), shared_texture.Get());
+        }
 
         return true;
     }
@@ -151,6 +272,17 @@ namespace tc
         HRESULT res;
         res = d3d11_device_->OpenSharedResource(handle, IID_PPV_ARGS(sharedTexture.GetAddressOf()));
         if (FAILED(res)) {
+            HRESULT res1 = res;
+            // D3D12(11on12)路径的共享纹理是 NT handle,必须走 OpenSharedResource1。
+            ComPtr<ID3D11Device1> device1;
+            if (SUCCEEDED(d3d11_device_.As(&device1)) && device1) {
+                res1 = device1->OpenSharedResource1(handle, IID_PPV_ARGS(sharedTexture.GetAddressOf()));
+            }
+            LOGW("OpenSharedTexture: handle={:#x} km_hr={:x} nt_hr={:x}",
+                 (uint64_t)handle, (uint32_t)res, (uint32_t)res1);
+            res = res1;
+        }
+        if (FAILED(res)) {
             LOGE("OpenSharedResource failed: {:x}", (uint32_t)res);
             return nullptr;
         }
@@ -158,8 +290,13 @@ namespace tc
     }
 
     ComPtr<ID3D11Texture2D> VideoFrameCarrier::CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
-        ComPtr<ID3D11Texture2D> shared_texture;
-        shared_texture = OpenSharedTexture(reinterpret_cast<HANDLE>(handle));
+        // 同一 handle 只打开一次并长期持有;反复 OpenSharedResource/Close 会让
+        // 11on12 共享资源的底层 D3D12 资源状态紊乱,最终 device removed。
+        if (handle != opened_shared_handle_ || !opened_shared_texture_) {
+            opened_shared_texture_ = OpenSharedTexture(reinterpret_cast<HANDLE>(handle));
+            opened_shared_handle_ = opened_shared_texture_ ? handle : 0;
+        }
+        ComPtr<ID3D11Texture2D> shared_texture = opened_shared_texture_;
         if (!shared_texture) {
             LOGE("OpenSharedTexture failed.");
             return nullptr;
@@ -168,6 +305,7 @@ namespace tc
         D3D11_TEXTURE2D_DESC desc;
         shared_texture->GetDesc(&desc);
 
+        // keyed mutex 的 Acquire/Release 由 CopyID3D11Texture2D 内部处理,这里不要重复加锁。
         if (!CopyID3D11Texture2D(shared_texture)) {
             LOGE("CopyID3D11Texture2D failed.");
             return nullptr;
@@ -345,7 +483,9 @@ namespace tc
         });
 
         // copy to raw image buffer
-        raw_image_rgba_format_ = format;
+        // 用纹理自身的实际格式——10bit 源纹理已在 CopyTexture 里转成 B8G8R8A8,
+        // 而调用方传的 format 仍是捕获原始格式(如 R10G10B10A2),直接用会解释错通道。
+        raw_image_rgba_format_ = src_desc.Format;
         bool ok = CopyToRawImage(mapped_rect.pBits, mapped_rect.Pitch, height);
         if (ok) {
             rgba_cbk(raw_image_rgba_);
@@ -525,6 +665,8 @@ namespace tc
         if (yuv_converter_thread_) {
             yuv_converter_thread_->Exit();
         }
+        opened_shared_texture_.Reset();
+        opened_shared_handle_ = 0;
         if (texture2d_) {
             texture2d_.Reset();
         }

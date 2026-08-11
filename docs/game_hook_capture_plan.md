@@ -303,3 +303,32 @@ Web 客户端 datachannel 鼠标/键盘事件（`x_ratio`/`y_ratio`）→ render
 - 纯移动合并只在 RawInput 路生效，WM 消息路仍逐条投递（游戏消息泵自身有合并）。
 - CMS reconcile 曾误判存活实例"心跳缺失"并回收（service 侧 `reap_dead_app_instances` 按端口单次探测，疑似瞬态失败），未复现未修；service 目前 `--console` 无文件日志，再发需先补日志。
 - 停止实例偶发报 `render still alive after kill`（实际进程已死），停止流程的存活检查逻辑有误。
+
+## 12. UE5 / D3D12 出画（2026-08-11）
+
+### 12.1 问题
+
+hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常。根因链三层：
+
+1. **D3D12 hook 根本没编译**：`d3d12-capture.cpp` 整体被 `#if COMPILE_D3D12_HOOK` 包裹，但该宏从未定义，DXGI Present hook 之外没有 D3D12 纹理拷贝路径。UE5 默认 D3D12 渲染，因此永远无画面；`-dx11` 走的是原有 D3D11 路径所以正常。
+2. **UE 引导壳注错进程**：`AAA.exe` 只是 142KB 引导壳（真游戏在 `Engine/Binaries/Win64/UnrealGame-Win64-DebugGame.exe`）。service 侧 `ue_bootstrap.rs` 的 boot/view 双路径已解决（见第 10 节）；本地调试 bat 需手动传 `GAME_VIEW_B64`（base64 的真游戏路径）给 `--app_game_view_path`。
+3. **hook_d3d12 假成功**：`manually_get_d3d12_addrs` 失败时 `return true` 让 capture loop 以为已 hook 不再重试；游戏启动早期 `D3D12CreateDevice` 可能失败，必须返回 false 让下轮重试。
+
+### 12.2 修复清单
+
+1. **启用 D3D12 hook**：`hk_obs/CMakeLists.txt` 加 `add_definitions(-DCOMPILE_D3D12_HOOK)`；`hook_d3d12` 失败路径改 `return false`。
+2. **`D3D11DeviceWrapper::Release()` 双重释放**（render 崩溃根因，子模块 `tc_common_new/win32/d3d11_wrapper.h`）：原来裸调 `->Release()` 而 ComPtr 仍持指针，wrapper 析构时二次释放，其他持有者的 ComPtr 悬空，device removed 后 `VideoFrameCarrier::Exit` 崩溃。改 `Reset()`。
+3. **10bit swapchain 格式**：UE5 默认 `R10G10B10A2`(format 24)，NVENC H264 无法编码。生产端（hook 内 `SharedTexture::CopyCapturedTexture`）统一 shader blit 成 `B8G8R8A8` 再共享；消费端 `plugin_frame_carrier` 保留同款转换作兜底；`encoder_thread` 把非 8bit 捕获格式的 `encoder_config.texture_format` 归一为 BGRA。
+4. **GPU TDR（device hung, -2005270522）根因**：消费端（frame carrier）**每帧 `OpenSharedResource` + 释放**共享纹理。11on12 共享资源反复 open/close 会使底层 D3D12 资源状态紊乱，约 9 秒后 device removed。改为**按 handle 缓存长开**（与 OBS 一致，OBS 打开一次终身持有）。⚠️ 排除过的方案：11on12 设备上创建 `SHARED_KEYEDMUTEX` 或 `SHARED_NTHANDLE` 纹理直接 `E_INVALIDARG`（plain SHARED 才行）；NTHANDLE|KEYEDMUTEX 能创建但消费端 `OpenSharedResource1` 也 `E_INVALIDARG`。
+5. **`FrameDebuggerPlugin::OnRawVideoFrameRgba` 空指针**：hook 路径 `raw_image_` 为空时直接 `image->data` 崩溃，加 `!image` 判空。
+
+### 12.3 验证
+
+- `scripts/run_game_hook_render.bat` + `GAME_VIEW_B64=<base64 真游戏路径>`，无头 CDP 检查 web client 收到视频帧：`Headless verify OK`（1600x900，fps 150+，framesDecoded 持续增长）。
+- 连续运行 3 分钟以上无 `Encode failed` / `HandleD3DDeviceFailure` / dump；NVENC 正常 Reconfigure。
+- UE5 默认（D3D12）出画；`-dx11` 路径不受影响。
+
+### 12.4 已知限制
+
+- 共享纹理跨进程无锁（plain SHARED，无 keyed mutex）：理论上有撕裂风险，实测未见；11on12 上 keyed mutex 不可创建（见 12.2.4），暂无更好同步手段。
+- 10bit→8bit 转换在 hook 进程内消耗游戏 GPU 的一次全屏 blit，开销可忽略但存在。

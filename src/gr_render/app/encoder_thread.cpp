@@ -285,7 +285,16 @@ namespace tc
                 encoder_config.rate_control_mode = tc::ERateControlMode::kRateControlModeCbr;
                 encoder_config.sample_desc_count = 1;
                 encoder_config.supports_intra_refresh = true;
-                encoder_config.texture_format = cap_video_msg.frame_format_;
+                // frame carrier 会把非 8bit 捕获格式(如 UE5 D3D12 的 R10G10B10A2)
+                // 转成 B8G8R8A8 再送编码;编码器输入格式必须与转换后的纹理一致,
+                // 否则 NVENC 按 ABGR10 初始化却收到 BGRA 纹理,编码失败甚至挂起 GPU。
+                const auto cap_fmt = static_cast<DXGI_FORMAT>(cap_video_msg.frame_format_);
+                encoder_config.texture_format =
+                    (cap_fmt == DXGI_FORMAT_B8G8R8A8_UNORM
+                     || cap_fmt == DXGI_FORMAT_B8G8R8X8_UNORM
+                     || cap_fmt == DXGI_FORMAT_R8G8B8A8_UNORM)
+                    ? cap_video_msg.frame_format_
+                    : static_cast<int>(DXGI_FORMAT_B8G8R8A8_UNORM);
                 encoder_config.bitrate = settings->encoder_.bitrate_ * 1000000;
                 encoder_config.adapter_uid_ = cap_video_msg.adapter_uid_;
                 encoder_config.enable_full_color_mode_ = settings_->EnableFullColorMode();

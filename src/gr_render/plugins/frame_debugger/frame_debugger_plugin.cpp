@@ -56,7 +56,7 @@ namespace tc
     }
 
     void FrameDebuggerPlugin::OnRawVideoFrameRgba(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
-        if (!image->data || !IsPluginEnabled() || mon_name.empty()) {
+        if (!image || !image->data || !IsPluginEnabled() || mon_name.empty()) {
             return;
         }
         LOGI("FrameDebugger: mon={}, idx={}, size={}x{}", mon_name, frame_idx, frame_width, frame_height);

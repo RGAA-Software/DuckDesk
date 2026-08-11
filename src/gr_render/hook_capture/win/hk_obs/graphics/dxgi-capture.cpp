@@ -318,6 +318,14 @@ hook_present1(IDXGISwapChain1 *swap, UINT sync_interval, UINT flags, const DXGI_
 bool hook_dxgi(void) {
     HMODULE dxgi_module = get_system_module("dxgi.dll");
     if (!dxgi_module) {
+        // 诊断:全路径 GetModuleHandleA 找不到时,对比裸名查找,定位是
+        // dxgi.dll 未加载还是路径比对失败(每 25 次尝试打一条,避免刷屏)
+        static int s_module_null_count = 0;
+        if (++s_module_null_count % 25 == 1) {
+            HMODULE bare = GetModuleHandleA("dxgi.dll");
+            hlog("hook_dxgi: dxgi.dll not found via '%s\\dxgi.dll' (bare-name handle: %p, attempts: %d)",
+                 system_path, (void*)bare, s_module_null_count);
+        }
         hlog_verbose("Failed to find dxgi.dll. Skipping hook attempt.");
         return false;
     }
@@ -356,7 +364,8 @@ bool hook_dxgi(void) {
         RealPresent = nullptr;
         RealResizeBuffers = nullptr;
         RealPresent1 = nullptr;
-        hlog("Failed to attach Detours hook: %ld", error);
+        hlog("Failed to attach Detours hook: %ld (present=%p, resize=%p, present1=%p)",
+             error, present_addr, resize_addr, present1_addr);
     }
 
     return success;

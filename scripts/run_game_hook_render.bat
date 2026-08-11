@@ -26,6 +26,13 @@ set "ENCODER_BITRATE=20"
 set "ENCODER_FORMAT=h264"
 set "WEB_URL=http://127.0.0.1:%PORT%/web_client/?deviceId=%DEVICE_ID%"
 
+rem Optional: UE bootstrap launcher → real game exe. Set GAME_VIEW_B64 to the
+rem Base64(UTF-8) of the real renderer exe full path (service resolves this via
+rem ue_bootstrap in the CMS flow); render then injects the view process instead
+rem of the launcher shell.
+set "VIEW_ARG="
+if defined GAME_VIEW_B64 set "VIEW_ARG=--app_game_view_path=%GAME_VIEW_B64%"
+
 if not exist "%DIST%\GammaRayRender.exe" (
     echo ERROR: %DIST%\GammaRayRender.exe not found.
     echo Run build_official.bat first.
@@ -71,7 +78,7 @@ echo.
 echo Starting GammaRayRender.exe ...
 rem Use PowerShell Start-Process so the render breaks away from the parent job
 rem object (cmd "start" children get killed when Cursor/agent shells exit).
-powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\GammaRayRender.exe' -ArgumentList '--logfile','--app_mode=%APP_MODE%','--capture_video=%CAPTURE_VIDEO%','--capture_video_type=%CAPTURE_VIDEO_TYPE%','--capture_audio=%CAPTURE_AUDIO%','--capture_audio_type=%CAPTURE_AUDIO_TYPE%','--webrtc_enabled=%WEBRTC_ENABLED%','--websocket_enabled=%WEBSOCKET_ENABLED%','--encoder_fps=%ENCODER_FPS%','--encoder_bitrate=%ENCODER_BITRATE%','--encoder_format=%ENCODER_FORMAT%','--network_listen_port=%PORT%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
+powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\GammaRayRender.exe' -ArgumentList '--logfile','--app_mode=%APP_MODE%','--capture_video=%CAPTURE_VIDEO%','--capture_video_type=%CAPTURE_VIDEO_TYPE%','--capture_audio=%CAPTURE_AUDIO%','--capture_audio_type=%CAPTURE_AUDIO_TYPE%','--webrtc_enabled=%WEBRTC_ENABLED%','--websocket_enabled=%WEBSOCKET_ENABLED%','--encoder_fps=%ENCODER_FPS%','--encoder_bitrate=%ENCODER_BITRATE%','--encoder_format=%ENCODER_FORMAT%','--network_listen_port=%PORT%','%VIEW_ARG%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
 if errorlevel 1 (
     echo ERROR: failed to Start-Process GammaRayRender.exe
     exit /b 1
