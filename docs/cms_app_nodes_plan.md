@@ -1,6 +1,6 @@
 # CMS 应用调度重构：应用-节点（流路）结构设计
 
-> 状态：**已实现**（2026-08-11）。UI 文案定名为「节」（Web 列表列名、按钮「新建节」、默认名「节1/节2…」）；本文内「节点」与「节」同义。
+> 状态：**已实现**（2026-08-11）。UI 文案定名为「节点」（列表列名、按钮「新建节点」、默认名「节点1/节点2…」）。
 > 前置文档：[`cms_app_schedule_plan.md`](./cms_app_schedule_plan.md)、[`cms_app_schedule_state.md`](./cms_app_schedule_state.md)
 > 范围：gr_cms_server 调度模型 + CMS Web `/apps` 页；Service/Render 协议不变
 > 实现备注：多开时同名游戏进程的 hook 目标选择在 render 侧修复（`app_manager_win.cpp`：优先选自己拉起的进程树 / 未被注入的实例），否则第二个实例会锁到第一个实例的进程上导致无画面。

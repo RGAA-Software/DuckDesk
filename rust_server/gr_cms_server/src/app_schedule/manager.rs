@@ -412,7 +412,7 @@ impl AppScheduleManager {
                 continue;
             }
             if node.device_id == device_id && node.listen_port == port {
-                return Err(format!("端口 {port} 已被节「{}」占用", node.name));
+                return Err(format!("端口 {port} 已被节点「{}」占用", node.name));
             }
         }
         for inst in g.instances.values() {
@@ -535,7 +535,7 @@ impl AppScheduleManager {
                     g.nodes
                         .get(id)
                         .cloned()
-                        .ok_or_else(|| format!("节不存在: {id}"))
+                        .ok_or_else(|| format!("节点不存在: {id}"))
                 })
                 .transpose()?;
 
@@ -555,7 +555,7 @@ impl AppScheduleManager {
                         || (req.listen_port.unwrap_or(0) > 0
                             && req.listen_port.unwrap_or(0) != old.listen_port))
                 {
-                    return Err("节运行中，不能更换机器或端口".to_string());
+                    return Err("节点运行中，不能更换机器或端口".to_string());
                 }
             }
 
@@ -598,14 +598,14 @@ impl AppScheduleManager {
                 name: match req.name.as_ref().map(|s| s.trim()) {
                     Some(s) if !s.is_empty() => s.to_string(),
                     _ => {
-                        // 默认名:节N(按该应用现有节数)
+                        // 默认名:节点N(按该应用现有节点数)
                         let n = g
                             .nodes
                             .values()
                             .filter(|x| x.app_id == app.app_id)
                             .count()
                             + 1;
-                        format!("节{n}")
+                        format!("节点{n}")
                     }
                 },
                 device_id,
@@ -628,7 +628,7 @@ impl AppScheduleManager {
         {
             let mut g = self.inner.lock().await;
             if !g.nodes.contains_key(node_id) {
-                return Err(format!("节不存在: {node_id}"));
+                return Err(format!("节点不存在: {node_id}"));
             }
             for inst in g.instances.values() {
                 if inst.node_id == node_id
@@ -637,7 +637,7 @@ impl AppScheduleManager {
                         InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
                     )
                 {
-                    return Err("节运行中，请先停止再删除".to_string());
+                    return Err("节点运行中，请先停止再删除".to_string());
                 }
             }
             g.nodes.remove(node_id);
@@ -681,7 +681,7 @@ impl AppScheduleManager {
                         InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
                     )
                 {
-                    return Err("应用运行中，请先停止再删除".to_string());
+                    return Err("应用下有正在运行的实例，请先停止再删除".to_string());
                 }
             }
             if !g.apps.contains_key(app_id) {
@@ -776,7 +776,7 @@ impl AppScheduleManager {
                 .cloned()
                 .collect();
             if nodes.is_empty() {
-                return Err("应用还没有节，请先「新建节」".to_string());
+                return Err("应用还没有节点，请先「新建节点」".to_string());
             }
             nodes.sort_by_key(|n| (n.last_run_at, n.seq_no));
             nodes
@@ -806,7 +806,7 @@ impl AppScheduleManager {
                 .collect::<Vec<_>>()
         };
         if candidates.is_empty() {
-            return Err("没有空闲节（全部在运行中或被占用）".to_string());
+            return Err("没有空闲节点（全部在运行中或被占用）".to_string());
         }
         // 取第一个 Service 在线的候选节
         let mut offline = Vec::new();
@@ -817,7 +817,7 @@ impl AppScheduleManager {
             }
         }
         Err(format!(
-            "节的机器均不在线: {}",
+            "节点的机器均不在线: {}",
             offline.join(", ")
         ))
     }
@@ -830,7 +830,7 @@ impl AppScheduleManager {
                 .nodes
                 .get(node_id)
                 .cloned()
-                .ok_or_else(|| format!("节不存在: {node_id}"))?;
+                .ok_or_else(|| format!("节点不存在: {node_id}"))?;
             for inst in g.instances.values() {
                 if inst.node_id == node_id
                     && matches!(
@@ -838,7 +838,7 @@ impl AppScheduleManager {
                         InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
                     )
                 {
-                    return Err(format!("节「{}」已在运行或启动中", node.name));
+                    return Err(format!("节点「{}」已在运行或启动中", node.name));
                 }
             }
             Self::ensure_node_port_available_locked(&g, &node.device_id, node.listen_port, Some(node_id))?;
@@ -1450,7 +1450,7 @@ impl AppScheduleManager {
             let node = AppNode {
                 node_id: format!("node-legacy-{app_id}-{device_id}-{listen_port}"),
                 app_id: app_id.clone(),
-                name: "节1".to_string(),
+                name: "节点1".to_string(),
                 device_id,
                 install_root,
                 listen_port,
@@ -1566,7 +1566,7 @@ mod tests {
             })
             .await
             .unwrap_err();
-        assert!(err.contains("还没有节"), "{err}");
+        assert!(err.contains("还没有节点"), "{err}");
 
         // 有节但机器离线
         mgr.save_node(SaveNodeReq {
@@ -1906,7 +1906,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(n1.listen_port, 32000);
-        assert_eq!(n1.name, "节1");
+        assert_eq!(n1.name, "节点1");
         // install_root 从应用 game_path 推导
         assert_eq!(n1.install_root, r"D:\games\a");
         let n2 = mgr
@@ -1921,7 +1921,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(n2.listen_port, 32001);
-        assert_eq!(n2.name, "节2");
+        assert_eq!(n2.name, "节点2");
         // 同机端口冲突:拒绝
         let err = mgr
             .save_node(SaveNodeReq {
@@ -2244,7 +2244,7 @@ mod tests {
             })
             .await
             .unwrap_err();
-        assert!(err.contains("没有空闲节"), "{err}");
+        assert!(err.contains("没有空闲节点"), "{err}");
         // 编辑运行中的节:换机器/端口拒绝,只改名可以
         let err = mgr
             .save_node(SaveNodeReq {
@@ -2428,7 +2428,7 @@ mod tests {
         assert_eq!(n.device_id, "d");
         assert_eq!(n.install_root, r"D:\x");
         assert_eq!(n.listen_port, 32055);
-        assert_eq!(n.name, "节1");
+        assert_eq!(n.name, "节点1");
         // 幂等:再跑一次不重复建
         let again = {
             let mut g = mgr.inner.lock().await;

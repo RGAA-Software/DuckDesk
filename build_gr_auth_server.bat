@@ -37,6 +37,10 @@ rem which the Ninja generator cannot identify), so use the repo-vendored
 rem NASM instead of relying on whatever happens to be on the machine.
 set "PATH=%REPO_ROOT%\tools\nasm;%PATH%"
 
+rem protocol build.rs needs protoc; VsDevCmd can point VCPKG_ROOT at the
+rem VS-bundled vcpkg (no protobuf installed), so default to the vendored one.
+if not defined PROTOC set "PROTOC=%REPO_ROOT%\tools\protoc.exe"
+
 echo ============================================
 echo Building %SERVER_NAME%
 echo ============================================

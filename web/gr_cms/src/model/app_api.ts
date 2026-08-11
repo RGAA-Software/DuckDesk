@@ -65,7 +65,7 @@ export async function saveNode(
   })
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
-    return { ok: false, message: resp.data?.message || '保存节失败' }
+    return { ok: false, message: resp.data?.message || '保存节点失败' }
   }
   return { ok: true, data: resp.data.data as AppNode }
 }
@@ -78,7 +78,7 @@ export async function deleteNode(nodeId: string): Promise<{ ok: true } | { ok: f
   )
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
-    return { ok: false, message: resp.data?.message || '删除节失败' }
+    return { ok: false, message: resp.data?.message || '删除节点失败' }
   }
   return { ok: true }
 }

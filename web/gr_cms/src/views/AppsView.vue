@@ -287,7 +287,7 @@ async function submitNodeSave() {
       ElMessage.error({ message: result.message, duration: 8000, showClose: true })
       return
     }
-    ElMessage.success(nodeEditing.value ? '节已更新' : '节已创建')
+    ElMessage.success(nodeEditing.value ? '节点已更新' : '节点已创建')
     nodeDialogVisible.value = false
     await refresh()
   } finally {
@@ -296,8 +296,16 @@ async function submitNodeSave() {
 }
 
 async function handleDelete(row: ViewRow) {
+  const busy = row.nodes.some((n) => {
+    const s = stateOf(n)
+    return s === 'running' || s === 'starting' || s === 'stopping'
+  })
+  if (busy) {
+    ElMessage.warning('应用下有正在运行的节点，请先停止再删除')
+    return
+  }
   try {
-    await ElMessageBox.confirm(`确定删除应用「${row.name}」？其下所有节会一并删除。`, '删除确认', {
+    await ElMessageBox.confirm(`确定删除应用「${row.name}」？其下所有节点会一并删除。`, '删除确认', {
       type: 'warning',
     })
   } catch {
@@ -314,7 +322,7 @@ async function handleDelete(row: ViewRow) {
 
 async function handleDeleteNode(node: ViewNode) {
   try {
-    await ElMessageBox.confirm(`确定删除节「${node.name}」？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除节点「${node.name}」？`, '删除确认', { type: 'warning' })
   } catch {
     return
   }
@@ -331,10 +339,10 @@ async function handleDeleteNode(node: ViewNode) {
   }
 }
 
-/** 应用级启动:CMS 自动挑选一个空闲节。 */
+/** 应用级启动:CMS 自动挑选一个空闲节点。 */
 async function handleStart(row: ViewRow) {
   if (row.nodes.length === 0) {
-    ElMessage.warning('应用还没有节，请先「新建节」')
+    ElMessage.warning('应用还没有节点，请先「新建节点」')
     return
   }
   const result = await startInstance({ app_id: row.app_id })
@@ -354,7 +362,7 @@ async function handleStart(row: ViewRow) {
   }
   const nodeName = row.nodes.find((n) => n.node_id === result.data.node_id)?.name
   ElMessage.success(
-    `启动成功（${nodeName || '节'}，端口 ${result.data.listen_port}）`,
+    `启动成功（${nodeName || '节点'}，端口 ${result.data.listen_port}）`,
   )
   await refresh()
 }
@@ -432,7 +440,7 @@ onUnmounted(() => {
       <div>
         <div class="text-lg font-semibold">应用</div>
         <div class="text-sm text-gray-500">
-          应用是模板；节 = 机器 + 端口。点「N 个节」管理节，应用启动会自动挑选一个空闲节
+          应用是模板；节点 = 机器 + 端口。点「N 个节点」管理节点，应用启动会自动挑选一个空闲节点
         </div>
       </div>
       <div class="flex gap-2">
@@ -456,10 +464,10 @@ onUnmounted(() => {
           <span class="path-pre">{{ row.game_path }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="节" width="150">
+      <el-table-column label="节点" width="150">
         <template #default="{ row }">
           <el-button link type="primary" @click="openNodeList(row)">
-            {{ row.nodes.length }} 个节
+            {{ row.nodes.length }} 个节点
           </el-button>
           <el-tag v-if="runningCount(row) > 0" size="small" type="success" class="ml-1">
             {{ runningCount(row) }} 运行中
@@ -469,7 +477,7 @@ onUnmounted(() => {
       <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="primary" @click="openNodeCreate(row)">新建节</el-button>
+          <el-button link type="primary" @click="openNodeCreate(row)">新建节点</el-button>
           <el-button
             link
             type="success"
@@ -485,20 +493,20 @@ onUnmounted(() => {
 
     <el-dialog
       v-model="nodeListVisible"
-      :title="nodeListApp ? `「${nodeListApp.name}」的节` : '节列表'"
+      :title="nodeListApp ? `「${nodeListApp.name}」的节点` : '节点列表'"
       width="960px"
       :close-on-click-modal="false"
     >
       <div class="flex justify-between items-center mb-2">
         <span class="text-sm text-gray-500">
-          共 {{ nodeListApp?.nodes.length || 0 }} 个节；节启动只影响本行，应用启动会自动挑选空闲节
+          共 {{ nodeListApp?.nodes.length || 0 }} 个节点；节点启动只影响本行，应用启动会自动挑选空闲节点
         </span>
         <el-button v-if="nodeListApp" type="primary" size="small" @click="openNodeCreate(nodeListApp)">
-          新建节
+          新建节点
         </el-button>
       </div>
-      <el-table :data="pagedNodes" size="small" empty-text="还没有节，点右上角「新建节」添加">
-        <el-table-column prop="name" label="节" min-width="90" />
+      <el-table :data="pagedNodes" size="small" empty-text="还没有节点，点右上角「新建节点」添加">
+        <el-table-column prop="name" label="节点" min-width="90" />
         <el-table-column label="机器" min-width="140">
           <template #default="{ row: node }">
             <div>{{ node.device_id }}</div>
@@ -614,14 +622,14 @@ onUnmounted(() => {
 
     <el-dialog
       v-model="nodeDialogVisible"
-      :title="nodeEditing ? '编辑节' : '新建节'"
+      :title="nodeEditing ? '编辑节点' : '新建节点'"
       width="520px"
       append-to-body
       :close-on-click-modal="false"
     >
       <el-form label-width="100px">
-        <el-form-item label="节名称">
-          <el-input v-model="nodeForm.name" placeholder="留空自动命名（节1、节2…）" />
+        <el-form-item label="节点名称">
+          <el-input v-model="nodeForm.name" placeholder="留空自动命名（节点1、节点2…）" />
         </el-form-item>
         <el-form-item label="机器" required>
           <el-select

@@ -19,7 +19,7 @@ export interface AppPlacement {
   install_root: string
 }
 
-/** 节:应用在某台机器上的一个可启动单元(机器+端口+安装目录)。 */
+/** 节点:应用在某台机器上的一个可启动单元(机器+端口+安装目录)。 */
 export interface AppNode {
   node_id: string
   app_id: string

@@ -95,7 +95,7 @@ if (CLICK_NODES_APP) {
     const rows = [...document.querySelectorAll('.el-table__row')]
     const row = rows.find(r => r.innerText.includes('${CLICK_NODES_APP}'))
     if (!row) return 'row-not-found'
-    const btn = [...row.querySelectorAll('button')].find(b => /个节/.test(b.innerText))
+    const btn = [...row.querySelectorAll('button')].find(b => /个节点/.test(b.innerText))
     if (!btn) return 'btn-not-found'
     btn.click()
     return 'clicked'
