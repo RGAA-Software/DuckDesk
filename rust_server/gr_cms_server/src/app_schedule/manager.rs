@@ -16,6 +16,13 @@ use uuid::Uuid;
 /// How long HTTP start waits for Service StartAppInstanceResult before failing.
 const START_RESULT_TIMEOUT: Duration = Duration::from_secs(25);
 
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Application {
     pub app_id: String,
@@ -31,24 +38,43 @@ pub struct Application {
     pub encoder_format: String,
     pub webrtc_enabled: bool,
     pub websocket_enabled: bool,
-    /// Preferred listen port (default assigned from 32000 upward).
+    /// Legacy: preferred listen port. Superseded by AppNode::listen_port;
+    /// kept only to migrate pre-node rows (see load_from_db).
     #[serde(default)]
     pub listen_port: i32,
 }
 
-/// Flattened row for CMS Web list/edit.
+/// 节(node):应用下的一路可运行单元。机器/安装目录/端口都绑在节上;
+/// 多开 = 多建节。节本身无持久状态,运行状态由其活跃 Instance 推导。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppNode {
+    pub node_id: String,
+    pub app_id: String,
+    pub name: String,
+    pub device_id: String,
+    pub install_root: String,
+    pub listen_port: i32,
+    /// Last time an instance of this node reached Running (ms epoch; 0 = never).
+    /// App-level start picks the stalest free node.
+    #[serde(default)]
+    pub last_run_at: i64,
+    /// Creation order, tie-break for node picking.
+    #[serde(default)]
+    pub seq_no: u64,
+}
+
+/// Flattened row for CMS Web list/edit. 节列表随行下发,实例由 Web 按
+/// node_id 从 /instance/list 匹配(只绑活跃态)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppRowVo {
     pub app_id: String,
-    pub placement_id: String,
     pub name: String,
-    pub device_id: String,
     pub game_path: String,
-    pub listen_port: i32,
     pub default_game_args: String,
     pub encoder_fps: i32,
     pub encoder_bitrate: i32,
     pub encoder_format: String,
+    pub nodes: Vec<AppNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,14 +82,24 @@ pub struct SaveAppReq {
     /// Empty/None = create; set = update.
     pub app_id: Option<String>,
     pub name: String,
-    pub device_id: String,
     /// Absolute path to game exe.
     pub game_path: String,
     pub default_game_args: Option<String>,
     pub encoder_fps: Option<i32>,
     pub encoder_bitrate: Option<i32>,
     pub encoder_format: Option<String>,
-    /// 0 / None = auto next free port from 32000.
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveNodeReq {
+    /// Empty/None = create; set = update.
+    pub node_id: Option<String>,
+    pub app_id: String,
+    pub name: Option<String>,
+    pub device_id: String,
+    /// None = derive from the app's game_path directory.
+    pub install_root: Option<String>,
+    /// 0 / None = auto next free port on this device.
     pub listen_port: Option<i32>,
 }
 
@@ -152,6 +188,9 @@ pub struct AppInstance {
     pub app_id: String,
     pub device_id: String,
     pub placement_id: String,
+    /// 节 id;空串 = 节点结构之前的遗留实例(停止后自然消亡,不再展示)。
+    #[serde(default)]
+    pub node_id: String,
     pub state: InstanceState,
     pub listen_port: i32,
     pub pid: u32,
@@ -183,14 +222,19 @@ pub struct CreatePlacementReq {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartInstanceReq {
     pub app_id: String,
-    pub device_id: String,
-    /// Optional preferred port; 0 = service allocates.
+    /// 已废弃(自动选节);保留反序列化兼容旧调用,内容忽略。
+    #[serde(default)]
+    pub device_id: Option<String>,
+    /// 已废弃(端口由节决定);保留反序列化兼容旧调用,内容忽略。
+    #[serde(default)]
     pub listen_port: Option<i32>,
 }
 
 #[derive(Default)]
 struct Inner {
     apps: HashMap<String, Application>,
+    nodes: HashMap<String, AppNode>,
+    /// 遗留 placement(节点结构前的数据),load 迁移后只读。
     placements: HashMap<String, AppPlacement>,
     /// placement key app_id+device_id -> placement_id
     placement_by_app_device: HashMap<(String, String), String>,
@@ -260,43 +304,62 @@ impl AppScheduleManager {
     pub async fn list_app_rows(&self) -> Vec<AppRowVo> {
         let g = self.inner.lock().await;
         let mut rows = Vec::new();
-        for p in g.placements.values() {
-            let Some(app) = g.apps.get(&p.app_id) else {
-                continue;
-            };
+        for app in g.apps.values() {
             let game_path = if !app.game_path.trim().is_empty() {
                 app.game_path.clone()
             } else {
-                join_game_path(&p.install_root, &app.game_exe_rel)
+                // 没有绝对路径时借第一个节的 install_root 展示
+                let root = g
+                    .nodes
+                    .values()
+                    .find(|n| n.app_id == app.app_id)
+                    .map(|n| n.install_root.clone())
+                    .or_else(|| {
+                        g.placements
+                            .values()
+                            .find(|p| p.app_id == app.app_id)
+                            .map(|p| p.install_root.clone())
+                    })
+                    .unwrap_or_default();
+                join_game_path(&root, &app.game_exe_rel)
             };
+            let mut nodes: Vec<AppNode> = g
+                .nodes
+                .values()
+                .filter(|n| n.app_id == app.app_id)
+                .cloned()
+                .collect();
+            nodes.sort_by_key(|n| n.seq_no);
             rows.push(AppRowVo {
                 app_id: app.app_id.clone(),
-                placement_id: p.placement_id.clone(),
                 name: app.name.clone(),
-                device_id: p.device_id.clone(),
                 game_path,
-                listen_port: app.listen_port,
                 default_game_args: app.default_game_args.clone(),
                 encoder_fps: app.encoder_fps,
                 encoder_bitrate: app.encoder_bitrate,
                 encoder_format: app.encoder_format.clone(),
+                nodes,
             });
         }
         rows.sort_by(|a, b| a.name.cmp(&b.name));
         rows
     }
 
-    fn collect_used_ports_locked(g: &Inner, exclude_app_id: Option<&str>) -> Vec<i32> {
+    /// 端口占用以「机器」为维度:同机节的端口 + 同机活跃实例的端口。
+    fn collect_used_ports_locked(g: &Inner, device_id: &str) -> Vec<i32> {
         let mut used = Vec::new();
-        for app in g.apps.values() {
-            if exclude_app_id.is_some_and(|id| id == app.app_id) {
+        for node in g.nodes.values() {
+            if !device_id.is_empty() && node.device_id != device_id {
                 continue;
             }
-            if app.listen_port > 0 {
-                used.push(app.listen_port);
+            if node.listen_port > 0 {
+                used.push(node.listen_port);
             }
         }
         for inst in g.instances.values() {
+            if !device_id.is_empty() && inst.device_id != device_id {
+                continue;
+            }
             if matches!(
                 inst.state,
                 InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
@@ -308,13 +371,16 @@ impl AppScheduleManager {
         used
     }
 
-    /// Suggest the next free listen port for the Web form. Capped at
-    /// `DEFAULT_LISTEN_PORT_END`: past the pool tail fall back to the first
-    /// free port from the pool start; error when the pool is exhausted
-    /// (same wording as save_app auto-assign).
-    pub async fn suggest_next_port(&self) -> Result<i32, String> {
+    /// Suggest the next free listen port on a device for the Web form. Capped
+    /// at `DEFAULT_LISTEN_PORT_END`: past the pool tail fall back to the first
+    /// free port from the pool start; error when the pool is exhausted.
+    pub async fn suggest_next_port(&self, device_id: &str) -> Result<i32, String> {
         let g = self.inner.lock().await;
-        let used = Self::collect_used_ports_locked(&g, None);
+        Self::suggest_next_port_locked(&g, device_id)
+    }
+
+    fn suggest_next_port_locked(g: &Inner, device_id: &str) -> Result<i32, String> {
+        let used = Self::collect_used_ports_locked(g, device_id);
         let max = used.iter().copied().max().unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
         let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
         if next <= DEFAULT_LISTEN_PORT_END {
@@ -330,29 +396,32 @@ impl AppScheduleManager {
         ))
     }
 
-    fn ensure_port_available_locked(
+    fn ensure_node_port_available_locked(
         g: &Inner,
+        device_id: &str,
         port: i32,
-        exclude_app_id: Option<&str>,
+        exclude_node_id: Option<&str>,
     ) -> Result<(), String> {
         if !(DEFAULT_LISTEN_PORT_START..=DEFAULT_LISTEN_PORT_END).contains(&port) {
             return Err(format!(
                 "端口必须在 {DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END} 之间"
             ));
         }
-        for app in g.apps.values() {
-            if exclude_app_id.is_some_and(|id| id == app.app_id) {
+        for node in g.nodes.values() {
+            if exclude_node_id.is_some_and(|id| id == node.node_id) {
                 continue;
             }
-            if app.listen_port == port {
-                return Err(format!("端口 {port} 已被应用「{}」占用", app.name));
+            if node.device_id == device_id && node.listen_port == port {
+                return Err(format!("端口 {port} 已被节「{}」占用", node.name));
             }
         }
         for inst in g.instances.values() {
-            if matches!(
-                inst.state,
-                InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
-            ) && inst.listen_port == port
+            if inst.device_id == device_id
+                && matches!(
+                    inst.state,
+                    InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
+                )
+                && inst.listen_port == port
             {
                 return Err(format!(
                     "端口 {port} 正被实例 {} 使用中",
@@ -363,50 +432,23 @@ impl AppScheduleManager {
         Ok(())
     }
 
-    /// Create or update application + machine placement from a single Web form.
+    /// Create or update the application template (no machine/port anymore —
+    /// those live on nodes).
     pub async fn save_app(&self, req: SaveAppReq) -> Result<AppRowVo, String> {
         if req.name.trim().is_empty() {
             return Err("请填写应用名称".to_string());
         }
-        if req.device_id.trim().is_empty() {
-            return Err("请选择机器".to_string());
-        }
-        let (install_root, game_exe_rel) = split_game_path(&req.game_path)?;
+        let (_, game_exe_rel) = split_game_path(&req.game_path)?;
         let game_path = req.game_path.trim().to_string();
-        let device_id = req.device_id.trim().to_string();
         let editing_id = req
             .app_id
             .as_ref()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
+        let app_id = editing_id.clone().unwrap_or_else(|| self.next_id("app"));
 
-        let app_id = editing_id
-            .clone()
-            .unwrap_or_else(|| self.next_id("app"));
-
-        let (app, placement, stale_placement_ids) = {
+        let app = {
             let mut g = self.inner.lock().await;
-            let listen_port = match req.listen_port.unwrap_or(0) {
-                p if p > 0 => {
-                    Self::ensure_port_available_locked(&g, p, editing_id.as_deref())?;
-                    p
-                }
-                _ => {
-                    let used = Self::collect_used_ports_locked(&g, editing_id.as_deref());
-                    let max = used
-                        .into_iter()
-                        .max()
-                        .unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
-                    let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
-                    if next > DEFAULT_LISTEN_PORT_END {
-                        return Err(format!(
-                            "端口已用完（{DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END}）"
-                        ));
-                    }
-                    next
-                }
-            };
-
             let existing = editing_id
                 .as_ref()
                 .map(|id| {
@@ -416,36 +458,17 @@ impl AppScheduleManager {
                         .ok_or_else(|| format!("应用不存在: {id}"))
                 })
                 .transpose()?;
-
-            if let Some(ref app_id) = editing_id {
-                for inst in g.instances.values() {
-                    if inst.app_id == *app_id
-                        && matches!(
-                            inst.state,
-                            InstanceState::Starting
-                                | InstanceState::Running
-                                | InstanceState::Stopping
-                        )
-                        && inst.device_id != device_id
-                    {
-                        return Err("应用运行中，不能更换机器".to_string());
-                    }
-                }
-            }
-
             let app = Application {
                 app_id: app_id.clone(),
                 name: req.name.trim().to_string(),
-                game_path: game_path.clone(),
-                game_exe_rel: game_exe_rel.clone(),
-                default_game_args: req
-                    .default_game_args
-                    .unwrap_or_else(|| {
-                        existing
-                            .as_ref()
-                            .map(|e| e.default_game_args.clone())
-                            .unwrap_or_default()
-                    }),
+                game_path,
+                game_exe_rel,
+                default_game_args: req.default_game_args.unwrap_or_else(|| {
+                    existing
+                        .as_ref()
+                        .map(|e| e.default_game_args.clone())
+                        .unwrap_or_default()
+                }),
                 encoder_fps: req
                     .encoder_fps
                     .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_fps).unwrap_or(60)),
@@ -460,81 +483,197 @@ impl AppScheduleManager {
                 }),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port,
+                listen_port: existing.as_ref().map(|e| e.listen_port).unwrap_or(0),
             };
-
-            let mut keep_placement_id: Option<String> = None;
-            let mut stale = Vec::new();
-            let old_keys: Vec<(String, String)> = g
-                .placement_by_app_device
-                .keys()
-                .filter(|(aid, _)| aid == &app.app_id)
-                .cloned()
-                .collect();
-            for key in old_keys {
-                if let Some(pid) = g.placement_by_app_device.remove(&key) {
-                    if key.1 == device_id {
-                        keep_placement_id = Some(pid);
-                    } else {
-                        g.placements.remove(&pid);
-                        stale.push(pid);
-                    }
-                }
-            }
-
-            let placement = if let Some(pid) = keep_placement_id {
-                let mut p = g.placements.remove(&pid).unwrap_or(AppPlacement {
-                    placement_id: pid.clone(),
-                    app_id: app.app_id.clone(),
-                    device_id: device_id.clone(),
-                    install_root: install_root.clone(),
-                });
-                p.app_id = app.app_id.clone();
-                p.device_id = device_id.clone();
-                p.install_root = install_root.clone();
-                p
-            } else {
-                AppPlacement {
-                    placement_id: format!("plc-{}", &Uuid::new_v4().to_string()[..8]),
-                    app_id: app.app_id.clone(),
-                    device_id: device_id.clone(),
-                    install_root: install_root.clone(),
-                }
-            };
-
             g.apps.insert(app.app_id.clone(), app.clone());
-            g.placement_by_app_device.insert(
-                (placement.app_id.clone(), placement.device_id.clone()),
-                placement.placement_id.clone(),
-            );
-            g.placements
-                .insert(placement.placement_id.clone(), placement.clone());
-            (app, placement, stale)
+            app
         };
-
-        for pid in stale_placement_ids {
-            let _ = crate::app_schedule::store::delete_placement(&pid).await;
-        }
         let _ = crate::app_schedule::store::upsert_application(&app).await;
-        let _ = crate::app_schedule::store::upsert_placement(&placement).await;
-
-        Ok(AppRowVo {
+        let mut row = AppRowVo {
             app_id: app.app_id,
-            placement_id: placement.placement_id,
             name: app.name,
-            device_id: placement.device_id,
             game_path: app.game_path,
-            listen_port: app.listen_port,
             default_game_args: app.default_game_args,
             encoder_fps: app.encoder_fps,
             encoder_bitrate: app.encoder_bitrate,
             encoder_format: app.encoder_format,
-        })
+            nodes: Vec::new(),
+        };
+        let g = self.inner.lock().await;
+        row.nodes = g
+            .nodes
+            .values()
+            .filter(|n| n.app_id == row.app_id)
+            .cloned()
+            .collect();
+        row.nodes.sort_by_key(|n| n.seq_no);
+        Ok(row)
+    }
+
+    /// Create or update a node (机器/端口/目录都绑在节上)。
+    pub async fn save_node(&self, req: SaveNodeReq) -> Result<AppNode, String> {
+        if req.device_id.trim().is_empty() {
+            return Err("请选择机器".to_string());
+        }
+        let device_id = req.device_id.trim().to_string();
+        let editing_id = req
+            .node_id
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+
+        let node = {
+            let mut g = self.inner.lock().await;
+            let app = g
+                .apps
+                .get(&req.app_id)
+                .cloned()
+                .ok_or_else(|| format!("应用不存在: {}", req.app_id))?;
+            let existing = editing_id
+                .as_ref()
+                .map(|id| {
+                    g.nodes
+                        .get(id)
+                        .cloned()
+                        .ok_or_else(|| format!("节不存在: {id}"))
+                })
+                .transpose()?;
+
+            // 活跃实例存在时不允许换机器/端口(运行身份不可变)
+            if let Some(ref old) = existing {
+                let has_active = g.instances.values().any(|i| {
+                    i.node_id == old.node_id
+                        && matches!(
+                            i.state,
+                            InstanceState::Starting
+                                | InstanceState::Running
+                                | InstanceState::Stopping
+                        )
+                });
+                if has_active
+                    && (old.device_id != device_id
+                        || (req.listen_port.unwrap_or(0) > 0
+                            && req.listen_port.unwrap_or(0) != old.listen_port))
+                {
+                    return Err("节运行中，不能更换机器或端口".to_string());
+                }
+            }
+
+            let listen_port = match req.listen_port.unwrap_or(0) {
+                p if p > 0 => {
+                    Self::ensure_node_port_available_locked(
+                        &g,
+                        &device_id,
+                        p,
+                        editing_id.as_deref(),
+                    )?;
+                    p
+                }
+                _ if existing.as_ref().map(|e| e.listen_port).unwrap_or(0) > 0
+                    && existing.as_ref().is_some_and(|e| e.device_id == device_id) =>
+                {
+                    // 编辑且未指定端口:保留原端口(已校验过)
+                    existing.as_ref().unwrap().listen_port
+                }
+                _ => Self::suggest_next_port_locked(&g, &device_id)?,
+            };
+
+            let install_root = match req.install_root.as_ref().map(|s| s.trim()) {
+                Some(s) if !s.is_empty() => s.to_string(),
+                _ => existing
+                    .as_ref()
+                    .map(|e| e.install_root.clone())
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| {
+                        split_game_path(&app.game_path)
+                            .ok()
+                            .map(|(root, _)| root)
+                    })
+                    .ok_or_else(|| "install_root 为空且无法从应用路径推导".to_string())?,
+            };
+
+            let node = AppNode {
+                node_id: editing_id.clone().unwrap_or_else(|| self.next_id("node")),
+                app_id: app.app_id.clone(),
+                name: match req.name.as_ref().map(|s| s.trim()) {
+                    Some(s) if !s.is_empty() => s.to_string(),
+                    _ => {
+                        // 默认名:节N(按该应用现有节数)
+                        let n = g
+                            .nodes
+                            .values()
+                            .filter(|x| x.app_id == app.app_id)
+                            .count()
+                            + 1;
+                        format!("节{n}")
+                    }
+                },
+                device_id,
+                install_root,
+                listen_port,
+                last_run_at: existing.as_ref().map(|e| e.last_run_at).unwrap_or(0),
+                seq_no: existing
+                    .as_ref()
+                    .map(|e| e.seq_no)
+                    .unwrap_or_else(|| self.seq.fetch_add(1, Ordering::Relaxed)),
+            };
+            g.nodes.insert(node.node_id.clone(), node.clone());
+            node
+        };
+        let _ = crate::app_schedule::store::upsert_node(&node).await;
+        Ok(node)
+    }
+
+    pub async fn delete_node(&self, node_id: &str) -> Result<(), String> {
+        {
+            let mut g = self.inner.lock().await;
+            if !g.nodes.contains_key(node_id) {
+                return Err(format!("节不存在: {node_id}"));
+            }
+            for inst in g.instances.values() {
+                if inst.node_id == node_id
+                    && matches!(
+                        inst.state,
+                        InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
+                    )
+                {
+                    return Err("节运行中，请先停止再删除".to_string());
+                }
+            }
+            g.nodes.remove(node_id);
+            // 清掉该节已终结的实例记录,避免重启后重新载入
+            let inst_ids: Vec<String> = g
+                .instances
+                .values()
+                .filter(|i| i.node_id == node_id)
+                .map(|i| i.instance_id.clone())
+                .collect();
+            for iid in inst_ids {
+                if let Some(i) = g.instances.remove(&iid) {
+                    g.request_index.remove(&i.request_id);
+                }
+            }
+        }
+        let _ = crate::app_schedule::store::delete_node(node_id).await;
+        let _ = crate::app_schedule::store::delete_instances_by_node(node_id).await;
+        Ok(())
+    }
+
+    pub async fn list_nodes(&self, app_id: Option<&str>) -> Vec<AppNode> {
+        let g = self.inner.lock().await;
+        let mut nodes: Vec<AppNode> = g
+            .nodes
+            .values()
+            .filter(|n| app_id.is_none_or(|id| n.app_id == id))
+            .cloned()
+            .collect();
+        nodes.sort_by_key(|n| n.seq_no);
+        nodes
     }
 
     pub async fn delete_app(&self, app_id: &str) -> Result<(), String> {
-        let to_delete = {
-            let g = self.inner.lock().await;
+        {
+            let mut g = self.inner.lock().await;
             for inst in g.instances.values() {
                 if inst.app_id == app_id
                     && matches!(
@@ -548,19 +687,16 @@ impl AppScheduleManager {
             if !g.apps.contains_key(app_id) {
                 return Err(format!("应用不存在: {app_id}"));
             }
+            g.apps.remove(app_id);
+            g.nodes.retain(|_, n| n.app_id != app_id);
+            // 遗留 placement 一并清
             let plc_ids: Vec<String> = g
                 .placements
                 .values()
                 .filter(|p| p.app_id == app_id)
                 .map(|p| p.placement_id.clone())
                 .collect();
-            plc_ids
-        };
-
-        {
-            let mut g = self.inner.lock().await;
-            g.apps.remove(app_id);
-            for pid in &to_delete {
+            for pid in &plc_ids {
                 if let Some(p) = g.placements.remove(pid) {
                     g.placement_by_app_device
                         .remove(&(p.app_id, p.device_id));
@@ -580,9 +716,7 @@ impl AppScheduleManager {
             }
         }
         let _ = crate::app_schedule::store::delete_application(app_id).await;
-        for pid in to_delete {
-            let _ = crate::app_schedule::store::delete_placement(&pid).await;
-        }
+        let _ = crate::app_schedule::store::delete_nodes_by_app(app_id).await;
         // Drop this app's instances from DB too, otherwise a CMS restart would
         // reload them as orphans.
         let _ = crate::app_schedule::store::delete_instances_by_app(app_id).await;
@@ -625,60 +759,127 @@ impl AppScheduleManager {
         self.inner.lock().await.instances.values().cloned().collect()
     }
 
-    /// Schedule start on a machine that has Placement for the app.
+    /// 应用级启动:自动选一个节启动。候选 = 该应用的节中「无活跃实例 ∧ 端口
+    /// 未被同机活跃实例占用」者;按 last_run_at 最老(从未运行优先)、seq_no
+    /// 最小排序,取第一个 Service 在线的。req.device_id/listen_port 为遗留
+    /// 字段,忽略。
     pub async fn start_instance(&self, req: StartInstanceReq) -> Result<AppInstance, String> {
-        let (app, placement) = {
+        let candidates = {
             let g = self.inner.lock().await;
-            let app = g
-                .apps
-                .get(&req.app_id)
+            if !g.apps.contains_key(&req.app_id) {
+                return Err(format!("unknown app_id {}", req.app_id));
+            }
+            let mut nodes: Vec<AppNode> = g
+                .nodes
+                .values()
+                .filter(|n| n.app_id == req.app_id)
                 .cloned()
-                .ok_or_else(|| format!("unknown app_id {}", req.app_id))?;
-            let key = (req.app_id.clone(), req.device_id.clone());
-            let placement_id = g
-                .placement_by_app_device
-                .get(&key)
+                .collect();
+            if nodes.is_empty() {
+                return Err("应用还没有节，请先「新建节」".to_string());
+            }
+            nodes.sort_by_key(|n| (n.last_run_at, n.seq_no));
+            nodes
+                .into_iter()
+                .filter(|n| {
+                    let node_busy = g.instances.values().any(|i| {
+                        i.node_id == n.node_id
+                            && matches!(
+                                i.state,
+                                InstanceState::Starting
+                                    | InstanceState::Running
+                                    | InstanceState::Stopping
+                            )
+                    });
+                    let port_busy = g.instances.values().any(|i| {
+                        i.device_id == n.device_id
+                            && i.listen_port == n.listen_port
+                            && matches!(
+                                i.state,
+                                InstanceState::Starting
+                                    | InstanceState::Running
+                                    | InstanceState::Stopping
+                            )
+                    });
+                    !node_busy && !port_busy
+                })
+                .collect::<Vec<_>>()
+        };
+        if candidates.is_empty() {
+            return Err("没有空闲节（全部在运行中或被占用）".to_string());
+        }
+        // 取第一个 Service 在线的候选节
+        let mut offline = Vec::new();
+        for node in candidates {
+            match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
+                Ok(conn) => return self.start_on_node(node, conn).await,
+                Err(_) => offline.push(format!("{}({})", node.name, node.device_id)),
+            }
+        }
+        Err(format!(
+            "节的机器均不在线: {}",
+            offline.join(", ")
+        ))
+    }
+
+    /// 节级启动:在指定节上直接起实例。
+    pub async fn start_node(&self, node_id: &str) -> Result<AppInstance, String> {
+        let node = {
+            let g = self.inner.lock().await;
+            let node = g
+                .nodes
+                .get(node_id)
                 .cloned()
-                .ok_or_else(|| {
-                    format!(
-                        "no placement for app {} on device {}",
-                        req.app_id, req.device_id
+                .ok_or_else(|| format!("节不存在: {node_id}"))?;
+            for inst in g.instances.values() {
+                if inst.node_id == node_id
+                    && matches!(
+                        inst.state,
+                        InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
                     )
-                })?;
-            let placement = g.placements.get(&placement_id).cloned().unwrap();
-            (app, placement)
+                {
+                    return Err(format!("节「{}」已在运行或启动中", node.name));
+                }
+            }
+            Self::ensure_node_port_available_locked(&g, &node.device_id, node.listen_port, Some(node_id))?;
+            node
         };
-
-        let (install_root, game_exe_rel) =
-            resolve_start_paths(&app.game_path, &placement.install_root, &app.game_exe_rel)?;
-
-        // Service must be online.
-        let conn = match gSpvrServiceConnMgr.get_conn(req.device_id.clone()).await {
+        let conn = match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
             Ok(c) => c,
-            Err(_) => return Err(format!("service offline: {}", req.device_id)),
+            Err(_) => return Err(format!("service offline: {}", node.device_id)),
         };
+        self.start_on_node(node, conn).await
+    }
+
+    /// 公共启动:解析路径 → 预占创建 Instance(starting) → 下发 → 等回执。
+    async fn start_on_node(
+        &self,
+        node: AppNode,
+        conn: crate::net_service::spvr_service_conn::SpvrServiceConnPtr,
+    ) -> Result<AppInstance, String> {
+        let app = {
+            let g = self.inner.lock().await;
+            g.apps
+                .get(&node.app_id)
+                .cloned()
+                .ok_or_else(|| format!("unknown app_id {}", node.app_id))?
+        };
+        let (install_root, game_exe_rel) =
+            resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)?;
 
         let request_id = self.next_id("req");
         let instance_id = self.next_id("inst");
-        // Prefer explicit start override; else the app's saved port; else Service auto.
-        let listen_port = match req.listen_port.unwrap_or(0) {
-            p if p > 0 => p,
-            _ if app.listen_port > 0 => app.listen_port,
-            _ => 0,
-        };
-        if listen_port > 0 {
-            let g = self.inner.lock().await;
-            Self::ensure_port_available_locked(&g, listen_port, Some(app.app_id.as_str()))?;
-        }
+        let listen_port = node.listen_port;
         let inst = AppInstance {
             instance_id: instance_id.clone(),
             request_id: request_id.clone(),
             app_id: app.app_id.clone(),
-            device_id: req.device_id.clone(),
-            placement_id: placement.placement_id.clone(),
+            device_id: node.device_id.clone(),
+            placement_id: String::new(),
+            node_id: node.node_id.clone(),
             state: InstanceState::Starting,
             // Pre-occupy the expected port so a concurrent Start of the same
-            // app fails the port check; the Service receipt overwrites it if
+            // node fails the port check; the Service receipt overwrites it if
             // it actually bound elsewhere.
             listen_port,
             pid: 0,
@@ -867,6 +1068,7 @@ impl AppScheduleManager {
             return;
         };
         let waiter = g.start_waiters.remove(&result.request_id);
+        let mut touched_node: Option<AppNode> = None;
         let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
             if inst.device_id != device_id {
                 tracing::warn!(
@@ -896,6 +1098,13 @@ impl AppScheduleManager {
                         "/web_client/?deviceId={}&instanceId={}",
                         inst.device_id, inst.instance_id
                     );
+                    // 记录节最近运行时间(应用级启动选"最久未运行"的节)
+                    if !inst.node_id.is_empty() {
+                        if let Some(node) = g.nodes.get_mut(&inst.node_id) {
+                            node.last_run_at = now_ms();
+                            touched_node = Some(node.clone());
+                        }
+                    }
                 } else {
                     inst.state = InstanceState::Failed;
                     inst.error = result.error;
@@ -910,6 +1119,9 @@ impl AppScheduleManager {
         drop(guard);
         if let Some(inst) = snapshot.clone() {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+        }
+        if let Some(node) = touched_node {
+            let _ = crate::app_schedule::store::upsert_node(&node).await;
         }
         if let (Some(tx), Some(inst)) = (waiter, snapshot) {
             let _ = tx.send(inst);
@@ -1129,8 +1341,8 @@ impl AppScheduleManager {
 
     pub async fn load_from_db(&self) {
         match crate::app_schedule::store::load_all().await {
-            Ok((apps, placements, instances)) => {
-                let healed = {
+            Ok((apps, placements, nodes, instances)) => {
+                let (healed, migrated) = {
                     let mut g = self.inner.lock().await;
                     for app in apps {
                         g.apps.insert(app.app_id.clone(), app);
@@ -1141,6 +1353,16 @@ impl AppScheduleManager {
                             p.placement_id.clone(),
                         );
                         g.placements.insert(p.placement_id.clone(), p);
+                    }
+                    let mut max_seq = 0u64;
+                    for n in nodes {
+                        max_seq = max_seq.max(n.seq_no);
+                        g.nodes.insert(n.node_id.clone(), n);
+                    }
+                    // seq 计数器抬高到已持久化的最大 seq_no,避免重启后序号回退
+                    let cur = self.seq.load(Ordering::Relaxed);
+                    if max_seq >= cur {
+                        self.seq.store(max_seq + 1, Ordering::Relaxed);
                     }
                     let mut healed = Vec::new();
                     for mut i in instances {
@@ -1157,21 +1379,94 @@ impl AppScheduleManager {
                         }
                         g.instances.insert(i.instance_id.clone(), i);
                     }
+                    // 节点结构迁移:没有节的旧应用,按遗留 placement + app.listen_port
+                    // 生成默认节。node_id 取确定性值,重启幂等不重复建。
+                    let migrated = self.migrate_legacy_nodes_locked(&mut g);
                     tracing::info!(
-                        "app schedule loaded from mongo: apps={} placements={} instances={} healed={}",
+                        "app schedule loaded from mongo: apps={} nodes={} instances={} healed={} migrated={}",
                         g.apps.len(),
-                        g.placements.len(),
+                        g.nodes.len(),
                         g.instances.len(),
-                        healed.len()
+                        healed.len(),
+                        migrated.len()
                     );
-                    healed
+                    (healed, migrated)
                 };
                 for i in healed {
                     let _ = crate::app_schedule::store::upsert_instance(&i).await;
                 }
+                for n in migrated {
+                    let _ = crate::app_schedule::store::upsert_node(&n).await;
+                }
             }
             Err(e) => tracing::warn!("load app schedule from mongo failed: {e}"),
         }
+    }
+
+    /// 节点结构迁移(可从 load_from_db 与单测调用):没有节的旧应用,按遗留
+    /// placement + app.listen_port 生成默认节。node_id 取确定性值,幂等。
+    fn migrate_legacy_nodes_locked(&self, g: &mut Inner) -> Vec<AppNode> {
+        let mut migrated = Vec::new();
+        let app_ids: Vec<String> = g.apps.keys().cloned().collect();
+        for app_id in app_ids {
+            if g.nodes.values().any(|n| n.app_id == app_id) {
+                continue;
+            }
+            let app = g.apps.get(&app_id).cloned().unwrap();
+            let legacy_plc = g
+                .placements
+                .values()
+                .find(|p| p.app_id == app_id)
+                .cloned();
+            let install_root = legacy_plc
+                .as_ref()
+                .map(|p| p.install_root.clone())
+                .filter(|s| !s.is_empty())
+                .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
+                .unwrap_or_default();
+            let device_id = legacy_plc
+                .as_ref()
+                .map(|p| p.device_id.clone())
+                .unwrap_or_default();
+            if device_id.is_empty() || install_root.is_empty() {
+                tracing::warn!(
+                    "migrate: skip node migration for app {} (no placement/game_path)",
+                    app_id
+                );
+                continue;
+            }
+            let listen_port = if app.listen_port > 0 {
+                app.listen_port
+            } else {
+                Self::suggest_next_port_locked(g, &device_id).unwrap_or(0)
+            };
+            if listen_port <= 0 {
+                tracing::warn!(
+                    "migrate: skip node migration for app {} (no port available)",
+                    app_id
+                );
+                continue;
+            }
+            let node = AppNode {
+                node_id: format!("node-legacy-{app_id}-{device_id}-{listen_port}"),
+                app_id: app_id.clone(),
+                name: "节1".to_string(),
+                device_id,
+                install_root,
+                listen_port,
+                last_run_at: 0,
+                seq_no: self.seq.fetch_add(1, Ordering::Relaxed),
+            };
+            tracing::info!(
+                "migrate: app {} -> default node {} (port {})",
+                app_id,
+                node.node_id,
+                node.listen_port
+            );
+            g.nodes.insert(node.node_id.clone(), node.clone());
+            migrated.push(node);
+        }
+        migrated
     }
 
     /// Test helper: inject without network.
@@ -1187,6 +1482,12 @@ impl AppScheduleManager {
         g.request_index
             .insert(inst.request_id.clone(), inst.instance_id.clone());
         g.instances.insert(inst.instance_id.clone(), inst);
+    }
+
+    /// Test helper: inject a node without network/DB.
+    pub async fn inject_node_for_test(&self, node: AppNode) {
+        let mut g = self.inner.lock().await;
+        g.nodes.insert(node.node_id.clone(), node);
     }
 }
 
@@ -1241,7 +1542,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn start_requires_placement_and_online_service() {
+    async fn start_requires_node_and_online_service() {
         let mgr = AppScheduleManager::new();
         let app = mgr
             .create_application(CreateApplicationReq {
@@ -1256,32 +1557,37 @@ mod tests {
             })
             .await
             .unwrap();
+        // 没有节:明确报错
         let err = mgr
             .start_instance(StartInstanceReq {
                 app_id: app.app_id.clone(),
-                device_id: "no-place".into(),
+                device_id: None,
                 listen_port: None,
             })
             .await
             .unwrap_err();
-        assert!(err.contains("no placement"));
+        assert!(err.contains("还没有节"), "{err}");
 
-        mgr.create_placement(CreatePlacementReq {
+        // 有节但机器离线
+        mgr.save_node(SaveNodeReq {
+            node_id: None,
             app_id: app.app_id.clone(),
+            name: None,
             device_id: "offline-dev".into(),
-            install_root: r"D:\app".into(),
+            install_root: Some(r"D:\app".into()),
+            listen_port: Some(32000),
         })
         .await
         .unwrap();
         let err = mgr
             .start_instance(StartInstanceReq {
                 app_id: app.app_id,
-                device_id: "offline-dev".into(),
-                listen_port: Some(32000),
+                device_id: None,
+                listen_port: None,
             })
             .await
             .unwrap_err();
-        assert!(err.contains("offline"));
+        assert!(err.contains("不在线"), "{err}");
     }
 
     #[tokio::test]
@@ -1312,6 +1618,7 @@ mod tests {
             app_id: "app-1".into(),
             device_id: "dev-1".into(),
             placement_id: "plc-1".into(),
+            node_id: String::new(),
             state: InstanceState::Starting,
             listen_port: 0,
             pid: 0,
@@ -1381,6 +1688,7 @@ mod tests {
                 app_id: "a".into(),
                 device_id: "d".into(),
                 placement_id: "p".into(),
+                node_id: String::new(),
                 state: InstanceState::Starting,
                 listen_port: 0,
                 pid: 0,
@@ -1435,6 +1743,7 @@ mod tests {
                 app_id: "a".into(),
                 device_id: "d".into(),
                 placement_id: "p".into(),
+                node_id: String::new(),
                 state: InstanceState::Stopping,
                 listen_port: 32000,
                 pid: 1,
@@ -1487,6 +1796,7 @@ mod tests {
                 app_id: "a".into(),
                 device_id: "dev-1".into(),
                 placement_id: "p".into(),
+                node_id: String::new(),
                 state: InstanceState::Running,
                 listen_port: 32000,
                 pid: 99,
@@ -1530,6 +1840,7 @@ mod tests {
                 app_id: "a".into(),
                 device_id: "dev-1".into(),
                 placement_id: "p".into(),
+                node_id: String::new(),
                 state: InstanceState::Running,
                 listen_port: 32000,
                 pid: 99,
@@ -1568,84 +1879,106 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn save_app_assigns_incremental_ports_and_rejects_conflict() {
+    async fn save_node_assigns_incremental_ports_and_rejects_conflict() {
         let mgr = AppScheduleManager::new();
-        let a1 = mgr
+        let app = mgr
             .save_app(SaveAppReq {
                 app_id: None,
                 name: "A".into(),
-                device_id: "m1".into(),
                 game_path: r"D:\games\a\game.exe".into(),
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
-                listen_port: None,
             })
             .await
             .unwrap();
-        assert_eq!(a1.listen_port, 32000);
-        let a2 = mgr
-            .save_app(SaveAppReq {
-                app_id: None,
-                name: "B".into(),
+        // 同机两个节:端口递增
+        let n1 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
                 device_id: "m1".into(),
-                game_path: r"D:\games\b\game.exe".into(),
-                default_game_args: None,
-                encoder_fps: None,
-                encoder_bitrate: None,
-                encoder_format: None,
+                install_root: None,
                 listen_port: None,
             })
             .await
             .unwrap();
-        assert_eq!(a2.listen_port, 32001);
+        assert_eq!(n1.listen_port, 32000);
+        assert_eq!(n1.name, "节1");
+        // install_root 从应用 game_path 推导
+        assert_eq!(n1.install_root, r"D:\games\a");
+        let n2 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m1".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(n2.listen_port, 32001);
+        assert_eq!(n2.name, "节2");
+        // 同机端口冲突:拒绝
         let err = mgr
-            .save_app(SaveAppReq {
-                app_id: None,
-                name: "C".into(),
-                device_id: "m2".into(),
-                game_path: r"D:\games\c\game.exe".into(),
-                default_game_args: None,
-                encoder_fps: None,
-                encoder_bitrate: None,
-                encoder_format: None,
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m1".into(),
+                install_root: None,
                 listen_port: Some(32000),
             })
             .await
             .unwrap_err();
-        assert!(err.contains("占用"));
+        assert!(err.contains("占用"), "{err}");
+        // 不同机器允许同端口
+        let n3 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m2".into(),
+                install_root: None,
+                listen_port: Some(32000),
+            })
+            .await
+            .unwrap();
+        assert_eq!(n3.listen_port, 32000);
 
-        mgr.delete_app(&a1.app_id).await.unwrap();
-        assert_eq!(mgr.list_app_rows().await.len(), 1);
+        mgr.delete_app(&app.app_id).await.unwrap();
+        assert!(mgr.list_app_rows().await.is_empty());
+        assert!(mgr.list_nodes(None).await.is_empty());
     }
 
-    fn app_with_port(app_id: &str, listen_port: i32) -> Application {
-        Application {
+    fn node_with_port(app_id: &str, device_id: &str, listen_port: i32) -> AppNode {
+        AppNode {
+            node_id: format!("node-{app_id}-{listen_port}"),
             app_id: app_id.into(),
-            name: format!("n-{app_id}"),
-            game_path: r"D:\x\e.exe".into(),
-            game_exe_rel: "e.exe".into(),
-            default_game_args: String::new(),
-            encoder_fps: 60,
-            encoder_bitrate: 20,
-            encoder_format: "h264".into(),
-            webrtc_enabled: true,
-            websocket_enabled: true,
+            name: format!("节-{listen_port}"),
+            device_id: device_id.into(),
+            install_root: r"D:\x".into(),
             listen_port,
+            last_run_at: 0,
+            seq_no: 0,
         }
     }
 
     #[tokio::test]
     async fn suggest_next_port_increments_from_pool_start() {
         let mgr = AppScheduleManager::new();
-        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32000);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
         {
             let mut g = mgr.inner.lock().await;
-            g.apps.insert("a".into(), app_with_port("a", 32000));
-            g.apps.insert("b".into(), app_with_port("b", 32001));
+            g.nodes.insert("n1".into(), node_with_port("a", "m1", 32000));
+            g.nodes.insert("n2".into(), node_with_port("a", "m1", 32001));
         }
-        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32002);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32002);
+        // 另一台机器不受影响
+        assert_eq!(mgr.suggest_next_port("m2").await.unwrap(), 32000);
     }
 
     #[tokio::test]
@@ -1653,15 +1986,15 @@ mod tests {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
-            g.apps.insert("a".into(), app_with_port("a", 32999));
+            g.nodes.insert("n1".into(), node_with_port("a", "m1", 32999));
         }
         // max+1 exceeds the pool: suggest the first free port from the start.
-        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32000);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
         {
             let mut g = mgr.inner.lock().await;
-            g.apps.insert("b".into(), app_with_port("b", 32000));
+            g.nodes.insert("n2".into(), node_with_port("a", "m1", 32000));
         }
-        assert_eq!(mgr.suggest_next_port().await.unwrap(), 32001);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32001);
     }
 
     #[tokio::test]
@@ -1670,11 +2003,11 @@ mod tests {
         {
             let mut g = mgr.inner.lock().await;
             for port in 32000..=32999 {
-                let id = format!("a-{port}");
-                g.apps.insert(id.clone(), app_with_port(&id, port));
+                let n = node_with_port("a", "m1", port);
+                g.nodes.insert(n.node_id.clone(), n);
             }
         }
-        let err = mgr.suggest_next_port().await.unwrap_err();
+        let err = mgr.suggest_next_port("m1").await.unwrap_err();
         assert!(err.contains("端口已用完"), "{err}");
         assert!(err.contains("32000-32999"), "{err}");
     }
@@ -1706,6 +2039,7 @@ mod tests {
                 app_id: "a".into(),
                 device_id: "d".into(),
                 placement_id: "p".into(),
+                node_id: String::new(),
                 state,
                 listen_port: 32000,
                 pid: 0,
@@ -1820,24 +2154,287 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn save_app_rejects_port_out_of_range() {
+    async fn save_node_rejects_port_out_of_range() {
         let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "P".into(),
+                game_path: r"D:\games\p\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
         for port in [31999, 33000] {
             let err = mgr
-                .save_app(SaveAppReq {
-                    app_id: None,
-                    name: "P".into(),
+                .save_node(SaveNodeReq {
+                    node_id: None,
+                    app_id: app.app_id.clone(),
+                    name: None,
                     device_id: "m1".into(),
-                    game_path: r"D:\games\p\game.exe".into(),
-                    default_game_args: None,
-                    encoder_fps: None,
-                    encoder_bitrate: None,
-                    encoder_format: None,
+                    install_root: None,
                     listen_port: Some(port),
                 })
                 .await
                 .unwrap_err();
             assert!(err.contains("32000-32999"), "port {port}: {err}");
         }
+    }
+
+    #[tokio::test]
+    async fn delete_node_rejected_while_running() {
+        let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "D".into(),
+                game_path: r"D:\games\d\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        let node = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m1".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        // 注入该节的活跃实例
+        {
+            let mut g = mgr.inner.lock().await;
+            g.instances.insert(
+                "i-1".into(),
+                AppInstance {
+                    instance_id: "i-1".into(),
+                    request_id: "r-1".into(),
+                    app_id: app.app_id.clone(),
+                    device_id: "m1".into(),
+                    placement_id: String::new(),
+                    node_id: node.node_id.clone(),
+                    state: InstanceState::Running,
+                    listen_port: node.listen_port,
+                    pid: 123,
+                    error: String::new(),
+                    web_client_hint: String::new(),
+                },
+            );
+        }
+        let err = mgr.delete_node(&node.node_id).await.unwrap_err();
+        assert!(err.contains("运行中"), "{err}");
+        // 节级启动也应拒绝
+        let err = mgr.start_node(&node.node_id).await.unwrap_err();
+        assert!(err.contains("已在运行"), "{err}");
+        // 应用级启动:唯一节被占 -> 没有空闲节
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("没有空闲节"), "{err}");
+        // 编辑运行中的节:换机器/端口拒绝,只改名可以
+        let err = mgr
+            .save_node(SaveNodeReq {
+                node_id: Some(node.node_id.clone()),
+                app_id: app.app_id.clone(),
+                name: Some("改名".into()),
+                device_id: "m2".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("运行中"), "{err}");
+        let renamed = mgr
+            .save_node(SaveNodeReq {
+                node_id: Some(node.node_id.clone()),
+                app_id: app.app_id.clone(),
+                name: Some("改名".into()),
+                device_id: "m1".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(renamed.name, "改名");
+        assert_eq!(renamed.listen_port, node.listen_port);
+    }
+
+    #[tokio::test]
+    async fn app_start_picks_stalest_free_node_first() {
+        let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "S".into(),
+                game_path: r"D:\games\s\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        // 两个节:节1 最近跑过,节2 从未跑 -> 应用启动应选节2
+        let n1 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m1".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        let n2 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m1".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        {
+            let mut g = mgr.inner.lock().await;
+            g.nodes.get_mut(&n1.node_id).unwrap().last_run_at = now_ms();
+        }
+        // 无在线 Service:错误信息按选节顺序列出候选(节2 在前)
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap_err();
+        let pos2 = err.find(&n2.name).unwrap_or(usize::MAX);
+        let pos1 = err.find(&n1.name).unwrap_or(usize::MAX);
+        assert!(pos2 < pos1, "stalest node should be picked first: {err}");
+    }
+
+    #[tokio::test]
+    async fn start_result_updates_node_last_run_at() {
+        let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "L".into(),
+                game_path: r"D:\games\l\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        let node = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "d".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(node.last_run_at, 0);
+        {
+            let mut g = mgr.inner.lock().await;
+            g.request_index.insert("r-9".into(), "i-9".into());
+            g.instances.insert(
+                "i-9".into(),
+                AppInstance {
+                    instance_id: "i-9".into(),
+                    request_id: "r-9".into(),
+                    app_id: app.app_id.clone(),
+                    device_id: "d".into(),
+                    placement_id: String::new(),
+                    node_id: node.node_id.clone(),
+                    state: InstanceState::Starting,
+                    listen_port: node.listen_port,
+                    pid: 0,
+                    error: String::new(),
+                    web_client_hint: String::new(),
+                },
+            );
+        }
+        mgr.on_start_result(
+            "d".into(),
+            SpvrServiceStartAppInstanceResult {
+                request_id: "r-9".into(),
+                instance_id: "i-9".into(),
+                ok: true,
+                error: String::new(),
+                listen_port: node.listen_port,
+                pid: 99,
+            },
+        )
+        .await;
+        let nodes = mgr.list_nodes(None).await;
+        assert!(nodes[0].last_run_at > 0, "last_run_at should be set on Running");
+    }
+
+    #[tokio::test]
+    async fn legacy_placement_migrates_to_default_node() {
+        let mgr = AppScheduleManager::new();
+        // 模拟节点结构之前的数据:app + placement,无 node
+        mgr.inject_for_test(
+            Application {
+                app_id: "a".into(),
+                name: "n".into(),
+                game_path: r"D:\x\e.exe".into(),
+                game_exe_rel: "e.exe".into(),
+                default_game_args: String::new(),
+                encoder_fps: 60,
+                encoder_bitrate: 20,
+                encoder_format: "h264".into(),
+                webrtc_enabled: true,
+                websocket_enabled: true,
+                listen_port: 32055,
+            },
+            AppPlacement {
+                placement_id: "p".into(),
+                app_id: "a".into(),
+                device_id: "d".into(),
+                install_root: r"D:\x".into(),
+            },
+            AppInstance::default(),
+        )
+        .await;
+        let migrated = {
+            let mut g = mgr.inner.lock().await;
+            mgr.migrate_legacy_nodes_locked(&mut g)
+        };
+        assert_eq!(migrated.len(), 1);
+        let n = &migrated[0];
+        assert_eq!(n.device_id, "d");
+        assert_eq!(n.install_root, r"D:\x");
+        assert_eq!(n.listen_port, 32055);
+        assert_eq!(n.name, "节1");
+        // 幂等:再跑一次不重复建
+        let again = {
+            let mut g = mgr.inner.lock().await;
+            mgr.migrate_legacy_nodes_locked(&mut g)
+        };
+        assert!(again.is_empty());
+        assert_eq!(mgr.list_nodes(None).await.len(), 1);
     }
 }

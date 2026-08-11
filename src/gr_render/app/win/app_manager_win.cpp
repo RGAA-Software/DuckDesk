@@ -661,13 +661,34 @@ namespace tc
         if (!view_path.empty()) {
             auto norm_view = StringUtil::ToLowerCpy(view_path);
             StringUtil::Replace(norm_view, "/", "\\");
+            ProcessInfoPtr first_match = nullptr;
+            ProcessInfoPtr free_match = nullptr;
             for (const auto& process : processes) {
                 auto norm_exe = StringUtil::ToLowerCpy(process->exe_full_path_);
                 StringUtil::Replace(norm_exe, "/", "\\");
-                if (norm_exe == norm_view) {
+                if (norm_exe != norm_view) {
+                    continue;
+                }
+                // 多开场景：同名 view 进程会有多个，优先选我们自己拉起的
+                // 进程树里的那个，其次是还没被其它实例注入过的，最后才退回
+                // 第一个匹配（单开时行为与原来一致）。
+                if (process->pid_ == target_pid_ ||
+                    (target_pid_ > 0 && ProcessHelper::isChildOf(process->pid_, target_pid_))) {
                     target_process_info = process;
                     break;
                 }
+                if (!first_match) {
+                    first_match = process;
+                }
+                if (!free_match) {
+                    auto chk = WinHelper::IsDllInjected(process->pid_, kX86DllName, kX64DllName);
+                    if (chk.ok_ && !chk.value_) {
+                        free_match = process;
+                    }
+                }
+            }
+            if (!target_process_info) {
+                target_process_info = free_match ? free_match : first_match;
             }
             if (!target_process_info || !target_process_info->Valid()) {
                 return false;
@@ -720,6 +741,9 @@ namespace tc
             if (result.ok_ && result.value_) {
                 LOGI("Pid: {} for: {} is already injected....", target_process_info->pid_, process_exe_name);
                 this->injected_ = true;
+                // 与 VerifyInjectedStillAlive 监控的 target_pid_ 保持一致，
+                // 否则它会盯着一个旧 pid 反复误判"DLL 被卸载"并重置注入状态
+                target_pid_ = target_process_info->pid_;
                 ResetInjectRetryState();
                 return true;
             }

@@ -1,13 +1,14 @@
 use crate::app_schedule::gAppScheduleManager;
 use crate::app_schedule::manager::{
-    AppInstance, AppPlacement, AppRowVo, Application, CreateApplicationReq, CreatePlacementReq,
-    SaveAppReq, StartInstanceReq,
+    AppInstance, AppNode, AppPlacement, AppRowVo, Application, CreateApplicationReq,
+    CreatePlacementReq, SaveAppReq, SaveNodeReq, StartInstanceReq,
 };
 use crate::spvr_api_error::SpvrApiError;
 use crate::spvr_context::SpvrContext;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use gr_base::{ok_resp, RespMessage};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -69,11 +70,62 @@ pub async fn handle_delete_app(
 
 pub async fn handle_next_port(
     State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<i32>>, SpvrApiError> {
-    match gAppScheduleManager.suggest_next_port().await {
+    let device_id = params.get("device_id").cloned().unwrap_or_default();
+    match gAppScheduleManager.suggest_next_port(&device_id).await {
         Ok(port) => Ok(Json(ok_resp(port))),
         Err(e) => {
             tracing::warn!("suggest next port failed: {e}");
+            Ok(err_msg(e))
+        }
+    }
+}
+
+pub async fn handle_save_node(
+    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    Json(req): Json<SaveNodeReq>,
+) -> Result<Json<RespMessage<AppNode>>, SpvrApiError> {
+    match gAppScheduleManager.save_node(req).await {
+        Ok(node) => Ok(Json(ok_resp(node))),
+        Err(e) => {
+            tracing::warn!("save node failed: {e}");
+            Ok(err_msg(e))
+        }
+    }
+}
+
+pub async fn handle_delete_node(
+    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    Path(node_id): Path<String>,
+) -> Result<Json<RespMessage<String>>, SpvrApiError> {
+    match gAppScheduleManager.delete_node(&node_id).await {
+        Ok(()) => Ok(Json(ok_resp("ok".to_string()))),
+        Err(e) => {
+            tracing::warn!("delete node failed: {e}");
+            Ok(err_msg(e))
+        }
+    }
+}
+
+pub async fn handle_list_nodes(
+    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<RespMessage<Vec<AppNode>>>, SpvrApiError> {
+    let app_id = params.get("app_id").cloned();
+    Ok(Json(ok_resp(
+        gAppScheduleManager.list_nodes(app_id.as_deref()).await,
+    )))
+}
+
+pub async fn handle_start_node(
+    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    Path(node_id): Path<String>,
+) -> Result<Json<RespMessage<AppInstance>>, SpvrApiError> {
+    match gAppScheduleManager.start_node(&node_id).await {
+        Ok(inst) => Ok(Json(ok_resp(inst))),
+        Err(e) => {
+            tracing::warn!("start node failed: {e}");
             Ok(err_msg(e))
         }
     }

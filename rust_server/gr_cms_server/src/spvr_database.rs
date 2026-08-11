@@ -1,4 +1,4 @@
-use crate::app_schedule::manager::{AppInstance, AppPlacement, Application};
+use crate::app_schedule::manager::{AppInstance, AppNode, AppPlacement, Application};
 use crate::device::spvr_device::SpvrDevice;
 use crate::event::spvr_event::SpvrEvent;
 use crate::gSpvrSettings;
@@ -39,6 +39,7 @@ pub struct SpvrDatabase {
     // CMS app schedule
     pub c_app: Option<Arc<Mutex<Collection<Application>>>>,
     pub c_app_placement: Option<Arc<Mutex<Collection<AppPlacement>>>>,
+    pub c_app_node: Option<Arc<Mutex<Collection<AppNode>>>>,
     pub c_app_instance: Option<Arc<Mutex<Collection<AppInstance>>>>,
 }
 
@@ -145,6 +146,16 @@ impl SpvrDatabase {
                     tracing::warn!("create c_app_placement index failed: {}", e);
                 }
                 self.c_app_placement = Some(Arc::new(Mutex::new(c_app_placement)));
+
+                let c_app_node: Collection<AppNode> = database.collection("c_app_node");
+                let node_index = IndexModel::builder()
+                    .keys(doc! { "node_id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_app_node.create_index(node_index).await {
+                    tracing::warn!("create c_app_node index failed: {}", e);
+                }
+                self.c_app_node = Some(Arc::new(Mutex::new(c_app_node)));
 
                 let c_app_instance: Collection<AppInstance> = database.collection("c_app_instance");
                 let inst_index = IndexModel::builder()

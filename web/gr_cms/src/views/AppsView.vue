@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { AppInstance, AppRow, InstanceState } from '@/entity/app_schedule.ts'
+import type { AppInstance, AppNode, AppRow, InstanceState } from '@/entity/app_schedule.ts'
 import {
   deleteApp,
+  deleteNode,
   listAppRows,
   listInstances,
   nextPort,
   saveApp,
+  saveNode,
   startInstance,
+  startNode,
   stopInstance,
 } from '@/model/app_api.ts'
 import { queryAllServiceConn } from '@/model/conn_api.ts'
@@ -17,9 +20,13 @@ import type { ServiceConn } from '@/entity/service_conn.ts'
 import type { Device } from '@/entity/device.ts'
 import { buildGameHookClientUrl } from '@/util/web_client_url.ts'
 
-interface ViewRow extends AppRow {
+interface ViewNode extends AppNode {
   instance?: AppInstance
   online: boolean
+}
+
+interface ViewRow extends Omit<AppRow, 'nodes'> {
+  nodes: ViewNode[]
 }
 
 const POLL_MS = 4000
@@ -35,44 +42,61 @@ const editing = ref(false)
 const form = ref({
   app_id: '',
   name: '',
-  device_id: '',
   game_path: '',
   default_game_args: '',
   encoder_fps: 60,
   encoder_bitrate: 20,
   encoder_format: 'h264',
+})
+
+const nodeDialogVisible = ref(false)
+const nodeEditing = ref(false)
+const nodeSaving = ref(false)
+const nodeForm = ref({
+  node_id: '',
+  app_id: '',
+  name: '',
+  device_id: '',
   listen_port: 32000,
 })
 
 const onlineIds = computed(() => new Set(services.value.map((s) => s.device_id)))
 
+function seqOf(id: string): number {
+  const m = id.match(/^(?:inst|req)-(\d+)-/)
+  return m ? Number(m[1]) : 0
+}
+
+/** Bind the live instance of a node. Only active states; historical
+ * failed/stopped must not sticky-display as the current row. Legacy instances
+ * (empty node_id) fall back to device+port matching. */
+function activeInstanceOf(appId: string, node: AppNode): AppInstance | undefined {
+  return instances.value
+    .filter(
+      (i) =>
+        i.app_id === appId &&
+        (i.node_id
+          ? i.node_id === node.node_id
+          : i.device_id === node.device_id && i.listen_port === node.listen_port) &&
+        (i.state === 'running' || i.state === 'starting' || i.state === 'stopping'),
+    )
+    .slice()
+    .sort((a, b) => seqOf(b.instance_id) - seqOf(a.instance_id))[0]
+}
+
 const rows = computed<ViewRow[]>(() =>
-  rowsRaw.value.map((row) => {
-    const seqOf = (id: string) => {
-      const m = id.match(/^(?:inst|req)-(\d+)-/)
-      return m ? Number(m[1]) : 0
-    }
-    // Only bind live states. Historical failed/stopped must not sticky-display
-    // as the current row (e.g. "失败 / game_exe_rel must be relative" after game is gone).
-    const active = instances.value
-      .filter(
-        (i) =>
-          i.app_id === row.app_id &&
-          i.device_id === row.device_id &&
-          (i.state === 'running' || i.state === 'starting' || i.state === 'stopping'),
-      )
-      .slice()
-      .sort((a, b) => seqOf(b.instance_id) - seqOf(a.instance_id))[0]
-    return {
-      ...row,
-      instance: active,
-      online: onlineIds.value.has(row.device_id),
-    }
-  }),
+  rowsRaw.value.map((row) => ({
+    ...row,
+    nodes: (row.nodes || []).map((n) => ({
+      ...n,
+      instance: activeInstanceOf(row.app_id, n),
+      online: onlineIds.value.has(n.device_id),
+    })),
+  })),
 )
 
-function stateOf(row: ViewRow): InstanceState {
-  return row.instance?.state || 'stopped'
+function stateOf(node: ViewNode): InstanceState {
+  return node.instance?.state || 'stopped'
 }
 
 function stateTag(state: InstanceState): 'success' | 'warning' | 'danger' | 'info' {
@@ -101,24 +125,25 @@ function deviceIp(deviceId: string): string {
   return devices.value.find((d) => d.device_id === deviceId)?.device_ip_addr || '127.0.0.1'
 }
 
-async function resetFormForCreate() {
+function runningCount(row: ViewRow): number {
+  return row.nodes.filter((n) => n.instance?.state === 'running').length
+}
+
+function resetFormForCreate() {
   editing.value = false
-  const port = (await nextPort()) ?? 32000
   form.value = {
     app_id: '',
     name: '',
-    device_id: '',
     game_path: '',
     default_game_args: '',
     encoder_fps: 60,
     encoder_bitrate: 20,
     encoder_format: 'h264',
-    listen_port: port,
   }
 }
 
-async function openCreate() {
-  await resetFormForCreate()
+function openCreate() {
+  resetFormForCreate()
   dialogVisible.value = true
 }
 
@@ -127,15 +152,44 @@ function openEdit(row: ViewRow) {
   form.value = {
     app_id: row.app_id,
     name: row.name,
-    device_id: row.device_id,
     game_path: row.game_path,
     default_game_args: row.default_game_args || '',
     encoder_fps: row.encoder_fps || 60,
     encoder_bitrate: row.encoder_bitrate || 20,
     encoder_format: row.encoder_format || 'h264',
-    listen_port: row.listen_port || 32000,
   }
   dialogVisible.value = true
+}
+
+async function openNodeCreate(row: ViewRow) {
+  nodeEditing.value = false
+  const deviceId = services.value[0]?.device_id || ''
+  const port = deviceId ? ((await nextPort(deviceId)) ?? 32000) : 32000
+  nodeForm.value = {
+    node_id: '',
+    app_id: row.app_id,
+    name: '',
+    device_id: deviceId,
+    listen_port: port,
+  }
+  nodeDialogVisible.value = true
+}
+
+function openNodeEdit(node: ViewNode) {
+  nodeEditing.value = true
+  nodeForm.value = {
+    node_id: node.node_id,
+    app_id: node.app_id,
+    name: node.name,
+    device_id: node.device_id,
+    listen_port: node.listen_port || 32000,
+  }
+  nodeDialogVisible.value = true
+}
+
+async function onNodeDeviceChange(deviceId: string) {
+  if (nodeEditing.value) return
+  nodeForm.value.listen_port = (await nextPort(deviceId)) ?? 32000
 }
 
 async function refresh() {
@@ -162,16 +216,8 @@ async function submitSave() {
     ElMessage.warning('请填写应用名称')
     return
   }
-  if (!f.device_id) {
-    ElMessage.warning('请选择机器')
-    return
-  }
   if (!f.game_path.trim()) {
     ElMessage.warning('请填写程序路径')
-    return
-  }
-  if (!f.listen_port || f.listen_port < 32000) {
-    ElMessage.warning('端口需 ≥ 32000')
     return
   }
   saving.value = true
@@ -179,13 +225,11 @@ async function submitSave() {
     const result = await saveApp({
       app_id: editing.value ? f.app_id : undefined,
       name: f.name.trim(),
-      device_id: f.device_id,
       game_path: f.game_path.trim(),
       default_game_args: f.default_game_args || undefined,
       encoder_fps: f.encoder_fps,
       encoder_bitrate: f.encoder_bitrate,
       encoder_format: f.encoder_format,
-      listen_port: f.listen_port,
     })
     if (!result.ok) {
       ElMessage.error(result.message)
@@ -199,9 +243,42 @@ async function submitSave() {
   }
 }
 
+async function submitNodeSave() {
+  const f = nodeForm.value
+  if (!f.device_id) {
+    ElMessage.warning('请选择机器')
+    return
+  }
+  if (!f.listen_port || f.listen_port < 32000) {
+    ElMessage.warning('端口需 ≥ 32000')
+    return
+  }
+  nodeSaving.value = true
+  try {
+    const result = await saveNode({
+      node_id: nodeEditing.value ? f.node_id : undefined,
+      app_id: f.app_id,
+      name: f.name.trim() || undefined,
+      device_id: f.device_id,
+      listen_port: f.listen_port,
+    })
+    if (!result.ok) {
+      ElMessage.error({ message: result.message, duration: 8000, showClose: true })
+      return
+    }
+    ElMessage.success(nodeEditing.value ? '节已更新' : '节已创建')
+    nodeDialogVisible.value = false
+    await refresh()
+  } finally {
+    nodeSaving.value = false
+  }
+}
+
 async function handleDelete(row: ViewRow) {
   try {
-    await ElMessageBox.confirm(`确定删除应用「${row.name}」？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除应用「${row.name}」？其下所有节会一并删除。`, '删除确认', {
+      type: 'warning',
+    })
   } catch {
     return
   }
@@ -214,21 +291,28 @@ async function handleDelete(row: ViewRow) {
   await refresh()
 }
 
+async function handleDeleteNode(node: ViewNode) {
+  try {
+    await ElMessageBox.confirm(`确定删除节「${node.name}」？`, '删除确认', { type: 'warning' })
+  } catch {
+    return
+  }
+  const result = await deleteNode(node.node_id)
+  if (!result.ok) {
+    ElMessage.error({ message: result.message, duration: 8000, showClose: true })
+    return
+  }
+  ElMessage.success('已删除')
+  await refresh()
+}
+
+/** 应用级启动:CMS 自动挑选一个空闲节。 */
 async function handleStart(row: ViewRow) {
-  if (!row.online) {
-    ElMessage.error('机器不在线')
+  if (row.nodes.length === 0) {
+    ElMessage.warning('应用还没有节，请先「新建节」')
     return
   }
-  const st = stateOf(row)
-  if (st === 'running' || st === 'starting') {
-    ElMessage.warning('已在运行或启动中')
-    return
-  }
-  const result = await startInstance({
-    app_id: row.app_id,
-    device_id: row.device_id,
-    listen_port: row.listen_port || undefined,
-  })
+  const result = await startInstance({ app_id: row.app_id })
   if (!result.ok) {
     ElMessage.error({ message: result.message || '启动失败', duration: 8000, showClose: true })
     await refresh()
@@ -243,12 +327,44 @@ async function handleStart(row: ViewRow) {
     await refresh()
     return
   }
-  ElMessage.success(`启动成功（端口 ${result.data.listen_port || row.listen_port}）`)
+  const nodeName = row.nodes.find((n) => n.node_id === result.data.node_id)?.name
+  ElMessage.success(
+    `启动成功（${nodeName || '节'}，端口 ${result.data.listen_port}）`,
+  )
   await refresh()
 }
 
-async function handleStop(row: ViewRow) {
-  const id = row.instance?.instance_id
+async function handleStartNode(node: ViewNode) {
+  if (!node.online) {
+    ElMessage.error('机器不在线')
+    return
+  }
+  const st = stateOf(node)
+  if (st === 'running' || st === 'starting') {
+    ElMessage.warning('已在运行或启动中')
+    return
+  }
+  const result = await startNode(node.node_id)
+  if (!result.ok) {
+    ElMessage.error({ message: result.message || '启动失败', duration: 8000, showClose: true })
+    await refresh()
+    return
+  }
+  if (result.data.state === 'failed') {
+    ElMessage.error({
+      message: result.data.error || '启动失败',
+      duration: 8000,
+      showClose: true,
+    })
+    await refresh()
+    return
+  }
+  ElMessage.success(`启动成功（端口 ${result.data.listen_port || node.listen_port}）`)
+  await refresh()
+}
+
+async function handleStop(node: ViewNode) {
+  const id = node.instance?.instance_id
   if (!id) {
     ElMessage.warning('没有可停止的实例')
     return
@@ -262,14 +378,14 @@ async function handleStop(row: ViewRow) {
   await refresh()
 }
 
-function handleOpenClient(row: ViewRow) {
-  const inst = row.instance
+function handleOpenClient(node: ViewNode) {
+  const inst = node.instance
   if (!inst || inst.state !== 'running' || !inst.listen_port) {
     ElMessage.warning('请先启动并等到「运行中」')
     return
   }
-  const url = buildGameHookClientUrl(deviceIp(row.device_id), inst.listen_port, {
-    deviceId: row.device_id,
+  const url = buildGameHookClientUrl(deviceIp(node.device_id), inst.listen_port, {
+    deviceId: node.device_id,
     instanceId: inst.instance_id,
   })
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -290,7 +406,9 @@ onUnmounted(() => {
     <div class="flex items-center justify-between mb-4">
       <div>
         <div class="text-lg font-semibold">应用</div>
-        <div class="text-sm text-gray-500">新建 → 选机器 → 填程序路径和端口 → 保存；列表里编辑/启停</div>
+        <div class="text-sm text-gray-500">
+          应用是模板；节 = 机器 + 端口。展开行管理节，应用启动会自动挑选一个空闲节
+        </div>
       </div>
       <div class="flex gap-2">
         <el-button @click="refresh">刷新</el-button>
@@ -306,62 +424,101 @@ onUnmounted(() => {
       title="当前没有在线 Service。请先让目标机器的 GammaRayService 连上 CMS。"
     />
 
-    <el-table :data="rows" size="small" empty-text="还没有应用，点右上角「新建应用」">
-      <el-table-column prop="name" label="名称" min-width="110" />
-      <el-table-column label="机器" min-width="140">
+    <el-table :data="rows" size="small" row-key="app_id" empty-text="还没有应用，点右上角「新建应用」">
+      <el-table-column type="expand">
         <template #default="{ row }">
-          <div>{{ row.device_id }}</div>
-          <el-tag :type="row.online ? 'success' : 'info'" size="small" class="mt-1">
-            {{ row.online ? '在线' : '离线' }}
-          </el-tag>
+          <div class="px-6 py-2">
+            <el-table :data="row.nodes" size="small" row-key="node_id" empty-text="还没有节，点「新建节」添加">
+              <el-table-column prop="name" label="节" min-width="90" />
+              <el-table-column label="机器" min-width="140">
+                <template #default="{ row: node }">
+                  <div>{{ node.device_id }}</div>
+                  <el-tag :type="node.online ? 'success' : 'info'" size="small" class="mt-1">
+                    {{ node.online ? '在线' : '离线' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="listen_port" label="端口" width="80" />
+              <el-table-column label="状态" width="100">
+                <template #default="{ row: node }">
+                  <el-tag :type="stateTag(stateOf(node))" size="small">
+                    {{ stateText(stateOf(node)) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="错误" min-width="220" show-overflow-tooltip>
+                <template #default="{ row: node }">
+                  <span v-if="node.instance?.error" class="err-text">{{ node.instance.error }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="300" fixed="right">
+                <template #default="{ row: node }">
+                  <el-button
+                    link
+                    type="success"
+                    :disabled="!node.online || stateOf(node) === 'running' || stateOf(node) === 'starting'"
+                    @click="handleStartNode(node)"
+                  >
+                    启动
+                  </el-button>
+                  <el-button
+                    link
+                    type="danger"
+                    :disabled="!node.instance || stateOf(node) === 'stopped' || stateOf(node) === 'stopping'"
+                    @click="handleStop(node)"
+                  >
+                    停止
+                  </el-button>
+                  <el-button
+                    link
+                    type="primary"
+                    :disabled="stateOf(node) !== 'running'"
+                    @click="handleOpenClient(node)"
+                  >
+                    打开
+                  </el-button>
+                  <el-button link type="primary" @click="openNodeEdit(node)">编辑</el-button>
+                  <el-button
+                    link
+                    type="danger"
+                    :disabled="stateOf(node) === 'running' || stateOf(node) === 'starting' || stateOf(node) === 'stopping'"
+                    @click="handleDeleteNode(node)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </template>
       </el-table-column>
+      <el-table-column prop="name" label="名称" min-width="110" />
       <el-table-column label="程序路径" min-width="260" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="path-pre">{{ row.game_path }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="listen_port" label="端口" width="80" />
-      <el-table-column label="状态" width="100">
+      <el-table-column label="节" width="120">
         <template #default="{ row }">
-          <el-tag :type="stateTag(stateOf(row))" size="small">{{ stateText(stateOf(row)) }}</el-tag>
+          <el-tag size="small" type="info">{{ row.nodes.length }} 个节</el-tag>
+          <el-tag v-if="runningCount(row) > 0" size="small" type="success" class="ml-1">
+            {{ runningCount(row) }} 运行中
+          </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="错误" min-width="220" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span v-if="row.instance?.error" class="err-text">{{ row.instance.error }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="primary" @click="openNodeCreate(row)">新建节</el-button>
           <el-button
             link
             type="success"
-            :disabled="!row.online || stateOf(row) === 'running' || stateOf(row) === 'starting'"
+            :disabled="row.nodes.length === 0"
             @click="handleStart(row)"
           >
             启动
           </el-button>
-          <el-button
-            link
-            type="danger"
-            :disabled="!row.instance || stateOf(row) === 'stopped' || stateOf(row) === 'stopping'"
-            @click="handleStop(row)"
-          >
-            停止
-          </el-button>
-          <el-button link type="primary" :disabled="stateOf(row) !== 'running'" @click="handleOpenClient(row)">
-            打开
-          </el-button>
-          <el-button
-            link
-            type="danger"
-            :disabled="stateOf(row) === 'running' || stateOf(row) === 'starting' || stateOf(row) === 'stopping'"
-            @click="handleDelete(row)"
-          >
-            删除
-          </el-button>
+          <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -375,16 +532,6 @@ onUnmounted(() => {
         <el-form-item label="应用名称" required>
           <el-input v-model="form.name" placeholder="例如 CarGame" />
         </el-form-item>
-        <el-form-item label="机器" required>
-          <el-select v-model="form.device_id" class="w-full" filterable placeholder="选择在线机器">
-            <el-option
-              v-for="s in services"
-              :key="s.device_id"
-              :label="s.device_id"
-              :value="s.device_id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="程序路径" required>
           <el-input
             v-model="form.game_path"
@@ -394,10 +541,6 @@ onUnmounted(() => {
           <div class="text-xs text-gray-400 mt-1">
             勿从网页表格复制路径（浏览器会把连续空格压成一个）。请从资源管理器地址栏粘贴。
           </div>
-        </el-form-item>
-        <el-form-item label="端口" required>
-          <el-input-number v-model="form.listen_port" :min="32000" :max="65535" />
-          <span class="ml-2 text-xs text-gray-400">默认从 32000 递增；若已被占用会提示</span>
         </el-form-item>
         <el-form-item label="启动参数">
           <el-input v-model="form.default_game_args" placeholder="可选" />
@@ -418,6 +561,42 @@ onUnmounted(() => {
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitSave">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="nodeDialogVisible"
+      :title="nodeEditing ? '编辑节' : '新建节'"
+      width="520px"
+    >
+      <el-form label-width="100px">
+        <el-form-item label="节名称">
+          <el-input v-model="nodeForm.name" placeholder="留空自动命名（节1、节2…）" />
+        </el-form-item>
+        <el-form-item label="机器" required>
+          <el-select
+            v-model="nodeForm.device_id"
+            class="w-full"
+            filterable
+            placeholder="选择在线机器"
+            @change="onNodeDeviceChange"
+          >
+            <el-option
+              v-for="s in services"
+              :key="s.device_id"
+              :label="s.device_id"
+              :value="s.device_id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="端口" required>
+          <el-input-number v-model="nodeForm.listen_port" :min="32000" :max="65535" />
+          <span class="ml-2 text-xs text-gray-400">按机器分配，默认从 32000 递增；冲突会提示</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="nodeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="nodeSaving" @click="submitNodeSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
