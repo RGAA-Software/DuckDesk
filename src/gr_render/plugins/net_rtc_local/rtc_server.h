@@ -43,6 +43,11 @@ namespace tc
 
         // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
         void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
+        // client_nonce: web client 的浏览器标识(launch 页 nonce)。
+        // 新连接 nonce 与现存活跃连接相同 = 同一浏览器,信令直接自动接管,
+        // 不再回 704 让用户确认;不同 nonce 维持占用确认流程
+        void SetClientNonce(const std::string& nonce) { client_nonce_ = nonce; }
+        const std::string& GetClientNonce() const { return client_nonce_; }
         // 请求退出:置 exit_ 标记,停止一切收发;真正的资源回收由 plugin 延迟 Sweep
         void RequestExit() { exit_ = true; }
         bool IsExitRequested() const { return exit_.load(); }
@@ -117,6 +122,7 @@ namespace tc
         // Exit 幂等标记:ICE 终态回调/插件 Sweep/takeover 替换都可能触发 Exit
         std::atomic<bool> cleaned_up_ = false;
         std::string conn_id_;
+        std::string client_nonce_;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
 
         // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,

@@ -61,6 +61,31 @@ let manualClose = false
 let reconnectTimer: number | null = null
 // localStorage 记忆上次连接的 deviceId/streamId(不存密码)
 const LS_LAST_CONN = 'gr_web_client.last_conn'
+// 浏览器标识:CMS launch 页经 URL 带入(&nonce=),裸开页面时本地生成持久化。
+// 信令带给 render,同一浏览器(nonce 相同)的新连接自动接管旧连接,不弹确认
+const LS_CLIENT_NONCE = 'gr_web_client.client_nonce'
+const clientNonce = ref('')
+
+function ensureClientNonce(urlNonce: string) {
+  if (urlNonce) {
+    clientNonce.value = urlNonce
+    return
+  }
+  try {
+    let n = localStorage.getItem(LS_CLIENT_NONCE) ?? ''
+    if (!n) {
+      n =
+        typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}${Math.random().toString(16).slice(2)}`
+      localStorage.setItem(LS_CLIENT_NONCE, n)
+    }
+    clientNonce.value = n
+  } catch {
+    /* localStorage 不可用时每次随机,退化为不带标识(占用仍弹确认) */
+    clientNonce.value = `${Date.now()}${Math.random().toString(16).slice(2)}`
+  }
+}
 
 // 连接看门狗:Chrome 下本地 pc.close() 不会触发 connectionstatechange(实测),
 // 2s 轮询兜底,保证异常关闭也能进入自动重连
@@ -746,6 +771,7 @@ function loadQueryParams() {
   if (instanceId) {
     addLog(`[connect] instanceId=${instanceId}`)
   }
+  ensureClientNonce(q.get('nonce') ?? '')
   if (q.get('deviceId') || q.get('c')) {
     autoConnectFromUrl.value = !!form.deviceId
   }
@@ -1080,6 +1106,7 @@ async function connect() {
         stream_id: form.streamId,
         safety_pwd_md5: effectivePwdMd5(),
       })
+      if (clientNonce.value) query.set('client_nonce', clientNonce.value)
       if (takeover) query.set('takeover', '1')
       setConnectStep('signal', takeover ? 'takeover=1 重新请求信令' : 'POST 信令中')
       const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {

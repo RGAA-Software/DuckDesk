@@ -49,6 +49,9 @@ namespace tc
         // true: 调用方已确认接管,直接顶掉同 stream_id 的现存连接;
         // false: 若现存连接仍活跃,返回 kOccupied 让调用方去确认
         bool takeover_ = false;
+        // 浏览器 nonce(web client 经 launch 页带入)。与现存活跃连接的
+        // nonce 相同 = 同一浏览器重复打开,信令视为自动接管,不报 kOccupied
+        std::string client_nonce_;
     };
 
     // alloc result of a local rtc instance

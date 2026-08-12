@@ -182,6 +182,11 @@ namespace tc
         if (auto param = GetParam(params, "takeover"); param.has_value()) {
             rtc_req->takeover_ = (param.value() == "1" || param.value() == "true");
         }
+        // client_nonce: web client 的浏览器标识,同 nonce 自动接管见
+        // RtcLocalPlugin::AllocNewLocalRtcInstance 的占用判断
+        if (auto param = GetParam(params, "client_nonce"); param.has_value()) {
+            rtc_req->client_nonce_ = param.value();
+        }
 
         std::mutex cv_mtx;
         std::condition_variable cv;

@@ -196,6 +196,13 @@ pub struct AppInstance {
     pub pid: u32,
     pub error: String,
     pub web_client_hint: String,
+    /// 发起方身份(launch 链接的客户端 IP);用于启动期同 key 去重,空串=不去重。
+    #[serde(default)]
+    pub client_key: String,
+    /// 预占创建时间(ms);同 client_key 去重的窗口依据(启动回执 ~1s 就返回,
+    /// 客户端重发到达时实例往往已 Running,只看 Starting 会漏)。
+    #[serde(default)]
+    pub created_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +235,16 @@ pub struct StartInstanceReq {
     /// 已废弃(端口由节决定);保留反序列化兼容旧调用,内容忽略。
     #[serde(default)]
     pub listen_port: Option<i32>,
+    /// 调用方身份(launch 页传浏览器 nonce,直连 GET 传客户端 IP)。非空时,
+    /// 同 app 同 key 已有活跃实例则复用,不再新开 —— 防客户端对挂起的
+    /// GET 重发(浏览器重试/链接预取/双击)导致一次操作多开。
+    #[serde(default)]
+    pub client_key: Option<String>,
+    /// true: 同 key 的 Running 实例不限时长永久复用(launch 页 nonce,
+    /// 「一个浏览器一个实例」);false: Running 仅在 60s 窗口内复用
+    /// (IP 兜底,防重发但允许同机稍后多开)。
+    #[serde(default)]
+    pub client_key_permanent: bool,
 }
 
 #[derive(Default)]
@@ -763,25 +780,70 @@ impl AppScheduleManager {
     /// 未被同机活跃实例占用」者;按 last_run_at 最老(从未运行优先)、seq_no
     /// 最小排序,取第一个 Service 在线的。req.device_id/listen_port 为遗留
     /// 字段,忽略。
+    ///
+    /// 并发安全:选节与预占(插入 Starting 实例)在同一把锁内原子完成,
+    /// 并发请求互斥地各拿一个空闲节 —— 一个请求恰好一个实例,不会撞节。
+    ///
+    /// 同 client_key 去重:req.client_key 非空且同 app 同 key 已有活跃实例时,
+    /// 复用该实例(Starting 则等它脱离,最长 ~30s),不再新开。
+    /// client_key_permanent=true(launch 页 nonce):Running 不限时长永久复用;
+    /// false(IP 兜底):Running 仅在 60s 窗口内复用 —— 窗口覆盖 Running 是因为
+    /// 启动回执 ~1s 就返回,客户端重发(实测 2~4s 后到达)看到的实例往往已是 Running。
     pub async fn start_instance(&self, req: StartInstanceReq) -> Result<AppInstance, String> {
-        let candidates = {
-            let g = self.inner.lock().await;
-            if !g.apps.contains_key(&req.app_id) {
-                return Err(format!("unknown app_id {}", req.app_id));
+        if let Some(key) = req.client_key.as_deref().filter(|k| !k.is_empty()) {
+            let dup = {
+                let g = self.inner.lock().await;
+                g.instances
+                    .values()
+                    .find(|i| {
+                        i.app_id == req.app_id
+                            && i.client_key == key
+                            && (i.state == InstanceState::Starting
+                                || (i.state == InstanceState::Running
+                                    && (req.client_key_permanent
+                                        || now_ms() - i.created_at_ms < 60_000)))
+                    })
+                    .cloned()
+            };
+            if let Some(inst) = dup {
+                tracing::info!(
+                    "start_instance dedup: app {} client {} already has instance {} ({:?}), reuse it",
+                    req.app_id,
+                    key,
+                    inst.instance_id,
+                    inst.state
+                );
+                if inst.state != InstanceState::Starting {
+                    return Ok(inst);
+                }
+                if let Some(cur) = self.wait_instance_leave_starting(&inst.instance_id, 30).await {
+                    return Ok(cur);
+                }
+                // 在途实例异常消失,落回正常启动流程
             }
-            let mut nodes: Vec<AppNode> = g
-                .nodes
-                .values()
-                .filter(|n| n.app_id == req.app_id)
-                .cloned()
-                .collect();
-            if nodes.is_empty() {
-                return Err("应用还没有节点，请先「新建节点」".to_string());
-            }
-            nodes.sort_by_key(|n| (n.last_run_at, n.seq_no));
-            nodes
-                .into_iter()
-                .filter(|n| {
+        }
+        let client_key = req.client_key.clone().unwrap_or_default();
+        let mut offline: Vec<String> = Vec::new();
+        let mut tried: Vec<String> = Vec::new();
+        loop {
+            // 锁内:选节 + 预占。预占后其他并发请求即视为 busy,不会重选。
+            let picked = {
+                let mut g = self.inner.lock().await;
+                if !g.apps.contains_key(&req.app_id) {
+                    return Err(format!("unknown app_id {}", req.app_id));
+                }
+                let app = g.apps.get(&req.app_id).cloned().unwrap();
+                let mut nodes: Vec<AppNode> = g
+                    .nodes
+                    .values()
+                    .filter(|n| n.app_id == req.app_id && !tried.contains(&n.node_id))
+                    .cloned()
+                    .collect();
+                if nodes.is_empty() && tried.is_empty() {
+                    return Err("应用还没有节点，请先「新建节点」".to_string());
+                }
+                nodes.sort_by_key(|n| (n.last_run_at, n.seq_no));
+                let candidate = nodes.into_iter().find(|n| {
                     let node_busy = g.instances.values().any(|i| {
                         i.node_id == n.node_id
                             && matches!(
@@ -802,30 +864,117 @@ impl AppScheduleManager {
                             )
                     });
                     !node_busy && !port_busy
-                })
-                .collect::<Vec<_>>()
-        };
-        if candidates.is_empty() {
-            return Err("没有空闲节点（全部在运行中或被占用）".to_string());
-        }
-        // 取第一个 Service 在线的候选节
-        let mut offline = Vec::new();
-        for node in candidates {
+                });
+                match candidate {
+                    None => None,
+                    Some(node) => {
+                        match resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel) {
+                            Err(e) => return Err(e),
+                            Ok((install_root, game_exe_rel)) => {
+                                let inst =
+                                    self.pre_occupy_instance_locked(&mut g, &node, &app, &client_key);
+                                Some((node, app, inst, install_root, game_exe_rel))
+                            }
+                        }
+                    }
+                }
+            };
+            let Some((node, app, inst, install_root, game_exe_rel)) = picked else {
+                return if offline.is_empty() {
+                    Err("没有空闲节点（全部在运行中或被占用）".to_string())
+                } else {
+                    Err(format!("节点的机器均不在线: {}", offline.join(", ")))
+                };
+            };
             match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
-                Ok(conn) => return self.start_on_node(node, conn).await,
-                Err(_) => offline.push(format!("{}({})", node.name, node.device_id)),
+                Ok(conn) => {
+                    if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
+                        tracing::warn!("persist instance failed: {e}");
+                    }
+                    return self
+                        .dispatch_start(conn, &app, inst, install_root, game_exe_rel)
+                        .await;
+                }
+                Err(_) => {
+                    // 该节机器不在线:预占实例标记失败释放占用,试下一个候选节
+                    offline.push(format!("{}({})", node.name, node.device_id));
+                    tried.push(node.node_id.clone());
+                    let snapshot = {
+                        let mut g = self.inner.lock().await;
+                        g.request_index.remove(&inst.request_id);
+                        if let Some(i) = g.instances.get_mut(&inst.instance_id) {
+                            i.state = InstanceState::Failed;
+                            i.error = format!("service offline: {}", node.device_id);
+                            Some(i.clone())
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(failed) = snapshot {
+                        let _ = crate::app_schedule::store::upsert_instance(&failed).await;
+                    }
+                }
             }
         }
-        Err(format!(
-            "节点的机器均不在线: {}",
-            offline.join(", ")
-        ))
     }
 
-    /// 节级启动:在指定节上直接起实例。
+    /// 等待实例脱离 Starting(启动回执最长 ~25s),返回最新快照;实例消失返回 None。
+    async fn wait_instance_leave_starting(&self, instance_id: &str, secs: u64) -> Option<AppInstance> {
+        for _ in 0..secs {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let cur = {
+                let g = self.inner.lock().await;
+                g.instances.get(instance_id).cloned()
+            };
+            match cur {
+                Some(inst) if inst.state != InstanceState::Starting => return Some(inst),
+                None => return None,
+                _ => {}
+            }
+        }
+        let g = self.inner.lock().await;
+        g.instances.get(instance_id).cloned()
+    }
+
+    /// 锁内预占:创建并插入 Starting 实例(预占节点端口,并发互斥的关键)。
+    /// 调用方必须已持有 inner 锁;持久化在锁外由调用方负责。
+    fn pre_occupy_instance_locked(
+        &self,
+        g: &mut Inner,
+        node: &AppNode,
+        app: &Application,
+        client_key: &str,
+    ) -> AppInstance {
+        let request_id = self.next_id("req");
+        let instance_id = self.next_id("inst");
+        let inst = AppInstance {
+            instance_id: instance_id.clone(),
+            request_id: request_id.clone(),
+            app_id: app.app_id.clone(),
+            device_id: node.device_id.clone(),
+            placement_id: String::new(),
+            node_id: node.node_id.clone(),
+            state: InstanceState::Starting,
+            // Pre-occupy the expected port so a concurrent Start of the same
+            // node fails the port check; the Service receipt overwrites it if
+            // it actually bound elsewhere.
+            listen_port: node.listen_port,
+            pid: 0,
+            error: String::new(),
+            web_client_hint: String::new(),
+            client_key: client_key.to_string(),
+            created_at_ms: now_ms(),
+        };
+        g.request_index
+            .insert(request_id.clone(), instance_id.clone());
+        g.instances.insert(instance_id.clone(), inst.clone());
+        inst
+    }
+
+    /// 节级启动:在指定节上直接起实例。检查与预占同锁原子完成,并发安全。
     pub async fn start_node(&self, node_id: &str) -> Result<AppInstance, String> {
-        let node = {
-            let g = self.inner.lock().await;
+        let (node, app, inst, install_root, game_exe_rel) = {
+            let mut g = self.inner.lock().await;
             let node = g
                 .nodes
                 .get(node_id)
@@ -842,71 +991,65 @@ impl AppScheduleManager {
                 }
             }
             Self::ensure_node_port_available_locked(&g, &node.device_id, node.listen_port, Some(node_id))?;
-            node
-        };
-        let conn = match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
-            Ok(c) => c,
-            Err(_) => return Err(format!("service offline: {}", node.device_id)),
-        };
-        self.start_on_node(node, conn).await
-    }
-
-    /// 公共启动:解析路径 → 预占创建 Instance(starting) → 下发 → 等回执。
-    async fn start_on_node(
-        &self,
-        node: AppNode,
-        conn: crate::net_service::spvr_service_conn::SpvrServiceConnPtr,
-    ) -> Result<AppInstance, String> {
-        let app = {
-            let g = self.inner.lock().await;
-            g.apps
+            let app = g
+                .apps
                 .get(&node.app_id)
                 .cloned()
-                .ok_or_else(|| format!("unknown app_id {}", node.app_id))?
+                .ok_or_else(|| format!("unknown app_id {}", node.app_id))?;
+            let (install_root, game_exe_rel) =
+                resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)?;
+            let inst = self.pre_occupy_instance_locked(&mut g, &node, &app, "");
+            (node, app, inst, install_root, game_exe_rel)
         };
-        let (install_root, game_exe_rel) =
-            resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)?;
-
-        let request_id = self.next_id("req");
-        let instance_id = self.next_id("inst");
-        let listen_port = node.listen_port;
-        let inst = AppInstance {
-            instance_id: instance_id.clone(),
-            request_id: request_id.clone(),
-            app_id: app.app_id.clone(),
-            device_id: node.device_id.clone(),
-            placement_id: String::new(),
-            node_id: node.node_id.clone(),
-            state: InstanceState::Starting,
-            // Pre-occupy the expected port so a concurrent Start of the same
-            // node fails the port check; the Service receipt overwrites it if
-            // it actually bound elsewhere.
-            listen_port,
-            pid: 0,
-            error: String::new(),
-            web_client_hint: String::new(),
-        };
-        {
-            let mut g = self.inner.lock().await;
-            g.request_index
-                .insert(request_id.clone(), instance_id.clone());
-            g.instances.insert(instance_id.clone(), inst.clone());
-        }
         if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
             tracing::warn!("persist instance failed: {e}");
         }
+        let conn = match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
+            Ok(c) => c,
+            Err(_) => {
+                let snapshot = {
+                    let mut g = self.inner.lock().await;
+                    g.request_index.remove(&inst.request_id);
+                    if let Some(i) = g.instances.get_mut(&inst.instance_id) {
+                        i.state = InstanceState::Failed;
+                        i.error = format!("service offline: {}", node.device_id);
+                        Some(i.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(failed) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&failed).await;
+                }
+                return Err(format!("service offline: {}", node.device_id));
+            }
+        };
+        self.dispatch_start(conn, &app, inst, install_root, game_exe_rel)
+            .await
+    }
 
+    /// 公共下发:waiter 注册 → 下发 → 等回执。实例已由调用方预占(Starting)。
+    async fn dispatch_start(
+        &self,
+        conn: crate::net_service::spvr_service_conn::SpvrServiceConnPtr,
+        app: &Application,
+        inst: AppInstance,
+        install_root: String,
+        game_exe_rel: String,
+    ) -> Result<AppInstance, String> {
+        let request_id = inst.request_id.clone();
+        let instance_id = inst.instance_id.clone();
         let start = SpvrServiceStartAppInstance {
             request_id: request_id.clone(),
             instance_id: instance_id.clone(),
-            app_id: app.app_id,
+            app_id: app.app_id.clone(),
             install_root,
             game_exe_rel,
-            game_arguments: app.default_game_args,
-            listen_port,
+            game_arguments: app.default_game_args.clone(),
+            listen_port: inst.listen_port,
             encoder_fps: app.encoder_fps,
             encoder_bitrate: app.encoder_bitrate,
-            encoder_format: app.encoder_format,
+            encoder_format: app.encoder_format.clone(),
             webrtc_enabled: app.webrtc_enabled,
             websocket_enabled: app.websocket_enabled,
         };
@@ -1563,6 +1706,8 @@ mod tests {
                 app_id: app.app_id.clone(),
                 device_id: None,
                 listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
             })
             .await
             .unwrap_err();
@@ -1584,6 +1729,8 @@ mod tests {
                 app_id: app.app_id,
                 device_id: None,
                 listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
             })
             .await
             .unwrap_err();
@@ -1624,6 +1771,8 @@ mod tests {
             pid: 0,
             error: String::new(),
             web_client_hint: String::new(),
+            client_key: String::new(),
+            created_at_ms: 0,
         };
         mgr.inject_for_test(app, placement, inst).await;
         mgr.on_start_result(
@@ -1694,6 +1843,8 @@ mod tests {
                 pid: 0,
                 error: String::new(),
                 web_client_hint: String::new(),
+                client_key: String::new(),
+                created_at_ms: 0,
             },
         )
         .await;
@@ -1749,6 +1900,8 @@ mod tests {
                 pid: 1,
                 error: String::new(),
                 web_client_hint: String::new(),
+                client_key: String::new(),
+                created_at_ms: 0,
             },
         )
         .await;
@@ -1802,6 +1955,8 @@ mod tests {
                 pid: 99,
                 error: String::new(),
                 web_client_hint: String::new(),
+                client_key: String::new(),
+                created_at_ms: 0,
             },
         )
         .await;
@@ -1846,6 +2001,8 @@ mod tests {
                 pid: 99,
                 error: String::new(),
                 web_client_hint: String::new(),
+                client_key: String::new(),
+                created_at_ms: 0,
             },
         )
         .await;
@@ -2045,6 +2202,8 @@ mod tests {
                 pid: 0,
                 error: String::new(),
                 web_client_hint: String::new(),
+                client_key: String::new(),
+                created_at_ms: 0,
             },
         )
     }
@@ -2227,6 +2386,8 @@ mod tests {
                     pid: 123,
                     error: String::new(),
                     web_client_hint: String::new(),
+                    client_key: String::new(),
+                    created_at_ms: 0,
                 },
             );
         }
@@ -2241,6 +2402,8 @@ mod tests {
                 app_id: app.app_id.clone(),
                 device_id: None,
                 listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
             })
             .await
             .unwrap_err();
@@ -2321,6 +2484,8 @@ mod tests {
                 app_id: app.app_id.clone(),
                 device_id: None,
                 listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
             })
             .await
             .unwrap_err();
@@ -2373,6 +2538,8 @@ mod tests {
                     pid: 0,
                     error: String::new(),
                     web_client_hint: String::new(),
+                    client_key: String::new(),
+                    created_at_ms: 0,
                 },
             );
         }
@@ -2390,6 +2557,280 @@ mod tests {
         .await;
         let nodes = mgr.list_nodes(None).await;
         assert!(nodes[0].last_run_at > 0, "last_run_at should be set on Running");
+    }
+
+    #[tokio::test]
+    async fn app_start_skips_starting_node_and_picks_free_one() {
+        // 并发安全的确定性部分:节2 已有 Starting 实例(视为被并发请求预占),
+        // 应用级启动必须跳过它选节1(错误信息只列节1,证明选的是节1)。
+        let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "C".into(),
+                game_path: r"D:\games\c\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        let n1 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m-off".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        let n2 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m-off".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        {
+            // 节2 被并发请求预占(Starting)
+            let mut g = mgr.inner.lock().await;
+            g.request_index.insert("r-c".into(), "i-c".into());
+            g.instances.insert(
+                "i-c".into(),
+                AppInstance {
+                    instance_id: "i-c".into(),
+                    request_id: "r-c".into(),
+                    app_id: app.app_id.clone(),
+                    device_id: "m-off".into(),
+                    placement_id: String::new(),
+                    node_id: n2.node_id.clone(),
+                    state: InstanceState::Starting,
+                    listen_port: n2.listen_port,
+                    pid: 0,
+                    error: String::new(),
+                    web_client_hint: String::new(),
+                    client_key: String::new(),
+                    created_at_ms: 0,
+                },
+            );
+        }
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap_err();
+        // 机器离线 => 走离线报错;报错只应包含被选中的节1,不含被占的节2
+        assert!(err.contains(&n1.name), "should pick free node1: {err}");
+        assert!(!err.contains(&n2.name), "busy node2 must be skipped: {err}");
+        // 离线失败后预占实例被标记 Failed 释放,不残留 Starting
+        let insts = mgr.list_instances().await;
+        let pre = insts.iter().find(|i| i.node_id == n1.node_id).unwrap();
+        assert!(matches!(pre.state, InstanceState::Failed));
+        assert!(pre.error.contains("offline"), "{}", pre.error);
+    }
+
+    #[tokio::test]
+    async fn start_instance_dedups_same_client_key_while_starting() {
+        // 同 app 同 client_key 已有 Starting 实例:等它出结果并返回该实例,
+        // 不开新实例(防客户端重发多开);不同 client_key 不命中去重,正常选节。
+        let mgr = std::sync::Arc::new(AppScheduleManager::new());
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "D".into(),
+                game_path: r"D:\games\d\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        let n1 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m-off".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        {
+            // 在途实例:同 app、client_key="ip1",Starting
+            let mut g = mgr.inner.lock().await;
+            g.request_index.insert("r-d".into(), "i-d".into());
+            g.instances.insert(
+                "i-d".into(),
+                AppInstance {
+                    instance_id: "i-d".into(),
+                    request_id: "r-d".into(),
+                    app_id: app.app_id.clone(),
+                    device_id: "m-off".into(),
+                    placement_id: String::new(),
+                    node_id: n1.node_id.clone(),
+                    state: InstanceState::Starting,
+                    listen_port: n1.listen_port,
+                    pid: 0,
+                    error: String::new(),
+                    web_client_hint: String::new(),
+                    client_key: "ip1".into(),
+                    created_at_ms: now_ms(),
+                },
+            );
+        }
+        // 200ms 后模拟回执:在途实例变 Running
+        let m2 = mgr.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let mut g = m2.inner.lock().await;
+            if let Some(i) = g.instances.get_mut("i-d") {
+                i.state = InstanceState::Running;
+            }
+        });
+        // 同 key:命中去重,等到 Running 并返回在途实例,不开新实例
+        let inst = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: Some("ip1".into()),
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(inst.instance_id, "i-d", "dedup must return in-flight instance");
+        assert!(matches!(inst.state, InstanceState::Running));
+        assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
+        // 实例刚转入 Running(60s 窗口内):同 key 再调直接返回它,不多开
+        // (启动回执 ~1s 就返回,客户端重发到达时实例多半已 Running)
+        let inst = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: Some("ip1".into()),
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(inst.instance_id, "i-d", "running-window dedup must reuse instance");
+        assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
+        // 不同 key:不命中去重,走正常选节(唯一节点已被占 -> 报无空闲节点)
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: Some("ip2".into()),
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("没有空闲节点"), "{err}");
+        // 空 key:同样不去重
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: None,
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("没有空闲节点"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn start_instance_permanent_dedup_ignores_age() {
+        // client_key_permanent=true(launch 页 nonce):Running 实例无论多久都复用;
+        // false(IP 兜底):Running 超过 60s 窗口不再复用。
+        let mgr = std::sync::Arc::new(AppScheduleManager::new());
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "E".into(),
+                game_path: r"D:\games\e\game.exe".into(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+            })
+            .await
+            .unwrap();
+        let n1 = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: None,
+                device_id: "m-off".into(),
+                install_root: None,
+                listen_port: None,
+            })
+            .await
+            .unwrap();
+        {
+            // 1 小时前启动的 Running 实例(早已超出 60s 窗口)
+            let mut g = mgr.inner.lock().await;
+            g.request_index.insert("r-e".into(), "i-e".into());
+            g.instances.insert(
+                "i-e".into(),
+                AppInstance {
+                    instance_id: "i-e".into(),
+                    request_id: "r-e".into(),
+                    app_id: app.app_id.clone(),
+                    device_id: "m-off".into(),
+                    placement_id: String::new(),
+                    node_id: n1.node_id.clone(),
+                    state: InstanceState::Running,
+                    listen_port: n1.listen_port,
+                    pid: 0,
+                    error: String::new(),
+                    web_client_hint: String::new(),
+                    client_key: "nonce-e".into(),
+                    created_at_ms: now_ms() - 3_600_000,
+                },
+            );
+        }
+        // 永久去重:复用旧实例
+        let inst = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: Some("nonce-e".into()),
+                client_key_permanent: true,
+            })
+            .await
+            .unwrap();
+        assert_eq!(inst.instance_id, "i-e", "permanent dedup must reuse old running instance");
+        assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
+        // 非永久:超出 60s 窗口,不复用,走正常选节(唯一节点被占 -> 报无空闲节点)
+        let err = mgr
+            .start_instance(StartInstanceReq {
+                app_id: app.app_id.clone(),
+                device_id: None,
+                listen_port: None,
+                client_key: Some("nonce-e".into()),
+                client_key_permanent: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.contains("没有空闲节点"), "{err}");
     }
 
     #[tokio::test]

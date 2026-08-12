@@ -507,11 +507,21 @@ namespace tc
             // 旧连接的 datachannel 仍活跃且调用方未确认接管:报告占用,由客户端决定
             // (web 弹确认后带 takeover=1 重试;原生客户端收到 704 会自动带 takeover 重试)
             if (!req->takeover_) {
+                bool occupied = false;
                 for (const auto& [k, srv] : old_servers) {
                     if (srv->IsDataChannelConnected()) {
+                        // 同一浏览器(nonce 非空且相同)重复打开:自动接管旧连接,
+                        // 不让用户点确认;nonce 为空(旧客户端/原生)或不同才报占用
+                        if (!req->client_nonce_.empty() && req->client_nonce_ == srv->GetClientNonce()) {
+                            LOGI("** Auto takeover: same client nonce, kick {}", k);
+                            continue;
+                        }
                         LOGW("** Occupied by an active connection: {}", k);
-                        return GrLocalRtcAllocResult::kOccupied;
+                        occupied = true;
                     }
+                }
+                if (occupied) {
+                    return GrLocalRtcAllocResult::kOccupied;
                 }
             }
             LOGI("** Remove {} old connection(s).", old_servers.size());
@@ -546,6 +556,7 @@ namespace tc
 
         auto rtc_server = RtcServer::Make(this);
         rtc_server->SetConnId(conn_id);
+        rtc_server->SetClientNonce(req->client_nonce_);
         rtc_server->Start(req->stream_id_, req->sdp_);
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();

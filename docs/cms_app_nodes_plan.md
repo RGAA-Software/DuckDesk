@@ -82,7 +82,12 @@ POST /api/v1/app/control/app/instance/start   {app_id}        ← 路径不变,�
 
 ### 4.3 并发预占
 
-创建 Instance 即写入 `node_id + listen_port`，后续启动检查以此为预占依据（沿用现有"创建即写期望端口"的做法），防两个并发启动选中同一节点。
+**选节与预占在同一把锁内原子完成**：候选计算（过滤 busy 节点/端口）通过后，立刻在锁内创建 Instance{node_id, listen_port=node.listen_port, state=starting} 并插入实例表，锁外才做 device 在线查询与下发。并发请求互斥地各拿一个空闲节点 —— 一个请求恰好一个实例，1 秒内多个并发请求各选不同节点，不会撞节点/撞端口。
+
+- device 离线：预占实例标记 Failed 释放占用，自动试下一个候选节点（全部离线报「节点的机器均不在线」）。
+- **浏览器 nonce 去重（launch 引导页）**：`GET /app/launch/{app_id}` 默认返回一个引导页，页内 JS 按 app 在 localStorage 生成/复用 nonce，带 nonce 调 `POST /app/launch/start/{app_id}` 完成启动并跳转 web client（落地 URL 带 `&nonce=`）。nonce 作 `client_key` **永久去重**（`client_key_permanent=true`）：同 app 同 nonce 已有活跃实例（Starting/Running 不限时长）时复用该实例，不再新开 —— 「一个浏览器一个实例」，同浏览器重复点/刷新/多标签都进同一实例；不同浏览器/机器 nonce 不同，随时并发多开，NAT 后也不混（去重身份跟浏览器走，不看 IP）。已停止的实例不参与去重，停止后点链接即重新启动。
+- **IP 兜底（非浏览器调用）**：`GET /app/launch?raw=1`（curl/直连）不走引导页，老的 303 直开，以客户端 IP 作 `client_key` 窗口去重：同 app 同 IP 已有「启动中」或「60s 内刚启动」的实例时复用。窗口必须覆盖 Running：启动回执 ~1s 就返回，重发到达时（实测 2~4s）实例多半已 Running，只看 Starting 会漏。同 IP 想多开等 60s 后再调（已知取舍：无 nonce 时服务端无法区分重发与同机故意秒开）。
+- **同一浏览器自动接管（render 侧）**：web client 把 URL 上的 `nonce`（裸开页面时本地生成持久化）作 `client_nonce` 带给信令 `POST /alloc/local/rtc`；render 单路独占判定中，新连接 nonce 与现存活跃连接相同即视为同一浏览器重复打开，直接顶掉旧连接（发 `kConnectionTakenOver` 后延迟 Exit），不再回 704 弹确认；nonce 不同或为空（原生/旧客户端）维持原有占用确认流程。
 
 ## 5. 端口与校验
 
