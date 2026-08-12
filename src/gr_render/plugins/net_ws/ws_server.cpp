@@ -372,6 +372,20 @@ namespace tc
         );
     }
 
+    void WsPluginServer::RegisterIpcPid(uint32_t pid) {
+        if (pid == 0) {
+            return;
+        }
+        std::lock_guard<std::mutex> lk(ipc_pid_mtx_);
+        ipc_allowed_pids_.insert(pid);
+        LOGI("IPC (/ipc) registered allowed pid={} (total={})", pid, ipc_allowed_pids_.size());
+    }
+
+    bool WsPluginServer::IsIpcPidAllowed(uint32_t pid) {
+        std::lock_guard<std::mutex> lk(ipc_pid_mtx_);
+        return ipc_allowed_pids_.contains(pid);
+    }
+
     void WsPluginServer::AddIpcRouter() {
         // Injected tc_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
         // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
@@ -492,10 +506,26 @@ namespace tc
                     sess_ptr->stop();
                     return;
                 }
-                // Token auth removed (2026-08-08): /ipc is loopback-only, and all
-                // processes on the same machine are trusted. The dll still sends
-                // ?token=... and the server still registers boot tokens, but
-                // presentation is no longer required (kept for forward compat).
+                // Pid auth: the dll connects with ?pid=<its own pid>; only pids this
+                // render instance wrote hook boot config for (RegisterIpcPid) are accepted.
+                // This rejects stale injected games from dead renders, which otherwise
+                // reconnect to whatever render starts listening and interleave frames.
+                auto query = sess_ptr->get_request().get_query();
+                auto params = UrlHelper::ParseQueryString(std::string(query.data(), query.size()));
+                uint32_t client_pid = 0;
+                if (auto it = params.find("pid"); it != params.end()) {
+                    client_pid = static_cast<uint32_t>(std::strtoul(it->second.c_str(), nullptr, 10));
+                }
+                if (client_pid == 0 || !self->IsIpcPidAllowed(client_pid)) {
+                    static std::atomic<uint64_t> s_reject{0};
+                    const auto n = ++s_reject;
+                    if (n == 1 || (n % 50) == 0) {
+                        LOGW("IPC (/ipc) rejected unregistered pid={} from {}:{}, closing n={}",
+                             client_pid, remote_addr, sess_ptr->remote_port(), n);
+                    }
+                    sess_ptr->stop();
+                    return;
+                }
                 sess_ptr->ws_stream().binary(true);
                 sess_ptr->set_no_delay(true);
                 const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();

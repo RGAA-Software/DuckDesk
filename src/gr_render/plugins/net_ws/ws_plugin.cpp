@@ -123,6 +123,18 @@ namespace tc
         });
     }
 
+    void WsPlugin::RegisterIpcPid(uint32_t pid) {
+        if (!IsWorking() || !ws_server_) {
+            return;
+        }
+        plugin_context_->PostWorkTask([=, this]() {
+            if (IsStoppingOrDestroyed() || !ws_server_) {
+                return;
+            }
+            ws_server_->RegisterIpcPid(pid);
+        });
+    }
+
     bool WsPlugin::IsUserProxyConnected() {
         if (IsWorking() && ws_server_) {
             return ws_server_->IsUserProxyConnected();

@@ -3,6 +3,8 @@
 //
 
 #include "ws_ipc_client.h"
+#include <windows.h>
+#include <format>
 #include "tc_common_new/log.h"
 #include "tc_capture_new/capture_message.h"
 
@@ -49,8 +51,10 @@ namespace tc
             this->DispatchIpcMessage(data);
         });
 
-        std::string ipc_path = "/ipc";
-        LOGI("ws ipc client starting: 127.0.0.1:{}/ipc", port_);
+        // Identify ourselves by pid: the render only accepts /ipc connections from
+        // pids it registered via RegisterIpcPid (wrote hook boot config for them).
+        std::string ipc_path = std::format("/ipc?pid={}", GetCurrentProcessId());
+        LOGI("ws ipc client starting: 127.0.0.1:{}{}", port_, ipc_path);
         if (!ws_client_->async_start("127.0.0.1", port_, ipc_path)) {
             LOGE("ws ipc async_start failure: {} {}",
                  asio2::last_error_val(), asio2::last_error_msg());

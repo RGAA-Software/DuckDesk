@@ -871,6 +871,15 @@ namespace tc
             LOGE("PrepareGameHookBoot failed for pid {}", pid);
             return;
         }
+        // Allow this pid on /ipc (net_ws). Game restarts get here again with the new
+        // pid, so each live game generation is re-registered; stale games injected by
+        // dead renders are never registered and get rejected on connect.
+        plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+            if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
+                return;
+            }
+            plugin->RegisterIpcPid(pid);
+        });
     }
 
     void RdApplication::SendAudioSpectrumMessage() const {

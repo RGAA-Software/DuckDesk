@@ -153,6 +153,10 @@ namespace tc
         // Binary CaptureMessage blob to injected game DLL over /ipc (game-hook input).
         virtual void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
 
+        // Appended after PostIpcBinaryMessage (same vtable-slot caution applies).
+        // Register a game pid that is allowed to connect /ipc (written boot config for it).
+        virtual void RegisterIpcPid(uint32_t pid);
+
     protected:
         NetSyncInfo sync_info_{};
 

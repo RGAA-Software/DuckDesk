@@ -56,10 +56,33 @@ namespace tc
         if (inject_worker_ && inject_worker_->joinable()) {
             inject_worker_->join();
         }
+        if (game_job_) {
+            // 关闭即触发 KILL_ON_JOB_CLOSE,游戏进程树由 OS 一并结束
+            CloseHandle(game_job_);
+            game_job_ = nullptr;
+        }
     }
 
     void AppManagerWinImpl::Init() {
         AppManager::Init();
+
+        if (settings_->capture_.IsVideoInnerCapture()) {
+            // Job 挂 KILL_ON_JOB_CLOSE:render 异常死亡/被强杀时,OS 负责杀掉游戏,
+            // 避免残留的旧游戏带着 tc_graphics.dll 重连新 render 的 /ipc 串帧
+            game_job_ = CreateJobObjectW(nullptr, nullptr);
+            if (game_job_) {
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                if (!SetInformationJobObject(game_job_, JobObjectExtendedLimitInformation,
+                                             &info, sizeof(info))) {
+                    LOGW("SetInformationJobObject(KILL_ON_JOB_CLOSE) failed, err={}", GetLastError());
+                    CloseHandle(game_job_);
+                    game_job_ = nullptr;
+                }
+            } else {
+                LOGW("CreateJobObjectW failed, err={}", GetLastError());
+            }
+        }
 
         steam_game_ = std::make_shared<SteamGame>(context_);
         //steam_game_->RequestSteamGames();
@@ -241,7 +264,26 @@ namespace tc
             LOGW("StartProcessAsCurrentUser failed, fallback to CreateProcess (SYSTEM context)");
             pid = ProcessUtil::StartProcess(u8_exec, args, true, false);
         }
+        AssignGameToJob(pid);
         return pid;
+    }
+
+    void AppManagerWinImpl::AssignGameToJob(uint32_t pid) {
+        if (!game_job_ || pid == 0) {
+            return;
+        }
+        HANDLE h = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, pid);
+        if (!h) {
+            LOGW("AssignGameToJob: OpenProcess pid={} failed, err={}", pid, GetLastError());
+            return;
+        }
+        if (!AssignProcessToJobObject(game_job_, h)) {
+            // 常见失败:进程已在别的 job(如调试器/启动器),不致命,走原有 CloseCurrentApp 兜底
+            LOGW("AssignGameToJob: AssignProcessToJobObject pid={} failed, err={}", pid, GetLastError());
+        } else {
+            LOGI("AssignGameToJob: pid={} attached to kill-on-close job", pid);
+        }
+        CloseHandle(h);
     }
 
     void AppManagerWinImpl::InjectCaptureDllIfNeeded() {
@@ -776,6 +818,8 @@ namespace tc
             if (injected) {
                 LOGI("Inject success for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);
                 target_pid_ = target_process_info->pid_;
+                // 收养的/外部重启/UE view 进程不经过 LaunchGameProcess,在这里补挂 job
+                AssignGameToJob(target_process_info->pid_);
                 ResetInjectRetryState();
                 MsgObsInjected msg_injected;
                 SteamAppPtr mock_app = SteamApp::Make();

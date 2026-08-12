@@ -38,6 +38,9 @@ namespace tc
     void GrNetPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
     }
 
+    void GrNetPlugin::RegisterIpcPid(uint32_t pid) {
+    }
+
     void GrNetPlugin::OnClientEventCame(bool is_proto,
                                         int64_t socket_fd,
                                         const NetPluginType& nt_plugin_type,

@@ -55,6 +55,9 @@ namespace tc
         // 拉起游戏进程：优先以控制台会话登录用户身份（SYSTEM 直接拉会落在
         // SYSTEM profile，游戏网络/用户配置不对），拿不到 token 回退普通 CreateProcess
         uint32_t LaunchGameProcess(const std::string& u8_exec, const std::vector<std::string>& args);
+        // 把游戏进程挂进 game_job_(KILL_ON_JOB_CLOSE):render 无论被停止还是强杀,
+        // 句柄关闭时 OS 自动杀掉整棵游戏进程树,不再残留注入过的游戏
+        void AssignGameToJob(uint32_t pid);
         // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
         void NotifyGameStatus(tc::GameStatusChanged::GameStatus status, const std::string& detail);
         // 进程是否存活（OpenProcess + STILL_ACTIVE）
@@ -72,6 +75,9 @@ namespace tc
         // 找到的所有的属于这个应用的pid
         std::vector<ProcessInfoPtr> found_process_info_;
         std::shared_ptr<SteamGame> steam_game_ = nullptr;
+        // game-hook 模式下持有:把拉起/收养的游戏进程都挂进来,render 进程退出
+        // (包括被 taskkill)时由 OS 连带杀掉游戏进程树
+        HANDLE game_job_ = nullptr;
 
         // 注入在独立 worker 线程上执行，MsgTimer 只负责"踢"一下，不在消息线程上阻塞等待 injector
         std::shared_ptr<std::thread> inject_worker_ = nullptr;

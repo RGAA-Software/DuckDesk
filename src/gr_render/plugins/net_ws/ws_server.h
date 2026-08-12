@@ -47,6 +47,12 @@ namespace tc
         void PostUserProxyMessage(std::shared_ptr<Data> msg);
         bool IsUserProxyConnected();
 
+        // Game-hook /ipc 鉴权：只允许注册过的游戏 pid 连接(PrepareGameHookBoot 时注册)。
+        // 游戏重启后 render 会为新的 pid 重写 boot 配置并注册,旧 render 的残留游戏
+        // 不在集合里,连接会被拒绝(防多实例串帧)。
+        void RegisterIpcPid(uint32_t pid);
+        bool IsIpcPidAllowed(uint32_t pid);
+
     private:
         void AddUserProxyRouter();
         void AddIpcRouter();
@@ -70,6 +76,9 @@ namespace tc
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
         // Injected tc_graphics.dll sessions on /ipc (host → game input downlink).
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
+        // Pids allowed on /ipc: this render instance wrote hook boot config for them.
+        std::mutex ipc_pid_mtx_;
+        std::set<uint32_t> ipc_allowed_pids_;
 
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
         std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;
