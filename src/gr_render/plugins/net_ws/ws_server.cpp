@@ -40,6 +40,18 @@ static bool IsLoopbackAddress(const std::string& addr) {
     return addr == "127.0.0.1" || addr == "::1" || addr == "::ffff:127.0.0.1";
 }
 
+// /ipc pid 清扫用:进程是否仍存活(句柄可开且未退出)
+static bool IsIpcProcessAlive(uint32_t pid) {
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!h) {
+        return false;
+    }
+    DWORD code = 0;
+    const bool alive = GetExitCodeProcess(h, &code) && code == STILL_ACTIVE;
+    CloseHandle(h);
+    return alive;
+}
+
 namespace tc
 {
 
@@ -386,6 +398,31 @@ namespace tc
         return ipc_allowed_pids_.contains(pid);
     }
 
+    void WsPluginServer::UnregisterIpcPidIfDead(uint32_t pid) {
+        if (pid == 0 || IsIpcProcessAlive(pid)) {
+            return;
+        }
+        std::lock_guard<std::mutex> lk(ipc_pid_mtx_);
+        if (ipc_allowed_pids_.erase(pid) > 0) {
+            LOGI("IPC (/ipc) unregistered dead pid={} (total={})", pid, ipc_allowed_pids_.size());
+        }
+    }
+
+    void WsPluginServer::SweepDeadIpcPids() {
+        // On1Second 每秒驱动,每 5s 真正扫一次;集合很小,OpenProcess 开销可忽略
+        if ((++ipc_pid_sweep_ticks_ % 5) != 0) {
+            return;
+        }
+        std::vector<uint32_t> snapshot;
+        {
+            std::lock_guard<std::mutex> lk(ipc_pid_mtx_);
+            snapshot.assign(ipc_allowed_pids_.begin(), ipc_allowed_pids_.end());
+        }
+        for (const auto pid : snapshot) {
+            UnregisterIpcPidIfDead(pid);
+        }
+    }
+
     void WsPluginServer::AddIpcRouter() {
         // Injected tc_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
         // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
@@ -530,9 +567,10 @@ namespace tc
                 sess_ptr->set_no_delay(true);
                 const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
                 self->ipc_sessions_.Insert(socket_fd, sess_ptr);
-                LOGI("IPC (/ipc) client connected from {}:{} fd={} sessions={}",
+                self->ipc_session_pids_.Insert(socket_fd, client_pid);
+                LOGI("IPC (/ipc) client connected from {}:{} fd={} pid={} sessions={}",
                      sess_ptr->remote_address().c_str(), sess_ptr->remote_port(), socket_fd,
-                     self->ipc_sessions_.Size());
+                     client_pid, self->ipc_sessions_.Size());
             })
             .on("close", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr) {
                 auto self = weak_self.lock();
@@ -540,9 +578,13 @@ namespace tc
                     return;
                 }
                 const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
+                uint32_t pid = self->ipc_session_pids_.TryGet(socket_fd).value_or(0);
+                self->ipc_session_pids_.Remove(socket_fd);
                 self->ipc_sessions_.Remove(socket_fd);
-                LOGI("IPC (/ipc) client disconnected fd={} remaining={}", socket_fd,
-                     self->ipc_sessions_.Size());
+                // 进程已死才注销;活进程的瞬时断线靠重连恢复,注册保留
+                self->UnregisterIpcPidIfDead(pid);
+                LOGI("IPC (/ipc) client disconnected fd={} pid={} remaining={}", socket_fd,
+                     pid, self->ipc_sessions_.Size());
             })
         );
         LOGI("Registered websocket route: {}", kUrlIpc);

@@ -52,8 +52,13 @@ namespace tc
         // 不在集合里,连接会被拒绝(防多实例串帧)。
         void RegisterIpcPid(uint32_t pid);
         bool IsIpcPidAllowed(uint32_t pid);
+        // 定期清扫:注销进程已死亡的 pid(断线未触发/异常退出的兜底清理),
+        // 由 WsPlugin::On1Second 驱动,内部节流
+        void SweepDeadIpcPids();
 
     private:
+        // pid 对应进程已死才从允许集合注销(活进程的瞬时断线不影响重连)
+        void UnregisterIpcPidIfDead(uint32_t pid);
         void AddUserProxyRouter();
         void AddIpcRouter();
         void AddWebsocketRouter(const std::string& path);
@@ -79,6 +84,10 @@ namespace tc
         // Pids allowed on /ipc: this render instance wrote hook boot config for them.
         std::mutex ipc_pid_mtx_;
         std::set<uint32_t> ipc_allowed_pids_;
+        // /ipc session fd → 认证通过的游戏 pid,断线时据此做死进程注销
+        tc::ConcurrentHashMap<uint64_t, uint32_t> ipc_session_pids_;
+        // SweepDeadIpcPids 节流计数(On1Second 每秒调用,每 5 次真正扫一次)
+        uint64_t ipc_pid_sweep_ticks_ = 0;
 
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
         std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;

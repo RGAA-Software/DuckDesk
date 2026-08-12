@@ -63,6 +63,10 @@ namespace tc
     }
 
     void WsPlugin::On1Second() {
+        // 兜底清扫 /ipc 允许集合里进程已死的 pid(断线未触发/异常退出场景)
+        if (IsWorking() && ws_server_) {
+            ws_server_->SweepDeadIpcPids();
+        }
 #if MEMORY_STST_ON
         plugin_context_->PostWorkTask([=, this]() {
             auto info = MemoryStat::Instance()->GetStatInfo();
