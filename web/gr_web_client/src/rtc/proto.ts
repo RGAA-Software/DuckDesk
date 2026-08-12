@@ -26,6 +26,7 @@ export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
 export const MSG_TYPE_CONNECTION_TAKEN_OVER = 550 // kConnectionTakenOver (render -> client)
 export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
 export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render -> client)
+export const MSG_TYPE_INSTANCE_STOPPED = 560 // kInstanceStopped (render -> client)
 
 // ClipboardType(tc_message.proto:498-503)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -113,6 +114,8 @@ export function decodeMessage(payload: Uint8Array) {
     videoCodecChanged?: { videoType: number; fullColor: boolean; reason: string }
     // kGameStatusChanged(type=540):game-hook 游戏状态(0=运行/恢复, 1=死亡, 2=重启中)
     gameStatusChanged?: { status: number; detail: string }
+    // kInstanceStopped(type=560):实例被 CMS 停止,客户端应提示并断开
+    instanceStopped?: { reason: string }
     fileOperateRespSequence?: unknown
     fileOperateRespCode?: number
     fileOperateRespMessage?: string

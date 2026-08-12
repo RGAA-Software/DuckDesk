@@ -5,6 +5,7 @@
 #include "rd_app.h"
 #include <windows.h>
 #include <random>
+#include <thread>
 #include "rd_context.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/file.h"
@@ -1176,6 +1177,17 @@ namespace tc
         m.mutable_req_ctrl_alt_delete()->set_req_device_id(device_id);
         m.mutable_req_ctrl_alt_delete()->set_req_stream_id(stream_id);
         service_client_->PostNetMessage(m.SerializeAsString());
+    }
+
+    void RdApplication::OnServiceRequestedStop() {
+        LOGW("Service requested stop (CMS stop instance), notify clients then exit.");
+        // broadcast kInstanceStopped to all RTC clients, then leave some time
+        // for the message to be flushed out before exiting by ourselves
+        PostNetMessage(NetMessageMaker::MakeInstanceStopped("stopped by CMS"));
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(400));
+            Exit();
+        }).detach();
     }
 
     std::shared_ptr<WinDesktopManager> RdApplication::GetDesktopManager() {

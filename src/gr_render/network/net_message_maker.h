@@ -41,6 +41,9 @@ namespace tc
         // game-hook 游戏状态通知（死亡重启/恢复），见 tc_message.proto GameStatusChanged
         static std::shared_ptr<Data> MakeGameStatusChanged(tc::GameStatusChanged::GameStatus status, const std::string& detail);
 
+        // 实例被 CMS 停止（render 即将退出），见 tc_message.proto InstanceStopped
+        static std::shared_ptr<Data> MakeInstanceStopped(const std::string& reason);
+
     };
 
 }

@@ -25,6 +25,9 @@ pub struct ServiceRuntime {
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
     pub app_registry: AppInstanceRegistry,
+    /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
+    /// 用于 CMS 停止实例时主动给 render 推 kSrvStopServer。
+    pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -54,6 +57,7 @@ impl ServiceRuntime {
             windows_actions,
             state: ServiceState::default(),
             app_registry: AppInstanceRegistry::new(),
+            render_senders: std::collections::HashMap::new(),
             stop_tx,
         }
     }
@@ -432,6 +436,31 @@ impl ServiceRuntime {
             "stop app instance {}, pid={:?}, port={}",
             instance_id, rec.pid, rec.listen_port
         );
+        // 优雅停止:先经 ws 给 render 下发 kSrvStopServer,render 会广播
+        // kInstanceStopped 通知所有客户端后自行退出;宽限后仍走强杀兜底。
+        {
+            let guard = runtime.lock().await;
+            if let Some(sender) = guard
+                .render_senders
+                .get(&format!("render_{}", rec.listen_port))
+            {
+                let stop_msg = service_core::ServiceMessage {
+                    r#type: service_core::ServiceMessageType::StopServer as i32,
+                    stop_server: Some(service_core::MsgStopServer::default()),
+                    ..Default::default()
+                };
+                if sender
+                    .send(service_core::encode_service_message(&stop_msg))
+                    .is_ok()
+                {
+                    info!(
+                        "sent kSrvStopServer to render_{} for instance {}",
+                        rec.listen_port, instance_id
+                    );
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(800)).await;
         let processes = process_manager.list_processes().unwrap_or_default();
         let game_path =
             service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel).ok();

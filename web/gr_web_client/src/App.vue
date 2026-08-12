@@ -22,6 +22,7 @@ import {
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
   MSG_TYPE_SWITCH_FULL_COLOR_MODE,
   MSG_TYPE_CONNECTION_TAKEN_OVER,
+  MSG_TYPE_INSTANCE_STOPPED,
   MSG_TYPE_VIDEO_CODEC_CHANGED,
   MSG_TYPE_GAME_STATUS_CHANGED,
 } from './rtc/proto'
@@ -402,6 +403,16 @@ function handleDcBinary(buf: ArrayBuffer) {
       disconnect()
       ElMessageBox.alert(
         '连接已被其它客户端接管。',
+        '连接已断开',
+        { confirmButtonText: '知道了', type: 'warning' },
+      ).catch(() => {})
+    } else if (msg.type === MSG_TYPE_INSTANCE_STOPPED && msg.instanceStopped) {
+      // 实例被 CMS 停止:render 退出前广播。按手动断开处理(置 manualClose,
+      // 阻止自动重连),并明确提示
+      addLog(`实例已被停止 (${msg.instanceStopped.reason || '-'})`)
+      disconnect()
+      ElMessageBox.alert(
+        '实例已被停止。',
         '连接已断开',
         { confirmButtonText: '知道了', type: 'warning' },
       ).catch(() => {})

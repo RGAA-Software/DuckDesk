@@ -121,6 +121,11 @@ namespace tc
             auto is_render_alive = sub.render_status() == RenderStatus::kWorking;
             //LOGI("hb_idx: {}, is render alive: {}", hb_idx, is_render_alive);
         }
+        else if (sm.type() == ServiceMessageType::kSrvStopServer) {
+            // CMS stopped this instance: notify clients then exit gracefully
+            LOGW("kSrvStopServer received from service, stopping render...");
+            app_->OnServiceRequestedStop();
+        }
     }
 
     void RenderServiceClient::Exit() const {

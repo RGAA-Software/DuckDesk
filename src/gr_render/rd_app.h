@@ -100,6 +100,9 @@ namespace tc
         ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
         SharedPreference* GetSp() const { return sp_; }
         void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
+        // service 经 ws 下发 kSrvStopServer(CMS 停止实例):先广播 kInstanceStopped
+        // 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
+        void OnServiceRequestedStop();
         std::shared_ptr<WinDesktopManager> GetDesktopManager();
         // post to panel process
         void PostPanelMessage(std::shared_ptr<Data> msg);

@@ -57,24 +57,62 @@ async fn handle_connection(
     .map_err(|err| err.to_string())?;
 
     let (mut sink, mut stream) = ws_stream.split();
+    // 除 request/response 外,service 还需主动给 render 推消息(如 CMS 停止
+    // 实例时的 kSrvStopServer),sink 交给独立 writer task,发送方走 channel。
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let writer = tokio::spawn(async move {
+        while let Some(bytes) = rx.recv().await {
+            if sink.send(Message::Binary(bytes.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut registered_renders: Vec<String> = Vec::new();
     while let Some(message) = stream.next().await {
-        let message = message.map_err(|err| err.to_string())?;
+        let message = match message {
+            Ok(message) => message,
+            Err(_) => break,
+        };
         if let Message::Binary(bytes) = message {
+            // render 心跳 from = "render_{port}": 据此注册该 render 的下发通道。
+            if let Ok(sm) = service_core::decode_service_message(&bytes) {
+                if let Some(hb) = sm.heart_beat.as_ref() {
+                    if hb.from.starts_with("render_") && !registered_renders.contains(&hb.from) {
+                        runtime
+                            .lock()
+                            .await
+                            .render_senders
+                            .insert(hb.from.clone(), tx.clone());
+                        registered_renders.push(hb.from.clone());
+                    }
+                }
+            }
             let command = match dispatch_message(&bytes) {
                 Ok(result) => result.command,
                 Err(_) => continue,
             };
             let response = {
                 let mut guard = runtime.lock().await;
-                guard.handle_command(command)?
+                match guard.handle_command(command) {
+                    Ok(response) => response,
+                    Err(_) => continue,
+                }
             };
             if let Some(response) = response {
-                sink.send(Message::Binary(encode_service_message(&response).into()))
-                    .await
-                    .map_err(|err| err.to_string())?;
+                let _ = tx.send(encode_service_message(&response));
             }
         }
     }
+    // 连接断开:注销本连接注册的 render 通道,避免向死连接发送。
+    if !registered_renders.is_empty() {
+        let mut guard = runtime.lock().await;
+        for name in &registered_renders {
+            guard.render_senders.remove(name);
+        }
+    }
+    drop(tx);
+    let _ = writer.await;
     Ok(())
 }
 

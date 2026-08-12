@@ -276,4 +276,12 @@ namespace tc
         return ProtoAsData(&msg);
     }
 
+    std::shared_ptr<Data> NetMessageMaker::MakeInstanceStopped(const std::string& reason) {
+        tc::Message msg;
+        msg.set_type(kInstanceStopped);
+        auto* body = msg.mutable_instance_stopped();
+        body->set_reason(reason);
+        return ProtoAsData(&msg);
+    }
+
 }
