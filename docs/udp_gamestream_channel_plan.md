@@ -1,7 +1,7 @@
 # 云游戏 UDP 传输通道(GameStream 风格)实施规划
 
 > 关联文档:[gamestream_protocol_analysis.md](gamestream_protocol_analysis.md)(Moonlight/Sunshine 协议分析)
-> 状态:**P0/P1 已完成**(2026-08-12):协议核心+8 单测、render 插件重写、客户端 udp_direct 通道、面板开关均已落地并全量编译通过;待双机实测。下一步 P2(FEC+音频迁 UDP)
+> 状态:**P2(FEC + FRAME_STATUS 动态调 FEC)已完成**(2026-08-12):RS 库移植(moonlight rs.c)+ 帧级 FEC 发送 + 接收端「够用即恢复」+ 帧状态反馈闭环(5s 窗口动态调 fec 百分比,初始 `fec-percent`=20,区间 [配置值, 60]);FEC 已在 .70 真机验证 parity 包流动。下一步:音频迁 UDP、双机全链路实测
 > 方案 A(自定义轻量协议)| 2026-08-12 立项
 
 ## 目标
@@ -75,9 +75,17 @@ client 端:
 验证:局域网双机 1080p60,对比 udp_direct 与 webrtc_direct 延迟 + 丢包恢复。
 
 ### P2 — FEC + 音频
-1. 移植 RS 编解码,render 帧级 FEC(20%),client 恢复;失败再 IDR。
-2. 音频走 UDP(Opus 裸帧 + 序号,丢包 PLC)。
-3. `FRAME_STATUS` 驱动 render 动态调 FEC 百分比。
+1. ~~移植 RS 编解码,render 帧级 FEC(20%),client 恢复;失败再 IDR~~ **已完成**:
+   - RS 库移植 `moonlight-common-c/reedsolomon/rs.c`(BSD)→ `tc_common_new/reedsolomon/`,C++ 薄封装 `tc_common_new/gr_fec.h`(`GrFec::Encode/Decode`)。
+   - 协议演进(两端一起重建,kVersion 保持 1):SOF 扩展加 `frame_size(u32)`;新增 `kFlagParity=0x8`,parity 包 = 基础头 + P 字节校验块(P = mtu - 24,整包正好 mtu);所有包 `parity_shards` 填实际值,`fec_block` 恒 0(一帧一块)。
+   - 发送:`ShardVideoFrame(..., fec_percent)` parity = max(1, ceil(D*percent/100)),D+parity > 255 退化为无 FEC;`net_udp` 插件 `fec-percent` 配置(默认 20,0=关闭)。
+   - 接收:`GrUdpFrameReassembler` slot 扩到 D+parity,统一存 P 字节保护块;「够用即恢复」(distinct 块数 == data_shards 即 RS 重建),重组帧按 frame_size 精确截断;shard 0 缺失时 mon_name/分辨率从恢复块取;恢复不了才 DeclareLoss 走原 IDR 路径。
+   - 单测 15 个全绿:FEC 布局、丢 1 个/丢 shard 0/丢满 parity 个恢复、丢 parity+1 判丢、fec=0 兼容旧行为、逐 shard 位置遍历恢复(FEC_VALIDATION 风格)。
+2. 音频走 UDP(Opus 裸帧 + 序号,丢包 PLC)。**待做**
+3. ~~`FRAME_STATUS` 驱动 render 动态调 FEC 百分比~~ **已完成**:
+   - 协议:`BuildFrameStatus/ParseFrameStatus`(定长 `frame_index(u32)|received(u16)|lost(u16)`,不走 ParseCtrl 字符串路径);reassembler 新增 `on_frame_status_`,每帧恰好触发一次——完成帧 received=网络实收数据块、lost=FEC 恢复块;判丢帧 received=已收、lost=缺失(配合 finished_ 去重,迟到包不重复触发)。
+   - client:每帧一条 FrameStatus 经 UDP async_send 上行(非阻塞)。
+   - render:5s 窗口聚合(完成帧/判丢帧/FEC 恢复块);判丢帧与 kCtrlIdrRequest 1:1,故 lost_frames 按 IDR 请求计。loss_rate = lost/(complete+lost) > 5% 且 fec < 60 → +10(LOGW);< 1% 且高于 toml 初始值 → -5(LOGI);窗口摘要每窗 LOGI 一行。`fec-percent` 初始值仍是下限,上限 60%。
 
 ### P3 — 公网加固与调优
 1. AES-128-GCM(密钥经 ws 下发,IV=序号+方向字节)。

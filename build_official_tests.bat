@@ -76,6 +76,7 @@ cmake --build build_official -j18 --target ^
     test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
     test_qr_generator test_process test_process_helper test_uncovered test_snowflake_id ^
     test_clipboard_echo test_clipboard_file_builder test_clipboard_platform ^
+    test_gr_udp_protocol ^
     test_common test_http test_cpu
 if errorlevel 1 exit /b %errorlevel%
 

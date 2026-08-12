@@ -97,12 +97,18 @@ if errorlevel 1 exit /b %errorlevel%
 
 rem Build and deploy the three rust servers (frontend + exe + copy to output\).
 rem Each script is self-contained and can also be run standalone.
-call "%~dp0build_gr_cms_server.bat"
-if errorlevel 1 exit /b %errorlevel%
-call "%~dp0build_gr_auth_server.bat"
-if errorlevel 1 exit /b %errorlevel%
-call "%~dp0build_gr_desk_server.bat"
-if errorlevel 1 exit /b %errorlevel%
+rem Skipped when GR_SKIP_SERVERS is set (see build_client.bat: installer only
+rem needs client-side artifacts, servers are built separately).
+if not defined GR_SKIP_SERVERS (
+    call "%~dp0build_gr_cms_server.bat"
+    if errorlevel 1 exit /b %errorlevel%
+    call "%~dp0build_gr_auth_server.bat"
+    if errorlevel 1 exit /b %errorlevel%
+    call "%~dp0build_gr_desk_server.bat"
+    if errorlevel 1 exit /b %errorlevel%
+) else (
+    echo GR_SKIP_SERVERS set, skipping rust server builds...
+)
 
 endlocal
 exit /b 0

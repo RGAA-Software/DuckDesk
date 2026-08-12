@@ -71,6 +71,10 @@ namespace tc
                          const std::string& device_id, const std::string& stream_id);
         // kCtrlHeartbeat:刷心跳;NAT 换端口重建会话时按 stream_id 把绑定迁到当前会话
         void HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_sess, const std::string& stream_id);
+        // kCtrlFrameStatus:聚合窗口统计(完成帧数/FEC 恢复块数)
+        void HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost);
+        // 5s 窗口:按 loss_rate 动态调 fec_percent_,窗口结束清零计数
+        void AdjustFecWindow();
         // 每 2s 扫一次,超 10s 无心跳的绑定会话解绑并发断开事件
         void SweepDeadSessions();
         void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
@@ -93,8 +97,26 @@ namespace tc
         std::map<std::string, uint8_t> mon_slots_;
         uint8_t next_mon_slot_ = 0;
 
+        // 视频 FEC (Reed-Solomon) 校验包百分比,0 = 关闭;OnCreate 从 fec-percent 读入。
+        // 编码线程读、窗口定时器写,用原子;动态调整只会在 [configured, 60] 区间浮动
+        std::atomic_int fec_percent_{20};
+        // toml 读到的初始值,动态下调不跌破它
+        int configured_fec_percent_ = 20;
+        // FRAME_STATUS 窗口统计(udp io 线程累加,窗口定时器读取清零)。
+        // 注意:客户端对完成帧(FEC 恢复的)和判丢帧都会发 FrameStatus,wire 上无法区分两者;
+        // 判丢帧客户端会 1:1 补发 kCtrlIdrRequest,因此 lost_frames 用 IDR 请求数计,
+        // FrameStatus 的 lost 字段全部计入 recovered_shards(判丢帧的缺失数会轻微 inflate,可接受)
+        std::atomic_int stat_complete_frames_{0};
+        std::atomic_int stat_lost_frames_{0};
+        std::atomic_int stat_recovered_shards_{0};
+
         static constexpr int64_t kHeartbeatTimeoutMs = 10000;
         static constexpr int kHeartbeatScanIntervalMs = 2000;
+        static constexpr int kFecWindowMs = 5000;
+        static constexpr int kFecMaxPercent = 60;
+        // 帧内 pacing:每批发多少个 shard、批间睡多少 ms
+        static constexpr size_t kPaceChunkSize = 20;
+        static constexpr int kPaceSleepMs = 1;
     };
 
 }

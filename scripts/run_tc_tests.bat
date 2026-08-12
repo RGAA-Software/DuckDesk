@@ -24,6 +24,7 @@ for %%t in (
     test_clipboard_echo
     test_clipboard_file_builder
     test_clipboard_platform
+    test_gr_udp_protocol
     test_common
     test_http
     test_cpu

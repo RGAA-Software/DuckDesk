@@ -134,6 +134,10 @@ enum MessageType {
   // 后者是面板/对端主动断开)
   kConnectionTakenOver = 550;
 
+  // render -> client: 实例被 CMS 停止,render 即将退出;客户端提示用户,
+  // 按手动断开处理,不再自动重连
+  kInstanceStopped = 560;
+
 }
 
 enum VideoType {
@@ -670,6 +674,15 @@ message GameStatusChanged {
   string detail = 2;
 }
 
+// render -> client
+// 实例被 CMS 停止：service 先经 ws 下发 kSrvStopServer，render 广播本消息
+// 给所有 RTC 客户端后自行退出。客户端收到后提示"实例已停止"并按手动断开
+// 处理（不再自动重连）。
+message InstanceStopped {
+  // 人类可读原因（如 "stopped by CMS"）
+  string reason = 1;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -747,4 +760,5 @@ message Message {
   VideoCodecChanged video_codec_changed = 520;
   GameStatusChanged game_status_changed = 530;
   ConnectionTakenOver connection_taken_over = 540;
+  InstanceStopped instance_stopped = 550;
 }

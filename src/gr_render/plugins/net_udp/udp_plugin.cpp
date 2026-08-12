@@ -43,13 +43,25 @@ namespace tc
         if (config_listen_port > 0) {
             udp_listen_port_ = config_listen_port;
         }
-        LOGI("Listen port: {}", udp_listen_port_);
+        if (HasParam("fec-percent")) {
+            // 0 = 关闭 FEC;缺省保持默认 20%
+            fec_percent_ = (int)GetConfigIntParam("fec-percent");
+        }
+        configured_fec_percent_ = fec_percent_.load();
+        // Windows sleep 默认 15.6ms 粒度,帧内 pacing 的 1ms sleep 需要先把计时器分辨率提到 1ms
+        timeBeginPeriod(1);
+        LOGI("Listen port: {}, fec percent: {}, pacing: {} shards/{}ms",
+             udp_listen_port_, fec_percent_.load(), kPaceChunkSize, kPaceSleepMs);
         StartInternal();
 
         // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
         if (plugin_context_) {
             plugin_context_->StartTimer(kHeartbeatScanIntervalMs, [=, this]() {
                 SweepDeadSessions();
+            });
+            // FRAME_STATUS 窗口:5s 一个窗口,按判丢率动态调 FEC 百分比
+            plugin_context_->StartTimer(kFecWindowMs, [=, this]() {
+                AdjustFecWindow();
             });
         }
         return true;
@@ -62,6 +74,7 @@ namespace tc
             server_.reset();
         }
         sessions_.Clear();
+        timeEndPeriod(1);
         return GrNetPlugin::OnDestroy();
     }
 
@@ -125,12 +138,27 @@ namespace tc
                    session_ptr->remote_address().c_str(), session_ptr->remote_port(),
                    asio2::last_error_msg().c_str());
         }).bind_start([&]() {
-            if (asio2::get_last_error())
+            if (asio2::get_last_error()) {
                 LOGE("start udp server failure : {} {}",
                        asio2::last_error_val(), asio2::last_error_msg().c_str());
-            else
+            }
+            else {
                 LOGI("start udp server success : {} {}",
                        server_->listen_address().c_str(), server_->listen_port());
+                // 一帧 ~89 个包(~125KB)毫秒内突发下发,默认发送缓冲易满;
+                // 发送缓冲调 4MB、接收 1MB,读回值打出来(Windows 上可能与设置值不同)
+                asio::error_code ec;
+                auto& sock = server_->acceptor();
+                sock.set_option(asio::socket_base::send_buffer_size(4 * 1024 * 1024), ec);
+                if (ec) LOGW("udp server set sndbuf 4MB failed: {}", ec.message());
+                sock.set_option(asio::socket_base::receive_buffer_size(1 * 1024 * 1024), ec);
+                if (ec) LOGW("udp server set rcvbuf 1MB failed: {}", ec.message());
+                asio::socket_base::send_buffer_size snd;
+                asio::socket_base::receive_buffer_size rcv;
+                sock.get_option(snd, ec);
+                sock.get_option(rcv, ec);
+                LOGI("udp server socket buffer: snd = {}, rcv = {}", snd.value(), rcv.value());
+            }
         }).bind_stop([&]() {
             LOGI("stop udp server : {} {}",
                    asio2::last_error_val(), asio2::last_error_msg().c_str());
@@ -143,6 +171,13 @@ namespace tc
     }
 
     void UdpPlugin::HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_sess, const char* data, size_t size) {
+        // kCtrlFrameStatus 是定长二进制体,ParseCtrl 不解析,走专门解析
+        uint32_t fs_frame = 0;
+        uint16_t fs_received = 0, fs_lost = 0;
+        if (GrUdpProtocol::ParseFrameStatus(data, size, fs_frame, fs_received, fs_lost)) {
+            HandleFrameStatus(fs_frame, fs_received, fs_lost);
+            return;
+        }
         std::string s1, s2;
         auto subtype = GrUdpProtocol::ParseCtrl(data, size, s1, s2);
         switch (subtype) {
@@ -153,15 +188,49 @@ namespace tc
                 HandleHeartbeat(udp_sess, s1 /*stream_id*/);
                 break;
             case GrUdpProtocol::kCtrlIdrRequest: {
-                // 客户端组帧判丢后请求补 IDR;s1 为 mon_name(空 = 全屏)
+                // 客户端组帧判丢后请求补 IDR;s1 为 mon_name(空 = 全屏)。
+                // 判丢帧与 IDR 请求 1:1,据此累计窗口判丢帧数(见 udp_plugin.h 注释)
+                stat_lost_frames_++;
                 auto event = std::make_shared<GrPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
                 this->CallbackEvent(event);
                 break;
             }
             default:
-                // kCtrlFrameStatus 等 ParseCtrl 暂不解析的 subtype,忽略
                 break;
+        }
+    }
+
+    void UdpPlugin::HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost) {
+        (void)frame_index;
+        (void)received;
+        stat_complete_frames_++;
+        stat_recovered_shards_ += lost;
+    }
+
+    void UdpPlugin::AdjustFecWindow() {
+        int complete = stat_complete_frames_.exchange(0);
+        int lost = stat_lost_frames_.exchange(0);
+        int recovered = stat_recovered_shards_.exchange(0);
+        int total = complete + lost;
+        if (total <= 0) {
+            return; // 窗口内无媒体流量,不调整不刷日志
+        }
+        double loss_rate = (double)lost / (double)total;
+        int cur = fec_percent_.load();
+        if (loss_rate > 0.05 && cur < kFecMaxPercent) {
+            fec_percent_ = std::min(kFecMaxPercent, cur + 10);
+            LOGW("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, raise fec {}% -> {}%",
+                 loss_rate * 100.0, lost, total, recovered, cur, fec_percent_.load());
+        }
+        else if (loss_rate < 0.01 && cur > configured_fec_percent_) {
+            fec_percent_ = std::max(configured_fec_percent_, cur - 5);
+            LOGI("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, lower fec {}% -> {}%",
+                 loss_rate * 100.0, lost, total, recovered, cur, fec_percent_.load());
+        }
+        else {
+            LOGI("udp fec window: frames {} (lost {}, {:.1f}%), recovered {} shards, fec {}%",
+                 total, lost, loss_rate * 100.0, recovered, cur);
         }
     }
 
@@ -310,22 +379,35 @@ namespace tc
         meta.mon_slot_ = MonSlotOf(mon_name);
         meta.mon_name_ = mon_name;
 
-        auto shards = GrUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size());
+        auto shards = GrUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(),
+                                                     GrUdpProtocol::kDefaultMtu, fec_percent_);
         if (shards.empty()) {
             return;
         }
 
         int64_t total_sent = 0;
-        sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-            if (!us->bound_ || !us->sess_) {
-                return;
+        // 帧内 pacing(Sunshine 同款思路):高动态大帧一帧上百个包,背靠背突发会打爆
+        // 客户端 socket 缓冲 → 丢包 → 请 IDR → 巨型 IDR 再丢的死循环。
+        // 外层按 shard chunk 摊开,内层遍历 bound 会话;每批发完睡 1ms(最后一批不睡)。
+        // 在编码线程上 sleep 是刻意的:200 包 ~11ms,仍在 16ms 帧预算内
+        const size_t total_pkts = shards.size();
+        for (size_t chunk_base = 0; chunk_base < total_pkts; chunk_base += kPaceChunkSize) {
+            const size_t chunk_end = std::min(chunk_base + kPaceChunkSize, total_pkts);
+            sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
+                if (!us->bound_ || !us->sess_) {
+                    return;
+                }
+                for (size_t i = chunk_base; i < chunk_end; i++) {
+                    const auto& shard = shards[i];
+                    total_sent += shard->Size();
+                    // shard 捕获进回调保活,直到 asio 拷进发件缓冲
+                    us->sess_->async_send(shard->CStr(), shard->Size(), [shard](std::size_t) {});
+                }
+            });
+            if (chunk_end < total_pkts) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(kPaceSleepMs));
             }
-            for (const auto& shard : shards) {
-                total_sent += shard->Size();
-                // shard 捕获进回调保活,直到 asio 拷进发件缓冲
-                us->sess_->async_send(shard->CStr(), shard->Size(), [shard](std::size_t) {});
-            }
-        });
+        }
         if (total_sent > 0) {
             ReportSentDataSize((int)total_sent);
         }
