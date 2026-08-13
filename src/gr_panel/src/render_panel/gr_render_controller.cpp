@@ -106,7 +106,6 @@ namespace tc
         args.push_back(std::format("--{}={}", kStNetworkListenPort, settings->GetRenderServerPort()));
         args.push_back(std::format("--{}={}", kStWebRTCEnabled, settings->webrtc_enabled_));
         args.push_back(std::format("--{}={}", kStUdpKcpEnabled, settings->udp_kcp_enabled_));
-        args.push_back(std::format("--{}={}", kStUdpListenPort, settings->udp_listen_port_));
         // Capture audio always uses the OS default device inside the plugin; do not pass a device id.
         args.push_back(std::format("--{}={}", kStAppGamePath, ""));
         args.push_back(std::format("--{}={}", kStAppGameArgs, ""));

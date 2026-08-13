@@ -49,7 +49,7 @@ namespace tc
         std::string host_;
         int port_{0};
         // udp_direct 模式下 render 的 UDP 媒体端口(与 ws 控制面端口分开)
-        int udp_port_{20381};
+        int udp_port_{20371};
 
         // Spvr
         std::string spvr_host_;

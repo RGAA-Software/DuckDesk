@@ -41,7 +41,6 @@ DEFINE_bool(webrtc_enabled, true, "");
 DEFINE_bool(websocket_enabled, true, "");
 DEFINE_int32(network_listen_port, 20371, "");
 DEFINE_bool(udp_kcp_enabled, true, "");
-DEFINE_int32(udp_listen_port, 20381, "");
 
 DEFINE_string(sig_server_address, "", "");
 DEFINE_string(sig_server_port, "", "");
@@ -132,7 +131,6 @@ void UpdateSettings(RdSettings* settings) {
     settings->capture_.capture_audio_device_.clear();
     (void)FLAGS_capture_audio_device;
     settings->transmission_.listening_port_ = FLAGS_network_listen_port;
-    settings->transmission_.udp_listen_port_ = FLAGS_udp_listen_port;
 
     // app: path arrives as Base64(UTF-8); decode with existing Base64 helper (no ACP convert).
     if (!FLAGS_app_game_path.empty()) {
@@ -202,7 +200,6 @@ void PrintInputArgs() {
     LOGI("websocket enabled: {}", FLAGS_websocket_enabled);
     LOGI("webrtc enabled: {}", FLAGS_webrtc_enabled);
     LOGI("network_listen_port: {}", FLAGS_network_listen_port);
-    LOGI("udp_listen_port: {}", FLAGS_udp_listen_port);
     LOGI("capture audio device: <os-default>");
     LOGI("app_game_path(b64): {}", FLAGS_app_game_path);
     LOGI("app_game_path: {}", settings->app_.game_path_);
@@ -219,7 +216,6 @@ void PrintInputArgs() {
     LOGI("panel server port: {}", FLAGS_panel_server_port);
     LOGI("service server host: {}", FLAGS_service_server_host);
     LOGI("service server port: {}", FLAGS_service_server_port);
-    LOGI("udp listen port: {}", FLAGS_udp_listen_port);
     LOGI("relay host: {}", FLAGS_relay_server_host);
     LOGI("relay port: {}", FLAGS_relay_server_port);
     LOGI("can be operated: {}", FLAGS_can_be_operated);

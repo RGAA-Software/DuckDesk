@@ -55,9 +55,6 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_port("port", "Port", "9999", "0");
     parser.addOption(opt_port);
 
-    QCommandLineOption opt_udp_port("udp_port", "UDP media port for udp_direct mode", "value", "");
-    parser.addOption(opt_udp_port);
-
     QCommandLineOption opt_spvr_host("spvr_host", "Spvr Host", "xx.xx.xx.xx", "");
     parser.addOption(opt_spvr_host);
 
@@ -193,13 +190,8 @@ void ParseCommandLine(QApplication& app) {
     settings->host_ = g_remote_host_;
     settings->port_ = g_remote_port_;
 
-    // udp_direct 的 UDP 媒体端口,panel 侧默认下发 20381
-    {
-        auto value = parser.value(opt_udp_port);
-        if (!value.isEmpty()) {
-            settings->udp_port_ = value.toInt();
-        }
-    }
+    // TCP(ws 控制面)与 UDP(媒体面)共用同一端口
+    settings->udp_port_ = settings->port_;
     settings->appkey_ = parser.value(opt_appkey).toStdString();
 
     // spvr

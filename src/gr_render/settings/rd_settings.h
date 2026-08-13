@@ -72,7 +72,6 @@ namespace tc
     // Transmission
     struct Transmission {
         int listening_port_ = 20371;
-        int udp_listen_port_ = 20381;
     };
 
     // RdApplication

@@ -117,7 +117,8 @@ namespace tc
                             // Always empty: MiniAudio loopback follows the OS default device.
                             {"capture_audio_device_id", std::string("")},
                             {"ws-listen-port", (int64_t)settings_->transmission_.listening_port_},
-                            {"udp-listen-port", (int64_t)settings_->transmission_.udp_listen_port_},
+                            // TCP/ws 与 UDP 媒体面共用同一端口(见 udp_gamestream_channel_state.md)
+                            {"udp-listen-port", (int64_t)settings_->transmission_.listening_port_},
                             {"device_id", settings_->device_id_},
                             {"relay_enabled", settings_->relay_enabled_},
                             {"relay_host", settings_->relay_host_},
