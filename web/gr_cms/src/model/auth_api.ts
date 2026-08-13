@@ -1,5 +1,5 @@
 import axiosHttp from '@/http.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 import axios from "axios";
 
 // 授权状态（安全视图，后端 AuthStatus）：不含 appkey/app_secret，
@@ -25,9 +25,8 @@ export async function pullAuthorization(): Promise<AuthStatus | null> {
     const resp = await axiosHttp.post('/api/v1/auth/control/pull/authorization')
     if (resp.status !== 200) {
       console.error('pull authorization failed', resp)
-      ElNotification({
+      notification.error({
         message: '刷新授权失败:' + resp.status,
-        type: 'error',
       })
       return null
     }
@@ -35,30 +34,26 @@ export async function pullAuthorization(): Promise<AuthStatus | null> {
     const data = resp.data
     if (data.code !== 200) {
       console.error('pull authorization failed, data:', data)
-      ElNotification({
+      notification.error({
         message: '刷新授权失败:' + data.code,
-        type: 'error',
       })
       return null
     }
 
     console.log('pull authorization success')
-    ElNotification({
+    notification.success({
       message: '授权已刷新',
-      type: 'success',
     })
     return data.data
   } catch (e) {
     console.error(e)
     if (axios.isAxiosError(e)) {
-      ElNotification({
+      notification.error({
         message: '刷新授权失败, 网络错误',
-        type: 'error',
       })
     } else {
-      ElNotification({
+      notification.error({
         message: '刷新授权失败',
-        type: 'error',
       })
     }
     return null

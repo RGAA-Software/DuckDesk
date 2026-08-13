@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import iconLogo from '@/assets/ic_logo.png'
 import { computed, onMounted, ref } from 'vue'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 import { pullAuthorization, queryAuthStatus, type AuthStatus } from '@/model/auth_api.ts'
 import axiosHttp, { BASE_URL } from '@/http.ts'
 
@@ -89,7 +89,7 @@ const authStatusType = computed(() => {
     case '试用中':
       return 'warning'
     default:
-      return 'danger'
+      return 'error'
   }
 })
 
@@ -131,9 +131,8 @@ async function login(username: string, password: string) {
     const data = resp.data
     if (data.code !== 200) {
       console.error('login failed, data:', data)
-      ElNotification({
+      notification.error({
         message: '登录失败:' + data.code,
-        type: 'error',
       })
       return false
     } else {
@@ -141,9 +140,8 @@ async function login(username: string, password: string) {
       if (data.data) {
         localStorage.setItem('appkey', data.data)
       }
-      ElNotification({
+      notification.success({
         message: '登录成功',
-        type: 'success',
       })
 
       //
@@ -151,9 +149,8 @@ async function login(username: string, password: string) {
     }
   } catch (e) {
     console.error(e)
-    ElNotification({
+    notification.error({
       message: '登录失败，经检查输入信息和网络',
-      type: 'error',
     })
     return false
   }
@@ -163,9 +160,8 @@ async function login(username: string, password: string) {
 async function handleCopyMachineCode() {
   if (machineCode.value) {
     await copyText(machineCode.value)
-    ElNotification({
+    notification.success({
       message: '机器码复制成功',
-      type: 'success',
     })
   }
 }
@@ -177,7 +173,7 @@ async function handleCopyMachineCode() {
     <div class="h-45"></div>
 
     <div class="flex justify-center items-center h-12">
-      <el-image :src="iconLogo" class="w-38" />
+      <a-image :src="iconLogo" class="w-38" :preview="false" />
       <span class="h-12 text-2xl text-slate-700 font-bold flex items-center">登录</span>
     </div>
   </div>
@@ -189,7 +185,7 @@ async function handleCopyMachineCode() {
       <div class="flex justify-center items-center">
         <span class="text-lg text-slate-700 w-16">用户名</span>
         <span class="w-4" />
-        <el-input v-model="inputUsername" placeholder="请输入" class="!w-60"></el-input>
+        <a-input v-model:value="inputUsername" placeholder="请输入" class="!w-60" />
       </div>
     </div>
 
@@ -199,13 +195,7 @@ async function handleCopyMachineCode() {
       <div class="flex justify-center items-center">
         <span class="text-lg text-slate-700 w-16">密码</span>
         <span class="w-4" />
-        <el-input
-          v-model="inputPassword"
-          type="password"
-          placeholder="请输入密码"
-          show-password
-          class="!w-60"
-        ></el-input>
+        <a-input-password v-model:value="inputPassword" placeholder="请输入密码" class="!w-60" />
       </div>
     </div>
 
@@ -215,7 +205,7 @@ async function handleCopyMachineCode() {
       <div class="flex justify-center items-center">
         <span class="text-lg text-slate-700 w-16"></span>
         <span class="w-4" />
-        <el-button class="!w-60" type="primary" plain @click="handleLogin">登录</el-button>
+        <a-button class="!w-60" type="primary" @click="handleLogin">登录</a-button>
       </div>
     </div>
 
@@ -230,9 +220,7 @@ async function handleCopyMachineCode() {
         <span class="">机器码:</span>
         <span class="ml-1 bg-blue-200">{{ machineCode }}</span>
       </div>
-      <el-button class="ml-2 w-22" type="primary" plain @click="handleCopyMachineCode"
-        >复制</el-button
-      >
+      <a-button class="ml-2 w-22" type="primary" @click="handleCopyMachineCode">复制</a-button>
     </div>
 
     <div class="h-2" />
@@ -240,16 +228,11 @@ async function handleCopyMachineCode() {
     <div class="flex justify-center items-center">
       <div class="w-100 flex justify-start items-center">
         <span class="">授权状态:</span>
-        <el-tag class="ml-1" :type="authStatusType" size="small">{{ authStatusText }}</el-tag>
+        <a-tag class="ml-1" :color="authStatusType" size="small">{{ authStatusText }}</a-tag>
         <span v-if="authExpireText" class="ml-2 text-slate-500 text-sm">{{ authExpireText }}</span>
       </div>
-      <el-button
-        class="ml-2 w-22"
-        type="primary"
-        plain
-        :loading="refreshing"
-        @click="handleRefreshAuth"
-        >刷新状态</el-button
+      <a-button class="ml-2 w-22" type="primary" :loading="refreshing" @click="handleRefreshAuth"
+        >刷新状态</a-button
       >
     </div>
 

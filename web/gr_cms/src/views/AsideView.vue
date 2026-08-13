@@ -1,39 +1,35 @@
 <script setup lang="ts">
 import iconLogo from '@/assets/ic_logo.png'
 
-import { Lock, MessageBox } from '@element-plus/icons-vue'
-import { IpGridNine } from 'vue-icons-plus/ip'
+import {
+  ApiOutlined,
+  AppstoreOutlined,
+  DesktopOutlined,
+  HomeOutlined,
+  LayoutOutlined,
+  LineChartOutlined,
+  LockOutlined,
+  MessageOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons-vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useTheme } from '@/composables/useTheme'
 
-const i18n = useI18n()
 const router = useRouter()
-
-const handleOpen = (key: string, keyPath: string[]) => {
-  console.log('open: ', key, keyPath)
-}
-
-const handleClose = (key: string, keyPath: string[]) => {
-  console.log('close: ', key, keyPath)
-}
-
-const handleSelect = (key: string, keyPath: string[]) => {
-  console.log('select', key, keyPath)
-}
-
 const route = useRoute()
+const { isDark } = useTheme()
 
 // 计算属性，自动获取当前路由路径
 const activeMenu = computed(() => {
   const path = route.path
 
-  // 定义菜单路径映射
   const menuPaths = [
     '/resources',
     '/devices-list',
-    'online-connection',
+    '/online-connection',
     '/connection-monitor',
     '/video-wall',
     '/apps',
@@ -43,14 +39,16 @@ const activeMenu = computed(() => {
     '/profile-info',
   ]
 
-  // 如果当前路径在菜单中，则选中对应菜单
   if (menuPaths.includes(path)) {
     return path
   }
 
-  // 默认选中第一个
   return '/resources'
 })
+
+const handleMenuClick = ({ key }: { key: string | number }) => {
+  router.push(key as string)
+}
 
 const handleClickLogo = async () => {
   await router.push('/resources')
@@ -61,73 +59,72 @@ const handleClickLogo = async () => {
   <div class="h-full">
     <div class="h-8"></div>
     <div class="flex justify-center">
-      <el-image :src="iconLogo" class="w-38 cursor-pointer" @click="handleClickLogo" />
+      <img :src="iconLogo" class="w-38 cursor-pointer" @click="handleClickLogo" />
     </div>
 
     <div class="h-8"></div>
-    <el-menu
-      router
-      :default-active="activeMenu"
-      class="!border-r-0 !bg-blue-50"
-      @open="handleOpen"
-      @close="handleClose"
-      @select="handleSelect"
+    <a-menu
+      mode="inline"
+      :theme="isDark ? 'dark' : 'light'"
+      :selected-keys="[activeMenu]"
+      class="!border-r-0"
+      @click="handleMenuClick"
     >
-      <el-menu-item index="/resources">
-        <el-icon><House /></el-icon>
+      <a-menu-item key="/resources">
+        <template #icon><HomeOutlined /></template>
         <span class="">资源总览</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/devices-list">
-        <el-icon><Coin /></el-icon>
+      <a-menu-item key="/devices-list">
+        <template #icon><DesktopOutlined /></template>
         <span class="">设备列表</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/online-connection">
-        <el-icon><connection /></el-icon>
+      <a-menu-item key="/online-connection">
+        <template #icon><ApiOutlined /></template>
         <span class="">在线连接</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/connection-monitor">
-        <el-icon><Monitor /></el-icon>
+      <a-menu-item key="/connection-monitor">
+        <template #icon><LineChartOutlined /></template>
         <span class="">连接监控</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/video-wall">
-        <el-icon><IpGridNine /></el-icon>
+      <a-menu-item key="/video-wall">
+        <template #icon><LayoutOutlined /></template>
         <span class="">多画面墙</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/apps">
-        <el-icon><Grid /></el-icon>
+      <a-menu-item key="/apps">
+        <template #icon><AppstoreOutlined /></template>
         <span class="">应用调度</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/security-internal">
-        <el-icon><Lock /></el-icon>
+      <a-menu-item key="/security-internal">
+        <template #icon><LockOutlined /></template>
         <span class="">安全审计</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/events">
-        <el-icon><MessageBox /></el-icon>
+      <a-menu-item key="/events">
+        <template #icon><MessageOutlined /></template>
         <span class="">上报事件</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/user-manager">
-        <el-icon><Notebook /></el-icon>
+      <a-menu-item key="/user-manager">
+        <template #icon><TeamOutlined /></template>
         <span class="">用户管理</span>
-      </el-menu-item>
+      </a-menu-item>
 
-      <el-menu-item index="/profile-info">
-        <el-icon><User /></el-icon>
+      <a-menu-item key="/profile-info">
+        <template #icon><UserOutlined /></template>
         <span class="">个人中心</span>
-      </el-menu-item>
-    </el-menu>
+      </a-menu-item>
+    </a-menu>
   </div>
 </template>
 
 <style scoped>
-.el-menu-item.is-active {
-  font-weight: 600; /* 或 bold / 700 */
+:deep(.ant-menu-item-selected) {
+  font-weight: 600;
 }
 </style>

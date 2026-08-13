@@ -2,9 +2,9 @@
 import { SpvrEvent } from '@/entity/spvr_event.ts'
 import { onMounted, ref } from 'vue'
 import axiosHttp from '@/http.ts'
-import { IpCpu, IpMemory, IpDisk, IpMultiTriangularFour } from 'vue-icons-plus/ip'
+import { FundOutlined, DatabaseOutlined, HddOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { copyText } from '@/util/clipboard.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 
 // query events
 async function queryEvents(
@@ -71,15 +71,10 @@ const cpuEvents = ref<SpvrEvent[]>([])
 const cpuPageSize = ref(20)
 const cpuCurrentPage = ref(1)
 const totalCpuSize = ref(0)
-const handleSizeChange = (val: number) => {
-  cpuPageSize.value = val
-  console.log('current page: ', cpuCurrentPage.value, ' page size: ', cpuPageSize.value)
-  queryEvents(cpuCurrentPage.value, cpuPageSize.value, 'cpu', '', '', '')
-}
-
-const handleCurrentChange = (val: number) => {
-  cpuCurrentPage.value = val
-  queryEvents(cpuCurrentPage.value, cpuPageSize.value, 'cpu', '', '', '')
+const handleCpuPageChange = (page: number, pageSize: number) => {
+  cpuCurrentPage.value = page
+  cpuPageSize.value = pageSize
+  queryEvents(page, pageSize, 'cpu', '', '', '')
 }
 
 // Memory
@@ -87,15 +82,10 @@ const memoryEvents = ref<SpvrEvent[]>([])
 const memoryPageSize = ref(20)
 const memoryCurrentPage = ref(1)
 const totalMemorySize = ref(0)
-const handleMemorySizeChange = (val: number) => {
-  memoryPageSize.value = val
-  console.log('current page: ', memoryCurrentPage.value, ' page size: ', memoryPageSize.value)
-  queryEvents(memoryCurrentPage.value, memoryPageSize.value, 'memory', '', '', '')
-}
-
-const handleMemoryCurrentChange = (val: number) => {
-  memoryCurrentPage.value = val
-  queryEvents(memoryCurrentPage.value, memoryPageSize.value, 'memory', '', '', '')
+const handleMemoryPageChange = (page: number, pageSize: number) => {
+  memoryCurrentPage.value = page
+  memoryPageSize.value = pageSize
+  queryEvents(page, pageSize, 'memory', '', '', '')
 }
 
 // disk
@@ -103,15 +93,10 @@ const diskEvents = ref<SpvrEvent[]>([])
 const diskPageSize = ref(20)
 const diskCurrentPage = ref(1)
 const totalDiskSize = ref(0)
-const handleDiskSizeChange = (val: number) => {
-  diskPageSize.value = val
-  console.log('current page: ', diskCurrentPage.value, ' page size: ', diskPageSize.value)
-  queryEvents(diskCurrentPage.value, diskPageSize.value, 'disk', '', '', '')
-}
-
-const handleDiskCurrentChange = (val: number) => {
-  diskCurrentPage.value = val
-  queryEvents(diskCurrentPage.value, diskPageSize.value, 'disk', '', '', '')
+const handleDiskPageChange = (page: number, pageSize: number) => {
+  diskCurrentPage.value = page
+  diskPageSize.value = pageSize
+  queryEvents(page, pageSize, 'disk', '', '', '')
 }
 
 // GPU
@@ -119,24 +104,18 @@ const gpuEvents = ref<SpvrEvent[]>([])
 const gpuPageSize = ref(20)
 const gpuCurrentPage = ref(1)
 const totalGpuSize = ref(0)
-const handleGpuSizeChange = (val: number) => {
-  gpuPageSize.value = val
-  console.log('current page: ', gpuCurrentPage.value, ' page size: ', gpuPageSize.value)
-  queryEvents(gpuCurrentPage.value, gpuPageSize.value, 'gpu', '', '', '')
-}
-
-const handleGpuCurrentChange = (val: number) => {
-  gpuCurrentPage.value = val
-  queryEvents(gpuCurrentPage.value, gpuPageSize.value, 'gpu', '', '', '')
+const handleGpuPageChange = (page: number, pageSize: number) => {
+  gpuCurrentPage.value = page
+  gpuPageSize.value = pageSize
+  queryEvents(page, pageSize, 'gpu', '', '', '')
 }
 
 // copy
 const handleCopyEvent = async (index: number, event: SpvrEvent) => {
   console.log('copy event: ', index)
   await copyText(JSON.stringify(event))
-  ElNotification({
-    title: '复制成功',
-    type: 'success',
+  notification.success({
+    message: '复制成功',
   })
 }
 
@@ -184,466 +163,447 @@ const handleSearch = async () => {
 </script>
 
 <template>
-  <el-card class="w-full" shadow="hover">
+  <a-card class="w-full" hoverable>
     <div class="flex">
       <div class="w-40 flex flex-col items-start">
         <span class="!text-sm">设备ID</span>
         <div class="h-2" />
-        <el-input class="" v-model="searchDeviceId" placeholder="请输入"></el-input>
+        <a-input class="" v-model:value="searchDeviceId" placeholder="请输入"></a-input>
       </div>
 
       <div class="w-5" />
       <div class="w-40 flex flex-col items-start">
         <span class="!text-sm">设备名称</span>
         <div class="h-2" />
-        <el-input class="" v-model="searchDeviceName" placeholder="请输入"></el-input>
+        <a-input class="" v-model:value="searchDeviceName" placeholder="请输入"></a-input>
       </div>
 
       <div class="w-5" />
       <div class="w-40 flex flex-col items-start">
         <span class="!text-sm">设备IP地址</span>
         <div class="h-2" />
-        <el-input class="" v-model="searchDeviceIp" placeholder="请输入"></el-input>
+        <a-input class="" v-model:value="searchDeviceIp" placeholder="请输入"></a-input>
       </div>
 
       <div class="w-5" />
       <div class="w-40 flex flex-col items-start">
         <span class="!h-5"></span>
         <div class="h-2" />
-        <el-button class="w-20" type="primary" @click="handleSearch">搜索</el-button>
+        <a-button class="w-20" type="primary" @click="handleSearch">搜索</a-button>
       </div>
     </div>
-  </el-card>
+  </a-card>
 
   <div class="h-2" />
 
-  <el-tabs class="custom-tabs">
+  <a-tabs class="custom-tabs">
     <!--       CPU        -->
     <!--       CPU        -->
     <!--       CPU        -->
-    <el-tab-pane>
-      <template #label>
+    <a-tab-pane key="cpu">
+      <template #tab>
         <span class="custom-tabs-label">
-          <el-icon><IpCpu /></el-icon>
+          <FundOutlined />
           <span>CPU</span>
         </span>
       </template>
 
-      <el-table :data="cpuEvents" style="width: 100%">
-        <el-table-column label="事件ID" :min-width="40">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="100px">
-              <template #default>
-                <div>{{ scope.row.event_id }}</div>
+      <a-table :data-source="cpuEvents" row-key="event_id" style="width: 100%">
+        <a-table-column title="事件ID" :width="40">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="100">
+              <template #content>
+                <div>{{ record.event_id }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info">{{ scope.row.event_id.substring(0, 10) }}...</el-tag>
-                </div>
+              <div class="flex">
+                <a-tag color="default">{{ record.event_id.substring(0, 10) }}...</a-tag>
+              </div>
+            </a-popover>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备ID" :width="80">
+          <template #default="{ record }">
+            <span>{{ record.device_id }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备名称" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备IP" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="用户ID" :width="80">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="200">
+              <template #content>
+                <div>{{ record.user_id }}</div>
               </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag color="default">
+                  {{
+                    record.user_id.length > 20 ? record.user_id.substring(0, 20) : ''
+                  }}...</a-tag
+                >
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span>{{ scope.row.device_id }}</span>
+        <a-table-column title="使用率" :width="80">
+          <template #default="{ record }">
+            <span class="!font-bold text-amber-600">{{ record.cpu_usage }}%</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="上报时间" :width="120">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.readable_timestamp }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备IP" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="用户ID" :min-width="80">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="200px">
-              <template #default>
-                <div>{{ scope.row.user_id }}</div>
-              </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info"
-                    >{{
-                      scope.row.user_id.length > 20 ? scope.row.user_id.substring(0, 20) : ''
-                    }}...</el-tag
-                  >
-                </div>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="使用率" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold text-amber-600">{{ scope.row.cpu_usage }}%</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="上报时间" :min-width="120">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.readable_timestamp }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作">
-          <template #default="scope">
-            <el-button size="small" @click="handleCopyEvent(scope.$index, scope.row)">
+        <a-table-column title="操作">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleCopyEvent(index, record)">
               复制
-            </el-button>
+            </a-button>
           </template>
-        </el-table-column>
-      </el-table>
+        </a-table-column>
+      </a-table>
 
       <div class="h-5" />
       <div class="flex justify-center">
-        <el-pagination
-          v-model:current-page="cpuCurrentPage"
+        <a-pagination
+          v-model:current="cpuCurrentPage"
           v-model:page-size="cpuPageSize"
-          :page-sizes="[20, 40, 60, 80]"
-          layout="total, sizes, prev, pager, next, jumper"
+          :page-size-options="[20, 40, 60, 80]"
           :total="totalCpuSize"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+          show-size-changer
+          @change="handleCpuPageChange"
         />
       </div>
       <div class="h-5" />
-    </el-tab-pane>
+    </a-tab-pane>
 
     <!--       Memory        -->
     <!--       Memory        -->
     <!--       Memory        -->
-    <el-tab-pane>
-      <template #label>
+    <a-tab-pane key="memory">
+      <template #tab>
         <span class="custom-tabs-label">
-          <el-icon><IpMemory /></el-icon>
+          <DatabaseOutlined />
           <span>内存</span>
         </span>
       </template>
 
-      <el-table :data="memoryEvents" style="width: 100%">
-        <el-table-column label="事件ID" :min-width="40">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="100px">
-              <template #default>
-                <div>{{ scope.row.event_id }}</div>
+      <a-table :data-source="memoryEvents" row-key="event_id" style="width: 100%">
+        <a-table-column title="事件ID" :width="40">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="100">
+              <template #content>
+                <div>{{ record.event_id }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info">{{ scope.row.event_id.substring(0, 10) }}...</el-tag>
-                </div>
+              <div class="flex">
+                <a-tag color="default">{{ record.event_id.substring(0, 10) }}...</a-tag>
+              </div>
+            </a-popover>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备ID" :width="80">
+          <template #default="{ record }">
+            <span>{{ record.device_id }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备名称" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备IP" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="用户ID" :width="80">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="200">
+              <template #content>
+                <div>{{ record.user_id }}</div>
               </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag color="default">
+                  {{
+                    record.user_id.length > 20 ? record.user_id.substring(0, 20) : ''
+                  }}...</a-tag
+                >
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span>{{ scope.row.device_id }}</span>
+        <a-table-column title="使用率" :width="80">
+          <template #default="{ record }">
+            <span class="!font-bold text-amber-600">{{ record.mem_usage }}%</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="上报时间" :width="120">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.readable_timestamp }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备IP" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="用户ID" :min-width="80">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="200px">
-              <template #default>
-                <div>{{ scope.row.user_id }}</div>
-              </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info"
-                    >{{
-                      scope.row.user_id.length > 20 ? scope.row.user_id.substring(0, 20) : ''
-                    }}...</el-tag
-                  >
-                </div>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="使用率" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold text-amber-600">{{ scope.row.mem_usage }}%</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="上报时间" :min-width="120">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.readable_timestamp }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作">
-          <template #default="scope">
-            <el-button size="small" @click="handleCopyEvent(scope.$index, scope.row)">
+        <a-table-column title="操作">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleCopyEvent(index, record)">
               复制
-            </el-button>
+            </a-button>
           </template>
-        </el-table-column>
-      </el-table>
+        </a-table-column>
+      </a-table>
 
       <div class="h-5" />
 
       <div class="flex justify-center">
-        <el-pagination
-          v-model:current-page="memoryCurrentPage"
+        <a-pagination
+          v-model:current="memoryCurrentPage"
           v-model:page-size="memoryPageSize"
-          :page-sizes="[20, 40, 60, 80]"
-          layout="total, sizes, prev, pager, next, jumper"
+          :page-size-options="[20, 40, 60, 80]"
           :total="totalMemorySize"
-          @size-change="handleMemorySizeChange"
-          @current-change="handleMemoryCurrentChange"
+          show-size-changer
+          @change="handleMemoryPageChange"
         />
       </div>
       <div class="h-5" />
-    </el-tab-pane>
+    </a-tab-pane>
 
     <!--       HDisk        -->
     <!--       HDisk        -->
     <!--       HDisk        -->
-    <el-tab-pane>
-      <template #label>
+    <a-tab-pane key="disk">
+      <template #tab>
         <span class="custom-tabs-label">
-          <el-icon><IpDisk /></el-icon>
+          <HddOutlined />
           <span>硬盘</span>
         </span>
       </template>
 
-      <el-table :data="diskEvents" style="width: 100%">
-        <el-table-column label="事件ID" :min-width="40">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="100px">
-              <template #default>
-                <div>{{ scope.row.event_id }}</div>
+      <a-table :data-source="diskEvents" row-key="event_id" style="width: 100%">
+        <a-table-column title="事件ID" :width="40">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="100">
+              <template #content>
+                <div>{{ record.event_id }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info">{{ scope.row.event_id.substring(0, 10) }}...</el-tag>
-                </div>
+              <div class="flex">
+                <a-tag color="default">{{ record.event_id.substring(0, 10) }}...</a-tag>
+              </div>
+            </a-popover>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备ID" :width="80">
+          <template #default="{ record }">
+            <span>{{ record.device_id }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备名称" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备IP" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="用户ID" :width="80">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="200">
+              <template #content>
+                <div>{{ record.user_id }}</div>
               </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag color="default">
+                  {{
+                    record.user_id.length > 20 ? record.user_id.substring(0, 20) : ''
+                  }}...</a-tag
+                >
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span>{{ scope.row.device_id }}</span>
+        <a-table-column title="磁盘" :width="40">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.disk_path }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="使用率" :width="80">
+          <template #default="{ record }">
+            <span class="!font-bold text-amber-600">{{ record.disk_usage }}%</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备IP" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip }}</span>
+        <a-table-column title="上报时间" :width="120">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.readable_timestamp }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="用户ID" :min-width="80">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="200px">
-              <template #default>
-                <div>{{ scope.row.user_id }}</div>
-              </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info"
-                    >{{
-                      scope.row.user_id.length > 20 ? scope.row.user_id.substring(0, 20) : ''
-                    }}...</el-tag
-                  >
-                </div>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="磁盘" :min-width="40">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.disk_path }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="使用率" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold text-amber-600">{{ scope.row.disk_usage }}%</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="上报时间" :min-width="120">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.readable_timestamp }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作">
-          <template #default="scope">
-            <el-button size="small" @click="handleCopyEvent(scope.$index, scope.row)">
+        <a-table-column title="操作">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleCopyEvent(index, record)">
               复制
-            </el-button>
+            </a-button>
           </template>
-        </el-table-column>
-      </el-table>
+        </a-table-column>
+      </a-table>
 
       <div class="h-5" />
 
       <div class="flex justify-center">
-        <el-pagination
-          v-model:current-page="diskCurrentPage"
+        <a-pagination
+          v-model:current="diskCurrentPage"
           v-model:page-size="diskPageSize"
-          :page-sizes="[20, 40, 60, 80]"
-          layout="total, sizes, prev, pager, next, jumper"
+          :page-size-options="[20, 40, 60, 80]"
           :total="totalDiskSize"
-          @size-change="handleDiskSizeChange"
-          @current-change="handleDiskCurrentChange"
+          show-size-changer
+          @change="handleDiskPageChange"
         />
       </div>
       <div class="h-5" />
-    </el-tab-pane>
+    </a-tab-pane>
 
     <!--       GPU        -->
     <!--       GPU        -->
     <!--       GPU        -->
-    <el-tab-pane>
-      <template #label>
+    <a-tab-pane key="gpu">
+      <template #tab>
         <span class="custom-tabs-label">
-          <el-icon><IpMultiTriangularFour /></el-icon>
+          <ThunderboltOutlined />
           <span>GPU(显卡)</span>
         </span>
       </template>
 
-      <el-table :data="gpuEvents" style="width: 100%">
-        <el-table-column label="事件ID" :min-width="40">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="100px">
-              <template #default>
-                <div>{{ scope.row.event_id }}</div>
+      <a-table :data-source="gpuEvents" row-key="event_id" style="width: 100%">
+        <a-table-column title="事件ID" :width="40">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="100">
+              <template #content>
+                <div>{{ record.event_id }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info">{{ scope.row.event_id.substring(0, 10) }}...</el-tag>
-                </div>
+              <div class="flex">
+                <a-tag color="default">{{ record.event_id.substring(0, 10) }}...</a-tag>
+              </div>
+            </a-popover>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备ID" :width="80">
+          <template #default="{ record }">
+            <span>{{ record.device_id }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备名称" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="设备IP" :width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip }}</span>
+          </template>
+        </a-table-column>
+
+        <a-table-column title="用户ID" :width="80">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :width="200">
+              <template #content>
+                <div>{{ record.user_id }}</div>
               </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag color="default">
+                  {{
+                    record.user_id.length > 20 ? record.user_id.substring(0, 20) : ''
+                  }}...</a-tag
+                >
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span>{{ scope.row.device_id }}</span>
+        <a-table-column title="GPU名称" :width="140">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.gpu_name }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="使用率" :width="80">
+          <template #default="{ record }">
+            <span class="!font-bold text-amber-600">{{ record.gpu_usage }}%</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备IP" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip }}</span>
+        <a-table-column title="上报时间" :width="120">
+          <template #default="{ record }">
+            <span class="!font-semibold">{{ record.readable_timestamp }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="用户ID" :min-width="80">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="200px">
-              <template #default>
-                <div>{{ scope.row.user_id }}</div>
-              </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag type="info"
-                    >{{
-                      scope.row.user_id.length > 20 ? scope.row.user_id.substring(0, 20) : ''
-                    }}...</el-tag
-                  >
-                </div>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="GPU名称" :min-width="140">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.gpu_name }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="使用率" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold text-amber-600">{{ scope.row.gpu_usage }}%</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="上报时间" :min-width="120">
-          <template #default="scope">
-            <span class="!font-semibold">{{ scope.row.readable_timestamp }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作">
-          <template #default="scope">
-            <el-button size="small" @click="handleCopyEvent(scope.$index, scope.row)">
+        <a-table-column title="操作">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleCopyEvent(index, record)">
               复制
-            </el-button>
+            </a-button>
           </template>
-        </el-table-column>
-      </el-table>
+        </a-table-column>
+      </a-table>
 
       <div class="h-5" />
 
       <div class="flex justify-center">
-        <el-pagination
-          v-model:current-page="gpuCurrentPage"
+        <a-pagination
+          v-model:current="gpuCurrentPage"
           v-model:page-size="gpuPageSize"
-          :page-sizes="[20, 40, 60, 80]"
-          layout="total, sizes, prev, pager, next, jumper"
+          :page-size-options="[20, 40, 60, 80]"
           :total="totalGpuSize"
-          @size-change="handleGpuSizeChange"
-          @current-change="handleGpuCurrentChange"
+          show-size-changer
+          @change="handleGpuPageChange"
         />
       </div>
       <div class="h-5" />
-    </el-tab-pane>
-  </el-tabs>
+    </a-tab-pane>
+  </a-tabs>
 </template>
 
 <style scoped>
-.custom-tabs > .el-tabs__content {
+.custom-tabs :deep(.ant-tabs-content-holder) {
   padding: 32px;
   color: #6b778c;
   font-size: 32px;
   font-weight: 600;
 }
-.custom-tabs .custom-tabs-label .el-icon {
-  vertical-align: middle;
+.custom-tabs .custom-tabs-label {
+  display: inline-flex;
+  align-items: center;
 }
 .custom-tabs .custom-tabs-label span {
   vertical-align: middle;

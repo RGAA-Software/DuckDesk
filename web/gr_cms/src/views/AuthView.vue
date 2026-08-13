@@ -16,11 +16,11 @@ function authorize() {
 
 <template>
   <div class="bg-amber-300 w-100 h-10">
-    <el-text class="!text-3xl">DOCS</el-text>
+    <a-typography-text class="!text-3xl">DOCS</a-typography-text>
   </div>
   <div>
     <h3>授权页面</h3>
-    <el-button @click="authorize">Authorize</el-button>
+    <a-button @click="authorize">Authorize</a-button>
   </div>
 </template>
 

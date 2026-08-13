@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios from 'axios'
 import axiosHttp from '@/http.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 import { queryAuthorization, queryAuthStatus, pullAuthorization } from './auth_api.ts'
 
 vi.mock('@/http.ts', () => ({
@@ -11,8 +11,11 @@ vi.mock('@/http.ts', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
-  ElNotification: vi.fn(),
+vi.mock('ant-design-vue', () => ({
+  notification: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
 }))
 
 describe('queryAuthorization', () => {
@@ -61,7 +64,8 @@ describe('queryAuthStatus', () => {
 describe('pullAuthorization', () => {
   beforeEach(() => {
     vi.mocked(axiosHttp.post).mockReset()
-    vi.mocked(ElNotification).mockReset()
+    vi.mocked(notification.error).mockReset()
+    vi.mocked(notification.success).mockReset()
     localStorage.clear()
   })
 
@@ -76,9 +80,7 @@ describe('pullAuthorization', () => {
 
     expect(axiosHttp.post).toHaveBeenCalledWith('/api/v1/auth/control/pull/authorization')
     expect(result).toEqual(status)
-    expect(ElNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ message: '授权已刷新', type: 'success' }),
-    )
+    expect(notification.success).toHaveBeenCalledWith({ message: '授权已刷新' })
   })
 
   it('notifies failure when the server returns a non-200 code', async () => {
@@ -90,9 +92,7 @@ describe('pullAuthorization', () => {
     const result = await pullAuthorization()
 
     expect(result).toBeNull()
-    expect(ElNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ message: '刷新授权失败:500', type: 'error' }),
-    )
+    expect(notification.error).toHaveBeenCalledWith({ message: '刷新授权失败:500' })
   })
 
   it('notifies a network error when the request fails', async () => {
@@ -101,8 +101,6 @@ describe('pullAuthorization', () => {
     const result = await pullAuthorization()
 
     expect(result).toBeNull()
-    expect(ElNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ message: '刷新授权失败, 网络错误', type: 'error' }),
-    )
+    expect(notification.error).toHaveBeenCalledWith({ message: '刷新授权失败, 网络错误' })
   })
 })

@@ -5,6 +5,7 @@ import { RouterView } from 'vue-router'
 import { useWsStore } from '@/stores/ws'
 import { HOST_PORT } from '@/http.ts'
 import { generateConnectionToken } from '@/util/auth_token.ts'
+import { useTheme } from '@/composables/useTheme'
 
 const wsStore = useWsStore()
 const appkey = localStorage.getItem('appkey') || ''
@@ -13,12 +14,14 @@ const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
 const url = `${wsProtocol}://${HOST_PORT}/spvr/website?appkey=${appkey}&token=${tokenInfo.token}&ts=${tokenInfo.ts}&nonce=${tokenInfo.nonce}`
 console.log(url)
 wsStore.connect(url)
+
+const { themeConfig } = useTheme()
 </script>
 
 <template>
-  <div>
+  <a-config-provider :theme="themeConfig">
     <RouterView />
-  </div>
+  </a-config-provider>
 </template>
 
 <style scoped></style>

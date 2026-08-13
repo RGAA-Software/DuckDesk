@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { IpAudit, IpLockOne, IpSettingTwo, IpConnectionPoint } from 'vue-icons-plus/ip'
+import { ApiOutlined, AuditOutlined, LockOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import { onMounted, ref } from 'vue'
 import axiosHttp from '@/http.ts'
 import { formatDurationHMS, formatTimestamp } from '@/util/time.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 import { pullAuthorization } from '@/model/auth_api.ts'
 import { refreshSharedAuthorization, sharedAuthorization as authorization } from '@/model/auth_state.ts'
 import CryptoJS from 'crypto-js'
@@ -32,16 +32,14 @@ async function handleChangePassword() {
     repeatOldPassword.value?.length === 0 ||
     newPassword.value?.length === 0
   ) {
-    ElNotification({
+    notification.error({
       message: '请输入合法密码',
-      type: 'error',
     })
     return
   }
   if (oldPassword.value !== repeatOldPassword.value) {
-    ElNotification({
+    notification.error({
       message: '两次输入的旧密码不一致',
-      type: 'error',
     })
     return
   }
@@ -61,16 +59,14 @@ async function handleChangePassword() {
   const data = resp.data
   if (data.code !== 200) {
     console.error('queryDevices failed, data:', data)
-    ElNotification({
+    notification.error({
       message: '密码修改失败:' + data.code,
-      type: 'error',
     })
   } else {
     console.log('change password success')
     authorization.value = data.data
-    ElNotification({
+    notification.success({
       message: '密码修改成功',
-      type: 'success',
     })
   }
 }
@@ -116,23 +112,22 @@ async function handleCopyAccessInfo() {
     return;
   }
   await copyText(accessInfo.value)
-  ElNotification({
+  notification.success({
     message: '复制授权信息成功',
-    type: 'success',
   })
 }
 </script>
 
 <template>
   <div class="w-full h-full">
-    <el-tabs class="custom-tabs pl-3">
+    <a-tabs class="custom-tabs pl-3">
       <!--              -->
       <!--              -->
       <!--              -->
-      <el-tab-pane>
-        <template #label>
+      <a-tab-pane key="client-access">
+        <template #tab>
           <span class="custom-tabs-label">
-            <el-icon><IpConnectionPoint /></el-icon>
+            <ApiOutlined />
             <span>客户端接入</span>
           </span>
         </template>
@@ -146,16 +141,16 @@ async function handleCopyAccessInfo() {
 
           <div class="w-5"></div>
 
-          <el-button type="primary" class="w-20" @click="handleCopyAccessInfo">复制</el-button>
+          <a-button type="primary" class="w-20" @click="handleCopyAccessInfo">复制</a-button>
         </div>
-      </el-tab-pane>
+      </a-tab-pane>
       <!--              -->
       <!--              -->
       <!--              -->
-      <el-tab-pane>
-        <template #label>
+      <a-tab-pane key="auth-info">
+        <template #tab>
           <span class="custom-tabs-label">
-            <el-icon><IpAudit /></el-icon>
+            <AuditOutlined />
             <span>授权信息</span>
           </span>
         </template>
@@ -226,7 +221,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-18">
             <div class="w-35 text-slate-500">更新授权</div>
             <div>
-              <el-button type="primary" @click="handleRefreshAuth">刷新授权</el-button>
+              <a-button type="primary" @click="handleRefreshAuth">刷新授权</a-button>
             </div>
           </div>
           <div class="h-2" />
@@ -236,20 +231,20 @@ async function handleCopyAccessInfo() {
             <div class="flex items-center justify-center">
               <span>授权过期? 点击获取免费新授权</span>
               <span class="w-2"></span>
-              <el-button type="warning" @click="handleJumpOffSite">获取授权</el-button>
+              <a-button @click="handleJumpOffSite">获取授权</a-button>
             </div>
           </div>
           <div class="h-2" />
         </div>
-      </el-tab-pane>
+      </a-tab-pane>
 
       <!--              -->
       <!--              -->
       <!--              -->
-      <el-tab-pane>
-        <template #label>
+      <a-tab-pane key="change-password">
+        <template #tab>
           <span class="custom-tabs-label">
-            <el-icon><IpLockOne /></el-icon>
+            <LockOutlined />
             <span>修改密码</span>
           </span>
         </template>
@@ -258,12 +253,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-25 text-slate-500">新密码</div>
             <div class="w-50">
-              <el-input
-                v-model="newPassword"
-                placeholder="请输入"
-                type="password"
-                show-password
-              ></el-input>
+              <a-input-password v-model:value="newPassword" placeholder="请输入" />
             </div>
           </div>
 
@@ -271,12 +261,7 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-25 text-slate-500">旧密码</div>
             <div class="w-50">
-              <el-input
-                v-model="oldPassword"
-                placeholder="请输入"
-                type="password"
-                show-password
-              ></el-input>
+              <a-input-password v-model:value="oldPassword" placeholder="请输入" />
             </div>
           </div>
 
@@ -284,27 +269,22 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-25 text-slate-500">重复旧密码</div>
             <div class="w-50">
-              <el-input
-                v-model="repeatOldPassword"
-                placeholder="请输入"
-                type="password"
-                show-password
-              ></el-input>
+              <a-input-password v-model:value="repeatOldPassword" placeholder="请输入" />
             </div>
           </div>
 
           <div class="h-5" />
           <div class="flex items-center h-8">
-            <el-button class="w-25" type="primary" @click="handleChangePassword">确定</el-button>
+            <a-button class="w-25" type="primary" @click="handleChangePassword">确定</a-button>
             <div class="w-50"></div>
           </div>
         </div>
-      </el-tab-pane>
+      </a-tab-pane>
 
-      <el-tab-pane>
-        <template #label>
+      <a-tab-pane key="general-settings">
+        <template #tab>
           <span class="custom-tabs-label">
-            <el-icon><IpSettingTwo /></el-icon>
+            <SettingOutlined />
             <span>通用设置</span>
           </span>
         </template>
@@ -313,27 +293,25 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-25 text-slate-500">退出登录</div>
             <div class="w-50">
-              <el-button type="danger" class="w-20" @click="handleLogout">退出</el-button>
+              <a-button type="danger" class="w-20" @click="handleLogout">退出</a-button>
             </div>
           </div>
         </div>
-      </el-tab-pane>
-    </el-tabs>
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 
 <style scoped>
-.custom-tabs > .el-tabs__content {
+.custom-tabs :deep(.ant-tabs-content-holder) {
   padding: 32px;
   color: #6b778c;
   font-size: 32px;
   font-weight: 600;
 }
-.custom-tabs .custom-tabs-label .el-icon {
-  vertical-align: middle;
-}
-.custom-tabs .custom-tabs-label span {
-  vertical-align: middle;
-  margin-left: 4px;
+.custom-tabs .custom-tabs-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

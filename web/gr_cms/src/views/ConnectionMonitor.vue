@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { message } from 'ant-design-vue'
 import { queryAllServiceConn, queryAllPanelConn } from '@/model/conn_api.ts'
 import type { ServiceConn, ServiceAuthInfo } from '@/entity/service_conn.ts'
 import type { PanelConn } from '@/entity/panel_conn.ts'
@@ -63,7 +63,7 @@ async function refreshServiceConns() {
   try {
     const conns = await queryAllServiceConn()
     if (conns === null) {
-      ElMessage.error('查询 Service 连接失败')
+      message.error('查询 Service 连接失败')
       return
     }
     serviceConns.value = conns
@@ -77,7 +77,7 @@ async function refreshPanelConns() {
   try {
     const conns = await queryAllPanelConn()
     if (conns === null) {
-      ElMessage.error('查询 Panel 连接失败')
+      message.error('查询 Panel 连接失败')
       return
     }
     panelConns.value = conns
@@ -104,85 +104,79 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <el-tabs v-model="activeTab">
-      <el-tab-pane label="Service 连接" name="service">
-        <el-table v-loading="serviceLoading" :data="serviceConns" style="width: 100%">
-          <el-table-column label="设备ID" :min-width="120">
-            <template #default="scope">
-              <span>{{ scope.row.device_id }}</span>
+    <a-tabs v-model:active-key="activeTab">
+      <a-tab-pane key="service" tab="Service 连接">
+        <a-table :loading="serviceLoading" :data-source="serviceConns" row-key="device_id" style="width: 100%">
+          <template #emptyText><span>暂无 Service 连接</span></template>
+          <a-table-column title="设备ID" min-width="120">
+            <template #default="{ record }">
+              <span>{{ record.device_id }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="版本" :min-width="60">
-            <template #default="scope">
-              <span>{{ scope.row.version || '-' }}</span>
+          <a-table-column title="版本" min-width="60">
+            <template #default="{ record }">
+              <span>{{ record.version || '-' }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="render 状态" :min-width="60">
-            <template #default="scope">
-              <el-tag :type="scope.row.render_alive ? 'success' : 'info'">
-                {{ scope.row.render_alive ? '在线' : '离线' }}
-              </el-tag>
+          <a-table-column title="render 状态" min-width="60">
+            <template #default="{ record }">
+              <a-tag :color="record.render_alive ? 'success' : 'default'">
+                {{ record.render_alive ? '在线' : '离线' }}
+              </a-tag>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="授权信息" :min-width="140">
-            <template #default="scope">
-              <span>{{ authInfoText(scope.row.auth_info_json) }}</span>
+          <a-table-column title="授权信息" min-width="140">
+            <template #default="{ record }">
+              <span>{{ authInfoText(record.auth_info_json) }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="最后心跳" :min-width="100">
-            <template #default="scope">
-              <span>{{ formatTs(scope.row.last_update_timestamp) }}</span>
+          <a-table-column title="最后心跳" min-width="100">
+            <template #default="{ record }">
+              <span>{{ formatTs(record.last_update_timestamp) }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
+        </a-table>
+      </a-tab-pane>
 
-          <template #empty>
-            <span>暂无 Service 连接</span>
-          </template>
-        </el-table>
-      </el-tab-pane>
-
-      <el-tab-pane label="Panel 连接" name="panel">
-        <el-table v-loading="panelLoading" :data="panelConns" style="width: 100%">
-          <el-table-column label="设备ID" :min-width="120">
-            <template #default="scope">
-              <span>{{ scope.row.device_id }}</span>
+      <a-tab-pane key="panel" tab="Panel 连接">
+        <a-table :loading="panelLoading" :data-source="panelConns" row-key="device_id" style="width: 100%">
+          <template #emptyText><span>暂无 Panel 连接</span></template>
+          <a-table-column title="设备ID" min-width="120">
+            <template #default="{ record }">
+              <span>{{ record.device_id }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="设备名" :min-width="80">
-            <template #default="scope">
-              <span>{{ scope.row.device_name || '-' }}</span>
+          <a-table-column title="设备名" min-width="80">
+            <template #default="{ record }">
+              <span>{{ record.device_name || '-' }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="IP" :min-width="80">
-            <template #default="scope">
-              <span>{{ scope.row.device_ip_addr || '-' }}</span>
+          <a-table-column title="IP" min-width="80">
+            <template #default="{ record }">
+              <span>{{ record.device_ip_addr || '-' }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="用户ID" :min-width="80">
-            <template #default="scope">
-              <span>{{ scope.row.user_id || '-' }}</span>
+          <a-table-column title="用户ID" min-width="80">
+            <template #default="{ record }">
+              <span>{{ record.user_id || '-' }}</span>
             </template>
-          </el-table-column>
+          </a-table-column>
 
-          <el-table-column label="最后心跳" :min-width="100">
-            <template #default="scope">
-              <span>{{ formatTs(scope.row.last_update_timestamp) }}</span>
+          <a-table-column title="最后心跳" min-width="100">
+            <template #default="{ record }">
+              <span>{{ formatTs(record.last_update_timestamp) }}</span>
             </template>
-          </el-table-column>
-
-          <template #empty>
-            <span>暂无 Panel 连接</span>
-          </template>
-        </el-table>
-      </el-tab-pane>
-    </el-tabs>
+          </a-table-column>
+        </a-table>
+      </a-tab-pane>
+    </a-tabs>
 
     <div class="h-5" />
   </div>

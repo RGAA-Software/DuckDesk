@@ -5,7 +5,9 @@ import { useRoute } from 'vue-router'
 import { computed, onMounted } from 'vue'
 import { refreshSharedAuthorization, sharedAuthorization } from '@/model/auth_state.ts'
 import { formatDurationHMS } from '@/util/time.ts'
+import { useTheme } from '@/composables/useTheme'
 const route = useRoute()
+const { isDark } = useTheme()
 
 const headerTitle = computed(() => {
   return (route.meta.title as string) ?? ''
@@ -35,21 +37,28 @@ onMounted(async () => {
   await refreshSharedAuthorization()
 })
 </script>
+
 <template>
-  <el-container direction="horizontal" class="min-h-screen">
-    <el-aside width="160px" class="!bg-blue-50">
+  <a-layout class="min-h-screen">
+    <a-layout-sider width="160px" :theme="isDark ? 'dark' : 'light'">
       <AsideView />
-    </el-aside>
-    <div class="w-2" />
-    <el-container direction="vertical">
-      <el-header class="!p-0">
+    </a-layout-sider>
+    <a-layout>
+      <a-layout-header
+        :style="{
+          background: isDark ? '#141414' : '#fff',
+          padding: 0,
+          height: 'auto',
+          lineHeight: 'normal',
+        }"
+      >
         <HeaderView :title="headerTitle" :authInfo="authUsedInfo" />
-      </el-header>
-      <el-main class="!p-0">
+      </a-layout-header>
+      <a-layout-content>
         <RouterView />
-      </el-main>
-    </el-container>
-  </el-container>
+      </a-layout-content>
+    </a-layout>
+  </a-layout>
 </template>
 
 <style scoped></style>

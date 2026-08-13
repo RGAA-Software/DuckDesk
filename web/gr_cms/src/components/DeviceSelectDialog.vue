@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { notification } from 'ant-design-vue'
 import { queryDevices } from '@/model/device_api.ts'
 import type { Device } from '@/entity/device.ts'
 import { formatTimestamp } from '@/util/time.ts'
-import { type ComponentSize, ElNotification } from 'element-plus'
 
 interface Props {
   title: string
@@ -38,8 +38,7 @@ const dialogVisible = computed({
 
 const pageSize = ref(20)
 const currentPage = ref(1)
-const size = ref<ComponentSize>('default')
-const background = ref(false)
+const size = ref<'small' | 'default'>('default')
 const disabled = ref(false)
 
 const searchDeviceName = ref<string>('')
@@ -82,6 +81,18 @@ const handleSearchDevices = async () => {
   )
 }
 
+// 打开弹窗时默认拉取设备列表（默认 20 分页）
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (visible) {
+      currentPage.value = 1
+      pageSize.value = 20
+      handleSearchDevices()
+    }
+  },
+)
+
 const handleClearDevices = async () => {
   searchDeviceName.value = ''
   searchDeviceCode.value = ''
@@ -93,9 +104,8 @@ const handleSelectDevice = async (index: number, device: Device) => {
   console.log('index: ', index, ', device: ', device)
 
   if (!device.online) {
-    ElNotification({
+    notification.warning({
       message: '此设备: ' + device.device_name + ' 已经离线',
-      type: 'warning',
     })
     return
   }
@@ -106,162 +116,183 @@ const handleSelectDevice = async (index: number, device: Device) => {
   emit('update:modelValue', false)
 }
 
-const handleSizeChange = async (val: number) => {
-  pageSize.value = val
-  console.log('current page: ', currentPage.value, ' page size: ', pageSize.value)
-  devices.value = await queryDevices('', '', '', '', currentPage.value, pageSize.value)
-}
-
-const handleCurrentChange = async (val: number) => {
-  currentPage.value = val
-  devices.value = await queryDevices('', '', '', '', currentPage.value, pageSize.value)
+const handlePageChange = async (page: number, size: number) => {
+  currentPage.value = page
+  pageSize.value = size
+  devices.value = await queryDevices(
+    searchDeviceName.value,
+    searchDeviceCode.value,
+    searchDeviceIp.value,
+    searchOnlineState.value,
+    page,
+    size,
+  )
 }
 </script>
 
 <template>
-  <el-dialog
-    v-model="dialogVisible"
-    :modal="false"
-    modal-penetrable
-    align-center
+  <a-modal
+    v-model:open="dialogVisible"
+    :mask="false"
+    centered
     class="h-180"
     :width="1200"
+    :footer="null"
   >
     <div class="w-full !h-full">
       <div class="h-5" />
       <div class="font-semibold text-lg text-slate-600">搜索选择设备</div>
       <div class="h-2" />
-      <el-card class="w-full" shadow="never">
+      <a-card class="w-full" :bordered="false">
         <div class="flex">
           <div class="w-40 flex flex-col items-start">
             <span class="!text-sm">设备名称</span>
             <div class="h-2" />
-            <el-input class="" v-model="searchDeviceName" placeholder="请输入"></el-input>
+            <a-input
+              class=""
+              v-model:value="searchDeviceName"
+              placeholder="请输入"
+              @pressEnter="handleSearchDevices"
+            />
           </div>
 
           <div class="w-5" />
           <div class="w-40 flex flex-col items-start">
             <span class="!text-sm">设备码</span>
             <div class="h-2" />
-            <el-input class="" v-model="searchDeviceCode" placeholder="请输入"></el-input>
+            <a-input
+              class=""
+              v-model:value="searchDeviceCode"
+              placeholder="请输入"
+              @pressEnter="handleSearchDevices"
+            />
           </div>
 
           <div class="w-5" />
           <div class="w-40 flex flex-col items-start">
             <span class="!text-sm">IP地址</span>
             <div class="h-2" />
-            <el-input class="" v-model="searchDeviceIp" placeholder="请输入"></el-input>
+            <a-input
+              class=""
+              v-model:value="searchDeviceIp"
+              placeholder="请输入"
+              @pressEnter="handleSearchDevices"
+            />
           </div>
 
           <div class="w-5" />
           <div class="w-40 flex flex-col items-start">
             <span class="!text-sm">设备状态</span>
             <div class="h-2" />
-            <el-select v-model="searchOnlineState" placeholder="请选择" class="" clearable>
-              <el-option
+            <a-select
+              v-model:value="searchOnlineState"
+              placeholder="请选择"
+              class="w-full"
+              allowClear
+            >
+              <a-select-option
                 v-for="item in searchOnlineOptions"
                 :key="item.value"
-                :label="item.label"
                 :value="item.value"
-              />
-            </el-select>
+              >
+                {{ item.label }}
+              </a-select-option>
+            </a-select>
           </div>
 
           <div class="w-5" />
           <div class="w-20 flex flex-col items-start">
             <span class="!h-5"></span>
             <div class="h-2" />
-            <el-button class="w-20" type="primary" @click="handleSearchDevices">搜索</el-button>
+            <a-button class="w-20" type="primary" @click="handleSearchDevices">搜索</a-button>
           </div>
 
           <div class="w-5" />
           <div class="w-20 flex flex-col items-start">
             <span class="!h-5"></span>
             <div class="h-2" />
-            <el-button class="w-20" type="warning" @click="handleClearDevices">清除结果</el-button>
+            <a-button class="w-20" type="default" @click="handleClearDevices">清除结果</a-button>
           </div>
         </div>
-      </el-card>
+      </a-card>
     </div>
 
     <div class="h-5" />
 
     <div>
-      <el-table :data="devices" style="width: 100%">
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold">{{ scope.row.device_id }}</span>
+      <a-table :data-source="devices" style="width: 100%" row-key="device_id">
+        <a-table-column title="设备ID" :min-width="80">
+          <template #default="{ record }">
+            <span class="!font-bold">{{ record.device_id }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="设备名称" :min-width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="IP地址" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip_addr }}</span>
+        <a-table-column title="IP地址" :min-width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip_addr }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="使用时长" :min-width="90">
-          <template #default="scope">
-            <span>{{ scope.row.used_time }}</span>
+        <a-table-column title="使用时长" :min-width="90">
+          <template #default="{ record }">
+            <span>{{ record.used_time }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="网络状态" :min-width="60">
-          <template #default="scope">
-            <el-tag :type="scope.row.online ? 'success' : 'danger'" effect="light">
-              {{ scope.row.online ? '在线' : '离线' }}
-            </el-tag>
+        <a-table-column title="网络状态" :min-width="60">
+          <template #default="{ record }">
+            <a-tag :color="record.online ? 'success' : 'error'">
+              {{ record.online ? '在线' : '离线' }}
+            </a-tag>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="是否启用" :min-width="60">
-          <template #default="scope">
-            <el-tag :type="scope.row.active ? 'success' : 'danger'" effect="light">
-              {{ scope.row.active ? '已启用' : '已禁用' }}
-            </el-tag>
+        <a-table-column title="是否启用" :min-width="60">
+          <template #default="{ record }">
+            <a-tag :color="record.active ? 'success' : 'error'">
+              {{ record.active ? '已启用' : '已禁用' }}
+            </a-tag>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="创建时间" :min-width="100">
-          <template #default="scope">
-            <span class="!text-small">{{ formatTimestamp(scope.row.created_timestamp) }}</span>
+        <a-table-column title="创建时间" :min-width="100">
+          <template #default="{ record }">
+            <span class="!text-small">{{ formatTimestamp(record.created_timestamp) }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="操作" :min-width="80">
-          <template #default="scope">
-            <el-button
+        <a-table-column title="操作" :min-width="80">
+          <template #default="{ record, index }">
+            <a-button
               type="primary"
               size="small"
-              @click="handleSelectDevice(scope.$index, scope.row)"
+              @click="handleSelectDevice(index, record)"
             >
               查看设备
-            </el-button>
+            </a-button>
           </template>
-        </el-table-column>
-      </el-table>
+        </a-table-column>
+      </a-table>
     </div>
 
     <div class="h-5" />
 
     <div class="flex justify-center">
-      <el-pagination
-        v-model:current-page="currentPage"
+      <a-pagination
+        v-model:current="currentPage"
         v-model:page-size="pageSize"
-        :page-sizes="[20, 40, 60, 80]"
+        :page-size-options="[20, 40, 60, 80]"
         :size="size"
         :disabled="disabled"
-        :background="background"
-        layout="total, sizes, prev, pager, next"
+        show-size-changer
         :total="devices.length"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
+        @change="handlePageChange"
       />
     </div>
 
@@ -269,11 +300,11 @@ const handleCurrentChange = async (val: number) => {
 
     <!--    <template #footer>-->
     <!--      <div class="dialog-footer">-->
-    <!--        <el-button @click="handleCancel">取消</el-button>-->
-    <!--        <el-button type="primary" @click="handleConfirm">确定</el-button>-->
+    <!--        <a-button @click="handleCancel">取消</a-button>-->
+    <!--        <a-button type="primary" @click="handleConfirm">确定</a-button>-->
     <!--      </div>-->
     <!--    </template>-->
-  </el-dialog>
+  </a-modal>
 </template>
 
 <style scoped></style>

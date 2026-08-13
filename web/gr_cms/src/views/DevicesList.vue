@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { notification } from 'ant-design-vue'
 
 const hardwareDialogVisible = ref(false)
 const currentSelectedDevice = ref<Device>()
@@ -31,9 +32,8 @@ const handleDisableDevice = async (index: number, device: Device) => {
 const handleCopyLink = async (index: number, device: Device) => {
   console.log('copy link: ', index, device)
   await copyText(device.desktop_link)
-  ElNotification({
+  notification.success({
     message: '链接拷贝成功',
-    type: 'success',
   })
 }
 
@@ -51,7 +51,7 @@ const handleOpenWebDesktop = (index: number, device: Device) => {
     const ip = typeof first === 'string' ? first : first?.ip
     const port = info.rdpt
     if (!ip || !port) {
-      ElNotification({ message: '该设备的链接缺少 IP 或端口信息', type: 'error' })
+      notification.error({ message: '该设备的链接缺少 IP 或端口信息' })
       return
     }
     const did = info.did || device.device_id
@@ -63,7 +63,7 @@ const handleOpenWebDesktop = (index: number, device: Device) => {
     )
   } catch (e) {
     console.error(e)
-    ElNotification({ message: '解析设备链接失败', type: 'error' })
+    notification.error({ message: '解析设备链接失败' })
   }
 }
 
@@ -78,7 +78,6 @@ const devices = ref<Device[]>([])
 //   return ''
 // }
 
-import { type ComponentSize, ElNotification } from 'element-plus'
 import type { Device } from '@/entity/device.ts'
 import { formatTimestamp } from '@/util/time.ts'
 import { copyText } from '@/util/clipboard.ts'
@@ -86,19 +85,20 @@ import { buildWebClientUrl } from '@/util/web_client_url.ts'
 import { queryDevices, updateDeviceActive } from '@/model/device_api.ts'
 const pageSize = ref(20)
 const currentPage = ref(1)
-const size = ref<ComponentSize>('default')
-const background = ref(false)
+const size = ref<'small' | 'default'>('default')
 const disabled = ref(false)
 
-const handleSizeChange = async (val: number) => {
-  pageSize.value = val
-  console.log('current page: ', currentPage.value, ' page size: ', pageSize.value)
-  devices.value = await queryDevices('', '', '', '', currentPage.value, pageSize.value)
-}
-
-const handleCurrentChange = async (val: number) => {
-  currentPage.value = val
-  devices.value = await queryDevices('', '', '', '', currentPage.value, pageSize.value)
+const handlePageChange = async (page: number, size: number) => {
+  currentPage.value = page
+  pageSize.value = size
+  devices.value = await queryDevices(
+    searchDeviceName.value,
+    searchDeviceCode.value,
+    searchDeviceIp.value,
+    searchOnlineState.value,
+    page,
+    size,
+  )
 }
 
 // onMounted
@@ -150,284 +150,299 @@ const handleSearchDevices = async () => {
 
 <template>
   <div class="w-full">
-    <el-card class="w-full" shadow="hover">
+    <a-card class="w-full" hoverable>
       <div class="flex">
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">设备名称</span>
           <div class="h-2" />
-          <el-input class="" v-model="searchDeviceName" placeholder="请输入"></el-input>
+          <a-input
+            class=""
+            v-model:value="searchDeviceName"
+            placeholder="请输入"
+            @pressEnter="handleSearchDevices"
+          />
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">设备ID</span>
           <div class="h-2" />
-          <el-input class="" v-model="searchDeviceCode" placeholder="请输入"></el-input>
+          <a-input
+            class=""
+            v-model:value="searchDeviceCode"
+            placeholder="请输入"
+            @pressEnter="handleSearchDevices"
+          />
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">IP地址</span>
           <div class="h-2" />
-          <el-input class="" v-model="searchDeviceIp" placeholder="请输入"></el-input>
+          <a-input
+            class=""
+            v-model:value="searchDeviceIp"
+            placeholder="请输入"
+            @pressEnter="handleSearchDevices"
+          />
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">设备状态</span>
           <div class="h-2" />
-          <el-select v-model="searchOnlineState" placeholder="请选择" class="" clearable>
-            <el-option
-              v-for="item in searchOnlineOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
+          <a-select
+            v-model:value="searchOnlineState"
+            placeholder="请选择"
+            class="w-full"
+            allowClear
+          >
+            <a-select-option v-for="item in searchOnlineOptions" :key="item.value" :value="item.value">
+              {{ item.label }}
+            </a-select-option>
+          </a-select>
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!h-5"></span>
           <div class="h-2" />
-          <el-button class="w-20" type="primary" @click="handleSearchDevices">搜索</el-button>
+          <a-button class="w-20" type="primary" @click="handleSearchDevices">搜索</a-button>
         </div>
       </div>
-    </el-card>
+    </a-card>
 
     <div class="h-2" />
 
-    <el-card class="w-full" shadow="never">
-      <template #header>
+    <a-card class="w-full" :bordered="false">
+      <template #title>
         <div class="">
           <span class="text-lg font-bold text-slate-800">设备列表</span>
         </div>
       </template>
 
-      <el-table :data="devices" style="width: 100%">
-        <el-table-column label="设备ID" :min-width="80">
-          <template #default="scope">
-            <span class="!font-bold">{{ scope.row.device_id }}</span>
+      <a-table :data-source="devices" style="width: 100%" row-key="device_id">
+        <a-table-column title="设备ID" :min-width="80">
+          <template #default="{ record }">
+            <span class="!font-bold">{{ record.device_id }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="设备名称" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_name }}</span>
+        <a-table-column title="设备名称" :min-width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_name }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="IP地址" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.device_ip_addr }}</span>
+        <a-table-column title="IP地址" :min-width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.device_ip_addr }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="密码" :min-width="80">
-          <template #default="scope">
-            <span>{{ scope.row.gen_random_pwd }}</span>
+        <a-table-column title="密码" :min-width="80">
+          <template #default="{ record }">
+            <span>{{ record.gen_random_pwd }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="使用时长" :min-width="90">
-          <template #default="scope">
-            <span>{{ scope.row.used_time }}</span>
+        <a-table-column title="使用时长" :min-width="90">
+          <template #default="{ record }">
+            <span>{{ record.used_time }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="网络状态" :min-width="60">
-          <template #default="scope">
-            <el-tag :type="scope.row.online ? 'success' : 'danger'" effect="light">
-              {{ scope.row.online ? '在线' : '离线' }}
-            </el-tag>
+        <a-table-column title="网络状态" :min-width="60">
+          <template #default="{ record }">
+            <a-tag :color="record.online ? 'success' : 'error'">
+              {{ record.online ? '在线' : '离线' }}
+            </a-tag>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="是否启用" :min-width="60">
-          <template #default="scope">
-            <el-tag :type="scope.row.active ? 'success' : 'danger'" effect="light">
-              {{ scope.row.active ? '已启用' : '已禁用' }}
-            </el-tag>
+        <a-table-column title="是否启用" :min-width="60">
+          <template #default="{ record }">
+            <a-tag :color="record.active ? 'success' : 'error'">
+              {{ record.active ? '已启用' : '已禁用' }}
+            </a-tag>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="访问链接" :min-width="100">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="500px">
-              <template #default>
-                <div>{{ scope.row.desktop_link }}</div>
+        <a-table-column title="访问链接" :min-width="100">
+          <template #default="{ record, index }">
+            <a-popover
+              trigger="hover"
+              placement="top"
+              :overlay-inner-style="{ width: '500px' }"
+            >
+              <template #content>
+                <div>{{ record.desktop_link }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag>{{ scope.row.desktop_link.substring(0, 10) }}...</el-tag>
-                  <div class="w-1" />
-                  <el-button
-                    size="small"
-                    class="w-10"
-                    @click="handleCopyLink(scope.$index, scope.row)"
-                  >
-                    复制
-                  </el-button>
-                </div>
-              </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag>{{ record.desktop_link.substring(0, 10) }}...</a-tag>
+                <div class="w-1" />
+                <a-button size="small" class="w-10" @click="handleCopyLink(index, record)">
+                  复制
+                </a-button>
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="登录用户ID" :min-width="100">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="100px">
-              <template #default>
-                <div>{{ scope.row.logged_in_user_id }}</div>
+        <a-table-column title="登录用户ID" :min-width="100">
+          <template #default="{ record }">
+            <a-popover
+              trigger="hover"
+              placement="top"
+              :overlay-inner-style="{ width: '100px' }"
+            >
+              <template #content>
+                <div>{{ record.logged_in_user_id }}</div>
               </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag>{{
-                    scope.row.logged_in_user_id === ''
-                      ? '无'
-                      : scope.row.logged_in_user_id.substring(0, 10) + '...'
-                  }}</el-tag>
-                  <div class="w-1" />
-                </div>
-              </template>
-            </el-popover>
+              <div class="flex">
+                <a-tag>{{
+                  record.logged_in_user_id === ''
+                    ? '无'
+                    : record.logged_in_user_id.substring(0, 10) + '...'
+                }}</a-tag>
+                <div class="w-1" />
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="创建时间" :min-width="100">
-          <template #default="scope">
-            <span class="!text-small">{{ formatTimestamp(scope.row.created_timestamp) }}</span>
+        <a-table-column title="创建时间" :min-width="100">
+          <template #default="{ record }">
+            <span class="!text-small">{{ formatTimestamp(record.created_timestamp) }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="操作" :min-width="200">
-          <template #default="scope">
-            <el-button size="small" @click="handleHardwareInfo(scope.$index, scope.row)">
+        <a-table-column title="操作" :min-width="200">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleHardwareInfo(index, record)">
               硬件
-            </el-button>
+            </a-button>
 
-            <el-button
+            <a-button
               size="small"
               type="primary"
-              @click="handleOpenWebDesktop(scope.$index, scope.row)"
+              @click="handleOpenWebDesktop(index, record)"
             >
               Web桌面
-            </el-button>
+            </a-button>
 
-            <el-button size="small" @click="handleActiveDevice(scope.$index, scope.row)">
+            <a-button size="small" @click="handleActiveDevice(index, record)">
               启用
-            </el-button>
+            </a-button>
 
-            <el-button
+            <a-button
               size="small"
               type="danger"
-              @click="handleDisableDevice(scope.$index, scope.row)"
+              @click="handleDisableDevice(index, record)"
             >
               禁用
-            </el-button>
+            </a-button>
 
-<!--            <el-button-->
+<!--            <a-button-->
 <!--              size="small"-->
-<!--              type="warning"-->
-<!--              @click="handleDisableDevice(scope.$index, scope.row)"-->
+<!--              type="default"-->
+<!--              @click="handleDisableDevice(index, record)"-->
 <!--            >-->
 <!--              刷新链接-->
-<!--            </el-button>-->
+<!--            </a-button>-->
 
-            <!--            <el-button-->
+            <!--            <a-button-->
             <!--              size="small"-->
-            <!--              type="warning"-->
-            <!--              @click="handleFeelessMonitor(scope.$index, scope.row)"-->
+            <!--              type="default"-->
+            <!--              @click="handleFeelessMonitor(index, record)"-->
             <!--            >-->
             <!--              无感监控-->
-            <!--            </el-button>-->
+            <!--            </a-button>-->
           </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+        </a-table-column>
+      </a-table>
+    </a-card>
 
     <div class="h-5" />
 
     <div class="flex justify-center">
-      <el-pagination
-        v-model:current-page="currentPage"
+      <a-pagination
+        v-model:current="currentPage"
         v-model:page-size="pageSize"
-        :page-sizes="[20, 40, 60, 80]"
+        :page-size-options="[20, 40, 60, 80]"
         :size="size"
         :disabled="disabled"
-        :background="background"
-        layout="total, sizes, prev, pager, next, jumper"
+        show-size-changer
         :total="devices.length"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
+        @change="handlePageChange"
       />
     </div>
   </div>
 
-  <el-dialog
-    v-model="hardwareDialogVisible"
+  <a-modal
+    v-model:open="hardwareDialogVisible"
     title="硬件信息"
-    :modal="false"
-    modal-penetrable
-    center
+    :mask="false"
+    centered
     destroy-on-close
     class="!w-250"
+    :footer="null"
   >
     <!--System-->
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">OS版本</el-text>
+      <a-typography-text class="w-15 font-bold">OS版本</a-typography-text>
       <div class="w-5"></div>
-      <el-text class="w-130">
+      <a-typography-text class="w-130">
         {{
           currentSelectedDevice?.sys_info.os.sys_os_long_version +
           ' - ' +
           currentSelectedDevice?.sys_info.os.sys_host_name
-        }}</el-text
+        }}</a-typography-text
       >
     </div>
 
     <!--Uptime-->
     <div class="h-1"></div>
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">已开机:</el-text>
+      <a-typography-text class="w-15 font-bold">已开机:</a-typography-text>
       <div class="w-5"></div>
-      <el-text class="w-130">
+      <a-typography-text class="w-130">
         {{ currentSelectedDevice?.sys_info.uptime }}
-      </el-text>
+      </a-typography-text>
     </div>
 
     <!--CPU-->
     <div class="h-1"></div>
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">CPU:</el-text>
+      <a-typography-text class="w-15 font-bold">CPU:</a-typography-text>
       <div class="w-5"></div>
-      <el-text class="w-130">{{
+      <a-typography-text class="w-130">{{
         currentSelectedDevice?.sys_info.cpu.brand +
         ' 基准频率: ' +
         currentSelectedDevice?.sys_info.cpu.base_frequency +
         'GHz 核心数: ' +
         currentSelectedDevice?.sys_info.cpu.cpus.length
-      }}</el-text>
+      }}</a-typography-text>
     </div>
 
     <!--Memory-->
     <div class="h-1"></div>
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">内存:</el-text>
+      <a-typography-text class="w-15 font-bold">内存:</a-typography-text>
       <div class="w-5"></div>
-      <el-text class="w-130">{{
+      <a-typography-text class="w-130">{{
         '已使用: ' +
         currentSelectedDevice?.sys_info.mem.used_gb +
         ' GB 总' +
         currentSelectedDevice?.sys_info.mem.total_gb +
         ' GB'
-      }}</el-text>
+      }}</a-typography-text>
     </div>
 
     <!--Hard Disks-->
     <div class="h-1"></div>
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">硬盘:</el-text>
+      <a-typography-text class="w-15 font-bold">硬盘:</a-typography-text>
       <div class="w-5"></div>
       <div>
         <div
@@ -450,7 +465,7 @@ const handleSearchDevices = async () => {
     <!--GPUS-->
     <div class="h-1"></div>
     <div class="flex justify-start">
-      <el-text class="w-15 font-bold">GPU:</el-text>
+      <a-typography-text class="w-15 font-bold">GPU:</a-typography-text>
       <div class="w-5"></div>
       <div>
         <div v-for="(gpu, index) in currentSelectedDevice?.sys_info.gpus" :key="gpu.id || index">
@@ -465,30 +480,12 @@ const handleSearchDevices = async () => {
         </div>
       </div>
     </div>
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button type="primary" @click="hardwareDialogVisible = false"> 关闭 </el-button>
-      </div>
-    </template>
-  </el-dialog>
+
+    <div class="h-5"></div>
+    <div class="flex justify-end">
+      <a-button type="primary" @click="hardwareDialogVisible = false"> 关闭 </a-button>
+    </div>
+  </a-modal>
 </template>
 
-<style scoped>
-/* 关键 1：真正控制 select 高度的地方 */
-.h-9-select :deep(.el-select__wrapper) {
-  height: 36px !important;
-  min-height: 36px !important;
-}
-
-/* 关键 2：里面的 input */
-.h-9-select :deep(.el-input__wrapper) {
-  height: 36px !important;
-  min-height: 36px !important;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.h-9-select :deep(.el-input__inner) {
-  line-height: 36px;
-}
-</style>
+<style scoped></style>

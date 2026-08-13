@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import transIcon from '@/assets/ic_translate.svg'
 import avatarIcon from '@/assets/ic_avatar.svg'
+import { BulbFilled, BulbOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useTheme } from '@/composables/useTheme'
 
 const i18n = useI18n()
 const router = useRouter()
+const { isDark, toggleTheme } = useTheme()
 
 const handleTranslateClick = (command: string) => {
   console.log('translate-clicked', command)
   localStorage.setItem('language', command)
   i18n.locale.value = localStorage.getItem('language') || 'zh'
+}
+
+const handleMenuClick = ({ key }: { key: string | number }) => {
+  handleTranslateClick(key as string)
 }
 
 const handleClickUser = async () => {
@@ -34,35 +41,42 @@ const props = withDefaults(defineProps<Props>(), {
       <span class="!text-xl w-100 font-bold text-slate-700">管理系统 - {{ props.title }}</span>
 
       <div class="flex justify-end w-full items-center">
-
-        <span class="!text-small font-semibold text-amber-600">{{props.authInfo}}</span>
+        <span class="!text-small font-semibold text-amber-600">{{ props.authInfo }}</span>
 
         <div class="w-6"></div>
 
-        <el-dropdown trigger="click" @command="handleTranslateClick">
-          <el-image
-            :src="transIcon"
-            fit="cover"
-            style="width: 20px; height: 20px; cursor: pointer"
-          ></el-image>
-
-          <template v-slot:dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="zh">简体中文</el-dropdown-item>
-              <el-dropdown-item command="en">English</el-dropdown-item>
-            </el-dropdown-menu>
+        <a-dropdown trigger="click">
+          <img :src="transIcon" fit="cover" style="width: 20px; height: 20px; cursor: pointer" />
+          <template #overlay>
+            <a-menu @click="handleMenuClick">
+              <a-menu-item key="zh">简体中文</a-menu-item>
+              <a-menu-item key="en">English</a-menu-item>
+            </a-menu>
           </template>
-        </el-dropdown>
+        </a-dropdown>
+
+        <div class="w-6"></div>
+
+        <a-button
+          type="text"
+          shape="circle"
+          :title="isDark ? '切换亮色' : '切换暗色'"
+          @click="toggleTheme"
+        >
+          <template #icon>
+            <BulbFilled v-if="isDark" />
+            <BulbOutlined v-else />
+          </template>
+        </a-button>
       </div>
 
       <div class="w-6"></div>
 
-      <el-image
+      <img
         :src="avatarIcon"
-        fit="contain"
         style="width: 32px; height: 32px; cursor: pointer"
         @click="handleClickUser"
-      ></el-image>
+      />
 
       <div class="w-6"></div>
     </div>

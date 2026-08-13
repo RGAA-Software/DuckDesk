@@ -4,8 +4,9 @@ import axios from 'axios'
 const getBaseURL = () => {
   const { protocol, hostname, port } = window.location
 
+  // 开发模式走 Vite 代理（同源，见 vite.config.ts 的 proxy），保持相对路径即可
   if (import.meta.env.DEV) {
-    return 'http://127.0.0.1:30499'
+    return ''
   }
 
   const basePort = port ? `:${port}` : ''
@@ -15,8 +16,9 @@ const getBaseURL = () => {
 const getHostPort = () => {
   const { hostname, port } = window.location
 
+  // 开发模式 WebSocket 也走 Vite 代理（/spvr 已配置 ws:true）
   if (import.meta.env.DEV) {
-    return '127.0.0.1:30499'
+    return window.location.host
   }
 
   const basePort = port ? `:${port}` : ''

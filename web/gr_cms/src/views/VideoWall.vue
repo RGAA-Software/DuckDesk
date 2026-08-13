@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 import type { Device } from '@/entity/device.ts'
 import { queryDevices } from '@/model/device_api.ts'
 import { buildWebClientUrl } from '@/util/web_client_url.ts'
@@ -93,12 +93,19 @@ function onFrameLoad(cell: WallCell) {
 
 const handleApplyGlobalPassword = () => {
   if (!globalPassword.value) {
-    ElNotification({ message: '请先输入统一密码', type: 'warning' })
+    notification.warning({ message: '请先输入统一密码' })
     return
   }
   for (const cell of cells.value) {
     cell.password = globalPassword.value
     connectCell(cell)
+  }
+}
+
+// antd select 无 multiple-limit 等价属性,在 change 里截断到上限,保持原多选上限行为
+const handleSelectChange = (ids: string[]) => {
+  if (ids.length > MAX_CELLS) {
+    selectedIds.value = ids.slice(0, MAX_CELLS)
   }
 }
 
@@ -119,7 +126,7 @@ watch(selectedIds, (ids) => {
     }
     const info = parseDesktopLink(device)
     if (!info) {
-      ElNotification({ message: `设备「${device.device_name}」的链接缺少 IP 或端口信息`, type: 'error' })
+      notification.error({ message: `设备「${device.device_name}」的链接缺少 IP 或端口信息` })
       continue
     }
     next.push({
@@ -155,7 +162,7 @@ const gridStyle = computed(() => {
 
 const statusTagType = (status: CellStatus) => {
   if (status === 'loaded') return 'success'
-  if (status === 'unreachable') return 'danger'
+  if (status === 'unreachable') return 'error'
   return 'warning'
 }
 
@@ -180,21 +187,20 @@ onUnmounted(() => {
 
 <template>
   <div class="w-full">
-    <el-card class="w-full" shadow="hover">
+    <a-card class="w-full">
       <div class="flex items-end flex-wrap">
         <div class="w-100 flex flex-col items-start">
           <span class="!text-sm">选择设备(最多 {{ MAX_CELLS }} 台)</span>
           <div class="h-2" />
-          <el-select
-            v-model="selectedIds"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            :multiple-limit="MAX_CELLS"
+          <a-select
+            v-model:value="selectedIds"
+            mode="multiple"
+            :max-tag-count="MAX_CELLS"
             placeholder="勾选要上墙的设备"
             class="w-full"
+            @change="handleSelectChange"
           >
-            <el-option
+            <a-select-option
               v-for="d in devices"
               :key="d.device_id"
               :label="`${d.device_name} (${d.device_id})`"
@@ -202,41 +208,39 @@ onUnmounted(() => {
               :disabled="!d.online"
             >
               <span>{{ d.device_name }} ({{ d.device_id }})</span>
-              <el-tag class="!ml-2" size="small" :type="d.online ? 'success' : 'danger'" effect="light">
+              <a-tag class="!ml-2" size="small" :color="d.online ? 'success' : 'error'">
                 {{ d.online ? '在线' : '离线' }}
-              </el-tag>
-            </el-option>
-          </el-select>
+              </a-tag>
+            </a-select-option>
+          </a-select>
         </div>
 
         <div class="w-5" />
         <div class="w-60 flex flex-col items-start">
           <span class="!text-sm">统一安全密码(同密码场景)</span>
           <div class="h-2" />
-          <el-input
-            v-model="globalPassword"
-            type="password"
-            show-password
+          <a-input-password
+            v-model:value="globalPassword"
             placeholder="应用到所有格子"
-            @keyup.enter="handleApplyGlobalPassword"
+            @pressEnter="handleApplyGlobalPassword"
           />
         </div>
 
         <div class="w-5" />
-        <el-button type="primary" class="w-32" @click="handleApplyGlobalPassword">
+        <a-button type="primary" class="w-32" @click="handleApplyGlobalPassword">
           应用到全部
-        </el-button>
+        </a-button>
       </div>
-    </el-card>
+    </a-card>
 
     <div class="h-2" />
 
-    <el-card class="w-full" shadow="never">
-      <template #header>
+    <a-card class="w-full" :bordered="false">
+      <template #title>
         <span class="text-lg font-bold text-slate-800">多画面墙</span>
       </template>
 
-      <el-empty v-if="cells.length === 0" description="请先在上方勾选设备" />
+      <a-empty v-if="cells.length === 0" description="请先在上方勾选设备" />
 
       <div v-else class="wall-grid" :style="gridStyle">
         <div v-for="cell in cells" :key="cell.deviceId" class="wall-cell">
@@ -244,22 +248,20 @@ onUnmounted(() => {
             <span class="font-bold text-sm truncate" :title="cell.deviceId">
               {{ cell.deviceName }} ({{ cell.deviceId }})
             </span>
-            <el-tag size="small" :type="statusTagType(cell.status)" effect="light">
+            <a-tag size="small" :color="statusTagType(cell.status)">
               {{ statusText(cell.status) }}
-            </el-tag>
+            </a-tag>
           </div>
 
           <div class="flex items-center px-2 py-1">
-            <el-input
-              v-model="cell.password"
-              type="password"
-              show-password
+            <a-input-password
+              v-model:value="cell.password"
               size="small"
               placeholder="安全密码"
-              @keyup.enter="connectCell(cell)"
+              @pressEnter="connectCell(cell)"
             />
             <div class="w-1" />
-            <el-button size="small" type="primary" @click="connectCell(cell)">连接</el-button>
+            <a-button size="small" type="primary" @click="connectCell(cell)">连接</a-button>
           </div>
 
           <div class="cell-body">
@@ -273,7 +275,7 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </el-card>
+    </a-card>
   </div>
 </template>
 
@@ -286,7 +288,7 @@ onUnmounted(() => {
 .wall-cell {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--el-border-color);
+  border: 1px solid #d9d9d9;
   border-radius: 4px;
   overflow: hidden;
   height: 42vh;

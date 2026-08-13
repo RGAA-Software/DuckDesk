@@ -2,12 +2,12 @@
 import { useWsStore } from '@/stores/ws.ts'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
-  IpDevices,
-  IpConnectionArrow,
-  IpPeoplesTwo,
-  IpErrorComputer,
-  IpTimer,
-} from 'vue-icons-plus/ip'
+  DesktopOutlined,
+  ApiOutlined,
+  TeamOutlined,
+  WarningOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons-vue'
 import LineChart from '@/components/LineChart.vue'
 import { SysGpuInfo, SysInfo } from '@/entity/sys_info.ts'
 import { HwInfoArrayResp } from '@/entity/hw_info_array_resp.ts'
@@ -17,7 +17,7 @@ import { Device } from '@/entity/device.ts'
 import DeviceSelectDialog from '@/components/DeviceSelectDialog.vue'
 import axiosHttp from '@/http.ts'
 import { formatDuration } from '@/util/time.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 
 /// websocket
 const wsStore = useWsStore()
@@ -481,9 +481,8 @@ const handleSelectDevice = (device: Device) => {
     return
   }
   if (!device.online) {
-    ElNotification({
+    notification.warning({
       message: '此设备: ' + device.device_name + ' 已经离线',
-      type: 'warning',
     })
     return
   }
@@ -501,66 +500,66 @@ const handleSelectDevice = (device: Device) => {
       <div class="text-xl font-semibold text-slate-700">资源信息总览</div>
       <div class="h-5" />
       <div class="flex justify-center">
-        <el-card class="w-50 h-30 !rounded-xl" shadow="hover">
+        <a-card class="w-50 h-30 !rounded-xl" hoverable>
           <div class="flex flex-col justify-center items-center">
             <div class="flex font-semibold !text-slate-600 text-base">
-              <div class=""><IpDevices /></div>
+              <div class=""><DesktopOutlined /></div>
               <div class="w-1" />
               设备总数
             </div>
             <div class="h-3" />
             <div class="font-semibold text-blue-500 text-3xl">{{ totalDevices }}</div>
           </div>
-        </el-card>
+        </a-card>
 
         <div class="w-5" />
 
-        <el-card class="w-50 h-30 !rounded-xl" shadow="hover">
+        <a-card class="w-50 h-30 !rounded-xl" hoverable>
           <div class="flex flex-col justify-center items-center">
             <div class="flex font-semibold !text-slate-600 text-base">
-              <div class=""><IpConnectionArrow /></div>
+              <div class=""><ApiOutlined /></div>
               <div class="w-1" />
               在线连接数
             </div>
             <div class="h-3" />
             <div class="font-semibold text-blue-500 text-3xl">{{ totalOnlineConnections }}</div>
           </div>
-        </el-card>
+        </a-card>
 
         <div class="w-5" />
 
-        <el-card class="w-50 h-30 !rounded-xl" shadow="hover">
+        <a-card class="w-50 h-30 !rounded-xl" hoverable>
           <div class="flex flex-col justify-center items-center">
             <div class="flex font-semibold !text-slate-600 text-base">
-              <div class=""><IpPeoplesTwo /></div>
+              <div class=""><TeamOutlined /></div>
               <div class="w-1" />
               用户数
             </div>
             <div class="h-3" />
             <div class="font-semibold text-blue-500 text-3xl">{{ totalUsers }}</div>
           </div>
-        </el-card>
+        </a-card>
 
         <div class="w-5" />
 
-        <el-card class="w-50 h-30 !rounded-xl" shadow="hover">
+        <a-card class="w-50 h-30 !rounded-xl" hoverable>
           <div class="flex flex-col justify-center items-center">
             <div class="flex font-semibold !text-slate-600 text-base">
-              <div class=""><IpErrorComputer /></div>
+              <div class=""><WarningOutlined /></div>
               <div class="w-1" />
               事件
             </div>
             <div class="h-3" />
             <div class="font-semibold text-blue-500 text-3xl">{{ totalEvents }}</div>
           </div>
-        </el-card>
+        </a-card>
 
         <div class="w-5" />
 
-        <el-card class="w-70 h-30 !rounded-xl" shadow="hover">
+        <a-card class="w-70 h-30 !rounded-xl" hoverable>
           <div class="flex flex-col justify-center items-center">
             <div class="flex font-semibold !text-slate-600 text-base">
-              <div class=""><IpTimer /></div>
+              <div class=""><ClockCircleOutlined /></div>
               <div class="w-1" />
               连接总时长
             </div>
@@ -569,7 +568,7 @@ const handleSelectDevice = (device: Device) => {
               {{ formatDuration(totalUsedTime) }}
             </div>
           </div>
-        </el-card>
+        </a-card>
       </div>
     </div>
 
@@ -591,68 +590,68 @@ const handleSelectDevice = (device: Device) => {
             : 'UnKnown'
         }})
         <div class="w-2" />
-        <el-button :size="'default'" type="primary" @click="openSearchDialog">选择设备 </el-button>
+        <a-button type="primary" @click="openSearchDialog">选择设备 </a-button>
       </div>
 
       <div class="h-5" />
 
-      <el-row :gutter="20">
-        <el-col :span="8">
+      <a-row :gutter="20">
+        <a-col :span="8">
           <div class="flex justify-center items-center w-full h-full bg-white rounded-xl">
             <div class="">
               <!--System-->
               <div class="flex justify-start">
-                <el-text class="!w-20 font-semibold">OS版本</el-text>
+                <a-typography-text class="!w-20 font-semibold">OS版本</a-typography-text>
                 <div class="w-5"></div>
-                <el-text class="w-full">
-                  {{ sysInfo?.os.sys_os_long_version + ' - ' + sysInfo?.os.sys_host_name }}</el-text
+                <a-typography-text class="w-full">
+                  {{ sysInfo?.os.sys_os_long_version + ' - ' + sysInfo?.os.sys_host_name }}</a-typography-text
                 >
               </div>
 
               <!--Uptime-->
               <div class="h-1"></div>
               <div class="flex justify-start">
-                <el-text class="!w-20 font-semibold">已开机</el-text>
+                <a-typography-text class="!w-20 font-semibold">已开机</a-typography-text>
                 <div class="w-5"></div>
-                <el-text class="w-full">
+                <a-typography-text class="w-full">
                   {{ sysInfo?.uptime }}
-                </el-text>
+                </a-typography-text>
               </div>
 
               <!--CPU-->
               <div class="h-1"></div>
               <div class="flex justify-start">
-                <el-text class="!w-20 font-semibold">CPU型号</el-text>
+                <a-typography-text class="!w-20 font-semibold">CPU型号</a-typography-text>
                 <div class="w-5"></div>
-                <el-text class="w-full">{{ sysInfo?.cpu.brand }}</el-text>
+                <a-typography-text class="w-full">{{ sysInfo?.cpu.brand }}</a-typography-text>
               </div>
 
               <div class="h-1"></div>
               <div class="flex justify-start">
-                <el-text class="!w-20 font-semibold">CPU参数</el-text>
+                <a-typography-text class="!w-20 font-semibold">CPU参数</a-typography-text>
                 <div class="w-5"></div>
-                <el-text class="w-full">{{
+                <a-typography-text class="w-full">{{
                   '基准频率: ' +
                   sysInfo?.cpu.base_frequency +
                   ', 核心数: ' +
                   sysInfo?.cpu.cpus.length
-                }}</el-text>
+                }}</a-typography-text>
               </div>
 
               <!--Memory-->
               <div class="h-1"></div>
               <div class="flex justify-start">
-                <el-text class="w-20 font-semibold">内存</el-text>
+                <a-typography-text class="w-20 font-semibold">内存</a-typography-text>
                 <div class="w-5"></div>
-                <el-text class="w-full">{{
+                <a-typography-text class="w-full">{{
                   '已使用: ' + sysInfo?.mem.used_gb + ' GB 总' + sysInfo?.mem.total_gb + ' GB'
-                }}</el-text>
+                }}</a-typography-text>
               </div>
 
               <!--Hard Disks-->
               <div class="h-1"></div>
               <div class="flex justify-start">
-                <el-text class="w-20 font-semibold">硬盘</el-text>
+                <a-typography-text class="w-20 font-semibold">硬盘</a-typography-text>
                 <div class="w-5"></div>
                 <div class="w-full">
                   <div
@@ -660,12 +659,14 @@ const handleSelectDevice = (device: Device) => {
                     v-for="(disk, index) in sysInfo?.disks"
                     :key="disk.mount_on || index"
                   >
-                    <el-progress
+                    <a-progress
                       class="w-40"
-                      :percentage="
-                        (((disk.total_gb - disk.available_gb) * 100) / disk.total_gb).toFixed(0)
+                      :percent="
+                        Number(
+                          (((disk.total_gb - disk.available_gb) * 100) / disk.total_gb).toFixed(0),
+                        )
                       "
-                      :color="
+                      :stroke-color="
                         ((disk.total_gb - disk.available_gb) * 100) / disk.total_gb > 50
                           ? diskWarnColor
                           : diskNormalColor
@@ -680,8 +681,8 @@ const handleSelectDevice = (device: Device) => {
               </div>
             </div>
           </div>
-        </el-col>
-        <el-col :span="8">
+        </a-col>
+        <a-col :span="8">
           <LineChart
             title="CPU使用率(%)"
             :show-area="true"
@@ -689,8 +690,8 @@ const handleSelectDevice = (device: Device) => {
             :y-axis="cpuUsageYAxis"
             class="!h-80"
           />
-        </el-col>
-        <el-col :span="8">
+        </a-col>
+        <a-col :span="8">
           <LineChart
             title="CPU运行频率(GHz)"
             :show-area="true"
@@ -698,13 +699,13 @@ const handleSelectDevice = (device: Device) => {
             :y-axis="cpuFreqYAxis"
             class="!h-80"
           />
-        </el-col>
-      </el-row>
+        </a-col>
+      </a-row>
     </div>
 
     <div class="bg-gray-100 rounded-lg pl-5 pt-5 pr-5 pb-5">
-      <el-row :gutter="20">
-        <el-col :span="8">
+      <a-row :gutter="20">
+        <a-col :span="8">
           <LineChart
             :title="memTitle"
             :show-area="true"
@@ -712,8 +713,8 @@ const handleSelectDevice = (device: Device) => {
             :y-axis="memUsageYAxis"
             class="w-min-150 !h-80"
           />
-        </el-col>
-        <el-col :span="8">
+        </a-col>
+        <a-col :span="8">
           <LineChart
             :title="networkSendTitle"
             :show-area="true"
@@ -723,8 +724,8 @@ const handleSelectDevice = (device: Device) => {
             areaColorStart="rgba(106, 203, 97,0.5)"
             areaColorEnd="rgba(106, 203, 97,0.005)"
           />
-        </el-col>
-        <el-col :span="8">
+        </a-col>
+        <a-col :span="8">
           <LineChart
             :title="networkRecvTitle"
             :show-area="true"
@@ -734,8 +735,8 @@ const handleSelectDevice = (device: Device) => {
             areaColorStart="rgba(255, 128, 0,0.5)"
             areaColorEnd="rgba(255, 128, 0,0.005)"
           />
-        </el-col>
-      </el-row>
+        </a-col>
+      </a-row>
     </div>
 
     <div class="h-5" />
@@ -746,8 +747,8 @@ const handleSelectDevice = (device: Device) => {
           GPU信息({{ index + 1 }} - {{ gpuGroup.brand }})
         </div>
         <div class="h-5" />
-        <el-row :gutter="20">
-          <el-col :span="6">
+        <a-row :gutter="20">
+          <a-col :span="6">
             <LineChart
               :title="gpuGroup.usageTitle"
               :show-area="true"
@@ -756,8 +757,8 @@ const handleSelectDevice = (device: Device) => {
               class="!h-80"
               areaColorStart="rgba(75, 150, 255,0.5)"
               areaColorEnd="rgba(75, 150, 255,0.005)"
-          /></el-col>
-          <el-col :span="6">
+          /></a-col>
+          <a-col :span="6">
             <LineChart
               :title="gpuGroup.encoderTitle"
               :show-area="true"
@@ -766,8 +767,8 @@ const handleSelectDevice = (device: Device) => {
               class="!h-80"
               areaColorStart="rgba(75, 150, 255,0.5)"
               areaColorEnd="rgba(75, 150, 255,0.005)"
-          /></el-col>
-          <el-col :span="6">
+          /></a-col>
+          <a-col :span="6">
             <LineChart
               :title="gpuGroup.memUsageTitle"
               :show-area="true"
@@ -776,8 +777,8 @@ const handleSelectDevice = (device: Device) => {
               class="!h-80"
               areaColorStart="rgba(75, 150, 255,0.5)"
               areaColorEnd="rgba(75, 150, 255,0.005)"
-          /></el-col>
-          <el-col :span="6">
+          /></a-col>
+          <a-col :span="6">
             <LineChart
               :title="gpuGroup.tempTitle"
               :show-area="true"
@@ -786,8 +787,8 @@ const handleSelectDevice = (device: Device) => {
               class="!h-80"
               areaColorStart="rgba(75, 150, 255,0.5)"
               areaColorEnd="rgba(75, 150, 255,0.005)"
-          /></el-col>
-        </el-row>
+          /></a-col>
+        </a-row>
       </div>
     </div>
   </div>

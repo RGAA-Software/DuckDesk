@@ -1,8 +1,22 @@
 @import "tailwindcss";
-.el-table .warning-row {
-  --el-table-tr-bg-color: var(--el-color-warning-light-9);
+
+/* ===== 暗色模式全局适配（配合 useTheme 切换 html.dark） ===== */
+html.dark body {
+  background-color: #0a0a0a;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.el-table .success-row {
-  --el-table-tr-bg-color: var(--el-color-success-light-9);
+html.dark .bg-white {
+  background-color: #141414 !important;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-gray-100 {
+  background-color: #1d1d1d !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-700,
+html.dark .text-slate-800 {
+  color: rgba(255, 255, 255, 0.85) !important;
 }

@@ -4,7 +4,7 @@ import axiosHttp from '@/http.ts'
 import type { ClientConn } from '@/entity/client_conn.ts'
 import { formatDuration } from '@/util/time.ts'
 import { copyText } from '@/util/clipboard.ts'
-import { ElNotification } from 'element-plus'
+import { notification } from 'ant-design-vue'
 
 const totalFileTransferSize = ref(0)
 // file transfer histories
@@ -13,9 +13,8 @@ const fileTransfers = ref<ClientConn[]>([])
 const handleCopyClientConnInfo = (index: number, conn: ClientConn) => {
   console.log(index, conn)
   copyText(JSON.stringify(conn))
-  ElNotification({
-    title: '复制成功',
-    type: 'success',
+  notification.success({
+    message: '复制成功',
   })
 }
 
@@ -57,63 +56,62 @@ onMounted(async () => {
 <template>
   <div>
     <!-- file transfer list -->
-    <el-table :data="fileTransfers" style="width: 100%">
-      <el-table-column label="连接ID" :min-width="80">
-        <template #default="scope">
-          <el-popover effect="dark" trigger="hover" placement="top" width="200px">
-            <template #default>
-              <div>{{ scope.row.conn_id }}</div>
+    <a-table :data-source="fileTransfers" row-key="conn_id" style="width: 100%">
+      <template #emptyText><span>暂无数据</span></template>
+      <a-table-column title="连接ID" min-width="80">
+        <template #default="{ record }">
+          <a-popover placement="top" trigger="hover" :overlay-style="{ width: '200px' }">
+            <template #content>
+              <div>{{ record.conn_id }}</div>
             </template>
-            <template #reference>
-              <div class="flex">
-                <el-tag type="info">{{ scope.row.conn_id.substring(0, 20) }}...</el-tag>
-                <div class="w-1" />
-              </div>
-            </template>
-          </el-popover>
+            <div class="flex">
+              <a-tag color="default">{{ record.conn_id.substring(0, 20) }}...</a-tag>
+              <div class="w-1" />
+            </div>
+          </a-popover>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="发起设备" :min-width="80">
-        <template #default="scope">
-          <span>{{ scope.row.device_id }}</span>
+      <a-table-column title="发起设备" min-width="80">
+        <template #default="{ record }">
+          <span>{{ record.device_id }}</span>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="目标设备" :min-width="80">
-        <template #default="scope">
-          <span>{{ scope.row.remote_device_id + scope.row.remote_device_ip }}</span>
+      <a-table-column title="目标设备" min-width="80">
+        <template #default="{ record }">
+          <span>{{ record.remote_device_id + record.remote_device_ip }}</span>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="开始时间" :min-width="100">
-        <template #default="scope">
-          <span>{{ scope.row.readable_hello_ts }}</span>
+      <a-table-column title="开始时间" min-width="100">
+        <template #default="{ record }">
+          <span>{{ record.readable_hello_ts }}</span>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="结束时间" :min-width="100">
-        <template #default="scope">
-          <span class="">{{ scope.row.readable_update_ts }}</span>
+      <a-table-column title="结束时间" min-width="100">
+        <template #default="{ record }">
+          <span class="">{{ record.readable_update_ts }}</span>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="连接时间" :min-width="60">
-        <template #default="scope">
+      <a-table-column title="连接时间" min-width="60">
+        <template #default="{ record }">
           <span>{{
-            formatDuration(scope.row.last_update_timestamp - scope.row.hello_timestamp)
+            formatDuration(record.last_update_timestamp - record.hello_timestamp)
           }}</span>
         </template>
-      </el-table-column>
+      </a-table-column>
 
-      <el-table-column label="操作">
-        <template #default="scope">
-          <el-button size="small" @click="handleCopyClientConnInfo(scope.$index, scope.row)">
+      <a-table-column title="操作">
+        <template #default="{ index, record }">
+          <a-button size="small" @click="handleCopyClientConnInfo(index, record)">
             复制
-          </el-button>
+          </a-button>
         </template>
-      </el-table-column>
-    </el-table>
+      </a-table-column>
+    </a-table>
 
     <div class="h-5" />
   </div>

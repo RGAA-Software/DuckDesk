@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { notification } from 'ant-design-vue'
 import { formatTimestamp } from '@/util/time.ts'
 import axiosHttp, { BASE_URL } from '@/http.ts'
 import type { SpvrUser } from '@/entity/spvr_user.ts'
 import { copyText } from '@/util/clipboard.ts'
-import { type ComponentSize, ElNotification } from 'element-plus'
-import { Picture } from '@element-plus/icons-vue'
 
 const appkey = ref<string>('')
 const pageSize = ref(20)
 const currentPage = ref(1)
-const size = ref<ComponentSize>('default')
-const background = ref(false)
+const size = ref<'small' | 'default'>('default')
 const disabled = ref(false)
 const searchUserId = ref('')
 const searchUserName = ref('')
@@ -19,15 +17,10 @@ const handleSearch = async () => {
   await queryUsers(currentPage.value, pageSize.value, searchUserId.value, searchUserName.value)
 }
 
-const handleSizeChange = async (val: number) => {
-  pageSize.value = val
-  console.log('current page: ', currentPage.value, ' page size: ', pageSize.value)
-  await queryUsers(currentPage.value, pageSize.value, '', '')
-}
-
-const handleCurrentChange = async (val: number) => {
-  currentPage.value = val
-  await queryUsers(currentPage.value, pageSize.value, '', '')
+const handlePageChange = async (page: number, size: number) => {
+  currentPage.value = page
+  pageSize.value = size
+  await queryUsers(page, size, '', '')
 }
 
 onMounted(async () => {
@@ -66,141 +59,120 @@ async function queryUsers(page: number, pageSize: number, uid: string, username:
 
 async function handleCopy(_index: number, user: SpvrUser) {
   await copyText(JSON.stringify(user))
-  ElNotification({
+  notification.success({
     message: '拷贝成功',
-    type: 'success',
   })
 }
 </script>
 
 <template>
   <div>
-    <el-card class="w-full" shadow="hover">
+    <a-card class="w-full" hoverable>
       <div class="flex">
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">用户ID</span>
           <div class="h-2" />
-          <el-input class="" v-model="searchUserId" placeholder="请输入"></el-input>
+          <a-input class="" v-model:value="searchUserId" placeholder="请输入"></a-input>
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!text-sm">用户名</span>
           <div class="h-2" />
-          <el-input class="" v-model="searchUserName" placeholder="请输入"></el-input>
+          <a-input class="" v-model:value="searchUserName" placeholder="请输入"></a-input>
         </div>
 
         <div class="w-5" />
         <div class="w-40 flex flex-col items-start">
           <span class="!h-5"></span>
           <div class="h-2" />
-          <el-button class="w-20" type="primary" @click="handleSearch">搜索</el-button>
+          <a-button class="w-20" type="primary" @click="handleSearch">搜索</a-button>
         </div>
       </div>
-    </el-card>
+    </a-card>
 
     <div class="h-2" />
 
-    <el-card class="w-full" shadow="never">
-      <template #header>
+    <a-card class="w-full" :bordered="false">
+      <template #title>
         <div class="">
           <span class="text-lg font-bold text-slate-800">设备列表</span>
         </div>
       </template>
 
-      <el-table :data="users" style="width: 100%">
-        <el-table-column label="头像" :min-width="30">
-          <template #default="scope">
-            <el-image
+      <a-table :data-source="users" style="width: 100%" row-key="uid">
+        <a-table-column title="头像" :min-width="30">
+          <template #default="{ record }">
+            <a-image
               class="w-10 h-10 rounded-full overflow-hidden"
-              :src="BASE_URL + scope.row.avatar_path + '?appkey=' + appkey"
-              :fit="'cover'"
-            >
-              <template #error>
-                <div class="image-error">
-                  <el-icon><Picture /></el-icon>
-                </div>
+              :src="BASE_URL + record.avatar_path + '?appkey=' + appkey"
+              :preview="false"
+            />
+          </template>
+        </a-table-column>
+
+        <a-table-column title="UID" :min-width="80">
+          <template #default="{ record }">
+            <a-popover trigger="hover" placement="top" :overlay-inner-style="{ width: '120px' }">
+              <template #content>
+                <div>{{ record.uid }}</div>
               </template>
-            </el-image>
+              <div class="flex">
+                <a-tag>{{ record.uid.substring(0, 15) }}...</a-tag>
+              </div>
+            </a-popover>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="UID" :min-width="80">
-          <template #default="scope">
-            <el-popover effect="dark" trigger="hover" placement="top" width="120px">
-              <template #default>
-                <div>{{ scope.row.uid }}</div>
-              </template>
-              <template #reference>
-                <div class="flex">
-                  <el-tag>{{ scope.row.uid.substring(0, 15) }}...</el-tag>
-                </div>
-              </template>
-            </el-popover>
+        <a-table-column title="用户名" :min-width="80">
+          <template #default="{ record }">
+            <span class="">{{ record.username }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="用户名" :min-width="80">
-          <template #default="scope">
-            <span class="">{{ scope.row.username }}</span>
+        <a-table-column title="是否启用" :min-width="60">
+          <template #default="{ record }">
+            <a-tag :color="!record.deleted ? 'success' : 'error'">
+              {{ !record.deleted ? '已启用' : '已禁用' }}
+            </a-tag>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="是否启用" :min-width="60">
-          <template #default="scope">
-            <el-tag :type="!scope.row.deleted ? 'success' : 'danger'" effect="light">
-              {{ !scope.row.deleted ? '已启用' : '已禁用' }}
-            </el-tag>
+        <a-table-column title="创建时间" :min-width="100">
+          <template #default="{ record }">
+            <span class="!text-small">{{ formatTimestamp(record.created_timestamp) }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="创建时间" :min-width="100">
-          <template #default="scope">
-            <span class="!text-small">{{ formatTimestamp(scope.row.created_timestamp) }}</span>
+        <a-table-column title="更新时间" :min-width="100">
+          <template #default="{ record }">
+            <span class="!text-small">{{ formatTimestamp(record.update_timestamp) }}</span>
           </template>
-        </el-table-column>
+        </a-table-column>
 
-        <el-table-column label="更新时间" :min-width="100">
-          <template #default="scope">
-            <span class="!text-small">{{ formatTimestamp(scope.row.update_timestamp) }}</span>
+        <a-table-column title="操作" :min-width="200">
+          <template #default="{ record, index }">
+            <a-button size="small" @click="handleCopy(index, record)"> 复制 </a-button>
           </template>
-        </el-table-column>
-
-        <el-table-column label="操作" :min-width="200">
-          <template #default="scope">
-            <el-button size="small" @click="handleCopy(scope.$index, scope.row)"> 复制 </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+        </a-table-column>
+      </a-table>
+    </a-card>
 
     <div class="h-3" />
 
     <div class="flex justify-center">
-      <el-pagination
-        v-model:current-page="currentPage"
+      <a-pagination
+        v-model:current="currentPage"
         v-model:page-size="pageSize"
-        :page-sizes="[20, 40, 60, 80]"
+        :page-size-options="[20, 40, 60, 80]"
         :size="size"
         :disabled="disabled"
-        :background="background"
-        layout="total, sizes, prev, pager, next, jumper"
+        show-size-changer
         :total="users.length"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
+        @change="handlePageChange"
       />
     </div>
   </div>
 </template>
 
-<style scoped>
-.image-error {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  background: #f5f7fa;
-  color: #c0c4cc;
-}
-</style>
+<style scoped></style>
