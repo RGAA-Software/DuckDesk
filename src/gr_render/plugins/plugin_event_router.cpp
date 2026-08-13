@@ -117,6 +117,23 @@ namespace tc
                 plugin->InsertIdr(mon_name);
             });
         }
+        else if (event->event_type_ == GrPluginEventType::kPluginInvalidateRefFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<GrPluginInvalidateRefFrameEvent>(event);
+            const auto mon_name = target_event ? target_event->mon_name_ : "";
+            const auto invalid_index = target_event ? target_event->invalid_frame_index_ : 0;
+            bool accepted = false;
+            plugin_manager_->VisitEncoderPlugins([&](GrVideoEncoderPlugin* plugin) {
+                accepted = plugin->InvalidateRefFrame(mon_name, invalid_index) || accepted;
+            });
+            if (!accepted) {
+                // 与 Sunshine 一致:编码器不支持 RFI(例如 FFmpeg 软编)时立即补 IDR,
+                // 不要等客户端 2s 无帧超时再回退。
+                LOGW("RFI not accepted by any encoder, fallback to IDR immediately.");
+                plugin_manager_->VisitEncoderPlugins([&](GrVideoEncoderPlugin* plugin) {
+                    plugin->InsertIdr(mon_name);
+                });
+            }
+        }
         else if (event->event_type_ == GrPluginEventType::kPluginRelayPausedEvent) {
 
         }

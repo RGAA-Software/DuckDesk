@@ -16,5 +16,8 @@ enabled = true
 # udp listen port, 0 = use the unified udp-listen-port param from exe (default 20381)
 listen-port = 0
 
-# video FEC (Reed-Solomon) parity percent, 0 = disable (default 20)
+# video FEC (Reed-Solomon) parity percent, 0 = disable (standard default 20)
 fec-percent = 20
+
+# video shard MTU: LAN/direct default 1400; set 1024 for UDP-fragmentation-sensitive WAN paths
+mtu = 1400

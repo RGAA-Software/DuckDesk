@@ -27,6 +27,7 @@ namespace tc
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnDestroy() override;
         void On1Second() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
@@ -83,7 +84,9 @@ namespace tc
         void PrintCachedVideoFrames();
 
         // RtcServer 在 ICE 终态(Failed/Closed)时回调,标记该连接待清理
-        void NotifyRtcServerTerminal(const std::string& conn_id);
+        // conn_id 只是 map key;重连时同一个 key 会被新 RtcServer 复用,
+        // 必须同时比对 RtcServer 指针,避免旧连接的迟到回调把新连接误杀。
+        void NotifyRtcServerTerminal(const std::string& conn_id, RtcServer* target);
 
         // 本机显示器列表(枚举顺序,上限 kMaxRtcVideoTracks),供 RtcServer 建多 track
         // 及信令返回 monitors 列表;空表示采集插件未就绪(回退单 track 旧行为)

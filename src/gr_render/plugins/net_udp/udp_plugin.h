@@ -28,8 +28,12 @@ namespace tc
         std::shared_ptr<asio2::udp_session> sess_ = nullptr;
         // 绑定状态:变迁在 UdpPlugin::bind_mtx_ 下做,读用原子(编码线程热路径无锁)
         std::atomic_bool bound_{false};
+        // 被新连接按 stream_id 互踢的旧会话,禁止再通过 heartbeat 抢回绑定
+        std::atomic_bool kicked_{false};
         int64_t begin_timestamp_ = 0;   // 绑定成功时间(ms),算断开 duration 用
         std::atomic<int64_t> last_heartbeat_ms_{0};
+        // 最近一次收到该 endpoint 任意 UDP 包的时间;未绑定/被踢会话据此超时摘除
+        std::atomic<int64_t> last_seen_ms_{0};
     };
 
     class UdpPlugin : public GrNetPlugin {
@@ -42,8 +46,8 @@ namespace tc
 
         bool OnCreate(const tc::GrPluginParam &param) override;
         bool OnDestroy() override;
-        // 媒体帧走 OnEncodedVideoFrame 裸 UDP 直发,控制消息走 ws 通道,
-        // 本插件不转发任何 proto 消息
+        // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
+        // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through = false) override;
         int GetConnectedClientsCount() override;
@@ -75,6 +79,9 @@ namespace tc
         void HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost);
         // 5s 窗口:按 loss_rate 动态调 fec_percent_,窗口结束清零计数
         void AdjustFecWindow();
+        // 是否存在至少一个已绑定媒体会话。发送路径不依赖 bound_count_,避免重连
+        // /互踢时计数与会话状态短暂不一致导致视频静默停发。
+        bool HasBoundSession();
         // 每 2s 扫一次,超 10s 无心跳的绑定会话解绑并发断开事件
         void SweepDeadSessions();
         void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
@@ -85,6 +92,8 @@ namespace tc
     private:
         std::shared_ptr<asio2::udp_server> server_ = nullptr;
         int udp_listen_port_{};
+        // 视频 shard MTU:LAN 默认 1400;公网/UDP 分片敏感场景可配 1024。
+        int udp_mtu_{1400};
         // key = conn_id(remote addr:port):裸 UDP 下所有会话共享同一 socket,
         // native_handle 无法区分对端,必须用 endpoint 字符串做 key
         tc::ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
@@ -99,6 +108,8 @@ namespace tc
 
         // 视频 FEC (Reed-Solomon) 校验包百分比,0 = 关闭;OnCreate 从 fec-percent 读入。
         // 编码线程读、窗口定时器写,用原子;动态调整只会在 [configured, 60] 区间浮动
+        // 标准默认值对齐 Sunshine/Moonlight:20%。
+        // 遇到持续丢帧时动态上调,上限仍为 60%。
         std::atomic_int fec_percent_{20};
         // toml 读到的初始值,动态下调不跌破它
         int configured_fec_percent_ = 20;
@@ -109,14 +120,25 @@ namespace tc
         std::atomic_int stat_complete_frames_{0};
         std::atomic_int stat_lost_frames_{0};
         std::atomic_int stat_recovered_shards_{0};
+        // 诊断:窗口内实际入队的视频 shard 数与 async_send 短写次数
+        std::atomic_uint64_t stat_sent_shards_{0};
+        std::atomic_uint64_t stat_send_short_writes_{0};
+        // 收到 RFI 请求后,给下一帧打 kFlagRfiRecover,让客户端能解参考帧失效后的 P 帧
+        std::atomic_bool rfi_pending_{false};
 
         static constexpr int64_t kHeartbeatTimeoutMs = 10000;
         static constexpr int kHeartbeatScanIntervalMs = 2000;
+        // 未绑定/被踢的底层 UDP 会话最多保留这么久,到期主动 stop 释放
+        static constexpr int64_t kUnboundSessionTimeoutMs = 10000;
         static constexpr int kFecWindowMs = 5000;
         static constexpr int kFecMaxPercent = 60;
         // 帧内 pacing:每批发多少个 shard、批间睡多少 ms
-        static constexpr size_t kPaceChunkSize = 20;
+        static constexpr size_t kPaceChunkSize = 10;
         static constexpr int kPaceSleepMs = 1;
+
+        // 音频包序号(PostProtoMessage 由 rd_app 单线程调用,无需原子);
+        // 50pps 小包,不走帧内 pacing
+        uint32_t audio_seq_ = 0;
     };
 
 }

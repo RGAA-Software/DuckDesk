@@ -44,10 +44,12 @@ namespace tc
         SweepDeadRtcServers();
     }
 
-    void RtcLocalPlugin::NotifyRtcServerTerminal(const std::string& conn_id) {
+    void RtcLocalPlugin::NotifyRtcServerTerminal(const std::string& conn_id, RtcServer* target) {
         LOGW("Rtc server terminal notified, conn_id: {}, will be swept.", conn_id);
-        rtc_servers_.Apply(conn_id, [](const std::shared_ptr<RtcServer>& srv) {
-            srv->RequestExit();
+        rtc_servers_.Apply(conn_id, [target](const std::shared_ptr<RtcServer>& srv) {
+            if (srv.get() == target) {
+                srv->RequestExit();
+            }
         });
     }
 
@@ -84,6 +86,31 @@ namespace tc
         });
 
         return true;
+    }
+
+    bool RtcLocalPlugin::OnDestroy() {
+        // 先进入 Stopping,阻止后续回调/事件继续向外投递;再逐路关闭 RtcServer。
+        GrNetPlugin::OnStop();
+
+        std::vector<std::shared_ptr<RtcServer>> servers;
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv) {
+                servers.push_back(srv);
+            }
+        });
+        rtc_servers_.Clear();
+
+        for (const auto& srv : servers) {
+            srv->Exit();
+        }
+
+        {
+            std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
+            encoded_video_frames_.clear();
+            encoded_seq_by_mon_.clear();
+        }
+
+        return GrNetPlugin::OnDestroy();
     }
 
     // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
@@ -352,6 +379,9 @@ namespace tc
         }
         last_shared_tex_ts_ = TimeUtil::GetCurrentTimestamp();
         rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+            if (!rtc_server || rtc_server->IsExitRequested()) {
+                return;
+            }
             rtc_server->OnNewFrameCaptured(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
         });
     }
@@ -378,6 +408,9 @@ namespace tc
             LOGI("OnRawVideoFrameYuv notify webrtc #{}, idx={}, {}x{}, servers={}", cnt, frame_idx, frame_width, frame_height, rtc_servers_.Size());
         }
         rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+            if (!rtc_server || rtc_server->IsExitRequested()) {
+                return;
+            }
             rtc_server->OnNewRawFrameCaptured(mon_name, frame_idx, frame_width, frame_height);
         });
     }

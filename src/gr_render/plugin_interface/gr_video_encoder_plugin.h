@@ -122,6 +122,9 @@ namespace tc
         // 基类默认实现就是退化逻辑,有多屏编码器实例的插件(NVENC/FFmpeg)
         // 应 override 成只给目标屏置位。
         virtual void InsertIdr(const std::string& mon_name);
+        // RFI 参考帧失效:返回 true 表示编码器已受理;不支持时返回 false,
+        // 事件路由会立即补发 IDR(与 Sunshine 对 FFmpeg 的降级行为一致)。
+        virtual bool InvalidateRefFrame(const std::string& mon_name, uint64_t invalid_frame_index) { return false; }
         void On1Second() override;
 
         virtual bool CanEncodeTexture();

@@ -494,6 +494,16 @@ void NvEncoder::EncodeFrame(std::vector<std::vector<uint8_t>> &vPacket, NV_ENC_P
     }
 }
 
+void NvEncoder::InvalidateRefFrames(uint64_t invalidRefFrameTimeStamp)
+{
+    if (!m_hEncoder)
+    {
+        NVENC_THROW_ERROR("Encoder Initialization failed", NV_ENC_ERR_NO_ENCODE_DEVICE);
+        return;
+    }
+    NVENC_API_CALL(m_nvenc.nvEncInvalidateRefFrames(m_hEncoder, invalidRefFrameTimeStamp));
+}
+
 void NvEncoder::RunMotionEstimation(std::vector<uint8_t> &mvData)
 {
     if (!m_hEncoder)

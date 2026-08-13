@@ -24,6 +24,7 @@ namespace tc
         bool OnDestroy() override;
         void InsertIdr() override;
         void InsertIdr(const std::string& mon_name) override;
+        bool InvalidateRefFrame(const std::string& mon_name, uint64_t invalid_frame_index) override;
         bool IsWorking() override;
 
         bool HasEncoderForMonitor(const std::string& monitor_name) override;

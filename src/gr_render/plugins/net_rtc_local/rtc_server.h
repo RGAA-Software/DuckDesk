@@ -43,6 +43,7 @@ namespace tc
 
         // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
         void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
+        const std::string& GetConnId() const { return conn_id_; }
         // client_nonce: web client 的浏览器标识(launch 页 nonce)。
         // 新连接 nonce 与现存活跃连接相同 = 同一浏览器,信令直接自动接管,
         // 不再回 704 让用户确认;不同 nonce 维持占用确认流程
@@ -124,6 +125,11 @@ namespace tc
         std::string conn_id_;
         std::string client_nonce_;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
+        // ICE 进入 Disconnected 的起始时间(0 = 未处于 Disconnected)。
+        // 网络/对端异常断开时 ICE 可能长期停在 Disconnected 而不进 Failed/Closed,
+        // On100msTimeout 据此超时判死并请求退出,避免死连接拖垮媒体投递。
+        std::atomic<int64_t> ice_disconnected_since_ms_{0};
+        static constexpr int64_t kIceDisconnectedTimeoutMs = 10000;
 
         // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,
         // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true,

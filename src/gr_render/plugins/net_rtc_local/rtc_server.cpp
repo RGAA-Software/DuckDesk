@@ -13,6 +13,7 @@
 #include "audio_source_impl.h"
 #include "remote_audio_sink.h"
 #include "tc_common_new/data.h"
+#include "tc_common_new/time_util.h"
 #include <atomic>
 #include <format>
 
@@ -128,7 +129,7 @@ namespace tc
 
         // network state
         peer_callback_->SetOnIceConnectedCallback([=, this]() {
-
+            ice_disconnected_since_ms_ = 0;
         });
 
         // 远端音频轨(浏览器麦克风上行):接收解码后经 WASAPI 播放
@@ -141,6 +142,11 @@ namespace tc
         });
 
         peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
+            // 记录 Disconnected 起始时刻,On100msTimeout 负责超时判死。
+            // 若 ICE 之后恢复为 Connected,OnIceConnectedCallback 会清零该标记。
+            int64_t expect = 0;
+            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
+            ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
             if (!media_data_channel_) {return;}
             auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
             event->stream_id_ = media_data_channel_->the_conn_id_;
@@ -156,7 +162,7 @@ namespace tc
             LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", conn_id_);
             exit_ = true;
             if (plugin_) {
-                plugin_->NotifyRtcServerTerminal(conn_id_);
+                plugin_->NotifyRtcServerTerminal(conn_id_, this);
             }
         });
 
@@ -469,6 +475,16 @@ namespace tc
     }
 
     void RtcServer::On100msTimeout() {
+        if (!exit_ && ice_disconnected_since_ms_.load() != 0) {
+            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
+            if (now - ice_disconnected_since_ms_.load() >= kIceDisconnectedTimeoutMs) {
+                LOGW("Rtc server ice disconnected timeout, conn_id: {}, will be swept.", conn_id_);
+                exit_ = true;
+                if (plugin_) {
+                    plugin_->NotifyRtcServerTerminal(conn_id_, this);
+                }
+            }
+        }
         if (ft_data_channel_ && !exit_) {
             ft_data_channel_->On100msTimeout();
         }
@@ -483,6 +499,9 @@ namespace tc
     }
 
     void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
+        if (exit_) {
+            return;
+        }
         if (video_tracks_.empty()) {
             LOGE("Don't have video source");
             return;
@@ -498,6 +517,9 @@ namespace tc
     // NotifyFrameFrameBuffer 只是"有帧了"的载体,像素从不经 webrtc 传递
     // (RtcVideoEncoder 用预编码码流替换),所以 handle=0 无影响。
     void RtcServer::OnNewRawFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height) {
+        if (exit_) {
+            return;
+        }
         if (video_tracks_.empty()) {
             LOGE("Don't have video source");
             return;

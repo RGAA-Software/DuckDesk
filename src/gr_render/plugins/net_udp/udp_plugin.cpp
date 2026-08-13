@@ -5,6 +5,8 @@
 
 #include "udp_plugin.h"
 #include <chrono>
+#include <algorithm>
+#include <thread>
 #include "gr_render/plugins/plugin_ids.h"
 #include "tc_common_new/log.h"
 #include "tc_common_new/data.h"
@@ -47,11 +49,17 @@ namespace tc
             // 0 = 关闭 FEC;缺省保持默认 20%
             fec_percent_ = (int)GetConfigIntParam("fec-percent");
         }
+        if (HasParam("mtu")) {
+            auto mtu = (int)GetConfigIntParam("mtu");
+            if (mtu >= 576 && mtu <= 1500) {
+                udp_mtu_ = mtu;
+            }
+        }
         configured_fec_percent_ = fec_percent_.load();
         // Windows sleep 默认 15.6ms 粒度,帧内 pacing 的 1ms sleep 需要先把计时器分辨率提到 1ms
         timeBeginPeriod(1);
-        LOGI("Listen port: {}, fec percent: {}, pacing: {} shards/{}ms",
-             udp_listen_port_, fec_percent_.load(), kPaceChunkSize, kPaceSleepMs);
+        LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {} shards/{}ms",
+             udp_listen_port_, fec_percent_.load(), udp_mtu_, kPaceChunkSize, kPaceSleepMs);
         StartInternal();
 
         // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
@@ -78,8 +86,161 @@ namespace tc
         return GrNetPlugin::OnDestroy();
     }
 
+    // wire 级扫描 tc.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)
+    // 的 Opus payload——与 ws_server.cpp 的 IsMediaFrameMessage 同一做法
+    // (插件不引 protobuf 头,避免 absl 冲突,见 ws_server.cpp:73 注释)。
+    // 返回 true 时 payload 指向 msg 内部缓冲,调用方需保持 msg 存活。
+    static bool ExtractAudioPayload(const std::shared_ptr<Data>& msg, const char*& payload, size_t& payload_len) {
+        payload = nullptr;
+        payload_len = 0;
+        if (!msg || msg->Size() < 2) {
+            return false;
+        }
+        const auto* base = (const uint8_t*)msg->DataAddr();
+        const size_t n = (size_t)msg->Size();
+        size_t i = 0;
+        auto read_varint = [&](uint64_t& out) -> bool {
+            out = 0;
+            int shift = 0;
+            while (i < n && shift < 64) {
+                uint8_t b = base[i++];
+                out |= (uint64_t)(b & 0x7F) << shift;
+                if (!(b & 0x80)) {
+                    return true;
+                }
+                shift += 7;
+            }
+            return false;
+        };
+        // pass 1: 外层 tc.Message,记录 type(field 10) 和 audio_frame(field 80) 子消息位置
+        bool is_audio = false;
+        const uint8_t* sub = nullptr;
+        size_t sub_len = 0;
+        while (i < n) {
+            uint64_t tag = 0;
+            if (!read_varint(tag)) {
+                return false;
+            }
+            const uint32_t field = (uint32_t)(tag >> 3);
+            const uint32_t wire = (uint32_t)(tag & 0x7);
+            if (field == 10 && wire == 0) {
+                uint64_t type = 0;
+                if (!read_varint(type)) {
+                    return false;
+                }
+                is_audio = (type == 40); // tc_message.proto: kAudioFrame = 40
+                continue;
+            }
+            if (field == 80 && wire == 2) {
+                uint64_t len = 0;
+                if (!read_varint(len) || i + (size_t)len > n) {
+                    return false;
+                }
+                sub = base + i;
+                sub_len = (size_t)len;
+                i += (size_t)len;
+                continue;
+            }
+            switch (wire) {
+                case 0: { uint64_t v; if (!read_varint(v)) { return false; } break; }
+                case 1: i += 8; break;
+                case 2: {
+                    uint64_t len = 0;
+                    if (!read_varint(len)) { return false; }
+                    i += (size_t)len;
+                    break;
+                }
+                case 5: i += 4; break;
+                default: return false; // group 等不支持
+            }
+            if (i > n) {
+                return false;
+            }
+        }
+        if (!is_audio || !sub) {
+            return false;
+        }
+        // pass 2: AudioFrame 子消息内找 data(field 5, bytes)
+        const uint8_t* p = sub;
+        const uint8_t* end = sub + sub_len;
+        while (p < end) {
+            auto rv = [&](const uint8_t*& cur, uint64_t& out) -> bool {
+                out = 0;
+                int shift = 0;
+                while (cur < end && shift < 64) {
+                    uint8_t b = *cur++;
+                    out |= (uint64_t)(b & 0x7F) << shift;
+                    if (!(b & 0x80)) {
+                        return true;
+                    }
+                    shift += 7;
+                }
+                return false;
+            };
+            uint64_t tag = 0;
+            if (!rv(p, tag)) {
+                return false;
+            }
+            const uint32_t field = (uint32_t)(tag >> 3);
+            const uint32_t wire = (uint32_t)(tag & 0x7);
+            if (field == 5 && wire == 2) {
+                uint64_t len = 0;
+                if (!rv(p, len) || (size_t)(end - p) < (size_t)len || len == 0) {
+                    return false;
+                }
+                payload = (const char*)p;
+                payload_len = (size_t)len;
+                return true;
+            }
+            switch (wire) {
+                case 0: { uint64_t v; if (!rv(p, v)) { return false; } break; }
+                case 1: p += 8; break;
+                case 2: {
+                    uint64_t len = 0;
+                    if (!rv(p, len)) { return false; }
+                    p += (size_t)len;
+                    break;
+                }
+                case 5: p += 4; break;
+                default: return false;
+            }
+            if (p > end) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     void UdpPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
-        // 空实现:媒体走 OnEncodedVideoFrame,控制走 ws 通道,UDP 插件不转发 proto
+        // 只关心 kAudioFrame:提取 Opus payload 打成 UDP 音频包广播给绑定会话;
+        // 其它 proto(控制类)仍走 ws 通道,这里直接忽略
+        const char* payload = nullptr;
+        size_t payload_len = 0;
+        if (!ExtractAudioPayload(msg, payload, payload_len)) {
+            return;
+        }
+        if (!HasBoundSession()) {
+            return;
+        }
+        // 与视频同一时钟源:steady_clock 单调毫秒
+        auto ts = (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count() & 0xffffffff);
+        auto pkt = GrUdpProtocol::BuildAudioPacket(audio_seq_++, ts, payload, payload_len);
+        if (!pkt) {
+            return;
+        }
+        int64_t total_sent = 0;
+        sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
+            if (!us->bound_ || !us->sess_) {
+                return;
+            }
+            total_sent += pkt->Size();
+            // pkt 捕获进回调保活,直到 asio 拷进发件缓冲
+            us->sess_->async_send(pkt->CStr(), pkt->Size(), [pkt](std::size_t) {});
+        });
+        if (total_sent > 0) {
+            ReportSentDataSize((int)total_sent);
+        }
     }
 
     bool UdpPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
@@ -99,6 +260,7 @@ namespace tc
                 // bind_connect 正常先于首包到达,拿不到说明时序异常,直接丢
                 return;
             }
+            opt_sess.value()->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
             // ParseCommon 分流:只处理控制包(上行视频/音频 P2 才启用)
             if (GrUdpProtocol::ParseCommon(data.data(), data.size()) == GrUdpProtocol::kPktCtrl) {
                 HandleCtrlPacket(opt_sess.value(), data.data(), data.size());
@@ -109,6 +271,7 @@ namespace tc
             auto udp_sess = std::make_shared<UdpSession>();
             udp_sess->conn_id_ = conn_id;
             udp_sess->sess_ = session_ptr;
+            udp_sess->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
             sessions_.Insert(conn_id, udp_sess);
             LOGI("udp client enter : {} {} ; {} {}",
                    session_ptr->remote_address().c_str(), session_ptr->remote_port(),
@@ -119,7 +282,9 @@ namespace tc
             std::shared_ptr<UdpSession> removed;
             {
                 std::lock_guard<std::mutex> lk(bind_mtx_);
-                auto opt_sess = sessions_.Remove(conn_id);
+                auto opt_sess = sessions_.RemoveIf(conn_id, [&](const std::shared_ptr<UdpSession>& cur) {
+                    return cur && cur->sess_ == session_ptr;
+                });
                 if (opt_sess.has_value()) {
                     removed = opt_sess.value();
                     if (removed->bound_.exchange(false)) {
@@ -129,6 +294,12 @@ namespace tc
                         removed.reset(); // 未绑定会话不算媒体客户端,不发断开事件
                     }
                 }
+            }
+            if (!removed) {
+                // endpoint 字符串被新连接复用,或该会话已被 Sweep 摘除;
+                // 这里不能误删新会话,只当作迟到/重复的旧断开事件。
+                LOGI("udp stale disconnect ignored: {}", conn_id);
+                return;
             }
             if (removed) {
                 NotifyMediaClientDisConnected(removed->conn_id_, removed->stream_id_,
@@ -196,6 +367,30 @@ namespace tc
                 this->CallbackEvent(event);
                 break;
             }
+            case GrUdpProtocol::kCtrlIdrKeepalive: {
+                // 连接初始化/无帧超时补关键帧:行为同 IDR 请求,但不计入丢帧统计,
+                // 否则客户端刚连上自动补几发 IDR 就会把动态 FEC 刷到上限。
+                auto event = std::make_shared<GrPluginInsertIdrEvent>();
+                event->mon_name_ = s1;
+                this->CallbackEvent(event);
+                break;
+            }
+            case GrUdpProtocol::kCtrlRfi: {
+                // s1 = invalid_frame_index(字符串),s2 = mon_name(空=全屏)。
+                // 丢整帧后优先走参考帧失效,不插 IDR;不支持 RFI 的编码器由上层忽略,
+                // 客户端会在 2s 无完整帧后回退 IDR keepalive。
+                auto event = std::make_shared<GrPluginInvalidateRefFrameEvent>();
+                try {
+                    event->invalid_frame_index_ = std::stoull(s1);
+                } catch (...) {
+                    event->invalid_frame_index_ = 0;
+                }
+                event->mon_name_ = s2;
+                LOGI("udp rfi request: invalid_frame={}, mon={}", event->invalid_frame_index_, event->mon_name_);
+                rfi_pending_ = true;
+                this->CallbackEvent(event);
+                break;
+            }
             default:
                 break;
         }
@@ -212,30 +407,46 @@ namespace tc
         int complete = stat_complete_frames_.exchange(0);
         int lost = stat_lost_frames_.exchange(0);
         int recovered = stat_recovered_shards_.exchange(0);
+        uint64_t sent_shards = stat_sent_shards_.exchange(0);
+        uint64_t short_writes = stat_send_short_writes_.exchange(0);
         int total = complete + lost;
         if (total <= 0) {
             return; // 窗口内无媒体流量,不调整不刷日志
         }
         double loss_rate = (double)lost / (double)total;
         int cur = fec_percent_.load();
-        if (loss_rate > 0.05 && cur < kFecMaxPercent) {
+        if (lost > 0 && cur < kFecMaxPercent) {
             fec_percent_ = std::min(kFecMaxPercent, cur + 10);
             LOGW("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, raise fec {}% -> {}%",
                  loss_rate * 100.0, lost, total, recovered, cur, fec_percent_.load());
         }
-        else if (loss_rate < 0.01 && cur > configured_fec_percent_) {
+        else if (lost == 0 && recovered == 0 && cur > configured_fec_percent_) {
             fec_percent_ = std::max(configured_fec_percent_, cur - 5);
             LOGI("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, lower fec {}% -> {}%",
                  loss_rate * 100.0, lost, total, recovered, cur, fec_percent_.load());
         }
         else {
-            LOGI("udp fec window: frames {} (lost {}, {:.1f}%), recovered {} shards, fec {}%",
-                 total, lost, loss_rate * 100.0, recovered, cur);
+            LOGI("udp fec window: frames {} (lost {}, {:.1f}%), recovered {} shards, sent {} shards, short_writes {}, fec {}%",
+                 total, lost, loss_rate * 100.0, recovered, sent_shards, short_writes, cur);
         }
+    }
+
+    bool UdpPlugin::HasBoundSession() {
+        bool has_bound = false;
+        sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
+            if (us && us->bound_ && us->sess_) {
+                has_bound = true;
+            }
+        });
+        return has_bound;
     }
 
     void UdpPlugin::HandleHello(const std::shared_ptr<UdpSession>& udp_sess,
                                 const std::string& device_id, const std::string& stream_id) {
+        if (udp_sess->kicked_) {
+            LOGW("kicked udp endpoint tries to hello again, ignore: {}", udp_sess->conn_id_);
+            return;
+        }
         if (device_id.empty() || stream_id.empty()) {
             LOGW("kCtrlHello with empty device_id/stream_id, drop. from: {}", udp_sess->conn_id_);
             return;
@@ -249,16 +460,18 @@ namespace tc
                 udp_sess->last_heartbeat_ms_ = now;
                 return;
             }
-            // 互踢:同 stream_id 已有活跃绑定会话,顶掉旧的
+            // 互踢:UDP 与 RTC local 保持一致,任意已绑定会话都算占用;
+            // 新 Hello 顶掉旧绑定会话,而不是只在同 stream_id 内互踢。
             sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-                if (us != udp_sess && us->bound_ && us->stream_id_ == stream_id) {
+                if (us != udp_sess && us->bound_) {
                     old_bound = us;
                 }
             });
             if (old_bound) {
                 old_bound->bound_ = false;
+                old_bound->kicked_ = true;
                 bound_count_--;
-                LOGW("stream {} taken over, kick old session: {}", stream_id, old_bound->conn_id_);
+                LOGW("stream {} taken over, kick old session: {} (old stream: {})", stream_id, old_bound->conn_id_, old_bound->stream_id_);
             }
 
             udp_sess->device_id_ = device_id;
@@ -281,6 +494,10 @@ namespace tc
     }
 
     void UdpPlugin::HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_sess, const std::string& stream_id) {
+        // 被新连接互踢的旧 endpoint 不得再凭 stream_id 抢回绑定
+        if (udp_sess->kicked_) {
+            return;
+        }
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         if (udp_sess->bound_ && udp_sess->stream_id_ == stream_id) {
             udp_sess->last_heartbeat_ms_ = now;
@@ -311,10 +528,15 @@ namespace tc
     void UdpPlugin::SweepDeadSessions() {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         std::vector<std::shared_ptr<UdpSession>> dead_sessions;
+        std::vector<std::shared_ptr<UdpSession>> stale_sessions;
         {
             std::lock_guard<std::mutex> lk(bind_mtx_);
             sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-                if (us->bound_ && now - us->last_heartbeat_ms_.load() > kHeartbeatTimeoutMs) {
+                if (us->kicked_ || (!us->bound_ && now - us->last_seen_ms_.load() > kUnboundSessionTimeoutMs)) {
+                    // 被踢/从未绑定且已无流量:直接摘除并停止底层会话,不发断开事件
+                    stale_sessions.push_back(us);
+                }
+                else if (us->bound_ && now - us->last_heartbeat_ms_.load() > kHeartbeatTimeoutMs) {
                     us->bound_ = false;
                     bound_count_--;
                     dead_sessions.push_back(us);
@@ -326,7 +548,18 @@ namespace tc
             NotifyMediaClientDisConnected(us->conn_id_, us->stream_id_,
                                           us->device_id_, us->begin_timestamp_);
             // 摘掉会话并停掉底层 session(bind_disconnect 再进来时 bound_ 已是 false,不会重复发事件)
-            sessions_.Remove(us->conn_id_);
+            sessions_.RemoveIf(us->conn_id_, [&](const std::shared_ptr<UdpSession>& cur) {
+                return cur == us;
+            });
+            if (us->sess_) {
+                us->sess_->stop();
+            }
+        }
+        for (const auto& us : stale_sessions) {
+            LOGW("udp stale session swept: {} (stream: {}, kicked: {})", us->conn_id_, us->stream_id_, us->kicked_.load());
+            sessions_.RemoveIf(us->conn_id_, [&](const std::shared_ptr<UdpSession>& cur) {
+                return cur == us;
+            });
             if (us->sess_) {
                 us->sess_->stop();
             }
@@ -353,8 +586,14 @@ namespace tc
                                         int frame_width,
                                         int frame_height,
                                         bool key) {
-        if (!data || data->Size() <= 0 || bound_count_ <= 0) {
+        if (!data || data->Size() <= 0 || !HasBoundSession()) {
             return;
+        }
+        static std::atomic_uint64_t s_udp_enc_frames{0};
+        auto enc_n = ++s_udp_enc_frames;
+        if (enc_n == 1 || enc_n % 300 == 0) {
+            LOGI("udp OnEncodedVideoFrame #{}, bound_count={}, sessions={}, frame_index={}, key={}, bytes={}",
+                 enc_n, bound_count_.load(), sessions_.Size(), frame_index, key, data->Size());
         }
         uint8_t codec;
         if (video_type == GrPluginEncodedVideoType::kH264) {
@@ -368,6 +607,8 @@ namespace tc
         }
 
         GrUdpProtocol::VideoFrameMeta meta;
+        // 透传编码器 frame_index。RFI 恢复依赖客户端上报的 frame_index 与 NVENC
+        // inputTimeStamp 完全一致;回退/重连场景已由 client 侧 SOF+key 重流识别处理。
         meta.frame_index_ = (uint32_t)(frame_index & 0xffffffff);
         // steady_clock 单调时钟,客户端按它算帧间间隔/延迟,不受系统时间跳变影响
         meta.timestamp_ms_ = (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -378,18 +619,18 @@ namespace tc
         meta.frame_height_ = (uint16_t)frame_height;
         meta.mon_slot_ = MonSlotOf(mon_name);
         meta.mon_name_ = mon_name;
+        meta.rfi_recover_ = rfi_pending_.exchange(false);
 
         auto shards = GrUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(),
-                                                     GrUdpProtocol::kDefaultMtu, fec_percent_);
+                                                     udp_mtu_, fec_percent_);
         if (shards.empty()) {
             return;
         }
 
         int64_t total_sent = 0;
-        // 帧内 pacing(Sunshine 同款思路):高动态大帧一帧上百个包,背靠背突发会打爆
+        // 帧内 pacing:高动态大帧一帧上百个包,背靠背突发会打爆
         // 客户端 socket 缓冲 → 丢包 → 请 IDR → 巨型 IDR 再丢的死循环。
         // 外层按 shard chunk 摊开,内层遍历 bound 会话;每批发完睡 1ms(最后一批不睡)。
-        // 在编码线程上 sleep 是刻意的:200 包 ~11ms,仍在 16ms 帧预算内
         const size_t total_pkts = shards.size();
         for (size_t chunk_base = 0; chunk_base < total_pkts; chunk_base += kPaceChunkSize) {
             const size_t chunk_end = std::min(chunk_base + kPaceChunkSize, total_pkts);
@@ -401,7 +642,12 @@ namespace tc
                     const auto& shard = shards[i];
                     total_sent += shard->Size();
                     // shard 捕获进回调保活,直到 asio 拷进发件缓冲
-                    us->sess_->async_send(shard->CStr(), shard->Size(), [shard](std::size_t) {});
+                    stat_sent_shards_++;
+                    us->sess_->async_send(shard->CStr(), shard->Size(), [shard, this](std::size_t bytes_sent) {
+                        if (bytes_sent != shard->Size()) {
+                            stat_send_short_writes_++;
+                        }
+                    });
                 }
             });
             if (chunk_end < total_pkts) {

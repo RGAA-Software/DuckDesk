@@ -77,6 +77,23 @@ namespace tc
         }
     }
 
+    bool NvencEncoderPlugin::InvalidateRefFrame(const std::string& mon_name, uint64_t invalid_frame_index) {
+        bool accepted = false;
+        if (mon_name.empty()) {
+            for (const auto& [_, encoder] : video_encoders_) {
+                if (encoder) {
+                    accepted |= encoder->InvalidateRefFrame(invalid_frame_index);
+                }
+            }
+            return accepted;
+        }
+        auto it = video_encoders_.find(mon_name);
+        if (it != video_encoders_.end() && it->second) {
+            accepted = it->second->InvalidateRefFrame(invalid_frame_index);
+        }
+        return accepted;
+    }
+
     bool NvencEncoderPlugin::IsWorking() {
         return plugin_enabled_ && !video_encoders_.empty();
     }

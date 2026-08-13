@@ -69,9 +69,9 @@ namespace tc
     };
 
     // wire 级扫描 tc.Message 的 type 字段(field 10, varint, tag=0x50),
-    // 识别 kVideoFrame(30)——与 rtc_local_plugin.cpp 的
+    // 识别 kVideoFrame(30)/kAudioFrame(40)——与 rtc_local_plugin.cpp 的
     // IsMediaFrameMessage 同一做法(不引 protobuf 头,避免 absl 冲突)。
-    // udp_media 客户端的视频帧走 UDP,ws 下发前用它过滤(音频 P1 仍走 ws)。
+    // udp_media 客户端的音视频帧都走 UDP,ws 下发前用它过滤。
     static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
         if (!msg || msg->Size() < 2) {
             return false;
@@ -105,9 +105,9 @@ namespace tc
                 if (!read_varint(type)) {
                     return false;
                 }
-                // tc_message.proto: kVideoFrame = 30
-                // 注意:音频(kAudioFrame=40)不过滤——P1 阶段音频仍走 ws(P2 才迁 UDP)
-                return type == 30;
+                // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
+                // udp_media 客户端的音视频都走 UDP,ws 下发前都过滤掉
+                return type == 30 || type == 40;
             }
             switch (wire) {
             case 0: { uint64_t v; if (!read_varint(v)) { return false; } break; }

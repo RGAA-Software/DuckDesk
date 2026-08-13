@@ -25,6 +25,7 @@ namespace tc
         kPluginClientConnectedEvent,
         kPluginClientDisConnectedEvent,
         kPluginInsertIdrEvent,
+        kPluginInvalidateRefFrameEvent,
         kPluginEncodedVideoFrameEvent,
         kPluginCapturingMonitorInfoEvent,
         kPluginCapturedVideoFrameEvent,
@@ -115,6 +116,18 @@ namespace tc
         // 非空 = 只给该屏的编码器补 IDR(RTC 多 track 时按屏定向,
         // 避免一条 track 的 PLI 让所有屏同时刷 IDR)
         std::string mon_name_;
+    };
+
+    // kPluginInvalidateRefFrameEvent:客户端丢失整帧后优先请求 RFI,render 让
+    // NVENC 调用 NvEncInvalidateRefFrames() 跳过坏参考帧,而不是立刻插 IDR。
+    class GrPluginInvalidateRefFrameEvent : public GrPluginBaseEvent {
+    public:
+        GrPluginInvalidateRefFrameEvent() : GrPluginBaseEvent() {
+            event_type_ = GrPluginEventType::kPluginInvalidateRefFrameEvent;
+        }
+    public:
+        std::string mon_name_;
+        uint64_t invalid_frame_index_ = 0;
     };
 
     // GrPluginEncodedVideoFrameEvent

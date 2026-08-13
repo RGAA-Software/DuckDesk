@@ -60,6 +60,30 @@ namespace tc
         insert_idr_ = true;
     }
 
+    bool NVENCVideoEncoder::InvalidateRefFrame(uint64_t invalid_frame_index) {
+        std::lock_guard<std::mutex> lk(encode_mtx_);
+        if (!nv_encoder_ || !has_transmit_frames_) {
+            return false;
+        }
+        constexpr uint64_t kMaxRfiRange = 4;
+        if (last_encoded_frame_index_ < invalid_frame_index ||
+            last_encoded_frame_index_ - invalid_frame_index + 1 >= kMaxRfiRange) {
+            LOGW("NvEncInvalidateRefFrames invalid/too large range: first={}, last={}, fallback IDR.",
+                 invalid_frame_index, last_encoded_frame_index_);
+            return false;
+        }
+        try {
+            for (auto ts = invalid_frame_index; ts <= last_encoded_frame_index_; ts++) {
+                nv_encoder_->InvalidateRefFrames(ts);
+            }
+            LOGI("NvEncInvalidateRefFrames success, range=[{},{}]", invalid_frame_index, last_encoded_frame_index_);
+            return true;
+        } catch (NVENCException& e) {
+            LOGE("NvEncInvalidateRefFrames failed, code: {}, err: {}", (int)e.getErrorCode(), e.what());
+            return false;
+        }
+    }
+
     void NVENCVideoEncoder::Exit() {
         Shutdown();
     }
@@ -147,6 +171,7 @@ namespace tc
 
         bool is_key_frame = false;
         NV_ENC_PIC_PARAMS picParams = {};
+        picParams.inputTimeStamp = frame_index;
         if (insert_idr_ || cap_video_frame.request_idr_) {
             picParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
             insert_idr_ = false;
@@ -160,6 +185,7 @@ namespace tc
         }
 
         has_transmit_frames_ = true;
+        last_encoded_frame_index_ = frame_index;
 
         CD3D11_TEXTURE2D_DESC desc;
         tex2d->GetDesc(&desc);
@@ -301,7 +327,9 @@ namespace tc
         //指定用于编码的 DPB（Decoded Picture Buffer）大小。将其设置为 0 将让驱动程序使用默认的 DPB 大小。
         //对于希望将无效的参考帧作为错误容忍工具的低延迟应用程序，建议使用较大的 DPB 大小，这样编码器可以保留旧的参考帧，以便在最近的帧被无效化时使用。
 
-        uint32_t maxNumRefFrames = 0;
+        // Sunshine 的 RFI 配置:DPB 需要大于 1,编码预测只使用 1 个前向参考帧,
+        // 保留的额外 DPB 帧用于参考帧失效后的回退。这里不再用 0(驱动默认)。
+        uint32_t maxNumRefFrames = 5;
         uint32_t gopLength = NVENC_INFINITE_GOPLENGTH;
 
         if (encoder_config_.gop_size != -1) {
@@ -329,6 +357,7 @@ namespace tc
 
             config.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
             config.maxNumRefFrames = maxNumRefFrames;
+            config.numRefL0 = NV_ENC_NUM_REF_FRAMES_1;
             config.idrPeriod = gopLength;
 
             // api version = 12
@@ -351,6 +380,7 @@ namespace tc
                 config.intraRefreshCnt = refreshRate;
             }
             config.maxNumRefFramesInDPB = maxNumRefFrames;
+            config.numRefL0 = NV_ENC_NUM_REF_FRAMES_1;
             config.idrPeriod = gopLength;
         }
         encode_config.gopLength = gopLength;

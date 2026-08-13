@@ -64,7 +64,9 @@ namespace tc
             // audio cache
             audio_cache_ = Data::Make(nullptr, 1024*16);
             LOGI("audio format, samples: {}, channels: {}, bits: {}", samples, channels, bits);
-            opus_encoder_ = std::make_shared<OpusAudioEncoder>(samples, channels, bits, OPUS_APPLICATION_AUDIO);
+            // UDP 音频无重传,靠 Opus inband FEC 抗丢包;15% 的预期丢包率在局域网偏高,
+            // 换取丢 1~2 个 20ms 音频包时仍能恢复,而不是立刻 PLC。
+            opus_encoder_ = std::make_shared<OpusAudioEncoder>(samples, channels, bits, OPUS_APPLICATION_AUDIO, 15);
             if (!opus_encoder_->valid()) {
                 opus_encoder_ = nullptr;
                 return;

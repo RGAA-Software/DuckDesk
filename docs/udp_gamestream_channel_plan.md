@@ -1,7 +1,8 @@
 # 云游戏 UDP 传输通道(GameStream 风格)实施规划
 
 > 关联文档:[gamestream_protocol_analysis.md](gamestream_protocol_analysis.md)(Moonlight/Sunshine 协议分析)
-> 状态:**P2(FEC + FRAME_STATUS 动态调 FEC)已完成**(2026-08-12):RS 库移植(moonlight rs.c)+ 帧级 FEC 发送 + 接收端「够用即恢复」+ 帧状态反馈闭环(5s 窗口动态调 fec 百分比,初始 `fec-percent`=20,区间 [配置值, 60]);FEC 已在 .70 真机验证 parity 包流动。下一步:音频迁 UDP、双机全链路实测
+> **当前状态见 [udp_gamestream_channel_state.md](udp_gamestream_channel_state.md)**(实现清单、未解决问题、Moonlight/Sunshine 借鉴对照、排障记录)
+> 状态:P2 全部完成(2026-08-12);音频已迁 UDP 但实测未过(2026-08-13,视频卡死+无声,详见状态文档)
 > 方案 A(自定义轻量协议)| 2026-08-12 立项
 
 ## 目标
@@ -81,7 +82,13 @@ client 端:
    - 发送:`ShardVideoFrame(..., fec_percent)` parity = max(1, ceil(D*percent/100)),D+parity > 255 退化为无 FEC;`net_udp` 插件 `fec-percent` 配置(默认 20,0=关闭)。
    - 接收:`GrUdpFrameReassembler` slot 扩到 D+parity,统一存 P 字节保护块;「够用即恢复」(distinct 块数 == data_shards 即 RS 重建),重组帧按 frame_size 精确截断;shard 0 缺失时 mon_name/分辨率从恢复块取;恢复不了才 DeclareLoss 走原 IDR 路径。
    - 单测 15 个全绿:FEC 布局、丢 1 个/丢 shard 0/丢满 parity 个恢复、丢 parity+1 判丢、fec=0 兼容旧行为、逐 shard 位置遍历恢复(FEC_VALIDATION 风格)。
-2. 音频走 UDP(Opus 裸帧 + 序号,丢包 PLC)。**待做**
+2. ~~音频走 UDP(Opus 裸帧 + 序号,丢包 PLC)~~ **已完成**:
+   - 协议:`kPktAudio=2`,common(4B) + `seq(u32)|timestamp_ms(u32)|payload_len(u16)` + Opus payload;`BuildAudioPacket/ParseAudioPacket`(size 精确匹配)。
+   - render:`UdpPlugin::PostProtoMessage` wire 级手扫 `tc.Message`(不引 protobuf 头,仿 `ws_server.cpp` IsMediaFrameMessage)提取 kAudioFrame(40) 的 `AudioFrame.data`(field 80 子消息内 field 5),打 UDP 音频包广播绑定会话;50pps 小包不走帧内 pacing;ws `IsMediaFrameMessage` 过滤加 type==40(仅 `udp_media_` 客户端)。
+   - client:`GrUdpAudioJitterBuffer`(gr_udp_protocol.h,header-only)按 seq 重排交付,缺口等 2 帧(60ms)判丢,单轮最多连判 5 个,缓冲上限 16 包淘汰最老(先 Drain 再淘汰防误删 expected_);`udp_direct_connection` 合成标准 `kAudioFrame` proto(extra=`udp_synth`)注入既有音频管线,丢帧合成**空 data** proto(extra=`udp_lost`);`sdk_net_client` 对 kUdpDirect 过滤 ws 侧音频(防重复解码)。
+   - PLC:`thunder_sdk` 音频回调对空 data 帧调 `OpusAudioDecoder::DecodeDummy(frame_size)` 补 20ms,正常帧走原 Decode,管线零改动。
+   - 单测 6 个:音频包 build/parse 往返(含截断拒绝)、jitter 顺序/乱序/缺口判丢后继续/中途加入不补历史/cap 淘汰最老。
+   - 后续增强(未做):Opus inband FEC、RS(4,2) 音频冗余块。
 3. ~~`FRAME_STATUS` 驱动 render 动态调 FEC 百分比~~ **已完成**:
    - 协议:`BuildFrameStatus/ParseFrameStatus`(定长 `frame_index(u32)|received(u16)|lost(u16)`,不走 ParseCtrl 字符串路径);reassembler 新增 `on_frame_status_`,每帧恰好触发一次——完成帧 received=网络实收数据块、lost=FEC 恢复块;判丢帧 received=已收、lost=缺失(配合 finished_ 去重,迟到包不重复触发)。
    - client:每帧一条 FrameStatus 经 UDP async_send 上行(非阻塞)。

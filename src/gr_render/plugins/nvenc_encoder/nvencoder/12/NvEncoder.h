@@ -127,6 +127,11 @@ public:
     virtual void EncodeFrame(std::vector<std::vector<uint8_t>> &vPacket, NV_ENC_PIC_PARAMS *pPicParams = nullptr);
 
     /**
+    *  @brief  Invalidate reference frames by input timestamp (RFI).
+    */
+    void InvalidateRefFrames(uint64_t invalidRefFrameTimeStamp);
+
+    /**
     *  @brief  This function to flush the encoder queue.
     *  The encoder might be queuing frames for B picture encoding or lookahead;
     *  the application must call EndEncode() to get all the queued encoded frames

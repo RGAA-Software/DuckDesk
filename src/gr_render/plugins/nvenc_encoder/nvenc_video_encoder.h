@@ -31,6 +31,7 @@ namespace tc
         bool Initialize(const tc::EncoderConfig& config);
         bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void InsertIdr();
+        bool InvalidateRefFrame(uint64_t invalid_frame_index);
         void Exit();
         int32_t GetEncodeFps();
         std::vector<int32_t> GetEncodeDurations();
@@ -64,6 +65,7 @@ namespace tc
         bool enable_yuv444_ = false;
 
         bool has_transmit_frames_ = false;
+        uint64_t last_encoded_frame_index_ = 0;
 
         // ConfigEncoder 常在全局/插件线程触发,而 Encode 在 encoder_thread。
         // NVENC Reconfigure 与 EncodeFrame 并发会卡死(切屏新建第二路 encoder 时尤其易中招)。

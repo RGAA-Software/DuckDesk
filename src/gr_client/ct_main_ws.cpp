@@ -234,6 +234,14 @@ void ParseCommandLine(QApplication& app) {
         }
     }();
 
+    // UDP 直连的音频链路已经迁到裸 UDP。panel 侧旧 stream item 默认 --audio=0,
+    // 会在这个阶段把本地播放和 Hello 的 enable_audio 都压成关闭,造成“有音频包但
+    // 没声音”。UDP 模式下先强制打开本地播放,后续 UI 开关与 UDP 音频状态对齐后再
+    // 尊重 --audio 参数。
+    if (settings->network_type_ == ClientNetworkType::kUdpDirect) {
+        settings->audio_on_ = true;
+    }
+
     settings->stream_name_ = parser.value(opt_stream_name).toStdString();
     if (!settings->stream_name_.empty()) {
         settings->stream_name_ = Base64::Base64Decode(settings->stream_name_);
@@ -550,7 +558,7 @@ int main(int argc, char** argv) {
 
     auto params = std::make_shared<ThunderSdkParams>(ThunderSdkParams {
         .ssl_ = false,
-        .enable_audio_ = true,
+        .enable_audio_ = settings->audio_on_,
         .enable_video_ = true,
         .enable_controller_ = false,
         .ip_ = host,

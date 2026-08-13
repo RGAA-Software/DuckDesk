@@ -48,6 +48,16 @@ namespace tc
 
         } else if (data_channel_->state() == webrtc::DataChannelInterface::kClosed) {
             connected_ = false;
+            // 媒体 datachannel 独立关闭(客户端退出 SCTP、浏览器关闭页面等)时,
+            // ICE 未必会立刻进入 Failed/Closed,必须从这里触发 RtcServer 退出,
+            // 否则该 RtcServer 会变成"ICE 仍在但媒体面已死"的僵尸连接。
+            if (name_ == "media_data_channel" && rtc_server_ && !rtc_server_->IsExitRequested()) {
+                LOGW("media_data_channel closed independently, request rtc server exit: {}", rtc_server_->GetConnId());
+                rtc_server_->RequestExit();
+                if (plugin_) {
+                    plugin_->NotifyRtcServerTerminal(rtc_server_->GetConnId(), rtc_server_.get());
+                }
+            }
         }
 
         LOGI("DataChannel[ {} ] state changed: {}, connected: {}", name_, (int)data_channel_->state(), connected_.load());
