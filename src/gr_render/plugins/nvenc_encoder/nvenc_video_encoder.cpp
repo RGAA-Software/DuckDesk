@@ -65,7 +65,7 @@ namespace tc
         if (!nv_encoder_ || !has_transmit_frames_) {
             return false;
         }
-        constexpr uint64_t kMaxRfiRange = 4;
+        constexpr uint64_t kMaxRfiRange = 16;
         if (last_encoded_frame_index_ < invalid_frame_index ||
             last_encoded_frame_index_ - invalid_frame_index + 1 >= kMaxRfiRange) {
             LOGW("NvEncInvalidateRefFrames invalid/too large range: first={}, last={}, fallback IDR.",
@@ -329,7 +329,8 @@ namespace tc
 
         // Sunshine 的 RFI 配置:DPB 需要大于 1,编码预测只使用 1 个前向参考帧,
         // 保留的额外 DPB 帧用于参考帧失效后的回退。这里不再用 0(驱动默认)。
-        uint32_t maxNumRefFrames = 5;
+        // 官方推荐用 RFI 时 DPB=16;客户端 D3D11VA pool 已同步提到 17,所以这里可以安全上 16。
+        uint32_t maxNumRefFrames = 16;
         uint32_t gopLength = NVENC_INFINITE_GOPLENGTH;
 
         if (encoder_config_.gop_size != -1) {

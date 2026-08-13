@@ -10,9 +10,15 @@
 #include <map>
 #include <mutex>
 #include <atomic>
+#include <chrono>
+#include <Windows.h>
 #include <asio2/udp/udp_server.hpp>
 #include "gr_render/plugin_interface/gr_net_plugin.h"
 #include "tc_common_new/concurrent_hashmap.h"
+
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
 
 namespace tc
 {
@@ -88,6 +94,8 @@ namespace tc
         void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
         // mon_name -> 单调递增 slot(u8),插件生命周期内保持稳定
         uint8_t MonSlotOf(const std::string& mon_name);
+        // Sunshine 同款高精度 sleep:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer。
+        void PaceSleep(const std::chrono::steady_clock::duration& duration);
 
     private:
         std::shared_ptr<asio2::udp_server> server_ = nullptr;
@@ -132,9 +140,13 @@ namespace tc
         static constexpr int64_t kUnboundSessionTimeoutMs = 10000;
         static constexpr int kFecWindowMs = 5000;
         static constexpr int kFecMaxPercent = 60;
-        // 帧内 pacing:每批发多少个 shard、批间睡多少 ms
-        static constexpr size_t kPaceChunkSize = 10;
-        static constexpr int kPaceSleepMs = 1;
+        // Sunshine 同款 pacing(stream.cpp),但速率上限按百兆网而非 1Gbps:
+        // ratecontrol_packets_in_1ms = 100Mbps*80%/1000/blocksize/8 = 10000/blocksize。
+        // 单批上限 64KB / 64 包,避开 Windows 64KB SO_SNDBUF 绕过问题。
+        static constexpr uint64_t kRateControlBitsPerSec = 80000000ULL;  // 80 Mbps
+        HANDLE pace_timer_ = nullptr;
+        // 跨帧锚定的速率控制起点(Sunshine ratecontrol_next_frame_start)
+        std::chrono::steady_clock::time_point ratecontrol_next_frame_start_{};
 
         // 音频包序号(PostProtoMessage 由 rd_app 单线程调用,无需原子);
         // 50pps 小包,不走帧内 pacing

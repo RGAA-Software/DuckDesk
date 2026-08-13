@@ -56,10 +56,16 @@ namespace tc
             }
         }
         configured_fec_percent_ = fec_percent_.load();
-        // Windows sleep 默认 15.6ms 粒度,帧内 pacing 的 1ms sleep 需要先把计时器分辨率提到 1ms
+        // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
         timeBeginPeriod(1);
-        LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {} shards/{}ms",
-             udp_listen_port_, fec_percent_.load(), udp_mtu_, kPaceChunkSize, kPaceSleepMs);
+        // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
+        pace_timer_ = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        if (!pace_timer_) {
+            pace_timer_ = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+        }
+        LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {}Mbps rate-limited (sunshine), timer={}",
+             udp_listen_port_, fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000,
+             pace_timer_ ? "ok" : "none");
         StartInternal();
 
         // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
@@ -83,6 +89,10 @@ namespace tc
         }
         sessions_.Clear();
         timeEndPeriod(1);
+        if (pace_timer_) {
+            CloseHandle(pace_timer_);
+            pace_timer_ = nullptr;
+        }
         return GrNetPlugin::OnDestroy();
     }
 
@@ -578,6 +588,23 @@ namespace tc
         return slot;
     }
 
+    // Sunshine 同款:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer + WaitForSingleObject,
+    // 精确睡到 due 时间点(亚毫秒),而不是 std::this_thread::sleep_for 的粗粒度。
+    void UdpPlugin::PaceSleep(const std::chrono::steady_clock::duration& duration) {
+        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+        if (ns <= 0) {
+            return;
+        }
+        if (!pace_timer_) {
+            std::this_thread::sleep_for(duration);
+            return;
+        }
+        LARGE_INTEGER due_time;
+        due_time.QuadPart = ns / -100;  // 100ns 单位,负数 = 相对时间
+        SetWaitableTimer(pace_timer_, &due_time, 0, nullptr, nullptr, false);
+        WaitForSingleObject(pace_timer_, INFINITE);
+    }
+
     // data: encode video frame, h264/h265/...
     void UdpPlugin::OnEncodedVideoFrame(const std::string& mon_name,
                                         const GrPluginEncodedVideoType& video_type,
@@ -628,32 +655,62 @@ namespace tc
         }
 
         int64_t total_sent = 0;
-        // 帧内 pacing:高动态大帧一帧上百个包,背靠背突发会打爆
-        // 客户端 socket 缓冲 → 丢包 → 请 IDR → 巨型 IDR 再丢的死循环。
-        // 外层按 shard chunk 摊开,内层遍历 bound 会话;每批发完睡 1ms(最后一批不睡)。
+        // Sunshine 同款 pacing(stream.cpp):按速率上限把一帧的 shard 平滑摊开;
+        // 每批发前算精确 due 时间,用高精度 waitable timer 睡到点,跨帧锚定 ratecontrol_next_frame_start。
+        // 速率上限按百兆网 80Mbps(而非 Sunshine 的 1Gbps*80%=800Mbps),避免 64KB 级突发打爆路由器缓冲。
+        const size_t blocksize = (size_t)udp_mtu_;
+        // ratecontrol_packets_in_1ms = 80Mbps/1000/blocksize/8 = 10000/blocksize
+        const size_t packets_per_ms = (size_t)(kRateControlBitsPerSec / 1000 / blocksize / 8);
+        // Sunshine 单批上限是 64KB,但我们网络是百兆且路由器缓冲小,
+        // 64KB 突发会丢包;把单批压到 10 shard(约 14KB),与之前实测最好的 10 shard/1ms 一致。
+        const size_t send_batch_size = std::min<size_t>(10, 64 * 1024 / blocksize);
+
+        auto ratecontrol_frame_start = std::max(
+            ratecontrol_next_frame_start_, std::chrono::steady_clock::now());
+        size_t ratecontrol_frame_packets_sent = 0;
+        size_t ratecontrol_group_packets_sent = 0;
+
         const size_t total_pkts = shards.size();
-        for (size_t chunk_base = 0; chunk_base < total_pkts; chunk_base += kPaceChunkSize) {
-            const size_t chunk_end = std::min(chunk_base + kPaceChunkSize, total_pkts);
-            sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-                if (!us->bound_ || !us->sess_) {
-                    return;
+        size_t next_shard_to_send = 0;
+        for (size_t x = 0; x < total_pkts; x++) {
+            if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == total_pkts) {
+                if (ratecontrol_group_packets_sent >= packets_per_ms || ratecontrol_frame_packets_sent == 0) {
+                    auto due = ratecontrol_frame_start +
+                               std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)) *
+                                 ratecontrol_frame_packets_sent / packets_per_ms;
+                    auto now = std::chrono::steady_clock::now();
+                    if (now < due) {
+                        PaceSleep(due - now);
+                    }
+                    ratecontrol_group_packets_sent = 0;
                 }
-                for (size_t i = chunk_base; i < chunk_end; i++) {
-                    const auto& shard = shards[i];
-                    total_sent += shard->Size();
-                    // shard 捕获进回调保活,直到 asio 拷进发件缓冲
-                    stat_sent_shards_++;
-                    us->sess_->async_send(shard->CStr(), shard->Size(), [shard, this](std::size_t bytes_sent) {
-                        if (bytes_sent != shard->Size()) {
-                            stat_send_short_writes_++;
-                        }
-                    });
-                }
-            });
-            if (chunk_end < total_pkts) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(kPaceSleepMs));
+                const size_t current_batch_size = x - next_shard_to_send + 1;
+                sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
+                    if (!us->bound_ || !us->sess_) {
+                        return;
+                    }
+                    for (size_t i = next_shard_to_send; i <= x; i++) {
+                        const auto& shard = shards[i];
+                        total_sent += shard->Size();
+                        // shard 捕获进回调保活,直到 asio 拷进发件缓冲
+                        stat_sent_shards_++;
+                        us->sess_->async_send(shard->CStr(), shard->Size(), [shard, this](std::size_t bytes_sent) {
+                            if (bytes_sent != shard->Size()) {
+                                stat_send_short_writes_++;
+                            }
+                        });
+                    }
+                });
+                ratecontrol_group_packets_sent += current_batch_size;
+                ratecontrol_frame_packets_sent += current_batch_size;
+                next_shard_to_send = x + 1;
             }
         }
+
+        ratecontrol_next_frame_start_ = ratecontrol_frame_start +
+                                        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)) *
+                                          ratecontrol_frame_packets_sent / packets_per_ms;
+
         if (total_sent > 0) {
             ReportSentDataSize((int)total_sent);
         }
