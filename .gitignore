@@ -52,3 +52,6 @@ rust_server/gr_desk_server/tencent_server.txt
 rust_server/gr_desk_server/desk_settings.toml
 rust_server/gr_desk_server/admin_password.txt
 _make_setup.log
+
+# Windows reserved device name artifact (can't be indexed by git)
+nul
