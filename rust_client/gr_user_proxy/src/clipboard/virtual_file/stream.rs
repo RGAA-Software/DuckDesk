@@ -38,6 +38,13 @@ struct StreamState {
     pending_resp: Option<RespBufferData>,
 }
 
+/// SCTP data-channel `max-message-size` is 256 KiB (262144). The client sends the
+/// resp buffer as a single message (no split), so a 256 KiB chunk plus the TLV
+/// header + protobuf metadata exceeds that limit and libwebrtc closes the channel
+/// with `send_result = INVALID_RANGE`. Cap each request well below the limit; the
+/// shell re-issues `IStream::Read` for any remaining bytes.
+const MAX_READ_CHUNK_SIZE: u32 = 128 * 1024;
+
 /// Port of `CpFileStream` read/wait logic without COM.
 ///
 /// Uses interior mutability so `on_resp_buffer` (websocket thread) can unblock
@@ -111,7 +118,7 @@ impl VirtualFileStreamCore {
             full_name: self.file.full_path.clone(),
             req_index: state.req_index,
             req_start: state.current_position,
-            req_size: cb as i64,
+            req_size: cb.min(MAX_READ_CHUNK_SIZE) as i64,
         })
     }
 
