@@ -569,13 +569,9 @@ impl ServiceRuntime {
             ControlEvent::Stop => {
                 warn!("received service stop control event");
                 self.request_stop();
-                // SCM stop must clear the persisted launch. Otherwise a later
-                // service start (or a failed panel exit that only killed render)
-                // would reload last_desktop_launch and pull GammaRayRender back.
-                self.state.last_desktop_launch = None;
-                if let Err(err) = self.persist_state() {
-                    warn!("persist cleared launch on service stop failed: {err}");
-                }
+                // Keep the persisted launch spec so a later service start (e.g.
+                // after a reboot) resumes the desktop render headlessly. Only an
+                // explicit StopDesktop command (from the panel) clears it.
                 let result = self.stop_managed_render();
                 if result.is_ok() {
                     info!("service stop control event handled successfully");
@@ -1206,8 +1202,8 @@ mod tests {
         runtime.sync_process_state().unwrap();
         assert!(!runtime.state.desktop_alive);
         assert!(
-            runtime.state.last_desktop_launch.is_none(),
-            "SCM stop must clear persisted launch so render is not resurrected"
+            runtime.state.last_desktop_launch.is_some(),
+            "SCM stop must preserve the launch spec so a restart resumes the render"
         );
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
