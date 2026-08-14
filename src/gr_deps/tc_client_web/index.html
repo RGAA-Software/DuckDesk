@@ -1,0 +1,30 @@
+<html>
+    <title>TC H264/H265 Player</title>
+
+    <div>
+        <h6>TC H264 H265 Websocket player</h6>
+    </div>
+    <div>
+        <label>Renderer: </label>
+        <select id="rendererSelect">
+            <option value="webgl">WebGL</option>
+            <option value="2d">Normal 2D</option>
+        </select>
+        <label>Address: </label>
+        <input type="text" id="adress" value="127.0.0.1:9002/media"/>
+        <button id="start">Start</button>
+    </div>
+
+    <div>
+        <label>FPS: </label>
+        <label id="fps"></label>
+        <label></label>
+        <label id="infomation"></label>
+    </div>
+
+    <div>
+        <canvas></canvas>
+    </div>
+    <script src="video_player.js"></script>
+
+</html>
