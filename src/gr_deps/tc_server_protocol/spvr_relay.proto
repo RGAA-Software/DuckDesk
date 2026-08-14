@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package spvr_relay;
+
+// Between servers
+// Spvr <---> Relay
+//
+
+enum SpvrRelayMessageType {
+  kHello = 0;
+  kHeartBeat = 1;
+}
+
+message SpvrRelayHello {
+  string srv_name = 1;
+  string srv_w3c_ip = 3;
+  string srv_local_ip = 4;
+  uint32 srv_grpc_port = 5;
+  uint32 srv_working_port = 6;
+  string appkey = 7;
+}
+
+message SpvrRelayHeartBeat {
+  int64 hb_index = 1;
+}
+
+message SpvrRelayMessage {
+  SpvrRelayMessageType msg_type = 1;
+  string server_id = 3;
+  SpvrRelayHello hello = 5;
+  SpvrRelayHeartBeat heartbeat = 10;
+}
