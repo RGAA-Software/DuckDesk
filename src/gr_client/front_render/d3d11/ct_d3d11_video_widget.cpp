@@ -11,9 +11,34 @@
 #include "tc_common_new/file.h"
 #include "d3d11_render_manager.h"
 #include "raw_sdl_widget.h"
+#include <atomic>
 
 namespace tc
 {
+
+    namespace {
+        // [LAT-render] 客户端单帧渲染耗时统计(纹理上传 + Draw + Present)
+        std::atomic<uint64_t> g_render_frames{0};
+        std::atomic<uint64_t> g_render_us_sum{0};
+        std::atomic<uint64_t> g_render_us_max{0};
+
+        void DumpRenderLatencyIfDue() {
+            static std::atomic<uint64_t> s_last_dump_us{0};
+            auto now = TimeUtil::GetCurrentTimePointUS();
+            auto last = s_last_dump_us.load();
+            if (now - last < 5000000) {
+                return;
+            }
+            if (!s_last_dump_us.compare_exchange_weak(last, now)) {
+                return;
+            }
+            auto n = g_render_frames.exchange(0);
+            auto sum = g_render_us_sum.exchange(0);
+            auto mx = g_render_us_max.exchange(0);
+            LOGI("[LAT-render] frames={} avg_us={} max_us={}",
+                 n, n > 0 ? (sum / n) : 0, mx);
+        }
+    }
 
 
     D3D11VideoWidget::D3D11VideoWidget(const std::shared_ptr<ClientContext> &ctx, const std::shared_ptr<ThunderSdk> &sdk,
@@ -88,6 +113,7 @@ namespace tc
 
     void D3D11VideoWidget::RefreshImage(const std::shared_ptr<RawImage>& image) {
         auto beg = TimeUtil::GetCurrentTimestamp();
+        auto beg_us = TimeUtil::GetCurrentTimePointUS();
 
         if (!image->device_) {
             LOGE("No device with texture");
@@ -194,6 +220,15 @@ namespace tc
 
         auto end = TimeUtil::GetCurrentTimestamp();
         //LOGI("Refresh image used: {}ms", (end - beg));
+        // [LAT-render] 计时单帧渲染(纹理上传 + Draw + Present)耗时
+        {
+            auto us = TimeUtil::GetCurrentTimePointUS() - beg_us;
+            ++g_render_frames;
+            g_render_us_sum += us;
+            auto prev = g_render_us_max.load();
+            while (us > prev && !g_render_us_max.compare_exchange_weak(prev, us)) {}
+            DumpRenderLatencyIfDue();
+        }
         fps_stat_.Tick();
 
         // For testing

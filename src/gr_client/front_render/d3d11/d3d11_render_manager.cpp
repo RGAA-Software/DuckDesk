@@ -1,5 +1,6 @@
 #include "d3d11_render_manager.h"
 #include <array>
+#include <dxgi1_2.h>
 #include "tc_common_new/log.h"
 #include "tc_common_new/string_util.h"
 
@@ -84,7 +85,7 @@ namespace tc
         DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
         RtlZeroMemory(&SwapChainDesc, sizeof(SwapChainDesc));
 
-        SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+        SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         SwapChainDesc.BufferCount = 2;
         SwapChainDesc.Width = width;
         SwapChainDesc.Height = height;
@@ -92,9 +93,18 @@ namespace tc
         SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         SwapChainDesc.SampleDesc.Count = 1;
         SwapChainDesc.SampleDesc.Quality = 0;
+
         hr = m_Factory->CreateSwapChainForHwnd(m_Device.Get(), window, &SwapChainDesc, nullptr, nullptr, m_SwapChain.GetAddressOf());
         if (FAILED(hr)) {
             return ProcessFailure(m_Device, L"Failed to create window swapchain", L"Error", hr, SystemTransitionsExpectedErrors);
+        }
+
+        // 限制 FLIP 模型排队帧数为 1,降低上屏延迟(避免多排队一帧)
+        {
+            ComPtr<IDXGIDevice1> dxgiDevice1;
+            if (SUCCEEDED(m_Device->QueryInterface(__uuidof(IDXGIDevice1), reinterpret_cast<void**>(dxgiDevice1.GetAddressOf()))) && dxgiDevice1) {
+                dxgiDevice1->SetMaximumFrameLatency(1);
+            }
         }
 
         // Disable the ALT-ENTER shortcut for entering full-screen mode

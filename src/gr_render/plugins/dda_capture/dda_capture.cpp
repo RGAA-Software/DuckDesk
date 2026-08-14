@@ -3,6 +3,7 @@
 #include <iostream>
 #include <timeapi.h>
 #include <functional>
+#include <chrono>
 #include "tc_common_new/string_util.h"
 #include "tc_common_new/message_notifier.h"
 #include "tc_common_new/log.h"
@@ -279,26 +280,73 @@ namespace tc
                 return S_FALSE;
             }
         }
-        dxgi_output_duplication_.duplication_->ReleaseFrame();
-
+        // 标准 DDA 协议:acquire 成功 -> 拷贝完 -> 立刻 ReleaseFrame。
+        // 不要在 AcquireNextFrame 之前释放上一帧——提前释放会在高频变化(拖动窗口)时
+        // 让 DDA 丢帧,导致采集从 60fps 崩到 ~10fps(见 dxgi_capture_probe 对照验证)。
         res = dxgi_output_duplication_.duplication_->AcquireNextFrame(wait_time, &info, resource.GetAddressOf());
         if (res != S_OK) {
-            return res;
+            return res;  // WAIT_TIMEOUT/错误:未取得帧,无需 ReleaseFrame
         }
         res = resource->QueryInterface(__uuidof(ID3D11Texture2D), (void **) source.GetAddressOf());
         if (res != S_OK) {
             LOGE("QueryInterface failed when capturing: {}", StringUtil::GetErrorStr(res));
+            dxgi_output_duplication_.duplication_->ReleaseFrame();
             return res;
         }
         if (info.AccumulatedFrames == 0) {
+            // 桌面未变化:立即释放,不上送
+            dxgi_output_duplication_.duplication_->ReleaseFrame();
             return S_NOT_CHANGED;
         }
         out_tex = source;
+        // 帧未在此释放:由 OnCaptureFrame 拷贝完成后调用 ReleaseFrame
         return res;
     }
 
     void DDACapture::Capture() {
+        // [LAT-capture] 采集节奏诊断窗口(每 5s 汇总一次)
+        auto lat_win_beg = std::chrono::steady_clock::now();
+        uint64_t lat_acquire_new = 0;       // AcquireNextFrame 返回 S_OK(新帧)
+        uint64_t lat_acquire_timeout = 0;   // 返回 DXGI_ERROR_WAIT_TIMEOUT(桌面无新帧)
+        uint64_t lat_acquire_nochange = 0;  // 返回 S_NOT_CHANGED(AccumulatedFrames==0)
+        uint64_t lat_acquire_err = 0;       // 返回 S_FALSE/ACCESS_LOST/INVALID_CALL(出错重初始化)
+        uint64_t lat_backpressure = 0;      // 网络队列积压导致的采集跳过
+        uint64_t lat_copy_us_sum = 0;       // OnCaptureFrame(两次 CopyResource+送帧)耗时累计
+        uint64_t lat_copy_us_max = 0;
+        uint64_t lat_copy_cnt = 0;
+
         while (!stop_flag_) {
+            // [LAT-capture] 每 5s 汇总:新帧 vs 超时、采集帧间隔分布
+            {
+                auto now = std::chrono::steady_clock::now();
+                auto el_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - lat_win_beg).count();
+                if (el_ms >= 5000) {
+                    auto gaps = capture_gaps_.ToVector();
+                    int32_t gmin = 100000;
+                    int32_t gmax = 0;
+                    int64_t gsum = 0;
+                    for (auto g : gaps) {
+                        if (g < gmin) { gmin = g; }
+                        if (g > gmax) { gmax = g; }
+                        gsum += g;
+                    }
+                    double gavg = gaps.empty() ? 0.0 : (double)gsum / (double)gaps.size();
+                    LOGI("[LAT-capture] mon={} win={}ms new={} timeout={} nochange={} err={} backpressure={} fps={} gap_min={} gap_avg={:.1f} gap_max={} copy_avg_us={} copy_max_us={}",
+                         my_monitor_info_.name_, el_ms, lat_acquire_new, lat_acquire_timeout,
+                         lat_acquire_nochange, lat_acquire_err, lat_backpressure,
+                         fps_stat_->value(), gmin, gavg, gmax,
+                         lat_copy_cnt > 0 ? (lat_copy_us_sum / lat_copy_cnt) : 0, lat_copy_us_max);
+                    lat_win_beg = now;
+                    lat_acquire_new = 0;
+                    lat_acquire_timeout = 0;
+                    lat_acquire_nochange = 0;
+                    lat_acquire_err = 0;
+                    lat_backpressure = 0;
+                    lat_copy_us_sum = 0;
+                    lat_copy_us_max = 0;
+                    lat_copy_cnt = 0;
+                }
+            }
 
             // process tasks
             {
@@ -317,15 +365,16 @@ namespace tc
             // test beg
             auto queuing_msg_count = plugin_->GetQueuingMediaMsgCountInNetPlugins();
             if (queuing_msg_count >= 10) {
+                ++lat_backpressure;
                 TimeUtil::DelayBySleep(1);
                 LOGW("too many queuing messages, ignore this capturing loop, count: {}", queuing_msg_count);
                 continue;
             }
             // test end
 
-            uint64_t beg_time = TimeUtil::GetCurrentTimestamp();
-
-            auto target_duration = 1000 / capture_fps_;
+            // 向上取整:1000/60 整数除法会截断成 16ms,而 60Hz 实际是 16.67ms,
+            // AcquireNextFrame(16ms) 会在桌面下一帧到来前就超时,高动态(拖动)时累积丢帧。
+            auto target_duration = (1000 + capture_fps_ - 1) / capture_fps_;
             //LOGI("target_duration: {}, capture_fps_: {}", target_duration, capture_fps_);
             ComPtr<ID3D11Texture2D> texture = nullptr;
             // do capture
@@ -337,6 +386,7 @@ namespace tc
 
             bool is_cached = false;
             if (res == S_OK) {
+                ++lat_acquire_new;
                 // fps tick
                 fps_stat_->Tick();
 
@@ -353,6 +403,7 @@ namespace tc
                 last_captured_timestamp_ = curr_timestamp;
             }
             else if (res == S_FALSE || res == DXGI_ERROR_ACCESS_LOST || res == DXGI_ERROR_INVALID_CALL) {
+                ++lat_acquire_err;
                 LOGE("CaptureNextFrame, monitor: {}, err: {:x}, duplicate retry? : {}", my_monitor_info_.name_, (uint32_t)res, dxgi_output_duplication_.has_retry_);
                 if (res == DXGI_ERROR_ACCESS_LOST && dxgi_output_duplication_.output1_ && !dxgi_output_duplication_.has_retry_) {
                     dxgi_output_duplication_.has_retry_ = true;
@@ -389,7 +440,11 @@ namespace tc
             }
             else if (res == DXGI_ERROR_WAIT_TIMEOUT || res == S_NOT_CHANGED) {
                 if (res == DXGI_ERROR_WAIT_TIMEOUT) {
+                    ++lat_acquire_timeout;
                     ++continuous_timeout_times_;
+                }
+                else {
+                    ++lat_acquire_nochange;
                 }
                 //LOGI("CaptureNextFrame res: {:x}", (uint32_t)res);
                  if (refresh_screen_) {
@@ -411,13 +466,14 @@ namespace tc
 
             if (texture) {
                 continuous_timeout_times_ = 0;
+                auto copy_beg = std::chrono::steady_clock::now();
                 OnCaptureFrame(texture, is_cached);
-                uint64_t end_time = TimeUtil::GetCurrentTimestamp();
-                auto cap_use_time = end_time - beg_time;
-                if (target_duration > (cap_use_time + 5)) {
-                    TimeUtil::DelayBySleep(target_duration - cap_use_time - 3);
-                    //LOGI("DelayBySleep: {}", target_duration - cap_use_time - 3);
-                }
+                auto copy_us = (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - copy_beg).count();
+                ++lat_copy_cnt;
+                lat_copy_us_sum += copy_us;
+                if (copy_us > lat_copy_us_max) { lat_copy_us_max = copy_us; }
+                // 不主动配速睡眠:AcquireNextFrame 的超时本身就是节拍器。
             }
         }
     }
@@ -522,7 +578,12 @@ namespace tc
 
         d3d11_device_context_->CopyResource(last_list_texture_->texture2d_.Get(), texture.Get());
         if (!is_cached) {
-            d3d11_device_context_->CopyResource(cached_texture_.Get(), texture.Get());
+            // [ISOLATION-TEST] 临时去掉缓存纹理的第二次 CopyResource,只保留共享纹理拷贝+送帧,
+            // 用于隔离「每帧双 GPU 拷贝」是否是拖动时 DDA 采集崩到 10fps 的原因。
+            // 拷贝完立刻释放 DDA 帧(标准协议),让下一帧能被及时取到
+            if (dxgi_output_duplication_.duplication_) {
+                dxgi_output_duplication_.duplication_->ReleaseFrame();
+            }
         }
 
         //if (SUCCEEDED(result) && keyMutex) {

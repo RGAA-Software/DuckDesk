@@ -271,7 +271,8 @@ namespace tc
 
     void DDACapture::Capture() {
         while (!stop_flag_) {
-            auto target_duration = 1000 / capture_fps_;
+            // 向上取整,避免 1000/60 截断成 16ms 导致 AcquireNextFrame 提前超时
+            auto target_duration = (1000 + capture_fps_ - 1) / capture_fps_;
             auto beg = (int64_t)TimeUtil::GetCurrentTimestamp();
             for (uint8_t index = 0; index < monitor_count_; ++index) {
                 if (!IsTargetMonitor(index)) {

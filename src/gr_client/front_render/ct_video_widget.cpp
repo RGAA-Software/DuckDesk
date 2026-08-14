@@ -20,6 +20,7 @@
 
 #include "tc_common_new/const_auto.h"
 #include <string>
+#include <atomic>
 
 namespace tc
 {
@@ -58,6 +59,30 @@ namespace tc
         bool IsPureMouseMove(const MouseEventDesc& d) {
             return !d.pressed && !d.released && d.data == 0
                 && (d.buttons == 0 || d.buttons == ButtonFlag::kMouseMove);
+        }
+
+        // [LAT-input] 客户端输入排队计时统计(evt_cache_thread 排队 + 忙等背压)
+        std::atomic<uint64_t> g_input_queued{0};
+        std::atomic<uint64_t> g_input_queue_us_sum{0};
+        std::atomic<uint64_t> g_input_queue_us_max{0};
+        std::atomic<uint64_t> g_input_wait_rounds_sum{0};
+
+        void DumpInputLatencyIfDue() {
+            static std::atomic<uint64_t> s_last_dump_us{0};
+            auto now = TimeUtil::GetCurrentTimePointUS();
+            auto last = s_last_dump_us.load();
+            if (now - last < 5000000) {
+                return;
+            }
+            if (!s_last_dump_us.compare_exchange_weak(last, now)) {
+                return;
+            }
+            auto n = g_input_queued.exchange(0);
+            auto sum = g_input_queue_us_sum.exchange(0);
+            auto mx = g_input_queue_us_max.exchange(0);
+            auto rounds = g_input_wait_rounds_sum.exchange(0);
+            LOGI("[LAT-input] client queue events={} avg_us={} max_us={} busywait_rounds={}",
+                 n, n > 0 ? (sum / n) : 0, mx, rounds);
         }
     }
 
@@ -328,6 +353,9 @@ namespace tc
             return;
         }
 
+        // [LAT-roundtrip] 记录最近一次鼠标发送时刻,供解码出帧时计算操作往返延迟
+        tc::g_last_mouse_send_us = TimeUtil::GetCurrentTimePointUS();
+
         auto msg = std::make_shared<Message>();
         msg->set_type(tc::kMouseEvent);
         msg->set_device_id(settings_->device_id_);
@@ -376,7 +404,17 @@ namespace tc
         const bool keep_move_when_busy = !pressed_mouse_buttons_.empty()
             || mouse_event_desc.pressed || mouse_event_desc.released || mouse_event_desc.data != 0;
 
+        // [LAT-input] 记录入队时间戳,在工作线程里算排队耗时
+        const uint64_t ts_enqueue_us = TimeUtil::GetCurrentTimePointUS();
+
         this->evt_cache_thread_->Post([=, this]() {
+            // [LAT-input] 入队 -> 实际发送前的排队耗时(含下方忙等背压)
+            const uint64_t queue_us = TimeUtil::GetCurrentTimePointUS() - ts_enqueue_us;
+            ++g_input_queued;
+            g_input_queue_us_sum += queue_us;
+            auto prev_max = g_input_queue_us_max.load();
+            while (queue_us > prev_max && !g_input_queue_us_max.compare_exchange_weak(prev_max, queue_us)) {}
+
             auto queuing_count = this->sdk_->GetQueuingMediaMsgCount();
             int wait_rounds = 0;
             while (queuing_count > 16 && wait_rounds < 50) {
@@ -386,6 +424,8 @@ namespace tc
                 queuing_count = this->sdk_->GetQueuingMediaMsgCount();
                 ++wait_rounds;
             }
+            g_input_wait_rounds_sum += wait_rounds;
+            DumpInputLatencyIfDue();
             // 队列持续积压时,仅丢弃空闲纯移动;按住拖动/press/release/滚轮必须发送
             if (queuing_count > 16 && !keep_move_when_busy) {
                 LOGW("[InputSend] drop pure mouse move, queuing media messages: {}", queuing_count);

@@ -261,6 +261,8 @@ int main(int argc, char** argv) {
 
     // run in high level
     tc::ProcessUtil::SetProcessInHighLevel();
+    // 混合架构 CPU(8P+8E):钉到大核,避免采集/编码线程被调度到小核
+    tc::ProcessUtil::PinToPerformanceCores();
 
     // 1. settings.toml defaults (application.mode / game-path / capture-method)
     // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)

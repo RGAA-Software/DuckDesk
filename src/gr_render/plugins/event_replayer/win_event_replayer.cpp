@@ -5,9 +5,12 @@
 #include "win_event_replayer.h"
 #include "tc_message.pb.h"
 #include "tc_common_new/log.h"
+#include "tc_common_new/time_util.h"
 #include "gr_render/plugin_interface/gr_monitor_capture_plugin.h"
 #include <cstdio>
 #include <string>
+#include <atomic>
+#include <memory>
 
 namespace tc
 {
@@ -63,6 +66,31 @@ namespace tc
             std::snprintf(hex, sizeof(hex), "%08lX", static_cast<unsigned long>(flags));
             return s + "(0x" + hex + ")";
         }
+
+        // [LAT-input] 输入注入(SendInput)计时统计
+        std::atomic<uint64_t> g_sendinput_calls{0};
+        std::atomic<uint64_t> g_replay_events{0};
+        std::atomic<uint64_t> g_replay_us_sum{0};
+        std::atomic<uint64_t> g_replay_us_max{0};
+        std::atomic<uint64_t> g_replay_calls_sum{0};
+
+        void DumpReplayLatencyIfDue() {
+            static std::atomic<uint64_t> s_last_dump_us{0};
+            auto now = TimeUtil::GetCurrentTimePointUS();
+            auto last = s_last_dump_us.load();
+            if (now - last < 5000000) {
+                return;
+            }
+            if (!s_last_dump_us.compare_exchange_weak(last, now)) {
+                return;
+            }
+            auto ev = g_replay_events.exchange(0);
+            auto sum = g_replay_us_sum.exchange(0);
+            auto mx = g_replay_us_max.exchange(0);
+            auto calls = g_replay_calls_sum.exchange(0);
+            LOGI("[LAT-input] inject events={} avg_us={} max_us={} sendinput_calls={}",
+                 ev, ev > 0 ? (sum / ev) : 0, mx, calls);
+        }
     }
 
     // 返回是否注入成功;失败时带 GetLastError
@@ -71,6 +99,7 @@ namespace tc
             LOGE("[InputReplay] WinSendEvent null INPUT");
             return false;
         }
+        ++g_sendinput_calls;
         SetLastError(0);
         if (SendInput(1, input, sizeof(INPUT)) == 1) {
             return true;
@@ -416,6 +445,20 @@ namespace tc
     }
 
     void WinEventReplayer::SendMouseEvent(int x, int y, int buttons, int data) {
+        // [LAT-input] 计时本次鼠标注入(相对+绝对 SendInput)耗时与次数;RAII 覆盖所有 return 路径
+        const uint64_t lat_beg_us = TimeUtil::GetCurrentTimePointUS();
+        const uint64_t lat_calls_before = g_sendinput_calls.load();
+        auto lat_guard = std::shared_ptr<void>(nullptr, [lat_beg_us, lat_calls_before](void*) {
+            const uint64_t us = TimeUtil::GetCurrentTimePointUS() - lat_beg_us;
+            const uint64_t calls = g_sendinput_calls.load() - lat_calls_before;
+            ++g_replay_events;
+            g_replay_us_sum += us;
+            auto prev = g_replay_us_max.load();
+            while (us > prev && !g_replay_us_max.compare_exchange_weak(prev, us)) {}
+            g_replay_calls_sum += calls;
+            DumpReplayLatencyIfDue();
+        });
+
         const bool dragging = left_held_ || middle_held_ || right_held_;
         const bool significant = !IsPureMouseMove(buttons) || data != 0 || dragging;
         auto inject_abs = [&](DWORD dw_flags, int mouse_data, const char* tag) {
