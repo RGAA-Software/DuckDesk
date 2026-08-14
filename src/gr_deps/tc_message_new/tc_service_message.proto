@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package tc;
+
+enum ServiceMessageType {
+  kSrvStartServer = 0;
+  kSrvStopServer = 1;
+  kSrvRestartServer = 2;
+  kSrvHeartBeat = 3;
+  kSrvHeartBeatResp = 4;
+  kSrvReqCtrlAltDelete = 5;
+  kSrvAuthInfo = 6;
+}
+
+message MsgStartServer {
+  string work_dir = 1;
+  string app_path = 2;
+  repeated string args = 3;
+}
+
+message MsgStopServer {
+
+}
+
+message MsgRestartServer {
+  string work_dir = 1;
+  string app_path = 2;
+  repeated string args = 3;
+}
+
+enum RenderStatus {
+  kStopped = 0;
+  kWorking = 2;
+}
+
+message MsgAuthInfo {
+  string device_id = 1;
+  string auth_id = 2;
+  string auth_name = 3;
+  string machine_code = 4;
+  string appkey = 5;
+  int32 role = 6;
+  int32 days = 7;
+  int32 max_streams = 8;
+  int64 end_timestamp_ms = 9;
+  // spvr(CMS) server address, so the service can connect to CMS
+  string spvr_host = 10;
+  int32 spvr_port = 11;
+}
+
+message MsgHeartBeat {
+  int64 index = 1;
+  string from = 2;
+  // panel carries its latest authorization info on every heartbeat
+  MsgAuthInfo auth_info = 3;
+}
+
+message MsgHeartBeatResp {
+  int64 index = 1;
+  RenderStatus render_status = 2;
+}
+
+message MsgReqCtrlAltDelete {
+  string req_device_id = 1;
+  string req_stream_id = 2;
+}
+
+message ServiceMessage {
+  ServiceMessageType type = 1;
+  MsgStartServer start_server = 2;
+  MsgStopServer stop_server = 3;
+  MsgRestartServer restart_server = 4;
+  MsgHeartBeat heart_beat = 5;
+  MsgHeartBeatResp heart_beat_resp = 6;
+  MsgReqCtrlAltDelete req_ctrl_alt_delete = 7;
+  // sent by panel right after connecting, and embedded in every heartbeat
+  MsgAuthInfo auth_info = 8;
+}

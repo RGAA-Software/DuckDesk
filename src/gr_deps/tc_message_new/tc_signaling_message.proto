@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package tc;
+
+message SigOfferSdpMessage {
+  string device_id = 1;
+  string room_id = 2;
+  string sdp = 3;
+}
+
+message SigAnswerSdpMessage {
+  string device_id = 1;
+  string room_id = 2;
+  string sdp = 3;
+}
+
+message SigIceMessage {
+  string device_id = 1;
+  string room_id = 2;
+  string ice = 3;
+  string mid = 4;
+  int32 sdp_mline_index = 5;
+}
