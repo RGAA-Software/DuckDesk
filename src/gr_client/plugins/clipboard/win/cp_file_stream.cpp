@@ -35,23 +35,41 @@ namespace tc
         if (exit_ || !request_buffer_cb_ || !lifetime_token_ || !lifetime_token_->load()) {
             return S_FALSE;
         }
-        if (!request_buffer_cb_(cp_file_, req_index_.load(), current_position_.load(), cb)) {
+        // Cap each request well below the file-transfer channel's max message size
+        // (~256 KiB): a 256 KiB payload plus the protobuf/TLV header exceeds it and
+        // the message is dropped, truncating the pasted file. Match the Rust side's
+        // MAX_READ_CHUNK_SIZE (128 KiB); the shell re-issues IStream::Read for the
+        // remaining bytes.
+        ULONG req_size = cb;
+        if (req_size > 128u * 1024u) {
+            req_size = 128u * 1024u;
+        }
+        if (!request_buffer_cb_(cp_file_, req_index_.load(), current_position_.load(), req_size)) {
             return S_FALSE;
         }
 
         std::unique_lock lk(wait_data_mtx_);
-        data_cv_.wait_for(lk, std::chrono::seconds(10), [this]() -> bool {
-            return resp_buffer_.has_value();
-        });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (true) {
+            data_cv_.wait_until(lk, deadline, [this]() -> bool {
+                return exit_ || resp_buffer_.has_value();
+            });
 
-        if (exit_ || !resp_buffer_.has_value()) {
-            LOGW("exit copy file: {}", cp_file_.file_.ref_path());
-            return S_FALSE;
-        }
-
-        if (req_index_ != resp_buffer_->req_index()) {
-            LOGE("invalid req index, send: {}, received: {}", req_index_.load(), resp_buffer_->req_index());
-            return S_FALSE;
+            if (exit_) {
+                LOGW("exit copy file: {}", cp_file_.file_.ref_path());
+                return S_FALSE;
+            }
+            if (!resp_buffer_.has_value()) {
+                LOGW("timeout waiting clipboard resp: {}", cp_file_.file_.ref_path());
+                return S_FALSE;
+            }
+            if (req_index_ == resp_buffer_->req_index()) {
+                break; // got the matching resp
+            }
+            // Stale resp (e.g. duplicated by the net channel); drop it and keep waiting.
+            LOGW("stale clipboard resp index {}, expected {}, continue waiting",
+                 resp_buffer_->req_index(), req_index_.load());
+            resp_buffer_.reset();
         }
 
         // copy data

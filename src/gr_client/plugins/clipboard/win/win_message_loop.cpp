@@ -1,6 +1,7 @@
 #include "win_message_loop.h"
 #include <iostream>
 #include <wtsapi32.h>
+#include <ole2.h>
 #include "tc_common_new/log.h"
 #include "win_message_window.h"
 
@@ -56,6 +57,11 @@ namespace tc
     }
 
     void WinMessageLoop::ThreadFunc() {
+        // Make this thread an STA so OleSetClipboard'ed data objects can be
+        // marshaled cross-process (Explorer queries them on paste). Must run the
+        // message pump below to dispatch those incoming COM calls.
+        OleInitialize(nullptr);
+
         if (!message_window_->Create(kWindowName)) {
             LOGE("WinMessageLoop create window error.");
             return;
@@ -104,6 +110,14 @@ namespace tc
         RemoveClipboardFormatListener(hwnd);
         if (hEventHook != nullptr) {
             UnhookWinEvent(hEventHook);
+        }
+
+        OleUninitialize();
+    }
+
+    void WinMessageLoop::PostTask(std::function<void()> task) {
+        if (message_window_) {
+            message_window_->PostTask(std::move(task));
         }
     }
 

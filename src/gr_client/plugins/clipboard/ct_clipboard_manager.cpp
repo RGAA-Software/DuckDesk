@@ -123,44 +123,57 @@ namespace tc
                 target_files.push_back(file);
             }
 
-            if (!virtual_file_) {
-                virtual_file_ = tc::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, plugin_);
-            }
-            if (!data_object_) {
-                LOGE("DataObject is null!");
+            if (!msg_loop_) {
+                LOGE("Message loop is null!");
                 return;
             }
 
-            bool cleared_clipboard = false;
-            for (int i = 0; i < 20; i++) {
-                if (clipboard_platform_->Clear()) {
-                    cleared_clipboard = true;
-                    break;
+            // OleSetClipboard must run on an STA thread with a message pump so the
+            // data object can be marshaled cross-process (Explorer queries it when
+            // deciding whether to enable "Paste"). Run the whole clipboard write on
+            // the clipboard message-loop thread.
+            msg_loop_->PostTask([this, target_files]() {
+                clipboard::SuppressOutboundGuard suppress_guard(echo_filter_);
+
+                if (!virtual_file_) {
+                    virtual_file_ = tc::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, plugin_);
                 }
-                TimeUtil::DelayBySleep(10);
-            }
-            if (!cleared_clipboard) {
-                LOGE("Empty clipboard failed!");
-                return;
-            }
-
-            TimeUtil::DelayBySleep(10);
-
-            bool set_clipboard = false;
-            for (int i = 0; i < 20; i++) {
-                auto hr = ::OleSetClipboard(data_object_);
-                if (hr == S_OK) {
-                    set_clipboard = true;
-                    break;
+                if (!data_object_) {
+                    LOGE("DataObject is null!");
+                    return;
                 }
-                TimeUtil::DelayBySleep(10);
-            }
-            if (!set_clipboard) {
-                LOGE("Set clipboard failed!");
-                return;
-            }
 
-            virtual_file_->OnClipboardFilesInfo(target_files);
+                bool cleared_clipboard = false;
+                for (int i = 0; i < 20; i++) {
+                    if (clipboard_platform_->Clear()) {
+                        cleared_clipboard = true;
+                        break;
+                    }
+                    TimeUtil::DelayBySleep(10);
+                }
+                if (!cleared_clipboard) {
+                    LOGE("Empty clipboard failed!");
+                    return;
+                }
+
+                TimeUtil::DelayBySleep(10);
+
+                bool set_clipboard = false;
+                for (int i = 0; i < 20; i++) {
+                    auto hr = ::OleSetClipboard(data_object_);
+                    if (hr == S_OK) {
+                        set_clipboard = true;
+                        break;
+                    }
+                    TimeUtil::DelayBySleep(10);
+                }
+                if (!set_clipboard) {
+                    LOGE("Set clipboard failed!");
+                    return;
+                }
+
+                virtual_file_->OnClipboardFilesInfo(target_files);
+            });
         }
     }
 

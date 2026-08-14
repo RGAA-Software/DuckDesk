@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -80,6 +80,8 @@ namespace tc
     private:
         uint32_t clip_format_filedesc_ = 0;
         uint32_t clip_format_filecontent_ = 0;
+        uint32_t clip_format_preferred_ = 0;
+        uint32_t clip_format_hdrop_ = CF_HDROP;
         BOOL in_async_op_ = false;
         ClientClipboardPlugin* plugin_ = nullptr;
         std::shared_ptr<std::atomic_bool> plugin_lifetime_token_ = nullptr;

@@ -1,13 +1,20 @@
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::OnceLock;
+
+use windows::core::{w, PCWSTR};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::DataExchange::AddClipboardFormatListener;
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, RegisterClassW, WNDCLASSW, WM_CLIPBOARDUPDATE, HWND_MESSAGE,
+    WINDOW_EX_STYLE, WINDOW_STYLE,
+};
 
 use crate::clipboard::backend::ClipboardBackend;
 use crate::clipboard::content::ClipboardContent;
 use crate::clipboard::virtual_file::VirtualFileCoordinator;
 use crate::clipboard::virtual_file::install_virtual_file_clipboard;
-use crate::clipboard::win_platform::{
-    is_ole_clipboard_active, pump_sta_messages, wait_sta_messages, WinClipboardPlatform,
-};
+use crate::clipboard::win_platform::{pump_sta_messages, wait_sta_messages, WinClipboardPlatform};
 
 enum ClipboardRequest {
     ReadContent(Sender<anyhow::Result<ClipboardContent>>),
@@ -20,7 +27,7 @@ enum ClipboardRequest {
         reply: Sender<anyhow::Result<()>>,
     },
     WriteVirtualFiles {
-        coordinator: Arc<VirtualFileCoordinator>,
+        coordinator: std::sync::Arc<VirtualFileCoordinator>,
         reply: Sender<anyhow::Result<()>>,
     },
 }
@@ -46,7 +53,7 @@ impl ClipboardBackend for WinClipboardWorker {
         self.platform.write_file_paths(paths)
     }
 
-    fn write_virtual_files(&self, coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+    fn write_virtual_files(&self, coordinator: std::sync::Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
         install_virtual_file_clipboard(coordinator)
     }
 }
@@ -77,7 +84,7 @@ impl ClipboardBackend for WinClipboardBackend {
         rx.recv()?
     }
 
-    fn write_virtual_files(&self, coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+    fn write_virtual_files(&self, coordinator: std::sync::Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
         let (tx, rx) = std::sync::mpsc::channel();
         self.request_tx
             .send(ClipboardRequest::WriteVirtualFiles {
@@ -98,11 +105,79 @@ pub fn spawn_win_clipboard_listener(
     Ok((WinClipboardBackend { request_tx }, notify_rx))
 }
 
+/// Sender exposed to the WM_CLIPBOARDUPDATE window proc.
+static NOTIFY_TX: OnceLock<Sender<()>> = OnceLock::new();
+
+unsafe extern "system" fn clipboard_wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_CLIPBOARDUPDATE {
+        if let Some(tx) = NOTIFY_TX.get() {
+            let _ = tx.send(());
+        }
+        LRESULT(0)
+    } else {
+        DefWindowProcW(hwnd, msg, wparam, lparam)
+    }
+}
+
+/// Create a message-only hidden window and register it for clipboard updates.
+fn create_clipboard_listener_window(notify_tx: Sender<()>) -> anyhow::Result<HWND> {
+    let _ = NOTIFY_TX.set(notify_tx);
+
+    let instance: windows::Win32::Foundation::HINSTANCE =
+        unsafe { GetModuleHandleW(PCWSTR::null())? }.into();
+    let class_name = w!("GammaRay_user_proxy_clipboard");
+
+    let wnd_class = WNDCLASSW {
+        lpfnWndProc: Some(clipboard_wnd_proc),
+        lpszClassName: class_name,
+        hInstance: instance,
+        ..Default::default()
+    };
+    unsafe {
+        RegisterClassW(&wnd_class);
+    }
+
+    let hwnd = unsafe {
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class_name,
+            w!(""),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            Some(instance),
+            None,
+        )?
+    };
+
+    unsafe {
+        AddClipboardFormatListener(hwnd)?;
+    }
+    tracing::info!("clipboard listener window created, hwnd={:?}", hwnd.0);
+    Ok(hwnd)
+}
+
 fn clipboard_worker_loop(notify_tx: Sender<()>, request_rx: Receiver<ClipboardRequest>) {
     let worker = WinClipboardWorker {
         platform: WinClipboardPlatform::new(),
     };
-    let mut last_fingerprint = String::new();
+
+    // Event-driven: a hidden message-only window receives WM_CLIPBOARDUPDATE and
+    // posts a notify via NOTIFY_TX. No polling.
+    if let Err(err) = create_clipboard_listener_window(notify_tx) {
+        tracing::error!("create clipboard listener window failed: {err:#}");
+        return;
+    }
+
     loop {
         while let Ok(req) = request_rx.try_recv() {
             match req {
@@ -122,25 +197,8 @@ fn clipboard_worker_loop(notify_tx: Sender<()>, request_rx: Receiver<ClipboardRe
             pump_sta_messages();
         }
 
+        // Pump messages so WM_CLIPBOARDUPDATE is dispatched.
         pump_sta_messages();
-
-        if !is_ole_clipboard_active() {
-            match worker.read_content() {
-                Ok(content) => {
-                    let fingerprint = content.fingerprint();
-                    if !content.is_empty() && fingerprint != last_fingerprint {
-                        last_fingerprint = fingerprint;
-                        tracing::info!(
-                            "local clipboard changed, has_text={}, file_count={}",
-                            content.has_text(),
-                            content.files.len()
-                        );
-                        let _ = notify_tx.send(());
-                    }
-                }
-                Err(err) => tracing::debug!("clipboard poll read skipped: {err:#}"),
-            }
-        }
         wait_sta_messages(std::time::Duration::from_millis(250));
     }
 }

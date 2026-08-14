@@ -10,6 +10,7 @@
 namespace tc
 {
     constexpr char kWindowClassName[] = "GammaRay_client_MessageWindowClass";
+    constexpr UINT kTaskMessage = WM_APP + 1;
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;
     std::string WinMessageWindow::class_name_;
@@ -73,6 +74,13 @@ namespace tc
             }
             LOGI("WM_CLIPBOARDUPDATE");
             self->OnLocalClipboardUpdated(window);
+            break;
+        }
+
+        case kTaskMessage: {
+            if (self) {
+                self->RunPostedTask();
+            }
             break;
         }
 
@@ -223,6 +231,27 @@ namespace tc
             PostMessage(mHwnd, WM_CLOSE, 0, 0);
         }
         --current_create_window_count_;
+    }
+
+    void WinMessageWindow::PostTask(std::function<void()> task) {
+        {
+            std::lock_guard<std::mutex> lock(task_mutex_);
+            pending_task_ = std::move(task);
+        }
+        if (mHwnd) {
+            PostMessage(mHwnd, kTaskMessage, 0, 0);
+        }
+    }
+
+    void WinMessageWindow::RunPostedTask() {
+        std::function<void()> task;
+        {
+            std::lock_guard<std::mutex> lock(task_mutex_);
+            task = std::move(pending_task_);
+        }
+        if (task) {
+            task();
+        }
     }
 
     void WinMessageWindow::OnLocalClipboardUpdated(HWND hwnd) {

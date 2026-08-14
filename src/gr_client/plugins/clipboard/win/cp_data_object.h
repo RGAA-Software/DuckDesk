@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 // THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 // ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 // THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
@@ -60,8 +60,8 @@ namespace tc
 
         IFACEMETHODIMP QueryGetData(FORMATETC *pformatetc);
 
-        IFACEMETHODIMP GetCanonicalFormatEtc(FORMATETC *pformatetcIn, FORMATETC *pFormatetcOut) {
-            pformatetcIn->ptd = NULL;
+        IFACEMETHODIMP GetCanonicalFormatEtc(FORMATETC * /* pformatetcIn */, FORMATETC *pFormatetcOut) {
+            pFormatetcOut->ptd = NULL;
             return E_NOTIMPL;
         }
 

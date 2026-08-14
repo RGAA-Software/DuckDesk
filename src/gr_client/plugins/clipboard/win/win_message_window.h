@@ -22,6 +22,11 @@ namespace tc
         HWND GetHwnd() const;
         void CloseWindow();
 
+        // Run |task| on the message-loop thread (the clipboard STA thread with a
+        // message pump). Used so OleSetClipboard executes on an STA that can marshal
+        // the data object cross-process (Explorer queries it on paste).
+        void PostTask(std::function<void()> task);
+
     private:
         static bool registerWindowClass(HINSTANCE instance);
         static LRESULT CALLBACK windowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -32,6 +37,8 @@ namespace tc
         /*显示设备变化消息*/
         void OnDisplayChange();
 
+        void RunPostedTask();
+
     private:
         ClientClipboardPlugin* plugin_ = nullptr;
         MessageCallback message_callback_;
@@ -39,6 +46,9 @@ namespace tc
         std::string window_name_;
 
         std::weak_ptr<WinMessageLoop> message_loop_;
+
+        std::mutex task_mutex_;
+        std::function<void()> pending_task_;
 
         static std::mutex register_mutex_;
         static std::atomic<int> current_create_window_count_;

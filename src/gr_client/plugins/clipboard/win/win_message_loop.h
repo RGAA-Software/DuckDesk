@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <memory>
 #include <thread>
+#include <functional>
 
 namespace tc
 {
@@ -17,6 +18,9 @@ namespace tc
         ~WinMessageLoop();
         void Start();
         void Stop();
+
+        // Run |task| on the message-loop thread (clipboard STA + message pump).
+        void PostTask(std::function<void()> task);
 
         void OnDisplayDeviceChange();
     private:

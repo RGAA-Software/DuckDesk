@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use windows::core::BOOL;
@@ -20,16 +19,6 @@ use super::content::{build_file_entries_from_paths, ClipboardContent};
 const CF_UNICODETEXT: u32 = 13;
 pub(crate) const CF_HDROP: u32 = 15;
 const HRESULT_ACCESS_DENIED: i32 = 0x80070005u32 as i32;
-
-static OLE_CLIPBOARD_ACTIVE: AtomicBool = AtomicBool::new(false);
-
-pub(crate) fn set_ole_clipboard_active(active: bool) {
-    OLE_CLIPBOARD_ACTIVE.store(active, Ordering::SeqCst);
-}
-
-pub(crate) fn is_ole_clipboard_active() -> bool {
-    OLE_CLIPBOARD_ACTIVE.load(Ordering::SeqCst)
-}
 
 fn is_clipboard_access_denied(err: &anyhow::Error) -> bool {
     if let Some(win_err) = err.downcast_ref::<windows::core::Error>() {
@@ -192,14 +181,14 @@ impl WinClipboardPlatform {
     }
 
     pub fn read_content(&self) -> anyhow::Result<ClipboardContent> {
-        if is_ole_clipboard_active() {
-            return Ok(ClipboardContent::default());
-        }
         for attempt in 0..20 {
             match Self::try_read_content() {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    if is_clipboard_access_denied(&err) && is_ole_clipboard_active() {
+                    // 剪贴板被其他进程/OLE 虚拟文件占用时读不到,视为"暂无变化",
+                    // 下次轮询再读,不依赖易卡死的全局标志位。
+                    if is_clipboard_access_denied(&err) {
+                        tracing::info!("clipboard read: access denied, treat as no change");
                         return Ok(ClipboardContent::default());
                     }
                     if attempt == 19 {
@@ -225,8 +214,13 @@ impl WinClipboardPlatform {
                 }
             }
 
-            if let Ok(handle) = GetClipboardData(CF_HDROP) {
+            let hdrop = GetClipboardData(CF_HDROP);
+            tracing::info!("clipboard read: cf_hdrop_available={}, text_len={}",
+                hdrop.is_ok(),
+                content.text.as_ref().map(|t| t.len()).unwrap_or(0));
+            if let Ok(handle) = hdrop {
                 let paths = Self::read_hdrop_paths(HDROP(handle.0 as *mut _));
+                tracing::info!("clipboard read: hdrop file count={}", paths.len());
                 if !paths.is_empty() {
                     content.files = build_file_entries_from_paths(&paths);
                 }
@@ -260,7 +254,9 @@ impl WinClipboardPlatform {
     }
 
     unsafe fn read_hdrop_paths(drop: HDROP) -> Vec<String> {
-        let count = DragQueryFileW(drop, 0xFFFF, None);
+        // 查询文件个数必须传 0xFFFFFFFF(u32::MAX),传 0xFFFF 会被当成第 65535 个
+        // 文件的路径查询,永远返回 0,导致剪贴板文件复制读不到任何路径。
+        let count = DragQueryFileW(drop, u32::MAX, None);
         let mut paths = Vec::new();
         for index in 0..count {
             let len = DragQueryFileW(drop, index, None);
@@ -387,7 +383,6 @@ mod tests {
     #[test]
     fn write_then_read_text_roundtrip() {
         let _lock = CLIPBOARD_TEST_LOCK.lock().unwrap();
-        super::set_ole_clipboard_active(false);
         let platform = WinClipboardPlatform::new();
         platform.clear().expect("clear");
         platform.write_text("gr_user_proxy_roundtrip").expect("write");

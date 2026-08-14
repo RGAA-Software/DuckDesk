@@ -1,4 +1,4 @@
-﻿#include "cp_virtual_file.h"
+#include "cp_virtual_file.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <wininet.h>
@@ -9,6 +9,7 @@
 #include <iostream>
 #include <fstream>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <format>
 #include <QFileInfo>
 #include "cp_file_stream.h"
@@ -68,7 +69,8 @@ namespace tc
     void CpVirtualFile::Init() {
         clip_format_filedesc_ = RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR);
         clip_format_filecontent_ = RegisterClipboardFormat(CFSTR_FILECONTENTS);
-
+        clip_format_preferred_ = RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT);
+        clip_format_hdrop_ = CF_HDROP;
     }
 
     STDMETHODIMP CpVirtualFile::GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) {
@@ -172,6 +174,67 @@ namespace tc
                 pmedium->tymed = TYMED_ISTREAM;
                 hr = S_OK;
             }
+        } else if (pformatetcIn->cfFormat == clip_format_preferred_) {
+            if (pformatetcIn->tymed & TYMED_HGLOBAL) {
+                HGLOBAL h = GlobalAlloc(GHND | GMEM_SHARE, sizeof(DWORD));
+                if (!h) {
+                    LOGE("GlobalAlloc failed for preferred drop effect!");
+                    return E_OUTOFMEMORY;
+                }
+                auto* pdw = (DWORD*)::GlobalLock(h);
+                if (!pdw) {
+                    LOGE("GlobalLock failed for preferred drop effect!");
+                    GlobalFree(h);
+                    return S_FALSE;
+                }
+                *pdw = DROPEFFECT_COPY;
+                ::GlobalUnlock(h);
+                pmedium->hGlobal = h;
+                pmedium->tymed = TYMED_HGLOBAL;
+                hr = S_OK;
+            }
+        } else if (pformatetcIn->cfFormat == clip_format_hdrop_) {
+            if (pformatetcIn->tymed & TYMED_HGLOBAL) {
+                uint32_t file_count = menu_files_.size();
+                if (file_count <= 0) {
+                    return S_FALSE;
+                }
+                std::vector<std::wstring> names;
+                size_t total_chars = 1; // final null terminator
+                for (const auto& f : menu_files_) {
+                    std::wstring name = QString::fromStdString(f.ref_path()).toStdWString();
+                    for (auto& ch : name) {
+                        if (ch == L'/') ch = L'\\';
+                    }
+                    names.push_back(name);
+                    total_chars += name.size() + 1;
+                }
+                const size_t bytes = sizeof(DROPFILES) + total_chars * sizeof(wchar_t);
+                HGLOBAL h = GlobalAlloc(GHND | GMEM_SHARE, bytes);
+                if (!h) {
+                    return E_OUTOFMEMORY;
+                }
+                auto* df = (DROPFILES*)::GlobalLock(h);
+                if (!df) {
+                    GlobalFree(h);
+                    return S_FALSE;
+                }
+                df->pFiles = sizeof(DROPFILES);
+                df->fWide = TRUE;
+                auto* dst = (wchar_t*)((LPBYTE)df + sizeof(DROPFILES));
+                size_t remaining = total_chars;
+                for (const auto& name : names) {
+                    wcsncpy_s(dst, remaining, name.c_str(), _TRUNCATE);
+                    const size_t len = name.size() + 1;
+                    dst += len;
+                    remaining -= len;
+                }
+                *dst = L'\0';
+                ::GlobalUnlock(h);
+                pmedium->hGlobal = h;
+                pmedium->tymed = TYMED_HGLOBAL;
+                hr = S_OK;
+            }
         } else if (SUCCEEDED(_EnsureShellDataObject())) {
             hr = _pdtobjShell->GetData(pformatetcIn, pmedium);
         }
@@ -181,7 +244,9 @@ namespace tc
     STDMETHODIMP CpVirtualFile::QueryGetData(FORMATETC *pformatetc) {
         HRESULT hr = S_FALSE;
         if (pformatetc->cfFormat == clip_format_filedesc_ ||
-            pformatetc->cfFormat == clip_format_filecontent_) {
+            pformatetc->cfFormat == clip_format_filecontent_ ||
+            pformatetc->cfFormat == clip_format_preferred_ ||
+            pformatetc->cfFormat == clip_format_hdrop_) {
             hr = S_OK;
         } else if (SUCCEEDED(_EnsureShellDataObject())) {
             hr = _pdtobjShell->QueryGetData(pformatetc);
@@ -197,6 +262,8 @@ namespace tc
                 // the order here defines the accuarcy of rendering
                 {(CLIPFORMAT) clip_format_filedesc_, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL},
                 {(CLIPFORMAT) clip_format_filecontent_, NULL, DVASPECT_CONTENT, -1, TYMED_ISTREAM},
+                {(CLIPFORMAT) clip_format_hdrop_, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL},
+                {(CLIPFORMAT) clip_format_preferred_, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL},
             };
             hr = SHCreateStdEnumFmtEtc(ARRAYSIZE(rgfmtetc), rgfmtetc, ppenumFormatEtc);
         }

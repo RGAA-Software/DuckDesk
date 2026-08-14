@@ -215,8 +215,10 @@ namespace tc {
                          (int)msg->clipboard_info().type(), event->message_->Size());
                     app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
-            } else if (msg->type() == MessageType::kClipboardRespBuffer) {
-                LOGI("[LAT-clip] render recv kClipboardRespBuffer, len: {}", event->message_->Size());
+            } else if (msg->type() == MessageType::kClipboardReqBuffer ||
+                       msg->type() == MessageType::kClipboardRespBuffer) {
+                LOGI("[LAT-clip] render recv clipboard buffer msg, type: {}, len: {}",
+                     (int)msg->type(), event->message_->Size());
                 context_->PostTask([=, this]() {
                     bool user_proxy_connected = false;
                     plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
@@ -225,8 +227,8 @@ namespace tc {
                         }
                     });
                     if (!user_proxy_connected) {
-                        LOGW("user-proxy not connected, drop clipboard resp buffer, len={}",
-                             event->message_->Size());
+                        LOGW("user-proxy not connected, drop clipboard buffer msg, type={}, len={}",
+                             (int)msg->type(), event->message_->Size());
                         return;
                     }
                     tcrp::RpMessage rp_msg;
@@ -236,8 +238,8 @@ namespace tc {
                     sub->set_data_channel(true);
                     sub->set_stream_id(msg->stream_id());
                     sub->set_device_id(msg->device_id());
-                    LOGI("PostUserProxyMessage clipboard resp buffer, len={}",
-                         event->message_->Size());
+                    LOGI("PostUserProxyMessage clipboard buffer msg, type={}, len={}",
+                         (int)msg->type(), event->message_->Size());
                     app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
             }

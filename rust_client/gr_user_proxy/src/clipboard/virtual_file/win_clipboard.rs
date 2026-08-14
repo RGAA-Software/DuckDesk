@@ -32,7 +32,7 @@ use crate::clipboard::content::ClipboardFileEntry;
 use crate::clipboard::virtual_file::coordinator::VirtualFileCoordinator;
 use crate::clipboard::virtual_file::stream::VirtualFileStreamCore;
 use crate::clipboard::win_platform::{
-    clipboard_global_alloc_flags, pump_sta_messages, set_ole_clipboard_active, WinClipboardPlatform,
+    clipboard_global_alloc_flags, pump_sta_messages, WinClipboardPlatform,
 };
 
 const DROPEFFECT_COPY: u32 = 1;
@@ -60,7 +60,6 @@ fn clear_ole_clipboard_after_operation() {
     let platform = WinClipboardPlatform::new();
     let _ = platform.clear();
     pump_sta_messages();
-    set_ole_clipboard_active(false);
 }
 
 fn com_err(code: u32) -> windows::core::Error {
@@ -567,7 +566,6 @@ pub fn install_virtual_file_clipboard(
     }
 
     pump_sta_messages();
-    set_ole_clipboard_active(true);
     info!("virtual file clipboard installed");
     Ok(())
 }
@@ -616,7 +614,6 @@ mod tests {
         install_virtual_file_clipboard(coord).expect("install");
         unsafe {
             let _ = windows::Win32::System::Ole::OleSetClipboard(None);
-            super::set_ole_clipboard_active(false);
             let _guard = OpenClipboardGuard::open().expect("open");
             let _ = windows::Win32::System::DataExchange::EmptyClipboard();
         }

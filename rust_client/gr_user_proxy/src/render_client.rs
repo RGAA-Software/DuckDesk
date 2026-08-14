@@ -7,13 +7,14 @@ use tokio::time::{sleep, Duration};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tracing::{error, info, warn};
 
+use crate::clipboard::virtual_file::RespBufferData;
 use crate::config::{UserProxyConfig, RECONNECT_SECS};
 use crate::proto::{
     self, build_clipboard_text_event, build_heartbeat_message, build_raw_render_message,
-    build_tc_clipboard_files_resp, build_tc_clipboard_info_resp, clipboard_files_from_tc,
-    clipboard_resp_buffer_from_tc, clipboard_text_from_rp, parse_rp_message, parse_tc_message,
-    stream_route_from_rp_raw, stream_route_from_tc, tcrp::RpMessageType, tc::MessageType,
-    HEARTBEAT_INTERVAL_SECS,
+    build_raw_render_message_routed, build_tc_clipboard_files_resp, build_tc_clipboard_info_resp,
+    build_tc_resp_buffer, clipboard_files_from_tc, clipboard_resp_buffer_from_tc,
+    clipboard_text_from_rp, parse_rp_message, parse_tc_message, stream_route_from_rp_raw,
+    stream_route_from_tc, tcrp::RpMessageType, tc::MessageType, HEARTBEAT_INTERVAL_SECS,
 };
 
 type WsSink = futures_util::stream::SplitSink<
@@ -214,7 +215,7 @@ pub fn handle_inbound_rp(
         Ok(RpMessageType::KRpRawRenderMessage) => {
             if let Some(sub) = msg.raw_render_msg {
                 if sub.data_channel {
-                    handle_inbound_data_channel(&sub, clipboard);
+                    handle_inbound_data_channel(&sub, clipboard, client);
                     return;
                 }
                 match parse_tc_message(&sub.msg) {
@@ -231,6 +232,7 @@ pub fn handle_inbound_rp(
 fn handle_inbound_data_channel(
     sub: &proto::tcrp::RpRawRenderMessage,
     clipboard: &crate::clipboard::ClipboardService,
+    client: Arc<RenderClient>,
 ) {
     let tc_msg = match parse_tc_message(&sub.msg) {
         Ok(v) => v,
@@ -243,7 +245,67 @@ fn handle_inbound_data_channel(
             return;
         }
     };
-    dispatch_resp_buffer(&tc_msg, clipboard, Some(stream_route_from_rp_raw(sub)));
+    let route = stream_route_from_rp_raw(sub);
+    if MessageType::try_from(tc_msg.r#type) == Ok(MessageType::KClipboardReqBuffer) {
+        dispatch_req_buffer(&tc_msg, client, &route);
+        return;
+    }
+    dispatch_resp_buffer(&tc_msg, clipboard, Some(route));
+}
+
+fn dispatch_req_buffer(
+    msg: &proto::tc::Message,
+    client: Arc<RenderClient>,
+    route: &proto::StreamRoute,
+) {
+    let Some(req) = msg.cp_req_buffer.as_ref() else {
+        warn!("clipboard req buffer missing payload");
+        return;
+    };
+    let start = req.req_start.max(0) as u64;
+    let size = req.req_size.max(0) as usize;
+    let mut buffer = Vec::with_capacity(size);
+    let read_size = match std::fs::File::open(&req.full_name) {
+        Ok(mut file) => {
+            use std::io::{Read, Seek, SeekFrom};
+            match file.seek(SeekFrom::Start(start)).and_then(|_| {
+                file.take(size as u64).read_to_end(&mut buffer)
+            }) {
+                Ok(n) => n as i64,
+                Err(err) => {
+                    warn!("clipboard req buffer read failed: {} ({err:#})", req.full_name);
+                    0
+                }
+            }
+        }
+        Err(err) => {
+            warn!(
+                "clipboard req buffer open failed: {} ({err:#})",
+                req.full_name
+            );
+            0
+        }
+    };
+
+    let resp = RespBufferData {
+        full_name: req.full_name.clone(),
+        req_index: req.req_index,
+        req_start: req.req_start,
+        req_size: req.req_size,
+        read_size,
+        buffer,
+    };
+    let reply =
+        build_raw_render_message_routed(&build_tc_resp_buffer(&resp, route), true, Some(route));
+    info!(
+        "clipboard req buffer handled, full={}, start={}, size={}, read={}",
+        req.full_name, req.req_start, req.req_size, read_size
+    );
+    tokio::spawn(async move {
+        if let Err(err) = client.send_bytes(reply).await {
+            error!("send clipboard resp buffer failed: {err:#}");
+        }
+    });
 }
 
 fn dispatch_resp_buffer(
