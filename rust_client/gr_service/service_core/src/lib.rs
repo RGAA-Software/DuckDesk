@@ -4,6 +4,7 @@ pub mod config;
 pub mod process;
 pub mod proto;
 pub mod state;
+pub mod storage;
 pub mod ue_bootstrap;
 pub mod windows_util;
 
@@ -23,4 +24,5 @@ pub use proto::{
     ServiceMessage, ServiceMessageType,
 };
 pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};
+pub use storage::{PersistedServiceState, ServiceStorage};
 pub use ue_bootstrap::{resolve_ue_bootstrap, UeViewInfo};

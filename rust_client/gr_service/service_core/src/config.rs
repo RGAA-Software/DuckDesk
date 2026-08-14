@@ -7,6 +7,7 @@ pub const DEFAULT_SERVICE_PATH: &str = "/service/message";
 pub const DEFAULT_LISTEN_PORT: u16 = 20375;
 pub const DEFAULT_LISTEN_HOST: &str = "0.0.0.0";
 pub const DEFAULT_CLIENT_HOST: &str = "127.0.0.1";
+pub const SERVICE_DATA_FILE: &str = "godesk_service.json";
 pub const SERVICE_LOG_DIR: &str = "gr_logs";
 pub const SERVICE_LOG_FILE: &str = "godesk_service.log";
 pub const SERVICE_DATA_DIR: &str = "gr_data";
@@ -40,5 +41,24 @@ impl ServiceConfig {
             data_root,
             log_root,
         }
+    }
+
+    pub fn storage_file(&self) -> PathBuf {
+        self.data_root.join(SERVICE_DATA_FILE)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn storage_file_uses_data_root() {
+        let config = ServiceConfig::new(20375, PathBuf::from("data"), PathBuf::from("logs"));
+        assert_eq!(
+            config.storage_file(),
+            PathBuf::from("data").join(SERVICE_DATA_FILE)
+        );
+        assert_eq!(config.ws_path, DEFAULT_SERVICE_PATH);
     }
 }
