@@ -53,8 +53,31 @@ impl ServiceStorage {
 
     pub fn load(&self) -> io::Result<PersistedServiceState> {
         match fs::read_to_string(&self.file_path) {
-            Ok(content) => serde_json::from_str(&content)
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err)),
+            Ok(content) => match serde_json::from_str::<PersistedServiceState>(&content) {
+                Ok(state) => Ok(state),
+                Err(err) => {
+                    // Corrupt state file (e.g. an interrupted write left NUL bytes).
+                    // Quarantine it and fall back to defaults instead of bricking the
+                    // service on startup.
+                    let backup = self.file_path.with_extension("corrupt.bak");
+                    if backup.exists() {
+                        let _ = fs::remove_file(&backup);
+                    }
+                    match fs::rename(&self.file_path, &backup) {
+                        Ok(()) => tracing::warn!(
+                            "persisted state corrupt ({}), quarantined to {}, fall back to default",
+                            err,
+                            backup.display()
+                        ),
+                        Err(rename_err) => tracing::warn!(
+                            "persisted state corrupt ({}), fall back to default; quarantine failed: {}",
+                            err,
+                            rename_err
+                        ),
+                    }
+                    Ok(PersistedServiceState::default())
+                }
+            },
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 Ok(PersistedServiceState::default())
             }
@@ -107,5 +130,19 @@ mod tests {
         let loaded = storage.load().unwrap();
         assert_eq!(loaded, state);
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn load_corrupt_file_returns_default_and_quarantines() {
+        let path = unique_file("corrupt");
+        fs::write(&path, "\0\0\0\0\0").unwrap();
+        let storage = ServiceStorage::new(path.clone());
+        let state = storage.load().unwrap();
+        assert_eq!(state, PersistedServiceState::default());
+        // The corrupt file is moved aside so a later start reads a clean default.
+        assert!(!path.exists());
+        let backup = path.with_extension("corrupt.bak");
+        assert!(backup.exists());
+        let _ = fs::remove_file(backup);
     }
 }
