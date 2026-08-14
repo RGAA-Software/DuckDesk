@@ -444,8 +444,13 @@ namespace tc
     }
 
     bool RtcServer::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (ft_data_channel_ && !exit_) {
-            ft_data_channel_->SendData(msg);
+        // 必须投递到 WebRTC 网络线程再 Send,否则 data_channel_->Send() 跨线程调用
+        // 会被 libwebrtc 静默丢弃(剪切板文件取数 kClipboardReqBuffer/kClipboardRespBuffer
+        // 偶发 60s 超时即源于此)。与 media 通道 PostTargetStreamProtoMessage 对齐。
+        if (network_thread_ && ft_data_channel_ && !exit_) {
+            network_thread_->PostTask([=, this]() {
+                ft_data_channel_->SendData(msg);
+            });
         }
         return true;
     }
