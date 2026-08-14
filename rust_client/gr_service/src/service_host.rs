@@ -4,11 +4,8 @@ use std::time::Duration;
 use service_core::app_instance::{cmdline_has_listen_port, pid_belongs_to_instance};
 use service_core::command::Command;
 use service_core::config::ServiceConfig;
-use service_core::storage::PersistedRenderLaunchSpec;
-use service_core::storage::ServiceStorage;
 use service_core::{
-    AppInstanceRegistry, PersistedServiceState, RenderLaunchSpec, ServiceState, StartAppRequest,
-    FINISHED_RECORD_TTL,
+    AppInstanceRegistry, RenderLaunchSpec, ServiceState, StartAppRequest, FINISHED_RECORD_TTL,
 };
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{error, info, warn};
@@ -20,7 +17,6 @@ use crate::windows_process::ProcessManager;
 
 pub struct ServiceRuntime {
     pub config: ServiceConfig,
-    pub storage: ServiceStorage,
     pub process_manager: Arc<dyn ProcessManager>,
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
@@ -48,11 +44,9 @@ impl ServiceRuntime {
         process_manager: Arc<dyn ProcessManager>,
         windows_actions: Arc<dyn SystemActions>,
     ) -> Self {
-        let storage = ServiceStorage::new(config.storage_file());
         let (stop_tx, _) = broadcast::channel(4);
         Self {
             config,
-            storage,
             process_manager,
             windows_actions,
             state: ServiceState::default(),
@@ -69,27 +63,6 @@ impl ServiceRuntime {
     pub fn request_stop(&mut self) {
         self.state.stop_requested = true;
         let _ = self.stop_tx.send(());
-    }
-
-    pub fn load_persisted_state(&mut self) -> Result<(), String> {
-        let persisted = self.storage.load().map_err(|err| err.to_string())?;
-        self.state.last_desktop_launch = persisted.desktop_launch.map(Into::into);
-        info!(
-            "loaded persisted state, desktop_launch_present={}",
-            self.state.last_desktop_launch.is_some()
-        );
-        Ok(())
-    }
-
-    pub fn persist_state(&self) -> Result<(), String> {
-        let persisted = PersistedServiceState {
-            desktop_launch: self
-                .state
-                .last_desktop_launch
-                .clone()
-                .map(PersistedRenderLaunchSpec::from),
-        };
-        self.storage.save(&persisted).map_err(|err| err.to_string())
     }
 
     pub fn sync_process_state(&mut self) -> Result<(), String> {
@@ -109,10 +82,9 @@ impl ServiceRuntime {
             }
             Command::StopDesktop => {
                 self.stop_desktop()?;
-                // Explicit stop must also clear the recorded launch, otherwise
-                // the monitor loop would pull the render back within 3s.
+                // Explicit stop clears the recorded launch so the monitor loop
+                // won't pull the render back.
                 self.state.last_desktop_launch = None;
-                self.persist_state()?;
                 Ok(None)
             }
             Command::RestartDesktop(spec) => {
@@ -173,7 +145,6 @@ impl ServiceRuntime {
             warn!("start user proxy failed: {err}");
         }
         self.state.update_desktop_launch(spec);
-        self.persist_state()?;
         self.sync_process_state()?;
         info!(
             "start desktop finished, desktop_alive={}, desktop_pid={:?}",
@@ -569,9 +540,6 @@ impl ServiceRuntime {
             ControlEvent::Stop => {
                 warn!("received service stop control event");
                 self.request_stop();
-                // Keep the persisted launch spec so a later service start (e.g.
-                // after a reboot) resumes the desktop render headlessly. Only an
-                // explicit StopDesktop command (from the panel) clears it.
                 let result = self.stop_managed_render();
                 if result.is_ok() {
                     info!("service stop control event handled successfully");
@@ -669,7 +637,6 @@ pub async fn run_service(
 ) -> Result<(), String> {
     {
         let mut guard = runtime.lock().await;
-        guard.load_persisted_state()?;
         guard.sync_process_state()?;
         info!("service runtime initialized");
     }
@@ -929,7 +896,7 @@ mod tests {
     }
 
     #[test]
-    fn start_desktop_persists_launch_spec() {
+    fn start_desktop_records_launch_spec() {
         let mut runtime = test_runtime(Vec::new());
         let spec = RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
@@ -1099,37 +1066,6 @@ mod tests {
     }
 
     #[test]
-    fn persisted_state_is_loaded_back() {
-        let config = ServiceConfig::new(
-            20375,
-            std::env::temp_dir().join("gr_service_state_load"),
-            std::env::temp_dir().join("gr_logs"),
-        );
-        let mut runtime = ServiceRuntime::new(
-            config.clone(),
-            Arc::new(MockProcessManager::new(Vec::new())),
-            Arc::new(MockActions::new()),
-        );
-        runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: "D:/persist".to_string(),
-            app_path: "D:/persist/GammaRayRender.exe".to_string(),
-            args: vec!["--app_mode=desktop".to_string()],
-        });
-        runtime.persist_state().unwrap();
-
-        let mut reloaded = ServiceRuntime::new(
-            config,
-            Arc::new(MockProcessManager::new(Vec::new())),
-            Arc::new(MockActions::new()),
-        );
-        reloaded.load_persisted_state().unwrap();
-        assert_eq!(
-            reloaded.state.last_desktop_launch.unwrap().app_path,
-            "D:/persist/GammaRayRender.exe"
-        );
-    }
-
-    #[test]
     fn stop_managed_render_only_kills_render() {
         let mut runtime = test_runtime(vec![
             ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
@@ -1146,14 +1082,14 @@ mod tests {
     }
 
     #[test]
-    fn stop_desktop_command_clears_launch_and_persists_cleared_state() {
+    fn stop_desktop_command_clears_launch() {
         let config = ServiceConfig::new(
             20375,
             std::env::temp_dir().join("gr_service_stop_desktop"),
             std::env::temp_dir().join("gr_logs_stop_desktop"),
         );
         let mut runtime = ServiceRuntime::new(
-            config.clone(),
+            config,
             Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
                 1,
                 "D:/GammaRayRender.exe",
@@ -1172,16 +1108,6 @@ mod tests {
             !runtime.state.should_restart_desktop(),
             "monitor loop must not pull the render back after an explicit stop"
         );
-
-        // The cleared state must be persisted, or a service restart would
-        // resurrect the launch record and the monitor loop would restart it.
-        let mut reloaded = ServiceRuntime::new(
-            config,
-            Arc::new(MockProcessManager::new(Vec::new())),
-            Arc::new(MockActions::new()),
-        );
-        reloaded.load_persisted_state().unwrap();
-        assert!(reloaded.state.last_desktop_launch.is_none());
     }
 
     #[test]
@@ -1201,10 +1127,6 @@ mod tests {
         runtime.handle_control_event(ControlEvent::Stop).unwrap();
         runtime.sync_process_state().unwrap();
         assert!(!runtime.state.desktop_alive);
-        assert!(
-            runtime.state.last_desktop_launch.is_some(),
-            "SCM stop must preserve the launch spec so a restart resumes the render"
-        );
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
         assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
