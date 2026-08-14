@@ -191,6 +191,7 @@ namespace tc {
 
 #if GR_USER_PROXY_ENABLED
             if (msg->type() == MessageType::kClipboardInfo) {
+                LOGI("[LAT-clip] render recv kClipboardInfo, type: {}, files: {}, len: {}", (int)msg->clipboard_info().type(), msg->clipboard_info().files_size(), event->message_->Size());
                 context_->PostTask([=, this]() {
                     bool user_proxy_connected = false;
                     plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
@@ -215,6 +216,7 @@ namespace tc {
                     app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
             } else if (msg->type() == MessageType::kClipboardRespBuffer) {
+                LOGI("[LAT-clip] render recv kClipboardRespBuffer, len: {}", event->message_->Size());
                 context_->PostTask([=, this]() {
                     bool user_proxy_connected = false;
                     plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {

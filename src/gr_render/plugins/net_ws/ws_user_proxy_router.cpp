@@ -147,6 +147,10 @@ namespace tc
             auto buffer = Data::From(sub.msg());
             // 与 broadcast 同理:按 stream 投递也要覆盖 relay/udp,否则原生客户端
             // (relay) 收不到 userproxy 的定向消息(剪切板文件取数应答等)
+            tc::Message inner;
+            bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
+            LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
+                 sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
             for_each_net_plugin([&](GrNetPlugin* np) {
                 if (sub.data_channel()) {
                     np->PostTargetFileTransferProtoMessage(sub.stream_id(), buffer, sub.run_through());
