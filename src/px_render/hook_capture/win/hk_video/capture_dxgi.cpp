@@ -18,8 +18,8 @@ bool CaptureDxgi::Setup(IDXGISwapChain *swap) noexcept {
         D3D_FEATURE_LEVEL level = d3d11->GetFeatureLevel();
         if (level >= D3D_FEATURE_LEVEL_11_0) {
             swap_ = swap;
-            capture_ = tc_capture_d3d11::Capture;
-            free_ = tc_capture_d3d11::Free;
+            capture_ = px_capture_d3d11::Capture;
+            free_ = px_capture_d3d11::Free;
             LOGI("Use D3D11 hooked.");
             return true;
         }
@@ -35,8 +35,8 @@ bool CaptureDxgi::Setup(IDXGISwapChain *swap) noexcept {
 
     if (SUCCEEDED(hr11)) {
         swap_ = swap;
-        capture_ = tc_capture_d3d11::Capture;
-        free_ = tc_capture_d3d11::Free;
+        capture_ = px_capture_d3d11::Capture;
+        free_ = px_capture_d3d11::Free;
         LOGI("Use D3D11 hooked //");
         return true;
     }
@@ -44,8 +44,8 @@ bool CaptureDxgi::Setup(IDXGISwapChain *swap) noexcept {
     hr = swap->GetDevice(__uuidof(ID3D12Device), reinterpret_cast<void **>(&device));
     if (SUCCEEDED(hr)) {
         swap_ = swap;
-        capture_ = tc_capture_d3d11on12::Capture;
-        free_ = tc_capture_d3d11on12::Free;
+        capture_ = px_capture_d3d11on12::Capture;
+        free_ = px_capture_d3d11on12::Free;
         LOGI("{}: USE ID3D12Device", __func__);
         return true;
     }

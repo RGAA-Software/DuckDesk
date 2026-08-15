@@ -3,7 +3,7 @@
 //
 
 #include "amf_encoder_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "video_encoder_vce.h"
 #include "amf_encoder_defs.h"
 #include "px_common_new/log.h"

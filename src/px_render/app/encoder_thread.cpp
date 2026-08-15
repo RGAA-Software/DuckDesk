@@ -26,13 +26,13 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_render/plugins/plugin_manager.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_stream_plugin.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
-#include "px_render/plugin_interface/gr_video_encoder_plugin.h"
-#include "px_render/plugin_interface/gr_frame_carrier_plugin.h"
-#include "px_render/plugin_interface/gr_frame_processor_plugin.h"
+#include "px_render/plugin_interface/px_stream_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/plugin_interface/px_video_encoder_plugin.h"
+#include "px_render/plugin_interface/px_frame_carrier_plugin.h"
+#include "px_render/plugin_interface/px_frame_processor_plugin.h"
 #include "network/net_message_maker.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 #define DEBUG_FILE 0
 

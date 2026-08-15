@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_SDK_PARAMS_H
 #define GAMMARAY_SDK_PARAMS_H
 
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 extern "C" {
     #include <libavutil/buffer.h>

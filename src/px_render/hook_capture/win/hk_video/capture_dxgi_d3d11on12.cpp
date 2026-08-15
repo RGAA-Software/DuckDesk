@@ -9,7 +9,7 @@
 
 static std::shared_ptr<tc::SharedTexture> shared_texture = std::make_shared<tc::SharedTexture>();
 
-namespace tc_capture_d3d11on12
+namespace px_capture_d3d11on12
 {
 
     constexpr size_t kMaxBackbuffers = 8;

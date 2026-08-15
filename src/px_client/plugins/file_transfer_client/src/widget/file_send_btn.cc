@@ -3,7 +3,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <qpixmap.h>
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc {
 

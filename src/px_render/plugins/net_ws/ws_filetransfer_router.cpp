@@ -7,7 +7,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/thread_util.h"
 #include "ws_plugin.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

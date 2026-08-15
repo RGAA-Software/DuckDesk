@@ -1,4 +1,4 @@
-// CDP 无头 Chrome 验证 gr_cms 多画面墙页面
+// CDP 无头 Chrome 验证 px_cms 多画面墙页面
 // 用法: node scripts/cdp_video_wall_test.mjs
 // 前提: px_cms_server 已在 https://127.0.0.1:30500 运行(部署了最新 dist)
 import { spawn } from 'node:child_process'

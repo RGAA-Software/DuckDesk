@@ -18,7 +18,7 @@
 #include "px_common_new/fps_stat.h"
 #include "px_common_new/win32/d3d11_wrapper.h"
 #include "px_render/plugins/plugin_desktop_capture.h"
-#include "px_render/plugin_interface/gr_monitor_capture_error.h"
+#include "px_render/plugin_interface/px_monitor_capture_error.h"
 
 using namespace Microsoft::WRL;
 

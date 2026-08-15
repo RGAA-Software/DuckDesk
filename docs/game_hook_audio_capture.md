@@ -18,7 +18,7 @@
 | 条件 | 路径 | 说明 |
 |------|------|------|
 | OS 支持 process-loopback（Win10 build ≥ 19041） | **Host PID process-loopback**（优先） | Render 进程内按游戏 PID 抓音频；注入侧 `enable_hook_audio_=0` |
-| OS 不支持 | **进程内 Hook**（`tc_graphics.dll`） | WASAPI / XAudio2 / WaveOut / DirectSound 等；经 WS `/ipc` → `OnIpcAudioFrame` |
+| OS 不支持 | **进程内 Hook**（`px_graphics.dll`） | WASAPI / XAudio2 / WaveOut / DirectSound 等；经 WS `/ipc` → `OnIpcAudioFrame` |
 
 门控函数：`tc::IsProcessLoopbackCaptureSupported()`  
 文件：`src/px_deps/px_capture_new/process_loopback_support.h`
@@ -187,7 +187,7 @@ build_official\src\px_render\plugins\was_audio_capture\test_miniaudio_pid_loopba
 
 ## 6. 进程内 Hook 路径（OS 无 PID loopback 时）
 
-当 `enable_hook_audio_ = 1` 时，`tc_graphics.dll` 内启用音频 hook。主要新增/改动：
+当 `enable_hook_audio_ = 1` 时，`px_graphics.dll` 内启用音频 hook。主要新增/改动：
 
 | 区域 | 文件（节选） |
 |------|----------------|
@@ -225,7 +225,7 @@ src/px_render/rd_app.cpp / rd_app.h
   - game-hook 延迟启音频
   - OnIpcAudioFrame
   - boot enable_hook_audio_
-src/px_render/plugin_interface/gr_data_provider_plugin.h
+src/px_render/plugin_interface/px_data_provider_plugin.h
   - SetAudioLoopbackProcessId / IsProviding / GetLastStartError
 src/px_render/app/win/app_manager_win.cpp
   - inject_params.enable_hook_audio 与 boot 对齐
@@ -278,7 +278,7 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 
 | 日志 | 路径 |
 |------|------|
-| Host Render | `C:\Users\Public\GoDesk\gr_logs\godesk_render_32000.log` |
+| Host Render | `C:\Users\Public\GoDesk\px_logs\godesk_render_32000.log` |
 
 Host 侧关键关键字：
 
@@ -376,7 +376,7 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 ### 13.2 /ipc 安全与 wire 格式（net_ws / capture_message.h / d3d11/d3d12-capture）
 
 1. `/ipc` 路由只接受 loopback（127.0.0.1 / ::1 / ::ffff:127.0.0.1）连接，非 loopback 立即关闭；此前绑 0.0.0.0 无鉴权，远程可推伪造帧并可收到广播下行的用户键鼠事件。server 本体仍 0.0.0.0 服务浏览器。
-2. 视频帧 wire 格式改为定长 152 字节纯 POD `IpcCaptureVideoFrame`（magic=`GRCV` 0x47524356 + version=1 + pack(1)），Host 侧逐字段转换构造 `CaptureVideoFrame`，不再对含 `std::shared_ptr` 的结构整体 memcpy（远程可触发崩溃的 UB）；旧格式 blob 显式拒绝 + 限流日志；宽高 clamp 16..8192。**协议变更：Host render 与 `tc_graphics.dll` 必须同批部署。** 音频帧 `IpcCaptureAudioFrame` 本就是 POD 未变。
+2. 视频帧 wire 格式改为定长 152 字节纯 POD `IpcCaptureVideoFrame`（magic=`GRCV` 0x47524356 + version=1 + pack(1)），Host 侧逐字段转换构造 `CaptureVideoFrame`，不再对含 `std::shared_ptr` 的结构整体 memcpy（远程可触发崩溃的 UB）；旧格式 blob 显式拒绝 + 限流日志；宽高 clamp 16..8192。**协议变更：Host render 与 `px_graphics.dll` 必须同批部署。** 音频帧 `IpcCaptureAudioFrame` 本就是 POD 未变。
 3. 死代码 `src/px_render/network/ws_ipc_router.cpp/.h` 已删除（/ipc 实际由 `plugins/net_ws/ws_server.cpp` 的 `AddIpcRouter` 处理）。
 
 ### 13.3 注入鲁棒性（app_manager_win / injector / win_helper）

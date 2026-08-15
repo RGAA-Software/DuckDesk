@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_FRAME_CARRIER_PLUGIN_H
 #define GAMMARAY_FRAME_CARRIER_PLUGIN_H
 
-#include "px_render/plugin_interface/gr_frame_carrier_plugin.h"
+#include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 
 namespace tc
 {

@@ -21,9 +21,9 @@
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QUrl>
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_app_messages.h"
 #include "px_common_new/qrcode/qr_generator.h"
 #include "px_qt_widget/widget_helper.h"
 #include "px_qt_widget/no_margin_layout.h"
@@ -34,35 +34,35 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/log.h"
 #include "qt_circle.h"
-#include "tc_dialog.h"
-#include "render_panel/gr_statistics.h"
-#include "render_panel/gr_application.h"
+#include "px_dialog.h"
+#include "render_panel/px_statistics.h"
+#include "render_panel/px_application.h"
 #include "px_qt_widget/sized_msg_box.h"
-#include "render_panel/gr_render_controller.h"
+#include "render_panel/px_render_controller.h"
 #include "service/service_manager.h"
 #include "px_common_new/uid_spacer.h"
 #include "render_panel/devices/stream_content.h"
-#include "px_qt_widget/tc_qr_widget.h"
-#include "px_qt_widget/tc_font_manager.h"
-#include "px_qt_widget/tc_label.h"
-#include "px_qt_widget/tc_pushbutton.h"
-#include "px_qt_widget/tc_image_button.h"
-#include "px_qt_widget/tc_password_input.h"
-#include "px_qt_widget/tc_circle_indicator.h"
+#include "px_qt_widget/px_qr_widget.h"
+#include "px_qt_widget/px_font_manager.h"
+#include "px_qt_widget/px_label.h"
+#include "px_qt_widget/px_pushbutton.h"
+#include "px_qt_widget/px_image_button.h"
+#include "px_qt_widget/px_password_input.h"
+#include "px_qt_widget/px_circle_indicator.h"
 #include "px_spvr_client/spvr_device_api.h"
 #include "px_spvr_client/spvr_device.h"
 #include "px_common_new/base64.h"
-#include "px_common_new/tc_aes.h"
+#include "px_common_new/px_aes.h"
 #include <nlohmann/json.hpp>
 #include "render_panel/devices/running_stream_manager.h"
 #include "render_panel/database/stream_db_operator.h"
-#include "render_panel/gr_workspace.h"
+#include "render_panel/px_workspace.h"
 #include "relay_message.pb.h"
 #include "px_profile_client/profile_api.h"
 #include "render_panel/companion/panel_companion.h"
 #include "px_base/ct_stream_item_net_type.h"
-#include "render_panel/gr_statistics.h"
-#include "render_panel/devices/gr_device_manager.h"
+#include "render_panel/px_statistics.h"
+#include "render_panel/devices/px_device_manager.h"
 #include "px_common_new/const_auto.h"
 
 namespace tc
@@ -308,7 +308,7 @@ namespace tc
 
                 int size = 18;
                 //auto img_path = std::format(":/icons/{}.png", context_->GetIndexByUniqueId());
-                auto img_path = ":/resources/tc_icon.png";
+                auto img_path = ":/resources/px_icon.png";
                 auto avatar = new RoundImageDisplay(img_path, size, size, 4);
                 qr_avatar_ = avatar;
                 avatar->setParent(qr_info);
@@ -803,7 +803,7 @@ namespace tc
         if (!ips.empty()) {
             ip = ips[0].ip_addr_;
         }
-        // 与 web/gr_web_client connect_token 对齐:?c= URL-safe Base64(JSON{d,p})
+        // 与 web/px_web_client connect_token 对齐:?c= URL-safe Base64(JSON{d,p})
         // 避免地址栏直接暴露 deviceId/password 明文
         nlohmann::json payload;
         payload["d"] = settings_->GetDeviceId();

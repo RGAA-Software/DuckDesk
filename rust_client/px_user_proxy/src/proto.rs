@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_clipboard_info_roundtrip() {
+    fn px_clipboard_info_roundtrip() {
         let bytes = build_tc_clipboard_info("host-text");
         let parsed = parse_tc_message(&bytes).expect("decode");
         assert_eq!(parsed.r#type, MessageType::KClipboardInfo as i32);
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_clipboard_info_resp_roundtrip() {
+    fn px_clipboard_info_resp_roundtrip() {
         let bytes = build_tc_clipboard_info_resp("resp-text");
         let parsed = parse_tc_message(&bytes).expect("decode");
         assert_eq!(parsed.r#type, MessageType::KClipboardInfoResp as i32);
@@ -419,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_req_buffer_roundtrip() {
+    fn px_req_buffer_roundtrip() {
         let route = StreamRoute {
             stream_id: "stream-a".to_string(),
             device_id: "device-a".to_string(),
@@ -446,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_resp_buffer_roundtrip() {
+    fn px_resp_buffer_roundtrip() {
         let route = StreamRoute {
             stream_id: "s".to_string(),
             device_id: "d".to_string(),
@@ -466,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_req_at_begin_end_roundtrip() {
+    fn px_req_at_begin_end_roundtrip() {
         let route = StreamRoute {
             stream_id: "s".to_string(),
             device_id: "d".to_string(),

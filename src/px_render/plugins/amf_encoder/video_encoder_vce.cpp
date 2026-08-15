@@ -9,7 +9,7 @@
 #include "d3d_texture_debug.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "amf_encoder_plugin.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include <combaseapi.h>

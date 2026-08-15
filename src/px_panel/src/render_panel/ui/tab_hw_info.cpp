@@ -7,14 +7,14 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include "app_colors.h"
-#include "tc_pushbutton.h"
+#include "px_pushbutton.h"
 #include "no_margin_layout.h"
 #include "px_common_new/log.h"
 #include "px_qt_widget/custom_tab_btn.h"
 #include "hw_info/hw_info_widget.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 #include "px_common_new/message_notifier.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_app_messages.h"
 
 namespace tc
 {

@@ -4,13 +4,13 @@
 
 #include "st_security_visitor_item.h"
 #include "no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "render_panel/database/visit_record.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/uid_spacer.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include <QLabel>
 #include <QPushButton>
 

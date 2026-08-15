@@ -8,11 +8,11 @@
 #endif // WIN32
 #include <filesystem>
 #include <chrono>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
 #include "px_common_new/process_util.h"
-#include "tc_tr.h"
+#include "px_tr.h"
 
 #ifdef WIN32
 #pragma comment(lib, "Wtsapi32.lib")

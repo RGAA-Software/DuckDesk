@@ -4,7 +4,7 @@
 
 #include "hw_info_widget.h"
 #include "no_margin_layout.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include "hw_info.h"
 #include "hw_stat_chart.h"
 #include "hw_gpu_widget.h"

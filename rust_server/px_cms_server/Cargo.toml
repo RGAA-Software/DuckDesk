@@ -57,3 +57,7 @@ tower = { version = "0.5", features = ["util"] }
 [build-dependencies]
 builder = {path = "../builder"}
 winres = "0.1"
+
+[[bin]]
+name = "px_cms"
+path = "src/main.rs"

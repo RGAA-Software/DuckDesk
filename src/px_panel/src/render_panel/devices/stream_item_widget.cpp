@@ -16,11 +16,11 @@
 
 #include "px_spvr_client/spvr_stream.h"
 #include "px_common_new/uid_spacer.h"
-#include "px_qt_widget/tc_image_button.h"
-#include "px_qt_widget/tc_font_manager.h"
-#include "px_qt_widget/tc_pushbutton.h"
-#include "px_qt_widget/tc_label.h"
-#include "px_qt_widget/translator/tc_translator.h"
+#include "px_qt_widget/px_image_button.h"
+#include "px_qt_widget/px_font_manager.h"
+#include "px_qt_widget/px_pushbutton.h"
+#include "px_qt_widget/px_label.h"
+#include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 
 namespace tc

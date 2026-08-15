@@ -8,12 +8,12 @@
 #include <QRadioButton>
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_qt_widget/tc_password_input.h"
-#include "tc_dialog.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_app_messages.h"
+#include "px_qt_widget/px_password_input.h"
+#include "px_dialog.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_app_messages.h"
 
 namespace tc
 {

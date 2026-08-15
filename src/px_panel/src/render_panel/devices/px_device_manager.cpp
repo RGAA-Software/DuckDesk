@@ -1,0 +1,75 @@
+//
+// Created by RGAA on 27/11/2025.
+//
+
+#include "px_device_manager.h"
+#include <format>
+#include "px_common_new/log.h"
+#include "px_common_new/md5.h"
+#include "px_spvr_client/spvr_device.h"
+#include "px_spvr_client/spvr_device_api.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_application.h"
+#include "px_label.h"
+#include "px_dialog.h"
+
+namespace tc
+{
+
+    GrDeviceManager::GrDeviceManager(const std::shared_ptr<GrContext>& ctx) {
+        context_ = ctx;
+        settings_ = GrSettings::Instance();
+    }
+
+    Result<std::shared_ptr<spvr::SpvrDevice>, spvr::SpvrApiError> GrDeviceManager::RequestNewDevice(const std::string& def_device_name, const std::string& info) {
+        auto host = settings_->GetSpvrServerHost();
+        auto port = settings_->GetSpvrServerPort();
+        auto appkey = grApp->GetAppkey();
+        auto r = spvr::SpvrDeviceApi::RequestNewDevice(host, port, appkey, def_device_name, info);
+        return r;
+    }
+
+    bool GrDeviceManager::UpdateDesktopLink(const std::string& desktop_link, const std::string& desktop_link_raw) {
+        auto host = settings_->GetSpvrServerHost();
+        auto port = settings_->GetSpvrServerPort();
+        auto appkey = grApp->GetAppkey();
+        auto device_id = settings_->GetDeviceId();
+        auto r = spvr::SpvrDeviceApi::UpdateDesktopLink(host, port, appkey, device_id, desktop_link, desktop_link_raw);
+        if (r.has_value()) {
+            LOGI("UpdateDesktopLink success for device: {} ", device_id);
+            return true;
+        }
+        else {
+            auto err = r.error();
+            LOGE("UpdateDesktop link failed, err: {}, msg: {}", (int)err, spvr::SpvrApiErrorAsString(err));
+            return false;
+        }
+    }
+
+    Result<std::shared_ptr<spvr::SpvrDevice>, spvr::SpvrApiError> GrDeviceManager::UpdateDeviceName(const std::string& device_name) {
+        auto host = settings_->GetSpvrServerHost();
+        auto port = settings_->GetSpvrServerPort();
+        auto appkey = grApp->GetAppkey();
+        auto device_id = settings_->GetDeviceId();
+        auto r = spvr::SpvrDeviceApi::UpdateDeviceName(host, port, appkey, device_id, device_name);
+        return r;
+    }
+
+    Result<std::shared_ptr<spvr::SpvrDevice>, spvr::SpvrApiError> GrDeviceManager::UpdateUsedTime(int period) {
+        auto host = settings_->GetSpvrServerHost();
+        auto port = settings_->GetSpvrServerPort();
+        auto appkey = grApp->GetAppkey();
+        auto device_id = settings_->GetDeviceId();
+        auto r = spvr::SpvrDeviceApi::UpdateUsedTime(host, port, appkey, device_id, period);
+        return r;
+    }
+
+    Result<std::shared_ptr<spvr::SpvrDevice>, spvr::SpvrApiError> GrDeviceManager::QueryDevice(const std::string& device_id) {
+        return spvr::SpvrDeviceApi::QueryDevice(settings_->GetSpvrServerHost(),
+                                                settings_->GetSpvrServerPort(),
+                                                grApp->GetAppkey(),
+                                                device_id);
+    }
+
+}

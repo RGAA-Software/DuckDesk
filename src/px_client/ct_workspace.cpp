@@ -31,7 +31,7 @@
 #include "ui/float_button_state_indicator.h"
 #include "ct_main_progress.h"
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
-#include "tc_dialog.h"
+#include "px_dialog.h"
 #include "ct_game_view.h"
 #include "ct_const_def.h"
 #include "px_common_new/file.h"

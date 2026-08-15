@@ -82,7 +82,7 @@ fn spawn_virtual_file_outbound_forwarder(
     outbound_rx: std::sync::mpsc::Receiver<Vec<u8>>,
 ) {
     std::thread::Builder::new()
-        .name("gr_user_proxy_vf_out".into())
+        .name("px_user_proxy_vf_out".into())
         .spawn(move || {
             while let Ok(bytes) = outbound_rx.recv() {
                 let client = client.clone();

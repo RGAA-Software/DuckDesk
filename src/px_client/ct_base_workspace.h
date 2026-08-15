@@ -135,7 +135,7 @@ namespace tc
         // dismiss connecting dialog
         void DismissConnectingDialog() const;
 
-        // messages defined in tc_message.proto
+        // messages defined in px_message.proto
         void ProcessNetworkMessage(const std::shared_ptr<tc::Message>& msg);
 
     private:

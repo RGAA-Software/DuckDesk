@@ -22,13 +22,13 @@
 #include <qstandardpaths.h>
 #include <px_common_new/log.h>
 #include <px_common_new/gd_md5.h>
-#include "px_qt_widget/tc_dialog.h"
-#include "translator/tc_translator.h"
+#include "px_qt_widget/px_dialog.h"
+#include "translator/px_translator.h"
 #include "gd_button.h"
 #include "gd_custom_progress_bar.h"
 #include "version_config.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_application.h"
 
 
 

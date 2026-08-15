@@ -156,8 +156,8 @@ PA_ALWAYS_INLINE void* ShimMemalign(size_t alignment,
 PA_ALWAYS_INLINE int ShimPosixMemalign(void** res,
                                        size_t alignment,
                                        size_t size) {
-  // posix_memalign is supposed to check the arguments. See tc_posix_memalign()
-  // in tc_malloc.cc.
+  // posix_memalign is supposed to check the arguments. See px_posix_memalign()
+  // in px_malloc.cc.
   if (((alignment % sizeof(void*)) != 0) || !std::has_single_bit(alignment)) {
     return EINVAL;
   }

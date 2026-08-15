@@ -5,7 +5,7 @@
 #include "select_stream_type_dialog.h"
 #include "no_margin_layout.h"
 #include "px_qt_widget/clickable_widget.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc
 {

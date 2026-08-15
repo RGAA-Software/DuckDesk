@@ -302,7 +302,7 @@ typedef struct SliceHeader {
     uint8_t cu_chroma_qp_offset_enabled_flag;
 
     int beta_offset;    ///< beta_offset_div2 * 2
-    int tc_offset;      ///< tc_offset_div2 * 2
+    int px_offset;      ///< px_offset_div2 * 2
 
     uint8_t max_num_merge_cand; ///< 5 - 5_minus_max_num_merge_cand
     uint8_t use_integer_mv_flag;
@@ -392,7 +392,7 @@ typedef struct TransformUnit {
 
 typedef struct DBParams {
     int beta_offset;
-    int tc_offset;
+    int px_offset;
 } DBParams;
 
 #define HEVC_FRAME_FLAG_OUTPUT    (1 << 0)

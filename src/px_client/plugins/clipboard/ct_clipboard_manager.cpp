@@ -6,7 +6,7 @@
 #include "px_client/ct_client_context.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "win/win_message_loop.h"
 #include "win/cp_virtual_file.h"
 #include "clipboard_plugin.h"

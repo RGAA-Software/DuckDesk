@@ -15,7 +15,7 @@
 #include "ct_stat_frame_info_item.h"
 #include "px_qt_widget/widget_helper.h"
 #include "px_client/ct_settings.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc
 {

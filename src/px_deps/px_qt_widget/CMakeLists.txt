@@ -18,19 +18,19 @@ set(SRCS
     cover_widget.cpp
     sized_msg_box.cpp
     custom_tab_btn.cpp
-    tc_image_button.cpp
-    tc_qr_widget.cpp
-    tc_label.cpp
-    tc_font_manager.cpp
-    tc_pushbutton.cpp
-    tc_custom_titlebar.cpp
-    tc_custom_titlebar_dialog.cpp
-    tc_dialog.cpp
-    tc_password_input.cpp
-    tc_tooltip.cpp
-    tc_base_widget.cpp
-    tc_circle_indicator.cpp
-    tc_dialog_util.cpp
+    px_image_button.cpp
+    px_qr_widget.cpp
+    px_label.cpp
+    px_font_manager.cpp
+    px_pushbutton.cpp
+    px_custom_titlebar.cpp
+    px_custom_titlebar_dialog.cpp
+    px_dialog.cpp
+    px_password_input.cpp
+    px_tooltip.cpp
+    px_base_widget.cpp
+    px_circle_indicator.cpp
+    px_dialog_util.cpp
 
     notify/arrangedwnd.cpp
     notify/notifymanager.cpp
@@ -57,4 +57,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets
         Qt6::OpenGLWidgets
         Qt6::Svg
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_translator tc_widget_loadings)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_translator px_widget_loadings)

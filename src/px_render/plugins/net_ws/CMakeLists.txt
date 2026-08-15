@@ -13,4 +13,4 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_net_plugin protobuf::libprotobuf tc_message tc_rp_message)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_net_plugin protobuf::libprotobuf px_message px_rp_message)

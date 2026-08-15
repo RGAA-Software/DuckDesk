@@ -26,7 +26,7 @@ namespace tc
         // shared preference
         sp_ = SharedPreference::Instance();
         auto exe_path = QString::fromStdWString(FolderUtil::GetCurrentFilePath()).toStdString();
-        auto folder_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()) + "/gr_data";
+        auto folder_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()) + "/px_data";
         LOGI("Folder path: {}", folder_path.toStdString());
         if (!sp_->Init(folder_path.toStdWString(), "godesk_service.dat")) {
             LOGE("Init gammaray_service.data failed!");

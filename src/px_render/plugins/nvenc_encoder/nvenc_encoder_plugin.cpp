@@ -8,8 +8,8 @@
 #include "nvenc_video_encoder.h"
 #include "px_common_new/memory_stat.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 
 GR_PLUGIN_EXPORT(tc::NvencEncoderPlugin)
 

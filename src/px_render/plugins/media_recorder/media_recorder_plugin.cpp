@@ -3,7 +3,7 @@
 //
 
 #include "media_recorder_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugins/plugin_ids.h"
 
 namespace tc

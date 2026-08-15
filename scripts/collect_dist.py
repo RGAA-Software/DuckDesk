@@ -44,8 +44,8 @@ PRODUCT_EXES = {
     "GammaRayCrashReporter.exe",
     "GammaRayUninstall.exe",
     "joystick.exe",
-    "tc_graphics_util.exe",
-    "tc_graphics_offsets.exe",
+    "px_graphics_util.exe",
+    "px_graphics_offsets.exe",
     "vc_redist.x64.exe",
 }
 
@@ -109,7 +109,7 @@ def main():
             if os.path.isdir(src_path):
                 if entry in KEEP_DIRS:
                     copy_tree(src_path, dst_path)
-                elif entry.startswith("tc_"):
+                elif entry.startswith("px_"):
                     # skip submodule build output directories
                     pass
                 elif entry not in SKIP_DIRS:
@@ -126,57 +126,57 @@ def main():
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/GammaRayRender.exe", "GammaRayRender.exe"),
-        ("src/px_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
-        ("src/px_deps/px_webrtc_client/tc_rtc_client.dll", "px_client/tc_rtc_client.dll"),
+        ("src/px_render/app/px_global_id_generator.dll", "px_global_id_generator.dll"),
+        ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client/px_rtc_client.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
 
     # ------------------------------------------------------------------
-    # 3. Render plugins  →  dist/gr_plugins/
+    # 3. Render plugins  →  dist/px_plugins/
     # ------------------------------------------------------------------
-    gr_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
-    gr_plugins_src_dir = os.path.join(source_dir, "src", "px_render", "plugins")
-    gr_plugins_dst = os.path.join(dist_dir, "gr_plugins")
-    if os.path.isdir(gr_plugins_build_dir):
-        os.makedirs(gr_plugins_dst, exist_ok=True)
-        for plugin_dir in os.listdir(gr_plugins_build_dir):
-            plugin_build_dir = os.path.join(gr_plugins_build_dir, plugin_dir)
-            plugin_src_dir = os.path.join(gr_plugins_src_dir, plugin_dir)
+    px_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
+    px_plugins_src_dir = os.path.join(source_dir, "src", "px_render", "plugins")
+    px_plugins_dst = os.path.join(dist_dir, "px_plugins")
+    if os.path.isdir(px_plugins_build_dir):
+        os.makedirs(px_plugins_dst, exist_ok=True)
+        for plugin_dir in os.listdir(px_plugins_build_dir):
+            plugin_build_dir = os.path.join(px_plugins_build_dir, plugin_dir)
+            plugin_src_dir = os.path.join(px_plugins_src_dir, plugin_dir)
             if not os.path.isdir(plugin_build_dir):
                 continue
             for f in os.listdir(plugin_build_dir):
                 if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
-                    copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_dst, f))
+                    copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_dst, f))
             if os.path.isdir(plugin_src_dir):
                 for f in os.listdir(plugin_src_dir):
                     if f.startswith("plugin_") and f.endswith(".toml"):
-                        copy_file(os.path.join(plugin_src_dir, f), os.path.join(gr_plugins_dst, f))
+                        copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_dst, f))
 
     # ------------------------------------------------------------------
-    # 4. Client plugins  →  dist/gr_plugins_client/
+    # 4. Client plugins  →  dist/px_plugins_client/
     # ------------------------------------------------------------------
     client_plugin_dirs = ["clipboard", "file_transfer_client", "media_record", "multi_screens"]
-    gr_plugins_client_dst = os.path.join(dist_dir, "gr_plugins_client")
+    px_plugins_client_dst = os.path.join(dist_dir, "px_plugins_client")
     for plugin_dir in client_plugin_dirs:
         plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
         plugin_src_dir = os.path.join(source_dir, "src", "px_client", "plugins", plugin_dir)
         if not os.path.isdir(plugin_build_dir):
             continue
-        os.makedirs(gr_plugins_client_dst, exist_ok=True)
+        os.makedirs(px_plugins_client_dst, exist_ok=True)
         for f in os.listdir(plugin_build_dir):
             if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
-                copy_file(os.path.join(plugin_build_dir, f), os.path.join(gr_plugins_client_dst, f))
+                copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_client_dst, f))
         if os.path.isdir(plugin_src_dir):
             for f in os.listdir(plugin_src_dir):
                 if f.startswith("plugin_") and f.endswith(".toml"):
-                    copy_file(os.path.join(plugin_src_dir, f), os.path.join(gr_plugins_client_dst, f))
+                    copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_client_dst, f))
 
     # ------------------------------------------------------------------
-    # 5. Skins  →  dist/gr_skins/
+    # 5. Skins  →  dist/px_skins/
     # ------------------------------------------------------------------
-    gr_skins_dst = os.path.join(dist_dir, "gr_skins")
-    os.makedirs(gr_skins_dst, exist_ok=True)
+    px_skins_dst = os.path.join(dist_dir, "px_skins")
+    os.makedirs(px_skins_dst, exist_ok=True)
 
     # skin_open_source / skin_official DLLs
     # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to GR_PROJECT_BINARY_PATH
@@ -186,20 +186,20 @@ def main():
     if os.path.isdir(skins_src):
         for f in os.listdir(skins_src):
             if f.startswith("skin_") and f.endswith(".dll"):
-                copy_file(os.path.join(skins_src, f), os.path.join(gr_skins_dst, f))
+                copy_file(os.path.join(skins_src, f), os.path.join(px_skins_dst, f))
 
     # skin config (from source tree)
     skin_config_src = os.path.join(build_dir, "..", "src", "px_panel", "src", "skin", "skin_config.toml")
     if os.path.isfile(skin_config_src):
-        copy_file(skin_config_src, os.path.join(gr_skins_dst, "skin_config.toml"))
+        copy_file(skin_config_src, os.path.join(px_skins_dst, "skin_config.toml"))
 
     # ------------------------------------------------------------------
     # 6. Hook capture
     # ------------------------------------------------------------------
     hook_capture_files = [
-        ("src/px_render/hook_capture/win/hk_obs/tc_graphics.dll", "tc_graphics.dll"),
-        ("src/px_render/hook_capture/win/hk_obs/injector/tc_graphics_util.exe", "tc_graphics_util.exe"),
-        ("src/px_render/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe", "tc_graphics_offsets.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/px_graphics.dll", "px_graphics.dll"),
+        ("src/px_render/hook_capture/win/hk_obs/injector/px_graphics_util.exe", "px_graphics_util.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/offsets/px_graphics_offsets.exe", "px_graphics_offsets.exe"),
     ]
     for rel_src, rel_dst in hook_capture_files:
         copy_file(os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
@@ -208,8 +208,8 @@ def main():
     # 7. Anti-hooking
     # ------------------------------------------------------------------
     copy_file(
-        os.path.join(build_dir, "src", "px_client", "anti_hooking", "tc_protection.dll"),
-        os.path.join(dist_dir, "tc_protection.dll"),
+        os.path.join(build_dir, "src", "px_client", "anti_hooking", "px_protection.dll"),
+        os.path.join(dist_dir, "px_protection.dll"),
     )
 
     # ------------------------------------------------------------------
@@ -241,8 +241,8 @@ def main():
         shutil.copytree(src, dst)
         print(f"  + {dst_name}/  (from {src})")
 
-    collect_web_frontend(("web", "gr_web_client", "dist"), "web_client")
-    collect_web_frontend(("web", "gr_cms", "dist"), "gr_cms")
+    collect_web_frontend(("web", "px_web_client", "dist"), "web_client")
+    collect_web_frontend(("web", "px_cms", "dist"), "px_cms")
 
     print(f"\nDone. Dist folder: {dist_dir}")
 

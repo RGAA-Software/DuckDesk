@@ -7,7 +7,7 @@
 
 #include <QString>
 #include <cstdint>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

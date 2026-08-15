@@ -96,7 +96,7 @@ impl RelayRoomManager {
             return None;
         }
 
-        // gr_relay_server queue
+        // px_relay_server queue
         let mut queue = RelayQueue::new(room_id.clone());
         queue.run().await;
         self.relay_queue.lock().await.insert(room_id.clone(), queue);
@@ -367,7 +367,7 @@ impl RelayRoomManager {
                 .del::<&String, ()>(room_id)
                 .await;
 
-            // exit gr_relay_server queue
+            // exit px_relay_server queue
             let relay_queue = self.relay_queue.clone();
             let rid = room_id.clone();
             tokio::spawn(async move {

@@ -14,7 +14,7 @@ const static std::string kPosY = "float_button_pos_y";
 namespace tc
 {
     FloatController::FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent){
-        auto image = new QImage(":resources/tc_icon.png");
+        auto image = new QImage(":resources/px_icon.png");
         pixmap_ = QPixmap::fromImage(*image);
         pixmap_ = pixmap_.scaled(25, 25, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         setMouseTracking(true);

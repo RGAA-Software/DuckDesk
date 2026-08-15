@@ -16,7 +16,7 @@
 #include <QComboBox>
 #include <QPainter>
 #include <QTextEdit>
-#include "px_qt_widget/tc_custom_titlebar_dialog.h"
+#include "px_qt_widget/px_custom_titlebar_dialog.h"
 
 namespace tc
 {

@@ -2,11 +2,11 @@
 #include <iostream>
 #include <wtsapi32.h>
 #include "px_common_new/log.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "win_panel_message_window.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "px_message_new/rp_proto_converter.h"
 
 using namespace tcrp;

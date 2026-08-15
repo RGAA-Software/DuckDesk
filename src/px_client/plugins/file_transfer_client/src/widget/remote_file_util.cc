@@ -4,11 +4,11 @@
 #include <qdebug.h>
 #include <qstorageinfo.h>
 #include <nlohmann/json.hpp>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file_util.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include "../core/file_sdk_interface.h"
 #include "file_log_manager.h"
 #include "file_const_def.h"

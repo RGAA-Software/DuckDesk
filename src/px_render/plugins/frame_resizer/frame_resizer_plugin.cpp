@@ -3,7 +3,7 @@
 //
 
 #include "frame_resizer_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "frame_render.h"
 #include "px_common_new/log.h"

@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <string>
 #include <atomic>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/fps_stat.h"
 #include "px_common_new/concurrent_type.h"
 #include "px_common_new/concurrent_vector.h"

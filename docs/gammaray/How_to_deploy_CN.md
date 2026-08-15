@@ -18,9 +18,9 @@
 │   ├── cert.pem
 │   └── key.pem
 ├── px_cms_server --> 生成管理设备ID
-├── gr_cms_server_settings.toml
-├── gr_relay_server --> 转发数据
-└── gr_relay_settings.toml
+├── px_cms.toml
+├── px_relay_server --> 转发数据
+└── px_relay_settings.toml
 
 ```
 

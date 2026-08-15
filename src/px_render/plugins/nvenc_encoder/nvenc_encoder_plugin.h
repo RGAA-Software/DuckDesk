@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_NVENC_ENCODER_PLUGIN_H
 #define GAMMARAY_NVENC_ENCODER_PLUGIN_H
 
-#include "px_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "px_render/plugin_interface/px_video_encoder_plugin.h"
 
 namespace tc
 {

@@ -18,4 +18,4 @@ else ()
 endif ()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${CLIPBOARD_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_message tc_plugin px_opus_codec_new Winmm.lib tc_global_id_generator)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_plugin px_opus_codec_new Winmm.lib px_global_id_generator)

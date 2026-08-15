@@ -7,7 +7,7 @@
 
 //#include "network/wss_router.h"
 #include "network/ws_router.h"
-#include "px_render/plugin_interface/gr_net_plugin_type.h"
+#include "px_render/plugin_interface/px_net_plugin_type.h"
 
 namespace tc
 {

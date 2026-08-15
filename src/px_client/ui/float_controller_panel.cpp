@@ -3,8 +3,8 @@
 //
 
 #include "float_controller_panel.h"
-#include "tc_label.h"
-#include "tc_dialog.h"
+#include "px_label.h"
+#include "px_dialog.h"
 #include "ct_const_def.h"
 #include "float_icon.h"
 #include "sized_msg_box.h"

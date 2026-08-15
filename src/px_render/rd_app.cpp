@@ -27,8 +27,8 @@
 #include "render_panel/network/ws_panel_server.h"
 #include "app/encoder_thread.h"
 #include "network/net_message_maker.h"
-#include "tc_message.pb.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "app/app_timer.h"
 #include "px_opus_codec_new/opus_codec.h"
 #include "network/ws_panel_client.h"
@@ -45,12 +45,12 @@
 #include "network/render_service_client.h"
 #include "px_render/plugins/plugin_manager.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_stream_plugin.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
-#include "px_render/plugin_interface/gr_monitor_capture_plugin.h"
-#include "px_render/plugin_interface/gr_data_provider_plugin.h"
-#include "px_render/plugin_interface/gr_audio_encoder_plugin.h"
-#include "tc_service_message.pb.h"
+#include "px_render/plugin_interface/px_stream_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_data_provider_plugin.h"
+#include "px_render/plugin_interface/px_audio_encoder_plugin.h"
+#include "px_service_message.pb.h"
 #include "app/win/win_desktop_manager.h"
 #include "px_common_new/win32/d3d11_wrapper.h"
 #include "px_message_new/proto_converter.h"
@@ -96,7 +96,7 @@ namespace tc
 
         // sp
         sp_ = SharedPreference::Instance();
-        auto path = FolderUtil::GetProgramDataPath() + L"/gr_data";
+        auto path = FolderUtil::GetProgramDataPath() + L"/px_data";
         std::string sp_name = std::format("godesk_render_{}.dat", settings_->transmission_.listening_port_);
         if (!sp_->Init(path, sp_name)) {
             init_failed_ = true;
@@ -744,7 +744,7 @@ namespace tc
             init_failed_ = true;
             init_error_ = std::format("StartProcessWithHook failed: {}", settings_->app_.game_path_);
         } else {
-            LOGI("StartProcessWithHook requested OK, inject timer will attach tc_graphics.dll");
+            LOGI("StartProcessWithHook requested OK, inject timer will attach px_graphics.dll");
         }
     }
 

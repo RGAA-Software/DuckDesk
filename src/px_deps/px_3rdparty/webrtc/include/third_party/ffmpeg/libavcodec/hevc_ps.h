@@ -341,7 +341,7 @@ typedef struct HEVCPPS {
     uint8_t deblocking_filter_override_enabled_flag;
     uint8_t disable_dbf;
     int beta_offset;    ///< beta_offset_div2 * 2
-    int tc_offset;      ///< tc_offset_div2 * 2
+    int px_offset;      ///< px_offset_div2 * 2
 
     uint8_t scaling_list_data_present_flag;
     ScalingList scaling_list;

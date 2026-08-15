@@ -14,8 +14,8 @@ qt_add_resources(RESOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/resources.qrc)
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${RESOURCES})
 target_compile_definitions(${PROJECT_NAME} PRIVATE TC_FILE_TRANS_DLL_EXPORTS)
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_message tc_client_plugin)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg tc_message px_common_new px_qt_widget tc_sdk Dwmapi.lib)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_client_plugin)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg px_message px_common_new px_qt_widget px_sdk Dwmapi.lib)
 target_include_directories(${PROJECT_NAME} PRIVATE
     
     ${CMAKE_SOURCE_DIR}/src/px_client/plugin_interface

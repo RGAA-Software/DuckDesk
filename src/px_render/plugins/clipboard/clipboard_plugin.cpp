@@ -3,7 +3,7 @@
 //
 
 #include "clipboard_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "px_opus_codec_new/opus_codec.h"
 #include "px_common_new/log.h"
@@ -11,9 +11,9 @@
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
 #include "clipboard_manager.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "win/cp_virtual_file.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 #include "px_message_new/proto_converter.h"
 #include "px_common_new/md5.h"
 

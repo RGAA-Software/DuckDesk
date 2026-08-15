@@ -15,7 +15,7 @@
 #include "../core/file_transmit_sdk.h"
 #include "px_common_new/shared_preference.h"
 #include "px_qt_widget/widget_helper.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc {
 
@@ -220,7 +220,7 @@ void FileTransWidget::Init() {
 	logo_lab_ = new QLabel(this);
 	logo_lab_->setFixedSize(120, 50);
 	logo_lab_->setAttribute(Qt::WA_StyledBackground, true);
-	logo_lab_->setStyleSheet(R"(image: url(:/resource/tc_text_logo.png);
+	logo_lab_->setStyleSheet(R"(image: url(:/resource/px_text_logo.png);
                                     background-repeat:no-repeat;
                                     background-position: center center;)");
 	logo_lab_->move(this->width() * 0.88, this->height() * 0.92);

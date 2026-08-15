@@ -8,14 +8,14 @@
 #include <QDesktopServices>
 #include <QPixmap>
 
-#include "tc_label.h"
+#include "px_label.h"
 #include "version_config.h"
-#include "tc_image_button.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
-#include "render_panel/gr_context.h"
+#include "px_image_button.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
+#include "render_panel/px_context.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_qt_widget/tc_pushbutton.h"
+#include "px_qt_widget/px_pushbutton.h"
 #include "skin/interface/skin_interface.h"
 
 namespace tc
@@ -37,7 +37,7 @@ namespace tc
                 pixmap = skin->GetSquareLogo();
             }
             if (pixmap.isNull()) {
-                pixmap.load(":/resources/tc_icon.png");
+                pixmap.load(":/resources/px_icon.png");
             }
             if (!pixmap.isNull()) {
                 pixmap = pixmap.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);

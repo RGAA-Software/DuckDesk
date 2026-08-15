@@ -1,4 +1,4 @@
-// CDP 无头 Chrome 验证 gr_web_client 新功能:画中画 / 本地录制 / 自动重连 / 指针锁定
+// CDP 无头 Chrome 验证 px_web_client 新功能:画中画 / 本地录制 / 自动重连 / 指针锁定
 // 用法: node scripts/cdp_new_features_test.mjs
 // 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
 import { spawn } from 'node:child_process'
@@ -196,7 +196,7 @@ async function main() {
   })()`)
   report('重连后视频恢复出帧', framesAdv > 0, `采样窗口内新增 ${framesAdv} 帧`)
   // localStorage 预填记忆
-  const lastConn = await evaluate(`localStorage.getItem('gr_web_client.last_conn')`)
+  const lastConn = await evaluate(`localStorage.getItem('px_web_client.last_conn')`)
   report('localStorage 记忆 deviceId/streamId(不含密码)',
     !!lastConn && lastConn.includes('600378210') && !lastConn.includes('698d51a1'), lastConn ?? '')
 

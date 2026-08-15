@@ -270,7 +270,7 @@ TEST(ClipboardPlatformWinTest, ReadFileDropFromClipboard) {
     ClipboardBackup backup;
     auto& platform = backup.Platform();
 
-    const auto temp_dir = std::filesystem::temp_directory_path() / "tc_clipboard_platform_hdrop";
+    const auto temp_dir = std::filesystem::temp_directory_path() / "px_clipboard_platform_hdrop";
     std::filesystem::remove_all(temp_dir);
     std::filesystem::create_directories(temp_dir / "nested");
     {

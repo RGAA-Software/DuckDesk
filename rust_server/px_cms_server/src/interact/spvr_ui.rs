@@ -124,11 +124,11 @@ impl SpvrUI {
                 state.lock().unwrap().relay_alive = false;
                 for (pid, process) in processes {
                     let name = process.name().to_string_lossy().to_string().to_lowercase();
-                    if name.contains("gr_relay") {
+                    if name.contains("px_relay") {
                         state.lock().unwrap().relay_alive = true;
                     }
                     let pid = *pid;
-                    if name.contains("px_cms_server") && pid.as_u32() != my_pid {
+                    if name.contains("px_cms") && pid.as_u32() != my_pid {
                         state.lock().unwrap().spvr_alive = true;
                         state.lock().unwrap().spvr_alive_pid = pid.as_u32();
                     }
@@ -202,7 +202,7 @@ impl eframe::App for SpvrUI {
                 let btn_size = [150.0, 32.0];
                 // logo
                 ui.add(
-                    egui::Image::new(egui::include_image!("../../assets/tc_icon.png"))
+                    egui::Image::new(egui::include_image!("../../assets/px_icon.png"))
                         .fit_to_exact_size(egui::Vec2::new(55.0, 55.0))
                         .corner_radius(10),
                 );

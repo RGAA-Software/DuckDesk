@@ -10,5 +10,5 @@ set(SKIN_LOADER_SRCS
 
 add_library(skin_loader ${SKIN_LOADER_SRCS} ${RESOURCES})
 target_link_libraries(skin_loader PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg
-    tc_message px_common_new px_qt_widget skin_interface
+    px_message px_common_new px_qt_widget skin_interface
 )

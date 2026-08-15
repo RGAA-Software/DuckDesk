@@ -3,12 +3,12 @@
 //
 
 #include "security_password_checker.h"
-#include "tc_dialog.h"
-#include "tc_label.h"
+#include "px_dialog.h"
+#include "px_label.h"
 #include "px_common_new/md5.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_workspace.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_workspace.h"
+#include "render_panel/px_application.h"
 #include "render_panel/devices/input_remote_pwd_dialog.h"
 
 namespace tc

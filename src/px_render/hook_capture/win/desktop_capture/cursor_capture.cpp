@@ -8,7 +8,7 @@
 #include "px_common_new/data.h"
 #include "px_capture_new/capture_message.h"
 #include "px_common_new/log.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

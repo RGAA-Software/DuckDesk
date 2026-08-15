@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(tc_js_vigem)
+project(px_js_vigem)
 
 set(CMAKE_CXX_STANDARD 23)
 

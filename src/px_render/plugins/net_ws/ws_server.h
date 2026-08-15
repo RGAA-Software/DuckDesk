@@ -79,7 +79,7 @@ namespace tc
         WsDataPtr ws_data_ = nullptr;
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
-        // Injected tc_graphics.dll sessions on /ipc (host → game input downlink).
+        // Injected px_graphics.dll sessions on /ipc (host → game input downlink).
         tc::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
         // Pids allowed on /ipc: this render instance wrote hook boot config for them.
         std::mutex ipc_pid_mtx_;

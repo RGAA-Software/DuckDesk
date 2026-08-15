@@ -35,14 +35,14 @@ namespace tc
         auto base_path = QCoreApplication::applicationDirPath();
         auto base_data_path =FolderUtil::GetProgramDataPath();
         LOGI("plugin base path: {}", base_path.toStdString());
-        QDir plugin_dir(base_path + R"(/gr_plugins_client)");
+        QDir plugin_dir(base_path + R"(/px_plugins_client)");
         QStringList filters;
         filters << QString("*%1").arg(".dll");
         plugin_dir.setNameFilters(filters);
 
         auto entryInfoList = plugin_dir.entryInfoList();
         for (const auto &info: entryInfoList) {
-            auto target_plugin_path = base_path + R"(/gr_plugins_client/)" + info.fileName();
+            auto target_plugin_path = base_path + R"(/px_plugins_client/)" + info.fileName();
             auto plugin_id = info.baseName().toStdString();
             LOGI("Will load: {}", target_plugin_path.toStdString());
 

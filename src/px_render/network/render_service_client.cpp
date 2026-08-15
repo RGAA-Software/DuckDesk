@@ -12,7 +12,7 @@
 #include "px_common_new/message_notifier.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
-#include "tc_service_message.pb.h"
+#include "px_service_message.pb.h"
 #include "settings/rd_settings.h"
 
 namespace tc

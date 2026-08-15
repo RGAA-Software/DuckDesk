@@ -4,15 +4,15 @@
 
 #include "rtc_local_plugin.h"
 #include "rtc_server.h"
-#include "px_render/plugin_interface/gr_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/data.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 
 GR_PLUGIN_EXPORT(tc::RtcLocalPlugin)
 
@@ -155,7 +155,7 @@ namespace tc
                 if (!read_varint(type)) {
                     return false;
                 }
-                // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
+                // px_message.proto: kVideoFrame = 30, kAudioFrame = 40
                 return type == 30 || type == 40;
             }
             switch (wire) {

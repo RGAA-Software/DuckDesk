@@ -13,7 +13,7 @@
 #include "px_common_new/math_helper.h"
 #include "px_common_new/win32/win_helper.h"
 #include "px_capture_new/capture_message.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "gdi_capture_plugin.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 

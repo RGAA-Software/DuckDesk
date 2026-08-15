@@ -5,8 +5,8 @@
 #ifndef GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
 #define GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
 
-#include "px_qt_widget/tc_base_widget.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_qt_widget/px_base_widget.h"
+#include "px_render_panel_message.pb.h"
 
 namespace tc
 {

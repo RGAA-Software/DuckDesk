@@ -82,7 +82,7 @@ namespace tc
             base_data_path = std::any_cast<std::wstring>(param.cluster_.at("base_data_path"));
         }
         plugin_context_ = std::make_shared<ClientPluginContext>(GetPluginName());
-        const auto log_path = std::format(L"{}/gr_logs/ct_{}.log", base_data_path, StringUtil::ToWString(plugin_file_name_));
+        const auto log_path = std::format(L"{}/px_logs/ct_{}.log", base_data_path, StringUtil::ToWString(plugin_file_name_));
         Logger::InitLog(log_path, true);
         LOGI("{} OnCreate", GetPluginName());
 

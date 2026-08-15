@@ -9,7 +9,7 @@
 #include <map>
 #include <mutex>
 #include <QProcess>
-#include "gr_exe_names.h"
+#include "px_exe_names.h"
 #include "render_process.h"
 #include "px_common_new/response.h"
 #include "px_common_new/concurrent_hashmap.h"

@@ -11,7 +11,7 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/message_notifier.h"
 #include "px_client_sdk_new/sdk_messages.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_webrtc_client/rtc_client_interface.h"
 #include <nlohmann/json.hpp>
 #ifdef WIN32
@@ -73,7 +73,7 @@ namespace tc
     void WebRtcLocalConnection::LoadRtcLibrary() {
 #ifdef WIN32
         LOGI("Begin to load rtc library!");
-        auto lib_name = QApplication::applicationDirPath() + "/px_client/tc_rtc_client.dll";
+        auto lib_name = QApplication::applicationDirPath() + "/px_client/px_rtc_client.dll";
         rtc_lib_ = new QLibrary(lib_name);
         auto r = rtc_lib_->load();
         if (!r) {

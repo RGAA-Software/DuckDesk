@@ -6,21 +6,21 @@
 #include <QApplication>
 #include <qstandardpaths.h>
 
-#include "gr_device_manager.h"
+#include "px_device_manager.h"
 #include "px_common_new/base64.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_context.h"
 #include "px_common_new/log.h"
 #include "px_common_new/const_auto.h"
-#include "render_panel/gr_app_messages.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_app_messages.h"
+#include "render_panel/px_application.h"
 #include "px_profile_client/profile_api.h"
-#include "px_qt_widget/tc_dialog.h"
+#include "px_qt_widget/px_dialog.h"
 #include "start_stream_loading.h"
-#include "px_qt_widget/translator/tc_translator.h"
+#include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "render_panel/companion/panel_companion.h"
-#include "render_panel/spvr/gr_spvr_manager.h"
+#include "render_panel/spvr/px_spvr_manager.h"
 #include "px_spvr_client/spvr_device.h"
 
 namespace tc

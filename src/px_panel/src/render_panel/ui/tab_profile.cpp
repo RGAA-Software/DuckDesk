@@ -7,11 +7,11 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include "no_margin_layout.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
 #include "px_common_new/log.h"
 #include "px_qt_widget/clickable_widget.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 #include "px_account_sdk/acc_sdk.h"
 #include "px_account_sdk/acc_profile.h"
 #include "px_account_sdk/acc_device.h"

@@ -8,13 +8,13 @@
 #include <functional>
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
-#include "tc_render_panel_message.pb.h"
-#include "tc_message.pb.h"
+#include "px_render_panel_message.pb.h"
+#include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "ws_plugin.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
 
 namespace tc
 {

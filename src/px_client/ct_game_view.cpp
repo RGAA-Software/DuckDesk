@@ -13,7 +13,7 @@
 #include <qpixmap.h>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
-#include "tc_dialog.h"
+#include "px_dialog.h"
 #include "no_margin_layout.h"
 #include "ct_const_def.h"
 #include "ct_game_overlay.h"

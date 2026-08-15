@@ -142,7 +142,7 @@ GammaRayService · AppInstanceRegistry
 | Service 注册表 | `rust_client/px_service/service_core/src/app_instance.rs` | 端口池、路径、状态 |
 | Service 起停 | `rust_client/px_service/src/service_host.rs` | 起停 Render、`reap_dead_app_instances` |
 | Service 心跳 | `rust_client/px_service/src/cms_client.rs` | HB 前 reap；Stop unknown→成功 |
-| Web | `web/gr_cms/src/views/AppsView.vue` | 列表绑定、启停 toast |
+| Web | `web/px_cms/src/views/AppsView.vue` | 列表绑定、启停 toast |
 | Render | `src/px_render/rd_app.cpp` | 游戏启动失败快速失败（无 ssl_proxy） |
 
 ---
@@ -173,7 +173,7 @@ http://{device_ip}:{listen_port}/web_client/?deviceId={device_id}&instanceId={in
 
 | 组件 | 典型路径 / 参数 |
 |------|------------------|
-| CMS | `output/px_cms_server/px_cms_server.exe --running-mode=server`（HTTPS `:30500`） |
+| CMS | `output/px_cms_server/px_cms.exe --running-mode=server`（HTTPS `:30500`） |
 | Service | `scripts\service_test_ctl.bat start`（封装 `build_official/dist/GammaRayService.exe --console --port 20375`） |
 
 Service 启停脚本（console 模式，2026-08-08 新增）：
@@ -289,7 +289,7 @@ cargo test -p px_service
 
 ### 10.4 force_authorize 测试开关（2026-08-08）
 
-- `gr_cms_server_settings.toml` 新增 `force_authorize`：`false` = WS token 过滤（client/panel/service/website）与 HTTP appkey 过滤一律放行（本机/测试）；缺省（不写）为 `true` 强制鉴权。
+- `px_cms.toml` 新增 `force_authorize`：`false` = WS token 过滤（client/panel/service/website）与 HTTP appkey 过滤一律放行（本机/测试）；缺省（不写）为 `true` 强制鉴权。
 - 测试部署（`output/px_cms_server/`）已置 `false`；生产部署应显式 `true`。
 - 放行时 `/spvr/service` 不再需要 appkey/token 参数即可连接（`inject_service_auth` 不再是前置条件）。
 - WS token 过滤器的拒收类单测现在显式置 `force_authorize=true`（结构体 `Default` 为 false）；新增 `client_bypassed_when_force_authorize_false`。

@@ -9,7 +9,7 @@ import sqlite3
 
 def main() -> None:
     public = os.environ.get("PUBLIC", r"C:\Users\Public")
-    db_path = os.path.join(public, "GoDesk", "gr_data", "gr_data.db")
+    db_path = os.path.join(public, "GoDesk", "px_data", "px_data.db")
     if not os.path.exists(db_path):
         print("DB not found:", db_path)
         return

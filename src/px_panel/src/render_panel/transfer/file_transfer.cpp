@@ -3,10 +3,10 @@
 //
 
 #include "file_transfer.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_context.h"
 #include "px_common_new/log.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"

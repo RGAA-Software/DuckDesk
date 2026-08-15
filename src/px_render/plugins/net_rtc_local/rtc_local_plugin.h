@@ -9,7 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
-#include "px_render/plugin_interface/gr_net_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_capture_new/monitor_util.h"
 #include "px_common_new/concurrent_hashmap.h"
 #include "rtc_local_encoded_frame.h"

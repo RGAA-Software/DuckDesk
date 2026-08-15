@@ -13,8 +13,8 @@
 #include <qsvgrenderer.h>
 #include <qpixmap.h>
 #include "px_common_new/string_util.h"
-// tc_label.h 与翻译相关
-#include "tc_label.h"
+// px_label.h 与翻译相关
+#include "px_label.h"
 
 #define COLUMN_FILE_NAME 0
 

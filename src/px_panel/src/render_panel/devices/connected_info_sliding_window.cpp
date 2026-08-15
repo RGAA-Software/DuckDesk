@@ -2,12 +2,12 @@
 #include <qtimer.h>
 #include <qapplication.h>
 #include "no_margin_layout.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 #include "px_qt_widget/widget_helper.h"
 #include "connected_info_panel.h"
 #include "connected_info_tag.h"
 #include "px_common_new/log.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "px_common_new/client_id_extractor.h"
 
 namespace tc {

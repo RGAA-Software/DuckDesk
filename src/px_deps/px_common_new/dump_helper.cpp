@@ -116,7 +116,7 @@ namespace tc
     google_breakpad::ExceptionHandler *exception_handler = nullptr;
 
     void CaptureDumpByBreakpad(BreakpadContext* bc) {
-        auto dump_path = FolderUtil::GetProgramDataPath() + L"/gr_dumps";
+        auto dump_path = FolderUtil::GetProgramDataPath() + L"/px_dumps";
         FolderUtil::CreateDir(dump_path);
 
         exception_handler = new google_breakpad::ExceptionHandler(
@@ -129,7 +129,7 @@ namespace tc
     }
 
     void ClearOldDumps() {
-        auto dump_path = FolderUtil::GetProgramDataPath() + L"/gr_dumps";
+        auto dump_path = FolderUtil::GetProgramDataPath() + L"/px_dumps";
         CleanupDirectory(dump_path, 20);
     }
 

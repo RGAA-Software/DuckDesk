@@ -3,12 +3,12 @@
 //
 
 #include "tab_base.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
 #include "px_common_new/message_notifier.h"
-#include "render_panel/gr_statistics.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_statistics.h"
+#include "render_panel/px_app_messages.h"
 
 // 测试崩溃函数
 void CrashFunction() {

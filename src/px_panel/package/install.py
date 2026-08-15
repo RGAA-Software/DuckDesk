@@ -35,7 +35,7 @@ def collceion_program_files(force_update, in_target_path):
         "plugin_opus_encoder.dll",
         "plugin_was_audio_capture.dll",
         "plugin_vr_manager.dll",
-        "tc_rtc_client.dll",
+        "px_rtc_client.dll",
         "protoc.exe",
         "test_audio_capture.exe",
         "test_common.exe",
@@ -102,16 +102,16 @@ def collceion_program_files(force_update, in_target_path):
     folders_path.append(base_path + "generic")
     folders_path.append(base_path + "tls")
     folders_path.append(base_path + "networkinformation")
-    folders_path.append(base_path + "tc_app")
+    folders_path.append(base_path + "px_app")
     folders_path.append(base_path + "platforminputcontexts")
     folders_path.append(base_path + "qml")
     folders_path.append(base_path + "qmltooling")
-    folders_path.append(base_path + "gr_plugins")
-    folders_path.append(base_path + "gr_plugins_client")
+    folders_path.append(base_path + "px_plugins")
+    folders_path.append(base_path + "px_plugins_client")
     folders_path.append(base_path + "px_client")
     folders_path.append(base_path + "certs")
     folders_path.append(base_path + "web")
-    folders_path.append(base_path + "gr_skins")
+    folders_path.append(base_path + "px_skins")
 
     target_path = base_path + "package/packages/com.rgaa.gammaray/data"#+ "gammaray" + target_folder_suffix
     if len(in_target_path) > 0:

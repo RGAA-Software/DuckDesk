@@ -11,11 +11,11 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/message_notifier.h"
-#include "tc_message.pb.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "px_render/plugins/plugin_manager.h"
-#include "px_render/plugin_interface/gr_plugin_interface.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 
@@ -264,7 +264,7 @@ namespace tc
 #endif
             else if (m.type() == tcrp::RpMessageType::kRpDisconnectConnection) {
                 const auto& sub = m.disconnect_connection();
-                // 1. make disconnect message in tc_messages.proto
+                // 1. make disconnect message in px_messages.proto
                 auto resp_msg = std::make_shared<tc::Message>();
                 resp_msg->set_device_id(sub.device_id());
                 resp_msg->set_stream_id(sub.stream_id());

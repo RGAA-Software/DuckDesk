@@ -6,7 +6,7 @@
 #define GAMMARAYPC_CT_STATISTICS_PANEL_H
 
 #include "base_widget.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include <QLabel>
 #include <QStackedWidget>
 

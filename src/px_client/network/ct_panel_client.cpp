@@ -6,10 +6,10 @@
 #include "ct_settings.h"
 #include "px_common_new/log.h"
 #include "ct_client_context.h"
-#include "tc_client_panel_message.pb.h"
+#include "px_client_panel_message.pb.h"
 #include "px_client_sdk_new/sdk_statistics.h"
 #include "px_common_new/message_notifier.h"
-#include "tc_client_panel_message.pb.h"
+#include "px_client_panel_message.pb.h"
 
 namespace tc
 {

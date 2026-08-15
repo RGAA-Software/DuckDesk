@@ -7,13 +7,13 @@
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/log.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_app_messages.h"
 #include "px_spvr_client/spvr_stream.h"
 #include "relay_message.pb.h"
 #include "px_relay_client/relay_api.h"
-#include "render_panel/gr_settings.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_settings.h"
+#include "render_panel/px_application.h"
 #include "px_spvr_client/spvr_device_api.h"
 
 namespace tc

@@ -11,7 +11,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/http_client.h"
-#include "px_common_new/tc_aes.h"
+#include "px_common_new/px_aes.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/shared_preference.h"
@@ -34,7 +34,7 @@ namespace tc
 
     bool PanelCompanionImpl::Init() {
         auto base_path = FolderUtil::GetProgramDataPath();
-        auto log_path = std::format(L"{}/gr_logs/panel_companion.log", base_path);
+        auto log_path = std::format(L"{}/px_logs/panel_companion.log", base_path);
         Logger::InitLog(log_path, true);
         LOGI("PanelCompanion Init");
 
@@ -42,7 +42,7 @@ namespace tc
         net_thread_->Poll();
 
         sp_ = std::make_shared<SharedPreference>();
-        auto sp_dir = base_path + L"/gr_data";
+        auto sp_dir = base_path + L"/px_data";
         if (!sp_->Init(sp_dir, "panel_companion.dat")) {
             //QMessageBox::critical(nullptr, "Error", "You may already run a instance.");
             return false;

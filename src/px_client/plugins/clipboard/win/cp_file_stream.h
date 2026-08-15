@@ -14,7 +14,7 @@
 #include <QFileInfo>
 #include "cp_data_object.h"
 #include "cp_file_struct.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/md5.h"
 
 namespace tc

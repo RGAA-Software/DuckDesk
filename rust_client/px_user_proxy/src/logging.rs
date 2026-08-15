@@ -20,7 +20,7 @@ mod tests {
     fn log_root_under_godesk() {
         assert_eq!(
             crate::config::user_proxy_log_root(),
-            crate::config::app_shared_root().join("gr_logs")
+            crate::config::app_shared_root().join("px_logs")
         );
     }
 }

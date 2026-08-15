@@ -3,8 +3,8 @@
 //
 
 #include "frame_debugger_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/log.h"
@@ -76,7 +76,7 @@ namespace tc
         auto part_name = TimeUtil::FormatTimestamp2(TimeUtil::GetCurrentTimestamp());
         auto folder_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath());
         auto display_name = mon_name.substr(4);
-        std::string encoded_video_file_name = std::format("{}/gr_data/render/enc_{}_{}.{}", folder_path, display_name, part_name, (type == GrPluginEncodedVideoType::kH264) ? "h264" : "h265");
+        std::string encoded_video_file_name = std::format("{}/px_data/render/enc_{}_{}.{}", folder_path, display_name, part_name, (type == GrPluginEncodedVideoType::kH264) ? "h264" : "h265");
         if (File::Exists(U8Path(encoded_video_file_name))) {
             File::Delete(U8Path(encoded_video_file_name));
         }

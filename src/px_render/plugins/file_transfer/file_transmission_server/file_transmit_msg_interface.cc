@@ -1,12 +1,12 @@
 #include "file_transmit_msg_interface.h"
-#include "tc_tr.h"
+#include "px_tr.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
 #include "file_transfer_plugin.h"
 #include "file_transmit_manager.h"
 #include "file_transmit_impl.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_message_new/proto_converter.h"
 
 namespace tc {

@@ -16,9 +16,9 @@
 │   ├── cert.pem
 │   └── key.pem
 ├── px_cms_server
-├── gr_cms_server_settings.toml
-├── gr_relay_server
-└── gr_relay_settings.toml
+├── px_cms.toml
+├── px_relay_server
+└── px_relay_settings.toml
 
 ```
 
@@ -87,7 +87,7 @@ server_grpc_port = 40600
 
 #### 5. Run the servers
 > No orders required here, just starting them as you want.  
-> You may start in sequence of gr_profile_server.exe -> gr_relay_server.exe -> gr_supervisor_server.exe
+> You may start in sequence of px_profile_server.exe -> px_relay_server.exe -> px_supervisor_server.exe
 > 
 #### 6. Set the information in Panel and save it.
 ![](images/server_settings.png)

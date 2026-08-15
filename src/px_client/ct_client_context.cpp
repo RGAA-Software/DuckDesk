@@ -33,7 +33,7 @@ namespace tc
 
     void ClientContext::Init() {
         auto data_path = FolderUtil::GetProgramDataPath();
-        auto log_path = std::format(L"{}/gr_logs/app.{}.log", data_path, StringUtil::ToWString(this->name_));
+        auto log_path = std::format(L"{}/px_logs/app.{}.log", data_path, StringUtil::ToWString(this->name_));
 
         if (this->name_ == kClientEmbedName) {
             // embed in main panel
@@ -48,7 +48,7 @@ namespace tc
 
         sp_ = SharedPreference::Instance();
         auto sp_name = std::format("app.{}.dat", this->name_);
-        if (!sp_->Init(data_path + L"/gr_data", sp_name)) {
+        if (!sp_->Init(data_path + L"/px_data", sp_name)) {
             LOGE("!! Init sp failed: {}", sp_name);
         }
         else {

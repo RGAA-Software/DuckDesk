@@ -104,7 +104,7 @@ struct decklink_ctx {
     BMDDisplayMode bmd_mode;
     BMDVideoConnection video_input;
     BMDAudioConnection audio_input;
-    BMDTimecodeFormat tc_format;
+    BMDTimecodeFormat px_format;
     int bmd_width;
     int bmd_height;
     int bmd_field_dominance;
@@ -161,7 +161,7 @@ struct decklink_ctx {
 
     int channels;
     int audio_depth;
-    unsigned long tc_seen;    // used with option wait_for_tc
+    unsigned long px_seen;    // used with option wait_for_tc
 };
 
 typedef enum { DIRECTION_IN, DIRECTION_OUT} decklink_direction_t;

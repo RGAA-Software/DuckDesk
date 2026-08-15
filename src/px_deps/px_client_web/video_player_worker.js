@@ -94,7 +94,7 @@ function start({ prefix, rendererName, canvas }) {
         }
     });
 
-    protobuf.load(["tc_message.proto"], function (err, root) {
+    protobuf.load(["px_message.proto"], function (err, root) {
         if (err != null) {
             console.log("load protobuf failed : ", err);
             return;

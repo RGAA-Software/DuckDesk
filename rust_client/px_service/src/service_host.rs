@@ -918,8 +918,8 @@ mod tests {
     fn test_runtime(processes: Vec<ProcessSnapshot>) -> ServiceRuntime {
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_data_test"),
-            std::env::temp_dir().join("gr_logs_test"),
+            std::env::temp_dir().join("px_data_test"),
+            std::env::temp_dir().join("px_logs_test"),
         );
         ServiceRuntime::new(
             config,
@@ -944,8 +944,8 @@ mod tests {
     fn start_desktop_launches_user_proxy_with_session_user_token() {
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_data_test_up"),
-            std::env::temp_dir().join("gr_logs_test_up"),
+            std::env::temp_dir().join("px_data_test_up"),
+            std::env::temp_dir().join("px_logs_test_up"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
         let mut runtime = ServiceRuntime::new(
@@ -1102,8 +1102,8 @@ mod tests {
     fn persisted_state_is_loaded_back() {
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_service_state_load"),
-            std::env::temp_dir().join("gr_logs"),
+            std::env::temp_dir().join("px_service_state_load"),
+            std::env::temp_dir().join("px_logs"),
         );
         let mut runtime = ServiceRuntime::new(
             config.clone(),
@@ -1149,8 +1149,8 @@ mod tests {
     fn stop_desktop_command_clears_launch_and_persists_cleared_state() {
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_service_stop_desktop"),
-            std::env::temp_dir().join("gr_logs_stop_desktop"),
+            std::env::temp_dir().join("px_service_stop_desktop"),
+            std::env::temp_dir().join("px_logs_stop_desktop"),
         );
         let mut runtime = ServiceRuntime::new(
             config.clone(),
@@ -1237,7 +1237,7 @@ mod tests {
     }
 
     fn make_app_test_dirs(tag: &str) -> AppTestDirs {
-        let base = std::env::temp_dir().join(format!("gr_app_test_{tag}_{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("px_app_test_{tag}_{}", std::process::id()));
         let work_dir = base.join("work");
         let _ = std::fs::create_dir_all(&work_dir);
         let render_path = work_dir.join("GammaRayRender.exe");
@@ -1258,8 +1258,8 @@ mod tests {
         let dirs = make_app_test_dirs("startstop");
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_data_app_inst"),
-            std::env::temp_dir().join("gr_logs_app_inst"),
+            std::env::temp_dir().join("px_data_app_inst"),
+            std::env::temp_dir().join("px_logs_app_inst"),
         );
         let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
             1,
@@ -1333,8 +1333,8 @@ mod tests {
         let dirs = make_app_test_dirs("reuse");
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_data_app_reuse"),
-            std::env::temp_dir().join("gr_logs_app_reuse"),
+            std::env::temp_dir().join("px_data_app_reuse"),
+            std::env::temp_dir().join("px_logs_app_reuse"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
         let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
@@ -1389,8 +1389,8 @@ mod tests {
         let dirs = make_app_test_dirs("killfail");
         let config = ServiceConfig::new(
             20375,
-            std::env::temp_dir().join("gr_data_app_killfail"),
-            std::env::temp_dir().join("gr_logs_app_killfail"),
+            std::env::temp_dir().join("px_data_app_killfail"),
+            std::env::temp_dir().join("px_logs_app_killfail"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
         let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
@@ -1467,8 +1467,8 @@ mod tests {
         let mut runtime = ServiceRuntime::new(
             ServiceConfig::new(
                 20375,
-                std::env::temp_dir().join("gr_data_app_multi"),
-                std::env::temp_dir().join("gr_logs_app_multi"),
+                std::env::temp_dir().join("px_data_app_multi"),
+                std::env::temp_dir().join("px_logs_app_multi"),
             ),
             manager,
             Arc::new(MockActions::new()),

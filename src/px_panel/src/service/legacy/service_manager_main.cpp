@@ -8,7 +8,7 @@
 
 #include <format>
 #include <iostream>
-#include "gr_exe_names.h"
+#include "px_exe_names.h"
 #include "service/service_manager.h"
 #include "px_common_new/win32/process_helper.h"
 #include <Windows.h>

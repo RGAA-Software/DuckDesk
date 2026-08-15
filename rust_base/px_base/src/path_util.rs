@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 pub const DEFAULT_APP_NAME: &str = "GoDesk";
-pub const GR_LOG_DIR: &str = "gr_logs";
-pub const GR_DATA_DIR: &str = "gr_data";
+pub const GR_LOG_DIR: &str = "px_logs";
+pub const GR_DATA_DIR: &str = "px_data";
 
 /// Matches C++ FolderUtil::GetProgramDataPath("GoDesk") — %PUBLIC%/GoDesk
 pub fn public_share_dir() -> PathBuf {
@@ -36,7 +36,7 @@ mod tests {
     #[test]
     fn default_roots_live_under_godesk() {
         let root = app_shared_root();
-        assert_eq!(default_data_root(), root.join("gr_data"));
-        assert_eq!(default_log_root(), root.join("gr_logs"));
+        assert_eq!(default_data_root(), root.join("px_data"));
+        assert_eq!(default_log_root(), root.join("px_logs"));
     }
 }

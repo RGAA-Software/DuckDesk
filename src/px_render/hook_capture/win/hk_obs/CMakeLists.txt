@@ -9,7 +9,7 @@ add_subdirectory(ipc_util)
 add_subdirectory(offsets)
 
 cmake_minimum_required(VERSION 3.26)
-project(tc_graphics)
+project(px_graphics)
 
 set(CMAKE_CXX_STANDARD 23)
 add_definitions(-DCOMPILE_VULKAN_HOOK)
@@ -63,10 +63,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC
         ${DETOURS_LIBRARY}
-        tc_ipc_util
+        px_ipc_util
         px_common_new
         px_capture_new
-        tc_message
+        px_message
         protobuf::libprotobuf
         dxgi d3d11 d3d12 dxguid
         Iphlpapi.lib
@@ -92,10 +92,10 @@ set_target_properties(test_game_audio_loopback PROPERTIES
 )
 
 # Helper: external PID process-loopback → WAV (used by 内录 tooling / host-side tests).
-add_executable(tc_audio_pid_capture tc_audio_pid_capture.cpp)
-target_link_libraries(tc_audio_pid_capture PRIVATE ole32 mmdevapi)
-target_compile_definitions(tc_audio_pid_capture PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-set_target_properties(tc_audio_pid_capture PROPERTIES
+add_executable(px_audio_pid_capture px_audio_pid_capture.cpp)
+target_link_libraries(px_audio_pid_capture PRIVATE ole32 mmdevapi)
+target_compile_definitions(px_audio_pid_capture PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+set_target_properties(px_audio_pid_capture PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${GR_PROJECT_BINARY_PATH}"
 )
 

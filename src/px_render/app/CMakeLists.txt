@@ -12,11 +12,11 @@ if (WIN32)
         win/win_desktop_manager.cpp
         win/win_render_message_loop.cpp
     )
-    target_link_libraries(app_manager tc_message protobuf::libprotobuf Advapi32.lib)#frame_render
+    target_link_libraries(app_manager px_message protobuf::libprotobuf Advapi32.lib)#frame_render
 elseif (APPLE)
 
 elseif (UNIX)
 
 endif ()
 
-add_library(tc_global_id_generator SHARED global_id_generator.cpp)
+add_library(px_global_id_generator SHARED global_id_generator.cpp)

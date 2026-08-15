@@ -12,7 +12,7 @@
 #include "render_manager.h"
 #include "px_common_new/url_helper.h"
 #include "px_common_new/file.h"
-#include "tc_service_message.pb.h"
+#include "px_service_message.pb.h"
 #include "service_context.h"
 
 namespace tc

@@ -1,4 +1,4 @@
-//! Keepalive for `GammaRay.exe` and `GammaRaySysInfo.exe` (merged from gr_guard).
+//! Keepalive for `GammaRay.exe` and `GammaRaySysInfo.exe` (merged from px_guard).
 //!
 //! Every `KEEPALIVE_POLL_INTERVAL` the running processes are enumerated via a
 //! Toolhelp snapshot; missing targets are restarted. The panel is started

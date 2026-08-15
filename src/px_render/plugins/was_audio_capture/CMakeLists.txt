@@ -15,7 +15,7 @@ set(PLUGIN_SRCS
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_message tc_plugin ole32 mmdevapi)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_plugin ole32 mmdevapi)
 
 # Archived WASAPI implementation (not built): archive/wasapi_audio_capture.*
 

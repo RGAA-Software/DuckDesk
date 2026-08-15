@@ -13,7 +13,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "ffmpeg_encoder_plugin.h"
 
 namespace tc

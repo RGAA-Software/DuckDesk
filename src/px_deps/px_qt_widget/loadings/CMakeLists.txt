@@ -1,4 +1,4 @@
-project(tc_widget_loadings)
+project(px_widget_loadings)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)

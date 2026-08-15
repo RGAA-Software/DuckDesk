@@ -22,13 +22,13 @@
 
 ### S2【高】面板本地 HTTP 服务绑定 0.0.0.0 零鉴权,明文吐出设备 ID+随机密码,可杀任意进程
 - `src/px_panel/src/render_panel/network/ws_panel_server.cpp:245` 绑 0.0.0.0,TLS 整段注释。
-- `/simple/info` → `gr_context.cpp:261-264` 返回 `did` + `rpwd`(随机密码明文);`/kill/process` 按 pid 杀任意进程(`http_handler.cpp:143-159`);`/game/start` 按客户端给定路径启动程序。
+- `/simple/info` → `px_context.cpp:261-264` 返回 `did` + `rpwd`(随机密码明文);`/kill/process` 按 pid 杀任意进程(`http_handler.cpp:143-159`);`/game/start` 按客户端给定路径启动程序。
 - 同网段任何人(或恶意网页 DNS rebinding)一个请求即得远控凭据,构成 LAN 内 RCE。
 - 修复:绑定 127.0.0.1;敏感接口加配对 token;密码永不出接口。
 
 ### S3【高】Rust 服务 WS 监听 0.0.0.0 零鉴权,`StartServer.app_path` 任意指定 → 本地提权 SYSTEM
 - `rust_client/px_service/service_core/src/config.rs:8`(`DEFAULT_LISTEN_HOST = "0.0.0.0"`)、`websocket_server.rs:45-55`(仅校验 path);`windows_process.rs:103-126` 用服务自身 SYSTEM token 拉起传入路径的 exe。
-- 叠加:持久化启动参数存 `C:\Users\Public\GoDesk\gr_data\godesk_service.json`(`windows_util.rs:7-20`,任何用户可写),服务按它拉起 SYSTEM 进程。
+- 叠加:持久化启动参数存 `C:\Users\Public\GoDesk\px_data\godesk_service.json`(`windows_util.rs:7-20`,任何用户可写),服务按它拉起 SYSTEM 进程。
 - 修复:绑定 127.0.0.1 + 校验 app_path 必须在安装目录内;数据/日志迁 ProgramData 并收紧 ACL。
 
 ### S4【高】中继链路明文、无 E2E 加密;CMS app_secret 可从 appkey 确定性推导
@@ -37,7 +37,7 @@
 - 修复:中继只做密文转发(E2E 密钥由设备密码派生);app_secret 改为授权服务器下发的真随机秘密;管理接口独立鉴权,响应删除明文密码。
 
 ### S5【中高】凭据处理全线薄弱
-- 安全密码经命令行明文传给 render(`gr_render_controller.cpp:114-115`)且全量落日志;校验协议是"客户端发 MD5、服务端比 MD5"——MD5 即密码等价物;校验接口无频控,空密码即放行(`http_handler.cpp:62-66`)。
+- 安全密码经命令行明文传给 render(`px_render_controller.cpp:114-115`)且全量落日志;校验协议是"客户端发 MD5、服务端比 MD5"——MD5 即密码等价物;校验接口无频控,空密码即放行(`http_handler.cpp:62-66`)。
 - 远端设备密码明文存本地 SQLite(`app_stream_list.cpp:500-503,552`)。
 - 剪贴板文本全文落日志(`clipboard_manager.cpp:50-53`)。
 - `src/px_render/private.key` + `certificate.pem` 私钥入库(旧版遗留,需确认无在网部署使用,建议删除+轮换+清洗历史);`AES_DEPLOY_AUTH` 硬编码,分发信息"加密"只是混淆。

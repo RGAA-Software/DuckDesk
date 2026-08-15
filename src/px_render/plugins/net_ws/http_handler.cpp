@@ -8,8 +8,8 @@
 #include "px_common_new/data.h"
 #include "rd_app.h"
 #include "ws_plugin.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace tc
 {

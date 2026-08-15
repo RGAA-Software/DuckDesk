@@ -11,9 +11,9 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/time_util.h"
-#include "px_common_new/gr_udp_protocol.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_common_new/px_udp_protocol.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 
 namespace tc
 {
@@ -138,7 +138,7 @@ namespace tc
                 if (!read_varint(type)) {
                     return false;
                 }
-                is_audio = (type == 40); // tc_message.proto: kAudioFrame = 40
+                is_audio = (type == 40); // px_message.proto: kAudioFrame = 40
                 continue;
             }
             if (field == 80 && wire == 2) {

@@ -17,7 +17,7 @@ extern "C" CAPTURETEX_API void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_
     client_manager->CopyUserData(remote_info->UserData, (int)remote_info->UserDataSize);
     auto params = client_manager->GetInjectParams();
 
-    auto log_path = std::string(params->host_exe_folder) + "/tc_graphics_lb.log";
+    auto log_path = std::string(params->host_exe_folder) + "/px_graphics_lb.log";
     Logger::InitLog(StringUtil::ToWString(log_path), true);
     LOGI("Init graphics lb...");
 

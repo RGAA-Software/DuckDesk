@@ -12,7 +12,7 @@
 #include "px_client/ct_client_context.h"
 #include "px_common_new/log.h"
 #include "float_sub_fps_panel.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include <QLabel>
 #include <qtimer.h>
 

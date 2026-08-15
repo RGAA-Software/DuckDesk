@@ -4,11 +4,11 @@
 
 #include <QStyledItemDelegate>
 #include "st_plugins.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_app_messages.h"
 #include "px_common_new/message_notifier.h"
-#include "tc_render_panel_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "px_common_new/log.h"
 #include "st_plugin_item_widget.h"
 #include "no_margin_layout.h"

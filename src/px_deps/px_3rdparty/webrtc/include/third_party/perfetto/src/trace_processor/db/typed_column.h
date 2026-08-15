@@ -43,14 +43,14 @@ namespace trace_processor {
 // type T. The methods of TypedColumn are type-specialized methods of Column
 // which allow callers to pass real types instead of using SqlValue.
 //
-// There are two helper classes (tc_internal::TypeHandler and
-// tc_internal::Serializer) where we specialize behaviour which needs to be
+// There are two helper classes (px_internal::TypeHandler and
+// px_internal::Serializer) where we specialize behaviour which needs to be
 // different based on T. See their class documentation and below for details
 // on their purpose.
 template <typename T>
 class TypedColumn : public ColumnLegacy {
  private:
-  using TH = tc_internal::TypeHandler<T>;
+  using TH = px_internal::TypeHandler<T>;
 
  public:
   // The type of the data in this column.
@@ -69,7 +69,7 @@ class TypedColumn : public ColumnLegacy {
   using stored_type = typename TH::stored_type;
 
  private:
-  using Serializer = tc_internal::Serializer<non_optional_type>;
+  using Serializer = px_internal::Serializer<non_optional_type>;
 
  public:
   T operator[](uint32_t row) const { return GetAtIdx(overlay().Get(row)); }

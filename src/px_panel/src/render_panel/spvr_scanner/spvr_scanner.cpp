@@ -7,9 +7,9 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/time_util.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "render_panel/companion/panel_companion.h"
 #include "asio2/3rd/asio.hpp"
 using asio::ip::udp;

@@ -9,11 +9,11 @@ path = "src/main.rs"
 
 [[bin]]
 name = "GrSysMonitor"
-path = "src/bin/gr_sys_monitor.rs"
+path = "src/bin/px_sys_monitor.rs"
 
 [[bin]]
 name = "GrSysMonitorHost"
-path = "src/bin/gr_sys_monitor_host.rs"
+path = "src/bin/px_sys_monitor_host.rs"
 
 [features]
 default = []

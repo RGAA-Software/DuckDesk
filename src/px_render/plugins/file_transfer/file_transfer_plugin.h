@@ -5,8 +5,8 @@
 #ifndef GAMMARAY_RTC_PLUGIN_H
 #define GAMMARAY_RTC_PLUGIN_H
 #include <memory>
-#include "px_render/plugin_interface/gr_plugin_interface.h"
-#include "file_transmission_server/tc_translator_stub.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
+#include "file_transmission_server/px_translator_stub.h"
 
 namespace tc
 {

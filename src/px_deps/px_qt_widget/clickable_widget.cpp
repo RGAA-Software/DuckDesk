@@ -22,10 +22,10 @@ namespace tc
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setRenderHint(QPainter::TextAntialiasing);
         painter.setPen(Qt::NoPen);
-        if (gr_from_color_ != 0 && gr_to_color_ != 0) {
+        if (px_from_color_ != 0 && px_to_color_ != 0) {
             auto gradient = QLinearGradient(QPointF(0, 0), QPointF(this->width(), this->height()));
-            gradient.setColorAt(0, gr_from_color_);
-            gradient.setColorAt(1.0, gr_to_color_);
+            gradient.setColorAt(0, px_from_color_);
+            gradient.setColorAt(1.0, px_to_color_);
             painter.setBrush(QBrush(gradient));
         }
         else {
@@ -78,8 +78,8 @@ namespace tc
     }
 
     void ClickableWidget::SetGradientColor(int from_color, int to_color) {
-        gr_from_color_ = from_color;
-        gr_to_color_ = to_color;
+        px_from_color_ = from_color;
+        px_to_color_ = to_color;
         repaint();
     }
 }

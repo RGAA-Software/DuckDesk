@@ -416,14 +416,14 @@ class ColumnLegacy {
   }
 
   template <typename T>
-  using stored_type = typename tc_internal::TypeHandler<T>::stored_type;
+  using stored_type = typename px_internal::TypeHandler<T>::stored_type;
 
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
   const ColumnStorage<stored_type<T>>& storage() const {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    PERFETTO_DCHECK(px_internal::TypeHandler<T>::is_optional == IsNullable());
     return *static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
@@ -435,7 +435,7 @@ class ColumnLegacy {
   template <typename T>
   ColumnStorage<stored_type<T>>* mutable_storage() {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    PERFETTO_DCHECK(px_internal::TypeHandler<T>::is_optional == IsNullable());
     return static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 

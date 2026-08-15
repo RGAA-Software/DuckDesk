@@ -16,7 +16,7 @@ protected:
     std::filesystem::path temp_dir_;
 
     void SetUp() override {
-        temp_dir_ = std::filesystem::temp_directory_path() / std::format("tc_file_test_{}", std::chrono::steady_clock::now().time_since_epoch().count());
+        temp_dir_ = std::filesystem::temp_directory_path() / std::format("px_file_test_{}", std::chrono::steady_clock::now().time_since_epoch().count());
         std::filesystem::create_directories(temp_dir_);
     }
 

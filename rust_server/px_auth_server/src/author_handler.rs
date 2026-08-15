@@ -30,7 +30,7 @@ pub async fn handle_verify_author(
     let author_token = get_body_str(&r, KEY_AUTHOR_TOKEN)?;
     let jwt_name = author_name.clone();
     tracing::info!(
-        "px_auth_server login requested, author_name={}",
+        "px_auth login requested, author_name={}",
         author_name
     );
     if let Some(author) = gAuthorManager

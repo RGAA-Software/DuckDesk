@@ -1,4 +1,4 @@
-// CDP 无头 Chrome 端到端验证 gr_web_client 三个新功能:
+// CDP 无头 Chrome 端到端验证 px_web_client 三个新功能:
 //   1. 性能面板(getStats 采样) + 帧率画质档
 //   2. 剪贴板文本同步(web<->render 系统剪贴板,经 px_user_proxy)
 //   3. 触屏手势(Input.dispatchTouchEvent 注入,解码 tc.Message 验证 + 物理光标)
@@ -17,14 +17,14 @@ const CDP_PORT = 9223
 
 // ---------- tc.Message 解码(复用 web 端 proto)----------
 const require = createRequire(import.meta.url)
-const protobuf = require('../web/gr_web_client/node_modules/protobufjs')
+const protobuf = require('../web/px_web_client/node_modules/protobufjs')
 const protoRoot = new protobuf.Root()
-const protoDir = path.join(import.meta.dirname, '../web/gr_web_client/proto')
-for (const f of ['tc_file_transfer.proto', 'tc_signaling_message.proto']) {
+const protoDir = path.join(import.meta.dirname, '../web/px_web_client/proto')
+for (const f of ['px_file_transfer.proto', 'px_signaling_message.proto']) {
   protobuf.parse(fs.readFileSync(path.join(protoDir, f), 'utf8'), protoRoot)
 }
 const tcSrc = fs
-  .readFileSync(path.join(protoDir, 'tc_message.proto'), 'utf8')
+  .readFileSync(path.join(protoDir, 'px_message.proto'), 'utf8')
   .replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, '')
 protobuf.parse(tcSrc, protoRoot)
 const TcMessage = protoRoot.lookupType('tc.Message')

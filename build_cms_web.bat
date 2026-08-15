@@ -4,11 +4,11 @@ setlocal enabledelayedexpansion
 rem ============================================================================
 rem build_cms_web.bat
 rem
-rem Build and deploy ONLY the CMS web frontend (web\gr_cms). Reusable after
+rem Build and deploy ONLY the CMS web frontend (web\px_cms). Reusable after
 rem every frontend-only change, without rebuilding the Rust server or anything
 rem else.
 rem
-rem   [1/2] Build the Vue frontend   web\gr_cms      (npm ci -> npm run build)
+rem   [1/2] Build the Vue frontend   web\px_cms      (npm ci -> npm run build)
 rem   [2/2] Deploy dist\* into       output\px_cms_server\web\
 rem
 rem Notes:
@@ -16,14 +16,14 @@ rem   - px_cms_server serves static files from the web\ dir next to its exe,
 rem     so this is where the frontend must land.
 rem   - The target web\ dir is wiped first so stale hashed vite assets cannot
 rem     linger alongside the new ones.
-rem   - This script does NOT rebuild px_cms_server.exe; if you also changed Rust
-rem     code, run build_gr_cms_server.bat instead.
+rem   - This script does NOT rebuild px_cms.exe; if you also changed Rust
+rem     code, run build_px_cms_server.bat instead.
 rem ============================================================================
 
 cd /d "%~dp0"
 set "REPO_ROOT=%cd%"
 
-set "WEB_SRC=%REPO_ROOT%\web\gr_cms"
+set "WEB_SRC=%REPO_ROOT%\web\px_cms"
 set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms_server"
 set "WEB_SUBDIR=web"
 
@@ -69,7 +69,7 @@ echo [2/2] Deploying to %OUTPUT_DIR%\%WEB_SUBDIR%
 if not exist "%OUTPUT_DIR%" (
     echo       output dir does not exist yet, creating it.
     echo       NOTE: for a first-time full deployment - exe, certs, config -
-    echo       run build_gr_cms_server.bat or scripts\package_gr_cms_server.bat.
+    echo       run build_px_cms_server.bat or scripts\package_px_cms_server.bat.
     mkdir "%OUTPUT_DIR%"
 )
 

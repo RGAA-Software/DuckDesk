@@ -1,6 +1,6 @@
 //
 // Created by RGAA on 12/08/2026.
-// Unit tests for gr_udp_protocol.h (shard / reassemble / ctrl packets)
+// Unit tests for px_udp_protocol.h (shard / reassemble / ctrl packets)
 //
 
 #include <gtest/gtest.h>
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "px_common_new/gr_udp_protocol.h"
+#include "px_common_new/px_udp_protocol.h"
 
 using namespace tc;
 

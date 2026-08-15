@@ -219,7 +219,7 @@ pub fn handle_inbound_rp(
                     return;
                 }
                 match parse_tc_message(&sub.msg) {
-                    Ok(tc_msg) => handle_inbound_tc(&tc_msg, clipboard, client),
+                    Ok(px_msg) => handle_inbound_tc(&px_msg, clipboard, client),
                     Err(err) => error!("parse tc::Message failed: {err}, len={}", sub.msg.len()),
                 }
             }
@@ -234,7 +234,7 @@ fn handle_inbound_data_channel(
     clipboard: &crate::clipboard::ClipboardService,
     client: Arc<RenderClient>,
 ) {
-    let tc_msg = match parse_tc_message(&sub.msg) {
+    let px_msg = match parse_tc_message(&sub.msg) {
         Ok(v) => v,
         Err(err) => {
             error!(
@@ -246,11 +246,11 @@ fn handle_inbound_data_channel(
         }
     };
     let route = stream_route_from_rp_raw(sub);
-    if MessageType::try_from(tc_msg.r#type) == Ok(MessageType::KClipboardReqBuffer) {
-        dispatch_req_buffer(&tc_msg, client, &route);
+    if MessageType::try_from(px_msg.r#type) == Ok(MessageType::KClipboardReqBuffer) {
+        dispatch_req_buffer(&px_msg, client, &route);
         return;
     }
-    dispatch_resp_buffer(&tc_msg, clipboard, Some(route));
+    dispatch_resp_buffer(&px_msg, clipboard, Some(route));
 }
 
 fn dispatch_req_buffer(

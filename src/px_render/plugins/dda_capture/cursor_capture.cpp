@@ -9,8 +9,8 @@
 #include "px_common_new/time_util.h"
 #include "px_capture_new/capture_message.h"
 #include "px_common_new/log.h"
-#include "tc_message.pb.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_message.pb.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "dda_capture_plugin.h"
 
 namespace tc

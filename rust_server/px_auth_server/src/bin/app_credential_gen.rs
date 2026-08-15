@@ -2,15 +2,15 @@
 //!
 //! 用法：
 //!   app_credential_gen                 # 只打印，不改文件
-//!   app_credential_gen --write         # 写入 ./gr_auth_server_settings.toml
-//!   app_credential_gen --write --file /opt/px_auth_server/gr_auth_server_settings.toml
+//!   app_credential_gen --write         # 写入 ./px_auth.toml
+//!   app_credential_gen --write --file /opt/px_auth_server/px_auth.toml
 //!   app_credential_gen --require true  # 配合 --write，同时设置 require_app_credential
 //!
 //! 生成后需重启 px_auth_server 生效。
 
 use ring::rand::{SecureRandom, SystemRandom};
 
-const DEFAULT_SETTINGS_PATH: &str = "gr_auth_server_settings.toml";
+const DEFAULT_SETTINGS_PATH: &str = "px_auth.toml";
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()

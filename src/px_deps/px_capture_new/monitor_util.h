@@ -68,7 +68,7 @@ namespace tc
             if (name_.empty()) {
                 return false;
             }
-            // to do: kVirtualDesktopNameSign 定义在 gr_monitor_capture_plugin.h , 等将monitor_util.h 移出去
+            // to do: kVirtualDesktopNameSign 定义在 px_monitor_capture_plugin.h , 等将monitor_util.h 移出去
 //            if ("Virtual_Desktop" == name_) {
 //                return virtual_desktop_width_ > 0 && virtual_desktop_height_ > 0;
 //            }

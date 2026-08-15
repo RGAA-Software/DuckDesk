@@ -10,8 +10,8 @@
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/memory_stat.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 
 namespace tc
 {

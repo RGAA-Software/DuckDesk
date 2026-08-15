@@ -266,15 +266,15 @@ add_custom_target(GammaRayUninstall_stage
 
 add_subdirectory(src)
 
-add_custom_target(tc_build_premium_all ALL COMMENT "Build all targets")
-add_dependencies(tc_build_premium_all
+add_custom_target(px_build_premium_all ALL COMMENT "Build all targets")
+add_dependencies(px_build_premium_all
     ### main executables
     GammaRay
 
     ### render
     plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
     plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_nvenc_encoder
-    plugin_obj_detector plugin_clipboard tc_graphics tc_graphics_util tc_graphics_offsets
+    plugin_obj_detector plugin_clipboard px_graphics px_graphics_util px_graphics_offsets
     plugin_net_rtc_local
 
     ### client
@@ -284,44 +284,44 @@ add_dependencies(tc_build_premium_all
     skin_interface skin_official skin_loader skin_opensource
 
     ### anti hooking
-    tc_protection
+    px_protection
 
-    ### from former tc_build_all (deps + rust stages)
-    GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
-    GammaRayClientInner px_relay_client tc_rtc_client tc_cp_message GammaRayUserProxy_stage tc_hw_info
+    ### from former px_build_all (deps + rust stages)
+    GammaRayRender GammaRayService_stage GammaRayServiceManager_stage px_message px_vigem px_plugin
+    GammaRayClientInner px_relay_client px_rtc_client px_cp_message GammaRayUserProxy_stage px_hw_info
     GammaRayCrashReporter_stage GammaRaySysInfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
-    plugin_was_audio_capture plugin_opus_encoder tc_sdk px_qt_widget plugin_mock_video_stream tc_translator
-    px_spvr_client px_account_sdk tc_rp_message px_profile_client plugin_event_replayer tc_global_id_generator
-    tc_server_message
+    plugin_was_audio_capture plugin_opus_encoder px_sdk px_qt_widget plugin_mock_video_stream px_translator
+    px_spvr_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer px_global_id_generator
+    px_server_message
 )
 
 if(PLUGIN_NET_UDP_ENABLED)
-    add_dependencies(tc_build_premium_all plugin_net_udp)
+    add_dependencies(px_build_premium_all plugin_net_udp)
 endif()
 
 ## Servers
-#add_custom_target(tc_build_servers_all ALL COMMENT "Build all targets")
-#add_dependencies(tc_build_servers_all gr_svr_base gr_relay_server px_cms_server px_auth_server gr_profile_server)
+#add_custom_target(px_build_servers_all ALL COMMENT "Build all targets")
+#add_dependencies(px_build_servers_all px_svr_base px_relay_server px_cms_server px_auth_server px_profile_server)
 
 set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/px_deps)
 
 ## Copy proto files
 set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
-add_custom_command(TARGET tc_build_premium_all PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_file_transfer.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_client_panel_message.proto"
+add_custom_command(TARGET px_build_premium_all PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_signaling_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_file_transfer.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_client_panel_message.proto"
 
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_signaling_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/tc_file_transfer.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/tc_client_panel_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/px_signaling_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/px_file_transfer.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${WEBCLIENT_ROOT}/proto/px_message.proto"
+    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/px_client_panel_message.proto"
 )
 
-add_custom_command(TARGET tc_build_premium_all POST_BUILD
+add_custom_command(TARGET px_build_premium_all POST_BUILD
     ### Copy setup tools (NSIS script, images, Python scripts, etc.) into build dir
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/setup" "${CMAKE_BINARY_DIR}/setup"
 

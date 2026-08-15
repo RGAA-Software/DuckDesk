@@ -3,7 +3,7 @@
 //
 
 #include "clipboard_plugin.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"

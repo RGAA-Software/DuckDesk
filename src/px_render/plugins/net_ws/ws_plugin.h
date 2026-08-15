@@ -6,7 +6,7 @@
 #define GAMMARAY_WS_PLUGIN_H
 
 #include <mutex>
-#include "px_render/plugin_interface/gr_net_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
 
 namespace tc
 {

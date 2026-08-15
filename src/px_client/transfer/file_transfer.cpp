@@ -9,7 +9,7 @@
 #include "px_common_new/time_util.h"
 #include "px_client/ct_settings.h"
 #include "fs_object.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "file_transfer_events.h"
 

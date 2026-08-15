@@ -6,18 +6,18 @@
 #include <QTimer>
 #include "px_qt_widget/no_margin_layout.h"
 #include "stat_chart.h"
-#include "render_panel/gr_statistics.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_statistics.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "px_common_new/log.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/num_formatter.h"
-#include "render_panel/gr_run_game_manager.h"
+#include "render_panel/px_run_game_manager.h"
 #include "render_panel/database/db_game.h"
 #include "stat_capture_info_item.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
 
 constexpr auto kChartVideoFrameGap = "Capture Video Gap";
 constexpr auto kChartAudioFrameGap = "Capture Audio Gap";

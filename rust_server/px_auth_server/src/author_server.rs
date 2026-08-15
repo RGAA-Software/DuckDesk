@@ -266,7 +266,7 @@ mod tests {
     use tower::ServiceExt;
 
     fn test_router() -> Router {
-        build_router(std::env::temp_dir().join("gr_auth_server_router_tests"))
+        build_router(std::env::temp_dir().join("px_auth_server_router_tests"))
     }
 
     fn init_test_secret() {
@@ -295,7 +295,7 @@ mod tests {
 
     #[tokio::test]
     async fn load_tls_config_reports_missing_certificate_before_binding() {
-        let base = std::env::temp_dir().join("gr_auth_missing_tls_test");
+        let base = std::env::temp_dir().join("px_auth_missing_tls_test");
         let cert = base.join("cert.pem");
         let key = base.join("key.pem");
 

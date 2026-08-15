@@ -62753,7 +62753,7 @@ typedef struct
 {
     ma_dr_mp3_bs bs;
     ma_uint8 maindata[MA_DR_MP3_MAX_BITRESERVOIR_BYTES + MA_DR_MP3_MAX_L3_FRAME_PAYLOAD_BYTES];
-    ma_dr_mp3_L3_gr_info gr_info[4];
+    ma_dr_mp3_L3_gr_info px_info[4];
     float grbuf[2][576], scf[40], syn[18 + 15][2*32];
     ma_uint8 ist_pos[2][39];
 } ma_dr_mp3dec_scratch;
@@ -93195,16 +93195,16 @@ static int ma_dr_mp3_L3_read_side_info(ma_dr_mp3_bs *bs, ma_dr_mp3_L3_gr_info *g
     };
     unsigned tables, scfsi = 0;
     int main_data_begin, part_23_sum = 0;
-    int gr_count = MA_DR_MP3_HDR_IS_MONO(hdr) ? 1 : 2;
+    int px_count = MA_DR_MP3_HDR_IS_MONO(hdr) ? 1 : 2;
     int sr_idx = MA_DR_MP3_HDR_GET_MY_SAMPLE_RATE(hdr); sr_idx -= (sr_idx != 0);
     if (MA_DR_MP3_HDR_TEST_MPEG1(hdr))
     {
-        gr_count *= 2;
+        px_count *= 2;
         main_data_begin = ma_dr_mp3_bs_get_bits(bs, 9);
-        scfsi = ma_dr_mp3_bs_get_bits(bs, 7 + gr_count);
+        scfsi = ma_dr_mp3_bs_get_bits(bs, 7 + px_count);
     } else
     {
-        main_data_begin = ma_dr_mp3_bs_get_bits(bs, 8 + gr_count) >> gr_count;
+        main_data_begin = ma_dr_mp3_bs_get_bits(bs, 8 + px_count) >> px_count;
     }
     do
     {
@@ -93273,7 +93273,7 @@ static int ma_dr_mp3_L3_read_side_info(ma_dr_mp3_bs *bs, ma_dr_mp3_L3_gr_info *g
         gr->scfsi = (ma_uint8)((scfsi >> 12) & 15);
         scfsi <<= 4;
         gr++;
-    } while(--gr_count);
+    } while(--px_count);
     if (part_23_sum + bs->pos > bs->limit + main_data_begin*8)
     {
         return -1;
@@ -93409,7 +93409,7 @@ static float ma_dr_mp3_L3_pow_43(int x)
     frac = (float)((x & 63) - sign) / ((x & ~63) + sign);
     return ma_dr_mp3_g_pow43[16 + ((x + sign) >> 6)]*(1.f + frac*((4.f/3) + frac*(2.f/9)))*mult;
 }
-static void ma_dr_mp3_L3_huffman(float *dst, ma_dr_mp3_bs *bs, const ma_dr_mp3_L3_gr_info *gr_info, const float *scf, int layer3gr_limit)
+static void ma_dr_mp3_L3_huffman(float *dst, ma_dr_mp3_bs *bs, const ma_dr_mp3_L3_gr_info *px_info, const float *scf, int layer3gr_limit)
 {
     static const ma_int16 tabs[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         785,785,785,785,784,784,784,784,513,513,513,513,513,513,513,513,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,
@@ -93436,16 +93436,16 @@ static void ma_dr_mp3_L3_huffman(float *dst, ma_dr_mp3_bs *bs, const ma_dr_mp3_L
 #define MA_DR_MP3_CHECK_BITS      while (bs_sh >= 0) { bs_cache |= (ma_uint32)*bs_next_ptr++ << bs_sh; bs_sh -= 8; }
 #define MA_DR_MP3_BSPOS           ((bs_next_ptr - bs->buf)*8 - 24 + bs_sh)
     float one = 0.0f;
-    int ireg = 0, big_val_cnt = gr_info->big_values;
-    const ma_uint8 *sfb = gr_info->sfbtab;
+    int ireg = 0, big_val_cnt = px_info->big_values;
+    const ma_uint8 *sfb = px_info->sfbtab;
     const ma_uint8 *bs_next_ptr = bs->buf + bs->pos/8;
     ma_uint32 bs_cache = (((bs_next_ptr[0]*256u + bs_next_ptr[1])*256u + bs_next_ptr[2])*256u + bs_next_ptr[3]) << (bs->pos & 7);
     int pairs_to_decode, np, bs_sh = (bs->pos & 7) - 8;
     bs_next_ptr += 4;
     while (big_val_cnt > 0)
     {
-        int tab_num = gr_info->table_select[ireg];
-        int sfb_cnt = gr_info->region_count[ireg++];
+        int tab_num = px_info->table_select[ireg];
+        int sfb_cnt = px_info->region_count[ireg++];
         const ma_int16 *codebook = tabs + tabindex[tab_num];
         int linbits = g_linbits[tab_num];
         if (linbits)
@@ -93515,7 +93515,7 @@ static void ma_dr_mp3_L3_huffman(float *dst, ma_dr_mp3_bs *bs, const ma_dr_mp3_L
     }
     for (np = 1 - big_val_cnt;; dst += 4)
     {
-        const ma_uint8 *codebook_count1 = (gr_info->count1_table) ? tab33 : tab32;
+        const ma_uint8 *codebook_count1 = (px_info->count1_table) ? tab33 : tab32;
         int leaf = codebook_count1[MA_DR_MP3_PEEK_BITS(4)];
         if (!(leaf & 8))
         {
@@ -93860,33 +93860,33 @@ static int ma_dr_mp3_L3_restore_reservoir(ma_dr_mp3dec *h, ma_dr_mp3_bs *bs, ma_
     ma_dr_mp3_bs_init(&s->bs, s->maindata, bytes_have + frame_bytes);
     return h->reserv >= main_data_begin;
 }
-static void ma_dr_mp3_L3_decode(ma_dr_mp3dec *h, ma_dr_mp3dec_scratch *s, ma_dr_mp3_L3_gr_info *gr_info, int nch)
+static void ma_dr_mp3_L3_decode(ma_dr_mp3dec *h, ma_dr_mp3dec_scratch *s, ma_dr_mp3_L3_gr_info *px_info, int nch)
 {
     int ch;
     for (ch = 0; ch < nch; ch++)
     {
-        int layer3gr_limit = s->bs.pos + gr_info[ch].part_23_length;
-        ma_dr_mp3_L3_decode_scalefactors(h->header, s->ist_pos[ch], &s->bs, gr_info + ch, s->scf, ch);
-        ma_dr_mp3_L3_huffman(s->grbuf[ch], &s->bs, gr_info + ch, s->scf, layer3gr_limit);
+        int layer3gr_limit = s->bs.pos + px_info[ch].part_23_length;
+        ma_dr_mp3_L3_decode_scalefactors(h->header, s->ist_pos[ch], &s->bs, px_info + ch, s->scf, ch);
+        ma_dr_mp3_L3_huffman(s->grbuf[ch], &s->bs, px_info + ch, s->scf, layer3gr_limit);
     }
     if (MA_DR_MP3_HDR_TEST_I_STEREO(h->header))
     {
-        ma_dr_mp3_L3_intensity_stereo(s->grbuf[0], s->ist_pos[1], gr_info, h->header);
+        ma_dr_mp3_L3_intensity_stereo(s->grbuf[0], s->ist_pos[1], px_info, h->header);
     } else if (MA_DR_MP3_HDR_IS_MS_STEREO(h->header))
     {
         ma_dr_mp3_L3_midside_stereo(s->grbuf[0], 576);
     }
-    for (ch = 0; ch < nch; ch++, gr_info++)
+    for (ch = 0; ch < nch; ch++, px_info++)
     {
         int aa_bands = 31;
-        int n_long_bands = (gr_info->mixed_block_flag ? 2 : 0) << (int)(MA_DR_MP3_HDR_GET_MY_SAMPLE_RATE(h->header) == 2);
-        if (gr_info->n_short_sfb)
+        int n_long_bands = (px_info->mixed_block_flag ? 2 : 0) << (int)(MA_DR_MP3_HDR_GET_MY_SAMPLE_RATE(h->header) == 2);
+        if (px_info->n_short_sfb)
         {
             aa_bands = n_long_bands - 1;
-            ma_dr_mp3_L3_reorder(s->grbuf[ch] + n_long_bands*18, s->syn[0], gr_info->sfbtab + gr_info->n_long_sfb);
+            ma_dr_mp3_L3_reorder(s->grbuf[ch] + n_long_bands*18, s->syn[0], px_info->sfbtab + px_info->n_long_sfb);
         }
         ma_dr_mp3_L3_antialias(s->grbuf[ch], aa_bands);
-        ma_dr_mp3_L3_imdct_gr(s->grbuf[ch], h->mdct_overlap[ch], gr_info->block_type, n_long_bands);
+        ma_dr_mp3_L3_imdct_gr(s->grbuf[ch], h->mdct_overlap[ch], px_info->block_type, n_long_bands);
         ma_dr_mp3_L3_change_sign(s->grbuf[ch]);
     }
 }
@@ -94345,7 +94345,7 @@ MA_API int ma_dr_mp3dec_decode_frame(ma_dr_mp3dec *dec, const ma_uint8 *mp3, int
     }
     if (info->layer == 3)
     {
-        int main_data_begin = ma_dr_mp3_L3_read_side_info(bs_frame, dec->scratch.gr_info, hdr);
+        int main_data_begin = ma_dr_mp3_L3_read_side_info(bs_frame, dec->scratch.px_info, hdr);
         if (main_data_begin < 0 || bs_frame->pos > bs_frame->limit)
         {
             ma_dr_mp3dec_init(dec);
@@ -94357,7 +94357,7 @@ MA_API int ma_dr_mp3dec_decode_frame(ma_dr_mp3dec *dec, const ma_uint8 *mp3, int
             for (igr = 0; igr < (MA_DR_MP3_HDR_TEST_MPEG1(hdr) ? 2 : 1); igr++, pcm = MA_DR_MP3_OFFSET_PTR(pcm, sizeof(ma_dr_mp3d_sample_t)*576*info->channels))
             {
                 MA_DR_MP3_ZERO_MEMORY(dec->scratch.grbuf[0], 576*2*sizeof(float));
-                ma_dr_mp3_L3_decode(dec, &dec->scratch, dec->scratch.gr_info + igr*info->channels, info->channels);
+                ma_dr_mp3_L3_decode(dec, &dec->scratch, dec->scratch.px_info + igr*info->channels, info->channels);
                 ma_dr_mp3d_synth_granule(dec->qmf_state, dec->scratch.grbuf[0], 18, info->channels, (ma_dr_mp3d_sample_t*)pcm, dec->scratch.syn[0]);
             }
         }

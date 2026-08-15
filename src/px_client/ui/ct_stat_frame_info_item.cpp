@@ -4,7 +4,7 @@
 
 #include "ct_stat_frame_info_item.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_qt_widget/tc_label.h"
+#include "px_qt_widget/px_label.h"
 
 namespace tc
 {

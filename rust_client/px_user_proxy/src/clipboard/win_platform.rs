@@ -385,9 +385,9 @@ mod tests {
         let _lock = CLIPBOARD_TEST_LOCK.lock().unwrap();
         let platform = WinClipboardPlatform::new();
         platform.clear().expect("clear");
-        platform.write_text("gr_user_proxy_roundtrip").expect("write");
+        platform.write_text("px_user_proxy_roundtrip").expect("write");
         let read = platform.read_content().expect("read");
-        assert_eq!(read.text.as_deref(), Some("gr_user_proxy_roundtrip"));
+        assert_eq!(read.text.as_deref(), Some("px_user_proxy_roundtrip"));
         platform.clear().expect("clear");
     }
 }

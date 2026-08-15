@@ -70,7 +70,7 @@
 
 - **现象**:连接约 1 分钟后每个音频包都被判丢(日志 50/s 刷 `PLC conceal`),随后视频卡死。
 - **根因**:判丢条件看缓冲里"最老"的包,缓冲满又淘汰"最老"的包——`expected_` 落后 3 帧以上后,追赶速度 = 到达速度,永远追不上。判丢风暴(50 条/s 日志刷盘 + 50 次/s PLC proto 合成)全在 UDP 接收线程上,视频 shard 处理被饿死。
-- **修复**(`gr_udp_protocol.h` `GrUdpAudioJitterBuffer`):
+- **修复**(`px_udp_protocol.h` `GrUdpAudioJitterBuffer`):
   1. 判丢改看"最新"缓冲包(rbegin):缺口等够 60ms 窗口立即收口追平;
   2. 缓冲满时丢弃超前的新包,绝不删最老(断绝死循环);
   3. 对端重启 seq 归零时大幅回退判定为新流,重置重新对齐(否则 render 重启后音频永久无声);
@@ -88,7 +88,7 @@
 
 - **现象**:客户端连接后/长时间无完整帧时补发 IDR,render 端把这些请求全部当成“丢帧”,动态 FEC 被刷到 60% 上限。
 - **修复**:协议新增 `kCtrlIdrKeepalive`。真实组帧判丢仍发 `kCtrlIdrRequest` 并计入丢帧窗口;连接初始化与无帧兜底发 `kCtrlIdrKeepalive`,只请求关键帧、不计数。
-- **涉及文件**:`px_common_new/gr_udp_protocol.h`、`px_client_sdk_new/connection/udp_direct_connection.cpp`、`px_render/plugins/net_udp/udp_plugin.cpp`。
+- **涉及文件**:`px_common_new/px_udp_protocol.h`、`px_client_sdk_new/connection/udp_direct_connection.cpp`、`px_render/plugins/net_udp/udp_plugin.cpp`。
 
 ### 3.7 UDP 视频重连后只发首帧的排查/加固(2026-08-13)
 
@@ -127,7 +127,7 @@
 - **修复(两层)**:
   - render 侧根本修复:`net_udp` 不再透传会回退的编码器 `frame_index`,改用 UDP 插件自己的单调帧序号(`enc_n`)写入 `VideoFrameMeta.frame_index_`,保证同一 render 进程内 UDP 帧号永远不回退。
   - client 侧防御:`UdpDirectConnection::Start()` 重连时清空 reassembler/audio jitter 状态;`GrUdpFrameReassembler` 遇到 `SOF+key` 且帧号回退时,清掉该 `mon_slot` 旧水位立即按新流处理。
-- **涉及文件**:`src/px_render/plugins/net_udp/udp_plugin.cpp`、`src/px_deps/px_common_new/gr_udp_protocol.h`、`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`。
+- **涉及文件**:`src/px_render/plugins/net_udp/udp_plugin.cpp`、`src/px_deps/px_common_new/px_udp_protocol.h`、`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`。
 
 ### 3.10 直连 UDP 偶发 1~3s 冻结(2026-08-13)
 
@@ -171,8 +171,8 @@
 
 | Moonlight/Sunshine 做法 | 出处 | 我们的落地 | 位置 |
 |---|---|---|---|
-| RS-FEC,GF(2^8),帧级分块 | `moonlight-common-c/reedsolomon/rs.c` | **直接移植** + 自研封装 | `px_common_new/reedsolomon/`、`gr_fec.h` |
-| 帧级 parity,默认 20% 冗余 | Sunshine `config.cpp` fec_percentage=20 | SOF 扩展携带 frame_size,parity=max(1,ceil(D*pct/100)) | `gr_udp_protocol.h` ShardVideoFrame |
+| RS-FEC,GF(2^8),帧级分块 | `moonlight-common-c/reedsolomon/rs.c` | **直接移植** + 自研封装 | `px_common_new/reedsolomon/`、`px_fec.h` |
+| 帧级 parity,默认 20% 冗余 | Sunshine `config.cpp` fec_percentage=20 | SOF 扩展携带 frame_size,parity=max(1,ceil(D*pct/100)) | `px_udp_protocol.h` ShardVideoFrame |
 | 块齐即重建(够用即恢复) | `RtpVideoQueue.c` | reassembler 收到足够 shard 立即恢复,不等齐 | `GrUdpFrameReassembler` |
 | FEC 状态逐帧上报驱动主机调 FEC% | `SS_FRAME_FEC_STATUS` | FRAME_STATUS 控制包,render 5s 窗口动态调 fec% | `BuildFrameStatus` / `udp_plugin.cpp` |
 | IDR 请求节流(防巨型 IDR 加重拥塞) | moonlight 控制流 IDR 请求去重 | per mon_slot 1s 节流 | `udp_direct_connection.cpp` |
@@ -180,12 +180,12 @@
 | 发送 pacing + 高精度定时 | Sunshine `stream.cpp` pacing 线程 | 80Mbps 速率上限 + 10 shard/批 + `CreateWaitableTimerEx` 高精度 timer | `udp_plugin.cpp` |
 | 大 socket 缓冲抗突发 | (工程实践) | RCVBUF 8MB / SNDBUF 4MB | 双端 udp socket |
 | 彻底丢的音频包喂 NULL 触发 Opus PLC | moonlight 音频队列 | 空 data `kAudioFrame` → `DecodeDummy` | `thunder_sdk.cpp:325-327` |
-| 音频 seq + jitter buffer 按序交付 | `RtpAudioQueue.c` | `GrUdpAudioJitterBuffer`(60ms 容忍窗口) | `gr_udp_protocol.h` |
+| 音频 seq + jitter buffer 按序交付 | `RtpAudioQueue.c` | `GrUdpAudioJitterBuffer`(60ms 容忍窗口) | `px_udp_protocol.h` |
 | 控制面/媒体面分离 | GameStream 4 通道架构 | ws 控制面不动,UDP 纯媒体面 + 上行小包控制 | `udp_direct` 模式 |
 | UDP ping 打洞绑定会话 | `VideoStream.c:55-82` SS_PING | hello 按源地址绑定媒体会话并触发 IDR | `BuildHello` / `udp_plugin.cpp` |
 | 音频 RS(4,2) 固定 FEC | `Sunshine/src/stream.cpp:1800` | ❌ 未做(增强项) | — |
 | Opus inband FEC | Sunshine Opus 配置 | ✅ 已开 15% | `px_opus_codec_new/opus_codec.cpp`、`opus_encoder_plugin.cpp` |
-| RFI 参考帧失效(丢 P 不请 IDR) | `nvenc_base.cpp:795` | ✅ NVENC DPB16+range16,RFI 重试;AMF 回退 IDR | `gr_udp_protocol.h`、`nvenc_video_encoder.cpp`、`udp_direct_connection.cpp` |
+| RFI 参考帧失效(丢 P 不请 IDR) | `nvenc_base.cpp:795` | ✅ NVENC DPB16+range16,RFI 重试;AMF 回退 IDR | `px_udp_protocol.h`、`nvenc_video_encoder.cpp`、`udp_direct_connection.cpp` |
 | 投机式判丢(缺包>parity 立即上报) | `RtpVideoQueue.c:213-219` | ❌ 未做 | — |
 | 输入走 UDP + 1ms 微批处理 | `InputStream.c:54-60` | ❌ 未做(输入仍走 ws) | — |
 | 公网包大小钳 1024 防分片 | `Connection.c:388-411` | ❌ 未做 | — |
@@ -203,7 +203,7 @@
 
 ## 6. 关键文件索引
 
-- 协议/组帧/FEC/音频 jitter:`src/px_deps/px_common_new/gr_udp_protocol.h`、`reedsolomon/`、`gr_fec.h`
+- 协议/组帧/FEC/音频 jitter:`src/px_deps/px_common_new/px_udp_protocol.h`、`reedsolomon/`、`px_fec.h`
 - render 发送端:`src/px_render/plugins/net_udp/udp_plugin.cpp`
 - 客户端接收端:`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`
 - 音频解码/PLC:`src/px_deps/px_client_sdk_new/thunder_sdk.cpp:316-345`
@@ -226,7 +226,7 @@
 >
 > 产物在 `build_official\src\px_render\plugins\net_udp\plugin_net_udp.dll` 和
 > `build_official\src\px_render\plugins\net_rtc_local\plugin_net_rtc_local.dll`,直接按第 4 步
-> 覆盖到远端 `gr_plugins\`,不必整目录 `robocopy build_official\dist`。
+> 覆盖到远端 `px_plugins\`,不必整目录 `robocopy build_official\dist`。
 
 1. **构建客户端包**
 
@@ -236,7 +236,7 @@
 
    成功后产物在 `build_official\dist\`。
 
-   > 铁律:**任何 render 相关修复,都必须把 `GammaRayRender.exe` 和涉及的 `gr_plugins\*.dll` 重新部署到 `10.0.0.70`;只更新本地 `dist` 不会让远端 render 生效。**
+   > 铁律:**任何 render 相关修复,都必须把 `GammaRayRender.exe` 和涉及的 `px_plugins\*.dll` 重新部署到 `10.0.0.70`;只更新本地 `dist` 不会让远端 render 生效。**
 
 2. **建立 SMB 管理会话**
 
@@ -300,8 +300,8 @@
    - `GammaRayRender.exe`
    - `GammaRayService.exe`
    - `GammaRayServiceManager.exe`
-   - `gr_plugins\plugin_net_udp.dll`
-   - `gr_plugins\plugin_net_ws.dll`
+   - `px_plugins\plugin_net_udp.dll`
+   - `px_plugins\plugin_net_ws.dll`
 
 6. **用 GammaRay.exe 启动**
 
@@ -321,4 +321,4 @@
    & schtasks.exe @('/run','/s','10.0.0.70','/u','Administrator','/p',$pass,'/tn',$tn)
    ```
 
-   查询到任务 `Status: Running` 即已拉起。日志仍看 `\\10.0.0.70\C$\Users\Public\GoDesk\gr_logs\`。
+   查询到任务 `Status: Running` 即已拉起。日志仍看 `\\10.0.0.70\C$\Users\Public\GoDesk\px_logs\`。

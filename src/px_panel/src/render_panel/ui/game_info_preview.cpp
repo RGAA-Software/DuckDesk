@@ -6,7 +6,7 @@
 #include "px_qt_widget/no_margin_layout.h"
 #include "px_qt_widget/round_img_display.h"
 #include "render_panel/database/db_game.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include "widget_helper.h"
 
 namespace tc

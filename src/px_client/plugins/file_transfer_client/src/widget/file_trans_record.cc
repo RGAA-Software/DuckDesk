@@ -27,7 +27,7 @@
 #include "file_table_view_style.h"
 #include "file_operation_btn.h"
 #include "file_transmit_single_task_manager.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc {
 

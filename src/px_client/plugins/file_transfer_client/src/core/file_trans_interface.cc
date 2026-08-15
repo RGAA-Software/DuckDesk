@@ -2,7 +2,7 @@
 #include <iostream>
 #include <qapplication.h>
 #include <format>
-#include "tc_label.h"
+#include "px_label.h"
 #include "ct_plugin_events.h"
 #include "file_sdk_interface.h"
 #include "px_common_new/log.h"

@@ -14,7 +14,7 @@
 #include "px_common_new/string_util.h"
 #include "px_client_sdk_new/gl/raw_image.h"
 #include "px_opus_codec_new/opus_codec.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "sdk_timer.h"
 #include "sdk_messages.h"
 #include "sdk_statistics.h"
@@ -297,7 +297,7 @@ namespace tc
                 if (sdk_params_->debug_) {
                     if (!received_files_.contains(mon_name)) {
                         auto display_name = mon_name.size() > 4 ? mon_name.substr(4) : mon_name;
-                        auto file_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath()) + "/gr_data/client/recv_" + display_name + ".h264";
+                        auto file_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath()) + "/px_data/client/recv_" + display_name + ".h264";
                         auto recv_video_file = File::OpenForWriteB(U8Path(file_path));
                         received_files_[mon_name] = recv_video_file;
                     }

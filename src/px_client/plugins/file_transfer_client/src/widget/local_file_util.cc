@@ -4,7 +4,7 @@
 #include <qstorageinfo.h>
 #include "px_common_new/file_util.h"
 #include "px_common_new/string_util.h"
-#include "tc_label.h" // 翻译相关
+#include "px_label.h" // 翻译相关
 #include "file_detail_info.h"
 #include "file_log_manager.h"
 #include "file_const_def.h"

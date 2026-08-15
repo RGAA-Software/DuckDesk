@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn apply_remote_files_writes_paths() {
         let root = std::env::temp_dir().join(format!(
-            "gr_user_proxy_apply_{}",
+            "px_user_proxy_apply_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("time")

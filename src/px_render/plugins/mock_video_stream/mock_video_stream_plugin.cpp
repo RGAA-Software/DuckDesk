@@ -3,10 +3,10 @@
 //
 
 #include "mock_video_stream_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_common_new/image.h"
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"

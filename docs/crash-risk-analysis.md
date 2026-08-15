@@ -24,7 +24,7 @@
 
 触发条件：
 
-- `gr_plugins` 或 `gr_plugins_client` 下 DLL 文件存在但依赖 DLL 缺失。
+- `px_plugins` 或 `px_plugins_client` 下 DLL 文件存在但依赖 DLL 缺失。
 - DLL 编译配置和主程序 ABI 不一致。
 - DLL 导出的 `GetInstance` 签名不匹配。
 - 插件返回的对象不是预期基类对象。
@@ -842,7 +842,7 @@ void CopyCStringToArray(char (&dst)[N], std::string_view src) {
 位置示例：
 
 - `src/GammaRay/src/render/rd_app.cpp:100`
-- `src/GammaRay/src/render_panel/gr_application.cpp:74`
+- `src/GammaRay/src/render_panel/px_application.cpp:74`
 - `src/GammaRay/src/client/ct_base_workspace.cpp:104`
 
 触发条件：
@@ -904,9 +904,9 @@ void CrashFunction();
 
 位置：
 
-- `src/px_web_client/src/renderer/gr_renderer_manager.ts`
-- `src/px_web_client/src/client/gr_ws_conn.ts`
-- `src/px_web_client/src/client/gr_rtc_direct_conn.ts`
+- `src/px_web_client/src/renderer/px_renderer_manager.ts`
+- `src/px_web_client/src/client/px_ws_conn.ts`
+- `src/px_web_client/src/client/px_rtc_direct_conn.ts`
 
 触发条件：
 
@@ -937,7 +937,7 @@ void CrashFunction();
 
 - `src/GammaRay/main.cpp`
 - `src/GammaRay/src/render/rd_app.cpp`
-- `src/GammaRay/src/render_panel/gr_context.*`
+- `src/GammaRay/src/render_panel/px_context.*`
 
 触发条件：
 
@@ -993,7 +993,7 @@ void CrashFunction();
 
 - `src/GammaRay/src/render_panel/network/ws_panel_server.cpp:474`
 - `src/GammaRay/src/render_panel/network/ws_panel_server.cpp:661`
-- `src/GammaRay/src/render_panel/gr_application.cpp`
+- `src/GammaRay/src/render_panel/px_application.cpp`
 
 触发条件：
 
@@ -1018,8 +1018,8 @@ void CrashFunction();
 
 位置示例：
 
-- `src/GammaRay/src/render_panel/gr_workspace.cpp:460`
-- `src/GammaRay/src/render_panel/gr_workspace.cpp:521`
+- `src/GammaRay/src/render_panel/px_workspace.cpp:460`
+- `src/GammaRay/src/render_panel/px_workspace.cpp:521`
 - `src/GammaRay/src/client/ct_base_workspace.cpp:74`
 - `src/GammaRay/src/client/ct_base_workspace.cpp:88`
 

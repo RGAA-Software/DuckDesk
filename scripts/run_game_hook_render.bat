@@ -38,12 +38,12 @@ if not exist "%DIST%\GammaRayRender.exe" (
     echo Run build_official.bat first.
     exit /b 1
 )
-if not exist "%DIST%\tc_graphics.dll" (
-    echo ERROR: %DIST%\tc_graphics.dll not found.
+if not exist "%DIST%\px_graphics.dll" (
+    echo ERROR: %DIST%\px_graphics.dll not found.
     exit /b 1
 )
-if not exist "%DIST%\tc_graphics_util.exe" (
-    echo ERROR: %DIST%\tc_graphics_util.exe not found.
+if not exist "%DIST%\px_graphics_util.exe" (
+    echo ERROR: %DIST%\px_graphics_util.exe not found.
     exit /b 1
 )
 if not exist "%SRC_TOML%" (
@@ -92,7 +92,7 @@ powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -U
 if not errorlevel 1 goto :port_ready
 if !_tries! GEQ 60 (
     echo ERROR: render did not become ready on port %PORT% within 60s.
-    echo Check log under ProgramData\GoDesk\gr_logs\godesk_render_%PORT%.log
+    echo Check log under ProgramData\GoDesk\px_logs\godesk_render_%PORT%.log
     exit /b 1
 )
 timeout /t 1 /nobreak >nul
@@ -121,7 +121,7 @@ node "%REPO_ROOT%\scripts\cdp_game_hook_video.mjs"
 set "CDP_RC=%ERRORLEVEL%"
 if not "%CDP_RC%"=="0" (
     echo Headless verify FAILED ^(exit %CDP_RC%^).
-    echo Log: C:\Users\Public\GoDesk\gr_logs\godesk_render_%PORT%.log
+    echo Log: C:\Users\Public\GoDesk\px_logs\godesk_render_%PORT%.log
     exit /b %CDP_RC%
 )
 echo Headless verify OK.
@@ -134,7 +134,7 @@ echo ============================================
 echo 1. Game should launch from game-path in settings.toml
 echo 2. Log should show: StartProcessWithHook / Inject success / IPC connected
 echo 3. Default path uses headless CDP ^(no click^); use "browser" to open Chrome
-echo 4. Log: C:\Users\Public\GoDesk\gr_logs\godesk_render_%PORT%.log
+echo 4. Log: C:\Users\Public\GoDesk\px_logs\godesk_render_%PORT%.log
 echo.
 endlocal
 exit /b 0

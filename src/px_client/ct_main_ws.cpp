@@ -22,8 +22,8 @@
 #include "px_common_new/base64.h"
 #include "px_client/ct_settings.h"
 #include "px_qt_widget/sized_msg_box.h"
-#include "px_qt_widget/tc_font_manager.h"
-#include "translator/tc_translator.h"
+#include "px_qt_widget/px_font_manager.h"
+#include "translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "px_common_new/dump_helper.h"
 #include "px_common_new/time_util.h"
@@ -34,7 +34,7 @@
 #include "front_render/vulkan/ct_vulkan_checker.h"
 
 #ifdef TC_PROTECTION_ENABLED
-#include "tc_protection.h"
+#include "px_protection.h"
 #endif
 
 using namespace tc;
@@ -387,7 +387,7 @@ void ParseCommandLine(QApplication& app) {
 
 bool PrepareDirs(const QString& base_path) {
     std::vector<QString> dirs = {
-        "gr_logs", "gr_data"
+        "px_logs", "px_data"
     };
 
     bool result = true;

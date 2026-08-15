@@ -50,41 +50,41 @@ Name "${PRODUCT_NAME}"
 
 ;--------------------------------
 ; Sections
-Section "°²×°Ö÷³ÌÐò" SecMain
+Section "ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" SecMain
 
     SetOutPath "$INSTDIR"
 
     ; Clean stale plugins/skins from previous installs.
     ; Old DLLs no longer shipped (e.g. plugin_net_udp.dll) are ABI-incompatible
     ; and crash the render process when the plugin loader scans this directory.
-    RMDir /r "$INSTDIR\gr_plugins"
-    RMDir /r "$INSTDIR\gr_plugins_client"
-    RMDir /r "$INSTDIR\gr_skins"
+    RMDir /r "$INSTDIR\px_plugins"
+    RMDir /r "$INSTDIR\px_plugins_client"
+    RMDir /r "$INSTDIR\px_skins"
 
-    ; 1. ½âÑ¹ app.7z
+    ; 1. ï¿½ï¿½Ñ¹ app.7z
     File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
 	
 	; 2. 
 
-    ; 3. ´´½¨¿ì½Ý·½Ê½
+    ; 3. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý·ï¿½Ê½
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Ð¶ÔØ.lnk" "$INSTDIR\Uninstall.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Ð¶ï¿½ï¿½.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 4. ×¢²á±íÐÅÏ¢£¨¿ØÖÆÃæ°åÐ¶ÔØÏÔÊ¾£©
+    ; 4. ×¢ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "Publisher" "${COMPANY}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayVersion" "${PRODUCT_VERSION}"
 
-    ; ÉèÖÃ³ÌÐòÎª¹ÜÀíÔ±ÔËÐÐ
+    ; ï¿½ï¿½ï¿½Ã³ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½Ô±ï¿½ï¿½ï¿½ï¿½
     WriteRegStr HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe" "RUNASADMIN"
 
-    ; ´´½¨Ð¶ÔØ³ÌÐò
+    ; ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½Ø³ï¿½ï¿½ï¿½
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     Call LaunchLink
@@ -93,18 +93,18 @@ SectionEnd
 ;--------------------------------
 ; Uninstaller
 Section "Uninstall"
-    ; É¾³ýÎÄ¼þ
+    ; É¾ï¿½ï¿½ï¿½Ä¼ï¿½
     RMDir /r "$INSTDIR"
 
-    ; ÇåÀí¾É°æ Guard µÄµÇÂ¼¼Æ»®ÈÎÎñ(²»´æÔÚÊ±¾²Ä¬ºöÂÔ)
+    ; ï¿½ï¿½ï¿½ï¿½ï¿½É°ï¿½ Guard ï¿½Äµï¿½Â¼ï¿½Æ»ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½)
     nsExec::ExecToLog 'schtasks /Delete /TN GammaRay_Guard_Start /F'
 
-    ; É¾³ý¿ì½Ý·½Ê½
+    ; É¾ï¿½ï¿½ï¿½ï¿½Ý·ï¿½Ê½
     Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.lnk"
     RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
 
-    ; É¾³ý×¢²á±í
+    ; É¾ï¿½ï¿½×¢ï¿½ï¿½ï¿½
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
     DeleteRegKey HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers\$INSTDIR\${APPNAME}.exe"
 
@@ -112,10 +112,10 @@ SectionEnd
 
 ;--------------------------------
 Function .onInit
-    ; ¼ì²é¾É°æ±¾ÊÇ·ñÔËÐÐ
+    ; ï¿½ï¿½ï¿½É°æ±¾ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½
     ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
     ${If} $R0 == 0
-        MessageBox MB_OK|MB_TOPMOST "½«×Ô¶¯¹Ø±Õµ±Ç°ÕýÔÚÔËÐÐ³ÌÐò,½øÐÐÏÂÒ»²½°²×°"
+        MessageBox MB_OK|MB_TOPMOST "ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ø±Õµï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð³ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½×°"
         Call StopAndDeleteService
 		Call KillProcesses
 		
@@ -137,8 +137,8 @@ Function LaunchLink
 FunctionEnd
 
 Function StopAndDeleteService
-    ; net stop ÊÇÍ¬²½µÄ:µÈ·þÎñÕæÕýÍ£Ö¹ºó²Å·µ»Ø,Õ¶¶Ï±£»îÔ´Í·
-    ; (·þÎñÃ¿ 3s À­Æð render/UserProxy,UserProxy Ã¿ 5s À­Æð panel/SysInfo)
+    ; net stop ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½:ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£Ö¹ï¿½ï¿½Å·ï¿½ï¿½ï¿½,Õ¶ï¿½Ï±ï¿½ï¿½ï¿½Ô´Í·
+    ; (ï¿½ï¿½ï¿½ï¿½Ã¿ 3s ï¿½ï¿½ï¿½ï¿½ render/UserProxy,UserProxy Ã¿ 5s ï¿½ï¿½ï¿½ï¿½ panel/SysInfo)
     nsExec::ExecToLog 'net stop "GammaRayService"'
     nsExec::ExecToLog 'sc delete "GammaRayService"'
 FunctionEnd
@@ -150,7 +150,7 @@ FunctionEnd
 
 
 Function KillProcesses
-	; Ë³Ðò:ÏÈÉ±±£»îÕß(UserProxy),ÔÙÉ±±»±£»îÕß;SysInfo Ò»²¢´¦Àí
+	; Ë³ï¿½ï¿½:ï¿½ï¿½É±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(UserProxy),ï¿½ï¿½É±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½;SysInfo Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
 	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'

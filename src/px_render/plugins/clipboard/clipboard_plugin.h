@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_CLIPBOARD_PLUGIN_H
 #define GAMMARAY_CLIPBOARD_PLUGIN_H
 
-#include "px_render/plugin_interface/gr_plugin_interface.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
 #include <atomic>
 #include <memory>
 

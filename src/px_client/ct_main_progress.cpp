@@ -8,9 +8,9 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTimer>
-#include "tc_label.h"
+#include "px_label.h"
 #include "ct_settings.h"
-#include "tc_pushbutton.h"
+#include "px_pushbutton.h"
 #include "ct_app_message.h"
 #include "no_margin_layout.h"
 #include "px_common_new/log.h"
@@ -32,7 +32,7 @@ namespace tc
             auto layout = new NoMarginHLayout();
             auto logo = new QLabel(this);
             logo->setFixedSize(100, 100);
-            logo->setStyleSheet(R"(border-image: url(:/resources/tc_trans_icon_blue.png)})");
+            logo->setStyleSheet(R"(border-image: url(:/resources/px_trans_icon_blue.png)})");
             layout->addStretch();
             layout->addWidget(logo);
             layout->addStretch();

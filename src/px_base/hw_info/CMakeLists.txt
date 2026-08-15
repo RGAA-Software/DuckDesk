@@ -1,4 +1,4 @@
-project(tc_hw_info)
+project(px_hw_info)
 add_library(${PROJECT_NAME}
     hw_info_parser.cpp
     hw_info_widget.cpp

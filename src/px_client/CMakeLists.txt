@@ -12,11 +12,11 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface/ct_media_record_plugin_interface.cpp
 )
 
-add_library(tc_client_plugin ${PLUGIN_SRCS})
-target_link_libraries(tc_client_plugin PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat
+add_library(px_client_plugin ${PLUGIN_SRCS})
+target_link_libraries(px_client_plugin PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat
         Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg px_common_new)
 
-target_include_directories(tc_client_plugin PUBLIC
+target_include_directories(px_client_plugin PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface
 )
 
@@ -131,14 +131,14 @@ if (APPLE)
 endif()
 
 target_link_libraries(GammaRayClientInner PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
-        px_common_new tc_message tc_cp_message tc_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
-        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib tc_server_message
-        tc_rtc_client Dwmapi.lib tc_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 tc_hw_info skin_interface skin_loader
+        px_common_new px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
+        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
+        px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
 )
 
 if (TC_PROTECTION_ENABLED)
     add_definitions(-DTC_PROTECTION_ENABLED=1)
-    target_link_libraries(GammaRayClientInner PRIVATE tc_protection)
+    target_link_libraries(GammaRayClientInner PRIVATE px_protection)
 endif ()
 
 if (WIN32)
@@ -156,8 +156,8 @@ if (WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/px_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/language" "${CMAKE_CURRENT_BINARY_DIR}/resources/language"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/qt_material" "${CMAKE_CURRENT_BINARY_DIR}/resources/qt_material"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gr_skins"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${GR_PROJECT_BINARY_PATH}/gr_skins" "${CMAKE_CURRENT_BINARY_DIR}/gr_skins"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${GR_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
     )
 
 elseif (APPLE)

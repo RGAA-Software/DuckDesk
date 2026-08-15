@@ -147,7 +147,7 @@ namespace tc
         bool enable_audio_ = false;
         bool enable_video_ = false;
         bool enable_controller = false;
-        // see: ClientType in tc_messages.proto
+        // see: ClientType in px_messages.proto
         int client_type_ = 100; // 100 is Unknown
         std::string device_name_;
     };

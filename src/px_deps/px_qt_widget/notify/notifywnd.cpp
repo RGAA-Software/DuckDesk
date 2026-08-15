@@ -3,7 +3,7 @@
 #include <QBoxLayout>
 #include <QGraphicsDropShadowEffect>
 #include "no_margin_layout.h"
-#include "px_qt_widget/tc_image_button.h"
+#include "px_qt_widget/px_image_button.h"
 
 namespace tc
 {

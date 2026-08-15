@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "px_render/plugin_interface/gr_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include <map>
 #include <string>
 #include <memory>

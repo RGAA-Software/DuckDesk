@@ -1,4 +1,4 @@
-// CDP 无头 Chrome 验证 gr_web_client 手柄回传(Gamepad API -> kGamepadState -> render ViGEm 虚拟 X360)
+// CDP 无头 Chrome 验证 px_web_client 手柄回传(Gamepad API -> kGamepadState -> render ViGEm 虚拟 X360)
 // 用法: node scripts/cdp_gamepad_test.mjs
 // 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
 // 验证点:
@@ -12,7 +12,7 @@ import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 // joystick 插件有独立日志(plugin_joystick.dll.log),分配虚拟手柄的记录在这里
-const RENDER_LOG = 'C:/Users/Public/GoDesk/gr_logs/plugin_joystick.dll.log'
+const RENDER_LOG = 'C:/Users/Public/GoDesk/px_logs/plugin_joystick.dll.log'
 const PAGE_URL =
   'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=gamepad1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223

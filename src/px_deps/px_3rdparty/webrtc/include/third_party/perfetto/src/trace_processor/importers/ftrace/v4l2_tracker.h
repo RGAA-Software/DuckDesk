@@ -174,7 +174,7 @@ class V4l2Tracker : public Destructible {
   BufferEventStringIds buf_event_ids_;
   BufferTypeStringIds buf_type_ids_;
   BufferFieldStringIds buf_field_ids_;
-  TimecodeTypeStringIds tc_type_ids_;
+  TimecodeTypeStringIds px_type_ids_;
 };
 
 }  // namespace trace_processor

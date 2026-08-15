@@ -11,11 +11,11 @@ qt_add_resources(RESOURCES ${CMAKE_CURRENT_SOURCE_DIR}/resources.qrc)
 
 add_library(${PROJECT_NAME} SHARED ${SRCS} ${RESOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg
-    tc_message px_common_new px_qt_widget skin_interface
+    px_message px_common_new px_qt_widget skin_interface
 )
 
-# Deploy skin DLL into a gr_skins/ subdirectory so SkinLoader can find them at runtime.
-set(GR_SKINS_DEPLOY_DIR "${GR_PROJECT_BINARY_PATH}/gr_skins")
+# Deploy skin DLL into a px_skins/ subdirectory so SkinLoader can find them at runtime.
+set(GR_SKINS_DEPLOY_DIR "${GR_PROJECT_BINARY_PATH}/px_skins")
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${GR_SKINS_DEPLOY_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

@@ -12,14 +12,14 @@
 #include "px_common_new/log.h"
 #include "px_common_new/auto_start.h"
 #include "px_common_new/folder_util.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_workspace.h"
-#include "render_panel/gr_running_pipe.h"
-#include "render_panel/gr_settings.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_workspace.h"
+#include "render_panel/px_running_pipe.h"
+#include "render_panel/px_settings.h"
 #include "render_panel/util/opengl_helper.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
-#include "px_qt_widget/translator/tc_translator.h"
-#include "px_qt_widget/tc_font_manager.h"
+#include "px_qt_widget/translator/px_translator.h"
+#include "px_qt_widget/px_font_manager.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/dump_helper.h"
 #include "px_common_new/hardware.h"
@@ -63,8 +63,8 @@ CommandLineOptions ParseCommandLine(QApplication& app) {
 
 bool PrepareDirs(const QString& base_path) {
     std::vector<QString> dirs = {
-        "gr_logs", "gr_data", "gr_data/client", "gr_data/render", "gr_data/panel",
-        "gr_data/cache", "gr_dumps"
+        "px_logs", "px_data", "px_data/client", "px_data/render", "px_data/panel",
+        "px_data/cache", "px_dumps"
     };
 
     bool result = true;
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto log_path = base_dir + "/gr_logs/godesk.log";
+    auto log_path = base_dir + "/px_logs/godesk.log";
     Logger::InitLog(log_path.toStdWString(), true);
 
     // Check OpenGL Backend
@@ -199,14 +199,14 @@ int main(int argc, char *argv[]) {
     });
 
     // init sp
-    auto data_dir = base_dir + "/gr_data";
+    auto data_dir = base_dir + "/px_data";
     if (!SharedPreference::Instance()->Init(data_dir.toStdWString(), "godesk.dat")) {
         auto err = QString::fromStdString(SharedPreference::Instance()->GetLastError());
         QMessageBox::critical(nullptr, "Startup failed", "SharedPreference init failed:\n" + err);
         return -1;
     }
 
-    GrSettings::Instance()->gr_data_path_ = data_dir.toStdString();
+    GrSettings::Instance()->px_data_path_ = data_dir.toStdString();
 
     {
         auto auto_start = std::make_shared<tc::AutoStart>();

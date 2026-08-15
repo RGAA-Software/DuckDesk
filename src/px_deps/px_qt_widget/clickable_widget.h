@@ -35,8 +35,8 @@ namespace tc
         int enter_color_ = 0xf0f0f0;
         int pressed_color_ = 0xd9d9d9;
         int radius_ = 0;
-        int gr_from_color_ = 0;
-        int gr_to_color_ = 0;
+        int px_from_color_ = 0;
+        int px_to_color_ = 0;
     };
 
 }

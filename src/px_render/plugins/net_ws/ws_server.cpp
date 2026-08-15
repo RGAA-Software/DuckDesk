@@ -16,7 +16,7 @@
 #include "ws_stream_router.h"
 #include "ws_filetransfer_router.h"
 #include "ws_user_proxy_router.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_capture_new/capture_message.h"
 #include "ws_plugin.h"
 #include "px_common_new/url_helper.h"
@@ -105,7 +105,7 @@ namespace tc
                 if (!read_varint(type)) {
                     return false;
                 }
-                // tc_message.proto: kVideoFrame = 30, kAudioFrame = 40
+                // px_message.proto: kVideoFrame = 30, kAudioFrame = 40
                 // udp_media 客户端的音视频都走 UDP,ws 下发前都过滤掉
                 return type == 30 || type == 40;
             }
@@ -186,7 +186,7 @@ namespace tc
         // media websocket
         AddWebsocketRouter(kUrlMedia);
         AddWebsocketRouter(kUrlFileTransfer);
-        // game-hook DLL (tc_graphics) posts CaptureVideoFrame here
+        // game-hook DLL (px_graphics) posts CaptureVideoFrame here
         AddIpcRouter();
 #if GR_USER_PROXY_ENABLED
         AddUserProxyRouter();
@@ -424,7 +424,7 @@ namespace tc
     }
 
     void WsPluginServer::AddIpcRouter() {
-        // Injected tc_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
+        // Injected px_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
         // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
         auto weak_self = weak_from_this();
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
@@ -448,7 +448,7 @@ namespace tc
                     if (ipc_msg->version_ != kIpcCaptureVideoFrameVersion
                         || ipc_msg->type_ != kCaptureVideoFrame) {
                         LOGW("IPC video frame version/type mismatch: ver={} type={:#x}, drop "
-                             "(render and tc_graphics.dll must be updated together)",
+                             "(render and px_graphics.dll must be updated together)",
                              ipc_msg->version_, ipc_msg->type_);
                         return;
                     }
@@ -491,7 +491,7 @@ namespace tc
                     const auto n = ++s_legacy;
                     if (n == 1 || (n % 100) == 0) {
                         LOGW("IPC legacy CaptureVideoFrame blob rejected n={} "
-                             "(upgrade tc_graphics.dll)", n);
+                             "(upgrade px_graphics.dll)", n);
                     }
                     return;
                 }

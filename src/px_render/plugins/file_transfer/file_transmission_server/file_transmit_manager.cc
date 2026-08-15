@@ -1,5 +1,5 @@
 #include "file_transmit_manager.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "file_operate.h"
 #include "file_transmit_impl.h"

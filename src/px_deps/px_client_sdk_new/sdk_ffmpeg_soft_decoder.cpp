@@ -5,7 +5,7 @@
 #include "sdk_ffmpeg_soft_decoder.h"
 
 #include "px_common_new/data.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_client_sdk_new/gl/raw_image.h"
 #include "px_common_new/time_util.h"

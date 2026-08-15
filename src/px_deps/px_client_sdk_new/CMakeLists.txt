@@ -59,19 +59,19 @@ set(GL_SRCS
     gl/raw_image.cpp
 )
 
-add_library(tc_sdk ${SDK_SRCS} ${GL_SRCS})
-target_link_libraries(tc_sdk PRIVATE Opus::opus glm::glm)#websocketpp::websocketpp
-target_link_libraries(tc_sdk PRIVATE px_opus_codec_new tc_message)
+add_library(px_sdk ${SDK_SRCS} ${GL_SRCS})
+target_link_libraries(px_sdk PRIVATE Opus::opus glm::glm)#websocketpp::websocketpp
+target_link_libraries(px_sdk PRIVATE px_opus_codec_new px_message)
 
 message("ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 
 if (ANDROID)
-    target_link_libraries(tc_sdk PRIVATE ${FFMPEG_LIBRARIES} px_relay_client)
-    target_link_libraries(tc_sdk PRIVATE ${ANDROID_OPENSSL_LIBS})
+    target_link_libraries(px_sdk PRIVATE ${FFMPEG_LIBRARIES} px_relay_client)
+    target_link_libraries(px_sdk PRIVATE ${ANDROID_OPENSSL_LIBS})
 else ()
-    target_link_libraries(tc_sdk PRIVATE protobuf::libprotobuf px_relay_client)
+    target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf px_relay_client)
 
-    target_link_libraries(tc_sdk PRIVATE
+    target_link_libraries(px_sdk PRIVATE
             Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets
             ${FFMPEG_LIBRARIES}
     )

@@ -26,16 +26,16 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   explicit FakeWebGraphicsContext3DProvider(
       gpu::gles2::GLES2Interface* gl,
       cc::ImageDecodeCache* cache = nullptr,
-      GrDirectContext* gr_context = nullptr,
+      GrDirectContext* px_context = nullptr,
       viz::TestContextProvider* raster_context_provider = nullptr)
       : gl_(gl),
         image_decode_cache_(cache ? cache : &stub_image_decode_cache_),
         raster_context_provider_(raster_context_provider) {
-    if (gr_context) {
-      gr_context_ = sk_ref_sp<GrDirectContext>(gr_context);
+    if (px_context) {
+      px_context_ = sk_ref_sp<GrDirectContext>(px_context);
     } else {
       GrMockOptions mockOptions;
-      gr_context_ = GrDirectContext::MakeMock(&mockOptions);
+      px_context_ = GrDirectContext::MakeMock(&mockOptions);
     }
 
     if (!raster_context_provider_) {
@@ -80,7 +80,7 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
 
   ~FakeWebGraphicsContext3DProvider() override = default;
 
-  GrDirectContext* GetGrContext() override { return gr_context_.get(); }
+  GrDirectContext* GetGrContext() override { return px_context_.get(); }
 
   const gpu::Capabilities& GetCapabilities() const override {
     return capabilities_;
@@ -153,7 +153,7 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   raw_ptr<gpu::raster::RasterInterface, ExperimentalRenderer>
       external_raster_interface_ = nullptr;
   std::unique_ptr<gpu::webgpu::WebGPUInterfaceStub> webgpu_interface_;
-  sk_sp<GrDirectContext> gr_context_;
+  sk_sp<GrDirectContext> px_context_;
   gpu::Capabilities capabilities_;
   gpu::GpuFeatureInfo gpu_feature_info_;
   WebglPreferences webgl_preferences_;

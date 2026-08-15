@@ -53,10 +53,10 @@ impl AuthorSettings {
     }
 
     pub async fn load_settings() -> bool {
-        match Self::load_settings_from_file("gr_auth_server_settings.toml") {
+        match Self::load_settings_from_file("px_auth.toml") {
             Ok(st) => {
                 tracing::info!(
-                    "px_auth_server settings loaded, server_port={}, db_path={}, verify_server={}, bootstrap.admin_name={}, bootstrap.visitor_name={}",
+                    "px_auth settings loaded, server_port={}, db_path={}, verify_server={}, bootstrap.admin_name={}, bootstrap.visitor_name={}",
                     st.server_port,
                     st.db_path,
                     st.verify_server,
@@ -68,7 +68,7 @@ impl AuthorSettings {
                 true
             }
             Err(e) => {
-                tracing::error!("could not load px_auth_server settings: {}", e);
+                tracing::error!("could not load px_auth settings: {}", e);
                 false
             }
         }
@@ -540,9 +540,9 @@ admin_password = \"secret\"\n";
 
     #[test]
     fn load_settings_from_file_auto_generates_and_writes_back() {
-        let dir = std::env::temp_dir().join("gr_auth_settings_auto_jwt_test");
+        let dir = std::env::temp_dir().join("px_auth_settings_auto_jwt_test");
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("gr_auth_server_settings.toml");
+        let path = dir.join("px_auth.toml");
         std::fs::write(
             &path,
             r#"server_port = 30400

@@ -12,7 +12,7 @@
 #include "../log.h"
 #include "../base64.h"
 #include "../file.h"
-#include "../tc_aes.h"
+#include "../px_aes.h"
 #include "test_network_adapter.cpp"
 #include "test_qr_generator.cpp"
 

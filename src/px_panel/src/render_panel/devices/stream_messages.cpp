@@ -4,8 +4,8 @@
 
 #include "stream_messages.h"
 #include <nlohmann/json.hpp>
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
 
 using namespace nlohmann;
 

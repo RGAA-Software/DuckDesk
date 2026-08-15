@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVER="ubuntu@49.232.190.218"
 CRED_FILE="$WS_ROOT/px_auth_server/tencent_server.txt"
-BIN="$WS_ROOT/target/x86_64-unknown-linux-musl/release/px_auth_server"
+BIN="$WS_ROOT/target/x86_64-unknown-linux-musl/release/px_auth"
 WEB_DIR="$WS_ROOT/target/x86_64-unknown-linux-musl/release/web_auth"
 
 # --- SSH password via askpass (no interactive prompt) ---
@@ -25,7 +25,7 @@ echo "== [1/3] build =="
 "$SCRIPT_DIR/build_auth_server_musl.sh"
 
 echo "== [2/3] upload =="
-scp "$BIN" "$SERVER:/tmp/px_auth_server.new"
+scp "$BIN" "$SERVER:/tmp/px_auth.new"
 # web_auth 静态资源（前端页面）
 tar czf "${TMPD}/web_auth.tar.gz" -C "$WEB_DIR" .
 scp "${TMPD}/web_auth.tar.gz" "$SERVER:/tmp/"
@@ -34,9 +34,9 @@ echo "== [3/3] restart & verify =="
 ssh "$SERVER" '
   set -e
   sudo supervisorctl stop px_auth_server
-  sudo cp /tmp/px_auth_server.new /opt/px_auth_server/px_auth_server
-  sudo chown ubuntu:ubuntu /opt/px_auth_server/px_auth_server
-  rm /tmp/px_auth_server.new
+  sudo cp /tmp/px_auth.new /opt/px_auth_server/px_auth
+  sudo chown ubuntu:ubuntu /opt/px_auth_server/px_auth
+  rm /tmp/px_auth.new
   sudo rm -rf /opt/px_auth_server/web_auth
   sudo mkdir -p /opt/px_auth_server/web_auth
   sudo tar xzf /tmp/web_auth.tar.gz -C /opt/px_auth_server/web_auth

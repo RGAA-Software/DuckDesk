@@ -1,4 +1,4 @@
-project(tc_rtc_client)
+project(px_rtc_client)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -28,7 +28,7 @@ protected:
     std::filesystem::path temp_dir_;
 
     void SetUp() override {
-        temp_dir_ = std::filesystem::temp_directory_path() / "tc_clipboard_file_builder_test";
+        temp_dir_ = std::filesystem::temp_directory_path() / "px_clipboard_file_builder_test";
         std::filesystem::remove_all(temp_dir_);
         std::filesystem::create_directories(temp_dir_);
     }

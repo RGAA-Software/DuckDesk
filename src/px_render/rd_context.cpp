@@ -12,7 +12,7 @@
 #include "px_common_new/win32/win_helper.h"
 #include "px_common_new/string_util.h"
 #include "px_render/plugins/plugin_manager.h"
-#include "px_render/plugin_interface/gr_plugin_interface.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
 
 typedef uint64_t (*FnGenNextGlobalId)();
 FnGenNextGlobalId g_fn_gen_next_global_id = nullptr;
@@ -37,7 +37,7 @@ namespace tc
 
     bool RdContext::Init() {
         auto exe_dir = WinHelper::GetExeFolderPath();
-        auto id_generator_path = StringUtil::ToWString(exe_dir) + L"/tc_global_id_generator.dll";
+        auto id_generator_path = StringUtil::ToWString(exe_dir) + L"/px_global_id_generator.dll";
         static std::shared_ptr<DynamicLibrary> s_id_generator_library;
         s_id_generator_library = std::make_shared<DynamicLibrary>(id_generator_path);
         if (!s_id_generator_library->IsLoaded()) {

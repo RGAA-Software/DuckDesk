@@ -19,7 +19,7 @@ using namespace tc;
 
 static std::shared_ptr<tc::SharedTexture> shared_texture = std::make_shared<tc::SharedTexture>();
 
-namespace tc_capture_d3d11
+namespace px_capture_d3d11
 {
 
     namespace
@@ -153,12 +153,12 @@ namespace tc_capture_d3d11
             return;
         }
 
-        // EasyHook legacy path: SHM frame IPC removed. Use OBS tc_graphics + WS /ipc.
+        // EasyHook legacy path: SHM frame IPC removed. Use OBS px_graphics + WS /ipc.
         static bool s_logged = false;
         if (!s_logged) {
             s_logged = true;
             LOGE("EasyHook capture_dxgi: SHM/ClientIpcManager removed; frames not sent. "
-                 "Use OBS inject (tc_graphics).");
+                 "Use OBS inject (px_graphics).");
         }
         g_frame_index++;
     }

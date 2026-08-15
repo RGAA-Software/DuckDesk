@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// 服务本地配置（exe 旁 desk_settings.toml）。
+/// 服务本地配置（exe 旁 px_desk.toml）。
 /// 只存在于部署机，不进入版本库；首次启动自动生成随机管理密码。
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OffSettings {
@@ -18,7 +18,7 @@ impl OffSettings {
             .unwrap()
             .parent()
             .unwrap()
-            .join("desk_settings.toml")
+            .join("px_desk.toml")
     }
 
     /// 加载配置；文件缺失或缺少管理密码时生成随机密码并落盘

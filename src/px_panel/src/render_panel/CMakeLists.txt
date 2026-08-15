@@ -2,13 +2,13 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/network/http_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/ws_panel_server.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/udp_broadcaster.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/network/gr_service_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_service_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/render_api.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/network/gr_spvr_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_spvr_client.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game_operator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/database/gr_database.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/px_database.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/visit_record.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/visit_record_operator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/file_transfer_record.cpp
@@ -55,18 +55,18 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_cophone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/monitor_refresher.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_application.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_context.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_workspace.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_settings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_statistics.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_system_monitor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_resources.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_render_controller.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_run_game_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_running_pipe.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_connected_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/gr_render_msg_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_application.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_workspace.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_statistics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_system_monitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_resources.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_render_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_run_game_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_running_pipe.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_connected_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_render_msg_processor.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/transfer/file_transfer.cpp
 
@@ -87,7 +87,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/connected_info_sliding_window.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_messages.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/infinite_loading.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/devices/gr_device_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/px_device_manager.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/util/conn_info_parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/util/opengl_helper.cpp
@@ -98,12 +98,12 @@ set(PANEL_SRCS
 
     ${CMAKE_CURRENT_SOURCE_DIR}/spvr_scanner/spvr_scanner.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/user/gr_user_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/user/px_user_manager.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/upgrade/upgrade_helper.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/gr_spvr_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/gr_event_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/px_spvr_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/spvr/px_event_manager.cpp
 
 )
 

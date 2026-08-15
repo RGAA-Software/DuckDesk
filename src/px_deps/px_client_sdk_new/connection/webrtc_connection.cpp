@@ -3,7 +3,7 @@
 //
 
 #include "webrtc_connection.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/thread.h"
@@ -111,7 +111,7 @@ namespace tc
         RunInRtcThread([=, this]() {
 #ifdef WIN32
             LOGI("Begin to load library!");
-            auto lib_name = QApplication::applicationDirPath() + "/px_client/tc_rtc_client.dll";
+            auto lib_name = QApplication::applicationDirPath() + "/px_client/px_rtc_client.dll";
             rtc_lib_ = new QLibrary(lib_name);
             auto r = rtc_lib_->load();
             if (!r) {

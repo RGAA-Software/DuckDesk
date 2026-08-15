@@ -1324,7 +1324,7 @@ QWK--WindowBar>QAbstractButton#close-button:pressed {
 /* Icon button */
 
 QWK--WindowBar>QAbstractButton#icon-button {
-    qproperty-iconNormal: url(":/resources/tc_icon.png");
+    qproperty-iconNormal: url(":/resources/px_icon.png");
     qproperty-iconSize: 18px 18px;
     min-width: 40px;
     border: none;

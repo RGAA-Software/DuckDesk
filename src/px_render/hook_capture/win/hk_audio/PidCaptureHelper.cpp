@@ -58,7 +58,7 @@ bool StartPidCaptureHelper(uint32_t pid, const std::wstring& wav_path, void** ou
         return false;
     }
 
-    const auto exe = ModuleDir() / L"tc_audio_pid_capture.exe";
+    const auto exe = ModuleDir() / L"px_audio_pid_capture.exe";
     if (!std::filesystem::exists(exe)) {
         LOGE("PidCaptureHelper: missing {}", StringUtil::ToUTF8(exe.wstring()));
         return false;

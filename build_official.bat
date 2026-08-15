@@ -89,7 +89,7 @@ echo ---------------------------------------------------------
 echo ---------------------------------------------------------
 
 rem Always rebuild the web client frontend so collect_dist packages fresh assets.
-call :build_npm_web "web\gr_web_client" "web_client"
+call :build_npm_web "web\px_web_client" "web_client"
 if errorlevel 1 exit /b %errorlevel%
 
 cmake --build build_official -j18
@@ -100,11 +100,11 @@ rem Each script is self-contained and can also be run standalone.
 rem Skipped when GR_SKIP_SERVERS is set (see build_client.bat: installer only
 rem needs client-side artifacts, servers are built separately).
 if not defined GR_SKIP_SERVERS (
-    call "%~dp0build_gr_cms_server.bat"
+    call "%~dp0build_px_cms_server.bat"
     if errorlevel 1 exit /b %errorlevel%
-    call "%~dp0build_gr_auth_server.bat"
+    call "%~dp0build_px_auth_server.bat"
     if errorlevel 1 exit /b %errorlevel%
-    call "%~dp0build_gr_desk_server.bat"
+    call "%~dp0build_px_desk_server.bat"
     if errorlevel 1 exit /b %errorlevel%
 ) else (
     echo GR_SKIP_SERVERS set, skipping rust server builds...
@@ -115,7 +115,7 @@ exit /b 0
 
 rem ---------------------------------------------------------------------------
 rem Build a Vite/npm frontend and wipe stale hashed outputs.
-rem   %1 = project path relative to repo root (e.g. web\gr_web_client)
+rem   %1 = project path relative to repo root (e.g. web\px_web_client)
 rem   %2 = collect_dist folder name under build_official\dist (e.g. web_client)
 rem ---------------------------------------------------------------------------
 :build_npm_web

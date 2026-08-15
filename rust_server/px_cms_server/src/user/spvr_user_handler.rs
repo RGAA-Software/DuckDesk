@@ -333,7 +333,7 @@ pub async fn handle_update_password(
         .is_auth_ok(auth_id, auth_password)
         .await;
     if is_auth_ok {
-        tracing::info!("will change password by px_auth_server");
+        tracing::info!("will change password by px_auth");
     } else {
         tracing::info!("will change password by user itself");
         // check old password

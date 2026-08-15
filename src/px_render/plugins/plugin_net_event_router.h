@@ -9,7 +9,7 @@
 #include <memory>
 #include <string_view>
 #include <set>
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace tc
 {

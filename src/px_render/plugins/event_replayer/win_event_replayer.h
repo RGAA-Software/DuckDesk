@@ -6,7 +6,7 @@
 #define TC_APPLICATION_CONTROL_EVENT_REPLAYER_WIN_H
 
 #include <memory>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_capture_new/capture_message.h"
 
 namespace tc

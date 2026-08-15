@@ -11,7 +11,7 @@
 #include "px_common_new/monitors.h"
 #include "px_common_new/thread.h"
 #include "px_capture_new/capture_message.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "dda_capture_plugin.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 

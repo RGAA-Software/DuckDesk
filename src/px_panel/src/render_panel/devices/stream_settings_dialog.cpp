@@ -9,14 +9,14 @@
 #include <QCheckBox>
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "tc_dialog.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_app_messages.h"
+#include "px_dialog.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_app_messages.h"
 #include "render_panel/database/stream_db_operator.h"
-#include "px_qt_widget/tc_image_button.h"
-#include "px_qt_widget/tc_tooltip.h"
+#include "px_qt_widget/px_image_button.h"
+#include "px_qt_widget/px_tooltip.h"
 #include "px_base/ct_stream_item_net_type.h"
 
 namespace tc

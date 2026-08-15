@@ -8,7 +8,7 @@
 #include <QPaintEvent>
 #include <QPixmap>
 #include <QLabel>
-#include "translator/tc_translator.h"
+#include "translator/px_translator.h"
 
 namespace tc
 {

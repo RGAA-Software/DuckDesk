@@ -26,7 +26,7 @@
 #include "px_client/ct_settings.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
-#include "tc_dialog.h"
+#include "px_dialog.h"
 
 namespace tc
 {

@@ -1,6 +1,6 @@
 
 #include "gdi_capture_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"

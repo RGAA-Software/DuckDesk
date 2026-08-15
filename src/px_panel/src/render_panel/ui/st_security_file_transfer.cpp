@@ -10,16 +10,16 @@
 #include <QClipboard>
 #include <QStyledItemDelegate>
 
-#include "tc_label.h"
-#include "tc_dialog.h"
-#include "tc_pushbutton.h"
-#include "tc_image_button.h"
+#include "px_label.h"
+#include "px_dialog.h"
+#include "px_pushbutton.h"
+#include "px_image_button.h"
 #include "no_margin_layout.h"
 #include "security_password_checker.h"
 #include "st_security_file_transfer_item.h"
 #include "px_qt_widget/pagination/page_widget.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/database/gr_database.h"
+#include "render_panel/px_context.h"
+#include "render_panel/database/px_database.h"
 #include "render_panel/database/file_transfer_record.h"
 #include "render_panel/database/file_transfer_record_operator.h"
 

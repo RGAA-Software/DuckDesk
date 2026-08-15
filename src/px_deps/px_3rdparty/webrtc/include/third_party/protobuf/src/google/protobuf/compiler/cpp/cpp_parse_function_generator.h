@@ -166,7 +166,7 @@ class ParseFunctionGenerator {
   MessageSCCAnalyzer* scc_analyzer_;
   const Options& options_;
   std::map<std::string, std::string> variables_;
-  std::unique_ptr<TailCallTableInfo> tc_table_info_;
+  std::unique_ptr<TailCallTableInfo> px_table_info_;
   std::vector<int> inlined_string_indices_;
   const std::vector<const FieldDescriptor*> ordered_fields_;
   int num_hasbits_;

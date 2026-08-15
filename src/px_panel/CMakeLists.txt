@@ -54,9 +54,9 @@ add_executable(GammaRay WIN32
 SET_TARGET_PROPERTIES(GammaRay PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
 
 target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3 sqlite_orm::sqlite_orm
-        px_common_new px_steam_manager_new tc_vigem tc_message tc_cp_message tc_plugin px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
-        px_relay_client tc_translator px_spvr_client Dwmapi.lib tc_widget_loadings tc_client_plugin OpenSSL::Crypto
-        px_account_sdk tc_rp_message px_profile_client tc_hw_info tc_global_id_generator tc_server_message skin_interface skin_loader gd_gui
+        px_common_new px_steam_manager_new px_vigem px_message px_cp_message px_plugin px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
+        px_relay_client px_translator px_spvr_client Dwmapi.lib px_widget_loadings px_client_plugin OpenSSL::Crypto
+        px_account_sdk px_rp_message px_profile_client px_hw_info px_global_id_generator px_server_message skin_interface skin_loader gd_gui
 )
 target_link_libraries(GammaRay PRIVATE
     unofficial::breakpad::libbreakpad
@@ -64,8 +64,8 @@ target_link_libraries(GammaRay PRIVATE
 )
 
 add_custom_command(TARGET GammaRay PRE_BUILD
-        COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/gr_plugins
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gr_plugins
+        COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/px_plugins
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/px_plugins
 )
 
 ### Uninstall
@@ -80,7 +80,7 @@ add_custom_command(TARGET GammaRay PRE_BUILD
 #
 #target_link_libraries(uninstall PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network px_qt_widget
 #        Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg)
-#target_link_libraries(uninstall PRIVATE px_common_new px_steam_manager_new tc_vigem tc_message sqlite35 tc_plugin winmm.lib SetupAPI.lib gflags::gflags)
+#target_link_libraries(uninstall PRIVATE px_common_new px_steam_manager_new px_vigem px_message sqlite35 px_plugin winmm.lib SetupAPI.lib gflags::gflags)
 ### Uninstall End
 
 include(GNUInstallDirs)

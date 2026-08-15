@@ -10,10 +10,10 @@
 #include "px_qt_widget/widget_helper.h"
 #include "render_panel/database/db_game.h"
 #include "render_panel/database/db_game_operator.h"
-#include "render_panel/gr_context.h"
-#include "tc_dialog.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
+#include "render_panel/px_context.h"
+#include "px_dialog.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
 #include <QPushButton>
 #include <QLineEdit>
 #include <QLabel>

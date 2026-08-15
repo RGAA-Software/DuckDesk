@@ -8,4 +8,4 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new tc_message tc_plugin)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_plugin)

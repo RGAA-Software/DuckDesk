@@ -30,7 +30,7 @@ if (WIN32)
         win/desktop_capture/cursor_capture.cpp
     )
     add_library(px_capture_new ${CAPTURE_SRCS})
-    target_link_libraries(px_capture_new tc_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
+    target_link_libraries(px_capture_new px_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
 
     ## capture dll
     set(DLL_SRCS
@@ -56,8 +56,8 @@ if (WIN32)
     )
 
     if (ENABLE_HOOK_CAPTURE)
-        #add_library(tc_capture_library SHARED ${DLL_SRCS})
-        #target_link_libraries(tc_capture_library px_common_new EasyHook64 Iphlpapi.lib)
+        #add_library(px_capture_library SHARED ${DLL_SRCS})
+        #target_link_libraries(px_capture_library px_common_new EasyHook64 Iphlpapi.lib)
 
     endif ()
 

@@ -16,7 +16,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include "panel_cp_file_struct.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 
 #pragma comment(lib, "shlwapi.lib")

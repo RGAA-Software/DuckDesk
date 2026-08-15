@@ -4,7 +4,7 @@
 
 #include "db_game_operator.h"
 #include "px_common_new/log.h"
-#include "gr_database.h"
+#include "px_database.h"
 #include <QApplication>
 
 namespace tc
@@ -48,7 +48,7 @@ namespace tc
 //    }
 
 //    void DBGameOperator::Init() {
-//        auto db_path = qApp->applicationDirPath() + "/gr_data/gr_game.db";
+//        auto db_path = qApp->applicationDirPath() + "/px_data/px_game.db";
 //        auto storage = InitAppDatabase(db_path.toStdString());
 //        db_->GetDbStorage() = storage;
 //        storage.sync_schema();

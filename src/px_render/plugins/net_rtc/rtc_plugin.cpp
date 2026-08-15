@@ -9,8 +9,8 @@
 #include "rtc_messages.h"
 #include "rtc_server.h"
 #include "px_common_new/time_util.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
-//#include "tc_message.pb.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
+//#include "px_message.pb.h"
 
 namespace tc
 {

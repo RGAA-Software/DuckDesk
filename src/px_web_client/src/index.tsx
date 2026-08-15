@@ -9,13 +9,13 @@ import React from 'react';
 import protobuf from 'protobufjs'
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import {GrApp} from "./gr_app.ts";
-import {GrProtoMsg, loadMessageType} from "./messages/gr_proto_messages.ts";
+import {GrApp} from "./px_app.ts";
+import {GrProtoMsg, loadMessageType} from "./messages/px_proto_messages.ts";
 
 const protoRoot = await protobuf.load([
-    'proto/tc_file_transfer.proto',
-    'proto/tc_signaling_message.proto',
-    'proto/tc_message.proto',
+    'proto/px_file_transfer.proto',
+    'proto/px_signaling_message.proto',
+    'proto/px_message.proto',
 ])
 loadMessageType(protoRoot)
 

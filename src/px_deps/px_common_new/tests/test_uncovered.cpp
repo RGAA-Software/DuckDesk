@@ -9,7 +9,7 @@
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/zip_util.h"
-#include "px_common_new/tc_aes.h"
+#include "px_common_new/px_aes.h"
 #include "px_common_new/gd_md5.h"
 #include "px_common_new/image.h"
 #include "px_common_new/time_util.h"
@@ -101,7 +101,7 @@ TEST(TestUncovered, DataAtOutOfBounds) {
 TEST(TestUncovered, DataSaveAndLoad) {
     std::string payload = "save me";
     auto data = Data::Make(payload.data(), payload.size());
-    auto tmp_path = std::filesystem::temp_directory_path() / "tc_data_save_test.bin";
+    auto tmp_path = std::filesystem::temp_directory_path() / "px_data_save_test.bin";
     data->Save(tmp_path);
 
     auto file = File::OpenForReadB(tmp_path);
@@ -223,7 +223,7 @@ TEST(TestUncovered, MessageLooperMaxTasks) {
 // ========== SharedPreference ==========
 TEST(TestUncovered, SharedPreferencePutGetRemove) {
     namespace fs = std::filesystem;
-    auto tmp_dir = fs::temp_directory_path() / "tc_test_sp";
+    auto tmp_dir = fs::temp_directory_path() / "px_test_sp";
     fs::remove_all(tmp_dir);
     fs::create_directories(tmp_dir);
 
@@ -248,7 +248,7 @@ TEST(TestUncovered, SharedPreferencePutGetRemove) {
 
 TEST(TestUncovered, SharedPreferenceVisit) {
     namespace fs = std::filesystem;
-    auto tmp_dir = fs::temp_directory_path() / "tc_test_sp_visit";
+    auto tmp_dir = fs::temp_directory_path() / "px_test_sp_visit";
     fs::remove_all(tmp_dir);
     fs::create_directories(tmp_dir);
 
@@ -330,8 +330,8 @@ TEST(TestUncovered, MD5Empty) {
 // ========== ZipUtil ==========
 TEST(TestUncovered, ZipUtilZipFolder) {
     namespace fs = std::filesystem;
-    auto src_dir = fs::temp_directory_path() / "tc_zip_src";
-    auto zip_path = fs::temp_directory_path() / "tc_test.zip";
+    auto src_dir = fs::temp_directory_path() / "px_zip_src";
+    auto zip_path = fs::temp_directory_path() / "px_test.zip";
     fs::remove_all(src_dir);
     fs::remove(zip_path);
     fs::create_directories(src_dir);

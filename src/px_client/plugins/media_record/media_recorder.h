@@ -28,7 +28,7 @@ extern "C" {
 #include "libavutil/frame.h"
 }
 
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc { 
 

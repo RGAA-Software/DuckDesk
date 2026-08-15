@@ -1,4 +1,4 @@
-// Hook-path ONLY (二选一之 hook): force enable_hook_audio=1, inject tc_graphics.dll,
+// Hook-path ONLY (二选一之 hook): force enable_hook_audio=1, inject px_graphics.dll,
 // collect in-process AudioShare WAV. No PID process-loopback in this test.
 //
 // Usage (from build_official/dist):
@@ -88,8 +88,8 @@ StartedGame StartGameSuspended(const std::wstring& game_path) {
 }
 
 bool InjectGraphics(uint32_t pid, const std::filesystem::path& dist) {
-    auto injector = dist / "tc_graphics_util.exe";
-    auto dll = dist / "tc_graphics.dll";
+    auto injector = dist / "px_graphics_util.exe";
+    auto dll = dist / "px_graphics.dll";
     if (!std::filesystem::exists(injector) || !std::filesystem::exists(dll)) {
         std::cerr << "Missing injector/dll under " << dist.string() << "\n";
         return false;
@@ -209,7 +209,7 @@ int wmain(int argc, wchar_t** argv) {
     std::cout << "Mode: HOOK only (enable_hook_audio=1), background focus (no SetForeground)\n";
 
     system("taskkill /F /IM VehicleGame-Win64-Shipping.exe >nul 2>nul");
-    system("taskkill /F /IM tc_audio_pid_capture.exe >nul 2>nul");
+    system("taskkill /F /IM px_audio_pid_capture.exe >nul 2>nul");
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     auto g = StartGameSuspended(game);
@@ -267,7 +267,7 @@ int wmain(int argc, wchar_t** argv) {
 
     if (!std::filesystem::exists(wav)) {
         std::cerr << "FAIL: hook wav not created. Check "
-                  << (dist / "tc_graphics_32000.log").string() << "\n";
+                  << (dist / "px_graphics_32000.log").string() << "\n";
         return 5;
     }
 

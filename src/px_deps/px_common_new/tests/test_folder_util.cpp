@@ -18,7 +18,7 @@ protected:
     std::filesystem::path temp_dir_;
 
     void SetUp() override {
-        temp_dir_ = std::filesystem::temp_directory_path() / "tc_folder_util_test";
+        temp_dir_ = std::filesystem::temp_directory_path() / "px_folder_util_test";
         std::filesystem::remove_all(temp_dir_);
         std::filesystem::create_directories(temp_dir_);
     }

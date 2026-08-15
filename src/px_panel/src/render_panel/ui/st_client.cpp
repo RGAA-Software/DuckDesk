@@ -8,13 +8,13 @@
 #include <QPushButton>
 #include <QApplication>
 #include <QDesktopServices>
-#include "tc_pushbutton.h"
+#include "px_pushbutton.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "px_common_new/qrcode/qr_generator.h"
 #include "px_common_new/folder_util.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_settings.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_settings.h"
 
 namespace tc
 {

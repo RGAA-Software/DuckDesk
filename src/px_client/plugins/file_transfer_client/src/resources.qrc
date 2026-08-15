@@ -37,6 +37,6 @@
         <file>resource/file_exists_warning.svg</file>
 		<file>resource/profile_picture.svg</file>
 		<file>resource/remote_profile_picture.svg</file>
-		<file>resource/tc_text_logo.png</file>
+		<file>resource/px_text_logo.png</file>
 	</qresource>
 </RCC>

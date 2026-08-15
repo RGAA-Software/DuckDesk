@@ -14,7 +14,7 @@
 // #include "px_common_new/time_util.h"
 // #include "px_common_new/string_util.h"
 // #include "px_message_new/proto_converter.h"
-// #include "px_render/plugin_interface/gr_plugin_events.h"
+// #include "px_render/plugin_interface/px_plugin_events.h"
 // #include "px_render/plugins/clipboard/clipboard_plugin.h"
 
 // #pragma comment(lib, "Wininet.lib")

@@ -75,7 +75,7 @@ function encLen(field, payload) {
 }
 
 function encodeAuthInfo(opts) {
-  // MsgAuthInfo fields from tc_service_message.proto
+  // MsgAuthInfo fields from px_service_message.proto
   return Buffer.concat([
     encString(1, opts.deviceId),
     encString(2, 'e2e-auth'),
@@ -100,7 +100,7 @@ function encodeServiceAuthMessage(opts) {
   const auth = encodeAuthInfo(opts)
   // We'll discover type value from a known encode if needed; common pattern
   // in this repo tests uses ServiceMessageType::AuthInfo as i32.
-  // From tc_service_message.proto enum order:
+  // From px_service_message.proto enum order:
   // kSrvStartServer = 0;
   // kSrvStopServer = 1;
   // kSrvRestartServer = 2;

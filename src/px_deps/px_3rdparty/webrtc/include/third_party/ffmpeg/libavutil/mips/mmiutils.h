@@ -378,11 +378,11 @@
  * fr_i0: src & dst
  * fr_i1: Operand number
  * fr_t0, fr_t1: temporary FPR
- * gr_t0: temporary GPR
+ * px_t0: temporary GPR
  */
-#define ROUND_POWER_OF_TWO_MMI(fr_i0, fr_i1, fr_t0, fr_t1, gr_t0)         \
-        "li         "#gr_t0",     0x01                              \n\t" \
-        "dmtc1      "#gr_t0",     "#fr_t0"                          \n\t" \
+#define ROUND_POWER_OF_TWO_MMI(fr_i0, fr_i1, fr_t0, fr_t1, px_t0)         \
+        "li         "#px_t0",     0x01                              \n\t" \
+        "dmtc1      "#px_t0",     "#fr_t0"                          \n\t" \
         "punpcklwd  "#fr_t0",     "#fr_t0",    "#fr_t0"             \n\t" \
         "psubw      "#fr_t1",     "#fr_i1",    "#fr_t0"             \n\t" \
         "psllw      "#fr_t1",     "#fr_t0",    "#fr_t1"             \n\t" \

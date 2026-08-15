@@ -11,28 +11,28 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QStandardPaths>
-#include "tc_dialog.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
+#include "px_dialog.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_settings.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_settings.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/win32/audio_device_helper.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_app_messages.h"
 #include "px_common_new/ip_util.h"
 #include "px_spvr_client/spvr_device_api.h"
 #include "input_safety_pwd_dialog.h"
 #include "render_panel/devices/infinite_loading.h"
-#include "px_qt_widget/tc_dialog_util.h"
+#include "px_qt_widget/px_dialog_util.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/zip_util.h"
 #include "px_common_new/file_util.h"
-#include "render_panel/user/gr_user_manager.h"
+#include "render_panel/user/px_user_manager.h"
 #include "render_panel/database/stream_db_operator.h"
 
 namespace tc
@@ -331,7 +331,7 @@ namespace tc
                     if (target_dir.isEmpty()) {
                         return;
                     }
-                    target_dir += "/gr_dat_logs.zip";
+                    target_dir += "/px_dat_logs.zip";
 
                     auto from = FolderUtil::GetProgramDataPath();
                     auto to = from + L"/../back";

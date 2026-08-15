@@ -5,7 +5,7 @@
 #include <string>
 #include <memory>
 #include <iostream>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "../widget/file_detail_info.h"
 #include "../widget/file_transmit_task_state.h"
 #include "../common/file_trans_def.h"

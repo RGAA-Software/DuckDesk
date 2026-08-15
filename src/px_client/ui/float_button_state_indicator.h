@@ -6,7 +6,7 @@
 #define GAMMARAYPC_FLOAT_BUTTON_STATE_INDICATOR_H
 
 #include "base_widget.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

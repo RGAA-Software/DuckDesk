@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_DDA_CAPTURE_PLUGIN_H
 #define GAMMARAY_DDA_CAPTURE_PLUGIN_H
 #include <optional>
-#include "px_render/plugin_interface/gr_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_common_new/concurrent_hashmap.h"
 
 namespace tc

@@ -3,7 +3,7 @@
 //
 
 #include "stat_chart.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"

@@ -4,9 +4,9 @@
 
 #include "sized_msg_box.h"
 #include "no_margin_layout.h"
-#include "px_qt_widget/tc_pushbutton.h"
+#include "px_qt_widget/px_pushbutton.h"
 #include "px_qt_widget/widget_helper.h"
-#include "px_qt_widget/tc_custom_titlebar.h"
+#include "px_qt_widget/px_custom_titlebar.h"
 #include <QLabel>
 #include <QPushButton>
 #include <QPainter>

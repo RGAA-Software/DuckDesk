@@ -8,11 +8,11 @@
 #include "app_stream_list.h"
 #include "widget_helper.h"
 #include "create_stream_dialog.h"
-#include "px_qt_widget/tc_label.h"
-#include "render_panel/gr_context.h"
+#include "px_qt_widget/px_label.h"
+#include "render_panel/px_context.h"
 #include "select_stream_type_dialog.h"
 #include "create_stream_conn_info_dialog.h"
-#include "tc_image_button.h"
+#include "px_image_button.h"
 
 #include <QPainter>
 #include <QPen>

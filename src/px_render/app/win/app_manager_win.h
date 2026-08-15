@@ -13,7 +13,7 @@
 #include <condition_variable>
 #include "app/app_manager.h"
 #include "px_common_new/win32/process_helper.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

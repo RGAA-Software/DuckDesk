@@ -10,7 +10,7 @@
 #include <string>
 #include <QVariantMap>
 
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_client/ct_settings.h"
 #include "notify/notify_defs.h"
 #include "hw_info/hw_info.h"

@@ -3,8 +3,8 @@
 //
 
 #include "file_transfer_plugin.h"
-#include "tc_message.pb.h"
-#include "tc_label.h"
+#include "px_message.pb.h"
+#include "px_label.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"

@@ -3,7 +3,7 @@
 //
 
 #include "service_manager.h"
-#include "gr_exe_names.h"
+#include "px_exe_names.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>

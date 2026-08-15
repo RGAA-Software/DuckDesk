@@ -23,7 +23,7 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace tc_internal {
+namespace px_internal {
 
 // Serializer converts between the "public" type used by the rest of trace
 // processor and the type we store in the ColumnStorage.
@@ -185,7 +185,7 @@ struct TypeHandler<std::optional<StringPool::Id>> {
   }
 };
 
-}  // namespace tc_internal
+}  // namespace px_internal
 }  // namespace trace_processor
 }  // namespace perfetto
 

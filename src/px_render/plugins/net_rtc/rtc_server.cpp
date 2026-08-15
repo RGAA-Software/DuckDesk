@@ -7,7 +7,7 @@
 #include "desktop_capture.h"
 #include "desktop_capture_source.h"
 #include "rtc_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 #include "rtc_data_channel.h"
 
 using namespace webrtc;

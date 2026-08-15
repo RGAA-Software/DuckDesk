@@ -171,7 +171,7 @@ async fn run_as_panel(machine_code: String) {
     tracing::info!("auth: {:#?}", auth);
 
     // icon
-    let icon_data = include_bytes!("../assets/tc_icon.png");
+    let icon_data = include_bytes!("../assets/px_icon.png");
     let img = image::load_from_memory_with_format(icon_data, image::ImageFormat::Png).unwrap();
     let rgba_data = img.into_rgba8();
     let (w, h) = (rgba_data.width(), rgba_data.height());

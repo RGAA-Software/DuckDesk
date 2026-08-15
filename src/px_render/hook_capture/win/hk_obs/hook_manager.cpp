@@ -9,7 +9,7 @@
 #include "hk_video/shared_texture.h"
 #include <Windows.h>
 #include <detours/detours.h>
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "app_shared_info_reader.h"
 #include "ws_ipc_client.h"
 

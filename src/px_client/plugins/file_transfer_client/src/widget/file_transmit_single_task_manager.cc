@@ -15,7 +15,7 @@
 #include "../core/file_sdk_interface.h"
 #include "file_log_manager.h"
 #include "../core/file_transmit_sdk.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 namespace tc {
 

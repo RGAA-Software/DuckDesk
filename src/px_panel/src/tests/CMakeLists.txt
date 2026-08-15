@@ -8,7 +8,7 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Core Core
 #        test_db.cpp
 #        ../db/db_game.cpp
 #        ../db/db_game_manager.cpp
-#        ../gr_context.cpp
+#        ../px_context.cpp
 #        ../network/ip_util.cpp
 #)
 #target_link_libraries(test_db PRIVATE GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main sqlite_orm px_common_new px_steam_manager_new px_encoder_new)

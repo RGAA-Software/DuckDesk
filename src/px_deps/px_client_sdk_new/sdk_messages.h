@@ -9,7 +9,7 @@
 #include <memory>
 
 #include "sdk_errors.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 
 namespace tc
 {

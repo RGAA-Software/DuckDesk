@@ -1,7 +1,7 @@
 //
 // Created by RGAA on 15/11/2024.
 // Rewritten on 12/08/2026: GameStream 风格裸 UDP 媒体面(旧 KCP + proto 广播全部废弃),
-// 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common_new/gr_udp_protocol.h
+// 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common_new/px_udp_protocol.h
 //
 
 #ifndef GAMMARAY_UDP_PLUGIN_H
@@ -13,7 +13,7 @@
 #include <chrono>
 #include <Windows.h>
 #include <asio2/udp/udp_server.hpp>
-#include "px_render/plugin_interface/gr_net_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_common_new/concurrent_hashmap.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION

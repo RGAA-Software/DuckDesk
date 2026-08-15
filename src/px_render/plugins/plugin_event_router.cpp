@@ -7,7 +7,7 @@
 #include <unordered_set>
 #include "rd_app.h"
 #include "rd_context.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "rd_statistics.h"
 #include "plugin_manager.h"
 #include "px_common_new/log.h"
@@ -15,12 +15,12 @@
 #include "px_common_new/image.h"
 #include "plugin_net_event_router.h"
 #include <nlohmann/json.hpp>
-#include "tc_render_panel_message.pb.h"
+#include "px_render_panel_message.pb.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_stream_plugin.h"
-#include "px_render/plugin_interface/gr_video_encoder_plugin.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_stream_plugin.h"
+#include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "plugin_stream_event_router.h"
 #include "px_capture_new/capture_message.h"
 

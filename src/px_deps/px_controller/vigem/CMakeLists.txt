@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(tc_vigem)
+project(px_vigem)
 
 set(CMAKE_CXX_STANDARD 20)
 

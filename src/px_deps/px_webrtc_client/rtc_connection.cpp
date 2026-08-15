@@ -53,7 +53,7 @@ namespace tc
         auto beg = TimeUtil::GetCurrentTimestamp();
         auto exe_dir = qApp->applicationDirPath();
         auto data_path = FolderUtil::GetProgramDataPath();
-        const auto log_path = std::format(L"{}/gr_logs/app.rtc.{}.log", data_path, StringUtil::ToWString(remote_device_id));
+        const auto log_path = std::format(L"{}/px_logs/app.rtc.{}.log", data_path, StringUtil::ToWString(remote_device_id));
         Logger::InitLog(log_path, true);
         LOGI("*******************************");
         LOGI("========BEGIN RTC INIT=========");

@@ -5,12 +5,12 @@
 #include "infinite_loading.h"
 #include <QResizeEvent>
 #include <QPainter>
-#include "tc_label.h"
+#include "px_label.h"
 #include "widget_helper.h"
 #include "no_margin_layout.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_spvr_client/spvr_stream.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_application.h"
 #include "skin/interface/skin_interface.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"

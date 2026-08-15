@@ -60,7 +60,7 @@ pub struct SpvrSettings {
 
     /// true = 强制鉴权（WS token 过滤 + HTTP appkey 过滤）；
     /// false = 鉴权一律放行（本机/测试用）。缺省 true，部署测试环境时在
-    /// gr_cms_server_settings.toml 显式写 force_authorize = false。
+    /// px_cms.toml 显式写 force_authorize = false。
     #[serde(default = "default_force_authorize")]
     pub force_authorize: bool,
 
@@ -85,8 +85,8 @@ impl SpvrSettings {
     }
 
     pub async fn load_settings() {
-        let toml_content = std::fs::read_to_string("gr_cms_server_settings.toml")
-            .expect("can't read gr_cms_server_settings.toml");
+        let toml_content = std::fs::read_to_string("px_cms.toml")
+            .expect("can't read px_cms.toml");
         let mut ns: SpvrSettings = toml::from_str(&toml_content).expect("parse toml failed");
         //tracing::info!("Load Settings:\n{:#?}", ns);
         tracing::info!("the w3c ip: {}", ns.server_w3c_ip);

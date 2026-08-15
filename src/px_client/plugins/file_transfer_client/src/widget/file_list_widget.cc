@@ -23,7 +23,7 @@
 #include "file_table_view.h"
 #include "file_const_def.h"
 #include "file_log_manager.h"
-#include "tc_label.h"
+#include "px_label.h"
 
 #define TC_TABLE_HEADER_HEIGHT 25
 #define TC_TABLE_FILE_NAME_COLUMN 0

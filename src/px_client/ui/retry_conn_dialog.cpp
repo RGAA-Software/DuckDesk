@@ -3,7 +3,7 @@
 //
 
 #include "retry_conn_dialog.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include "widget_helper.h"
 #include "no_margin_layout.h"
 #include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"
@@ -22,7 +22,7 @@ namespace tc
             lbl_icon->setScaledContents(true);
             lbl_icon->setStyleSheet(R"(
                 border: none;
-                border-image: url(:/resources/tc_trans_icon_blue.png);
+                border-image: url(:/resources/px_trans_icon_blue.png);
                 background-repeat: no-repeat;
                 background-position: center;
             )");

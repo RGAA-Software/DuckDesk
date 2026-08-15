@@ -4,9 +4,9 @@
 
 #include "tab_profile_device_item.h"
 #include "no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "px_account_sdk/acc_device.h"
 #include <QLabel>
 #include <QPushButton>

@@ -3,13 +3,13 @@
 //
 
 #include "joystick_plugin.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "vigem/vigem_controller.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 
 GR_PLUGIN_EXPORT(tc::JoystickPlugin)
 

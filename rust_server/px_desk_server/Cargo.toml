@@ -23,3 +23,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 tokio-stream = "0.1.17"
 toml = "0.9.5"
 serde_urlencoded = "0.7.1"
+
+[[bin]]
+name = "px_desk"
+path = "src/main.rs"

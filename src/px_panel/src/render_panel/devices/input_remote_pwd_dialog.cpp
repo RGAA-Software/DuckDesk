@@ -7,18 +7,18 @@
 #include <QButtonGroup>
 #include <QRadioButton>
 #include <QTextEdit>
-#include "tc_dialog.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
+#include "px_dialog.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
 #include "px_spvr_client/spvr_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_app_messages.h"
 #include "render_panel/util/conn_info_parser.h"
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
-#include "px_qt_widget/tc_password_input.h"
+#include "px_qt_widget/px_password_input.h"
 
 namespace tc
 {

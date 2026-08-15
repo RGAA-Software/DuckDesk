@@ -35,7 +35,7 @@ namespace tc
         }
         skin_context_ = std::make_shared<SkinContext>(GetSkinName().toStdString());
         auto data_path = FolderUtil::GetProgramDataPath();
-        const auto log_path = std::format(L"{}/gr_logs/skin_{}.log", data_path, StringUtil::ToWString(plugin_file_name_));
+        const auto log_path = std::format(L"{}/px_logs/skin_{}.log", data_path, StringUtil::ToWString(plugin_file_name_));
         Logger::InitLog(log_path, true);
         LOGI("{} OnCreate", GetSkinName().toStdString());
 

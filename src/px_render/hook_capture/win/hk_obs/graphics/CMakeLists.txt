@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(tc_graphics)
+project(px_graphics)
 
 set(CMAKE_CXX_STANDARD 23)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
@@ -29,4 +29,4 @@ add_library(${PROJECT_NAME} SHARED
         ../obfuscate.c
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${DETOURS_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} PUBLIC ${DETOURS_LIBRARY} tc_ipc_util px_common_new dxgi d3d11 d3d12 dxguid Microsoft::DirectXTex)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${DETOURS_LIBRARY} px_ipc_util px_common_new dxgi d3d11 d3d12 dxguid Microsoft::DirectXTex)

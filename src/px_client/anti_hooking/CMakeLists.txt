@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(tc_protection LANGUAGES CXX)
+project(px_protection LANGUAGES CXX)
 
 
 set(CMAKE_CXX_STANDARD 23)
@@ -11,16 +11,16 @@ message("DETOURS_INCLUDE_DIRS--> ${DETOURS_INCLUDE_DIRS}")
 message("DETOURS_LIBRARY--> ${DETOURS_LIBRARY}")
 
 add_library(${PROJECT_NAME} SHARED
-    tc_protection.cpp
-    tc_protection.h
+    px_protection.cpp
+    px_protection.h
 )
 
-# ¶¨Òåºê£¬È·±£µ¼³ö·ûºÅ
+# ï¿½ï¿½ï¿½ï¿½ê£¬È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 target_compile_definitions(${PROJECT_NAME} PRIVATE TC_PROTECTION_LIBRARY)
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC              
-        ${CMAKE_CURRENT_SOURCE_DIR}     # antihookingprotection.h ËùÔÚÄ¿Â¼
+        ${CMAKE_CURRENT_SOURCE_DIR}     # antihookingprotection.h ï¿½ï¿½ï¿½ï¿½Ä¿Â¼
     PRIVATE
         ${DETOURS_INCLUDE_DIRS}
 )

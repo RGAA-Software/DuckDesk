@@ -4,13 +4,13 @@
 #include <qpixmap.h>
 #include <qtimer.h>
 #include "no_margin_layout.h"
-#include "tc_label.h"
-#include "tc_pushbutton.h"
-#include "render_panel/gr_context.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
+#include "render_panel/px_context.h"
 #include "px_qt_widget/widget_helper.h"
-#include "render_panel/gr_settings.h"
-#include "tc_render_panel_message.pb.h"
-#include "render_panel/gr_application.h"
+#include "render_panel/px_settings.h"
+#include "px_render_panel_message.pb.h"
+#include "render_panel/px_application.h"
 #include "px_common_new/client_id_extractor.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_message_new/rp_proto_converter.h"
@@ -40,7 +40,7 @@ namespace tc {
 		// logo标识
 		logo_hbox_layout_ = new NoMarginHLayout();
 		logo_lab_ = new TcLabel(this);
-		QPixmap logo_pixmap(":/resources/tc_icon.png");
+		QPixmap logo_pixmap(":/resources/px_icon.png");
 		logo_pixmap = logo_pixmap.scaled(20, 20, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 		logo_lab_->setPixmap(logo_pixmap);
 		logo_lab_->setFixedSize(20, 20);

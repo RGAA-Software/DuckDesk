@@ -1,6 +1,6 @@
 @echo off
 rem Client-only build: everything the installer (setup\make_setup.py) packages,
-rem without any server-side content (gr_cms/gr_auth/gr_desk rust servers).
+rem without any server-side content (px_cms/px_auth/px_desk rust servers).
 rem Full flow lives in build_official.bat; this wrapper just skips the
 rem rust server build steps via GR_SKIP_SERVERS.
 rem Usage: build_client.bat [full|reconfigure]   (args are passed through)

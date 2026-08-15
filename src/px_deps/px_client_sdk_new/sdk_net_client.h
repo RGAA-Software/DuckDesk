@@ -5,7 +5,7 @@
 #ifndef TC_CLIENT_PC_WS_CLIENT_H
 #define TC_CLIENT_PC_WS_CLIENT_H
 
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include <atomic>
 #include "sdk_params.h"
 

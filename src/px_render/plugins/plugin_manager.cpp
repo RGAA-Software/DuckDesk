@@ -16,11 +16,11 @@
 #include "plugin_event_router.h"
 #include "settings/rd_settings.h"
 #include "px_common_new/folder_util.h"
-#include "px_render/plugin_interface/gr_net_plugin.h"
-#include "px_render/plugin_interface/gr_stream_plugin.h"
-#include "px_render/plugin_interface/gr_plugin_interface.h"
-#include "px_render/plugin_interface/gr_video_encoder_plugin.h"
-#include "px_render/plugin_interface/gr_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/plugin_interface/px_stream_plugin.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
+#include "px_render/plugin_interface/px_video_encoder_plugin.h"
+#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 
 typedef void *(*FnGetInstance)();
 
@@ -48,7 +48,7 @@ namespace tc
         LOGI("plugin base path: {}", base_path);
         LOGI("plugin base data path: {}", StringUtil::ToUTF8(base_data_path));
 
-        auto plugin_dir = PathFromUTF8(base_path) / "gr_plugins";
+        auto plugin_dir = PathFromUTF8(base_path) / "px_plugins";
         if (!std::filesystem::exists(plugin_dir)) {
             LOGW("Plugin directory does not exist: {}", plugin_dir.string());
             return;

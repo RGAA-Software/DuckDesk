@@ -100,7 +100,7 @@ pub fn spawn_win_clipboard_listener(
     let (notify_tx, notify_rx) = std::sync::mpsc::channel();
     let (request_tx, request_rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()
-        .name("gr_user_proxy_clipboard".into())
+        .name("px_user_proxy_clipboard".into())
         .spawn(move || clipboard_worker_loop(notify_tx, request_rx))?;
     Ok((WinClipboardBackend { request_tx }, notify_rx))
 }

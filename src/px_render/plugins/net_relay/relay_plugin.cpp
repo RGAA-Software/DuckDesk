@@ -16,8 +16,8 @@
 #include "px_relay_client/relay_server_sdk_param.h"
 #include "px_relay_client/relay_room.h"
 #include "px_relay_client/relay_connected_info.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_context.h"
 #include "relay_message.pb.h"
 
 using namespace relay;

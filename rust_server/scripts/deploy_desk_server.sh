@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-click deploy: cross-build px_desk_server (musl) + web/gr_desk frontend,
+# One-click deploy: cross-build px_desk_server (musl) + web/px_desk frontend,
 # deploy to the Tencent server (existing nohup deployment at /root/off_site).
 # Usage: scripts/deploy_desk_server.sh
 set -euo pipefail
@@ -9,8 +9,8 @@ WS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"              # rust_server
 PROJ_ROOT="$(cd "$WS_ROOT/.." && pwd)"              # GammaRayPremium
 SERVER="ubuntu@43.134.55.209"
 CRED_FILE="$WS_ROOT/px_desk_server/tencent_server.txt"
-BIN="$WS_ROOT/target/x86_64-unknown-linux-musl/release/px_desk_server"
-WEB_DIST="$PROJ_ROOT/web/gr_desk/dist"
+BIN="$WS_ROOT/target/x86_64-unknown-linux-musl/release/px_desk"
+WEB_DIST="$PROJ_ROOT/web/px_desk/dist"
 REMOTE_DIR="/root/off_site"
 WEB_ROOT="/var/godesk.uk"   # nginx 公网静态根（443 server 块 root，/api 反代到 5000）
 
@@ -35,7 +35,7 @@ cd "$WEB_DIST/.."
 npm run build
 
 echo "== [3/4] upload =="
-scp $SSH_OPTS "$BIN" "$SERVER:/tmp/px_desk_server.new"
+scp $SSH_OPTS "$BIN" "$SERVER:/tmp/px_desk.new"
 tar czf "${TMPD}/static.tar.gz" -C "$WEB_DIST" .
 scp $SSH_OPTS "${TMPD}/static.tar.gz" "$SERVER:/tmp/"
 
@@ -47,15 +47,15 @@ set -e
 TS=\$(date +%Y%m%d%H%M%S)
 cd $REMOTE_DIR
 # 备份旧二进制
-[ -f gr_off_site ] && cp -a gr_off_site gr_off_site.bak.\$TS
+[ -f px_off_site ] && cp -a px_off_site px_off_site.bak.\$TS
 [ -f px_desk_server ] && cp -a px_desk_server px_desk_server.bak.\$TS
 # 停掉旧进程
-pkill -x gr_off_site || true
-pkill -x px_desk_server || true
+pkill -x px_off_site || true
+pkill -x px_desk || true
 sleep 1
 # 安装新二进制
-mv /tmp/px_desk_server.new $REMOTE_DIR/px_desk_server
-chmod +x $REMOTE_DIR/px_desk_server
+mv /tmp/px_desk.new $REMOTE_DIR/px_desk
+chmod +x $REMOTE_DIR/px_desk
 # 安装前端静态资源（保留 document/ 子目录；/var/godesk.uk 为 nginx 公网静态根）
 rm -rf $REMOTE_DIR/static/assets
 tar xzf /tmp/static.tar.gz -C $REMOTE_DIR/static
@@ -67,7 +67,7 @@ tar xzf /tmp/static.tar.gz -C $WEB_ROOT
 rm /tmp/static.tar.gz
 # 启动
 cd $REMOTE_DIR
-setsid nohup ./px_desk_server > nohup.out 2>&1 < /dev/null &
+setsid nohup ./px_desk > nohup.out 2>&1 < /dev/null &
 sleep 3
 ss -tlnp | grep -E ':5000|:5001' || { echo 'ERROR: ports not listening'; tail -20 nohup.out; exit 1; }
 curl -sk -o /dev/null -w "local https://127.0.0.1:5001/ -> %{http_code}\n" https://127.0.0.1:5001/

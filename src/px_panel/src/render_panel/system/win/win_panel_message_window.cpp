@@ -3,7 +3,7 @@
 #include <atomic>
 #include "px_common_new/log.h"
 #include "win_panel_message_loop.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 
 namespace tc
 {

@@ -6,7 +6,7 @@
 #define TEST_WEBRTC_RTCSERVER_H
 
 #include "px_common_new/webrtc_helper.h"
-#include "px_render/plugin_interface/gr_plugin_interface.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
 
 namespace tc
 {

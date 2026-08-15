@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 #define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
 
-#include "px_render/plugin_interface/gr_audio_encoder_plugin.h"
+#include "px_render/plugin_interface/px_audio_encoder_plugin.h"
 
 namespace tc
 {

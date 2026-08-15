@@ -4,15 +4,15 @@
 
 #include "st_security_file_transfer_item.h"
 #include "no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_app_messages.h"
 #include "render_panel/database/file_transfer_record.h"
 #include "px_common_new/client_id_extractor.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_common_new/file_util.h"
-#include "tc_label.h"
+#include "px_label.h"
 #include <QLabel>
 #include <QPushButton>
 

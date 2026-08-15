@@ -10,7 +10,7 @@
 #include <mutex>
 #include <thread>
 
-#include "px_render/plugin_interface/gr_data_provider_plugin.h"
+#include "px_render/plugin_interface/px_data_provider_plugin.h"
 
 namespace tc
 {

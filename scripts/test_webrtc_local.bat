@@ -20,7 +20,7 @@ rem What to verify:
 rem   1. The client window shows the remote desktop, mouse/keyboard work.
 rem   2. Statistics panel (float controller) shows connection type
 rem      "WebRTC Local".
-rem   3. Logs: %PROGRAMDATA%\GammaRay\gr_logs\app.rtc.*.log shows
+rem   3. Logs: %PROGRAMDATA%\GammaRay\px_logs\app.rtc.*.log shows
 rem      ICE gathering complete -> answer sdp set -> ICE Connected -> frames.
 rem
 rem Notes:

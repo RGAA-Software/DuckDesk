@@ -57,13 +57,13 @@
    - `"P2P"`
    - `"RTC"`
    - `"UDP"`
-3. 若需要强类型，可在 `tc_render_panel_message.proto` 中将 `conn_type` 从 `string` 改为枚举，但需同步改 render、panel、CMS model，影响面较大，建议仅在字符串取值层面统一。
+3. 若需要强类型，可在 `px_render_panel_message.proto` 中将 `conn_type` 从 `string` 改为枚举，但需同步改 render、panel、CMS model，影响面较大，建议仅在字符串取值层面统一。
 
 **涉及文件**：
 
 - `src/px_render/...`：找到 `RpClientConnected` 的填充位置（可能在 `rd_main.cpp` 或连接管理类中）。
 - `src/px_panel/src/render_panel/network/ws_panel_server.cpp`：透传，无需改动，除非需要默认值兜底。
-- `web/gr_cms/src/views/SecurityInternal.vue`：如新增类型，需要映射中文展示。
+- `web/px_cms/src/views/SecurityInternal.vue`：如新增类型，需要映射中文展示。
 
 ---
 
@@ -95,7 +95,7 @@
      ```
 
 3. **前端兜底逻辑**：
-   - `web/gr_cms/src/views/SecurityInternal.vue` 中「传输耗时」优先使用 `scope.row.duration`，不存在时再用 `end - begin`。
+   - `web/px_cms/src/views/SecurityInternal.vue` 中「传输耗时」优先使用 `scope.row.duration`，不存在时再用 `end - begin`。
 
 4. **兼容性**：
    - 旧 MongoDB 文档没有 `duration`，`#[serde(default)]` 保证反序列化不会失败。
@@ -108,7 +108,7 @@
 - `src/px_panel/src/render_panel/network/ws_panel_server.cpp`
 - `rust_server/px_cms_server/src/record/spvr_file_transfer.rs`
 - `rust_server/px_cms_server/src/record/spvr_file_transfer_manager.rs`
-- `web/gr_cms/src/views/SecurityInternal.vue`
+- `web/px_cms/src/views/SecurityInternal.vue`
 
 ---
 
@@ -157,7 +157,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 2. 用 Python 或 sqlite3 在本地测试数据库插入未闭合记录：
    ```python
    import os, sqlite3, time
-   db = os.path.expandvars(r'%ProgramData%\gr_data\gr_data.db')
+   db = os.path.expandvars(r'%ProgramData%\px_data\px_data.db')
    conn = sqlite3.connect(db)
    c = conn.cursor()
    old = int(time.time()*1000) - 5*60*1000
@@ -167,10 +167,10 @@ void CpVirtualFile::RecordFileTransferEnd() {
    ```
 3. 启动 `build_official/src/px_deps/GammaRay.exe`，等待至少 30 秒（让 `GrWorkspace::Init()` 和 `WsPanelServer::Start()` 完成）。
 4. 观察以下任一证据：
-   - `%ProgramData%/gr_logs/godesk.log` 中出现 `ScanAndFixUnclosedRecords: fixed N visit(s), M file transfer(s)`。
+   - `%ProgramData%/px_logs/godesk.log` 中出现 `ScanAndFixUnclosedRecords: fixed N visit(s), M file transfer(s)`。
    - SQLite 中对应记录的 `end`、`duration`、`success` 被更新。
    - CMS 的 `c_visit` / `c_file_transfer` 中收到更新请求（可临时在 Rust handler 中增加 `tracing::info!`）。
-5. 验证结束后清理测试数据，删除 `%ProgramData%/gr_data/gr_data.db`（如之前不存在）。
+5. 验证结束后清理测试数据，删除 `%ProgramData%/px_data/px_data.db`（如之前不存在）。
 
 **预期风险**：
 
@@ -255,11 +255,11 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 
 **建议**：
 
-1. 在升级说明中提醒用户：首次启动前可手动备份 `%ProgramData%/gr_data/gr_data.db`。
+1. 在升级说明中提醒用户：首次启动前可手动备份 `%ProgramData%/px_data/px_data.db`。
 2. 如需要保留历史数据，可编写一个 Python 去重脚本在升级前运行：
    ```python
    import sqlite3
-   db = r"C:\ProgramData\gr_data\gr_data.db"
+   db = r"C:\ProgramData\px_data\px_data.db"
    conn = sqlite3.connect(db)
    conn.execute("DELETE FROM visit_record WHERE id NOT IN (SELECT MAX(id) FROM visit_record GROUP BY conn_id)")
    conn.execute("DELETE FROM file_transfer_record WHERE id NOT IN (SELECT MAX(id) FROM file_transfer_record GROUP BY the_file_id)")
@@ -271,7 +271,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 
 1. 备份 MongoDB `db_gr_cms_server`。
 2. 运行去重脚本。
-3. 部署新版 `px_cms_server`、前端 `web/gr_cms/dist`。
+3. 部署新版 `px_cms_server`、前端 `web/px_cms/dist`。
 4. 启动 `px_cms_server`，确认日志没有 "create visit conn_id index failed" 等警告。
 5. 部署新版 `GammaRay.exe` / `GammaRayService.exe`。
 6. 首次启动后检查本地 SQLite 是否成功升级，以及启动扫描日志。
@@ -292,7 +292,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 
 需要补充或更新的文档：
 
-- `docs/gr_cms_server_runtime_config.md`（如不存在则新建）：运行环境、端口、MongoDB/Redis 要求。
+- `docs/px_cms_server_runtime_config.md`（如不存在则新建）：运行环境、端口、MongoDB/Redis 要求。
 - `docs/security_audit_next_steps.md`：本文档。
 - 部署手册中增加「升级前 MongoDB/SQLite 去重」章节。
 - README 中说明安全审计功能的启用条件（需要 CMS 服务在线）。
@@ -305,7 +305,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 |--------|---------|---------|
 | C++ 编译 | `build_official.bat incremental` | 无错误，生成 `GammaRay.exe` |
 | Rust CMS 编译 | `cargo build -p px_cms_server --release` | 无错误 |
-| Web 编译 | `cd web/gr_cms && npm run build` | 无类型错误 |
+| Web 编译 | `cd web/px_cms && npm run build` | 无类型错误 |
 | 访问记录 insert/update | curl | 200，DB 只有一条 |
 | 文件传输 insert/update | curl | 200，DB 只有一条 |
 | 过滤查询 total | curl 带 `visit_device_id` | `total` 与过滤结果一致 |
@@ -361,7 +361,7 @@ import sqlite3
 import shutil
 import datetime
 
-db_path = os.path.expandvars(r"%ProgramData%\gr_data\gr_data.db")
+db_path = os.path.expandvars(r"%ProgramData%\px_data\px_data.db")
 if not os.path.exists(db_path):
     print("DB not found:", db_path)
     exit(0)
@@ -409,7 +409,7 @@ print("Dedup done.")
 
 - **C++ 侧**：回退到上一版本可执行文件即可，SQLite 数据不受影响（若已升级 schema，旧版代码仍能读写）。
 - **Rust CMS 侧**：回退可执行文件后，MongoDB 中的 `duration` 字段多余但无害；唯一索引已存在也不会影响旧版逻辑。
-- **Web 侧**：回退 `web/gr_cms/dist` 到上一个构建产物。
+- **Web 侧**：回退 `web/px_cms/dist` 到上一个构建产物。
 
 ### 6.3 发布前 Checklist
 

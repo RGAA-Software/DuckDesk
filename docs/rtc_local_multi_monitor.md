@@ -195,6 +195,6 @@ render: 每屏一条 video track(每 track 独立帧源 → 混流/IDR 风暴根
 ## 测试环境备忘
 
 - 远程机 10.0.0.70（D-70，双屏）凭据见 `tests/.remote_admin.md`（不入库）。
-- render 日志: `\\10.0.0.70\C$\Users\Public\GoDesk\gr_logs\`，抓取脚本 `tests/_fetch_logs_70.bat`。
-- 客户端日志: 本机 `C:\Users\Public\GoDesk\gr_logs\app.<deviceId>.log`。
+- render 日志: `\\10.0.0.70\C$\Users\Public\GoDesk\px_logs\`，抓取脚本 `tests/_fetch_logs_70.bat`。
+- 客户端日志: 本机 `C:\Users\Public\GoDesk\px_logs\app.<deviceId>.log`。
 - 本机测试脚本: `scripts\test_webrtc_local.bat 600378210 fNdnGBv2 127.0.0.1 20371`。

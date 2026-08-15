@@ -4,18 +4,18 @@
 
 #include "st_general.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "render_panel/gr_context.h"
-#include "render_panel/gr_application.h"
-#include "render_panel/gr_settings.h"
+#include "render_panel/px_context.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_settings.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_app_messages.h"
 #include "px_common_new/ip_util.h"
-#include "px_qt_widget/tc_label.h"
-#include "tc_dialog.h"
-#include "tc_pushbutton.h"
+#include "px_qt_widget/px_label.h"
+#include "px_dialog.h"
+#include "px_pushbutton.h"
 #include <QLabel>
 #include <QPushButton>
 #include <QLineEdit>

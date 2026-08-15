@@ -3,11 +3,11 @@
 //
 
 #include "monitor_refresher.h"
-#include "render_panel/gr_context.h"
+#include "render_panel/px_context.h"
 #include "render_panel/ui/monitor_refresher.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/log.h"
-#include "render_panel/gr_app_messages.h"
+#include "render_panel/px_app_messages.h"
 
 #include <QApplication>
 #include <QList>

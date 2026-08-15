@@ -102,7 +102,7 @@ impl SpvrRelayConn {
     }
 
     // connected server info; w3cip, ip, grpc port, etc
-    // gr_relay_server server
+    // px_relay_server server
     // device server
     pub async fn get_server_info(&self) -> SpvrServerConfig {
         SpvrServerConfig {

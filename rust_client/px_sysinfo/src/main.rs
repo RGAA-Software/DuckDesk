@@ -36,7 +36,7 @@ async fn main() {
     let log_root = default_log_root();
     let _guard = log_util::init_log(
         log_root.to_string_lossy().to_string(),
-        "gr_sys_info".to_string(),
+        "px_sys_info".to_string(),
     );
 
     let _instance = px_sysinfo::single_instance::ensure_single_instance("GrSysInfo_SingleInstance");

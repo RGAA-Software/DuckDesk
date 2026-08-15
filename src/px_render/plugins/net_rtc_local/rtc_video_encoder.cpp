@@ -8,9 +8,9 @@
 #include "video_source_impl.h"
 #include "settings/rd_settings.h"
 #include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugin_interface/gr_plugin_events.h"
-#include "px_render/plugin_interface/gr_video_encoder_plugin.h"
-#include "px_render/plugin_interface/gr_frame_carrier_plugin.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_video_encoder_plugin.h"
+#include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 
 namespace tc
 {

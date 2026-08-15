@@ -8,7 +8,7 @@
 #include <fstream>
 #include "thunder_sdk.h"
 #include "sdk_statistics.h"
-#include "tc_message.pb.h"
+#include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/file.h"
