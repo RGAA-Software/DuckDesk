@@ -22,7 +22,7 @@ using namespace Microsoft::WRL;
 
 #endif
 
-namespace tc
+namespace px
 {
 
     class ClientContext;
@@ -48,7 +48,7 @@ namespace tc
     class RetryConnDialog;
     class D3D11DeviceWrapper;
     class HWInfoWidget;
-    class CtSpvrClient;
+    class CtCmsClient;
     class PlVulkan;
     class SkinInterface;
     class OverlayWidget;
@@ -136,7 +136,7 @@ namespace tc
         void DismissConnectingDialog() const;
 
         // messages defined in px_message.proto
-        void ProcessNetworkMessage(const std::shared_ptr<tc::Message>& msg);
+        void ProcessNetworkMessage(const std::shared_ptr<px::Message>& msg);
 
     private:
         //uint64_t adapter_uid
@@ -201,8 +201,8 @@ namespace tc
         // show remote hardware info
         HWInfoWidget* hw_info_widget_ = nullptr;
 
-        // spvr client
-        std::shared_ptr<CtSpvrClient> spvr_client_ = nullptr;
+        // cms client
+        std::shared_ptr<CtCmsClient> cms_client_ = nullptr;
 
         // can generate relative d3d11device & context
         bool gen_d3d11_device_ = false;

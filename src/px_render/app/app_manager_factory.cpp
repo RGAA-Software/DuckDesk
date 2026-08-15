@@ -10,7 +10,7 @@
 #include "app_manager_linux.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<AppManager> AppManagerFactory::Make(const std::shared_ptr<RdContext>& ctx) {

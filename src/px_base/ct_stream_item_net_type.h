@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     static std::string kStreamItemNtTypeWebSocket = "websocket";

@@ -6,7 +6,7 @@
 #include "px_common_new/message_notifier.h"
 #include "px_client_sdk_new/sdk_messages.h"
 
-namespace tc
+namespace px
 {
     MediaRecordSignLab::MediaRecordSignLab(const std::shared_ptr<ClientContext>& context, QWidget* parent) : QWidget(parent) {
         context_ = context;

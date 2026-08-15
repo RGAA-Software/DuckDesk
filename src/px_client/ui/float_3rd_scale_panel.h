@@ -9,7 +9,7 @@
 #include <QPainter>
 #include "px_client/ct_settings.h"
 
-namespace tc
+namespace px
 {
 
     class Settings;

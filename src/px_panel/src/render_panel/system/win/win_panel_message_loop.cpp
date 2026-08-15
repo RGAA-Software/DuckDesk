@@ -9,9 +9,9 @@
 #include "px_render_panel_message.pb.h"
 #include "px_message_new/rp_proto_converter.h"
 
-using namespace tcrp;
+using namespace pxrp;
 
-namespace tc
+namespace px
 {
 
     constexpr char kWindowName[] = "GammaRay_panel_MessageWindow";
@@ -89,16 +89,16 @@ namespace tc
             }
             LOGI("===> new Text: {}", text);
 
-            tcrp::RpMessage msg;
+            pxrp::RpMessage msg;
             msg.set_type(RpMessageType::kRpClipboardEvent);
             auto sub = msg.mutable_clipboard_info();
             sub->set_type(RpClipboardType::kRpClipboardText);
             sub->set_msg(text);
-            app_->PostMessage2Renderer(tc::RpProtoAsData(&msg));
+            app_->PostMessage2Renderer(px::RpProtoAsData(&msg));
         };
 
         if (content.HasFiles()) {
-            tcrp::RpMessage msg;
+            pxrp::RpMessage msg;
             msg.set_type(RpMessageType::kRpClipboardEvent);
             auto sub = msg.mutable_clipboard_info();
             sub->set_type(RpClipboardType::kRpClipboardFiles);
@@ -109,7 +109,7 @@ namespace tc
                 target_file->set_ref_path(file.ref_path_);
                 target_file->set_total_size(file.total_size_);
             }
-            app_->PostMessage2Renderer(tc::RpProtoAsData(&msg));
+            app_->PostMessage2Renderer(px::RpProtoAsData(&msg));
         } else if (content.HasText()) {
             fn_send_text(content.text_);
         }

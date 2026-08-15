@@ -21,7 +21,7 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_render/plugin_interface/px_frame_processor_plugin.h"
 
-namespace tc
+namespace px
 {
 
     VideoFrameCarrier::VideoFrameCarrier(FrameCarrierPlugin* plugin,

@@ -9,7 +9,7 @@
 #include <mutex>
 #include <string>
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     class EchoFilter {

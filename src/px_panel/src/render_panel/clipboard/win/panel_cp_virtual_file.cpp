@@ -29,7 +29,7 @@
 
 #pragma comment(lib, "Wininet.lib")
 
-namespace tc
+namespace px
 {
     
     CpVirtualFile::CpVirtualFile(const std::shared_ptr<GrContext>& ctx) {
@@ -256,7 +256,7 @@ namespace tc
         this->RecordFileTransferBegin();
 
         // send begin message to client
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(file_stream_->GetDeviceId());
         msg.set_stream_id(file_stream_->GetStreamId());
         msg.set_type(MessageType::kClipboardReqAtBegin);
@@ -266,7 +266,7 @@ namespace tc
         // todo::
         //plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
 
-        auto rp_msg = tc::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
+        auto rp_msg = px::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
         context_->GetApplication()->PostMessage2Renderer(rp_msg);
         // send end message to client
     }
@@ -280,7 +280,7 @@ namespace tc
         this->RecordFileTransferEnd(success);
 
         // send end message to client
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(file_stream_->GetDeviceId());
         msg.set_stream_id(file_stream_->GetStreamId());
         msg.set_type(MessageType::kClipboardReqAtEnd);
@@ -291,7 +291,7 @@ namespace tc
         // todo::
         //plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
 
-        auto rp_msg = tc::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
+        auto rp_msg = px::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
         context_->GetApplication()->PostMessage2Renderer(rp_msg);
     }
 
@@ -351,8 +351,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}
@@ -368,8 +368,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}

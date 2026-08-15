@@ -4,7 +4,7 @@
 #include <qevent.h>
 
 
-namespace tc {
+namespace px {
 
 	class ConnectedInfoTag : public QWidget {
 		Q_OBJECT

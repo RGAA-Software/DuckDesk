@@ -16,7 +16,7 @@
 #include "px_client/ct_app_message.h"
 #include "ct_base_workspace.h"
 
-namespace tc
+namespace px
 {
 
     class GameView;

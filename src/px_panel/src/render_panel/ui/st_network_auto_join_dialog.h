@@ -16,20 +16,20 @@
 #include <QComboBox>
 #include <QPainter>
 
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
     class GrApplication;
     class TcPasswordInput;
-    class StNetworkSpvrAccessInfo;
+    class StNetworkCmsAccessInfo;
 
     class StNetworkAutoJoinDialog : public TcCustomTitleBarDialog {
     public:
-        StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkSpvrAccessInfo>& item, QWidget* parent = nullptr);
+        StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent = nullptr);
         ~StNetworkAutoJoinDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -42,7 +42,7 @@ namespace tc
         std::shared_ptr<GrApplication> app_ = nullptr;
         std::shared_ptr<GrContext> context_ = nullptr;
         QLineEdit* edt_stream_name_ = nullptr;
-        std::shared_ptr<StNetworkSpvrAccessInfo> item_ = nullptr;
+        std::shared_ptr<StNetworkCmsAccessInfo> item_ = nullptr;
         TcPasswordInput* password_input_ = nullptr;
 
     };

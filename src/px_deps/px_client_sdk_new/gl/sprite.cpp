@@ -7,7 +7,7 @@
 #include "shader_program.h"
 #include "video_widget_shaders.h"
 
-namespace tc
+namespace px
 {
 
 	Sprite::Sprite(const std::shared_ptr<Director>& director) : Renderer(director) {

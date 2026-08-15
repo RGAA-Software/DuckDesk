@@ -10,7 +10,7 @@
 #include <string>
 #include "px_client/ct_app_message.h"
 
-namespace tc
+namespace px
 {
 
     enum SubDisplayType {

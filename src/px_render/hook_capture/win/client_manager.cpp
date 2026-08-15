@@ -4,7 +4,7 @@
 
 #include "client_manager.h"
 
-namespace tc
+namespace px
 {
 
     void ClientManager::CopyUserData(const uint8_t* buffer, int size) {

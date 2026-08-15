@@ -9,7 +9,7 @@
 #include <atomic>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -25,7 +25,7 @@ namespace tc
         std::string GetPluginDescription() override;
         void On1Second() override;
 
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         std::shared_ptr<std::atomic_bool> GetLifetimeToken() const { return lifetime_token_; }
 

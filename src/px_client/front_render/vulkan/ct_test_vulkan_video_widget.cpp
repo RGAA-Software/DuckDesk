@@ -1,6 +1,6 @@
 ﻿#include "ct_test_vulkan_video_widget.h"
 
-namespace tc {
+namespace px {
 
 	TestVulkanVideoWidget::TestVulkanVideoWidget() : QWidget() {
 		setAttribute(Qt::WA_NativeWindow);

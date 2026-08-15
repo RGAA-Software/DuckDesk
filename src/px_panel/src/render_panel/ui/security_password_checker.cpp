@@ -11,7 +11,7 @@
 #include "render_panel/px_application.h"
 #include "render_panel/devices/input_remote_pwd_dialog.h"
 
-namespace tc
+namespace px
 {
 
     bool SecurityPasswordChecker::HasSecurityPassword() {

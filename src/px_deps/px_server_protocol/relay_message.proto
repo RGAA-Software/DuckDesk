@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package relay;
+package px_relay;
 
 enum RelayMessageType {
   kRelayError = 0;

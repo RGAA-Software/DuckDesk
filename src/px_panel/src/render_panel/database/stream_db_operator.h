@@ -11,12 +11,12 @@
 #include <string>
 #include <optional>
 
-namespace spvr
+namespace px_cms
 {
-    class SpvrStream;
+    class CmsStream;
 }
 
-namespace tc
+namespace px
 {
     class GrDatabase;
 
@@ -26,16 +26,16 @@ namespace tc
         StreamDBOperator(const std::shared_ptr<GrDatabase>& db);
         ~StreamDBOperator();
         static std::string GenUUID();
-        void AddStream(const std::shared_ptr<spvr::SpvrStream>& stream);
-        bool UpdateStream(std::shared_ptr<spvr::SpvrStream> stream);
+        void AddStream(const std::shared_ptr<px_cms::CmsStream>& stream);
+        bool UpdateStream(std::shared_ptr<px_cms::CmsStream> stream);
         bool UpdateStreamRandomPwd(const std::string& stream_id, const std::string& random_pwd);
         bool UpdateStreamSafetyPwd(const std::string& stream_id, const std::string& safety_pwd);
-        //std::vector<spvr::SpvrStream> GetAllStreams();
-        std::vector<std::shared_ptr<spvr::SpvrStream>> GetAllStreamsSortByCreatedTime(bool increase = false);
-        std::vector<std::shared_ptr<spvr::SpvrStream>> GetStreamsSortByCreatedTime(int page, int page_size, bool increase = false);
-        std::optional<std::shared_ptr<spvr::SpvrStream>> GetStreamByStreamId(const std::string& stream_id);
-        std::optional<std::shared_ptr<spvr::SpvrStream>> GetStreamByHostPort(const std::string& host, int port);
-        std::optional<std::shared_ptr<spvr::SpvrStream>> GetStreamByRemoteDeviceId(const std::string& remote_device_id);
+        //std::vector<px_cms::CmsStream> GetAllStreams();
+        std::vector<std::shared_ptr<px_cms::CmsStream>> GetAllStreamsSortByCreatedTime(bool increase = false);
+        std::vector<std::shared_ptr<px_cms::CmsStream>> GetStreamsSortByCreatedTime(int page, int page_size, bool increase = false);
+        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByStreamId(const std::string& stream_id);
+        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByHostPort(const std::string& host, int port);
+        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByRemoteDeviceId(const std::string& remote_device_id);
         void DeleteStream(int id);
         int RandomColor();
         bool HasStream(const std::string& stream_id);

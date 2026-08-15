@@ -33,7 +33,7 @@
 #include "front_render/opengl/ct_opengl_video_widget.h"
 #include "front_render/vulkan/ct_vulkan_video_widget.h"
 
-namespace tc
+namespace px
 {
 
     bool GameView::s_mouse_in_ = false;

@@ -13,7 +13,7 @@
 
 extern "C" __declspec(dllexport) void* GetInstance();
 
-namespace tc
+namespace px
 {
 
     class PeerCallback;

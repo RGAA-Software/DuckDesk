@@ -44,7 +44,7 @@
 #include "no_margin_layout.h"
 #include "ui/user/user_login_dialog.h"
 #include "ui/user/user_register_dialog.h"
-#include "px_spvr_client/spvr_user_api.h"
+#include "px_cms_client/cms_user_api.h"
 #include "ui/tab_cophone.h"
 #include "skin/interface/skin_interface.h"
 #include "user/px_user_manager.h"
@@ -61,7 +61,7 @@
 #include "render_panel/companion/panel_companion.h"
 #include "render_panel/upgrade/upgrade_helper.h"
 
-namespace tc
+namespace px
 {
     std::shared_ptr<GrWorkspace> grWorkspace;
 
@@ -669,7 +669,7 @@ namespace tc
                 });
 
                 app_->GetContext()->PostTask([=]() {
-                    tc::ClearOldDumps();
+                    px::ClearOldDumps();
                 });
             }
 
@@ -700,14 +700,14 @@ namespace tc
             this->hide();
             this->setEnabled(false);
             auto srv_mgr = this->app_->GetContext()->GetServiceManager();
-            const auto current_pid = tc::ProcessHelper::GetCurrentProcessId();
+            const auto current_pid = px::ProcessHelper::GetCurrentProcessId();
             std::thread([srv_mgr, uninstall_service, current_pid]() {
                 // 再等一会,确保 service 侧已杀 render + persist clear
                 std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
                 // 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
                 LOGI("Force close all GammaRayClientInner processes first.");
-                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayClientInnerExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kGammaRayClientInnerExeName);
 
                 if (srv_mgr) {
                     // stop(+optional uninstall) service, then kill leftovers including panel.
@@ -718,11 +718,11 @@ namespace tc
                     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
                 }
 
-                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayRenderExeName);
-                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRayUserProxyExeName);
-                tc::ProcessHelper::CloseProcessesByName(tc::kGammaRaySysInfoExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kGammaRayRenderExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kGammaRayUserProxyExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kGammaRaySysInfoExeName);
                 LOGI("Force close current GammaRay process, pid={}", current_pid);
-                tc::ProcessHelper::CloseProcess(current_pid);
+                px::ProcessHelper::CloseProcess(current_pid);
             }).detach();
         }
     }
@@ -896,7 +896,7 @@ namespace tc
             if (avatar_path.starts_with("./")) {
                 avatar_path = avatar_path.substr(1);
             }
-            auto avatar_url_path = std::format("https://{}:{}{}?appkey={}", self->settings_->GetSpvrServerHost(), self->settings_->GetSpvrServerPort(), avatar_path, grApp->GetAppkey());
+            auto avatar_url_path = std::format("https://{}:{}{}?appkey={}", self->settings_->GetCmsServerHost(), self->settings_->GetCmsServerPort(), avatar_path, grApp->GetAppkey());
             auto target_avatar_path = self->settings_->GetGrDataCachePath() + "/" + self->user_mgr_->GetUserId() + + "." + FileUtil::GetFileSuffix(avatar_path);
             LOGI("Cached avatar path: {}", target_avatar_path);
             if (File::Exists(U8Path(target_avatar_path))) {
@@ -978,7 +978,7 @@ namespace tc
     }
 
     void GrWorkspace::CheckAppUpdate(bool from_user_clicked) {
-        tc::UpdateManager::GetInstance()->CheckUpdate(true, from_user_clicked);
+        px::UpdateManager::GetInstance()->CheckUpdate(true, from_user_clicked);
     }
 
     void GrWorkspace::CheckOffSiteUpdate() {

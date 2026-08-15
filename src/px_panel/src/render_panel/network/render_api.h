@@ -8,7 +8,7 @@
 #include <string>
 #include "px_common_new/expected.h"
 
-namespace tc
+namespace px
 {
 
     // Render configuration

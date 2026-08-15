@@ -16,7 +16,7 @@
 #endif
 #include <thread>
 
-namespace tc
+namespace px
 {
 
     class TimeUtil {

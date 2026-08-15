@@ -27,7 +27,7 @@ extern "C"
 #define VP8_FOURCC 0x30385056
 #define VP9_FOURCC 0x30395056
 
-namespace tc
+namespace px
 {
 
 	typedef struct VpxInterface {

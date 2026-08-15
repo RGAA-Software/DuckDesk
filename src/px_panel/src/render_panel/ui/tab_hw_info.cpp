@@ -16,7 +16,7 @@
 #include "px_common_new/message_notifier.h"
 #include "render_panel/px_app_messages.h"
 
-namespace tc
+namespace px
 {
 
     TabHWInfo::TabHWInfo(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {

@@ -4,7 +4,7 @@
 class QTextEdit;
 class QVBoxLayout;
 
-namespace tc {
+namespace px {
 class FileTransmitLogWidget : public QWidget {
 	Q_OBJECT
 public:

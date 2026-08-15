@@ -5,7 +5,7 @@
 #include "base_widget.h"
 #include "px_client/ct_client_context.h"
 #include "ct_app_message.h"
-namespace tc
+namespace px
 {
 
     BaseWidget::BaseWidget(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : QWidget(parent), context_(ctx) {

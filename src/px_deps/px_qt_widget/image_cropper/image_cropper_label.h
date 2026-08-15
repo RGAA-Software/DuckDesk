@@ -9,7 +9,7 @@
 #include <QPixmap>
 #include <QPen>
 
-namespace tc
+namespace px
 {
 
     enum class CropperShape {

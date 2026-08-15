@@ -19,7 +19,7 @@
 
 #include "director.h"
 
-namespace tc
+namespace px
 {
 
     class GLFunctions {

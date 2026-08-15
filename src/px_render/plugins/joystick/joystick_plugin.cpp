@@ -11,9 +11,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::JoystickPlugin)
+GR_PLUGIN_EXPORT(px::JoystickPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string JoystickPlugin::GetPluginId() {
@@ -41,7 +41,7 @@ namespace tc
 
     }
     
-    bool JoystickPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool JoystickPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
 
         if (!IsPluginEnabled()) {
@@ -55,7 +55,7 @@ namespace tc
     void JoystickPlugin::OnMessage(std::shared_ptr<Message> msg) {
         GrPluginInterface::OnMessage(msg);
         auto stream_id = msg->stream_id();
-        if (msg->type() == tc::MessageType::kHello) {
+        if (msg->type() == px::MessageType::kHello) {
             auto sub = msg->hello();
             if (sub.enable_controller()) {
                 plugin_context_->PostWorkTask([=, this]() {
@@ -68,7 +68,7 @@ namespace tc
                 });
             }
         }
-        else if (msg->type() == tc::MessageType::kGamepadState) {
+        else if (msg->type() == px::MessageType::kGamepadState) {
             // replay gamepad state
             plugin_context_->PostWorkTask([=, this]() {
                 ReplayJoystickEvent(stream_id, msg);

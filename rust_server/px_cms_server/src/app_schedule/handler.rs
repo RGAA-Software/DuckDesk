@@ -4,8 +4,8 @@ use crate::app_schedule::manager::{
     CreatePlacementReq, InstanceState, SaveAppReq, SaveNodeReq, StartInstanceReq,
 };
 use crate::gDeviceManager;
-use crate::spvr_api_error::SpvrApiError;
-use crate::spvr_context::SpvrContext;
+use crate::cms_api_error::CmsApiError;
+use crate::cms_context::CmsContext;
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::Json;
@@ -200,35 +200,35 @@ pub async fn handle_launch_node(Path(node_id): Path<String>) -> Response {
 }
 
 pub async fn handle_create_application(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Json(req): Json<CreateApplicationReq>,
-) -> Result<Json<RespMessage<Application>>, SpvrApiError> {
+) -> Result<Json<RespMessage<Application>>, CmsApiError> {
     let app = gAppScheduleManager
         .create_application(req)
         .await
         .map_err(|e| {
             tracing::warn!("create application failed: {e}");
-            SpvrApiError::InvalidParams
+            CmsApiError::InvalidParams
         })?;
     Ok(Json(ok_resp(app)))
 }
 
 pub async fn handle_list_applications(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-) -> Result<Json<RespMessage<Vec<Application>>>, SpvrApiError> {
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
+) -> Result<Json<RespMessage<Vec<Application>>>, CmsApiError> {
     Ok(Json(ok_resp(gAppScheduleManager.list_applications().await)))
 }
 
 pub async fn handle_list_app_rows(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-) -> Result<Json<RespMessage<Vec<AppRowVo>>>, SpvrApiError> {
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
+) -> Result<Json<RespMessage<Vec<AppRowVo>>>, CmsApiError> {
     Ok(Json(ok_resp(gAppScheduleManager.list_app_rows().await)))
 }
 
 pub async fn handle_save_app(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Json(req): Json<SaveAppReq>,
-) -> Result<Json<RespMessage<AppRowVo>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppRowVo>>, CmsApiError> {
     match gAppScheduleManager.save_app(req).await {
         Ok(row) => Ok(Json(ok_resp(row))),
         Err(e) => {
@@ -239,9 +239,9 @@ pub async fn handle_save_app(
 }
 
 pub async fn handle_delete_app(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Path(app_id): Path<String>,
-) -> Result<Json<RespMessage<String>>, SpvrApiError> {
+) -> Result<Json<RespMessage<String>>, CmsApiError> {
     match gAppScheduleManager.delete_app(&app_id).await {
         Ok(()) => Ok(Json(ok_resp("ok".to_string()))),
         Err(e) => {
@@ -252,9 +252,9 @@ pub async fn handle_delete_app(
 }
 
 pub async fn handle_next_port(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<RespMessage<i32>>, SpvrApiError> {
+) -> Result<Json<RespMessage<i32>>, CmsApiError> {
     let device_id = params.get("device_id").cloned().unwrap_or_default();
     match gAppScheduleManager.suggest_next_port(&device_id).await {
         Ok(port) => Ok(Json(ok_resp(port))),
@@ -266,9 +266,9 @@ pub async fn handle_next_port(
 }
 
 pub async fn handle_save_node(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Json(req): Json<SaveNodeReq>,
-) -> Result<Json<RespMessage<AppNode>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppNode>>, CmsApiError> {
     match gAppScheduleManager.save_node(req).await {
         Ok(node) => Ok(Json(ok_resp(node))),
         Err(e) => {
@@ -279,9 +279,9 @@ pub async fn handle_save_node(
 }
 
 pub async fn handle_delete_node(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Path(node_id): Path<String>,
-) -> Result<Json<RespMessage<String>>, SpvrApiError> {
+) -> Result<Json<RespMessage<String>>, CmsApiError> {
     match gAppScheduleManager.delete_node(&node_id).await {
         Ok(()) => Ok(Json(ok_resp("ok".to_string()))),
         Err(e) => {
@@ -292,9 +292,9 @@ pub async fn handle_delete_node(
 }
 
 pub async fn handle_list_nodes(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<RespMessage<Vec<AppNode>>>, SpvrApiError> {
+) -> Result<Json<RespMessage<Vec<AppNode>>>, CmsApiError> {
     let app_id = params.get("app_id").cloned();
     Ok(Json(ok_resp(
         gAppScheduleManager.list_nodes(app_id.as_deref()).await,
@@ -302,9 +302,9 @@ pub async fn handle_list_nodes(
 }
 
 pub async fn handle_start_node(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Path(node_id): Path<String>,
-) -> Result<Json<RespMessage<AppInstance>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppInstance>>, CmsApiError> {
     match gAppScheduleManager.start_node(&node_id).await {
         Ok(inst) => Ok(Json(ok_resp(inst))),
         Err(e) => {
@@ -315,29 +315,29 @@ pub async fn handle_start_node(
 }
 
 pub async fn handle_create_placement(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Json(req): Json<CreatePlacementReq>,
-) -> Result<Json<RespMessage<AppPlacement>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppPlacement>>, CmsApiError> {
     let p = gAppScheduleManager
         .create_placement(req)
         .await
         .map_err(|e| {
             tracing::warn!("create placement failed: {e}");
-            SpvrApiError::InvalidParams
+            CmsApiError::InvalidParams
         })?;
     Ok(Json(ok_resp(p)))
 }
 
 pub async fn handle_list_placements(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-) -> Result<Json<RespMessage<Vec<AppPlacement>>>, SpvrApiError> {
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
+) -> Result<Json<RespMessage<Vec<AppPlacement>>>, CmsApiError> {
     Ok(Json(ok_resp(gAppScheduleManager.list_placements().await)))
 }
 
 pub async fn handle_start_instance(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Json(req): Json<StartInstanceReq>,
-) -> Result<Json<RespMessage<AppInstance>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppInstance>>, CmsApiError> {
     match gAppScheduleManager.start_instance(req).await {
         Ok(inst) => Ok(Json(ok_resp(inst))),
         Err(e) => {
@@ -348,9 +348,9 @@ pub async fn handle_start_instance(
 }
 
 pub async fn handle_stop_instance(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     Path(instance_id): Path<String>,
-) -> Result<Json<RespMessage<AppInstance>>, SpvrApiError> {
+) -> Result<Json<RespMessage<AppInstance>>, CmsApiError> {
     match gAppScheduleManager.stop_instance(&instance_id).await {
         Ok(inst) => Ok(Json(ok_resp(inst))),
         Err(e) => {
@@ -361,7 +361,7 @@ pub async fn handle_stop_instance(
 }
 
 pub async fn handle_list_instances(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
-) -> Result<Json<RespMessage<Vec<AppInstance>>>, SpvrApiError> {
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
+) -> Result<Json<RespMessage<Vec<AppInstance>>>, CmsApiError> {
     Ok(Json(ok_resp(gAppScheduleManager.list_instances().await)))
 }

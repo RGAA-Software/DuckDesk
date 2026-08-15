@@ -36,7 +36,7 @@ extern "C" __attribute__((visibility("default"))) void* GetInstance() { \
 #endif
 
 
-namespace tc
+namespace px
 {
 
     class Data;

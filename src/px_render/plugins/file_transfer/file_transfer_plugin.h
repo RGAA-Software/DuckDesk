@@ -8,7 +8,7 @@
 #include "px_render/plugin_interface/px_plugin_interface.h"
 #include "file_transmission_server/px_translator_stub.h"
 
-namespace tc
+namespace px
 {
 
     class Message;

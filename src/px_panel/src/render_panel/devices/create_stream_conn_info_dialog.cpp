@@ -11,7 +11,7 @@
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_context.h"
@@ -26,7 +26,7 @@
 #include "px_base/ct_stream_item_net_type.h"
 #include "infinite_loading.h"
 
-namespace tc
+namespace px
 {
 
     CreateStreamConnInfoDialog::CreateStreamConnInfoDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
@@ -193,7 +193,7 @@ namespace tc
             }
 
             // this is good
-            std::shared_ptr<spvr::SpvrStream> item = std::make_shared<spvr::SpvrStream>();
+            std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
             item->remote_device_id_ = conn_info->device_id_;
             item->remote_device_random_pwd_ = conn_info->random_pwd_;
             item->stream_name_ = name.empty() ? conn_info->device_name_ : name;

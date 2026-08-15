@@ -12,7 +12,7 @@
 #include "px_common_new/folder_util.h"
 #include "px_common_new/string_util.h"
 
-namespace tc
+namespace px
 {
 
     std::string FrameDebuggerPlugin::GetPluginId() {
@@ -39,7 +39,7 @@ namespace tc
 
     }
 
-    bool FrameDebuggerPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool FrameDebuggerPlugin::OnCreate(const px::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
         auto key_save_encoded_video = "save_encoded_video";
         if (HasParam(key_save_encoded_video)) {

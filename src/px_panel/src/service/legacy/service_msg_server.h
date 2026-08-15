@@ -10,7 +10,7 @@
 #include <asio2/asio2.hpp>
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     class GrService;
@@ -42,7 +42,7 @@ namespace tc
     private:
         std::shared_ptr<RenderManager> render_manager_ = nullptr;
         std::shared_ptr<asio2::ws_server> server_ = nullptr;
-        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<SessionWrapper>> sessions_;
+        px::ConcurrentHashMap<uint64_t, std::shared_ptr<SessionWrapper>> sessions_;
         std::shared_ptr<ServiceContext> context_ = nullptr;
         std::shared_ptr<GrService> service_ = nullptr;
         std::string service_path_ = "/service/message";

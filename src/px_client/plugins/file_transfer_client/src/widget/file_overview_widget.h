@@ -12,7 +12,7 @@ class QComboBox;
 class QLineEdit;
 
 
-namespace tc {
+namespace px {
 class BaseFileUtil;
 class FileSendBtn;
 class FileOperationBtn;

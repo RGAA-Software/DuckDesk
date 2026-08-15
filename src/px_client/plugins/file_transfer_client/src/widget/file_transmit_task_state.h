@@ -1,7 +1,7 @@
 #pragma once
 #include <qmetatype.h>
 
-namespace tc {
+namespace px {
 
 enum class EFileTransmitTaskState {
 	kSuccess,       // 成功
@@ -11,7 +11,7 @@ enum class EFileTransmitTaskState {
 	kVerifying,     // 校验中
 	kDelete,        // 用户删除
 };
-Q_DECLARE_METATYPE(tc::EFileTransmitTaskState);
+Q_DECLARE_METATYPE(px::EFileTransmitTaskState);
 
 enum class EFileTransmitTaskErrorCause {
 	kPlaceholder,   // 占位符
@@ -34,13 +34,13 @@ enum class EFileTransmitTaskErrorCause {
 	kPacketLoss, //网络丢包
 
 };
-Q_DECLARE_METATYPE(tc::EFileTransmitTaskErrorCause);
+Q_DECLARE_METATYPE(px::EFileTransmitTaskErrorCause);
 
 enum class EFileTransmitTaskType {
 	kUnKnown,
 	kUpload,
 	kDownload,
 };
-Q_DECLARE_METATYPE(tc::EFileTransmitTaskType);
+Q_DECLARE_METATYPE(px::EFileTransmitTaskType);
 
 }

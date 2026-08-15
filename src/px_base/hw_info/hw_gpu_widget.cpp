@@ -7,7 +7,7 @@
 #include "no_margin_layout.h"
 #include "hw_stat_chart.h"
 
-namespace tc
+namespace px
 {
 
     HWGpuWidget::HWGpuWidget(QWidget* parent) {

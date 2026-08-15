@@ -7,7 +7,7 @@
 #include <QImage>
 #include <QPainterPath>
 
-namespace tc
+namespace px
 {
     RoundImageDisplay::RoundImageDisplay(const QString &path, int width, int height, int radius, QWidget *parent)
             : QLabel(parent) {

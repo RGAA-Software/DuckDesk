@@ -12,7 +12,7 @@
 #include <QBrush>
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     using OnEnterWidgetCallback = std::function<void(QWidget* w, bool enter)>;

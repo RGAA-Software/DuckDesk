@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     class SecurityPasswordChecker {

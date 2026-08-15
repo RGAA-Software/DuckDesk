@@ -5,7 +5,7 @@
 #include <QEasingCurve>
 #include <QTimer>
 
-namespace tc
+namespace px
 {
 
     class BaseLoadingWidget : public QWidget {

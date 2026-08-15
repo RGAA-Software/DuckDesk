@@ -9,7 +9,7 @@
 #include "click_listener.h"
 #include "translator/px_translator.h"
 
-namespace tc
+namespace px
 {
 
     class TcLabel : public QLabel, public TcTranslator {

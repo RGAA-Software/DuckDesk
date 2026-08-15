@@ -7,7 +7,7 @@
 
 #include "px_render/plugin_interface/px_stream_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class File;
@@ -21,7 +21,7 @@ namespace tc
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         void On1Second() override;
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
 
         void OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) override;
@@ -52,7 +52,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::FrameDebuggerPlugin)
+GR_PLUGIN_EXPORT(px::FrameDebuggerPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

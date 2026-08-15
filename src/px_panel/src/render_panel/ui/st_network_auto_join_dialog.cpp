@@ -15,13 +15,13 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
-#include "render_panel/spvr_scanner/spvr_scanner.h"
+#include "render_panel/cms_scanner/cms_scanner.h"
 #include "px_common_new/time_util.h"
 
-namespace tc
+namespace px
 {
 
-    StNetworkAutoJoinDialog::StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkSpvrAccessInfo>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    StNetworkAutoJoinDialog::StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         app_ = app;
         context_ = app_->GetContext();
         item_ = item;
@@ -46,20 +46,20 @@ namespace tc
 
         content_layout->addSpacing(25);
 
-        // 0. spvr info
+        // 0. cms info
         {
             auto layout = new NoMarginVLayout();
 
             auto label = new TcLabel(this);
             label->setFixedWidth(item_width);
-            label->SetTextId("id_spvr_server_address");
+            label->SetTextId("id_cms_server_address");
             label->setStyleSheet(R"(color: #333333; font-weight: 700; font-size:13px;)");
             label->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
             layout->addWidget(label);
             layout->addSpacing(10);
 
             auto edit = new QLabel(this);
-            edit->setText(std::format("{}:{}", item_->spvr_ip_, item_->spvr_port_).c_str());
+            edit->setText(std::format("{}:{}", item_->cms_ip_, item_->cms_port_).c_str());
             edit->setStyleSheet("font-size: 16px; font-weight: 700; color: #2979ff;");
             edit->setFixedSize(edit_size);
             layout->addWidget(edit);

@@ -14,7 +14,7 @@
 #include <QLabel>
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     const QString kDisplayPluginEnabled = "Enabled";

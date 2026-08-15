@@ -16,7 +16,7 @@
 
 // #pragma comment(lib, "shlwapi.lib")
 
-// namespace tc
+// namespace px
 // {
 
 //     class CpDataObject : public IDataObject {

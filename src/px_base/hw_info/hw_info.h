@@ -11,7 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace tc
+namespace px
 {
 
     class SysSingleCpuInfo {

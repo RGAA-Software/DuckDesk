@@ -11,7 +11,7 @@
 #include <QEvent>
 #include <QLineEdit>
 
-namespace tc
+namespace px
 {
 
     PageWidget::PageWidget(int blockSize, QWidget *parent) : QWidget(parent),

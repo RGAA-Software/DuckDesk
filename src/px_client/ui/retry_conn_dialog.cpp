@@ -9,7 +9,7 @@
 #include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"
 #include "px_qt_widget/loadings/winstyle/win10horizontalloadingwidget.h"
 
-namespace tc
+namespace px
 {
 
     RetryConnDialog::RetryConnDialog(const QString &title, QWidget *parent) : TcCustomTitleBarDialog(title, parent) {

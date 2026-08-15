@@ -10,28 +10,28 @@
 #include <QListWidget>
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     class TcLabel;
     class GrContext;
     class GrApplication;
     class MessageListener;
-    class StNetworkSpvrAccessInfo;
+    class StNetworkCmsAccessInfo;
 
     class StNetworkSearch : public TcCustomTitleBarDialog {
     public:
         explicit StNetworkSearch(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
         ~StNetworkSearch() override;
         void closeEvent(QCloseEvent *) override;
-        void OnItemClicked(int index, const std::shared_ptr<StNetworkSpvrAccessInfo>& item_info);
-        std::shared_ptr<StNetworkSpvrAccessInfo> GetSelectedItem();
+        void OnItemClicked(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
+        std::shared_ptr<StNetworkCmsAccessInfo> GetSelectedItem();
         void resizeEvent(QResizeEvent *) override;
 
     private:
         void CreateLayout();
         void UpdateItems();
-        QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkSpvrAccessInfo>& item_info);
+        QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
 
     private:
         std::shared_ptr<GrContext> context_ = nullptr;
@@ -39,7 +39,7 @@ namespace tc
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         TcLabel* empty_lbl_ = nullptr;
         QListWidget* list_widget_ = nullptr;
-        std::shared_ptr<StNetworkSpvrAccessInfo> selected_item_ = nullptr;
+        std::shared_ptr<StNetworkCmsAccessInfo> selected_item_ = nullptr;
     };
 
 }

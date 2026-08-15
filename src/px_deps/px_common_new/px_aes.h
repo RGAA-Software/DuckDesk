@@ -9,7 +9,7 @@
 #include <openssl/rand.h>
 #include <openssl/aes.h>
 
-namespace tc
+namespace px
 {
 	bool AesEncryptPcks7Cbc128(const unsigned char* plaintext, int plaintext_len,
                                const unsigned char* key, const unsigned char* iv,

@@ -20,7 +20,7 @@
 #include "data.h"
 #include "px_fec.h"
 
-namespace tc
+namespace px
 {
 
     // ---------------- wire format (little-endian) ----------------

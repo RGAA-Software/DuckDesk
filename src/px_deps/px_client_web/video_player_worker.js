@@ -110,14 +110,14 @@ function start({ prefix, rendererName, canvas }) {
 
         streamSocket.onmessage = (event) => {
             let data = new Uint8Array(event.data);
-            let decodedData = root.nested.tc.Message.decode(data);
+            let decodedData = root.nested.px.Message.decode(data);
             //console.log("frame : ", decodedData);
 
-            if (decodedData.type === root.nested.tc.MessageType.kVideoFrame) {
+            if (decodedData.type === root.nested.px.MessageType.kVideoFrame) {
             
-                let isH265 = decodedData.videoFrame.type === root.nested.tc.VideoType.kNetH265;
-                let isH264 = decodedData.videoFrame.type === root.nested.tc.VideoType.kNetH264;
-                let isVp9 = decodedData.videoFrame.type === root.nested.tc.VideoType.kNetVp9;
+                let isH265 = decodedData.videoFrame.type === root.nested.px.VideoType.kNetH265;
+                let isH264 = decodedData.videoFrame.type === root.nested.px.VideoType.kNetH264;
+                let isVp9 = decodedData.videoFrame.type === root.nested.px.VideoType.kNetVp9;
 
                 console.log("type: ", decodedData.videoFrame.type, isH265, isH264, isVp9);
 

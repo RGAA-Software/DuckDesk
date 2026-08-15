@@ -4,9 +4,9 @@
 #include <map>
 #include <QVariantMap>
 #include "notify/notify_defs.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
-namespace tcrp
+namespace pxrp
 {
     class RpMessage;
     class RpCaptureStatistics;
@@ -16,7 +16,7 @@ namespace tcrp
     class RpRemoteClipboardResp;
 }
 
-namespace tc
+namespace px
 {
     class Message;
     class GrSettings;
@@ -49,14 +49,14 @@ namespace tc
     // capture statistics
     class MsgCaptureStatistics {
     public:
-        std::shared_ptr<tcrp::RpMessage> msg_ = nullptr;
-        std::shared_ptr<tcrp::RpCaptureStatistics> statistics_ = nullptr;
+        std::shared_ptr<pxrp::RpMessage> msg_ = nullptr;
+        std::shared_ptr<pxrp::RpCaptureStatistics> statistics_ = nullptr;
     };
 
     class MsgServerAudioSpectrum {
     public:
-        std::shared_ptr<tcrp::RpMessage> msg_ = nullptr;
-        std::shared_ptr<tcrp::RpServerAudioSpectrum> spectrum_ = nullptr;
+        std::shared_ptr<pxrp::RpMessage> msg_ = nullptr;
+        std::shared_ptr<pxrp::RpServerAudioSpectrum> spectrum_ = nullptr;
     };
 
     // timer 100ms
@@ -133,25 +133,25 @@ namespace tc
 
     class StreamItemAdded {
     public:
-        std::shared_ptr<spvr::SpvrStream> item_;
+        std::shared_ptr<px_cms::CmsStream> item_;
         bool auto_start_ = false;
     };
 
     class StreamItemUpdated {
     public:
-        std::shared_ptr<spvr::SpvrStream> item_;
+        std::shared_ptr<px_cms::CmsStream> item_;
     };
 
     // Close workspace
     class ClearWorkspace {
     public:
-        std::shared_ptr<spvr::SpvrStream> item_;
+        std::shared_ptr<px_cms::CmsStream> item_;
     };
 
     // reported plugins info
     class MsgPluginsInfo {
     public:
-        std::shared_ptr<tcrp::RpPluginsInfo> plugins_info_;
+        std::shared_ptr<pxrp::RpPluginsInfo> plugins_info_;
     };
 
     // remote peer info
@@ -167,7 +167,7 @@ namespace tc
     class MsgClientConnectedPanel {
     public:
         std::string stream_id_;
-        //tccp::CpSessionType
+        //pxcp::CpSessionType
         int sess_type_{-1};
     };
 
@@ -205,7 +205,7 @@ namespace tc
     // update connected clients info
     class MsgUpdateConnectedClientsInfo {
     public:
-        std::vector<std::shared_ptr<tcrp::RpConnectedClientInfo>> clients_info_;
+        std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> clients_info_;
     };
 
     // remote clipboard resp
@@ -230,11 +230,11 @@ namespace tc
         std::shared_ptr<SysInfo> sys_info_ = nullptr;
     };
 
-    // spvr access info
-    class StNetworkSpvrAccessInfo;
-    class MsgSpvrAccessInfo {
+    // cms access info
+    class StNetworkCmsAccessInfo;
+    class MsgCmsAccessInfo {
     public:
-        std::map<std::string, std::shared_ptr<StNetworkSpvrAccessInfo>> access_info_;
+        std::map<std::string, std::shared_ptr<StNetworkCmsAccessInfo>> access_info_;
     };
 
     // user logged in

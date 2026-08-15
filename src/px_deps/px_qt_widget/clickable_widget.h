@@ -10,7 +10,7 @@
 
 #include "click_listener.h"
 
-namespace tc
+namespace px
 {
 
     class ClickableWidget : public QWidget {

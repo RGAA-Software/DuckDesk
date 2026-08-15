@@ -8,7 +8,7 @@
 
 #include "shader_program.h"
 
-namespace tc
+namespace px
 {
 
 	class Director;

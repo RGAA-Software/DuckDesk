@@ -15,9 +15,9 @@
 #include "px_common_new/log.h"
 #include "client_manager.h"
 
-using namespace tc;
+using namespace px;
 
-static std::shared_ptr<tc::SharedTexture> shared_texture = std::make_shared<tc::SharedTexture>();
+static std::shared_ptr<px::SharedTexture> shared_texture = std::make_shared<px::SharedTexture>();
 
 namespace px_capture_d3d11
 {

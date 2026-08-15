@@ -23,7 +23,7 @@
  *  Used in class ImageCropper
 *******************************************************/
 
-namespace tc
+namespace px
 {
 
     class ImageCropperDialogPrivate : public QDialog {

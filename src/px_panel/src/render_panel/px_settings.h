@@ -10,7 +10,7 @@
 #include <memory>
 #include "px_exe_names.h"
 
-namespace tc
+namespace px
 {
 
     static const std::string kStLogFile = "logfile";
@@ -52,8 +52,8 @@ namespace tc
     static const std::string kStDeviceSafetyPwd = "device_safety_pwd";
     static const std::string kStRelayServerHost = "relay_server_host";
     static const std::string kStRelayServerPort = "relay_server_port";
-    static const std::string kStSpvrServerHost = "spvr_server_host";
-    static const std::string kStSpvrServerPort = "spvr_server_port";
+    static const std::string kStCmsServerHost = "cms_server_host";
+    static const std::string kStCmsServerPort = "cms_server_port";
     static const std::string kStScreenRecordingPath = "screen_recording_path";
     static const std::string kStShowMaxWindow = "show_max_window";
     static const std::string kStMaxNumOfScreen = "max_num_of_screen";
@@ -69,7 +69,7 @@ namespace tc
     static const std::string kStColorfulTitlebar = "colorful_titlebar";
     static const std::string kStDisplayRandomPwd = "display_random_pwd";
     static const std::string kStPreferDecoder = "prefer_decoder";
-    static const std::string kStSpvrAccessInfo = "spvr_access_info";
+    static const std::string kStCmsAccessInfo = "cms_access_info";
     static const std::string kStSkinName = "skin_name";
 
     static const std::string kStTrue = "true";
@@ -77,11 +77,11 @@ namespace tc
     static const std::string kResTypeOrigin = "origin";
     static const std::string kResTypeResize = "resize";
 
-    static const std::string kGammaRayName = tc::kGammaRayExeName;
-    static const std::string kGammaRayRenderName = tc::kGammaRayRenderExeName;
-    static const std::string kGammaRayClientInner = tc::kGammaRayClientInnerExeName;
-    static const std::string kGammaRayService = tc::kGammaRayServiceExeName;
-    static const std::string kGammaRaySysInfo = tc::kGammaRaySysInfoExeName;
+    static const std::string kGammaRayName = px::kGammaRayExeName;
+    static const std::string kGammaRayRenderName = px::kGammaRayRenderExeName;
+    static const std::string kGammaRayClientInner = px::kGammaRayClientInnerExeName;
+    static const std::string kGammaRayService = px::kGammaRayServiceExeName;
+    static const std::string kGammaRaySysInfo = px::kGammaRaySysInfoExeName;
 
     class SharedPreference;
     class MessageNotifier;
@@ -171,16 +171,16 @@ namespace tc
         void SetRenderServerPort(int port);
         int GetRenderServerPort();
 
-        // Spvr
+        // Cms
         // Host
-        void SetSpvrServerHost(const std::string& host);
-        std::string GetSpvrServerHost();
+        void SetCmsServerHost(const std::string& host);
+        std::string GetCmsServerHost();
 
         // Port
-        void SetSpvrServerPort(const std::string& port);
-        int GetSpvrServerPort();
+        void SetCmsServerPort(const std::string& port);
+        int GetCmsServerPort();
 
-        bool HasSpvrServerConfig();
+        bool HasCmsServerConfig();
 
         // Relay
         // Host
@@ -262,9 +262,9 @@ namespace tc
         void SetPreferDecoder(const std::string& decoder);
         std::string GetPreferDecoder();
 
-        // Spvr access info
-        void SetSpvrAccessInfo(const std::string& info);
-        std::string GetSpvrAccessInfo();
+        // Cms access info
+        void SetCmsAccessInfo(const std::string& info);
+        std::string GetCmsAccessInfo();
 
         // skin name
         void SetSkinName(const std::string& name);

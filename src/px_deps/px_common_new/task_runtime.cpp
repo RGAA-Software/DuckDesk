@@ -5,7 +5,7 @@
 #include "task_runtime.h"
 #include "log.h"
 
-namespace tc
+namespace px
 {
 
     TaskRuntime::TaskRuntime(int num_threads) {

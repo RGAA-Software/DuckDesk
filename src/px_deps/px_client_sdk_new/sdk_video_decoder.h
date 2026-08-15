@@ -11,7 +11,7 @@
 #include "px_common_new/expected.h"
 #include "sdk_messages.h"
 
-namespace tc
+namespace px
 {
     class Data;
     class RawImage;

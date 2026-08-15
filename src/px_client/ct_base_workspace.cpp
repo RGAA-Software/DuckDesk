@@ -54,12 +54,12 @@
 #include "hw_info/hw_info.h"
 #include "hw_info/hw_info_parser.h"
 #include "hw_info/hw_info_widget.h"
-#include "network/ct_spvr_client.h"
+#include "network/ct_cms_client.h"
 #include "skin/skin_loader.h"
 #include "skin/interface/skin_interface.h"
 #include "ct_game_overlay.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<BaseWorkspace> gWorkspace;
@@ -133,17 +133,17 @@ namespace tc
         sdk_ = ThunderSdk::Make(this->context_->GetMessageNotifier());
         sdk_->Init(this->params_, nullptr, DecoderRenderType::kFFmpegI420);
 
-        if (!settings_->device_id_.empty() && !settings_->spvr_host_.empty() && settings_->spvr_port_ > 0 && !settings_->appkey_.empty()) {
-            LOGI("Will start spvr client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
-            spvr_client_ = std::make_shared<CtSpvrClient>(sdk_,
+        if (!settings_->device_id_.empty() && !settings_->cms_host_.empty() && settings_->cms_port_ > 0 && !settings_->appkey_.empty()) {
+            LOGI("Will start cms client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
+            cms_client_ = std::make_shared<CtCmsClient>(sdk_,
                                                           context_,
-                                                          settings_->spvr_host_,
-                                                          settings_->spvr_port_,
+                                                          settings_->cms_host_,
+                                                          settings_->cms_port_,
                                                           settings_->device_id_,
                                                           settings_->remote_device_id_,
                                                           settings_->host_,
                                                           settings_->appkey_);
-            spvr_client_->Start();
+            cms_client_->Start();
         }
 
         // init game views
@@ -326,7 +326,7 @@ namespace tc
         msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>([=, this](const SdkMsgFirstConfigInfoCallback& msg) {
             main_progress_->StepForward();
             LOGI("Step: MsgFirstConfigInfoCallback, at: {}", main_progress_->GetCurrentProgress());
-            if (msg.msg_ && msg.msg_->type() == tc::kServerConfiguration) {
+            if (msg.msg_ && msg.msg_->type() == px::kServerConfiguration) {
                 const auto config = msg.msg_->config();
 
             }
@@ -445,11 +445,11 @@ namespace tc
             audio_player_->Write(data);
         });
 
-        sdk_->SetOnAudioSpectrumCallback([=](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnAudioSpectrumCallback([=](std::shared_ptr<px::Message> msg) {
 
         });
 
-        sdk_->SetOnCursorInfoCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnCursorInfoCallback([=, this](std::shared_ptr<px::Message> msg) {
             const auto& cursor_info = msg->cursor_info_sync();
             // remote cursor's bitmap
             std::string bitmap_data = cursor_info.bitmap();
@@ -471,7 +471,7 @@ namespace tc
             }
         });
 
-        sdk_->SetOnHeartBeatCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnHeartBeatCallback([=, this](std::shared_ptr<px::Message> msg) {
             if (st_panel_) {
                 st_panel_->UpdateOnHeartBeat(msg);
             }
@@ -480,11 +480,11 @@ namespace tc
             }
         });
 
-        sdk_->SetOnClipboardCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnClipboardCallback([=, this](std::shared_ptr<px::Message> msg) {
             // See: RawMessageCallback
         });
 
-        sdk_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<tc::Message> in_msg) {
+        sdk_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<px::Message> in_msg) {
             monitor_index_map_name_.clear();
             const auto& config = in_msg->config();
 
@@ -535,7 +535,7 @@ namespace tc
             });
         });
 
-        sdk_->SetOnMonitorSwitchedCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnMonitorSwitchedCallback([=, this](std::shared_ptr<px::Message> msg) {
             const auto& ms = msg->monitor_switched();
             context_->SendAppMessage(MsgClientMonitorSwitched {
                 .name_ = ms.name(),
@@ -543,7 +543,7 @@ namespace tc
             });
         });
 
-        sdk_->SetOnRawMessageCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        sdk_->SetOnRawMessageCallback([=, this](std::shared_ptr<px::Message> msg) {
             if (remote_force_closed_) {
                 return;
             }
@@ -653,21 +653,21 @@ namespace tc
             if (!media_record_plugin_) {
                 return;
             }
-            tc::Message m;
+            px::Message m;
             m.set_device_id(settings_->device_id_);
             m.set_stream_id(settings_->stream_id_);
             bool res = context_->GetRecording();
             if (res) {
                 LOGI("StartRecord");
-                m.set_type(tc::kStartMediaRecordClientSide);
+                m.set_type(px::kStartMediaRecordClientSide);
                 media_record_plugin_->StartRecord();
             }
             else {
                 LOGI("EndRecord");
-                m.set_type(tc::kStopMediaRecordClientSide);
+                m.set_type(px::kStopMediaRecordClientSide);
                 media_record_plugin_->EndRecord();
             }
-            if (auto buffer = tc::ProtoAsData(&m); buffer) {
+            if (auto buffer = px::ProtoAsData(&m); buffer) {
                 sdk_->PostMediaMessage(buffer);
             }
         });
@@ -694,11 +694,11 @@ namespace tc
             if (!sdk_ || remote_force_closed_) {
                 return;
             }
-            tc::Message m;
-            m.set_type(tc::kFocusOutEvent);
+            px::Message m;
+            m.set_type(px::kFocusOutEvent);
             m.set_device_id(settings_->device_id_);
             m.set_stream_id(settings_->stream_id_);
-            if (auto buffer = tc::ProtoAsData(&m); buffer) {
+            if (auto buffer = px::ProtoAsData(&m); buffer) {
                 sdk_->PostMediaMessage(buffer);
             }
         });
@@ -905,8 +905,8 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kClipboardInfo);
+        px::Message m;
+        m.set_type(px::kClipboardInfo);
         m.set_device_id(settings_->device_id_);
         m.set_stream_id(settings_->stream_id_);
         auto sub = m.mutable_clipboard_info();
@@ -924,7 +924,7 @@ namespace tc
                 LOGI("SendClipboardMessage, file: {}", file.file_name());
             }
         }
-        if (auto buffer = tc::ProtoAsData(&m); buffer) {
+        if (auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -933,12 +933,12 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kSwitchMonitor);
+        px::Message m;
+        m.set_type(px::kSwitchMonitor);
         m.set_device_id(settings_->device_id_);
         m.set_stream_id(settings_->stream_id_);
         m.mutable_switch_monitor()->set_name(name);
-        if (const auto buffer = tc::ProtoAsData(&m); buffer) {
+        if (const auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -947,9 +947,9 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kUpdateDesktop);
-        if (const auto buffer = tc::ProtoAsData(&m); buffer) {
+        px::Message m;
+        m.set_type(px::kUpdateDesktop);
+        if (const auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -959,11 +959,11 @@ namespace tc
             return;
         }
         int fps = settings_->fps_;
-        tc::Message m;
-        m.set_type(tc::kModifyFps);
+        px::Message m;
+        m.set_type(px::kModifyFps);
         auto mf = m.mutable_modify_fps();
         mf->set_fps(fps);
-        if (const auto buffer = tc::ProtoAsData(&m); buffer) {
+        if (const auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -972,9 +972,9 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kExitControlledEnd);
-        if (auto buffer = tc::ProtoAsData(&m); buffer) {
+        px::Message m;
+        m.set_type(px::kExitControlledEnd);
+        if (auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -983,9 +983,9 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kHardUpdateDesktop);
-        if (auto buffer = tc::ProtoAsData(&m); buffer) {
+        px::Message m;
+        m.set_type(px::kHardUpdateDesktop);
+        if (auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -996,8 +996,8 @@ namespace tc
             return;
         }
         settings_->SetWorkMode(mode);
-        tc::Message m;
-        m.set_type(tc::kSwitchWorkMode);
+        px::Message m;
+        m.set_type(px::kSwitchWorkMode);
         m.set_device_id(settings_->device_id_);
         m.set_stream_id(settings_->stream_id_);
         auto wm = m.mutable_work_mode();
@@ -1010,18 +1010,18 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kSwitchFullColorMode);
+        px::Message m;
+        m.set_type(px::kSwitchFullColorMode);
         m.set_device_id(settings_->device_id_);
         m.set_stream_id(settings_->stream_id_);
         auto wm = m.mutable_switch_full_color_mode();
         wm->set_enable(enable);
-        if (auto buffer = tc::ProtoAsData(&m); buffer) {
+        if (auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
 
-    void BaseWorkspace::SwitchScaleMode(const tc::ScaleMode& mode) {
+    void BaseWorkspace::SwitchScaleMode(const px::ScaleMode& mode) {
         settings_->SetScaleMode(mode);
         if (mode == ScaleMode::kFillWindow) {
             SwitchToFillWindow();
@@ -1043,15 +1043,15 @@ namespace tc
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        tc::Message m;
-        m.set_type(tc::kChangeMonitorResolution);
+        px::Message m;
+        m.set_type(px::kChangeMonitorResolution);
         m.set_device_id(settings_->device_id_);
         m.set_stream_id(settings_->stream_id_);
         auto cmr = m.mutable_change_monitor_resolution();
         cmr->set_monitor_name(msg.monitor_name_);
         cmr->set_target_width(msg.width_);
         cmr->set_target_height(msg.height_);
-        if (auto buffer = tc::ProtoAsData(&m); buffer) {
+        if (auto buffer = px::ProtoAsData(&m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }
@@ -1077,9 +1077,9 @@ namespace tc
             panel_client_->Exit();
             panel_client_ = nullptr;
         }
-        if (spvr_client_) {
-            spvr_client_->Exit();
-            spvr_client_ = nullptr;
+        if (cms_client_) {
+            cms_client_->Exit();
+            cms_client_ = nullptr;
         }
         if (sdk_) {
             sdk_->Exit();
@@ -1141,7 +1141,7 @@ namespace tc
         // 1. Can I connect relay server?
         {
             LOGI("will get device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_);
-            auto r = relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_, settings_->relay_appkey_);
+            auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_, settings_->relay_appkey_);
             if (!r.has_value()) {
                 context_->PostUITask([=, this]() {
                     TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_get_local_device_info"), this);
@@ -1154,7 +1154,7 @@ namespace tc
         // 2. Can I get remote device info ?
         {
             LOGI("will get remote device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_);
-            auto r = relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_, settings_->relay_appkey_);
+            auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_, settings_->relay_appkey_);
             if (!r.has_value()) {
                 context_->PostUITask([=, this]() {
                     TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_get_remote_device_info"), this);
@@ -1185,7 +1185,7 @@ namespace tc
         });
     }
 
-    void BaseWorkspace::ProcessNetworkMessage(const std::shared_ptr<tc::Message>& msg) {
+    void BaseWorkspace::ProcessNetworkMessage(const std::shared_ptr<px::Message>& msg) {
         if (msg->type() == MessageType::kDisconnectConnection) {
             const auto& sub = msg->disconnect_connection();
             LOGI("DISCONNECT, device id: {}, stream id: {}", sub.device_id(), sub.stream_id());

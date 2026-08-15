@@ -48,7 +48,7 @@ static std::vector<unsigned char> base64_decode(const std::string& input) {
     return buffer;
 }
 
-namespace tc
+namespace px
 {
     // ===== AES-256-GCM 加密 =====
     std::string AuthAes::AesEncrypt(const std::string &plaintext, const unsigned char key[32]) {

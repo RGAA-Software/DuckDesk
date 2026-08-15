@@ -15,7 +15,7 @@
 #include "hook_api.h"
 #include <Windows.h>
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -100,7 +100,7 @@ namespace tc
         std::shared_ptr<SharedTexture> shared_texture_ = nullptr;
         uint64_t frame_index_ = 0;
 
-        tc::ConcurrentQueue<std::shared_ptr<CaptureBaseMessage>> messages_;
+        px::ConcurrentQueue<std::shared_ptr<CaptureBaseMessage>> messages_;
         POINT cursor_in_screen_position_{};
 
         std::shared_ptr<AppSharedInfoReader> shared_info_reader_ = nullptr;

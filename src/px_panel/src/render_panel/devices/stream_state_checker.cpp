@@ -9,14 +9,14 @@
 #include "px_common_new/log.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "relay_message.pb.h"
 #include "px_relay_client/relay_api.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
-#include "px_spvr_client/spvr_device_api.h"
+#include "px_cms_client/cms_device_api.h"
 
-namespace tc
+namespace px
 {
 
     StreamStateChecker::StreamStateChecker(const std::shared_ptr<GrContext>& ctx) {
@@ -33,7 +33,7 @@ namespace tc
 
     }
 
-    void StreamStateChecker::UpdateCurrentStreamItems(const std::vector<std::shared_ptr<spvr::SpvrStream>>& items) {
+    void StreamStateChecker::UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items) {
         const auto weak_self = weak_from_this();
         context_->PostTask([weak_self, items]() {
             const auto self = weak_self.lock();
@@ -48,7 +48,7 @@ namespace tc
         on_checked_cbk_ = cbk;
     }
 
-    void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<spvr::SpvrStream>>& items) {
+    void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items) {
         for (auto& item : items) {
             // host & port mode
             // /api/ping
@@ -64,18 +64,18 @@ namespace tc
             if (item->HasRelayInfo()) {
                 // to check in server
                 auto device_info = context_->GetRelayServerSideDeviceInfo(item->relay_host_, item->relay_port_, grApp->GetAppkey()/*item->relay_appkey_*/, item->remote_device_id_, false);
-                if (device_info && relay::RelayApi::IsRelayDeviceValid(device_info)) {
+                if (device_info && px_relay::RelayApi::IsRelayDeviceValid(device_info)) {
                     item->relay_online_ = true;
                 }
             }
 
-            // check spvr
-            // online == the device holds a live panel connection to the spvr server,
+            // check cms
+            // online == the device holds a live panel connection to the cms server,
             // NOT just a registered record in the database.
-            item->spvr_online_ = false;
+            item->cms_online_ = false;
             if (!item->remote_device_id_.empty()) {
-                item->spvr_online_ = spvr::SpvrDeviceApi::IsDeviceOnline(settings_->GetSpvrServerHost(),
-                                                                         settings_->GetSpvrServerPort(),
+                item->cms_online_ = px_cms::CmsDeviceApi::IsDeviceOnline(settings_->GetCmsServerHost(),
+                                                                         settings_->GetCmsServerPort(),
                                                                          grApp->GetAppkey(),
                                                                          item->remote_device_id_);
             }

@@ -15,7 +15,7 @@
 #include <px_common_new/folder_util.h>
 #include <px_common_new/string_util.h>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<SkinContext> SkinInterface::GetPluginContext() {

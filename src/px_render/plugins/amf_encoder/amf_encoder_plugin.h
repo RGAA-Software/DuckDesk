@@ -8,7 +8,7 @@
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugins/plugin_ids.h"
 
-namespace tc
+namespace px
 {
 
     class VideoEncoderVCE;
@@ -24,7 +24,7 @@ namespace tc
 
         bool CanEncodeTexture() override;
         void On1Second() override;
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         bool IsWorking() override;

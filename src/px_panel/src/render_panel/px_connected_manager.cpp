@@ -13,7 +13,7 @@
 #include "px_settings.h"
 #include <QPointer>
 
-namespace tc { 
+namespace px { 
 	GrConnectedManager::GrConnectedManager(const std::shared_ptr<GrContext>& ctx) : px_ctx_(ctx) {
 		if (!px_ctx_) {
 			LOGE("px_ctx_ is nullptr.");

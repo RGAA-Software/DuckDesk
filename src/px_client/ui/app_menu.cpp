@@ -13,7 +13,7 @@
 
 #include "app_color_theme.h"
 
-namespace tc
+namespace px
 {
 
     AppMenuItem::AppMenuItem(const QString& name, int idx, const QString& icon, QWidget* parent) : QWidget(parent) {

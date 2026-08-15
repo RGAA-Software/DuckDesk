@@ -4,13 +4,13 @@
 
 #include "px_monitor_capture_plugin.h"
 
-namespace tc
+namespace px
 {
     GrMonitorCapturePlugin::GrMonitorCapturePlugin() {
 
     }
 
-    bool GrMonitorCapturePlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool GrMonitorCapturePlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         return true;
     }
@@ -44,7 +44,7 @@ namespace tc
 
     }
 
-    void GrMonitorCapturePlugin::SetCaptureErrorCallback(const tc::CaptureErrorCallback& cbk) {
+    void GrMonitorCapturePlugin::SetCaptureErrorCallback(const px::CaptureErrorCallback& cbk) {
         capture_err_callback_ = cbk;
     }
 

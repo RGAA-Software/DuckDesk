@@ -9,7 +9,7 @@
 
 #include "../ip_util.h"
 
-using namespace tc;
+using namespace px;
 
 TEST(NetworkAdapterTest, ScanIPsNotEmpty) {
     auto ips = IPUtil::ScanIPs();

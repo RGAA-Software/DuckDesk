@@ -13,7 +13,7 @@
 #include "px_capture_new/audio_capture_factory.h"
 #include "../audio/audio_file_saver.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

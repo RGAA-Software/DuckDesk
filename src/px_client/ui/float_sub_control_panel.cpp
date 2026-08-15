@@ -16,7 +16,7 @@
 #include "px_message_new/proto_message_maker.h"
 #include "ct_base_workspace.h"
 
-namespace tc
+namespace px
 {
 
     SubControlPanel::SubControlPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

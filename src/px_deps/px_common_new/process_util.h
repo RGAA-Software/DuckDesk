@@ -13,7 +13,7 @@
 
 const std::string kExploreName = "explorer.exe";
 
-namespace tc
+namespace px
 {
     bool SetDpiAwarenessContext(DPI_AWARENESS_CONTEXT context);
 

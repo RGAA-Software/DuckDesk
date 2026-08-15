@@ -13,7 +13,7 @@
 #include "ct_auth_token.h"
 
 int main() {
-    using namespace tc;
+    using namespace px;
 
     // Known answer test: verify the token matches a value produced by the Rust
     // px_auth_mgr::auth_token implementation for the same inputs.

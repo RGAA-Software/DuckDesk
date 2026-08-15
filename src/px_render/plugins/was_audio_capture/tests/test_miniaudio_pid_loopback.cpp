@@ -150,10 +150,10 @@ int main(int argc, char** argv) {
     std::printf("\n=== C) MiniAudioCapture::MakeForProcess ===\n");
     std::atomic<uint64_t> bytes{0};
     std::atomic<int> peak{0};
-    auto cap = tc::MiniAudioCapture::MakeForProcess(pid);
+    auto cap = px::MiniAudioCapture::MakeForProcess(pid);
     cap->RegisterFormatCallback(
         [](int sr, int ch, int bits) { std::printf("[3] format %dHz %dch %dbit\n", sr, ch, bits); });
-    cap->RegisterDataCallback([&](const tc::DataPtr& d) {
+    cap->RegisterDataCallback([&](const px::DataPtr& d) {
         if (!d) {
             return;
         }

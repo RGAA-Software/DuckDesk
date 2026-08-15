@@ -1,6 +1,6 @@
 #pragma once
 
-namespace tc {
+namespace px {
 const std::string KPlayerSliderCss = R"(
 QSlider::groove:horizontal {
 	background: #3D8BF9;

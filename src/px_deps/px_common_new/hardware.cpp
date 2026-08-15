@@ -19,7 +19,7 @@
 #pragma comment(lib, "wbemuuid.lib")
 #pragma comment(lib, "IPHLPAPI.lib")
 
-namespace tc
+namespace px
 {
 
     const std::string kKeyCpuName = "key_cpu_name";

@@ -15,7 +15,7 @@ pub fn gen_appkey_secret(name: String, machine_code: String) -> AppkeySecret {
     let input = name + machine_code.as_str() + random_salt.as_str();
     let appkey = compute_hash(HashAlgo::MD5, input.as_bytes());
     let app_secret = calculate_app_secret(appkey.clone());
-    let username = "SpvrAdmin".to_string();
+    let username = "CmsAdmin".to_string();
     let password = generate_random_password();
     AppkeySecret {
         appkey,

@@ -14,7 +14,7 @@ const md5 = (input: string): string => {
 import { useRouter } from 'vue-router'
 import { copyText } from '@/util/clipboard.ts'
 import { formatTimestamp } from '@/util/time.ts'
-import { queryMachineCode } from '@/model/spvr_api.ts'
+import { queryMachineCode } from '@/model/cms_api.ts'
 const router = useRouter()
 
 const inputUsername = ref('')

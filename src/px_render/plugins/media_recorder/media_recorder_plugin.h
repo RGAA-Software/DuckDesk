@@ -7,7 +7,7 @@
 
 #include "px_render/plugin_interface/px_stream_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class MediaRecorderPlugin : public GrStreamPlugin {
@@ -24,7 +24,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::MediaRecorderPlugin)
+GR_PLUGIN_EXPORT(px::MediaRecorderPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

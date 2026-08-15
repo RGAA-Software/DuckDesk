@@ -16,10 +16,10 @@
 #include <QComboBox>
 #include <QPainter>
 
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;

@@ -77,7 +77,7 @@ export const ZERO_SNAPSHOT: GamepadSnapshot = {
 }
 
 export interface GamepadOptions {
-  // 发送 tc.Message 字段(App.vue 的 sendControl,内部完成 TLV 打包)
+  // 发送 px.Message 字段(App.vue 的 sendControl,内部完成 TLV 打包)
   send: (fields: Record<string, unknown>) => boolean
   onLog?: (msg: string) => void
   // 状态文本变化回调(连接的手柄名 / 未检测到)

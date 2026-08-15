@@ -15,7 +15,7 @@
 #include <QDir>
 #include <QApplication>
 
-namespace tc
+namespace px
 {
     namespace {
         bool BackupBrokenDatabaseFile(const std::string& db_path, std::string* backup_path_out) {

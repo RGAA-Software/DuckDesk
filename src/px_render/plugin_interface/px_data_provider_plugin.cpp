@@ -4,7 +4,7 @@
 
 #include "px_data_provider_plugin.h"
 
-namespace tc
+namespace px
 {
 
     GrDataProviderPlugin::GrDataProviderPlugin() {
@@ -15,7 +15,7 @@ namespace tc
 
     }
 
-    bool GrDataProviderPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool GrDataProviderPlugin::OnCreate(const px::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
         return true;
     }

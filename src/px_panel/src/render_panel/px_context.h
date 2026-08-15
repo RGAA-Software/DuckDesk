@@ -16,12 +16,12 @@
 #include <QObject>
 #include <QTimer>
 
-namespace relay
+namespace px_relay
 {
     class RelayDeviceInfo;
 }
 
-namespace tc
+namespace px
 {
 
     class SteamManager;
@@ -35,7 +35,7 @@ namespace tc
     class GrApplication;
     class NotifyManager;
     class GrDatabase;
-    class GrSpvrManager;
+    class GrCmsManager;
     class GrEventManager;
 
     // Device list
@@ -81,7 +81,7 @@ namespace tc
         std::shared_ptr<DBGameOperator> GetDBGameManager();
         std::shared_ptr<ServiceManager> GetServiceManager();
         std::shared_ptr<GrApplication> GetApplication();
-        std::shared_ptr<GrSpvrManager> GetSpvrManager();
+        std::shared_ptr<GrCmsManager> GetCmsManager();
         std::shared_ptr<GrEventManager> GetEventManager();
 
         template<typename T>
@@ -109,13 +109,13 @@ namespace tc
         void NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
         void NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
 
-        // spvr
+        // cms
         // will add prefix: server
         // id ==> server_111333444
         // relay_host: relay server host for the device
         // relay_port: relay server port for the device
         // relay_app_key: app key for this relay server
-        std::shared_ptr<relay::RelayDeviceInfo> GetRelayServerSideDeviceInfo(const std::string& relay_host,
+        std::shared_ptr<px_relay::RelayDeviceInfo> GetRelayServerSideDeviceInfo(const std::string& relay_host,
                                                                              int relay_port,
                                                                              const std::string& relay_appkey,
                                                                              const std::string& device_id,
@@ -150,7 +150,7 @@ namespace tc
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<NotifyManager> notify_mgr_ = nullptr;
         std::shared_ptr<GrDatabase> database_ = nullptr;
-        std::shared_ptr<GrSpvrManager> spvr_manager_ = nullptr;
+        std::shared_ptr<GrCmsManager> cms_manager_ = nullptr;
         std::shared_ptr<GrEventManager> event_manager_ = nullptr;
         bool db_ready_ = false;
         std::string db_error_;

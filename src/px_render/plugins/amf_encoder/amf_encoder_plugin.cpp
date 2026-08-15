@@ -9,9 +9,9 @@
 #include "px_common_new/log.h"
 #include "px_render/plugins/plugin_ids.h"
 
-GR_PLUGIN_EXPORT(tc::AmfEncoderPlugin)
+GR_PLUGIN_EXPORT(px::AmfEncoderPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string AmfEncoderPlugin::GetPluginId() {
@@ -42,8 +42,8 @@ namespace tc
         GrVideoEncoderPlugin::On1Second();
     }
 
-    bool AmfEncoderPlugin::OnCreate(const tc::GrPluginParam& param) {
-        tc::GrVideoEncoderPlugin::OnCreate(param);
+    bool AmfEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
+        px::GrVideoEncoderPlugin::OnCreate(param);
         return true;
     }
 

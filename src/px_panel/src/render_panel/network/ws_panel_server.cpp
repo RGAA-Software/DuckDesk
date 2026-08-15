@@ -34,9 +34,9 @@
 #include "render_panel/px_statistics.h"
 #include "render_panel/devices/px_device_manager.h"
 #include "skin/interface/skin_interface.h"
-#include "render_panel/spvr/px_event_manager.h"
+#include "render_panel/cms/px_event_manager.h"
 
-namespace tc
+namespace px
 {
 
     static std::string kUrlPanel = "/panel";
@@ -148,7 +148,7 @@ namespace tc
 
         //auto exe_dir = qApp->applicationDirPath().toStdString();
         //auto pwd_file = std::format("{}/certs/password", exe_dir);
-        //auto pwd = tc::File::OpenForRead(pwd_file)->ReadAllAsString();
+        //auto pwd = px::File::OpenForRead(pwd_file)->ReadAllAsString();
         //server_->set_cert_file(
         //    "",
         //    std::format("{}/certs/server.crt", exe_dir),
@@ -417,7 +417,7 @@ namespace tc
 
     void WsPanelServer::PostPanelMessage(const std::string& msg, bool only_inner) {
         panel_sessions_.VisitAll([=, this](uint64_t fd, std::shared_ptr<WSSession>& sess) {
-            if (only_inner && sess->session_type_ != tccp::CpSessionType::kInnerServer) {
+            if (only_inner && sess->session_type_ != pxcp::CpSessionType::kInnerServer) {
                 return;
             }
             if (sess->session_) {
@@ -427,11 +427,11 @@ namespace tc
     }
 
     bool WsPanelServer::ParsePanelMessage(uint64_t socket_fd, std::string_view msg) {
-        auto proto_msg = std::make_shared<tccp::CpMessage>();
+        auto proto_msg = std::make_shared<pxcp::CpMessage>();
         if (!proto_msg->ParseFromArray(msg.data(), msg.size())) {
             return false;
         }
-        if (proto_msg->type() == tccp::CpMessageType::kCpHello) {
+        if (proto_msg->type() == pxcp::CpMessageType::kCpHello) {
             auto hello = proto_msg->hello();
             panel_sessions_.VisitAll([=](uint64_t k, std::shared_ptr<WSSession>& v) {
                 if (v->socket_fd_ == socket_fd) {
@@ -445,7 +445,7 @@ namespace tc
                 .sess_type_ = hello.type(),
             });
         }
-        else if (proto_msg->type() == tccp::CpMessageType::kCpHeartBeat) {
+        else if (proto_msg->type() == pxcp::CpMessageType::kCpHeartBeat) {
             auto hb = proto_msg->heartbeat();
             //LOGI("HB: stream id: {} remote desktop: {} os: {}", proto_msg->stream_id(), hb.remote_device_desktop_name(), hb.remote_os_name());
             if (proto_msg->stream_id().empty() || hb.remote_device_desktop_name().empty() || hb.remote_os_name().empty()) {
@@ -458,7 +458,7 @@ namespace tc
                 .os_version_ = hb.remote_os_name(),
             });
         }
-        else if (proto_msg->type() == tccp::kCpFileTransferBegin) {
+        else if (proto_msg->type() == pxcp::kCpFileTransferBegin) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -487,7 +487,7 @@ namespace tc
                 self->NotifyInsertFileTransferRecordToCms(record);
             });
         }
-        else if (proto_msg->type() == tccp::kCpFileTransferEnd) {
+        else if (proto_msg->type() == pxcp::kCpFileTransferEnd) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -506,8 +506,8 @@ namespace tc
     }
 
     void WsPanelServer::RpSyncPanelInfo() {
-        tcrp::RpMessage m;
-        m.set_type(tcrp::RpMessageType::kSyncPanelInfo);
+        pxrp::RpMessage m;
+        m.set_type(pxrp::RpMessageType::kSyncPanelInfo);
         auto sub = m.mutable_sync_panel_info();
         sub->set_device_id(settings_->GetDeviceId());
         sub->set_device_random_pwd(settings_->GetDeviceRandomPwd());
@@ -528,7 +528,7 @@ namespace tc
         else {
             sub->set_role(1);
         }
-        PostRendererMessage(tc::RpProtoAsData(&m));
+        PostRendererMessage(px::RpProtoAsData(&m));
     }
 
     void WsPanelServer::ParseFtBinaryMessage(uint64_t socket_fd, std::string_view msg) {
@@ -548,39 +548,39 @@ namespace tc
 
     // parse /panel/renderer socket
     void WsPanelServer::ParseRendererMessage(uint64_t socket_fd, std::string_view msg) {
-        auto proto_msg = std::make_shared<tcrp::RpMessage>();
+        auto proto_msg = std::make_shared<pxrp::RpMessage>();
         if (!proto_msg->ParseFromArray(msg.data(), msg.size())) {
             LOGE("Parse binary message failed.");
             return;
         }
-        if (proto_msg->type() == tcrp::kRpCaptureStatistics) {
-            auto statistics = std::make_shared<tcrp::RpCaptureStatistics>();
+        if (proto_msg->type() == pxrp::kRpCaptureStatistics) {
+            auto statistics = std::make_shared<pxrp::RpCaptureStatistics>();
             statistics->CopyFrom(proto_msg->capture_statistics());
             context_->SendAppMessage(MsgCaptureStatistics{
                 .msg_ = proto_msg,
                 .statistics_ = statistics,
             });
         }
-        else if (proto_msg->type() == tcrp::kRpServerAudioSpectrum) {
+        else if (proto_msg->type() == pxrp::kRpServerAudioSpectrum) {
             //auto spectrum = proto_msg->renderer_audio_spectrum();
-            auto spectrum = std::make_shared<tcrp::RpServerAudioSpectrum>();
+            auto spectrum = std::make_shared<pxrp::RpServerAudioSpectrum>();
             spectrum->CopyFrom(proto_msg->renderer_audio_spectrum());
             context_->SendAppMessage(MsgServerAudioSpectrum {
                 .msg_ = proto_msg,
                 .spectrum_ = spectrum,
             });
         }
-        else if (proto_msg->type() == tcrp::kRpRestartServer) {
+        else if (proto_msg->type() == pxrp::kRpRestartServer) {
             context_->SendAppMessage(AppMsgRestartServer {});
         }
-        else if (proto_msg->type() == tcrp::kRpPluginsInfo) {
-            auto plugins_info = std::make_shared<tcrp::RpPluginsInfo>();
+        else if (proto_msg->type() == pxrp::kRpPluginsInfo) {
+            auto plugins_info = std::make_shared<pxrp::RpPluginsInfo>();
             plugins_info->CopyFrom(proto_msg->plugins_info());
             context_->SendAppMessage(MsgPluginsInfo {
                 .plugins_info_ = plugins_info,
             });
         }
-        else if (proto_msg->type() == tcrp::kRpClientConnected) {
+        else if (proto_msg->type() == pxrp::kRpClientConnected) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -611,7 +611,7 @@ namespace tc
                 self->NotifyInsertVisitRecordToCms(record);
             });
         }
-        else if (proto_msg->type() == tcrp::kRpClientDisConnected) {
+        else if (proto_msg->type() == pxrp::kRpClientDisConnected) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -630,7 +630,7 @@ namespace tc
             });
             context_->SendAppMessage(MsgOneClientDisconnect{});
         }
-        else if (proto_msg->type() == tcrp::kRpFileTransferBegin) {
+        else if (proto_msg->type() == pxrp::kRpFileTransferBegin) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -657,7 +657,7 @@ namespace tc
                 self->NotifyInsertFileTransferRecordToCms(record);
             });
         }
-        else if (proto_msg->type() == tcrp::kRpFileTransferEnd) {
+        else if (proto_msg->type() == pxrp::kRpFileTransferEnd) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg]() {
                 auto self = weak_self.lock();
@@ -672,11 +672,11 @@ namespace tc
                 }
             });
         }
-        else if (proto_msg->type() == tcrp::kRpRawRenderMessage) {
+        else if (proto_msg->type() == pxrp::kRpRawRenderMessage) {
             // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
 #if 0
             auto sub = proto_msg->raw_render_msg();
-            auto rd_proto_msg = std::make_shared<tc::Message>();
+            auto rd_proto_msg = std::make_shared<px::Message>();
             if (!rd_proto_msg->ParseFromString(sub.msg())) {
                 LOGE("kRpRawRenderMessage parse failed");
                 return;
@@ -685,13 +685,13 @@ namespace tc
             processor->OnMessage(rd_proto_msg);
 #endif
         }
-        else if (proto_msg->type() == tcrp::kRpRelayAlive) {
+        else if (proto_msg->type() == pxrp::kRpRelayAlive) {
             auto sub = proto_msg->relay_alive();
             // 以 panel 实际收到消息的时刻为准:消息能到达即代表 relay 链路活着,
             // render 侧的时间戳可能因任务队列排队而滞后数秒,会误判为离线。
             stat_->UpdateRelayAlive(sub.device_id(), (int64_t)TimeUtil::GetCurrentTimestamp());
         }
-        else if (proto_msg->type() == tcrp::kRpMonitorChanged) {
+        else if (proto_msg->type() == pxrp::kRpMonitorChanged) {
             context_->SendAppMessage(MsgMonitorChanged{});
         }
     }
@@ -714,12 +714,12 @@ namespace tc
 
         // to render
         {
-            tcrp::RpMessage rp_msg;
-            rp_msg.set_type(tcrp::RpMessageType::kRpHardwareInfo);
+            pxrp::RpMessage rp_msg;
+            rp_msg.set_type(pxrp::RpMessageType::kRpHardwareInfo);
             auto sub = rp_msg.mutable_hw_info();
             sub->set_json_msg(sys_info->raw_json_msg_);
             sub->set_current_cpu_freq(companion->GetCurrentCpuFrequency());
-            PostRendererMessage(tc::RpProtoAsData(&rp_msg));
+            PostRendererMessage(px::RpProtoAsData(&rp_msg));
         }
 
         // notify event if needed
@@ -781,8 +781,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), kUrlVisitRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), kUrlVisitRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}
@@ -798,8 +798,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), kUrlUpdateVisitRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), kUrlUpdateVisitRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}
@@ -815,8 +815,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}
@@ -832,8 +832,8 @@ namespace tc
             return;
         }
         auto settings = GrSettings::Instance();
-        std::string serv_host = settings->GetSpvrServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetSpvrServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
+        std::string serv_host = settings->GetCmsServerHost();
+        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}

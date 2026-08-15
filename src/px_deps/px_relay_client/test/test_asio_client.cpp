@@ -7,8 +7,8 @@
 #include "relay_message.pb.h"
 #include "px_common_new/log.h"
 
-using namespace tc;
-using namespace relay;
+using namespace px;
+using namespace px_relay;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

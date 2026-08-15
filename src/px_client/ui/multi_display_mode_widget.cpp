@@ -5,7 +5,7 @@
 #include "multi_display_mode_widget.h"
 #include "app_color_theme.h"
 
-namespace tc
+namespace px
 {
 
     MultiDisplayModeWidget::MultiDisplayModeWidget(MultiDisplayMode mode, QWidget* parent) : QWidget(parent) {

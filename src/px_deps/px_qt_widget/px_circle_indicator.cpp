@@ -4,7 +4,7 @@
 
 #include "px_circle_indicator.h"
 
-namespace tc
+namespace px
 {
 
     TcCircleIndicator::TcCircleIndicator(QWidget* parent) : QWidget(parent) {

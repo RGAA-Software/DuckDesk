@@ -10,7 +10,7 @@
 #include "no_margin_layout.h"
 #include "multi_display_mode_widget.h"
 
-namespace tc
+namespace px
 {
 
     SettingsContent::SettingsContent(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : AppContent(ctx, parent) {

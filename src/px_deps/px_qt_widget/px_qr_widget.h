@@ -9,7 +9,7 @@
 #include <QPixmap>
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     class TcQRWidget : public QWidget {

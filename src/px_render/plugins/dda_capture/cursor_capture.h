@@ -5,7 +5,7 @@
 #include <iostream>
 #include <memory>
 
-namespace tc
+namespace px
 {
     class Data;
     class DDACapturePlugin;

@@ -16,10 +16,10 @@ if(ANDROID)
     target_link_libraries(px_relay_message ${PROTO_LIB_NAMES})
 
     ### server
-    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS spvr_client.proto spvr_panel.proto)
+    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS cms_client.proto cms_panel.proto)
     add_library(px_server_message
-        ${CMAKE_CURRENT_BINARY_DIR}/spvr_client.pb.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/spvr_panel.pb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/cms_client.pb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/cms_panel.pb.cc
     )
     target_link_libraries(px_server_message ${PROTO_LIB_NAMES})
 
@@ -33,10 +33,10 @@ elseif(WIN32 OR APPLE OR UNIX)
     target_link_libraries(px_relay_message ${PROTO_LIB_NAMES})
 
     ### server
-    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS spvr_client.proto spvr_panel.proto)
+    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS cms_client.proto cms_panel.proto)
     add_library(px_server_message
-        ${CMAKE_CURRENT_BINARY_DIR}/spvr_client.pb.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/spvr_panel.pb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/cms_client.pb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/cms_panel.pb.cc
     )
     target_link_libraries(px_server_message ${PROTO_LIB_NAMES})
 endif()

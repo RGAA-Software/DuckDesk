@@ -8,7 +8,7 @@
 
 | 端口 | 协议 | 功能 |
 |------|------|------|
-| **30500**（`spvr_port`） | HTTPS（自签名证书） | 完整服务：所有 `/api/v1/*`、WebSocket（`/spvr/*`）、静态资源（`/assets` `/uploads` 等）、SPA fallback |
+| **30500**（`cms_port`） | HTTPS（自签名证书） | 完整服务：所有 `/api/v1/*`、WebSocket（`/cms/*`）、静态资源（`/assets` `/uploads` 等）、SPA fallback |
 | **30499**（`30500 - 1`） | HTTP | 仅 `/ping` 健康检查，不提供 API / WS |
 
 - 浏览器访问后台固定走 `https://<ip>:30500`。
@@ -37,7 +37,7 @@
 
 - `vite.config.ts` 的 `server.proxy`：
   - `/api`、`/uploads`、`/ping` → `https://127.0.0.1:30500`（`secure:false` 忽略自签名证书）
-  - `/spvr` → 同上，且 `ws:true`（转发 WebSocket 升级握手）
+  - `/cms` → 同上，且 `ws:true`（转发 WebSocket 升级握手）
 - `src/http.ts` 在 `import.meta.env.DEV` 下：
   - `BASE_URL` 返回 `''`（相对路径，走代理）
   - `HOST_PORT` 返回 `window.location.host`（WebSocket 也走代理）

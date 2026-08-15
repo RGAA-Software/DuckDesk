@@ -1,7 +1,7 @@
 #include "px_common_new/clipboard/stub/clipboard_platform_stub.h"
 #include "px_common_new/log.h"
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     bool PlatformStub::Read(Content& out) {

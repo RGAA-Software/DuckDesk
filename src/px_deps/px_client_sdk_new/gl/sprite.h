@@ -6,7 +6,7 @@
 
 #include "renderer.h"
 
-namespace tc
+namespace px
 {
 	
 	class Director;

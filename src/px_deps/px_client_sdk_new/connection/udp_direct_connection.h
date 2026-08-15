@@ -18,7 +18,7 @@ namespace asio2
     class udp_client;
 }
 
-namespace tc
+namespace px
 {
 
     class Message;
@@ -47,11 +47,11 @@ namespace tc
         void PostBinaryMessage(std::shared_ptr<Data> msg) override;
 
         // 组帧完成后合成的 kVideoFrame proto,回调语义与 WebRtcLocalConnection::SetOnVideoMessageCallback 一致
-        void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk);
+        void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
 
         // jitter buffer 按序交付后合成的 kAudioFrame proto;
         // 丢帧信号同样是 kAudioFrame,但 data 为空(解码层据此走 Opus PLC 补 20ms)
-        void SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk);
+        void SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
 
         // render 通过 UDP 控制包踢人(kCtrlKick),reason 原样上报
         void SetOnKickCallback(std::function<void(const std::string& reason)> cbk);
@@ -82,8 +82,8 @@ namespace tc
         GrUdpFrameReassembler reassembler_;
         GrUdpAudioJitterBuffer audio_jitter_;
 
-        std::function<void(std::shared_ptr<tc::Message>)> video_msg_cbk_;
-        std::function<void(std::shared_ptr<tc::Message>)> audio_msg_cbk_;
+        std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
+        std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;
         std::function<void(const std::string& reason)> on_kick_cbk_;
 
         std::atomic_bool connected_ = false;

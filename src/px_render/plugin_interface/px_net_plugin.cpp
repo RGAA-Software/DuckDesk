@@ -5,7 +5,7 @@
 #include "px_net_plugin.h"
 #include "px_plugin_events.h"
 
-namespace tc
+namespace px
 {
 
     GrNetPlugin::GrNetPlugin() {

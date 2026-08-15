@@ -30,7 +30,7 @@
 
 #define LOG_FILE 1
 
-namespace tc
+namespace px
 {
 
     #define LOGD_ SPDLOG_LOGGER_DEBUG

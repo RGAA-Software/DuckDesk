@@ -3,7 +3,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
-namespace tc
+namespace px
 {
 	void D3DTextureDebug::SaveAsDDS(ID3D11DeviceContext* context, ID3D11Texture2D* texture, const std::string& name) {
         DebugOutDDS(texture, name);

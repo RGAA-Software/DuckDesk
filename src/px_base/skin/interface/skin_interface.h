@@ -18,7 +18,7 @@
 #include <QtGui/QPixmap>
 #include "skin_settings.h"
 
-namespace tc
+namespace px
 {
 
     class SkinContext;

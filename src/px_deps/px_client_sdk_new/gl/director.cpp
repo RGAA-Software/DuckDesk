@@ -1,6 +1,6 @@
 #include "director.h"
 
-namespace tc
+namespace px
 {
 
 	Director::Director() {

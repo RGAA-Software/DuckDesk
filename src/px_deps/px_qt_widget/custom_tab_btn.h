@@ -10,7 +10,7 @@
 #include <QLabel>
 #include "translator/px_translator.h"
 
-namespace tc
+namespace px
 {
 
     class CustomTabBtn : public QPushButton, public TcTranslator {
@@ -26,7 +26,7 @@ namespace tc
 
         void AddIcon(const QString& selected_uri, const QString& normal_uri, int size, int offset_x);
         void SetTextId(const QString &id) override;
-        void OnTranslate(tc::LanguageKind kind) override;
+        void OnTranslate(px::LanguageKind kind) override;
 
         void mousePressEvent(QMouseEvent *event) override;
         void mouseReleaseEvent(QMouseEvent *event) override;

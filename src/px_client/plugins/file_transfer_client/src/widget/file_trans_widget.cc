@@ -17,7 +17,7 @@
 #include "px_qt_widget/widget_helper.h"
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 static QString s_switch_curr_btn_style = "QPushButton{border:0px;font-family:Microsoft YaHei;font-size:%1px; color:#000000;background-color:#ffffff;}";
 static QString s_switch_no_curr_btn_style = "QPushButton{border:0px;font-family:Microsoft YaHei;font-size:%1px; color:#333333;background-color:#ffffff;}";

@@ -16,10 +16,10 @@
 #include <QComboBox>
 #include <QPainter>
 
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
@@ -27,7 +27,7 @@ namespace tc
 
     class EditRelayStreamDialog : public TcCustomTitleBarDialog {
     public:
-        EditRelayStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, QWidget* parent = nullptr);
+        EditRelayStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
         ~EditRelayStreamDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -38,7 +38,7 @@ namespace tc
     private:
         std::shared_ptr<GrContext> context_ = nullptr;
         QLineEdit* edt_stream_name_ = nullptr;
-        std::shared_ptr<spvr::SpvrStream> stream_item_;
+        std::shared_ptr<px_cms::CmsStream> stream_item_;
         TcPasswordInput* password_input_ = nullptr;
         QLineEdit* ed_host_ = nullptr;
         QLineEdit* ed_port_ = nullptr;

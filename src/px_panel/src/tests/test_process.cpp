@@ -10,7 +10,7 @@
 #include <iostream>
 #include "px_common_new/process_util.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

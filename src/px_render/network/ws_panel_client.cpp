@@ -19,7 +19,7 @@
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 
-namespace tc
+namespace px
 {
 
     constexpr int kMaxClientQueuedMessage = 1024;
@@ -138,8 +138,8 @@ namespace tc
     }
 
     void WsPanelClient::SendPluginsInfoInternal() {
-        tcrp::RpMessage msg;
-        msg.set_type(tcrp::kRpPluginsInfo);
+        pxrp::RpMessage msg;
+        msg.set_type(pxrp::kRpPluginsInfo);
         auto m_info = msg.mutable_plugins_info();
         auto plugins_info = m_info->mutable_plugins_info();
         plugin_mgr_->VisitAllPlugins([&](GrPluginInterface* plugin) {
@@ -157,8 +157,8 @@ namespace tc
     }
 
     void WsPanelClient::ReportMonitorChanged() {
-        tcrp::RpMessage msg;
-        msg.set_type(tcrp::kRpMonitorChanged);
+        pxrp::RpMessage msg;
+        msg.set_type(pxrp::kRpMonitorChanged);
         const auto sub = msg.mutable_monitor_changed();
         const auto buffer = RpProtoAsData(&msg);
         PostNetMessage(buffer);
@@ -186,9 +186,9 @@ namespace tc
     void WsPanelClient::ParseNetMessage(std::string_view _msg) {
         try {
             std::string msg = std::string(_msg);
-            tcrp::RpMessage m;
+            pxrp::RpMessage m;
             m.ParseFromString(msg);
-            if (m.type() == tcrp::RpMessageType::kSyncPanelInfo) {
+            if (m.type() == pxrp::RpMessageType::kSyncPanelInfo) {
                 const auto& sub = m.sync_panel_info();
                 settings_->device_id_ = sub.device_id();
                 settings_->device_random_pwd_ = sub.device_random_pwd();
@@ -222,28 +222,28 @@ namespace tc
                     .role_ = settings_->role_,
                 });
             }
-            else if (m.type() == tcrp::RpMessageType::kRpCommandRenderer) {
+            else if (m.type() == pxrp::RpMessageType::kRpCommandRenderer) {
                 LOGI("====> CommandRenderer <====");
                 const auto& sub = m.command_renderer();
                 int ws_port = sub.ws_port();
                 const auto& plugin_id = sub.plugin_id();
                 LOGI("Plugin id: {}", plugin_id);
-                if (sub.command() == tcrp::RpPanelCommand::kEnablePlugin) {
+                if (sub.command() == pxrp::RpPanelCommand::kEnablePlugin) {
                     ProcessCommandEnablePlugin(plugin_id);
                 }
-                else if (sub.command() == tcrp::RpPanelCommand::kDisablePlugin) {
+                else if (sub.command() == pxrp::RpPanelCommand::kDisablePlugin) {
                     ProcessCommandDisablePlugin(plugin_id);
                 }
             }
             // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
 #if 0
-            else if (m.type() == tcrp::RpMessageType::kRpClipboardEvent) {
+            else if (m.type() == pxrp::RpMessageType::kRpClipboardEvent) {
                 const auto& clipboard_info = m.clipboard_info();
                 //LOGI("*** Clipboard type: {}, text: {}, file size: {}", (int)clipboard_info.type(), clipboard_info.msg(), clipboard_info.files_size());
 
                 auto event = std::make_shared<MsgClipboardEvent>();
                 event->clipboard_type_ = [&]() {
-                   if (clipboard_info.type() == tcrp::RpClipboardType::kRpClipboardText) {
+                   if (clipboard_info.type() == pxrp::RpClipboardType::kRpClipboardText) {
                        return MsgClipboardType::kText;
                    }
                    else {
@@ -262,10 +262,10 @@ namespace tc
                 context_->DispatchAppEvent2Plugins(event);
             }
 #endif
-            else if (m.type() == tcrp::RpMessageType::kRpDisconnectConnection) {
+            else if (m.type() == pxrp::RpMessageType::kRpDisconnectConnection) {
                 const auto& sub = m.disconnect_connection();
                 // 1. make disconnect message in px_messages.proto
-                auto resp_msg = std::make_shared<tc::Message>();
+                auto resp_msg = std::make_shared<px::Message>();
                 resp_msg->set_device_id(sub.device_id());
                 resp_msg->set_stream_id(sub.stream_id());
                 resp_msg->set_type(kDisconnectConnection);
@@ -281,7 +281,7 @@ namespace tc
                     plugin->PostTargetStreamProtoMessage(sub.stream_id(), buffer, true);
                 });
             }
-            else if (m.type() == tcrp::RpMessageType::kRpRawRenderMessage) {
+            else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
                 plugin_mgr_->VisitNetPlugins([=](GrNetPlugin* plugin) {
                     const auto& sub = m.raw_render_msg();
                     auto data = Data::From(sub.msg());
@@ -294,9 +294,9 @@ namespace tc
                     }
                 });
             }
-            else if (m.type() == tcrp::RpMessageType::kRpHardwareInfo) {
+            else if (m.type() == pxrp::RpMessageType::kRpHardwareInfo) {
                 auto json_msg = m.hw_info().json_msg();
-                tc::Message net_msg;
+                px::Message net_msg;
                 net_msg.set_type(MessageType::kHardwareInfo);
                 net_msg.mutable_hw_info()->set_hw_info(json_msg);
                 net_msg.mutable_hw_info()->set_current_cpu_freq(m.hw_info().current_cpu_freq());

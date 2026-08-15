@@ -12,7 +12,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<Image> ImageGenerator::CreateGrayscaleWithText(int w, int h, int bg_color, int font_color, int font_size, bool bold, const std::string& text) {

@@ -10,7 +10,7 @@
 #include <vector>
 #include <QListWidget>
 
-namespace tc
+namespace px
 {
 
     class PageWidget;

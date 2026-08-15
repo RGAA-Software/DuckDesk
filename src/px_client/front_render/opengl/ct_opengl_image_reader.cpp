@@ -2,7 +2,7 @@
 #include "px_client_sdk_new/gl/raw_image.h"
 #include <QDebug>
 
-namespace tc
+namespace px
 {
 	std::shared_ptr<RawImage> ImageReader::ReadNV12(const std::string& path, int width, int height) {
 		int size = width * height * 1.5;

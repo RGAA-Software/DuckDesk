@@ -6,7 +6,7 @@
 #include <QDebug>
 #include <QOperatingSystemVersion>
 
-namespace tc
+namespace px
 {
 
     enum class EOpenGLBackend {

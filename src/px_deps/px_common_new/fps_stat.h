@@ -11,7 +11,7 @@
 #include <mutex>
 #include "log.h"
 
-namespace tc
+namespace px
 {
 
     class FpsStat {

@@ -18,7 +18,7 @@
 #include "px_client_sdk_new/thunder_sdk.h"
 #include "px_client_sdk_new/sdk_messages.h"
 
-namespace tc
+namespace px
 {
 
     MainProgress::MainProgress(const std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : QLabel(parent) {

@@ -5,7 +5,7 @@
 // #include "cp_file_stream.h"
 // #include "px_common_new/md5.h"
 
-// namespace tc
+// namespace px
 // {
 
 //     CpFileStream::CpFileStream(RequestBufferCallback request_buffer_cb,

@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FS_FOLDER_H
 #define GAMMARAYPC_FS_FOLDER_H
 
-namespace tc
+namespace px
 {
 
     class FsFolder {

@@ -11,7 +11,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 
-namespace tc
+namespace px
 {
 
     static void SetAutoStartInternal(HKEY hRootKey, const wchar_t* subKey, const std::wstring& exe_path, bool enabled) {

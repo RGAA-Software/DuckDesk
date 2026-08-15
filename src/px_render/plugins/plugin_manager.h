@@ -15,7 +15,7 @@
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_render/plugin_interface/px_plugin_settings_info.h"
 
-namespace tc
+namespace px
 {
 
     class RdContext;

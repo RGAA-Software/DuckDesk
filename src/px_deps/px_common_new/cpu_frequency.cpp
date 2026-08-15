@@ -4,7 +4,7 @@
 
 #include "cpu_frequency.h"
 
-namespace tc
+namespace px
 {
 
     double CpuFrequency::GetCurrentCpuSpeed() {

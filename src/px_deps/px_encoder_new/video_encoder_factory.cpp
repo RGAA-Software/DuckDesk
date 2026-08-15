@@ -11,7 +11,7 @@
 
 #include <memory>
 
-namespace tc
+namespace px
 {
 	std::shared_ptr<VideoEncoder> VideoEncoderFactory::CreateEncoder(const std::shared_ptr<MessageNotifier>& msg_notifier,
                                                                      EncoderFeature feature,

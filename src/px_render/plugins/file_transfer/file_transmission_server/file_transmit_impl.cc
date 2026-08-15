@@ -7,7 +7,7 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/string_util.h"
 
-namespace tc {
+namespace px {
 
 	class FixedSizeDeque {
 	private:
@@ -60,7 +60,7 @@ namespace tc {
 				}
 				continue;
 			}
-			auto now = tc::TimeUtil::GetCurrentTimestamp();
+			auto now = px::TimeUtil::GetCurrentTimestamp();
 			if (now - it->second->last_update_time_ >= 14 * 1000) {
 				it->second->is_ended_ = true;
 				if (it->second->file_ptr_) {
@@ -72,7 +72,7 @@ namespace tc {
 		}
 	}
 
-	void FileTransmitImpl::HandleUpload(const std::string& device_id, const std::string& stream_id, tc::FileTransDataPacket file_data_packet) {
+	void FileTransmitImpl::HandleUpload(const std::string& device_id, const std::string& stream_id, px::FileTransDataPacket file_data_packet) {
 		std::string task_id;
 		try {
 			task_id = file_data_packet.task_id();
@@ -86,8 +86,8 @@ namespace tc {
 			std::lock_guard<std::mutex> lck{ id_with_upload_task_mutex_ };
 
 			if (0 == index % 100 && send_file_trans_data_packet_response_func_) {
-				auto message = std::make_shared<tc::Message>();
-				message->set_type(tc::kFileTransDataPacketResponse);
+				auto message = std::make_shared<px::Message>();
+				message->set_type(px::kFileTransDataPacketResponse);
 				auto response = new FileTransDataPacketResponse();
 				response->set_task_id(task_id);
 				response->set_index(index);
@@ -150,7 +150,7 @@ namespace tc {
 			if (id_with_upload_task_[task_id]->is_ended_) {
 				return;
 			}
-			id_with_upload_task_[task_id]->last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+			id_with_upload_task_[task_id]->last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 			if (id_with_upload_task_[task_id]->file_ptr_ && id_with_upload_task_[task_id]->file_ptr_->IsOpen()) {
 				if (!data.empty()) {
 					auto append_size = id_with_upload_task_[task_id]->file_ptr_->Append(data.data(), data.size());
@@ -163,7 +163,7 @@ namespace tc {
 					}
 				}
 			}
-			if (tc::FileTransDataPacket::kTransmitting != transmit_state) {
+			if (px::FileTransDataPacket::kTransmitting != transmit_state) {
 				if (id_with_upload_task_[task_id]->file_ptr_) {
 					id_with_upload_task_[task_id]->file_ptr_->Close();
 				}
@@ -171,7 +171,7 @@ namespace tc {
 			}
 			switch (transmit_state)
 			{
-			case tc::FileTransDataPacket::kEnd: { // 对端已经上传完毕
+			case px::FileTransDataPacket::kEnd: { // 对端已经上传完毕
                 auto target_file_path = id_with_upload_task_[task_id]->target_file_path_;
                 auto target_file_size = std::filesystem::file_size(PathFromUTF8(target_file_path));
                 LOGI("FileTransDataPacket::kEnd, src size: {}, target size: {}, file: {}", src_file_size, target_file_size, target_file_path);
@@ -183,9 +183,9 @@ namespace tc {
 				}
 				break;
 			}
-			case tc::FileTransDataPacket::kError: // 一般是对端读文件异常了
+			case px::FileTransDataPacket::kError: // 一般是对端读文件异常了
 				break;
-			case tc::FileTransDataPacket::kCancel:
+			case px::FileTransDataPacket::kCancel:
 				break;
 			default:
 				break;
@@ -212,34 +212,34 @@ namespace tc {
 			LOGE("FileTransmitImpl upload_callback_ is null.");
 			return;
 		}
-		auto resp_upload = new tc::FileTransRespUpload();
+		auto resp_upload = new px::FileTransRespUpload();
 		resp_upload->set_task_id(task_id);
 		resp_upload->set_res(false);
 		switch (state)
 		{
-		case tc::FileUploadTask::EFileUploadState::kUnknownError:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kUnknow);
+		case px::FileUploadTask::EFileUploadState::kUnknownError:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kUnknow);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kFailedOpen:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kFailedOpen);
+		case px::FileUploadTask::EFileUploadState::kFailedOpen:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kFailedOpen);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kFailedWrite:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kFailedWrite);
+		case px::FileUploadTask::EFileUploadState::kFailedWrite:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kFailedWrite);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kDirFailedCreate:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kDirFailedCreate);
+		case px::FileUploadTask::EFileUploadState::kDirFailedCreate:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kDirFailedCreate);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kFailedVerify:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kFailedVerify);
+		case px::FileUploadTask::EFileUploadState::kFailedVerify:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kFailedVerify);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kPacketLoss:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kPacketLoss);
+		case px::FileUploadTask::EFileUploadState::kPacketLoss:
+			resp_upload->set_error_cause(px::FileTransRespUpload::kPacketLoss);
 			break;
-		case tc::FileUploadTask::EFileUploadState::kSuccess:
+		case px::FileUploadTask::EFileUploadState::kSuccess:
 			resp_upload->set_res(true);
 			break;
 		default:
-			resp_upload->set_error_cause(tc::FileTransRespUpload::kUnknow);
+			resp_upload->set_error_cause(px::FileTransRespUpload::kUnknow);
 			break;
 		}
 		upload_resp_func_(stream_id, resp_upload);
@@ -247,19 +247,19 @@ namespace tc {
 
 	// 有异常的时候才会调用call_download_callback， 没有异常的话 直接发送下载数据包了
 	void FileTransmitImpl::call_download_callback(const std::string& device_id, const std::string& stream_id, const std::string& task_id, FileDownloadTask::EFileDownloadState state) {
-		auto resp_download = new tc::FileTransRespDownload();
+		auto resp_download = new px::FileTransRespDownload();
 		resp_download->set_task_id(task_id);
 		resp_download->set_res(false);
 		switch (state)
 		{
-		case tc::FileDownloadTask::EFileDownloadState::kNoExists:
-			resp_download->set_error_cause(tc::FileTransRespDownload::kNoExists);
+		case px::FileDownloadTask::EFileDownloadState::kNoExists:
+			resp_download->set_error_cause(px::FileTransRespDownload::kNoExists);
 			break;
-		case tc::FileDownloadTask::EFileDownloadState::kFailedOpen:
-			resp_download->set_error_cause(tc::FileTransRespDownload::kFailedOpen);
+		case px::FileDownloadTask::EFileDownloadState::kFailedOpen:
+			resp_download->set_error_cause(px::FileTransRespDownload::kFailedOpen);
 			break;
 		default:
-			resp_download->set_error_cause(tc::FileTransRespDownload::kUnknow);
+			resp_download->set_error_cause(px::FileTransRespDownload::kUnknow);
 			break;
 		}
 		download_except_func_(task_id, device_id, stream_id, resp_download);
@@ -275,7 +275,7 @@ namespace tc {
 			char buffer[buffer_size] = { 0, };
 			if (!std::filesystem::exists(PathFromUTF8(download_path))) {
 				LOGD("File no exists %s error", download_path.c_str());
-				call_download_callback(device_id, stream_id, task_id, tc::FileDownloadTask::EFileDownloadState::kNoExists);
+				call_download_callback(device_id, stream_id, task_id, px::FileDownloadTask::EFileDownloadState::kNoExists);
 				return;
 			}
 			uint64_t file_size = std::filesystem::file_size(PathFromUTF8(download_path));
@@ -283,7 +283,7 @@ namespace tc {
 			FILE* pf = _wfopen(download_pathw.c_str(), L"rb");
 			if (!pf) {
 				LOGE("File open %s error", download_path.c_str());
-				call_download_callback(device_id, stream_id, task_id, tc::FileDownloadTask::EFileDownloadState::kFailedOpen);
+				call_download_callback(device_id, stream_id, task_id, px::FileDownloadTask::EFileDownloadState::kFailedOpen);
 				return;
 			}
 			std::shared_ptr<void> auto_close_file{nullptr, [=](void* buf) {
@@ -310,11 +310,11 @@ namespace tc {
 					return;
 				}
 				bool is_send_msg = true;
-				auto msg = std::make_shared<tc::Message>();
-				msg->set_type(tc::kFileTransDataPacket);
-				auto file_data_packet = new tc::FileTransDataPacket();
+				auto msg = std::make_shared<px::Message>();
+				msg->set_type(px::kFileTransDataPacket);
+				auto file_data_packet = new px::FileTransDataPacket();
 				file_data_packet->set_index(index++);
-				file_data_packet->set_transmit_direction(tc::FileTransDataPacket::kDownload);
+				file_data_packet->set_transmit_direction(px::FileTransDataPacket::kDownload);
 				file_data_packet->set_task_id(task_id);
 				file_data_packet->set_src_file_path(download_path);
 				file_data_packet->set_target_file_path(save_path);
@@ -398,7 +398,7 @@ namespace tc {
 					file_data_packet->set_data(buffer, readed_size);
 					if (feof(pf)) { // 文件结束
                         LOGI("File at end: {}, total bytes: {}", download_path, statistics_readed_size);
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kEnd);
 
                         // 下载正常结束
                         if (download_end_func_) {
@@ -407,14 +407,14 @@ namespace tc {
 						break;
 					}
 					else {
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kTransmitting);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kTransmitting);
 						continue;
 					}
 				}
 				else {
 					if (feof(pf)) {
                         LOGI("File at end: {}, total bytes: {}", download_path, statistics_readed_size);
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kEnd);
 
                         // 下载正常结束
                         if (download_end_func_) {
@@ -422,7 +422,7 @@ namespace tc {
                         }
 					}
 					else {
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kError);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kError);
 						LOGE("File read %s error", download_path.c_str());
 						return;
 					}
@@ -436,7 +436,7 @@ namespace tc {
 		}
 	}
 
-	void FileTransmitImpl::HandleSaveFileException(const std::string& stream_id, tc::FileTransSaveFileException save_exception) {
+	void FileTransmitImpl::HandleSaveFileException(const std::string& stream_id, px::FileTransSaveFileException save_exception) {
 		auto error_cause = save_exception.error_cause();
 		auto src_file_path = save_exception.src_file_path();
 		auto target_file_path = save_exception.target_file_path();
@@ -444,22 +444,22 @@ namespace tc {
 		LOGD("HandleSaveFileException task_id is {}, src_file_path is {}, target_file_path is {}, error is ", task_id, src_file_path, target_file_path);
 		switch (error_cause)
 		{
-		case tc::FileTransSaveFileException::kFailedOpen:
+		case px::FileTransSaveFileException::kFailedOpen:
 			LOGD("FileTransSaveFileException::kFailedOpen");
 			break;
-		case tc::FileTransSaveFileException::kFailedWrite:
+		case px::FileTransSaveFileException::kFailedWrite:
 			LOGD("FileTransSaveFileException::kFailedWrite");
 			break;
-		case tc::FileTransSaveFileException::kCancel:
+		case px::FileTransSaveFileException::kCancel:
 			LOGD("FileTransSaveFileException::kCancel");
 			break;
-		case tc::FileTransSaveFileException::kDirFailedCreate:
+		case px::FileTransSaveFileException::kDirFailedCreate:
 			LOGD("FileTransSaveFileException::kDirFailedCreate");
 			break;
-		case tc::FileTransSaveFileException::kPacketLoss:
+		case px::FileTransSaveFileException::kPacketLoss:
 			LOGD("FileTransSaveFileException::kPacketLoss");
 			break;
-		case tc::FileTransSaveFileException::kUnknow:
+		case px::FileTransSaveFileException::kUnknow:
 			LOGD("FileTransSaveFileException::kUnknow");
 			break;
 		default:
@@ -469,7 +469,7 @@ namespace tc {
 		{
 			std::lock_guard<std::mutex> lck{ file_transmit_mutex_ };
 			if (file_transmit_task_with_simple_state_.count(task_id)) {
-				if (tc::FileTransSaveFileException::kCancel == error_cause) {
+				if (px::FileTransSaveFileException::kCancel == error_cause) {
 					file_transmit_task_with_simple_state_[task_id] = EFileTransmitTaskSimpleState::kCancel;
 				}	
 				else {
@@ -479,7 +479,7 @@ namespace tc {
 		}
 	}
 
-	void FileTransmitImpl::HandleFileTransDataPacketResponse(const std::string& stream_id, tc::FileTransDataPacketResponse data_packet_resp) {
+	void FileTransmitImpl::HandleFileTransDataPacketResponse(const std::string& stream_id, px::FileTransDataPacketResponse data_packet_resp) {
 		uint64_t recved_index = data_packet_resp.index();
 		std::string task_id = data_packet_resp.task_id();
 		std::unique_lock<std::mutex> lck{ grant_token_mutex_ };

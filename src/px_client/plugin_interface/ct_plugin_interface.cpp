@@ -13,7 +13,7 @@
 #include <QtCore/QEvent>
 #include <px_common_new/string_util.h>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<ClientPluginContext> ClientPluginInterface::GetPluginContext() {

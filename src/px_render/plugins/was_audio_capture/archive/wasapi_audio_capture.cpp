@@ -17,7 +17,7 @@ const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 const IID IID_IAudioClient = __uuidof(IAudioClient);
 const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
-namespace tc
+namespace px
 {
 
 	AudioCapturePtr WASAPIAudioCapture::Make(const std::string& device_id) {

@@ -4,7 +4,7 @@
 
 #include "background_widget.h"
 
-namespace tc
+namespace px
 {
 
     BackgroundWidget::BackgroundWidget(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

@@ -13,7 +13,7 @@
 
 #undef min
 
-using namespace tc;
+using namespace px;
 
 namespace
 {

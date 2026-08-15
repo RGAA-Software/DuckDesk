@@ -8,7 +8,7 @@
 #include "string_util.h"
 #include "log.h"
 
-namespace tc 
+namespace px 
 {
     std::shared_ptr<File> File::OpenForRead(const U8Path& path) {
         return std::make_shared<File>(path, "r");

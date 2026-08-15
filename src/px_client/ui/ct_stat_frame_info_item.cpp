@@ -6,7 +6,7 @@
 #include "px_qt_widget/no_margin_layout.h"
 #include "px_qt_widget/px_label.h"
 
-namespace tc
+namespace px
 {
 
     CtStatFrameInfoItem::CtStatFrameInfoItem(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : TcBaseWidget(parent) {

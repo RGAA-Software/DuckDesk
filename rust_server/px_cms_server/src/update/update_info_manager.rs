@@ -1,5 +1,5 @@
-use crate::gSpvrDatabase;
-use crate::spvr_api_error::SpvrApiError;
+use crate::gCmsDatabase;
+use crate::cms_api_error::CmsApiError;
 use crate::update::update_info::UpdateInfo;
 use crate::update::update_keys::KEY_UPDATE_VERSION;
 use futures_util::StreamExt;
@@ -15,10 +15,10 @@ impl UpdateInfoManager {
         Arc::new(Self {})
     }
 
-    pub async fn insert_update_info(&self, info: UpdateInfo) -> Result<UpdateInfo, SpvrApiError> {
+    pub async fn insert_update_info(&self, info: UpdateInfo) -> Result<UpdateInfo, CmsApiError> {
         let version = info.version.clone();
 
-        let c_update_info = gSpvrDatabase.lock().await.update_info();
+        let c_update_info = gCmsDatabase.lock().await.update_info();
 
         let coll = c_update_info.lock().await;
 
@@ -26,7 +26,7 @@ impl UpdateInfoManager {
 
         if let Err(e) = existing {
             tracing::error!("db find version error: {}", e);
-            return Err(SpvrApiError::DatabaseError);
+            return Err(CmsApiError::DatabaseError);
         }
 
         //存在则更新
@@ -40,7 +40,7 @@ impl UpdateInfoManager {
                 .await;
             if let Err(e) = r {
                 tracing::error!("update error: {}", e);
-                return Err(SpvrApiError::DatabaseError);
+                return Err(CmsApiError::DatabaseError);
             }
             return Ok(info);
         }
@@ -50,7 +50,7 @@ impl UpdateInfoManager {
         let r = coll.insert_one(info.clone()).await;
         if let Err(e) = r {
             tracing::error!("insert error: {}", e);
-            return Err(SpvrApiError::DatabaseError);
+            return Err(CmsApiError::DatabaseError);
         }
         Ok(info)
     }
@@ -62,11 +62,11 @@ impl UpdateInfoManager {
         filters: HashMap<String, T>,
         sort_field: Option<String>,
         sort_order: Option<i32>, // 1= asc, -1=dec
-    ) -> Result<Vec<UpdateInfo>, SpvrApiError>
+    ) -> Result<Vec<UpdateInfo>, CmsApiError>
     where
         T: Into<Bson>,
     {
-        let c_update_info = gSpvrDatabase.lock().await.update_info();
+        let c_update_info = gCmsDatabase.lock().await.update_info();
         let skip = (page - 1) * page_size;
         let limit = page_size as i64;
         let mut filter = doc! {};
@@ -91,7 +91,7 @@ impl UpdateInfoManager {
             .await;
         if let Err(e) = cursor {
             tracing::error!("query users error: {}", e);
-            return Err(SpvrApiError::DatabaseError);
+            return Err(CmsApiError::DatabaseError);
         }
         let mut cursor = cursor.unwrap();
 
@@ -109,19 +109,19 @@ impl UpdateInfoManager {
     pub async fn query_update_info_by_version(
         &self,
         version: String,
-    ) -> Result<UpdateInfo, SpvrApiError> {
-        let c_update_info = gSpvrDatabase.lock().await.update_info();
+    ) -> Result<UpdateInfo, CmsApiError> {
+        let c_update_info = gCmsDatabase.lock().await.update_info();
         let filter = doc! {
             KEY_UPDATE_VERSION: version,
         };
         let r = c_update_info.lock().await.find_one(filter).await;
         if let Err(e) = r {
             tracing::error!("query user by uid error: {}", e);
-            return Err(SpvrApiError::DatabaseError);
+            return Err(CmsApiError::DatabaseError);
         }
         let r = r.unwrap();
         if r.is_none() {
-            return Err(SpvrApiError::VersionNotFound);
+            return Err(CmsApiError::VersionNotFound);
         }
         Ok(r.unwrap())
     }

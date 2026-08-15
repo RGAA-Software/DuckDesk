@@ -21,7 +21,7 @@
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
-namespace tc
+namespace px
 {
 
     void GrSettings::Init(const std::shared_ptr<MessageNotifier>& notifier) {
@@ -85,8 +85,8 @@ namespace tc
         ss << "udp_listen_port_:" << udp_listen_port_ << std::endl;
         ss << "relay host: " << GetRelayServerHost() << std::endl;
         ss << "relay port: " << GetRelayServerPort() << std::endl;
-        ss << "spvr server host: " << GetSpvrServerHost() << std::endl;
-        ss << "spvr server port: " << GetSpvrServerPort() << std::endl;
+        ss << "cms server host: " << GetCmsServerHost() << std::endl;
+        ss << "cms server port: " << GetCmsServerPort() << std::endl;
         ss << "---------------------GrSettings End-----------------------" << std::endl;
         LOGI("\n {}", ss.str());
     }
@@ -99,11 +99,11 @@ namespace tc
         this->SetDeviceName("");
         this->SetDeviceRandomPwd("");
         this->SetDeviceSecurityPwd("");
-        this->SetSpvrServerHost("");
-        this->SetSpvrServerPort("");
+        this->SetCmsServerHost("");
+        this->SetCmsServerPort("");
         this->SetRelayServerHost("");
         this->SetRelayServerPort("");
-        this->SetSpvrAccessInfo("");
+        this->SetCmsAccessInfo("");
     }
 
     void GrSettings::SetEnableResResize(bool enabled) {
@@ -331,32 +331,32 @@ namespace tc
         return !GetRelayServerHost().empty() && GetRelayServerPort() > 0;
     }
 
-    // Spvr
+    // Cms
     // Set Host
-    void GrSettings::SetSpvrServerHost(const std::string& host) {
-        sp_->Put(kStSpvrServerHost, host);
+    void GrSettings::SetCmsServerHost(const std::string& host) {
+        sp_->Put(kStCmsServerHost, host);
     }
 
-    // Spvr
+    // Cms
     // Get Host
-    std::string GrSettings::GetSpvrServerHost() {
-        return sp_->Get(kStSpvrServerHost, "");
+    std::string GrSettings::GetCmsServerHost() {
+        return sp_->Get(kStCmsServerHost, "");
     }
 
-    // Spvr
+    // Cms
     // Set Port
-    void GrSettings::SetSpvrServerPort(const std::string& port) {
-        sp_->Put(kStSpvrServerPort, port);
+    void GrSettings::SetCmsServerPort(const std::string& port) {
+        sp_->Put(kStCmsServerPort, port);
     }
 
-    // Spvr
+    // Cms
     // Get Port
-    int GrSettings::GetSpvrServerPort() {
-        return std::atoi(sp_->Get(kStSpvrServerPort, "").c_str());
+    int GrSettings::GetCmsServerPort() {
+        return std::atoi(sp_->Get(kStCmsServerPort, "").c_str());
     }
 
-    bool GrSettings::HasSpvrServerConfig() {
-        return !GetSpvrServerHost().empty() && GetSpvrServerPort() > 0;
+    bool GrSettings::HasCmsServerConfig() {
+        return !GetCmsServerHost().empty() && GetCmsServerPort() > 0;
     }
 
     void GrSettings::SetScreenRecordingPath(const std::string& path) {
@@ -500,12 +500,12 @@ namespace tc
         return sp_->Get(kStPreferDecoder, "Auto");
     }
 
-    void GrSettings::SetSpvrAccessInfo(const std::string& info) {
-        sp_->Put(kStSpvrAccessInfo, info);
+    void GrSettings::SetCmsAccessInfo(const std::string& info) {
+        sp_->Put(kStCmsAccessInfo, info);
     }
 
-    std::string GrSettings::GetSpvrAccessInfo() {
-        return sp_->Get(kStSpvrAccessInfo, "");
+    std::string GrSettings::GetCmsAccessInfo() {
+        return sp_->Get(kStCmsAccessInfo, "");
     }
 
     void GrSettings::SetSkinName(const std::string& name) {

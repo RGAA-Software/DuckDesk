@@ -8,7 +8,7 @@
 #include "app/app_messages.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 
-namespace tc
+namespace px
 {
 
     constexpr char kWindowName[] = "GammaRay_render_MessageWindow";

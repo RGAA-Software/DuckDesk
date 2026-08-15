@@ -14,7 +14,7 @@
 #include <cctype>
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     class DxgiMonInfo {

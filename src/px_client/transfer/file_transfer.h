@@ -15,7 +15,7 @@
 #include <asio2/websocket/ws_client.hpp>
 #include <QString>
 
-namespace tc
+namespace px
 {
 
     class FsFile;

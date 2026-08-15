@@ -8,7 +8,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 namespace {
 std::atomic<std::shared_ptr<AudioMixer>> g_mixer;
 std::atomic<ULONGLONG> g_wasapi_tick{0};
@@ -128,4 +128,4 @@ bool BufferHasEnergy(const void* data, int bytes, SimpleAudioFormat fmt) {
     return BufferPeak(data, bytes, fmt) > 1.0e-5f;
 }
 
-}  // namespace tc
+}  // namespace px

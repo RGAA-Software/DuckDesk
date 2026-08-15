@@ -195,7 +195,7 @@ mod tests {
             expires_at_ms: 2_592_001_000, // 30 days + 1s
             appkey: "appkey-xyz".to_string(),
             app_secret: "secret-xyz".to_string(),
-            username: "SpvrAdmin".to_string(),
+            username: "CmsAdmin".to_string(),
             password: "p@ssw0rd".to_string(),
             product: PRODUCT_CMS.to_string(),
         }
@@ -226,7 +226,7 @@ mod tests {
             "expires_at_ms": 2_592_001_000i64,
             "appkey": "appkey-xyz",
             "app_secret": "secret-xyz",
-            "username": "SpvrAdmin",
+            "username": "CmsAdmin",
             "password": "p@ssw0rd"
         });
         let legacy: AuthLicense = serde_json::from_value(legacy_json).unwrap();

@@ -9,7 +9,7 @@
 #include <thread>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class CastReceiver {

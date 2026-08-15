@@ -13,7 +13,7 @@
 #include "st_plugin_item_widget.h"
 #include "no_margin_layout.h"
 
-namespace tc
+namespace px
 {
 
     class PluginInfoItemDelegate : public QStyledItemDelegate {
@@ -80,7 +80,7 @@ namespace tc
             auto plugins_info = m_info.plugins_info_->plugins_info();
             if (items_info_.empty()) {
                 for (const auto& new_info : plugins_info) {
-                    auto plugin_info = std::make_shared<tcrp::RpPluginInfo>();
+                    auto plugin_info = std::make_shared<pxrp::RpPluginInfo>();
                     plugin_info->CopyFrom(new_info);
                     items_info_.push_back(std::make_shared<PluginItemInfo>(PluginItemInfo{
                         .id_ = new_info.id(),

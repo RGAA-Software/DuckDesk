@@ -7,7 +7,7 @@
 
 #include "base_widget.h"
 
-namespace tc
+namespace px
 {
 
     class ComputerIcon : public BaseWidget {

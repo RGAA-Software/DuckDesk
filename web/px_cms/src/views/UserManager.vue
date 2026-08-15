@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { notification } from 'ant-design-vue'
 import { formatTimestamp } from '@/util/time.ts'
 import axiosHttp, { BASE_URL } from '@/http.ts'
-import type { SpvrUser } from '@/entity/spvr_user.ts'
+import type { CmsUser } from '@/entity/cms_user.ts'
 import { copyText } from '@/util/clipboard.ts'
 
 const appkey = ref<string>('')
@@ -31,7 +31,7 @@ onMounted(async () => {
   await queryUsers(currentPage.value, pageSize.value, '', '')
 })
 
-const users = ref<SpvrUser[]>([])
+const users = ref<CmsUser[]>([])
 
 async function queryUsers(page: number, pageSize: number, uid: string, username: string) {
   const resp = await axiosHttp.get('/api/v1/user/control/query/users', {
@@ -57,7 +57,7 @@ async function queryUsers(page: number, pageSize: number, uid: string, username:
   users.value = data.data
 }
 
-async function handleCopy(_index: number, user: SpvrUser) {
+async function handleCopy(_index: number, user: CmsUser) {
   await copyText(JSON.stringify(user))
   notification.success({
     message: '拷贝成功',

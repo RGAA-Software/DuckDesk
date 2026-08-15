@@ -6,7 +6,7 @@
 #include <qevent.h>
 #include "file_detail_info.h"
 
-namespace tc {
+namespace px {
 
 class FileInfoTableViewBtnDelegate : public QStyledItemDelegate
 {

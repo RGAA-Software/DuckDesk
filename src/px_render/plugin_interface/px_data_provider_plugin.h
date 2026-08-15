@@ -7,14 +7,14 @@
 
 #include "px_plugin_interface.h"
 
-namespace tc
+namespace px
 {
 
     class GrDataProviderPlugin : public GrPluginInterface {
     public:
         GrDataProviderPlugin();
         ~GrDataProviderPlugin() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         virtual void StartProviding();
         virtual void StopProviding();

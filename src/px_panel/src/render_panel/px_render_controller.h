@@ -14,7 +14,7 @@
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/response.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;

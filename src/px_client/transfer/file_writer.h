@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FILE_WRITER_H
 #define GAMMARAYPC_FILE_WRITER_H
 
-namespace tc
+namespace px
 {
 
     class FileWriter {

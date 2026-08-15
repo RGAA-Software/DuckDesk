@@ -3,7 +3,7 @@
 #include <qevent.h>
 #include <qobject.h>
 
-namespace tc { 
+namespace px { 
 
 	class TestVulkanVideoWidget : public QWidget {
 	public:

@@ -7,7 +7,7 @@
 #include "px_qt_widget/clickable_widget.h"
 #include "px_label.h"
 
-namespace tc
+namespace px
 {
 
     SelectStreamTypeDialog::SelectStreamTypeDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {

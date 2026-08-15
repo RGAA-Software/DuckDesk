@@ -12,7 +12,7 @@
 #pragma comment(lib,"pdh.lib")
 #endif
 
-namespace tc
+namespace px
 {
 
     class CpuFrequency {

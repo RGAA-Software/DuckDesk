@@ -4,7 +4,7 @@
 
 #include "yuv_util.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<NV12Frame> YUVUtil::ReadNV12FromFile(const std::string &filename, uint32_t width, uint32_t height) {

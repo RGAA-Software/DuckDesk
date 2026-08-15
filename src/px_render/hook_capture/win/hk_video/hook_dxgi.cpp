@@ -10,8 +10,8 @@
 
 #include "px_common_new/log.h"
 
-using namespace tc;
-using namespace tc;
+using namespace px;
+using namespace px;
 
 namespace
 {
@@ -100,35 +100,35 @@ bool HookD3D11::HookD3D(HMODULE d3d11_module) noexcept {
     }
 
     // 8: swap_chain->Present
-    IDXGISwapChain_Present_ = reinterpret_cast<IDXGISWAPCHAIN_PRESENT>(tc::GetVTableFunctionAddress(swap_chain, 8));
+    IDXGISwapChain_Present_ = reinterpret_cast<IDXGISWAPCHAIN_PRESENT>(px::GetVTableFunctionAddress(swap_chain, 8));
 
     // 13: swap_chain->ResizeBuffers
-    IDXGISwapChain_ResizeBuffers_ = reinterpret_cast<IDXGISWAPCHAIN_RESIZEBUFFERS>(tc::GetVTableFunctionAddress(
+    IDXGISwapChain_ResizeBuffers_ = reinterpret_cast<IDXGISWAPCHAIN_RESIZEBUFFERS>(px::GetVTableFunctionAddress(
             swap_chain, 13));
 
     IDXGISwapChain1 *swap_chain1;
     hr = swap_chain->QueryInterface(IID_PPV_ARGS(&swap_chain1));
     if (SUCCEEDED(hr)) {
         // 22: swap_chain1->Present1
-        IDXGISwapChain1_Present1_ = reinterpret_cast<IDXGISWAPCHAIN1_PRESENT1>(tc::GetVTableFunctionAddress(swap_chain1,
+        IDXGISwapChain1_Present1_ = reinterpret_cast<IDXGISWAPCHAIN1_PRESENT1>(px::GetVTableFunctionAddress(swap_chain1,
                                                                                                             22));
         swap_chain1->Release();
     }
 
-    NTSTATUS status = tc::HookAllThread(hook_IDXGISwapChain_Present_, IDXGISwapChain_Present_, MyPresent);
+    NTSTATUS status = px::HookAllThread(hook_IDXGISwapChain_Present_, IDXGISwapChain_Present_, MyPresent);
     if (!NT_SUCCESS(status)) {
         LOGI("Hook IDXGISwapChain_Present error");
         return false;
     }
 
-    status = tc::HookAllThread(hook_IDXGISwapChain_ResizeBuffers_, IDXGISwapChain_ResizeBuffers_, MyResizeBuffers);
+    status = px::HookAllThread(hook_IDXGISwapChain_ResizeBuffers_, IDXGISwapChain_ResizeBuffers_, MyResizeBuffers);
     if (!NT_SUCCESS(status)) {
         LOGI("Hook IDXGISwapChain_ResizeBuffers error");
         return false;
     }
 
     if (nullptr != IDXGISwapChain1_Present1_) {
-        status = tc::HookAllThread(hook_IDXGISwapChain1_Present1_, IDXGISwapChain1_Present1_, MyPresent1);
+        status = px::HookAllThread(hook_IDXGISwapChain1_Present1_, IDXGISwapChain1_Present1_, MyPresent1);
         if (!NT_SUCCESS(status)) {
             LOGI("Hook IDXGISwapChain1_Present1_ error");
             return false;

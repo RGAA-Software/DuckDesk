@@ -5,7 +5,7 @@
 #include <optional>
 #include <vector>
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     // Build sync metadata from absolute file paths (common parent folder + ref_path).

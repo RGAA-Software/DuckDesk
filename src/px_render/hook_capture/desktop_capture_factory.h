@@ -10,7 +10,7 @@
 #include "capture_message.h"
 #include "px_common_new/message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     class MessageNotifier;

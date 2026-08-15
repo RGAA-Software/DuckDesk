@@ -4,7 +4,7 @@
 
 #include "px_frame_processor_plugin.h"
 
-namespace tc
+namespace px
 {
     GrFrameProcessorPlugin::GrFrameProcessorPlugin() {
 

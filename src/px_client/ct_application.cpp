@@ -28,7 +28,7 @@
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
 #include "px_dialog.h"
 
-namespace tc
+namespace px
 {
 
     Application::Application(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : QMainWindow(parent) {

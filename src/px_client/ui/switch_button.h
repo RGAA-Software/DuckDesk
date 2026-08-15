@@ -10,7 +10,7 @@
 #include "switch_button.h"
 #include "app_color_theme.h"
 
-namespace tc
+namespace px
 {
 
     class SwitchButton : public QWidget {

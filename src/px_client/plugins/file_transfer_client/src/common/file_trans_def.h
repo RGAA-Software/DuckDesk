@@ -5,7 +5,7 @@
 #include <qstring.h>
 #include "px_message.pb.h"
 
-namespace tc {
+namespace px {
 
 enum class ETcFileTransmitState
 {
@@ -37,7 +37,7 @@ enum class ETcFileTransmitState
 	kPacketLoss, //丢包
 };
 
-using OnFileOperateCallbackFuncType = std::function<void(tc::RespCode code, const std::string& message, const std::string& resp_json_data)>;
+using OnFileOperateCallbackFuncType = std::function<void(px::RespCode code, const std::string& message, const std::string& resp_json_data)>;
 
 using UploadFileCallbackFuncType = std::function<void(ETcFileTransmitState, uint64_t upload_size, uint64_t file_size)>; //上传过程中的进度回调
 
@@ -45,7 +45,7 @@ using OnFileUploadEndCallbackFunc = std::function<void(ETcFileTransmitState, std
 
 using OnFileDownloadCallbackFunc = std::function<void(ETcFileTransmitState, std::string task_id, uint64_t, uint64_t)>;
 
-using SendMessageFuncType = std::function<bool(std::shared_ptr<tc::Message>)>;
+using SendMessageFuncType = std::function<bool(std::shared_ptr<px::Message>)>;
 
 // 回调给客户端上传下载文件的基本状态
 using OnFileUploadBeginCallback = std::function<void(const std::string& task_id, const std::string& path)>;

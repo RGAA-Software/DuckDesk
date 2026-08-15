@@ -8,7 +8,7 @@
 #include "px_render/plugin_interface/px_plugin_interface.h"
 #include <map>
 
-namespace tc
+namespace px
 {
 
     class WinEventReplayer;
@@ -20,7 +20,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void OnClientDisconnected(const std::string &visitor_device_id, const std::string &stream_id) override;

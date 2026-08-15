@@ -9,7 +9,7 @@
 #include "ws_plugin.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     void WsStreamRouter::OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) {
@@ -40,7 +40,7 @@ namespace tc
             return;
         }
 
-        auto tid = tc::GetCurrentThreadID();
+        auto tid = px::GetCurrentThreadID();
         if (post_thread_id_ == 0) {
             post_thread_id_ = tid;
         }
@@ -75,7 +75,7 @@ namespace tc
             return;
         }
 
-        auto tid = tc::GetCurrentThreadID();
+        auto tid = px::GetCurrentThreadID();
         if (post_thread_id_ == 0) {
             post_thread_id_ = tid;
         }

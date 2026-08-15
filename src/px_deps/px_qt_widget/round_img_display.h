@@ -10,7 +10,7 @@
 #include <memory>
 #include <mutex>
 
-namespace tc
+namespace px
 {
     class RoundImageDisplay : public QLabel {
 

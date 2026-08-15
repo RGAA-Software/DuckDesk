@@ -8,9 +8,9 @@
 #include "frame_render.h"
 #include "px_common_new/log.h"
 
-GR_PLUGIN_EXPORT(tc::FrameResizerPlugin)
+GR_PLUGIN_EXPORT(px::FrameResizerPlugin)
 
-namespace tc
+namespace px
 {
     FrameResizerPlugin::FrameResizerPlugin() {
         processor_type_ = FrameProcessorType::kPrev;

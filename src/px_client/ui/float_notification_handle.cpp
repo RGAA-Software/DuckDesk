@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QGraphicsDropShadowEffect>
 
-namespace tc
+namespace px
 {
 
     FloatNotificationHandle::FloatNotificationHandle(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

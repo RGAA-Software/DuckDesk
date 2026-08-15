@@ -7,7 +7,7 @@
 #include <thread>
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 
     // 720p HEVC RExt8 4:4:4
     // ffmpeg -i green128.png -pix_fmt yuv444p -colorspace smpte170m -color_trc smpte170m -color_primaries smpte170m -c:v libx265 -x265-params info=0 test8_444.hevc

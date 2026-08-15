@@ -11,12 +11,12 @@
 #include "relay_client_sdk_param.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace relay
+namespace px_relay
 {
     class RelayMessage;
 }
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -34,7 +34,7 @@ namespace tc
         void SetOnRelayServerDisConnectedCallback(OnRelayServerDisConnected&& cbk);
         void SetOnRelayRoomPreparedCallback(OnRelayRoomPrepared&& cbk);
         void SetOnRelayRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk);
-        void SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<relay::RelayMessage>&)>&& cbk);
+        void SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<px_relay::RelayMessage>&)>&& cbk);
         void SetOnRelayErrorCallback(OnRelayError&& cbk);
         void SetOnRelayRemoteDeviceOffline(OnRelayRemoteDeviceOffline&& cbk);
         void RelayProtoMessage(std::shared_ptr<Data> msg);
@@ -45,20 +45,20 @@ namespace tc
         // send from client
         void RequestCreateRoom();
         // received from server
-        void OnCreatedRoomResp(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnCreatedRoomResp(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
         // send from client
         void RequestControl();
         // received from server
-        void OnRequestControlResp(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnRequestControlResp(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
         // send from client
         void RequestStopRelay();
         // received from server
-        void OnRequestStopRelayResp(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnRequestStopRelayResp(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
         // received from server
-        void OnErrorMessage(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnErrorMessage(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
         // has relay rooms or not
         bool IsInRoom();
@@ -74,12 +74,12 @@ namespace tc
 
     private:
         void PostBinMessage(const std::string& msg);
-        std::shared_ptr<relay::RelayMessage> ProcessProtoMessage(std::shared_ptr<Data> msg);
+        std::shared_ptr<px_relay::RelayMessage> ProcessProtoMessage(std::shared_ptr<Data> msg);
 
-        void OnRoomPrepared(const std::shared_ptr<relay::RelayMessage>& msg);
-        void OnRoomInfoChanged(const std::shared_ptr<relay::RelayMessage>& msg);
-        void OnRoomDestroyed(const std::shared_ptr<relay::RelayMessage>& msg);
-        void OnRemoteDeviceOffline(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnRoomPrepared(const std::shared_ptr<px_relay::RelayMessage>& msg);
+        void OnRoomInfoChanged(const std::shared_ptr<px_relay::RelayMessage>& msg);
+        void OnRoomDestroyed(const std::shared_ptr<px_relay::RelayMessage>& msg);
+        void OnRemoteDeviceOffline(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
     private:
         std::shared_ptr<RelayContext> context_ = nullptr;

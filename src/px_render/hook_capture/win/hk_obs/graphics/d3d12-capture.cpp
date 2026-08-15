@@ -16,7 +16,7 @@
 #include "hk_video/d3d_utils.h"
 #include "px_capture_new/capture_message_maker.h"
 
-using namespace tc;
+using namespace px;
 
 #define MAX_BACKBUFFERS 8
 
@@ -292,7 +292,7 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap) {
                                                        1);
             d3d12_copy_texture(data.copy_tex, backbuffer);
 
-            auto hook_mgr = tc::HookManager::Instance();
+            auto hook_mgr = px::HookManager::Instance();
             auto shared_texture = hook_mgr->shared_texture_;
             // SharedTexture 内部统一:非 8bit 格式(如 UE5 的 R10G10B10A2)先转成
             // B8G8R8A8 再共享(11on12 上 KEYEDMUTEX/NTHANDLE 纹理创建会 E_INVALIDARG,
@@ -301,8 +301,8 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap) {
 
             D3D11_TEXTURE2D_DESC desc;
             data.copy_tex->GetDesc(&desc);
-            auto adapter_uid = tc::GetAdapterUid(data.device11);
-            tc::IpcCaptureVideoFrame capture_video_frame_msg{};
+            auto adapter_uid = px::GetAdapterUid(data.device11);
+            px::IpcCaptureVideoFrame capture_video_frame_msg{};
             capture_video_frame_msg.capture_type_ = kCaptureVideoByHandle;
             capture_video_frame_msg.data_length = 0;
             capture_video_frame_msg.frame_width_ = desc.Width;

@@ -5,7 +5,7 @@
 #include <fstream>
 #include <iostream>
 
-namespace tc
+namespace px
 {
 
     I420Creator::~I420Creator() {

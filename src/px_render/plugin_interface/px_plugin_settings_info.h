@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     // from render panel -> render

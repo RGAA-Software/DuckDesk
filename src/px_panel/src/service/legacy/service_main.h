@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_SERVICE_MAIN_H
 #define GAMMARAY_SERVICE_MAIN_H
 
-namespace tc
+namespace px
 {
 
 

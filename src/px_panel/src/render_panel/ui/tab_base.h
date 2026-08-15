@@ -8,7 +8,7 @@
 #include <QWidget>
 #include <memory>
 
-namespace tc
+namespace px
 {
     constexpr int kTabContentMarginTop = 3;
 

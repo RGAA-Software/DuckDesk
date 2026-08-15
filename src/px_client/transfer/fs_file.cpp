@@ -9,7 +9,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     FsFile::FsFile(const QString& path, int read_block_size) {
@@ -39,7 +39,7 @@ namespace tc
     }
 
     std::string FsFile::MakeTransferMessage(uint64_t offset, std::shared_ptr<Data>&& data) const {
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(MessageType::kFileTransfer);
         auto fs = msg.mutable_file_transfer();
         fs->set_id(this->file_id_);

@@ -4,7 +4,7 @@
 
 #include "px_base_widget.h"
 
-namespace tc
+namespace px
 {
 
     TcBaseWidget::TcBaseWidget(QWidget* parent) : QWidget(parent) {

@@ -12,7 +12,7 @@
 #include <atomic>
 #include <memory>
 
-namespace tc
+namespace px
 {
     namespace {
         const uint32_t kExtendedKeys[] = {
@@ -162,7 +162,7 @@ namespace tc
         return evt;
     }
 
-    void WinEventReplayer::HandleKeyEvent(const tc::KeyEvent& event) {
+    void WinEventReplayer::HandleKeyEvent(const px::KeyEvent& event) {
         bool down = event.down();
         uint32_t vk_code = event.key_code();
         if (vk_code > 255) {
@@ -218,7 +218,7 @@ namespace tc
     void WinEventReplayer::ResetKey() {
         for(int i = 0; i < sizeof(current_key_status_) / sizeof(*current_key_status_);++i) {
             if (current_key_status_[i]) {
-                tc::KeyEvent event;
+                px::KeyEvent event;
                 event.set_down(false);
                 event.set_key_code(i);
                 HandleKeyEvent(event);
@@ -226,7 +226,7 @@ namespace tc
         }
     }
 
-    void WinEventReplayer::ReplayKeyEvent(uint16_t scancode, bool extend, const tc::KeyEvent& event) {
+    void WinEventReplayer::ReplayKeyEvent(uint16_t scancode, bool extend, const px::KeyEvent& event) {
         INPUT evt = GenerateScanCodeInput(scancode, event.down(), extend);
         short num_lock_status = event.num_lock_status();
         short curr_num_lock_status = GetKeyState(VK_NUMLOCK);
@@ -344,7 +344,7 @@ namespace tc
         return true;
     }
 
-    void WinEventReplayer::HandleMouseEvent(const tc::MouseEvent& event) {
+    void WinEventReplayer::HandleMouseEvent(const px::MouseEvent& event) {
         float x_ratio = event.x_ratio();
         float y_ratio = event.y_ratio();
         std::string monitor_name = event.monitor_name();
@@ -557,7 +557,7 @@ namespace tc
         };
         
         for (auto key : keys) {
-            tc::KeyEvent event;
+            px::KeyEvent event;
             event.set_down(false);
             event.set_key_code(key);
             HandleKeyEvent(event);

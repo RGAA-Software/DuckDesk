@@ -5,11 +5,11 @@
 #include <asio2/asio2.hpp>
 #include "px_message.pb.h"
 
-namespace tc {
+namespace px {
 	class Message;
 }
 
-namespace tc {
+namespace px {
 
 	class FileOperate;
 
@@ -17,7 +17,7 @@ namespace tc {
 
 	class FileTransmitManager {
 	public:
-		using GetFileListCallbackFuncType = std::function<void(const std::string& stream_id, int resp_seq, bool ret, std::vector<tc::FileDescInfo> file_infos, std::string error_msg, std::string target_path, std::string file_permission_path)>;
+		using GetFileListCallbackFuncType = std::function<void(const std::string& stream_id, int resp_seq, bool ret, std::vector<px::FileDescInfo> file_infos, std::string error_msg, std::string target_path, std::string file_permission_path)>;
 
 		using BatchCreateFoldersCallbackFuncType = std::function<void(const std::string& stream_id, int resp_seq, std::vector<std::string> no_created_paths, std::string error_msg)>;
 
@@ -33,14 +33,14 @@ namespace tc {
 
 		~FileTransmitManager();
 
-		void HandleFileTransmitMessage(const std::shared_ptr<tc::Message>& message);
+		void HandleFileTransmitMessage(const std::shared_ptr<px::Message>& message);
 
-		void HandleFileOperateMsg(const std::shared_ptr<tc::Message>& msg);
+		void HandleFileOperateMsg(const std::shared_ptr<px::Message>& msg);
 
 		// 对端保存文件异常或者对端取消任务 会发送此消息
-		void HandleSaveFileExceptionMessage(const std::shared_ptr<tc::Message>& message);
+		void HandleSaveFileExceptionMessage(const std::shared_ptr<px::Message>& message);
 
-		void HandleFileTransDataPacketResponseMessage(const std::shared_ptr<tc::Message>& message);
+		void HandleFileTransDataPacketResponseMessage(const std::shared_ptr<px::Message>& message);
 		
 		void RegGetFileListCallback(GetFileListCallbackFuncType callback) {
 			get_file_list_callback_ = callback;

@@ -28,7 +28,7 @@
 #include "px_common_new/file_util.h"
 #include "px_common_new/folder_util.h"
 
-using namespace tc;
+using namespace px;
 
 std::shared_ptr<GrWorkspace> g_workspace = nullptr;
 
@@ -79,10 +79,10 @@ bool PrepareDirs(const QString& base_path) {
 }
 
 int main(int argc, char *argv[]) {
-    tc::Hardware::AcquirePermissionForRestartDevice();
+    px::Hardware::AcquirePermissionForRestartDevice();
 
     // run in high level
-    tc::ProcessUtil::SetProcessInHighLevel();
+    px::ProcessUtil::SetProcessInHighLevel();
 
     //::ChangeWindowMessageFilter(WM_DROPFILES, MSGFLT_ADD);
     //::ChangeWindowMessageFilter(WM_COPYDATA, MSGFLT_ADD);
@@ -209,7 +209,7 @@ int main(int argc, char *argv[]) {
     GrSettings::Instance()->px_data_path_ = data_dir.toStdString();
 
     {
-        auto auto_start = std::make_shared<tc::AutoStart>();
+        auto auto_start = std::make_shared<px::AutoStart>();
         auto path = QApplication::applicationFilePath().toStdString();
         auto_start->NewLogonTask((char*)"GammaRay_Panel_Start", (char*)path.c_str(), (char*)"--run_automatically", (char*)"GR");
     }

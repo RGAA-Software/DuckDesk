@@ -3,7 +3,7 @@
 #define H264_TYPE(v) ((uint8_t)(v) & 0x1F)
 #define H265_TYPE(v) (((uint8_t)(v) >> 1) & 0x3f)
 
-namespace tc {
+namespace px {
 
 namespace ENalType
 {

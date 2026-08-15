@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package cms_client;
+
+// Between Cms - Client
+
+enum CmsClientMessageType {
+  kCmsClientHello = 0;
+  kCmsClientHeartBeat = 1;
+}
+
+message CmsClientHello {
+  string device_id = 1;
+}
+
+message CmsClientHeartBeat {
+  int64 hb_index = 1;
+  // !!thunder sdk!! heartbeat duration < 10'000 or not
+  // < 10'000 -> alive
+  // > 10'000 -> died
+  bool connection_alive = 2;
+}
+
+message CmsClientMessage {
+  CmsClientMessageType msg_type = 1;
+  string device_id = 10;
+  CmsClientHello hello = 20;
+  CmsClientHeartBeat heartbeat = 30;
+}

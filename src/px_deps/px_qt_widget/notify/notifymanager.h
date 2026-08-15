@@ -4,7 +4,7 @@
 #include <QtCore>
 #include "notify_defs.h"
 
-namespace tc
+namespace px
 {
 
     class NotifyWnd;

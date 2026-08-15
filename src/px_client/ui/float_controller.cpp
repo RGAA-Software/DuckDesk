@@ -11,7 +11,7 @@
 const static std::string kPosX = "float_button_pos_x";
 const static std::string kPosY = "float_button_pos_y";
 
-namespace tc
+namespace px
 {
     FloatController::FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent){
         auto image = new QImage(":resources/px_icon.png");

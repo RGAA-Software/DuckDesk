@@ -16,7 +16,7 @@ const getBaseURL = () => {
 const getHostPort = () => {
   const { hostname, port } = window.location
 
-  // 开发模式 WebSocket 也走 Vite 代理（/spvr 已配置 ws:true）
+  // 开发模式 WebSocket 也走 Vite 代理（/cms 已配置 ws:true）
   if (import.meta.env.DEV) {
     return window.location.host
   }

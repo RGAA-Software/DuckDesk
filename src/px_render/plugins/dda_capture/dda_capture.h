@@ -22,7 +22,7 @@
 
 using namespace Microsoft::WRL;
 
-namespace tc
+namespace px
 {
 
     using DDAInitSuccessCallback = std::function<void()>;
@@ -129,6 +129,6 @@ namespace tc
         CaptureErrorCallback err_callback_ = nullptr;
 
         // capture tasks
-        tc::ConcurrentVector<CaptureTask> tasks_;
+        px::ConcurrentVector<CaptureTask> tasks_;
     };
 }

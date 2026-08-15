@@ -16,7 +16,7 @@
 #include "render_panel/px_app_messages.h"
 #include "px_base/ct_stream_item_net_type.h"
 
-namespace tc
+namespace px
 {
 
     CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
@@ -25,7 +25,7 @@ namespace tc
         CreateLayout();
     }
 
-    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         stream_item_ = item;
         setFixedSize(375, 475);
@@ -327,7 +327,7 @@ namespace tc
             return false;
         }
 
-        auto func_update_stream = [&](std::shared_ptr<spvr::SpvrStream>& item) {
+        auto func_update_stream = [&](std::shared_ptr<px_cms::CmsStream>& item) {
             item->stream_name_ = name.empty() ? host : name;
             item->stream_host_ = host;
             item->stream_port_ = port;
@@ -343,7 +343,7 @@ namespace tc
             });
         }
         else {
-            std::shared_ptr<spvr::SpvrStream> item = std::make_shared<spvr::SpvrStream>();
+            std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
             func_update_stream(item);
             context_->SendAppMessage(StreamItemAdded {
                 .item_ = item,

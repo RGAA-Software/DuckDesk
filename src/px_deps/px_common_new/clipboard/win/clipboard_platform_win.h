@@ -3,7 +3,7 @@
 
 #include "px_common_new/clipboard/clipboard_platform.h"
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     class PlatformWin final : public IPlatform {

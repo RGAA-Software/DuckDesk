@@ -25,7 +25,7 @@ constexpr auto kChartEncode = "Encode";
 constexpr auto kChartCopyTexture = "Copy&Resize Texture";
 constexpr auto kChartMapCvtTexture = "Map&Cvt Texture";
 
-namespace tc
+namespace px
 {
 
     RnApp::RnApp(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {

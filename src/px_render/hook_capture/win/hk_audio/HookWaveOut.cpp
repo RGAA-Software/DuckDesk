@@ -16,7 +16,7 @@
 
 #pragma comment(lib, "winmm.lib")
 
-namespace tc {
+namespace px {
 namespace {
 
 using WaveOutOpenFn = MMRESULT(WINAPI*)(LPHWAVEOUT, UINT, LPCWAVEFORMATEX, DWORD_PTR, DWORD_PTR,
@@ -175,4 +175,4 @@ void HookWaveOut::Stop() {
     LOGI("waveOut hooks removed");
 }
 
-}  // namespace tc
+}  // namespace px

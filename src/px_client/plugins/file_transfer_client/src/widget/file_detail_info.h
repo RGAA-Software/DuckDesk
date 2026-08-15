@@ -6,7 +6,7 @@
 #include <qmetatype.h>
 
 
-namespace tc {
+namespace px {
 
 enum class EFileType {
 	kDisk,
@@ -104,6 +104,6 @@ public:
 	// 根据类型排序
 	void Sort(EFileTableHeaderViewItemType type, bool asc);
 };
-Q_DECLARE_METATYPE(tc::FileContainer);
+Q_DECLARE_METATYPE(px::FileContainer);
 
 }

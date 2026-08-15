@@ -22,10 +22,10 @@
 const wchar_t* START_TIME_PROPERTY = L"StartTimeProperty";
 const wchar_t* FRAME_INDEX_PROPERTY = L"FrameIndexProperty";
 const wchar_t* IS_KEY_FRAME = L"IsKeyFrame";
-static uint64_t last_time = tc::TimeUtil::GetCurrentTimestamp();
+static uint64_t last_time = px::TimeUtil::GetCurrentTimestamp();
 static int fps = 0;
 
-namespace tc
+namespace px
 {
     AMFTextureEncoder::AMFTextureEncoder(const amf::AMFContextPtr &amfContext, EncoderConfig config,
                                          amf::AMF_SURFACE_FORMAT inputFormat, AMFTextureReceiver receiver)
@@ -207,7 +207,7 @@ namespace tc
         }
     }
 
-    bool VideoEncoderVCE::Initialize(const tc::EncoderConfig &config) {
+    bool VideoEncoderVCE::Initialize(const px::EncoderConfig &config) {
         VideoEncoder::Initialize(config);
         codec_type_ = config.codec_type;
         auto ret = g_AMFFactory.Init();
@@ -440,7 +440,7 @@ namespace tc
         }
 
         fps++;
-        uint64_t ct = tc::TimeUtil::GetCurrentTimestamp();
+        uint64_t ct = px::TimeUtil::GetCurrentTimestamp();
         if (ct - last_time > 1000) {
             //LOGI("Recv FPS : {}", fps);
             last_time = ct;

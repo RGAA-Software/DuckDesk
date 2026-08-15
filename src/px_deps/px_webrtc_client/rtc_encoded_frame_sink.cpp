@@ -9,7 +9,7 @@
 #include <format>
 #include <string>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<RtcEncodedFrameSink> RtcEncodedFrameSink::Make(int track_index) {

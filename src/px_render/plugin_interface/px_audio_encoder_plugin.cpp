@@ -4,7 +4,7 @@
 
 #include "px_audio_encoder_plugin.h"
 
-namespace tc
+namespace px
 {
 
     GrAudioEncoderPlugin::GrAudioEncoderPlugin() {
@@ -15,7 +15,7 @@ namespace tc
 
     }
 
-    bool GrAudioEncoderPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool GrAudioEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
 
         return true;

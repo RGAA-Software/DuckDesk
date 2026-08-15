@@ -8,7 +8,7 @@
 #include <string>
 #include <cstdint>
 
-namespace tc
+namespace px
 {
     struct ConnectionToken {
         std::string token;
@@ -20,7 +20,7 @@ namespace tc
     /// md5(hex(sha256(appkey + salt)))
     std::string CalculateAppSecret(const std::string& appkey);
 
-    /// Generates a fresh connection token for /spvr/client.
+    /// Generates a fresh connection token for /cms/client.
     ConnectionToken GenerateConnectionToken(const std::string& appkey);
 
     /// Generates a connection token from explicit timestamp and nonce. Useful for
@@ -29,6 +29,6 @@ namespace tc
                                             int64_t ts_ms,
                                             const std::string& nonce);
 
-} // namespace tc
+} // namespace px
 
 #endif //GAMMARAYPREMIUM_CT_AUTH_TOKEN_H

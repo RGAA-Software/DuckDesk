@@ -14,7 +14,7 @@
 #include <SDL2/SDL.h>
 
 // !!! Almost the same with OpenGL version, for Testing !!!
-namespace tc
+namespace px
 {
 
     class Data;

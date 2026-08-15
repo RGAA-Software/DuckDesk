@@ -19,7 +19,7 @@ HRESULT SystemTransitionsExpectedErrors[] = {
 	S_OK                                    // Terminate list with zero valued HRESULT
 };
 
-namespace tc
+namespace px
 {
 
     _Post_satisfies_(return != DUPL_RETURN_SUCCESS)
@@ -754,7 +754,7 @@ namespace tc
             TranslatedHr = hr;
         }
 
-        LOGE("Error: 0x{:x}, message: {}", hr, tc::StringUtil::ToUTF8(Str));
+        LOGE("Error: 0x{:x}, message: {}", hr, px::StringUtil::ToUTF8(Str));
 
         // Check if this error was expected or not
         if (ExpectedErrors) {

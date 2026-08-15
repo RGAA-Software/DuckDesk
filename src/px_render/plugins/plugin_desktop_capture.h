@@ -8,7 +8,7 @@
 #include "px_common_new/concurrent_queue.h"
 #include "px_capture_new/monitor_util.h"
 
-namespace tc
+namespace px
 {
 
     class PluginDesktopCapture {

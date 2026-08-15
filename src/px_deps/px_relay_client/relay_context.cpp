@@ -4,7 +4,7 @@
 
 #include "relay_context.h"
 
-namespace tc
+namespace px
 {
 
     RelayContext::RelayContext(const std::shared_ptr<MessageNotifier>& notifier) {

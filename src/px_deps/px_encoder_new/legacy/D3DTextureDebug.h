@@ -7,7 +7,7 @@
 #include <dxgi.h>
 #include <d3d11.h>
 
-namespace tc
+namespace px
 {
 
 	class D3DTextureDebug {

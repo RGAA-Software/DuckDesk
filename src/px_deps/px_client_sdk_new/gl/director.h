@@ -9,7 +9,7 @@
 
 #include "gl_function.h"
 
-namespace tc
+namespace px
 {
 
 	class Director {

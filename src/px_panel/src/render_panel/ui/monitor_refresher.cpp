@@ -14,7 +14,7 @@
 #include <QScreen>
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     // Widget

@@ -8,7 +8,7 @@
 #include "px_common_new/webrtc_helper.h"
 #include "video_source_mock.h"
 
-namespace tc
+namespace px
 {
     class Data;
     class PeerCallback;

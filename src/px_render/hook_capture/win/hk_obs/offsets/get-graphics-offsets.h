@@ -36,7 +36,7 @@ extern void get_d3d8_offsets(struct d3d8_offsets *offsets);
 }
 #endif
 
-namespace tc
+namespace px
 {
 
     class D3DOffsets {

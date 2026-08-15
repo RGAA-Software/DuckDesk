@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SpvrEvent } from '@/entity/spvr_event.ts'
+import { CmsEvent } from '@/entity/cms_event.ts'
 import { onMounted, ref } from 'vue'
 import axiosHttp from '@/http.ts'
 import { FundOutlined, DatabaseOutlined, HddOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
@@ -67,7 +67,7 @@ async function queryEvents(
 }
 
 // CPU
-const cpuEvents = ref<SpvrEvent[]>([])
+const cpuEvents = ref<CmsEvent[]>([])
 const cpuPageSize = ref(20)
 const cpuCurrentPage = ref(1)
 const totalCpuSize = ref(0)
@@ -78,7 +78,7 @@ const handleCpuPageChange = (page: number, pageSize: number) => {
 }
 
 // Memory
-const memoryEvents = ref<SpvrEvent[]>([])
+const memoryEvents = ref<CmsEvent[]>([])
 const memoryPageSize = ref(20)
 const memoryCurrentPage = ref(1)
 const totalMemorySize = ref(0)
@@ -89,7 +89,7 @@ const handleMemoryPageChange = (page: number, pageSize: number) => {
 }
 
 // disk
-const diskEvents = ref<SpvrEvent[]>([])
+const diskEvents = ref<CmsEvent[]>([])
 const diskPageSize = ref(20)
 const diskCurrentPage = ref(1)
 const totalDiskSize = ref(0)
@@ -100,7 +100,7 @@ const handleDiskPageChange = (page: number, pageSize: number) => {
 }
 
 // GPU
-const gpuEvents = ref<SpvrEvent[]>([])
+const gpuEvents = ref<CmsEvent[]>([])
 const gpuPageSize = ref(20)
 const gpuCurrentPage = ref(1)
 const totalGpuSize = ref(0)
@@ -111,7 +111,7 @@ const handleGpuPageChange = (page: number, pageSize: number) => {
 }
 
 // copy
-const handleCopyEvent = async (index: number, event: SpvrEvent) => {
+const handleCopyEvent = async (index: number, event: CmsEvent) => {
   console.log('copy event: ', index)
   await copyText(JSON.stringify(event))
   notification.success({

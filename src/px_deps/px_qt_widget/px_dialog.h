@@ -7,7 +7,7 @@
 
 #include "px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     constexpr auto kDoneCancel = 0;

@@ -19,7 +19,7 @@
 
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;

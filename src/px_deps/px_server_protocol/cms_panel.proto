@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package cms_panel;
+
+// Between Cms - Panel
+
+enum CmsPanelMessageType {
+  kCmsPanelHello = 0;
+  kCmsPanelHeartBeat = 1;
+}
+
+message CmsPanelHello {
+  string device_id = 1;
+  string user_id = 2;
+  string device_name = 3;
+}
+
+message CmsPanelHeartBeat {
+  int64 hb_index = 1;
+  string device_id = 2;
+  string desktop_link = 3;
+  string desktop_link_raw = 4;
+  // json format hardware system info
+  string sys_info_raw = 5;
+  string user_id = 6;
+  string device_ip_addr = 7;
+  string device_name = 8;
+}
+
+message CmsSysInfo {
+  string info = 1;
+}
+
+message CmsPanelMessage {
+  CmsPanelMessageType msg_type = 1;
+  string device_id = 10;
+  CmsPanelHello hello = 20;
+  CmsPanelHeartBeat heartbeat = 30;
+  CmsSysInfo sys_info = 40;
+}

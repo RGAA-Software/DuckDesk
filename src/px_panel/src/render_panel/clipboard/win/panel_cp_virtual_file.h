@@ -18,7 +18,7 @@
 
 #pragma comment(lib, "shlwapi.lib")
 
-namespace tc
+namespace px
 {
 
     class GrContext;

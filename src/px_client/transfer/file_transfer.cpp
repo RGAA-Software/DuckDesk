@@ -13,7 +13,7 @@
 #include "px_qt_widget/sized_msg_box.h"
 #include "file_transfer_events.h"
 
-namespace tc
+namespace px
 {
     FileTransferChannel::FileTransferChannel(const std::shared_ptr<ClientContext> &ctx) {
         context_ = ctx;
@@ -144,7 +144,7 @@ namespace tc
     }
 
     void FileTransferChannel::RequestSendingFile(const std::shared_ptr<FsFile>& file) {
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(MessageType::kFileTransfer);
         msg.set_device_id(settings_->device_id_);
         msg.set_stream_id(settings_->stream_id_);
@@ -164,7 +164,7 @@ namespace tc
     }
 
     void FileTransferChannel::CompleteSending(const std::shared_ptr<FsFile>& file) {
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(MessageType::kFileTransfer);
         msg.set_device_id(settings_->device_id_);
         msg.set_stream_id(settings_->stream_id_);
@@ -184,7 +184,7 @@ namespace tc
     }
 
     void FileTransferChannel::ParseRespMessage(std::string_view _data) {
-        auto msg = std::make_shared<tc::Message>();
+        auto msg = std::make_shared<px::Message>();
         std::string data(_data.data(), _data.size());
         if (!msg->ParseFromString(data)) {
             LOGE("Parse proto message failed!");

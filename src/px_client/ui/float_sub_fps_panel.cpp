@@ -13,7 +13,7 @@
 #include "single_selected_list.h"
 #include <QLabel>
 
-namespace tc
+namespace px
 {
 
     SubFpsPanel::SubFpsPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

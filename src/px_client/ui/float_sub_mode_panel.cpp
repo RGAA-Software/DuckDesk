@@ -12,7 +12,7 @@
 #include "px_common_new/log.h"
 #include <QLabel>
 
-namespace tc
+namespace px
 {
 
     SubModePanel::SubModePanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

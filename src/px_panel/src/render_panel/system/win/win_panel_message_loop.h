@@ -5,7 +5,7 @@
 #include "px_common_new/clipboard/clipboard_echo.h"
 #include "px_common_new/clipboard/clipboard_platform.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;

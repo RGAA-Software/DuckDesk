@@ -5,7 +5,7 @@
 #include <QPainterPath>
 #include "computer_icon.h"
 
-namespace tc
+namespace px
 {
 
     ComputerIcon::ComputerIcon(const std::shared_ptr<ClientContext>& ctx, int idx, QWidget* parent) : BaseWidget(ctx, parent) {

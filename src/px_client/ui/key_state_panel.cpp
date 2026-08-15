@@ -5,7 +5,7 @@
 #include "key_state_panel.h"
 #include "no_margin_layout.h"
 
-namespace tc
+namespace px
 {
     constexpr int kBgNormalColor = 0xf2f2f2;
     constexpr int kBgPressedColor = 0xBB0000;

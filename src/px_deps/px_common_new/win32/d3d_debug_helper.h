@@ -9,7 +9,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
-namespace tc
+namespace px
 {
 
     void PrintD3DTexture2DDesc(const std::string& name, const D3D11_TEXTURE2D_DESC& desc);

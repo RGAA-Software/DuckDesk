@@ -69,7 +69,7 @@ static const wchar_t* fileNameOut_h265 = L"./output.h265";
 
 #define MILLISEC_TIME     10000
 
-namespace tc
+namespace px
 {
 
 	class PollingThread : public amf::AMFThread

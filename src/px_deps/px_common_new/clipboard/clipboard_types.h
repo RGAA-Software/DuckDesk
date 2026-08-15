@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     struct FileEntry {

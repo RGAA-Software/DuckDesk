@@ -16,7 +16,7 @@
 #include "px_common_new/concurrent_vector.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
@@ -48,8 +48,8 @@ namespace tc
         std::vector<int32_t> GetAudioFrameGaps();
         std::vector<double> GetLeftSpectrum();
         std::vector<double> GetRightSpectrum();
-        std::vector<std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>> GetCapturesInfo();
-        std::vector<std::shared_ptr<tcrp::RpConnectedClientInfo>> GetConnectedClientsInfo();
+        std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> GetCapturesInfo();
+        std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> GetConnectedClientsInfo();
         void UpdateRelayAlive(const std::string& device_id, int64_t timestamp);
         int64_t GetRelayLastUpdateTimestamp(const std::string& device_id);
 
@@ -66,8 +66,8 @@ namespace tc
         ConcurrentVector<uint32_t> audio_frame_gaps_;
         ConcurrentVector<double> left_spectrum_;
         ConcurrentVector<double> right_spectrum_;
-        ConcurrentVector<std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>> captures_info_;
-        ConcurrentVector<std::shared_ptr<tcrp::RpConnectedClientInfo>> connected_clients_info_;
+        ConcurrentVector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> captures_info_;
+        ConcurrentVector<std::shared_ptr<pxrp::RpConnectedClientInfo>> connected_clients_info_;
         ConcurrentHashMap<std::string, std::shared_ptr<GrStatRelayAlive>> relays_alive_;
 
     public:

@@ -5,7 +5,7 @@
 #include <qpixmap.h>
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 static QString s_style = R"(
 QPushButton{border:0px; border-radius:%1px; background-color:#2979ff;}

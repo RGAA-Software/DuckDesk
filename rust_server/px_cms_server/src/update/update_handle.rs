@@ -1,7 +1,7 @@
 use crate::gUpdateInfoManager;
-use crate::spvr_api_error::SpvrApiError;
-use crate::spvr_context::SpvrContext;
-use crate::spvr_http_util::{get_int_param, get_int_param_or};
+use crate::cms_api_error::CmsApiError;
+use crate::cms_context::CmsContext;
+use crate::cms_http_util::{get_int_param, get_int_param_or};
 use crate::update::update_info::UpdateInfo;
 use crate::update::update_keys::{
     KEY_UPDATE_DESC, KEY_UPDATE_FORCED, KEY_UPDATE_INSTALL_PACKAGE, KEY_UPDATE_VERSION,
@@ -24,24 +24,24 @@ const SAVE_INSTALL_PACKAGE_DIR: &str = "./uploads/update_info/";
 const RESP_INSTALL_PACKAGE_DIR: &str = "/uploads/update_info/";
 
 pub async fn handle_hello_world(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     _query: Query<HashMap<String, String>>,
     _body: Body,
-) -> Result<Json<RespMessage<String>>, SpvrApiError> {
+) -> Result<Json<RespMessage<String>>, CmsApiError> {
     Ok(Json(ok_resp("hello world".to_string())))
 }
 
 pub async fn handle_upload_update_info(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     _query: Query<HashMap<String, String>>,
     mut multipart: Multipart,
-) -> Result<Json<RespMessage<String>>, SpvrApiError> {
+) -> Result<Json<RespMessage<String>>, CmsApiError> {
     let mut update_info = UpdateInfo::default();
     let mut upload_file_path = "".to_string();
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|_e| SpvrApiError::InvalidParams)?
+        .map_err(|_e| CmsApiError::InvalidParams)?
     {
         let key = field.name().unwrap_or("").to_string();
         if key == KEY_UPDATE_INSTALL_PACKAGE {
@@ -73,7 +73,7 @@ pub async fn handle_upload_update_info(
                     }
                     Err(err) => {
                         tracing::error!("upload avatar field error: {}", err);
-                        return Err(SpvrApiError::UploadFileFailed);
+                        return Err(CmsApiError::UploadFileFailed);
                     }
                 }
             }
@@ -94,17 +94,17 @@ pub async fn handle_upload_update_info(
     let _info = gUpdateInfoManager.insert_update_info(update_info).await?;
 
     if upload_file_path.is_empty() {
-        return Err(SpvrApiError::UploadFileFailed);
+        return Err(CmsApiError::UploadFileFailed);
     }
 
     Ok(Json(ok_resp("upload ok".to_string())))
 }
 
 pub async fn handle_query_update_info(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
     _body: Body,
-) -> Result<Json<RespMessage<Vec<UpdateInfo>>>, SpvrApiError> {
+) -> Result<Json<RespMessage<Vec<UpdateInfo>>>, CmsApiError> {
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
@@ -121,7 +121,7 @@ pub async fn handle_query_update_info(
 }
 
 pub async fn handle_download_install_package(
-    State(_ctx): State<Arc<Mutex<SpvrContext>>>,
+    State(_ctx): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let filename = match query.get("down_file") {

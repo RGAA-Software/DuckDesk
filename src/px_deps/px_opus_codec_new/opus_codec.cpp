@@ -21,7 +21,7 @@
 #include "opus_codec.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
 	std::string ErrorToString(int error) {

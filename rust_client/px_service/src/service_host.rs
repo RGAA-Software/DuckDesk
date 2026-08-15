@@ -137,8 +137,8 @@ impl ServiceRuntime {
             }
             Command::AuthInfo(auth_info) => {
                 info!(
-                    "received auth info, device_id={}, appkey={}, spvr={}:{}",
-                    auth_info.device_id, auth_info.appkey, auth_info.spvr_host, auth_info.spvr_port
+                    "received auth info, device_id={}, appkey={}, cms={}:{}",
+                    auth_info.device_id, auth_info.appkey, auth_info.cms_host, auth_info.cms_port
                 );
                 self.state.last_auth_info = Some(auth_info);
                 Ok(None)
@@ -1004,8 +1004,8 @@ mod tests {
             days: 365,
             max_streams: 4,
             end_timestamp_ms: 1_900_000_000_000,
-            spvr_host: "cms.example.com".to_string(),
-            spvr_port: 8443,
+            cms_host: "cms.example.com".to_string(),
+            cms_port: 8443,
         }
     }
 

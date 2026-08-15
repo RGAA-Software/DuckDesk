@@ -7,7 +7,7 @@
 
 #include "px_render/plugin_interface/px_frame_processor_plugin.h"
 
-namespace tc
+namespace px
 {
     class FrameRender;
 

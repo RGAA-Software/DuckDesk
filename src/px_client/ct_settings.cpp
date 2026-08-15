@@ -9,7 +9,7 @@
 #include "px_common_new/log.h"
 #include "version_config.h"
 
-namespace tc
+namespace px
 {
 
     const std::string kKeyInit = "key_init";

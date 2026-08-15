@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_TITLEBAR_MESSAGES_H
 #define GAMMARAY_TITLEBAR_MESSAGES_H
 
-namespace tc
+namespace px
 {
 
     class MsgTitleBarSettingsClicked {

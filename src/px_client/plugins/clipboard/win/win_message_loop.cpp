@@ -5,7 +5,7 @@
 #include "px_common_new/log.h"
 #include "win_message_window.h"
 
-namespace tc
+namespace px
 {
 
     constexpr char kWindowName[] = "GammaRay_client_MessageWindow";

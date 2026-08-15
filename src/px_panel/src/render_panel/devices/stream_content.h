@@ -8,15 +8,15 @@
 #include <QWidget>
 #include <memory>
 #include <functional>
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
     class AppStreamList;
 
-    using OnStartingStreamCallback = std::function<void(const spvr::SpvrStream&)>;
+    using OnStartingStreamCallback = std::function<void(const px_cms::CmsStream&)>;
 
     class AddButton : public QLabel {
     public:

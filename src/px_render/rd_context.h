@@ -15,7 +15,7 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/task_runtime.h"
 
-namespace tc
+namespace px
 {
 
     class PluginManager;

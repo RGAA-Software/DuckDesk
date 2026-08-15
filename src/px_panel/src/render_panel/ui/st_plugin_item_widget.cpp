@@ -13,7 +13,7 @@
 #include <QLabel>
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     const QString kDisplayPluginEnabled = "Enabled";
@@ -165,12 +165,12 @@ namespace tc
     }
 
     void StPluginItemWidget::SwitchPluginStatusInner(bool enabled) {
-        tcrp::RpMessage pt_msg;
-        pt_msg.set_type(tcrp::RpMessageType::kRpCommandRenderer);
+        pxrp::RpMessage pt_msg;
+        pt_msg.set_type(pxrp::RpMessageType::kRpCommandRenderer);
         auto sub = pt_msg.mutable_command_renderer();
-        sub->set_command(enabled ? tcrp::RpPanelCommand::kEnablePlugin : tcrp::RpPanelCommand::kDisablePlugin);
+        sub->set_command(enabled ? pxrp::RpPanelCommand::kEnablePlugin : pxrp::RpPanelCommand::kDisablePlugin);
         sub->set_plugin_id(item_info_->id_);
-        app_->PostMessage2Renderer(tc::RpProtoAsData(&pt_msg));
+        app_->PostMessage2Renderer(px::RpProtoAsData(&pt_msg));
     }
 
 }

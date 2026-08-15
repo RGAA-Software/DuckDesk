@@ -18,7 +18,7 @@ extern "C"
 #include <libavutil/frame.h>
 }
 
-namespace tc
+namespace px
 {
 	enum RawImageFormat {
 		kRawImageRGB,

@@ -21,7 +21,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #endif
 
-namespace tc
+namespace px
 {
 
     static bool NeedIgnoreNetwork(std::wstring_view str_card_name) {

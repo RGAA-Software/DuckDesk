@@ -7,7 +7,7 @@
 
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -25,7 +25,7 @@ namespace tc
 
         void On1Second() override;
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         void InsertIdr(const std::string& mon_name) override;

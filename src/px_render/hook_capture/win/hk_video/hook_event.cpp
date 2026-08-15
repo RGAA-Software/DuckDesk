@@ -5,7 +5,7 @@
 
 #define DEBUG_EVENT 0
 
-namespace tc
+namespace px
 {
 
     HookEvent::HookEvent() {
@@ -232,7 +232,7 @@ namespace tc
         NTSTATUS status;
         origin_GetRawInputData = (GetRawInputData_t) GetProcAddress(GetModuleHandle(TEXT("User32")),
                                                                     "GetRawInputData");
-        status = tc::HookAllThread(api_HookGetRawInputData, origin_GetRawInputData, HookedGetRawInputData);
+        status = px::HookAllThread(api_HookGetRawInputData, origin_GetRawInputData, HookedGetRawInputData);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : GetRawInputData");
             return;
@@ -240,49 +240,49 @@ namespace tc
 
         origin_GetRawInputBuffer = (GetRawInputBuffer_t) GetProcAddress(GetModuleHandle(TEXT("User32")),
                                                                         "GetRawInputBuffer");
-        status = tc::HookAllThread(api_HookGetRawInputBuffer, origin_GetRawInputBuffer, HookedGetRawInputBuffer);
+        status = px::HookAllThread(api_HookGetRawInputBuffer, origin_GetRawInputBuffer, HookedGetRawInputBuffer);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : GetRawInputBuffer");
             return;
         }
 
         origin_PostMessageA = (PostMessageA_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "PostMessageA");
-        status = tc::HookAllThread(api_HookPostMessageA, origin_PostMessageA, HookedPostMessageA);
+        status = px::HookAllThread(api_HookPostMessageA, origin_PostMessageA, HookedPostMessageA);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : PostMessageA");
             return;
         }
 
         origin_PostMessageW = (PostMessageW_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "PostMessageW");
-        status = tc::HookAllThread(api_HookPostMessageW, origin_PostMessageW, HookedPostMessageW);
+        status = px::HookAllThread(api_HookPostMessageW, origin_PostMessageW, HookedPostMessageW);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : PostMessageW");
             return;
         }
 
         origin_SendMessageA = (SendMessageA_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "SendMessageA");
-        status = tc::HookAllThread(api_HookSendMessageA, origin_SendMessageA, HookedSendMessageA);
+        status = px::HookAllThread(api_HookSendMessageA, origin_SendMessageA, HookedSendMessageA);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : SendMessageA");
             return;
         }
 
         origin_SendMessageW = (SendMessageA_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "SendMessageW");
-        status = tc::HookAllThread(api_HookSendMessageW, origin_SendMessageW, HookedSendMessageW);
+        status = px::HookAllThread(api_HookSendMessageW, origin_SendMessageW, HookedSendMessageW);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : SendMessageW");
             return;
         }
 
         origin_GetCursorPos = (GetCursorPos_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "GetCursorPos");
-        status = tc::HookAllThread(api_HookGetCursorPos, origin_GetCursorPos, HookedGetCursorPos);
+        status = px::HookAllThread(api_HookGetCursorPos, origin_GetCursorPos, HookedGetCursorPos);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : GetCursorPos");
             return;
         }
 
         origin_SetCursorPos = (SetCursorPos_t) GetProcAddress(GetModuleHandle(TEXT("User32")), "SetCursorPos");
-        status = tc::HookAllThread(api_HookSetCursorPos, origin_SetCursorPos, HookedSetCursorPos);
+        status = px::HookAllThread(api_HookSetCursorPos, origin_SetCursorPos, HookedSetCursorPos);
         if (!NT_SUCCESS(status)) {
             LOGE("HOOK ERROR : SetCursorPos");
             return;

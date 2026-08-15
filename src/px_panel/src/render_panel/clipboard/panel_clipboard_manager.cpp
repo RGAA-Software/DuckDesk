@@ -17,7 +17,7 @@
 #include "px_common_new/clipboard/clipboard_echo.h"
 #include <QPointer>
 
-namespace tc
+namespace px
 {
     namespace {
         class OleInitGuard {
@@ -74,8 +74,8 @@ namespace tc
 //
 //        if (msg->clipboard_type_ == MsgClipboardType::kText) {
 //            // send it to remote
-//            tc::Message m;
-//            m.set_type(tc::kClipboardInfo);
+//            px::Message m;
+//            m.set_type(px::kClipboardInfo);
 //            auto sub = m.mutable_clipboard_info();
 //            sub->set_type(ClipboardType::kClipboardText);
 //            sub->set_msg(msg->text_msg_);
@@ -84,8 +84,8 @@ namespace tc
 //            //plugin_->DispatchAllStreamMessage(buffer);
 //        }
 //        else if (msg->clipboard_type_ == MsgClipboardType::kFiles && !msg->files_.empty()) {
-//            tc::Message m;
-//            m.set_type(tc::kClipboardInfo);
+//            px::Message m;
+//            m.set_type(px::kClipboardInfo);
 //            auto sub = m.mutable_clipboard_info();
 //            sub->set_type(ClipboardType::kClipboardFiles);
 //            for (const auto& file : msg->files_) {
@@ -143,12 +143,12 @@ namespace tc
                         .text_msg_ = in_text,
                     });
 
-                    tc::Message resp_msg;
-                    resp_msg.set_type(tc::kClipboardInfoResp);
+                    px::Message resp_msg;
+                    resp_msg.set_type(px::kClipboardInfoResp);
                     auto resp_sub = resp_msg.mutable_clipboard_info_resp();
                     resp_sub->set_type(ClipboardType::kClipboardText);
                     resp_sub->set_msg(in_text);
-                    auto rp_msg = tc::MakeRpRawRenderMessage(msg->stream_id(), msg->device_id(), resp_msg.SerializeAsString(), true);
+                    auto rp_msg = px::MakeRpRawRenderMessage(msg->stream_id(), msg->device_id(), resp_msg.SerializeAsString(), true);
                     self->context_->GetApplication()->PostMessage2Renderer(rp_msg);
                 });
                 
@@ -189,7 +189,7 @@ namespace tc
                         return;
                     }
                     if (!self->virtual_file_) {
-                        self->virtual_file_ = tc::CreateVirtualFile(IID_IDataObject, (void **) &self->data_object_, self->context_);
+                        self->virtual_file_ = px::CreateVirtualFile(IID_IDataObject, (void **) &self->data_object_, self->context_);
                     }
                     if (!self->data_object_) {
                         LOGE("DataObject is null!");

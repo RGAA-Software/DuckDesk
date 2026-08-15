@@ -22,8 +22,8 @@ impl UpdateServer {
     pub async fn start(&self, context: Arc<Mutex<UpdateContext>>) {
         let current_dir = std::env::current_exe().unwrap();
         let current_dir = current_dir.parent().unwrap();
-        let web_spvr_dir = current_dir.join("static");
-        tracing::info!("assets_dir: {:?}", &web_spvr_dir);
+        let web_cms_dir = current_dir.join("static");
+        tracing::info!("assets_dir: {:?}", &web_cms_dir);
 
         // configure certificate and private key used by https
         let cp = current_dir.join("certs").join("cert.pem");
@@ -44,7 +44,7 @@ impl UpdateServer {
         let config = config.unwrap();
 
         let router = Router::new()
-            .fallback_service(ServeDir::new(web_spvr_dir).append_index_html_on_directories(true))
+            .fallback_service(ServeDir::new(web_cms_dir).append_index_html_on_directories(true))
             .route("/hello", get(handle_hello_world))
             .route("/upload_update_info", post(handle_upload_update_info))
             .route("/query_update_info", get(handle_query_update_info))

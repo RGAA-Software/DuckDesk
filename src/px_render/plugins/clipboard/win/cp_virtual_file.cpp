@@ -19,7 +19,7 @@
 
 // #pragma comment(lib, "Wininet.lib")
 
-// namespace tc
+// namespace px
 // {
 
 //     CpVirtualFile::CpVirtualFile(ClipboardPlugin* plugin) {
@@ -145,7 +145,7 @@
 //                         if (!dispatch_cbk || !plugin_token || !plugin_token->load()) {
 //                             return false;
 //                         }
-//                         tc::Message msg;
+//                         px::Message msg;
 //                         msg.set_type(MessageType::kClipboardReqBuffer);
 //                         auto req_buffer = msg.mutable_cp_req_buffer();
 //                         req_buffer->set_req_index(req_index);
@@ -304,7 +304,7 @@
 
 //         // send begin message to client
 //         // send end message to client
-//         tc::Message msg;
+//         px::Message msg;
 //         msg.set_device_id(stream->GetDeviceId());
 //         msg.set_stream_id(stream->GetStreamId());
 //         msg.set_type(MessageType::kClipboardReqAtBegin);
@@ -325,7 +325,7 @@
 //         event_cbk_(event);
 
 //         // send end message to client
-//         tc::Message msg;
+//         px::Message msg;
 //         msg.set_device_id(stream->GetDeviceId());
 //         msg.set_stream_id(stream->GetStreamId());
 //         msg.set_type(MessageType::kClipboardReqAtEnd);

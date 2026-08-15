@@ -14,13 +14,13 @@
 #include "px_common_new/response.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
-    static const std::string kGammaRayName = tc::kGammaRayExeName;
-    static const std::string kGammaRayRenderName = tc::kGammaRayRenderExeName;
-    static const std::string kGammaRayClientInner = tc::kGammaRayClientInnerExeName;
-    static const std::string kGammaRaySysInfo = tc::kGammaRaySysInfoExeName;
+    static const std::string kGammaRayName = px::kGammaRayExeName;
+    static const std::string kGammaRayRenderName = px::kGammaRayRenderExeName;
+    static const std::string kGammaRayClientInner = px::kGammaRayClientInnerExeName;
+    static const std::string kGammaRaySysInfo = px::kGammaRaySysInfoExeName;
 
     class ServiceContext;
     class MessageListener;
@@ -63,7 +63,7 @@ namespace tc
         std::string desktop_work_dir_;
 
         // others
-        tc::ConcurrentHashMap<RenderProcessId, std::shared_ptr<RenderProcess>> render_processes_;
+        px::ConcurrentHashMap<RenderProcessId, std::shared_ptr<RenderProcess>> render_processes_;
     };
 
 }

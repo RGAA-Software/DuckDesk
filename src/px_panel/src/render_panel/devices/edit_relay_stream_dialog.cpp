@@ -15,10 +15,10 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 
-namespace tc
+namespace px
 {
 
-    EditRelayStreamDialog::EditRelayStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    EditRelayStreamDialog::EditRelayStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         stream_item_ = item;
         setFixedSize(375, 500);

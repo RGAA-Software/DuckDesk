@@ -16,9 +16,9 @@
 
 #include <qpushbutton.h>
 
-GR_PLUGIN_EXPORT(tc::MediaRecordPluginClient)
+GR_PLUGIN_EXPORT(px::MediaRecordPluginClient)
 
-namespace tc
+namespace px
 {
 
     std::string MediaRecordPluginClient::GetPluginId() {
@@ -41,7 +41,7 @@ namespace tc
         ClientPluginInterface::On1Second();
     }
     
-    bool MediaRecordPluginClient::OnCreate(const tc::ClientPluginParam& param) {
+    bool MediaRecordPluginClient::OnCreate(const px::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
         plugin_type_ = ClientPluginType::kUtil;
 
@@ -72,7 +72,7 @@ namespace tc
         }
 
         plugin_context_->PostWorkTask([this, msg]() {
-            if (msg->type() == tc::kVideoFrame) {
+            if (msg->type() == px::kVideoFrame) {
                 const auto& video_frame = msg->video_frame();
                 if (video_frame.key()) {
                     LOGI("video frame index: {}, {}x{}, key: {}", video_frame.frame_index(),
@@ -90,7 +90,7 @@ namespace tc
                     LOGW("video_frame index : {}, Exceeded the maximum limit", v_idx);
                 }
             }
-            else if (msg->type() == tc::kAudioFrame) {
+            else if (msg->type() == px::kAudioFrame) {
                 const auto& audio_frame = msg->audio_frame();
                 for (auto& media_recorder: media_recorders_) {
                     media_recorder->RecvAudioFrame(audio_frame);

@@ -7,7 +7,7 @@
 #include "visit_record.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
     namespace {
         bool IsDbReady(const std::shared_ptr<GrDatabase>& db) {

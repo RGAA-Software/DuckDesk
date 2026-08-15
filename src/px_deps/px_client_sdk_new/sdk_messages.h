@@ -11,7 +11,7 @@
 #include "sdk_errors.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     const std::string kRoomTypeMedia = "media";
@@ -134,7 +134,7 @@ namespace tc
 
     class SdkMsgFirstConfigInfoCallback {
     public:
-        std::shared_ptr<tc::Message> msg_ = nullptr;
+        std::shared_ptr<px::Message> msg_ = nullptr;
     };
 
     // step 8
@@ -147,7 +147,7 @@ namespace tc
 
 //    class SdkMsgClipboardReqBuffer {
 //    public:
-//        tc::ClipboardReqBuffer req_buffer_;
+//        px::ClipboardReqBuffer req_buffer_;
 //    };
 
     // room prepared in relay/p2p mode

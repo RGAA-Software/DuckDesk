@@ -6,9 +6,9 @@ server_name = "Srv.01"
 server_w3c_ip = ""
 
 # 需要对外开放的端口
-# Spvr/Manager port
+# Cms/Manager port
 # TCP
-spvr_port = 30500
+cms_port = 30500
 
 # 需要对外开放的端口
 # UDP

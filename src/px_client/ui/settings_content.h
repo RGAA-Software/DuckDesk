@@ -7,7 +7,7 @@
 
 #include "app_content.h"
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

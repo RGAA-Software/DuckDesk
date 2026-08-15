@@ -11,7 +11,7 @@
 #include <QtSvg/QSvgRenderer>
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     using OnImageButtonClicked = std::function<void()>;

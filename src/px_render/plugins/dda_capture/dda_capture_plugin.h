@@ -8,7 +8,7 @@
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     class Thread;
@@ -24,7 +24,7 @@ namespace tc
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         bool IsWorking() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         bool TryInitSpecificCapture() override;
         bool StartCapturing() override;
@@ -63,7 +63,7 @@ namespace tc
 
     private:
         std::map<std::string, CaptureMonitorInfo> monitors_;
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<PluginDesktopCapture>> captures_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<PluginDesktopCapture>> captures_;
         std::vector<CaptureMonitorInfo> sorted_monitors_;
         std::shared_ptr<CursorCapture> cursor_capture_ = nullptr;
         std::shared_ptr<Thread> cursor_capture_thread_ = nullptr;

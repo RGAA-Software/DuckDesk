@@ -10,7 +10,7 @@ extern "C" {
 }
 
 
-namespace tc
+namespace px
 {
 
 	class VideoEncoderFFmpeg : public VideoEncoder {

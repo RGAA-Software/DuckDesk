@@ -8,7 +8,7 @@
 #include "px_common_new/log.h"
 #include "px_capture_new/capture_message.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<WsIpcClient> WsIpcClient::Make(int port) {

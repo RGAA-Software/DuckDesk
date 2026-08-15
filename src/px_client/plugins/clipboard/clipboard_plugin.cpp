@@ -15,7 +15,7 @@
 #include "px_common_new/md5.h"
 #include "px_message_new/proto_converter.h"
 
-namespace tc
+namespace px
 {
 
     std::string ClientClipboardPlugin::GetPluginId() {
@@ -38,7 +38,7 @@ namespace tc
         ClientPluginInterface::On1Second();
     }
     
-    bool ClientClipboardPlugin::OnCreate(const tc::ClientPluginParam& param) {
+    bool ClientClipboardPlugin::OnCreate(const px::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
         lifetime_token_->store(true);
         plugin_type_ = ClientPluginType::kUtil;
@@ -70,26 +70,26 @@ namespace tc
                 clipboard_mgr_->OnRemoteClipboardMessage(msg);
             }
         }
-        else if (msg->type() == tc::kClipboardInfoResp) {
+        else if (msg->type() == px::kClipboardInfoResp) {
             if (clipboard_mgr_) {
                 clipboard_mgr_->OnRemoteClipboardRespMessage(msg);
             }
         }
-        else if (msg->type() == tc::kClipboardReqAtBegin) {
+        else if (msg->type() == px::kClipboardReqAtBegin) {
             // begin; server -> client
             // copy files from client -> server
             plugin_context_->PostWorkTask([=, this]() {
                 this->OnRequestFileBegin(msg);
             });
         }
-        else if (msg->type() == tc::kClipboardReqBuffer) {
+        else if (msg->type() == px::kClipboardReqBuffer) {
             // transferring
             // server -> request a part of data in the file -> client -> response -> server
             plugin_context_->PostWorkTask([=, this]() {
                 this->OnRequestFileBuffer(msg);
             });
         }
-        else if (msg->type() == tc::kClipboardReqAtEnd) {
+        else if (msg->type() == px::kClipboardReqAtEnd) {
             // end; server -> client
             // copy files from client -> server
             plugin_context_->PostWorkTask([=, this]() {
@@ -143,7 +143,7 @@ namespace tc
             data = file->Read(req_start, req_size, read_size);
         }
 
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(plugin_settings_.device_id_);
         msg.set_stream_id(plugin_settings_.stream_id_);
         msg.set_type(MessageType::kClipboardRespBuffer);
@@ -160,7 +160,7 @@ namespace tc
              full_filename, req_index, req_start, req_size, data ? data->Size() : 0, file->Exists());
         auto event = std::make_shared<ClientPluginNetworkEvent>();
         event->media_channel_ = false;
-        event->buf_ = tc::ProtoAsData(&msg);
+        event->buf_ = px::ProtoAsData(&msg);
         CallbackEvent(event);
     }
 
@@ -175,4 +175,4 @@ namespace tc
     }
 }
 
-GR_PLUGIN_EXPORT(tc::ClientClipboardPlugin)
+GR_PLUGIN_EXPORT(px::ClientClipboardPlugin)

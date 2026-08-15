@@ -30,7 +30,7 @@
 | `px_qt_widget` | git@github.com:RGAA-Software/px_qt_widget.git | `325a8fe1c37439df78676c9f8258571976095df8` |
 | `px_relay_client` | git@github.com:RGAA-Software/px_relay_client.git | `6cffd28cc03932c9841cdad97265e404e2576e16` |
 | `px_server_protocol` | git@github.com:RGAA-Software/tc_protocol.git | `a463ba51975e24b08fcaafe06c53281d6d93ae0c` |
-| `px_spvr_client` | git@github.com:RGAA-Software/px_spvr_client.git | `6adc5019224744c664c09e6dd4a3aa7f9327385c` |
+| `px_cms_client` | git@github.com:RGAA-Software/px_spvr_client.git | `6adc5019224744c664c09e6dd4a3aa7f9327385c` |
 | `px_steam_manager_new` | git@github.com:RGAA-Software/px_steam_manager_new.git | `9d2147b32bdbcc78f7bfb5b70445b6e2ff7e82b0` |
 | `px_webrtc_client` | git@github.com:RGAA-Software/px_webrtc_client.git | `5a87b638bb83d2fc2b9d2c72f1196731e4964241` |
 

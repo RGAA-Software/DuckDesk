@@ -10,7 +10,7 @@
 
 #include <QOpenGLFunctions>
 
-namespace tc
+namespace px
 {
 
 	class ShaderProgram {

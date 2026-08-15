@@ -5,7 +5,7 @@
 #ifndef TC_APPLICATION_ENCODER_MESSAGES_H
 #define TC_APPLICATION_ENCODER_MESSAGES_H
 
-namespace tc
+namespace px
 {
 
     class MsgInsertIDR {

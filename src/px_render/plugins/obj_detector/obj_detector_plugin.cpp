@@ -9,7 +9,7 @@
 #include "px_common_new/image.h"
 #include "px_render/plugins/plugin_ids.h"
 
-namespace tc
+namespace px
 {
 
     std::string ObjDetectorPlugin::GetPluginId() {
@@ -37,7 +37,7 @@ namespace tc
 
     }
     
-    bool ObjDetectorPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool ObjDetectorPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         plugin_type_ = GrPluginType::kStream;
 

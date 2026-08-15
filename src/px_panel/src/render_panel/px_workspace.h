@@ -13,7 +13,7 @@
 #include <qpointer.h>
 #include "theme/QtAdvancedStylesheet.h"
 
-namespace tc
+namespace px
 {
 
     struct MainWindowPrivate {

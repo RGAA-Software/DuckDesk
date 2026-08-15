@@ -12,7 +12,7 @@
 #include "NvEncoder.h"
 #include "px_common_new/log.h"
 
-using namespace tc;
+using namespace px;
 
 #ifndef _WIN32
 #include <cstring>

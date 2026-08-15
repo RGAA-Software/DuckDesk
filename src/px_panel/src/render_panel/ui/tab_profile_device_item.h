@@ -13,7 +13,7 @@
 #include <QLabel>
 #include "px_qt_widget/click_listener.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;

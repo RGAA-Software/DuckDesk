@@ -13,7 +13,7 @@
 #include "win/audio/wasapi_audio_capture.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     class AudioCaptureFactory {

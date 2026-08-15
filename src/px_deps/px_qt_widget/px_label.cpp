@@ -4,7 +4,7 @@
 
 #include "px_label.h"
 
-namespace tc
+namespace px
 {
 
     TcLabel::TcLabel(QWidget* parent) : QLabel(parent), TcTranslator(this) {

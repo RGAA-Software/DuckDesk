@@ -11,7 +11,7 @@
 #include <QMouseEvent>
 #include <functional>
 
-namespace tc {
+namespace px {
 
 using OnClickedCallback = std::function<void()>;
 

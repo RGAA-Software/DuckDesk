@@ -12,12 +12,12 @@
 #include "relay_server_sdk_param.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace relay
+namespace px_relay
 {
     class RelayMessage;
 }
 
-namespace tc
+namespace px
 {
     class Data;
     class RelayRoom;
@@ -34,7 +34,7 @@ namespace tc
         void SetOnDisConnectedCallback(OnRelayServerDisConnected && cbk);
         void SetOnRelayHelloCallback(OnRelayServerHello&& cbk);
         void SetOnRelayHeartbeatCallback(OnRelayServerHeartbeat&& cbk);
-        void SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<relay::RelayMessage>&)>&& cbk);
+        void SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<px_relay::RelayMessage>&)>&& cbk);
         void SetOnRoomPreparedCallback(OnRelayRoomPrepared&& cbk);
         void SetOnRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk);
         void SetOnRequestPauseStreamCallback(OnRelayRequestPausedStream&& cbk);
@@ -53,19 +53,19 @@ namespace tc
 
     private:
         void PostBinMessage(const std::string& msg);
-        std::shared_ptr<relay::RelayMessage> ProcessProtoMessage(std::shared_ptr<Data> msg);
+        std::shared_ptr<px_relay::RelayMessage> ProcessProtoMessage(std::shared_ptr<Data> msg);
         // request to control this device
-        void OnRequestControl(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnRequestControl(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
-        void OnRoomPrepared(const std::shared_ptr<relay::RelayMessage>& msg);
-        void OnRoomInfoChanged(const std::shared_ptr<relay::RelayMessage>& msg);
-        void OnRoomDestroyed(const std::shared_ptr<relay::RelayMessage>& msg);
+        void OnRoomPrepared(const std::shared_ptr<px_relay::RelayMessage>& msg);
+        void OnRoomInfoChanged(const std::shared_ptr<px_relay::RelayMessage>& msg);
+        void OnRoomDestroyed(const std::shared_ptr<px_relay::RelayMessage>& msg);
 
     private:
         std::shared_ptr<RelayContext> context_ = nullptr;
         RelayServerSdkParam sdk_param_;
         std::shared_ptr<RelayWsClient> ws_client_ = nullptr;
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<RelayRoom>> rooms_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<RelayRoom>> rooms_;
         OnRelayServerHello hello_cbk_;
         OnRelayServerHeartbeat heartbeat_cbk_;
         OnRelayRoomPrepared room_prepared_cbk_;

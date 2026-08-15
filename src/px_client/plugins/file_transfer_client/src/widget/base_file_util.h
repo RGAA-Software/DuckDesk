@@ -7,7 +7,7 @@
 #include <qstringlist.h>
 #include "file_detail_info.h"
 
-namespace tc {
+namespace px {
 
 class BaseFileUtil : public QObject {
 	Q_OBJECT
@@ -37,9 +37,9 @@ public:
 
 	virtual void Exists(const QString& path) = 0;
 signals:
-	void SigGetFiles(tc::FileContainer file_container);
+	void SigGetFiles(px::FileContainer file_container);
 
-	void SigGetFiles2(tc::FileContainer file_container);
+	void SigGetFiles2(px::FileContainer file_container);
 
 	void SigRemove();
 

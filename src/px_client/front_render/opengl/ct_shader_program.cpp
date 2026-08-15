@@ -4,7 +4,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
 	std::shared_ptr<ShaderProgram> ShaderProgram::Make(QOpenGLFunctions* fk, const std::string& vertex, const std::string& fragment) {

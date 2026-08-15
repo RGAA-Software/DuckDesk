@@ -7,7 +7,7 @@
 #include "no_margin_layout.h"
 #include "px_label.h"
 
-namespace tc
+namespace px
 {
 
     TcToolTip::TcToolTip(QWidget* parent) : QWidget(parent) {

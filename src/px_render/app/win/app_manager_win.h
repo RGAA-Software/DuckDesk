@@ -15,7 +15,7 @@
 #include "px_common_new/win32/process_helper.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     class RdSettings;
@@ -59,7 +59,7 @@ namespace tc
         // 句柄关闭时 OS 自动杀掉整棵游戏进程树,不再残留注入过的游戏
         void AssignGameToJob(uint32_t pid);
         // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
-        void NotifyGameStatus(tc::GameStatusChanged::GameStatus status, const std::string& detail);
+        void NotifyGameStatus(px::GameStatusChanged::GameStatus status, const std::string& detail);
         // 进程是否存活（OpenProcess + STILL_ACTIVE）
         static bool IsProcessAlive(uint32_t pid);
         bool InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll);

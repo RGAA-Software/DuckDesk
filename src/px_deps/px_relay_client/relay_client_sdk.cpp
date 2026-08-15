@@ -8,9 +8,9 @@
 #include "relay_room.h"
 #include "px_common_new/data.h"
 
-using namespace relay;
+using namespace px_relay;
 
-namespace tc
+namespace px
 {
 
     RelayClientSdk::RelayClientSdk(const RelayClientSdkParam& param) {
@@ -115,8 +115,8 @@ namespace tc
         }
 
         ws_client_->PostNetTask([=, this]() {
-            // msg : tc::Message
-            // rl_msg : tc::RelayMessage
+            // msg : px::Message
+            // rl_msg : px::RelayMessage
             RelayMessage rl_msg;
             rl_msg.set_from_device_id(sdk_param_.device_id_);
             rl_msg.set_type(RelayMessageType::kRelayTargetMessage);
@@ -258,7 +258,7 @@ namespace tc
         }
     }
 
-    void RelayClientSdk::OnRemoteDeviceOffline(const std::shared_ptr<relay::RelayMessage>& msg) {
+    void RelayClientSdk::OnRemoteDeviceOffline(const std::shared_ptr<px_relay::RelayMessage>& msg) {
         if (cbk_remote_device_offline_) {
             cbk_remote_device_offline_(msg);
         }

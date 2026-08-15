@@ -4,7 +4,7 @@
 
 #include "message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     MessageNotifier::MessageNotifier() {

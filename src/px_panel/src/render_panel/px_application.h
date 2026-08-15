@@ -11,7 +11,7 @@
 #include <QAbstractNativeEventFilter>
 #include "px_common_new/message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -32,8 +32,8 @@ namespace tc
     class GrRenderMsgProcessor;
     class ClipboardManager;
     class PanelCompanion;
-    class GrSpvrClient;
-    class SpvrScanner;
+    class GrCmsClient;
+    class CmsScanner;
     class SkinInterface;
     class GrUserManager;
     class GrDeviceManager;
@@ -86,18 +86,18 @@ namespace tc
         // get appkey from companion
         std::string GetAppkey();
 
-        // refresh spvr server host/port/appkey...
+        // refresh cms server host/port/appkey...
         void RefreshClientManagerSettings();
 
-        // spvr scanner
-        std::shared_ptr<SpvrScanner> GetSpvrScanner();
+        // cms scanner
+        std::shared_ptr<CmsScanner> GetCmsScanner();
 
         // skin
         SkinInterface* GetSkin();
         std::string GetSkinName();
 
-        // spvr ws client alive or not
-        bool IsSpvrClientAlive();
+        // cms ws client alive or not
+        bool IsCmsClientAlive();
 
         // user manager
         std::shared_ptr<GrUserManager> GetUserManager();
@@ -108,9 +108,9 @@ namespace tc
         // device manager
         std::shared_ptr<GrDeviceManager> GetDeviceManager();
 
-        // can we connect the spvr server
+        // can we connect the cms server
         // Attention: Block to request a net request.
-        [[nodiscard]] bool CanConnectSpvrServer();
+        [[nodiscard]] bool CanConnectCmsServer();
 
     protected:
         explicit GrApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
@@ -129,8 +129,8 @@ namespace tc
         // load panel companion
         void LoadPanelCompanion();
 
-        // start spvr client if needed
-        void StartSpvrClientIfNeeded();
+        // start cms client if needed
+        void StartCmsClientIfNeeded();
 
     private:
         QWidget* main_window_ = nullptr;
@@ -162,11 +162,11 @@ namespace tc
         // panel companion
         std::shared_ptr<PanelCompanion> companion_ = nullptr;
 
-        // panel spvr client
-        std::shared_ptr<GrSpvrClient> spvr_client_ = nullptr;
+        // panel cms client
+        std::shared_ptr<GrCmsClient> cms_client_ = nullptr;
 
-        // spvr scanner
-        std::shared_ptr<SpvrScanner> spvr_scanner_ = nullptr;
+        // cms scanner
+        std::shared_ptr<CmsScanner> cms_scanner_ = nullptr;
 
         // skin interface
         SkinInterface* skin_ = nullptr;
@@ -183,10 +183,10 @@ namespace tc
         // requested skin name from command line
         std::string requested_skin_name_;
 
-        // last spvr connection info used by GrSpvrClient
+        // last cms connection info used by GrCmsClient
         std::string using_appkey_;
-        std::string using_spvr_host_;
-        int using_spvr_port_ = 0;
+        std::string using_cms_host_;
+        int using_cms_port_ = 0;
         bool shutdown_prepared_ = false;
     };
 

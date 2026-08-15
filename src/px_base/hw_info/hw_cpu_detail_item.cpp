@@ -5,7 +5,7 @@
 #include "hw_cpu_detail_item.h"
 #include "no_margin_layout.h"
 
-namespace tc
+namespace px
 {
 
     HWCpuDetailItem::HWCpuDetailItem(const QString& title, QWidget* parent) : QWidget(parent) {

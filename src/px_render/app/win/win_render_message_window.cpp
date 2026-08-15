@@ -7,7 +7,7 @@
 #include "px_render/plugins/plugin_manager.h"
 #include "win_render_message_loop.h"
 
-namespace tc
+namespace px
 {
     constexpr char kWindowClassName[] = "GammaRay_render_MessageWindowClass";
 

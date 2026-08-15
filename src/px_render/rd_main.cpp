@@ -15,7 +15,7 @@
 #include <Windows.h>
 #include <filesystem>
 
-using namespace tc;
+using namespace px;
 
 DEFINE_int32(steam_app_id, 0, "steam app id");
 DEFINE_bool(logfile, true, "log to file");
@@ -260,9 +260,9 @@ int main(int argc, char** argv) {
     CaptureDumpByBreakpad(&bc);
 
     // run in high level
-    tc::ProcessUtil::SetProcessInHighLevel();
+    px::ProcessUtil::SetProcessInHighLevel();
     // 混合架构 CPU(8P+8E):钉到大核,避免采集/编码线程被调度到小核
-    tc::ProcessUtil::PinToPerformanceCores();
+    px::ProcessUtil::PinToPerformanceCores();
 
     // 1. settings.toml defaults (application.mode / game-path / capture-method)
     // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
@@ -301,8 +301,8 @@ int main(int argc, char** argv) {
     }
 
     // start application
-    tc::AppParams params = {};
-    auto app = tc::RdApplication::Make(params);
+    px::AppParams params = {};
+    auto app = px::RdApplication::Make(params);
     app->Init(argc, argv);
     app->CaptureControlC();
 

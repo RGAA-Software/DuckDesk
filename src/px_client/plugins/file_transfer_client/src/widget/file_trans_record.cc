@@ -29,7 +29,7 @@
 #include "file_transmit_single_task_manager.h"
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 static QString s_style_sheet = "QProgressBar {"
     "background-color: #E0E0E0;" // 设置背景色
@@ -345,7 +345,7 @@ QVariant FileTransRecordTableModel::data(const QModelIndex& index, int role) con
             }
             return record.schedule_;
         case (int)FileTransRecordTableColumnType::kColumnSize: {
-            return QString::fromStdString(tc::StringUtil::FormatSize(record.file_size_));
+            return QString::fromStdString(px::StringUtil::FormatSize(record.file_size_));
         }
         case (int)FileTransRecordTableColumnType::kColumnSpeed: {
             return record.speed_;

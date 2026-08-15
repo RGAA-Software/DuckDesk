@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tc;
+package px;
 
 enum ServiceMessageType {
   kSrvStartServer = 0;
@@ -43,9 +43,9 @@ message MsgAuthInfo {
   int32 days = 7;
   int32 max_streams = 8;
   int64 end_timestamp_ms = 9;
-  // spvr(CMS) server address, so the service can connect to CMS
-  string spvr_host = 10;
-  int32 spvr_port = 11;
+  // cms(CMS) server address, so the service can connect to CMS
+  string cms_host = 10;
+  int32 cms_port = 11;
 }
 
 message MsgHeartBeat {

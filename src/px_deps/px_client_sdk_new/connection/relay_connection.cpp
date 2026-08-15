@@ -10,9 +10,9 @@
 #include "px_common_new/message_notifier.h"
 #include "px_client_sdk_new/sdk_messages.h"
 
-using namespace relay;
+using namespace px_relay;
 
-namespace tc
+namespace px
 {
 
     RelayConnection::RelayConnection(const std::shared_ptr<ThunderSdkParams>& params,
@@ -65,7 +65,7 @@ namespace tc
             }
         });
 
-        relay_sdk_->SetOnRelayRoomPreparedCallback([=, this](const std::shared_ptr<relay::RelayMessage>& msg) {
+        relay_sdk_->SetOnRelayRoomPreparedCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
             LOGI("Auto relay: {}", auto_relay_);
             if (auto_relay_) {
                 this->RequestResumeStream();
@@ -77,13 +77,13 @@ namespace tc
             });
         });
 
-        relay_sdk_->SetOnRelayRoomDestroyedCallback([=, this](const std::shared_ptr<relay::RelayMessage>& msg) {
+        relay_sdk_->SetOnRelayRoomDestroyedCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
             // notify
             msg_notifier_->SendAppMessage(SdkMsgRoomDestroyed{});
         });
 
         // error
-        relay_sdk_->SetOnRelayErrorCallback([=, this](const std::shared_ptr<relay::RelayMessage>& msg) {
+        relay_sdk_->SetOnRelayErrorCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
             auto re = msg->relay_error();
             msg_notifier_->SendAppMessage(SdkMsgRelayError {
                 .code_ = re.code(),
@@ -93,7 +93,7 @@ namespace tc
         });
 
         // remote device offline
-        relay_sdk_->SetOnRelayRemoteDeviceOffline([=, this](const std::shared_ptr<relay::RelayMessage>& msg) {
+        relay_sdk_->SetOnRelayRemoteDeviceOffline([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
             auto sub = msg->remote_device_offline();
             msg_notifier_->SendAppMessage(SdkMsgRelayRemoteDeviceOffline {
                 .device_id_ = sub.device_id(),

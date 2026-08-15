@@ -8,7 +8,7 @@
 #include <vector>
 #include "concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
     class Thread;
 
@@ -49,9 +49,9 @@ namespace tc
         MemoryStatInfo GetStatInfo();
 
     private:
-        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<MemoryInfo>> mem_info_;
+        px::ConcurrentHashMap<uint64_t, std::shared_ptr<MemoryInfo>> mem_info_;
         std::atomic_uint64_t alloc_size_ = 0;
-        tc::ConcurrentHashMap<uint32_t, std::weak_ptr<Thread>> thread_info_;
+        px::ConcurrentHashMap<uint32_t, std::weak_ptr<Thread>> thread_info_;
     };
 
 }

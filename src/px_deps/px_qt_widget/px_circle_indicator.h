@@ -8,7 +8,7 @@
 #include <QWidget>
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     class TcCircleIndicator : public QWidget {

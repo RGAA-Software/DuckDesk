@@ -7,7 +7,7 @@
 #include "px_common_new/log.h"
 #include "px_steam_manager_new/steam_manager.h"
 
-namespace tc
+namespace px
 {
 
     AppManager::AppManager(const std::shared_ptr<RdContext>& ctx) {

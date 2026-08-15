@@ -7,7 +7,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
     AudioPlayer::AudioPlayer() {
 

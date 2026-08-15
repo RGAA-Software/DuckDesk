@@ -11,7 +11,7 @@ class QLabel;
 class QMenu;
 class QPushButton;
 
-namespace tc {
+namespace px {
 
 class FileTransRecordDetailInfo {
 public:

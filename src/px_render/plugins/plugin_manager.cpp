@@ -24,7 +24,7 @@
 
 typedef void *(*FnGetInstance)();
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<PluginManager> PluginManager::Make(const std::shared_ptr<RdApplication>& app) {

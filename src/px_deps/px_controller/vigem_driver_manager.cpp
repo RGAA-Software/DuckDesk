@@ -10,7 +10,7 @@
 #include "px_common_new/string_util.h"
 #include "vigem/sdk/ViGEm/Client.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<VigemDriverManager> VigemDriverManager::Make() {

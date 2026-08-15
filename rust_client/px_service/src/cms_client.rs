@@ -19,10 +19,10 @@ use tracing::{error, info, warn};
 
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
-use protocol::spvr_service::{
-    SpvrServiceHeartBeat, SpvrServiceHello, SpvrServiceMessage, SpvrServiceMessageType,
-    SpvrServiceStartAppInstance, SpvrServiceStartAppInstanceResult, SpvrServiceStopAppInstance,
-    SpvrServiceStopAppInstanceResult,
+use protocol::cms_service::{
+    CmsServiceHeartBeat, CmsServiceHello, CmsServiceMessage, CmsServiceMessageType,
+    CmsServiceStartAppInstance, CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance,
+    CmsServiceStopAppInstanceResult,
 };
 use service_core::StartAppRequest;
 
@@ -35,9 +35,9 @@ const RECONNECT_DELAY_SECS: u64 = 2;
 const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 
-/// WSS client loop towards the CMS (px_cms_server) `/spvr/service` endpoint.
+/// WSS client loop towards the CMS (px_cms_server) `/cms/service` endpoint.
 ///
-/// The CMS address (spvr_host/spvr_port), appkey and device_id all come from
+/// The CMS address (cms_host/cms_port), appkey and device_id all come from
 /// the authorization info the panel pushes to this service, so the loop first
 /// waits until `state.last_auth_info` is present. A fresh connection token is
 /// generated on every reconnect.
@@ -56,16 +56,16 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             return Ok(());
         };
         info!(
-            "cms auth info ready, spvr={}:{} device_id={}",
-            auth_info.spvr_host, auth_info.spvr_port, auth_info.device_id
+            "cms auth info ready, cms={}:{} device_id={}",
+            auth_info.cms_host, auth_info.cms_port, auth_info.device_id
         );
 
         // regenerate the connection token on every (re)connect
         let app_secret = calculate_app_secret(auth_info.appkey.clone());
         let token = generate_connection_token(&auth_info.appkey, &app_secret);
         let url = build_cms_url(
-            &auth_info.spvr_host,
-            auth_info.spvr_port,
+            &auth_info.cms_host,
+            auth_info.cms_port,
             &auth_info.appkey,
             &token,
             &auth_info.device_id,
@@ -73,7 +73,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
 
         *sender.lock().await = None;
         // Endpoint without credentials for logs (the URL carries appkey+token).
-        let endpoint = cms_endpoint(&auth_info.spvr_host, auth_info.spvr_port);
+        let endpoint = cms_endpoint(&auth_info.cms_host, auth_info.cms_port);
         let connect = tokio_tungstenite::connect_async_tls_with_config(
             url.clone(),
             None,
@@ -257,7 +257,7 @@ async fn send_frame(sender: &Arc<Mutex<Option<WsSink>>>, frame: Vec<u8>) -> bool
 
 /// Endpoint string safe for logs: no appkey/token query params.
 fn cms_endpoint(host: &str, port: i32) -> String {
-    format!("wss://{host}:{port}/spvr/service")
+    format!("wss://{host}:{port}/cms/service")
 }
 
 fn build_cms_url(
@@ -268,16 +268,16 @@ fn build_cms_url(
     device_id: &str,
 ) -> String {
     format!(
-        "wss://{host}:{port}/spvr/service?appkey={appkey}&token={}&ts={}&nonce={}&device_id={device_id}",
+        "wss://{host}:{port}/cms/service?appkey={appkey}&token={}&ts={}&nonce={}&device_id={device_id}",
         token.token, token.ts, token.nonce
     )
 }
 
-fn hello_message(device_id: &str, appkey: &str) -> SpvrServiceMessage {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceHello as i32,
+fn hello_message(device_id: &str, appkey: &str) -> CmsServiceMessage {
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceHello as i32,
         device_id: device_id.to_string(),
-        hello: Some(SpvrServiceHello {
+        hello: Some(CmsServiceHello {
             device_id: device_id.to_string(),
             appkey: appkey.to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -296,12 +296,12 @@ fn heartbeat_message(
     render_alive: bool,
     auth_info_json: &str,
     instances_json: &str,
-) -> SpvrServiceMessage {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceHeartBeat as i32,
+) -> CmsServiceMessage {
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceHeartBeat as i32,
         device_id: device_id.to_string(),
         hello: None,
-        heartbeat: Some(SpvrServiceHeartBeat {
+        heartbeat: Some(CmsServiceHeartBeat {
             hb_index,
             device_id: device_id.to_string(),
             render_alive,
@@ -326,9 +326,9 @@ pub enum CmsInboundCommand {
 
 /// Parse a CMS binary frame into an inbound command (if any).
 pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, String> {
-    let msg = SpvrServiceMessage::decode(bytes).map_err(|e| e.to_string())?;
-    match SpvrServiceMessageType::try_from(msg.msg_type) {
-        Ok(SpvrServiceMessageType::KSpvrServiceStartAppInstance) => {
+    let msg = CmsServiceMessage::decode(bytes).map_err(|e| e.to_string())?;
+    match CmsServiceMessageType::try_from(msg.msg_type) {
+        Ok(CmsServiceMessageType::KCmsServiceStartAppInstance) => {
             let s = msg
                 .start_app_instance
                 .ok_or("missing start_app_instance")?;
@@ -347,18 +347,18 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
                 websocket_enabled: s.websocket_enabled,
             })))
         }
-        Ok(SpvrServiceMessageType::KSpvrServiceStopAppInstance) => {
+        Ok(CmsServiceMessageType::KCmsServiceStopAppInstance) => {
             let s = msg.stop_app_instance.ok_or("missing stop_app_instance")?;
             Ok(Some(CmsInboundCommand::StopApp {
                 request_id: s.request_id,
                 instance_id: s.instance_id,
             }))
         }
-        Ok(SpvrServiceMessageType::KSpvrServiceHello)
-        | Ok(SpvrServiceMessageType::KSpvrServiceHeartBeat)
-        | Ok(SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult)
-        | Ok(SpvrServiceMessageType::KSpvrServiceStopAppInstanceResult) => Ok(None),
-        Err(_) => Err(format!("unknown spvr service msg_type {}", msg.msg_type)),
+        Ok(CmsServiceMessageType::KCmsServiceHello)
+        | Ok(CmsServiceMessageType::KCmsServiceHeartBeat)
+        | Ok(CmsServiceMessageType::KCmsServiceStartAppInstanceResult)
+        | Ok(CmsServiceMessageType::KCmsServiceStopAppInstanceResult) => Ok(None),
+        Err(_) => Err(format!("unknown cms service msg_type {}", msg.msg_type)),
     }
 }
 
@@ -370,15 +370,15 @@ pub fn start_app_result_message(
     error: &str,
     listen_port: i32,
     pid: u32,
-) -> SpvrServiceMessage {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult as i32,
+) -> CmsServiceMessage {
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceStartAppInstanceResult as i32,
         device_id: device_id.to_string(),
         hello: None,
         heartbeat: None,
         start_app_instance: None,
         stop_app_instance: None,
-        start_app_instance_result: Some(SpvrServiceStartAppInstanceResult {
+        start_app_instance_result: Some(CmsServiceStartAppInstanceResult {
             request_id: request_id.to_string(),
             instance_id: instance_id.to_string(),
             ok,
@@ -396,16 +396,16 @@ pub fn stop_app_result_message(
     instance_id: &str,
     ok: bool,
     error: &str,
-) -> SpvrServiceMessage {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceStopAppInstanceResult as i32,
+) -> CmsServiceMessage {
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceStopAppInstanceResult as i32,
         device_id: device_id.to_string(),
         hello: None,
         heartbeat: None,
         start_app_instance: None,
         stop_app_instance: None,
         start_app_instance_result: None,
-        stop_app_instance_result: Some(SpvrServiceStopAppInstanceResult {
+        stop_app_instance_result: Some(CmsServiceStopAppInstanceResult {
             request_id: request_id.to_string(),
             instance_id: instance_id.to_string(),
             ok,
@@ -415,12 +415,12 @@ pub fn stop_app_result_message(
 }
 
 pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u8> {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceStartAppInstance as i32,
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceStartAppInstance as i32,
         device_id: device_id.to_string(),
         hello: None,
         heartbeat: None,
-        start_app_instance: Some(SpvrServiceStartAppInstance {
+        start_app_instance: Some(CmsServiceStartAppInstance {
             request_id: req.request_id.clone(),
             instance_id: req.instance_id.clone(),
             app_id: req.app_id.clone(),
@@ -442,13 +442,13 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
 }
 
 pub fn encode_stop_app_command(device_id: &str, request_id: &str, instance_id: &str) -> Vec<u8> {
-    SpvrServiceMessage {
-        msg_type: SpvrServiceMessageType::KSpvrServiceStopAppInstance as i32,
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceStopAppInstance as i32,
         device_id: device_id.to_string(),
         hello: None,
         heartbeat: None,
         start_app_instance: None,
-        stop_app_instance: Some(SpvrServiceStopAppInstance {
+        stop_app_instance: Some(CmsServiceStopAppInstance {
             request_id: request_id.to_string(),
             instance_id: instance_id.to_string(),
         }),
@@ -458,7 +458,7 @@ pub fn encode_stop_app_command(device_id: &str, request_id: &str, instance_id: &
     .encode_to_vec()
 }
 
-fn encode_message(message: &SpvrServiceMessage) -> Vec<u8> {
+fn encode_message(message: &CmsServiceMessage) -> Vec<u8> {
     message.encode_to_vec()
 }
 
@@ -563,8 +563,8 @@ fn auth_info_to_json(info: &MsgAuthInfo) -> String {
         "days": info.days,
         "max_streams": info.max_streams,
         "end_timestamp_ms": info.end_timestamp_ms,
-        "spvr_host": info.spvr_host,
-        "spvr_port": info.spvr_port,
+        "cms_host": info.cms_host,
+        "cms_port": info.cms_port,
     })
     .to_string()
 }
@@ -646,8 +646,8 @@ mod tests {
             days: 365,
             max_streams: 4,
             end_timestamp_ms: 1_900_000_000_000,
-            spvr_host: "cms.example.com".to_string(),
-            spvr_port: 8443,
+            cms_host: "cms.example.com".to_string(),
+            cms_port: 8443,
         }
     }
 
@@ -661,14 +661,14 @@ mod tests {
         let url = build_cms_url("cms.example.com", 8443, "ak-1", &token, "dev-1");
         assert_eq!(
             url,
-            "wss://cms.example.com:8443/spvr/service?appkey=ak-1&token=deadbeef&ts=1234567890&nonce=cafe&device_id=dev-1"
+            "wss://cms.example.com:8443/cms/service?appkey=ak-1&token=deadbeef&ts=1234567890&nonce=cafe&device_id=dev-1"
         );
     }
 
     #[test]
     fn log_endpoint_carries_no_credentials() {
         let endpoint = cms_endpoint("cms.example.com", 8443);
-        assert_eq!(endpoint, "wss://cms.example.com:8443/spvr/service");
+        assert_eq!(endpoint, "wss://cms.example.com:8443/cms/service");
         assert!(!endpoint.contains("appkey"));
         assert!(!endpoint.contains("token"));
     }
@@ -686,14 +686,14 @@ mod tests {
         assert_eq!(value["days"], 365);
         assert_eq!(value["max_streams"], 4);
         assert_eq!(value["end_timestamp_ms"], 1_900_000_000_000i64);
-        assert_eq!(value["spvr_host"], "cms.example.com");
-        assert_eq!(value["spvr_port"], 8443);
+        assert_eq!(value["cms_host"], "cms.example.com");
+        assert_eq!(value["cms_port"], 8443);
     }
 
     #[test]
     fn hello_message_carries_device_appkey_version() {
         let message = hello_message("dev-1", "ak-1");
-        assert_eq!(message.msg_type, SpvrServiceMessageType::KSpvrServiceHello);
+        assert_eq!(message.msg_type, CmsServiceMessageType::KCmsServiceHello);
         assert_eq!(message.device_id, "dev-1");
         let hello = message.hello.unwrap();
         assert_eq!(hello.device_id, "dev-1");
@@ -705,7 +705,7 @@ mod tests {
     #[test]
     fn heartbeat_message_carries_index_and_liveness() {
         let message = heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]");
-        assert_eq!(message.msg_type, SpvrServiceMessageType::KSpvrServiceHeartBeat);
+        assert_eq!(message.msg_type, CmsServiceMessageType::KCmsServiceHeartBeat);
         let heartbeat = message.heartbeat.unwrap();
         assert_eq!(heartbeat.instances_json, "[{\"instance_id\":\"i1\"}]");
         assert_eq!(heartbeat.hb_index, 7);
@@ -718,8 +718,8 @@ mod tests {
     #[test]
     fn encoded_hello_round_trips() {
         let bytes = encode_message(&hello_message("dev-1", "ak-1"));
-        let decoded = SpvrServiceMessage::decode(bytes.as_slice()).unwrap();
-        assert_eq!(decoded.msg_type, SpvrServiceMessageType::KSpvrServiceHello);
+        let decoded = CmsServiceMessage::decode(bytes.as_slice()).unwrap();
+        assert_eq!(decoded.msg_type, CmsServiceMessageType::KCmsServiceHello);
         assert_eq!(decoded.hello.unwrap().appkey, "ak-1");
     }
 
@@ -767,7 +767,7 @@ mod tests {
         let ok = start_app_result_message("dev-1", "r", "i", true, "", 32001, 99);
         assert_eq!(
             ok.msg_type,
-            SpvrServiceMessageType::KSpvrServiceStartAppInstanceResult
+            CmsServiceMessageType::KCmsServiceStartAppInstanceResult
         );
         let body = ok.start_app_instance_result.unwrap();
         assert!(body.ok);

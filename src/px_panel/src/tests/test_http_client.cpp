@@ -1,7 +1,7 @@
 #include <iostream>
 #include "px_common_new/http_client.h"
 
-using namespace tc;
+using namespace px;
 
 int main() {
 

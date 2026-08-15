@@ -1,7 +1,7 @@
 #include "d3d_render.h"
 #include <d3d11_4.h>
 #include "px_common_new/string_util.h"
-namespace tc {
+namespace px {
 
 std::shared_ptr<D3DRender> D3DRender::BuildD3DRenderFromTexture(ID3D11Texture2D* tex)
 {

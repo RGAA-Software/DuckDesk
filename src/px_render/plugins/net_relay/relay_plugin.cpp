@@ -20,11 +20,11 @@
 #include "px_render/plugin_interface/px_plugin_context.h"
 #include "relay_message.pb.h"
 
-using namespace relay;
+using namespace px_relay;
 
-GR_PLUGIN_EXPORT(tc::RelayPlugin)
+GR_PLUGIN_EXPORT(px::RelayPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string RelayPlugin::GetPluginId() {
@@ -81,7 +81,7 @@ namespace tc
 
     }
 
-    bool RelayPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool RelayPlugin::OnCreate(const px::GrPluginParam &param) {
         GrNetPlugin::OnCreate(param);
 
         std::thread([=, this]() {
@@ -420,7 +420,7 @@ namespace tc
         return media_sdk && media_sdk->IsAlive() && sys_settings_.relay_enabled_;
     }
 
-    void RelayPlugin::SyncInfo(const tc::NetSyncInfo &info) {
+    void RelayPlugin::SyncInfo(const px::NetSyncInfo &info) {
         GrNetPlugin::SyncInfo(info);
     }
 
@@ -446,7 +446,7 @@ namespace tc
         LOGI("DisConn id: {}, visitor device id: {}, duration: {}, begin ts: {}", stream_id, visitor_device_id, event->duration_, begin_timestamp);
     }
 
-    void RelayPlugin::OnSyncPluginSettingsInfo(const tc::GrPluginSettingsInfo &settings) {
+    void RelayPlugin::OnSyncPluginSettingsInfo(const px::GrPluginSettingsInfo &settings) {
         GrPluginInterface::OnSyncPluginSettingsInfo(settings);
         if (!sys_settings_.appkey_.empty() && sys_settings_.appkey_ != using_appkey_) {
             need_reconnect_ = true;

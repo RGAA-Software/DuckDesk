@@ -455,7 +455,7 @@ if (!msg || msg->Empty()) {
 
 - `src/GammaRay/src/render/network/ws_panel_client.cpp:84`
 - `src/GammaRay/src/client/network/ct_panel_client.cpp:61`
-- `src/GammaRay/src/client/network/ct_spvr_client.cpp:71`
+- `src/GammaRay/src/client/network/ct_cms_client.cpp:71`
 - `src/GammaRay/src/render_panel/network/ws_panel_server.cpp:248`
 
 触发条件：

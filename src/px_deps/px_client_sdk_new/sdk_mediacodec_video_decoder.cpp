@@ -14,7 +14,7 @@
 
 #include <fstream>
 
-namespace tc
+namespace px
 {
 
     const int32_t kCOLOR_FormatSurface = 0x7f000789;

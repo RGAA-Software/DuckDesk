@@ -10,7 +10,7 @@
 #include <functional>
 #include <Windows.h>
 
-namespace tc
+namespace px
 {
 
     class GrRunningPipe {

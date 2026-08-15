@@ -5,7 +5,7 @@
 #include "sdk_cast_receiver.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<CastReceiver> CastReceiver::Make() {

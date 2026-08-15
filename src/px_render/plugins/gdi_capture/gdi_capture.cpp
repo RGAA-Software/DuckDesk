@@ -18,7 +18,7 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 
 
-namespace tc
+namespace px
 {
 
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {

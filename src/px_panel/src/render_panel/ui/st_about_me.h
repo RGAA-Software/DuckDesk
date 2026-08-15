@@ -8,7 +8,7 @@
 #include <QLabel>
 #include "tab_base.h"
 
-namespace tc
+namespace px
 {
     class GrApplication;
 

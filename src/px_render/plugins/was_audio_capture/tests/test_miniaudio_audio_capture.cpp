@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     std::printf("Testing MiniAudioCapture (OS default playback loopback)\n");
 
     CaptureStats stats;
-    auto capture = tc::MiniAudioCapture::Make();
+    auto capture = px::MiniAudioCapture::Make();
     capture->RegisterFormatCallback([&](int sr, int ch, int bits) {
         std::lock_guard<std::mutex> lock(stats.mu);
         stats.format_sr = sr;
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
         stats.format_bits = bits;
         std::printf("[format] %d Hz, %d ch, %d bit\n", sr, ch, bits);
     });
-    capture->RegisterDataCallback([&](const tc::DataPtr& data) {
+    capture->RegisterDataCallback([&](const px::DataPtr& data) {
         if (!data || data->Size() <= 0) {
             return;
         }

@@ -14,7 +14,7 @@
 #include "../core/file_sdk_interface.h"
 #include "file_log_manager.h"
 
-namespace tc {
+namespace px {
 
 FileTransmitSingleTask::FileTransmitSingleTask() {
 	remote_file_util_ = std::make_shared<RemoteFileUtil>();
@@ -35,7 +35,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 			}
 			QFileInfo local_finfo{ current_file_path_ };
 			uint64_t local_file_size = local_finfo.size();
-			QString local_file_size_str = QString::fromStdString(tc::StringUtil::FormatSize(local_file_size));
+			QString local_file_size_str = QString::fromStdString(px::StringUtil::FormatSize(local_file_size));
 			QString local_file_date_str = local_finfo.metadataChangeTime().toString("yyyy-MM-dd hh:mm:ss");
 			FileCoverDialog file_cover_dialog{};
 			file_cover_dialog.SetData(EFileTransmitTaskType::kDownload == task_type_, local_finfo.fileName(), local_file_size_str, local_file_date_str,
@@ -81,7 +81,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 			}
 			QFileInfo local_finfo{ target_file_path_ };
 			uint64_t local_file_size = local_finfo.size();
-			QString local_file_size_str = QString::fromStdString(tc::StringUtil::FormatSize(local_file_size));
+			QString local_file_size_str = QString::fromStdString(px::StringUtil::FormatSize(local_file_size));
 			QString local_file_date_str = local_finfo.metadataChangeTime().toString("yyyy-MM-dd hh:mm:ss");
 			FileCoverDialog file_cover_dialog{};
 			file_cover_dialog.SetData(EFileTransmitTaskType::kDownload == task_type_, local_finfo.fileName(), local_file_size_str, local_file_date_str,
@@ -121,7 +121,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 			if (is_ended_) {
 				return;
 			}
-			last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+			last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 			emit SigTransmitTaskRes(task_type_, state, cause);
 		}
 		});
@@ -131,7 +131,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 			if (is_ended_) {
 				return;
 			}
-			last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+			last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 			emit SigTransmitTaskProgress(progress, false);
 		}
 		});
@@ -144,7 +144,7 @@ void FileTransmitSingleTask::InitSigChannel() {
 			return;
 		}
 		
-		auto curr = tc::TimeUtil::GetCurrentTimestamp();
+		auto curr = px::TimeUtil::GetCurrentTimestamp();
 		//速度计算
 		uint64_t temp_size = already_transmit_file_size_ - last_calculate_size_;
 		if (temp_size > 0) {
@@ -179,14 +179,14 @@ void FileTransmitSingleTask::DoUpload() {
 	std::string cur_path = current_file_path_.toStdString();
 	std::string tar_path = target_file_path_.toStdString();
 	this->task_state_ = EFileTransmitTaskState::KTransmitting;
-	last_calculate_time_ = last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+	last_calculate_time_ = last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 	timer_->start();
 	std::string task_id_str = task_id_.toStdString();
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("开始上传任务:将") + current_file_path_  + QStringLiteral(",上传至:") + target_file_path_);
 	LOGI("DoUpload file: {} to file: {}", cur_path, tar_path);
 	FileSDKInterface::Instance()->UploadFile(cur_path, tar_path, task_id_str, std::move([=](ETcFileTransmitState state, uint64_t upload_size, uint64_t file_size) {
 		this->already_transmit_file_size_ = upload_size;
-		this->last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+		this->last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 
 		if (this->is_delete_) {
 			emit this->SigTransmitTaskRes(this->task_type_, EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kDelete);
@@ -199,8 +199,8 @@ void FileTransmitSingleTask::DoUpload() {
 			emit this->SigTransmitTaskRes(this->task_type_, EFileTransmitTaskState::kError, EFileTransmitTaskErrorCause::kFileNotExists);
 		}
 		else if (ETcFileTransmitState::kUploadProcess == state) {
-			static uint64_t last_time = tc::TimeUtil::GetCurrentTimestamp();
-			auto current_time = tc::TimeUtil::GetCurrentTimestamp();
+			static uint64_t last_time = px::TimeUtil::GetCurrentTimestamp();
+			auto current_time = px::TimeUtil::GetCurrentTimestamp();
 			if (current_time - last_time <= 1000) {
 				return;
 			}
@@ -244,7 +244,7 @@ void FileTransmitSingleTask::DoDownload() {
 	std::string cur_path = current_file_path_.toStdString();
 	std::string tar_path = target_file_path_.toStdString();
 	this->task_state_ = EFileTransmitTaskState::KTransmitting;
-	last_calculate_time_ = last_update_time_ = tc::TimeUtil::GetCurrentTimestamp();
+	last_calculate_time_ = last_update_time_ = px::TimeUtil::GetCurrentTimestamp();
 	timer_->start();
 	std::string task_id_str = task_id_.toStdString();
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("开始下载任务:将") + current_file_path_ + QStringLiteral(",下载至:") + target_file_path_);

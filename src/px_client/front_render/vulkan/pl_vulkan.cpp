@@ -68,7 +68,7 @@ static void plLogCallback(void* priv, enum pl_log_level level, const char* msg) 
     LOGI("[libplacebo] {}", msg);
 }
 
-namespace tc { 
+namespace px { 
 
     std::shared_ptr<PlVulkan> PlVulkan::Make() {
         return std::make_shared<PlVulkan>();

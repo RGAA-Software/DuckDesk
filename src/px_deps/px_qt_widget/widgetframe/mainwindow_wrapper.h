@@ -7,7 +7,7 @@
 
 #include <QMainWindow>
 
-namespace tc
+namespace px
 {
 
     class MessageNotifier;

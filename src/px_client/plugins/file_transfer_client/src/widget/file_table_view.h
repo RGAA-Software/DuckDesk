@@ -4,7 +4,7 @@
 #include <qmenu.h>
 #include <qdebug.h>
 
-namespace tc {
+namespace px {
 
 class FileTableView : public QTableView {
 	Q_OBJECT

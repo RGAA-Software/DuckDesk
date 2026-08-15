@@ -7,7 +7,7 @@
 #include "px_common_new/log.h"
 #include <algorithm>
 
-namespace tc
+namespace px
 {
 
     void TcDBGame::AssignFrom(const std::shared_ptr<TcDBGame>& game) {

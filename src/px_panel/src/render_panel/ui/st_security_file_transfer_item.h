@@ -12,7 +12,7 @@
 #include <QPen>
 #include <QLabel>
 
-namespace tc
+namespace px
 {
 
     class GrContext;

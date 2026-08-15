@@ -196,7 +196,7 @@ mod tests {
         let tc = proto::parse_tc_message(&sub.msg).expect("tc");
         assert_eq!(
             tc.r#type,
-            proto::tc::MessageType::KClipboardReqBuffer as i32
+            proto::px::MessageType::KClipboardReqBuffer as i32
         );
         let req_buf = tc.cp_req_buffer.expect("req");
         assert_eq!(req_buf.full_name, "Z:/missing/a.txt");

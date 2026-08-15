@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tc;
+package px;
 
 // Return the result of renaming
 message FileOperateRespRename {

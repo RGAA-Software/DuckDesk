@@ -10,7 +10,7 @@
 #include "px_common_new/string_util.h"
 #include "px_common_new/time_util.h"
 
-namespace tc
+namespace px
 {
 
     DesktopCapture::DesktopCapture() : rtc_desktop_capture_(nullptr), start_flag_(false) {

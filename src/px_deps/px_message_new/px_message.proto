@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tc;
+package px;
 
 import "px_file_transfer.proto";
 import "px_signaling_message.proto";

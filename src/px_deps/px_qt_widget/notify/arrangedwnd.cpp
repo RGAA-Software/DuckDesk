@@ -1,7 +1,7 @@
 ﻿#include "arrangedwnd.h"
 #include "notifymanager.h"
 
-namespace tc
+namespace px
 {
 
     static QPropertyAnimation *

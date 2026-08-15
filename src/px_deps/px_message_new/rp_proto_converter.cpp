@@ -5,14 +5,14 @@
 #include "px_common_new/data.h"
 #include "px_render_panel_message.pb.h"
 
-namespace tc
+namespace px
 {
 
-    std::shared_ptr<tc::Data> RpProtoAsData(std::shared_ptr<tcrp::RpMessage> msg) {
+    std::shared_ptr<px::Data> RpProtoAsData(std::shared_ptr<pxrp::RpMessage> msg) {
         return RpProtoAsData(msg.get());
     }
 
-    std::shared_ptr<tc::Data> RpProtoAsData(tcrp::RpMessage* msg) {
+    std::shared_ptr<px::Data> RpProtoAsData(pxrp::RpMessage* msg) {
         if (!msg) {
             return nullptr;
         }
@@ -23,13 +23,13 @@ namespace tc
         return nullptr;
     }
 
-    std::shared_ptr<tc::Data> MakeRpRawRenderMessage(const std::string& stream_id,
+    std::shared_ptr<px::Data> MakeRpRawRenderMessage(const std::string& stream_id,
                                                      const std::string& device_id,
                                                      const std::string& msg,
                                                      bool data_channel,
                                                      bool run_through) {
-        tcrp::RpMessage rp_msg;
-        rp_msg.set_type(tcrp::kRpRawRenderMessage);
+        pxrp::RpMessage rp_msg;
+        rp_msg.set_type(pxrp::kRpRawRenderMessage);
         auto sub = rp_msg.mutable_raw_render_msg();
         sub->set_msg(msg);
         sub->set_data_channel(data_channel);

@@ -18,12 +18,12 @@ export function loadMessageType(root: Root) {
   GrProtoMsg.MsgRoot = root;
 
   // MessageType
-  GrProtoMsg.MessageType = root.lookupEnum("tc.MessageType");
+  GrProtoMsg.MessageType = root.lookupEnum("px.MessageType");
 
   // VideoType
-  GrProtoMsg.VideoType = root.lookupEnum("tc.VideoType");
+  GrProtoMsg.VideoType = root.lookupEnum("px.VideoType");
 
-  GrProtoMsg.Message = root.lookupType("tc.Message");
-  GrProtoMsg.MsgHello = root.lookupType('tc.Hello');
+  GrProtoMsg.Message = root.lookupType("px.Message");
+  GrProtoMsg.MsgHello = root.lookupType('px.Hello');
 
 }

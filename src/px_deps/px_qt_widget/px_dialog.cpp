@@ -7,7 +7,7 @@
 #include "px_pushbutton.h"
 #include "px_label.h"
 
-namespace tc
+namespace px
 {
 
     TcDialog::TcDialog(const QString& title, const QString& msg, QWidget* parent) : TcCustomTitleBarDialog(title, parent) {

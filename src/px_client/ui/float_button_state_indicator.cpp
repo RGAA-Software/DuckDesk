@@ -7,7 +7,7 @@
 #include "no_margin_layout.h"
 #include "px_client/ct_client_context.h"
 
-namespace tc
+namespace px
 {
 
     FloatButtonStateIndicator::FloatButtonStateIndicator(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
@@ -43,7 +43,7 @@ namespace tc
         setLayout(layout);
     }
 
-    void FloatButtonStateIndicator::UpdateOnHeartBeat(std::shared_ptr<tc::Message> msg) {
+    void FloatButtonStateIndicator::UpdateOnHeartBeat(std::shared_ptr<px::Message> msg) {
         context_->PostUITask([=, this]() {
             auto hb = msg->on_heartbeat();
             if (!hb.alt_pressed() && !hb.shift_pressed() && !hb.control_pressed() && !hb.win_pressed()) {

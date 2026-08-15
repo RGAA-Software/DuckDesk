@@ -15,7 +15,7 @@
 #include "rtc_local_encoded_frame.h"
 #include "px_common_new/concurrent_type.h"
 
-namespace tc
+namespace px
 {
     class RtcServer;
 
@@ -26,7 +26,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         void On1Second() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
@@ -103,7 +103,7 @@ namespace tc
         static std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
 
     private:
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
         // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
         // webrtc 编码线程(PopNextEncodedVideoFrame)并发访问,必须加锁。
         // key = (mon_name, seq):按屏隔离 + 按产出序号数值有序

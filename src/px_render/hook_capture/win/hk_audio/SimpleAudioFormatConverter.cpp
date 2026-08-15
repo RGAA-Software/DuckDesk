@@ -4,7 +4,7 @@
 
 #include "px_common_new/data.h"
 
-namespace tc {
+namespace px {
 
 std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(std::shared_ptr<Data> origin) {
     if (!origin) {
@@ -33,4 +33,4 @@ std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(char* origin, int 
                       result.size() * sizeof(int16_t));
 }
 
-}  // namespace tc
+}  // namespace px

@@ -14,7 +14,7 @@ class QPushButton;
 class GDButton;
 class GDCustomProgressBar;
 
-namespace tc {
+namespace px {
 
 	using GetRemoteUpdateVersionCallbackFuncType = std::function<void(const QString&)>;
 

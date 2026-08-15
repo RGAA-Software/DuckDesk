@@ -20,7 +20,7 @@
 #include <QResizeEvent>
 #include <QGraphicsDropShadowEffect>
 
-namespace tc
+namespace px
 {
 
     AddButton::AddButton(QWidget* parent) : QLabel(parent) {

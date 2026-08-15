@@ -11,7 +11,7 @@
 #include "nvenc_encoder_plugin.h"
 #include "nvEncodeAPI.h"
 
-namespace tc
+namespace px
 {
 
     NVENCVideoEncoder::NVENCVideoEncoder(NvencEncoderPlugin* plugin, uint64_t adapter_uid) {
@@ -23,7 +23,7 @@ namespace tc
 
     NVENCVideoEncoder::~NVENCVideoEncoder() = default;
 
-    bool NVENCVideoEncoder::Initialize(const tc::EncoderConfig& config) {
+    bool NVENCVideoEncoder::Initialize(const px::EncoderConfig& config) {
         enable_yuv444_ = false;
         encoder_config_ = config;
         e_buffer_format_ = DxgiFormatToNvEncFormat(static_cast<DXGI_FORMAT>(encoder_config_.texture_format));
@@ -233,7 +233,7 @@ namespace tc
     void
     NVENCVideoEncoder::FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS &initialize_params, int refreshRate, int renderWidth, int renderHeight, uint64_t bitrate_bps) {
         auto& encode_config = *initialize_params.encodeConfig;
-        GUID encoder_guid = encoder_config_.codec_type == tc::EVideoCodecType::kH264 ? NV_ENC_CODEC_H264_GUID : NV_ENC_CODEC_HEVC_GUID;
+        GUID encoder_guid = encoder_config_.codec_type == px::EVideoCodecType::kH264 ? NV_ENC_CODEC_H264_GUID : NV_ENC_CODEC_HEVC_GUID;
 
         GUID quality_preset;
 
@@ -337,7 +337,7 @@ namespace tc
             gopLength = encoder_config_.gop_size;
         }
 
-        if (encoder_config_.codec_type == tc::EVideoCodecType::kH264) {
+        if (encoder_config_.codec_type == px::EVideoCodecType::kH264) {
             auto &config = encode_config.encodeCodecConfig.h264Config;
             //将其设置为1以启用在每个IDR帧中写入序列参数（Sequence Parameter）和图像参数（Picture Parameter）。
             //等再研究下这两种参数
@@ -389,10 +389,10 @@ namespace tc
         // 恒定码率 还是 可变码率
         //return; // no error
         switch (encoder_config_.rate_control_mode) {
-            case tc::ERateControlMode::kRateControlModeCbr:
+            case px::ERateControlMode::kRateControlModeCbr:
                 encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
                 break;
-            case tc::ERateControlMode::kRateControlModeVbr:
+            case px::ERateControlMode::kRateControlModeVbr:
                 encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_VBR;
                 // 在 NVIDIA Video Codec (NVENC) SDK 中，targetQuality 是用于可变比特率（VBR）模式的参数设置之一。
                 // Target CQ (Constant Quality) level for VBR mode (range 0-51 with 0-automatic)
@@ -403,7 +403,7 @@ namespace tc
                 }
 
                 break;
-            case tc::ERateControlMode::kRateControlModeConstQp:
+            case px::ERateControlMode::kRateControlModeConstQp:
                 encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CONSTQP;
                 break;
             default:
@@ -422,13 +422,13 @@ namespace tc
         //	在第一次编码过程中，视频帧以完整的分辨率进行编码，并生成编码统计信息。然后，编码器使用这些统计信息来优化第二次编码过程，
         //	该过程仍使用完整的分辨率进行编码。这种方法可以进一步提高编码质量，但需要更多的计算资源。
         switch (encoder_config_.multi_pass) {
-            case tc::ENvdiaEncMultiPass::kMultiPassDisabled:
+            case px::ENvdiaEncMultiPass::kMultiPassDisabled:
                 encode_config.rcParams.multiPass = NV_ENC_MULTI_PASS_DISABLED;
                 break;
-            case tc::ENvdiaEncMultiPass::kTwoPassQuarterResolution:
+            case px::ENvdiaEncMultiPass::kTwoPassQuarterResolution:
                 encode_config.rcParams.multiPass = NV_ENC_TWO_PASS_QUARTER_RESOLUTION;
                 break;
-            case tc::ENvdiaEncMultiPass::kTwoPassFullResolution:
+            case px::ENvdiaEncMultiPass::kTwoPassFullResolution:
                 encode_config.rcParams.multiPass = NV_ENC_TWO_PASS_FULL_RESOLUTION;
                 break;
             default:
@@ -567,4 +567,4 @@ namespace tc
         return nv_encoder_->SupportYuv444EncodeHevc();
     }
 
-} // namespace tc
+} // namespace px

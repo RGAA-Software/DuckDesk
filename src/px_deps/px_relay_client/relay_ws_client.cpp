@@ -11,9 +11,9 @@
 #include <asio2/asio2.hpp>
 #include "relay_message.pb.h"
 
-using namespace relay;
+using namespace px_relay;
 
-namespace tc
+namespace px
 {
 
     RelayWsClient::RelayWsClient(const std::string& host, int port, const std::string& device_id,
@@ -164,7 +164,7 @@ namespace tc
         PostBinaryMessage(msg);
     }
 
-    void RelayWsClient::SetDeviceNetInfo(const std::vector<tc::RelayDeviceNetInfo>& info) {
+    void RelayWsClient::SetDeviceNetInfo(const std::vector<px::RelayDeviceNetInfo>& info) {
         net_info_ = info;
     }
 

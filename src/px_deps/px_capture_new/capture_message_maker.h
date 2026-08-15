@@ -9,7 +9,7 @@
 #include "capture_message.h"
 #include "px_common_new/data.h"
 
-namespace tc
+namespace px
 {
 
     // 生成通过IPC传递的消息

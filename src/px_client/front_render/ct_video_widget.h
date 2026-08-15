@@ -11,7 +11,7 @@
 #include "gl/raw_image.h"
 #include "px_common_new/fps_stat.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

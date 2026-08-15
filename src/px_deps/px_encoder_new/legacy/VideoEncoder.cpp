@@ -45,6 +45,6 @@ void LegacyVideoEncoder::Transmit(ID3D11Device* device, ID3D11DeviceContext* con
 	CalculateFPS();
 }
 
-void LegacyVideoEncoder::Transmit(std::shared_ptr<tc::Data> data, uint64_t frame_index) {
+void LegacyVideoEncoder::Transmit(std::shared_ptr<px::Data> data, uint64_t frame_index) {
 	CalculateFPS();
 }

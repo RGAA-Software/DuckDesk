@@ -8,7 +8,7 @@
 #include <mutex>
 #include "px_render/plugin_interface/px_net_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class RelayServerSdk;
@@ -21,7 +21,7 @@ namespace tc
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         void On1Second() override;
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
@@ -29,8 +29,8 @@ namespace tc
         int GetConnectedClientsCount() override;
         bool IsOnlyAudioClients() override;
         bool IsWorking() override;
-        void SyncInfo(const tc::NetSyncInfo& info) override;
-        void OnSyncPluginSettingsInfo(const tc::GrPluginSettingsInfo &settings) override;
+        void SyncInfo(const px::NetSyncInfo& info) override;
+        void OnSyncPluginSettingsInfo(const px::GrPluginSettingsInfo &settings) override;
         int64_t GetQueuingMediaMsgCount() override;
         int64_t GetQueuingFtMsgCount() override;
         bool HasEnoughBufferForQueuingMediaMessages() override;

@@ -7,7 +7,7 @@
 
 #include <memory>
 
-namespace tc
+namespace px
 {
     class GrContext;
     class Message;
@@ -15,7 +15,7 @@ namespace tc
     class GrRenderMsgProcessor {
     public:
         explicit GrRenderMsgProcessor(const std::shared_ptr<GrContext>& ctx);
-        void OnMessage(std::shared_ptr<tc::Message> msg) const;
+        void OnMessage(std::shared_ptr<px::Message> msg) const;
 
     private:
         std::weak_ptr<GrContext> context_;

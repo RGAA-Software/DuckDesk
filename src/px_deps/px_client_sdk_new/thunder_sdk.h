@@ -16,7 +16,7 @@
 #include "sdk_net_client.h"
 #include "sdk_decoder_render_type.h"
 
-namespace tc
+namespace px
 {
     class Data;
     class Thread;

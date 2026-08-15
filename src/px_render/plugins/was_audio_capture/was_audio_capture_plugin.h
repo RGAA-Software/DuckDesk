@@ -12,7 +12,7 @@
 
 #include "px_render/plugin_interface/px_data_provider_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class IAudioCapture;
@@ -28,7 +28,7 @@ namespace tc
         std::string GetPluginDescription() override;
         void On1Second() override;
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         void OnCommand(const std::string &command) override;
         void StartProviding() override;
         void StopProviding() override;
@@ -74,7 +74,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::WasAudioCapturePlugin)
+GR_PLUGIN_EXPORT(px::WasAudioCapturePlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

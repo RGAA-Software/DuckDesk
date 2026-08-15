@@ -6,7 +6,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
 #define H264_TYPE(v) ((uint8_t)(v) & 0x1F)

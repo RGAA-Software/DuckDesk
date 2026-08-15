@@ -33,10 +33,10 @@
    px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ CMS 每小时拉自己的授权 (HMAC appkey 签名)
    px_cms_server :30500 (HTTPS/WSS) + 托管 web/px_cms 管理前端
-        ↑ WSS /spvr/service  ←—— GammaRayService (每台被控机一条长连接,
+        ↑ WSS /cms/service  ←—— GammaRayService (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— CMS 管理 Web (游戏/实例启停)
-        ↑ WSS /spvr/panel ←—— 被控端 panel
+        ↑ WSS /cms/panel ←—— 被控端 panel
 
    被控机器内部 (本机明文 WS):
    GammaRayService 监听 127.0.0.1:20375
@@ -60,7 +60,7 @@
 
 ```
 CMS Web「启动」→ CMS manager 按 (app_id, device_id) 找 placement
-  → 复用 /spvr/service 长连接下发 StartAppInstance (HTTP 阻塞等结果, 25s 超时)
+  → 复用 /cms/service 长连接下发 StartAppInstance (HTTP 阻塞等结果, 25s 超时)
   → service 分配端口(32000+池)、校验游戏路径、拉起 render
   → render 拉起游戏并注入 → 观看 URL: http://{IP}:{port}/web_client/?deviceId=..&instanceId=..
 停止：CMS 置 Stopping → WS 下发 → service 按 pid 身份校验杀 render+游戏进程树
@@ -81,7 +81,7 @@ CMS Web「启动」→ CMS manager 按 (app_id, device_id) 找 placement
 
 1. **授权链对 panel 的硬依赖**：service 连 CMS 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 CMS」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 CMS 签发带时效的观看 token，render 校验。
-3. **观看端可达性假设直连**：WebRTC 无 STUN/TURN，跨 NAT 不通；spvr relay 存在但 game render 场景未走。
+3. **观看端可达性假设直连**：WebRTC 无 STUN/TURN，跨 NAT 不通；cms relay 存在但 game render 场景未走。
 4. **本机控制面 :20375 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 7. 专题文档索引

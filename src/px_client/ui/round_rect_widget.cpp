@@ -5,7 +5,7 @@
 #include "round_rect_widget.h"
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     RoundRectWidget::RoundRectWidget(int bg_color, int radius, QWidget *parent) : QWidget(parent) {

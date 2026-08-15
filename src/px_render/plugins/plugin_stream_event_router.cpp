@@ -17,7 +17,7 @@
 #include "rd_statistics.h"
 #include "rd_app.h"
 
-namespace tc
+namespace px
 {
     PluginStreamEventRouter::PluginStreamEventRouter(const std::shared_ptr<RdApplication>& app) {
         app_ = app;
@@ -68,18 +68,18 @@ namespace tc
             .frame_image_format_ = event->frame_format_,
         };
 
-        auto video_type = [=]() -> tc::VideoType {
-            return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? tc::VideoType::kNetH264 : tc::VideoType::kNetHevc;
+        auto video_type = [=]() -> px::VideoType {
+            return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? px::VideoType::kNetH264 : px::VideoType::kNetHevc;
         } ();
 
-        auto img_format = [=]() -> tc::EImageFormat {
+        auto img_format = [=]() -> px::EImageFormat {
             if (RawImageType::kI420 == msg.frame_image_format_) {
-                return tc::EImageFormat::kI420;
+                return px::EImageFormat::kI420;
             }
             else if (RawImageType::kI444 == msg.frame_image_format_) {
-                return tc::EImageFormat::kI444;
+                return px::EImageFormat::kI444;
             }
-            return tc::EImageFormat::kI420;
+            return px::EImageFormat::kI420;
         }();
 
         auto net_msg = NetMessageMaker::MakeVideoFrameMsg(video_type, msg.data_, msg.frame_index_, msg.frame_width_,

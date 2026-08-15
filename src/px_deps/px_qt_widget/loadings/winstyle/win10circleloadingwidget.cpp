@@ -3,7 +3,7 @@
 #include <QPainter>
 #include <QPainterPath>
 
-namespace tc
+namespace px
 {
 
     Win10CircleLoadingWidget::Win10CircleLoadingWidget(QWidget *parent)

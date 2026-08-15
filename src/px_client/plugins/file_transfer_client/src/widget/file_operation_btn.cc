@@ -2,7 +2,7 @@
 #include <iostream>
 #include <qdebug.h>
 
-namespace tc {
+namespace px {
 static QString s_style = R"(
 	QPushButton{border:0px; border-radius:4px; background-color:#ffffff; image:url(%1); padding: 7px;}
 	QPushButton::hover{border:0px; border-radius:4px; background-color:#E0E4EB; image:url(%2); padding: 7px;} 

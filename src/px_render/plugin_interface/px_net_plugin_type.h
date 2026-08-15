@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPREMIUM_GR_NET_PLUGIN_TYPE_H
 #define GAMMARAYPREMIUM_GR_NET_PLUGIN_TYPE_H
 
-namespace tc
+namespace px
 {
 
     enum class NetPluginType {

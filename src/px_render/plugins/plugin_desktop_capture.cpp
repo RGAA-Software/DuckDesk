@@ -4,7 +4,7 @@
 #include <Shlobj.h>
 #include <px_common_new/string_util.h>
 
-namespace tc
+namespace px
 {
 
     PluginDesktopCapture::PluginDesktopCapture(const CaptureMonitorInfo& my_monitor_info) {

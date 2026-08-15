@@ -20,7 +20,7 @@ cat sHost = "127.0.0.1";
 cat sHost = "godesk.uk";
 #endif
 
-namespace tc
+namespace px
 {
 
     static const std::string kUpdateAuthStat = "/api/v1/insert/update/auth/stat";

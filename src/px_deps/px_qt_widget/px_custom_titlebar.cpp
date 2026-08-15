@@ -11,7 +11,7 @@
 #include "px_label.h"
 #include "widget_helper.h"
 
-namespace tc
+namespace px
 {
 
     OperationIcon::OperationIcon(int radius, int normal_color, int enter_color, QWidget *parent) : QWidget(parent) {

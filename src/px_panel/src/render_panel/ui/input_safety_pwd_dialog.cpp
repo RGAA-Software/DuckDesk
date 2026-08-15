@@ -10,7 +10,7 @@
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_application.h"
@@ -21,10 +21,10 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/http_client.h"
 #include "px_qt_widget/px_password_input.h"
-#include "px_spvr_client/spvr_device_api.h"
-#include "px_spvr_client/spvr_device.h"
+#include "px_cms_client/cms_device_api.h"
+#include "px_cms_client/cms_device.h"
 
-namespace tc
+namespace px
 {
 
     InputSafetyPwdDialog::InputSafetyPwdDialog(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
@@ -140,8 +140,8 @@ namespace tc
                 }
 
                 // update safety pwd
-                auto opt_device = spvr::SpvrDeviceApi::UpdateSafetyPwd(settings->GetSpvrServerHost(),
-                                                                 settings->GetSpvrServerPort(),
+                auto opt_device = px_cms::CmsDeviceApi::UpdateSafetyPwd(settings->GetCmsServerHost(),
+                                                                 settings->GetCmsServerPort(),
                                                                  grApp->GetAppkey(),
                                                                  settings->GetDeviceId(),
                                                                  pwd_md5);

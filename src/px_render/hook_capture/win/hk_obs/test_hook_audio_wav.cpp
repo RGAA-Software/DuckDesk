@@ -20,7 +20,7 @@
 #include "px_common_new/process_util.h"
 #include "px_common_new/string_util.h"
 
-using namespace tc;
+using namespace px;
 
 namespace {
 

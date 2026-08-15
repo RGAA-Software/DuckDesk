@@ -15,7 +15,7 @@
 #include <QLabel>
 #include <format>
 
-namespace tc
+namespace px
 {
 
     ThirdResolutionPanel::ThirdResolutionPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

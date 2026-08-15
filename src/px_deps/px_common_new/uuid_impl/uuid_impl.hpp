@@ -32,7 +32,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace tc
+namespace px
 {
 	/**
 	 * UUID Generation in C++11

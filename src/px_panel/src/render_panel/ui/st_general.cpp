@@ -31,7 +31,7 @@
 #include <RegStr.h>
 #include <initguid.h>
 
-namespace tc
+namespace px
 {
 
     StGeneral::StGeneral(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {

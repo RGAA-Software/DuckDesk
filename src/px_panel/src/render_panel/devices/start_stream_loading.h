@@ -8,12 +8,12 @@
 #include <memory>
 #include <QDialog>
 
-namespace spvr
+namespace px_cms
 {
-    class SpvrStream;
+    class CmsStream;
 }
 
-namespace tc
+namespace px
 {
 
     class GrContext;
@@ -22,12 +22,12 @@ namespace tc
 
     class StartStreamLoading : public QDialog {
     public:
-        StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, const std::string& network_type);
+        StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type);
         void resizeEvent(QResizeEvent *event) override;
         void paintEvent(QPaintEvent *event) override;
 
     private:
-        std::shared_ptr<spvr::SpvrStream> stream_item_ = nullptr;
+        std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
         Win10HorizontalLoadingWidget* h_loading_widget_ = nullptr;
 
     };

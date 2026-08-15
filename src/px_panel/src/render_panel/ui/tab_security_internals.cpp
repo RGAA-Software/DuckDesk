@@ -16,7 +16,7 @@
 #include <Windows.h>
 #include <shellapi.h>
 
-namespace tc
+namespace px
 {
 
     TabSecurityInternals::TabSecurityInternals(const std::shared_ptr<GrApplication>& app, QWidget *parent)

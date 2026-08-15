@@ -40,7 +40,7 @@
 #include "px_label.h"
 #include "px_pushbutton.h"
 
-namespace tc
+namespace px
 {
 
     class MainItemDelegate : public QStyledItemDelegate {
@@ -355,7 +355,7 @@ namespace tc
         });
     }
 
-    void TabGame::LoadCover(const tc::TcDBGamePtr& game) {
+    void TabGame::LoadCover(const px::TcDBGamePtr& game) {
         auto steam_manager = context_->GetSteamManager();
         if (!steam_manager) {
             return;

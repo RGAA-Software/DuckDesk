@@ -8,7 +8,7 @@
 #include <qboxlayout.h>
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 static QString s_lab_title_style = R"(
 QLabel {font-size: %1px; font-family: Microsoft YaHei; color: #333333;line-height: %2px;}

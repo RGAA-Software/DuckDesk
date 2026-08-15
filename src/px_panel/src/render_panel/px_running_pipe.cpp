@@ -6,7 +6,7 @@
 #include "px_common_new/log.h"
 #include <Windows.h>
 
-namespace tc
+namespace px
 {
 
     const char* kPipeName = R"(\\.\pipe\running\render_panel)";

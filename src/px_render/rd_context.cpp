@@ -17,7 +17,7 @@
 typedef uint64_t (*FnGenNextGlobalId)();
 FnGenNextGlobalId g_fn_gen_next_global_id = nullptr;
 
-namespace tc
+namespace px
 {
     std::shared_ptr<RdContext> RdContext::Make() {
         return std::make_shared<RdContext>();

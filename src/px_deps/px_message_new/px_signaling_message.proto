@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tc;
+package px;
 
 message SigOfferSdpMessage {
   string device_id = 1;

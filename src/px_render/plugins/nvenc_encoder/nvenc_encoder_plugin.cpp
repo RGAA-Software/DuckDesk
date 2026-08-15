@@ -11,9 +11,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::NvencEncoderPlugin)
+GR_PLUGIN_EXPORT(px::NvencEncoderPlugin)
 
-namespace tc
+namespace px
 {
     std::string NvencEncoderPlugin::GetPluginId() {
         return kNvencEncoderPluginId;
@@ -45,7 +45,7 @@ namespace tc
 #endif
     }
 
-    bool NvencEncoderPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool NvencEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
         GrVideoEncoderPlugin::OnCreate(param);
         return true;
     }

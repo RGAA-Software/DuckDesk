@@ -53,7 +53,7 @@ namespace
         int64_t window_beg = 0;
 
         void DumpIfDue() {
-            auto now = tc::TimeUtil::GetCurrentTimestamp();
+            auto now = px::TimeUtil::GetCurrentTimestamp();
             if (window_beg == 0) { window_beg = now; return; }
             auto wall = now - window_beg;
             if (wall < 5000) return;
@@ -77,7 +77,7 @@ namespace
     EncThreadDiag g_enc_diag;
 }
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<EncoderThread> EncoderThread::Make(const std::shared_ptr<RdApplication>& app) {
@@ -250,7 +250,7 @@ namespace tc
                     target_encoder_plugin->Exit(monitor_name);
                     target_encoder_plugin = nullptr;
                 }
-                tc::EncoderConfig encoder_config;
+                px::EncoderConfig encoder_config;
                 bool is_gdi_capture = plugin_manager_->IsGDIMonitorCapturePlugin(app_->GetWorkingMonitorCapturePlugin());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     encoder_config.width = cap_video_msg.frame_width_;
@@ -272,7 +272,7 @@ namespace tc
                 }
 
                 encoder_config.codec_type = effective_format == Encoder::EncoderFormat::kH264
-                    ? tc::EVideoCodecType::kH264 : tc::EVideoCodecType::kHEVC;
+                    ? px::EVideoCodecType::kH264 : px::EVideoCodecType::kHEVC;
                 encoder_config.enable_adaptive_quantization = true;
                 encoder_config.gop_size = -1;
                 encoder_config.quality_preset = 1;
@@ -281,8 +281,8 @@ namespace tc
                 if (encoder_config.fps < 15 || encoder_config.fps > 120) {
                     encoder_config.fps = 60;
                 }
-                encoder_config.multi_pass = tc::ENvdiaEncMultiPass::kMultiPassDisabled;
-                encoder_config.rate_control_mode = tc::ERateControlMode::kRateControlModeCbr;
+                encoder_config.multi_pass = px::ENvdiaEncMultiPass::kMultiPassDisabled;
+                encoder_config.rate_control_mode = px::ERateControlMode::kRateControlModeCbr;
                 encoder_config.sample_desc_count = 1;
                 encoder_config.supports_intra_refresh = true;
                 // frame carrier 会把非 8bit 捕获格式(如 UE5 D3D12 的 R10G10B10A2)
@@ -353,7 +353,7 @@ namespace tc
                 // To use FFmpeg encoder if mocking video stream or to implement the hardware encoder to encode raw frame(RGBA)
                 bool is_mocking = settings_->capture_.mock_video_;
 
-                auto select_encoder_with_capability_func = [=, &target_encoder_plugin](tc::GrVideoEncoderPlugin* encoder_plugin, const std::string& monitor_name) {
+                auto select_encoder_with_capability_func = [=, &target_encoder_plugin](px::GrVideoEncoderPlugin* encoder_plugin, const std::string& monitor_name) {
                     if (!encoder_config.enable_full_color_mode_) {
                         target_encoder_plugin = encoder_plugin;
                     }
@@ -361,12 +361,12 @@ namespace tc
                         auto cap_res = encoder_plugin->GetEncoderCapability(monitor_name);
                         if (cap_res.has_value()) {
                             auto cap = cap_res.value();
-                            if (tc::EVideoCodecType::kH264 == encoder_config.codec_type) {
+                            if (px::EVideoCodecType::kH264 == encoder_config.codec_type) {
                                 if (cap.support_h264_yuv444_) {
                                     target_encoder_plugin = encoder_plugin;
                                 }
                             }
-                            else if (tc::EVideoCodecType::kHEVC == encoder_config.codec_type) {
+                            else if (px::EVideoCodecType::kHEVC == encoder_config.codec_type) {
                                 if (cap.support_hevc_yuv444_) {
                                     target_encoder_plugin = encoder_plugin;
                                 }
@@ -483,7 +483,7 @@ namespace tc
                 if (switched_to_hevc) {
                     const bool full_color = settings_->EnableFullColorMode();
                     const std::string reason = full_color ? "full_color" : "encoder_format";
-                    auto tip = NetMessageMaker::MakeVideoCodecChanged(tc::VideoType::kNetHevc, full_color, reason);
+                    auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
                     plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
                         if (!plugin || plugin->GetPluginId() != kNetRtcLocalPluginId) {
                             return;
@@ -710,7 +710,7 @@ namespace tc
         return nullptr;
     }
 
-    void EncoderThread::PrintEncoderConfig(const tc::EncoderConfig& config) {
+    void EncoderThread::PrintEncoderConfig(const px::EncoderConfig& config) {
         LOGI("---------------------------------------------------");
         LOGI("Encoder configs:");
         LOGI("width x height:{}x{}", config.width, config.height);

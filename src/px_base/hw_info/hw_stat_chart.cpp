@@ -6,7 +6,7 @@
 #include "px_common_new/random.h"
 #include <QPainterPath>
 
-namespace tc
+namespace px
 {
 
     HWStatChart::HWStatChart(QWidget* parent) : QWidget(parent) {

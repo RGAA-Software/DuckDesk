@@ -4,7 +4,7 @@
 
 #include "ct_panel_api.h"
 
-namespace tc
+namespace px
 {
 
     Result<bool, HttpRespCode> CtPanelApi::StopRender(const std::string& host, int port) {

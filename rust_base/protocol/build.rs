@@ -48,10 +48,10 @@ fn main() {
         .compile_protos(
             &[
                 proto_dir.join("relay_message.proto").to_str().unwrap(),
-                proto_dir.join("spvr_relay.proto").to_str().unwrap(),
-                proto_dir.join("spvr_panel.proto").to_str().unwrap(),
-                proto_dir.join("spvr_client.proto").to_str().unwrap(),
-                proto_dir.join("spvr_service.proto").to_str().unwrap(),
+                proto_dir.join("cms_relay.proto").to_str().unwrap(),
+                proto_dir.join("cms_panel.proto").to_str().unwrap(),
+                proto_dir.join("cms_client.proto").to_str().unwrap(),
+                proto_dir.join("cms_service.proto").to_str().unwrap(),
             ],
             &[proto_dir.to_str().unwrap()],
         )

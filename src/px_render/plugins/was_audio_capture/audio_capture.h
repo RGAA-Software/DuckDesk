@@ -7,12 +7,12 @@
 
 typedef std::function<void()> OnPrepareCallback;
 typedef std::function<void(int samples, int channels, int bits)> OnFormatCallback;
-typedef std::function<void(const tc::DataPtr& data)> OnDataCallback;
-typedef std::function<void(const tc::DataPtr& left, const tc::DataPtr& right)> OnSplitDataCallback;
+typedef std::function<void(const px::DataPtr& data)> OnDataCallback;
+typedef std::function<void(const px::DataPtr& left, const px::DataPtr& right)> OnSplitDataCallback;
 typedef std::function<void()> OnPauseCallback;
 typedef std::function<void()> OnStopCallback;
 
-namespace tc
+namespace px
 {
 
 	class IAudioCapture {

@@ -11,7 +11,7 @@
 #include "px_common_new/message_notifier.h"
 #include "px_client_panel_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     CtPanelClient::CtPanelClient(const std::shared_ptr<ClientContext>& ctx) {
@@ -147,12 +147,12 @@ namespace tc
         }
         auto settings = Settings::Instance();
 
-        tccp::CpMessage cp_msg;
-        cp_msg.set_type(tccp::CpMessageType::kCpHello);
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpHello);
         cp_msg.set_stream_id(settings->stream_id_);
         auto sub = cp_msg.mutable_hello();
 #ifdef WIN32
-        sub->set_type(tccp::CpSessionType::kWindowsClient);
+        sub->set_type(pxcp::CpSessionType::kWindowsClient);
 #endif
         client->async_send(cp_msg.SerializeAsString());
     }
@@ -166,11 +166,11 @@ namespace tc
             return;
         }
 
-        auto stat = tc::SdkStatistics::Instance();
+        auto stat = px::SdkStatistics::Instance();
         auto settings = Settings::Instance();
 
-        tccp::CpMessage cp_msg;
-        cp_msg.set_type(tccp::CpMessageType::kCpHeartBeat);
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpHeartBeat);
         cp_msg.set_stream_id(settings->stream_id_);
         auto sub = cp_msg.mutable_heartbeat();
         sub->set_remote_device_desktop_name(stat->remote_desktop_name_.Clone());
@@ -187,8 +187,8 @@ namespace tc
             return;
         }
         auto settings = Settings::Instance();
-        tccp::CpMessage cp_msg;
-        cp_msg.set_type(tccp::CpMessageType::kCpFileTransferBegin);
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpFileTransferBegin);
         cp_msg.set_stream_id(settings->stream_id_);
         auto sub = cp_msg.mutable_ft_transfer_beg();
         sub->set_the_file_id(msg.the_file_id_);
@@ -208,8 +208,8 @@ namespace tc
             return;
         }
         auto settings = Settings::Instance();
-        tccp::CpMessage cp_msg;
-        cp_msg.set_type(tccp::CpMessageType::kCpFileTransferEnd);
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpFileTransferEnd);
         cp_msg.set_stream_id(settings->stream_id_);
         auto sub = cp_msg.mutable_ft_transfer_end();
         sub->set_the_file_id(msg.the_file_id_);

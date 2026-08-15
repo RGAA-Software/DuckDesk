@@ -17,7 +17,7 @@
 #include "px_client/ct_settings.h"
 #include "px_label.h"
 
-namespace tc
+namespace px
 {
 
     const QString kChartRecvDataSpeed = "Receive Data Speed";
@@ -546,7 +546,7 @@ namespace tc
         return QObject::eventFilter(object, event);
     }
 
-    void CtStatisticsPanel::UpdateOnHeartBeat(std::shared_ptr<tc::Message> msg) {
+    void CtStatisticsPanel::UpdateOnHeartBeat(std::shared_ptr<px::Message> msg) {
         context_->PostUITask([=, this]() {
             auto hb = msg->on_heartbeat();
             key_state_panel_->alt_item_->UpdateState(hb.alt_pressed());

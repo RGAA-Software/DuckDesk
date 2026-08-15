@@ -4,7 +4,7 @@
 
 #include "panel_companion.h"
 
-namespace tc
+namespace px
 {
 
     PanelCompanion::~PanelCompanion() {

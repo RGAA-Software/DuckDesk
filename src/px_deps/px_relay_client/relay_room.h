@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
     // which room I'm in
     class RelayRoom {

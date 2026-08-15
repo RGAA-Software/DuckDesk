@@ -8,19 +8,19 @@
 #include <memory>
 #include <string>
 
-namespace tcrp
+namespace pxrp
 {
     class RpMessage;
 }
 
-namespace tc
+namespace px
 {
     class Data;
 
-    std::shared_ptr<tc::Data> RpProtoAsData(std::shared_ptr<tcrp::RpMessage> msg);
-    std::shared_ptr<tc::Data> RpProtoAsData(tcrp::RpMessage *msg);
+    std::shared_ptr<px::Data> RpProtoAsData(std::shared_ptr<pxrp::RpMessage> msg);
+    std::shared_ptr<px::Data> RpProtoAsData(pxrp::RpMessage *msg);
 
-    std::shared_ptr<tc::Data> MakeRpRawRenderMessage(const std::string& stream_id,
+    std::shared_ptr<px::Data> MakeRpRawRenderMessage(const std::string& stream_id,
                                                      const std::string& device_id,
                                                      const std::string& msg,
                                                      bool data_channel,

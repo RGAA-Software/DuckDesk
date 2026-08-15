@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace tc {
+namespace px {
 
     enum LanguageKind {
         kDefaultLang,
@@ -28,5 +28,5 @@ namespace tc {
 
 }
 
-#define tcTr(x) tc::TcTranslatorManager::Instance()->GetTrString(x)
-#define tcTrMgr() tc::TcTranslatorManager::Instance()
+#define tcTr(x) px::TcTranslatorManager::Instance()->GetTrString(x)
+#define tcTrMgr() px::TcTranslatorManager::Instance()

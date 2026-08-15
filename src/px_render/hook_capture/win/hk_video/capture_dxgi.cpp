@@ -9,7 +9,7 @@
 #include "capture_dxgi_d3d11.h"
 #include "capture_dxgi_d3d11on12.h"
 
-using namespace tc;
+using namespace px;
 
 bool CaptureDxgi::Setup(IDXGISwapChain *swap) noexcept {
     CComPtr<ID3D11Device> d3d11;

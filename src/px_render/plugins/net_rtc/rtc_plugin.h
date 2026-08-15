@@ -9,7 +9,7 @@
 #include "rtc_messages.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     class RtcServer;
@@ -21,7 +21,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void OnMessageRaw(const std::any &msg) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;

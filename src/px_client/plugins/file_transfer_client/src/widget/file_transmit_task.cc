@@ -13,7 +13,7 @@
 #include "file_const_def.h"
 
 
-namespace tc {
+namespace px {
 
 YKTaskWorker FileTransmitTask::async_download_task_woker_;
 
@@ -95,7 +95,7 @@ void FileTransmitTask::Run() {
 QString FileTransmitTask::BuildOppositePath(QString current_path) {
     if (EFileTransmitTaskType::kUpload == task_type_) {
         // to do 目前是windows客户端场景，如果linux需要再测试考虑
-        if (tc::kRealRootPath == current_dir_path_) {
+        if (px::kRealRootPath == current_dir_path_) {
             current_path = current_path.replace(LocalFileUtil::current_user_dirs_, "");
         }
         else {
@@ -104,7 +104,7 @@ QString FileTransmitTask::BuildOppositePath(QString current_path) {
     }
     else if (EFileTransmitTaskType::kDownload == task_type_) {
         // to do 目前是windows服务端场景，如果linux需要再测试考虑
-        if (tc::kRealRootPath == current_dir_path_) {
+        if (px::kRealRootPath == current_dir_path_) {
             current_path = current_path.replace(RemoteFileUtil::current_user_dirs_, "");
         }
         else {
@@ -127,7 +127,7 @@ void FileTransmitTask::AddFileTransmitSingleTask(const QString& current_file_pat
     single_task->target_file_path_ = new_file_path;
     if (EFileTransmitTaskType::kDownload == single_task->task_type_) {
         single_task->file_size_ = remote_file_size;
-        single_task->remote_file_size_str_ = QString::fromStdString(tc::StringUtil::FormatSize(remote_file_size));
+        single_task->remote_file_size_str_ = QString::fromStdString(px::StringUtil::FormatSize(remote_file_size));
         single_task->remote_file_date_str_ = remote_file_date_str;
     }
     else {

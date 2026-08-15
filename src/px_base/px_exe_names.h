@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace tc {
+namespace px {
 
     // GammaRay application executable names.
     inline constexpr const char* kGammaRayExeName = "GammaRay.exe";
@@ -13,4 +13,4 @@ namespace tc {
     inline constexpr const char* kGammaRaySysInfoExeName = "GammaRaySysInfo.exe";
     inline constexpr const char* kGammaRayUserProxyExeName = "GammaRayUserProxy.exe";
 
-} // namespace tc
+} // namespace px

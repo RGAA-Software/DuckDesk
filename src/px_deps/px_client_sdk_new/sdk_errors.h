@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
     enum class SdkErrorCode {
         kSdkErrorOk = 0,

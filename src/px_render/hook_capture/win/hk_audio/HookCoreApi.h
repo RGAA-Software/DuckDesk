@@ -11,7 +11,7 @@
 #include "AudioMixer.h"
 #include "SimpleAudioFormatConverter.h"
 
-namespace tc {
+namespace px {
 
 class AudioShare;
 
@@ -55,4 +55,4 @@ private:
     bool hooked_ = false;
 };
 
-}  // namespace tc
+}  // namespace px

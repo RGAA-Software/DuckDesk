@@ -24,7 +24,7 @@
 
 #include "num_formatter.h"
 
-namespace tc
+namespace px
 {
 
     class StringUtil {

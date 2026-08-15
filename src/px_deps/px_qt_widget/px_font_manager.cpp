@@ -5,7 +5,7 @@
 #include "px_font_manager.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     void TcFontManager::InitFont(const QString& /*font_path*/) {

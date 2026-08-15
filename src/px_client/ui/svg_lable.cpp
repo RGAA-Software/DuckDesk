@@ -1,6 +1,6 @@
 #include "svg_lable.h"
 
-namespace tc {
+namespace px {
 
 	void SvgLable::paintEvent(QPaintEvent* event) {
 		QPainter painter(this);

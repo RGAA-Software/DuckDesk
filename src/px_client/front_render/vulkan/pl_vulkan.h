@@ -24,7 +24,7 @@ extern "C" {
     #include <libavutil/hwcontext_vulkan.h>
 }
 
-namespace tc { 
+namespace px { 
 
     class DECODER_PARAMETERS {
     public:

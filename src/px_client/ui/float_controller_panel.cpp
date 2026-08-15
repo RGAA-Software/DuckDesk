@@ -21,7 +21,7 @@
 #include "px_client/plugins/ct_plugin_manager.h"
 #include "px_common_new/message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     FloatControllerPanel::FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

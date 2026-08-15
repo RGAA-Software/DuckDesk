@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_SERVICE_MESSAGES_H
 #define GAMMARAY_SERVICE_MESSAGES_H
 
-namespace tc
+namespace px
 {
 
     class MsgTimer1S {

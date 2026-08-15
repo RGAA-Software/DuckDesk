@@ -5,7 +5,7 @@
 #include "win_panel_message_loop.h"
 #include "render_panel/px_context.h"
 
-namespace tc
+namespace px
 {
 
     constexpr char kWindowClassName[] = "GammaRay_render_panel_MessageWindowClass";

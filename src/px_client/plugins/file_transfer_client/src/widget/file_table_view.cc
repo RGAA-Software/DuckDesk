@@ -4,7 +4,7 @@
 #include <qwidgetaction.h>
 #include <qicon.h>
 
-namespace tc {
+namespace px {
 
 FileTableView::FileTableView(QWidget* parent) : QTableView(parent) {}
 

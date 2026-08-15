@@ -6,7 +6,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugins/plugin_ids.h"
 
-namespace tc
+namespace px
 {
     std::string MediaRecorderPlugin::GetPluginId() {
         return kMediaRecorderPluginId;

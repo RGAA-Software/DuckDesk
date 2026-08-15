@@ -14,7 +14,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QVBoxLayout>
 
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_font_manager.h"
@@ -23,7 +23,7 @@
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 
-namespace tc
+namespace px
 {
 
     // 状态点 hover 提示框:白底黑字、柔影、扁平风(手绘背景)
@@ -41,7 +41,7 @@ namespace tc
         }
     };
 
-    StreamItemWidget::StreamItemWidget(const std::shared_ptr<spvr::SpvrStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
+    StreamItemWidget::StreamItemWidget(const std::shared_ptr<px_cms::CmsStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
         this->item_ = item;
         this->bg_color_ = bg_color;
         this->setStyleSheet("background:#00000000;");
@@ -198,7 +198,7 @@ namespace tc
             painter.setPen(QPen(QColor(0x2979ff)));
             auto stream_name = item_->stream_name_;
             if (item_->HasRelayInfo()) {
-                stream_name = tc::SpaceId(item_->remote_device_id_);
+                stream_name = px::SpaceId(item_->remote_device_id_);
             }
             else {
                 stream_name = item_->stream_host_;
@@ -228,7 +228,7 @@ namespace tc
             painter.setPen(QPen(QColor(0x77777777)));
             auto desktop_name = item_->desktop_name_;
             if (item_->HasRelayInfo()) {
-                desktop_name = tc::SpaceId(desktop_name);
+                desktop_name = px::SpaceId(desktop_name);
             }
             painter.drawText(QRect(15, y_offset, this->width(), 20), Qt::AlignVCenter, desktop_name.c_str());
             y_offset += 20;
@@ -272,7 +272,7 @@ namespace tc
             else if (relay_connected_ && i == 1) {
                 painter.setBrush(QBrush(0x00ff00));
             }
-            else if (spvr_connected_ && i == 2) {
+            else if (cms_connected_ && i == 2) {
                 painter.setBrush(QBrush(0x00ff00));
             }
             else {
@@ -324,8 +324,8 @@ namespace tc
     // 右上三个状态点的 hover 提示(几何与 paintEvent 保持一致)
     void StreamItemWidget::mouseMoveEvent(QMouseEvent *event) {
         QWidget::mouseMoveEvent(event);
-        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_spvr"};
-        const bool states[3] = {direct_connected_, relay_connected_, spvr_connected_};
+        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_cms"};
+        const bool states[3] = {direct_connected_, relay_connected_, cms_connected_};
         const int margin_right = 50;
         const int indicator_width = 10;
         const int indicator_height = 8;
@@ -370,8 +370,8 @@ namespace tc
         relay_connected_ = connected;
     }
 
-    void StreamItemWidget::SetSpvrConnectedState(bool connected) {
-        spvr_connected_ = connected;
+    void StreamItemWidget::SetCmsConnectedState(bool connected) {
+        cms_connected_ = connected;
     }
 
     void StreamItemWidget::Update() {

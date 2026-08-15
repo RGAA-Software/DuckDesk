@@ -12,7 +12,7 @@
 
 using namespace webrtc;
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<RtcServer> RtcServer::Make(RtcPlugin* plugin) {

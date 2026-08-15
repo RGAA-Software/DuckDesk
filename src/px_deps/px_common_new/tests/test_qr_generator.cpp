@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include "../qrcode/qr_generator.h"
 
-using namespace tc;
+using namespace px;
 
 TEST(QRGeneratorTest, ImageSizeCorrect) {
     auto img = QrGenerator::GenQRImage("test", -1);

@@ -25,7 +25,7 @@
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/asio2.hpp>
 
-namespace tc
+namespace px
 {
 
     NetClient::NetClient(const std::shared_ptr<ThunderSdkParams>& params,
@@ -199,7 +199,7 @@ namespace tc
                     rtc_local_audio_cbk_(pcm, sample_rate, channels);
                 }
             });
-            rtc_local_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<tc::Message> m) {
+            rtc_local_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<px::Message> m) {
                 // synthesized kVideoFrame from the encoded rtp tracks: dispatch exactly
                 // like ParseMessage would, but WITHOUT an app-level ack - rtp carries
                 // its own reliability(nack/pli), acking every frame would just flood
@@ -217,7 +217,7 @@ namespace tc
         if (udp_direct_conn_) {
             // UDP 媒体面:组帧后合成的 kVideoFrame,与上面 rtc_local 相同的上送路径,
             // 同样不回 Ack(裸 UDP 无应用层确认,丢帧走 IDR 请求恢复)
-            udp_direct_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<tc::Message> m) {
+            udp_direct_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<px::Message> m) {
                 this->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
                 if (raw_msg_cbk_) {
                     raw_msg_cbk_(m);
@@ -228,7 +228,7 @@ namespace tc
             });
             // UDP 音频:jitter buffer 按序交付/丢帧信号(空 data)都从这里上送,
             // 与 ws 路径一样直接进 audio_frame_cbk_(音频本就不走 raw_msg_cbk_)
-            udp_direct_conn_->SetOnAudioMessageCallback([=, this](std::shared_ptr<tc::Message> m) {
+            udp_direct_conn_->SetOnAudioMessageCallback([=, this](std::shared_ptr<px::Message> m) {
                 this->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
                 if (audio_frame_cbk_) {
                     audio_frame_cbk_(m);
@@ -268,7 +268,7 @@ namespace tc
     }
 
     std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
-        auto net_msg = std::make_shared<tc::Message>();
+        auto net_msg = std::make_shared<px::Message>();
         bool ok = net_msg->ParsePartialFromArray(msg->CStr(), msg->Size());
         if (!ok) {
             LOGE("Sdk ParseMessage failed.");
@@ -279,7 +279,7 @@ namespace tc
             raw_msg_cbk_(net_msg);
         }
 
-        if (net_msg->type() == tc::kVideoFrame) {
+        if (net_msg->type() == px::kVideoFrame) {
             if (network_type_ == ClientNetworkType::kUdpDirect) {
                 // udp_direct 模式下视频走 UDP 媒体面,ws 控制面不应携带;
                 // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
@@ -287,7 +287,7 @@ namespace tc
             }
             {
 #if 0           //save file
-                tc::VideoFrame frame = net_msg->video_frame();
+                px::VideoFrame frame = net_msg->video_frame();
                 std::string name = frame.mon_name().substr(3);
                 std::string t =  TimeUtil::FormatTimestamp2(TimeUtil::GetCurrentTimestamp());
                 static auto f = File::OpenForWriteB(std::format(".\\{}_{}_recv_video.h265", name, t));
@@ -298,7 +298,7 @@ namespace tc
                 video_frame_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kAudioFrame) {
+        else if (net_msg->type() == px::kAudioFrame) {
             if (network_type_ == ClientNetworkType::kUdpDirect) {
                 // udp_direct 模式下音频走 UDP 媒体面,ws 控制面不应携带;
                 // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
@@ -308,17 +308,17 @@ namespace tc
                 audio_frame_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kCursorInfoSync) {
+        else if (net_msg->type() == px::kCursorInfoSync) {
             if(cursor_info_sync_cbk_) {
                 cursor_info_sync_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kRendererAudioSpectrum) {
+        else if (net_msg->type() == px::kRendererAudioSpectrum) {
             if (audio_spectrum_cbk_) {
                 audio_spectrum_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kOnHeartBeat) {
+        else if (net_msg->type() == px::kOnHeartBeat) {
             if (hb_cbk_) {
                 hb_cbk_(net_msg);
             }
@@ -350,39 +350,39 @@ namespace tc
             stat_->remote_hd_info_ = hb.device_info();
             stat_->remote_os_name_ = hb.os_name();
         }
-        else if (net_msg->type() == tc::kClipboardInfo) {
+        else if (net_msg->type() == px::kClipboardInfo) {
             if (clipboard_cbk_) {
                 clipboard_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kServerConfiguration) {
+        else if (net_msg->type() == px::kServerConfiguration) {
             if (config_cbk_) {
                 config_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kMonitorSwitched) {
+        else if (net_msg->type() == px::kMonitorSwitched) {
             if (monitor_switched_cbk_) {
                 monitor_switched_cbk_(net_msg);
             }
         }
-        else if (net_msg->type() == tc::kConnectionTakenOver) {
+        else if (net_msg->type() == px::kConnectionTakenOver) {
             // render 主动断开:被其它客户端接管
             msg_notifier_->SendAppMessage(SdkMsgConnectionTakenOver{});
         }
-        else if (net_msg->type() == tc::kChangeMonitorResolutionResult) {
+        else if (net_msg->type() == px::kChangeMonitorResolutionResult) {
             auto sub = net_msg->change_monitor_resolution_result();
             msg_notifier_->SendAppMessage(SdkMsgChangeMonitorResolutionResult {
                 .monitor_name_ = sub.monitor_name(),
                 .result = sub.result(),
             });
         }
-        else if (net_msg->type() == tc::kSigAnswerSdpMessage) {
+        else if (net_msg->type() == px::kSigAnswerSdpMessage) {
             auto sub = net_msg->sig_answer_sdp();
             msg_notifier_->SendAppMessage(SdkMsgRemoteAnswerSdp {
                 .answer_sdp_ = sub,
             });
         }
-        else if (net_msg->type() == tc::kSigIceMessage) {
+        else if (net_msg->type() == px::kSigIceMessage) {
             auto sub = net_msg->sig_ice();
             msg_notifier_->SendAppMessage(SdkMsgRemoteIce {
                 .ice_ = sub,
@@ -548,7 +548,7 @@ namespace tc
         audio_spectrum_cbk_ = std::move(cbk);
     }
 
-    void NetClient::SetOnHeartBeatCallback(tc::OnHeartBeatInfoCallback&& cbk) {
+    void NetClient::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& cbk) {
         hb_cbk_ = std::move(cbk);
     }
 
@@ -556,7 +556,7 @@ namespace tc
         clipboard_cbk_ = std::move(cbk);
     }
 
-    void NetClient::SetOnServerConfigurationCallback(tc::OnConfigCallback&& cbk) {
+    void NetClient::SetOnServerConfigurationCallback(px::OnConfigCallback&& cbk) {
         config_cbk_ = std::move(cbk);
     }
 
@@ -564,7 +564,7 @@ namespace tc
         monitor_switched_cbk_ = std::move(cbk);
     }
 
-    void NetClient::SetOnRawMessageCallback(tc::OnRawMessageCallback&& cbk) {
+    void NetClient::SetOnRawMessageCallback(px::OnRawMessageCallback&& cbk) {
         raw_msg_cbk_ = std::move(cbk);
     }
 
@@ -584,14 +584,14 @@ namespace tc
 
     void NetClient::HeartBeat() {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kHeartBeat);
+        msg->set_type(px::kHeartBeat);
         msg->set_device_id(device_id_);
         msg->set_stream_id(stream_id_);
         auto hb = msg->mutable_heartbeat();
         hb->set_index(hb_idx_++);
         hb->set_timestamp((int64_t)TimeUtil::GetCurrentTimestamp());
         auto proto_msg = msg->SerializeAsString();
-        if (auto buffer = tc::ProtoAsData(msg); buffer) {
+        if (auto buffer = px::ProtoAsData(msg); buffer) {
             this->PostMediaMessage(buffer);
             this->PostFileTransferMessage(buffer);
         }

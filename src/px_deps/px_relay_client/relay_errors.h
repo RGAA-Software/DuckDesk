@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace relay
+namespace px_relay
 {
 
     constexpr int kRelayOk = 200;

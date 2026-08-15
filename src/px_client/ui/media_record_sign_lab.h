@@ -4,7 +4,7 @@
 #include <qwidget.h>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

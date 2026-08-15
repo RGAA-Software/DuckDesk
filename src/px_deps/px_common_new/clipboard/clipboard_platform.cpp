@@ -7,7 +7,7 @@
 #include "px_common_new/clipboard/stub/clipboard_platform_stub.h"
 #endif
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     std::unique_ptr<IPlatform> CreatePlatform() {

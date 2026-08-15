@@ -2,7 +2,7 @@
 #include <random>
 #include <windows.h>
 
-namespace tc {
+namespace px {
 
     OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::Window);

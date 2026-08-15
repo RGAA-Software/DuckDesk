@@ -2,7 +2,7 @@
 #define IMAGE_H
 #include <string>
 #include "data.h"
-namespace tc
+namespace px
 {
 
     enum class RawImageType {

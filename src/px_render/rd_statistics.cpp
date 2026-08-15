@@ -23,7 +23,7 @@
 #include "px_render/plugin_interface/px_frame_processor_plugin.h"
 #include "px_message_new/rp_proto_converter.h"
 
-namespace tc
+namespace px
 {
     /// ---
     constexpr auto kMaxDurationCount = 180;
@@ -127,8 +127,8 @@ namespace tc
     }
 
     std::shared_ptr<Data> RdStatistics::AsProtoMessage() {
-        tcrp::RpMessage msg;
-        msg.set_type(tcrp::RpMessageType::kRpCaptureStatistics);
+        pxrp::RpMessage msg;
+        msg.set_type(pxrp::RpMessageType::kRpCaptureStatistics);
 
         auto cst = msg.mutable_capture_statistics();
         audio_frame_gaps_.Visit([&](auto& v) {
@@ -239,15 +239,15 @@ namespace tc
         //
         cst->set_video_encode_type([=, this]() {
             if (video_encoder_format_ == Encoder::EncoderFormat::kH264) {
-                return tcrp::VideoType::kNetH264;
+                return pxrp::VideoType::kNetH264;
             }
             else if (video_encoder_format_ == Encoder::EncoderFormat::kHEVC) {
-                return tcrp::VideoType::kNetHevc;
+                return pxrp::VideoType::kNetHevc;
             }
-            return tcrp::VideoType::kNetH264;
+            return pxrp::VideoType::kNetH264;
         } ());
 
-        cst->set_audio_encode_type(tcrp::AudioEncodeType::kNetOpus);
+        cst->set_audio_encode_type(pxrp::AudioEncodeType::kNetOpus);
 
         auto buffer = RpProtoAsData(&msg);
         return buffer;

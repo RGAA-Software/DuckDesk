@@ -1,7 +1,7 @@
 #include "ct_renderer.h"
 #include "ct_director.h"
 
-namespace tc
+namespace px
 {
 
 	Renderer::Renderer(const std::shared_ptr<Director>& director) {

@@ -4,7 +4,7 @@
 #include <memory>
 #include <thread>
 
-namespace tc {
+namespace px {
 
 class AudioShare;
 
@@ -32,4 +32,4 @@ private:
     std::atomic<bool> running_{false};
 };
 
-}  // namespace tc
+}  // namespace px

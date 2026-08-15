@@ -91,7 +91,7 @@ async function handleJumpOffSite() {
 // access info
 async function queryAccessInfo() {
   const resp = await axiosHttp.get(
-    '/api/v1/spvr/control/gen/access/info?appkey=' + localStorage.getItem('appkey'),
+    '/api/v1/cms/control/gen/access/info?appkey=' + localStorage.getItem('appkey'),
   )
   if (resp.status !== 200) {
     console.error('query access info failed', resp)

@@ -14,7 +14,7 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/uuid.h"
 
-namespace tc
+namespace px
 {
 
     RtcDataChannel::RtcDataChannel(const std::string& name, const std::shared_ptr<RtcServer>& rtc_server, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
@@ -24,7 +24,7 @@ namespace tc
         this->plugin_ctx_ = this->plugin_->GetPluginContext();
         this->data_channel_ = ch;
         this->data_channel_->RegisterObserver(this);
-        this->the_conn_id_ = MD5::Hex(tc::GetUUID());
+        this->the_conn_id_ = MD5::Hex(px::GetUUID());
         this->created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
     }
 
@@ -70,7 +70,7 @@ namespace tc
         data.resize(header->this_buffer_length_);
         memcpy(data.data(), reinterpret_cast<const char*>(header) + sizeof(NetTlvHeader), header->this_buffer_length_);
 
-        auto curr_timestamp = tc::TimeUtil::GetCurrentTimestamp();
+        auto curr_timestamp = px::TimeUtil::GetCurrentTimestamp();
         auto diff_time = curr_timestamp - last_recv_msg_timestamp_;
         last_recv_msg_timestamp_ = curr_timestamp;
 
@@ -303,4 +303,4 @@ namespace tc
         }
     }
 
-} // namespace tc
+} // namespace px

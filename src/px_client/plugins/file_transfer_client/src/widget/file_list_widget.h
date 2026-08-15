@@ -13,7 +13,7 @@
 class QPushButton;
 class QMenu;
 
-namespace tc {
+namespace px {
 
 class BaseFileUtil;
 class FileInfoTableViewBtnDelegate;
@@ -45,7 +45,7 @@ public:
 		return !history_dirs_.empty();
 	}
 	bool IsRootPath() {
-		return current_dir_ == tc::kRealRootPath;
+		return current_dir_ == px::kRealRootPath;
 	}
 	void ExitPersistentEditor();
 private:

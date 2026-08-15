@@ -7,7 +7,7 @@
 
 #include "tab_base.h"
 
-namespace tc
+namespace px
 {
 
     class StClient : public TabBase {

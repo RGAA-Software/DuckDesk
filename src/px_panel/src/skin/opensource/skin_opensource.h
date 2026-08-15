@@ -7,7 +7,7 @@
 
 #include "skin/interface/skin_interface.h"
 
-namespace tc
+namespace px
 {
     class SkinOpenSource : public SkinInterface {
     public:

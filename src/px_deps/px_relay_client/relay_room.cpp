@@ -4,7 +4,7 @@
 
 #include "relay_room.h"
 
-namespace tc
+namespace px
 {
 
     bool RelayRoom::IsValid() const {

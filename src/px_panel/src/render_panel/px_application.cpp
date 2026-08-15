@@ -19,26 +19,26 @@
 #include "px_system_monitor.h"
 #include "px_connected_manager.h"
 #include "px_common_new/thread.h"
-#include "network/px_spvr_client.h"
+#include "network/px_cms_client.h"
 #include "px_common_new/time_util.h"
 #include "companion/panel_companion.h"
 #include "companion/panel_companion_impl.h"
-#include "spvr_scanner/spvr_scanner.h"
+#include "cms_scanner/cms_scanner.h"
 #include "ui/input_safety_pwd_dialog.h"
 #include "ui/monitor_refresher.h"
 #include <nlohmann/json.hpp>
 #include "px_relay_client/relay_api.h"
 #include "skin/interface/skin_interface.h"
-#include "px_spvr_client/spvr_device_api.h"
-#include "px_spvr_client/spvr_device.h"
+#include "px_cms_client/cms_device_api.h"
+#include "px_cms_client/cms_device.h"
 #include "px_steam_manager_new/steam_manager.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/win32/firewall_helper.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/message_notifier.h"
-#include "px_spvr_client/spvr_stream.h"
-#include "px_spvr_client/spvr_device_api.h"
+#include "px_cms_client/cms_stream.h"
+#include "px_cms_client/cms_device_api.h"
 #include "render_panel/px_render_msg_processor.h"
 #include "render_panel/network/ws_panel_server.h"
 #include "render_panel/network/udp_broadcaster.h"
@@ -56,7 +56,7 @@
 using namespace nlohmann;
 
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<GrApplication> grApp;
@@ -94,7 +94,7 @@ namespace tc
         // panel companion
         LoadPanelCompanion();
         if (companion_) {
-            companion_->UpdateSpvrServerConfig(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort());
+            companion_->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort());
         }
 
         skin_ = SkinLoader::LoadSkin(requested_skin_name_);
@@ -161,8 +161,8 @@ namespace tc
         RefreshClientManagerSettings();
         RegisterMessageListener();
         StartWindowsMessagesLooping();
-        spvr_scanner_ = std::make_shared<SpvrScanner>(shared_from_this());
-        spvr_scanner_->StartUdpReceiver(30501);
+        cms_scanner_ = std::make_shared<CmsScanner>(shared_from_this());
+        cms_scanner_->StartUdpReceiver(30501);
 
         // update device id
         if (cat comp = grApp->GetCompanion(); comp) {
@@ -209,13 +209,13 @@ namespace tc
             monitor_refresher_->Exit();
             monitor_refresher_ = nullptr;
         }
-        if (spvr_client_) {
-            spvr_client_->Stop();
-            spvr_client_ = nullptr;
+        if (cms_client_) {
+            cms_client_->Stop();
+            cms_client_ = nullptr;
         }
-        if (spvr_scanner_) {
-            spvr_scanner_->Exit();
-            spvr_scanner_ = nullptr;
+        if (cms_scanner_) {
+            cms_scanner_->Exit();
+            cms_scanner_ = nullptr;
         }
         if (ws_panel_server_) {
             ws_panel_server_->Exit();
@@ -307,14 +307,14 @@ namespace tc
                 companion_->OnTimer1S();
             }
 
-            // spvr client
-            this->StartSpvrClientIfNeeded();
+            // cms client
+            this->StartCmsClientIfNeeded();
         });
 
-        // stop the spvr connection
+        // stop the cms connection
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            if (spvr_client_) {
-                spvr_client_->Stop();
+            if (cms_client_) {
+                cms_client_->Stop();
             }
         });
 
@@ -343,7 +343,7 @@ namespace tc
             if (!self || !self->context_) {
                 return false;
             }
-            if (!self->settings_->HasSpvrServerConfig()) {
+            if (!self->settings_->HasCmsServerConfig()) {
                 return false;
             }
 
@@ -495,14 +495,14 @@ namespace tc
         auto& item = msg->stream_item_;
         if (item->HasRelayInfo()) {
             auto srv_remote_device_id = "server_" + item->remote_device_id_;
-            auto res = relay::RelayApi::NotifyEvent(item->relay_host_,
+            auto res = px_relay::RelayApi::NotifyEvent(item->relay_host_,
                                                     item->relay_port_,
                                                     context_->GetDeviceIdOrIpAddress(),
                                                     srv_remote_device_id,
                                                     msg->AsJson(),
                                                     this->GetAppkey());
             if (res.has_value()) {
-                if (res.value() == relay::kRelayOk) {
+                if (res.value() == px_relay::kRelayOk) {
                     return true;
                 }
                 else {
@@ -555,39 +555,39 @@ namespace tc
         return "";
     }
 
-    void GrApplication::StartSpvrClientIfNeeded() {
+    void GrApplication::StartCmsClientIfNeeded() {
         auto appkey = GetAppkey();
-        auto spvr_host = settings_->GetSpvrServerHost();
-        auto spvr_port = settings_->GetSpvrServerPort();
+        auto cms_host = settings_->GetCmsServerHost();
+        auto cms_port = settings_->GetCmsServerPort();
         auto device_id = settings_->GetDeviceId();
-        if (appkey.empty() || spvr_host.empty() || spvr_port <= 0 || device_id.empty()) {
+        if (appkey.empty() || cms_host.empty() || cms_port <= 0 || device_id.empty()) {
             return;
         }
 
-        const bool host_changed = (spvr_host != using_spvr_host_);
-        const bool port_changed = (spvr_port != using_spvr_port_);
+        const bool host_changed = (cms_host != using_cms_host_);
+        const bool port_changed = (cms_port != using_cms_port_);
         if (appkey != using_appkey_ || host_changed || port_changed) {
-            LOGW("Spvr config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, will release WS:SpvrClient and recreate it.",
-                 using_appkey_, appkey, using_spvr_host_, spvr_host, using_spvr_port_, spvr_port);
-            if (spvr_client_) {
-                spvr_client_->Stop();
-                spvr_client_ = nullptr;
+            LOGW("Cms config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, will release WS:CmsClient and recreate it.",
+                 using_appkey_, appkey, using_cms_host_, cms_host, using_cms_port_, cms_port);
+            if (cms_client_) {
+                cms_client_->Stop();
+                cms_client_ = nullptr;
             }
         }
 
-        if (!spvr_client_) {
-            spvr_client_ = std::make_shared<GrSpvrClient>(context_, spvr_host, spvr_port, device_id);
+        if (!cms_client_) {
+            cms_client_ = std::make_shared<GrCmsClient>(context_, cms_host, cms_port, device_id);
         }
-        if (!spvr_client_->IsStarted()) {
-            spvr_client_->Start();
+        if (!cms_client_->IsStarted()) {
+            cms_client_->Start();
         }
         using_appkey_ = appkey;
-        using_spvr_host_ = spvr_host;
-        using_spvr_port_ = spvr_port;
+        using_cms_host_ = cms_host;
+        using_cms_port_ = cms_port;
     }
 
-    std::shared_ptr<SpvrScanner> GrApplication::GetSpvrScanner() {
-        return spvr_scanner_;
+    std::shared_ptr<CmsScanner> GrApplication::GetCmsScanner() {
+        return cms_scanner_;
     }
 
     SkinInterface* GrApplication::GetSkin() {
@@ -598,8 +598,8 @@ namespace tc
         return skin_ ? skin_->GetSkinName().toStdString() : "";
     }
 
-    bool GrApplication::IsSpvrClientAlive() {
-        return spvr_client_ && spvr_client_->IsAlive();
+    bool GrApplication::IsCmsClientAlive() {
+        return cms_client_ && cms_client_->IsAlive();
     }
 
     std::shared_ptr<GrUserManager> GrApplication::GetUserManager() {
@@ -622,8 +622,8 @@ namespace tc
         return device_mgr_;
     }
 
-    bool GrApplication::CanConnectSpvrServer() {
-        cat r = spvr::SpvrDeviceApi::Ping(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort(), this->GetAppkey());
+    bool GrApplication::CanConnectCmsServer() {
+        cat r = px_cms::CmsDeviceApi::Ping(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), this->GetAppkey());
         return r.has_value() ? r.value() : false;
     }
 

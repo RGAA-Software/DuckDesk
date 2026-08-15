@@ -32,7 +32,7 @@
 
 
 
-namespace tc {
+namespace px {
 	static const int kUpgradeApiOkValue = 200;
     static const std::string kUpgradeBaseUrl = "/api/v1/update";
 	static const std::string kUpgradeQueryPath = kUpgradeBaseUrl + "/query_update_info";
@@ -520,8 +520,8 @@ namespace tc {
 	//UpdateChecker
 	std::string GetUpgradeRootAddr() {
         auto settings = GrSettings::Instance();
-		std::string upgrade_host = settings->GetSpvrServerHost();
-		std::string upgrade_addr = std::format("https://{}:{}", upgrade_host, settings->GetSpvrServerPort());
+		std::string upgrade_host = settings->GetCmsServerHost();
+		std::string upgrade_addr = std::format("https://{}:{}", upgrade_host, settings->GetCmsServerPort());
 		return upgrade_addr;
 	}
 
@@ -752,7 +752,7 @@ namespace tc {
 		//add timer for timeout
 		QPointer<QTimer> timer = new QTimer(this);
 		timer->setSingleShot(true);
-		std::shared_ptr<gd::MD5> file_md5_ptr = std::make_shared<gd::MD5>();
+		std::shared_ptr<px_gd::MD5> file_md5_ptr = std::make_shared<px_gd::MD5>();
 		connect(timer, &QTimer::timeout, this, [reply, timer, this]() {
 			disconnect(reply, nullptr, nullptr, nullptr);
 			reply->abort();

@@ -16,7 +16,7 @@
 #include "px_common_new/concurrent_vector.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     constexpr auto kMaxStatCounts = 180;
@@ -61,21 +61,21 @@ namespace tc
         std::map<std::string, IsolatedMonitorStatisticsInfoInRender> GetRenderMonitorsStat();
 
     private:
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<FpsStat>> fps_video_recv_;
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<FpsStat>> fps_render_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<FpsStat>> fps_video_recv_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<FpsStat>> fps_render_;
         // in MB/S
-        tc::ConcurrentVector<float> recv_data_speeds_;
+        px::ConcurrentVector<float> recv_data_speeds_;
         // in MB/S
-        tc::ConcurrentVector<float> send_data_speeds_;
+        px::ConcurrentVector<float> send_data_speeds_;
         // in ms
-        tc::ConcurrentVector<float> net_delays_;
+        px::ConcurrentVector<float> net_delays_;
         // monitor name <==> value
-        tc::ConcurrentHashMap<std::string, std::vector<float>> decode_durations_;
-        tc::ConcurrentHashMap<std::string, std::vector<float>> video_recv_gaps_;
-        tc::ConcurrentHashMap<std::string, std::vector<float>> video_recv_fps_;
-        tc::ConcurrentHashMap<std::string, SdkStatFrameSize> frames_size_;
+        px::ConcurrentHashMap<std::string, std::vector<float>> decode_durations_;
+        px::ConcurrentHashMap<std::string, std::vector<float>> video_recv_gaps_;
+        px::ConcurrentHashMap<std::string, std::vector<float>> video_recv_fps_;
+        px::ConcurrentHashMap<std::string, SdkStatFrameSize> frames_size_;
         //
-        tc::ConcurrentHashMap<std::string, IsolatedMonitorStatisticsInfoInRender> render_monitor_stat_;
+        px::ConcurrentHashMap<std::string, IsolatedMonitorStatisticsInfoInRender> render_monitor_stat_;
 
     public:
         // recv data
@@ -114,7 +114,7 @@ namespace tc
         ConcurrentString remote_os_name_;
 
         // remote detailed hardware information
-        ConcurrentType<tc::RdHardwareInfo> remote_hd_info_;
+        ConcurrentType<px::RdHardwareInfo> remote_hd_info_;
 
         // render type [opengl / vulkan / d3d11] 
         ConcurrentString render_type_;

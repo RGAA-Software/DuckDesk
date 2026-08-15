@@ -4,7 +4,7 @@
 #include "log.h"
 #include "memory_stat.h"
 
-namespace tc
+namespace px
 {
 
     ThreadPtr Thread::Make(const std::string& name, int max_task) {

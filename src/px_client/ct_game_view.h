@@ -7,7 +7,7 @@
 
 #define TEST_SDL 0
 
-namespace tc
+namespace px
 {
 
     class OpenGLVideoWidget;

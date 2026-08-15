@@ -7,7 +7,7 @@
 #include "hk_utils/time_measure.hpp"
 #include "shared_texture.h"
 
-static std::shared_ptr<tc::SharedTexture> shared_texture = std::make_shared<tc::SharedTexture>();
+static std::shared_ptr<px::SharedTexture> shared_texture = std::make_shared<px::SharedTexture>();
 
 namespace px_capture_d3d11on12
 {
@@ -216,7 +216,7 @@ namespace px_capture_d3d11on12
 
         //VideoFrameStats stats = {};
         //stats.timestamp = tick.QuadPart;
-        //stats.elapsed.preprocess = tc::TimeMeasure::Delta(tick.QuadPart);
+        //stats.elapsed.preprocess = px::TimeMeasure::Delta(tick.QuadPart);
 
         //if (!g_capture_tex.CreateSharedVideoTextureFrames()) {
         //  return;
@@ -225,7 +225,7 @@ namespace px_capture_d3d11on12
         //if (!g_capture_tex.ShareTexture(new_texture, device11_, context11_)) {
         //	return;
         //}
-        //stats.elapsed.total = tc::TimeMeasure::Delta(stats.timestamp);
+        //stats.elapsed.total = px::TimeMeasure::Delta(stats.timestamp);
         //
         //auto frame = g_capture_tex.GetAvailablePackedVideoTextureFrame();
         //frame->stats.timestamp = stats.timestamp;

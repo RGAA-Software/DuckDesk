@@ -2,7 +2,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     void AudioSourceImpl::SendAudio(const void* data,
@@ -68,4 +68,4 @@ namespace tc
         }
     }
 
-} // namespace tc
+} // namespace px

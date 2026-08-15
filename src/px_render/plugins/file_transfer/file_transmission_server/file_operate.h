@@ -5,14 +5,14 @@
 #include <tuple>
 #include "px_message.pb.h"
 
-namespace tc {
+namespace px {
 	class FileOperate {
 	public:
 		FileOperate();
 		
-		std::tuple<bool, std::vector<tc::FileDescInfo>, std::string, std::string> GetFilesList(std::string path);
+		std::tuple<bool, std::vector<px::FileDescInfo>, std::string, std::string> GetFilesList(std::string path);
 
-		std::tuple<bool, std::vector<tc::FileDescInfo>, std::string, std::string> RecursiveGetFilesList(std::string path);
+		std::tuple<bool, std::vector<px::FileDescInfo>, std::string, std::string> RecursiveGetFilesList(std::string path);
 
 		std::tuple<bool, std::string> CreateFolder(std::string folder_path);
 
@@ -26,7 +26,7 @@ namespace tc {
 
 	private:
 		// win32: 获取此电脑的内容
-		std::vector<tc::FileDescInfo> GetThisPCFiles();
+		std::vector<px::FileDescInfo> GetThisPCFiles();
 
 		const std::string root_path_ = "/";
 
@@ -35,7 +35,7 @@ namespace tc {
 		const std::string folder_split_ = "<path_split>";
 
 	private:
-		std::vector<tc::FileDescInfo> GetFilesListImpl(const std::string& path);
+		std::vector<px::FileDescInfo> GetFilesListImpl(const std::string& path);
 		// 递归遍历
 		void TraverseDirectory(const std::string& path, std::vector<std::string>& folders, std::vector<std::string>& files);
 	};

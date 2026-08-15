@@ -11,7 +11,7 @@
 #include "px_common_new/log.h"
 #include "../widget/file_log_manager.h"
 
-namespace tc {
+namespace px {
 
 class FixedSizeDeque {
 private:
@@ -105,13 +105,13 @@ void FileTransmitSDK::On6000msTimer() {
 }
 
 void FileTransmitSDK::GetFilesList(const std::string& path, OnFileOperateCallbackFuncType&& resp_callback) {
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_filelist(path);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kGetFilesList);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kGetFilesList);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
 		msg_answer_cst_->Add(msg, resp_callback);
@@ -120,13 +120,13 @@ void FileTransmitSDK::GetFilesList(const std::string& path, OnFileOperateCallbac
 }
 
 void FileTransmitSDK::RecursiveGetFilesList(const std::string& path, OnFileOperateCallbackFuncType&& resp_callback) {
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_filelist(path);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kRecursiveGetFilesList);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kRecursiveGetFilesList);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
 		msg_answer_cst_->Add(msg, resp_callback);
@@ -138,16 +138,16 @@ void FileTransmitSDK::BatchCreateFolders(const std::string& paths, OnFileOperate
 	if (paths.empty()) {
 		return;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kBatchCreateFolders);
+	auto file_operate_msg = new px::FileOperateionsEvent();
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kBatchCreateFolders);
 	std::vector<std::string> paths_vec;
 	//boost::algorithm::split_regex(paths_vec, paths, boost::regex(path_split_));
 	// to do 测试
-	tc::StringUtil::Split(paths, paths_vec, path_split_);
+	px::StringUtil::Split(paths, paths_vec, path_split_);
 	for (auto path : paths_vec) {
 		if (path.empty()) {
 			continue;
@@ -165,13 +165,13 @@ void FileTransmitSDK::Exists(const std::string& path, OnFileOperateCallbackFuncT
 	if (path.empty()) {
 		return;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_judge_exists(path);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kIsExists);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kIsExists);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
 		msg_answer_cst_->Add(msg, resp_callback);
@@ -183,13 +183,13 @@ void FileTransmitSDK::CreateNewFolder(const std::string& parent_path, OnFileOper
 	if (parent_path.empty()) {
 		return;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_create_new_folder(parent_path);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kCreateNewFolder);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kCreateNewFolder);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
 		msg_answer_cst_->Add(msg, resp_callback);
@@ -201,14 +201,14 @@ void FileTransmitSDK::Rename(std::string old_path, std::string new_name, OnFileO
 	if (old_path.empty() || new_name.empty()) {
 		return;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_rename(old_path);
 	file_operate_msg->set_name_of_rename(new_name);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kRename);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kRename);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
 		msg_answer_cst_->Add(msg, resp_callback);
@@ -220,15 +220,15 @@ void FileTransmitSDK::Remove(std::string paths, OnFileOperateCallbackFuncType&& 
 	if (paths.empty()) {
 		return;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kDel);
+	auto file_operate_msg = new px::FileOperateionsEvent();
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kDel);
 
 	std::vector<std::string> paths_vec;
-	tc::StringUtil::Split(paths, paths_vec, path_split_);
+	px::StringUtil::Split(paths, paths_vec, path_split_);
 	for (auto path : paths_vec) {
 		if (path.empty()) {
 			continue;
@@ -242,11 +242,11 @@ void FileTransmitSDK::Remove(std::string paths, OnFileOperateCallbackFuncType&& 
 	}
 }
 
-void FileTransmitSDK::HandleFileOperateRespMessage(const std::shared_ptr<tc::Message>& msg) {
+void FileTransmitSDK::HandleFileOperateRespMessage(const std::shared_ptr<px::Message>& msg) {
 	msg_answer_cst_->HandleRespAnswerMessage(msg);
 }
 
-void FileTransmitSDK::HandleFileUploadMessage(const tc::FileTransRespUpload& resp_upload) {
+void FileTransmitSDK::HandleFileUploadMessage(const px::FileTransRespUpload& resp_upload) {
 	bool upload_res = resp_upload.res();
 	std::string task_id = resp_upload.task_id();
 	auto error_cause = resp_upload.error_cause();
@@ -261,27 +261,27 @@ void FileTransmitSDK::HandleFileUploadMessage(const tc::FileTransRespUpload& res
 		file_transmit_task_with_simple_state_[task_id] = EFileTransmitTaskSimpleState::kOppositeEndError;
 		switch (error_cause)
 		{
-		case tc::FileTransRespUpload_UploadErrorCause_kFailedOpen:
+		case px::FileTransRespUpload_UploadErrorCause_kFailedOpen:
 			file_upload_end_callback_(ETcFileTransmitState::kRemoteFileOpenFailed, task_id);
 			LOGE("ETcFileTransmitState::kRemoteFileOpenFailed");
 			break;
-		case tc::FileTransRespUpload_UploadErrorCause_kFailedVerify:
+		case px::FileTransRespUpload_UploadErrorCause_kFailedVerify:
 			file_upload_end_callback_(ETcFileTransmitState::kVerifyError, task_id);
 			LOGE("ETcFileTransmitState::kVerifyError");
 			break;
-		case tc::FileTransRespUpload_UploadErrorCause_kFailedWrite:
+		case px::FileTransRespUpload_UploadErrorCause_kFailedWrite:
 			file_upload_end_callback_(ETcFileTransmitState::kFileWriteFailed, task_id);
 			LOGE("ETcFileTransmitState::kFileWriteFailed");
 			break;
-		case tc::FileTransRespUpload_UploadErrorCause_kUnknow:
+		case px::FileTransRespUpload_UploadErrorCause_kUnknow:
 			file_upload_end_callback_(ETcFileTransmitState::kUnknowError, task_id);
 			LOGE("ETcFileTransmitState::kUnknowError");
 			break;
-		case tc::FileTransRespUpload_UploadErrorCause_kPacketLoss:
+		case px::FileTransRespUpload_UploadErrorCause_kPacketLoss:
 			file_upload_end_callback_(ETcFileTransmitState::kPacketLoss, task_id);
 			LOGE("ETcFileTransmitState::kPacketLoss");
 			break;
-		case tc::FileTransRespUpload_UploadErrorCause_kDirFailedCreate:
+		case px::FileTransRespUpload_UploadErrorCause_kDirFailedCreate:
 			file_upload_end_callback_(ETcFileTransmitState::kCreateFolderFailed, task_id);
 			LOGE("ETcFileTransmitState::kCreateFolderFailed");
 			break;
@@ -294,20 +294,20 @@ void FileTransmitSDK::HandleFileUploadMessage(const tc::FileTransRespUpload& res
 }
 
 // 当对端有异常时候会接收到 FileTransmitRespDownload 消息
-void FileTransmitSDK::HandleFileDownloadMessage(const tc::FileTransRespDownload& resp_download) {
+void FileTransmitSDK::HandleFileDownloadMessage(const px::FileTransRespDownload& resp_download) {
 	auto error_cause = resp_download.error_cause();
 	auto task_id = resp_download.task_id();
 	if (file_download_callback_) {
-		if (tc::FileTransRespDownload_DownloadErrorCause_kNoExists == error_cause) {
+		if (px::FileTransRespDownload_DownloadErrorCause_kNoExists == error_cause) {
 			file_download_callback_(ETcFileTransmitState::kFileNoneExist, task_id, 0, 0);
 		}
-		else if (tc::FileTransRespDownload_DownloadErrorCause_kFailedOpen == error_cause) {
+		else if (px::FileTransRespDownload_DownloadErrorCause_kFailedOpen == error_cause) {
 			file_download_callback_(ETcFileTransmitState::kRemoteFileOpenFailed, task_id, 0, 0);
 		}
-		else if (tc::FileTransRespDownload_DownloadErrorCause_kUnknow == error_cause) {
+		else if (px::FileTransRespDownload_DownloadErrorCause_kUnknow == error_cause) {
 			file_download_callback_(ETcFileTransmitState::kUnknowError, task_id, 0, 0);
 		}
-		else if (tc::FileTransRespDownload_DownloadErrorCause_kFailedRead == error_cause) {
+		else if (px::FileTransRespDownload_DownloadErrorCause_kFailedRead == error_cause) {
 			file_download_callback_(ETcFileTransmitState::kFileReadFailed, task_id, 0, 0);
 		}
 		else {
@@ -325,7 +325,7 @@ void FileTransmitSDK::HandleFileDownloadMessage(const tc::FileTransRespDownload&
 	}
 }
 
-void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket& file_data_packet) {
+void FileTransmitSDK::HandleFileTransmitDataPacket(const px::FileTransDataPacket& file_data_packet) {
     // test beg //
 	if (false) {
 	    static std::ofstream tst_file("1.test.recv.zip", std::ios::binary);
@@ -355,7 +355,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 			}
 			if (!id_with_download_task_.count(task_id)) {
 				//新的下载任务
-				auto download_task = std::make_shared<tc::FileDownloadTask>();
+				auto download_task = std::make_shared<px::FileDownloadTask>();
 				id_with_download_task_[task_id] = download_task;
 				download_task->task_id_ = task_id;
 				download_task->src_file_path_ = src_file_path;
@@ -370,18 +370,18 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 				}
 				if (!target_dir.exists()) {
 					LOGE("HandleRespFileTransmitDataPacketMessage error, target_dir = {} , can not be created.", target_dir.path().toStdString());
-					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kDirFailedCreate);
+					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kDirFailedCreate);
 					id_with_download_task_[task_id]->is_ended_ = true;
 					file_download_callback_(ETcFileTransmitState::kCreateFolderFailed, task_id, 0, 0);
 					return;
 				}
 
                 LOGI("Create file: {}, task_id: {}", target_file_path, task_id);
-				download_task->file_ptr_ = tc::File::OpenForWriteB(tc::U8Path(target_file_path));
+				download_task->file_ptr_ = px::File::OpenForWriteB(px::U8Path(target_file_path));
 				if (!id_with_download_task_[task_id]->file_ptr_->IsOpen()) {
                     LOGE("Create file failed!");
 					id_with_download_task_[task_id]->is_ended_ = true;
-					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kFailedOpen);
+					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kFailedOpen);
 					file_download_callback_(ETcFileTransmitState::kFileOpenFailed, task_id, 0, 0);
 					return;
 				}
@@ -397,7 +397,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 					g_file_index_deque.Clear();
 					id_with_download_task_[task_id]->file_ptr_->Close();
 					id_with_download_task_[task_id]->is_ended_ = true;
-					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kPacketLoss);
+					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kPacketLoss);
 					file_download_callback_(ETcFileTransmitState::kPacketLoss, task_id, id_with_download_task_[task_id]->saved_file_size_, src_file_size);
 					return;
 				}
@@ -410,7 +410,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
                     LOGW("File was canceled: {}", id_with_download_task_[task_id]->target_file_path_);
 					id_with_download_task_[task_id]->file_ptr_->Close();
 					id_with_download_task_[task_id]->is_ended_ = true;
-					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kCancel);
+					SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kCancel);
 					return;
 				}
 			}
@@ -425,7 +425,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 					//id_with_download_task_[task_id]->file_ptr_->Flush();
 					if (append_size != data.size()) {
 						LOGE("HandleRespFileTransmitDataPacketMessage append_size != data.size");
-						SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kFailedWrite);
+						SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kFailedWrite);
 						id_with_download_task_[task_id]->is_ended_ = true;
 						id_with_download_task_[task_id]->file_ptr_->Close();
 						file_download_callback_(ETcFileTransmitState::kFileWriteFailed, task_id, id_with_download_task_[task_id]->saved_file_size_, src_file_size);
@@ -440,14 +440,14 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
             else {
                 LOGW("File was closed, ignore writing: {}", id_with_download_task_[task_id]->target_file_path_);
             }
-			if (tc::FileTransDataPacket_TransmitState_kTransmitting != transmit_state) {
+			if (px::FileTransDataPacket_TransmitState_kTransmitting != transmit_state) {
 				id_with_download_task_[task_id]->file_ptr_->Close();
 				id_with_download_task_[task_id]->is_ended_ = true;
                 LOGI("File will be closed: {}", id_with_download_task_[task_id]->target_file_path_);
 			}
 			switch (transmit_state)
 			{
-			case tc::FileTransDataPacket_TransmitState_kEnd: {
+			case px::FileTransDataPacket_TransmitState_kEnd: {
 				// to do 先校验下大小，后面再考虑校验md5
 				QFileInfo qfile_info{QString::fromStdString(id_with_download_task_[task_id]->target_file_path_)};
 				auto target_file_size = qfile_info.size();
@@ -460,7 +460,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 				}
 				break;
 			}
-			case tc::FileTransDataPacket_TransmitState_kError: // 目前是对端读文件异常了，会发送此消息
+			case px::FileTransDataPacket_TransmitState_kError: // 目前是对端读文件异常了，会发送此消息
 				file_download_callback_(ETcFileTransmitState::kFileReadFailed, task_id, id_with_download_task_[task_id]->saved_file_size_, src_file_size);
 				break;
 			default:
@@ -469,7 +469,7 @@ void FileTransmitSDK::HandleFileTransmitDataPacket(const tc::FileTransDataPacket
 		}
 		catch (std::exception& e) {
 			LOGE("FileTransmitSDK::HandleRespFileTransmitDataPacketMessage error is {}.", std::string(e.what()));
-			SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, tc::FileTransSaveFileException::kUnknow);
+			SendSaveFileExceptionMessage(src_file_path, target_file_path, task_id, px::FileTransSaveFileException::kUnknow);
 			std::lock_guard<std::mutex> lg(id_with_download_task_mutex_);
 			if (id_with_download_task_.count(task_id) > 0) {
 				id_with_download_task_[task_id]->file_ptr_->Close();
@@ -485,14 +485,14 @@ void FileTransmitSDK::DownloadFile(std::string local_file_path, std::string remo
 		std::lock_guard<std::mutex> lck{ file_transmit_mutex_ };
 		file_transmit_task_with_simple_state_[task_id] = EFileTransmitTaskSimpleState::kNormal;
 	}
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileOperationEvent);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileOperationEvent);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto file_operate_msg = new tc::FileOperateionsEvent();
+	auto file_operate_msg = new px::FileOperateionsEvent();
 	file_operate_msg->set_path_of_save(local_file_path);
 	file_operate_msg->set_path_of_download(remote_file_path);
-	file_operate_msg->set_operate_type(tc::FileOperateionsEvent::kDownload);
+	file_operate_msg->set_operate_type(px::FileOperateionsEvent::kDownload);
 	file_operate_msg->set_task_id(task_id);
 	msg->set_allocated_file_operateions_event(file_operate_msg);
 	if (send_message_func_) {
@@ -501,12 +501,12 @@ void FileTransmitSDK::DownloadFile(std::string local_file_path, std::string remo
 }
 
 // 下载文件过程中出现异常，告知远端
-void FileTransmitSDK::SendSaveFileExceptionMessage(std::string src_file_path, std::string target_file_path, std::string task_id, tc::FileTransSaveFileException::SaveFileExceptionCause cause) {
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileTransSaveFileException);
+void FileTransmitSDK::SendSaveFileExceptionMessage(std::string src_file_path, std::string target_file_path, std::string task_id, px::FileTransSaveFileException::SaveFileExceptionCause cause) {
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileTransSaveFileException);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto save_exception = new tc::FileTransSaveFileException();
+	auto save_exception = new px::FileTransSaveFileException();
 	save_exception->set_error_cause(cause);
 	save_exception->set_task_id(task_id);
 	save_exception->set_src_file_path(src_file_path);
@@ -519,11 +519,11 @@ void FileTransmitSDK::SendSaveFileExceptionMessage(std::string src_file_path, st
 
 // 发送接收到的数据包序列，让对端酌情调整速率
 void FileTransmitSDK::SendFileTransDataPacketResponseMessage(std::string task_id, uint64_t recved_index) {
-	auto msg = std::make_shared<tc::Message>();
-	msg->set_type(tc::kFileTransDataPacketResponse);
+	auto msg = std::make_shared<px::Message>();
+	msg->set_type(px::kFileTransDataPacketResponse);
     msg->set_device_id(s_device_id_);
 	msg->set_stream_id(s_stream_id_);
-	auto resp = new tc::FileTransDataPacketResponse();
+	auto resp = new px::FileTransDataPacketResponse();
 	resp->set_task_id(task_id);
 	resp->set_index(recved_index);
 	msg->set_allocated_file_trans_data_packet_response(resp);
@@ -588,13 +588,13 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
 			bool sended_msg = false;
 			while (true) {
 				bool is_send_msg = true;
-				auto msg = std::make_shared<tc::Message>();
-				msg->set_type(tc::kFileTransDataPacket);
+				auto msg = std::make_shared<px::Message>();
+				msg->set_type(px::kFileTransDataPacket);
                 msg->set_device_id(s_device_id_);
 				msg->set_stream_id(s_stream_id_);
-				auto file_data_packet = new tc::FileTransDataPacket();
+				auto file_data_packet = new px::FileTransDataPacket();
 				file_data_packet->set_index(index++);
-				file_data_packet->set_transmit_direction(tc::FileTransDataPacket::kUpload);
+				file_data_packet->set_transmit_direction(px::FileTransDataPacket::kUpload);
 				file_data_packet->set_task_id(task_id);
 				file_data_packet->set_src_file_path(src_file_path);
 				file_data_packet->set_target_file_path(target_file_path);
@@ -666,7 +666,7 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
                         LOGE("FileUpload task {} is cancel or timeout. src_file_path:{}  ", task_id, src_file_path);
 						if (sended_msg) {
 							//通知对端此任务取消
-							file_data_packet->set_transmit_state(tc::FileTransDataPacket::kCancel);
+							file_data_packet->set_transmit_state(px::FileTransDataPacket::kCancel);
 						}
 						else {
 							is_send_msg = false;
@@ -686,21 +686,21 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
 					upload_callback(ETcFileTransmitState::kUploadProcess, statistics_readed_size, file_size);
 					if (feof(pf)) { // 文件结束
                         LOGI("upload file at end: {}", src_file_path_qstr.toStdString());
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kEnd);
 						break;
 					}
 					else {
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kTransmitting);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kTransmitting);
 						continue;
 					}
 				}
 				else {
 					if (feof(pf)) {
                         LOGI("upload file at end: {}", src_file_path_qstr.toStdString());
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::kEnd);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::kEnd);
 					}
 					else {
-						file_data_packet->set_transmit_state(tc::FileTransDataPacket::TransmitState::FileTransDataPacket_TransmitState_kError);
+						file_data_packet->set_transmit_state(px::FileTransDataPacket::TransmitState::FileTransDataPacket_TransmitState_kError);
 						LOGE("File read {} error", src_file_path);
 						upload_callback(ETcFileTransmitState::kFileReadFailed, statistics_readed_size, file_size);
 						return;
@@ -717,7 +717,7 @@ void FileTransmitSDK::UploadFile(std::string src_file_path, std::string target_f
 	});
 }
 
-void FileTransmitSDK::HandleFileTransDataPacketResponse(tc::FileTransDataPacketResponse data_packet_resp) {
+void FileTransmitSDK::HandleFileTransDataPacketResponse(px::FileTransDataPacketResponse data_packet_resp) {
 	uint64_t recved_index = data_packet_resp.index();
 	std::string task_id = data_packet_resp.task_id();
 	//LOGI("HandleFileTransDataPacketResponse task_id: {}, recved_index: {}", task_id, recved_index);
@@ -752,4 +752,4 @@ uint64_t FileTransmitSDK::GetMaxSpeedBybitPerSecond() {
 	return speed_by_bit_per_1000ms_;
 }
 
-} // namespace tc
+} // namespace px

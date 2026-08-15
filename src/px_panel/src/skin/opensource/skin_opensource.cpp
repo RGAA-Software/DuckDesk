@@ -6,11 +6,11 @@
 #include "version_config.h"
 
 void* GetInstance() {
-    static tc::SkinOpenSource impl;
+    static px::SkinOpenSource impl;
     return (void*)&impl;
 }
 
-namespace tc
+namespace px
 {
 
     QString SkinOpenSource::GetSkinName() {

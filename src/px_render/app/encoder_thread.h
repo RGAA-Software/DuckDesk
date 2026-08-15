@@ -14,7 +14,7 @@
 #include "settings/rd_settings.h"
 #include "px_encoder_new/encoder_config.h"
 
-namespace tc
+namespace px
 {
     class Data;
     class Image;
@@ -43,7 +43,7 @@ namespace tc
 
     private:
         void PostEncTask(std::function<void()>&& task);
-        void PrintEncoderConfig(const tc::EncoderConfig& config);
+        void PrintEncoderConfig(const px::EncoderConfig& config);
         bool HasEncoderForMonitor(const std::string& monitor_name);
         GrVideoEncoderPlugin* GetEncoderPluginForMonitor(const std::string& monitor_name);
 

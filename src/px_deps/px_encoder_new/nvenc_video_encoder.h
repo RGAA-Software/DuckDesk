@@ -9,7 +9,7 @@
 #include "nvencoder/12/NvEncoderD3D11.h"
 #include <fstream>
 
-namespace tc
+namespace px
 {
 
     class NVENCVideoEncoder : public VideoEncoder {
@@ -17,7 +17,7 @@ namespace tc
         NVENCVideoEncoder(const std::shared_ptr<MessageNotifier>& msg_notifier, const EncoderFeature& encoder_feature);
         ~NVENCVideoEncoder() override;
 
-        bool Initialize(const tc::EncoderConfig& config) override;
+        bool Initialize(const px::EncoderConfig& config) override;
         //void Encode(uint64_t handle, uint64_t frame_index) override;
         void Encode(ID3D11Texture2D* tex2d, uint64_t frame_index) override;
         void Exit() override;

@@ -4,7 +4,7 @@
 #include <d3d11.h>
 #include "px_common_new/image.h"
 
-namespace tc
+namespace px
 {
 
     constexpr uint32_t kDefaultVideoQuality = 23;

@@ -6,7 +6,7 @@
 #include <string>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class PluginDesktopCapture;
@@ -19,7 +19,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         bool TryInitSpecificCapture() override;
         bool StartCapturing() override;

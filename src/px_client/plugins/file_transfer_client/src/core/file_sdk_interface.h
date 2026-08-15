@@ -10,7 +10,7 @@
 #include "../widget/file_transmit_task_state.h"
 #include "../common/file_trans_def.h"
 
-namespace tc {
+namespace px {
 
 class FileTransmitSDK;
 class FileMsgAnswerCbkStructure;

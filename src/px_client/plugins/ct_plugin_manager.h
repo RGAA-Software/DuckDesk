@@ -12,7 +12,7 @@
 #include <QLibrary>
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

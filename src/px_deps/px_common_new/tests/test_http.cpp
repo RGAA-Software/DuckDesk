@@ -15,7 +15,7 @@
 #include "../px_aes.h"
 #include "../http_client.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

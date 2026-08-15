@@ -33,9 +33,9 @@
 #include "stream_state_checker.h"
 #include "px_profile_client/profile_api.h"
 #include "px_relay_client/relay_api.h"
-#include "px_spvr_client/spvr_user.h"
-#include "px_spvr_client/spvr_device.h"
-#include "px_spvr_client/spvr_user_device.h"
+#include "px_cms_client/cms_user.h"
+#include "px_cms_client/cms_device.h"
+#include "px_cms_client/cms_user_device.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_workspace.h"
 #include "render_panel/network/render_api.h"
@@ -45,7 +45,7 @@
 #include "render_panel/util/conn_info_parser.h"
 #include "px_common_new/const_auto.h"
 
-namespace tc
+namespace px
 {
 
     class MainItemDelegate : public QStyledItemDelegate {
@@ -74,7 +74,7 @@ namespace tc
         //
         state_checker_ = std::make_shared<StreamStateChecker>(context_);
         QPointer<AppStreamList> self(this);
-        state_checker_->SetOnCheckedCallback([=, this](const std::vector<std::shared_ptr<spvr::SpvrStream>>& stream_items) {
+        state_checker_->SetOnCheckedCallback([=, this](const std::vector<std::shared_ptr<px_cms::CmsStream>>& stream_items) {
             context_->PostUITask([self, stream_items]() {
                 if (!self) {
                     return;
@@ -88,7 +88,7 @@ namespace tc
                         if (update_item->stream_id_ == stream_id_for_widget) {
                             widget->SetDirectConnectedState(update_item->direct_online_);
                             widget->SetRelayConnectedState(update_item->relay_online_);
-                            widget->SetSpvrConnectedState(update_item->spvr_online_);
+                            widget->SetCmsConnectedState(update_item->cms_online_);
                             widget->Update();
                             break;
                         }
@@ -170,7 +170,7 @@ namespace tc
         QPointer<AppStreamList> self(this);
         msg_listener_->Listen<StreamItemAdded>([=, this](const StreamItemAdded& msg) {
             auto item = msg.item_;
-            std::shared_ptr<spvr::SpvrStream> exist_stream_item = nullptr;
+            std::shared_ptr<px_cms::CmsStream> exist_stream_item = nullptr;
             // by stream id
             {
                 auto opt_stream = db_mgr_->GetStreamByStreamId(item->stream_id_);
@@ -327,7 +327,7 @@ namespace tc
         delete menu;
     }
 
-    void AppStreamList::ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item) {
         if (index == 0) {
             // connect
             StartStream(cur_item, item, false);
@@ -367,7 +367,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::StartStream(QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item, bool force_only_viewing) {
+    void AppStreamList::StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing) {
         if (cur_item) {
             if (const auto widget = static_cast<StreamItemWidget *>(stream_list_->itemWidget(cur_item))) {
                 widget->ShowConnecting();
@@ -382,7 +382,7 @@ namespace tc
         }, 40);
     }
 
-    void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item, bool force_only_viewing) {
+    void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -476,9 +476,9 @@ namespace tc
                 auto appkey = grApp->GetAppkey();
                 auto srv_remote_device_id = "server_" + item->remote_device_id_;
                 LOGI("Will check remote device: {} on relay server: {}:{}", srv_remote_device_id, item->relay_host_, item->relay_port_);
-                auto relay_device_info = relay::RelayApi::GetRelayDeviceInfo(item->relay_host_, item->relay_port_, srv_remote_device_id, appkey);
+                auto relay_device_info = px_relay::RelayApi::GetRelayDeviceInfo(item->relay_host_, item->relay_port_, srv_remote_device_id, appkey);
                 if (!relay_device_info.has_value()) {
-                    if (relay_device_info.error() == relay::kRelayRequestFailed) {
+                    if (relay_device_info.error() == px_relay::kRelayRequestFailed) {
                         // network failed
                         TcDialog dialog(tcTr("id_error"), tcTr("id_relay_network_unavailable_recreate"));
                         dialog.exec();
@@ -515,8 +515,8 @@ namespace tc
                 // verify remote
                 // password from inputting
                 // password from database
-                auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetSpvrServerHost(),
-                                                                  settings_->GetSpvrServerPort(),
+                auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetCmsServerHost(),
+                                                                  settings_->GetCmsServerPort(),
                                                                   target_item->remote_device_id_,
                                                                   MD5::Hex(remote_random_pwd),
                                                                   MD5::Hex(remote_safety_pwd),
@@ -577,7 +577,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::StopStream(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -586,7 +586,7 @@ namespace tc
         running_stream_mgr_->StopStream(si.value());
     }
 
-    void AppStreamList::LockDevice(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::LockDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -600,7 +600,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::RestartDevice(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::RestartDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -614,7 +614,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::ShutdownDevice(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::ShutdownDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -628,7 +628,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::EditStream(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::EditStream(const std::shared_ptr<px_cms::CmsStream>& item) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -648,7 +648,7 @@ namespace tc
 //        }
     }
 
-    void AppStreamList::DeleteStream(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::DeleteStream(const std::shared_ptr<px_cms::CmsStream>& item) {
         TcDialog dialog(tcTr("id_warning"), tcTr("id_delete_remote_control"), grWorkspace.get());
         if (dialog.exec() == kDoneOk) {
             // stop it if running
@@ -669,7 +669,7 @@ namespace tc
         }
     }
 
-    void AppStreamList::ShowSettings(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void AppStreamList::ShowSettings(const std::shared_ptr<px_cms::CmsStream>& item) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -679,7 +679,7 @@ namespace tc
         dialog->exec();
     }
 
-    QListWidgetItem* AppStreamList::AddItem(const std::shared_ptr<spvr::SpvrStream>& stream, int index) {
+    QListWidgetItem* AppStreamList::AddItem(const std::shared_ptr<px_cms::CmsStream>& stream, int index) {
         auto item = new QListWidgetItem(stream_list_);
         item->setSizeHint(QSize(230, 150));
         auto widget = new StreamItemWidget(stream, stream->bg_color_, stream_list_);
@@ -709,7 +709,7 @@ namespace tc
         name->setObjectName("st_name");
         auto stream_name = stream->stream_name_;
         if (stream->HasRelayInfo()) {
-            stream_name = tc::SpaceId(stream_name);
+            stream_name = px::SpaceId(stream_name);
         }
         name->setText(stream_name.c_str());
         name->setStyleSheet(R"(color:#386487; font-size:14px; font-weight:bold; background-color:#909099;)");
@@ -790,7 +790,7 @@ namespace tc
                 //     return c;
                 // };
                 // for (int i = 0; i < 100; i++) {
-                //     auto st = std::make_shared<spvr::SpvrStream>();
+                //     auto st = std::make_shared<px_cms::CmsStream>();
                 //     st->stream_name_ = std::format("Desktop: {}", i+1);
                 //     st->stream_host_ = std::format("192.168.1.{}", i+5);
                 //     st->desktop_name_ = StringUtil::ToUpperCpy(std::format("DESKTOP-{}{}{}{}{}", fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char()));
@@ -862,7 +862,7 @@ namespace tc
             }
             else {
                 // insert device
-                std::shared_ptr<spvr::SpvrStream> item = std::make_shared<spvr::SpvrStream>();
+                std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
                 item->remote_device_id_ = conn_info->device_id_;
                 item->remote_device_random_pwd_ = conn_info->random_pwd_;
                 item->stream_name_ = ud->device_->device_name_;
@@ -881,9 +881,9 @@ namespace tc
         LoadStreamItems();
     }
 
-    std::vector<std::shared_ptr<spvr::SpvrStream>> AppStreamList::CopyStreams() {
+    std::vector<std::shared_ptr<px_cms::CmsStream>> AppStreamList::CopyStreams() {
         std::lock_guard<std::mutex> guard(streams_mtx_);
-        std::vector<std::shared_ptr<spvr::SpvrStream>> items;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> items;
         items.insert(items.begin(), streams_.begin(), streams_.end());
         return items;
     }

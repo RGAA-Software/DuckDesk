@@ -13,7 +13,7 @@
 #include "hook_dxgi.h"
 #include "hk_utils/shared_mem_info.h"
 
-using namespace tc;
+using namespace px;
 
 struct SharedTexture {
     CComPtr<ID3D11Texture2D> texture;
@@ -108,7 +108,7 @@ private:
     CHandle shared_frame_ready_event_;
     size_t frame_count_{0};
 
-    std::array<SharedTexture, tc::kNumberOfSharedFrames> shared_textures_;
+    std::array<SharedTexture, px::kNumberOfSharedFrames> shared_textures_;
     std::uint64_t texture_id_{0};
 
     CHandle encoder_started_event_;

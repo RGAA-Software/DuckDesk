@@ -8,7 +8,7 @@
 #include <string>
 #include "relay_device_info.h"
 
-namespace tc
+namespace px
 {
 
     // RelayServerSdkParam

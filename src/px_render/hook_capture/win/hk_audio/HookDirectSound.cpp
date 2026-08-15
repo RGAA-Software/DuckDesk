@@ -23,7 +23,7 @@
 
 #pragma comment(lib, "dsound.lib")
 
-namespace tc {
+namespace px {
 namespace {
 
 struct Vtable {
@@ -452,4 +452,4 @@ bool HookDirectSound::TryInstall() {
     return true;
 }
 
-}  // namespace tc
+}  // namespace px

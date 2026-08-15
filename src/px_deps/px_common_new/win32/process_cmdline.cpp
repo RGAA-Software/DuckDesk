@@ -1,6 +1,6 @@
 #include "process_cmdline.h"
 
-namespace tc
+namespace px
 {
 
     typedef NTSTATUS(NTAPI* Typedef_ZwQueryInformationProcess)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);

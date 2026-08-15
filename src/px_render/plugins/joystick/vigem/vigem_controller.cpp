@@ -7,7 +7,7 @@
 
 #include <Xinput.h>
 
-namespace tc
+namespace px
 {
 
     VigemController::VigemController(const JoystickType &js_type) {

@@ -1,4 +1,4 @@
-// 剪贴板文本同步:经 media_data_channel 发送/接收 NetTlvHeader + tc.Message
+// 剪贴板文本同步:经 media_data_channel 发送/接收 NetTlvHeader + px.Message
 // 协议(双向均为 kClipboardInfo=160,对齐 C++ 端):
 //   web -> render: BaseWorkspace::SendClipboardMessage(ct_base_workspace.cpp:880)
 //     render plugin_net_event_router.cpp:136 把原文转发给 px_user_proxy,由其写入系统剪贴板
@@ -41,7 +41,7 @@ export function sendClipboardText(
   return true
 }
 
-// 从重组后的 tc.Message payload 中提取剪贴板文本;非剪贴板消息返回 null
+// 从重组后的 px.Message payload 中提取剪贴板文本;非剪贴板消息返回 null
 export function parseClipboardText(payload: Uint8Array): string | null {
   let msg: ReturnType<typeof decodeMessage>
   try {

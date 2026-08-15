@@ -15,7 +15,7 @@
 
 typedef std::function<void (amf::AMFData *)> AMFTextureReceiver;
 
-namespace tc
+namespace px
 {
     class AmfEncoderPlugin;
 
@@ -63,7 +63,7 @@ namespace tc
         explicit VideoEncoderVCE(AmfEncoderPlugin* plugin, uint64_t adapter_uid);
         ~VideoEncoderVCE();
 
-        bool Initialize(const tc::EncoderConfig &config);
+        bool Initialize(const px::EncoderConfig &config);
         bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void InsertIdr();
         void Exit();
@@ -87,7 +87,7 @@ namespace tc
         bool insert_idr_ = false;
         int gop_ = 180;
         EncoderConfig encoder_config_;
-        tc::AmfEncoderPlugin* plugin_ = nullptr;
+        px::AmfEncoderPlugin* plugin_ = nullptr;
 
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;

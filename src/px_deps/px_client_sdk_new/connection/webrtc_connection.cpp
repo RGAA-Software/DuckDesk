@@ -18,7 +18,7 @@
 
 typedef void *(*FnGetInstance)();
 
-namespace tc
+namespace px
 {
 
     WebRtcConnection::WebRtcConnection(const std::shared_ptr<RelayConnection>& relay_conn,
@@ -154,9 +154,9 @@ namespace tc
 
         // test beg //
         if (false) {
-            tc::Message pt_msg;
+            px::Message pt_msg;
             if (pt_msg.ParseFromArray(msg->CStr(), msg->Size())) {
-                if (pt_msg.type() == tc::kFileTransDataPacket) {
+                if (pt_msg.type() == px::kFileTransDataPacket) {
                     auto pkt = pt_msg.file_trans_data_packet();
                     LOGI("Send Ft pkt index: {}", pkt.index());
                 }
@@ -208,10 +208,10 @@ namespace tc
 
     void WebRtcConnection::SendSdpToRemote(const std::string& sdp) {
         // pack to proto & send it
-        tc::Message pt_msg;
+        px::Message pt_msg;
         pt_msg.set_device_id(sdk_params_->device_id_);
         pt_msg.set_stream_id(sdk_params_->stream_id_);
-        pt_msg.set_type(tc::MessageType::kSigOfferSdpMessage);
+        pt_msg.set_type(px::MessageType::kSigOfferSdpMessage);
         auto sub = pt_msg.mutable_sig_offer_sdp();
         sub->set_device_id(sdk_params_->device_id_);
         sub->set_sdp(sdp);
@@ -222,10 +222,10 @@ namespace tc
 
     void WebRtcConnection::SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index) {
         // pack to proto & send it
-        tc::Message pt_msg;
+        px::Message pt_msg;
         pt_msg.set_device_id(sdk_params_->device_id_);
         pt_msg.set_stream_id(sdk_params_->stream_id_);
-        pt_msg.set_type(tc::MessageType::kSigIceMessage);
+        pt_msg.set_type(px::MessageType::kSigIceMessage);
         auto sub = pt_msg.mutable_sig_ice();
         sub->set_device_id(sdk_params_->device_id_);
         sub->set_ice(ice);

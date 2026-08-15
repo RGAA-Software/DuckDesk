@@ -3,7 +3,7 @@
 
 #include <string_view>
 
-namespace tc
+namespace px
 {
 
     const std::size_t kNumberOfSharedFrames = 2;
@@ -61,4 +61,4 @@ namespace tc
     constexpr std::wstring_view kDoNotPresentEventName{
             L"{E7E2141B-4312-4609-BDEB-5B722CC01B96}"};
 
-}  // namespace tc
+}  // namespace px

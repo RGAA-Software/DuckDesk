@@ -8,7 +8,7 @@
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include <map>
 
-namespace tc
+namespace px
 {
 
     class ObjDetectorPlugin : public GrStreamPlugin {
@@ -18,7 +18,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         void On1Second() override;
         void OnRawVideoFrameRgba(const std::string& name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
         void OnRawVideoFrameYuv(const std::string& name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) override;
@@ -31,7 +31,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::ObjDetectorPlugin)
+GR_PLUGIN_EXPORT(px::ObjDetectorPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

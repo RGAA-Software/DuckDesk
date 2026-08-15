@@ -7,7 +7,7 @@
 #include "px_common_new/log.h"
 #include "rd_statistics.h"
 
-namespace tc
+namespace px
 {
 
     void WsMediaRouter::OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) {

@@ -14,7 +14,7 @@
 #include "px_common_new/concurrent_hashmap.h"
 #include <asio2/asio2.hpp>
 
-namespace tc
+namespace px
 {
     class WsStreamRouter;
     class WsFileTransferRouter;
@@ -27,7 +27,7 @@ namespace tc
     class WsPluginServer : public std::enable_shared_from_this<WsPluginServer> {
     public:
 
-        explicit WsPluginServer(tc::WsPlugin* plugin, uint16_t listen_port);
+        explicit WsPluginServer(px::WsPlugin* plugin, uint16_t listen_port);
 
         void Start();
         void Exit();
@@ -71,21 +71,21 @@ namespace tc
         void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
 
     private:
-        tc::WsPlugin* plugin_ = nullptr;
+        px::WsPlugin* plugin_ = nullptr;
         uint16_t listen_port_ = 0;
         //std::shared_ptr<asio2::https_server> server_ = nullptr;
         std::shared_ptr<asio2::http_server> server_ = nullptr;
 
         WsDataPtr ws_data_ = nullptr;
-        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
-        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
+        px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
+        px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
         // Injected px_graphics.dll sessions on /ipc (host → game input downlink).
-        tc::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
+        px::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
         // Pids allowed on /ipc: this render instance wrote hook boot config for them.
         std::mutex ipc_pid_mtx_;
         std::set<uint32_t> ipc_allowed_pids_;
         // /ipc session fd → 认证通过的游戏 pid,断线时据此做死进程注销
-        tc::ConcurrentHashMap<uint64_t, uint32_t> ipc_session_pids_;
+        px::ConcurrentHashMap<uint64_t, uint32_t> ipc_session_pids_;
         // SweepDeadIpcPids 节流计数(On1Second 每秒调用,每 5 次真正扫一次)
         uint64_t ipc_pid_sweep_ticks_ = 0;
 

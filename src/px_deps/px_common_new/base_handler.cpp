@@ -5,7 +5,7 @@
 #include "base_handler.h"
 #include "url_helper.h"
 
-namespace tc
+namespace px
 {
 
     std::string BaseHandler::GetErrorMessage(int code) {

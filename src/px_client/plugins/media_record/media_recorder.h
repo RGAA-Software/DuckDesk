@@ -30,7 +30,7 @@ extern "C" {
 
 #include "px_message.pb.h"
 
-namespace tc { 
+namespace px { 
 
 class MediaRecordPluginClient;
 
@@ -75,7 +75,7 @@ private:
 
 	MediaRecordPluginClient* plugin_ = nullptr;
 
-	tc::VideoType video_codec_ =  tc::VideoType::kNetH264;
+	px::VideoType video_codec_ =  px::VideoType::kNetH264;
 
 	std::atomic<bool> init_ok_ = false;
 

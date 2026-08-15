@@ -10,7 +10,7 @@
 
 class QLabel;
 
-namespace tc
+namespace px
 {
 
     enum class SubPanelType {

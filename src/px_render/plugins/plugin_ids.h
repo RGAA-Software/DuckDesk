@@ -9,7 +9,7 @@
 
 // Prebuild plugin ids
 
-namespace tc
+namespace px
 {
 
     const std::string kAmfEncoderPluginId = "a159a600-9a12-46a1-8e79-cba9645600d2";

@@ -8,7 +8,7 @@
 
 #include <opus/opus.h>
 
-namespace tc
+namespace px
 {
 
 	std::string ErrorToString(int error);

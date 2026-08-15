@@ -8,7 +8,7 @@
 // #include <cstdint>
 // #include "px_message.pb.h"
 
-// namespace tc
+// namespace px
 // {
 
 //     class ClipboardFileWrapper {

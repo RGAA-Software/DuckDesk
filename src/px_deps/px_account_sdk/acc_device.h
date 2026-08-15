@@ -8,7 +8,7 @@
 #include <string>
 #include <cstdint>
 
-namespace tc
+namespace px
 {
 
     // device information in User Server

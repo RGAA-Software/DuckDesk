@@ -10,13 +10,13 @@
 #include "px_message.pb.h"
 
 
-namespace tc {
+namespace px {
 	  
-using OnMsgParseRespCallbackFuncType = std::function<void(tc::RespCode code, const std::string& msg, const std::string& data)>;
+using OnMsgParseRespCallbackFuncType = std::function<void(px::RespCode code, const std::string& msg, const std::string& data)>;
 
 class MsgRespCallbackInfo {
 public:
-	using OnMessageCallbackFuncType = std::function<void(const std::shared_ptr<tc::Message>& msg)>;
+	using OnMessageCallbackFuncType = std::function<void(const std::shared_ptr<px::Message>& msg)>;
 	std::chrono::system_clock::time_point send_time;
 	OnMessageCallbackFuncType callback;
 };
@@ -27,7 +27,7 @@ public:
 	MsgAnswerCallbackStructure();
 	~MsgAnswerCallbackStructure();
 
-	virtual void Add(const std::shared_ptr<tc::Message>& msg, tc::OnMsgParseRespCallbackFuncType callbck/*, void* user_data*/);
+	virtual void Add(const std::shared_ptr<px::Message>& msg, px::OnMsgParseRespCallbackFuncType callbck/*, void* user_data*/);
 
 	void On100MsTimer();
 
@@ -35,7 +35,7 @@ public:
 		asio_timer_.start_timer(next_timer_id_++, duration, func);
 	}
 
-	void HandleRespAnswerMessage(const std::shared_ptr<tc::Message>& message);
+	void HandleRespAnswerMessage(const std::shared_ptr<px::Message>& message);
 
 	std::atomic_int send_message_seq_ = { 0 };
 	std::mutex mutex_;

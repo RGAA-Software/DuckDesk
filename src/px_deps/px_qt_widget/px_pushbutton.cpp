@@ -4,7 +4,7 @@
 
 #include "px_pushbutton.h"
 
-namespace tc
+namespace px
 {
 
     TcPushButton::TcPushButton(QWidget* parent) : QPushButton(parent), TcTranslator(this) {

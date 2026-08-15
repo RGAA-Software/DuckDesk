@@ -8,7 +8,7 @@
 
 #include "px_capture_new/inject_params.h"
 
-namespace tc
+namespace px
 {
 
     class ClientManager {

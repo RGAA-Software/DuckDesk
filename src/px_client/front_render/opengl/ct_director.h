@@ -9,7 +9,7 @@
 
 #include "ct_opengl_api.h"
 
-namespace tc
+namespace px
 {
 	class Director {
 	public:

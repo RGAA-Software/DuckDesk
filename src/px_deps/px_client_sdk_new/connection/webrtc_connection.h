@@ -14,7 +14,7 @@
 #include "sdk_messages.h"
 #include "px_client_sdk_new/connection/connection.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

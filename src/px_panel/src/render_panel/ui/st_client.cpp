@@ -16,7 +16,7 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
 
-namespace tc
+namespace px
 {
 
     StClient::StClient(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {

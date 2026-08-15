@@ -4,7 +4,7 @@
 
 #include "px_qr_widget.h"
 
-namespace tc
+namespace px
 {
 
     TcQRWidget::TcQRWidget(QWidget* parent) {

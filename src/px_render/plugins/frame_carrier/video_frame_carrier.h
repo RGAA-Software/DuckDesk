@@ -17,7 +17,7 @@
 //#include <opencv2/opencv.hpp>
 #include "px_common_new/image.h"
 
-namespace tc
+namespace px
 {
     using namespace Microsoft::WRL;
 

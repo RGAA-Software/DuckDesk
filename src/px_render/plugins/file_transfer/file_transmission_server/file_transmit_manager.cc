@@ -4,7 +4,7 @@
 #include "file_operate.h"
 #include "file_transmit_impl.h"
 
-namespace tc {
+namespace px {
 	FileTransmitManager::FileTransmitManager() {
 		file_operate_thread_ = std::make_shared<asio2::iopool>(1);
 		file_operate_thread_->start();
@@ -26,7 +26,7 @@ namespace tc {
 		file_download_thread_->stop();
 	}
 
-	void FileTransmitManager::HandleFileTransmitMessage(const std::shared_ptr<tc::Message>& message) {
+	void FileTransmitManager::HandleFileTransmitMessage(const std::shared_ptr<px::Message>& message) {
 		if (!message->has_file_trans_data_packet()) {
 			LOGE("FileTransmitManager::HandleFileTransmitMessage error : msg !has_file_trans_data_packet");
 			return;
@@ -40,15 +40,15 @@ namespace tc {
 
 	}
 
-	void FileTransmitManager::HandleFileOperateMsg(const std::shared_ptr<tc::Message>& msg) {
+	void FileTransmitManager::HandleFileOperateMsg(const std::shared_ptr<px::Message>& msg) {
 		if (!msg->has_file_operateions_event()) {
 			LOGE("file_operateions_event is null.");
 			return;
 		}
 		auto operate = msg->file_operateions_event();
-		LOGI("HandleFileoperateMsg operate_type {} ",tc::FileOperateionsEvent_OperateType_Name(operate.operate_type()));
+		LOGI("HandleFileoperateMsg operate_type {} ",px::FileOperateionsEvent_OperateType_Name(operate.operate_type()));
 		auto seq = msg->file_operate_sequence(); // 指令序号. 消息对应的操作完成以后，要将结果封装为消息反馈给客户端，还要将指令序号返回回去
-		if (operate.operate_type() == tc::FileOperateionsEvent::kGetFilesList) {
+		if (operate.operate_type() == px::FileOperateionsEvent::kGetFilesList) {
 			std::string path = operate.path_of_filelist();
 			file_operate_thread_->post(std::move([=]() {
 				auto get_files_list_res = file_operate_->GetFilesList(path);
@@ -57,7 +57,7 @@ namespace tc {
 				}
 			}));
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kRecursiveGetFilesList) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kRecursiveGetFilesList) {
 			std::string path = operate.path_of_filelist();
 			file_operate_thread_->post(std::move([=]() {
 				auto get_files_list_res = file_operate_->RecursiveGetFilesList(path);
@@ -66,7 +66,7 @@ namespace tc {
 				}
 			}));
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kDel) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kDel) {
 			auto paths = operate.paths_of_del();
 			file_operate_thread_->post(std::move([=]() {
 				std::vector<std::string> paths_vec;
@@ -80,7 +80,7 @@ namespace tc {
 				})
 			);
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kBatchCreateFolders) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kBatchCreateFolders) {
 			auto paths = operate.paths_of_create_folder();
 			file_operate_thread_->post(std::move([=]() {
 				std::vector<std::string> error_paths;
@@ -97,7 +97,7 @@ namespace tc {
 				}
 			}));
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kCreateNewFolder) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kCreateNewFolder) {
 			auto u8_parent_path = operate.path_of_create_new_folder();
 			file_operate_thread_->post(std::move([=]() {
 				auto create_new_folder_res = file_operate_->CreateNewFolder(u8_parent_path);
@@ -106,7 +106,7 @@ namespace tc {
 				}
 			}));
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kIsExists) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kIsExists) {
 			auto u8_path = operate.path_of_judge_exists();
 			file_operate_thread_->post(std::move([=]() {
 				auto exists_res = file_operate_->IsExists(u8_path);
@@ -115,7 +115,7 @@ namespace tc {
 				}
 			}));
 		}
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kRename) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kRename) {
 			std::string u8_old_path = operate.path_of_rename();
 			std::string u8_new_name = operate.name_of_rename();
 			file_operate_thread_->post(std::move([=]() {
@@ -125,7 +125,7 @@ namespace tc {
 				}
 			}));
 		} 
-		else if (operate.operate_type() == tc::FileOperateionsEvent::kDownload) {
+		else if (operate.operate_type() == px::FileOperateionsEvent::kDownload) {
 			std::string download_path = operate.path_of_download();
 			std::string save_path = operate.path_of_save();
 			std::string task_id = operate.task_id();
@@ -136,7 +136,7 @@ namespace tc {
 	}
 
 	// 对端保存文件异常或者对端取消任务 会发送此消息
-	void FileTransmitManager::HandleSaveFileExceptionMessage(const std::shared_ptr<tc::Message>& message) {
+	void FileTransmitManager::HandleSaveFileExceptionMessage(const std::shared_ptr<px::Message>& message) {
 		if (!message->has_file_trans_save_file_exception()) {
 			LOGE("FileTransmitManager::HandleSaveFileExceptionMessage error : msg !file_transmit_download_exception");
 			return;
@@ -145,7 +145,7 @@ namespace tc {
 		file_transmit_impl_->HandleSaveFileException(message->stream_id(), save_file_exception);
 	}
 
-	void FileTransmitManager::HandleFileTransDataPacketResponseMessage(const std::shared_ptr<tc::Message>& message) {
+	void FileTransmitManager::HandleFileTransDataPacketResponseMessage(const std::shared_ptr<px::Message>& message) {
 		if (!message->has_file_trans_data_packet_response()) {
 			LOGE("FileTransmitManager::HandleFileTransDataPacketResponseMessage error : msg !has_file_trans_data_packet_response");
 			return;

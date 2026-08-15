@@ -17,7 +17,7 @@
 #include "../core/file_transmit_sdk.h"
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 FileTransmitSingleTaskManager::FileTransmitSingleTaskManager() {
 
@@ -172,9 +172,9 @@ void FileTransmitSingleTaskManager::AddSigChannel(const std::shared_ptr<FileTran
 			return;
 		}
 		auto bytes = speed * 1000;
-		auto format_speed = QString::fromStdString(tc::StringUtil::FormatSize(bytes) + "/s");
+		auto format_speed = QString::fromStdString(px::StringUtil::FormatSize(bytes) + "/s");
 		if (FileTransRecordContainer::Instance()->files_trans_record_info_.count(task_ptr->task_id_) > 0) {
-			FileTransRecordContainer::Instance()->files_trans_record_info_[task_ptr->task_id_].speed_ = QString::fromStdString(tc::StringUtil::FormatSize(bytes) + "/s");
+			FileTransRecordContainer::Instance()->files_trans_record_info_[task_ptr->task_id_].speed_ = QString::fromStdString(px::StringUtil::FormatSize(bytes) + "/s");
 			FileTransRecordTableModel::Instance()->Updatefilecontainer();
 		}
 		emit SigSpeed(task_ptr->task_type_, format_speed);

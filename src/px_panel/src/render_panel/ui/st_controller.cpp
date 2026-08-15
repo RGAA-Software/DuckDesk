@@ -27,10 +27,10 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_settings.h"
 #include "px_common_new/ip_util.h"
-#include "px_spvr_client/spvr_device_api.h"
+#include "px_cms_client/cms_device_api.h"
 #include "input_safety_pwd_dialog.h"
 
-namespace tc
+namespace px
 {
 
     StController::StController(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent){

@@ -8,7 +8,7 @@
 #include "base_widget.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     class ClientContext;
@@ -19,7 +19,7 @@ namespace tc
     public:
         explicit FloatButtonStateIndicator(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;
-        void UpdateOnHeartBeat(std::shared_ptr<tc::Message> msg);
+        void UpdateOnHeartBeat(std::shared_ptr<px::Message> msg);
         int GetPressedCount();
 
     private:

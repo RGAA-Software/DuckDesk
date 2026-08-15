@@ -10,7 +10,7 @@
 #include <QLabel>
 #include <QStackedWidget>
 
-namespace tc
+namespace px
 {
 
     class KeyStatePanel;
@@ -28,7 +28,7 @@ namespace tc
         void resizeEvent(QResizeEvent *event) override;
         void paintEvent(QPaintEvent *event) override;
         bool eventFilter(QObject* object, QEvent* event) override;
-        void UpdateOnHeartBeat(std::shared_ptr<tc::Message> msg);
+        void UpdateOnHeartBeat(std::shared_ptr<px::Message> msg);
         void UpdateClientRenderTypeName(std::string render_type_name);
     private:
         void UpdateDataSpeedChart();

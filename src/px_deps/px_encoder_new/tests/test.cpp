@@ -14,7 +14,7 @@
 #include "px_common_new/file.h"
 #include "px_common_new/log.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

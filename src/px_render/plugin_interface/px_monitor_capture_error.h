@@ -7,7 +7,7 @@
 
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     enum class MonitorCaptureError {

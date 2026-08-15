@@ -10,7 +10,7 @@
 #include <objidl.h>
 #include "px_common_new/clipboard/clipboard_platform.h"
 
-namespace tc
+namespace px
 {
     class Message;
     class GrContext;

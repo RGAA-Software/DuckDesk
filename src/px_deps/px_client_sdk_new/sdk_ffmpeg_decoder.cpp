@@ -25,7 +25,7 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     FFmpegDecoder::FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {

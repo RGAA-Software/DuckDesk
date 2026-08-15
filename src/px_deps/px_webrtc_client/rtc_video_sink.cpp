@@ -7,7 +7,7 @@
 #include "px_common_new/data.h"
 #include <atomic>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<RtcVideoSink> RtcVideoSink::Make() {

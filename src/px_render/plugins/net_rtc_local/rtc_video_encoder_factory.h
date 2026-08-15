@@ -5,7 +5,7 @@
 #include <modules/video_coding/codecs/h264/include/h264.h>
 #include "px_common_new/webrtc_helper.h"
 
-namespace tc
+namespace px
 {
     class RtcServer;
     class RtcLocalPlugin;

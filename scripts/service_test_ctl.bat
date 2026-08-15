@@ -5,7 +5,7 @@ rem   scripts\service_test_ctl.bat start [port]   (default port 20375)
 rem   scripts\service_test_ctl.bat stop
 rem   scripts\service_test_ctl.bat status
 rem CMS link needs auth injection first, see docs/cms_app_schedule_state.md 7.1:
-rem   node scripts\inject_service_auth.mjs --device-id e2e-machine-1 --appkey ... --spvr-host 127.0.0.1 --spvr-port 30500
+rem   node scripts\inject_service_auth.mjs --device-id e2e-machine-1 --appkey ... --cms-host 127.0.0.1 --cms-port 30500
 setlocal
 set "ACTION=%~1"
 set "PORT=%~2"

@@ -1,17 +1,17 @@
 use prost::Message as ProstMessage;
 
-pub mod tcrp {
-    include!(concat!(env!("OUT_DIR"), "/tcrp.rs"));
+pub mod pxrp {
+    include!(concat!(env!("OUT_DIR"), "/pxrp.rs"));
 }
 
-pub mod tc {
-    include!(concat!(env!("OUT_DIR"), "/tc.rs"));
+pub mod px {
+    include!(concat!(env!("OUT_DIR"), "/px.rs"));
 }
 
-use tcrp::{
+use pxrp::{
     RpClipboardFile, RpClipboardInfo, RpMessage, RpMessageType, RpRawRenderMessage, RpClipboardType,
 };
-use tc::{
+use px::{
     ClipboardFile, ClipboardInfo, ClipboardInfoResp, ClipboardReqAtBegin, ClipboardReqAtEnd,
     ClipboardReqBuffer, ClipboardRespBuffer, Message, MessageType, ClipboardType,
 };

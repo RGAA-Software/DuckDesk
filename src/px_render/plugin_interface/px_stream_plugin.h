@@ -7,7 +7,7 @@
 
 #include "px_plugin_interface.h"
 
-namespace tc
+namespace px
 {
 
     class GrStreamPlugin : public GrPluginInterface {

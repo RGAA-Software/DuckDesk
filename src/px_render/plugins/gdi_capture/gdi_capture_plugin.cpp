@@ -8,9 +8,9 @@
 #include "px_render/plugins/plugin_ids.h"
 #include "gdi_capture.h"
 
-GR_PLUGIN_EXPORT(tc::GdiCapturePlugin)
+GR_PLUGIN_EXPORT(px::GdiCapturePlugin)
 
-namespace tc
+namespace px
 {
 
     GdiCapturePlugin::GdiCapturePlugin() : GrMonitorCapturePlugin() {
@@ -41,7 +41,7 @@ namespace tc
         GrPluginInterface::On1Second();
     }
     
-    bool GdiCapturePlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool GdiCapturePlugin::OnCreate(const px::GrPluginParam &param) {
         GrMonitorCapturePlugin::OnCreate(param);
         LOGI("GdiCapturePlugin OnCreate");
         return true;

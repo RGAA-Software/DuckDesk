@@ -1,2 +1,2 @@
-pub mod spvr_lang;
-pub mod spvr_ui;
+pub mod cms_lang;
+pub mod cms_ui;

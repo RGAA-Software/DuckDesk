@@ -8,7 +8,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 
-namespace tc
+namespace px
 {
 
     WssConnection::WssConnection(const std::shared_ptr<ThunderSdkParams>& params,

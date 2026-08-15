@@ -7,7 +7,7 @@
 
 class QTimer;
 
-namespace tc {
+namespace px {
 
 class RemoteFileUtil;
 class LocalFileUtil;

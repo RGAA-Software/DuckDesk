@@ -10,7 +10,7 @@
 #include <QDebug>
 #include <QBitmap>
 
-namespace tc
+namespace px
 {
 
     ImageCropperLabel::ImageCropperLabel(int width, int height, QWidget *parent) :

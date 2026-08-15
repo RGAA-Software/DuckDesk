@@ -30,7 +30,7 @@
 #include "px_common_new/hardware.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     std::atomic<uint64_t> g_last_mouse_send_us{0};
@@ -176,10 +176,10 @@ namespace tc
             this->ClearFirstFrameState();
         });
 
-        net_client_->SetOnVideoFrameMsgCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        net_client_->SetOnVideoFrameMsgCallback([=, this](std::shared_ptr<px::Message> msg) {
             if (exit_) { return; }
             
-            tc::VideoFrame frame = msg->video_frame();
+            px::VideoFrame frame = msg->video_frame();
 
             auto video_task = [=, this]() ->void {
                 const auto& monitor_name = frame.mon_name();
@@ -387,7 +387,7 @@ namespace tc
             this->PostVideoTask(video_task, frame.frame_index(), frame.mon_name());
         });
 
-        net_client_->SetOnAudioFrameMsgCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        net_client_->SetOnAudioFrameMsgCallback([=, this](std::shared_ptr<px::Message> msg) {
             if (exit_) { return; }
             this->PostAudioTask([=, this]() {
                 auto frame = msg->audio_frame();
@@ -418,7 +418,7 @@ namespace tc
             });
         });
 
-        net_client_->SetOnAudioSpectrumCallback([=, this](std::shared_ptr<tc::Message> msg) {
+        net_client_->SetOnAudioSpectrumCallback([=, this](std::shared_ptr<px::Message> msg) {
             if (exit_) { return; }
             this->PostMiscTask([=, this]() {
                 if (audio_spectrum_cbk_) {
@@ -565,8 +565,8 @@ namespace tc
         if (!net_client_) {
             return;
         }
-        tc::Message msg;
-        msg.set_type(tc::MessageType::kHello);
+        px::Message msg;
+        msg.set_type(px::MessageType::kHello);
         msg.set_device_id(sdk_params_->device_id_);
         msg.set_stream_id(sdk_params_->stream_id_);
         auto hello = msg.mutable_hello();
@@ -575,7 +575,7 @@ namespace tc
         hello->set_client_type(sdk_params_->client_type_);
         hello->set_enable_controller(sdk_params_->enable_controller_);
         hello->set_device_name(sdk_params_->device_name_);
-        if (auto buffer = tc::ProtoAsData(&msg); buffer) {
+        if (auto buffer = px::ProtoAsData(&msg); buffer) {
             net_client_->PostMediaMessage(buffer);
         }
     }
@@ -584,13 +584,13 @@ namespace tc
         if (!net_client_) {
             return;
         }
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(MessageType::kInsertKeyFrame);
         msg.set_device_id(sdk_params_->device_id_);
         msg.set_stream_id(sdk_params_->stream_id_);
         auto ack = msg.mutable_ack();
         ack->set_type(MessageType::kInsertKeyFrame);
-        if (auto buffer = tc::ProtoAsData(&msg); buffer) {
+        if (auto buffer = px::ProtoAsData(&msg); buffer) {
             net_client_->PostMediaMessage(buffer);
         }
     }
@@ -619,13 +619,13 @@ namespace tc
         audio_spectrum_cbk_ = std::move(cbk);
     }
 
-    void ThunderSdk::SetOnCursorInfoCallback(tc::OnCursorInfoSyncMsgCallback&& cbk) {
+    void ThunderSdk::SetOnCursorInfoCallback(px::OnCursorInfoSyncMsgCallback&& cbk) {
         if (net_client_) {
             net_client_->SetOnCursorInfoSyncMsgCallback(std::move(cbk));
         }
     }
 
-    void ThunderSdk::SetOnHeartBeatCallback(tc::OnHeartBeatInfoCallback&& cbk) {
+    void ThunderSdk::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& cbk) {
         if (net_client_) {
             net_client_->SetOnHeartBeatCallback([this, callback = std::move(cbk)](auto m) {
                 last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
@@ -642,7 +642,7 @@ namespace tc
 
     void ThunderSdk::SetOnServerConfigurationCallback(OnConfigCallback&& cbk) {
         if (net_client_) {
-            net_client_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<tc::Message> msg) {
+            net_client_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<px::Message> msg) {
                 if (msg && msg->has_config() && !msg->config().capturing_monitor_name().empty()) {
                     std::lock_guard<std::mutex> lk(rtc_cap_mon_mtx_);
                     rtc_capturing_monitor_name_ = msg->config().capturing_monitor_name();

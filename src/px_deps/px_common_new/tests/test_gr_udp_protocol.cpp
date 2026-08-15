@@ -10,7 +10,7 @@
 
 #include "px_common_new/px_udp_protocol.h"
 
-using namespace tc;
+using namespace px;
 
 static std::string MakeFrameBytes(size_t size) {
     std::string s(size, '\0');

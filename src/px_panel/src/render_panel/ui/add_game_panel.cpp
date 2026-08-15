@@ -22,7 +22,7 @@
 #include <QFileDialog>
 #include <QApplication>
 
-namespace tc
+namespace px
 {
 
     AddGamePanel::AddGamePanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QDialog(parent) {

@@ -11,7 +11,7 @@
 #include <QProgressBar>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class TcLabel;

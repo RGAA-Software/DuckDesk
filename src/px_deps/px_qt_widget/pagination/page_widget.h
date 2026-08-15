@@ -14,7 +14,7 @@ namespace Ui {
 
 typedef std::function<void(int page)> OnPageSelectedCallback;
 
-namespace tc
+namespace px
 {
 
     class PageWidget : public QWidget {

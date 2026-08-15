@@ -9,7 +9,7 @@
 #include <string>
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     enum class ScaleMode {
@@ -51,9 +51,9 @@ namespace tc
         // udp_direct 模式下 render 的 UDP 媒体端口(与 ws 控制面端口分开)
         int udp_port_{20371};
 
-        // Spvr
-        std::string spvr_host_;
-        int spvr_port_ = 0;
+        // Cms
+        std::string cms_host_;
+        int cms_port_ = 0;
 
         std::string version_;
         bool audio_on_ = false;

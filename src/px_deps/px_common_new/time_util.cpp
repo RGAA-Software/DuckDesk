@@ -5,7 +5,7 @@
 #include "time_util.h"
 #include "log.h"
 
-namespace tc
+namespace px
 {
 
     TimeDuration::TimeDuration(const std::string& name) {

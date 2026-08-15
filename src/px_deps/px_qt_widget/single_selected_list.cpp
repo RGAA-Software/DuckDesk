@@ -11,7 +11,7 @@
 #include <QTimer>
 #include <QStyledItemDelegate>
 
-namespace tc
+namespace px
 {
 
     // To fix the position of item

@@ -13,7 +13,7 @@
 #include "px_client/plugin_interface/ct_plugin_context.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
 
-namespace tc
+namespace px
 {
 
     ClipboardManager::ClipboardManager(ClientClipboardPlugin* plugin) : QObject(nullptr) {
@@ -84,7 +84,7 @@ namespace tc
         LOGI("OnLocalClipboardUpdated: clipboard has no syncable text or files");
     }
 
-    void ClipboardManager::OnRemoteClipboardMessage(std::shared_ptr<tc::Message> msg) {
+    void ClipboardManager::OnRemoteClipboardMessage(std::shared_ptr<px::Message> msg) {
         if (!plugin_->IsClipboardEnabled() || !clipboard_platform_) {
             return;
         }
@@ -136,7 +136,7 @@ namespace tc
                 clipboard::SuppressOutboundGuard suppress_guard(echo_filter_);
 
                 if (!virtual_file_) {
-                    virtual_file_ = tc::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, plugin_);
+                    virtual_file_ = px::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, plugin_);
                 }
                 if (!data_object_) {
                     LOGE("DataObject is null!");
@@ -177,7 +177,7 @@ namespace tc
         }
     }
 
-    void ClipboardManager::OnRemoteClipboardRespMessage(std::shared_ptr<tc::Message> msg) {
+    void ClipboardManager::OnRemoteClipboardRespMessage(std::shared_ptr<px::Message> msg) {
         if (!plugin_->IsClipboardEnabled()) {
             return;
         }
@@ -191,7 +191,7 @@ namespace tc
         }
     }
 
-    void ClipboardManager::OnRemoteFileRespMessage(std::shared_ptr<tc::Message> msg) {
+    void ClipboardManager::OnRemoteFileRespMessage(std::shared_ptr<px::Message> msg) {
         if (virtual_file_) {
             virtual_file_->OnClipboardRespBuffer(msg->cp_resp_buffer());
         }

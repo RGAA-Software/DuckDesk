@@ -14,7 +14,7 @@
 #include "db/db_game_manager.h"
 #include "px_context.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

@@ -11,7 +11,7 @@
 #include "hw_info.h"
 #include "hw_cpu_detail_item.h"
 
-namespace tc
+namespace px
 {
 
     using SingleCpuInfoHist = std::vector<SysSingleCpuInfo>;

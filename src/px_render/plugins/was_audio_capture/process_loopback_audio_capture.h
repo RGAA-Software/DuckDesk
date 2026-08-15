@@ -7,7 +7,7 @@
 #include <mutex>
 #include <thread>
 
-namespace tc {
+namespace px {
 
 // Host-side WASAPI process-loopback (Application Audio Capture).
 // Same API as test_game_audio_loopback.cpp (ActivateAudioInterfaceAsync).
@@ -41,4 +41,4 @@ private:
     int bits_ = 16;
 };
 
-}  // namespace tc
+}  // namespace px

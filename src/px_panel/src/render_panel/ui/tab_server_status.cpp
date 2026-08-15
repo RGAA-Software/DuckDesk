@@ -39,7 +39,7 @@
 #include "render_panel/database/db_game.h"
 #include "px_qt_widget/px_dialog.h"
 
-namespace tc
+namespace px
 {
 
     static QString GetItemIconStyleSheet(const QString &url) {

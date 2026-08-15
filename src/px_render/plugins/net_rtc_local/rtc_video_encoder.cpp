@@ -12,7 +12,7 @@
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 
-namespace tc
+namespace px
 {
 
     bool gAdapterBitrate = true;
@@ -445,4 +445,4 @@ namespace tc
         return 0;
     }
 
-} // namespace tc
+} // namespace px

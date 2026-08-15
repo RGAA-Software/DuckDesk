@@ -8,14 +8,14 @@
 #include <nlohmann/json.hpp>
 #include "relay_message.pb.h"
 
-using namespace tc;
+using namespace px;
 using namespace nlohmann;
 
-namespace relay
+namespace px_relay
 {
 
     // Ping
-    tc::Result<bool, int> RelayApi::Ping(const std::string& host, int port, const std::string& appkey) {
+    px::Result<bool, int> RelayApi::Ping(const std::string& host, int port, const std::string& appkey) {
         auto client = HttpClient::Make(host, port, kRelayPing, 3000);
         auto resp = client->Request({
             {"appkey", appkey}
@@ -43,7 +43,7 @@ namespace relay
     }
 
     //
-    tc::Result<std::shared_ptr<RelayDeviceInfo>, int>
+    px::Result<std::shared_ptr<RelayDeviceInfo>, int>
     RelayApi::GetRelayDeviceInfo(const std::string& host,
                                  int port,
                                  const std::string& device_id,
@@ -87,7 +87,7 @@ namespace relay
         }
     }
 
-    tc::Result<int, int> RelayApi::NotifyEvent(const std::string& host,
+    px::Result<int, int> RelayApi::NotifyEvent(const std::string& host,
                                                int port,
                                                const std::string& from_device_id, // this device
                                                const std::string& to_device_id,   // remote device, id starts with: server_

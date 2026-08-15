@@ -49,8 +49,8 @@
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_password_input.h"
 #include "px_qt_widget/px_circle_indicator.h"
-#include "px_spvr_client/spvr_device_api.h"
-#include "px_spvr_client/spvr_device.h"
+#include "px_cms_client/cms_device_api.h"
+#include "px_cms_client/cms_device.h"
 #include "px_common_new/base64.h"
 #include "px_common_new/px_aes.h"
 #include <nlohmann/json.hpp>
@@ -65,7 +65,7 @@
 #include "render_panel/devices/px_device_manager.h"
 #include "px_common_new/const_auto.h"
 
-namespace tc
+namespace px
 {
 
     TabServer::TabServer(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {
@@ -131,8 +131,8 @@ namespace tc
                     msg->setFixedWidth(160);
                     lbl_machine_code_ = msg;
                     msg->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                    //auto uid = QString::fromStdString(tc::SpaceId(context_->GetSysUniqueId()));
-                    msg->setText(tc::SpaceId("---------").c_str());
+                    //auto uid = QString::fromStdString(px::SpaceId(context_->GetSysUniqueId()));
+                    msg->setText(px::SpaceId("---------").c_str());
                     msg->setStyleSheet(R"(font-size: 18px; font-weight: 700; color: #2979ff;)");
                     code_layout->addWidget(msg);
 
@@ -208,8 +208,8 @@ namespace tc
                             return;
                         }
                         context_->PostTask([=, this]() {
-                            auto opt_device = spvr::SpvrDeviceApi::UpdateRandomPwd(settings_->GetSpvrServerHost(),
-                                                                             settings_->GetSpvrServerPort(),
+                            auto opt_device = px_cms::CmsDeviceApi::UpdateRandomPwd(settings_->GetCmsServerHost(),
+                                                                             settings_->GetCmsServerPort(),
                                                                              grApp->GetAppkey(),
                                                                              settings_->GetDeviceId());
                             if (!opt_device.has_value()) {
@@ -259,7 +259,7 @@ namespace tc
                     auto msg = new QLineEdit(this);
                     edt_machine_name_ = msg;
                     msg->setFixedSize(160, 35);
-                    //auto uid = QString::fromStdString(tc::SpaceId(context_->GetSysUniqueId()));
+                    //auto uid = QString::fromStdString(px::SpaceId(context_->GetSysUniqueId()));
                     msg->setText("");
                     msg->setStyleSheet(R"(font-size: 18px; font-weight: 700; color: #2979ff;)");
                     code_layout->addWidget(msg);
@@ -565,8 +565,8 @@ namespace tc
                         }
 
                         // verify in profile server
-                        auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetSpvrServerHost(),
-                                                                          settings_->GetSpvrServerPort(),
+                        auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetCmsServerHost(),
+                                                                          settings_->GetCmsServerPort(),
                                                                           remote_device_id,
                                                                           MD5::Hex(random_password),
                                                                           MD5::Hex(safety_password),
@@ -584,7 +584,7 @@ namespace tc
                             return;
                         }
 
-                        std::shared_ptr<spvr::SpvrStream> item = std::make_shared<spvr::SpvrStream>();
+                        std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
                         item->stream_id_ = "id_" + remote_device_id;
                         item->stream_name_ = remote_device_id;
                         item->stream_host_ = "";
@@ -626,7 +626,7 @@ namespace tc
                 {
                     // indicator
                     auto indicator = new TcCircleIndicator(this);
-                    spvr_indicator_ = indicator;
+                    cms_indicator_ = indicator;
                     indicator->setFixedSize(indicator_size);
                     layout->addWidget(indicator);
 
@@ -689,7 +689,7 @@ namespace tc
 
         // set client id by settings
         if (!settings_->GetDeviceId().empty() && !settings_->GetDeviceRandomPwd().empty()) {
-            lbl_machine_code_->setText(tc::SpaceId(settings_->GetDeviceId()).c_str());
+            lbl_machine_code_->setText(px::SpaceId(settings_->GetDeviceId()).c_str());
             //lbl_machine_random_pwd_->setText(settings_->GetDeviceRandomPwd().c_str());
             SetDeviceRandomPwdVisibility();
         }
@@ -715,7 +715,7 @@ namespace tc
         // new device created
         msg_listener_->Listen<MsgRequestedNewDevice>([=, this](const MsgRequestedNewDevice& msg) {
             context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(tc::SpaceId(msg.device_id_).c_str());
+                lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
                 edt_machine_name_->setText(settings_->GetDeviceName().c_str());
                 //lbl_machine_random_pwd_->setText(msg.device_random_pwd_.c_str());
                 SetDeviceRandomPwdVisibility();
@@ -726,7 +726,7 @@ namespace tc
         // random password updated
         msg_listener_->Listen<MsgRandomPasswordUpdated>([=, this](const MsgRandomPasswordUpdated& msg) {
             context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(tc::SpaceId(msg.device_id_).c_str());
+                lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
                 //lbl_machine_random_pwd_->setText(msg.device_random_pwd_.c_str());
                 SetDeviceRandomPwdVisibility();
                 this->UpdateQRCode();
@@ -736,7 +736,7 @@ namespace tc
         // program data cleared
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
             context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(tc::SpaceId("---------").c_str());
+                lbl_machine_code_->setText(px::SpaceId("---------").c_str());
                 edt_machine_name_->setText("");
                 SetDeviceRandomPwdVisibility();
                 this->UpdateQRCode();
@@ -838,8 +838,8 @@ namespace tc
     }
 
     void TabServer::UpdateServerState() {
-        bool spvr_client_alive = grApp->IsSpvrClientAlive();
-        spvr_indicator_->SetState(spvr_client_alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
+        bool cms_client_alive = grApp->IsCmsClientAlive();
+        cms_indicator_->SetState(cms_client_alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
         auto device_id = settings_->GetDeviceId();
         if (!device_id.empty()) {
             auto current_ts = TimeUtil::GetCurrentTimestamp();

@@ -4,7 +4,7 @@
 
 #include "connection.h"
 
-namespace tc
+namespace px
 {
 
     Connection::Connection(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier) {

@@ -18,9 +18,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::DDACapturePlugin)
+GR_PLUGIN_EXPORT(px::DDACapturePlugin)
 
-namespace tc
+namespace px
 {
 
     static const int32_t kAllowedMaxContinuousTimeoutTimes = 1200;
@@ -49,7 +49,7 @@ namespace tc
         return "DXGI desktop duplication";
     }
 
-    bool DDACapturePlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool DDACapturePlugin::OnCreate(const px::GrPluginParam& param) {
         GrMonitorCapturePlugin::OnCreate(param);
         InitCursorCapture();
         return true;

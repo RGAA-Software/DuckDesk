@@ -9,7 +9,7 @@
 #include "px_label.h"
 #include "widget_helper.h"
 
-namespace tc
+namespace px
 {
 
     GameInfoPreview::GameInfoPreview(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<TcDBGame>& game, QWidget* parent)

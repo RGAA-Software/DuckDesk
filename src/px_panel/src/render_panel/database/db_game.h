@@ -12,7 +12,7 @@
 #include "px_steam_manager_new/steam_entities.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     class TcDBGame {

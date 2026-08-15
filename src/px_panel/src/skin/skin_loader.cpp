@@ -11,7 +11,7 @@
 
 typedef void* (*FnGetInstance)();
 
-namespace tc
+namespace px
 {
 
     SkinInterface* SkinLoader::LoadSkin(const std::string& skin_name_hint) {

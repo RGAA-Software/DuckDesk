@@ -8,7 +8,7 @@
 #include <QString>
 #include <QWidget>
 
-namespace tc
+namespace px
 {
 
     class TcDialogUtil {

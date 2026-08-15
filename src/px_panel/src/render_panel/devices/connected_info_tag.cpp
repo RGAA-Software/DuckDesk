@@ -2,7 +2,7 @@
 #include <QPainterPath>
 #include <qapplication.h>
 
-namespace tc {
+namespace px {
 
     ConnectedInfoTag::ConnectedInfoTag(QWidget* parent) {
 	    setAttribute(Qt::WA_TranslucentBackground);

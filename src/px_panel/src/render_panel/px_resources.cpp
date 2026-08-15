@@ -12,7 +12,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     GrResources::GrResources(const std::shared_ptr<GrContext>& ctx) {

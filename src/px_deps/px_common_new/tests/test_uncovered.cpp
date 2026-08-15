@@ -22,7 +22,7 @@
 #include <chrono>
 #include "px_common_new/file.h"
 
-namespace tc {
+namespace px {
 
 // ========== Base64 ==========
 TEST(TestUncovered, Base64EncodeDecode) {
@@ -318,12 +318,12 @@ TEST(TestUncovered, AesDecryptInvalidInput) {
 
 // ========== MD5 ==========
 TEST(TestUncovered, MD5String) {
-    gd::MD5 md5("hello");
+    px_gd::MD5 md5("hello");
     EXPECT_EQ(md5.toString(), "5d41402abc4b2a76b9719d911017c592");
 }
 
 TEST(TestUncovered, MD5Empty) {
-    gd::MD5 md5("");
+    px_gd::MD5 md5("");
     EXPECT_EQ(md5.toString(), "d41d8cd98f00b204e9800998ecf8427e");
 }
 
@@ -407,4 +407,4 @@ TEST(TestUncovered, MathHelperSmoke) {
     EXPECT_TRUE(true);
 }
 
-} // namespace tc
+} // namespace px

@@ -12,9 +12,9 @@
 #include "px_common_new/uuid.h"
 #include "relay_connected_info.h"
 
-using namespace relay;
+using namespace px_relay;
 
-namespace tc
+namespace px
 {
 
     RelayServerSdk::RelayServerSdk(const RelayServerSdkParam& param) {

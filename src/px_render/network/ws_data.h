@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_WS_DATA_H
 #define GAMMARAY_WS_DATA_H
 
-namespace tc
+namespace px
 {
     class WsData {
     public:

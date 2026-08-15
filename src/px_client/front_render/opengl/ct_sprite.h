@@ -8,7 +8,7 @@
 
 #include "ct_renderer.h"
 
-namespace tc
+namespace px
 {
 	
 	class Director;

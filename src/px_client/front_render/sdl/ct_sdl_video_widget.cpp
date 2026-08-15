@@ -6,7 +6,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
 
-namespace tc
+namespace px
 {
 
     SDLVideoWidget::SDLVideoWidget(const std::shared_ptr<ClientContext> &ctx, const std::shared_ptr<ThunderSdk> &sdk,

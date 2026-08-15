@@ -8,7 +8,7 @@
 #include "gl/raw_image.h"
 #include "px_common_new/time_util.h"
 
-namespace tc
+namespace px
 {
 
     static D3D11RenderManager output;

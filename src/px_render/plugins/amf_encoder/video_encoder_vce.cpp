@@ -28,9 +28,9 @@ const wchar_t* FRAME_INDEX_PROPERTY = L"FrameIndexProperty";
 const wchar_t* WIDTH_INDEX_PROPERTY = L"FrameWidthIndexProperty";
 const wchar_t* HEIGHT_INDEX_PROPERTY = L"FrameHeightIndexProperty";
 const wchar_t* IS_KEY_FRAME = L"IsKeyFrame";
-static uint64_t last_time = tc::TimeUtil::GetCurrentTimestamp();
+static uint64_t last_time = px::TimeUtil::GetCurrentTimestamp();
 
-namespace tc
+namespace px
 {
     AMFTextureEncoder::AMFTextureEncoder(const amf::AMFContextPtr &amfContext, EncoderConfig config,
                                          amf::AMF_SURFACE_FORMAT inputFormat, AMFTextureReceiver receiver)
@@ -242,7 +242,7 @@ namespace tc
         }
     }
 
-    bool VideoEncoderVCE::Initialize(const tc::EncoderConfig &config) {
+    bool VideoEncoderVCE::Initialize(const px::EncoderConfig &config) {
         encoder_config_ = config;
         codec_type_ = config.codec_type;
         auto ret = g_AMFFactory.Init();
@@ -397,7 +397,7 @@ namespace tc
 
         fps_stat_->Tick();
 
-        uint64_t ct = tc::TimeUtil::GetCurrentTimestamp();
+        uint64_t ct = px::TimeUtil::GetCurrentTimestamp();
         if (ct - last_time > 1000) {
             last_time = ct;
         }

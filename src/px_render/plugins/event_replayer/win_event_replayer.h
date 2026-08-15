@@ -9,13 +9,13 @@
 #include "px_message.pb.h"
 #include "px_capture_new/capture_message.h"
 
-namespace tc
+namespace px
 {
 
     class WinEventReplayer {
     public:
-        void HandleKeyEvent(const tc::KeyEvent& event);
-        void HandleMouseEvent(const tc::MouseEvent& event);
+        void HandleKeyEvent(const px::KeyEvent& event);
+        void HandleMouseEvent(const px::MouseEvent& event);
         void HandleFocusOutEvent();
         void ReplayMouseEvent(const std::string& monitor_name, float x_ratio, float y_ratio, int buttons, int data);
         void UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& msg);
@@ -24,7 +24,7 @@ namespace tc
     private:
         bool IsKeyPermitted(uint32_t vk);
         void ResetKey();
-        void ReplayKeyEvent(uint16_t scancode, bool extend, const tc::KeyEvent& event);
+        void ReplayKeyEvent(uint16_t scancode, bool extend, const px::KeyEvent& event);
         void MockKeyEvent(uint16_t scancode);
         void ReplayVirtualDesktopMouseEvent(float x_ratio, float y_ratio, int buttons, int data);
         void SendMouseEvent(int x, int y, int buttons, int data);

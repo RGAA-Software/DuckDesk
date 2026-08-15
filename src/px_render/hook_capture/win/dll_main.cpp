@@ -19,7 +19,7 @@ CaptureTex g_capture_tex;
 HookEvent* g_hook_event = HookEvent::Instance();
 ClientManager* client_manager = ClientManager::Instance();
 
-using namespace tc;
+using namespace px;
 
 extern "C" CAPTURETEX_API void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* remote_info) {
     client_manager->CopyUserData(remote_info->UserData, (int)remote_info->UserDataSize);

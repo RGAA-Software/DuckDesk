@@ -11,7 +11,7 @@
 #include "px_client_sdk_new/gl/raw_image.h"
 #include "px_client/front_render/ct_video_widget.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

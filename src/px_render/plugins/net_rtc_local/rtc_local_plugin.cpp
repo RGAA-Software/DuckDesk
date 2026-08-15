@@ -14,9 +14,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::RtcLocalPlugin)
+GR_PLUGIN_EXPORT(px::RtcLocalPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string RtcLocalPlugin::GetPluginId() {
@@ -71,7 +71,7 @@ namespace tc
         }
     }
     
-    bool RtcLocalPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool RtcLocalPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         plugin_type_ = GrPluginType::kNet;
 
@@ -120,7 +120,7 @@ namespace tc
     // render 每帧 PostTask+memcpy、WaitForMediaChannelActive 在帧分发线程自旋,
     // Chrome 主线程每秒 60 次 20KB TLV 重组+proto 解码后丢弃——
     // 主线程被淹正是 web 端"帧率低+完全不跟手"的根因(视频 RTP 轨本身健康)。
-    // wire 级扫描 tc.Message 的 type 字段(field 10, varint, tag=0x50),媒体帧直接丢弃。
+    // wire 级扫描 px.Message 的 type 字段(field 10, varint, tag=0x50),媒体帧直接丢弃。
     // 注意:type 不是 field 1;device_id/stream_id 可能在前,必须按 wire 格式逐字段跳过。
     static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
         if (!msg || msg->Size() < 2) {
@@ -560,7 +560,7 @@ namespace tc
             LOGI("** Remove {} old connection(s).", old_servers.size());
             // 顶掉之前先通知旧客户端"连接被接管"(kConnectionTakenOver),
             // 让它给出明确提示并停止重连,而不是表现成一次普通断线。
-            // tc.Message{ type: kConnectionTakenOver(550) } 的 wire 字节:
+            // px.Message{ type: kConnectionTakenOver(550) } 的 wire 字节:
             // type 是 field 10(varint, tag=0x50),550 的 varint 编码为 A6 04;
             // 两端客户端都只按 type 分发、子消息留空即可。不引 protobuf 头,
             // 本目标 webrtc 内置 absl 与 vcpkg absl 头文件会冲突(同

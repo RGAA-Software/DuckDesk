@@ -13,7 +13,7 @@
 #include <QPixmap>
 #include <QListWidgetItem>
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

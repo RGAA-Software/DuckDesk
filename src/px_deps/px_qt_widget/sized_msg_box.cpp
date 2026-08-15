@@ -11,7 +11,7 @@
 #include <QPushButton>
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<SizedMessageBox> SizedMessageBox::MakeOkBox(const QString& title, const QString& msg) {

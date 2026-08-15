@@ -57,9 +57,9 @@ private:
     static IDXGISWAPCHAIN_RESIZEBUFFERS IDXGISwapChain_ResizeBuffers_;
     static IDXGISWAPCHAIN1_PRESENT1 IDXGISwapChain1_Present1_;
 
-    tc::HookApi hook_IDXGISwapChain_Present_;
-    tc::HookApi hook_IDXGISwapChain_ResizeBuffers_;
-    tc::HookApi hook_IDXGISwapChain1_Present1_;
+    px::HookApi hook_IDXGISwapChain_Present_;
+    px::HookApi hook_IDXGISwapChain_ResizeBuffers_;
+    px::HookApi hook_IDXGISwapChain1_Present1_;
 
     static bool resize_buffers_called_;
     HMODULE loaded_d3d11_module_ = nullptr;

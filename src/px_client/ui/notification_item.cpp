@@ -11,7 +11,7 @@
 #include <QLabel>
 #include <QGraphicsDropShadowEffect>
 
-namespace tc
+namespace px
 {
 
     NotificationItem::NotificationItem(const std::shared_ptr<ClientContext>& ctx, const std::string& nid, const std::string& icon_path, QWidget* parent) : QWidget(parent) {

@@ -7,7 +7,7 @@
 #include <qfontmetrics.h>
 #include <QPropertyAnimation>
 
-namespace tc
+namespace px
 {
     CoverWidget::CoverWidget(QWidget *parent, int offset) : QWidget(parent) {
         this->offset = offset;

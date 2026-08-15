@@ -13,7 +13,7 @@
 
 #include "reedsolomon/rs.h"
 
-namespace tc
+namespace px
 {
 
     // 所有保护块必须等长(P 字节);Encode 生成 parity 块,Decode 在缺失数 <= parity 数时

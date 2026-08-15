@@ -9,7 +9,7 @@
 #include <string>
 #include <functional>
 
-namespace tc
+namespace px
 {
     template<typename T>
     class ConcurrentType {
@@ -81,10 +81,10 @@ namespace tc
         T inner_;
     };
 
-    using ConcurrentString = tc::ConcurrentType<std::string>;
+    using ConcurrentString = px::ConcurrentType<std::string>;
 
     template<typename T>
-    using Mutex = tc::ConcurrentType<T>;
+    using Mutex = px::ConcurrentType<T>;
 }
 
 #endif //GAMMARAY_CONCURRENT_TYPE_H

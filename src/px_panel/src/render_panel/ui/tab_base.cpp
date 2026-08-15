@@ -16,7 +16,7 @@ void CrashFunction() {
     *ptr = 42;  // 人为制造崩溃
 }
 
-namespace tc
+namespace px
 {
     TabBase::TabBase(const std::shared_ptr<GrApplication>& app, QWidget* parent) : QWidget(parent) {
         app_ = app;

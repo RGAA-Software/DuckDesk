@@ -5,7 +5,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/file.h"
 
-namespace tc
+namespace px
 {
     VulkanVideoWidget::VulkanVideoWidget(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdk>& sdk,
         int dup_idx, RawImageFormat format, QWidget* parent)

@@ -16,7 +16,7 @@
 #include "encoder_config.h"
 #include <mutex>
 
-namespace tc
+namespace px
 {
 	using namespace Microsoft::WRL;
 
@@ -45,7 +45,7 @@ namespace tc
 	    VideoEncoder(const std::shared_ptr<MessageNotifier>& msg_notifier, const EncoderFeature& encoder_feature);
 	    virtual ~VideoEncoder();
 
-	    virtual bool Initialize(const tc::EncoderConfig& config);
+	    virtual bool Initialize(const px::EncoderConfig& config);
 
 	    void RegisterEncodeCallback(EncoderCallback&& cbk);
 	    void InsertIDR();

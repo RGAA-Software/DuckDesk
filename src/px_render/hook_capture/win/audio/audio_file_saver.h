@@ -8,7 +8,7 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
-namespace tc
+namespace px
 {
 
 	class IAudioFileSaver {

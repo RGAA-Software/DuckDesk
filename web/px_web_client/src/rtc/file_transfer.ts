@@ -3,7 +3,7 @@
 //   - src/px_client/plugins/file_transfer_client/src/core/file_transmit_sdk.cc (C++ 控制端)
 //   - src/px_render/plugins/file_transfer/file_transmission_server/file_transmit_impl.cc (render 被控端)
 // 要点:
-//   - 每条消息 = NetTlvHeader + tc.Message;ft 通道 TLV pkt_index 必须严格递增(render 按它排序投递)
+//   - 每条消息 = NetTlvHeader + px.Message;ft 通道 TLV pkt_index 必须严格递增(render 按它排序投递)
 //   - render 侧 >128KB 的消息会分片(Begin/Center/End),接收经 TlvReassembler 重组
 //   - 上传:逐块发送,index 从 0 连续;render 每 100 块回一次 ack(index%100==0),
 //     并在收尾校验文件大小后回 kFileTransRespUpload —— 因此这里用滑动窗口(未 ack 块数 <= 150)

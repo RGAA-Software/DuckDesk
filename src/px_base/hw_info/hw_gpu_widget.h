@@ -9,7 +9,7 @@
 #include <QWidget>
 #include "hw_info.h"
 
-namespace tc
+namespace px
 {
 
     class HWStatChart;

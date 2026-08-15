@@ -13,7 +13,7 @@
 #include <shellapi.h>
 #endif
 
-namespace tc
+namespace px
 {
 
     std::string FileUtil::GetFileNameFromPath(const std::string& path) {

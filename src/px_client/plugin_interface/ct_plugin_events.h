@@ -12,7 +12,7 @@
 
 // from plugins ---> exe
 
-namespace tc
+namespace px
 {
 
     class Data;

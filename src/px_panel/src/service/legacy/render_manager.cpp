@@ -25,7 +25,7 @@ static const std::string kKeyWorkDir = "render_work_dir";
 static const std::string kKeyAppPath = "render_app_path";
 static const std::string kKeyAppArgs = "render_app_args";
 
-namespace tc
+namespace px
 {
 
     RenderManager::RenderManager(const std::shared_ptr<ServiceContext>& ctx) {

@@ -13,7 +13,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<AppSharedInfoReader> AppSharedInfoReader::Make(const std::string& name) {

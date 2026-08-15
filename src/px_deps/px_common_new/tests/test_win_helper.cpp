@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <filesystem>
 
-using namespace tc;
+using namespace px;
 
 TEST(WinHelperTest, GetExeName_CurrentProcess) {
     DWORD pid = GetCurrentProcessId();

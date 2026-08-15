@@ -38,7 +38,7 @@ extern "C"
 #endif
 }
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<GrPluginContext> GrPluginInterface::GetPluginContext() {
@@ -286,7 +286,7 @@ namespace tc
     static std::atomic<int64_t> last_slow_dispatch_log_ts = 0;
 
     static void LogSlowPluginDispatch(const std::string& plugin_id, const char* api, int64_t cost_ms) {
-        auto now = (int64_t)tc::TimeUtil::GetCurrentTimestamp();
+        auto now = (int64_t)px::TimeUtil::GetCurrentTimestamp();
         auto last = last_slow_dispatch_log_ts.load();
         if (now - last >= 10000 && last_slow_dispatch_log_ts.compare_exchange_strong(last, now)) {
             LOGW("Slow net plugin dispatch: {} cost {}ms in {}", plugin_id, cost_ms, api);
@@ -295,9 +295,9 @@ namespace tc
 
     void GrPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = tc::TimeUtil::GetCurrentTimestamp();
+            auto begin = px::TimeUtil::GetCurrentTimestamp();
             plugin->PostProtoMessage(msg, run_through);
-            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
             if (cost > kSlowPluginDispatchThresholdMs) {
                 LogSlowPluginDispatch(plugin_id, "PostProtoMessage", cost);
             }
@@ -306,9 +306,9 @@ namespace tc
 
     void GrPluginInterface::DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = tc::TimeUtil::GetCurrentTimestamp();
+            auto begin = px::TimeUtil::GetCurrentTimestamp();
             plugin->PostTargetStreamProtoMessage(stream_id, msg, run_through);
-            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
             if (cost > kSlowPluginDispatchThresholdMs) {
                 LogSlowPluginDispatch(plugin_id, "PostTargetStreamProtoMessage", cost);
             }
@@ -317,11 +317,11 @@ namespace tc
 
     void GrPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = tc::TimeUtil::GetCurrentTimestamp();
+            auto begin = px::TimeUtil::GetCurrentTimestamp();
             if (!plugin->PostTargetFileTransferProtoMessage(stream_id, msg, run_through)) {
                 LOGW("DispatchTargetFileTransferMessage failed in plugin: {}, stream: {}", plugin_id, stream_id);
             }
-            auto cost = (int64_t)tc::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
+            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
             if (cost > kSlowPluginDispatchThresholdMs) {
                 LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
             }
@@ -361,7 +361,7 @@ namespace tc
         return queuing_msg_count;
     }
 
-    void GrPluginInterface::OnSyncPluginSettingsInfo(const tc::GrPluginSettingsInfo& settings) {
+    void GrPluginInterface::OnSyncPluginSettingsInfo(const px::GrPluginSettingsInfo& settings) {
         if (!settings.device_id_.empty()) {
             sys_settings_.device_id_ = settings.device_id_;
         }

@@ -11,7 +11,7 @@
 #include <memory>
 #include "sdk_params.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

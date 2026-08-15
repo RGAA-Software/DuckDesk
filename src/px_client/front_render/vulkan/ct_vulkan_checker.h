@@ -3,7 +3,7 @@
 #include <qobject.h>
 
 
-namespace tc {
+namespace px {
 
     class PlVulkan;
     class TestVulkanVideoWidget;

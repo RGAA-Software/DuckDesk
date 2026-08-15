@@ -14,7 +14,7 @@
 #include "app_colors.h"
 #include "st_security.h"
 
-namespace tc
+namespace px
 {
 
     TabSettings::TabSettings(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent) {

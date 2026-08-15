@@ -6,7 +6,7 @@
 #include "px_qt_widget/no_margin_layout.h"
 #include "px_qt_widget/px_label.h"
 
-namespace tc
+namespace px
 {
 
     StatCaptureInfoItem::StatCaptureInfoItem(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcBaseWidget(parent) {
@@ -116,7 +116,7 @@ namespace tc
         return lbl_target_name_->text().toStdString();
     }
 
-    void StatCaptureInfoItem::UpdateInfo(const std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>& info) {
+    void StatCaptureInfoItem::UpdateInfo(const std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>& info) {
         lbl_target_name_->setText(info->target_name().c_str());
         lbl_capture_size_->setText(std::format("Capture Size: {}x{}", info->capture_frame_width(), info->capture_frame_height()).c_str());
         lbl_frame_resize_size_->setText(std::format("Frame Resize: {}x{}", info->resize_frame_width(), info->resize_frame_height()).c_str());

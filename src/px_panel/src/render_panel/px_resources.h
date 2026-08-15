@@ -9,7 +9,7 @@
 #include <memory>
 #include <QString>
 
-namespace tc
+namespace px
 {
 
     class GrContext;

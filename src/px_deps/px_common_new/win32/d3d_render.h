@@ -8,7 +8,7 @@
 #include <dxgi.h>
 #include <wrl/client.h>
 
-namespace tc {
+namespace px {
 #ifdef WIN32
 class D3DRender
 {
@@ -26,4 +26,4 @@ public:
 };
 #endif
 
-} // namespace tc
+} // namespace px

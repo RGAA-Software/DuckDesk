@@ -10,7 +10,7 @@
 #include "px_common_new/log.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     static uint8_t *get_bitmap_data(HBITMAP hbmp, BITMAP *bmp, uint32_t *sizeOut) {

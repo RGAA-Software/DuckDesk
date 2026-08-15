@@ -23,8 +23,8 @@
 #include "render_panel/network/ws_panel_server.h"
 #include "px_settings.h"
 #include "service/service_manager.h"
-#include "px_spvr_client/spvr_device_api.h"
-#include "px_spvr_client/spvr_device.h"
+#include "px_cms_client/cms_device_api.h"
+#include "px_cms_client/cms_device.h"
 #include "px_common_new/http_base_op.h"
 #include "px_common_new/cpu_frequency.h"
 #include "px_profile_client/profile_api.h"
@@ -36,13 +36,13 @@
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "kernel32.lib")
 
-namespace tc
+namespace px
 {
     namespace {
         bool HasServiceBinaries() {
             const auto base_path = QCoreApplication::applicationDirPath();
-            return QFileInfo::exists(base_path + "/" + tc::kGammaRayRenderExeName) &&
-                   QFileInfo::exists(base_path + "/" + tc::kGammaRayServiceExeName);
+            return QFileInfo::exists(base_path + "/" + px::kGammaRayRenderExeName) &&
+                   QFileInfo::exists(base_path + "/" + px::kGammaRayServiceExeName);
         }
 
         std::string ExtractServiceExecutablePath(const std::string& value) {
@@ -86,7 +86,7 @@ namespace tc
             // install service
             this->service_manager_->Install();
         } else {
-            LOGI("{} or {} not found in app dir, skip service management.", tc::kGammaRayRenderExeName, tc::kGammaRayServiceExeName);
+            LOGI("{} or {} not found in app dir, skip service management.", px::kGammaRayRenderExeName, px::kGammaRayServiceExeName);
         }
 
         vigem_driver_manager_ = VigemDriverManager::Make();
@@ -107,7 +107,7 @@ namespace tc
                     break;
                 }
                 // check system servers
-                if (settings_->HasSpvrServerConfig()) {
+                if (settings_->HasCmsServerConfig()) {
                     context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
@@ -288,7 +288,7 @@ namespace tc
                 if (!self || self->exit_) {
                     return;
                 }
-                tc::GrSystemMonitor::InstallViGem(true);
+                px::GrSystemMonitor::InstallViGem(true);
             });
         });
 
@@ -339,8 +339,8 @@ namespace tc
     }
 
     void GrSystemMonitor::CheckServiceAlive() {
-        tc::ServiceStatus serv_status = this->service_manager_->QueryStatus();
-        if (tc::ServiceStatus::kUnknownStatus == serv_status) {
+        px::ServiceStatus serv_status = this->service_manager_->QueryStatus();
+        if (px::ServiceStatus::kUnknownStatus == serv_status) {
             return;
         }
 
@@ -372,23 +372,23 @@ namespace tc
             QString msg = QString("{path: %1}").arg(QString::fromStdString(serv_parent_path));
             TcDialog dialog(tcTr("id_tips"), tcTr("id_run_other_service_instances") + " ? " + msg, nullptr);
             if (QDialog::Accepted != dialog.exec()) {
-                tc::ProcessHelper::CloseProcess(cur_pid);
+                px::ProcessHelper::CloseProcess(cur_pid);
                 return;
             }
             this->service_manager_->Remove(true);
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            auto processes = tc::ProcessHelper::GetProcessList(false);
+            auto processes = px::ProcessHelper::GetProcessList(false);
             for (auto& process : processes) {
                 if (process->exe_full_path_.find(kGammaRayClientInner) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
-                    tc::ProcessHelper::CloseProcess(process->pid_);
+                    px::ProcessHelper::CloseProcess(process->pid_);
                     break;
                 }
             }
             for (auto& process : processes) {
                 if (process->exe_full_path_.find(kGammaRayRenderName) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
-                    tc::ProcessHelper::CloseProcess(process->pid_);
+                    px::ProcessHelper::CloseProcess(process->pid_);
                     break;
                 }
             }
@@ -396,7 +396,7 @@ namespace tc
                 if (process->exe_full_path_.find(kGammaRayName) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
                     if (cur_pid != process->pid_) {
-                        tc::ProcessHelper::CloseProcess(process->pid_);
+                        px::ProcessHelper::CloseProcess(process->pid_);
                     }
                 }
             }
@@ -405,7 +405,7 @@ namespace tc
 
     void GrSystemMonitor::StartServer() {
         if (!HasServiceBinaries()) {
-            LOGI("{} or {} not found in app dir, skip StartServer.", tc::kGammaRayRenderExeName, tc::kGammaRayServiceExeName);
+            LOGI("{} or {} not found in app dir, skip StartServer.", px::kGammaRayRenderExeName, px::kGammaRayServiceExeName);
             return;
         }
         auto srv_mgr = context_->GetRenderController();
@@ -415,7 +415,7 @@ namespace tc
     void GrSystemMonitor::CheckThisDeviceInfo() {
         //LOGI("CheckThisDeviceInfo...");
         // profile server
-        auto has_pr_server = HttpBaseOp::CanPingServer(true, settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort(), grApp->GetAppkey());
+        auto has_pr_server = HttpBaseOp::CanPingServer(true, settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey());
         if (!has_pr_server) {
             return;
         }
@@ -427,12 +427,12 @@ namespace tc
         }
 
         // has a device
-        auto opt_device = spvr::SpvrDeviceApi::QueryDevice(settings_->GetSpvrServerHost(),
-                                                     settings_->GetSpvrServerPort(),
+        auto opt_device = px_cms::CmsDeviceApi::QueryDevice(settings_->GetCmsServerHost(),
+                                                     settings_->GetCmsServerPort(),
                                                      grApp->GetAppkey(),
                                                      settings_->GetDeviceId());
         if (!opt_device.has_value()) {
-            if (auto err = opt_device.error(); err == spvr::SpvrApiError::kDeviceNotFound) {
+            if (auto err = opt_device.error(); err == px_cms::CmsApiError::kDeviceNotFound) {
                 LOGI("Don't have device in server, id: {}, will request a new one.", settings_->GetDeviceId());
                 context_->SendAppMessage(MsgForceRequestDeviceId{});
             }
@@ -447,8 +447,8 @@ namespace tc
         auto local_random_pwd_md5 = MD5::Hex(settings_->GetDeviceRandomPwd());
         if (device->random_pwd_md5_ != local_random_pwd_md5) {
             LOGW("***Random pwd not equals, will refresh, srv: {} => local: {}", device->random_pwd_md5_, local_random_pwd_md5);
-            auto opt_update_device = spvr::SpvrDeviceApi::UpdateRandomPwd(settings_->GetSpvrServerHost(),
-                                                                    settings_->GetSpvrServerPort(),
+            auto opt_update_device = px_cms::CmsDeviceApi::UpdateRandomPwd(settings_->GetCmsServerHost(),
+                                                                    settings_->GetCmsServerPort(),
                                                                     grApp->GetAppkey(),
                                                                     settings_->GetDeviceId());
             if (opt_update_device.has_value()) {
@@ -468,8 +468,8 @@ namespace tc
         if (device->safety_pwd_md5_ != settings_->GetDeviceSecurityPwd() && !current_device_security_pwd.empty()) {
             LOGW("***Safety pwd not equals, will refresh, srv: {} => local: {}", device->safety_pwd_md5_, current_device_security_pwd);
             // update safety password
-            auto update_device = spvr::SpvrDeviceApi::UpdateSafetyPwd(settings_->GetSpvrServerHost(),
-                                                                settings_->GetSpvrServerPort(),
+            auto update_device = px_cms::CmsDeviceApi::UpdateSafetyPwd(settings_->GetCmsServerHost(),
+                                                                settings_->GetCmsServerPort(),
                                                                 grApp->GetAppkey(),
                                                                 settings_->GetDeviceId(),
                                                                 current_device_security_pwd);

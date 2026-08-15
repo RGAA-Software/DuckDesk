@@ -1,15 +1,15 @@
-use crate::relay::RelayMessageType;
-use crate::spvr_client::SpvrClientMessageType;
-use crate::spvr_panel::SpvrPanelMessageType;
-use crate::spvr_relay::SpvrRelayMessageType;
-use crate::spvr_service::SpvrServiceMessageType;
+use crate::px_relay::RelayMessageType;
+use crate::cms_client::CmsClientMessageType;
+use crate::cms_panel::CmsPanelMessageType;
+use crate::cms_relay::CmsRelayMessageType;
+use crate::cms_service::CmsServiceMessageType;
 
 pub mod grpc_relay;
-pub mod relay;
-pub mod spvr_client;
-pub mod spvr_panel;
-pub mod spvr_relay;
-pub mod spvr_service;
+pub mod px_relay;
+pub mod cms_client;
+pub mod cms_panel;
+pub mod cms_relay;
+pub mod cms_service;
 
 impl PartialEq<RelayMessageType> for i32 {
     fn eq(&self, other: &RelayMessageType) -> bool {
@@ -17,26 +17,26 @@ impl PartialEq<RelayMessageType> for i32 {
     }
 }
 
-impl PartialEq<SpvrRelayMessageType> for i32 {
-    fn eq(&self, other: &SpvrRelayMessageType) -> bool {
+impl PartialEq<CmsRelayMessageType> for i32 {
+    fn eq(&self, other: &CmsRelayMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<SpvrPanelMessageType> for i32 {
-    fn eq(&self, other: &SpvrPanelMessageType) -> bool {
+impl PartialEq<CmsPanelMessageType> for i32 {
+    fn eq(&self, other: &CmsPanelMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<SpvrClientMessageType> for i32 {
-    fn eq(&self, other: &SpvrClientMessageType) -> bool {
+impl PartialEq<CmsClientMessageType> for i32 {
+    fn eq(&self, other: &CmsClientMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<SpvrServiceMessageType> for i32 {
-    fn eq(&self, other: &SpvrServiceMessageType) -> bool {
+impl PartialEq<CmsServiceMessageType> for i32 {
+    fn eq(&self, other: &CmsServiceMessageType) -> bool {
         *self == (*other as i32)
     }
 }

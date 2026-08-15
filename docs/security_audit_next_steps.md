@@ -73,7 +73,7 @@
 
 1. `RpFileTransferEnd` / `CpFileTransferEnd` 只带了 `success`，没有 `duration`。
 2. Panel 上报 CMS 更新时也只发了 `end` 和 `success`。
-3. CMS `SpvrFileTransfer` / `SpvrUpdateFileTransfer` 没有 `duration` 字段，API 消费者无法直接拿到耗时。
+3. CMS `CmsFileTransfer` / `CmsUpdateFileTransfer` 没有 `duration` 字段，API 消费者无法直接拿到耗时。
 4. 前端目前用 `end - begin` 计算，但若 `begin` 缺失或 `end == 0`，展示会不准确。
 
 **待做**：
@@ -84,12 +84,12 @@
    - 在 `ws_panel_server.cpp` 的 render/client end 分支里，把计算出的 duration 填入 record 再上报。
 
 2. **Rust CMS 侧存储 duration**：
-   - `rust_server/px_cms_server/src/record/spvr_file_transfer.rs` 中 `SpvrFileTransfer` 与 `SpvrUpdateFileTransfer` 都增加：
+   - `rust_server/px_cms_server/src/record/cms_file_transfer.rs` 中 `CmsFileTransfer` 与 `CmsUpdateFileTransfer` 都增加：
      ```rust
      #[serde(default)]
      pub duration: i64,
      ```
-   - `spvr_file_transfer_manager.rs` 的 `update_file_transfer_info` 中，`$set` 增加 `duration`：
+   - `cms_file_transfer_manager.rs` 的 `update_file_transfer_info` 中，`$set` 增加 `duration`：
      ```rust
      set_doc.insert("duration", update.duration);
      ```
@@ -106,8 +106,8 @@
 - `src/px_panel/src/render_panel/database/file_transfer_record.{h,cpp}`
 - `src/px_panel/src/render_panel/database/file_transfer_record_operator.cpp`
 - `src/px_panel/src/render_panel/network/ws_panel_server.cpp`
-- `rust_server/px_cms_server/src/record/spvr_file_transfer.rs`
-- `rust_server/px_cms_server/src/record/spvr_file_transfer_manager.rs`
+- `rust_server/px_cms_server/src/record/cms_file_transfer.rs`
+- `rust_server/px_cms_server/src/record/cms_file_transfer_manager.rs`
 - `web/px_cms/src/views/SecurityInternal.vue`
 
 ---

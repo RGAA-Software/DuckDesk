@@ -16,7 +16,7 @@
 #include "sdk_params.h"
 #include "px_client_sdk_new/connection/connection.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -63,7 +63,7 @@ namespace tc
 
         // encoded-sink mode: synthesized kVideoFrame protos(one per rtp video track,
         // pre-decode H264). Delivered WITHOUT an app-level ack - rtp has its own nack/pli.
-        void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk);
+        void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
 
         // decoded audio from the rtp audio track: 16-bit interleaved PCM,
         // played by the sdk's own AudioPlayer(the dll runs a dummy ADM)
@@ -104,7 +104,7 @@ namespace tc
 
         std::function<void(std::shared_ptr<Data>)> ft_msg_cbk_;
         std::function<void(int w, int h, std::shared_ptr<Data> i420)> video_frame_cbk_;
-        std::function<void(std::shared_ptr<tc::Message>)> video_msg_cbk_;
+        std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
         std::function<void(std::shared_ptr<Data> pcm, int sample_rate, int channels)> audio_data_cbk_;
         std::function<std::string()> capturing_monitor_provider_;
 

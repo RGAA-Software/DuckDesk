@@ -5,7 +5,7 @@
 #include "px_image_button.h"
 #include <QtSvg/QSvgRenderer>
 
-namespace tc
+namespace px
 {
 
     TcImageButton::TcImageButton(const QString& uri, const QSize& scale_size, QWidget* parent) : QWidget(parent) {

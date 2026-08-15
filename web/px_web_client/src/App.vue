@@ -319,7 +319,7 @@ const capturingMonitor = ref('')
 const remoteFps = ref(0)
 
 // render 修复前(旧版本插件)会把每个编码视频帧也塞进 media_data_channel
-// (tc.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
+// (px.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
 // 但逐帧 proto 解码会淹掉主线程。wire 级窥探 type 字段直接丢弃并计数。
 let dcMediaDrops = 0
 function isMediaFramePayload(p: Uint8Array): boolean {

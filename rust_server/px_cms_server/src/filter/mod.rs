@@ -1,7 +1,7 @@
-pub mod spvr_timer_filter;
-pub mod spvr_statistics_filter;
-pub mod spvr_device_filter;
-pub mod spvr_appkey_filter;
-pub mod spvr_ws_token_filter;
-mod spvr_user_filter;
-mod spvr_stream_filter;
+pub mod cms_timer_filter;
+pub mod cms_statistics_filter;
+pub mod cms_device_filter;
+pub mod cms_appkey_filter;
+pub mod cms_ws_token_filter;
+mod cms_user_filter;
+mod cms_stream_filter;

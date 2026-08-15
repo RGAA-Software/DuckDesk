@@ -2,7 +2,7 @@
 #include <iostream>
 #include "file_transmit_task.h"
 
-namespace tc {
+namespace px {
 
 FileTransmitTaskManager::FileTransmitTaskManager() {
 	InitSigChannel();

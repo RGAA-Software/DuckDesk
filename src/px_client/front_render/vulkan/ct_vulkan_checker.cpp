@@ -4,7 +4,7 @@
 #include "ct_test_vulkan_video_widget.h"
 #include "pl_vulkan.h"
 
-namespace tc {
+namespace px {
 
     std::shared_ptr<VulkanChecker> VulkanChecker::Make() {
         return std::make_shared<VulkanChecker>();

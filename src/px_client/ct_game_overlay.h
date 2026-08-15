@@ -4,7 +4,7 @@
 #include <qevent.h>
 #include <qstring.h>
 
-namespace tc { 
+namespace px { 
     class OverlayWidget : public QWidget {
         Q_OBJECT
     public:

@@ -13,9 +13,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "image_generator.h"
 
-GR_PLUGIN_EXPORT(tc::FrameCarrierPlugin)
+GR_PLUGIN_EXPORT(px::FrameCarrierPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string FrameCarrierPlugin::GetPluginId() {
@@ -45,7 +45,7 @@ namespace tc
         }
     }
 
-    bool FrameCarrierPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool FrameCarrierPlugin::OnCreate(const px::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
@@ -117,7 +117,7 @@ namespace tc
         return GrFrameCarrierPlugin::OnDestroy();
     }
 
-    bool FrameCarrierPlugin::InitFrameCarrier(const tc::GrCarrierParams &params) {
+    bool FrameCarrierPlugin::InitFrameCarrier(const px::GrCarrierParams &params) {
         GrFrameCarrierPlugin::InitFrameCarrier(params);
         // release the old one
         auto frame_carrier = GetFrameCarrier(params.mon_name_);

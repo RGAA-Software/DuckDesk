@@ -9,7 +9,7 @@
 #include "px_message.pb.h"
 
 
-namespace tc {
+namespace px {
 
     constexpr uint64_t kSingleBufferSize = 1024 * 4;
 
@@ -57,7 +57,7 @@ namespace tc {
 		FileTransmitImpl();
 		~FileTransmitImpl();
 
-		using UploadResponseFuncType = std::function<void(const std::string& stream_id, tc::FileTransRespUpload*)>;
+		using UploadResponseFuncType = std::function<void(const std::string& stream_id, px::FileTransRespUpload*)>;
 
         // 开始下载
         using DownloadBeginFuncType = std::function<void(const std::string& task_id, const std::string& device_id, const std::string& stream_id, const std::string& file_path)>;
@@ -66,22 +66,22 @@ namespace tc {
         // 用户取消下载
         using DownloadCanceledByUserFuncType = std::function<void(const std::string& task_id, const std::string& device_id, const std::string& stream_id)>;
         // 下载失败
-		using DownloadExceptFuncType = std::function<void(const std::string& task_id, const std::string& device_id, const std::string& stream_id, tc::FileTransRespDownload*)>;
+		using DownloadExceptFuncType = std::function<void(const std::string& task_id, const std::string& device_id, const std::string& stream_id, px::FileTransRespDownload*)>;
 
-		using SendDataPacketFuncType = std::function<bool(const std::string& stream_id, std::shared_ptr<tc::Message>)>;
+		using SendDataPacketFuncType = std::function<bool(const std::string& stream_id, std::shared_ptr<px::Message>)>;
 
-		using SendFileTransDataPacketResponseFuncType = std::function<bool(const std::string& stream_id, std::shared_ptr<tc::Message>)>;
+		using SendFileTransDataPacketResponseFuncType = std::function<bool(const std::string& stream_id, std::shared_ptr<px::Message>)>;
 
         //
         using OnUploadTaskCreatedType = std::function<void(const std::string& task_id, const std::string& device_id, const std::string& src_path, const std::string& dst_path)>;
 
-		void HandleUpload(const std::string& device_id, const std::string& stream_id, tc::FileTransDataPacket data_packet);
+		void HandleUpload(const std::string& device_id, const std::string& stream_id, px::FileTransDataPacket data_packet);
 
 		void HandleDownload(const std::string& device_id, const std::string& stream_id, const std::string& download_path, const std::string& save_path, const std::string& task_id);
 		
-		void HandleSaveFileException(const std::string& stream_id, tc::FileTransSaveFileException data_packet);
+		void HandleSaveFileException(const std::string& stream_id, px::FileTransSaveFileException data_packet);
 
-		void HandleFileTransDataPacketResponse(const std::string& stream_id, tc::FileTransDataPacketResponse data_packet_resp);
+		void HandleFileTransDataPacketResponse(const std::string& stream_id, px::FileTransDataPacketResponse data_packet_resp);
 
 		//将 文件流 对象保存起来, 因为要持续写文件
 		std::mutex id_with_upload_task_mutex_;

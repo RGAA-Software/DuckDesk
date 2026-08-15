@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     const std::string kDataChannelOpen = "data_channel_open";

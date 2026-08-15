@@ -8,7 +8,7 @@ class QHBoxLayout;
 class QVBoxLayout;
 
 
-namespace tc {
+namespace px {
 // 覆盖弹窗
 class FileCoverDialog : public QDialog {
 	Q_OBJECT

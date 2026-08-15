@@ -12,7 +12,7 @@
 #include "translator/px_translator.h"
 #include <QCoreApplication>
 
-namespace tc
+namespace px
 {
 
     GrRenderController::GrRenderController(const std::shared_ptr<GrApplication>& app) {
@@ -34,7 +34,7 @@ namespace tc
         }
 
         //
-        tc::ServiceMessage srv_msg;
+        px::ServiceMessage srv_msg;
         srv_msg.set_type(ServiceMessageType::kSrvStartServer);
         auto sub = srv_msg.mutable_start_server();
         sub->set_work_dir(GetWorkDir().toStdString());
@@ -47,7 +47,7 @@ namespace tc
     }
 
     bool GrRenderController::StopServer() {
-        tc::ServiceMessage srv_msg;
+        px::ServiceMessage srv_msg;
         srv_msg.set_type(ServiceMessageType::kSrvStopServer);
         auto sub = srv_msg.mutable_stop_server();
         app_->PostMessage2Service(srv_msg.SerializeAsString());
@@ -55,7 +55,7 @@ namespace tc
     }
 
     bool GrRenderController::ReStart() {
-        tc::ServiceMessage srv_msg;
+        px::ServiceMessage srv_msg;
         srv_msg.set_type(ServiceMessageType::kSrvRestartServer);
         auto sub = srv_msg.mutable_restart_server();
         sub->set_work_dir(GetWorkDir().toStdString());

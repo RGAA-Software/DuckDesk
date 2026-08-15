@@ -7,7 +7,7 @@
 
 #include "px_qt_widget/px_base_widget.h"
 
-namespace tc
+namespace px
 {
 
     class TcLabel;

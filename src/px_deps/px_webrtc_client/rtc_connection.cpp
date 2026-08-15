@@ -20,13 +20,13 @@
 #include <cstdlib>
 
 void* GetInstance() {
-    static tc::RtcConnection conn;
+    static px::RtcConnection conn;
     return (void*)&conn;
 }
 
 using namespace webrtc;
 
-namespace tc
+namespace px
 {
 
     // forwards libwebrtc internal logs into our logger, mainly to see decoder errors

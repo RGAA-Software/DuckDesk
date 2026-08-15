@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     RnEmpty::RnEmpty(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {

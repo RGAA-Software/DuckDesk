@@ -1,4 +1,4 @@
-// tc.Message 运行时加载(protobufjs 动态解析,proto 源文件以 ?raw 内联进 bundle)
+// px.Message 运行时加载(protobufjs 动态解析,proto 源文件以 ?raw 内联进 bundle)
 // px_message.proto import 了另外两个 proto;三者同 package tc,
 // 先解析被依赖的文件、并剥掉 import 语句,即可在同一 Root 内完成解析。
 import protobuf from 'protobufjs'
@@ -11,7 +11,7 @@ protobuf.parse(tcFileTransferProto, root)
 protobuf.parse(tcSignalingProto, root)
 protobuf.parse(tcMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), root)
 
-export const TcMessage = root.lookupType('tc.Message')
+export const TcMessage = root.lookupType('px.Message')
 
 // MessageType 枚举值(px_message.proto)
 export const MSG_TYPE_HELLO = 0 // kHello
@@ -87,7 +87,7 @@ export function encodeMessage(fields: Record<string, unknown>): Uint8Array {
   return TcMessage.encode(TcMessage.create(fields)).finish()
 }
 
-// tc.Message 解码;uint64 字段是 Long 对象,调用方按需 Number() 转换
+// px.Message 解码;uint64 字段是 Long 对象,调用方按需 Number() 转换
 export function decodeMessage(payload: Uint8Array) {
   return TcMessage.decode(payload) as unknown as {
     type: number

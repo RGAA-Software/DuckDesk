@@ -1,6 +1,6 @@
 #pragma once
 
-namespace tc
+namespace px
 {
 
     /* Contains the necessary Windows SDK header files */

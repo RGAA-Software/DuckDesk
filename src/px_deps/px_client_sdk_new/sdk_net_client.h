@@ -14,22 +14,22 @@ namespace asio2 {
     class timer;
 }
 
-namespace tc
+namespace px
 {
 
     constexpr uint32_t kMaxQueuingFtMessages = 256;
 
-    using OnRawMessageCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnVideoFrameMsgCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnAudioFrameMsgCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnCursorInfoSyncMsgCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnAudioSpectrumCallback = std::function<void(std::shared_ptr<tc::Message>)>;
+    using OnRawMessageCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnVideoFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnAudioFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnCursorInfoSyncMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnAudioSpectrumCallback = std::function<void(std::shared_ptr<px::Message>)>;
     using OnConnectedCallback = std::function<void()>;
     using OnDisconnectedCallback = std::function<void()>;
-    using OnHeartBeatInfoCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnClipboardInfoCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnConfigCallback = std::function<void(std::shared_ptr<tc::Message>)>;
-    using OnMonitorSwitchedCallback = std::function<void(std::shared_ptr<tc::Message>)>;
+    using OnHeartBeatInfoCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnClipboardInfoCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnConfigCallback = std::function<void(std::shared_ptr<px::Message>)>;
+    using OnMonitorSwitchedCallback = std::function<void(std::shared_ptr<px::Message>)>;
 
     class Data;
     class Thread;
@@ -96,7 +96,7 @@ namespace tc
         void RetryConnection();
 
     private:
-        std::shared_ptr<tc::Message> ParseMessage(std::shared_ptr<Data> msg);
+        std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);
         void HeartBeat();
 
     private:

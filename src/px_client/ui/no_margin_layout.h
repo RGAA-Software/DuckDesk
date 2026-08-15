@@ -8,7 +8,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
-namespace tc
+namespace px
 {
 
     class NoMarginVLayout : public QVBoxLayout {

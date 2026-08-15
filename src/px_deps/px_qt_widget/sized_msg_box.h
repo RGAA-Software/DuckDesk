@@ -11,7 +11,7 @@
 #include <QLabel>
 #include <memory>
 
-namespace tc
+namespace px
 {
     class TcPushButton;
     class TcCustomTitleBar;

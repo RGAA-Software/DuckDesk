@@ -12,7 +12,7 @@
 #include <QBrush>
 #include <vector>
 
-namespace tc
+namespace px
 {
 
     enum HWStatChartType {

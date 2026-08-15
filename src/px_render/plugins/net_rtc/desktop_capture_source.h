@@ -8,7 +8,7 @@
 #include "px_common_new/webrtc_helper.h"
 
 #if 0
-namespace tc
+namespace px
 {
 
     class DesktopCaptureSource : public rtc::VideoSourceInterface<webrtc::VideoFrame> {

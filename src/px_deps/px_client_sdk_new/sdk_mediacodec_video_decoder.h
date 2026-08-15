@@ -15,7 +15,7 @@
 
 #include "sdk_video_decoder.h"
 
-namespace tc
+namespace px
 {
 
     class MediacodecVideoDecoder : public VideoDecoder {

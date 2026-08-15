@@ -1,10 +1,10 @@
 //! Application / Placement / Instance orchestration for CMS.
 //! Memory + Mongo (when DB ready); unit tests cover multi-machine scheduling.
 
-use crate::gSpvrServiceConnMgr;
-use protocol::spvr_service::{
-    SpvrServiceStartAppInstance, SpvrServiceStartAppInstanceResult, SpvrServiceStopAppInstance,
-    SpvrServiceStopAppInstanceResult,
+use crate::gCmsServiceConnMgr;
+use protocol::cms_service::{
+    CmsServiceStartAppInstance, CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance,
+    CmsServiceStopAppInstanceResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -886,7 +886,7 @@ impl AppScheduleManager {
                     Err(format!("节点的机器均不在线: {}", offline.join(", ")))
                 };
             };
-            match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
+            match gCmsServiceConnMgr.get_conn(node.device_id.clone()).await {
                 Ok(conn) => {
                     if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
                         tracing::warn!("persist instance failed: {e}");
@@ -1004,7 +1004,7 @@ impl AppScheduleManager {
         if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
             tracing::warn!("persist instance failed: {e}");
         }
-        let conn = match gSpvrServiceConnMgr.get_conn(node.device_id.clone()).await {
+        let conn = match gCmsServiceConnMgr.get_conn(node.device_id.clone()).await {
             Ok(c) => c,
             Err(_) => {
                 let snapshot = {
@@ -1031,7 +1031,7 @@ impl AppScheduleManager {
     /// 公共下发:waiter 注册 → 下发 → 等回执。实例已由调用方预占(Starting)。
     async fn dispatch_start(
         &self,
-        conn: crate::net_service::spvr_service_conn::SpvrServiceConnPtr,
+        conn: crate::net_service::cms_service_conn::CmsServiceConnPtr,
         app: &Application,
         inst: AppInstance,
         install_root: String,
@@ -1039,7 +1039,7 @@ impl AppScheduleManager {
     ) -> Result<AppInstance, String> {
         let request_id = inst.request_id.clone();
         let instance_id = inst.instance_id.clone();
-        let start = SpvrServiceStartAppInstance {
+        let start = CmsServiceStartAppInstance {
             request_id: request_id.clone(),
             instance_id: instance_id.clone(),
             app_id: app.app_id.clone(),
@@ -1146,7 +1146,7 @@ impl AppScheduleManager {
         };
         let _ = crate::app_schedule::store::upsert_instance(&stopping).await;
 
-        let conn = match gSpvrServiceConnMgr.get_conn(device_id.clone()).await {
+        let conn = match gCmsServiceConnMgr.get_conn(device_id.clone()).await {
             Ok(c) => c,
             Err(_) => {
                 // Service gone: nothing left to stop — clear sticky Stopping.
@@ -1168,7 +1168,7 @@ impl AppScheduleManager {
                 return Err(format!("service offline: {device_id}（已标记为停止）"));
             }
         };
-        let stop = SpvrServiceStopAppInstance {
+        let stop = CmsServiceStopAppInstance {
             request_id,
             instance_id: instance_id.to_string(),
         };
@@ -1198,7 +1198,7 @@ impl AppScheduleManager {
     pub async fn on_start_result(
         &self,
         device_id: String,
-        result: SpvrServiceStartAppInstanceResult,
+        result: CmsServiceStartAppInstanceResult,
     ) {
         let mut guard = self.inner.lock().await;
         let g = &mut *guard;
@@ -1274,7 +1274,7 @@ impl AppScheduleManager {
     pub async fn on_stop_result(
         &self,
         device_id: String,
-        result: SpvrServiceStopAppInstanceResult,
+        result: CmsServiceStopAppInstanceResult,
     ) {
         let already_gone = !result.ok
             && (result.error.contains("unknown instance_id")
@@ -1777,7 +1777,7 @@ mod tests {
         mgr.inject_for_test(app, placement, inst).await;
         mgr.on_start_result(
             "dev-1".into(),
-            SpvrServiceStartAppInstanceResult {
+            CmsServiceStartAppInstanceResult {
                 request_id: "req-1".into(),
                 instance_id: "inst-1".into(),
                 ok: true,
@@ -1794,7 +1794,7 @@ mod tests {
 
         mgr.on_stop_result(
             "dev-1".into(),
-            SpvrServiceStopAppInstanceResult {
+            CmsServiceStopAppInstanceResult {
                 request_id: "req-1".into(),
                 instance_id: "inst-1".into(),
                 ok: true,
@@ -1850,7 +1850,7 @@ mod tests {
         .await;
         mgr.on_start_result(
             "d".into(),
-            SpvrServiceStartAppInstanceResult {
+            CmsServiceStartAppInstanceResult {
                 request_id: "r".into(),
                 instance_id: "i".into(),
                 ok: false,
@@ -1907,7 +1907,7 @@ mod tests {
         .await;
         mgr.on_stop_result(
             "d".into(),
-            SpvrServiceStopAppInstanceResult {
+            CmsServiceStopAppInstanceResult {
                 request_id: "r-stop".into(),
                 instance_id: "i".into(),
                 ok: false,
@@ -2258,7 +2258,7 @@ mod tests {
         mgr.inject_for_test(app, plc, inst).await;
         mgr.on_start_result(
             "d".into(),
-            SpvrServiceStartAppInstanceResult {
+            CmsServiceStartAppInstanceResult {
                 request_id: "r".into(),
                 instance_id: "i".into(),
                 ok: true,
@@ -2278,7 +2278,7 @@ mod tests {
         mgr.inject_for_test(app, plc, inst).await;
         mgr.on_start_result(
             "other-dev".into(),
-            SpvrServiceStartAppInstanceResult {
+            CmsServiceStartAppInstanceResult {
                 request_id: "r".into(),
                 instance_id: "i".into(),
                 ok: true,
@@ -2545,7 +2545,7 @@ mod tests {
         }
         mgr.on_start_result(
             "d".into(),
-            SpvrServiceStartAppInstanceResult {
+            CmsServiceStartAppInstanceResult {
                 request_id: "r-9".into(),
                 instance_id: "i-9".into(),
                 ok: true,

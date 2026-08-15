@@ -8,16 +8,16 @@
 #include <string>
 #include <memory>
 
-namespace spvr
+namespace px_cms
 {
     // stream
-    class SpvrStream;
+    class CmsStream;
 }
 
 // send from panel -> remote render
 // 1. direct: http request -> remote render
 // 2. relay: http reqeust -> relay server -> remote render
-namespace tc
+namespace px
 {
 
     // type
@@ -34,7 +34,7 @@ namespace tc
         virtual std::string AsJson() = 0;
     public:
         GrStreamMessageType type_;
-        std::shared_ptr<spvr::SpvrStream> stream_item_ = nullptr;
+        std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
     };
 
     //

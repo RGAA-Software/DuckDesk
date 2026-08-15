@@ -16,7 +16,7 @@
 #include <QListWidget>
 #include <QStyledItemDelegate>
 
-namespace tc
+namespace px
 {
 
     class MyDeviceItemDelegate : public QStyledItemDelegate {

@@ -5,7 +5,7 @@
 #include "px_video_encoder_plugin.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     GrVideoEncoderPlugin::GrVideoEncoderPlugin() : GrPluginInterface() {
@@ -16,7 +16,7 @@ namespace tc
 
     }
 
-    bool GrVideoEncoderPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool GrVideoEncoderPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         return true;
     }

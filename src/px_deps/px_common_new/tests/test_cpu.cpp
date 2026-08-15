@@ -16,7 +16,7 @@
 #include "../http_client.h"
 #include "../cpu_frequency.h"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();

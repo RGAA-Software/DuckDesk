@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-namespace tc
+namespace px
 {
 
 	std::shared_ptr<ShaderProgram> ShaderProgram::Make(const GLFunctions* fk, const std::string& vertex, const std::string& fragment) {

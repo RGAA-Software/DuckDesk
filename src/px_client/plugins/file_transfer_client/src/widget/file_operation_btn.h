@@ -1,7 +1,7 @@
 #pragma once
 #include <qpushbutton.h>
 
-namespace tc {
+namespace px {
 enum class FileOperationType {
 	kGoBack,
 	kGoParentDir,

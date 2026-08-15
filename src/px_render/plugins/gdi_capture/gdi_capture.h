@@ -11,7 +11,7 @@
 #include "px_common_new/fps_stat.h"
 #include "px_render/plugins/plugin_desktop_capture.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

@@ -21,7 +21,7 @@
 #include <Windows.h>
 #include <Shlwapi.h>
 
-using namespace tc;
+using namespace px;
 
 #pragma comment(lib, "Shlwapi.lib")
 

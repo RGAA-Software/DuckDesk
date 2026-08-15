@@ -13,7 +13,7 @@
 #include "px_common_new/time_util.h"
 #include "px_capture_new/capture_message.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

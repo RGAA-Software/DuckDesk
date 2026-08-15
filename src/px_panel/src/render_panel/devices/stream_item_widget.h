@@ -15,12 +15,12 @@
 #include <QLabel>
 #include <memory>
 
-namespace spvr
+namespace px_cms
 {
-    class SpvrStream;
+    class CmsStream;
 }
 
-namespace tc
+namespace px
 {
 
     class TcPushButton;
@@ -32,7 +32,7 @@ namespace tc
     class StreamItemWidget : public QWidget {
     public:
 
-        explicit StreamItemWidget(const std::shared_ptr<spvr::SpvrStream>& item, int bg_color, QWidget* parent = nullptr);
+        explicit StreamItemWidget(const std::shared_ptr<px_cms::CmsStream>& item, int bg_color, QWidget* parent = nullptr);
         ~StreamItemWidget() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -45,14 +45,14 @@ namespace tc
         void SetOnMenuListener(OnMenuListener&& listener);
         void SetDirectConnectedState(bool connected);
         void SetRelayConnectedState(bool connected);
-        void SetSpvrConnectedState(bool connected);
+        void SetCmsConnectedState(bool connected);
         void Update();
 
         std::string GetStreamId();
         void ShowConnecting();
 
     private:
-        std::shared_ptr<spvr::SpvrStream> item_;
+        std::shared_ptr<px_cms::CmsStream> item_;
         int bg_color_ = 0;
         QPixmap icon_;
         QPixmap bg_pixmap_;
@@ -66,7 +66,7 @@ namespace tc
         OnMenuListener menu_listener_;
         bool direct_connected_ = false;
         bool relay_connected_ = false;
-        bool spvr_connected_ = false;
+        bool cms_connected_ = false;
         TcLabel* work_mode_ = nullptr;
         QLabel* state_tooltip_ = nullptr;
         QWidget* state_tooltip_container_ = nullptr;

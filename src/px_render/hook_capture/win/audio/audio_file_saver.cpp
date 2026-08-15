@@ -5,7 +5,7 @@
 #include <string>
 #include <iostream>
 
-namespace tc
+namespace px
 {
 	WAVAudioFileSaver::WAVAudioFileSaver(const std::wstring& path) {
         MMIOINFO mi = { 0 };

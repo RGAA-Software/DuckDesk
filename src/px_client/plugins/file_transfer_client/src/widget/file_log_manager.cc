@@ -1,5 +1,5 @@
 #include "file_log_manager.h"
-namespace tc {
+namespace px {
 
 FileLogManager::FileLogManager() :QObject() {
 

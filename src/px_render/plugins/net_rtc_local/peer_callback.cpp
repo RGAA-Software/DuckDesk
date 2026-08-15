@@ -8,7 +8,7 @@
 #include <iostream>
 #include <thread>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<PeerCallback> PeerCallback::Make(const std::shared_ptr<RtcServer>& srv) {

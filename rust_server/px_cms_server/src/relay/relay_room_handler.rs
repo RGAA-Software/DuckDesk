@@ -2,7 +2,7 @@ use crate::gRelayRoomMgr;
 use crate::relay::relay_api_error::RelayApiError;
 use crate::relay::relay_message::KEY_ROOM_ID;
 use crate::relay::relay_room::RelayRoomAdapter;
-use crate::spvr_context::SpvrContext;
+use crate::cms_context::CmsContext;
 use axum::extract::{ConnectInfo, Query, State};
 use axum::Json;
 use px_base::{get_query_param, ok_resp, RespMessage, RespStringMap};
@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 // handler room; query single room
 pub async fn hr_query_room(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespStringMap>, RelayApiError> {
@@ -31,7 +31,7 @@ pub async fn hr_query_room(
 
 // handler room; query rooms
 pub async fn hr_query_total_rooms(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespMessage<Vec<RelayRoomAdapter>>>, RelayApiError> {
     let r = gRelayRoomMgr.find_total_rooms().await;
@@ -40,7 +40,7 @@ pub async fn hr_query_total_rooms(
 
 // handler room; query rooms
 pub async fn hr_query_total_alive_rooms(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespMessage<Vec<RelayRoomAdapter>>>, RelayApiError> {
     let r = gRelayRoomMgr.find_total_alive_rooms().await;

@@ -4,7 +4,7 @@
 #include <thread>
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     class WinMessageWindow;

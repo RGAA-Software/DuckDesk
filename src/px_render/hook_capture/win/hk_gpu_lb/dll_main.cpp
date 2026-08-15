@@ -10,7 +10,7 @@
 
 #define CAPTURETEX_API __declspec(dllexport)
 
-using namespace tc;
+using namespace px;
 
 ClientManager* client_manager = ClientManager::Instance();
 extern "C" CAPTURETEX_API void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO * remote_info) {

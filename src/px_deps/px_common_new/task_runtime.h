@@ -12,7 +12,7 @@
 
 #define MAX_TASK_PER_THREAD 10000000
 
-namespace tc
+namespace px
 {
     class TaskRuntime {
     public:

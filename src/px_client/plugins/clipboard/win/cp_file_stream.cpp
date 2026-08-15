@@ -5,7 +5,7 @@
 #include "cp_file_stream.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     HRESULT STDMETHODCALLTYPE CpFileStream::QueryInterface(REFIID riid, void **ppvObject) {

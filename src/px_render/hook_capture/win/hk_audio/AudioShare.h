@@ -11,7 +11,7 @@
 
 #include "SimpleAudioFormatConverter.h"
 
-namespace tc {
+namespace px {
 
 class Data;
 
@@ -79,4 +79,4 @@ private:
     IpcSender ipc_sender_;
 };
 
-}  // namespace tc
+}  // namespace px

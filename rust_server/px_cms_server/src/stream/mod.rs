@@ -1,5 +1,5 @@
-pub mod spvr_stream;
-pub mod spvr_stream_handler;
-mod spvr_stream_keys;
-pub mod spvr_stream_manager;
-pub mod spvr_stream_router;
+pub mod cms_stream;
+pub mod cms_stream_handler;
+mod cms_stream_keys;
+pub mod cms_stream_manager;
+pub mod cms_stream_router;

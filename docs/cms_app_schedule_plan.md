@@ -38,7 +38,7 @@ AppInstance（运行）
   state, listen_port, pid, error
 ```
 
-- **Machine**：现有 `device_id`；在线 = Service 已连 CMS `/spvr/service`。
+- **Machine**：现有 `device_id`；在线 = Service 已连 CMS `/cms/service`。
 - **同应用调度到不同机器**：同一 `app_id`，不同 `device_id` 的 Placement；分别 Start 产生多个 Instance。
 
 路径拼装（Service 本机）：
@@ -73,16 +73,16 @@ Stop 对称：只杀目标 `instance_id`，不影响同机其它实例与 deskto
 
 ---
 
-## 4. 协议（`spvr_service.proto`）
+## 4. 协议（`cms_service.proto`）
 
 在 Hello / HeartBeat 之外增加：
 
 | 方向 | 类型 | 用途 |
 |------|------|------|
-| CMS→Service | `kSpvrServiceStartAppInstance` | 启动 |
-| Service→CMS | `kSpvrServiceStartAppInstanceResult` | 回执 |
-| CMS→Service | `kSpvrServiceStopAppInstance` | 停止 |
-| Service→CMS | `kSpvrServiceStopAppInstanceResult` | 回执 |
+| CMS→Service | `kCmsServiceStartAppInstance` | 启动 |
+| Service→CMS | `kCmsServiceStartAppInstanceResult` | 回执 |
+| CMS→Service | `kCmsServiceStopAppInstance` | 停止 |
+| Service→CMS | `kCmsServiceStopAppInstanceResult` | 回执 |
 | HeartBeat 扩展 | `instances_json` | 本机实例摘要（多机仪表盘） |
 
 `request_id` 全链路关联，防多机回执串台。
@@ -102,7 +102,7 @@ Stop 对称：只杀目标 `instance_id`，不影响同机其它实例与 deskto
 
 本期已落地（代码 + 单测）：
 
-- Proto：`spvr_service.proto` Start/Stop + Result + HB `instances_json`
+- Proto：`cms_service.proto` Start/Stop + Result + HB `instances_json`
 - Service：`service_core::app_instance` 注册表/端口/路径/启动参数；`ServiceRuntime::start/stop_app_instance`；`cms_client` 收令回执
 - CMS：`app_schedule` Application/Placement/Instance；Mongo `c_app` / `c_app_placement` / `c_app_instance`；HTTP `/api/v1/app/control/...`；WSS 下发与结果回调
 - CMS Web：`/apps` 应用调度页（创建应用/放置、启停、打开 Client）

@@ -10,7 +10,7 @@
 #include <atomic>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class ClipboardManager;
@@ -21,7 +21,7 @@ namespace tc
         std::string GetPluginName() override;
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
-        bool OnCreate(const tc::ClientPluginParam& param) override;
+        bool OnCreate(const px::ClientPluginParam& param) override;
         bool OnDestroy() override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;

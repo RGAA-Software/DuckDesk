@@ -10,7 +10,7 @@
 #include <asio2/asio2.hpp>
 #include <asio2/udp/udp_client.hpp>
 
-namespace tc
+namespace px
 {
 
     UdpDirectConnection::UdpDirectConnection(const std::shared_ptr<ThunderSdkParams>& params,
@@ -51,8 +51,8 @@ namespace tc
                 return;
             }
             audio_lost_log_count_ = 0; // 恢复正常交付,下一次判丢重新计数
-            auto msg = std::make_shared<tc::Message>();
-            msg->set_type(tc::kAudioFrame);
+            auto msg = std::make_shared<px::Message>();
+            msg->set_type(px::kAudioFrame);
             auto* audio = msg->mutable_audio_frame();
             audio->set_samples(48000);
             audio->set_channels(2);
@@ -72,8 +72,8 @@ namespace tc
             if (++audio_lost_log_count_ == 1 || audio_lost_log_count_ % 50 == 0) {
                 LOGW("Udp direct audio frame lost, seq: {}, PLC conceal. (burst: {})", seq, audio_lost_log_count_);
             }
-            auto msg = std::make_shared<tc::Message>();
-            msg->set_type(tc::kAudioFrame);
+            auto msg = std::make_shared<px::Message>();
+            msg->set_type(px::kAudioFrame);
             auto* audio = msg->mutable_audio_frame();
             audio->set_samples(48000);
             audio->set_channels(2);
@@ -246,10 +246,10 @@ namespace tc
 
         // 合成与 relay/ws 路径完全一致的标准 kVideoFrame proto,
         // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
-        auto msg = std::make_shared<tc::Message>();
-        msg->set_type(tc::kVideoFrame);
+        auto msg = std::make_shared<px::Message>();
+        msg->set_type(px::kVideoFrame);
         auto* video = msg->mutable_video_frame();
-        video->set_type(frame.codec_ == GrUdpProtocol::kCodecH265 ? tc::kNetHevc : tc::kNetH264);
+        video->set_type(frame.codec_ == GrUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
         video->set_data(frame.data_->CStr(), frame.data_->Size());
         video->set_frame_index(frame.frame_index_);
         video->set_key(frame.key_);
@@ -311,11 +311,11 @@ namespace tc
         }
     }
 
-    void UdpDirectConnection::SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk) {
+    void UdpDirectConnection::SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk) {
         video_msg_cbk_ = cbk;
     }
 
-    void UdpDirectConnection::SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk) {
+    void UdpDirectConnection::SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk) {
         audio_msg_cbk_ = cbk;
     }
 

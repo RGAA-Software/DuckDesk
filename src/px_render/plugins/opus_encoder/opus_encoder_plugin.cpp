@@ -13,7 +13,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-namespace tc
+namespace px
 {
     std::string OpusEncoderPlugin::GetPluginId() {
         return kOpusEncoderPluginId;
@@ -44,7 +44,7 @@ namespace tc
 #endif
     }
 
-    bool OpusEncoderPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool OpusEncoderPlugin::OnCreate(const px::GrPluginParam &param) {
         GrAudioEncoderPlugin::OnCreate(param);
         auto key_save_debug_file = "save_debug_file";
         if (HasParam(key_save_debug_file)) {

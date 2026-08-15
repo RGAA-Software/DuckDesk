@@ -2,7 +2,7 @@
 
 #include "ct_plugin_interface.h"
 
-namespace tc
+namespace px
 {
 
     class MediaRecordPluginClientInterface : public ClientPluginInterface {

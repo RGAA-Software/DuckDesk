@@ -14,7 +14,7 @@ use crate::proto::{
     build_raw_render_message_routed, build_tc_clipboard_files_resp, build_tc_clipboard_info_resp,
     build_tc_resp_buffer, clipboard_files_from_tc, clipboard_resp_buffer_from_tc,
     clipboard_text_from_rp, parse_rp_message, parse_tc_message, stream_route_from_rp_raw,
-    stream_route_from_tc, tcrp::RpMessageType, tc::MessageType, HEARTBEAT_INTERVAL_SECS,
+    stream_route_from_tc, pxrp::RpMessageType, px::MessageType, HEARTBEAT_INTERVAL_SECS,
 };
 
 type WsSink = futures_util::stream::SplitSink<
@@ -220,7 +220,7 @@ pub fn handle_inbound_rp(
                 }
                 match parse_tc_message(&sub.msg) {
                     Ok(px_msg) => handle_inbound_tc(&px_msg, clipboard, client),
-                    Err(err) => error!("parse tc::Message failed: {err}, len={}", sub.msg.len()),
+                    Err(err) => error!("parse px::Message failed: {err}, len={}", sub.msg.len()),
                 }
             }
         }
@@ -230,7 +230,7 @@ pub fn handle_inbound_rp(
 }
 
 fn handle_inbound_data_channel(
-    sub: &proto::tcrp::RpRawRenderMessage,
+    sub: &proto::pxrp::RpRawRenderMessage,
     clipboard: &crate::clipboard::ClipboardService,
     client: Arc<RenderClient>,
 ) {
@@ -238,7 +238,7 @@ fn handle_inbound_data_channel(
         Ok(v) => v,
         Err(err) => {
             error!(
-                "parse data_channel tc::Message failed: {err}, stream_id={}, len={}",
+                "parse data_channel px::Message failed: {err}, stream_id={}, len={}",
                 sub.stream_id,
                 sub.msg.len()
             );
@@ -254,7 +254,7 @@ fn handle_inbound_data_channel(
 }
 
 fn dispatch_req_buffer(
-    msg: &proto::tc::Message,
+    msg: &proto::px::Message,
     client: Arc<RenderClient>,
     route: &proto::StreamRoute,
 ) {
@@ -309,7 +309,7 @@ fn dispatch_req_buffer(
 }
 
 fn dispatch_resp_buffer(
-    msg: &proto::tc::Message,
+    msg: &proto::px::Message,
     clipboard: &crate::clipboard::ClipboardService,
     route: Option<proto::StreamRoute>,
 ) {
@@ -341,7 +341,7 @@ fn dispatch_resp_buffer(
 }
 
 fn handle_inbound_tc(
-    msg: &proto::tc::Message,
+    msg: &proto::px::Message,
     clipboard: &crate::clipboard::ClipboardService,
     client: Arc<RenderClient>,
 ) {
@@ -350,7 +350,7 @@ fn handle_inbound_tc(
             let Some(info) = &msg.clipboard_info else {
                 return;
             };
-            if info.r#type == proto::tc::ClipboardType::KClipboardText as i32 {
+            if info.r#type == proto::px::ClipboardType::KClipboardText as i32 {
                 let text = String::from_utf8_lossy(&info.msg).into_owned();
                 if text.trim().is_empty() {
                     info!("no syncable text");
@@ -369,7 +369,7 @@ fn handle_inbound_tc(
                 return;
             }
 
-            if info.r#type == proto::tc::ClipboardType::KClipboardFiles as i32 {
+            if info.r#type == proto::px::ClipboardType::KClipboardFiles as i32 {
                 let Some(files) = clipboard_files_from_tc(msg) else {
                     return;
                 };
@@ -391,7 +391,7 @@ fn handle_inbound_tc(
             dispatch_resp_buffer(msg, clipboard, Some(stream_route_from_tc(msg)));
         }
         Ok(other) => info!("ignored inbound tc type: {:?}", other),
-        Err(_) => error!("unknown tc::Message type: {}", msg.r#type),
+        Err(_) => error!("unknown px::Message type: {}", msg.r#type),
     }
 }
 

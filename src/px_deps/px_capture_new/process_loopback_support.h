@@ -7,7 +7,7 @@
 #include <Windows.h>
 #endif
 
-namespace tc {
+namespace px {
 
 // True when WASAPI process-loopback (OBS Application Audio Capture) is available.
 // Matches OBS gate: Windows 10 version 2004 (build 19041) or newer.
@@ -62,4 +62,4 @@ inline bool PreferProcessLoopbackCapture() {
     return IsProcessLoopbackCaptureSupported();
 }
 
-}  // namespace tc
+}  // namespace px

@@ -30,7 +30,7 @@ CMS Web (/apps)
     │  HTTP start/stop/list（带 appkey）
     ▼
 px_cms_server · AppScheduleManager
-    │  WSS /spvr/service
+    │  WSS /cms/service
     │  Start/Stop + HeartBeat(instances_json)
     ▼
 GammaRayService · AppInstanceRegistry
@@ -137,8 +137,8 @@ GammaRayService · AppInstanceRegistry
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | CMS 调度 | `rust_server/px_cms_server/src/app_schedule/manager.rs` | 启停、路径拆分、对账、Start 等待 |
-| CMS HB | `.../net_service/spvr_service_conn.rs` | 心跳触发 `reconcile_from_service_hb` |
-| CMS 断线 | `.../net_service/spvr_service_ws_handler.rs` | 断开后延迟 15s 空列表对账；期间重连则取消 |
+| CMS HB | `.../net_service/cms_service_conn.rs` | 心跳触发 `reconcile_from_service_hb` |
+| CMS 断线 | `.../net_service/cms_service_ws_handler.rs` | 断开后延迟 15s 空列表对账；期间重连则取消 |
 | Service 注册表 | `rust_client/px_service/service_core/src/app_instance.rs` | 端口池、路径、状态 |
 | Service 起停 | `rust_client/px_service/src/service_host.rs` | 起停 Render、`reap_dead_app_instances` |
 | Service 心跳 | `rust_client/px_service/src/cms_client.rs` | HB 前 reap；Stop unknown→成功 |
@@ -187,7 +187,7 @@ scripts\service_test_ctl.bat stop           rem 停止
 
 - 工作目录固定 `build_official\dist`，日志直接打在 console 窗口。
 - SCM 服务方式（开机自启）不需要脚本，用 dist 里的 `GammaRayServiceManager.exe install --service-bin <path>` / `stop` / `query` / `remove`。
-| 鉴权注入 | `node scripts/inject_service_auth.mjs --device-id e2e-machine-1 --appkey … --spvr-host 127.0.0.1 --spvr-port 30500` |
+| 鉴权注入 | `node scripts/inject_service_auth.mjs --device-id e2e-machine-1 --appkey … --cms-host 127.0.0.1 --cms-port 30500` |
 | Render | 与 Service 同目录的 `GammaRayRender.exe` |
 
 ### 7.2 路径注意
@@ -291,5 +291,5 @@ cargo test -p px_service
 
 - `px_cms.toml` 新增 `force_authorize`：`false` = WS token 过滤（client/panel/service/website）与 HTTP appkey 过滤一律放行（本机/测试）；缺省（不写）为 `true` 强制鉴权。
 - 测试部署（`output/px_cms_server/`）已置 `false`；生产部署应显式 `true`。
-- 放行时 `/spvr/service` 不再需要 appkey/token 参数即可连接（`inject_service_auth` 不再是前置条件）。
+- 放行时 `/cms/service` 不再需要 appkey/token 参数即可连接（`inject_service_auth` 不再是前置条件）。
 - WS token 过滤器的拒收类单测现在显式置 `force_authorize=true`（结构体 `Default` 为 false）；新增 `client_bypassed_when_force_authorize_false`。

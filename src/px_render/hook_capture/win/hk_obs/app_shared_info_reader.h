@@ -10,7 +10,7 @@
 
 #include "px_capture_new/capture_message.h"
 
-namespace tc
+namespace px
 {
 
     // Reads hook bootstrap written by the render host (file under hook_boot/).

@@ -1,4 +1,4 @@
-// Test: decrypt a spvr://access## string and verify the contained appkey.
+// Test: decrypt a cms://access## string and verify the contained appkey.
 // Self-contained: inlines the AES + base64 + JSON parsing logic so it only
 // depends on OpenSSL and nlohmann_json (both available via vcpkg).
 //
@@ -108,33 +108,33 @@ static std::string aes_decrypt(const std::string& encoded, const unsigned char k
     return std::string(reinterpret_cast<char*>(pt.data()), pt_len);
 }
 
-// ---- SpvrAccessInfo (mirror of panel_companion.h structs) ----
-struct SpvrSrvConfig {
+// ---- CmsAccessInfo (mirror of panel_companion.h structs) ----
+struct CmsSrvConfig {
     std::string srv_name;
     std::string srv_w3c_ip;
-    int srv_spvr_port = 0;
+    int srv_cms_port = 0;
     std::string srv_appkey;
     int srv_relay_port = 0;
     bool IsValid() const {
-        return !srv_w3c_ip.empty() && srv_spvr_port > 0 && !srv_appkey.empty() && srv_relay_port > 0;
+        return !srv_w3c_ip.empty() && srv_cms_port > 0 && !srv_appkey.empty() && srv_relay_port > 0;
     }
 };
 
-struct SpvrAccessInfo {
-    SpvrSrvConfig spvr_config;
-    bool IsValid() const { return spvr_config.IsValid(); }
+struct CmsAccessInfo {
+    CmsSrvConfig cms_config;
+    bool IsValid() const { return cms_config.IsValid(); }
 };
 
-static std::shared_ptr<SpvrAccessInfo> parse_access_info(const std::string& info) {
+static std::shared_ptr<CmsAccessInfo> parse_access_info(const std::string& info) {
     try {
         auto obj = json::parse(info);
-        auto spvr = obj["spvr_srv_config"];
-        auto ac = std::make_shared<SpvrAccessInfo>();
-        ac->spvr_config.srv_name      = spvr["srv_name"].get<std::string>();
-        ac->spvr_config.srv_w3c_ip    = spvr["srv_w3c_ip"].get<std::string>();
-        ac->spvr_config.srv_spvr_port = spvr["srv_spvr_port"].get<int>();
-        ac->spvr_config.srv_relay_port= spvr["srv_relay_port"].get<int>();
-        ac->spvr_config.srv_appkey    = spvr["srv_appkey"].get<std::string>();
+        auto cms = obj["cms_srv_config"];
+        auto ac = std::make_shared<CmsAccessInfo>();
+        ac->cms_config.srv_name      = cms["srv_name"].get<std::string>();
+        ac->cms_config.srv_w3c_ip    = cms["srv_w3c_ip"].get<std::string>();
+        ac->cms_config.srv_cms_port = cms["srv_cms_port"].get<int>();
+        ac->cms_config.srv_relay_port= cms["srv_relay_port"].get<int>();
+        ac->cms_config.srv_appkey    = cms["srv_appkey"].get<std::string>();
         return ac;
     } catch (std::exception& e) {
         std::cerr << "parse error: " << e.what() << "\n  info: " << info << "\n";
@@ -145,14 +145,14 @@ static std::shared_ptr<SpvrAccessInfo> parse_access_info(const std::string& info
 int main() {
     // The user's access string.
     std::string access_str =
-        "spvr://access##"
-        "jmLPUhIWRLHF62lgOd170Zy8N/mhCy1ljniBVkgMvLIUMgRhmAwtRSoOEEXHrFrGqNeC15gNKb5"
-        "WyoYzdVNHZMDPYeu5cchsWG35z28IyExkjwaHq9eZ99U63IZMYOIs5Jnp2OfAGebT3qFqJH3Z1h"
-        "tNXA8FC/69u34zTf056pSxdGGudpdZdWSzAJ6gtYg+5IYCRbjOJTt3y2VJSXhSdW+uH9em7dwou"
-        "zOnFIV98ycoNmfp5rXA8FxEcDYt1BAiqs71vPv7pH5Y4YO5i/yET0oASPw3ORJwg3M=";
+        "cms://access##"
+        "j8bahrdRP33H3ADCPi8JMtBF2ZSU4n1tKc0ek3hDiOOJ3x8oMNjb38yAfU+zeJWNdo0pT4i5k0yp"
+        "t2gs6qDuC7Z4uopvzEQqCXSAkAm0ktT8AateSSCC/bbqGS4IzDD3vqH7sge6Nd2MO687QNlEyAu/"
+        "l1lr+CY7UKdDy0E9IMpJGyuKFa523DC0J+xP2G2oOgXgnLheTGXZmh/OeFvFHhH9RoNWpwh3M1wr"
+        "WYk0F0mZxnH1Z097qZDnWFjv/MfWpCKDUvP/HQhQg3KmdewESsSSaBbz+pLJ";
 
     // 1. strip prefix
-    const std::string prefix = "spvr://access##";
+    const std::string prefix = "cms://access##";
     auto pos = access_str.find(prefix);
     if (pos == std::string::npos) {
         std::cerr << "ERROR: prefix not found\n";
@@ -182,12 +182,12 @@ int main() {
         return 1;
     }
 
-    std::cout << "=== SpvrAccessInfo ===\n";
-    std::cout << "  srv_name       : " << info->spvr_config.srv_name << "\n";
-    std::cout << "  srv_w3c_ip     : " << info->spvr_config.srv_w3c_ip << "\n";
-    std::cout << "  srv_spvr_port  : " << info->spvr_config.srv_spvr_port << "\n";
-    std::cout << "  srv_relay_port : " << info->spvr_config.srv_relay_port << "\n";
-    std::cout << "  srv_appkey     : " << info->spvr_config.srv_appkey << "\n";
+    std::cout << "=== CmsAccessInfo ===\n";
+    std::cout << "  srv_name       : " << info->cms_config.srv_name << "\n";
+    std::cout << "  srv_w3c_ip     : " << info->cms_config.srv_w3c_ip << "\n";
+    std::cout << "  srv_cms_port  : " << info->cms_config.srv_cms_port << "\n";
+    std::cout << "  srv_relay_port : " << info->cms_config.srv_relay_port << "\n";
+    std::cout << "  srv_appkey     : " << info->cms_config.srv_appkey << "\n";
     std::cout << "  valid          : " << (info->IsValid() ? "yes" : "no") << "\n";
 
     // 4. round-trip

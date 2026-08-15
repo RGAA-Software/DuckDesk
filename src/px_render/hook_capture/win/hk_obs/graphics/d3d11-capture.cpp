@@ -18,7 +18,7 @@
 #include "px_common_new/win32/d3d_render.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
-using namespace tc;
+using namespace px;
 
 static std::shared_ptr<D3DRender> g_render;
 
@@ -280,7 +280,7 @@ void d3d11_capture(void *swap_ptr, void *back_buffer_ptr) {
 
     D3D11_TEXTURE2D_DESC desc;
     data.texture->GetDesc(&desc);
-    auto adapter_uid = tc::GetAdapterUid(data.device);
+    auto adapter_uid = px::GetAdapterUid(data.device);
     IpcCaptureVideoFrame capture_video_frame_msg{};
     capture_video_frame_msg.capture_type_ = kCaptureVideoByHandle;
     capture_video_frame_msg.data_length = 0;

@@ -6,7 +6,7 @@
 #include "px_common_new/log.h"
 #include "rd_context.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<ServerCast> ServerCast::Make(std::shared_ptr<RdContext> &ctx) {

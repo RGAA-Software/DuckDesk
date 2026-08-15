@@ -7,7 +7,7 @@
 #include "file_table_view_style.h"
 
 
-namespace tc {
+namespace px {
 
 static QString s_text_style = R"(
 QTextEdit {font-size: %1px; font-family: Microsoft YaHei; color: #333333;line-height: %2px; border: 0px;background-color:#ffffff;}

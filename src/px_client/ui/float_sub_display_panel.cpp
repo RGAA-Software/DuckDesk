@@ -16,7 +16,7 @@
 #include <QLabel>
 #include <qtimer.h>
 
-namespace tc
+namespace px
 {
 
     SubDisplayPanel::SubDisplayPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

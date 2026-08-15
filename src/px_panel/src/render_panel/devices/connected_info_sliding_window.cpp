@@ -10,7 +10,7 @@
 #include "px_render_panel_message.pb.h"
 #include "px_common_new/client_id_extractor.h"
 
-namespace tc {
+namespace px {
 
 	ConnectedInfoSlidingWindow::ConnectedInfoSlidingWindow(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
 		InitView();
@@ -58,7 +58,7 @@ namespace tc {
 		return QWidget::eventFilter(obj, event);
 	}
 
-	void ConnectedInfoSlidingWindow::UpdateInfo(const std::shared_ptr<tcrp::RpConnectedClientInfo>& info) {
+	void ConnectedInfoSlidingWindow::UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info) {
 		panel_->UpdateInfo(info);
 	}
 

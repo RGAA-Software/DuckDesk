@@ -13,10 +13,10 @@
 #pragma comment(lib, "Bcrypt.lib")
 #endif
 
-namespace tc
+namespace px
 {
     static std::string GetUUID() {
-        tc::uuid uuid;
+        px::uuid uuid;
         return uuid.generate().short_uuid(32);
     }
 

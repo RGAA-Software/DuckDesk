@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <filesystem>
 
-using namespace tc;
+using namespace px;
 
 TEST(AutoStartTest, DISABLED_SetAutoStart_WritesAndRemoves) {
     std::wstring exe_path = L"C:\\TestApp\\my_test_app.exe";

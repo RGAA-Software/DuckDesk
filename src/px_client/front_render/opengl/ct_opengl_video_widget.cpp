@@ -20,7 +20,7 @@
 #include "px_common_new/image.h"
 #include "px_common_new/file.h"
 
-namespace tc
+namespace px
 {
 
 	OpenGLVideoWidget::OpenGLVideoWidget(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdk>& sdk, int dup_idx, RawImageFormat format, QWidget* parent)
@@ -129,7 +129,7 @@ namespace tc
             QFile qf(":/resources/image/logo_text.png");
             qf.open(QIODevice::ReadOnly);
             auto ba = qf.readAll();
-            auto data = tc::Data::Make(ba.constData(), ba.size());
+            auto data = px::Data::Make(ba.constData(), ba.size());
             auto image = Image::MakeByCompressedImage(data);
             auto raw_image = RawImage::MakeRGBA(image->data->DataAddr(), image->data->Size(), image->width, image->height);
             logo_->UpdateImage(raw_image);

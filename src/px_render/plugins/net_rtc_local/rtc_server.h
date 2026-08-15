@@ -8,7 +8,7 @@
 #include "px_common_new/webrtc_helper.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
 
-namespace tc
+namespace px
 {
     class Data;
     class PeerCallback;

@@ -2,7 +2,7 @@
 #include "rtc_video_encoder.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     std::unique_ptr<webrtc::VideoEncoder> RtcVideoEncoderFactory::CreateVideoEncoder(const webrtc::SdpVideoFormat& format)  {
@@ -16,4 +16,4 @@ namespace tc
         return codec_support;
     }
 
-} // namespace tc
+} // namespace px

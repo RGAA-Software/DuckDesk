@@ -12,7 +12,7 @@
 #include <QPaintEvent>
 #include <QScrollArea>
 
-namespace tc
+namespace px
 {
 
     class SysInfo;

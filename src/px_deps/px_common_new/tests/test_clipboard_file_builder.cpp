@@ -9,8 +9,8 @@
 #include "px_common_new/clipboard/clipboard_types.h"
 #include "px_common_new/string_util.h"
 
-using namespace tc;
-using namespace tc::clipboard;
+using namespace px;
+using namespace px::clipboard;
 
 namespace {
     std::string NormalizeSlashes(std::string path) {

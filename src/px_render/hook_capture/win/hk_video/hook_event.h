@@ -14,7 +14,7 @@ constexpr auto kInvalidCursorPos = -1020304050;
 
 #pragma comment(lib, "User32.lib")
 
-namespace tc
+namespace px
 {
 
     class IPCBaseMessage;
@@ -94,14 +94,14 @@ namespace tc
 
     private:
 
-        tc::HookApi api_HookGetRawInputBuffer;
-        tc::HookApi api_HookGetRawInputData;
-        tc::HookApi api_HookPostMessageA;
-        tc::HookApi api_HookPostMessageW;
-        tc::HookApi api_HookSendMessageA;
-        tc::HookApi api_HookSendMessageW;
-        tc::HookApi api_HookGetCursorPos;
-        tc::HookApi api_HookSetCursorPos;
+        px::HookApi api_HookGetRawInputBuffer;
+        px::HookApi api_HookGetRawInputData;
+        px::HookApi api_HookPostMessageA;
+        px::HookApi api_HookPostMessageW;
+        px::HookApi api_HookSendMessageA;
+        px::HookApi api_HookSendMessageW;
+        px::HookApi api_HookGetCursorPos;
+        px::HookApi api_HookSetCursorPos;
 
         // messages
         std::queue<std::shared_ptr<IPCBaseMessage>> messages;

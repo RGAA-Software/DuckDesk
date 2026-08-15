@@ -1,10 +1,10 @@
 use crate::app_schedule::manager::{AppInstance, AppNode, AppPlacement, Application};
-use crate::gSpvrDatabase;
+use crate::gCmsDatabase;
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 
 pub async fn upsert_application(app: &Application) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app.as_ref() else {
         return Ok(()); // DB not ready; memory-only
     };
@@ -17,7 +17,7 @@ pub async fn upsert_application(app: &Application) -> Result<(), String> {
 }
 
 pub async fn upsert_node(n: &AppNode) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_node.as_ref() else {
         return Ok(());
     };
@@ -30,7 +30,7 @@ pub async fn upsert_node(n: &AppNode) -> Result<(), String> {
 }
 
 pub async fn delete_node(node_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_node.as_ref() else {
         return Ok(());
     };
@@ -42,7 +42,7 @@ pub async fn delete_node(node_id: &str) -> Result<(), String> {
 }
 
 pub async fn delete_nodes_by_app(app_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_node.as_ref() else {
         return Ok(());
     };
@@ -54,7 +54,7 @@ pub async fn delete_nodes_by_app(app_id: &str) -> Result<(), String> {
 }
 
 pub async fn delete_instances_by_node(node_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_instance.as_ref() else {
         return Ok(());
     };
@@ -66,7 +66,7 @@ pub async fn delete_instances_by_node(node_id: &str) -> Result<(), String> {
 }
 
 pub async fn upsert_placement(p: &AppPlacement) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_placement.as_ref() else {
         return Ok(());
     };
@@ -79,7 +79,7 @@ pub async fn upsert_placement(p: &AppPlacement) -> Result<(), String> {
 }
 
 pub async fn upsert_instance(i: &AppInstance) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_instance.as_ref() else {
         return Ok(());
     };
@@ -92,7 +92,7 @@ pub async fn upsert_instance(i: &AppInstance) -> Result<(), String> {
 }
 
 pub async fn delete_application(app_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app.as_ref() else {
         return Ok(());
     };
@@ -105,7 +105,7 @@ pub async fn delete_application(app_id: &str) -> Result<(), String> {
 
 #[allow(dead_code)] // 遗留 placement 清理工具,节点结构后暂无调用方
 pub async fn delete_placement(placement_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_placement.as_ref() else {
         return Ok(());
     };
@@ -117,7 +117,7 @@ pub async fn delete_placement(placement_id: &str) -> Result<(), String> {
 }
 
 pub async fn delete_instances_by_app(app_id: &str) -> Result<(), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let Some(coll) = db.c_app_instance.as_ref() else {
         return Ok(());
     };
@@ -129,7 +129,7 @@ pub async fn delete_instances_by_app(app_id: &str) -> Result<(), String> {
 }
 
 pub async fn load_all() -> Result<(Vec<Application>, Vec<AppPlacement>, Vec<AppNode>, Vec<AppInstance>), String> {
-    let db = gSpvrDatabase.lock().await;
+    let db = gCmsDatabase.lock().await;
     let (Some(c_app), Some(c_plc), Some(c_node), Some(c_inst)) = (
         db.c_app.clone(),
         db.c_app_placement.clone(),

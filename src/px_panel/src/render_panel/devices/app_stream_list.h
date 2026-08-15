@@ -21,9 +21,9 @@
 #include <QProcess>
 #include <mutex>
 
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
@@ -34,7 +34,7 @@ namespace tc
     class RunningStreamManager;
     class StreamStateChecker;
 
-    using OnItemDoubleClickedCallback = std::function<void(const std::shared_ptr<spvr::SpvrStream>&)>;
+    using OnItemDoubleClickedCallback = std::function<void(const std::shared_ptr<px_cms::CmsStream>&)>;
 
     class AppStreamList : public QWidget {
     public:
@@ -45,32 +45,32 @@ namespace tc
         void RequestBindDevices();
 
     private:
-        QListWidgetItem* AddItem(const std::shared_ptr<spvr::SpvrStream>& item, int index);
+        QListWidgetItem* AddItem(const std::shared_ptr<px_cms::CmsStream>& item, int index);
         QWidget* GetItemByStreamId(const std::string& stream_id);
         void RegisterActions(int index, QListWidgetItem* cur_item);
-        void ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item);
+        void ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item);
 
         void CreateLayout();
         void Init();
 
-        void DeleteStream(const std::shared_ptr<spvr::SpvrStream>& item);
-        void StartStream(QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item, bool force_only_viewing);
-        void StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<spvr::SpvrStream>& item, bool force_only_viewing);
-        void StopStream(const std::shared_ptr<spvr::SpvrStream>& item);
-        void LockDevice(const std::shared_ptr<spvr::SpvrStream>& item);
-        void RestartDevice(const std::shared_ptr<spvr::SpvrStream>& item);
-        void ShutdownDevice(const std::shared_ptr<spvr::SpvrStream>& item);
-        void EditStream(const std::shared_ptr<spvr::SpvrStream>& item);
-        void ShowSettings(const std::shared_ptr<spvr::SpvrStream>& item);
+        void DeleteStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        void StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
+        void StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
+        void StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        void LockDevice(const std::shared_ptr<px_cms::CmsStream>& item);
+        void RestartDevice(const std::shared_ptr<px_cms::CmsStream>& item);
+        void ShutdownDevice(const std::shared_ptr<px_cms::CmsStream>& item);
+        void EditStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        void ShowSettings(const std::shared_ptr<px_cms::CmsStream>& item);
 
-        std::vector<std::shared_ptr<spvr::SpvrStream>> CopyStreams();
+        std::vector<std::shared_ptr<px_cms::CmsStream>> CopyStreams();
 
     private:
         GrSettings* settings_ = nullptr;
         std::shared_ptr<GrContext> context_ = nullptr;
         std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
         std::mutex streams_mtx_;
-        std::vector<std::shared_ptr<spvr::SpvrStream>> streams_;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> streams_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QListWidget* stream_list_ = nullptr;
         StreamContent* stream_content_ = nullptr;

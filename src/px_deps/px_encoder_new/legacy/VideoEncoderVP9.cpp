@@ -14,7 +14,7 @@
 #include <chrono>
 #include <algorithm>
 
-namespace tc
+namespace px
 {
 
 	static VpxInterface vpx_encoders[] = {
@@ -189,7 +189,7 @@ namespace tc
 	}
 
 	void VideoEncoderVP9::EncoderRun() {
-		last_time = tc::GetCurrentTimestamp();
+		last_time = px::GetCurrentTimestamp();
 		for (;;) {
 			auto get_ready_idx = [=]() -> int {
 				if (texture_size != textures.size()) {
@@ -259,7 +259,7 @@ namespace tc
 
 	void VideoEncoderVP9::EncoderInternal(ID3D11Texture2D* texture, uint64_t frame_idx, bool key_frame) {
 		encode_fps++;
-		uint64_t current_time = tc::GetCurrentTimestamp();
+		uint64_t current_time = px::GetCurrentTimestamp();
 		if (current_time - last_time > 1000) {
 			printf("Encode FPS : %d \n", encode_fps);
 			last_time = current_time;

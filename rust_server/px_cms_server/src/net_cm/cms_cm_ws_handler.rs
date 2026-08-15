@@ -1,0 +1,124 @@
+use crate::gCmsCMMgr;
+use crate::net_cm::cms_cm_conn::CmsCmConn;
+use crate::cms_context::CmsContext;
+use axum::extract::ws::{Message, WebSocket};
+use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
+use axum::response::IntoResponse;
+use axum_extra::TypedHeader;
+use futures_util::StreamExt;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::ops::ControlFlow;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+pub(crate) async fn cm_handler(
+    State(context): State<Arc<Mutex<CmsContext>>>,
+    query: Query<HashMap<String, String>>,
+    ws: WebSocketUpgrade,
+    user_agent: Option<TypedHeader<headers::UserAgent>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
+        user_agent.to_string()
+    } else {
+        String::from("Unknown browser")
+    };
+    tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
+    for (k, v) in query.iter() {
+        tracing::info!("ws query param {}:{}", k, v);
+    }
+    let params = query.0.clone();
+    ws.on_upgrade(move |socket| handle_ws_socket(context.clone(), params, socket, addr))
+}
+
+async fn handle_ws_socket(
+    context: Arc<Mutex<CmsContext>>,
+    params: HashMap<String, String>,
+    socket: WebSocket,
+    who: SocketAddr,
+) {
+    let (sender, mut receiver) = socket.split();
+
+    let mut recv_task = tokio::spawn(async move {
+        let appkey = params.get("appkey").unwrap();
+
+        let sender = Arc::new(Mutex::new(sender));
+        let panel_conn = CmsCmConn::new(context.clone(), sender, appkey.clone()).await;
+
+        let id = format!("{}-{}", who.ip(), who.port());
+        tracing::info!("ws connect from {}, id: {}", who, id);
+        let cms_conn = Arc::new(Mutex::new(panel_conn));
+
+        // start hardware info back streamer
+        CmsCmConn::start_hardware_info_streamer(cms_conn.clone()).await;
+
+        gCmsCMMgr.add_cm_conn(id.clone(), cms_conn.clone()).await;
+
+        while let Some(Ok(msg)) = receiver.next().await {
+            // print message and break if instructed to do so
+            if process_cm_message(context.clone(), cms_conn.clone(), msg, who)
+                .await
+                .is_break()
+            {
+                break;
+            }
+        }
+
+        // remove
+        gCmsCMMgr.remove_cm_conn(id).await;
+    });
+
+    tokio::select! {
+        cms_rv = (&mut recv_task) => {
+            match cms_rv {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!("receive task error: {e:?}")
+                }
+            }
+            recv_task.abort();
+        },
+    }
+}
+
+async fn process_cm_message(
+    _cms_ctx: Arc<Mutex<CmsContext>>,
+    cm_conn: Arc<Mutex<CmsCmConn>>,
+    msg: Message,
+    who: SocketAddr,
+) -> ControlFlow<(), ()> {
+    //tracing::info!("IN --> {}:{}", who.ip(), who.port());
+    match msg {
+        Message::Text(data) => {
+            return if cm_conn
+                .lock()
+                .await
+                .process_message(who.ip().to_string(), data.to_string())
+                .await
+            {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            }
+        }
+        Message::Binary(_data) => {
+            return ControlFlow::Continue(());
+        }
+        Message::Close(c) => {
+            if let Some(cf) = c {
+                println!(
+                    ">>> {} sent close with code {} and reason `{}`",
+                    who, cf.code, cf.reason
+                );
+            } else {
+                println!(">>> {who} somehow sent close message without CloseFrame");
+            }
+            return ControlFlow::Break(());
+        }
+
+        Message::Pong(_v) => {}
+        Message::Ping(_v) => {}
+    }
+    ControlFlow::Continue(())
+}

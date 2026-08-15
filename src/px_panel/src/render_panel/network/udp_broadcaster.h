@@ -10,7 +10,7 @@
 #include <QUdpSocket>
 #include <QByteArray>
 
-namespace tc
+namespace px
 {
     class GrContext;
 

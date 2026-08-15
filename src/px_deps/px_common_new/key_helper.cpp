@@ -8,7 +8,7 @@
 #include <Windows.h>
 #endif
 
-namespace tc
+namespace px
 {
 
     bool KeyHelper::IsKeyPressed(int vk) {

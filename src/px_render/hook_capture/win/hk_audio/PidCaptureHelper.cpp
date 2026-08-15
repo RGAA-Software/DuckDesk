@@ -10,7 +10,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 std::filesystem::path ModuleDir() {
@@ -146,4 +146,4 @@ void StopPidCaptureHelper(void* process) {
     CloseHandle(h);
 }
 
-}  // namespace tc
+}  // namespace px

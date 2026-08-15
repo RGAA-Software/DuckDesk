@@ -13,9 +13,9 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-GR_PLUGIN_EXPORT(tc::FileTransferPlugin)
+GR_PLUGIN_EXPORT(px::FileTransferPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string FileTransferPlugin::GetPluginId() {

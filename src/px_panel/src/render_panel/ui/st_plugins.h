@@ -20,18 +20,18 @@
 #include <QString>
 #include <QPaintEvent>
 
-namespace tcrp
+namespace pxrp
 {
     class RpPluginInfo;
 }
 
-namespace tc
+namespace px
 {
 
     class PluginItemInfo {
     public:
         std::string id_;
-        std::shared_ptr<tcrp::RpPluginInfo> info_ = nullptr;
+        std::shared_ptr<pxrp::RpPluginInfo> info_ = nullptr;
     };
 
     class StPlugins : public TabBase {

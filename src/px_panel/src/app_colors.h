@@ -7,7 +7,7 @@
 
 #include <QColor>
 
-namespace tc
+namespace px
 {
 
     class AppColors {

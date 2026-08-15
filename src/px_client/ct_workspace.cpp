@@ -46,7 +46,7 @@
 #include "front_render/opengl/ct_opengl_video_widget.h"
 #include "front_render/vulkan/pl_vulkan.h"
 
-namespace tc
+namespace px
 {
     std::shared_ptr<Workspace> Workspace::Make(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent) {
         struct WorkspaceEnabler final : Workspace {
@@ -194,8 +194,8 @@ namespace tc
                         }
                         this->showFullScreen();
                         game_view->showFullScreen();
-                        //tc::QWidgetHelper::SetBorderInFullScreen(this, true);
-                        //tc::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                        //px::QWidgetHelper::SetBorderInFullScreen(this, true);
+                        //px::QWidgetHelper::SetBorderInFullScreen(game_view, true);
                     }
                     else {
                         if (this->isMaximized()) {
@@ -224,7 +224,7 @@ namespace tc
                             this->showFullScreen();
                             this->raise();
                             game_view->showFullScreen();
-                            //tc::QWidgetHelper::SetBorderInFullScreen(this, true);
+                            //px::QWidgetHelper::SetBorderInFullScreen(this, true);
                         }
                         else {
                             if (!force_layout_screens) {
@@ -232,7 +232,7 @@ namespace tc
                             }
                             game_view->showFullScreen();
                         }
-                        //tc::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                        //px::QWidgetHelper::SetBorderInFullScreen(game_view, true);
                     }
                     else {
                         if (game_view->isMaximized()) {

@@ -5,7 +5,7 @@
 #include "no_margin_layout.h"
 #include "px_qt_widget/px_image_button.h"
 
-namespace tc
+namespace px
 {
 
     NotifyWnd::NotifyWnd(NotifyManager *manager, QWidget *parent)

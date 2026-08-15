@@ -9,7 +9,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_message_new/proto_converter.h"
 
-namespace tc {
+namespace px {
 
 std::shared_ptr<FileTransmitMsgInterface> FileTransmitMsgInterface::Make(FileTransferPlugin* file_trans_plugin) {
 	return std::make_shared<FileTransmitMsgInterface>(file_trans_plugin);
@@ -23,7 +23,7 @@ FileTransmitMsgInterface::~FileTransmitMsgInterface() {
 
 }
 
-void FileTransmitMsgInterface::OnMessage(const std::shared_ptr<tc::Message>& msg) {
+void FileTransmitMsgInterface::OnMessage(const std::shared_ptr<px::Message>& msg) {
 	if (!file_trans_manager_ || !IsFileTransferEnabled()) {
 		return;
 	}
@@ -55,21 +55,21 @@ void FileTransmitMsgInterface::OnMessage(const std::shared_ptr<tc::Message>& msg
 
 void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	file_trans_manager_->RegGetFileListCallback([=, this](
-		const std::string& stream_id, int resp_seq, bool ret, std::vector<tc::FileDescInfo> file_infos, std::string error_msg, std::string target_path, std::string file_permission_path
+		const std::string& stream_id, int resp_seq, bool ret, std::vector<px::FileDescInfo> file_infos, std::string error_msg, std::string target_path, std::string file_permission_path
 	) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespGetFileList);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespGetFileList);
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
 			message->set_file_operate_resp_message( (tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_success")) );
 		}
 		else {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeError);
 			message->set_file_operate_resp_message((tcTr("id_file_trans_get_fil_list") + tcTr("id_file_trans_log_failed")));
 		}
 		message->set_file_operate_resp_message(tcTr("id_file_trans_get_fil_list"));
-		tc::FileOperateRespGetFileList* file_list = new tc::FileOperateRespGetFileList();
+		px::FileOperateRespGetFileList* file_list = new px::FileOperateRespGetFileList();
 		file_list->set_path(target_path);
 		file_list->set_ret(ret);
 		file_list->set_msg_of_error(error_msg);
@@ -93,16 +93,16 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	});
 
 	file_trans_manager_->RegBatchCreateFoldersCallback([=, this](const std::string& stream_id, int resp_seq, std::vector<std::string> error_paths, std::string er_msg) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespBatchCreateFolders);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespBatchCreateFolders);
 		message->set_file_operate_resp_sequence(resp_seq);
-		message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
+		message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
 		message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_success"));
 		if (error_paths.size() > 0) {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeError);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_create_folder_failed"));
 		}
-		tc::FileOperateRespBatchCreateFolders* resp = new tc::FileOperateRespBatchCreateFolders();
+		px::FileOperateRespBatchCreateFolders* resp = new px::FileOperateRespBatchCreateFolders();
 		resp->set_msg_of_error(er_msg);
 		for (auto path : error_paths) {
 			resp->add_paths_of_no_create_folder(path);
@@ -117,11 +117,11 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
     });
 
 	file_trans_manager_->RegJudgeFileExistsCallback([=, this](const std::string& stream_id, int resp_seq, std::string path, bool exists, uint64_t file_size, uint64_t file_date) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespExists);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespExists);
 		message->set_file_operate_resp_sequence(resp_seq);
-		message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
-		tc::FileOperateRespExists* resp = new tc::FileOperateRespExists();
+		message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
+		px::FileOperateRespExists* resp = new px::FileOperateRespExists();
 		resp->set_path(path);
 		resp->set_ret(exists);
 		resp->set_size(file_size);
@@ -135,8 +135,8 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		//"GetFileList kFileOperateRespExists post error."
 	});
 
-	file_trans_manager_->file_transmit_impl_->upload_resp_func_ = [=, this](const std::string& stream_id, tc::FileTransRespUpload* resp_upload) {
-		auto message = std::make_shared<tc::Message>();
+	file_trans_manager_->file_transmit_impl_->upload_resp_func_ = [=, this](const std::string& stream_id, px::FileTransRespUpload* resp_upload) {
+		auto message = std::make_shared<px::Message>();
 		message->set_type(kFileTransRespUpload);
 		message->set_allocated_file_trans_resp_upload(resp_upload);
         auto buffer = ProtoAsData(message);
@@ -155,7 +155,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	};
 
 
-	file_trans_manager_->file_transmit_impl_->send_file_trans_data_packet_response_func_ = [=, this](const std::string& stream_id, std::shared_ptr<tc::Message> msg) -> bool {
+	file_trans_manager_->file_transmit_impl_->send_file_trans_data_packet_response_func_ = [=, this](const std::string& stream_id, std::shared_ptr<px::Message> msg) -> bool {
         auto buffer = ProtoAsData(msg);
 		// 这里最好加个返回值判断
         if (IsFileTransferEnabled()) {
@@ -196,8 +196,8 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
     };
 
     // 下载出现错误
-	file_trans_manager_->file_transmit_impl_->download_except_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& stream_id, tc::FileTransRespDownload* resp_download) {
-		auto message = std::make_shared<tc::Message>();
+	file_trans_manager_->file_transmit_impl_->download_except_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& stream_id, px::FileTransRespDownload* resp_download) {
+		auto message = std::make_shared<px::Message>();
 		message->set_type(kFileTransRespDownload);
 		message->set_allocated_file_trans_resp_download(resp_download);
         auto buffer = ProtoAsData(message);
@@ -215,7 +215,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
         file_trans_plugin_->CallbackEvent(event);
 	};
 
-	file_trans_manager_->file_transmit_impl_->send_data_packet_func_ = [=, this](const std::string& stream_id, std::shared_ptr<tc::Message> msg) -> bool {
+	file_trans_manager_->file_transmit_impl_->send_data_packet_func_ = [=, this](const std::string& stream_id, std::shared_ptr<px::Message> msg) -> bool {
         // todo: TEST !
 //        int64_t queuing_msg_count = file_trans_plugin_->GetQueuingFtMsgCountInNetPlugins();
 //        while (queuing_msg_count > 256) {
@@ -233,18 +233,18 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	};
 
 	file_trans_manager_->RegRemoveCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::vector<std::string> er_paths, std::string er_msg) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespDel);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespDel);
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_success"));
 		}
 		else {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeError);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_remove_failed"));
 		}
-		tc::FileOperateRespDel* resp = new tc::FileOperateRespDel();
+		px::FileOperateRespDel* resp = new px::FileOperateRespDel();
 		resp->set_msg_of_error(er_msg);
 		resp->set_ret(ret);
 		for (auto path : er_paths) {
@@ -261,19 +261,19 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	});
 
 	file_trans_manager_->RegCreateNewFolderCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::string parent_path, std::string new_path, std::string er_msg) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespCreateNewFolder);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespCreateNewFolder);
 		message->set_file_operate_resp_sequence(resp_seq);
 		
 		if (ret) {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_success"));
 		}
 		else {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeError);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_new_folder_failed"));
 		}
-		tc::FileOperateRespCreateNewFolder* resp = new tc::FileOperateRespCreateNewFolder();
+		px::FileOperateRespCreateNewFolder* resp = new px::FileOperateRespCreateNewFolder();
 		resp->set_path_of_parent(parent_path);
 		resp->set_ret(ret);
 		resp->set_path_of_new_created(new_path);
@@ -288,19 +288,19 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	});
 
 	file_trans_manager_->RegRenameCallback([=, this](const std::string& stream_id, int resp_seq, bool ret, std::string old_path, std::string new_path, std::string er_msg) {
-		auto message = std::make_shared<tc::Message>();
-		message->set_type(tc::kFileOperateRespRename);
+		auto message = std::make_shared<px::Message>();
+		message->set_type(px::kFileOperateRespRename);
 		message->set_file_operate_resp_sequence(resp_seq);
 		if (ret) {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeOk);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeOk);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_success"));
 		}
 		else {
-			message->set_file_operate_resp_code(tc::RespCode::kRespCodeError);
+			message->set_file_operate_resp_code(px::RespCode::kRespCodeError);
 			message->set_file_operate_resp_message(tcTr("id_file_trans_rename_failed"));
 
 		}
-		tc::FileOperateRespRename* resp = new tc::FileOperateRespRename();
+		px::FileOperateRespRename* resp = new px::FileOperateRespRename();
 		resp->set_ret(ret);
 		resp->set_path_of_old(old_path);
 		resp->set_path_of_new(new_path);

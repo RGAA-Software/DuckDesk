@@ -5,7 +5,7 @@
 #include "px_dialog_util.h"
 #include <QFileDialog>
 
-namespace tc
+namespace px
 {
 
     QString TcDialogUtil::SelectDirectory(const QString& title, const QString& default_path, QWidget* parent) {

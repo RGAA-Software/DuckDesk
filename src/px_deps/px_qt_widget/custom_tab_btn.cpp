@@ -6,7 +6,7 @@
 #include <QRadialGradient>
 #include <QLabel>
 
-namespace tc
+namespace px
 {
     
     CustomTabBtn::CustomTabBtn(const QColor& inactive_color, const QColor& hover_color, QWidget *parent)
@@ -54,7 +54,7 @@ namespace tc
         repaint();
     }
 
-    void CustomTabBtn::OnTranslate(tc::LanguageKind kind) {
+    void CustomTabBtn::OnTranslate(px::LanguageKind kind) {
         TcTranslator::OnTranslate(kind);
         if (text_id_.isEmpty()) {
             return;

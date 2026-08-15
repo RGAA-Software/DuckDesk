@@ -11,7 +11,7 @@
 #define tcTr(x) TcTranslatorManager::Instance()->GetTrString(x)
 #define tcTrMgr() TcTranslatorManager::Instance()
 
-namespace tc
+namespace px
 {
 
     enum LanguageKind {

@@ -20,7 +20,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-namespace tc
+namespace px
 {
     namespace {
         // 致命错误自动重启：固定 2s 间隔、无限重试（目标进程退出则放弃）
@@ -70,7 +70,7 @@ namespace tc
         return "MiniAudio WASAPI loopback (desktop default mix, or per-PID process-loopback)";
     }
 
-    bool WasAudioCapturePlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool WasAudioCapturePlugin::OnCreate(const px::GrPluginParam& param) {
         GrDataProviderPlugin::OnCreate(param);
         MemoryStat::Instance();
         restart_thread_ = std::thread([this] { RestartWorkerMain(); });

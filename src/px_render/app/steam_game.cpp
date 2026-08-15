@@ -10,7 +10,7 @@
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     SteamGame::SteamGame(const std::shared_ptr<RdContext>& ctx) {

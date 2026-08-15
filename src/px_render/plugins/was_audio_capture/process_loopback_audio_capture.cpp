@@ -21,7 +21,7 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "mmdevapi.lib")
 
-namespace tc {
+namespace px {
 namespace {
 
 // Pairs CoUninitialize with CoInitializeEx on thread exit (S_OK/S_FALSE only;
@@ -450,4 +450,4 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
     LOGI("[ProcessLoopback] stopped pid={} packets={}", pid_, packets);
 }
 
-}  // namespace tc
+}  // namespace px

@@ -8,7 +8,7 @@
 
 using namespace qrcodegen;
 
-namespace tc
+namespace px
 {
 
     QRImage QrGenerator::GenQRImage(const std::string& message, int qr_size) {

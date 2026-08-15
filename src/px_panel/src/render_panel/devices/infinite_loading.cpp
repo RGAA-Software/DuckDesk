@@ -9,14 +9,14 @@
 #include "widget_helper.h"
 #include "no_margin_layout.h"
 #include "px_common_new/uid_spacer.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "render_panel/px_application.h"
 #include "skin/interface/skin_interface.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"
 #include "px_qt_widget/loadings/winstyle/win10horizontalloadingwidget.h"
 
-namespace tc
+namespace px
 {
 
     InfiniteLoading::InfiniteLoading(const std::shared_ptr<GrContext>& ctx, const QString& msg)

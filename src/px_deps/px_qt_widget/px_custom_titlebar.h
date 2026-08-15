@@ -9,7 +9,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 
-namespace tc
+namespace px
 {
 
     using ClickCallback = std::function<void()>;

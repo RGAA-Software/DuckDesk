@@ -25,7 +25,7 @@
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     GrRunGameManager::GrRunGameManager(const std::shared_ptr<GrContext>& ctx) {
@@ -246,8 +246,8 @@ namespace tc
     }
 
     std::string GrRunGameManager::GetRunningGamesAsProto() {
-        tc::Message msg;
-        msg.set_type(tc::MessageType::kOnlineGames);
+        px::Message msg;
+        msg.set_type(px::MessageType::kOnlineGames);
         auto online_games = msg.mutable_online_games();
         for (auto& rg : running_games_) {
             auto game = online_games->Add();

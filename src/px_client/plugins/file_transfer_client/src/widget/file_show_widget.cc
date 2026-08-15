@@ -7,7 +7,7 @@
 #include "file_transmit_task_manager.h"
 
 
-namespace tc {
+namespace px {
 
 int FileShowWidget::file_transfer_direction_control_ = 3;
 

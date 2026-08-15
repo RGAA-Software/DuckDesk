@@ -1,5 +1,5 @@
-pub mod spvr_event;
-pub mod spvr_event_handler;
-pub mod spvr_event_keys;
-pub mod spvr_event_manager;
-pub mod spvr_event_router;
+pub mod cms_event;
+pub mod cms_event_handler;
+pub mod cms_event_keys;
+pub mod cms_event_manager;
+pub mod cms_event_router;

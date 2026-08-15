@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package cms_service;
+
+// Between Cms (CMS) - GoDesk Windows Service (GammaRayService)
+// See docs/cms_app_schedule_plan.md
+
+enum CmsServiceMessageType {
+  kCmsServiceHello = 0;
+  kCmsServiceHeartBeat = 1;
+  // CMS -> Service
+  kCmsServiceStartAppInstance = 2;
+  kCmsServiceStopAppInstance = 3;
+  // Service -> CMS
+  kCmsServiceStartAppInstanceResult = 4;
+  kCmsServiceStopAppInstanceResult = 5;
+}
+
+message CmsServiceHello {
+  string device_id = 1;
+  string appkey = 2;
+  string version = 3;
+}
+
+message CmsServiceHeartBeat {
+  int64 hb_index = 1;
+  string device_id = 2;
+  bool render_alive = 3;
+  // json format authorization info reported by the panel (may be empty)
+  string auth_info_json = 4;
+  // json array of local app instance summaries (may be empty)
+  // [{instance_id, app_id, listen_port, pid, state}, ...]
+  string instances_json = 5;
+}
+
+message CmsServiceStartAppInstance {
+  string request_id = 1;
+  string instance_id = 2;
+  string app_id = 3;
+  // Absolute install root on this machine (Placement.install_root)
+  string install_root = 4;
+  // Relative exe path under install_root (Application.game_exe_rel)
+  string game_exe_rel = 5;
+  string game_arguments = 6;
+  // 0 = Service allocates an available port
+  int32 listen_port = 7;
+  int32 encoder_fps = 8;
+  int32 encoder_bitrate = 9;
+  string encoder_format = 10;
+  bool webrtc_enabled = 11;
+  bool websocket_enabled = 12;
+}
+
+message CmsServiceStopAppInstance {
+  string request_id = 1;
+  string instance_id = 2;
+}
+
+message CmsServiceStartAppInstanceResult {
+  string request_id = 1;
+  string instance_id = 2;
+  bool ok = 3;
+  string error = 4;
+  int32 listen_port = 5;
+  uint32 pid = 6;
+}
+
+message CmsServiceStopAppInstanceResult {
+  string request_id = 1;
+  string instance_id = 2;
+  bool ok = 3;
+  string error = 4;
+}
+
+message CmsServiceMessage {
+  CmsServiceMessageType msg_type = 1;
+  string device_id = 10;
+  CmsServiceHello hello = 20;
+  CmsServiceHeartBeat heartbeat = 30;
+  CmsServiceStartAppInstance start_app_instance = 40;
+  CmsServiceStopAppInstance stop_app_instance = 50;
+  CmsServiceStartAppInstanceResult start_app_instance_result = 60;
+  CmsServiceStopAppInstanceResult stop_app_instance_result = 70;
+}

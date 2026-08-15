@@ -6,7 +6,7 @@
 #include <qopenglfunctions.h>
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     EOpenGLBackend DetectOpenGLBackend()

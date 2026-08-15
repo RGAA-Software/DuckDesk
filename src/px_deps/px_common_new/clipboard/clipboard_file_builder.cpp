@@ -12,7 +12,7 @@
 
 namespace fs = std::filesystem;
 
-namespace tc::clipboard
+namespace px::clipboard
 {
     namespace {
 

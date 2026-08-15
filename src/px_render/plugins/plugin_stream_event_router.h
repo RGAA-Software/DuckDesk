@@ -8,7 +8,7 @@
 #include <memory>
 #include "px_render/plugin_interface/px_plugin_events.h"
 
-namespace tc
+namespace px
 {
 
     class RdContext;

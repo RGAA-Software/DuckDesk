@@ -20,7 +20,7 @@
 
 #include <Windows.h>
 
-namespace tc
+namespace px
 {
     static std::string GetWindowsProductName() {
         HKEY hKey;
@@ -42,7 +42,7 @@ namespace tc
 
     std::string NetMessageMaker::MakeHelloMsg() {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kHello);
+        msg->set_type(px::kHello);
         auto hello = new Hello();
         msg->set_allocated_hello(hello);
         return msg->SerializeAsString();
@@ -50,7 +50,7 @@ namespace tc
 
     std::string NetMessageMaker::MakeAckMsg() {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kAck);
+        msg->set_type(px::kAck);
         auto ack = new Ack();
         msg->set_allocated_ack(ack);
         return msg->SerializeAsString();
@@ -58,7 +58,7 @@ namespace tc
 
     std::string NetMessageMaker::MakeHeartBeatMsg() {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kHeartBeat);
+        msg->set_type(px::kHeartBeat);
         auto heart_beat = new HeartBeat();
         msg->set_allocated_heartbeat(heart_beat);
         return msg->SerializeAsString();
@@ -68,7 +68,7 @@ namespace tc
         auto stat = RdStatistics::Instance();
 
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kOnHeartBeat);
+        msg->set_type(px::kOnHeartBeat);
         auto hb = msg->mutable_on_heartbeat();
         hb->set_index(index);
         hb->set_caps_lock_pressed(KeyHelper::IsCapsLockPressed());
@@ -190,12 +190,12 @@ namespace tc
         return ProtoAsData(msg);
     }
 
-    std::shared_ptr<Data> NetMessageMaker::MakeVideoFrameMsg(const tc::VideoType& vt, const std::shared_ptr<Data>& data,
+    std::shared_ptr<Data> NetMessageMaker::MakeVideoFrameMsg(const px::VideoType& vt, const std::shared_ptr<Data>& data,
                                                    uint64_t frame_index, int frame_width, int frame_height, bool key,
                                                    const std::string& display_name, int mon_left,
-                                                   int mon_top, int mon_right, int mon_bottom, const tc::EImageFormat& img_format, int mon_index) {
+                                                   int mon_top, int mon_right, int mon_bottom, const px::EImageFormat& img_format, int mon_index) {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kVideoFrame);
+        msg->set_type(px::kVideoFrame);
         auto frame = new VideoFrame();
         frame->set_type(vt);
         frame->set_data(data->AsString());
@@ -217,7 +217,7 @@ namespace tc
     std::shared_ptr<Data> NetMessageMaker::MakeAudioFrameMsg(const std::shared_ptr<Data>& data,
                                                    int samples, int channels, int bits, int frame_size) {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kAudioFrame);
+        msg->set_type(px::kAudioFrame);
         auto frame = new AudioFrame();
         frame->set_data(data->CStr(), data->Size());
         frame->set_samples(samples);
@@ -232,7 +232,7 @@ namespace tc
                                                        uint32_t  width, uint32_t height, bool visable,
                                                        const std::shared_ptr<Data>& data, uint32_t type) {
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kCursorInfoSync);
+        msg->set_type(px::kCursorInfoSync);
         auto cursor_info = new CursorInfoSync();
         cursor_info->set_visible(visable);
         cursor_info->set_width(width);
@@ -250,15 +250,15 @@ namespace tc
     }
 
     std::shared_ptr<Data> NetMessageMaker::MakeMonitorSwitched(const std::string& name, const int& mon_index) {
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(kMonitorSwitched);
         msg.mutable_monitor_switched()->set_name(name);
         msg.mutable_monitor_switched()->set_index(mon_index);
         return ProtoAsData(&msg);
     }
 
-    std::shared_ptr<Data> NetMessageMaker::MakeVideoCodecChanged(tc::VideoType video_type, bool full_color, const std::string& reason) {
-        tc::Message msg;
+    std::shared_ptr<Data> NetMessageMaker::MakeVideoCodecChanged(px::VideoType video_type, bool full_color, const std::string& reason) {
+        px::Message msg;
         msg.set_type(kVideoCodecChanged);
         auto* body = msg.mutable_video_codec_changed();
         body->set_video_type(video_type);
@@ -267,8 +267,8 @@ namespace tc
         return ProtoAsData(&msg);
     }
 
-    std::shared_ptr<Data> NetMessageMaker::MakeGameStatusChanged(tc::GameStatusChanged::GameStatus status, const std::string& detail) {
-        tc::Message msg;
+    std::shared_ptr<Data> NetMessageMaker::MakeGameStatusChanged(px::GameStatusChanged::GameStatus status, const std::string& detail) {
+        px::Message msg;
         msg.set_type(kGameStatusChanged);
         auto* body = msg.mutable_game_status_changed();
         body->set_status(status);
@@ -277,7 +277,7 @@ namespace tc
     }
 
     std::shared_ptr<Data> NetMessageMaker::MakeInstanceStopped(const std::string& reason) {
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(kInstanceStopped);
         auto* body = msg.mutable_instance_stopped();
         body->set_reason(reason);

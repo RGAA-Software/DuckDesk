@@ -7,7 +7,7 @@
 
 #include "px_common_new/message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     class RelayContext {

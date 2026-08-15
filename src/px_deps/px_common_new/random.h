@@ -9,7 +9,7 @@
 #include <ctime>
 #include <random>
 
-namespace tc
+namespace px
 {
 
     class Random {

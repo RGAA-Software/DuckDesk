@@ -14,7 +14,7 @@
 #include "../process_util.h"
 #include "../string_util.h"
 
-using namespace tc;
+using namespace px;
 
 static std::string GetHelperExePath() {
     wchar_t path[MAX_PATH] = {};

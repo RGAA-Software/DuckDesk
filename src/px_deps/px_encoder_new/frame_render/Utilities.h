@@ -13,7 +13,7 @@
     if (FAILED(_hr_)) { \
     {\
         _com_error err(_hr_);\
-        LOGE("HRESULT: {:x}, msg: {}", (uint32_t)_hr_, tc::StringUtil::ToUTF8(err.ErrorMessage())); \
+        LOGE("HRESULT: {:x}, msg: {}", (uint32_t)_hr_, px::StringUtil::ToUTF8(err.ErrorMessage())); \
     }\
         return _hr_; \
     } \

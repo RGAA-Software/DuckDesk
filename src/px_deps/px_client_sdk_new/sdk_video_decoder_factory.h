@@ -8,7 +8,7 @@
 #include "sdk_ffmpeg_soft_decoder.h"
 #include "sdk_mediacodec_video_decoder.h"
 
-namespace tc
+namespace px
 {
 
     enum SupportedCodec {

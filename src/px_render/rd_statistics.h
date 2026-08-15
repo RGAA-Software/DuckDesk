@@ -15,7 +15,7 @@
 #include "px_common_new/concurrent_vector.h"
 #include "px_common_new/concurrent_hashmap.h"
 
-namespace tc
+namespace px
 {
 
     constexpr auto kMaxStatCounts = 180;

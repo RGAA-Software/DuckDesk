@@ -9,7 +9,7 @@
 #include "ws_plugin.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     void WsFileTransferRouter::OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) {
@@ -41,7 +41,7 @@ namespace tc
         if (!session_ || !session_->is_started()) {
             return;
         }
-        auto tid = tc::GetCurrentThreadID();
+        auto tid = px::GetCurrentThreadID();
         if (post_thread_id_ == 0) {
             post_thread_id_ = tid;
         }

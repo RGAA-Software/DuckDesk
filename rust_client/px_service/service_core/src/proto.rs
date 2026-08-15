@@ -3,7 +3,7 @@ use prost::Message;
 pub type ProtoError = prost::DecodeError;
 
 mod generated {
-    include!(concat!(env!("OUT_DIR"), "/tc.rs"));
+    include!(concat!(env!("OUT_DIR"), "/px.rs"));
 }
 
 pub use generated::{

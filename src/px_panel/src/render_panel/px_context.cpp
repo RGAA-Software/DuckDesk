@@ -24,7 +24,7 @@
 #include "px_settings.h"
 #include "px_application.h"
 #include "database/stream_db_operator.h"
-#include "px_spvr_client/spvr_device_api.h"
+#include "px_cms_client/cms_device_api.h"
 #include "devices/running_stream_manager.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_dialog.h"
@@ -35,13 +35,13 @@
 #include "px_relay_client/relay_api.h"
 #include "relay_message.pb.h"
 #include "app_config.h"
-#include "spvr/px_spvr_manager.h"
-#include "spvr/px_event_manager.h"
+#include "cms/px_cms_manager.h"
+#include "cms/px_event_manager.h"
 #include <QApplication>
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     GrContext::GrContext(QWidget* main_window) : QObject(nullptr) {
@@ -115,11 +115,11 @@ namespace tc
         res_manager_->ExtractIconsIfNeeded();
 
         run_game_manager_ = std::make_shared<GrRunGameManager>(shared_from_this());
-        spvr_manager_ = std::make_shared<GrSpvrManager>(shared_from_this());
+        cms_manager_ = std::make_shared<GrCmsManager>(shared_from_this());
         event_manager_ = std::make_shared<GrEventManager>(shared_from_this());
         service_manager_ = ServiceManager::Make();
         std::string base_path = qApp->applicationDirPath().toStdString();
-        std::string bin_path = std::format("\"{}/{}\" {}", base_path, tc::kGammaRayServiceExeName, settings_->sys_service_port_);
+        std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kGammaRayServiceExeName, settings_->sys_service_port_);
         LOGI("Service path: {}", bin_path);
         service_manager_->Init("GammaRayService", bin_path, "GammaRat Service", "** GammaRay Service **");
         //service_manager_->Install();
@@ -361,8 +361,8 @@ namespace tc
         return app_;
     }
 
-    std::shared_ptr<GrSpvrManager> GrContext::GetSpvrManager() {
-        return spvr_manager_;
+    std::shared_ptr<GrCmsManager> GrContext::GetCmsManager() {
+        return cms_manager_;
     }
 
     std::shared_ptr<GrEventManager> GrContext::GetEventManager() {
@@ -417,7 +417,7 @@ namespace tc
         return sp_ && sp_->IsReady();
     }
 
-    std::shared_ptr<relay::RelayDeviceInfo> GrContext::GetRelayServerSideDeviceInfo(const std::string& relay_host,
+    std::shared_ptr<px_relay::RelayDeviceInfo> GrContext::GetRelayServerSideDeviceInfo(const std::string& relay_host,
                                                                                     int relay_port,
                                                                                     const std::string& relay_appkey,
                                                                                     const std::string& device_id,
@@ -427,9 +427,9 @@ namespace tc
         }
 
         auto srv_remote_device_id = "server_" + device_id;
-        auto relay_result = relay::RelayApi::GetRelayDeviceInfo(relay_host, relay_port, srv_remote_device_id, relay_appkey);
+        auto relay_result = px_relay::RelayApi::GetRelayDeviceInfo(relay_host, relay_port, srv_remote_device_id, relay_appkey);
         if (!relay_result) {
-            LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}, appkey: {}", srv_remote_device_id, relay::RelayError2String(relay_result.error()), relay_result.error(), relay_appkey);
+            LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}, appkey: {}", srv_remote_device_id, px_relay::RelayError2String(relay_result.error()), relay_result.error(), relay_appkey);
             if (show_dialog) {
                 TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
                 dialog.exec();

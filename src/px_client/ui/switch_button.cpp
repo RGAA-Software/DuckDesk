@@ -7,7 +7,7 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 
-namespace tc
+namespace px
 {
 
     SwitchButton::SwitchButton(QWidget *parent) : QWidget(parent) {

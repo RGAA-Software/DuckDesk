@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include "../string_util.h"
 
-using namespace tc;
+using namespace px;
 
 TEST(StringUtilTest, TrimNormal) {
     EXPECT_EQ(StringUtil::Trim("  hello  "), "hello");

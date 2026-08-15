@@ -18,7 +18,7 @@
 #include "render_panel/user/px_user_manager.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     UserRegisterDialog::UserRegisterDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {

@@ -18,7 +18,7 @@ namespace asio2 {
     class timer;
 }
 
-namespace tc
+namespace px
 {
 
     class RelayWsClient : public RelayNetClient, public std::enable_shared_from_this<RelayWsClient> {
@@ -32,7 +32,7 @@ namespace tc
         void PostBinaryMessage(const std::string& msg) override;
         void SyncDeviceId(const std::string& device_id) override;
         int64_t GetQueuingMsgCount() override;
-        void SetDeviceNetInfo(const std::vector<tc::RelayDeviceNetInfo>& info);
+        void SetDeviceNetInfo(const std::vector<px::RelayDeviceNetInfo>& info);
         bool IsAlive() override;
         void PostNetTask(std::function<void ()> &&task) override;
 
@@ -51,7 +51,7 @@ namespace tc
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::atomic_int64_t queuing_msg_count_ = 0;
         unsigned int post_thread_id_ = 0;
-        std::vector<tc::RelayDeviceNetInfo> net_info_;
+        std::vector<px::RelayDeviceNetInfo> net_info_;
         std::atomic_int64_t send_index_ = 0;
         std::mutex send_mtx_;
     };

@@ -7,7 +7,7 @@
 
 #include "px_common_new/webrtc_helper.h"
 
-namespace tc
+namespace px
 {
 
     // Local capture → WebRTC outbound audio track.
@@ -43,4 +43,4 @@ namespace tc
         uint64_t sent_10ms_chunks_ = 0;
     };
 
-} // namespace tc
+} // namespace px

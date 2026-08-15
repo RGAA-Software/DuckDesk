@@ -6,7 +6,7 @@
 #define SAILFISH_SERVER_APPCOLORTHEME_H
 
 
-namespace tc
+namespace px
 {
 
     class AppColorTheme {

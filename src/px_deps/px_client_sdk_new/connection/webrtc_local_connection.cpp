@@ -20,7 +20,7 @@
 
 typedef void *(*FnGetInstance)();
 
-namespace tc
+namespace px
 {
 
     // render side keeps at most one video track per monitor, capped at 4
@@ -350,10 +350,10 @@ namespace tc
 
         // synthesize the exact kVideoFrame proto the relay/ws path delivers,
         // so the standard per-monitor decode chain picks it up unchanged
-        auto msg = std::make_shared<tc::Message>();
-        msg->set_type(tc::kVideoFrame);
+        auto msg = std::make_shared<px::Message>();
+        msg->set_type(px::kVideoFrame);
         auto* frame = msg->mutable_video_frame();
-        frame->set_type(tc::kNetH264);
+        frame->set_type(px::kNetH264);
         frame->set_data(encoded->CStr(), encoded->Size());
         frame->set_frame_index(frame_index);
         frame->set_key(key);
@@ -366,7 +366,7 @@ namespace tc
         frame->set_mon_right(mon.right_);
         frame->set_mon_bottom(mon.bottom_);
         frame->set_mon_index(track_index);
-        frame->set_image_format(tc::kI420);
+        frame->set_image_format(px::kI420);
         // debug tag: lets the sdk side tell synthesized frames apart from any
         // other kVideoFrame producer(see "Video frame came" log in thunder_sdk)
         frame->set_extra("rtc_synth");
@@ -374,7 +374,7 @@ namespace tc
         video_msg_cbk_(msg);
     }
 
-    void WebRtcLocalConnection::SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<tc::Message>)>& cbk) {
+    void WebRtcLocalConnection::SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk) {
         video_msg_cbk_ = cbk;
     }
 
@@ -409,10 +409,10 @@ namespace tc
         // it via the direct fast path(CallbackEventDirectly) instead of queueing on the
         // plugin work thread. channel is reliable+ordered, no events are lost.
         if (msg && rtc_client_->IsInputChannelReady()) {
-            tc::Message proto_msg;
+            px::Message proto_msg;
             if (proto_msg.ParseFromArray(msg->DataAddr(), (int)msg->Size())) {
                 const auto type = proto_msg.type();
-                if (type == tc::kKeyEvent || type == tc::kMouseEvent) {
+                if (type == px::kKeyEvent || type == px::kMouseEvent) {
                     rtc_client_->PostInputMessage(msg);
                     return;
                 }

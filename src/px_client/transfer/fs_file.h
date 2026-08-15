@@ -7,7 +7,7 @@
 
 #include "px_common_new/file.h"
 
-namespace tc
+namespace px
 {
 
     using SendTask = std::function<bool(const std::string& proto_msg, uint64_t total_size, uint64_t offset_size)>;

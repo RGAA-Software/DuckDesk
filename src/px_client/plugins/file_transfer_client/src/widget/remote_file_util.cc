@@ -14,7 +14,7 @@
 #include "file_const_def.h"
 
 
-namespace tc {
+namespace px {
 
 FileContainer GetFileContainerFromParseJsonData(const QString& resp_json_data) {
 	FileContainer res;
@@ -78,19 +78,19 @@ RemoteFileUtil::RemoteFileUtil() : BaseFileUtil() {
 }
 
 void RemoteFileUtil::GetThisPCFiles() {
-	GetFiles(tc::kRealRootPath); // "/"
+	GetFiles(px::kRealRootPath); // "/"
 }
 
 void RemoteFileUtil::GetFiles(const QString& path) {
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("浏览远端文件列表: ") + path);
 	FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_browse_remote_file_list") + path);
-	FileSDKInterface::Instance()->GetFilesList(path, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->GetFilesList(path, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		//LOGI("GetFiles path : {}, resp_code : {}, msg_str : {}, resp_json_data_str : {}", path.toStdString(), resp_code, msg_str, resp_json_data_str);
 		QString message = QString::fromStdString(msg_str);
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 
 		FileContainer file_container;
-		g_remote_file_permission_path = tc::GetRespFilePermissionPath(resp_json_data);
+		g_remote_file_permission_path = px::GetRespFilePermissionPath(resp_json_data);
 		if (!g_remote_file_permission_path.isEmpty()) {
 			if ("/" != g_remote_file_permission_path) {
 				if (g_remote_file_permission_path.endsWith('/')) {
@@ -100,17 +100,17 @@ void RemoteFileUtil::GetFiles(const QString& path) {
 			std::cout << "GetFiles g_remote_file_permission_path = " << g_remote_file_permission_path.toStdString() << std::endl;
 			emit SigRemoteFilePermissionPath();
 		}
-		if (resp_code == tc::RespCode::kRespCodeOk) {
-			file_container = tc::GetFileContainerFromParseJsonData(resp_json_data);
-			file_container.home_ = (tc::kRealRootPath == path);
+		if (resp_code == px::RespCode::kRespCodeOk) {
+			file_container = px::GetFileContainerFromParseJsonData(resp_json_data);
+			file_container.home_ = (px::kRealRootPath == path);
 			emit SigGetFiles(file_container);
-			QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data);
+			QString error_msg = px::GetRespDetailErrorMsg(resp_json_data);
 			if (!error_msg.isEmpty()) {
 				FileLogManager::Instance()->AppendLog(error_msg);
 			}
 			return;
 		}
-		QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data); 
+		QString error_msg = px::GetRespDetailErrorMsg(resp_json_data); 
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("浏览远端文件列表: ") + path + QStringLiteral(" 失败") + message + error_msg);
 		FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_browse_remote_file_list") + path + tcTr("id_file_trans_log_failed") + message + error_msg);
 	});
@@ -119,32 +119,32 @@ void RemoteFileUtil::GetFiles(const QString& path) {
 // GetFiles2 仅获取文件列表，但是并不要显示界面上
 void RemoteFileUtil::GetFiles2(const QString& path) {
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("获取远端文件列表: ") + path);
-	FileSDKInterface::Instance()->GetFilesList(path, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->GetFilesList(path, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		QString message = QString::fromStdString(msg_str);
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 		FileContainer file_container;
-		if (resp_code == tc::RespCode::kRespCodeOk) {
-			file_container = tc::GetFileContainerFromParseJsonData(resp_json_data);
+		if (resp_code == px::RespCode::kRespCodeOk) {
+			file_container = px::GetFileContainerFromParseJsonData(resp_json_data);
 			emit SigGetFiles2(file_container);
 			return;
 		}
-		QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data);
+		QString error_msg = px::GetRespDetailErrorMsg(resp_json_data);
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("浏览远端文件列表: ") + path + QStringLiteral(" 失败") + message + error_msg);
 		FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_browse_remote_file_list") + path + tcTr("id_file_trans_log_failed") + message + error_msg);
 	});
 }
 
 void RemoteFileUtil::RecursiveGetFiles(const QString& path) {
-	FileSDKInterface::Instance()->GetRecursiveFilesList(path, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->GetRecursiveFilesList(path, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		QString message = QString::fromStdString(msg_str);
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 		FileContainer file_container;
-		if (resp_code == tc::RespCode::kRespCodeOk) {
-			file_container = tc::GetFileContainerFromParseJsonData(resp_json_data);
+		if (resp_code == px::RespCode::kRespCodeOk) {
+			file_container = px::GetFileContainerFromParseJsonData(resp_json_data);
 			emit SigGetFiles2(file_container);
 			return;
 		}
-		QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data);
+		QString error_msg = px::GetRespDetailErrorMsg(resp_json_data);
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("浏览远端文件列表: ") + path + QStringLiteral(" 失败") + message + error_msg);
 		FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_browse_remote_file_list") + path + tcTr("id_file_trans_log_failed") + message + error_msg);
 	});
@@ -153,8 +153,8 @@ void RemoteFileUtil::RecursiveGetFiles(const QString& path) {
 void RemoteFileUtil::BatchCreateFolders(std::vector<QString> folders) {
 
 //	FileSDKInterface::Instance()->BatchCreateFolders(folders, [=](bool res, const QString& message, const QString& resp_json_data) {
-	FileSDKInterface::Instance()->BatchCreateFolders(folders, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
-		if (tc::RespCode::kRespCodeOk == resp_code) {
+	FileSDKInterface::Instance()->BatchCreateFolders(folders, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+		if (px::RespCode::kRespCodeOk == resp_code) {
 			return;
 		}
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
@@ -194,8 +194,8 @@ void RemoteFileUtil::Remove(std::vector<QString> paths) {
 		FileLogManager::Instance()->AppendLog(path);
 	}
 	//FileSDKInterface::Instance()->Remove(paths, [=](bool res, const QString& message, const QString& resp_json_data) {
-	FileSDKInterface::Instance()->Remove(paths, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
-		if (tc::RespCode::kRespCodeOk == resp_code) {
+	FileSDKInterface::Instance()->Remove(paths, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+		if (px::RespCode::kRespCodeOk == resp_code) {
 			emit SigRemove();
 			return;
 		}
@@ -227,10 +227,10 @@ void RemoteFileUtil::Remove(std::vector<QString> paths) {
 void RemoteFileUtil::ReName(const QString& old_path, const QString& new_name) {
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("在远端将") + old_path + QStringLiteral(",重命名为:") + new_name);
 	FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_at_the_remote_end") + old_path + tcTr("id_file_trans_log_rename_to") + new_name);
-	FileSDKInterface::Instance()->ReName(old_path, new_name, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->ReName(old_path, new_name, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 		QString message = QString::fromStdString(msg_str);
-		if (tc::RespCode::kRespCodeOk == resp_code) {
+		if (px::RespCode::kRespCodeOk == resp_code) {
 			emit SigReName();
 			std::string temp_str = resp_json_data.toStdString();
 			nlohmann::json resp_json = nlohmann::json::parse(temp_str);
@@ -238,7 +238,7 @@ void RemoteFileUtil::ReName(const QString& old_path, const QString& new_name) {
 			QString new_path = QString::fromStdString(resp_json["new_path"]);
 			return;
 		}
-		QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data);
+		QString error_msg = px::GetRespDetailErrorMsg(resp_json_data);
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("在远端重命名失败:") + message + error_msg);
 		FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_remote_renaming_failed") + message + error_msg);
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("请确保相关文件或文件夹没有被占用或者该文件名已经被占用或者目标路径存在"));
@@ -250,10 +250,10 @@ void RemoteFileUtil::ReName(const QString& old_path, const QString& new_name) {
 void RemoteFileUtil::CreateNewFolder(const QString& parent_path) {
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("在远端:") + parent_path + QStringLiteral(",目录下新建文件夹"));
 	FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_at_the_remote_end") + parent_path + tcTr("id_file_trans_log_create_new_folder_in_dir"));
-	FileSDKInterface::Instance()->CreateNewFolder(parent_path, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->CreateNewFolder(parent_path, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 		QString message = QString::fromStdString(msg_str);
-		if (tc::RespCode::kRespCodeOk == resp_code) {
+		if (px::RespCode::kRespCodeOk == resp_code) {
 			std::string temp_str = resp_json_data.toStdString();
 			nlohmann::json resp_json = nlohmann::json::parse(temp_str);
 			QString parent_path = QString::fromStdString(resp_json["parent_path"]);
@@ -261,7 +261,7 @@ void RemoteFileUtil::CreateNewFolder(const QString& parent_path) {
 			emit this->SigCreateNewFolder(new_created_path);
 			return;
 		}
-		QString error_msg = tc::GetRespDetailErrorMsg(resp_json_data);
+		QString error_msg = px::GetRespDetailErrorMsg(resp_json_data);
 		//FileLogManager::Instance()->AppendLog(QStringLiteral("在远端新建文件夹失败:") + message + error_msg);
 		FileLogManager::Instance()->AppendLog(tcTr("id_file_trans_log_failed_to_create_new_folder_remotely") + message + error_msg);
 	});
@@ -269,14 +269,14 @@ void RemoteFileUtil::CreateNewFolder(const QString& parent_path) {
 
 void RemoteFileUtil::Exists(const QString& path) {
 	//FileLogManager::Instance()->AppendLog(QStringLiteral("在远端判断此路径是否存在:") + path);
-	FileSDKInterface::Instance()->Exists(path, [=](tc::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
+	FileSDKInterface::Instance()->Exists(path, [=](px::RespCode resp_code, const std::string& msg_str, const std::string& resp_json_data_str) {
 		QString resp_json_data = QString::fromStdString(resp_json_data_str);
 		QString message = QString::fromStdString(msg_str);
-		if (tc::RespCode::kRespCodeOk == resp_code) {
+		if (px::RespCode::kRespCodeOk == resp_code) {
 			std::string temp_str = resp_json_data.toStdString();
 			nlohmann::json resp_json = nlohmann::json::parse(temp_str);
 			std::cout << "resp_json[date]" << resp_json["date"] << std::endl;
-			emit SigExists(resp_json["ret"], QString::fromStdString(tc::StringUtil::FormatSize(resp_json["size"])), QDateTime::fromSecsSinceEpoch(resp_json["date"]).toString("yyyy-MM-dd hh:mm:ss"));
+			emit SigExists(resp_json["ret"], QString::fromStdString(px::StringUtil::FormatSize(resp_json["size"])), QDateTime::fromSecsSinceEpoch(resp_json["date"]).toString("yyyy-MM-dd hh:mm:ss"));
 			return;
 		}
 		emit SigExists(false, "", "");// 如果这里不发送信号，就无法触发传输任务，就算res 为false，也发送

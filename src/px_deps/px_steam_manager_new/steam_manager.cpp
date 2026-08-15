@@ -25,7 +25,7 @@
 
 namespace fs = std::filesystem;;
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<SteamManager> SteamManager::Make() {

@@ -10,7 +10,7 @@
 #include <QMap>
 #include <map>
 
-namespace tc
+namespace px
 {
 	//VK : https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
     class QtKeyConverter {

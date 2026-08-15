@@ -6,7 +6,7 @@
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 
     void PrintD3DTexture2DDesc(const std::string& name, const D3D11_TEXTURE2D_DESC& desc) {
         LOGI("{}-----------------ID3D11Texture2D Desc------------------", name);
@@ -27,7 +27,7 @@ namespace tc {
     }
 
     bool DebugOutDDS(ID3D11Texture2D* pResource, const std::string &name) {
-        auto rhi = tc::D3DRender::BuildD3DRenderFromTexture(pResource);
+        auto rhi = px::D3DRender::BuildD3DRenderFromTexture(pResource);
         DirectX::ScratchImage image;
         static int i = 0;
         auto hr = DirectX::CaptureTexture(rhi->GetDevice(), rhi->GetContext(), pResource, image);

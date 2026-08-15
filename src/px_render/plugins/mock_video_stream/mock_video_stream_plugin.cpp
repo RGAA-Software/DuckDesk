@@ -11,7 +11,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
     std::string MockVideoStreamPlugin::GetPluginId() {
         return kMockVideoStreamPluginId;
@@ -33,7 +33,7 @@ namespace tc
         return "Mock video frame for testing";
     }
 
-    bool MockVideoStreamPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool MockVideoStreamPlugin::OnCreate(const px::GrPluginParam& param) {
         GrDataProviderPlugin::OnCreate(param);
         return true;
     }

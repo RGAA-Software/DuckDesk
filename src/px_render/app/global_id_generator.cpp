@@ -5,5 +5,5 @@
 #include "global_id_generator.h"
 
 uint64_t GenNextGlobalId() {
-    return tc::GlobalIdGenerator::Instance()->NextId();
+    return px::GlobalIdGenerator::Instance()->NextId();
 }

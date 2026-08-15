@@ -19,10 +19,10 @@
 #include "px_qt_widget/px_tooltip.h"
 #include "px_base/ct_stream_item_net_type.h"
 
-namespace tc
+namespace px
 {
 
-    StreamSettingsDialog::StreamSettingsDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    StreamSettingsDialog::StreamSettingsDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         db_mgr_ = context_->GetStreamDBManager();
         stream_item_ = item;

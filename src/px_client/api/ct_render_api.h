@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPREMIUM_CT_RENDER_API_H
 #define GAMMARAYPREMIUM_CT_RENDER_API_H
 
-namespace tc
+namespace px
 {
 
     class ct_render_api {

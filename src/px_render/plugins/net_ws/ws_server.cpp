@@ -52,7 +52,7 @@ static bool IsIpcProcessAlive(uint32_t pid) {
     return alive;
 }
 
-namespace tc
+namespace px
 {
 
     struct aop_log {
@@ -68,7 +68,7 @@ namespace tc
         }
     };
 
-    // wire 级扫描 tc.Message 的 type 字段(field 10, varint, tag=0x50),
+    // wire 级扫描 px.Message 的 type 字段(field 10, varint, tag=0x50),
     // 识别 kVideoFrame(30)/kAudioFrame(40)——与 rtc_local_plugin.cpp 的
     // IsMediaFrameMessage 同一做法(不引 protobuf 头,避免 absl 冲突)。
     // udp_media 客户端的音视频帧都走 UDP,ws 下发前用它过滤。
@@ -128,7 +128,7 @@ namespace tc
         return false;
     }
 
-    WsPluginServer::WsPluginServer(tc::WsPlugin* plugin, uint16_t listen_port){
+    WsPluginServer::WsPluginServer(px::WsPlugin* plugin, uint16_t listen_port){
         this->plugin_ = plugin;
         this->listen_port_ = listen_port;
         http_handler_ = std::make_shared<HttpHandler>(plugin_);

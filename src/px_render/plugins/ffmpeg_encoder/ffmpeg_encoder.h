@@ -18,7 +18,7 @@ extern "C" {
     #include <libavutil/hwcontext.h>
 }
 
-namespace tc
+namespace px
 {
 
     class Data;

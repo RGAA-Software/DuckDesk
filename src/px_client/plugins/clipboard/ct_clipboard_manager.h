@@ -12,7 +12,7 @@
 #include "px_common_new/clipboard/clipboard_platform.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     class WinMessageLoop;
@@ -26,9 +26,9 @@ namespace tc
         explicit ClipboardManager(ClientClipboardPlugin* plugin);
         void Start();
         void Stop();
-        void OnRemoteClipboardMessage(std::shared_ptr<tc::Message> msg);
-        void OnRemoteClipboardRespMessage(std::shared_ptr<tc::Message> msg);
-        void OnRemoteFileRespMessage(std::shared_ptr<tc::Message> msg);
+        void OnRemoteClipboardMessage(std::shared_ptr<px::Message> msg);
+        void OnRemoteClipboardRespMessage(std::shared_ptr<px::Message> msg);
+        void OnRemoteFileRespMessage(std::shared_ptr<px::Message> msg);
         void OnLocalClipboardUpdated();
 
     private:

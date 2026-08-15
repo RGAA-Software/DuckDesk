@@ -75,8 +75,8 @@ echo ============================================
     --host=%HOST% ^
     --port=%PORT% ^
     --appkey=test_appkey ^
-    --spvr_host=127.0.0.1 ^
-    --spvr_port=30500 ^
+    --cms_host=127.0.0.1 ^
+    --cms_port=30500 ^
     --audio=1 ^
     --clipboard=1 ^
     --stream_id=%STREAM_ID% ^

@@ -8,7 +8,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/net_tlv_header.h"
 
-namespace tc
+namespace px
 {
 
     RtcDataChannel::RtcDataChannel(RtcConnection* client, rtc::scoped_refptr<webrtc::DataChannelInterface> ch, const std::string& name) {
@@ -248,4 +248,4 @@ namespace tc
         return name_ == "ft_data_channel";
     }
 
-} // namespace tc
+} // namespace px

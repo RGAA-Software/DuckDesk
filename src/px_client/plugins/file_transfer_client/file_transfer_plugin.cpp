@@ -17,9 +17,9 @@
 #include "src/core/file_trans_interface.h"
 #include "widget_helper.h"
 
-GR_PLUGIN_EXPORT(tc::FileTransferPlugin)
+GR_PLUGIN_EXPORT(px::FileTransferPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string FileTransferPlugin::GetPluginId() {
@@ -42,7 +42,7 @@ namespace tc
         ClientPluginInterface::On1Second();
     }
     
-    bool FileTransferPlugin::OnCreate(const tc::ClientPluginParam& param) {
+    bool FileTransferPlugin::OnCreate(const px::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
         plugin_type_ = ClientPluginType::kUtil;
 
@@ -131,7 +131,7 @@ namespace tc
         return file_trans_interface_ && file_trans_interface_->HasTransTask();
     }
 
-    void FileTransferPlugin::SyncClientPluginSettings(const tc::ClientPluginSettings& settings) {
+    void FileTransferPlugin::SyncClientPluginSettings(const px::ClientPluginSettings& settings) {
         LOGI("client name: {}, max transmit speed: {}, max receive speed: {}", settings.display_name_, settings.max_transmit_speed_, settings.max_receive_speed_);
         if (!file_trans_interface_) {
             return;

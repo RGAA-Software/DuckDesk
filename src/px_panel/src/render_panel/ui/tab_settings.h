@@ -9,7 +9,7 @@
 #include <QStackedWidget>
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     enum class StTabName {

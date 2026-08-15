@@ -12,7 +12,7 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::proto::{
     build_hello_resp_message, build_raw_render_message, build_raw_render_message_routed,
     build_tc_clipboard_info, build_tc_resp_buffer, clipboard_text_from_rp, parse_rp_message,
-    parse_tc_message, tcrp::RpMessageType, tc::MessageType, StreamRoute,
+    parse_tc_message, pxrp::RpMessageType, px::MessageType, StreamRoute,
 };
 use crate::clipboard::virtual_file::RespBufferData;
 

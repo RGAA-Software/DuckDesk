@@ -16,7 +16,7 @@
 #include "file_transmit_sdk.h"
 #include "../widget/file_log_manager.h"
 
-namespace tc {
+namespace px {
 
 FileSDKInterface::FileSDKInterface() : QObject() {
 	msg_answer_cbk_t_ = std::make_shared<FileMsgAnswerCbkStructure>();	
@@ -35,34 +35,34 @@ void FileSDKInterface::RegSendMessageFunc(SendMessageFuncType&& func) {
 void FileSDKInterface::OnMessage(const std::shared_ptr<Message>& msg) {
 	switch (msg->type())
 	{
-	case tc::kFileOperateRespGetFileList:
-	case tc::kFileOperateRespBatchCreateFolders:
-	case tc::kFileOperateRespCreateNewFolder:
-	case tc::kFileOperateRespDel:
-	case tc::kFileOperateRespRename:
-	case tc::kFileOperateRespExists: {
+	case px::kFileOperateRespGetFileList:
+	case px::kFileOperateRespBatchCreateFolders:
+	case px::kFileOperateRespCreateNewFolder:
+	case px::kFileOperateRespDel:
+	case px::kFileOperateRespRename:
+	case px::kFileOperateRespExists: {
 		file_transmit_sdk_->HandleFileOperateRespMessage(msg);
 		break;
 	}
-	case tc::kFileTransRespUpload:
+	case px::kFileTransRespUpload:
 		if (!msg->has_file_trans_resp_upload()) {
 			return;
 		}
 		file_transmit_sdk_->HandleFileUploadMessage(msg->file_trans_resp_upload());
 		break;
-	case tc::kFileTransRespDownload:
+	case px::kFileTransRespDownload:
 		if (!msg->has_file_trans_resp_download()) {
 			return;
 		}
 		file_transmit_sdk_->HandleFileDownloadMessage(msg->file_trans_resp_download());
 		break;
-	case tc::kFileTransDataPacket:
+	case px::kFileTransDataPacket:
 		if (!msg->has_file_trans_data_packet()) {
 			return;
 		}
 		file_transmit_sdk_->HandleFileTransmitDataPacket(msg->file_trans_data_packet());
 		break;
-	case tc::kFileTransDataPacketResponse:
+	case px::kFileTransDataPacketResponse:
 		if (!msg->has_file_trans_data_packet_response()) {
 			return;
 		}
@@ -217,8 +217,8 @@ void FileSDKInterface::RegisterFileOperateCallback() {
 			}
 			// 下载进度
 			if (ETcFileTransmitState::kDownloadProcess == state) {
-				static uint64_t last_time = tc::TimeUtil::GetCurrentTimestamp();
-				auto current_time = tc::TimeUtil::GetCurrentTimestamp();
+				static uint64_t last_time = px::TimeUtil::GetCurrentTimestamp();
+				auto current_time = px::TimeUtil::GetCurrentTimestamp();
 				if (current_time - last_time <= 1000) {
 					return;
 				}

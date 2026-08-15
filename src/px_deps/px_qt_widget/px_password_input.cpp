@@ -5,7 +5,7 @@
 #include "px_password_input.h"
 #include "px_image_button.h"
 
-namespace tc
+namespace px
 {
 
     TcPasswordInput::TcPasswordInput(QWidget* parent) : QWidget(parent) {

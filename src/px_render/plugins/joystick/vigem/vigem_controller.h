@@ -13,7 +13,7 @@
 #include "sdk/ViGEm/Client.h"
 #include "vigem_defs.h"
 
-namespace tc
+namespace px
 {
 
     enum class JoystickType {

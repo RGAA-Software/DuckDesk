@@ -7,7 +7,7 @@
 #include <vector>
 #include "px_common_new/clipboard/clipboard_echo.h"
 
-using namespace tc::clipboard;
+using namespace px::clipboard;
 
 TEST(ClipboardEchoFilterTest, DefaultState) {
     EchoFilter filter;

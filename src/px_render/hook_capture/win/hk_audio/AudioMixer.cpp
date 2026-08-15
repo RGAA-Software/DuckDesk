@@ -9,7 +9,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 constexpr size_t kMaxQueueBytes = 16 * 1024 * 1024;  // byte-based, not packet count
@@ -239,4 +239,4 @@ void AudioMixer::WorkerMain() {
     }
 }
 
-}  // namespace tc
+}  // namespace px

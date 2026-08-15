@@ -4,7 +4,7 @@
  *
  * Usage:
  *   node scripts/inject_service_auth.mjs --host 127.0.0.1 --port 20375 \
- *     --device-id debug-svc-1 --appkey XXX --spvr-host 127.0.0.1 --spvr-port 30500
+ *     --device-id debug-svc-1 --appkey XXX --cms-host 127.0.0.1 --cms-port 30500
  */
 import net from 'node:net'
 import crypto from 'node:crypto'
@@ -15,8 +15,8 @@ function parseArgs(argv) {
     port: 20375,
     deviceId: 'debug-svc-1',
     appkey: '',
-    spvrHost: '127.0.0.1',
-    spvrPort: 30500,
+    cmsHost: '127.0.0.1',
+    cmsPort: 30500,
   }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -25,8 +25,8 @@ function parseArgs(argv) {
     else if (a === '--port') out.port = Number(n)
     else if (a === '--device-id') out.deviceId = n
     else if (a === '--appkey') out.appkey = n
-    else if (a === '--spvr-host') out.spvrHost = n
-    else if (a === '--spvr-port') out.spvrPort = Number(n)
+    else if (a === '--cms-host') out.cmsHost = n
+    else if (a === '--cms-port') out.cmsPort = Number(n)
     else continue
     i++
   }
@@ -86,8 +86,8 @@ function encodeAuthInfo(opts) {
     encInt32(7, 365),
     encInt32(8, 16),
     encInt64(9, BigInt(Date.now()) + 86400000n * 30n),
-    encString(10, opts.spvrHost),
-    encInt32(11, opts.spvrPort),
+    encString(10, opts.cmsHost),
+    encInt32(11, opts.cmsPort),
   ])
 }
 
@@ -184,7 +184,7 @@ async function main() {
               ok: true,
               deviceId: opts.deviceId,
               appkey: opts.appkey,
-              spvr: `${opts.spvrHost}:${opts.spvrPort}`,
+              cms: `${opts.cmsHost}:${opts.cmsPort}`,
               bytes: payload.length,
             }),
           )

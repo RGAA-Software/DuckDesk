@@ -12,7 +12,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 constexpr size_t kMaxQueueBytes = 16 * 1024 * 1024;  // byte-based, not packet count
@@ -289,4 +289,4 @@ void AudioShare::CloseWavUnlocked() {
 #endif
 }
 
-}  // namespace tc
+}  // namespace px

@@ -4,7 +4,7 @@
 
 #include "float_icon.h"
 
-namespace tc
+namespace px
 {
 
     FloatIcon::FloatIcon(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

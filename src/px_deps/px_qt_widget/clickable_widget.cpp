@@ -5,7 +5,7 @@
 #include "clickable_widget.h"
 #include <QLinearGradient>
 
-namespace tc
+namespace px
 {
 
     ClickableWidget::ClickableWidget(QWidget* parent) : QWidget(parent) {

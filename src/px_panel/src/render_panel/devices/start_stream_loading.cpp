@@ -10,17 +10,17 @@
 #include "widget_helper.h"
 #include "no_margin_layout.h"
 #include "px_common_new/uid_spacer.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 #include "render_panel/px_application.h"
 #include "skin/interface/skin_interface.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"
 #include "px_qt_widget/loadings/winstyle/win10horizontalloadingwidget.h"
 
-namespace tc
+namespace px
 {
 
-    StartStreamLoading::StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<spvr::SpvrStream>& item, const std::string& network_type)
+    StartStreamLoading::StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type)
         : QDialog(nullptr) {
 
         setWindowFlags(Qt::FramelessWindowHint|Qt::Dialog);
@@ -86,7 +86,7 @@ namespace tc
             }
 
             QString pre_msg = tcTr("id_start_streaming");
-            auto lbl_title = new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, tc::SpaceId(stream_name)).c_str());
+            auto lbl_title = new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, px::SpaceId(stream_name)).c_str());
             lbl_title->setFixedWidth(this->width());
             lbl_title->setAlignment(Qt::AlignCenter);
             lbl_title->setStyleSheet("font-size: 15px; font-weight:bold; color: #555555;");

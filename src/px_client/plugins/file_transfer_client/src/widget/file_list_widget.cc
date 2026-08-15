@@ -28,7 +28,7 @@
 #define TC_TABLE_HEADER_HEIGHT 25
 #define TC_TABLE_FILE_NAME_COLUMN 0
 
-namespace tc {
+namespace px {
 
 static int s_gam_real_table_header_height = 25;
 
@@ -100,11 +100,11 @@ void FileListWidget::Init(QString last_path) {
 	InitContextMenu();
 	InitSigChannel();
 	if (last_path.isEmpty()) {
-		current_dir_ = tc::kRealRootPath;
+		current_dir_ = px::kRealRootPath;
 		file_util_->GetThisPCFiles();
 	}
 	else {
-		if (tc::kRealRootPath == last_path) {
+		if (px::kRealRootPath == last_path) {
 			file_util_->GetThisPCFiles();
 		}
 		else {
@@ -279,7 +279,7 @@ void FileListWidget::InitSigChannel() {
 		menu_index_valid_->hide();
 		menu_index_novalid_->hide();
 		// 如果是win32 根目录 就不要有删除功能
-		if (tc::kRealRootPath == current_dir_.absolutePath()) {
+		if (px::kRealRootPath == current_dir_.absolutePath()) {
 			return;
 		}
 		std::vector<QString> del_paths;
@@ -443,8 +443,8 @@ void FileListWidget::GoBack() {
 	}
 	QDir dir = history_dirs_.top();
 	history_dirs_.pop();
-	if (dir.path() == tc::kRealRootPath) {
-		current_dir_ = tc::kRealRootPath;
+	if (dir.path() == px::kRealRootPath) {
+		current_dir_ = px::kRealRootPath;
 		NotifyCurrentDirPathChange();
 		file_util_->GetThisPCFiles();
 	}
@@ -459,7 +459,7 @@ void FileListWidget::GoBack() {
 void FileListWidget::Refresh() {
 	ExitPersistentEditor();
 	QString temp_path = current_dir_.absolutePath();
-	if (tc::kRealRootPath == temp_path) {
+	if (px::kRealRootPath == temp_path) {
 		file_util_->GetThisPCFiles();
 	}
 	else {
@@ -484,7 +484,7 @@ void FileListWidget::GoParentDir() {
 		}
 	}
 	if (current_dir_.isRoot()) {  // 'C:/' 与 '/'  都会返回true， 要区分下
-		if (tc::kRealRootPath != current_dir_.path()) {
+		if (px::kRealRootPath != current_dir_.path()) {
 			GoIndex();
 		}
 	}
@@ -503,7 +503,7 @@ void FileListWidget::GoParentDir() {
 void FileListWidget::GoIndex() {
 	last_dir_ = current_dir_;
 	file_util_->GetThisPCFiles();
-	current_dir_ = tc::kRealRootPath;
+	current_dir_ = px::kRealRootPath;
 	history_dirs_.emplace(last_dir_);
 	NotifyCurrentDirPathChange();
 }

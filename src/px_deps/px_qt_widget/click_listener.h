@@ -9,7 +9,7 @@
 #include <functional>
 #include <QWidget>
 
-namespace tc
+namespace px
 {
 
     using OnClickListener = std::function<void(QWidget*)>;

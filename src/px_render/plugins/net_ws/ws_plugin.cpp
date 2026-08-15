@@ -11,9 +11,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::WsPlugin)
+GR_PLUGIN_EXPORT(px::WsPlugin)
 
-namespace tc
+namespace px
 {
 
     WsPlugin::WsPlugin() : GrNetPlugin() {
@@ -40,7 +40,7 @@ namespace tc
         return "Network via WebSocket";
     }
 
-    bool WsPlugin::OnCreate(const tc::GrPluginParam& param) {
+    bool WsPlugin::OnCreate(const px::GrPluginParam& param) {
         GrPluginInterface::OnCreate(param);
         game_hook_mode_ = GetConfigStringParam("app_mode") == "game-hook";
         auto listen_port = GetConfigIntParam("ws-listen-port");

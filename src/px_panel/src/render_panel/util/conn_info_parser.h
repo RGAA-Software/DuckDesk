@@ -10,7 +10,7 @@
 #include <vector>
 #include <sstream>
 
-namespace tc
+namespace px
 {
 
     class GrConnectionInfo {

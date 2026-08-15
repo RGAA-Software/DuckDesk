@@ -21,7 +21,7 @@
 
 #pragma comment(lib, "Wininet.lib")
 
-namespace tc
+namespace px
 {
 
     CpVirtualFile::CpVirtualFile(ClientClipboardPlugin* plugin) {
@@ -42,7 +42,7 @@ namespace tc
                     return false;
                 }
                 auto settings = plugin->GetPluginSettings();
-                tc::Message msg;
+                px::Message msg;
                 msg.set_device_id(settings.device_id_);
                 msg.set_stream_id(settings.stream_id_);
                 msg.set_type(MessageType::kClipboardReqBuffer);
@@ -54,7 +54,7 @@ namespace tc
 
                 auto event = std::make_shared<ClientPluginNetworkEvent>();
                 event->media_channel_ = false;
-                event->buf_ = tc::ProtoAsData(&msg);
+                event->buf_ = px::ProtoAsData(&msg);
                 plugin->CallbackEvent(event);
                 return true;
             };
@@ -348,7 +348,7 @@ namespace tc
         event_cbk_(event);
 
         // send begin message to render
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(settings.device_id_);
         msg.set_stream_id(settings.stream_id_);
         msg.set_type(MessageType::kClipboardReqAtBegin);
@@ -382,7 +382,7 @@ namespace tc
         event_cbk_(event);
 
         // send end message to client
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(settings.device_id_);
         msg.set_stream_id(settings.stream_id_);
         msg.set_type(MessageType::kClipboardReqAtEnd);

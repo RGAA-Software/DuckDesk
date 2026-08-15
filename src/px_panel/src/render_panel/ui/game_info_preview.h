@@ -8,7 +8,7 @@
 #include <QWidget>
 #include <QDialog>
 
-namespace tc
+namespace px
 {
 
     class TcDBGame;

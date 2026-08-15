@@ -7,7 +7,7 @@
 #include <iomanip>
 #include <cmath>
 
-namespace tc
+namespace px
 {
     std::string NumFormatter::FormatStorageSize(int64_t bytes) {
         const size_t GB = 1024 * 1024 * 1024;

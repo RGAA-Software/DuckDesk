@@ -19,7 +19,7 @@
 #include "hk_obs/hook_manager.h"
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 struct ComVtable {
@@ -789,4 +789,4 @@ void HookCoreApi::Shutdown() {
     LOGI("AudioHook: shutdown complete, all vtable patches restored");
 }
 
-}  // namespace tc
+}  // namespace px

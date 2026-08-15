@@ -8,7 +8,7 @@ import path from 'node:path'
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const BASE_URL = 'https://127.0.0.1:30500'
 const CDP_PORT = 9223
-const USERNAME = 'SpvrAdmin'
+const USERNAME = 'CmsAdmin'
 const PASSWORD = 'eb#6naIq'
 
 const results = []

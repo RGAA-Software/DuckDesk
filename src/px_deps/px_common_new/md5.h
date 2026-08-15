@@ -9,7 +9,7 @@
 #define OPENSSL_API_COMPAT 10100
 #include <openssl/md5.h>
 
-namespace tc
+namespace px
 {
 
     class MD5 {

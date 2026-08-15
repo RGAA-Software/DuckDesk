@@ -17,7 +17,7 @@
 #include <mutex>
 #endif
 
-using namespace tc::clipboard;
+using namespace px::clipboard;
 
 namespace {
 

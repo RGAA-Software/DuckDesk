@@ -2,7 +2,7 @@
 #include <fstream>
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
 	std::shared_ptr<RawImage> RawImage::Make(char* data, int size, int width, int height, int ch, RawImageFormat format) {

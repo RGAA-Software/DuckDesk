@@ -8,7 +8,7 @@
 #include <QString>
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     enum class NotifyItemType {

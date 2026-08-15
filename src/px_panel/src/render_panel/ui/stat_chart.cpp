@@ -12,7 +12,7 @@
 #include <QTimer>
 #include <QRandomGenerator>
 
-namespace tc
+namespace px
 {
 
     StatChart::StatChart(const std::shared_ptr<GrContext>& ctx,

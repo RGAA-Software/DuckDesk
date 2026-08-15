@@ -15,7 +15,7 @@ extern "C" {
 	#include <libavutil/avassert.h>
 }
 
-namespace tc {
+namespace px {
 
     using TestPostAVFrameCallbackFuncType = std::function<void(AVFrame* frame)>;
 

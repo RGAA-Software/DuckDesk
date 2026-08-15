@@ -21,7 +21,7 @@
 #include <QClipboard>
 #include <QApplication>
 
-namespace tc
+namespace px
 {
 
     constexpr int kPageSize = 20;

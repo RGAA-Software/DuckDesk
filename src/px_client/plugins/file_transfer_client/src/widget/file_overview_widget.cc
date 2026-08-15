@@ -18,7 +18,7 @@
 #include "file_log_manager.h"
 #include "px_label.h"
 
-namespace tc {
+namespace px {
 
 //margin padding 的顺序是上右下左
 static QString s_combobox_style = "QComboBox {border:0px;border-radius: 4px; padding: 0px 0px 0px 10px; font-family:Microsoft YaHei;font-size:%1px; color:#333333;background-color:#ffffff;}"
@@ -303,7 +303,7 @@ void FileOverviewWidget::Init(QString path) {
 	main_vbox_layout_->addSpacing(6);
 	main_vbox_layout_->addLayout(list_view_hbox_layout_);
 
-	if (path != tc::kRealRootPath && !path.isEmpty()) {
+	if (path != px::kRealRootPath && !path.isEmpty()) {
 		operation_widget_->btn_go_parent_directory_->setEnabled(true);
 	}
 

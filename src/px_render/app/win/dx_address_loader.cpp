@@ -11,7 +11,7 @@
 #include <vector>
 #include <string>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<AppSharedMessage> DxAddressLoader::LoadDxAddress() {

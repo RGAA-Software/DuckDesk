@@ -19,11 +19,11 @@ extern "C" {
 #include "px_common_new/log.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/time_util.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
 using namespace sqlite_orm;
 
-namespace tc
+namespace px
 {
     namespace {
         bool IsDbReady(const std::shared_ptr<GrDatabase>& db) {
@@ -44,7 +44,7 @@ namespace tc
 
     }
 
-    void StreamDBOperator::AddStream(const std::shared_ptr<spvr::SpvrStream>& stream) {
+    void StreamDBOperator::AddStream(const std::shared_ptr<px_cms::CmsStream>& stream) {
         if (!stream || !IsDbReady(db_)) {
             return;
         }
@@ -66,18 +66,18 @@ namespace tc
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_id_) == stream_id));
+        auto streams = storage.get_all<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_id_) == stream_id));
         return !streams.empty();
     }
 
-    bool StreamDBOperator::UpdateStream(std::shared_ptr<spvr::SpvrStream> stream) {
+    bool StreamDBOperator::UpdateStream(std::shared_ptr<px_cms::CmsStream> stream) {
         if (!stream || !IsDbReady(db_)) {
             return false;
         }
         stream->updated_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_id_) == stream->stream_id_));
+        auto streams = storage.get_all<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_id_) == stream->stream_id_));
         if (streams.size() >= 1) {
             storage.update(*stream);
         }
@@ -98,7 +98,7 @@ namespace tc
 
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_id_) == stream_id));
+        auto streams = storage.get_all<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_id_) == stream_id));
         if (streams.size() == 1) {
             storage.update(*stream);
         }
@@ -119,20 +119,20 @@ namespace tc
 
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_id_) == stream_id));
+        auto streams = storage.get_all<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_id_) == stream_id));
         if (streams.size() == 1) {
             storage.update(*stream);
         }
         return true;
     }
 
-    std::optional<std::shared_ptr<spvr::SpvrStream>> StreamDBOperator::GetStreamByStreamId(const std::string& stream_id) {
+    std::optional<std::shared_ptr<px_cms::CmsStream>> StreamDBOperator::GetStreamByStreamId(const std::string& stream_id) {
         if (!IsDbReady(db_)) {
             return std::nullopt;
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all_pointer<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_id_) == stream_id));
+        auto streams = storage.get_all_pointer<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_id_) == stream_id));
         if (streams.empty()) {
             return std::nullopt;
         }
@@ -140,13 +140,13 @@ namespace tc
         return target_stream;
     }
 
-    std::optional<std::shared_ptr<spvr::SpvrStream>> StreamDBOperator::GetStreamByHostPort(const std::string& host, int port) {
+    std::optional<std::shared_ptr<px_cms::CmsStream>> StreamDBOperator::GetStreamByHostPort(const std::string& host, int port) {
         if (!IsDbReady(db_)) {
             return std::nullopt;
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all_pointer<spvr::SpvrStream>(where(c(&spvr::SpvrStream::stream_host_) == host and c(&spvr::SpvrStream::stream_port_) == port));
+        auto streams = storage.get_all_pointer<px_cms::CmsStream>(where(c(&px_cms::CmsStream::stream_host_) == host and c(&px_cms::CmsStream::stream_port_) == port));
         if (streams.empty()) {
             return std::nullopt;
         }
@@ -154,61 +154,61 @@ namespace tc
         return target_stream;
     }
 
-    std::optional<std::shared_ptr<spvr::SpvrStream>> StreamDBOperator::GetStreamByRemoteDeviceId(const std::string& remote_device_id) {
+    std::optional<std::shared_ptr<px_cms::CmsStream>> StreamDBOperator::GetStreamByRemoteDeviceId(const std::string& remote_device_id) {
         if (!IsDbReady(db_)) {
             return std::nullopt;
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all_pointer<spvr::SpvrStream>(where(c(&spvr::SpvrStream::remote_device_id_) == remote_device_id));
+        auto streams = storage.get_all_pointer<px_cms::CmsStream>(where(c(&px_cms::CmsStream::remote_device_id_) == remote_device_id));
         if (streams.empty()) {
             return std::nullopt;
         }
-        std::shared_ptr<spvr::SpvrStream> target_stream = std::move(streams[0]);
+        std::shared_ptr<px_cms::CmsStream> target_stream = std::move(streams[0]);
         return target_stream;
     }
 
-//    std::vector<spvr::SpvrStream> StreamDBManager::GetAllStreams() {
+//    std::vector<px_cms::CmsStream> StreamDBManager::GetAllStreams() {
 //        using Storage = decltype(db_->GetStorageTypeValue());
 //        auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-//        return storage.get_all<spvr::SpvrStream>();
+//        return storage.get_all<px_cms::CmsStream>();
 //    }
 
-    std::vector<std::shared_ptr<spvr::SpvrStream>> StreamDBOperator::GetAllStreamsSortByCreatedTime(bool increase) {
+    std::vector<std::shared_ptr<px_cms::CmsStream>> StreamDBOperator::GetAllStreamsSortByCreatedTime(bool increase) {
         if (!IsDbReady(db_)) {
             return {};
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto unique_streams = storage.get_all_pointer<spvr::SpvrStream>([=]() -> auto {
+        auto unique_streams = storage.get_all_pointer<px_cms::CmsStream>([=]() -> auto {
             if (increase) {
-                return order_by(&spvr::SpvrStream::created_timestamp_);
+                return order_by(&px_cms::CmsStream::created_timestamp_);
             } else {
-                return order_by(&spvr::SpvrStream::created_timestamp_).desc();
+                return order_by(&px_cms::CmsStream::created_timestamp_).desc();
             }
         }());
 
-        std::vector<std::shared_ptr<spvr::SpvrStream>> streams;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> streams;
         for (auto& st : unique_streams) {
             streams.push_back(std::move(st));
         }
         return streams;
     }
 
-    std::vector<std::shared_ptr<spvr::SpvrStream>> StreamDBOperator::GetStreamsSortByCreatedTime(int page, int page_size, bool increase) {
+    std::vector<std::shared_ptr<px_cms::CmsStream>> StreamDBOperator::GetStreamsSortByCreatedTime(int page, int page_size, bool increase) {
         if (!IsDbReady(db_)) {
             return {};
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
         int offset_size = (page - 1) * page_size;
-        auto unique_streams = storage.get_all_pointer<spvr::SpvrStream>(
-            where(length(&spvr::SpvrStream::remote_device_id_) > 1),
-            order_by(&spvr::SpvrStream::created_timestamp_).desc(),
+        auto unique_streams = storage.get_all_pointer<px_cms::CmsStream>(
+            where(length(&px_cms::CmsStream::remote_device_id_) > 1),
+            order_by(&px_cms::CmsStream::created_timestamp_).desc(),
             limit(page_size, offset(offset_size))
         );
 
-        std::vector<std::shared_ptr<spvr::SpvrStream>> streams;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> streams;
         for (auto& ust : unique_streams) {
             streams.push_back(std::move(ust));
         }
@@ -221,7 +221,7 @@ namespace tc
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        storage.remove<spvr::SpvrStream>(id);
+        storage.remove<px_cms::CmsStream>(id);
     }
 
     void StreamDBOperator::Clear() {
@@ -230,7 +230,7 @@ namespace tc
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        storage.remove_all<spvr::SpvrStream>();
+        storage.remove_all<px_cms::CmsStream>();
     }
 
     std::string StreamDBOperator::GenUUID() {

@@ -5,7 +5,7 @@
 #include "memory_stat.h"
 #include "px_common_new/snowflake_id.h"
 
-namespace tc
+namespace px
 {
 
     Data::Data(const char* src, int64_t size) {

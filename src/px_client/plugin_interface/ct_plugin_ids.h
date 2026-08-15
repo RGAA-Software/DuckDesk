@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     const std::string kClientMultiScreenCtPluginId = "8fb40611-54a8-4b2e-b7dd-deca05ff5453";

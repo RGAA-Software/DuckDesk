@@ -2,7 +2,7 @@
 
 #include "base64_impl/base64_impl.hpp"
 
-namespace tc
+namespace px
 {
 
     std::string Base64::Base64Encode(const uint8_t* data, std::size_t len) {

@@ -10,7 +10,7 @@
 #include <condition_variable>
 #include "../common/file_trans_def.h"
 
-namespace tc {
+namespace px {
 
 constexpr uint64_t kSingleBufferSize = 1024 * 4;
 
@@ -73,15 +73,15 @@ public:
 	void Remove(std::string paths, OnFileOperateCallbackFuncType&& resp_callback);
 
 
-	void HandleFileOperateRespMessage(const std::shared_ptr<tc::Message>& msg);
-	void HandleFileUploadMessage(const tc::FileTransRespUpload& resp_upload);
+	void HandleFileOperateRespMessage(const std::shared_ptr<px::Message>& msg);
+	void HandleFileUploadMessage(const px::FileTransRespUpload& resp_upload);
 	// 当对端有异常时候，会调用到HandleFileDownloadMessage
-	void HandleFileDownloadMessage(const tc::FileTransRespDownload& resp_download);
-	void HandleFileTransmitDataPacket(const tc::FileTransDataPacket& data_packet);
+	void HandleFileDownloadMessage(const px::FileTransRespDownload& resp_download);
+	void HandleFileTransmitDataPacket(const px::FileTransDataPacket& data_packet);
 	
-	void HandleFileTransDataPacketResponse(tc::FileTransDataPacketResponse data_packet_resp);
+	void HandleFileTransDataPacketResponse(px::FileTransDataPacketResponse data_packet_resp);
 
-	void SendSaveFileExceptionMessage(std::string src_file_path, std::string target_file_path, std::string task_id, tc::FileTransSaveFileException::SaveFileExceptionCause cause);
+	void SendSaveFileExceptionMessage(std::string src_file_path, std::string target_file_path, std::string task_id, px::FileTransSaveFileException::SaveFileExceptionCause cause);
 
 	void SendFileTransDataPacketResponseMessage(std::string task_id, uint64_t recved_index);
 
@@ -107,7 +107,7 @@ public:
 	// id_map_state
 	static std::map<std::string, EFileTransmitTaskSimpleState> file_transmit_task_with_simple_state_;
 	// id_map_down_task
-	std::map<std::string, std::shared_ptr<tc::FileDownloadTask>> id_with_download_task_;
+	std::map<std::string, std::shared_ptr<px::FileDownloadTask>> id_with_download_task_;
 	std::mutex id_with_download_task_mutex_;
 
 	// 定时检测

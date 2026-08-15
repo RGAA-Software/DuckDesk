@@ -5,7 +5,7 @@
 #include "dynamic_library.h"
 #include <format>
 
-namespace tc {
+namespace px {
 
 DynamicLibrary::DynamicLibrary(const std::wstring& path) : path_(path) {}
 
@@ -35,4 +35,4 @@ bool DynamicLibrary::IsLoaded() const {
     return handle_ != NULL;
 }
 
-} // namespace tc
+} // namespace px

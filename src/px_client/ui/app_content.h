@@ -14,7 +14,7 @@
 
 #include "round_rect_widget.h"
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

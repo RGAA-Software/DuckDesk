@@ -18,9 +18,9 @@
 #include "ffmpeg_encoder.h"
 #include <Winerror.h>
 
-GR_PLUGIN_EXPORT(tc::FFmpegEncoderPlugin)
+GR_PLUGIN_EXPORT(px::FFmpegEncoderPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string FFmpegEncoderPlugin::GetPluginId() {
@@ -47,8 +47,8 @@ namespace tc
         GrVideoEncoderPlugin::On1Second();
     }
 
-    bool FFmpegEncoderPlugin::OnCreate(const tc::GrPluginParam& plugin_param) {
-        tc::GrVideoEncoderPlugin::OnCreate(plugin_param);
+    bool FFmpegEncoderPlugin::OnCreate(const px::GrPluginParam& plugin_param) {
+        px::GrVideoEncoderPlugin::OnCreate(plugin_param);
 
         return true;
     }

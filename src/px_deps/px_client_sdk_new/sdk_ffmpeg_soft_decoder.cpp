@@ -20,7 +20,7 @@
 #include "thunder_sdk.h"
 #include "sdk_statistics.h"
 
-namespace tc
+namespace px
 {
 
     FFmpegVideoDecoder::FFmpegVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {

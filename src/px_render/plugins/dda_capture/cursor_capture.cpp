@@ -13,7 +13,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "dda_capture_plugin.h"
 
-namespace tc
+namespace px
 {
 
     static uint8_t *get_bitmap_data(HBITMAP hbmp, BITMAP *bmp, uint32_t *sizeOut) {

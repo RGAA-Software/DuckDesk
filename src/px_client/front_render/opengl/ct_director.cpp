@@ -1,6 +1,6 @@
 #include "ct_director.h"
 
-namespace tc
+namespace px
 {
 
 	std::shared_ptr<Director> Director::Make(GLFuncs* funcs) {

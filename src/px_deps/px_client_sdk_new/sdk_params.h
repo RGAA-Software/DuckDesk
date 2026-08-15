@@ -15,7 +15,7 @@ extern "C" {
 #include "px_common_new/win32/d3d11_wrapper.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     class ThunderSdkParams {

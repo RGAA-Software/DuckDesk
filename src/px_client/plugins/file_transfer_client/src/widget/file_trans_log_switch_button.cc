@@ -1,7 +1,7 @@
 #include "file_trans_log_switch_button.h"
 #include <qbrush.h>
 
-namespace tc {
+namespace px {
 FileTransLogSwitchButton::FileTransLogSwitchButton(QWidget* parent) : QPushButton(parent) {
 
 }

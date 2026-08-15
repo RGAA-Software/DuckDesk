@@ -13,7 +13,7 @@
 
 #include "string_util.h"
 
-namespace tc
+namespace px
 {
 
     class MonitorWinInfo {

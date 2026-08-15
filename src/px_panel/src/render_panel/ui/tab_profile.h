@@ -9,7 +9,7 @@
 #include <QListWidget>
 #include <QStackedWidget>
 
-namespace tc
+namespace px
 {
 
     class NoMarginHLayout;

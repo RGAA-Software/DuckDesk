@@ -23,7 +23,7 @@
 
 #endif
 
-using namespace tc;
+using namespace px;
 
 struct thread_data {
     CRITICAL_SECTION mutexes[NUM_BUFFERS];
@@ -855,7 +855,7 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
     // Boot config is a small file (port + DXGI offsets). Frame IPC is WS /ipc only.
     if (!g_hook_manager->app_shared_msg_ || g_hook_manager->app_shared_msg_->ipc_port_ == 0) {
         auto fallback_log = std::format(L"{}/px_graphics_boot_fail.log", dll_path);
-        tc::Logger::InitLog(fallback_log, true);
+        px::Logger::InitLog(fallback_log, true);
         LOGE("Hook boot config missing — refuse to hook (avoid crashing the game)");
         return 0;
     }
@@ -864,7 +864,7 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
     auto log_path = (std::filesystem::path(dll_path).parent_path() /
                      std::format(L"px_graphics_{}.log", g_hook_manager->app_shared_msg_->ipc_port_))
                         .wstring();
-    tc::Logger::InitLog(log_path, true);
+    px::Logger::InitLog(log_path, true);
     g_hook_manager->StartIpcClient();
     g_hook_manager->DumpSharedMessage();
 
@@ -873,7 +873,7 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
     // In-process WASAPI audio hook when host boot says so (OS without process-loopback).
     if (g_hook_manager->app_shared_msg_->enable_hook_audio_) {
         LOGI("Boot enable_hook_audio=1 → installing multi-API in-process audio hooks");
-        if (!tc::HookCoreApi::Instance()->Init()) {
+        if (!px::HookCoreApi::Instance()->Init()) {
             LOGE("In-process audio capture init failed");
         }
     } else {
@@ -989,7 +989,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1) {
 
         // Remove audio hooks (restore vtables + DetourDetach) before the DLL
         // image goes away, so no dangling detour can fire after unload.
-        tc::HookCoreApi::Instance()->Shutdown();
+        px::HookCoreApi::Instance()->Shutdown();
 
         free_hook();
     }

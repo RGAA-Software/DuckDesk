@@ -6,8 +6,8 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QUrl>
-#include "spvr/auth_manager.h"
-#include "spvr/spvr_setting.h"
+#include "cms/auth_manager.h"
+#include "cms/cms_setting.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/http_client.h"
@@ -18,14 +18,14 @@
 #include "crypto/auth_aes.h"
 #include <nlohmann/json.hpp>
 #include "hw_info/hw_info_parser.h"
-#include "spvr/spvr_access_info_parser.h"
+#include "cms/cms_access_info_parser.h"
 #include "version_config.h"
 #include "stat/stat_manager.h"
-#include "spvr/auth_defs.h"
+#include "cms/auth_defs.h"
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     PanelCompanionImpl::~PanelCompanionImpl() {
@@ -48,7 +48,7 @@ namespace tc
             return false;
         }
 
-        spvr_settings_ = SpvrSettings::Instance();
+        cms_settings_ = CmsSettings::Instance();
         // auth
         auth_mgr_ = std::make_shared<AuthManager>(this);
         auth_mgr_->LoadFromStorage();
@@ -79,8 +79,8 @@ namespace tc
         });
     }
 
-    void PanelCompanionImpl::UpdateSpvrServerConfig(const std::string &host, int port) {
-        spvr_settings_->UpdateServerConfig(host, port);
+    void PanelCompanionImpl::UpdateCmsServerConfig(const std::string &host, int port) {
+        cms_settings_->UpdateServerConfig(host, port);
     }
 
     void PanelCompanionImpl::UpdateAppkey(const std::string& appkey) {
@@ -159,13 +159,13 @@ namespace tc
         return sys_info;
     }
 
-    std::shared_ptr<SpvrAccessInfo> PanelCompanionImpl::ParseSpvrAccessInfo(const std::string& info) {
+    std::shared_ptr<CmsAccessInfo> PanelCompanionImpl::ParseCmsAccessInfo(const std::string& info) {
         std::string real_info;
         try {
-            std::string head = "spvr://access##";
+            std::string head = "cms://access##";
             real_info = info.substr(head.size(), info.size());
             auto json_info = AuthAes::AesDecrypt(real_info, AES_DEPLOY_AUTH);
-            auto parsed_info = SpvrAccessInfoParser::ParseInfo(json_info);
+            auto parsed_info = CmsAccessInfoParser::ParseInfo(json_info);
             if (!parsed_info) {
                 LOGI("Parsed AccessInfo is null");
                 return nullptr;

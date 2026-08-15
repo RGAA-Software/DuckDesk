@@ -4,7 +4,7 @@
 #include <QWidget>
 #include "../common/file_trans_def.h"
 
-namespace tc
+namespace px
 {
 
     #ifdef TC_FILE_TRANS_DLL_EXPORTS

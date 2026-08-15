@@ -9,7 +9,7 @@
 #include <QList>
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     class GrContext;

@@ -11,12 +11,12 @@
 
 #include "px_common_new/concurrent_type.h"
 
-namespace tc
+namespace px
 {
 
     class Thread;
     class AuthManager;
-    class SpvrSettings;
+    class CmsSettings;
     class SharedPreference;
     class StatManager;
 
@@ -30,8 +30,8 @@ namespace tc
         void OnTimer1S() override;
         void OnTimer5S() override;
 
-        // Spvr
-        void UpdateSpvrServerConfig(const std::string &host, int port) override;
+        // Cms
+        void UpdateCmsServerConfig(const std::string &host, int port) override;
         void UpdateAppkey(const std::string& appkey) override;
         std::shared_ptr<Authorization> RequestAuth() override;
         std::shared_ptr<Authorization> GetAuth() override;
@@ -47,8 +47,8 @@ namespace tc
         float GetCurrentCpuFrequency() override;
         std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) override;
 
-        // spvr access
-        std::shared_ptr<SpvrAccessInfo> ParseSpvrAccessInfo(const std::string& info) override;
+        // cms access
+        std::shared_ptr<CmsAccessInfo> ParseCmsAccessInfo(const std::string& info) override;
 
         // jump to github
         void JumpToGithub() override;
@@ -71,7 +71,7 @@ namespace tc
         void ReportOpenUpIfNeeded();
 
     private:
-        SpvrSettings* spvr_settings_ = nullptr;
+        CmsSettings* cms_settings_ = nullptr;
         std::shared_ptr<AuthManager> auth_mgr_ = nullptr;
         std::shared_ptr<Thread> net_thread_ = nullptr;
         std::shared_ptr<SharedPreference> sp_ = nullptr;
@@ -79,7 +79,7 @@ namespace tc
         // report or not...
         std::atomic_bool reported_working_auth_ = false;
         // system info
-        tc::Mutex<std::shared_ptr<SysInfo>> sys_info_;
+        px::Mutex<std::shared_ptr<SysInfo>> sys_info_;
         // stat manager
         std::shared_ptr<StatManager> stat_mgr_ = nullptr;
         // device id

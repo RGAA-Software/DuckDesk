@@ -11,7 +11,7 @@
 
 #include "px_common_new/webrtc_helper.h"
 
-namespace tc
+namespace px
 {
 
     extern bool gAdapterBitrate;
@@ -97,4 +97,4 @@ namespace tc
         uint64_t win_backlog_skips_ = 0;  // 窗口内缓存积压快进次数
     };
 
-} // namespace tc
+} // namespace px

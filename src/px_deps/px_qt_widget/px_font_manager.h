@@ -10,7 +10,7 @@
 
 #define tcFontMgr() TcFontManager::Instance()
 
-namespace tc
+namespace px
 {
 
     class TcFontManager {

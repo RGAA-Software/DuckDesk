@@ -13,7 +13,7 @@
 #include <QApplication>
 #include <QScreen>
 
-namespace tc
+namespace px
 {
 
     TcCustomTitleBarDialog::TcCustomTitleBarDialog(const QString& title, QWidget* parent) : QDialog(parent) {

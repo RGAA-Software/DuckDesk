@@ -14,7 +14,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/audio_filter.h"
 
-namespace tc
+namespace px
 {
 
     class EffectWidget : public QWidget {

@@ -23,7 +23,7 @@
 #include "render_panel/database/file_transfer_record.h"
 #include "render_panel/database/file_transfer_record_operator.h"
 
-namespace tc
+namespace px
 {
 
     constexpr int kPageSize = 20;

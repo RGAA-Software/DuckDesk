@@ -2,7 +2,7 @@
 
 #include <memory>
 
-namespace tc {
+namespace px {
 
 class AudioMixer;
 
@@ -18,4 +18,4 @@ private:
     bool installed_ = false;
 };
 
-}  // namespace tc
+}  // namespace px

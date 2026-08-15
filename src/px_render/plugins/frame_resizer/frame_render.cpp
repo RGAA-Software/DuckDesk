@@ -5,7 +5,7 @@
 
 using namespace DirectX;
 
-namespace tc
+namespace px
 {
 
     FrameRender::FrameRender(const ComPtr<ID3D11Device>& device, const ComPtr<ID3D11DeviceContext>& context) :

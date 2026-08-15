@@ -4,7 +4,7 @@
 
 #include "app_color_theme.h"
 
-namespace tc
+namespace px
 {
 
     int AppColorTheme::kAppMenuItemBgNormalColor = 0xbbbbbb;

@@ -9,7 +9,7 @@
 #include <QStackedWidget>
 #include "theme/QtAdvancedStylesheet.h"
 
-namespace tc
+namespace px
 {
 
     struct MainWindowPrivate {

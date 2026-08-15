@@ -13,7 +13,7 @@
 #include "render_panel/companion/panel_companion.h"
 #include "px_service_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     const int kMaxClientQueuedMessage = 4096;
@@ -91,7 +91,7 @@ namespace tc
     }
 
     void GrServiceClient::ParseMessage(const std::string& msg) {
-        tc::ServiceMessage sm;
+        px::ServiceMessage sm;
         try {
             sm.ParseFromString(msg);
         }
@@ -123,7 +123,7 @@ namespace tc
 
     void GrServiceClient::HeartBeat() {
         static int64_t hb_idx = 0;
-        tc::ServiceMessage msg;
+        px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
         auto sub = msg.mutable_heart_beat();
         sub->set_index(hb_idx++);
@@ -133,7 +133,7 @@ namespace tc
     }
 
     void GrServiceClient::SendAuthInfo() {
-        tc::ServiceMessage msg;
+        px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvAuthInfo);
         FillAuthInfo(msg.mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
@@ -145,8 +145,8 @@ namespace tc
         }
         auto settings = GrSettings::Instance();
         auth_info->set_device_id(settings->GetDeviceId());
-        auth_info->set_spvr_host(settings->GetSpvrServerHost());
-        auth_info->set_spvr_port(settings->GetSpvrServerPort());
+        auth_info->set_cms_host(settings->GetCmsServerHost());
+        auth_info->set_cms_port(settings->GetCmsServerPort());
         auto companion = app_->GetCompanion();
         auto auth = companion ? companion->GetAuth() : nullptr;
         if (!auth) {

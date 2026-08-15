@@ -5,7 +5,7 @@
 #include <memory>
 #include "px_common_new/win32/d3d11_wrapper.h"
 
-namespace tc
+namespace px
 {
 
     class FrameRender {

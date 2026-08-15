@@ -9,9 +9,9 @@
 
 typedef std::function<void(bool)> OnInitEncoderCallback;
 
-using namespace tc;
+using namespace px;
 
-namespace tc {
+namespace px {
 	class Data;
 }
 

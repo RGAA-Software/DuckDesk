@@ -10,7 +10,7 @@
 #include "px_common_new/message_notifier.h"
 #include <QTimer>
 
-namespace tc
+namespace px
 {
 
     static inline void emulateLeaveEvent(QWidget *widget) {

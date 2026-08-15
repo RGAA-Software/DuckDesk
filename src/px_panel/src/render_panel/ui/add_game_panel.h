@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QLineEdit>
 
-namespace tc
+namespace px
 {
 
     class GrContext;

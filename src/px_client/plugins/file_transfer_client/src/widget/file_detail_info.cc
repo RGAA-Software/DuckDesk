@@ -1,6 +1,6 @@
 #include "file_detail_info.h"
 
-namespace tc {
+namespace px {
 
 FileDetailInfo::FileDetailInfo()
 {
@@ -66,7 +66,7 @@ void FileContainer::Sort(EFileTableHeaderViewItemType type, bool asc) {
 
 	switch (type)
 	{
-	case tc::EFileTableHeaderViewItemType::KName:
+	case px::EFileTableHeaderViewItemType::KName:
 		if (asc) {
 			std::sort(others_vector.begin(), others_vector.end(), FileDetailInfo::CompareByNameAsc);
 			std::sort(files_vector.begin(), files_vector.end(), FileDetailInfo::CompareByNameAsc);
@@ -82,7 +82,7 @@ void FileContainer::Sort(EFileTableHeaderViewItemType type, bool asc) {
 			return;
 		}
 		break;
-	case tc::EFileTableHeaderViewItemType::KSize:
+	case px::EFileTableHeaderViewItemType::KSize:
 		if (asc) {
 			std::sort(others_vector.begin(), others_vector.end(), FileDetailInfo::CompareByNameAsc);
 			std::sort(files_vector.begin(), files_vector.end(), FileDetailInfo::CompareBySizeAsc);
@@ -98,7 +98,7 @@ void FileContainer::Sort(EFileTableHeaderViewItemType type, bool asc) {
 			return;
 		}
 		break;
-	case tc::EFileTableHeaderViewItemType::KType:
+	case px::EFileTableHeaderViewItemType::KType:
 		if (asc) {
 			std::sort(others_vector.begin(), others_vector.end(), FileDetailInfo::CompareByNameAsc);
 			std::sort(files_vector.begin(), files_vector.end(), FileDetailInfo::CompareBySuffixAsc);
@@ -114,7 +114,7 @@ void FileContainer::Sort(EFileTableHeaderViewItemType type, bool asc) {
 			return;
 		}
 		break;
-	case tc::EFileTableHeaderViewItemType::KUpdateTime:
+	case px::EFileTableHeaderViewItemType::KUpdateTime:
 		if (asc) {
 			std::sort(others_vector.begin(), others_vector.end(), FileDetailInfo::CompareByNameAsc);
 			std::sort(files_vector.begin(), files_vector.end(), FileDetailInfo::CompareByLastModifieAsc);

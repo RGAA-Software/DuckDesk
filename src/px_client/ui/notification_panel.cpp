@@ -12,7 +12,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     NotificationPanel::NotificationPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

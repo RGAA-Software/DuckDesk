@@ -7,7 +7,7 @@
 
 #include <thread>
 
-namespace tc
+namespace px
 {
 
     static unsigned int GetCurrentThreadID() {

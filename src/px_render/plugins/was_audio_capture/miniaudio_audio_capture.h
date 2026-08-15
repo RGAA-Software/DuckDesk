@@ -8,7 +8,7 @@
 
 #include "third_party/miniaudio/miniaudio.h"
 
-namespace tc
+namespace px
 {
 
 	class MiniAudioCapture : public IAudioCapture,

@@ -1,7 +1,7 @@
 #include "px_aes.h"
 #include <iostream>
 
-namespace tc
+namespace px
 {
 
 	bool AesEncryptPcks7Cbc128(const unsigned char* plaintext, int plaintext_len,

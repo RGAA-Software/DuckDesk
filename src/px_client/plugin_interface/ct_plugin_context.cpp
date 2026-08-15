@@ -6,7 +6,7 @@
 #include "px_common_new/thread.h"
 #include "asio2/asio2.hpp"
 
-namespace tc
+namespace px
 {
 
     ClientPluginContext::ClientPluginContext(const std::string& plugin_name) {

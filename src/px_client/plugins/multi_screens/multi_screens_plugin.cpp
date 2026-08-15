@@ -11,7 +11,7 @@
 #include "px_client/plugin_interface/ct_plugin_events.h"
 #include "px_client/plugin_interface/ct_app_events.h"
 
-namespace tc
+namespace px
 {
 
     std::string MultiScreensPlugin::GetPluginId() {
@@ -38,7 +38,7 @@ namespace tc
         CallbackEvent(event);
     }
     
-    bool MultiScreensPlugin::OnCreate(const tc::ClientPluginParam& param) {
+    bool MultiScreensPlugin::OnCreate(const px::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
         plugin_type_ = ClientPluginType::kUtil;
 

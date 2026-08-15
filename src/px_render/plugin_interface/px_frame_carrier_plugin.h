@@ -9,7 +9,7 @@
 #include <optional>
 #include "px_plugin_interface.h"
 
-namespace tc
+namespace px
 {
 
     //

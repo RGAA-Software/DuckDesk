@@ -7,7 +7,7 @@
 
 #include <atomic>
 
-namespace tc
+namespace px
 {
 
     class GlobalIdGenerator {

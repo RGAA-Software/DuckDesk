@@ -6,7 +6,7 @@
 #include <QFont>
 #include <memory>
 
-namespace tc
+namespace px
 {
     class CoverWidget : public QWidget {
     Q_OBJECT

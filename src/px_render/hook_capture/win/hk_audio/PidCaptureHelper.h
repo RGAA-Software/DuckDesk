@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace tc {
+namespace px {
 
 // Starts px_audio_pid_capture.exe to record |pid| into |wav_path| via
 // external process-loopback (self-loopback inside the game is silent).
@@ -11,4 +11,4 @@ namespace tc {
 bool StartPidCaptureHelper(uint32_t pid, const std::wstring& wav_path, void** out_process);
 void StopPidCaptureHelper(void* process);
 
-}  // namespace tc
+}  // namespace px

@@ -10,7 +10,7 @@
 
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -23,10 +23,10 @@ namespace tc
         static std::string MakeAckMsg();
         static std::string MakeHeartBeatMsg();
         static std::shared_ptr<Data> MakeOnHeartBeatMsg(const std::shared_ptr<RdApplication>& app, uint64_t index, int64_t timestamp);
-        static std::shared_ptr<Data> MakeVideoFrameMsg(const tc::VideoType& vt, const std::shared_ptr<Data>& data,
+        static std::shared_ptr<Data> MakeVideoFrameMsg(const px::VideoType& vt, const std::shared_ptr<Data>& data,
                                              uint64_t frame_index, int frame_width, int frame_height, bool key,
                                              const std::string& display_name, int mon_left,
-                                             int mon_top, int mon_right, int mon_bottom, const tc::EImageFormat& img_format, int mon_index = 0);
+                                             int mon_top, int mon_right, int mon_bottom, const px::EImageFormat& img_format, int mon_index = 0);
         static std::shared_ptr<Data> MakeAudioFrameMsg(const std::shared_ptr<Data>& data,
                                              int samples, int channels, int bits, int frame_size);
 
@@ -36,10 +36,10 @@ namespace tc
         static std::shared_ptr<Data> MakeMonitorSwitched(const std::string& name, const int& mon_index);
 
         // render -> client: 编码格式切换(H264/H265)
-        static std::shared_ptr<Data> MakeVideoCodecChanged(tc::VideoType video_type, bool full_color, const std::string& reason);
+        static std::shared_ptr<Data> MakeVideoCodecChanged(px::VideoType video_type, bool full_color, const std::string& reason);
 
         // game-hook 游戏状态通知（死亡重启/恢复），见 px_message.proto GameStatusChanged
-        static std::shared_ptr<Data> MakeGameStatusChanged(tc::GameStatusChanged::GameStatus status, const std::string& detail);
+        static std::shared_ptr<Data> MakeGameStatusChanged(px::GameStatusChanged::GameStatus status, const std::string& detail);
 
         // 实例被 CMS 停止（render 即将退出），见 px_message.proto InstanceStopped
         static std::shared_ptr<Data> MakeInstanceStopped(const std::string& reason);

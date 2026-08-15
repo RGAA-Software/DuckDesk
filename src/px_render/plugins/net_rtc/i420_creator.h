@@ -7,7 +7,7 @@
 #include <functional>
 #include <thread>
 
-namespace tc
+namespace px
 {
 
     class I420Creator {

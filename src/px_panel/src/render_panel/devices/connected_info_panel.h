@@ -5,12 +5,12 @@
 #include <qevent.h>
 class QCheckBox;
 
-namespace tcrp
+namespace pxrp
 {
     class RpConnectedClientInfo;
 }
 
-namespace tc {
+namespace px {
 
     class NoMarginVLayout;
     class NoMarginHLayout;
@@ -25,7 +25,7 @@ namespace tc {
     public:
         ConnectedInfoPanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent* event) override;
-        void UpdateInfo(const std::shared_ptr<tcrp::RpConnectedClientInfo>& info);
+        void UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info);
         std::string GetStreamId() const;
     private:
         void InitView();
@@ -66,7 +66,7 @@ namespace tc {
         TcLabel* file_lab_ = nullptr;
         
         std::shared_ptr<GrContext> ctx_ = nullptr;
-        std::shared_ptr<tcrp::RpConnectedClientInfo> info_ = nullptr;
+        std::shared_ptr<pxrp::RpConnectedClientInfo> info_ = nullptr;
         GrSettings* settings_ = nullptr;
     };
 

@@ -14,7 +14,7 @@
 #include "cp_data_object.h"
 #include "cp_file_struct.h"
 
-namespace tc
+namespace px
 {
 
     class CpFileStream;

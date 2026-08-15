@@ -11,7 +11,7 @@
 
 #include "SimpleAudioFormatConverter.h"
 
-namespace tc {
+namespace px {
 
 class AudioShare;
 class Data;
@@ -74,4 +74,4 @@ private:
     std::vector<float> acc_;
     size_t acc_frames_ = 0;
 };
-}  // namespace tc
+}  // namespace px

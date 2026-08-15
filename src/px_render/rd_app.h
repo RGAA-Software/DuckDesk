@@ -26,7 +26,7 @@ using namespace Microsoft::WRL;
 
 #endif
 
-namespace tc
+namespace px
 {
 
     using AppParams = std::unordered_map<std::string, std::string>;
@@ -90,7 +90,7 @@ namespace tc
         void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
         std::shared_ptr<PluginManager> GetPluginManager();
-        tc::GrMonitorCapturePlugin* GetWorkingMonitorCapturePlugin();
+        px::GrMonitorCapturePlugin* GetWorkingMonitorCapturePlugin();
         std::map<std::string, GrVideoEncoderPlugin*> GetWorkingVideoEncoderPlugins() const;
         bool GenerateD3DDevice(uint64_t adapter_uid);
         void ClearD3DDevice(uint64_t adapter_uid);
@@ -169,12 +169,12 @@ namespace tc
         DWORD main_thread_id_ = 0;
         // working capture plugin
         std::mutex capture_plugin_mtx_;
-        tc::GrMonitorCapturePlugin* capture_plugin_ = nullptr;
-        tc::GrMonitorCapturePlugin* gdi_capture_plugin_ = nullptr;
-        tc::GrMonitorCapturePlugin* dda_capture_plugin_ = nullptr;
-        tc::GrDataProviderPlugin* data_provider_plugin = nullptr;
-        tc::GrDataProviderPlugin* audio_capture_plugin_ = nullptr;
-        tc::GrAudioEncoderPlugin* audio_encoder_plugin_ = nullptr;
+        px::GrMonitorCapturePlugin* capture_plugin_ = nullptr;
+        px::GrMonitorCapturePlugin* gdi_capture_plugin_ = nullptr;
+        px::GrMonitorCapturePlugin* dda_capture_plugin_ = nullptr;
+        px::GrDataProviderPlugin* data_provider_plugin = nullptr;
+        px::GrDataProviderPlugin* audio_capture_plugin_ = nullptr;
+        px::GrAudioEncoderPlugin* audio_encoder_plugin_ = nullptr;
 
         // uint64_t adapter_uid <==> D3D11Device/D3D11DeviceContext
         std::map<uint64_t, std::shared_ptr<D3D11DeviceWrapper>> d3d11_devices_;
@@ -183,7 +183,7 @@ namespace tc
         std::vector<double> fft_left_;
         std::vector<double> fft_right_;
 
-        std::shared_ptr<tc::RenderServiceClient> service_client_ = nullptr;
+        std::shared_ptr<px::RenderServiceClient> service_client_ = nullptr;
 
         std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;
 

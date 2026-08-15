@@ -13,7 +13,7 @@
 #include "raw_sdl_widget.h"
 #include <atomic>
 
-namespace tc
+namespace px
 {
 
     namespace {

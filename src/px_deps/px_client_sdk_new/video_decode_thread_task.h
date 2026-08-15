@@ -2,7 +2,7 @@
 #include "px_common_new/thread.h"
 #include <string>
 
-namespace tc { 
+namespace px { 
 
 	class VideoDecodeThreadTask : public SimpleThreadTask {
 	public:

@@ -11,7 +11,7 @@
 #include <cstdio>
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     class HookApi {
@@ -120,4 +120,4 @@ namespace tc
 
         return status;
     }
-}  // end of namespace tc
+}  // end of namespace px

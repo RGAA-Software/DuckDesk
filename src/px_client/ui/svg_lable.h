@@ -4,7 +4,7 @@
 #include <qpainter.h>
 #include <QtSvg/QSvgRenderer>
 
-namespace tc {
+namespace px {
 
 	class SvgLable : public QLabel {
 	public:

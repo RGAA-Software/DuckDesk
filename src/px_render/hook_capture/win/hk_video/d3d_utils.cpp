@@ -3,7 +3,7 @@
 #include "d3d_utils.h"
 #include "px_common_new/log.h"
 
-using namespace tc;
+using namespace px;
 
 static DXGI_FORMAT EnsureNotTypeless(DXGI_FORMAT format) noexcept {
     // Assumes UNORM or FLOAT; doesn't use UINT or SINT
@@ -56,7 +56,7 @@ HRESULT CaptureTexture(ID3D11Device *device,
                        ID3D11Resource *source,
                        D3D11_TEXTURE2D_DESC &desc,
                        CComPtr<ID3D11Texture2D> &staging,
-                       std::shared_ptr<tc::SharedTexture> shared_texture) {
+                       std::shared_ptr<px::SharedTexture> shared_texture) {
 
     assert(nullptr != context);
     assert(nullptr != source);
@@ -167,7 +167,7 @@ HRESULT CaptureTexture(ID3D11Device *device,
     return S_OK;
 }
 
-namespace tc {
+namespace px {
     std::optional<int64_t> GetAdapterUid(CComPtr<ID3D11Device> d3d11_device) {
         // 通过ID3D11Device 在获取Adapter信息
         CComPtr<IDXGIDevice> dxgi_device;
@@ -176,7 +176,7 @@ namespace tc {
         {
             //std::cout << "ID3D11Device is not an implementation of IDXGIDevice, this usually "
             //             "means the system does not support DirectX 11. Error "
-            //          << tc::GetErrorStr(res) << " with code: " << res;
+            //          << px::GetErrorStr(res) << " with code: " << res;
             return {};
         }
 

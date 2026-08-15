@@ -7,7 +7,7 @@
 #include "num_formatter.h"
 #include "thread.h"
 
-namespace tc
+namespace px
 {
 
     std::string MemoryStatInfo::Dump() {

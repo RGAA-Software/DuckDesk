@@ -17,7 +17,7 @@
 #include <QTimer>
 #include <QApplication>
 
-namespace tc
+namespace px
 {
 
     static std::string kClientEmbedName = "ui.embed";

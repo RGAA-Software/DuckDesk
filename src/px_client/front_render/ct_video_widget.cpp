@@ -22,7 +22,7 @@
 #include <string>
 #include <atomic>
 
-namespace tc
+namespace px
 {
 
     namespace {
@@ -305,20 +305,20 @@ namespace tc
 
         std::map<int, bool> sys_key_status = key_converter_->GetSysKeyStatus();
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kKeyEvent);
+        msg->set_type(px::kKeyEvent);
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
-        auto key_event = new tc::KeyEvent();
+        auto key_event = new px::KeyEvent();
         key_event->set_down(down);
         key_event->set_key_code(vk);
         key_event->set_num_lock_status(num_lock_state);
         key_event->set_caps_lock_status(caps_lock_state);
         if (num_lock_state != -1) {
-            key_event->set_status_check(tc::KeyEvent::kCheckNumLock);
+            key_event->set_status_check(px::KeyEvent::kCheckNumLock);
         } else if (caps_lock_state != -1) {
-            key_event->set_status_check(tc::KeyEvent::kCheckCapsLock);
+            key_event->set_status_check(px::KeyEvent::kCheckCapsLock);
         } else {
-            key_event->set_status_check(tc::KeyEvent::kDontCareLockKey);
+            key_event->set_status_check(px::KeyEvent::kDontCareLockKey);
         }
         auto cur_time = GetCurrentTime();
         key_event->set_timestamp(cur_time);
@@ -334,7 +334,7 @@ namespace tc
 
         // 与鼠标事件走同一个 FIFO 队列投递,保证键鼠事件有序
         this->evt_cache_thread_->Post([=, this]() {
-            if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
                 sdk_->PostMediaMessage(buffer);
                 LOGI("[InputSend] key posted vk=0x{:x} down={} bytes={}", vk, down, buffer->Size());
             } else {
@@ -354,13 +354,13 @@ namespace tc
         }
 
         // [LAT-roundtrip] 记录最近一次鼠标发送时刻,供解码出帧时计算操作往返延迟
-        tc::g_last_mouse_send_us = TimeUtil::GetCurrentTimePointUS();
+        px::g_last_mouse_send_us = TimeUtil::GetCurrentTimePointUS();
 
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kMouseEvent);
+        msg->set_type(px::kMouseEvent);
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
-        auto mouse_event = new tc::MouseEvent();
+        auto mouse_event = new px::MouseEvent();
         mouse_event->set_x_ratio(mouse_event_desc.x_ratio);
         mouse_event->set_y_ratio(mouse_event_desc.y_ratio);
         mouse_event->set_button(mouse_event_desc.buttons);
@@ -431,7 +431,7 @@ namespace tc
                 LOGW("[InputSend] drop pure mouse move, queuing media messages: {}", queuing_count);
                 return;
             }
-            if (auto buffer = tc::ProtoAsData(msg); buffer && sdk_) {
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
                 sdk_->PostMediaMessage(buffer);
                 if (significant) {
                     LOGI("[InputSend] mouse posted {} bytes={} queue={}",

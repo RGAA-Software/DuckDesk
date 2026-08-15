@@ -7,7 +7,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/num_formatter.h"
 
-namespace tc
+namespace px
 {
 
     SdkStatistics::SdkStatistics() {

@@ -1,6 +1,6 @@
 #pragma once 
 
-namespace tc { 
+namespace px { 
 
 class MathHelper {
 public:

@@ -10,7 +10,7 @@
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<SysInfo> HWInfoParser::ParseHWInfo(const std::string& input, float current_cpu_freq) {

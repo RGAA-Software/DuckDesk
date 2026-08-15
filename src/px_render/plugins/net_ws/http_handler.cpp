@@ -11,7 +11,7 @@
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 
-namespace tc
+namespace px
 {
 
     constexpr auto kHandlerErrVerifySafetyPasswordFailed = 700;

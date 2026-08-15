@@ -8,7 +8,7 @@
 #include "thunder_sdk.h"
 #include "px_common_new/message_notifier.h"
 
-namespace tc
+namespace px
 {
 
     VideoDecoder::VideoDecoder(const std::shared_ptr<ThunderSdk>& sdk) {

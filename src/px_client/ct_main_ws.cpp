@@ -37,7 +37,7 @@
 #include "px_protection.h"
 #endif
 
-using namespace tc;
+using namespace px;
 
 std::string g_remote_host_;
 int g_remote_port_ = 0;
@@ -55,11 +55,11 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_port("port", "Port", "9999", "0");
     parser.addOption(opt_port);
 
-    QCommandLineOption opt_spvr_host("spvr_host", "Spvr Host", "xx.xx.xx.xx", "");
-    parser.addOption(opt_spvr_host);
+    QCommandLineOption opt_cms_host("cms_host", "Cms Host", "xx.xx.xx.xx", "");
+    parser.addOption(opt_cms_host);
 
-    QCommandLineOption opt_spvr_port("spvr_port", "Spvr Port", "9999", "0");
-    parser.addOption(opt_spvr_port);
+    QCommandLineOption opt_cms_port("cms_port", "Cms Port", "9999", "0");
+    parser.addOption(opt_cms_port);
 
     QCommandLineOption opt_appkey("appkey", "appkey", "x", "");
     parser.addOption(opt_appkey);
@@ -186,7 +186,7 @@ void ParseCommandLine(QApplication& app) {
     g_remote_host_ = parser.value(opt_host).toStdString();
     g_remote_port_ = parser.value(opt_port).toInt();
 
-    auto settings = tc::Settings::Instance();
+    auto settings = px::Settings::Instance();
     settings->host_ = g_remote_host_;
     settings->port_ = g_remote_port_;
 
@@ -194,9 +194,9 @@ void ParseCommandLine(QApplication& app) {
     settings->udp_port_ = settings->port_;
     settings->appkey_ = parser.value(opt_appkey).toStdString();
 
-    // spvr
-    settings->spvr_host_ = parser.value(opt_spvr_host).toStdString();
-    settings->spvr_port_ = parser.value(opt_spvr_port).toInt();
+    // cms
+    settings->cms_host_ = parser.value(opt_cms_host).toStdString();
+    settings->cms_port_ = parser.value(opt_cms_port).toInt();
 
     auto audio_on = parser.value(opt_audio).toInt();
     settings->audio_on_ = (audio_on == 1);
@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
 
     QApplication app(argc, argv);
     ParseCommandLine(app);
-    auto settings = tc::Settings::Instance();
+    auto settings = px::Settings::Instance();
 
     auto gl_backend = settings->gl_backend_;
     if ("angle" == gl_backend) {
@@ -496,8 +496,8 @@ int main(int argc, char** argv) {
     LOGI("port: {}", g_remote_port_);
     LOGI("udp port: {}", settings->udp_port_);
     LOGI("appkey: {}", settings->appkey_);
-    LOGI("spvr host: {}", settings->spvr_host_);
-    LOGI("spvr port: {}", settings->spvr_port_);
+    LOGI("cms host: {}", settings->cms_host_);
+    LOGI("cms port: {}", settings->cms_port_);
     LOGI("audio on: {}", settings->audio_on_);
     LOGI("clipboard on: {}", settings->clipboard_on_);
     LOGI("device id: {}", settings->device_id_);

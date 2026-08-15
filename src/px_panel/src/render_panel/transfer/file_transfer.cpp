@@ -13,7 +13,7 @@
 #include <QDir>
 #include <QFile>
 
-namespace tc
+namespace px
 {
 
     FileTransferChannel::FileTransferChannel(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<asio2::http_session>& sess) {
@@ -34,7 +34,7 @@ namespace tc
     }
 
     void FileTransferChannel::ParseBinaryMessage(std::string_view _data) {
-        auto msg = std::make_shared<tc::Message>();
+        auto msg = std::make_shared<px::Message>();
         std::string data(_data.data(), _data.size());
         if (!msg->ParseFromString(data)) {
             LOGE("Parse proto message failed");
@@ -45,7 +45,7 @@ namespace tc
             auto fs = msg->file_transfer();
 
             auto func_transfer_failed = [=, this]() {
-                tc::Message resp_msg;
+                px::Message resp_msg;
                 resp_msg.set_type(MessageType::kRespFileTransfer);
                 auto resp_file_transfer = resp_msg.mutable_resp_file_transfer();
                 resp_file_transfer->set_id(fs.id());
@@ -86,7 +86,7 @@ namespace tc
                 }
 
                 // 2. response
-                tc::Message resp_msg;
+                px::Message resp_msg;
                 resp_msg.set_type(MessageType::kRespFileTransfer);
                 auto resp_file_transfer = resp_msg.mutable_resp_file_transfer();
                 resp_file_transfer->set_id(fs.id());
@@ -123,7 +123,7 @@ namespace tc
                 }
                 transferring_file_->Append(fs.data());
 
-                tc::Message resp_msg;
+                px::Message resp_msg;
                 resp_msg.set_type(MessageType::kRespFileTransfer);
                 auto resp_file_transfer = resp_msg.mutable_resp_file_transfer();
                 resp_file_transfer->set_id(fs.id());
@@ -144,7 +144,7 @@ namespace tc
                     transferring_file_ = nullptr;
                 }
 
-                tc::Message resp_msg;
+                px::Message resp_msg;
                 resp_msg.set_type(MessageType::kRespFileTransfer);
                 auto resp_file_transfer = resp_msg.mutable_resp_file_transfer();
                 resp_file_transfer->set_id(fs.id());

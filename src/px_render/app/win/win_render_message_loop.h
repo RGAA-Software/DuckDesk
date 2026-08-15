@@ -3,7 +3,7 @@
 #include <memory>
 #include <thread>
 
-namespace tc
+namespace px
 {
 
     class WinMessageWindow;

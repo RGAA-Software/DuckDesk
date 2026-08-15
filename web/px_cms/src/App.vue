@@ -11,7 +11,7 @@ const wsStore = useWsStore()
 const appkey = localStorage.getItem('appkey') || ''
 const tokenInfo = generateConnectionToken(appkey)
 const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-const url = `${wsProtocol}://${HOST_PORT}/spvr/website?appkey=${appkey}&token=${tokenInfo.token}&ts=${tokenInfo.ts}&nonce=${tokenInfo.nonce}`
+const url = `${wsProtocol}://${HOST_PORT}/cms/website?appkey=${appkey}&token=${tokenInfo.token}&ts=${tokenInfo.ts}&nonce=${tokenInfo.nonce}`
 console.log(url)
 wsStore.connect(url)
 

@@ -4,7 +4,7 @@
 
 #define AMF_FACILITY L"SimpleEncoder"
 
-namespace tc
+namespace px
 {
 	std::shared_ptr<AMFEncoder> AMFEncoder::Make(int width, int height) {
 		return std::make_shared<AMFEncoder>(width, height);

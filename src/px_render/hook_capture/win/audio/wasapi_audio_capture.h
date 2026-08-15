@@ -12,7 +12,7 @@
 #include <mutex>
 #include <condition_variable>
 
-namespace tc
+namespace px
 {
 
 	class WASAPIAudioCapture : public IAudioCapture {

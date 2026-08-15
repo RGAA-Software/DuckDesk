@@ -15,7 +15,7 @@
 #include "px_common_new/uid_spacer.h"
 #include "px_message_new/rp_proto_converter.h"
 
-namespace tc {
+namespace px {
 
 	ConnectedInfoPanel::ConnectedInfoPanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
 		GrSettings* settings = GrSettings::Instance();
@@ -85,14 +85,14 @@ namespace tc {
             if (!info_) {
                 return;
             }
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpDisconnectConnection);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpDisconnectConnection);
             auto sub = msg.mutable_disconnect_connection();
             sub->set_device_id(info_->device_id());
             sub->set_stream_id(info_->stream_id());
             sub->set_room_id(info_->room_id());
             sub->set_device_name(info_->device_name());
-            ctx_->GetApplication()->PostMessage2Renderer(tc::RpProtoAsData(&msg));
+            ctx_->GetApplication()->PostMessage2Renderer(px::RpProtoAsData(&msg));
         });
 		disconnect_btn_->setProperty("class", "danger");
 
@@ -173,12 +173,12 @@ namespace tc {
         painter.drawRoundedRect(0, 5, this->width(), this->height()-10, 5, 5);
 	}
 
-	void ConnectedInfoPanel::UpdateInfo(const std::shared_ptr<tcrp::RpConnectedClientInfo>& info) {
+	void ConnectedInfoPanel::UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info) {
         info_ = info;
         auto device_id = ExtractClientId(info_->device_id());
         if (info_->device_id().starts_with("client_")
             || (device_id.size() == 9 && device_id.find(".") == std::string::npos)) {
-            device_id = tc::SpaceId(device_id);
+            device_id = px::SpaceId(device_id);
         }
 		key_1_lab_->setText(device_id.c_str());
 		key_1_lab_->adjustSize();

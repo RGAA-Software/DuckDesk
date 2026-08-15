@@ -4,7 +4,7 @@
 #include <QDebug>
 #include <QPainterPath>
 
-namespace tc
+namespace px
 {
 
     Win10HorizontalLoadingWidget::Win10HorizontalLoadingWidget(QWidget *parent)

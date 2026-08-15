@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package cms_relay;
+
+// Between servers
+// Cms <---> Relay
+//
+
+enum CmsRelayMessageType {
+  kHello = 0;
+  kHeartBeat = 1;
+}
+
+message CmsRelayHello {
+  string srv_name = 1;
+  string srv_w3c_ip = 3;
+  string srv_local_ip = 4;
+  uint32 srv_grpc_port = 5;
+  uint32 srv_working_port = 6;
+  string appkey = 7;
+}
+
+message CmsRelayHeartBeat {
+  int64 hb_index = 1;
+}
+
+message CmsRelayMessage {
+  CmsRelayMessageType msg_type = 1;
+  string server_id = 3;
+  CmsRelayHello hello = 5;
+  CmsRelayHeartBeat heartbeat = 10;
+}

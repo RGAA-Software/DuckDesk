@@ -4,7 +4,7 @@
 
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
 QtVertical::QtVertical(QWidget* parent) : EffectWidget(parent) {

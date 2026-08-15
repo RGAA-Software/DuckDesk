@@ -11,7 +11,7 @@
 #include "cpr/redirect.h"
 #include "cpr/session.h"
 
-namespace tc
+namespace px
 {
 
     class HttpResponse {

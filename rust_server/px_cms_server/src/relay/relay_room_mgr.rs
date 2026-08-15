@@ -8,7 +8,7 @@ use crate::relay::relay_room::{RelayRoom, RelayRoomAdapter};
 use crate::{gRelayConnMgr, gRelayRedisConn};
 use axum::body::Bytes;
 use prost::Message;
-use protocol::relay::{
+use protocol::px_relay::{
     RelayCreateRoomRespMessage, RelayErrorCode, RelayMessage, RelayMessageType,
     RelayRemoteDeviceOfflineMessage, RelayRoomDestroyedMessage, RelayRoomPreparedMessage,
 };

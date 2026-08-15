@@ -7,7 +7,7 @@
 #include "px_database.h"
 #include <QApplication>
 
-namespace tc
+namespace px
 {
     namespace {
         bool IsDbReady(const std::shared_ptr<GrDatabase>& db) {

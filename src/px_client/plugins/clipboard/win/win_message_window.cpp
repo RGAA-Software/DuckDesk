@@ -7,7 +7,7 @@
 #include "px_client/ct_app_message.h"
 #include "px_client/plugins/clipboard/clipboard_plugin.h"
 
-namespace tc
+namespace px
 {
     constexpr char kWindowClassName[] = "GammaRay_client_MessageWindowClass";
     constexpr UINT kTaskMessage = WM_APP + 1;

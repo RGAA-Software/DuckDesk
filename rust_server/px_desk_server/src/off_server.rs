@@ -25,8 +25,8 @@ impl OffServer {
     pub async fn start(&self, context: Arc<Mutex<OffContext>>) {
         let current_dir = std::env::current_exe().unwrap();
         let current_dir = current_dir.parent().unwrap();
-        let web_spvr_dir = current_dir.join("static");
-        tracing::info!("assets_dir: {:?}", &web_spvr_dir);
+        let web_cms_dir = current_dir.join("static");
+        tracing::info!("assets_dir: {:?}", &web_cms_dir);
 
         // configure certificate and private key used by https
         let cp = current_dir.join("certs").join("cert.pem");
@@ -46,11 +46,11 @@ impl OffServer {
         }
         let config = config.unwrap();
 
-        let static_dir = ServeDir::new(web_spvr_dir.clone())
-            .not_found_service(ServeFile::new(web_spvr_dir.join("index.html")));
+        let static_dir = ServeDir::new(web_cms_dir.clone())
+            .not_found_service(ServeFile::new(web_cms_dir.join("index.html")));
 
         let router = Router::new()
-            //.fallback_service(ServeDir::new(web_spvr_dir).append_index_html_on_directories(true))
+            //.fallback_service(ServeDir::new(web_cms_dir).append_index_html_on_directories(true))
             .fallback_service(get_service(static_dir).handle_error(|_| async move {
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,

@@ -10,7 +10,7 @@
 #include "px_common_new/folder_util.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     FileSystemObject::FileSystemObject(const QString& file_path, int read_block_size) {

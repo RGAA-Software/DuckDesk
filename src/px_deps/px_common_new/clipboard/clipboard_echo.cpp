@@ -1,6 +1,6 @@
 #include "clipboard_echo.h"
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     void EchoFilter::SetRemoteEcho(const std::string& text) {

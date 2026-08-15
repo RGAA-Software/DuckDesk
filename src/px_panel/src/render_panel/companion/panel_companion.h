@@ -12,7 +12,7 @@
 #include <cstdint>
 #include "hw_info/hw_info.h"
 
-namespace tc
+namespace px
 {
 
     enum class AuthRole {
@@ -39,18 +39,18 @@ namespace tc
         int64_t end_timestamp_ms_ = 0;
     };
 
-    // SpvrSrvConfig
-    class SpvrSrvConfig {
+    // CmsSrvConfig
+    class CmsSrvConfig {
     public:
         std::string srv_name_;
         std::string srv_w3c_ip_;
-        int srv_spvr_port_ = 0;
+        int srv_cms_port_ = 0;
         std::string srv_appkey_;
         int srv_relay_port_ = 0;
 
     public:
         [[nodiscard]] bool IsValid() const {
-            return !srv_w3c_ip_.empty() && srv_spvr_port_ > 0 && !srv_appkey_.empty() && srv_relay_port_ > 0;
+            return !srv_w3c_ip_.empty() && srv_cms_port_ > 0 && !srv_appkey_.empty() && srv_relay_port_ > 0;
         }
     };
 
@@ -69,15 +69,15 @@ namespace tc
         }
     };
 
-    // Spvr Access
-    class SpvrAccessInfo {
+    // Cms Access
+    class CmsAccessInfo {
     public:
         [[nodiscard]] bool IsValid() const {
-            return spvr_config_.IsValid();
+            return cms_config_.IsValid();
         }
 
     public:
-        SpvrSrvConfig spvr_config_;
+        CmsSrvConfig cms_config_;
     };
 
     //
@@ -92,8 +92,8 @@ namespace tc
         virtual void OnTimer1S() = 0;
         virtual void OnTimer5S() = 0;
 
-        // Spvr
-        virtual void UpdateSpvrServerConfig(const std::string& host, int port) = 0;
+        // Cms
+        virtual void UpdateCmsServerConfig(const std::string& host, int port) = 0;
         virtual void UpdateAppkey(const std::string& appkey) = 0;
         virtual std::shared_ptr<Authorization> RequestAuth() = 0;
         virtual std::shared_ptr<Authorization> GetAuth() = 0;
@@ -110,8 +110,8 @@ namespace tc
         virtual float GetCurrentCpuFrequency() = 0;
         virtual std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) = 0;
 
-        // spvr access
-        virtual std::shared_ptr<SpvrAccessInfo> ParseSpvrAccessInfo(const std::string& info) = 0;
+        // cms access
+        virtual std::shared_ptr<CmsAccessInfo> ParseCmsAccessInfo(const std::string& info) = 0;
 
         // jump to github
         virtual void JumpToGithub() = 0;

@@ -14,7 +14,7 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "Winmm.lib")
 
-namespace tc
+namespace px
 {
 
     DDACapture::DDACapture(const std::shared_ptr<MessageNotifier> &msg_notifier, const std::string& monitor)

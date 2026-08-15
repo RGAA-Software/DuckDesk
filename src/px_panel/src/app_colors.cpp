@@ -4,7 +4,7 @@
 
 #include "app_colors.h"
 
-namespace tc
+namespace px
 {
 
     QColor AppColors::kTabBtnInActiveColor = QColor(0xf7f7f7);

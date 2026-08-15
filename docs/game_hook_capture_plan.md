@@ -369,7 +369,7 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 - 验证工具:`scripts/cdp_stream_screenshot.mjs`(WEB_URL 环境变量指向实例
   web_client,等待 video 起来后 Page.captureScreenshot)
 - 实例启停走 CMS API:`/api/v1/app/control/app/instance/start|stop`(appkey 见
-  CMS 日志 log_spvr*.log 的 `stored_appkey`)
+  CMS 日志 log_cms*.log 的 `stored_appkey`)
 
 
 ## 14. 调试方法论与踩坑记录(2026-08-11)
@@ -399,7 +399,7 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 2. **部署 .70**:`tests\_deploy_hookfix_70.bat`(杀 render+游戏进程 → 拷贝 dll →
    服务自动拉起 render)。
 3. **起实例**:CMS API `POST /api/v1/app/control/app/instance/start`
-   (appkey 从 `output/px_cms_server/logs/px_cms_server/log_spvr*.log` 找最新
+   (appkey 从 `output/px_cms_server/logs/px_cms_server/log_cms*.log` 找最新
    `stored_appkey`,会随 CMS 重启轮换)。
 4. **无头截图验证**:`scripts/cdp_stream_screenshot.mjs`,用法:
    `WEB_URL="http://10.0.0.70:<port>/web_client/?deviceId=990405157&instanceId=<inst>" OUT=x.png node scripts/cdp_stream_screenshot.mjs`

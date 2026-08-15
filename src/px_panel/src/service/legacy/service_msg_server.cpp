@@ -15,7 +15,7 @@
 #include "px_service_message.pb.h"
 #include "service_context.h"
 
-namespace tc
+namespace px
 {
     ServiceMsgServer::ServiceMsgServer(const std::shared_ptr<ServiceContext>& context, const std::shared_ptr<RenderManager>& rm) {
         context_ = context;
@@ -31,7 +31,7 @@ namespace tc
 
         //auto exe_dir = context_->GetAppExeFolderPath();
         //auto pwd_file = std::format("{}/certs/password", exe_dir);
-        //auto pwd = tc::File::OpenForRead(pwd_file)->ReadAllAsString();
+        //auto pwd = px::File::OpenForRead(pwd_file)->ReadAllAsString();
         //server_->set_cert_file(
         //        "",
         //        std::format("{}/certs/server.crt", exe_dir),
@@ -110,7 +110,7 @@ namespace tc
     }
 
     void ServiceMsgServer::ParseMessage(const std::shared_ptr<SessionWrapper>& sw, std::string_view data) {
-        tc::ServiceMessage msg;
+        px::ServiceMessage msg;
         try {
             msg.ParseFromString(std::string(data.data(), data.size()));
             auto type = msg.type();

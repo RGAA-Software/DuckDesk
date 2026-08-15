@@ -8,7 +8,7 @@
 #include "px_common_new/message_notifier.h"
 #include <Shlobj.h>
 
-namespace tc
+namespace px
 {
 
     DesktopCapture::DesktopCapture(const std::shared_ptr<MessageNotifier>& msg_notifier, const std::string& monitor) {

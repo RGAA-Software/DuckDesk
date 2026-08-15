@@ -3,7 +3,7 @@
 
 #include "px_common_new/clipboard/clipboard_platform.h"
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     // Placeholder for macOS (NSPasteboard) / Linux (X11/Wayland) implementations.

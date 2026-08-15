@@ -13,7 +13,7 @@
 #include "win/desktop_capture/monitor_util.h"
 #endif
 
-namespace tc
+namespace px
 {
 
     class MessageNotifier;

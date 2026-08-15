@@ -11,7 +11,7 @@ class QStackedWidget;
 class QPushButton;
 class QTimer;
 
-namespace tc {
+namespace px {
 
 class FileShowWidget;
 class FileTransRecord;

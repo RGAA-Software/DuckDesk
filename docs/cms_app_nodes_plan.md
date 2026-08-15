@@ -146,7 +146,7 @@ launch 路由说明：GET 是为了让链接可直接放进浏览器地址栏/�
 
 ## 10. 明确不做 / 后续
 
-- 不改 Service、不改 `spvr_service.proto`（下发字段已够用）。
+- 不改 Service、不改 `cms_service.proto`（下发字段已够用）。
 - 不做节点级资源配额/优先级调度（P5 自动调度一并考虑）。
 - 不做节点分组/标签；节点名手工填。
 - `install_root` 仍沿节点保存（一期不做 CMS 推包）。

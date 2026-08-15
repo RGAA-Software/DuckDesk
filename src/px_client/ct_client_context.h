@@ -14,7 +14,7 @@
 #include "px_common_new/message_notifier.h"
 #include "px_client_sdk_new/sdk_messages.h"
 
-namespace tc
+namespace px
 {
     class AppMessage;
     class Thread;

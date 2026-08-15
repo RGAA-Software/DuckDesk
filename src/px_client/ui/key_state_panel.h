@@ -10,7 +10,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 
-namespace tc
+namespace px
 {
 
     class KeyItem : public QWidget {

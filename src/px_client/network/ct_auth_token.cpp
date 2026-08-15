@@ -14,7 +14,7 @@
 #include <iomanip>
 #include <cstring>
 
-namespace tc
+namespace px
 {
 
     static std::string BytesToHex(const unsigned char* data, size_t len) {
@@ -81,4 +81,4 @@ namespace tc
         };
     }
 
-} // namespace tc
+} // namespace px

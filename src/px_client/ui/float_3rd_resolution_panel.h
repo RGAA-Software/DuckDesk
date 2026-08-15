@@ -9,7 +9,7 @@
 #include <QPainter>
 #include "px_client/ct_app_message.h"
 
-namespace tc
+namespace px
 {
 
     class Settings;

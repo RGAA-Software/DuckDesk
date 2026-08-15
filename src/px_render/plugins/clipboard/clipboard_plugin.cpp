@@ -21,9 +21,9 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-GR_PLUGIN_EXPORT(tc::ClipboardPlugin)
+GR_PLUGIN_EXPORT(px::ClipboardPlugin)
 
-namespace tc
+namespace px
 {
     std::string ClipboardPlugin::GetPluginId() {
         return kClipboardPluginId;
@@ -49,7 +49,7 @@ namespace tc
 
     }
 
-    bool ClipboardPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool ClipboardPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
         lifetime_token_->store(true);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
@@ -79,14 +79,14 @@ namespace tc
             CallbackEvent(event);
             LOGI("received clipboard resp: {}", sub.msg());
         }
-        else if (msg->type() == tc::kClipboardReqAtBegin) {
+        else if (msg->type() == px::kClipboardReqAtBegin) {
             // begin; server -> client
             // copy files from server -> client
             plugin_context_->PostWorkTask([=, this]() {
                 this->OnRequestFileBegin(msg);
             });
         }
-        else if (msg->type() == tc::kClipboardReqAtEnd) {
+        else if (msg->type() == px::kClipboardReqAtEnd) {
             // end; server -> client
             // copy files from server -> client
             plugin_context_->PostWorkTask([=, this]() {
@@ -143,7 +143,7 @@ namespace tc
             data = file->Read(req_start, req_size, read_size);
         }
 
-        tc::Message msg;
+        px::Message msg;
         msg.set_device_id(sys_settings_.device_id_);
         msg.set_stream_id(in_msg->stream_id());
         msg.set_type(MessageType::kClipboardRespBuffer);

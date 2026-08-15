@@ -10,7 +10,7 @@
 #include <functional>
 #include "encoder_config.h"
 
-namespace tc
+namespace px
 {
 
     class VideoEncoder;

@@ -9,7 +9,7 @@
 #include <QObject>
 #include "effect_widget.h"
 
-namespace tc
+namespace px
 {
 
     class QtCircle : public EffectWidget {

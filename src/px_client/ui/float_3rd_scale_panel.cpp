@@ -13,7 +13,7 @@
 #include "px_label.h"
 #include <memory>
 
-namespace tc
+namespace px
 {
 
     ThirdScalePanel::ThirdScalePanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {

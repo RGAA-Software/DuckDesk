@@ -9,7 +9,7 @@
 #include "px_common_new/win32/d3d11_wrapper.h"
 #include "px_client_sdk_new/gl/raw_image.h"
 
-namespace tc
+namespace px
 {
     class D3D11RenderManager {
     public:

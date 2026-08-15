@@ -3,7 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-namespace tc
+namespace px
 {
     class Module {
     public:
@@ -83,4 +83,4 @@ namespace tc
         HMODULE module_ = nullptr;
     };
 
-}  // namespace tc
+}  // namespace px

@@ -6,7 +6,7 @@
 #include <iostream>
 #include "data.h"
 
-namespace tc
+namespace px
 {
 
     std::mutex FFT32::fft_mtx_;

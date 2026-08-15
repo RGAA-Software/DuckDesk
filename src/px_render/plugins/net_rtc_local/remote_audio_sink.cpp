@@ -6,7 +6,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<RemoteAudioSink> RemoteAudioSink::Make() {

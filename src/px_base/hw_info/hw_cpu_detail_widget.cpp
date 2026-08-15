@@ -8,7 +8,7 @@
 #include <QStyleOptionViewItem>
 #include <QScrollBar>
 
-namespace tc
+namespace px
 {
 
     class MainItemDelegate : public QStyledItemDelegate {

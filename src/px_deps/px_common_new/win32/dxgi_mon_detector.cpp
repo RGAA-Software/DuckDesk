@@ -6,7 +6,7 @@
 #pragma comment(lib, "DXGI.lib")
 #pragma comment(lib, "D3D11.lib")
 
-namespace tc
+namespace px
 {
 
     void DxgiMonitorDetector::DetectAdapters() {

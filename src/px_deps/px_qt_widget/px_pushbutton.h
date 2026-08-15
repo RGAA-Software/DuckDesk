@@ -8,14 +8,14 @@
 #include "translator/px_translator.h"
 #include <QPushButton>
 
-namespace tc
+namespace px
 {
 
     class TcPushButton : public QPushButton, public TcTranslator {
     public:
         TcPushButton(QWidget* parent = nullptr);
         void SetTextId(const QString &id) override;
-        void OnTranslate(tc::LanguageKind kind) override;
+        void OnTranslate(px::LanguageKind kind) override;
     };
 
 }

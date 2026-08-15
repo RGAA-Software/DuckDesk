@@ -11,7 +11,7 @@
 #include "px_common_new/frame_common.h"
 #include "px_client/plugin_interface/ct_plugin_context.h"
 
-namespace tc {
+namespace px {
 
 static std::string GetFFmpegError(const int& index) {
 	char buf[256] = { 0 };
@@ -73,7 +73,7 @@ bool MediaRecorder::InitFFmpeg() {
 	
 	// 获取编解码器参数结构体
 	AVCodecParameters* video_codecpar = video_stream_->codecpar;
-	if (tc::VideoType::kNetH264 == video_codec_) {
+	if (px::VideoType::kNetH264 == video_codec_) {
 		video_codecpar->codec_id = AV_CODEC_ID_H264;
 	}
 	else {
@@ -205,12 +205,12 @@ void MediaRecorder::InitByVideoFrame(const VideoFrame& frame) {
 	const auto& d = frame.data();
 	uint8_t* data = (uint8_t*)d.data();
 	size_t size = d.size();
-	if (frame.type() == tc::VideoType::kNetH264)
+	if (frame.type() == px::VideoType::kNetH264)
 	{
 		if (H264_TYPE(data[4]) == ENalType::H264_NAL_SPS)
 			is_config_frame = true;
 	}
-	else if (frame.type() == tc::VideoType::kNetHevc)
+	else if (frame.type() == px::VideoType::kNetHevc)
 	{
 		if (H265_TYPE(data[4]) == ENalType::H265_NAL_VPS)
 			is_config_frame = true;
@@ -307,7 +307,7 @@ void MediaRecorder::SaveVideoFrame(const VideoFrame& frame) {
 		const auto& d = frame.data();
 		uint8_t * data = (uint8_t*)d.data();
 		size_t size = d.size();
-		if (frame.type() == tc::VideoType::kNetH264)
+		if (frame.type() == px::VideoType::kNetH264)
 		{
 			if (H264_TYPE(data[4]) == ENalType::H264_NAL_SPS)
 				configFrame = true;

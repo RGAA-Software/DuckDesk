@@ -3,7 +3,7 @@
 
 #include "baseloadingwidget.h"
 
-namespace tc
+namespace px
 {
 
     class Win10HorizontalLoadingWidget : public BaseLoadingWidget {

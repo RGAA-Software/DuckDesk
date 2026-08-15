@@ -4,7 +4,7 @@
 
 #include "px_stream_plugin.h"
 
-namespace tc
+namespace px
 {
 
     GrStreamPlugin::GrStreamPlugin() : GrPluginInterface() {

@@ -12,7 +12,7 @@
 #include "px_plugin_interface.h"
 #include "px_encoder_new/encoder_config.h"
 
-namespace tc
+namespace px
 {
     class Image;
 
@@ -115,7 +115,7 @@ namespace tc
         GrVideoEncoderPlugin();
         ~GrVideoEncoderPlugin() override;
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         // 按屏补 IDR:mon_name 为空时退化为全量 InsertIdr()。

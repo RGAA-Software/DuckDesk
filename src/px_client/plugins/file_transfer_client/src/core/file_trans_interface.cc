@@ -14,7 +14,7 @@
 #include "../widget/file_trans_widget.h"
 #include "../widget/file_transmit_single_task_manager.h"
 
-namespace tc
+namespace px
 {
 
 // 调用关系 file_trans_interface->file_sdk_interface->file_transmit_sdk
@@ -29,8 +29,8 @@ namespace tc
         tcTrMgr()->InitLanguage((LanguageKind)settings.language_);
 
         // 先初始化InitFileTransSDK, 再设置回调
-        FileSDKInterface::Instance()->RegSendMessageFunc([=, this](std::shared_ptr<tc::Message> msg) {
-            auto buffer = tc::ProtoAsData(msg);
+        FileSDKInterface::Instance()->RegSendMessageFunc([=, this](std::shared_ptr<px::Message> msg) {
+            auto buffer = px::ProtoAsData(msg);
             this->SendProtoMessage(buffer);
             return true;
         });

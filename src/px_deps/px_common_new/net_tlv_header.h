@@ -5,7 +5,7 @@
 #ifndef GAMMARAY_NET_TLV_HEADER_H
 #define GAMMARAY_NET_TLV_HEADER_H
 
-namespace tc
+namespace px
 {
 
     constexpr uint8_t kNetTlvFull = 0x01;

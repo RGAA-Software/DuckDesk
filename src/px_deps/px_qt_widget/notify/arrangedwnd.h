@@ -5,7 +5,7 @@
 #include <QMouseEvent>
 #include <QPropertyAnimation>
 
-namespace tc
+namespace px
 {
 
     class NotifyManager;

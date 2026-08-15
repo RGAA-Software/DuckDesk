@@ -16,10 +16,10 @@
 #include <QPainter>
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace tc
+namespace px
 {
 
-    class SpvrUser;
+    class CmsUser;
     class GrContext;
     class TcPasswordInput;
 

@@ -4,7 +4,7 @@
 #include <cstring>
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
     bool SharedTexture::IsDirectShareableFormat(DXGI_FORMAT format) {
@@ -251,4 +251,4 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         return true;
     }
 
-} // namespace tc
+} // namespace px

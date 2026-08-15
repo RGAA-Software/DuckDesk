@@ -8,7 +8,7 @@
 #include <mutex>
 #include "px_render/plugin_interface/px_net_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class WsPluginServer;
@@ -21,7 +21,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
         void On1Second() override;
         bool IsWorking() override;

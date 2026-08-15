@@ -10,7 +10,7 @@
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     ///verify/device/info

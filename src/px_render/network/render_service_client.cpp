@@ -15,7 +15,7 @@
 #include "px_service_message.pb.h"
 #include "settings/rd_settings.h"
 
-namespace tc
+namespace px
 {
 
     const int kMaxClientQueuedMessage = 4096;
@@ -106,7 +106,7 @@ namespace tc
     }
 
     void RenderServiceClient::ParseMessage(const std::string& msg) {
-        tc::ServiceMessage sm;
+        px::ServiceMessage sm;
         try {
             sm.ParseFromString(msg);
         }
@@ -140,7 +140,7 @@ namespace tc
 
     void RenderServiceClient::HeartBeat() {
         static int64_t hb_idx = 0;
-        tc::ServiceMessage msg;
+        px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
         auto sub = msg.mutable_heart_beat();
         sub->set_index(hb_idx++);

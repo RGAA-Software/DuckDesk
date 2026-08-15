@@ -8,7 +8,7 @@
 #include <asio2/asio2.hpp>
 #include <asio2/udp/udp_client.hpp>
 
-namespace tc
+namespace px
 {
 
     UdpConnection::UdpConnection(const std::shared_ptr<ThunderSdkParams>& params,

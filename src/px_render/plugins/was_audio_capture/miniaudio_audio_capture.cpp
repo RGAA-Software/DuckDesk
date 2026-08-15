@@ -7,7 +7,7 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
 
 	const char* MiniAudioCapture::ResultStr(ma_result result) {

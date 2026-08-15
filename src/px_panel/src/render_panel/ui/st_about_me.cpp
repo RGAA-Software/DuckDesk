@@ -18,7 +18,7 @@
 #include "px_qt_widget/px_pushbutton.h"
 #include "skin/interface/skin_interface.h"
 
-namespace tc
+namespace px
 {
 
     StAboutMe::StAboutMe(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent){

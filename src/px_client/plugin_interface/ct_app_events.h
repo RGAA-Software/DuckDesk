@@ -10,7 +10,7 @@
 
 // from exe ---> plugins
 
-namespace tc
+namespace px
 {
 
     enum class AppEventType {

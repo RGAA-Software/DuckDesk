@@ -14,7 +14,7 @@
 
 typedef std::function<void (amf::AMFData *)> AMFTextureReceiver;
 
-namespace tc
+namespace px
 {
     class AMFTextureEncoder {
     public:
@@ -56,7 +56,7 @@ namespace tc
         VideoEncoderVCE(const std::shared_ptr<MessageNotifier> &msg_notifier, const EncoderFeature &encoder_feature);
         ~VideoEncoderVCE() override;
 
-        bool Initialize(const tc::EncoderConfig &config) override;
+        bool Initialize(const px::EncoderConfig &config) override;
         //void Encode(uint64_t handle, uint64_t frame_index) override;
         void Encode(ID3D11Texture2D *tex2d, uint64_t frame_index) override;
         void Encode(const std::shared_ptr<Image> &i420_data, uint64_t frame_index) override;

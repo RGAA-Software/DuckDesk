@@ -18,7 +18,7 @@ extern "C"
 #include <set>
 #include "sdk_video_decoder.h"
 
-namespace tc
+namespace px
 {
 
     class FFmpegVulkanDecoder : public VideoDecoder {

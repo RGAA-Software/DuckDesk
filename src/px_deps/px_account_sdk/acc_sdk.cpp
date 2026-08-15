@@ -8,7 +8,7 @@
 #include "acc_device.h"
 #include "acc_profile.h"
 
-namespace tc
+namespace px
 {
 
     AccountSdk::AccountSdk(const std::shared_ptr<MessageNotifier>& notifier,

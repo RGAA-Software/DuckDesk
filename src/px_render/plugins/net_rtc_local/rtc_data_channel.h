@@ -10,7 +10,7 @@
 #include <map>
 #include "px_common_new/webrtc_helper.h"
 
-namespace tc
+namespace px
 {
     using OnDataCallback = std::function<void(const std::string&)>;
 
@@ -64,6 +64,6 @@ namespace tc
         int64_t created_timestamp_{0};
     };
 
-} // namespace tc
+} // namespace px
 
 #endif //TEST_WEBRTC_DATA_CHANNEL_OBSERVER_IMPL_H

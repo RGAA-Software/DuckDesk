@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QStackedWidget>
 
-namespace tc
+namespace px
 {
     class StatChart;
     class MessageListener;

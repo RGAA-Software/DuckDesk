@@ -12,7 +12,7 @@
 
 using namespace Microsoft::WRL;
 
-namespace tc
+namespace px
 {
 
     class D3D11DeviceWrapper {

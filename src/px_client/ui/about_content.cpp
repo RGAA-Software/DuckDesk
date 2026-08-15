@@ -4,7 +4,7 @@
 
 #include "about_content.h"
 
-namespace tc
+namespace px
 {
 
     AboutContent::AboutContent(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : AppContent(ctx, parent) {

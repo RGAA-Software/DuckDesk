@@ -15,8 +15,8 @@
 #include <QApplication>
 #include <QProcess>
 
-using namespace tc;
-std::shared_ptr<tc::ServiceManager> g_service_manager;
+using namespace px;
+std::shared_ptr<px::ServiceManager> g_service_manager;
 
 // 1. install
 
@@ -24,11 +24,11 @@ int main(int argc, char** argv) {
     QApplication app(argc, argv);
     std::string base_path = app.applicationDirPath().toStdString();
     std::cout << "path: " << base_path << std::endl;
-    std::string bin_path = std::format("{}/{}", base_path, tc::kGammaRayServiceExeName);
+    std::string bin_path = std::format("{}/{}", base_path, px::kGammaRayServiceExeName);
     std::cout << "binpath: " << bin_path << std::endl;
 
     g_service_manager = ServiceManager::Make();
-    g_service_manager->Init(tc::kGammaRayServiceExeName, bin_path, "GammaRat Service", "** GammaRay Service **");
+    g_service_manager->Init(px::kGammaRayServiceExeName, bin_path, "GammaRat Service", "** GammaRay Service **");
 
     bool exit = false;
     while (!exit) {
@@ -46,11 +46,11 @@ int main(int argc, char** argv) {
         }
         else if (command == "remove" || command == "sr") {
             g_service_manager->Remove(true);
-            auto processes = tc::ProcessHelper::GetProcessList(false);
+            auto processes = px::ProcessHelper::GetProcessList(false);
             for (auto& process : processes) {
-                if (process->exe_full_path_.find(tc::kGammaRayExeName) != std::string::npos) {
+                if (process->exe_full_path_.find(px::kGammaRayExeName) != std::string::npos) {
                     std::cout << "Kill exe: " << process->exe_full_path_ << std::endl;
-                    tc::ProcessHelper::CloseProcess(process->pid_);
+                    px::ProcessHelper::CloseProcess(process->pid_);
                     break;
                 }
             }

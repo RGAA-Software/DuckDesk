@@ -13,9 +13,9 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(tc::EventReplayerPlugin)
+GR_PLUGIN_EXPORT(px::EventReplayerPlugin)
 
-namespace tc
+namespace px
 {
 
     std::string EventReplayerPlugin::GetPluginId() {
@@ -43,7 +43,7 @@ namespace tc
 
     }
     
-    bool EventReplayerPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool EventReplayerPlugin::OnCreate(const px::GrPluginParam &param) {
         GrPluginInterface::OnCreate(param);
 
         if (!IsPluginEnabled()) {

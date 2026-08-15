@@ -9,14 +9,14 @@
 #include "render_panel/px_application.h"
 #include "render_panel/clipboard/panel_clipboard_manager.h"
 
-namespace tc
+namespace px
 {
 
     GrRenderMsgProcessor::GrRenderMsgProcessor(const std::shared_ptr<GrContext>& ctx) {
         context_ = ctx;
     }
 
-    void GrRenderMsgProcessor::OnMessage(std::shared_ptr<tc::Message> msg) const {
+    void GrRenderMsgProcessor::OnMessage(std::shared_ptr<px::Message> msg) const {
         // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
         (void)msg;
 #if 0

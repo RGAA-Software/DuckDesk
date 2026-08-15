@@ -10,19 +10,19 @@
 #include <vector>
 #include <functional>
 
-namespace spvr
+namespace px_cms
 {
-    class SpvrStream;
+    class CmsStream;
 }
 
-namespace tc
+namespace px
 {
 
     class GrContext;
     class GrSettings;
     class MessageListener;
 
-    using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<spvr::SpvrStream>>)>;
+    using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<px_cms::CmsStream>>)>;
 
     class StreamStateChecker : public std::enable_shared_from_this<StreamStateChecker> {
     public:
@@ -30,9 +30,9 @@ namespace tc
         void Start();
         void Exit();
         void SetOnCheckedCallback(OnStreamStateCheckedCallback&&);
-        void UpdateCurrentStreamItems(const std::vector<std::shared_ptr<spvr::SpvrStream>>& items);
+        void UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items);
     private:
-        void CheckState(const std::vector<std::shared_ptr<spvr::SpvrStream>>& items);
+        void CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items);
 
     private:
         GrSettings* settings_ = nullptr;

@@ -1,4 +1,4 @@
-// render 控制消息发送:经 media_data_channel 发送 NetTlvHeader + tc.Message
+// render 控制消息发送:经 media_data_channel 发送 NetTlvHeader + px.Message
 // 协议对齐 src/px_client/ct_base_workspace.cpp 与
 // src/px_deps/px_message_new/proto_message_maker.cpp(MakeLockDevice/MakeStopRender/MakeCtrlAltDelete)
 import { packTlv } from './tlv'
@@ -14,7 +14,7 @@ export const MSG_TYPE_MODIFY_FPS = 480 // kModifyFps
 
 let pktIndex = 0n
 
-// fields 为 tc.Message 的 camelCase 字段(protobufjs 默认转换),
+// fields 为 px.Message 的 camelCase 字段(protobufjs 默认转换),
 // deviceId/streamId 与 C++ 端 Make* 一致地带上
 export function sendControlMessage(
   dc: RTCDataChannel | null,

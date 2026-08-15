@@ -16,7 +16,7 @@
 #include "test_network_adapter.cpp"
 #include "test_qr_generator.cpp"
 
-using namespace tc;
+using namespace px;
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest();
@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 }
 
 TEST(Test_GenUUID, gen_uuid) {
-    auto uuid = tc::GetUUID();
+    auto uuid = px::GetUUID();
     std::cout << "UUID: " << uuid << std::endl;
 }
 
@@ -36,7 +36,7 @@ TEST(Test_Data_String, data_string) {
 }
 
 TEST(Test_MD5, md5) {
-    auto str = tc::MD5::Hex("jack");
+    auto str = px::MD5::Hex("jack");
     std::cout << "MD5: " << str << std::endl;
 }
 

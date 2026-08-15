@@ -6,7 +6,7 @@
 #define TC_SERVER_STEAM_TAB_SERVER_H
 
 #include "tab_base.h"
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -16,7 +16,7 @@
 #include <QComboBox>
 #include <QProcess>
 
-namespace tc
+namespace px
 {
     class RnApp;
     class RnEmpty;
@@ -66,8 +66,8 @@ namespace tc
         TcImageButton* btn_hide_random_pwd_ = nullptr;
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<StreamDBOperator> stream_db_mgr_ = nullptr;
-        std::vector<std::shared_ptr<spvr::SpvrStream>> recent_streams_;
-        TcCircleIndicator* spvr_indicator_ = nullptr;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> recent_streams_;
+        TcCircleIndicator* cms_indicator_ = nullptr;
         TcCircleIndicator* relay_indicator_ = nullptr;
         TcCircleIndicator* relay_ft_indicator_ = nullptr;
         // last computed alive state, for transition-only logging

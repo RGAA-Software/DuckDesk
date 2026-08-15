@@ -9,7 +9,7 @@
 #include <taskschd.h>
 #pragma comment(lib, "taskschd.lib")
 
-namespace tc
+namespace px
 {
 
     class AutoStart {

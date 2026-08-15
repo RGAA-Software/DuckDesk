@@ -11,7 +11,7 @@
 #include <QPainter>
 #include <QMainWindow>
 
-namespace tc
+namespace px
 {
     class TcToolTip : public QWidget {
     public:

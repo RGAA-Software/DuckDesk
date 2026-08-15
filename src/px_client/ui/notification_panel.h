@@ -13,7 +13,7 @@
 #include <map>
 #include "transfer/file_transfer_events.h"
 
-namespace tc
+namespace px
 {
 
     class ClientContext;

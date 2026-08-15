@@ -13,7 +13,7 @@
 #include "widget_helper.h"
 #include <QScrollArea>
 
-namespace tc
+namespace px
 {
 
     static QString GetItemIconStyleSheet(const QString &url) {

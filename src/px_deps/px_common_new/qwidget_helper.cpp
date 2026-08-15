@@ -3,7 +3,7 @@
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
 
-namespace tc {
+namespace px {
    void QWidgetHelper::SetBorderInFullScreen(HWND hwnd, bool hasBorder) {
 #ifdef WIN32
         if (!hwnd) return;

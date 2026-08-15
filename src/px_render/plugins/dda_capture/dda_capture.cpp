@@ -21,7 +21,7 @@
 
 #define S_NOT_CHANGED ((HRESULT)5L)
 
-namespace tc
+namespace px
 {
 
     DDACapture::DDACapture(DDACapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info)

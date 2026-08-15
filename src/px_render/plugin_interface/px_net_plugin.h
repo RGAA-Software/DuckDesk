@@ -9,7 +9,7 @@
 #include "px_net_plugin_type.h"
 #include <vector>
 
-namespace tc
+namespace px
 {
 
     class Data;

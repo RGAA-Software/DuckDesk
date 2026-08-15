@@ -10,7 +10,7 @@
 #include "px_capture_new/monitor_util.h"
 #include "px_monitor_capture_error.h"
 
-namespace tc
+namespace px
 {
     const std::string kAllMonitorsNameSign = "all";
     const std::string kCaptureTypeDXGI = "DXGI";
@@ -39,7 +39,7 @@ namespace tc
     public:
         GrMonitorCapturePlugin();
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void SetCaptureErrorCallback(const CaptureErrorCallback& cbk);
         

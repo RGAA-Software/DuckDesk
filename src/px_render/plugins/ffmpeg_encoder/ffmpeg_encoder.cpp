@@ -16,7 +16,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "ffmpeg_encoder_plugin.h"
 
-namespace tc
+namespace px
 {
 
     FFmpegEncoder::FFmpegEncoder(FFmpegEncoderPlugin* plugin) {

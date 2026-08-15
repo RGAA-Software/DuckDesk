@@ -4,7 +4,7 @@
 
 #include "file_const_def.h"
 
-namespace tc {
+namespace px {
 
 class FileSendBtn : public QPushButton
 {

@@ -8,7 +8,7 @@
 struct INetFwPolicy2;
 struct INetFwRules;
 
-namespace tc
+namespace px
 {
 
     class RulesInfo {

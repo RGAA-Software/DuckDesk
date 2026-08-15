@@ -26,7 +26,7 @@
 
 using namespace nlohmann;
 
-namespace tc
+namespace px
 {
 
     PluginEventRouter::PluginEventRouter(const std::shared_ptr<RdApplication>& app) {
@@ -205,7 +205,7 @@ namespace tc
         auto target_event = std::dynamic_pointer_cast<GrPluginRtcAnswerSdpEvent>(event);
         auto stream_id = target_event->stream_id_;
 
-        tc::Message pt_msg;
+        px::Message pt_msg;
         pt_msg.set_type(MessageType::kSigAnswerSdpMessage);
         auto sub = pt_msg.mutable_sig_answer_sdp();
         sub->set_sdp(target_event->sdp_);
@@ -228,7 +228,7 @@ namespace tc
         auto target_event = std::dynamic_pointer_cast<GrPluginRtcIceEvent>(event);
         auto stream_id = target_event->stream_id_;
 
-        tc::Message pt_msg;
+        px::Message pt_msg;
         pt_msg.set_type(MessageType::kSigIceMessage);
         auto sub = pt_msg.mutable_sig_ice();
         sub->set_ice(target_event->ice_);
@@ -251,8 +251,8 @@ namespace tc
 
     void PluginEventRouter::ReportFileTransferBegin(const std::shared_ptr<GrPluginFileTransferBegin>& event) {
         app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpFileTransferBegin);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpFileTransferBegin);
             auto sub = msg.mutable_ft_begin();
             sub->set_the_file_id(event->the_file_id_);
             sub->set_begin_timestamp(event->begin_timestamp_);
@@ -266,8 +266,8 @@ namespace tc
 
     void PluginEventRouter::ReportFileTransferEnd(const std::shared_ptr<GrPluginFileTransferEnd>& event) {
         app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpFileTransferEnd);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpFileTransferEnd);
             auto sub = msg.mutable_ft_end();
             sub->set_the_file_id(event->the_file_id_);
             sub->set_end_timestamp(event->end_timestamp_);
@@ -283,8 +283,8 @@ namespace tc
         (void)event;
 #if 0
         app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpRemoteClipboardResp);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpRemoteClipboardResp);
             auto sub = msg.mutable_remote_clipboard_resp();
             sub->set_content_type(event->content_type_);
             sub->set_msg(event->remote_info_);
@@ -334,8 +334,8 @@ namespace tc
         // 不走 PostGlobalTask:全局任务在 render 主线程消息循环上执行,
         // 会话建立/高负载时主线程繁忙会把 alive 上报卡住数秒,导致 panel 指示灯误红。
         // PostPanelMessage 直接投递到 ws 网络线程,任意线程调用都是安全的。
-        tcrp::RpMessage msg;
-        msg.set_type(tcrp::kRpRelayAlive);
+        pxrp::RpMessage msg;
+        msg.set_type(pxrp::kRpRelayAlive);
         auto sub = msg.mutable_relay_alive();
         sub->set_device_id(device_id);
         sub->set_timestamp(timestamp);

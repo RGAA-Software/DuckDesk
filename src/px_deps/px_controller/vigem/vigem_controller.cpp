@@ -7,7 +7,7 @@
 
 #include <Xinput.h>
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<VigemController> VigemController::Make() {

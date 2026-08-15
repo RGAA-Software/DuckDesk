@@ -1,6 +1,6 @@
 #include "base_file_util.h"
 
-namespace tc {
+namespace px {
 BaseFileUtil::BaseFileUtil() : QObject() {
 
 }

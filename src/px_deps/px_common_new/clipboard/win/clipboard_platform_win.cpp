@@ -7,7 +7,7 @@
 #include <shellapi.h>
 #include <ole2.h>
 
-namespace tc::clipboard
+namespace px::clipboard
 {
     namespace {
 

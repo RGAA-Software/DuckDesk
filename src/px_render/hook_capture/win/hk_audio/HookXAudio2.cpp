@@ -14,7 +14,7 @@
 #include "AudioHookCommon.h"
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 struct Vtable {
@@ -421,4 +421,4 @@ bool HookXAudio2::TryInstall() {
     return true;
 }
 
-}  // namespace tc
+}  // namespace px

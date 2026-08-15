@@ -15,7 +15,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-namespace tc
+namespace px
 {
 
     std::string UdpPlugin::GetPluginId() {
@@ -38,7 +38,7 @@ namespace tc
         return "Network via UDP";
     }
 
-    bool UdpPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool UdpPlugin::OnCreate(const px::GrPluginParam &param) {
         GrNetPlugin::OnCreate(param);
         udp_listen_port_ = (int)GetConfigIntParam("udp-listen-port");
         auto config_listen_port = (int)GetConfigIntParam("listen-port");
@@ -96,7 +96,7 @@ namespace tc
         return GrNetPlugin::OnDestroy();
     }
 
-    // wire 级扫描 tc.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)
+    // wire 级扫描 px.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)
     // 的 Opus payload——与 ws_server.cpp 的 IsMediaFrameMessage 同一做法
     // (插件不引 protobuf 头,避免 absl 冲突,见 ws_server.cpp:73 注释)。
     // 返回 true 时 payload 指向 msg 内部缓冲,调用方需保持 msg 存活。
@@ -122,7 +122,7 @@ namespace tc
             }
             return false;
         };
-        // pass 1: 外层 tc.Message,记录 type(field 10) 和 audio_frame(field 80) 子消息位置
+        // pass 1: 外层 px.Message,记录 type(field 10) 和 audio_frame(field 80) 子消息位置
         bool is_audio = false;
         const uint8_t* sub = nullptr;
         size_t sub_len = 0;

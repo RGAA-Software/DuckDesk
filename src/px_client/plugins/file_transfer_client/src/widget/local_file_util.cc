@@ -10,7 +10,7 @@
 #include "file_const_def.h"
 
 
-namespace tc {
+namespace px {
 
 QString LocalFileUtil::current_user_dirs_;
 
@@ -137,7 +137,7 @@ void LocalFileUtil::GetFilesImpl(const QString& path) {
 
 void LocalFileUtil::GetFiles(const QString& path) {
 
-    if (tc::kRealRootPath == path) {
+    if (px::kRealRootPath == path) {
         GetThisPCFiles();
         return;
     }

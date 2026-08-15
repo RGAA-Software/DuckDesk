@@ -1,5 +1,5 @@
 use prost::Message;
-use protocol::relay::{RelayErrorCode, RelayErrorMessage, RelayMessage, RelayMessageType};
+use protocol::px_relay::{RelayErrorCode, RelayErrorMessage, RelayMessage, RelayMessageType};
 
 pub fn make_error_message(code: RelayErrorCode) -> Vec<u8> {
     let mut rl_msg = RelayMessage::default();

@@ -8,7 +8,7 @@
 #include <string>
 #include <Windows.h>
 
-namespace tc {
+namespace px {
 
 class DynamicLibrary {
 public:
@@ -25,6 +25,6 @@ private:
     HMODULE handle_ = NULL;
 };
 
-} // namespace tc
+} // namespace px
 
 #endif //TC_APPLICATION_DYNAMIC_LIBRARY_H

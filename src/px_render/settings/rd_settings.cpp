@@ -11,7 +11,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/shared_preference.h"
 
-namespace tc
+namespace px
 {
 
     bool RdSettings::LoadSettings(const std::string& path) {

@@ -33,7 +33,7 @@
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 
-namespace tc {
+namespace px {
 
     PluginNetEventRouter::PluginNetEventRouter(const std::shared_ptr<RdApplication>& app) {
         this->app_ = app;
@@ -102,7 +102,7 @@ namespace tc {
             if (hevc) {
                 const std::string reason = full_color ? "full_color" : "encoder_format";
                 LOGW("WebRTC connected while pipeline is H265 ({}), notify client", reason);
-                auto tip = NetMessageMaker::MakeVideoCodecChanged(tc::VideoType::kNetHevc, full_color, reason);
+                auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
                 plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
                     if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
                         plugin->PostProtoMessage(tip, false);
@@ -204,8 +204,8 @@ namespace tc {
                              (int)msg->clipboard_info().type(), event->message_->Size());
                         return;
                     }
-                    tcrp::RpMessage rp_msg;
-                    rp_msg.set_type(tcrp::kRpRawRenderMessage);
+                    pxrp::RpMessage rp_msg;
+                    rp_msg.set_type(pxrp::kRpRawRenderMessage);
                     auto sub = rp_msg.mutable_raw_render_msg();
                     sub->set_msg(event->message_->AsString());
                     sub->set_data_channel(false);
@@ -231,8 +231,8 @@ namespace tc {
                              (int)msg->type(), event->message_->Size());
                         return;
                     }
-                    tcrp::RpMessage rp_msg;
-                    rp_msg.set_type(tcrp::kRpRawRenderMessage);
+                    pxrp::RpMessage rp_msg;
+                    rp_msg.set_type(pxrp::kRpRawRenderMessage);
                     auto sub = rp_msg.mutable_raw_render_msg();
                     sub->set_msg(event->message_->AsString());
                     sub->set_data_channel(true);
@@ -247,8 +247,8 @@ namespace tc {
             // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
             // notify to panel
             context_->PostTask([=, this]() {
-                tcrp::RpMessage msg;
-                msg.set_type(tcrp::kRpRawRenderMessage);
+                pxrp::RpMessage msg;
+                msg.set_type(pxrp::kRpRawRenderMessage);
                 auto sub = msg.mutable_raw_render_msg();
                 sub->set_msg(event->message_->AsString());
                 auto buffer = RpProtoAsData(&msg);
@@ -673,8 +673,8 @@ namespace tc {
 
     void PluginNetEventRouter::ReportClientConnected(const std::shared_ptr<GrPluginClientConnectedEvent>& event) {
         app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpClientConnected);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpClientConnected);
             auto sub = msg.mutable_client_connected();
             sub->set_conn_id(event->conn_id_);
             sub->set_stream_id(event->stream_id_);
@@ -688,8 +688,8 @@ namespace tc {
 
     void PluginNetEventRouter::ReportClientDisConnected(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event) {
         app_->PostGlobalTask([=, this]() {
-            tcrp::RpMessage msg;
-            msg.set_type(tcrp::kRpClientDisConnected);
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpClientDisConnected);
             auto sub = msg.mutable_client_disconnected();
             sub->set_conn_id(event->conn_id_);
             sub->set_stream_id(event->stream_id_);

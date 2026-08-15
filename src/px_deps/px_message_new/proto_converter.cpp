@@ -6,14 +6,14 @@
 #include "px_common_new/data.h"
 #include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
-    std::shared_ptr<tc::Data> ProtoAsData(std::shared_ptr<tc::Message> msg) {
+    std::shared_ptr<px::Data> ProtoAsData(std::shared_ptr<px::Message> msg) {
         return ProtoAsData(msg.get());
     }
 
-    std::shared_ptr<tc::Data> ProtoAsData(tc::Message* msg) {
+    std::shared_ptr<px::Data> ProtoAsData(px::Message* msg) {
         if (!msg) {
             return nullptr;
         }

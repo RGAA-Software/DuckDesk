@@ -10,7 +10,7 @@
 #include <functional>
 #include <memory>
 
-namespace tc::clipboard
+namespace px::clipboard
 {
 
     class IPlatform {

@@ -16,7 +16,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 
-namespace tc {
+namespace px {
 namespace {
 
 class ActivateHandler final : public IActivateAudioInterfaceCompletionHandler,
@@ -305,4 +305,4 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
     }
 }
 
-}  // namespace tc
+}  // namespace px

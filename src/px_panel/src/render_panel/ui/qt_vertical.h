@@ -8,7 +8,7 @@
 #include "effect_widget.h"
 #include <QPixmap>
 
-namespace tc
+namespace px
 {
 
     class QtVertical : public EffectWidget {

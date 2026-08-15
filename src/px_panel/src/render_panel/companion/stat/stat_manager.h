@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-namespace tc
+namespace px
 {
     class SysInfo;
     class PanelCompanionImpl;

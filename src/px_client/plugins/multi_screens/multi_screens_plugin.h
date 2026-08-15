@@ -8,7 +8,7 @@
 #include "px_client/plugin_interface/ct_plugin_interface.h"
 #include <map>
 
-namespace tc
+namespace px
 {
 
     class MultiScreensPlugin : public ClientPluginInterface {
@@ -18,7 +18,7 @@ namespace tc
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
 
-        bool OnCreate(const tc::ClientPluginParam& param) override;
+        bool OnCreate(const px::ClientPluginParam& param) override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void DispatchAppEvent(const std::shared_ptr<ClientAppBaseEvent> &event) override;
@@ -31,7 +31,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::MultiScreensPlugin)
+GR_PLUGIN_EXPORT(px::MultiScreensPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

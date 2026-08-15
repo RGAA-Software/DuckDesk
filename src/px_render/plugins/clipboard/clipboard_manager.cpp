@@ -14,7 +14,7 @@
 #include "px_message_new/proto_converter.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 
-namespace tc
+namespace px
 {
 
     ClipboardManager::ClipboardManager(ClipboardPlugin* plugin) {
@@ -54,8 +54,8 @@ namespace tc
 
         if (msg->clipboard_type_ == MsgClipboardType::kText) {
             // send it to remote
-            tc::Message m;
-            m.set_type(tc::kClipboardInfo);
+            px::Message m;
+            m.set_type(px::kClipboardInfo);
             auto sub = m.mutable_clipboard_info();
             sub->set_type(ClipboardType::kClipboardText);
             sub->set_msg(msg->text_msg_);
@@ -63,8 +63,8 @@ namespace tc
             plugin_->DispatchAllStreamMessage(buffer);
         }
         else if (msg->clipboard_type_ == MsgClipboardType::kFiles && !msg->files_.empty()) {
-            tc::Message m;
-            m.set_type(tc::kClipboardInfo);
+            px::Message m;
+            m.set_type(px::kClipboardInfo);
             auto sub = m.mutable_clipboard_info();
             sub->set_type(ClipboardType::kClipboardFiles);
             for (const auto& file : msg->files_) {
@@ -110,8 +110,8 @@ namespace tc
 //                plugin_->CallbackEvent(event);
 //
 //                // send back
-//                tc::Message resp_msg;
-//                resp_msg.set_type(tc::kClipboardInfoResp);
+//                px::Message resp_msg;
+//                resp_msg.set_type(px::kClipboardInfoResp);
 //                auto resp_sub = resp_msg.mutable_clipboard_info_resp();
 //                resp_sub->set_type(ClipboardType::kClipboardText);
 //                resp_sub->set_msg(in_text);

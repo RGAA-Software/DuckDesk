@@ -20,7 +20,7 @@
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
 #endif
 
-namespace tc
+namespace px
 {
     class Data;
 
@@ -50,7 +50,7 @@ namespace tc
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
         // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
@@ -104,7 +104,7 @@ namespace tc
         int udp_mtu_{1400};
         // key = conn_id(remote addr:port):裸 UDP 下所有会话共享同一 socket,
         // native_handle 无法区分对端,必须用 endpoint 字符串做 key
-        tc::ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
+        px::ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
         // 绑定/解绑/互踢/迁移的互斥(心跳时间戳用原子,不走这把锁)
         std::mutex bind_mtx_;
         // 已绑定媒体会话数(bind_mtx_ 下维护,读无锁)
@@ -156,7 +156,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::UdpPlugin)
+GR_PLUGIN_EXPORT(px::UdpPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

@@ -1,7 +1,7 @@
 #pragma once
 #include <qobject.h>
 
-namespace tc {
+namespace px {
 class FileLogManager : public QObject {
 	Q_OBJECT
 public:

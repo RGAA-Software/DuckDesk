@@ -1,6 +1,6 @@
 ﻿//#include "panel_cp_data_object.h"
 //
-//namespace tc
+//namespace px
 //{
 //
 ////    const WCHAR *const c_szText = L"Clipboard Contents";

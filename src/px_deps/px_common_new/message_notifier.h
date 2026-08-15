@@ -13,7 +13,7 @@
 #endif
 #include "dexode/EventBus.hpp"
 
-namespace tc
+namespace px
 {
     class MessageListener {
     public:

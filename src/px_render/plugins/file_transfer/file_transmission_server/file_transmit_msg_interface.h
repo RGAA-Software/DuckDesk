@@ -3,7 +3,7 @@
 #include <memory>
 #include "px_message.pb.h"
 
-namespace tc {
+namespace px {
 
 class FileTransferPlugin;
 class FileTransmitManager;
@@ -14,7 +14,7 @@ public:
 	FileTransmitMsgInterface(FileTransferPlugin* file_trans_plugin);
 	~FileTransmitMsgInterface();
 
-	void OnMessage(const std::shared_ptr<tc::Message>& msg);
+	void OnMessage(const std::shared_ptr<px::Message>& msg);
 
 	void RegisterFileTransmitCallback();
 

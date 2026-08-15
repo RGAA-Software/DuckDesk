@@ -19,27 +19,27 @@
 #endif // WIN32
 
 
-namespace tc {
+namespace px {
 	static std::string s_file_permission_path_ = "/";
 
 	FileOperate::FileOperate() {}
 
-	std::vector<tc::FileDescInfo> FileOperate::GetFilesListImpl(const std::string& path) {
-		std::vector<tc::FileDescInfo> file_infos;
+	std::vector<px::FileDescInfo> FileOperate::GetFilesListImpl(const std::string& path) {
+		std::vector<px::FileDescInfo> file_infos;
 		try {
 			for (const auto& entry : std::filesystem::directory_iterator(PathFromUTF8(path))) {
-				tc::FileDescInfo info;
+				px::FileDescInfo info;
 				auto abs_path = PathToUTF8(std::filesystem::absolute(entry.path()));
 				info.set_name(PathToUTF8(entry.path().filename()));
 				info.set_path(abs_path);
 				if (std::filesystem::is_directory(entry.status())) {
-					info.set_type(tc::FileDescInfo::kFolder);
+					info.set_type(px::FileDescInfo::kFolder);
 					if (desktop_path_ == abs_path) {
-						info.set_type(tc::FileDescInfo::kDeskFolder);
+						info.set_type(px::FileDescInfo::kDeskFolder);
 					}
 				}
 				else if (std::filesystem::is_regular_file(entry.status())) {
-					info.set_type(tc::FileDescInfo::FileType::FileDescInfo_FileType_kFile);
+					info.set_type(px::FileDescInfo::FileType::FileDescInfo_FileType_kFile);
 					info.set_size(std::filesystem::file_size(entry));
 					auto lwt = std::filesystem::last_write_time(entry);
 					auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
@@ -58,7 +58,7 @@ namespace tc {
 		return file_infos;
 	}
 
-	std::tuple<bool, std::vector<tc::FileDescInfo>, std::string, std::string> FileOperate::GetFilesList(std::string path) {
+	std::tuple<bool, std::vector<px::FileDescInfo>, std::string, std::string> FileOperate::GetFilesList(std::string path) {
 #ifdef WIN32
 		try {
 			std::string permission_log;
@@ -93,7 +93,7 @@ namespace tc {
 			if (!std::filesystem::is_directory(PathFromUTF8(path))) {
 				return { false, {}, permission_log + std::string("The accessed path is not a valid folder or disk directory"), s_file_permission_path_};
 			}
-			std::vector<tc::FileDescInfo> file_infos = GetFilesListImpl(path);
+			std::vector<px::FileDescInfo> file_infos = GetFilesListImpl(path);
 			return { true, file_infos, permission_log, s_file_permission_path_ };
 		}
 		catch (std::exception& e) {
@@ -106,7 +106,7 @@ namespace tc {
 #endif // WIN32
 	}
 
-	std::tuple<bool, std::vector<tc::FileDescInfo>, std::string, std::string> FileOperate::RecursiveGetFilesList(std::string path) {
+	std::tuple<bool, std::vector<px::FileDescInfo>, std::string, std::string> FileOperate::RecursiveGetFilesList(std::string path) {
 #ifdef WIN32
 		try {
 			std::string permission_log;
@@ -148,18 +148,18 @@ namespace tc {
 			std::vector<std::string> folders;
 			std::vector<std::string> files;
 			TraverseDirectory(path, folders, files);
-			std::vector<tc::FileDescInfo> file_infos;
+			std::vector<px::FileDescInfo> file_infos;
 			for (auto& folder : folders) {
-				tc::FileDescInfo info;
-				info.set_type(tc::FileDescInfo::kFolder);
+				px::FileDescInfo info;
+				info.set_type(px::FileDescInfo::kFolder);
 				info.set_name(PathToUTF8(std::filesystem::path(PathFromUTF8(folder)).filename()));
 				info.set_path(PathToUTF8(std::filesystem::absolute(PathFromUTF8(folder))));
 				file_infos.emplace_back(info);
 			}
 
 			for (auto& file : files) {
-				tc::FileDescInfo info;
-				info.set_type(tc::FileDescInfo::kFile);
+				px::FileDescInfo info;
+				info.set_type(px::FileDescInfo::kFile);
 				info.set_name(PathToUTF8(std::filesystem::path(PathFromUTF8(file)).filename()));
 				info.set_path(PathToUTF8(std::filesystem::absolute(PathFromUTF8(file))));
 				info.set_size(std::filesystem::file_size(PathFromUTF8(file)));
@@ -198,7 +198,7 @@ namespace tc {
 		}
 	}
 
-	std::vector<tc::FileDescInfo> FileOperate::GetThisPCFiles() {
+	std::vector<px::FileDescInfo> FileOperate::GetThisPCFiles() {
 #ifdef WIN32
 		try {
 			bool impersonate = false;
@@ -218,15 +218,15 @@ namespace tc {
 				LOGE("Failed to get user token. Error code: %d", GetLastError());
 			}
 
-			std::vector<tc::FileDescInfo> file_infos;
+			std::vector<px::FileDescInfo> file_infos;
 			DWORD drives = GetLogicalDrives();
 			for (int i = 0; i < 26; i++) {
 				if (drives & (1 << i)) {
 					char drive_name[4] = { (char)('A' + i), ':', '/', '\0' };
-					tc::FileDescInfo info;
+					px::FileDescInfo info;
 					info.set_name(drive_name);
 					info.set_path(drive_name);
-					info.set_type(tc::FileDescInfo::kDisk);
+					info.set_type(px::FileDescInfo::kDisk);
 					file_infos.emplace_back(info);
 				}
 			}
@@ -242,39 +242,39 @@ namespace tc {
 			};
 
 			{
-				tc::FileDescInfo desktop_info;
+				px::FileDescInfo desktop_info;
 				desktop_info.set_name(tcTr("id_file_trans_desktop"));
 				desktop_info.set_path(get_folder(FOLDERID_Desktop));
-				desktop_info.set_type(tc::FileDescInfo::kDeskFolder);
+				desktop_info.set_type(px::FileDescInfo::kDeskFolder);
 				desktop_path_ = desktop_info.path();
 				file_infos.emplace_back(desktop_info);
 			}
 			{
-				tc::FileDescInfo doc_info;
+				px::FileDescInfo doc_info;
 				doc_info.set_name(tcTr("id_file_trans_my_document"));
 				doc_info.set_path(get_folder(FOLDERID_Documents));
-				doc_info.set_type(tc::FileDescInfo::kFolder);
+				doc_info.set_type(px::FileDescInfo::kFolder);
 				file_infos.emplace_back(doc_info);
 			}
 			{
-				tc::FileDescInfo music_info;
+				px::FileDescInfo music_info;
 				music_info.set_name(tcTr("id_file_trans_my_music"));
 				music_info.set_path(get_folder(FOLDERID_Music));
-				music_info.set_type(tc::FileDescInfo::kFolder);
+				music_info.set_type(px::FileDescInfo::kFolder);
 				file_infos.emplace_back(music_info);
 			}
 			{
-				tc::FileDescInfo pic_info;
+				px::FileDescInfo pic_info;
 				pic_info.set_name(tcTr("id_file_trans_my_picture"));
 				pic_info.set_path(get_folder(FOLDERID_Pictures));
-				pic_info.set_type(tc::FileDescInfo::kFolder);
+				pic_info.set_type(px::FileDescInfo::kFolder);
 				file_infos.emplace_back(pic_info);
 			}
 			{
-				tc::FileDescInfo mov_info;
+				px::FileDescInfo mov_info;
 				mov_info.set_name(tcTr("id_file_trans_my_video"));
 				mov_info.set_path(get_folder(FOLDERID_Videos));
-				mov_info.set_type(tc::FileDescInfo::kFolder);
+				mov_info.set_type(px::FileDescInfo::kFolder);
 				file_infos.emplace_back(mov_info);
 			}
 

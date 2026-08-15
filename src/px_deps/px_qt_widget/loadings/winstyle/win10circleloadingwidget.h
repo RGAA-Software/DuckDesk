@@ -3,7 +3,7 @@
 
 #include "win10horizontalloadingwidget.h"
 
-namespace tc
+namespace px
 {
 
     class Win10CircleLoadingWidget : public Win10HorizontalLoadingWidget {

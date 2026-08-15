@@ -10,7 +10,7 @@
 #include "relay_errors.h"
 #include "px_common_new/expected.h"
 
-namespace relay
+namespace px_relay
 {
 
     const std::string kRelayGetDeviceInfo = "/query/device";
@@ -21,15 +21,15 @@ namespace relay
 
     class RelayApi {
     public:
-        static tc::Result<bool, int> Ping(const std::string& host, int port, const std::string& appkey);
+        static px::Result<bool, int> Ping(const std::string& host, int port, const std::string& appkey);
 
         // id has prefix, eg: server_xxxx
-        static tc::Result<std::shared_ptr<RelayDeviceInfo>, int>
+        static px::Result<std::shared_ptr<RelayDeviceInfo>, int>
                 GetRelayDeviceInfo(const std::string& host, int port, const std::string& device_id, const std::string& appkey);
 
         // id has prefix, eg: server_xxxx
         // event in json format
-        static tc::Result<int, int> NotifyEvent(const std::string& host,
+        static px::Result<int, int> NotifyEvent(const std::string& host,
                                                         int port,
                                                         const std::string& from_device_id, // this device
                                                         const std::string& to_device_id,   // remote device, id starts with: server_

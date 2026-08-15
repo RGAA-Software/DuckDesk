@@ -9,7 +9,7 @@
 #include <memory>
 #include <QListWidget>
 
-namespace tc
+namespace px
 {
 
     class PageWidget;

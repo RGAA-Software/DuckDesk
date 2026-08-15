@@ -11,7 +11,7 @@
 #include <QCheckBox>
 class QPushButton;
 
-namespace tc
+namespace px
 {
 
     class StGeneral : public TabBase {

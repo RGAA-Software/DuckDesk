@@ -19,11 +19,11 @@
 #include "px_label.h"
 #include "px_pushbutton.h"
 #include "st_network_search.h"
-#include "px_spvr_client/spvr_device_api.h"
-#include "px_spvr_client/spvr_device.h"
+#include "px_cms_client/cms_device_api.h"
+#include "px_cms_client/cms_device.h"
 #include "px_relay_client/relay_api.h"
 #include "px_common_new/message_notifier.h"
-#include "render_panel/spvr_scanner/spvr_scanner.h"
+#include "render_panel/cms_scanner/cms_scanner.h"
 #include "st_network_auto_join_dialog.h"
 #include <QPushButton>
 #include <QLineEdit>
@@ -34,7 +34,7 @@
 
 #include "px_common_new/const_auto.h"
 
-namespace tc
+namespace px
 {
 
     StNetwork::StNetwork(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent){
@@ -67,11 +67,11 @@ namespace tc
                 segment_layout->addSpacing(2);
             }
 
-            // Spvr access info
+            // Cms access info
             {
                 auto layout = new NoMarginHLayout();
                 auto label = new TcLabel(this);
-                label->SetTextId("id_spvr_auth_access_info");
+                label->SetTextId("id_cms_auth_access_info");
                 label->setFixedSize(tips_label_size);
                 label->setStyleSheet("font-size: 14px; font-weight: 500;");
                 layout->addWidget(label);
@@ -80,14 +80,14 @@ namespace tc
                 edit->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
                 edit->setLineWrapMode(QTextEdit::WidgetWidth);
                 edit->setAcceptRichText(false);
-                edt_spvr_access_ = edit;
+                edt_cms_access_ = edit;
                 QObject::connect(edit, &QTextEdit::textChanged, this, [=, this]() {
                      auto text = edit->toPlainText();
-                     auto info = this->ParseSpvrAccessInfo(text.toStdString());
-                     this->DisplaySpvrAccessInfo(info);
+                     auto info = this->ParseCmsAccessInfo(text.toStdString());
+                     this->DisplayCmsAccessInfo(info);
                  });
                 edit->setFixedSize(input_size.width()*2, input_size.height()*2);
-                edit->setText(settings_->GetSpvrAccessInfo().c_str());
+                edit->setText(settings_->GetCmsAccessInfo().c_str());
                 layout->addWidget(edit);
                 layout->addSpacing(15);
 
@@ -133,9 +133,9 @@ namespace tc
 
                 auto edit = new QLineEdit(this);
                 edit->setEnabled(false);
-                edt_spvr_server_host_ = edit;
+                edt_cms_server_host_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(settings_->GetSpvrServerHost().c_str());
+                edit->setText(settings_->GetCmsServerHost().c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -151,10 +151,10 @@ namespace tc
 
                 auto edit = new QLineEdit(this);
                 edit->setEnabled(false);
-                edt_spvr_server_port_ = edit;
+                edt_cms_server_port_ = edit;
                 edit->setFixedSize(input_size);
                 edit->setValidator(new QIntValidator);
-                edit->setText(std::to_string(settings_->GetSpvrServerPort()).c_str());
+                edit->setText(std::to_string(settings_->GetCmsServerPort()).c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -409,9 +409,9 @@ namespace tc
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
             // clear data
             app_->GetContext()->PostUITask([=, this]() {
-                edt_spvr_access_->setText("");
-                edt_spvr_server_host_->setText("");
-                edt_spvr_server_port_->setText("");
+                edt_cms_access_->setText("");
+                edt_cms_server_host_->setText("");
+                edt_cms_server_port_->setText("");
                 edt_relay_server_host_->setText("");
                 edt_relay_server_port_->setText("");
             });
@@ -431,21 +431,21 @@ namespace tc
 
     }
 
-    std::shared_ptr<SpvrAccessInfo> StNetwork::ParseSpvrAccessInfo(const std::string& info) {
+    std::shared_ptr<CmsAccessInfo> StNetwork::ParseCmsAccessInfo(const std::string& info) {
         auto companion = grApp->GetCompanion();
         if (!companion) {
             return nullptr;
         }
-        return companion->ParseSpvrAccessInfo(info);
+        return companion->ParseCmsAccessInfo(info);
     }
 
-    void StNetwork::DisplaySpvrAccessInfo(const std::shared_ptr<SpvrAccessInfo>& info) {
-        if (!info || !info->spvr_config_.IsValid()) {
-            if (edt_spvr_server_host_) {
-                edt_spvr_server_host_->setText("");
+    void StNetwork::DisplayCmsAccessInfo(const std::shared_ptr<CmsAccessInfo>& info) {
+        if (!info || !info->cms_config_.IsValid()) {
+            if (edt_cms_server_host_) {
+                edt_cms_server_host_->setText("");
             }
-            if (edt_spvr_server_port_) {
-                edt_spvr_server_port_->setText("");
+            if (edt_cms_server_port_) {
+                edt_cms_server_port_->setText("");
             }
             if (edt_relay_server_host_) {
                 edt_relay_server_host_->setText("");
@@ -455,41 +455,41 @@ namespace tc
             }
             return;
         }
-        if (edt_spvr_server_host_) {
-            edt_spvr_server_host_->setText(info->spvr_config_.srv_w3c_ip_.c_str());
+        if (edt_cms_server_host_) {
+            edt_cms_server_host_->setText(info->cms_config_.srv_w3c_ip_.c_str());
         }
-        if (edt_spvr_server_port_) {
-            edt_spvr_server_port_->setText(QString::number(info->spvr_config_.srv_spvr_port_));
+        if (edt_cms_server_port_) {
+            edt_cms_server_port_->setText(QString::number(info->cms_config_.srv_cms_port_));
         }
         if (edt_relay_server_host_) {
-            edt_relay_server_host_->setText(info->spvr_config_.srv_w3c_ip_.c_str());
+            edt_relay_server_host_->setText(info->cms_config_.srv_w3c_ip_.c_str());
         }
         if (edt_relay_server_port_) {
-            edt_relay_server_port_->setText(QString::number(info->spvr_config_.srv_relay_port_));
+            edt_relay_server_port_->setText(QString::number(info->cms_config_.srv_relay_port_));
         }
     }
 
-    void StNetwork::SaveSpvrAccessInfo() {
-        auto info = edt_spvr_access_->toPlainText().trimmed().toStdString();
-        settings_->SetSpvrAccessInfo(info);
+    void StNetwork::SaveCmsAccessInfo() {
+        auto info = edt_cms_access_->toPlainText().trimmed().toStdString();
+        settings_->SetCmsAccessInfo(info);
     }
 
     void StNetwork::SearchAccessInfo(bool auto_restart_render) {
-        auto ac_info = app_->GetSpvrScanner()->GetSpvrAccessInfo();
+        auto ac_info = app_->GetCmsScanner()->GetCmsAccessInfo();
         if (ac_info.empty()) {
             return;
         }
         if (ac_info.size() == 1) {
-            std::shared_ptr<StNetworkSpvrAccessInfo> info = nullptr;
+            std::shared_ptr<StNetworkCmsAccessInfo> info = nullptr;
             for (const auto& [k, v] : ac_info) {
                 info = v;
             }
             if (info) {
-                if (settings_->GetSpvrServerHost() != info->spvr_ip_ || settings_->GetSpvrServerPort() != info->spvr_port_
+                if (settings_->GetCmsServerHost() != info->cms_ip_ || settings_->GetCmsServerPort() != info->cms_port_
                     || settings_->GetRelayServerHost() != info->relay_ip_ || settings_->GetRelayServerPort() != info->relay_port_ || !auto_restart_render) {
                     StNetworkAutoJoinDialog dialog(app_, info);
                     if (dialog.exec() == 0) {
-                        edt_spvr_access_->setText(info->origin_info_.c_str());
+                        edt_cms_access_->setText(info->origin_info_.c_str());
                         if (auto_restart_render) {
                             this->Save(auto_restart_render);
                         }
@@ -502,32 +502,32 @@ namespace tc
             if (nt_search.exec() == 0) {
                 auto selected_item = nt_search.GetSelectedItem();
                 if (!selected_item) {
-                    LOGE("Not a valid spvr item !");
+                    LOGE("Not a valid cms item !");
                     return;
                 }
-                if (selected_item->spvr_ip_.empty() || selected_item->relay_ip_.empty()) {
-                    TcDialog dialog(tcTr("id_error"), tcTr("id_verify_spvr_failed"));
+                if (selected_item->cms_ip_.empty() || selected_item->relay_ip_.empty()) {
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_verify_cms_failed"));
                     dialog.exec();
                     return;
                 }
-                edt_spvr_access_->setText(selected_item->origin_info_.c_str());
+                edt_cms_access_->setText(selected_item->origin_info_.c_str());
             }
         }
     }
 
     void StNetwork::VerifyAccessInfo() {
-        // 1. verify spvr server
-        auto ac_info = ParseSpvrAccessInfo(edt_spvr_access_->toPlainText().trimmed().toStdString());
+        // 1. verify cms server
+        auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString());
         if (!ac_info) {
-            LOGE("Parse access info failed: {}", edt_spvr_access_->toPlainText().toStdString());
+            LOGE("Parse access info failed: {}", edt_cms_access_->toPlainText().toStdString());
             return;
         }
 
-        auto appkey = ac_info->spvr_config_.srv_appkey_;
+        auto appkey = ac_info->cms_config_.srv_appkey_;
         {
-            auto r = spvr::SpvrDeviceApi::Ping(ac_info->spvr_config_.srv_w3c_ip_, ac_info->spvr_config_.srv_spvr_port_, appkey);
+            auto r = px_cms::CmsDeviceApi::Ping(ac_info->cms_config_.srv_w3c_ip_, ac_info->cms_config_.srv_cms_port_, appkey);
             if (!r.has_value() || !r.value()) {
-                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_spvr_failed"));
+                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_cms_failed"));
                 dialog.exec();
                 return;
             }
@@ -535,7 +535,7 @@ namespace tc
 
         // 2. verify relay server
         {
-            auto r = relay::RelayApi::Ping(ac_info->spvr_config_.srv_w3c_ip_, ac_info->spvr_config_.srv_relay_port_, appkey);
+            auto r = px_relay::RelayApi::Ping(ac_info->cms_config_.srv_w3c_ip_, ac_info->cms_config_.srv_relay_port_, appkey);
             if (!r.has_value() || !r.value()) {
                 TcDialog dialog(tcTr("id_error"), tcTr("id_verify_relay_failed"));
                 dialog.exec();
@@ -548,13 +548,13 @@ namespace tc
     }
 
     void StNetwork::Save(bool auto_restart_render) {
-        auto spvr_host = edt_spvr_server_host_->text().toStdString();
-        auto spvr_port = edt_spvr_server_port_->text().toStdString();
+        auto cms_host = edt_cms_server_host_->text().toStdString();
+        auto cms_port = edt_cms_server_port_->text().toStdString();
         auto relay_host = edt_relay_server_host_->text().toStdString();
         auto relay_port = edt_relay_server_port_->text().toStdString();
         bool force_update_device_id = false;
-        if (!spvr_host.empty()
-            && (settings_->GetSpvrServerHost() != spvr_host || settings_->GetSpvrServerPort() != std::atoi(spvr_port.c_str()))) {
+        if (!cms_host.empty()
+            && (settings_->GetCmsServerHost() != cms_host || settings_->GetCmsServerPort() != std::atoi(cms_port.c_str()))) {
             force_update_device_id = true;
             settings_->SetDeviceId("");
             if (cat comp = grApp->GetCompanion(); comp) {
@@ -564,14 +564,14 @@ namespace tc
             settings_->SetDeviceRandomPwd("");
             LOGW("Clear old device id, force updating device id.");
         }
-        settings_->SetSpvrServerHost(spvr_host);
-        settings_->SetSpvrServerPort(spvr_port);
+        settings_->SetCmsServerHost(cms_host);
+        settings_->SetCmsServerPort(cms_port);
         settings_->SetPanelServerPort(edt_panel_port_->text().toInt());
 
         settings_->SetRelayServerHost(relay_host);
         settings_->SetRelayServerPort(relay_port);
 
-        SaveSpvrAccessInfo();
+        SaveCmsAccessInfo();
 
         // Load again
         settings_->Load();
@@ -579,13 +579,13 @@ namespace tc
         // companion
         auto companion = grApp->GetCompanion();
         if (companion) {
-            companion->UpdateSpvrServerConfig(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort());
+            companion->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort());
 
             // Extract the appkey from the pasted access string so
             // RequestAuth uses the current appkey, not a stale cached one.
-            auto ac_info = ParseSpvrAccessInfo(edt_spvr_access_->toPlainText().trimmed().toStdString());
-            if (ac_info && !ac_info->spvr_config_.srv_appkey_.empty()) {
-                companion->UpdateAppkey(ac_info->spvr_config_.srv_appkey_);
+            auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString());
+            if (ac_info && !ac_info->cms_config_.srv_appkey_.empty()) {
+                companion->UpdateAppkey(ac_info->cms_config_.srv_appkey_);
             }
 
             auto auth = companion->RequestAuth();
@@ -624,7 +624,7 @@ namespace tc
         }
         else {
             // check the device id is valid or not
-            auto r = spvr::SpvrDeviceApi::QueryDevice(settings_->GetSpvrServerHost(), settings_->GetSpvrServerPort(), grApp->GetAppkey(), device_id);
+            auto r = px_cms::CmsDeviceApi::QueryDevice(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey(), device_id);
             if (!r.has_value() || r.value()->device_id_.empty()) {
                 // request a new one
                 LOGI("Can't query the device id : {} in server, will request a new one.", settings_->GetDeviceId());

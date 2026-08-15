@@ -15,7 +15,7 @@
 #include "rtc_client_interface.h"
 #include "api/media_stream_interface.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

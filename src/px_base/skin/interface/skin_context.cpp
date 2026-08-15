@@ -5,7 +5,7 @@
 #include "skin_context.h"
 #include "px_common_new/thread.h"
 
-namespace tc
+namespace px
 {
 
     SkinContext::SkinContext(const std::string& plugin_name) {

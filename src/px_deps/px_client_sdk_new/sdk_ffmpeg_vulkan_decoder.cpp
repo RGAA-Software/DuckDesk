@@ -15,7 +15,7 @@
 #include "px_client_sdk_new/gl/raw_image.h"
 #include "sdk_messages.h"
 
-namespace tc
+namespace px
 {
     enum AVPixelFormat VulkanFFGetFormat(AVCodecContext* context, const enum AVPixelFormat* pixFmts) {
         for (const AVPixelFormat* p = pixFmts; *p != AV_PIX_FMT_NONE; p++) {

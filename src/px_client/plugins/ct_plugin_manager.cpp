@@ -18,7 +18,7 @@
 
 typedef void *(*FnGetInstance)();
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<ClientPluginManager> ClientPluginManager::Make(const std::shared_ptr<BaseWorkspace>& ws) {
@@ -68,7 +68,7 @@ namespace tc
                         continue;
                     }
 
-                    auto settings = tc::Settings::Instance();
+                    auto settings = px::Settings::Instance();
 
                     // create it
                     auto filename = info.fileName();

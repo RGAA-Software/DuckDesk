@@ -69,7 +69,7 @@ app_secret = ""
 
 ## 相关代码
 
-- CMS pull 逻辑：`rust_server/px_cms_server/src/auth/spvr_auth_pull.rs`
+- CMS pull 逻辑：`rust_server/px_cms_server/src/auth/cms_auth_pull.rs`
 - 授权服务器 device/pull：`rust_server/px_auth_server/src/authorization_handler.rs`（`handle_device_pull`，product=`godesk_cms`）
 - 共享产品常量/签名算法：`rust_base/px_auth_mgr/src/authorization.rs`、`rust_base/px_auth_mgr/src/app_credential.rs`
 - 机器码：`rust_base/px_base/src/machine_code.rs`

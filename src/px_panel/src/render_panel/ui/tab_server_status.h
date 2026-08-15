@@ -13,7 +13,7 @@
 #include <QStackedWidget>
 #include <QLabel>
 
-namespace tc
+namespace px
 {
 
     class RnApp;

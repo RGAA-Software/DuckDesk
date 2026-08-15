@@ -7,7 +7,7 @@
 
 #include <QWidget>
 
-namespace tc
+namespace px
 {
 
     class RoundRectWidget : public QWidget {

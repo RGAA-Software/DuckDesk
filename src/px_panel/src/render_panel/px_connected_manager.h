@@ -5,7 +5,7 @@
 #include <qobject.h>
 #include <qabstractnativeeventfilter.h>
 
-namespace tc { 
+namespace px { 
 	class GrContext;
 	class MessageListener;
 	class ConnectedInfoSlidingWindow;

@@ -9,7 +9,7 @@
 #include <QPainter>
 #include <map>
 
-namespace tc
+namespace px
 {
 
     class Settings;

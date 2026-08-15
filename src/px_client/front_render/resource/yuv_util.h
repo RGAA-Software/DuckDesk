@@ -20,7 +20,7 @@
 using namespace Microsoft::WRL;
 #endif
 
-namespace tc
+namespace px
 {
 
     class NV12Frame {

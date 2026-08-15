@@ -15,7 +15,7 @@
 #include "px_common_new/time_util.h"
 #include "libyuv/convert.h"
 
-namespace tc
+namespace px
 {
 
     VideoEncoder::VideoEncoder(const std::shared_ptr<MessageNotifier> &msg_notifier, const EncoderFeature &encoder_feature) {
@@ -74,7 +74,7 @@ namespace tc
 
     VideoEncoder::~VideoEncoder() = default;
 
-    bool VideoEncoder::Initialize(const tc::EncoderConfig &config) {
+    bool VideoEncoder::Initialize(const px::EncoderConfig &config) {
         encoder_config_ = config;
         input_frame_width_ = config.width;
         input_frame_height_ = config.height;

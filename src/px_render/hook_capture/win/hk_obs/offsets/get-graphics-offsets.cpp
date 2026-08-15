@@ -4,7 +4,7 @@
 #include "get-graphics-offsets.h"
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
     D3DOffsets GetD3DOffsets() {
         D3DOffsets d3d_offsets;
@@ -45,9 +45,9 @@ namespace tc
     }
 }
 
-using namespace tc;
+using namespace px;
 int main(int argc, char** argv)
 {
-    tc::GetD3DOffsets();
+    px::GetD3DOffsets();
     return 0;
 }

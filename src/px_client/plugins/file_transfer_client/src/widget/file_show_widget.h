@@ -8,7 +8,7 @@ class QLabel;
 
 
 // 文件展示，包含本地文件与远端文件
-namespace tc {
+namespace px {
 
 class FileOverviewWidget;
 

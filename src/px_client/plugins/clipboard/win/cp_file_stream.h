@@ -17,7 +17,7 @@
 #include "px_message.pb.h"
 #include "px_common_new/md5.h"
 
-namespace tc
+namespace px
 {
     class CpFileStream : public IStream {
     public:

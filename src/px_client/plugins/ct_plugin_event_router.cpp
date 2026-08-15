@@ -13,7 +13,7 @@
 #include "px_common_new/md5.h"
 #include "px_message_new/proto_converter.h"
 
-namespace tc
+namespace px
 {
 
     ClientPluginEventRouter::ClientPluginEventRouter(const std::shared_ptr<BaseWorkspace>& ws) {
@@ -86,14 +86,14 @@ namespace tc
         }
         else if (ClientPluginEventType::kPluginRemoteClipboardResp == event->event_type_) {
             auto target_event = std::dynamic_pointer_cast<ClientPluginRemoteClipboardResp>(event);
-            tc::Message resp_msg;
-            resp_msg.set_type(tc::kClipboardInfoResp);
+            px::Message resp_msg;
+            resp_msg.set_type(px::kClipboardInfoResp);
             resp_msg.set_device_id(settings_->device_id_);
             resp_msg.set_stream_id(settings_->stream_id_);
             auto resp_sub = resp_msg.mutable_clipboard_info_resp();
             resp_sub->set_type(ClipboardType::kClipboardText);
             resp_sub->set_msg(target_event->remote_info_);
-            auto buffer = tc::ProtoAsData(&resp_msg);
+            auto buffer = px::ProtoAsData(&resp_msg);
             thunder_sdk_->PostMediaMessage(buffer);
             LOGI("send clipboard info resp.");
         }

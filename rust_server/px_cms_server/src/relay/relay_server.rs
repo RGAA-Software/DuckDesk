@@ -18,23 +18,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::filter::{spvr_appkey_filter, spvr_statistics_filter, spvr_timer_filter};
+use crate::filter::{cms_appkey_filter, cms_statistics_filter, cms_timer_filter};
 use crate::relay::relay_conn::RelayConn;
 use crate::relay::{relay_device_handler, relay_room_handler};
-use crate::spvr_context::SpvrContext;
+use crate::cms_context::CmsContext;
 use crate::{gRelayConnMgr, gRelayRoomMgr};
 use px_base::{get_current_timestamp, RespMessage};
-use protocol::relay::{RelayMessage, RelayMessageType};
+use protocol::px_relay::{RelayMessage, RelayMessageType};
 use tower_http::services::ServeDir;
 
 pub struct RelayServer {
     pub host: String,
     pub port: u16,
-    pub context: Arc<Mutex<SpvrContext>>,
+    pub context: Arc<Mutex<CmsContext>>,
 }
 
 impl RelayServer {
-    pub fn new(host: String, port: u16, context: Arc<Mutex<SpvrContext>>) -> RelayServer {
+    pub fn new(host: String, port: u16, context: Arc<Mutex<CmsContext>>) -> RelayServer {
         RelayServer {
             host,
             port,
@@ -64,9 +64,9 @@ impl RelayServer {
             )
             .route("/query/device", get(relay_device_handler::hd_query_device))
             .route("/notify/event", post(relay_device_handler::hd_notify_event))
-            .layer(middleware::from_fn(spvr_appkey_filter::filter))
-            .layer(middleware::from_fn(spvr_statistics_filter::filter))
-            .layer(middleware::from_fn(spvr_timer_filter::filter))
+            .layer(middleware::from_fn(cms_appkey_filter::filter))
+            .layer(middleware::from_fn(cms_statistics_filter::filter))
+            .layer(middleware::from_fn(cms_timer_filter::filter))
             .with_state(self.context.clone());
 
         // run our app with hyper, listening globally on port 3000
@@ -93,7 +93,7 @@ impl RelayServer {
         .unwrap();
     }
 
-    pub async fn ping(State(_ctx): State<Arc<Mutex<SpvrContext>>>) -> Json<RespMessage<String>> {
+    pub async fn ping(State(_ctx): State<Arc<Mutex<CmsContext>>>) -> Json<RespMessage<String>> {
         Json(RespMessage::<String> {
             code: 200,
             message: "ok".to_string(),
@@ -103,7 +103,7 @@ impl RelayServer {
     }
 
     pub async fn ws_handler(
-        State(context): State<Arc<Mutex<SpvrContext>>>,
+        State(context): State<Arc<Mutex<CmsContext>>>,
         query: Query<HashMap<String, String>>,
         ws: WebSocketUpgrade,
         user_agent: Option<TypedHeader<headers::UserAgent>>,
@@ -125,7 +125,7 @@ impl RelayServer {
     }
 
     async fn handle_socket(
-        context: Arc<Mutex<SpvrContext>>,
+        context: Arc<Mutex<CmsContext>>,
         params: HashMap<String, String>,
         socket: WebSocket,
         who: SocketAddr,
@@ -218,7 +218,7 @@ impl RelayServer {
     }
 
     async fn process_message(
-        _context: Arc<Mutex<SpvrContext>>,
+        _context: Arc<Mutex<CmsContext>>,
         relay_conn: Arc<Mutex<RelayConn>>,
         msg: Message,
         who: SocketAddr,

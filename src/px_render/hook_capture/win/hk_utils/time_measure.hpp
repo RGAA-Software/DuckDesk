@@ -1,6 +1,6 @@
 #pragma once
 
-namespace tc
+namespace px
 {
     class TimeMeasure {
     public:
@@ -25,4 +25,4 @@ namespace tc
         uint64_t &save_;
         LARGE_INTEGER start_time_{};
     };
-}  // namespace tc
+}  // namespace px

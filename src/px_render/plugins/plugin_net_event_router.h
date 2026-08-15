@@ -11,7 +11,7 @@
 #include <set>
 #include "px_render/plugin_interface/px_plugin_events.h"
 
-namespace tc
+namespace px
 {
     class WinEventReplayer;
     class RdApplication;

@@ -16,7 +16,7 @@
 
 #include <Winerror.h>
 
-namespace tc
+namespace px
 {
 
     FFmpegVideoEncoder::FFmpegVideoEncoder(const std::shared_ptr<MessageNotifier>& msg_notifier, const EncoderFeature& encoder_feature)
@@ -28,7 +28,7 @@ namespace tc
 
     }
 
-    bool FFmpegVideoEncoder::Initialize(const tc::EncoderConfig& encoder_config) {
+    bool FFmpegVideoEncoder::Initialize(const px::EncoderConfig& encoder_config) {
         VideoEncoder::Initialize(encoder_config);
         ListCodecs();
 

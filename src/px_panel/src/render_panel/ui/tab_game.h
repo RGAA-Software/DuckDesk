@@ -13,7 +13,7 @@
 #include <QProcess>
 #include <QLabel>
 
-namespace tc
+namespace px
 {
 
     class SteamApp;

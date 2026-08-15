@@ -19,7 +19,7 @@
 #include "widget_helper.h"
 #include "ct_app_message.h"
 
-namespace tc
+namespace px
 {
     class ClientContext;
     class MessageListener;

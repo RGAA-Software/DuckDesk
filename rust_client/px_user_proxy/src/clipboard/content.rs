@@ -52,7 +52,7 @@ pub fn files_signature(files: &[ClipboardFileEntry]) -> String {
         .join("|")
 }
 
-/// Build clipboard metadata from absolute paths (matches `tc::clipboard::BuildFileEntriesFromPaths`
+/// Build clipboard metadata from absolute paths (matches `px::clipboard::BuildFileEntriesFromPaths`
 /// with per-folder `ref_path` prefix like `fs_object`).
 pub fn build_file_entries_from_paths(full_paths: &[String]) -> Vec<ClipboardFileEntry> {
     if full_paths.is_empty() {

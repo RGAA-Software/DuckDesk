@@ -4,7 +4,7 @@
 
 #include "sdk_errors.h"
 
-namespace tc
+namespace px
 {
 
     std::string SdkErrorCodeToString(SdkErrorCode code) {

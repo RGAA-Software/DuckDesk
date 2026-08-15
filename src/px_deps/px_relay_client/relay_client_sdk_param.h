@@ -8,7 +8,7 @@
 #include <string>
 #include <functional>
 
-namespace tc
+namespace px
 {
     // RelayClientSdkParam
     class RelayClientSdkParam {

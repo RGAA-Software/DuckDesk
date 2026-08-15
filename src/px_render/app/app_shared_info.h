@@ -12,7 +12,7 @@
 
 #include "px_capture_new/capture_message.h"
 
-namespace tc
+namespace px
 {
 
     class RdContext;

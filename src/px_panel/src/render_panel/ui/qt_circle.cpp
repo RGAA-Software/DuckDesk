@@ -12,7 +12,7 @@
 #include <cmath>
 #include <sstream>
 
-namespace tc
+namespace px
 {
 
     QtCircle::QtCircle(QWidget *parent) : EffectWidget(parent) {

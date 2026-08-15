@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace tc
+namespace px
 {
 
     class MonsterCatFilter {

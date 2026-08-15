@@ -8,7 +8,7 @@
 #include "base_widget.h"
 #include <QPainter>
 
-namespace tc
+namespace px
 {
     class SwitchButton;
     class SubControlPanel : BaseWidget {

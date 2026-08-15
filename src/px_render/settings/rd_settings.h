@@ -9,7 +9,7 @@
 #include <string>
 #include "px_steam_manager_new/steam_entities.h"
 
-namespace tc
+namespace px
 {
 
     // description

@@ -10,7 +10,7 @@
 #include "hw_info.h"
 #include "hw_stat_chart.h"
 
-namespace tc
+namespace px
 {
     class HWCpuDetailItem : public QWidget {
     public:

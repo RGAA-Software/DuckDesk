@@ -5,7 +5,7 @@
 #include <Windows.h>
 #include <ShellAPI.h>
 
-namespace tc
+namespace px
 {
     inline DWORD Execute(LPCTSTR file,
                          LPCTSTR parameters = nullptr,

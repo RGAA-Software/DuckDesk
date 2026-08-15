@@ -9,7 +9,7 @@
 #include <vector>
 #include <string>
 
-namespace tc
+namespace px
 {
 
     struct QRImage {

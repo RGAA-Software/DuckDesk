@@ -16,7 +16,7 @@
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<WsUserProxyRouter> WsUserProxyRouter::Make(const WsDataPtr& data) {
@@ -73,7 +73,7 @@ namespace tc
     }
 
     void WsUserProxyRouter::HandleRpMessage(const std::string& data) {
-        tcrp::RpMessage m;
+        pxrp::RpMessage m;
         if (!m.ParseFromArray(data.data(), (int)data.size())) {
             LOGE("user-proxy parse RpMessage failed, len={}", data.size());
             return;
@@ -85,9 +85,9 @@ namespace tc
             return;
         }
 
-        if (m.type() == tcrp::kRpHello) {
-            tcrp::RpMessage resp;
-            resp.set_type(tcrp::kRpHelloResp);
+        if (m.type() == pxrp::kRpHello) {
+            pxrp::RpMessage resp;
+            resp.set_type(pxrp::kRpHelloResp);
             PostBinaryMessage(RpProtoAsData(&resp));
             return;
         }
@@ -108,26 +108,26 @@ namespace tc
             }
         };
 
-        if (m.type() == tcrp::kRpClipboardEvent) {
+        if (m.type() == pxrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
             auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
                 for_each_net_plugin([&](GrNetPlugin* np) {
                     np->PostProtoMessage(buffer, false);
                 });
             };
-            if (clipboard_info.type() == tcrp::kRpClipboardText) {
+            if (clipboard_info.type() == pxrp::kRpClipboardText) {
                 LOGI("user-proxy clipboard text outbound, len={}", clipboard_info.msg().size());
-                tc::Message out;
-                out.set_type(tc::kClipboardInfo);
+                px::Message out;
+                out.set_type(px::kClipboardInfo);
                 auto sub = out.mutable_clipboard_info();
                 sub->set_type(ClipboardType::kClipboardText);
                 sub->set_msg(clipboard_info.msg());
                 broadcast(ProtoAsData(&out));
             }
-            else if (clipboard_info.type() == tcrp::kRpClipboardFiles && clipboard_info.files_size() > 0) {
+            else if (clipboard_info.type() == pxrp::kRpClipboardFiles && clipboard_info.files_size() > 0) {
                 LOGI("user-proxy clipboard files outbound, count={}", clipboard_info.files_size());
-                tc::Message out;
-                out.set_type(tc::kClipboardInfo);
+                px::Message out;
+                out.set_type(px::kClipboardInfo);
                 auto sub = out.mutable_clipboard_info();
                 sub->set_type(ClipboardType::kClipboardFiles);
                 for (const auto& file : clipboard_info.files()) {
@@ -142,12 +142,12 @@ namespace tc
             return;
         }
 
-        if (m.type() == tcrp::kRpRawRenderMessage) {
+        if (m.type() == pxrp::kRpRawRenderMessage) {
             const auto& sub = m.raw_render_msg();
             auto buffer = Data::From(sub.msg());
             // 与 broadcast 同理:按 stream 投递也要覆盖 relay/udp,否则原生客户端
             // (relay) 收不到 userproxy 的定向消息(剪切板文件取数应答等)
-            tc::Message inner;
+            px::Message inner;
             bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
             LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
                  sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
@@ -161,9 +161,9 @@ namespace tc
             return;
         }
 
-        if (m.type() == tcrp::kRpHeartBeat) {
-            tcrp::RpMessage resp;
-            resp.set_type(tcrp::kRpHeartBeatResp);
+        if (m.type() == pxrp::kRpHeartBeat) {
+            pxrp::RpMessage resp;
+            resp.set_type(pxrp::kRpHeartBeatResp);
             PostBinaryMessage(RpProtoAsData(&resp));
             return;
         }

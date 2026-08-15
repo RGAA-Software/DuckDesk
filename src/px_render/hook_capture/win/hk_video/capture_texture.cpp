@@ -9,7 +9,7 @@
 #include "px_common_new/log.h"
 #include "hk_utils/shared_mem_info.h"
 
-using namespace tc;
+using namespace px;
 
 bool CaptureTex::Initialize() noexcept {
 

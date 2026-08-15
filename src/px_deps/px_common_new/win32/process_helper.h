@@ -12,7 +12,7 @@
 
 #include "px_common_new/response.h"
 
-namespace tc
+namespace px
 {
 
     class ProcessInfo {

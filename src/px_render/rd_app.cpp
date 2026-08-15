@@ -58,7 +58,7 @@
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/folder_util.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<RdApplication> rdApp;
@@ -886,7 +886,7 @@ namespace tc
     void RdApplication::SendAudioSpectrumMessage() const {
         auto st = RdStatistics::Instance();
         auto msg = std::make_shared<Message>();
-        msg->set_type(tc::kRendererAudioSpectrum);
+        msg->set_type(px::kRendererAudioSpectrum);
         auto sas = msg->mutable_renderer_audio_spectrum();
         sas->set_samples(st->audio_samples_);
         sas->set_bits(st->audio_bits_);
@@ -903,8 +903,8 @@ namespace tc
 
     void RdApplication::ReportAudioSpectrum2Panel() {
         auto st = RdStatistics::Instance();
-        auto msg = std::make_shared<tcrp::RpMessage>();
-        msg->set_type(tcrp::kRpServerAudioSpectrum);
+        auto msg = std::make_shared<pxrp::RpMessage>();
+        msg->set_type(pxrp::kRpServerAudioSpectrum);
         auto sas = msg->mutable_renderer_audio_spectrum();
         sas->set_samples(st->audio_samples_);
         sas->set_bits(st->audio_bits_);
@@ -918,8 +918,8 @@ namespace tc
     }
 
     void RdApplication::SendClipboardMessage(const std::string& msg) const {
-        tc::Message m;
-        m.set_type(tc::kClipboardInfo);
+        px::Message m;
+        m.set_type(px::kClipboardInfo);
         m.mutable_clipboard_info()->set_msg(msg);
         auto buffer = ProtoAsData(&m);
         PostNetMessage(buffer);
@@ -946,8 +946,8 @@ namespace tc
         // update capturing monitor info
         this->UpdateCapturingMonitorInfo();
 
-        tc::Message m;
-        m.set_type(tc::kServerConfiguration);
+        px::Message m;
+        m.set_type(px::kServerConfiguration);
         auto config = m.mutable_config();
         // screen info
         auto monitors_info = config->mutable_monitors_info();
@@ -983,8 +983,8 @@ namespace tc
     }
 
     void RdApplication::RequestRestartMe() const {
-        tcrp::RpMessage m;
-        m.set_type(tcrp::kRpRestartServer);
+        pxrp::RpMessage m;
+        m.set_type(pxrp::kRpRestartServer);
         m.mutable_restart_server()->set_reason("restart");
         auto buffer = RpProtoAsData(&m);
         ws_panel_client_->PostNetMessage(buffer);
@@ -1001,8 +1001,8 @@ namespace tc
         LONG result = ChangeDisplaySettingsExW(deviceName.c_str(), &dm, nullptr, CDS_FULLSCREEN, nullptr);
         bool ok = result == DISP_CHANGE_SUCCESSFUL;
 
-        tc::Message m;
-        m.set_type(tc::kChangeMonitorResolutionResult);
+        px::Message m;
+        m.set_type(px::kChangeMonitorResolutionResult);
         auto r = m.mutable_change_monitor_resolution_result();
         r->set_monitor_name(name);
         r->set_result(ok);
@@ -1014,7 +1014,7 @@ namespace tc
         return plugin_manager_;
     }
 
-    tc::GrMonitorCapturePlugin* RdApplication::GetWorkingMonitorCapturePlugin() {
+    px::GrMonitorCapturePlugin* RdApplication::GetWorkingMonitorCapturePlugin() {
         std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
         return capture_plugin_;
     }
@@ -1172,7 +1172,7 @@ namespace tc
             LOGE("Service client not connected, can't ReqCtrlAltDelete");
             return;
         }
-        tc::ServiceMessage m;
+        px::ServiceMessage m;
         m.set_type(ServiceMessageType::kSrvReqCtrlAltDelete);
         m.mutable_req_ctrl_alt_delete()->set_req_device_id(device_id);
         m.mutable_req_ctrl_alt_delete()->set_req_stream_id(stream_id);

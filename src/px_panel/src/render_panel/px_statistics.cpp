@@ -9,7 +9,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/client_id_extractor.h"
 
-namespace tc
+namespace px
 {
 
     void GrStatistics::RegisterEventListeners() {
@@ -49,7 +49,7 @@ namespace tc
             int size = msg.statistics_->working_captures_info_size();
             for (int i = 0; i < size; i++) {
                 auto info = msg.statistics_->working_captures_info(i);
-                auto cpy_info = std::make_shared<tcrp::RpMsgWorkingCaptureInfo>();
+                auto cpy_info = std::make_shared<pxrp::RpMsgWorkingCaptureInfo>();
                 cpy_info->CopyFrom(info);
                 captures_info_.PushBack(cpy_info);
 
@@ -90,7 +90,7 @@ namespace tc
         connected_clients_ = msg.statistics_->connected_clients_count();
         connected_clients_info_.Clear();
         for (const auto& item : msg.statistics_->connected_clients()) {
-            auto info = std::make_shared<tcrp::RpConnectedClientInfo>();
+            auto info = std::make_shared<pxrp::RpConnectedClientInfo>();
             info->CopyFrom(item);
             connected_clients_info_.PushBack(info);
         }
@@ -111,13 +111,13 @@ namespace tc
 
         {
             auto type = msg.statistics_->video_encode_type();
-            if (type == tcrp::VideoType::kNetH264) {
+            if (type == pxrp::VideoType::kNetH264) {
                 video_encode_type_ = "H264";
             }
-            else if (type == tcrp::VideoType::kNetHevc) {
+            else if (type == pxrp::VideoType::kNetHevc) {
                 video_encode_type_ = "HEVC";
             }
-            else if (type == tcrp::VideoType::kNetVp9) {
+            else if (type == pxrp::VideoType::kNetVp9) {
                 video_encode_type_ = "VP9";
             }
             else {
@@ -212,16 +212,16 @@ namespace tc
         return r;
     }
 
-    std::vector<std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>> GrStatistics::GetCapturesInfo() {
-        std::vector<std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>> r;
+    std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> GrStatistics::GetCapturesInfo() {
+        std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> r;
         captures_info_.Visit([&](auto& v) {
             r.push_back(v);
         });
         return r;
     }
 
-    std::vector<std::shared_ptr<tcrp::RpConnectedClientInfo>> GrStatistics::GetConnectedClientsInfo() {
-        std::vector<std::shared_ptr<tcrp::RpConnectedClientInfo>> r;
+    std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> GrStatistics::GetConnectedClientsInfo() {
+        std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> r;
         connected_clients_info_.Visit([&](auto& v) {
             r.push_back(v);
         });

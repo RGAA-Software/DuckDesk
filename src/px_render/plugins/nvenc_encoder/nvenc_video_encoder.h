@@ -18,7 +18,7 @@
 
 using namespace Microsoft::WRL;
 
-namespace tc
+namespace px
 {
 
     class NvencEncoderPlugin;
@@ -28,7 +28,7 @@ namespace tc
         NVENCVideoEncoder(NvencEncoderPlugin* plugin, uint64_t adapter_uid);
         ~NVENCVideoEncoder();
 
-        bool Initialize(const tc::EncoderConfig& config);
+        bool Initialize(const px::EncoderConfig& config);
         bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
         void InsertIdr();
         bool InvalidateRefFrame(uint64_t invalid_frame_index);
@@ -52,7 +52,7 @@ namespace tc
         std::shared_ptr<NvEncoder> nv_encoder_ = nullptr;
         EncoderConfig encoder_config_;
         bool insert_idr_ = false;
-        tc::NvencEncoderPlugin* plugin_ = nullptr;
+        px::NvencEncoderPlugin* plugin_ = nullptr;
 
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;

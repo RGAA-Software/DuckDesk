@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include "render_panel/px_settings.h"
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<UdpBroadcaster> UdpBroadcaster::Make(const std::shared_ptr<GrContext>& ctx) {

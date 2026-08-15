@@ -12,10 +12,10 @@
 
 #include "px_common_new/log.h"
 
-namespace tc
+namespace px
 {
     namespace {
-        static const char* kServiceManagerExe = tc::kGammaRayServiceManagerExeName;
+        static const char* kServiceManagerExe = px::kGammaRayServiceManagerExeName;
 
         struct ProcessResult {
             bool ok_ = false;

@@ -14,7 +14,7 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "D3DTextureDebug.h"
 
-using namespace tc;
+using namespace px;
 
 VideoEncoderNVENC::VideoEncoderNVENC(std::shared_ptr<CD3DRender> pD3DRender, EncodeDataCallback data_cbk, bool useNV12, int width, int height)
 	: LegacyVideoEncoder(EVideoCodecType::kH264), m_pD3DRender(pD3DRender)

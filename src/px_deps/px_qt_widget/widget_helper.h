@@ -11,7 +11,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <dwmapi.h>
 
-namespace tc
+namespace px
 {
 
     class WidgetHelper {

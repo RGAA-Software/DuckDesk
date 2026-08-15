@@ -12,7 +12,7 @@
 #include <memory>
 #include <functional>
 
-namespace tc
+namespace px
 {
 
     using OnItemClickedCallback = std::function<void(const QString& name, int idx)>;

@@ -12,7 +12,7 @@
 #include "px_render/plugin_interface/px_plugin_context.h"
 //#include "px_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     std::string RtcPlugin::GetPluginId() {
@@ -35,7 +35,7 @@ namespace tc
         return "Network via RTC";
     }
 
-    bool RtcPlugin::OnCreate(const tc::GrPluginParam &param) {
+    bool RtcPlugin::OnCreate(const px::GrPluginParam &param) {
         GrNetPlugin::OnCreate(param);
 
         //
@@ -221,4 +221,4 @@ namespace tc
 
 }
 
-GR_PLUGIN_EXPORT(tc::RtcPlugin)
+GR_PLUGIN_EXPORT(px::RtcPlugin)

@@ -6,7 +6,7 @@
 #include <stb_image.h>
 #endif
 
-namespace tc
+namespace px
 {
 
     std::shared_ptr<Image> Image::Make(const char* data, int width, int height, int channels) {

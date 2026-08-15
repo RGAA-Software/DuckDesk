@@ -7,7 +7,7 @@
 
 #include "px_render/plugin_interface/px_audio_encoder_plugin.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -23,7 +23,7 @@ namespace tc
         std::string GetPluginDescription() override;
         void On1Second() override;
 
-        bool OnCreate(const tc::GrPluginParam &param) override;
+        bool OnCreate(const px::GrPluginParam &param) override;
         bool OnDestroy() override;
         void Encode(const std::shared_ptr<Data> &data, int sample, int channels, int bits) override;
 
@@ -40,7 +40,7 @@ namespace tc
 }
 
 
-GR_PLUGIN_EXPORT(tc::OpusEncoderPlugin)
+GR_PLUGIN_EXPORT(px::OpusEncoderPlugin)
 
 
 #endif //GAMMARAY_UDP_PLUGIN_H

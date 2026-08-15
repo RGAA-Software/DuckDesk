@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
 
     static bool GetEnvironmentVariableA(const std::string &name, std::string *value) {
@@ -143,4 +143,4 @@ namespace tc
         }
     }
 
-}  // end of namespace tc
+}  // end of namespace px

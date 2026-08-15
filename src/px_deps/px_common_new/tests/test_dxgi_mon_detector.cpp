@@ -2,7 +2,7 @@
 #include "../win32/dxgi_mon_detector.h"
 #include <algorithm>
 
-using namespace tc;
+using namespace px;
 
 TEST(DxgiMonDetectorTest, DetectAdapters_ReturnsNonEmpty) {
     DxgiMonitorDetector::Instance()->DetectAdapters();

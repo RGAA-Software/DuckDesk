@@ -5,7 +5,7 @@
 
 #include <fstream>
 
-namespace tc {
+namespace px {
 
 	VideoEncoderFFmpeg::VideoEncoderFFmpeg(Running::EncoderType type, int width, int height, EncodeDataCallback data_cbk) : VideoEncoder(type) {
 		m_width = width;

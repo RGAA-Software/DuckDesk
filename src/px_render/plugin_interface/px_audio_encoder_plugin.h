@@ -7,7 +7,7 @@
 
 #include "px_plugin_interface.h"
 
-namespace tc
+namespace px
 {
 
     class Data;
@@ -17,7 +17,7 @@ namespace tc
         GrAudioEncoderPlugin();
         ~GrAudioEncoderPlugin() override;
 
-        bool OnCreate(const tc::GrPluginParam& param) override;
+        bool OnCreate(const px::GrPluginParam& param) override;
         bool OnDestroy() override;
 
         virtual void Encode(const std::shared_ptr<Data>& data, int sample, int channels, int bits);

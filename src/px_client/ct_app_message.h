@@ -15,7 +15,7 @@
 #include "notify/notify_defs.h"
 #include "hw_info/hw_info.h"
 
-namespace tc
+namespace px
 {
 
     const std::string kCaptureAllMonitorsSign = "all";

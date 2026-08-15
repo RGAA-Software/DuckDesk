@@ -3,12 +3,12 @@
 #include <qpainter.h>
 #include <qevent.h>
 
-namespace tcrp
+namespace pxrp
 {
     class RpConnectedClientInfo;
 }
 
-namespace tc {
+namespace px {
 
     class NoMarginVLayout;
     class NoMarginHLayout;
@@ -22,7 +22,7 @@ namespace tc {
         ConnectedInfoSlidingWindow(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent* event) override;
         bool eventFilter(QObject* obj, QEvent* event) override;
-        void UpdateInfo(const std::shared_ptr<tcrp::RpConnectedClientInfo>& info);
+        void UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info);
         void Expand();
         std::string GetStreamId() const;
     private:
@@ -31,7 +31,7 @@ namespace tc {
         NoMarginHLayout* main_hbox_layout_ = nullptr;
         ConnectedInfoTag* tag_ = nullptr;
         ConnectedInfoPanel* panel_ = nullptr;
-        std::shared_ptr<tcrp::RpConnectedClientInfo> info_ = nullptr;
+        std::shared_ptr<pxrp::RpConnectedClientInfo> info_ = nullptr;
         std::shared_ptr<GrContext> ctx_ = nullptr;
     };
 }

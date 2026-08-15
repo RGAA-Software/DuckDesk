@@ -18,7 +18,7 @@
 
 #define COLUMN_FILE_NAME 0
 
-namespace tc {
+namespace px {
 
 FileInfoTableViewBtnDelegate::FileInfoTableViewBtnDelegate(QObject* parent) : QStyledItemDelegate(parent)
 {

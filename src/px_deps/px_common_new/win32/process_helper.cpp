@@ -23,7 +23,7 @@
 
 #pragma comment(lib, "ntdll.lib")
 
-namespace tc
+namespace px
 {
 
     RespBoolBool ProcessHelper::IsProcessX86Arch(uint32_t pid) {

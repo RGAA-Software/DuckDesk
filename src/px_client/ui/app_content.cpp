@@ -10,7 +10,7 @@
 #include <QPen>
 #include <QBrush>
 
-namespace tc
+namespace px
 {
 
     AppContent::AppContent(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : RoundRectWidget(0xffffff, 0, parent) {

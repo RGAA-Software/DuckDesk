@@ -2,7 +2,7 @@
 
 #include "director.h"
 
-namespace tc
+namespace px
 {
 
 	Renderer::Renderer(const std::shared_ptr<Director>& director) {

@@ -3,8 +3,8 @@ use crate::relay::relay_message::{
     KEY_DEVICE_ID, KEY_DEVICE_LOCAL_IPS, KEY_DEVICE_NAME, KEY_DEVICE_W3C_IP, KEY_RELAY_SERVER_IP,
     KEY_RELAY_SERVER_PORT,
 };
-use crate::spvr_context::SpvrContext;
-use crate::{gRelayConnMgr, gSpvrSettings};
+use crate::cms_context::CmsContext;
+use crate::{gRelayConnMgr, gCmsSettings};
 use axum::body::Bytes;
 use axum::extract::{ConnectInfo, Query, State};
 use axum::Json;
@@ -13,7 +13,7 @@ use px_base::{
     RespVecStringMap, StringMap,
 };
 use prost::Message;
-use protocol::relay::{RelayMessage, RelayMessageType, RelayNotificationMessage};
+use protocol::px_relay::{RelayMessage, RelayMessageType, RelayNotificationMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::default::Default;
@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 // handler device; query devices
 // /query/devices
 pub async fn hd_query_devices(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     _query: Query<HashMap<String, String>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespVecStringMap>, RelayApiError> {
@@ -39,7 +39,7 @@ pub async fn hd_query_devices(
 // handler device; query device
 // /query/device
 pub async fn hd_query_device(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespStringMap>, RelayApiError> {
@@ -59,8 +59,8 @@ pub async fn hd_query_device(
     }
     let device_name = conn.lock().await.device_name.clone();
     let _stream_id = conn.lock().await.stream_id.clone();
-    let server_w3c_ip = gSpvrSettings.lock().await.server_w3c_ip.clone();
-    let relay_port = gSpvrSettings.lock().await.relay_port as i32;
+    let server_w3c_ip = gCmsSettings.lock().await.server_w3c_ip.clone();
+    let relay_port = gCmsSettings.lock().await.relay_port as i32;
 
     let mut value = StringMap::new();
     value.insert(KEY_DEVICE_ID.to_string(), device_id.clone());
@@ -82,7 +82,7 @@ pub struct NotificationEvent {
 // handler device; notify event
 // /notify/event
 pub async fn hd_notify_event(
-    State(_context): State<Arc<Mutex<SpvrContext>>>,
+    State(_context): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
     raw_body: String,
 ) -> Result<Json<RespStringMap>, RelayApiError> {

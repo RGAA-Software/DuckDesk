@@ -1,6 +1,6 @@
 use ring::hmac;
 
-/// Parameters a client must send when opening `/spvr/client`.
+/// Parameters a client must send when opening `/cms/client`.
 #[derive(Debug, Clone)]
 pub struct ConnectionToken {
     pub token: String, // hex-encoded HMAC-SHA256

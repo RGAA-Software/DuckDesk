@@ -13,7 +13,7 @@
 #include "app_shared_info_reader.h"
 #include "ws_ipc_client.h"
 
-namespace tc
+namespace px
 {
 
     void HookManager::Init() {

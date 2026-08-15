@@ -3,7 +3,7 @@
 #include <QApplication>
 #include <QScreen>
 #include <QMouseEvent>
-namespace tc
+namespace px
 {
 
     BaseLoadingWidget::BaseLoadingWidget(QWidget *parent)

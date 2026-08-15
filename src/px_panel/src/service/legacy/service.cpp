@@ -17,7 +17,7 @@ static HMODULE sasLibrary = nullptr;
 typedef void(__stdcall* SendSAS_proto)(BOOL AsUser);
 static SendSAS_proto _SendSAS = nullptr;
 
-namespace tc
+namespace px
 {
 
     GrService::GrService(const std::shared_ptr<ServiceContext>& ctx) {
@@ -140,13 +140,13 @@ namespace tc
     void GrService::StopAll() {
         render_manager_->Exit();
         // GammaRay.exe
-        auto processes = tc::ProcessHelper::GetProcessList(false);
+        auto processes = px::ProcessHelper::GetProcessList(false);
         for (auto& process : processes) {
             if (process->exe_full_path_.find(kGammaRayRenderName) != std::string::npos
                 || process->exe_full_path_.find(kGammaRayClientInner) != std::string::npos
                 || process->exe_full_path_.find(kGammaRaySysInfo) != std::string::npos) {
                 LOGI("Kill exe: {}", process->exe_full_path_);
-                tc::ProcessHelper::CloseProcess(process->pid_);
+                px::ProcessHelper::CloseProcess(process->pid_);
             }
         }
     }

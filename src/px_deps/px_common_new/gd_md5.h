@@ -6,7 +6,7 @@
 #include <string>
 #include <fstream>
 
-namespace gd {
+namespace px_gd {
 	using std::string;
 	using std::ifstream;
 

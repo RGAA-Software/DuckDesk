@@ -10,7 +10,7 @@
 #include "px_render/plugin_interface/px_net_plugin_type.h"
 //#include "network/wss_router.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

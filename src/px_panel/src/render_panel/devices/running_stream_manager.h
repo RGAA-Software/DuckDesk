@@ -10,9 +10,9 @@
 #include <map>
 
 #include <QProcess>
-#include "px_spvr_client/spvr_stream.h"
+#include "px_cms_client/cms_stream.h"
 
-namespace tc
+namespace px
 {
 
     class GrContext;
@@ -26,8 +26,8 @@ namespace tc
         explicit RunningStreamManager(const std::shared_ptr<GrContext>& ctx);
         ~RunningStreamManager();
         void InitMessageListeners();
-        void StartStream(const std::shared_ptr<spvr::SpvrStream>& item, const std::string& network_type, bool direct);
-        void StopStream(const std::shared_ptr<spvr::SpvrStream>& item);
+        void StartStream(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type, bool direct);
+        void StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
 
     private:
         GrSettings* settings_ = nullptr;

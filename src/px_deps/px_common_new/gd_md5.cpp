@@ -1,7 +1,7 @@
 #include "gd_md5.h"
 
 using namespace std;
-namespace gd {
+namespace px_gd {
 	/* Constants for MD5Transform routine. */
 #define S11 7
 #define S12 12

@@ -13,7 +13,7 @@
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 
-namespace tc
+namespace px
 {
 
     CpFileStream::CpFileStream(const std::shared_ptr<GrContext>& ctx, const ClipboardFileWrapper& fw) : ref_(1) {
@@ -42,7 +42,7 @@ namespace tc
 
     HRESULT STDMETHODCALLTYPE CpFileStream::Read(void *pv, ULONG cb, ULONG *pcbRead) {
         // read from remote synchronized
-        tc::Message msg;
+        px::Message msg;
         msg.set_type(MessageType::kClipboardReqBuffer);
         auto req_buffer = msg.mutable_cp_req_buffer();
         req_buffer->set_req_index(req_index_);
@@ -53,7 +53,7 @@ namespace tc
         //todo::
         //plugin_->DispatchTargetFileTransferMessage(cp_file_.stream_id_, buffer, false);
 
-        auto rp_msg = tc::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
+        auto rp_msg = px::MakeRpRawRenderMessage(msg.stream_id(), msg.device_id(), msg.SerializeAsString(), true);
         if (!context_->GetApplication()->PostMessage2Renderer(rp_msg)) {
             LOGE("PostMessage2Renderer failed!");
             return S_FALSE;

@@ -11,7 +11,7 @@
 #include "px_controller/vigem/vigem_defs.h"
 #include "px_common_new/image.h"
 
-namespace tc
+namespace px
 {
 
     class Data;

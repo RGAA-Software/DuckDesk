@@ -6,7 +6,7 @@
 
 extern QString g_remote_file_permission_path;
 
-namespace tc {
+namespace px {
 
 const QString kRealRootPath = "/";
 

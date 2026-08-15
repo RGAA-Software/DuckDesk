@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace tc
+namespace px
 {
     static const std::string kAmfPluginName = "AMF Encoder";
 }

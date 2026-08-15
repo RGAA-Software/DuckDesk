@@ -4,7 +4,7 @@
 
 #include "message_looper.h"
 
-namespace tc
+namespace px
 {
 
     MessageLooper::MessageLooper(int32_t max_tasks) {

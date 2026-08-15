@@ -66,7 +66,7 @@ const props = withDefaults(
   perf: PerfStats
   // 最近一次收到的远端剪贴板文本
   remoteClipboard: string
-  // 发送控制消息(tc.Message 字段,camelCase),返回是否已发出
+  // 发送控制消息(px.Message 字段,camelCase),返回是否已发出
   send: (fields: Record<string, unknown>) => boolean
   // 「发送到远端」:读本地剪贴板并发往远端,返回是否成功
   sendClipboardToRemote: () => Promise<boolean>

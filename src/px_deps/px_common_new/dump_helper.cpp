@@ -30,7 +30,7 @@
 #pragma comment(lib, "Iphlpapi.lib")
 #pragma comment(lib, "ntdll.lib")
 
-namespace tc
+namespace px
 {
     typedef BOOL (WINAPI *FuncMiniDumpWriteDump)(
             IN HANDLE hProcess,
@@ -89,7 +89,7 @@ namespace tc
 
 #ifdef WIN32
 
-namespace tc
+namespace px
 {
 
     static bool DumpCallback(const wchar_t *dump_path, const wchar_t *minidump_id,

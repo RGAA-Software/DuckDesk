@@ -20,10 +20,10 @@
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "render_panel/companion/panel_companion.h"
-#include "render_panel/spvr/px_spvr_manager.h"
-#include "px_spvr_client/spvr_device.h"
+#include "render_panel/cms/px_cms_manager.h"
+#include "px_cms_client/cms_device.h"
 
-namespace tc
+namespace px
 {
 
     RunningStreamManager::RunningStreamManager(const std::shared_ptr<GrContext>& ctx) {
@@ -65,7 +65,7 @@ namespace tc
 
     }
 
-    void RunningStreamManager::StartStream(const std::shared_ptr<spvr::SpvrStream>& item, const std::string& network_type, bool direct) {
+    void RunningStreamManager::StartStream(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type, bool direct) {
         // loading dialog
         auto loading = std::make_shared<StartStreamLoading>(context_, item, network_type);
         loading->setWindowFlag(Qt::WindowStaysOnTopHint, true);
@@ -95,12 +95,12 @@ namespace tc
             }
         };
 
-        bool has_spvr_info = !item->remote_device_id_.empty() && !settings_->GetSpvrServerHost().empty() && settings_->GetSpvrServerPort() > 0;
+        bool has_cms_info = !item->remote_device_id_.empty() && !settings_->GetCmsServerHost().empty() && settings_->GetCmsServerPort() > 0;
         // check the authorization
         // NOT force direct
-        if (has_spvr_info && !item->force_direct_) {
+        if (has_cms_info && !item->force_direct_) {
             // check network firstly
-            if (!context_->GetApplication()->CanConnectSpvrServer()) {
+            if (!context_->GetApplication()->CanConnectCmsServer()) {
                 func_hide_loading_dialog();
                 TcDialog dialog(tcTr("id_error"), tcTr("id_net_error_no_cms_connection"), nullptr);
                 dialog.exec();
@@ -118,11 +118,11 @@ namespace tc
             }
         }
 
-        // NOT in force connecting directly mode, check the Spvr server.
+        // NOT in force connecting directly mode, check the Cms server.
         if (!item->force_direct_) {
             if (grApp->GetSkinName() != "OpenSource" && !item->remote_device_id_.empty()/* && !direct*/) {
                 // 1. check available or not
-                auto ac = context_->GetSpvrManager()->QueryNewConnection(false);
+                auto ac = context_->GetCmsManager()->QueryNewConnection(false);
                 if (ac == std::nullopt) {
                     func_hide_loading_dialog();
                     LOGE("Not available connection for : {}", item->remote_device_id_);
@@ -147,7 +147,7 @@ namespace tc
             }
         }
 
-        if (has_spvr_info && !item->force_direct_) {
+        if (has_cms_info && !item->force_direct_) {
             // 2. check alive or not
             cat device_mgr = context_->GetApplication()->GetDeviceManager();
             if (auto r = device_mgr->QueryDevice(item->remote_device_id_); r.has_value()) {
@@ -186,8 +186,8 @@ namespace tc
             << std::format("--host={}", item->stream_host_).c_str()
             << std::format("--port={}", item->stream_port_).c_str()
             << std::format("--appkey={}", grApp->GetAppkey()).c_str()
-            << std::format("--spvr_host={}", settings_->GetSpvrServerHost()).c_str()
-            << std::format("--spvr_port={}", settings_->GetSpvrServerPort()).c_str()
+            << std::format("--cms_host={}", settings_->GetCmsServerHost()).c_str()
+            << std::format("--cms_port={}", settings_->GetCmsServerPort()).c_str()
             << std::format("--audio={}", item->audio_enabled_).c_str()
             << std::format("--clipboard={}", item->clipboard_enabled_).c_str()
             << std::format("--stream_id={}", item->stream_id_).c_str()
@@ -260,7 +260,7 @@ namespace tc
         LOGI("After start client: {}", client_inner_path.toStdString());
     }
 
-    void RunningStreamManager::StopStream(const std::shared_ptr<spvr::SpvrStream>& item) {
+    void RunningStreamManager::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
         context_->SendAppMessage(ClearWorkspace {
             .item_ = item,
         });

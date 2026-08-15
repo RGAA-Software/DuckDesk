@@ -17,7 +17,7 @@
 
 using namespace Microsoft::WRL;
 
-namespace tc
+namespace px
 {
     class MessageNotifier;
     class CursorCapture;

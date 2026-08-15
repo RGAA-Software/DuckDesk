@@ -3,7 +3,7 @@
 #include <QApplication>
 #include <QScreen>
 
-namespace tc
+namespace px
 {
 
     NotifyManager::NotifyManager(QWidget* parent) : QObject(parent) {

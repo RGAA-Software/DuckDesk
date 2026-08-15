@@ -10,7 +10,7 @@ use px_user_proxy::config::UserProxyConfig;
 use px_user_proxy::engine::UserProxyEngine;
 use px_user_proxy::mock_render::{wait_for_event, MockRenderEvent};
 use px_user_proxy::proto::{
-    build_raw_render_message, build_tc_clipboard_files, parse_tc_message, tc::MessageType,
+    build_raw_render_message, build_tc_clipboard_files, parse_tc_message, px::MessageType,
     StreamRoute,
 };
 use px_user_proxy::render_client::RenderClient;

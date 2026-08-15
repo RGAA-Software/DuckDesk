@@ -8,7 +8,7 @@
 #include "px_qt_widget/px_base_widget.h"
 #include "px_render_panel_message.pb.h"
 
-namespace tc
+namespace px
 {
 
     class TcLabel;
@@ -19,7 +19,7 @@ namespace tc
         StatCaptureInfoItem(const std::shared_ptr<GrContext>& ctx, QWidget* parent);
         void paintEvent(QPaintEvent *event) override;
         std::string GetTargetName();
-        void UpdateInfo(const std::shared_ptr<tcrp::RpMsgWorkingCaptureInfo>& info);
+        void UpdateInfo(const std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>& info);
         void ClearInfo();
         void Select();
         void Unselect();
