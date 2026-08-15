@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.20.0)
+cmake_minimum_required(VERSION 3.20.0)
 
 project(exmaple VERSION 1.0.1)
 
@@ -62,14 +62,14 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_custom_command(
 					TARGET ${PROJECT_NAME}
 					POST_BUILD
-					COMMAND ${QT_ROOT}/bin/windeployqt.exe --debug ${PROJECT_NAME}.exe
+					COMMAND ${QT_ROOT}/bin/windeployqt.exe --no-translations --debug ${PROJECT_NAME}.exe
 					WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 	)
 else()
 	add_custom_command(
 					TARGET ${PROJECT_NAME}
 					POST_BUILD
-					COMMAND ${QT_ROOT}/bin/windeployqt.exe --release ${PROJECT_NAME}.exe
+					COMMAND ${QT_ROOT}/bin/windeployqt.exe --no-translations --release ${PROJECT_NAME}.exe
 					WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 	)
 endif()
