@@ -246,9 +246,9 @@ namespace tc
         auto exe_folder_path = GrContext::GetCurrentExeFolder();
         std::string cmd;
         if (silent) {
-            cmd = std::format("{}/joystick.exe /passive /promptrestart", exe_folder_path);
+            cmd = std::format("{}/px_joystick.exe /S", exe_folder_path);
         } else {
-            cmd = std::format("{}/joystick.exe", exe_folder_path);
+            cmd = std::format("{}/px_joystick.exe", exe_folder_path);
         }
 
         if (!ProcessUtil::StartProcessInWorkDir(exe_folder_path, cmd, {})) {

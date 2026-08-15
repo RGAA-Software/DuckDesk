@@ -43,7 +43,7 @@ PRODUCT_EXES = {
     "GammaRayUserProxy.exe",
     "GammaRayCrashReporter.exe",
     "GammaRayUninstall.exe",
-    "joystick.exe",
+    "px_joystick.exe",
     "px_graphics_util.exe",
     "px_graphics_offsets.exe",
     "vc_redist.x64.exe",
@@ -215,9 +215,9 @@ def main():
     # ------------------------------------------------------------------
     # 8. Joystick (source tree)
     # ------------------------------------------------------------------
-    joystick_src = os.path.join(build_dir, "..", "src", "px_deps", "px_controller", "vigem", "driver", "joystick.exe")
+    joystick_src = os.path.join(build_dir, "..", "src", "px_deps", "px_controller", "vigem", "driver", "px_joystick.exe")
     if os.path.isfile(joystick_src):
-        copy_file(joystick_src, os.path.join(dist_dir, "joystick.exe"))
+        copy_file(joystick_src, os.path.join(dist_dir, "px_joystick.exe"))
 
     # ------------------------------------------------------------------
     # 9. Web frontends (vite build output) → dist/<name>/

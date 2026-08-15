@@ -46,11 +46,11 @@ Name "${PRODUCT_NAME}"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
 
-!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
 ; Sections
-Section "��װ������" SecMain
+Section "Install required files" SecMain
 
     SetOutPath "$INSTDIR"
 
@@ -61,30 +61,31 @@ Section "��װ������" SecMain
     RMDir /r "$INSTDIR\px_plugins_client"
     RMDir /r "$INSTDIR\px_skins"
 
-    ; 1. ��ѹ app.7z
+    ; 1. Extract app.7z
     File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
-	
-	; 2. 
 
-    ; 3. ������ݷ�ʽ
+    ; 2. Install ViGEm joystick driver silently
+    ExecWait '"$INSTDIR\px_joystick.exe" /S'
+
+    ; 3. Create shortcuts
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\ж��.lnk" "$INSTDIR\Uninstall.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 4. ע�����Ϣ���������ж����ʾ��
+    ; 4. Write uninstall registry info
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "Publisher" "${COMPANY}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayVersion" "${PRODUCT_VERSION}"
 
-    ; ���ó���Ϊ����Ա����
+    ; Set the app to run as administrator
     WriteRegStr HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe" "RUNASADMIN"
 
-    ; ����ж�س���
+    ; Write the uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     Call LaunchLink
@@ -93,18 +94,18 @@ SectionEnd
 ;--------------------------------
 ; Uninstaller
 Section "Uninstall"
-    ; ɾ���ļ�
+    ; Delete files
     RMDir /r "$INSTDIR"
 
-    ; �����ɰ� Guard �ĵ�¼�ƻ�����(������ʱ��Ĭ����)
+    ; Delete the auto-start Guard scheduled task (default behavior)
     nsExec::ExecToLog 'schtasks /Delete /TN GammaRay_Guard_Start /F'
 
-    ; ɾ����ݷ�ʽ
+    ; Delete shortcuts
     Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.lnk"
     RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
 
-    ; ɾ��ע���
+    ; Delete registry entries
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
     DeleteRegKey HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers\$INSTDIR\${APPNAME}.exe"
 
@@ -112,23 +113,23 @@ SectionEnd
 
 ;--------------------------------
 Function .onInit
-    ; ���ɰ汾�Ƿ�����
+    ; Check whether the app is already running
     ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
     ${If} $R0 == 0
-        MessageBox MB_OK|MB_TOPMOST "���Զ��رյ�ǰ�������г���,������һ����װ"
+        MessageBox MB_OK|MB_TOPMOST "Please close the running program and reinstall"
         Call StopAndDeleteService
-		Call KillProcesses
-		
-		Call StopAndDeleteService
-		Call KillProcesses
+        Call KillProcesses
+
+        Call StopAndDeleteService
+        Call KillProcesses
     ${EndIf}
 FunctionEnd
 
 Function un.onInit
     Call un.StopAndDeleteService
     Call un.KillProcesses
-	
-	Call un.StopAndDeleteService
+
+    Call un.StopAndDeleteService
     Call un.KillProcesses
 FunctionEnd
 
@@ -137,8 +138,9 @@ Function LaunchLink
 FunctionEnd
 
 Function StopAndDeleteService
-    ; net stop ��ͬ����:�ȷ�������ֹͣ��ŷ���,ն�ϱ���Դͷ
-    ; (����ÿ 3s ���� render/UserProxy,UserProxy ÿ 5s ���� panel/SysInfo)
+    ; net stop synchronization: first ensure the service is stopped and removed,
+    ; cutting off the restart source
+    ; (it restarts render/UserProxy every 3s; UserProxy restarts panel/SysInfo every 5s)
     nsExec::ExecToLog 'net stop "GammaRayService"'
     nsExec::ExecToLog 'sc delete "GammaRayService"'
 FunctionEnd
@@ -150,23 +152,23 @@ FunctionEnd
 
 
 Function KillProcesses
-	; ˳��:��ɱ������(UserProxy),��ɱ��������;SysInfo һ������
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
+    ; Order: kill the guardian (UserProxy) first, then the guard processes;
+    ; SysInfo needs only one kill
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
 FunctionEnd
 
 Function un.KillProcesses
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
-	nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
 FunctionEnd
-
