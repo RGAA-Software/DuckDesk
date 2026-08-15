@@ -1,4 +1,4 @@
-# gr_sysinfo 堆分析结果
+# px_sysinfo 堆分析结果
 
 ## 测试环境
 
@@ -8,12 +8,12 @@
 - **分析工具**：Rust `dhat` crate（跨平台堆分析器）
 - **构建命令**：
   ```bash
-  cargo run -p gr_sysinfo --bin GammaRaySysInfo --features dhat-heap -- --port 59999 --exit-after <secs>
+  cargo run -p px_sysinfo --bin GammaRaySysInfo --features dhat-heap -- --port 59999 --exit-after <secs>
   ```
 
 ## 原始问题
 
-`gr_sysinfo` 在一天内内存占用涨到 ~10 GB。代码修复前主要风险：
+`px_sysinfo` 在一天内内存占用涨到 ~10 GB。代码修复前主要风险：
 
 1. WebSocket 发送无超时，半开连接可能长期挂起。
 2. 断线后旧 `SplitSink` 未清理。

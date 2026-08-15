@@ -1,4 +1,4 @@
-// Start desktop render on a remote gr_service via /service/message ws.
+// Start desktop render on a remote px_service via /service/message ws.
 // Usage: node scripts/service_start_render.mjs [host] [port]
 import net from 'node:net'
 import crypto from 'node:crypto'

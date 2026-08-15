@@ -1,0 +1,59 @@
+[package]
+name = "px_cms_server"
+version = "3.2.17"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+px_base = {path = "../../rust_base/px_base"}
+protocol = {path = "../../rust_base/protocol"}
+px_auth_mgr = {path = "../../rust_base/px_auth_mgr" }
+
+rustls = { version = "0.23", features = ["ring"] }
+redis = { version = "0.32.5", features = ["tokio-comp", "r2d2", "tokio-rustls-comp", "connection-manager"] }
+axum = { version = "0.8.1", features = ["ws", "multipart"] }
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7.1"
+tokio-stream = "0.1.17"
+tokio = { version = "1.43.0", features = ["full"] }
+tracing = "0.1.44"
+mongodb = "=3.2.1"
+futures-util = "0.3.31"
+uuid = { version = "1.15.1",features = ["v4", ] }
+rand = "0.9.0"
+tower-http = { version = "0.6.2", features = ["full"] }
+headers = "0.4.0"
+prost = "0.14.1"
+tonic = "0.14.1"
+lazy_static = "1.5.0"
+toml = "0.9.5"
+egui = "0.33.0"
+eframe = "0.33.0"
+egui_extras = { version = "0.33.0", features = ["all_loaders"] }
+image = { version = "0.25", features = ["jpeg", "png"] } # Add the types you want support for
+thiserror = "2.0.17"
+ring = "0.17"
+base64 = "0.22"
+clap = { version = "4.5.51", features = ["derive"] }
+csv = "1.4.0"
+chrono = "0.4.42"
+sys-locale = "0.3.2"
+egui-notify = "0.21.0"
+arboard = "3.6.1"
+sysinfo = "0.37.0"
+md5 = "0.8.0"
+tokio-util = "0.7.17"
+webbrowser = "1.0"
+local-ip-address = "0.6.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-no-provider", "json"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+
+[build-dependencies]
+builder = {path = "../builder"}
+winres = "0.1"

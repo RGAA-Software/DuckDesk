@@ -1,6 +1,6 @@
 // render 控制消息发送:经 media_data_channel 发送 NetTlvHeader + tc.Message
-// 协议对齐 src/gr_client/ct_base_workspace.cpp 与
-// src/gr_deps/tc_message_new/proto_message_maker.cpp(MakeLockDevice/MakeStopRender/MakeCtrlAltDelete)
+// 协议对齐 src/px_client/ct_base_workspace.cpp 与
+// src/px_deps/px_message_new/proto_message_maker.cpp(MakeLockDevice/MakeStopRender/MakeCtrlAltDelete)
 import { packTlv } from './tlv'
 import { encodeMessage } from './proto'
 

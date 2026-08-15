@@ -443,7 +443,7 @@ function handleDcBinary(buf: ArrayBuffer) {
   }
 }
 
-// 「发送到远端」:读本地剪贴板 -> kClipboardInfo -> gr_user_proxy 写入远端系统剪贴板
+// 「发送到远端」:读本地剪贴板 -> kClipboardInfo -> px_user_proxy 写入远端系统剪贴板
 async function sendClipboardToRemote(): Promise<boolean> {
   let text = ''
   try {

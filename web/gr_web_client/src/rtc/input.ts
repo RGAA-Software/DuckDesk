@@ -1,5 +1,5 @@
 // 鼠标/键盘输入采集与发送:经 input_data_channel 发送 NetTlvHeader + tc.Message
-// 协议对齐 src/gr_client/front_render/ct_video_widget.cpp 的 SendMouseEvent/SendKeyEvent
+// 协议对齐 src/px_client/front_render/ct_video_widget.cpp 的 SendMouseEvent/SendKeyEvent
 import { packTlv } from './tlv'
 import { VK_MAP, isNumLockRelated, isCapsLockRelated } from './vk_map'
 import {

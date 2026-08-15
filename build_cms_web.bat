@@ -9,14 +9,14 @@ rem every frontend-only change, without rebuilding the Rust server or anything
 rem else.
 rem
 rem   [1/2] Build the Vue frontend   web\gr_cms      (npm ci -> npm run build)
-rem   [2/2] Deploy dist\* into       output\gr_cms_server\web\
+rem   [2/2] Deploy dist\* into       output\px_cms_server\web\
 rem
 rem Notes:
-rem   - gr_cms_server serves static files from the web\ dir next to its exe,
+rem   - px_cms_server serves static files from the web\ dir next to its exe,
 rem     so this is where the frontend must land.
 rem   - The target web\ dir is wiped first so stale hashed vite assets cannot
 rem     linger alongside the new ones.
-rem   - This script does NOT rebuild gr_cms_server.exe; if you also changed Rust
+rem   - This script does NOT rebuild px_cms_server.exe; if you also changed Rust
 rem     code, run build_gr_cms_server.bat instead.
 rem ============================================================================
 
@@ -24,7 +24,7 @@ cd /d "%~dp0"
 set "REPO_ROOT=%cd%"
 
 set "WEB_SRC=%REPO_ROOT%\web\gr_cms"
-set "OUTPUT_DIR=%REPO_ROOT%\output\gr_cms_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms_server"
 set "WEB_SUBDIR=web"
 
 echo ============================================
@@ -64,7 +64,7 @@ if not exist "dist\index.html" (
 )
 echo.
 
-rem --- [2/2] Deploy into output\gr_cms_server\web\ ---
+rem --- [2/2] Deploy into output\px_cms_server\web\ ---
 echo [2/2] Deploying to %OUTPUT_DIR%\%WEB_SUBDIR%
 if not exist "%OUTPUT_DIR%" (
     echo       output dir does not exist yet, creating it.
@@ -86,7 +86,7 @@ echo ============================================
 echo CMS web build + deploy complete!
 echo ============================================
 echo Output: %OUTPUT_DIR%\%WEB_SUBDIR%
-echo If gr_cms_server is running, restart it to serve the new assets.
+echo If px_cms_server is running, restart it to serve the new assets.
 echo.
 
 endlocal

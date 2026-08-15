@@ -2,14 +2,14 @@
 setlocal enabledelayedexpansion
 
 rem Standalone game-hook debug launcher.
-rem Starts ONLY GammaRayRender (no panel / gr_service), then opens web client.
+rem Starts ONLY GammaRayRender (no panel / px_service), then opens web client.
 rem See docs/game_hook_capture_plan.md
 
 set "REPO_ROOT=%~dp0.."
 cd /d "%REPO_ROOT%"
 
 set "DIST=%REPO_ROOT%\build_official\dist"
-set "SRC_TOML=%REPO_ROOT%\src\gr_render\settings.toml"
+set "SRC_TOML=%REPO_ROOT%\src\px_render\settings.toml"
 
 rem ===== launch parameters =====
 set "PORT=32000"

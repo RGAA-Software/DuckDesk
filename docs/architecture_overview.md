@@ -9,30 +9,30 @@
 - **远程桌面**：每台被控机永远一个默认 render（屏采），panel 是本机管理端；
 - **游戏串流（game-hook）**：CMS 中心调度，被控机每启动一个游戏就多一个 render 进程（hook 注入采集），观看端用浏览器直达。
 
-部署模型：**安装包即对某个 CMS 授权**——CMS 管理其下的机器（调度、授权、机器列表），gr_auth_server 负责签发/吊销授权（只在授权链路上，不在运行面）。
+部署模型：**安装包即对某个 CMS 授权**——CMS 管理其下的机器（调度、授权、机器列表），px_auth_server 负责签发/吊销授权（只在授权链路上，不在运行面）。
 
 ## 2. 组件清单
 
 | 组件 | 位置 | 角色 |
 |---|---|---|
-| GammaRayRender | `src/gr_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `tc_graphics.dll`，帧经本机 `/ipc` 回传） |
-| GammaRayPanel | `src/gr_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
-| GammaRayClientInner | `src/gr_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
-| GammaRayService | `rust_client/gr_service` | 被控机常驻服务。拉起/看管 render、执行 CMS 调度（启停游戏实例）、本机控制面 WS `:20375` |
-| GammaRaySysInfo | `rust_client/gr_sysinfo` | 系统信息采集上报 |
-| UserProxy | `rust_client/gr_user_proxy` | 用户会话代理（剪贴板等），service 看管 |
-| gr_cms_server | `rust_server/gr_cms_server` | 中心调度：机器列表、应用/实例管理、授权缓存下发，托管 `web/gr_cms` 管理前端 |
-| gr_auth_server | `rust_server/gr_auth_server` | 授权签发/吊销，HTTPS `:30400` |
+| GammaRayRender | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `tc_graphics.dll`，帧经本机 `/ipc` 回传） |
+| GammaRayPanel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
+| GammaRayClientInner | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
+| GammaRayService | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 CMS 调度（启停游戏实例）、本机控制面 WS `:20375` |
+| GammaRaySysInfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
+| UserProxy | `rust_client/px_user_proxy` | 用户会话代理（剪贴板等），service 看管 |
+| px_cms_server | `rust_server/px_cms_server` | 中心调度：机器列表、应用/实例管理、授权缓存下发，托管 `web/gr_cms` 管理前端 |
+| px_auth_server | `rust_server/px_auth_server` | 授权签发/吊销，HTTPS `:30400` |
 | web 观看端 | `web/gr_web_client` | 浏览器观看端 SPA，由 render 自己托管在 `/web_client`，WebRTC 收流 |
-| tc_graphics.dll | `src/gr_render/hook_capture` | 注入游戏的采集 DLL（hook DXGI Present，共享纹理帧经 `/ipc` 回传 render） |
+| tc_graphics.dll | `src/px_render/hook_capture` | 注入游戏的采集 DLL（hook DXGI Present，共享纹理帧经 `/ipc` 回传 render） |
 
 ## 3. 拓扑：控制面与数据面分离
 
 ```
                         中心侧
-   gr_auth_server :30400 (HTTPS, 签发/吊销授权)
+   px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ CMS 每小时拉自己的授权 (HMAC appkey 签名)
-   gr_cms_server :30500 (HTTPS/WSS) + 托管 web/gr_cms 管理前端
+   px_cms_server :30500 (HTTPS/WSS) + 托管 web/gr_cms 管理前端
         ↑ WSS /spvr/service  ←—— GammaRayService (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— CMS 管理 Web (游戏/实例启停)

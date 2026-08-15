@@ -13,8 +13,8 @@
 
 ## 现状(勘察结论)
 
-- `src/gr_render/plugins/net_udp/udp_plugin.cpp`:asio2 KCP 骨架,未启用(`config_premium.cmake:8` OFF)、无 toml、无 install 规则、收包回调被注释且签名过期。
-- 客户端:`tc_client_sdk_new/connection/udp_connection.cpp` 是配套废弃 KCP 实现;无 UDP 媒体通路。
+- `src/px_render/plugins/net_udp/udp_plugin.cpp`:asio2 KCP 骨架,未启用(`config_premium.cmake:8` OFF)、无 toml、无 install 规则、收包回调被注释且签名过期。
+- 客户端:`px_client_sdk_new/connection/udp_connection.cpp` 是配套废弃 KCP 实现;无 UDP 媒体通路。
 - 可复用挂接点:
   - 编码帧:`GrNetPlugin::OnEncodedVideoFrame(...)`(`gr_plugin_interface.h:199`,rtc_local 在用)
   - IDR 请求:`CallbackEvent(GrPluginInsertIdrEvent{mon_name})` → `plugin_event_router.cpp:110-119`
@@ -77,7 +77,7 @@ client 端:
 
 ### P2 — FEC + 音频
 1. ~~移植 RS 编解码,render 帧级 FEC(20%),client 恢复;失败再 IDR~~ **已完成**:
-   - RS 库移植 `moonlight-common-c/reedsolomon/rs.c`(BSD)→ `tc_common_new/reedsolomon/`,C++ 薄封装 `tc_common_new/gr_fec.h`(`GrFec::Encode/Decode`)。
+   - RS 库移植 `moonlight-common-c/reedsolomon/rs.c`(BSD)→ `px_common_new/reedsolomon/`,C++ 薄封装 `px_common_new/gr_fec.h`(`GrFec::Encode/Decode`)。
    - 协议演进(两端一起重建,kVersion 保持 1):SOF 扩展加 `frame_size(u32)`;新增 `kFlagParity=0x8`,parity 包 = 基础头 + P 字节校验块(P = mtu - 24,整包正好 mtu);所有包 `parity_shards` 填实际值,`fec_block` 恒 0(一帧一块)。
    - 发送:`ShardVideoFrame(..., fec_percent)` parity = max(1, ceil(D*percent/100)),D+parity > 255 退化为无 FEC;`net_udp` 插件 `fec-percent` 配置(默认 20,0=关闭)。
    - 接收:`GrUdpFrameReassembler` slot 扩到 D+parity,统一存 P 字节保护块;「够用即恢复」(distinct 块数 == data_shards 即 RS 重建),重组帧按 frame_size 精确截断;shard 0 缺失时 mon_name/分辨率从恢复块取;恢复不了才 DeclareLoss 走原 IDR 路径。
@@ -107,7 +107,7 @@ client 端:
 
 ## 风险
 
-- 子模块连锁改动:`tc_message_new`、`tc_client_sdk_new` 需分别提交。
+- 子模块连锁改动:`px_message_new`、`px_client_sdk_new` 需分别提交。
 - 双通道生命周期:ws 断=会话断;UDP 超时(10s)P1 先走 ws 通知断开。
 - 互踢沿用 takeover 体系(经 ws 发 550),UDP 插件不自创。
 

@@ -2,7 +2,7 @@
 
 > 状态：**已实现**（2026-08-11）。UI 文案定名为「节点」（列表列名、按钮「新建节点」、默认名「节点1/节点2…」）。
 > 前置文档：[`cms_app_schedule_plan.md`](./cms_app_schedule_plan.md)、[`cms_app_schedule_state.md`](./cms_app_schedule_state.md)
-> 范围：gr_cms_server 调度模型 + CMS Web `/apps` 页；Service/Render 协议不变
+> 范围：px_cms_server 调度模型 + CMS Web `/apps` 页；Service/Render 协议不变
 > 实现备注：多开时同名游戏进程的 hook 目标选择在 render 侧修复（`app_manager_win.cpp`：优先选自己拉起的进程树 / 未被注入的实例），否则第二个实例会锁到第一个实例的进程上导致无画面。
 
 ---
@@ -142,7 +142,7 @@ launch 路由说明：GET 是为了让链接可直接放进浏览器地址栏/�
 | N4 | Web：节点列 + 节点子表 + 表单改造 | `/apps` 页多开 E2E |
 | N5 | 联调：同应用 3 节点同机多开 + 跨机 | 验收清单全过 |
 
-单测沿用现有框架（`cargo test -p gr_cms_server`），新增：默认节点迁移、同机端口冲突、选节点（最久未用/平手序号/全忙报错）、节点删除保护、并发双启动不撞节点。
+单测沿用现有框架（`cargo test -p px_cms_server`），新增：默认节点迁移、同机端口冲突、选节点（最久未用/平手序号/全忙报错）、节点删除保护、并发双启动不撞节点。
 
 ## 10. 明确不做 / 后续
 

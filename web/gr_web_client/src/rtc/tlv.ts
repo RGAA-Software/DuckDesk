@@ -1,4 +1,4 @@
-// NetTlvHeader 打包/解包,对齐 src/gr_deps/tc_common_new/net_tlv_header.h
+// NetTlvHeader 打包/解包,对齐 src/px_deps/px_common_new/net_tlv_header.h
 // 布局(小端):
 //   u32 type_                  0   整包 = 1 (kNetTlvFull)
 //   u32 this_buffer_length_    4   payload 长度(不含头部,见 rtc_data_channel.cpp 收发两侧)

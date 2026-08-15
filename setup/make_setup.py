@@ -54,7 +54,7 @@ def find_nsis(configured_dir: str | None, current_dir: str) -> str:
 
 def compute_output_dir(build_dir: str, current_dir: str) -> str:
     build_name = os.path.basename(os.path.normpath(build_dir))
-    version_file = os.path.join(build_dir, "src", "gr_base", "version_config.h")
+    version_file = os.path.join(build_dir, "src", "px_base", "version_config.h")
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")

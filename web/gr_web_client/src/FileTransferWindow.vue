@@ -1,4 +1,4 @@
-// 独立文件传输窗口:对齐 C++ 端 src/gr_client/plugins/file_transfer_client/widget
+// 独立文件传输窗口:对齐 C++ 端 src/px_client/plugins/file_transfer_client/widget
 // 左右双栏互传:本地(File System Access API 真实文件夹) <-> 远端(render 文件系统)
 // 浏览器不支持 File System Access API 时降级:左栏为暂存区(选择文件/拖拽),下载走浏览器保存
 // 下半部:统计条 + 传输记录表格

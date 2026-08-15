@@ -1,0 +1,37 @@
+[package]
+name = "px_service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "GammaRayService"
+path = "src/main.rs"
+
+[dependencies]
+px_base = { path = "../../rust_base/px_base" }
+px_auth_mgr = { path = "../../rust_base/px_auth_mgr" }
+protocol = { path = "../../rust_base/protocol" }
+service_core = { path = "./service_core" }
+prost = "0.14.1"
+rustls = "0.23"
+tokio = { version = "1.43.0", features = ["full"] }
+tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }
+futures-util = "0.3.31"
+clap = { version = "4.5.47", features = ["derive"] }
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0"
+wmi = "0.17.3"
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Environment",
+    "Win32_System_Memory",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_UI_WindowsAndMessaging",
+] }
+tracing = "0.1.44"

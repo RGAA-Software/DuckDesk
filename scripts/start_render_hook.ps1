@@ -1,4 +1,4 @@
-﻿# Game-hook launcher: start GammaRayRender only (no browser / no CDP).
+# Game-hook launcher: start GammaRayRender only (no browser / no CDP).
 # Parameter reference — edit values below, then run start_render_hook.bat
 #
 # --app_game_path is Base64(UTF-8 of GamePath) so spaces/Chinese never hit argv code pages.
@@ -23,13 +23,13 @@ $EncoderFormat = 'h264'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Dist = Join-Path $RepoRoot 'build_official\dist'
-$BuiltExe = Join-Path $RepoRoot 'build_official\src\gr_render\GammaRayRender.exe'
-$SrcToml = Join-Path $RepoRoot 'src\gr_render\settings.toml'
+$BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\GammaRayRender.exe'
+$SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
 $Exe = Join-Path $Dist 'GammaRayRender.exe'
 $WebUrl = "http://127.0.0.1:${Port}/web_client/?deviceId=${DeviceId}"
 $LogPath = "C:\Users\Public\GoDesk\gr_logs\godesk_render_${Port}.log"
 
-# Incremental cmake builds land under src/gr_render; sync into dist when newer.
+# Incremental cmake builds land under src/px_render; sync into dist when newer.
 if (Test-Path -LiteralPath $BuiltExe) {
     $needCopy = -not (Test-Path -LiteralPath $Exe) -or
         ((Get-Item -LiteralPath $BuiltExe).LastWriteTime -gt (Get-Item -LiteralPath $Exe).LastWriteTime)

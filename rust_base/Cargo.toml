@@ -1,11 +1,11 @@
 [workspace]
 members = [
-    "gr_base",
-    "gr_auth_mgr",
+    "px_base",
+    "px_auth_mgr",
     "protocol",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "3.3.35"
+version = "3.3.37"
 edition = "2021"

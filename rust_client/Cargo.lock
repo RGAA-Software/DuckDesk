@@ -3177,139 +3177,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gr_auth_mgr"
-version = "3.3.35"
-dependencies = [
- "base64 0.22.1",
- "gr_base",
- "mongodb",
- "rand 0.9.4",
- "ring",
- "serde",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "gr_base"
-version = "3.3.35"
-dependencies = [
- "aes-gcm",
- "base64 0.22.1",
- "chrono",
- "csv",
- "digest",
- "disk-serial-number",
- "local-ip-address",
- "mail-send",
- "md-5",
- "mongodb",
- "netdev 0.39.0",
- "rand 0.9.4",
- "raw-cpuid",
- "redis",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "sled",
- "sysinfo 0.37.2",
- "tokio-test",
- "tracing",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "gr_crash_reporter"
-version = "3.3.35"
-dependencies = [
- "gr_base",
-]
-
-[[package]]
-name = "gr_service"
-version = "3.3.35"
-dependencies = [
- "clap",
- "futures-util",
- "gr_auth_mgr",
- "gr_base",
- "prost 0.14.4",
- "protocol",
- "rustls 0.23.40",
- "serde",
- "serde_json",
- "service_core",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "windows 0.62.2",
- "wmi",
-]
-
-[[package]]
-name = "gr_sysinfo"
-version = "3.3.35"
-dependencies = [
- "adlx",
- "anyhow",
- "calcmhz",
- "clap",
- "clap_derive",
- "dhat",
- "futures-util",
- "gpui",
- "gpui-component",
- "gpui-component-assets",
- "gpui_platform",
- "gr_auth_mgr",
- "gr_base",
- "lazy_static",
- "netdev 0.37.3",
- "nvml-wrapper",
- "raw-window-handle",
- "serde",
- "serde_json",
- "smol",
- "sysinfo 0.37.2",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "windows 0.62.2",
-]
-
-[[package]]
-name = "gr_uninstall"
-version = "3.3.35"
-dependencies = [
- "clap",
- "gr_base",
- "sysinfo 0.37.2",
- "windows 0.62.2",
-]
-
-[[package]]
-name = "gr_user_proxy"
-version = "3.3.35"
-dependencies = [
- "anyhow",
- "clap",
- "futures-util",
- "gr_base",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "protoc-bin-vendored",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "windows 0.62.2",
- "windows-core 0.62.2",
- "windows-implement 0.60.2",
-]
-
-[[package]]
 name = "grid"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6379,7 +6246,7 @@ checksum = "95067976aca6421a523e491fce939a3e65249bac4b977adee0ee9771568e8aa3"
 
 [[package]]
 name = "protocol"
-version = "3.3.35"
+version = "3.3.37"
 dependencies = [
  "prost 0.14.4",
  "prost-build 0.14.4",
@@ -6417,6 +6284,139 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50793def1b900256624a709439404384204a5dc3a6ec580281bfaac35e882e90"
 dependencies = [
  "pulldown-cmark",
+]
+
+[[package]]
+name = "px_auth_mgr"
+version = "3.3.37"
+dependencies = [
+ "base64 0.22.1",
+ "mongodb",
+ "px_base",
+ "rand 0.9.4",
+ "ring",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "px_base"
+version = "3.3.37"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
+ "chrono",
+ "csv",
+ "digest",
+ "disk-serial-number",
+ "local-ip-address",
+ "mail-send",
+ "md-5",
+ "mongodb",
+ "netdev 0.39.0",
+ "rand 0.9.4",
+ "raw-cpuid",
+ "redis",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "sled",
+ "sysinfo 0.37.2",
+ "tokio-test",
+ "tracing",
+ "tracing-appender",
+ "tracing-log",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "px_crash_reporter"
+version = "3.3.37"
+dependencies = [
+ "px_base",
+]
+
+[[package]]
+name = "px_service"
+version = "3.3.37"
+dependencies = [
+ "clap",
+ "futures-util",
+ "prost 0.14.4",
+ "protocol",
+ "px_auth_mgr",
+ "px_base",
+ "rustls 0.23.40",
+ "serde",
+ "serde_json",
+ "service_core",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "windows 0.62.2",
+ "wmi",
+]
+
+[[package]]
+name = "px_sysinfo"
+version = "3.3.37"
+dependencies = [
+ "adlx",
+ "anyhow",
+ "calcmhz",
+ "clap",
+ "clap_derive",
+ "dhat",
+ "futures-util",
+ "gpui",
+ "gpui-component",
+ "gpui-component-assets",
+ "gpui_platform",
+ "lazy_static",
+ "netdev 0.37.3",
+ "nvml-wrapper",
+ "px_auth_mgr",
+ "px_base",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "smol",
+ "sysinfo 0.37.2",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "px_uninstall"
+version = "3.3.37"
+dependencies = [
+ "clap",
+ "px_base",
+ "sysinfo 0.37.2",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "px_user_proxy"
+version = "3.3.37"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures-util",
+ "prost 0.13.5",
+ "prost-build 0.13.5",
+ "protoc-bin-vendored",
+ "px_base",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
+ "windows-implement 0.60.2",
 ]
 
 [[package]]
@@ -7536,12 +7536,12 @@ dependencies = [
 
 [[package]]
 name = "service_core"
-version = "3.3.35"
+version = "3.3.37"
 dependencies = [
- "gr_base",
  "prost 0.13.5",
  "prost-build 0.13.5",
  "protoc-bin-vendored",
+ "px_base",
  "serde",
  "serde_json",
  "tokio",
@@ -7551,7 +7551,7 @@ dependencies = [
 
 [[package]]
 name = "service_manager"
-version = "3.3.35"
+version = "3.3.37"
 dependencies = [
  "clap",
  "service_core",

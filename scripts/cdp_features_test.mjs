@@ -1,6 +1,6 @@
 // CDP 无头 Chrome 端到端验证 gr_web_client 三个新功能:
 //   1. 性能面板(getStats 采样) + 帧率画质档
-//   2. 剪贴板文本同步(web<->render 系统剪贴板,经 gr_user_proxy)
+//   2. 剪贴板文本同步(web<->render 系统剪贴板,经 px_user_proxy)
 //   3. 触屏手势(Input.dispatchTouchEvent 注入,解码 tc.Message 验证 + 物理光标)
 // 用法: node scripts/cdp_features_test.mjs
 // 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GammaRay 套件已在运行
@@ -207,7 +207,7 @@ async function main() {
   await sleep(300)
   report('剪贴板按钮存在(发送到远端)', hasSendBtn)
 
-  // 2a. web -> render 系统剪贴板(经 gr_user_proxy 写入)
+  // 2a. web -> render 系统剪贴板(经 px_user_proxy 写入)
   const w2r = `W2R-${Date.now()}-剪贴板测试`
   const sent = await evaluate(`window.__clipboard.sendText(${JSON.stringify(w2r)})`)
   report('调用 __clipboard.sendText', sent === true)
@@ -215,7 +215,7 @@ async function main() {
   const sysClip = getSysClipboard()
   report('远端系统剪贴板已写入(web->remote)', sysClip.includes(w2r), `Get-Clipboard="${sysClip.slice(0, 60)}"`)
 
-  // 2b. render 系统剪贴板 -> web(gr_user_proxy 监听 -> kClipboardInfo 广播)
+  // 2b. render 系统剪贴板 -> web(px_user_proxy 监听 -> kClipboardInfo 广播)
   const r2w = `R2W-${Date.now()}-远端文本`
   setSysClipboard(r2w)
   let lastRemote = ''

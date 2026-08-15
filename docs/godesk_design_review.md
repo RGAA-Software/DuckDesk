@@ -15,36 +15,36 @@
 ## 一、安全与信任模型(最高优先级)
 
 ### S1【高】被控端对连接零鉴权,密码校验只在主控端"自觉"执行
-- `src/gr_render/plugins/net_ws/ws_server.cpp:283-346`:`/media`、`/file/transfer` 只要求 `stream_id` 非空即开始推流;`net_relay/relay_plugin.cpp:143-155` 中继通道同样收到 `RequestControl` 直接推流。
+- `src/px_render/plugins/net_ws/ws_server.cpp:283-346`:`/media`、`/file/transfer` 只要求 `stream_id` 非空即开始推流;`net_relay/relay_plugin.cpp:143-155` 中继通道同样收到 `RequestControl` 直接推流。
 - `plugin_net_event_router.cpp:121-315`:消息分发入口无鉴权门,键鼠注入、文件传输、`kStopRender`(杀进程,306 行还缺 `break` 落入锁屏分支)、`kLockDevice` 全部直接受理。
 - 密码校验 `/verify/security/password`(`net_ws/http_handler.cpp:46`)只是"校验预言机",调用发生在**主控面板侧**——修改过的客户端或裸协议可跳过密码直接看屏、注入键鼠、读写文件。
 - 修复:被控侧强制完成基于密码的挑战-应答握手,通过前不注册路由、不处理任何消息。
 
 ### S2【高】面板本地 HTTP 服务绑定 0.0.0.0 零鉴权,明文吐出设备 ID+随机密码,可杀任意进程
-- `src/gr_panel/src/render_panel/network/ws_panel_server.cpp:245` 绑 0.0.0.0,TLS 整段注释。
+- `src/px_panel/src/render_panel/network/ws_panel_server.cpp:245` 绑 0.0.0.0,TLS 整段注释。
 - `/simple/info` → `gr_context.cpp:261-264` 返回 `did` + `rpwd`(随机密码明文);`/kill/process` 按 pid 杀任意进程(`http_handler.cpp:143-159`);`/game/start` 按客户端给定路径启动程序。
 - 同网段任何人(或恶意网页 DNS rebinding)一个请求即得远控凭据,构成 LAN 内 RCE。
 - 修复:绑定 127.0.0.1;敏感接口加配对 token;密码永不出接口。
 
 ### S3【高】Rust 服务 WS 监听 0.0.0.0 零鉴权,`StartServer.app_path` 任意指定 → 本地提权 SYSTEM
-- `rust_client/gr_service/service_core/src/config.rs:8`(`DEFAULT_LISTEN_HOST = "0.0.0.0"`)、`websocket_server.rs:45-55`(仅校验 path);`windows_process.rs:103-126` 用服务自身 SYSTEM token 拉起传入路径的 exe。
+- `rust_client/px_service/service_core/src/config.rs:8`(`DEFAULT_LISTEN_HOST = "0.0.0.0"`)、`websocket_server.rs:45-55`(仅校验 path);`windows_process.rs:103-126` 用服务自身 SYSTEM token 拉起传入路径的 exe。
 - 叠加:持久化启动参数存 `C:\Users\Public\GoDesk\gr_data\godesk_service.json`(`windows_util.rs:7-20`,任何用户可写),服务按它拉起 SYSTEM 进程。
 - 修复:绑定 127.0.0.1 + 校验 app_path 必须在安装目录内;数据/日志迁 ProgramData 并收紧 ACL。
 
 ### S4【高】中继链路明文、无 E2E 加密;CMS app_secret 可从 appkey 确定性推导
 - `relay_plugin.cpp:121,248` 均 `ssl_ = false`,屏幕/键盘(含用户键入的密码)/剪贴板/文件明文过中继;中继被攻陷即可主动控制任意在线设备。
-- `src/gr_client/network/ct_auth_token.cpp:29-42`:`app_secret = MD5(SHA256(appkey + 硬编码盐))`,盐随客户端分发 → CMS 管理接口实际零鉴权,`/query/device/by/id` 返回设备明文随机密码,`/update/random/pwd` 可重置任意设备密码。
+- `src/px_client/network/ct_auth_token.cpp:29-42`:`app_secret = MD5(SHA256(appkey + 硬编码盐))`,盐随客户端分发 → CMS 管理接口实际零鉴权,`/query/device/by/id` 返回设备明文随机密码,`/update/random/pwd` 可重置任意设备密码。
 - 修复:中继只做密文转发(E2E 密钥由设备密码派生);app_secret 改为授权服务器下发的真随机秘密;管理接口独立鉴权,响应删除明文密码。
 
 ### S5【中高】凭据处理全线薄弱
 - 安全密码经命令行明文传给 render(`gr_render_controller.cpp:114-115`)且全量落日志;校验协议是"客户端发 MD5、服务端比 MD5"——MD5 即密码等价物;校验接口无频控,空密码即放行(`http_handler.cpp:62-66`)。
 - 远端设备密码明文存本地 SQLite(`app_stream_list.cpp:500-503,552`)。
 - 剪贴板文本全文落日志(`clipboard_manager.cpp:50-53`)。
-- `src/gr_render/private.key` + `certificate.pem` 私钥入库(旧版遗留,需确认无在网部署使用,建议删除+轮换+清洗历史);`AES_DEPLOY_AUTH` 硬编码,分发信息"加密"只是混淆。
+- `src/px_render/private.key` + `certificate.pem` 私钥入库(旧版遗留,需确认无在网部署使用,建议删除+轮换+清洗历史);`AES_DEPLOY_AUTH` 硬编码,分发信息"加密"只是混淆。
 - 修复:密码改 WS 通道下发、日志脱敏、DB 用 DPAPI 加密、挑战-响应替代 MD5 比对。
 
 ### S6【高】剪贴板文件读取 = 未鉴权任意文件读
-- `src/gr_render/plugins/clipboard/clipboard_plugin.cpp:132-162`:`OnRequestFileBuffer` 对客户端报来的任意路径直接读文件回传,无"该文件是否在共享集合内"的白名单。叠加 S1,远程可读 render 进程权限内任意文件。
+- `src/px_render/plugins/clipboard/clipboard_plugin.cpp:132-162`:`OnRequestFileBuffer` 对客户端报来的任意路径直接读文件回传,无"该文件是否在共享集合内"的白名单。叠加 S1,远程可读 render 进程权限内任意文件。
 - 文件传输"授权目录"限制是死代码:`file_operate.cc:23` `s_file_permission_path_ = "/"` 从无人赋值,白名单检查永不执行,`Remove()` 对任意路径 `remove_all`。
 
 ---
@@ -61,14 +61,14 @@
 - 键盘(UI 线程直发)与鼠标(异步队列)两条路径,顺序无保证,"点击输入框→打字"字符可进错窗口。
 - 修复:按类型区分丢弃策略(move 可丢,press/release/key 不可丢);键鼠统一有序通道;重连后发 reset-input。
 
-### B3【高】gr_render 三处线程/生命周期 bug
+### B3【高】px_render 三处线程/生命周期 bug
 - DDA 错误回调在采集线程同步执行,切 GDI 时 `join` 自身线程 → `std::terminate`(`dda_capture.cpp:380` → `rd_app.cpp:189-207` → `thread.cpp:176-184`)。
 - `encoder_plugins_` map 跨线程无锁读写(`encoder_thread.cpp:316,384` vs `rd_statistics.cpp:144`、`plugin_net_event_router.cpp:486`),重建编码器与统计并发可迭代器失效。
 - `capture_plugin_` 成员未初始化(`rd_app.h:165`),inner/mock 模式下野指针被解引用(`rd_app.cpp:418-424,769-779,1031`)。
-- 另:`ReleaseAllPlugins()` 在 gr_render 无调用者,退出路径从不停插件/采集;编码格式状态全局单值导致多屏 codec 不一致(`encoder_thread.cpp:134`);编码器全初始化失败无退避每帧重试且落选实例 session 泄漏(`:236-313`)。
+- 另:`ReleaseAllPlugins()` 在 px_render 无调用者,退出路径从不停插件/采集;编码格式状态全局单值导致多屏 codec 不一致(`encoder_thread.cpp:134`);编码器全初始化失败无退避每帧重试且落选实例 session 泄漏(`:236-313`)。
 
 ### B4【高】RGB 帧缓冲只按首帧大小分配,分辨率增大时 `memcpy` 堆溢出
-- `src/gr_client/front_render/ct_video_widget.cpp:293-299`:I420/I444 路径都有尺寸变化重分配,唯独 RGB 路径漏掉。远端切到更大分辨率显示器即触发。
+- `src/px_client/front_render/ct_video_widget.cpp:293-299`:I420/I444 路径都有尺寸变化重分配,唯独 RGB 路径漏掉。远端切到更大分辨率显示器即触发。
 
 ### B5【高】Rust 服务守护逻辑缺陷
 - **StopDesktop 无效**:`service_host.rs:165` 只杀进程不清 `last_desktop_launch`,3 秒后 monitor 自动拉回(`state.rs:56`),停止等于重启。
@@ -76,7 +76,7 @@
 - 每次心跳全量 WMI `Win32_Process` 枚举且在全局锁内(`windows_process.rs:64-77`),WmiPrvSe CPU 常驻偏高。
 - 服务声明接受 SHUTDOWN 却不处理、STOP 不报 STOP_PENDING → 关机/停止留孤儿进程,user proxy 还会继续拉起 panel("服务已停、进程自愈")。
 - SCM 失败动作只配了第一次重启(`manager.rs:115-125`),连续崩两次服务永久停摆。
-- `gr_crash_reporter` 整个 main 只有一行 println,Rust 四个常驻进程(一个跑 SYSTEM)崩溃零数据可回收。
+- `px_crash_reporter` 整个 main 只有一行 println,Rust 四个常驻进程(一个跑 SYSTEM)崩溃零数据可回收。
 
 ### B6【中】协议层缺陷
 - 两端 SDP 解析失败前就调 `SetRemoteDescription`(`rtc_server.cpp:205-209`、`rtc_connection.cpp:261-263`),空指针直接传给 WebRTC。

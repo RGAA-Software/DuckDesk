@@ -19,7 +19,7 @@ def copy_all_pdb(src_dir, dst_dir):
 
 def compute_output_dir(build_dir: str, current_dir: str) -> str:
     build_name = os.path.basename(os.path.normpath(build_dir))
-    version_file = os.path.join(build_dir, "src", "gr_base", "version_config.h")
+    version_file = os.path.join(build_dir, "src", "px_base", "version_config.h")
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
@@ -40,7 +40,7 @@ def main():
 
     # 目标文件夹
     target_name = "GammaRay_pdb_" + extract_project_version(
-        os.path.join(build_dir, "src", "gr_base", "version_config.h")
+        os.path.join(build_dir, "src", "px_base", "version_config.h")
     )
     target_dir = os.path.join(output_dir, target_name)
 

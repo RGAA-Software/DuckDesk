@@ -110,7 +110,7 @@
 
 ## 4. DuckDesk 落地路径(由浅入深)
 
-1. **第一步(纯编码侧,不动协议)**:把单帧 VBV、无限 GOP+按需 IDR、禁 B 帧/lookahead、intra-refresh 应用到现有编码链路(`src/gr_render/app/encoder_thread.cpp` + AMF 插件),WebRTC 通道也能立刻受益。风险最小,先做。
+1. **第一步(纯编码侧,不动协议)**:把单帧 VBV、无限 GOP+按需 IDR、禁 B 帧/lookahead、intra-refresh 应用到现有编码链路(`src/px_render/app/encoder_thread.cpp` + AMF 插件),WebRTC 通道也能立刻受益。风险最小,先做。
 2. **第二步(原生客户端专属 UDP 通道)**:rtc local 直连场景下,视频改裸 RTP + RS-FEC,控制/输入复用 ENet(可先用现有信令通道 + ENet 输入),丢包恢复先 IDR、RFI 作为增强。
 3. **第三步(wire 兼容 GameStream)**:包格式对齐公开协议,换取 Moonlight 客户端直接可连,客户端侧工作量归零,且可用 Moonlight 做联调对照。
 

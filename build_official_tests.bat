@@ -71,7 +71,7 @@ if "%SKIP_CONFIGURE%"=="0" (
 echo ----------------------BUILD TESTS START------------------------
 echo ---------------------------------------------------------
 cmake --build build_official -j18 --target ^
-    tc_common_new ^
+    px_common_new ^
     test_string_util test_file_util test_folder_util test_file ^
     test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
     test_qr_generator test_process test_process_helper test_uncovered test_snowflake_id ^

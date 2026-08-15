@@ -15,7 +15,7 @@
 ├── certs/
 │   ├── cert.pem
 │   └── key.pem
-├── gr_cms_server
+├── px_cms_server
 ├── gr_cms_server_settings.toml
 ├── gr_relay_server
 └── gr_relay_settings.toml

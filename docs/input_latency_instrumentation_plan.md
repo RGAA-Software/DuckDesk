@@ -44,7 +44,7 @@
 
 ## 3. 各打点实现位置
 
-### 3.1 客户端输入回环（`src/gr_client/front_render/ct_video_widget.cpp`）
+### 3.1 客户端输入回环（`src/px_client/front_render/ct_video_widget.cpp`）
 
 - **C1**：`OnMouseMoveEvent`（约 83 行）入口记 `ts_qt`。
 - **C2**：`SendMouseEvent`（约 321 行）构造完 msg、post 进 `evt_cache_thread_` 之前记 `ts_enqueue`。
@@ -52,7 +52,7 @@
   并在忙等（`queuing_count > 16` 的 `DelayBySleep(1)` 循环，约 382-388 行）进入/退出各记一次。
 - 输出：`C3-C2` = 三级队列排队；`C2-C1` = UI 线程内耗时；忙等轮数。
 
-### 3.2 被控端输入重放（`src/gr_render/plugins/event_replayer/`）
+### 3.2 被控端输入重放（`src/px_render/plugins/event_replayer/`）
 
 - **H1**：`event_replayer_plugin.cpp` `ProcessMouseEvent`（约 81-86 行）入口记 `host_recv_ms`。
 - **H2**：`win_event_replayer.cpp` `HandleMouseEvent`（约 318 行）入口记 `ts_replay_beg`。
@@ -60,7 +60,7 @@
   并统计 `InjectServerRelFromAbs`（约 247-316 行）单次事件拆成的 `SendInput` 次数。
 - 输出：`H2-H1` = 收包到重放器耗时；`H3` = 注入耗时 + 注入次数。
 
-### 3.3 被控端采集节奏（`src/gr_render/plugins/dda_capture/dda_capture.cpp`）
+### 3.3 被控端采集节奏（`src/px_render/plugins/dda_capture/dda_capture.cpp`）
 
 - **G1**：`Capture()`（约 300 行）循环体：循环开始、`AcquireNextFrame` 返回、`OnCaptureFrame` 三处计时。
 - **G2**：`capture_gaps_`（约 349-353 行已收集）周期性（5s）输出 min/avg/max/P99。
@@ -68,8 +68,8 @@
 
 ### 3.4 客户端解码/渲染（`[LAT-decode]` / `[LAT-render]`）
 
-- **解码耗时**：`src/gr_deps/tc_client_sdk_new/thunder_sdk.cpp` 里 `video_decoder->Decode()` 前后计时，每 5s 输出 `[LAT-decode] frames/avg_us/max_us`（D3D11VA 硬解）。
-- **渲染耗时**：`src/gr_client/front_render/d3d11/ct_d3d11_video_widget.cpp` 的 `RefreshImage()`（纹理上传 + Draw + `Present(0,0)`）起止计时，每 5s 输出 `[LAT-render] frames/avg_us/max_us`。
+- **解码耗时**：`src/px_deps/px_client_sdk_new/thunder_sdk.cpp` 里 `video_decoder->Decode()` 前后计时，每 5s 输出 `[LAT-decode] frames/avg_us/max_us`（D3D11VA 硬解）。
+- **渲染耗时**：`src/px_client/front_render/d3d11/ct_d3d11_video_widget.cpp` 的 `RefreshImage()`（纹理上传 + Draw + `Present(0,0)`）起止计时，每 5s 输出 `[LAT-render] frames/avg_us/max_us`。
 - 两者相加即「解码完成 → 上屏提交」的客户端视频尾段。`Present(0,0)` 本身不等 VSync，VSync 等待是另一段固有的 0–16.6ms。
 
 ### 3.5 复用现有诊断（零改动）

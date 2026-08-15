@@ -11,7 +11,7 @@
 |------|------|------|
 | P0 插件基建 | ✅ 完成 | `net_udp` 插件重写为裸 UDP,ws 控制面不动 |
 | P1 视频面 | ✅ 完成 | render 分 shard 发送,客户端 `GrUdpFrameReassembler` 组帧合成 `kVideoFrame` proto 上送 |
-| RS-FEC(视频) | ✅ 完成 | 移植 moonlight `reedsolomon/rs.c` 至 `tc_common_new/reedsolomon/`,帧级 parity,默认 20% |
+| RS-FEC(视频) | ✅ 完成 | 移植 moonlight `reedsolomon/rs.c` 至 `px_common_new/reedsolomon/`,帧级 parity,默认 20% |
 | 花屏修复(整帧丢失 gap 检测) | ✅ 完成 | 无限 GOP 下丢整帧即请 IDR |
 | FRAME_STATUS 动态 FEC | ✅ 完成 | 客户端逐帧回执,render 5s 窗口按丢帧率调 fec%([配置值, 60]) |
 | 丢包修复(socket 缓冲) | ✅ 完成 | 客户端 RCVBUF 8MB / render SNDBUF 4MB |
@@ -31,7 +31,7 @@
 
 ## 2. 当前状态(2026-08-13 晚,当前最优基线)
 
-> 本基线已提交:主仓库 `786388b7`,子模块 `tc_client_sdk_new 95452f7`。
+> 本基线已提交:主仓库 `786388b7`,子模块 `px_client_sdk_new 95452f7`。
 
 ### 2.1 视频流畅度:已基本解决 ✅
 
@@ -88,7 +88,7 @@
 
 - **现象**:客户端连接后/长时间无完整帧时补发 IDR,render 端把这些请求全部当成“丢帧”,动态 FEC 被刷到 60% 上限。
 - **修复**:协议新增 `kCtrlIdrKeepalive`。真实组帧判丢仍发 `kCtrlIdrRequest` 并计入丢帧窗口;连接初始化与无帧兜底发 `kCtrlIdrKeepalive`,只请求关键帧、不计数。
-- **涉及文件**:`tc_common_new/gr_udp_protocol.h`、`tc_client_sdk_new/connection/udp_direct_connection.cpp`、`gr_render/plugins/net_udp/udp_plugin.cpp`。
+- **涉及文件**:`px_common_new/gr_udp_protocol.h`、`px_client_sdk_new/connection/udp_direct_connection.cpp`、`px_render/plugins/net_udp/udp_plugin.cpp`。
 
 ### 3.7 UDP 视频重连后只发首帧的排查/加固(2026-08-13)
 
@@ -115,7 +115,7 @@
   - 互踢策略与 RTC local 对齐:任意已绑定 UDP 会话都算占用,新 Hello 直接顶掉旧绑定会话(不再只按 `stream_id` 互踢)。
   - `SweepDeadSessions()` 同时清理两类会话:绑定但心跳超时(照旧发断开事件)和未绑定/被踢且 10s 无流量的陈旧会话(只摘除底层 session,不发重复断开事件)。
   - 用 `ConcurrentHashMap::RemoveIf()` 做“按身份移除”:旧会话的迟到 `bind_disconnect` / 定时清扫不会因 UDP 源端口复用(`addr:port` 字符串相同)而误删当前新会话。
-- **涉及文件**:`src/gr_render/plugins/net_rtc_local/rtc_data_channel.cpp`、`rtc_server.cpp/h`、`src/gr_render/plugins/net_udp/udp_plugin.cpp/h`。
+- **涉及文件**:`src/px_render/plugins/net_rtc_local/rtc_data_channel.cpp`、`rtc_server.cpp/h`、`src/px_render/plugins/net_udp/udp_plugin.cpp/h`。
 
 ### 3.9 第二次连接“有首帧但持续卡住”(2026-08-13,修正版)
 
@@ -127,7 +127,7 @@
 - **修复(两层)**:
   - render 侧根本修复:`net_udp` 不再透传会回退的编码器 `frame_index`,改用 UDP 插件自己的单调帧序号(`enc_n`)写入 `VideoFrameMeta.frame_index_`,保证同一 render 进程内 UDP 帧号永远不回退。
   - client 侧防御:`UdpDirectConnection::Start()` 重连时清空 reassembler/audio jitter 状态;`GrUdpFrameReassembler` 遇到 `SOF+key` 且帧号回退时,清掉该 `mon_slot` 旧水位立即按新流处理。
-- **涉及文件**:`src/gr_render/plugins/net_udp/udp_plugin.cpp`、`src/gr_deps/tc_common_new/gr_udp_protocol.h`、`src/gr_deps/tc_client_sdk_new/connection/udp_direct_connection.cpp`。
+- **涉及文件**:`src/px_render/plugins/net_udp/udp_plugin.cpp`、`src/px_deps/px_common_new/gr_udp_protocol.h`、`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`。
 
 ### 3.10 直连 UDP 偶发 1~3s 冻结(2026-08-13)
 
@@ -136,7 +136,7 @@
 - **处理**:
   - LAN/direct 场景把默认 FEC 从 20% 提到 40%(`plugin_net_udp.dll.toml` 同步改),用可忽略的带宽换掉整帧丢。
   - 动态 FEC 策略改为“只要有整帧丢就 +10%”,且只在 `lost==0 && recovered==0` 的干净窗口才下调;避免低丢帧率(<5%)时永远停在 20%。
-- **涉及文件**:`src/gr_render/plugins/net_udp/udp_plugin.cpp`、`udp_plugin.h`、`plugin_net_udp.dll.toml`。
+- **涉及文件**:`src/px_render/plugins/net_udp/udp_plugin.cpp`、`udp_plugin.h`、`plugin_net_udp.dll.toml`。
 
 ### 3.11 渲染端实际只出 30fps(2026-08-13)
 
@@ -157,7 +157,7 @@
   - 去掉"RFI 后 300ms 快速转 IDR"的路径,IDR 只在 2s 完全无帧时兜底。
   - NVENC `maxNumRefFrames` 5→16、`kMaxRfiRange` 4→16;客户端 D3D11VA `initial_pool_size` 8→17 以兼容 SPS 16 参考帧。
 - **实测效果**:6 次判丢全部 4~38ms 内 RFI 恢复,0 次 IDR;硬解正常无黑屏。
-- **涉及文件**:`udp_plugin.cpp/h`、`nvenc_video_encoder.cpp`、`tc_client_sdk_new/connection/udp_direct_connection.cpp/h`、`tc_client_sdk_new/sdk_ffmpeg_decoder.cpp`。
+- **涉及文件**:`udp_plugin.cpp/h`、`nvenc_video_encoder.cpp`、`px_client_sdk_new/connection/udp_direct_connection.cpp/h`、`px_client_sdk_new/sdk_ffmpeg_decoder.cpp`。
 
 ### 3.13 客户端网卡省电设置导致偶发丢包(2026-08-13)
 
@@ -171,7 +171,7 @@
 
 | Moonlight/Sunshine 做法 | 出处 | 我们的落地 | 位置 |
 |---|---|---|---|
-| RS-FEC,GF(2^8),帧级分块 | `moonlight-common-c/reedsolomon/rs.c` | **直接移植** + 自研封装 | `tc_common_new/reedsolomon/`、`gr_fec.h` |
+| RS-FEC,GF(2^8),帧级分块 | `moonlight-common-c/reedsolomon/rs.c` | **直接移植** + 自研封装 | `px_common_new/reedsolomon/`、`gr_fec.h` |
 | 帧级 parity,默认 20% 冗余 | Sunshine `config.cpp` fec_percentage=20 | SOF 扩展携带 frame_size,parity=max(1,ceil(D*pct/100)) | `gr_udp_protocol.h` ShardVideoFrame |
 | 块齐即重建(够用即恢复) | `RtpVideoQueue.c` | reassembler 收到足够 shard 立即恢复,不等齐 | `GrUdpFrameReassembler` |
 | FEC 状态逐帧上报驱动主机调 FEC% | `SS_FRAME_FEC_STATUS` | FRAME_STATUS 控制包,render 5s 窗口动态调 fec% | `BuildFrameStatus` / `udp_plugin.cpp` |
@@ -184,7 +184,7 @@
 | 控制面/媒体面分离 | GameStream 4 通道架构 | ws 控制面不动,UDP 纯媒体面 + 上行小包控制 | `udp_direct` 模式 |
 | UDP ping 打洞绑定会话 | `VideoStream.c:55-82` SS_PING | hello 按源地址绑定媒体会话并触发 IDR | `BuildHello` / `udp_plugin.cpp` |
 | 音频 RS(4,2) 固定 FEC | `Sunshine/src/stream.cpp:1800` | ❌ 未做(增强项) | — |
-| Opus inband FEC | Sunshine Opus 配置 | ✅ 已开 15% | `tc_opus_codec_new/opus_codec.cpp`、`opus_encoder_plugin.cpp` |
+| Opus inband FEC | Sunshine Opus 配置 | ✅ 已开 15% | `px_opus_codec_new/opus_codec.cpp`、`opus_encoder_plugin.cpp` |
 | RFI 参考帧失效(丢 P 不请 IDR) | `nvenc_base.cpp:795` | ✅ NVENC DPB16+range16,RFI 重试;AMF 回退 IDR | `gr_udp_protocol.h`、`nvenc_video_encoder.cpp`、`udp_direct_connection.cpp` |
 | 投机式判丢(缺包>parity 立即上报) | `RtpVideoQueue.c:213-219` | ❌ 未做 | — |
 | 输入走 UDP + 1ms 微批处理 | `InputStream.c:54-60` | ❌ 未做(输入仍走 ws) | — |
@@ -203,12 +203,12 @@
 
 ## 6. 关键文件索引
 
-- 协议/组帧/FEC/音频 jitter:`src/gr_deps/tc_common_new/gr_udp_protocol.h`、`reedsolomon/`、`gr_fec.h`
-- render 发送端:`src/gr_render/plugins/net_udp/udp_plugin.cpp`
-- 客户端接收端:`src/gr_deps/tc_client_sdk_new/connection/udp_direct_connection.cpp`
-- 音频解码/PLC:`src/gr_deps/tc_client_sdk_new/thunder_sdk.cpp:316-345`
-- 编码诊断:`src/gr_render/app/encoder_thread.cpp:69-74`
-- 单测:`src/gr_deps/tc_common_new/tests/test_gr_udp_protocol.cpp`(31 例)
+- 协议/组帧/FEC/音频 jitter:`src/px_deps/px_common_new/gr_udp_protocol.h`、`reedsolomon/`、`gr_fec.h`
+- render 发送端:`src/px_render/plugins/net_udp/udp_plugin.cpp`
+- 客户端接收端:`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`
+- 音频解码/PLC:`src/px_deps/px_client_sdk_new/thunder_sdk.cpp:316-345`
+- 编码诊断:`src/px_render/app/encoder_thread.cpp:69-74`
+- 单测:`src/px_deps/px_common_new/tests/test_gr_udp_protocol.cpp`(31 例)
 - 探针:`scripts/udp_fec_probe.mjs`、`scripts/udp_audio_probe.mjs`
 - 网卡检查/优化:`scripts/check_net_udp.ps1`、`scripts/fix_net_udp.ps1`
 
@@ -224,8 +224,8 @@
 > cmake --build build_official --target plugin_net_udp plugin_net_rtc_local -j18
 > ```
 >
-> 产物在 `build_official\src\gr_render\plugins\net_udp\plugin_net_udp.dll` 和
-> `build_official\src\gr_render\plugins\net_rtc_local\plugin_net_rtc_local.dll`,直接按第 4 步
+> 产物在 `build_official\src\px_render\plugins\net_udp\plugin_net_udp.dll` 和
+> `build_official\src\px_render\plugins\net_rtc_local\plugin_net_rtc_local.dll`,直接按第 4 步
 > 覆盖到远端 `gr_plugins\`,不必整目录 `robocopy build_official\dist`。
 
 1. **构建客户端包**

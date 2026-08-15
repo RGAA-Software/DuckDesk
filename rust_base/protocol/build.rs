@@ -31,7 +31,7 @@ fn main() {
         std::env::set_var("PROTOC", &protoc_path);
     }
 
-    let proto_dir = manifest_dir.join("../../src/gr_deps/tc_server_protocol");
+    let proto_dir = manifest_dir.join("../../src/px_deps/px_server_protocol");
 
     tonic_prost_build::configure()
         .build_server(true)

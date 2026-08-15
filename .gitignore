@@ -3,10 +3,10 @@
 out/*
 cmake-build-release/*
 cmake-build-relwithdebinfo/*
-src/gr_web_client/node_modules/*
-src/gr_web_client/.idea/*
-src/gr_web_client/.vscode/*
-src/gr_web_client/dist/*
+src/px_web_client/node_modules/*
+src/px_web_client/.idea/*
+src/px_web_client/.vscode/*
+src/px_web_client/dist/*
 web/gr_cms/node_modules/*
 web/gr_cms/.idea/*
 web/gr_cms/.vscode/*
@@ -36,21 +36,21 @@ build_opensource/*
 output/*
 setup/app/*
 setup/GammaRay_pdb_*/
-rust_client/gr_sysinfo/build/*
+rust_client/px_sysinfo/build/*
 __pycache__/
 certs/
 vc_redist.x64_cpy.exe
-src/gr_panel/src/tests/test_access_decrypt.exe
-src/gr_panel/src/tests/test_access_decrypt.obj
+src/px_panel/src/tests/test_access_decrypt.exe
+src/px_panel/src/tests/test_access_decrypt.obj
 
 # cross-build tooling (zig / cargo-zigbuild / shims)
 .tooling/
 
 # local server credentials (never commit)
-rust_server/gr_auth_server/tencent_server.txt
-rust_server/gr_desk_server/tencent_server.txt
-rust_server/gr_desk_server/desk_settings.toml
-rust_server/gr_desk_server/admin_password.txt
+rust_server/px_auth_server/tencent_server.txt
+rust_server/px_desk_server/tencent_server.txt
+rust_server/px_desk_server/desk_settings.toml
+rust_server/px_desk_server/admin_password.txt
 _make_setup.log
 
 # Windows reserved device name artifact (can't be indexed by git)

@@ -29,7 +29,7 @@ P3 调度链路打通后，本机 E2E（CMS Web + console Service + game-hook Re
 CMS Web (/apps)
     │  HTTP start/stop/list（带 appkey）
     ▼
-gr_cms_server · AppScheduleManager
+px_cms_server · AppScheduleManager
     │  WSS /spvr/service
     │  Start/Stop + HeartBeat(instances_json)
     ▼
@@ -125,7 +125,7 @@ GammaRayService · AppInstanceRegistry
 
 | 项 | 说明 |
 |----|------|
-| 插件 | `src/gr_render/plugins/ssl_proxy/**` 已删 |
+| 插件 | `src/px_render/plugins/ssl_proxy/**` 已删 |
 | 注册 | `plugins/CMakeLists.txt`、`plugin_ids.h`、`kSSLProxyPluginId` |
 | 原因 | HTTPS 监听 `listen_port+1`，与「下一实例 HTTP = 当前+1」冲突 |
 | 后果 | 同机多实例可连续使用 32000、32001、32002…；Client 走 HTTP `http://ip:port/web_client/...` |
@@ -136,14 +136,14 @@ GammaRayService · AppInstanceRegistry
 
 | 模块 | 文件 | 职责 |
 |------|------|------|
-| CMS 调度 | `rust_server/gr_cms_server/src/app_schedule/manager.rs` | 启停、路径拆分、对账、Start 等待 |
+| CMS 调度 | `rust_server/px_cms_server/src/app_schedule/manager.rs` | 启停、路径拆分、对账、Start 等待 |
 | CMS HB | `.../net_service/spvr_service_conn.rs` | 心跳触发 `reconcile_from_service_hb` |
 | CMS 断线 | `.../net_service/spvr_service_ws_handler.rs` | 断开后延迟 15s 空列表对账；期间重连则取消 |
-| Service 注册表 | `rust_client/gr_service/service_core/src/app_instance.rs` | 端口池、路径、状态 |
-| Service 起停 | `rust_client/gr_service/src/service_host.rs` | 起停 Render、`reap_dead_app_instances` |
-| Service 心跳 | `rust_client/gr_service/src/cms_client.rs` | HB 前 reap；Stop unknown→成功 |
+| Service 注册表 | `rust_client/px_service/service_core/src/app_instance.rs` | 端口池、路径、状态 |
+| Service 起停 | `rust_client/px_service/src/service_host.rs` | 起停 Render、`reap_dead_app_instances` |
+| Service 心跳 | `rust_client/px_service/src/cms_client.rs` | HB 前 reap；Stop unknown→成功 |
 | Web | `web/gr_cms/src/views/AppsView.vue` | 列表绑定、启停 toast |
-| Render | `src/gr_render/rd_app.cpp` | 游戏启动失败快速失败（无 ssl_proxy） |
+| Render | `src/px_render/rd_app.cpp` | 游戏启动失败快速失败（无 ssl_proxy） |
 
 ---
 
@@ -173,7 +173,7 @@ http://{device_ip}:{listen_port}/web_client/?deviceId={device_id}&instanceId={in
 
 | 组件 | 典型路径 / 参数 |
 |------|------------------|
-| CMS | `output/gr_cms_server/gr_cms_server.exe --running-mode=server`（HTTPS `:30500`） |
+| CMS | `output/px_cms_server/px_cms_server.exe --running-mode=server`（HTTPS `:30500`） |
 | Service | `scripts\service_test_ctl.bat start`（封装 `build_official/dist/GammaRayService.exe --console --port 20375`） |
 
 Service 启停脚本（console 模式，2026-08-08 新增）：
@@ -209,7 +209,7 @@ scripts\service_test_ctl.bat stop           rem 停止
 
 ```bash
 # CMS（51/51 通过）
-cargo test -p gr_cms_server -- \
+cargo test -p px_cms_server -- \
   stop_unknown_instance_marks_stopped \
   reconcile_clears_stale_running \
   reconcile_ignores_stopped_hb_entries \
@@ -222,9 +222,9 @@ cargo test -p gr_cms_server -- \
   save_app_rejects_port_out_of_range \
   remove_conn_keeps_newer_connection
 
-# Service（service_core 51/51、gr_service 32/32 通过；含 pid 复用误杀防护、token 边界匹配、端口校验等新测试）
+# Service（service_core 51/51、px_service 32/32 通过；含 pid 复用误杀防护、token 边界匹配、端口校验等新测试）
 cargo test -p service_core
-cargo test -p gr_service
+cargo test -p px_service
 ```
 
 ---
@@ -254,7 +254,7 @@ cargo test -p gr_service
 
 ## 10. 2026-08-08 修复
 
-### 10.1 CMS 侧（rust_server/gr_cms_server）
+### 10.1 CMS 侧（rust_server/px_cms_server）
 
 1. HB `instances_json` 解析失败：warn + 跳过本轮对账（不再按空列表清空 Running）。
 2. `remove_conn` 改 compare-and-remove（`Arc::ptr_eq`）；`add_conn` 顶掉旧连接时主动 close 旧连接，修复重连踩踏导致 Start/Stop 误报 offline。
@@ -266,9 +266,9 @@ cargo test -p gr_service
 8. 端口统一校验 `[32000, 32999]`。
 9. Start 超时清理 `request_index`；迟到 ok 回执不复活 Failed（靠 HB 双向对账恢复）；终态清理 `request_index`；回执校验 `device_id` 一致。
 10. query 参数日志脱敏（token/appkey/secret 只打前 8 位）。
-11. 测试：`cargo test -p gr_cms_server` 51/51 通过（新增 `reconcile_skips_on_bad_json`、`reconcile_revives_stopped_and_failed_from_hb`、`late_start_result_does_not_revive_failed`、`start_result_device_mismatch_ignored`、`heal_instance_after_restart_fixes_transitional_states`、`save_app_rejects_port_out_of_range`、`remove_conn_keeps_newer_connection`）。
+11. 测试：`cargo test -p px_cms_server` 51/51 通过（新增 `reconcile_skips_on_bad_json`、`reconcile_revives_stopped_and_failed_from_hb`、`late_start_result_does_not_revive_failed`、`start_result_device_mismatch_ignored`、`heal_instance_after_restart_fixes_transitional_states`、`save_app_rejects_port_out_of_range`、`remove_conn_keeps_newer_connection`）。
 
-### 10.2 Service 侧（rust_client/gr_service）
+### 10.2 Service 侧（rust_client/px_service）
 
 1. kill 前 pid 身份校验（`pid_belongs_to_instance`：必须是该实例端口的 game-hook Render 或游戏 exe），防 pid 复用误杀；身份全不符返回 Err 不 `mark_stopped`。
 2. kill 后按端口复查（1s 窗口），Render 仍在 → Err，保留端口占用，CMS 标 Failed。
@@ -279,17 +279,17 @@ cargo test -p gr_service
 7. `find_game_hook_pid_by_port` 删除 contains 子串分支（3200 误中 32000），只留 token 边界精确匹配。
 8. HB summaries 只报活跃状态；终态记录 10 分钟 TTL 清理（`prune_finished`）。
 9. CMS URL 日志脱敏；重连固定 2s（2026-08-08 起取消 2s→30s 指数退避），心跳 3s。
-10. 测试：`service_core` 51/51、`gr_service` 32/32 通过（含 pid 复用误杀防护、token 边界、端口校验等新测试）。
+10. 测试：`service_core` 51/51、`px_service` 32/32 通过（含 pid 复用误杀防护、token 边界、端口校验等新测试）。
 
 ### 10.3 第二轮追加（2026-08-08）
 
-- `suggest_next_port` 封顶：超 32999 回落池起点扫描第一个空闲端口，全满报「端口已用完（32000-32999）」；handler 适配 Result 返回。新增 3 单测（`gr_cms_server` 54/54）。
+- `suggest_next_port` 封顶：超 32999 回落池起点扫描第一个空闲端口，全满报「端口已用完（32000-32999）」；handler 适配 Result 返回。新增 3 单测（`px_cms_server` 54/54）。
 - `port_bindable` 补 IPv6 `[::]` 探测：`AddrInUse` 才算占用，无 IPv6 栈不误伤。新增 1 单测（`service_core` 52/52）。
 - 实测备注：Windows 上 Rust std 未设 `SO_EXCLUSIVEADDRUSE`，「先绑具体地址再绑通配」可双绑成功——仅绑回环具体地址的占用探测不到，但此时 render 自己 bind 通配同样成功，行为一致。
 
 ### 10.4 force_authorize 测试开关（2026-08-08）
 
 - `gr_cms_server_settings.toml` 新增 `force_authorize`：`false` = WS token 过滤（client/panel/service/website）与 HTTP appkey 过滤一律放行（本机/测试）；缺省（不写）为 `true` 强制鉴权。
-- 测试部署（`output/gr_cms_server/`）已置 `false`；生产部署应显式 `true`。
+- 测试部署（`output/px_cms_server/`）已置 `false`；生产部署应显式 `true`。
 - 放行时 `/spvr/service` 不再需要 appkey/token 参数即可连接（`inject_service_auth` 不再是前置条件）。
 - WS token 过滤器的拒收类单测现在显式置 `force_authorize=true`（结构体 `Default` 为 false）；新增 `client_bypassed_when_force_authorize_false`。

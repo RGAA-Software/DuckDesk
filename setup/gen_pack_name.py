@@ -14,7 +14,7 @@ def extract_project_version(file_path):
 
 
 def gen_package_name(build_dir: str) -> str:
-    version_file = os.path.join(build_dir, "src", "gr_base", "version_config.h")
+    version_file = os.path.join(build_dir, "src", "px_base", "version_config.h")
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
@@ -23,7 +23,7 @@ def gen_package_name(build_dir: str) -> str:
 
 
 def gen_package_pdb_name(build_dir: str) -> str:
-    version_file = os.path.join(build_dir, "src", "gr_base", "version_config.h")
+    version_file = os.path.join(build_dir, "src", "px_base", "version_config.h")
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")

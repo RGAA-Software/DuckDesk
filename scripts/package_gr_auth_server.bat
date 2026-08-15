@@ -1,26 +1,26 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Package gr_auth_server for standalone deployment.
+:: Package px_auth_server for standalone deployment.
 :: 1. Ensure shared TLS certificate (generated once, reused across servers).
 :: 1b. Generate Ed25519 license signing key pair (if missing).
 :: 2. Build the Vue auth frontend.
 :: 3. Build the Rust auth server.
-:: 4. Copy exe + web assets + config + certs into output\gr_auth_server\.
+:: 4. Copy exe + web assets + config + certs into output\px_auth_server\.
 ::
-:: Result: run output\gr_auth_server\gr_auth_server.exe and open
+:: Result: run output\px_auth_server\px_auth_server.exe and open
 ::         https://localhost:30400 in a browser.
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
-set "OUTPUT_DIR=%REPO_ROOT%\output\gr_auth_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_auth_server"
 set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\gr_auth"
-set "SERVER_SRC=%REPO_ROOT%\rust_server\gr_auth_server"
+set "SERVER_SRC=%REPO_ROOT%\rust_server\px_auth_server"
 set "SERVER_WORKSPACE=%REPO_ROOT%\rust_server"
 
 echo ============================================
-echo Packaging gr_auth_server
+echo Packaging px_auth_server
 echo ============================================
 echo.
 
@@ -88,12 +88,12 @@ echo.
 :: --- 3. Build auth server ---
 echo [3/4] Building auth server...
 cd /d "%SERVER_WORKSPACE%"
-python "%SERVER_WORKSPACE%\set_server_version.py" gr_auth_server --bump
+python "%SERVER_WORKSPACE%\set_server_version.py" px_auth_server --bump
 if errorlevel 1 (
     echo ERROR: version bump failed.
     exit /b 1
 )
-cargo build -p gr_auth_server --release
+cargo build -p px_auth_server --release
 if errorlevel 1 (
     echo ERROR: cargo build failed.
     exit /b 1
@@ -104,9 +104,9 @@ echo.
 echo [4/4] Copying artifacts to %OUTPUT_DIR%...
 
 :: exe
-copy /Y "%SERVER_WORKSPACE%\target\release\gr_auth_server.exe" "%OUTPUT_DIR%\gr_auth_server.exe" >nul
+copy /Y "%SERVER_WORKSPACE%\target\release\px_auth_server.exe" "%OUTPUT_DIR%\px_auth_server.exe" >nul
 if errorlevel 1 (
-    echo ERROR: Failed to copy gr_auth_server.exe.
+    echo ERROR: Failed to copy px_auth_server.exe.
     exit /b 1
 )
 
@@ -140,7 +140,7 @@ echo      (jwt_secret is auto-generated on every startup)
 echo   3. Distribute %OUTPUT_DIR%\certs\auth_license_public.key to CMS servers.
 echo.
 echo Run:
-echo   %OUTPUT_DIR%\gr_auth_server.exe
+echo   %OUTPUT_DIR%\px_auth_server.exe
 echo.
 echo Open in browser:
 echo   https://localhost:30400

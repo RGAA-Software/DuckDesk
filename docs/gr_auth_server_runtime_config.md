@@ -1,6 +1,6 @@
-# gr_auth_server Runtime Config
+# px_auth_server Runtime Config
 
-`gr_auth_server` does not embed default passwords or JWT secrets in source code. Runtime security-sensitive values are read from `gr_auth_server_settings.toml`.
+`px_auth_server` does not embed default passwords or JWT secrets in source code. Runtime security-sensitive values are read from `gr_auth_server_settings.toml`.
 
 Required config:
 

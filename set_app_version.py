@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-VERSION_CMAKE = ROOT / "src" / "gr_base" / "version.cmake"
+VERSION_CMAKE = ROOT / "src" / "px_base" / "version.cmake"
 
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -200,7 +200,7 @@ def version_targets() -> list[tuple[str, Path, str]]:
     return [
         ("C++ (TC_APP_VERSION)", VERSION_CMAKE, "cmake"),
         ("NSIS main installer", ROOT / "setup" / "proj_version.nsh", "nsis"),
-        ("NSIS panel package", ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh", "nsis"),
+        ("NSIS panel package", ROOT / "src" / "px_panel" / "package" / "proj_version.nsh", "nsis"),
         ("Rust client workspace", ROOT / "rust_client" / "Cargo.toml", "cargo_workspace"),
         ("Rust base workspace", ROOT / "rust_base" / "Cargo.toml", "cargo_workspace"),
         ("Rust base protocol", ROOT / "rust_base" / "protocol" / "Cargo.toml", "cargo_package"),
@@ -244,7 +244,7 @@ def show_versions() -> None:
     for label, path in (
         ("C++ (TC_APP_VERSION_CODE)", VERSION_CMAKE),
         ("NSIS main installer", ROOT / "setup" / "proj_version.nsh"),
-        ("NSIS panel package", ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh"),
+        ("NSIS panel package", ROOT / "src" / "px_panel" / "package" / "proj_version.nsh"),
     ):
         if not path.is_file():
             print(f"  [missing] {label}: {path}")
@@ -284,7 +284,7 @@ def show_versions() -> None:
 def sync_cargo_locks() -> None:
     # 注意：不能用 `cargo generate-lockfile`——它会把所有依赖升到
     # "latest compatible"（包括 git 依赖拉新 revision），曾导致 gpui 出现两个
-    # 不兼容 revision 使 gr_sysinfo 编译失败。`cargo metadata` 只做保守解析：
+    # 不兼容 revision 使 px_sysinfo 编译失败。`cargo metadata` 只做保守解析：
     # 保留现有锁定版本，仅同步本地 workspace 包的版本号变更。
     # rust_server 的 lock 由各服务自己的版本脚本同步（set_server_version.py）。
     for workspace in (
@@ -317,9 +317,9 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     update_tc_app_version_code(VERSION_CMAKE, code)
     update_nsis_product_version(ROOT / "setup" / "proj_version.nsh", version)
     update_nsis_product_version_code(ROOT / "setup" / "proj_version.nsh", code)
-    update_nsis_product_version(ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh", version)
+    update_nsis_product_version(ROOT / "src" / "px_panel" / "package" / "proj_version.nsh", version)
     update_nsis_product_version_code(
-        ROOT / "src" / "gr_panel" / "package" / "proj_version.nsh",
+        ROOT / "src" / "px_panel" / "package" / "proj_version.nsh",
         code,
     )
 
@@ -339,7 +339,7 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     print("Next steps:")
     print("  1. Rebuild: .\\build_official.bat")
     print("  2. Rebuild servers if needed: .\\build_gr_cms_server.bat / build_gr_auth_server.bat / build_gr_desk_server.bat")
-    print("  3. Repackage installers under setup/ and src/gr_panel/package/")
+    print("  3. Repackage installers under setup/ and src/px_panel/package/")
 
 
 def self_test() -> None:

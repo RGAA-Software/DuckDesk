@@ -1,0 +1,11 @@
+[package]
+name = "px_crash_reporter"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "GammaRayCrashReporter"
+path = "src/main.rs"
+
+[dependencies]
+px_base = { path = "../../rust_base/px_base" }

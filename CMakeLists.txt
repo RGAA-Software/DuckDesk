@@ -36,36 +36,36 @@ set(FFMPEG_ROOT ${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET})
 ##Source
 include_directories(${CMAKE_SOURCE_DIR}/)
 include_directories(${CMAKE_SOURCE_DIR}/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_base)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/eventbus/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_message_new)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_server_protocol)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/qwindowkit/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/asio2/3rd/asio)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_base)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/eventbus/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_server_protocol)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/3rd)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/3rd/asio)
 include_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include)
 include_directories(${FFMPEG_ROOT}/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/webrtc/include/third_party/libyuv/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/qwindowkit)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/qwindowkit/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_panel/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_render)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_qt_widget)
-include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_client_sdk_new)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc/include/third_party/libyuv/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_qt_widget)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_client_sdk_new)
 ##Binary
-include_directories(${CMAKE_BINARY_DIR}/src/gr_base)
-include_directories(${CMAKE_BINARY_DIR}/src/gr_panel)
-include_directories(${CMAKE_BINARY_DIR}/src/gr_deps/tc_message_new)
-include_directories(${CMAKE_BINARY_DIR}/src/gr_deps/tc_server_protocol)
+include_directories(${CMAKE_BINARY_DIR}/src/px_base)
+include_directories(${CMAKE_BINARY_DIR}/src/px_panel)
+include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_message_new)
+include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_server_protocol)
 
 ## Client
-# include_directories(${CMAKE_SOURCE_DIR}/src/gr_client)
-# include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins)
-# include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins/file_transfer_client)
-# include_directories(${CMAKE_SOURCE_DIR}/src/gr_client/plugins/file_transfer_client/src)
+# include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
+# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins)
+# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins/file_transfer_client)
+# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins/file_transfer_client/src)
 
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
@@ -79,8 +79,8 @@ link_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/lib)
 if(MSVC)
     add_compile_options($<IF:$<CONFIG:Debug>,/MTd,/MT>)
     add_compile_options("/bigobj")
-    include_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/openssl/include)
-    link_directories(${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/openssl/x64/lib/VC)
+    include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/openssl/include)
+    link_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/openssl/x64/lib/VC)
 endif()
 
 add_definitions(-DFMT_HEADER_ONLY)
@@ -133,11 +133,11 @@ find_package(OpenCV REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 
-set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/gr_deps/tc_3rdparty/webrtc)
+set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc)
 
-set(GR_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/gr_deps)
+set(GR_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/px_deps)
 if (BUILD_PREMIUM)
-    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/gr_deps)
+    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/px_deps)
 else()
     set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
 endif()
@@ -149,7 +149,7 @@ message(STATUS "Using protobuf from vcpkg: ${protobuf_VERSION}")
 
 find_program(CARGO_EXECUTABLE cargo)
 if(NOT CARGO_EXECUTABLE)
-    message(FATAL_ERROR "cargo not found. Rust toolchain is required to build gr_sysinfo.")
+    message(FATAL_ERROR "cargo not found. Rust toolchain is required to build px_sysinfo.")
 endif()
 
 set(GR_SYSINFO_EXE_NAME GammaRaySysInfo.exe)
@@ -181,14 +181,14 @@ set(GR_CRASH_REPORTER_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_CRASH_REPORTER_E
 set(GR_UNINSTALL_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_UNINSTALL_EXE_NAME})
 
 add_custom_target(GammaRaySysInfo_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_sysinfo --bin GammaRaySysInfo ${GR_RUST_BUILD_FLAG}
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin GammaRaySysInfo ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRaySysInfo"
         VERBATIM
 )
 
 add_custom_target(GammaRayService_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_service --bin GammaRayService ${GR_RUST_BUILD_FLAG}
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin GammaRayService ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRayService"
         VERBATIM
@@ -202,14 +202,14 @@ add_custom_target(GammaRayServiceManager_rust
 )
 
 add_custom_target(GammaRayUserProxy_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_user_proxy --bin GammaRayUserProxy ${GR_RUST_BUILD_FLAG}
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin GammaRayUserProxy ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRayUserProxy"
         VERBATIM
 )
 
 add_custom_target(GammaRayCrashReporter_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_crash_reporter --bin GammaRayCrashReporter ${GR_RUST_BUILD_FLAG}
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_crash_reporter --bin GammaRayCrashReporter ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRayCrashReporter"
         VERBATIM
@@ -251,7 +251,7 @@ add_custom_target(GammaRayCrashReporter_stage
 )
 
 add_custom_target(GammaRayUninstall_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p gr_uninstall --bin GammaRayUninstall ${GR_RUST_BUILD_FLAG}
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin GammaRayUninstall ${GR_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust GammaRayUninstall"
         VERBATIM
@@ -288,11 +288,11 @@ add_dependencies(tc_build_premium_all
 
     ### from former tc_build_all (deps + rust stages)
     GammaRayRender GammaRayService_stage GammaRayServiceManager_stage tc_message tc_vigem tc_plugin
-    GammaRayClientInner tc_relay_client tc_rtc_client tc_cp_message GammaRayUserProxy_stage tc_hw_info
+    GammaRayClientInner px_relay_client tc_rtc_client tc_cp_message GammaRayUserProxy_stage tc_hw_info
     GammaRayCrashReporter_stage GammaRaySysInfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
-    plugin_was_audio_capture plugin_opus_encoder tc_sdk tc_qt_widget plugin_mock_video_stream tc_translator
-    tc_spvr_client tc_account_sdk tc_rp_message tc_profile_client plugin_event_replayer tc_global_id_generator
+    plugin_was_audio_capture plugin_opus_encoder tc_sdk px_qt_widget plugin_mock_video_stream tc_translator
+    px_spvr_client px_account_sdk tc_rp_message px_profile_client plugin_event_replayer tc_global_id_generator
     tc_server_message
 )
 
@@ -302,13 +302,13 @@ endif()
 
 ## Servers
 #add_custom_target(tc_build_servers_all ALL COMMENT "Build all targets")
-#add_dependencies(tc_build_servers_all gr_svr_base gr_relay_server gr_cms_server gr_auth_server gr_profile_server)
+#add_dependencies(tc_build_servers_all gr_svr_base gr_relay_server px_cms_server px_auth_server gr_profile_server)
 
-set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/gr_deps)
+set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/px_deps)
 
 ## Copy proto files
-set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/gr_web_client")
-set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/gr_deps/tc_message_new)
+set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
+set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
 add_custom_command(TARGET tc_build_premium_all PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_signaling_message.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/tc_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/tc_file_transfer.proto"

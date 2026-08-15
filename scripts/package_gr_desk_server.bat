@@ -1,26 +1,26 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Package gr_desk_server for standalone deployment.
+:: Package px_desk_server for standalone deployment.
 :: 1. Ensure shared TLS certificate (generated once, reused across servers).
 :: 2. Build the Vue desk frontend.
 :: 3. Build the Rust desk server.
-:: 4. Copy exe + web assets + certs into output\gr_desk_server\.
+:: 4. Copy exe + web assets + certs into output\px_desk_server\.
 ::
-:: Result: run output\gr_desk_server\gr_desk_server.exe
+:: Result: run output\px_desk_server\px_desk_server.exe
 ::         HTTP  on http://localhost:5000
 ::         HTTPS on https://localhost:5001
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
-set "OUTPUT_DIR=%REPO_ROOT%\output\gr_desk_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_desk_server"
 set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\gr_desk"
-set "SERVER_SRC=%REPO_ROOT%\rust_server\gr_desk_server"
+set "SERVER_SRC=%REPO_ROOT%\rust_server\px_desk_server"
 set "SERVER_WORKSPACE=%REPO_ROOT%\rust_server"
 
 echo ============================================
-echo Packaging gr_desk_server
+echo Packaging px_desk_server
 echo ============================================
 echo.
 
@@ -59,12 +59,12 @@ echo.
 :: --- 3. Build desk server ---
 echo [3/4] Building desk server...
 cd /d "%SERVER_WORKSPACE%"
-python "%SERVER_WORKSPACE%\set_server_version.py" gr_desk_server --bump
+python "%SERVER_WORKSPACE%\set_server_version.py" px_desk_server --bump
 if errorlevel 1 (
     echo ERROR: version bump failed.
     exit /b 1
 )
-cargo build -p gr_desk_server --release
+cargo build -p px_desk_server --release
 if errorlevel 1 (
     echo ERROR: cargo build failed.
     exit /b 1
@@ -75,9 +75,9 @@ echo.
 echo [4/4] Copying artifacts to %OUTPUT_DIR%...
 
 :: exe
-copy /Y "%SERVER_WORKSPACE%\target\release\gr_desk_server.exe" "%OUTPUT_DIR%\gr_desk_server.exe" >nul
+copy /Y "%SERVER_WORKSPACE%\target\release\px_desk_server.exe" "%OUTPUT_DIR%\px_desk_server.exe" >nul
 if errorlevel 1 (
-    echo ERROR: Failed to copy gr_desk_server.exe.
+    echo ERROR: Failed to copy px_desk_server.exe.
     exit /b 1
 )
 
@@ -100,7 +100,7 @@ echo Before running:
 echo   1. Start MongoDB (default: mongodb://localhost:27017/)
 echo.
 echo Run:
-echo   %OUTPUT_DIR%\gr_desk_server.exe
+echo   %OUTPUT_DIR%\px_desk_server.exe
 echo.
 echo Open in browser:
 echo   http://localhost:5000

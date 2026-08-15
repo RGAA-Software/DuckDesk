@@ -31,7 +31,7 @@
 | Rust CMS | `total_size` 与查询使用同一 filter，分页总数正确。 |
 | Web | 文件传输表新增「传输结果」「传输耗时」列；修复 `end==0` 显示为 `-`。 |
 | Web | 搜索时重置页码；修复 `console.error` 文案。 |
-| 编译 | `GammaRay.exe`、`gr_cms_server` Release、Vue 前端均构建通过。 |
+| 编译 | `GammaRay.exe`、`px_cms_server` Release、Vue 前端均构建通过。 |
 | API 自测 | insert/update/upsert/update-before-insert/query-total 均 200。 |
 
 ---
@@ -61,8 +61,8 @@
 
 **涉及文件**：
 
-- `src/gr_render/...`：找到 `RpClientConnected` 的填充位置（可能在 `rd_main.cpp` 或连接管理类中）。
-- `src/gr_panel/src/render_panel/network/ws_panel_server.cpp`：透传，无需改动，除非需要默认值兜底。
+- `src/px_render/...`：找到 `RpClientConnected` 的填充位置（可能在 `rd_main.cpp` 或连接管理类中）。
+- `src/px_panel/src/render_panel/network/ws_panel_server.cpp`：透传，无需改动，除非需要默认值兜底。
 - `web/gr_cms/src/views/SecurityInternal.vue`：如新增类型，需要映射中文展示。
 
 ---
@@ -84,7 +84,7 @@
    - 在 `ws_panel_server.cpp` 的 render/client end 分支里，把计算出的 duration 填入 record 再上报。
 
 2. **Rust CMS 侧存储 duration**：
-   - `rust_server/gr_cms_server/src/record/spvr_file_transfer.rs` 中 `SpvrFileTransfer` 与 `SpvrUpdateFileTransfer` 都增加：
+   - `rust_server/px_cms_server/src/record/spvr_file_transfer.rs` 中 `SpvrFileTransfer` 与 `SpvrUpdateFileTransfer` 都增加：
      ```rust
      #[serde(default)]
      pub duration: i64,
@@ -103,18 +103,18 @@
 
 **涉及文件**：
 
-- `src/gr_panel/src/render_panel/database/file_transfer_record.{h,cpp}`
-- `src/gr_panel/src/render_panel/database/file_transfer_record_operator.cpp`
-- `src/gr_panel/src/render_panel/network/ws_panel_server.cpp`
-- `rust_server/gr_cms_server/src/record/spvr_file_transfer.rs`
-- `rust_server/gr_cms_server/src/record/spvr_file_transfer_manager.rs`
+- `src/px_panel/src/render_panel/database/file_transfer_record.{h,cpp}`
+- `src/px_panel/src/render_panel/database/file_transfer_record_operator.cpp`
+- `src/px_panel/src/render_panel/network/ws_panel_server.cpp`
+- `rust_server/px_cms_server/src/record/spvr_file_transfer.rs`
+- `rust_server/px_cms_server/src/record/spvr_file_transfer_manager.rs`
 - `web/gr_cms/src/views/SecurityInternal.vue`
 
 ---
 
 #### 3.1.3 客户端虚拟文件传输结束状态上报
 
-**问题**：`src/gr_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.cpp` 中：
+**问题**：`src/px_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.cpp` 中：
 
 ```cpp
 void CpVirtualFile::RecordFileTransferEnd() {
@@ -141,8 +141,8 @@ void CpVirtualFile::RecordFileTransferEnd() {
 
 **涉及文件**：
 
-- `src/gr_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.cpp`
-- `src/gr_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.h`
+- `src/px_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.cpp`
+- `src/px_panel/src/render_panel/clipboard/win/panel_cp_virtual_file.h`
 - 同目录下其他平台的实现（如存在）
 
 ---
@@ -165,7 +165,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
    c.execute("INSERT OR REPLACE INTO file_transfer_record ...", (...))
    conn.commit(); conn.close()
    ```
-3. 启动 `build_official/src/gr_deps/GammaRay.exe`，等待至少 30 秒（让 `GrWorkspace::Init()` 和 `WsPanelServer::Start()` 完成）。
+3. 启动 `build_official/src/px_deps/GammaRay.exe`，等待至少 30 秒（让 `GrWorkspace::Init()` 和 `WsPanelServer::Start()` 完成）。
 4. 观察以下任一证据：
    - `%ProgramData%/gr_logs/godesk.log` 中出现 `ScanAndFixUnclosedRecords: fixed N visit(s), M file transfer(s)`。
    - SQLite 中对应记录的 `end`、`duration`、`success` 被更新。
@@ -183,7 +183,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 
 #### 3.3.1 真实访问记录链路
 
-1. 启动 `gr_cms_server`、MongoDB、Redis。
+1. 启动 `px_cms_server`、MongoDB、Redis。
 2. 启动受控端 `GammaRay.exe`（或 `GammaRayService.exe`）。
 3. 使用客户端连接一次，保持 10 秒以上后断开。
 4. 打开 CMS 安全审计 → 访问记录：
@@ -219,7 +219,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 
 #### 3.4.1 MongoDB 去重（生产必做）
 
-在 `gr_cms_server` 启动时会创建唯一索引。若集合里已有重复 `conn_id` / `the_file_id`，建索引会失败并被忽略，导致 upsert 仍可能产生重复。
+在 `px_cms_server` 启动时会创建唯一索引。若集合里已有重复 `conn_id` / `the_file_id`，建索引会失败并被忽略，导致 upsert 仍可能产生重复。
 
 **升级前执行**：
 
@@ -271,8 +271,8 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 
 1. 备份 MongoDB `db_gr_cms_server`。
 2. 运行去重脚本。
-3. 部署新版 `gr_cms_server`、前端 `web/gr_cms/dist`。
-4. 启动 `gr_cms_server`，确认日志没有 "create visit conn_id index failed" 等警告。
+3. 部署新版 `px_cms_server`、前端 `web/gr_cms/dist`。
+4. 启动 `px_cms_server`，确认日志没有 "create visit conn_id index failed" 等警告。
 5. 部署新版 `GammaRay.exe` / `GammaRayService.exe`。
 6. 首次启动后检查本地 SQLite 是否成功升级，以及启动扫描日志。
 
@@ -304,7 +304,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 | 测试项 | 测试方法 | 通过标准 |
 |--------|---------|---------|
 | C++ 编译 | `build_official.bat incremental` | 无错误，生成 `GammaRay.exe` |
-| Rust CMS 编译 | `cargo build -p gr_cms_server --release` | 无错误 |
+| Rust CMS 编译 | `cargo build -p px_cms_server --release` | 无错误 |
 | Web 编译 | `cd web/gr_cms && npm run build` | 无类型错误 |
 | 访问记录 insert/update | curl | 200，DB 只有一条 |
 | 文件传输 insert/update | curl | 200，DB 只有一条 |

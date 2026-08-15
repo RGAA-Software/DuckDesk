@@ -10,7 +10,7 @@ import os
 import shutil
 import sys
 
-# Directories inside src/gr_deps/ that we keep as-is
+# Directories inside src/px_deps/ that we keep as-is
 KEEP_DIRS = {
     "certs", "resources", "translations", "www", "web", "package",
     "generic", "iconengines", "imageformats", "networkinformation",
@@ -18,7 +18,7 @@ KEEP_DIRS = {
 }
 
 # Build-system dirs to skip when scanning
-SKIP_DIRS = {"CMakeFiles", "deps", "tc_client_web"}
+SKIP_DIRS = {"CMakeFiles", "deps", "px_client_web"}
 
 # File extensions to skip
 SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmake"}
@@ -99,9 +99,9 @@ def main():
     os.makedirs(dist_dir, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # 1. Base: src/gr_deps/ (main exes, Qt DLLs, resources, etc.)
+    # 1. Base: src/px_deps/ (main exes, Qt DLLs, resources, etc.)
     # ------------------------------------------------------------------
-    gamma_ray_dir = os.path.join(build_dir, "src", "gr_deps")
+    gamma_ray_dir = os.path.join(build_dir, "src", "px_deps")
     if os.path.isdir(gamma_ray_dir):
         for entry in os.listdir(gamma_ray_dir):
             src_path = os.path.join(gamma_ray_dir, entry)
@@ -122,12 +122,12 @@ def main():
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
     supplements = [
-        ("src/gr_client/GammaRayClientInner.exe", "GammaRayClientInner.exe"),
+        ("src/px_client/GammaRayClientInner.exe", "GammaRayClientInner.exe"),
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
-        ("src/gr_render/GammaRayRender.exe", "GammaRayRender.exe"),
-        ("src/gr_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
-        ("src/gr_deps/tc_webrtc_client/tc_rtc_client.dll", "gr_client/tc_rtc_client.dll"),
+        ("src/px_render/GammaRayRender.exe", "GammaRayRender.exe"),
+        ("src/px_render/app/tc_global_id_generator.dll", "tc_global_id_generator.dll"),
+        ("src/px_deps/px_webrtc_client/tc_rtc_client.dll", "px_client/tc_rtc_client.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
@@ -135,8 +135,8 @@ def main():
     # ------------------------------------------------------------------
     # 3. Render plugins  →  dist/gr_plugins/
     # ------------------------------------------------------------------
-    gr_plugins_build_dir = os.path.join(build_dir, "src", "gr_render", "plugins")
-    gr_plugins_src_dir = os.path.join(source_dir, "src", "gr_render", "plugins")
+    gr_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
+    gr_plugins_src_dir = os.path.join(source_dir, "src", "px_render", "plugins")
     gr_plugins_dst = os.path.join(dist_dir, "gr_plugins")
     if os.path.isdir(gr_plugins_build_dir):
         os.makedirs(gr_plugins_dst, exist_ok=True)
@@ -159,8 +159,8 @@ def main():
     client_plugin_dirs = ["clipboard", "file_transfer_client", "media_record", "multi_screens"]
     gr_plugins_client_dst = os.path.join(dist_dir, "gr_plugins_client")
     for plugin_dir in client_plugin_dirs:
-        plugin_build_dir = os.path.join(build_dir, "src", "gr_client", "plugins", plugin_dir)
-        plugin_src_dir = os.path.join(source_dir, "src", "gr_client", "plugins", plugin_dir)
+        plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
+        plugin_src_dir = os.path.join(source_dir, "src", "px_client", "plugins", plugin_dir)
         if not os.path.isdir(plugin_build_dir):
             continue
         os.makedirs(gr_plugins_client_dst, exist_ok=True)
@@ -180,16 +180,16 @@ def main():
 
     # skin_open_source / skin_official DLLs
     # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to GR_PROJECT_BINARY_PATH
-    # (which points to src/gr_deps), the skin DLLs are built there, not under
-    # src/gr_panel/src/skin/official.
-    skins_src = os.path.join(build_dir, "src", "gr_deps")
+    # (which points to src/px_deps), the skin DLLs are built there, not under
+    # src/px_panel/src/skin/official.
+    skins_src = os.path.join(build_dir, "src", "px_deps")
     if os.path.isdir(skins_src):
         for f in os.listdir(skins_src):
             if f.startswith("skin_") and f.endswith(".dll"):
                 copy_file(os.path.join(skins_src, f), os.path.join(gr_skins_dst, f))
 
     # skin config (from source tree)
-    skin_config_src = os.path.join(build_dir, "..", "src", "gr_panel", "src", "skin", "skin_config.toml")
+    skin_config_src = os.path.join(build_dir, "..", "src", "px_panel", "src", "skin", "skin_config.toml")
     if os.path.isfile(skin_config_src):
         copy_file(skin_config_src, os.path.join(gr_skins_dst, "skin_config.toml"))
 
@@ -197,9 +197,9 @@ def main():
     # 6. Hook capture
     # ------------------------------------------------------------------
     hook_capture_files = [
-        ("src/gr_render/hook_capture/win/hk_obs/tc_graphics.dll", "tc_graphics.dll"),
-        ("src/gr_render/hook_capture/win/hk_obs/injector/tc_graphics_util.exe", "tc_graphics_util.exe"),
-        ("src/gr_render/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe", "tc_graphics_offsets.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/tc_graphics.dll", "tc_graphics.dll"),
+        ("src/px_render/hook_capture/win/hk_obs/injector/tc_graphics_util.exe", "tc_graphics_util.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/offsets/tc_graphics_offsets.exe", "tc_graphics_offsets.exe"),
     ]
     for rel_src, rel_dst in hook_capture_files:
         copy_file(os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
@@ -208,14 +208,14 @@ def main():
     # 7. Anti-hooking
     # ------------------------------------------------------------------
     copy_file(
-        os.path.join(build_dir, "src", "gr_client", "anti_hooking", "tc_protection.dll"),
+        os.path.join(build_dir, "src", "px_client", "anti_hooking", "tc_protection.dll"),
         os.path.join(dist_dir, "tc_protection.dll"),
     )
 
     # ------------------------------------------------------------------
     # 8. Joystick (source tree)
     # ------------------------------------------------------------------
-    joystick_src = os.path.join(build_dir, "..", "src", "gr_deps", "tc_controller", "vigem", "driver", "joystick.exe")
+    joystick_src = os.path.join(build_dir, "..", "src", "px_deps", "px_controller", "vigem", "driver", "joystick.exe")
     if os.path.isfile(joystick_src):
         copy_file(joystick_src, os.path.join(dist_dir, "joystick.exe"))
 

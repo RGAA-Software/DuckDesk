@@ -8,7 +8,7 @@
 
 | 方向 | 谁复制 | 谁粘贴 | 虚拟文件对象在哪 | 对象实现 |
 |------|--------|--------|------------------|----------|
-| client → host | 客户端(16) | 主机(90) | 主机 90 | Rust `gr_user_proxy` (`win_clipboard.rs`) |
+| client → host | 客户端(16) | 主机(90) | 主机 90 | Rust `px_user_proxy` (`win_clipboard.rs`) |
 | host → client | 主机(90) | 客户端(16) | 客户端 16 | C++ 客户端插件 `CpVirtualFile` |
 
 数据链路：
@@ -50,7 +50,7 @@ Rust 侧之所以一直正常，就是因为它专门在 `win_listener` 的隐�
 - `CF_HDROP`（`DROPFILES`，内容填 `ref_path`，仅用于点亮菜单，真正取数走 `FileContents`）。
 - `CFSTR_PREFERREDDROPEFFECT`（`DROPEFFECT_COPY`）。
 
-参考：旧版 `gr_render/plugins/clipboard/win/cp_virtual_file.cpp`（已注释）里本来就有 `m_cfHdrop` 和 `m_cfPreferredDropEffect`。
+参考：旧版 `px_render/plugins/clipboard/win/cp_virtual_file.cpp`（已注释）里本来就有 `m_cfHdrop` 和 `m_cfPreferredDropEffect`。
 
 ### 3. 单块大小不能超过 128 KiB
 
@@ -69,8 +69,8 @@ Rust 侧之所以一直正常，就是因为它专门在 `win_listener` 的隐�
 ### 5. render 与 user_proxy 都要补 kClipboardReqBuffer 处理
 
 host → client 方向的取数链路原本是断的：
-- `gr_render/plugins/plugin_net_event_router.cpp` 原来只把 `kClipboardInfo`/`kClipboardRespBuffer` 转发给 user_proxy，**没有转发 `kClipboardReqBuffer`**。
-- `gr_user_proxy/src/render_client.rs` 原来只处理 `kClipboardRespBuffer`，**没有处理 `kClipboardReqBuffer`**（只有 `mock_render.rs` 里有一份参考实现）。
+- `px_render/plugins/plugin_net_event_router.cpp` 原来只把 `kClipboardInfo`/`kClipboardRespBuffer` 转发给 user_proxy，**没有转发 `kClipboardReqBuffer`**。
+- `px_user_proxy/src/render_client.rs` 原来只处理 `kClipboardRespBuffer`，**没有处理 `kClipboardReqBuffer`**（只有 `mock_render.rs` 里有一份参考实现）。
 
 **修复**：
 - render 把 `kClipboardReqBuffer` 与 `kClipboardRespBuffer` 一起按 `data_channel=true` 转发给 user_proxy。

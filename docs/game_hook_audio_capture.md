@@ -21,7 +21,7 @@
 | OS 不支持 | **进程内 Hook**（`tc_graphics.dll`） | WASAPI / XAudio2 / WaveOut / DirectSound 等；经 WS `/ipc` → `OnIpcAudioFrame` |
 
 门控函数：`tc::IsProcessLoopbackCaptureSupported()`  
-文件：`src/gr_deps/tc_capture_new/process_loopback_support.h`
+文件：`src/px_deps/px_capture_new/process_loopback_support.h`
 
 ### 1.3 明确不做的事
 
@@ -74,7 +74,7 @@ PrepareGameHookBoot / AppManagerWinImpl
 **原因**：`ActivateAudioInterfaceAsync` 在 UI/消息线程上调用，异步完成回调无法正常推进。
 
 **修复**：与 desktop MiniAudio 一样，放到 worker 线程（`Thread::MakeOnceTask`）再 `StartProviding`。  
-文件：`src/gr_render/rd_app.cpp`（`MsgObsInjected` 监听）。
+文件：`src/px_render/rd_app.cpp`（`MsgObsInjected` 监听）。
 
 ### 3.2 MiniAudio PID loopback 在 Win32 Desktop 上失败
 
@@ -168,7 +168,7 @@ MiniAudio 的默认设备 loopback、以及（未打补丁前）PID loopback，�
 scripts\build_miniaudio_pid_test.bat
 
 rem 先启动会出声的游戏，再：
-build_official\src\gr_render\plugins\was_audio_capture\test_miniaudio_pid_loopback.exe <pid>
+build_official\src\px_render\plugins\was_audio_capture\test_miniaudio_pid_loopback.exe <pid>
 ```
 
 期望：
@@ -207,7 +207,7 @@ WAV 调试：`AudioShare` 默认 `write_wav_ = false`；WAV 写盘逻辑可按�
 ### 7.1 Host 音频插件（核心生产）
 
 ```
-src/gr_render/plugins/was_audio_capture/
+src/px_render/plugins/was_audio_capture/
   was_audio_capture_plugin.{h,cpp}          # PID / 默认设备分支；版本 1.3.0
   process_loopback_audio_capture.{h,cpp}    # 新增：原生 WASAPI PID
   miniaudio_audio_capture.{h,cpp}           # MakeForProcess + 日志
@@ -220,33 +220,33 @@ src/gr_render/plugins/was_audio_capture/
 ### 7.2 Render 应用
 
 ```
-src/gr_render/rd_app.cpp / rd_app.h
+src/px_render/rd_app.cpp / rd_app.h
   - MsgObsInjected → worker StartProviding
   - game-hook 延迟启音频
   - OnIpcAudioFrame
   - boot enable_hook_audio_
-src/gr_render/plugin_interface/gr_data_provider_plugin.h
+src/px_render/plugin_interface/gr_data_provider_plugin.h
   - SetAudioLoopbackProcessId / IsProviding / GetLastStartError
-src/gr_render/app/win/app_manager_win.cpp
+src/px_render/app/win/app_manager_win.cpp
   - inject_params.enable_hook_audio 与 boot 对齐
-src/gr_render/plugins/net_ws/ws_server.cpp
+src/px_render/plugins/net_ws/ws_server.cpp
   - /ipc 路由（AddIpcRouter）：仅接受 loopback 连接；IPC 音/视频帧转发
   - 视频帧 wire 为定长 152B 纯 POD IpcCaptureVideoFrame（旧含 shared_ptr 的 blob 显式拒绝）
-（原 src/gr_render/network/ws_ipc_router.cpp 为死代码，已删除）
+（原 src/px_render/network/ws_ipc_router.cpp 为死代码，已删除）
 ```
 
 ### 7.3 能力探测
 
 ```
-src/gr_deps/tc_capture_new/process_loopback_support.h
+src/px_deps/px_capture_new/process_loopback_support.h
   - IsProcessLoopbackCaptureSupported()  // build >= 19041
 ```
 
 ### 7.4 进程内 Hook（fallback）
 
 ```
-src/gr_render/hook_capture/win/hk_audio/*     # AudioShare / Mixer / 各 API Hook
-src/gr_render/hook_capture/win/hk_obs/*       # hook_manager、graphics-hook、测试 exe
+src/px_render/hook_capture/win/hk_audio/*     # AudioShare / Mixer / 各 API Hook
+src/px_render/hook_capture/win/hk_obs/*       # hook_manager、graphics-hook、测试 exe
 ```
 
 ### 7.5 脚本
@@ -377,7 +377,7 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 
 1. `/ipc` 路由只接受 loopback（127.0.0.1 / ::1 / ::ffff:127.0.0.1）连接，非 loopback 立即关闭；此前绑 0.0.0.0 无鉴权，远程可推伪造帧并可收到广播下行的用户键鼠事件。server 本体仍 0.0.0.0 服务浏览器。
 2. 视频帧 wire 格式改为定长 152 字节纯 POD `IpcCaptureVideoFrame`（magic=`GRCV` 0x47524356 + version=1 + pack(1)），Host 侧逐字段转换构造 `CaptureVideoFrame`，不再对含 `std::shared_ptr` 的结构整体 memcpy（远程可触发崩溃的 UB）；旧格式 blob 显式拒绝 + 限流日志；宽高 clamp 16..8192。**协议变更：Host render 与 `tc_graphics.dll` 必须同批部署。** 音频帧 `IpcCaptureAudioFrame` 本就是 POD 未变。
-3. 死代码 `src/gr_render/network/ws_ipc_router.cpp/.h` 已删除（/ipc 实际由 `plugins/net_ws/ws_server.cpp` 的 `AddIpcRouter` 处理）。
+3. 死代码 `src/px_render/network/ws_ipc_router.cpp/.h` 已删除（/ipc 实际由 `plugins/net_ws/ws_server.cpp` 的 `AddIpcRouter` 处理）。
 
 ### 13.3 注入鲁棒性（app_manager_win / injector / win_helper）
 
@@ -420,5 +420,5 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 
 1. Service ↔ CMS 重连：固定 2s（原 2s→30s 指数退避）；心跳 5s→3s（`cms_client.rs`）。
 2. 桌面 render / user_proxy 重启冷却：固定 3s（原 3s 起步翻倍、封顶 5 分钟；`service_core/state.rs`，失败计数仅作日志）。
-3. gr_sysinfo monitor_sender 重连：固定 1s（原 1s→30s 指数退避）。
+3. px_sysinfo monitor_sender 重连：固定 1s（原 1s→30s 指数退避）。
 4. PID 音频采集致命错误自动重启：固定 2s、取消 5 次放弃上限（仅目标进程退出才放弃）。

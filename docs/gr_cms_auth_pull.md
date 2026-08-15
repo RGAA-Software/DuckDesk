@@ -1,10 +1,10 @@
 # GoDesk CMS 网络上报授权说明
 
-CMS（gr_cms_server）的授权模式已从"管理员手工创建授权 → 下载 deploy string → 登录页粘贴/上传 license 文件"改为与 gopico / clientbox / goagent 一致的 **设备主动上报 + 服务器授权** 模式。手工上传 license 的后端入口（`POST /api/v1/auth/control/update/authorization`）已移除。
+CMS（px_cms_server）的授权模式已从"管理员手工创建授权 → 下载 deploy string → 登录页粘贴/上传 license 文件"改为与 gopico / clientbox / goagent 一致的 **设备主动上报 + 服务器授权** 模式。手工上传 license 的后端入口（`POST /api/v1/auth/control/update/authorization`）已移除。
 
 ## 工作流程
 
-1. CMS 启动时立即向授权服务器（gr_auth_server）`POST {auth_server_url}/api/v1/device/pull` 上报一次，之后每 `auth_pull_interval_secs` 秒周期上报。上报内容：product=`godesk_cms`、机器码、版本、运行状态、OS、纳管设备数。
+1. CMS 启动时立即向授权服务器（px_auth_server）`POST {auth_server_url}/api/v1/device/pull` 上报一次，之后每 `auth_pull_interval_secs` 秒周期上报。上报内容：product=`godesk_cms`、机器码、版本、运行状态、OS、纳管设备数。
 2. 授权服务器收到未知设备时自动注册一条 **试用（trial）** 授权并下发签名 license；已知设备直接下发最新授权。
 3. CMS 用内置 Ed25519 公钥验签 license（验签同时校验机器码与有效期），通过后写 KvStorage 缓存并更新内存授权。
 4. 管理员在 auth server 管理后台把该设备从试用 **转为正式（licensed）**、调整流路数/天数，或 **吊销（revoke）**。CMS 下次 pull 自动生效。
@@ -13,7 +13,7 @@ CMS（gr_cms_server）的授权模式已从"管理员手工创建授权 → 下�
 
 ## 机器码（xxxx-xxxx）
 
-CMS 的机器码与 gopico-pc 同款算法（`rust_base/gr_base/src/machine_code.rs` 移植自 `gopico-pc-core/src/license/machine_code.rs`）：
+CMS 的机器码与 gopico-pc 同款算法（`rust_base/px_base/src/machine_code.rs` 移植自 `gopico-pc-core/src/license/machine_code.rs`）：
 
 - 采集物理网卡 MAC（Windows 用 PowerShell `Get-NetAdapter -Physical`，CREATE_NO_WINDOW；fallback sysinfo 网卡）、物理磁盘序列号（`Win32_DiskDrive`；fallback lsblk/sysinfo 磁盘名+容量）、CPU 描述（vendor-brand-核数）。
 - 规范化（去分隔符、统一大小写、排序去重）后拼成 `v3|mac=...|disk=...|cpu=...`，取 MD5 前 8 字节转 u64，对 1e8 取模格式化为 `xxxx-xxxx` 8 位数字码。
@@ -24,7 +24,7 @@ CMS 的机器码与 gopico-pc 同款算法（`rust_base/gr_base/src/machine_code
 ## CMS 配置（gr_cms_server_settings.toml）
 
 ```toml
-# 授权服务器地址（gr_auth_server）
+# 授权服务器地址（px_auth_server）
 auth_server_url = "https://127.0.0.1:30400"
 
 # 授权拉取周期（秒）
@@ -38,7 +38,7 @@ app_secret = ""
 ```
 
 - 三个配置项都有 serde 默认值（`https://127.0.0.1:30400` / `3600` / 空凭据），旧配置文件不新增这些字段也能正常启动。
-- 凭据非空时，pull 请求携带 `x-app-key` / `x-app-timestamp` / `x-app-sign` HMAC-SHA256 签名头（算法在共享 crate `gr_auth_mgr::app_credential`，与 auth server 端一致）。用 auth server 侧的 `app_credential_gen --write` 生成后，把同一对 appkey/app_secret 抄到 CMS 配置。
+- 凭据非空时，pull 请求携带 `x-app-key` / `x-app-timestamp` / `x-app-sign` HMAC-SHA256 签名头（算法在共享 crate `px_auth_mgr::app_credential`，与 auth server 端一致）。用 auth server 侧的 `app_credential_gen --write` 生成后，把同一对 appkey/app_secret 抄到 CMS 配置。
 - CMS 调 auth server 使用 `danger_accept_invalid_certs(true)`（auth server 是自签名证书，与内部服务间调用现状一致）。
 
 ## 手动触发拉取
@@ -69,7 +69,7 @@ app_secret = ""
 
 ## 相关代码
 
-- CMS pull 逻辑：`rust_server/gr_cms_server/src/auth/spvr_auth_pull.rs`
-- 授权服务器 device/pull：`rust_server/gr_auth_server/src/authorization_handler.rs`（`handle_device_pull`，product=`godesk_cms`）
-- 共享产品常量/签名算法：`rust_base/gr_auth_mgr/src/authorization.rs`、`rust_base/gr_auth_mgr/src/app_credential.rs`
-- 机器码：`rust_base/gr_base/src/machine_code.rs`
+- CMS pull 逻辑：`rust_server/px_cms_server/src/auth/spvr_auth_pull.rs`
+- 授权服务器 device/pull：`rust_server/px_auth_server/src/authorization_handler.rs`（`handle_device_pull`，product=`godesk_cms`）
+- 共享产品常量/签名算法：`rust_base/px_auth_mgr/src/authorization.rs`、`rust_base/px_auth_mgr/src/app_credential.rs`
+- 机器码：`rust_base/px_base/src/machine_code.rs`

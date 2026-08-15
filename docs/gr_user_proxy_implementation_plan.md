@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文档描述在 **不删除现有代码** 的前提下，引入 Rust 进程 `GammaRayUserProxy`（crate：`gr_user_proxy`），通过 **主动连接 Render `net_ws` 插件** 承接剪贴板用户态能力，并逐步替代当前 **Render ↔ Panel** 的剪贴板通道。
+本文档描述在 **不删除现有代码** 的前提下，引入 Rust 进程 `GammaRayUserProxy`（crate：`px_user_proxy`），通过 **主动连接 Render `net_ws` 插件** 承接剪贴板用户态能力，并逐步替代当前 **Render ↔ Panel** 的剪贴板通道。
 
 前置讨论结论摘要：
 
@@ -20,7 +20,7 @@
 
 | # | 要求 | 说明 |
 |---|------|------|
-| 1 | crate 位于 `rust_client/gr_user_proxy`，产物名 `GammaRayUserProxy.exe` | 纳入 `rust_client/Cargo.toml` workspace |
+| 1 | crate 位于 `rust_client/px_user_proxy`，产物名 `GammaRayUserProxy.exe` | 纳入 `rust_client/Cargo.toml` workspace |
 | 2 | 注释 Render↔Panel 剪贴板交互代码 | **只注释，不删除**；保留回滚能力 |
 | 3 | Proxy 永久重连 Render | 连接失败 **2 秒** 后重试，**永不停止** |
 | 4 | 日志完善 | 连接、协议、剪贴板读写、重试、异常均需可追踪 |
@@ -107,7 +107,7 @@ Client 发送 kClipboardInfo
 
 ## 4. 协议设计
 
-复用现有 `tcrp` 协议（`src/gr_deps/tc_message_new/tc_render_panel_message.proto`），减少双端改动。
+复用现有 `tcrp` 协议（`src/px_deps/px_message_new/tc_render_panel_message.proto`），减少双端改动。
 
 ### 4.1 WebSocket 端点
 
@@ -139,17 +139,17 @@ Client 发送 kClipboardInfo
 
 ---
 
-## 5. Rust 工程：`gr_user_proxy`
+## 5. Rust 工程：`px_user_proxy`
 
 ### 5.1 目录结构（建议）
 
 ```
-rust_client/gr_user_proxy/
+rust_client/px_user_proxy/
 ├── Cargo.toml
 └── src/
     ├── main.rs                 # 入口、参数解析、单实例
     ├── config.rs               # 路径、常量、CLI
-    ├── logging.rs              # gr_base::log_util 封装
+    ├── logging.rs              # px_base::log_util 封装
     ├── render_client.rs        # WS 连接、2s 重连、收发 RpMessage
     ├── proto/                  # prost 生成或手写最小 proto
     │   └── mod.rs
@@ -157,7 +157,7 @@ rust_client/gr_user_proxy/
     │   ├── mod.rs
     │   ├── win_listener.rs     # AddClipboardFormatListener + 消息泵线程
     │   ├── win_platform.rs     # OpenClipboard 读写 CF_UNICODETEXT / CF_HDROP
-    │   ├── echo.rs             # 与 tc_common_new/clipboard_echo 同语义
+    │   ├── echo.rs             # 与 px_common_new/clipboard_echo 同语义
     │   └── virtual_file/       # OLE IDataObject + IStream 虚拟文件粘贴
     │       ├── coordinator.rs
     │       ├── stream.rs
@@ -169,7 +169,7 @@ rust_client/gr_user_proxy/
 
 ```toml
 [package]
-name = "gr_user_proxy"
+name = "px_user_proxy"
 version.workspace = true
 edition.workspace = true
 
@@ -178,7 +178,7 @@ name = "GammaRayUserProxy"
 path = "src/main.rs"
 
 [dependencies]
-gr_base = { path = "../../rust_base/gr_base" }
+px_base = { path = "../../rust_base/px_base" }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.27"
 futures-util = "0.3"
@@ -201,7 +201,7 @@ windows = { version = "0.62", features = ["Win32_UI_WindowsAndMessaging", "Win32
 
 ### 5.4 重连逻辑（需求 #3）
 
-参考 `gr_sysinfo/src/sys_panel_client.rs`，但必须满足：
+参考 `px_sysinfo/src/sys_panel_client.rs`，但必须满足：
 
 ```text
 loop {
@@ -223,7 +223,7 @@ loop {
 
 ### 5.5 日志（需求 #4、#5）
 
-与 `gr_service` 一致，使用 `gr_base::log_util::init_log`（原 `gr_guard` 已删除，其保活日志也并入本文件）：
+与 `px_service` 一致，使用 `px_base::log_util::init_log`（原 `gr_guard` 已删除，其保活日志也并入本文件）：
 
 | 项 | 值 |
 |----|-----|
@@ -262,8 +262,8 @@ pub const APP_SHARED_ROOT: &str = "GoDesk";  // 与 guard 相同
 
 | 文件 | 职责 |
 |------|------|
-| `src/gr_render/plugins/net_ws/ws_user_proxy_router.h` | 单连接 session、消息分发 |
-| `src/gr_render/plugins/net_ws/ws_user_proxy_router.cpp` | 解析 `RpMessage`；处理 `kRpClipboardEvent`；下发 `kRpRawRenderMessage` |
+| `src/px_render/plugins/net_ws/ws_user_proxy_router.h` | 单连接 session、消息分发 |
+| `src/px_render/plugins/net_ws/ws_user_proxy_router.cpp` | 解析 `RpMessage`；处理 `kRpClipboardEvent`；下发 `kRpRawRenderMessage` |
 
 ### 6.2 修改文件
 
@@ -302,28 +302,28 @@ pub const APP_SHARED_ROOT: &str = "GoDesk";  // 与 guard 相同
 ## 7. 注释 Render↔Panel 剪贴板代码（需求 #2）
 
 > 原则：**只注释，不删除**；每处加统一标记：  
-> `// USER_PROXY_MIGRATION: clipboard path disabled, see gr_user_proxy`
+> `// USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy`
 
 ### 7.1 Render 侧
 
 | 文件 | 位置 / 内容 | 操作 |
 |------|-------------|------|
-| `src/gr_render/plugins/plugin_net_event_router.cpp` | `PostPanelMessage(kRpRawRenderMessage)` 整段 `PostTask`（约 133–141 行） | 注释；改为仅对 `kClipboardInfo` 调 `PostUserProxyMessage` |
-| `src/gr_render/plugins/plugin_net_event_router.cpp` | `case kClipboardInfo` 内仅日志（可选保留日志） | 保留或补充 user-proxy 转发日志 |
-| `src/gr_render/plugins/plugin_event_router.cpp` | `ReportRemoteClipboardResp()` 中 `PostPanelMessage` | 注释；改发 UserProxy 或暂留 |
-| `src/gr_render/network/ws_panel_client.cpp` | `kRpClipboardEvent` 分支（约 238–261 行） | 整段注释 |
-| `src/gr_render/network/ws_panel_client.cpp` | `kRpRawRenderMessage` 若仅服务 Panel 回传剪贴板 | 评估后注释（注意该分支也用于 file transfer `data_channel`，**勿整段注释**） |
+| `src/px_render/plugins/plugin_net_event_router.cpp` | `PostPanelMessage(kRpRawRenderMessage)` 整段 `PostTask`（约 133–141 行） | 注释；改为仅对 `kClipboardInfo` 调 `PostUserProxyMessage` |
+| `src/px_render/plugins/plugin_net_event_router.cpp` | `case kClipboardInfo` 内仅日志（可选保留日志） | 保留或补充 user-proxy 转发日志 |
+| `src/px_render/plugins/plugin_event_router.cpp` | `ReportRemoteClipboardResp()` 中 `PostPanelMessage` | 注释；改发 UserProxy 或暂留 |
+| `src/px_render/network/ws_panel_client.cpp` | `kRpClipboardEvent` 分支（约 238–261 行） | 整段注释 |
+| `src/px_render/network/ws_panel_client.cpp` | `kRpRawRenderMessage` 若仅服务 Panel 回传剪贴板 | 评估后注释（注意该分支也用于 file transfer `data_channel`，**勿整段注释**） |
 
 ### 7.2 Panel 侧
 
 | 文件 | 位置 / 内容 | 操作 |
 |------|-------------|------|
-| `src/gr_panel/.../win_panel_message_loop.cpp` | `OnClipboardUpdate` / `ProcessLocalClipboardUpdate` 及 `kRpClipboardEvent` 发送 | 注释 outbound |
-| `src/gr_panel/.../panel_clipboard_manager.cpp` | `OnRemoteClipboardInfo` 全文 | 注释 inbound 写剪贴板 |
-| `src/gr_panel/.../gr_render_msg_processor.cpp` | `OnMessage` 调 `clipboard_mgr` | 注释 |
-| `src/gr_panel/.../network/ws_panel_server.cpp` | `kRpRawRenderMessage` → `GrRenderMsgProcessor`（约 675–683 行） | 注释 |
-| `src/gr_panel/.../clipboard/win/panel_cp_virtual_file.cpp` | `PostMessage2Renderer` 剪贴板文件相关 | Phase 2 再注释 |
-| `src/gr_panel/.../clipboard/win/panel_cp_file_stream.cpp` | `PostMessage2Renderer` | Phase 2 再注释 |
+| `src/px_panel/.../win_panel_message_loop.cpp` | `OnClipboardUpdate` / `ProcessLocalClipboardUpdate` 及 `kRpClipboardEvent` 发送 | 注释 outbound |
+| `src/px_panel/.../panel_clipboard_manager.cpp` | `OnRemoteClipboardInfo` 全文 | 注释 inbound 写剪贴板 |
+| `src/px_panel/.../gr_render_msg_processor.cpp` | `OnMessage` 调 `clipboard_mgr` | 注释 |
+| `src/px_panel/.../network/ws_panel_server.cpp` | `kRpRawRenderMessage` → `GrRenderMsgProcessor`（约 675–683 行） | 注释 |
+| `src/px_panel/.../clipboard/win/panel_cp_virtual_file.cpp` | `PostMessage2Renderer` 剪贴板文件相关 | Phase 2 再注释 |
+| `src/px_panel/.../clipboard/win/panel_cp_file_stream.cpp` | `PostMessage2Renderer` | Phase 2 再注释 |
 
 ### 7.3 保留不动的 Panel↔Render 通道
 
@@ -345,7 +345,7 @@ pub const APP_SHARED_ROOT: &str = "GoDesk";  // 与 guard 相同
 ```toml
 members = [
     ...
-    "gr_user_proxy",
+    "px_user_proxy",
 ]
 ```
 
@@ -365,7 +365,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 
 ### 8.3 Service 启动（**唯一**拉起方）
 
-在 `rust_client/gr_service` 中：
+在 `rust_client/px_service` 中：
 
 - `start_desktop`：`start_process_as_active_user` 拉起 Render 后，**立即**以 `start_process_as_session_user`（**仅 WTS 用户令牌**，不回退 SYSTEM 令牌）拉起 `GammaRayUserProxy.exe`，确保 UserProxy 以登录用户身份运行。
 - 参数：`--render-port={与 Render network_listen_port 一致}`，从 Render args 的 `--network_listen_port=`（也兼容 `-flag=value` 与 `--flag value` 形式）解析，缺失时用默认 `20371`。
@@ -386,7 +386,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 ### Phase 1：连通性 + 文本剪贴板 MVP
 
 1. 实现 `ws_user_proxy_router` + `/user-proxy` localhost 校验。
-2. 实现 `gr_user_proxy`：连接、2s 重连、hello、日志。
+2. 实现 `px_user_proxy`：连接、2s 重连、hello、日志。
 3. UserProxy：Win32 文本剪贴板监听 + `kRpClipboardEvent` 发送。
 4. Render：Client `kClipboardInfo` → UserProxy；UserProxy 写入文本。
 5. 按第 7 节注释 Panel 剪贴板路径。
@@ -409,7 +409,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 | OLE 虚拟文件 / `kClipboardReqBuffer` → Client → `kClipboardRespBuffer` 流式传输 | **Done** — `clipboard/virtual_file/{stream,coordinator,win_clipboard}.rs` |
 | Render 转发 Client `kClipboardRespBuffer` → UserProxy（`data_channel=true`） | **Done** — `plugin_net_event_router.cpp` |
 | `VirtualFileCoordinator` + COM `IDataObject`/`IStream` 粘贴拉流 | **Done** — `win_clipboard.rs`（`CFSTR_FILEDESCRIPTOR` / `CFSTR_FILECONTENTS`） |
-| Client `ref_path` 与 UserProxy 对齐（目录/混合选择保留文件夹结构） | **Done** — `tc_common_new/clipboard/clipboard_file_builder.cpp` + `content.rs` |
+| Client `ref_path` 与 UserProxy 对齐（目录/混合选择保留文件夹结构） | **Done** — `px_common_new/clipboard/clipboard_file_builder.cpp` + `content.rs` |
 | 粘贴完成后清空 OLE 剪贴板（Explorer 粘贴菜单变灰） | **Done** — `clear_ole_clipboard_after_operation()` |
 | Panel `panel_cp_virtual_file` / `panel_cp_file_stream` 注释 | Panel 剪贴板 inbound 已 `#if 0`；文件 WS 出站仍保留（无 UserProxy 替代前勿删） |
 
@@ -437,11 +437,11 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 
 | 项 | 状态 |
 |----|------|
-| Service `start_desktop` 后 WTS 拉起 UserProxy（仅用户令牌，不回退 SYSTEM） | **Done** — `gr_service/src/user_proxy.rs` + `start_process_as_session_user` |
+| Service `start_desktop` 后 WTS 拉起 UserProxy（仅用户令牌，不回退 SYSTEM） | **Done** — `px_service/src/user_proxy.rs` + `start_process_as_session_user` |
 | Service `stop_desktop` 终止 UserProxy | **Done** |
 | Service 3s 监控补拉 UserProxy（Render 存活时） | **Done** — `should_restart_user_proxy` |
 | Guard **不**拉起 UserProxy | **Done** — 仅 Panel + SysInfo |
-| `service_manager` / `gr_uninstall` 清理列表 | **Done** |
+| `service_manager` / `px_uninstall` 清理列表 | **Done** |
 | CMake + `collect_dist.py` | **Done** |
 | 30s WS 心跳（UserProxy → Render） | **Done** |
 
@@ -456,7 +456,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 
 > **原则**：能自动化的一律写单元/组件测试（Rust `cargo test`）；依赖真实 OS 剪贴板、多进程、网络的由人工执行，并记录日志路径与期望关键字。
 
-### 10.1 Rust 单元测试（`cargo test -p gr_user_proxy`，全自动）
+### 10.1 Rust 单元测试（`cargo test -p px_user_proxy`，全自动）
 
 #### 10.1.1 `config`
 
@@ -473,7 +473,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 | `cli_parse_defaults` | clap 缺省参数与 config 常量一致 |
 | `cli_parse_overrides` | `--render-port` / `--reconnect-secs` 覆盖 |
 
-#### 10.1.2 `echo`（对齐 `tc_common_new/clipboard/clipboard_echo`）
+#### 10.1.2 `echo`（对齐 `px_common_new/clipboard/clipboard_echo`）
 
 | 测试用例 | 断言 |
 |----------|------|
@@ -537,7 +537,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 | `tests/integration.rs` | `integration_reconnects_after_server_drop` | Mock Render 断开后 2s 内重连 | 集成 |
 | `clipboard::backend` | `InMemoryClipboard` 系列 | 读写 / notify 不依赖 Win32 | 单元 |
 | `clipboard::win_platform` | `read_empty_after_clear` | Clear 后无文本 | 需 Windows，可 CI |
-| `gr_user_proxy::keepalive` | 进程名大小写不敏感匹配、tick 决策（缺谁拉谁）、initial check | 单元（原 `gr_guard::process_monitor` 用例迁入） |
+| `px_user_proxy::keepalive` | 进程名大小写不敏感匹配、tick 决策（缺谁拉谁）、initial check | 单元（原 `gr_guard::process_monitor` 用例迁入） |
 
 **统一入口：**
 
@@ -545,7 +545,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 scripts\test_user_proxy.bat
 ```
 
-等价于 `cargo test -p gr_user_proxy -p gr_service -p service_core`（原 `gr_guard` 已并入 `gr_user_proxy::keepalive`，随 `-p gr_user_proxy` 一起测试）。
+等价于 `cargo test -p px_user_proxy -p px_service -p service_core`（原 `gr_guard` 已并入 `px_user_proxy::keepalive`，随 `-p px_user_proxy` 一起测试）。
 
 ### 10.3 Service 拉起与守护 UserProxy（运行时）
 
@@ -614,8 +614,8 @@ scripts\test_user_proxy.bat
 
 | 可进 CI | 不可进 CI（本机人工） |
 |---------|----------------------|
-| `scripts\test_user_proxy.bat`（= `cargo test -p gr_user_proxy -p gr_service -p service_core`，单元 + Mock Render 集成） | Client ↔ 被控端画面+剪贴板联调 |
-| `cargo build -p gr_user_proxy` | localhost 拒绝、双实例踢连接 |
+| `scripts\test_user_proxy.bat`（= `cargo test -p px_user_proxy -p px_service -p service_core`，单元 + Mock Render 集成） | Client ↔ 被控端画面+剪贴板联调 |
+| `cargo build -p px_user_proxy` | localhost 拒绝、双实例踢连接 |
 | C++ 编译 `plugin_net_ws` | `win_listener` 真实剪贴板轮询（可选 `--ignored`） |
 
 ---
@@ -654,18 +654,18 @@ scripts\test_user_proxy.bat
 
 | 用途 | 路径 |
 |------|------|
-| Panel WS 服务 | `src/gr_panel/src/render_panel/network/ws_panel_server.cpp` |
-| Render 连 Panel | `src/gr_render/network/ws_panel_client.cpp` |
-| Client 消息转发 Panel | `src/gr_render/plugins/plugin_net_event_router.cpp` |
-| Panel 剪贴板写入 | `src/gr_panel/src/render_panel/clipboard/panel_clipboard_manager.cpp` |
-| Panel 剪贴板监听 | `src/gr_panel/src/render_panel/system/win/win_panel_message_loop.cpp` |
-| net_ws 服务 | `src/gr_render/plugins/net_ws/ws_server.cpp` |
-| 协议定义 | `src/gr_deps/tc_message_new/tc_render_panel_message.proto` |
-| Rust 日志工具 | `rust_base/gr_base/src/log_util.rs` |
-| Rust WS 重连示例 | `rust_client/gr_sysinfo/src/sys_panel_client.rs` |
-| Service 用户令牌启动 | `rust_client/gr_service/src/windows_process.rs` |
-| Client 剪贴板插件 | `src/gr_client/plugins/clipboard/` |
-| 公共剪贴板模块 | `src/gr_deps/tc_common_new/clipboard/` |
+| Panel WS 服务 | `src/px_panel/src/render_panel/network/ws_panel_server.cpp` |
+| Render 连 Panel | `src/px_render/network/ws_panel_client.cpp` |
+| Client 消息转发 Panel | `src/px_render/plugins/plugin_net_event_router.cpp` |
+| Panel 剪贴板写入 | `src/px_panel/src/render_panel/clipboard/panel_clipboard_manager.cpp` |
+| Panel 剪贴板监听 | `src/px_panel/src/render_panel/system/win/win_panel_message_loop.cpp` |
+| net_ws 服务 | `src/px_render/plugins/net_ws/ws_server.cpp` |
+| 协议定义 | `src/px_deps/px_message_new/tc_render_panel_message.proto` |
+| Rust 日志工具 | `rust_base/px_base/src/log_util.rs` |
+| Rust WS 重连示例 | `rust_client/px_sysinfo/src/sys_panel_client.rs` |
+| Service 用户令牌启动 | `rust_client/px_service/src/windows_process.rs` |
+| Client 剪贴板插件 | `src/px_client/plugins/clipboard/` |
+| 公共剪贴板模块 | `src/px_deps/px_common_new/clipboard/` |
 
 ---
 

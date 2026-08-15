@@ -118,7 +118,7 @@ render: 每屏一条 video track(每 track 独立帧源 → 混流/IDR 风暴根
    （name + 分辨率 + index),客户端据此决定 offer 的 video m-line 数和
    track→mon_name 映射。
 
-### 客户端（tc_webrtc_client / tc_client_sdk_new / gr_client)
+### 客户端（px_webrtc_client / px_client_sdk_new / px_client)
 
 5. offer 固定声明 `offer_to_receive_video = 4`（上限）;**不需要**建连前拿 monitors——
    monitors 列表随 `/alloc/local/rtc` 应答一起返回，先 offer 后映射；旧 render

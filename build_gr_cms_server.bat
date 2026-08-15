@@ -4,12 +4,12 @@ setlocal enabledelayedexpansion
 rem ============================================================================
 rem build_gr_cms_server.bat
 rem
-rem Build and deploy gr_cms_server in one step:
+rem Build and deploy px_cms_server in one step:
 rem   [1/3] Build the Vue frontend   web\gr_cms          (npm run build)
-rem   [2/3] Build the Rust server    gr_cms_server       (cargo build --release)
-rem   [3/3] Copy artifacts into      output\gr_cms_server\
-rem           exe      -> output\gr_cms_server\gr_cms_server.exe
-rem           frontend -> output\gr_cms_server\web\
+rem   [2/3] Build the Rust server    px_cms_server       (cargo build --release)
+rem   [3/3] Copy artifacts into      output\px_cms_server\
+rem           exe      -> output\px_cms_server\px_cms_server.exe
+rem           frontend -> output\px_cms_server\web\
 rem           (the server serves static files from the web\ dir next to the exe)
 rem
 rem Notes:
@@ -25,7 +25,7 @@ cd /d "%~dp0"
 set "REPO_ROOT=%cd%"
 
 rem --- Per-server settings ---
-set "SERVER_NAME=gr_cms_server"
+set "SERVER_NAME=px_cms_server"
 set "WEB_SRC=%REPO_ROOT%\web\gr_cms"
 rem Subdirectory under output\%SERVER_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=web"

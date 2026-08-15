@@ -65,14 +65,14 @@ echo Building target: %TARGET%
 cmake --build build_official -j18 --target %TARGET%
 if errorlevel 1 exit /b %errorlevel%
 
-set "EXE=build_official\src\gr_render\plugins\was_audio_capture\test_plugin_was_audio_capture.exe"
+set "EXE=build_official\src\px_render\plugins\was_audio_capture\test_plugin_was_audio_capture.exe"
 if not exist "%EXE%" (
     echo EXE not found: %EXE%
     exit /b 1
 )
 
 echo Running %EXE% %* ...
-pushd "build_official\src\gr_render\plugins\was_audio_capture"
+pushd "build_official\src\px_render\plugins\was_audio_capture"
 "%CD%\test_plugin_was_audio_capture.exe" %*
 set "RC=%errorlevel%"
 popd

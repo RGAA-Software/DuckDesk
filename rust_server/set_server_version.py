@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Manage versions of the rust_server services independently.
 
-Each service (gr_auth_server / gr_cms_server / gr_desk_server / gr_stat_server /
-gr_updater / builder) owns the `version` field in its own Cargo.toml and bumps
+Each service (px_auth_server / px_cms_server / px_desk_server / px_stat_server /
+px_updater / builder) owns the `version` field in its own Cargo.toml and bumps
 it separately — the same logic as the GammaRay-side set_app_version.py:
 patch += 1 on every bump; when patch would reach 100, minor += 1 and patch
 resets to 0 (e.g. 1.0.99 -> 1.1.0).
 
 Usage:
     python set_server_version.py                     # show all service versions
-    python set_server_version.py gr_cms_server --bump
-    python set_server_version.py gr_cms_server 1.2.3 # set explicitly
+    python set_server_version.py px_cms_server --bump
+    python set_server_version.py px_cms_server 1.2.3 # set explicitly
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent  # rust_server/
 
 SERVICES = [
-    "gr_auth_server",
-    "gr_cms_server",
-    "gr_desk_server",
-    "gr_stat_server",
-    "gr_updater",
+    "px_auth_server",
+    "px_cms_server",
+    "px_desk_server",
+    "px_stat_server",
+    "px_updater",
     "builder",
 ]
 

@@ -1,6 +1,6 @@
-# gr_desk 站点（gr_desk_server + web/gr_desk）现状记录
+# gr_desk 站点（px_desk_server + web/gr_desk）现状记录
 
-> 记录时间：2026-07-18。本文档记录 GoDesk 官网站点（前端 `web/gr_desk` + 后端 `rust_server/gr_desk_server`）的架构现状，作为后续网页优化调整的基线。
+> 记录时间：2026-07-18。本文档记录 GoDesk 官网站点（前端 `web/gr_desk` + 后端 `rust_server/px_desk_server`）的架构现状，作为后续网页优化调整的基线。
 
 ## 1. 总体结构
 
@@ -8,7 +8,7 @@
 用户浏览器
    │
    ▼
-gr_desk_server (Rust/axum)          ← HTTP 0.0.0.0:5000 / HTTPS 0.0.0.0:5001
+px_desk_server (Rust/axum)          ← HTTP 0.0.0.0:5000 / HTTPS 0.0.0.0:5001
    ├── /api/...        → 8 个 REST 接口（issue/consult/version）
    └── 其余路径         → 静态目录 <exe>/static/（SPA fallback 到 index.html）
    │
@@ -19,18 +19,18 @@ MongoDB (mongodb://localhost:27017, 硬编码)
 
 - 前端源码：`web/gr_desk/`（Vue 3 SPA），构建产物 `web/gr_desk/dist/`
 - 已构建产物快照：`rust_server/web/`（index.html + assets）
-- 部署：`scripts/package_gr_desk_server.bat` 将 `dist/*` 拷贝到 `output/gr_desk_server/static/`，与 `gr_desk_server.exe` 一起打包
+- 部署：`scripts/package_gr_desk_server.bat` 将 `dist/*` 拷贝到 `output/px_desk_server/static/`，与 `px_desk_server.exe` 一起打包
 - TLS 证书：可执行文件旁 `certs/cert.pem` / `certs/key.pem`（可用 `scripts/ensure_tls_cert.bat` 生成），缺失则启动失败
 
-## 2. 后端：rust_server/gr_desk_server
+## 2. 后端：rust_server/px_desk_server
 
-纯 binary crate（仅 `src/main.rs`），crate 名 `gr_desk_server`，v3.2.0。
+纯 binary crate（仅 `src/main.rs`），crate 名 `px_desk_server`，v3.2.0。
 
 ### 2.1 技术栈
 
 - axum 0.8.1（ws + multipart）+ axum-server 0.8（rustls TLS）+ tower-http（静态文件）+ tokio
 - mongodb 3.2.1（精确锁定）
-- gr_base（路径依赖 `../../rust_base/gr_base`）：日志、`RespMessage<T>`/`ok_resp`、时间戳工具
+- px_base（路径依赖 `../../rust_base/px_base`）：日志、`RespMessage<T>`/`ok_resp`、时间戳工具
 - clap 4.5（CLI）、lazy_static（全局单例）
 
 ### 2.2 模块划分（每个业务域 = model + handle + manager）
@@ -58,13 +58,13 @@ MongoDB (mongodb://localhost:27017, 硬编码)
 | POST | `/api/v1/update/product/version` | 更新产品最新版本号（需 verify_code） |
 | GET | `/api/v1/query/product/version` | 查询最新版本号（内存缓存优先） |
 
-统一响应：`gr_base::RespMessage<T>`。非 `/api` 路径走 `ServeDir(static).not_found_service(index.html)` SPA fallback。
+统一响应：`px_base::RespMessage<T>`。非 `/api` 路径走 `ServeDir(static).not_found_service(index.html)` SPA fallback。
 
 ### 2.4 端口与启动
 
 - HTTP：`0.0.0.0:5000`，HTTPS：`0.0.0.0:5001`（**硬编码**，同一 router）
 - CLI `-p/--port`（默认 20369）**解析后未使用（遗留 bug）**
-- 日志：`logs/gr_desk_server/`，前缀 `log_off`
+- 日志：`logs/px_desk_server/`，前缀 `log_off`
 - MongoDB 连接失败即退出
 - 2026-07-18 起：rustls 改为仅 `ring` provider（`default-features=false`，移除 aws-lc-rs C 依赖）；axum-server 改用 `tls-rustls-no-provider`（由 main.rs 显式安装 ring provider）
 
@@ -163,8 +163,8 @@ GoDesk 远程桌面产品官方营销站（品牌指向 godesk.uk），package n
 - 一键部署脚本：`rust_server/scripts/deploy_desk_server.sh`
   - `build_desk_server_musl.sh`：zig + cargo-zigbuild 交叉编译 musl 静态二进制（复用 `.tooling/`，含 libudev stub）
   - 构建前端 `web/gr_desk` → scp 二进制与 static.tar.gz → 备份旧二进制（`*.bak.时间戳`）→ pkill 旧进程 → nohup 启动 → 验证端口与 HTTPS 200
-  - SSH 免交互：`SSH_ASKPASS` + `StrictHostKeyChecking=accept-new`，密码读自 `gr_desk_server/tencent_server.txt`
-- 2026-07-18 首次部署：旧进程 `gr_off_site`（139 天）已替换为 `gr_desk_server`，旧二进制保留备份
+  - SSH 免交互：`SSH_ASKPASS` + `StrictHostKeyChecking=accept-new`，密码读自 `px_desk_server/tencent_server.txt`
+- 2026-07-18 首次部署：旧进程 `gr_off_site`（139 天）已替换为 `px_desk_server`，旧二进制保留备份
 
 ### 3.8 2026-07-19 赛博风格改版（gopico AURIS Green V6）
 

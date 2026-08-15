@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 set REPO_ROOT=%~dp0..
-set TEST_DIR=%REPO_ROOT%\build_official\src\gr_deps\tc_common_new\tests
+set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common_new\tests
 set LOG=%REPO_ROOT%\build_official\run_tests.log
 set FAILED=0
 

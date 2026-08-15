@@ -1,6 +1,6 @@
-# gr_auth_server 打包与运行指南
+# px_auth_server 打包与运行指南
 
-本指南用于快速把 `gr_auth_server`（授权服务）打包成一份独立可运行的前后端，启动 exe 后即可通过浏览器访问管理后台。
+本指南用于快速把 `px_auth_server`（授权服务）打包成一份独立可运行的前后端，启动 exe 后即可通过浏览器访问管理后台。
 
 ## 1. 前置条件
 
@@ -31,17 +31,17 @@ scripts/package_gr_auth_server.bat
 脚本会依次完成：
 
 1. 检查 `cargo`、`npm`、`openssl` 是否可用。
-2. 在 `output/gr_auth_server/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
-3. 在 `output/gr_auth_server/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
+2. 在 `output/px_auth_server/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
+3. 在 `output/px_auth_server/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
    - `auth_license_private.key`：授权服务器私钥（**必须保密，不可泄露给 CMS/客户端**）。
    - `auth_license_public.key`：CMS 验证授权签名所需的公钥。
 4. 编译前端 `web/gr_auth`。
-5. 编译后端 `rust_server/gr_auth_server`。
-6. 把所有产物整理到 `output/gr_auth_server/`：
+5. 编译后端 `rust_server/px_auth_server`。
+6. 把所有产物整理到 `output/px_auth_server/`：
 
 ```text
-output/gr_auth_server/
-├── gr_auth_server.exe              # 后端可执行文件
+output/px_auth_server/
+├── px_auth_server.exe              # 后端可执行文件
 ├── gr_auth_server_settings.toml    # 配置文件
 ├── certs/
 │   ├── cert.pem                    # 自签名 HTTPS 证书
@@ -60,7 +60,7 @@ output/gr_auth_server/
 打包完成后，必须编辑：
 
 ```text
-output/gr_auth_server/gr_auth_server_settings.toml
+output/px_auth_server/gr_auth_server_settings.toml
 ```
 
 至少修改以下两项：
@@ -92,10 +92,10 @@ db_path = "mongodb://localhost:27017/"      # MongoDB 连接串
 
 ### 4.2 启动授权服务
 
-在 `output/gr_auth_server/` 目录下运行：
+在 `output/px_auth_server/` 目录下运行：
 
 ```bash
-gr_auth_server.exe
+px_auth_server.exe
 ```
 
 成功启动后命令行会显示：
@@ -125,7 +125,7 @@ https://localhost:30400
 
 ### 6.1 证书过期或想换正式证书
 
-替换 `output/gr_auth_server/certs/` 下的 `cert.pem` 和 `key.pem` 为你的正式证书文件即可，保持文件名一致。
+替换 `output/px_auth_server/certs/` 下的 `cert.pem` 和 `key.pem` 为你的正式证书文件即可，保持文件名一致。
 
 ### 6.2 修改 jwt_secret 后之前的 token 失效
 
@@ -144,10 +144,10 @@ npm run build
 
 ```bash
 cd rust_server
-cargo build -p gr_auth_server --release
+cargo build -p px_auth_server --release
 ```
 
-然后手动复制到 `output/gr_auth_server/` 对应位置，或直接重新运行 `scripts/package_gr_auth_server.bat`。
+然后手动复制到 `output/px_auth_server/` 对应位置，或直接重新运行 `scripts/package_gr_auth_server.bat`。
 
 ### 6.4 端口被占用
 
@@ -155,10 +155,10 @@ cargo build -p gr_auth_server --release
 
 ## 7. 分发公钥到 CMS
 
-`gr_cms_server`（CMS）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
+`px_cms_server`（CMS）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
 
 ```text
-output/gr_auth_server/certs/auth_license_public.key
+output/px_auth_server/certs/auth_license_public.key
 ```
 
 复制到 CMS 运行目录的：
@@ -176,4 +176,4 @@ certs/auth_license_public.key
 - 不要使用自签名证书，替换为可信机构签发的 TLS 证书。
 - `jwt_secret` 使用密码生成器生成足够强度的随机字符串。
 - 为 MongoDB 启用认证，并修改 `db_path` 使用带用户名密码的连接串。
-- **私钥安全**：`auth_license_private.key` 只能存在于 `gr_auth_server` 的运行环境，禁止提交到版本仓库或随安装包泄露。建议通过环境变量 `GR_AUTH_LICENSE_PRIVATE_KEY` 注入，而不是把文件随安装包分发。
+- **私钥安全**：`auth_license_private.key` 只能存在于 `px_auth_server` 的运行环境，禁止提交到版本仓库或随安装包泄露。建议通过环境变量 `GR_AUTH_LICENSE_PRIVATE_KEY` 注入，而不是把文件随安装包分发。

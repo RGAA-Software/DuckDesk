@@ -1,8 +1,8 @@
 // 剪贴板文本同步:经 media_data_channel 发送/接收 NetTlvHeader + tc.Message
 // 协议(双向均为 kClipboardInfo=160,对齐 C++ 端):
 //   web -> render: BaseWorkspace::SendClipboardMessage(ct_base_workspace.cpp:880)
-//     render plugin_net_event_router.cpp:136 把原文转发给 gr_user_proxy,由其写入系统剪贴板
-//   render -> web: gr_user_proxy 监听系统剪贴板 -> kRpClipboardEvent ->
+//     render plugin_net_event_router.cpp:136 把原文转发给 px_user_proxy,由其写入系统剪贴板
+//   render -> web: px_user_proxy 监听系统剪贴板 -> kRpClipboardEvent ->
 //     ws_user_proxy_router.cpp:92 转为 kClipboardInfo 广播到所有流
 // 注意:ClipboardInfo.msg 是 bytes(protobufjs 对 string 会按 base64 处理),
 //   必须 TextEncoder/TextDecoder 显式转换

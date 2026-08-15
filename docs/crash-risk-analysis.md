@@ -904,9 +904,9 @@ void CrashFunction();
 
 位置：
 
-- `src/gr_web_client/src/renderer/gr_renderer_manager.ts`
-- `src/gr_web_client/src/client/gr_ws_conn.ts`
-- `src/gr_web_client/src/client/gr_rtc_direct_conn.ts`
+- `src/px_web_client/src/renderer/gr_renderer_manager.ts`
+- `src/px_web_client/src/client/gr_ws_conn.ts`
+- `src/px_web_client/src/client/gr_rtc_direct_conn.ts`
 
 触发条件：
 

@@ -1,18 +1,18 @@
 [workspace]
 members = [
-    "gr_sysinfo",
-    "gr_user_proxy",
-    "gr_service",
-    "gr_service/service_core",
-    "gr_service/service_manager",
-    "gr_crash_reporter",
-    "gr_uninstall",
+    "px_sysinfo",
+    "px_user_proxy",
+    "px_service",
+    "px_service/service_core",
+    "px_service/service_manager",
+    "px_crash_reporter",
+    "px_uninstall",
 ]
 
 resolver = "2"
 
 [workspace.package]
-version = "3.3.35"
+version = "3.3.37"
 edition = "2021"
 
 [patch.crates-io]

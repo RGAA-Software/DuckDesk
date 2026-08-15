@@ -4,12 +4,12 @@ setlocal enabledelayedexpansion
 rem ============================================================================
 rem build_gr_desk_server.bat
 rem
-rem Build and deploy gr_desk_server in one step:
+rem Build and deploy px_desk_server in one step:
 rem   [1/3] Build the Vue frontend   web\gr_desk         (npm run build)
-rem   [2/3] Build the Rust server    gr_desk_server      (cargo build --release)
-rem   [3/3] Copy artifacts into      output\gr_desk_server\
-rem           exe      -> output\gr_desk_server\gr_desk_server.exe
-rem           frontend -> output\gr_desk_server\static\
+rem   [2/3] Build the Rust server    px_desk_server      (cargo build --release)
+rem   [3/3] Copy artifacts into      output\px_desk_server\
+rem           exe      -> output\px_desk_server\px_desk_server.exe
+rem           frontend -> output\px_desk_server\static\
 rem           (the server serves static files from the static\ dir next to the exe)
 rem
 rem Notes:
@@ -25,7 +25,7 @@ cd /d "%~dp0"
 set "REPO_ROOT=%cd%"
 
 rem --- Per-server settings ---
-set "SERVER_NAME=gr_desk_server"
+set "SERVER_NAME=px_desk_server"
 set "WEB_SRC=%REPO_ROOT%\web\gr_desk"
 rem Subdirectory under output\%SERVER_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=static"

@@ -1,7 +1,7 @@
 # WebRTC 局域网直连 Web 客户端(gr_web_client)
 
 > 状态:已可用(2026-08)。浏览器 WebRTC 直连 render,支持画面、键鼠、悬浮控制、文件传输。
-> 本文取代/补充 `06-web-client.md` 中旧 React 原型的描述(旧 `src/gr_web_client` 已弃用)。
+> 本文取代/补充 `06-web-client.md` 中旧 React 原型的描述(旧 `src/px_web_client` 已弃用)。
 
 ## 架构
 

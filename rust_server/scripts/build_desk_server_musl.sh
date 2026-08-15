@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-build gr_desk_server for Linux (x86_64-unknown-linux-musl, static)
+# Cross-build px_desk_server for Linux (x86_64-unknown-linux-musl, static)
 # using zig + cargo-zigbuild. Requires Strawberry perl's pkg-config (shim in .tooling/bin).
 set -euo pipefail
 
@@ -14,7 +14,7 @@ STUB_DIR="$WS_ROOT/target/cross-stubs"
 
 export PATH="$TOOLING/zig:$TOOLING/bin:$PATH"
 
-# --- libudev stub (gr_base -> disk-serial-number -> udev -> libudev-sys) ---
+# --- libudev stub (px_base -> disk-serial-number -> udev -> libudev-sys) ---
 # The desk server never uses disk info; a stub libudev satisfies the linker.
 if [ ! -f "$STUB_DIR/libudev.a" ]; then
   echo ">> building libudev stub"
@@ -42,7 +42,7 @@ export PKG_CONFIG_PATH="$(cygpath -m "$STUB_DIR")"
 export PKG_CONFIG_ALLOW_CROSS=1
 
 cd "$WS_ROOT"
-echo ">> cargo zigbuild --release --target $TARGET -p gr_desk_server"
-"$CZB" zigbuild --release --target $TARGET -p gr_desk_server "$@"
+echo ">> cargo zigbuild --release --target $TARGET -p px_desk_server"
+"$CZB" zigbuild --release --target $TARGET -p px_desk_server "$@"
 echo ""
-echo "OK: $WS_ROOT/target/$TARGET/release/gr_desk_server"
+echo "OK: $WS_ROOT/target/$TARGET/release/px_desk_server"

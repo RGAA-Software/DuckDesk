@@ -6,7 +6,7 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
-// 本地调试：把 /api、/spvr(WebSocket)、/uploads、/ping 代理到运行中的 gr_cms_server。
+// 本地调试：把 /api、/spvr(WebSocket)、/uploads、/ping 代理到运行中的 px_cms_server。
 // 默认 https://127.0.0.1:30500（HTTPS + 自签名证书，secure:false 忽略证书校验）。
 // 端口不同时：CMS_PROXY_TARGET=https://127.0.0.1:30501 npm run dev
 const CMS_PROXY_TARGET = process.env.CMS_PROXY_TARGET || 'https://127.0.0.1:30500'
