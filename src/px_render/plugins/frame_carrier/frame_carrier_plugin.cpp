@@ -49,7 +49,7 @@ namespace px
         PxPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
-            auto logo_path = std::filesystem::path(StringUtil::ToWString(base_path_)) / L"px_plugins" / L"resources" / L"ic_logo_point.png";
+            auto logo_path = std::filesystem::path(StringUtil::ToWString(base_path_)) / L"deps" / L"rd_plugins" / L"resources" / L"ic_logo_point.png";
             if (std::filesystem::exists(logo_path)) {
                 auto file = File::OpenForReadB(U8Path(StringUtil::ToUTF8(logo_path.wstring())));
                 if (file) {

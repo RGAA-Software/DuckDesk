@@ -12,13 +12,13 @@ import sys
 
 # Directories inside src/px_deps/ that we keep as-is
 KEEP_DIRS = {
-    "certs", "resources", "translations", "www", "web", "package",
+    "certs", "resources", "translations", "www", "package",
     "generic", "iconengines", "imageformats", "networkinformation",
     "platforms", "styles", "tls",
 }
 
 # Build-system dirs to skip when scanning
-SKIP_DIRS = {"CMakeFiles", "deps", "px_client_web"}
+SKIP_DIRS = {"CMakeFiles", "deps", "px_client_web", "web"}
 
 # File extensions to skip
 SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmake"}
@@ -125,17 +125,17 @@ def main():
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/px_render.exe", "px_render.exe"),
-        ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client/px_rtc_client.dll"),
+        ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client_rtc.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
 
     # ------------------------------------------------------------------
-    # 3. Render plugins  →  dist/px_plugins/
+    # 3. Render plugins  →  dist/deps/rd_plugins/
     # ------------------------------------------------------------------
     px_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
     px_plugins_src_dir = os.path.join(source_dir, "src", "px_render", "plugins")
-    px_plugins_dst = os.path.join(dist_dir, "px_plugins")
+    px_plugins_dst = os.path.join(dist_dir, "deps", "rd_plugins")
     if os.path.isdir(px_plugins_build_dir):
         os.makedirs(px_plugins_dst, exist_ok=True)
         for plugin_dir in os.listdir(px_plugins_build_dir):
@@ -152,10 +152,10 @@ def main():
                         copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_dst, f))
 
     # ------------------------------------------------------------------
-    # 4. Client plugins  →  dist/px_plugins_client/
+    # 4. Client plugins  →  dist/deps/ct_plugins/
     # ------------------------------------------------------------------
     client_plugin_dirs = ["clipboard", "file_transfer_client", "media_record", "multi_screens"]
-    px_plugins_client_dst = os.path.join(dist_dir, "px_plugins_client")
+    px_plugins_client_dst = os.path.join(dist_dir, "deps", "ct_plugins")
     for plugin_dir in client_plugin_dirs:
         plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
         plugin_src_dir = os.path.join(source_dir, "src", "px_client", "plugins", plugin_dir)
@@ -171,25 +171,18 @@ def main():
                     copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_client_dst, f))
 
     # ------------------------------------------------------------------
-    # 5. Skins  →  dist/px_skins/
+    # 5. Skins  →  dist/deps/theme/
     # ------------------------------------------------------------------
-    px_skins_dst = os.path.join(dist_dir, "px_skins")
+    px_skins_dst = os.path.join(dist_dir, "deps", "theme")
     os.makedirs(px_skins_dst, exist_ok=True)
 
-    # skin_open_source / skin_official DLLs
-    # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to PX_PROJECT_BINARY_PATH
-    # (which points to src/px_deps), the skin DLLs are built there, not under
-    # src/px_panel/src/skin/official.
-    skins_src = os.path.join(build_dir, "src", "px_deps")
+    # skin_official / skin_opensource DLLs + config, built directly into px_skins/
+    # (see src/px_panel/src/skin/{official,opensource}/CMakeLists.txt RUNTIME_OUTPUT_DIRECTORY).
+    skins_src = os.path.join(build_dir, "src", "px_deps", "px_skins")
     if os.path.isdir(skins_src):
         for f in os.listdir(skins_src):
-            if f.startswith("skin_") and f.endswith(".dll"):
+            if (f.startswith("skin_") and f.endswith(".dll")) or f == "skin_config.toml":
                 copy_file(os.path.join(skins_src, f), os.path.join(px_skins_dst, f))
-
-    # skin config (from source tree)
-    skin_config_src = os.path.join(build_dir, "..", "src", "px_panel", "src", "skin", "skin_config.toml")
-    if os.path.isfile(skin_config_src):
-        copy_file(skin_config_src, os.path.join(px_skins_dst, "skin_config.toml"))
 
     # ------------------------------------------------------------------
     # 6. Hook capture
@@ -232,7 +225,6 @@ def main():
         print(f"  + {dst_name}/  (from {src})")
 
     collect_web_frontend(("web", "px_web_client", "dist"), "web_client")
-    collect_web_frontend(("web", "px_cms", "dist"), "px_cms")
 
     print(f"\nDone. Dist folder: {dist_dir}")
 

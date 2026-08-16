@@ -48,7 +48,7 @@ namespace px
         LOGI("plugin base path: {}", base_path);
         LOGI("plugin base data path: {}", StringUtil::ToUTF8(base_data_path));
 
-        auto plugin_dir = PathFromUTF8(base_path) / "px_plugins";
+        auto plugin_dir = PathFromUTF8(base_path) / "deps" / "rd_plugins";
         if (!std::filesystem::exists(plugin_dir)) {
             LOGW("Plugin directory does not exist: {}", plugin_dir.string());
             return;

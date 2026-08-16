@@ -14,10 +14,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL
     px_message px_common_new px_qt_widget skin_interface
 )
 
-# Deploy skin DLL into a px_skins/ subdirectory so SkinLoader can find them at runtime.
-set(PX_SKINS_DEPLOY_DIR "${PX_PROJECT_BINARY_PATH}/px_skins")
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${PX_SKINS_DEPLOY_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:${PROJECT_NAME}>" "${PX_SKINS_DEPLOY_DIR}/"
+# Build the skin DLL directly into px_skins/ (SkinLoader finds it there at runtime).
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}/px_skins"
+    ARCHIVE_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}/px_skins"
 )

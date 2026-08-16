@@ -73,7 +73,7 @@ namespace px
     void WebRtcLocalConnection::LoadRtcLibrary() {
 #ifdef WIN32
         LOGI("Begin to load rtc library!");
-        auto lib_name = QApplication::applicationDirPath() + "/px_client/px_rtc_client.dll";
+        auto lib_name = QApplication::applicationDirPath() + "/px_client_rtc.dll";
         rtc_lib_ = new QLibrary(lib_name);
         auto r = rtc_lib_->load();
         if (!r) {

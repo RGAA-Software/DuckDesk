@@ -60,6 +60,8 @@ Section "Install required files" SecMain
     RMDir /r "$INSTDIR\px_plugins"
     RMDir /r "$INSTDIR\px_plugins_client"
     RMDir /r "$INSTDIR\px_skins"
+    RMDir /r "$INSTDIR\px_client"
+    RMDir /r "$INSTDIR\deps"
 
     ; 1. Extract app.7z
     File "${OUTPUT_DIR}\app\app.7z"

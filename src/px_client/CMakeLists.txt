@@ -156,8 +156,8 @@ if (WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy "${PX_PROJECT_PATH}/px_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/language" "${CMAKE_CURRENT_BINARY_DIR}/resources/language"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/qt_material" "${CMAKE_CURRENT_BINARY_DIR}/resources/qt_material"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PX_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/deps/theme"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PX_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/deps/theme"
     )
 
 elseif (APPLE)

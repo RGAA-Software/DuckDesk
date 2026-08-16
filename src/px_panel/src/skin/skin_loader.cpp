@@ -23,7 +23,7 @@ namespace px
 
         auto base_path = QCoreApplication::applicationDirPath();
         if (skin_name.empty()) {
-            auto config_path = base_path + "/px_skins/skin_config.toml";
+            auto config_path = base_path + "/deps/theme/skin_config.toml";
 
             toml::parse_result result;
             try {
@@ -45,7 +45,7 @@ namespace px
 #else
         auto lib_name = skin_name + ".so";
 #endif
-        auto skin_path = base_path + "/px_skins/" + lib_name.c_str();
+        auto skin_path = base_path + "/deps/theme/" + lib_name.c_str();
         LOGI("Target skin: {}", skin_path.toStdString());
         auto library = new QLibrary(skin_path);
         if (!library->load()) {

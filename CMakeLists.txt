@@ -304,17 +304,10 @@ endif()
 #add_custom_target(px_build_servers_all ALL COMMENT "Build all targets")
 #add_dependencies(px_build_servers_all px_svr_base px_relay_server px_cms_server px_auth_server px_profile_server)
 
-set(RENDER_BINARY_ROOT ${CMAKE_BINARY_DIR}/src/px_deps)
-
 ## Copy proto files
 set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
 add_custom_command(TARGET px_build_premium_all PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_signaling_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_file_transfer.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_file_transfer.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_client_panel_message.proto"  "${RENDER_BINARY_ROOT}/web/proto/px_client_panel_message.proto"
-
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/px_signaling_message.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/px_file_transfer.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${WEBCLIENT_ROOT}/proto/px_message.proto"
