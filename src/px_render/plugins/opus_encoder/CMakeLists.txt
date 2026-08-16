@@ -1,4 +1,4 @@
-project(plugin_opus_encoder)
+project(enc_opus)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

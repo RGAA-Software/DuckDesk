@@ -134,22 +134,16 @@ def main():
     # 3. Render plugins  →  dist/deps/rd_plugins/
     # ------------------------------------------------------------------
     px_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
-    px_plugins_src_dir = os.path.join(source_dir, "src", "px_render", "plugins")
     px_plugins_dst = os.path.join(dist_dir, "deps", "rd_plugins")
     if os.path.isdir(px_plugins_build_dir):
         os.makedirs(px_plugins_dst, exist_ok=True)
         for plugin_dir in os.listdir(px_plugins_build_dir):
             plugin_build_dir = os.path.join(px_plugins_build_dir, plugin_dir)
-            plugin_src_dir = os.path.join(px_plugins_src_dir, plugin_dir)
             if not os.path.isdir(plugin_build_dir):
                 continue
             for f in os.listdir(plugin_build_dir):
-                if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
+                if f.endswith(".dll") and should_copy_file(f):
                     copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_dst, f))
-            if os.path.isdir(plugin_src_dir):
-                for f in os.listdir(plugin_src_dir):
-                    if f.startswith("plugin_") and f.endswith(".toml"):
-                        copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_dst, f))
 
     # ------------------------------------------------------------------
     # 4. Client plugins  →  dist/deps/ct_plugins/
@@ -158,17 +152,12 @@ def main():
     px_plugins_client_dst = os.path.join(dist_dir, "deps", "ct_plugins")
     for plugin_dir in client_plugin_dirs:
         plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
-        plugin_src_dir = os.path.join(source_dir, "src", "px_client", "plugins", plugin_dir)
         if not os.path.isdir(plugin_build_dir):
             continue
         os.makedirs(px_plugins_client_dst, exist_ok=True)
         for f in os.listdir(plugin_build_dir):
-            if f.startswith("plugin_") and f.endswith(".dll") and should_copy_file(f):
+            if f.endswith(".dll") and should_copy_file(f):
                 copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_client_dst, f))
-        if os.path.isdir(plugin_src_dir):
-            for f in os.listdir(plugin_src_dir):
-                if f.startswith("plugin_") and f.endswith(".toml"):
-                    copy_file(os.path.join(plugin_src_dir, f), os.path.join(px_plugins_client_dst, f))
 
     # ------------------------------------------------------------------
     # 5. Skins  →  dist/deps/theme/

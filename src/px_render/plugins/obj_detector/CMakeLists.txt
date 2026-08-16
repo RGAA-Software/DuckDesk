@@ -1,4 +1,4 @@
-project(plugin_obj_detector)
+project(obj_detector)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

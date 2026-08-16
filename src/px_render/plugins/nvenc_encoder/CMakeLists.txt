@@ -1,4 +1,4 @@
-project(plugin_nvenc_encoder)
+project(enc_nvenc)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

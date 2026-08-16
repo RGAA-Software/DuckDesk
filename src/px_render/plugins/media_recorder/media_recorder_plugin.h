@@ -12,6 +12,8 @@ namespace px
 
     class MediaRecorderPlugin : public PxStreamPlugin {
     public:
+        MediaRecorderPlugin() { plugin_enabled_ = false; }
+
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;

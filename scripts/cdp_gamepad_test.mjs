@@ -11,8 +11,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-// joystick 插件有独立日志(plugin_joystick.dll.log),分配虚拟手柄的记录在这里
-const RENDER_LOG = 'C:/Users/Public/GoDesk/px_logs/plugin_joystick.dll.log'
+// joystick 插件有独立日志(joystick.dll.log),分配虚拟手柄的记录在这里
+const RENDER_LOG = 'C:/Users/Public/GoDesk/px_logs/joystick.dll.log'
 const PAGE_URL =
   'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=gamepad1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223

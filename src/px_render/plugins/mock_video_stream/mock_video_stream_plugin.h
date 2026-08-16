@@ -13,6 +13,8 @@ namespace px
 
     class MockVideoStreamPlugin : public PxDataProviderPlugin {
     public:
+        MockVideoStreamPlugin() { plugin_enabled_ = false; }
+
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;

@@ -1,5 +1,5 @@
 message(STATUS "file transmission(server) is enabled.")
-project(plugin_file_transfer)
+project(file_transfer)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

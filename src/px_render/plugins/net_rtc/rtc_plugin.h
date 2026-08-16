@@ -16,6 +16,8 @@ namespace px
 
     class RtcPlugin : public PxNetPlugin {
     public:
+        RtcPlugin() { plugin_enabled_ = false; }
+
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;

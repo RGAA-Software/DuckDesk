@@ -55,7 +55,7 @@ Section "Install required files" SecMain
     SetOutPath "$INSTDIR"
 
     ; Clean stale plugins/skins from previous installs.
-    ; Old DLLs no longer shipped (e.g. plugin_net_udp.dll) are ABI-incompatible
+    ; Old DLLs no longer shipped (e.g. net_udp.dll) are ABI-incompatible
     ; and crash the render process when the plugin loader scans this directory.
     RMDir /r "$INSTDIR\px_plugins"
     RMDir /r "$INSTDIR\px_plugins_client"

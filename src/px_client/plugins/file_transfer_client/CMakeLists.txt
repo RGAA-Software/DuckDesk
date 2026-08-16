@@ -1,4 +1,4 @@
-project(plugin_file_transfer_client)
+project(file_transfer_client)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

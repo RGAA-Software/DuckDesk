@@ -14,6 +14,7 @@ namespace px
 
     class FrameDebuggerPlugin : public PxStreamPlugin {
     public:
+        FrameDebuggerPlugin() { plugin_enabled_ = false; }
 
         std::string GetPluginId() override;
         std::string GetPluginName() override;

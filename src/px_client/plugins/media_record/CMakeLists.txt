@@ -1,4 +1,4 @@
-project(plugin_media_record_client)
+project(media_record_client)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

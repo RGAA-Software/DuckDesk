@@ -272,13 +272,13 @@ add_dependencies(px_build_premium_all
     px_panel
 
     ### render
-    plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
-    plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_nvenc_encoder
-    plugin_obj_detector plugin_clipboard px_gh px_gh_injector px_gh_address
-    plugin_net_rtc_local
+    enc_amf file_transfer frame_carrier frame_resizer cap_gdi
+    joystick media_recorder net_relay net_rtc enc_nvenc
+    obj_detector clipboard px_gh px_gh_injector px_gh_address
+    net_rtc_local
 
     ### client
-    plugin_media_record_client plugin_client_clipboard plugin_file_transfer_client
+    media_record_client client_clipboard file_transfer_client
 
     ### skins
     skin_interface skin_official skin_loader skin_opensource
@@ -290,14 +290,14 @@ add_dependencies(px_build_premium_all
     px_render px_service_stage px_service_manager_stage px_message px_vigem px_plugin
     px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
     px_osinfo_stage
-    plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
-    plugin_was_audio_capture plugin_opus_encoder px_sdk px_qt_widget plugin_mock_video_stream px_translator
-    px_cms_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer
+    net_ws enc_ffmpeg frame_debugger cap_dda
+    cap_was_audio enc_opus px_sdk px_qt_widget mock_video_stream px_translator
+    px_cms_client px_account_sdk px_rp_message px_profile_client event_replayer
     px_server_message
 )
 
 if(PLUGIN_NET_UDP_ENABLED)
-    add_dependencies(px_build_premium_all plugin_net_udp)
+    add_dependencies(px_build_premium_all net_udp)
 endif()
 
 ## Servers

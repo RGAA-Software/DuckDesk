@@ -1,4 +1,4 @@
-project(plugin_net_ws)
+project(net_ws)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

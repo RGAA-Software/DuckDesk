@@ -117,23 +117,6 @@ namespace px
             else if (value.type() == typeid(bool)) {
                 LOGI(" * {} => {}", key, std::any_cast<bool>(value));
             }
-
-            // parse
-            if (key == "author") {
-                plugin_author_ = std::any_cast<std::string>(value);
-            }
-            else if (key == "description") {
-                plugin_desc_ = std::any_cast<std::string>(value);
-            }
-            else if (key == "version_name") {
-                plugin_version_name_ = std::any_cast<std::string>(value);
-            }
-            else if (key == "version_code") {
-                plugin_version_code_ = std::any_cast<int64_t>(value);
-            }
-            else if (key == "enabled") {
-                plugin_enabled_ = std::any_cast<bool>(value);
-            }
         }
 
         root_widget_ = new QWidget(nullptr, Qt::Window);

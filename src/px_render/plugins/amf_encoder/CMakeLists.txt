@@ -1,4 +1,4 @@
-project(plugin_amf_encoder)
+project(enc_amf)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

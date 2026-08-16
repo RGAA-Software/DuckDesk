@@ -1,4 +1,4 @@
-project(plugin_ffmpeg_encoder)
+project(enc_ffmpeg)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

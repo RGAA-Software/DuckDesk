@@ -13,6 +13,8 @@ namespace px
 
     class ObjDetectorPlugin : public PxStreamPlugin {
     public:
+        ObjDetectorPlugin() { plugin_enabled_ = false; }
+
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;

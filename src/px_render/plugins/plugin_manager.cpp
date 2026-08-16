@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <cctype>
 #include <mutex>
-#include <toml++/toml.hpp>
 #include "rd_app.h"
 #include "plugin_ids.h"
 #include "rd_context.h"
@@ -130,44 +129,6 @@ namespace px
                             {"app_mode", std::string(settings_->IsGameHookMode() ? "game-hook" : "desktop")}
                         },
                     };
-
-                    auto config_filepath = plugin_dir / (filename + ".toml");
-                    if (std::filesystem::exists(config_filepath)) {
-                        try {
-                            auto cfg = toml::parse_file(config_filepath.u8string());
-                            cfg.for_each([&](auto& k, auto& v) {
-                                auto str_key = (std::string)k;
-                                if constexpr (toml::is_string<decltype(v)>) {
-                                    auto str_value = toml::value<std::string>(v).get();
-                                    param.cluster_.insert({str_key, str_value});
-                                }
-                                else if constexpr (toml::is_boolean<decltype(v)>) {
-                                    auto bool_value = toml::value<bool>(v).get();
-                                    param.cluster_.insert({str_key, bool_value});
-                                }
-                                else if constexpr (toml::is_integer<decltype(v)>) {
-                                    auto int_value = toml::value<int64_t>(v).get();
-                                    param.cluster_.insert({str_key, int_value});
-                                }
-                                else if constexpr (toml::is_floating_point<decltype(v)>) {
-                                    auto float_value = toml::value<double>(v).get();
-                                    param.cluster_.insert({str_key, float_value});
-                                }
-                            });
-                        } catch (const std::exception& e) {
-                            LOGE("Load plugin failed, plugin_id: {}, dll path: {}, errorString: parse config {} failed: {}",
-                                 plugin_id,
-                                 StringUtil::ToUTF8(target_plugin_path),
-                                 StringUtil::ToUTF8(config_filepath.wstring()),
-                                 e.what());
-                        }
-                    } else {
-                        LOGE("Load plugin failed, plugin_id: {}, dll path: {}, errorString: config {} does not exist",
-                             plugin_id,
-                             StringUtil::ToUTF8(target_plugin_path),
-                             StringUtil::ToUTF8(config_filepath.wstring()));
-                        continue;
-                    }
 
                     if (!plugin->OnCreate(param)) {
                         LOGE("Load plugin failed, plugin_id: {}, dll path: {}, errorString: OnCreate failed for {}",

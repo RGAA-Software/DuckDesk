@@ -1,4 +1,4 @@
-project(plugin_frame_resizer)
+project(frame_resizer)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

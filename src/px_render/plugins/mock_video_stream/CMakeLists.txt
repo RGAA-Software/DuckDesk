@@ -1,4 +1,4 @@
-project(plugin_mock_video_stream)
+project(mock_video_stream)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

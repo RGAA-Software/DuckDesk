@@ -7,7 +7,6 @@
 #include <QDir>
 #include <QFile>
 #include <QApplication>
-#include <toml++/toml.hpp>
 #include "ct_settings.h"
 #include "ct_plugin_ids.h"
 #include "ct_client_context.h"
@@ -87,44 +86,6 @@ namespace px
                             {"display_remote_name", settings->display_remote_name_},
                         },
                     };
-
-                    auto config_filepath = plugin_dir.path() + "/" + filename + ".toml";
-                    if (QFile::exists(config_filepath)) {
-                        try {
-                            auto cfg = toml::parse_file(config_filepath.toStdString());
-                            cfg.for_each([&](auto& k, auto& v) {
-                                auto str_key = (std::string)k;
-                                if constexpr (toml::is_string<decltype(v)>) {
-                                    auto str_value = toml::value<std::string>(v).get();
-                                    param.cluster_.insert({str_key, str_value});
-                                }
-                                else if constexpr (toml::is_boolean<decltype(v)>) {
-                                    auto bool_value = toml::value<bool>(v).get();
-                                    param.cluster_.insert({str_key, bool_value});
-                                }
-                                else if constexpr (toml::is_integer<decltype(v)>) {
-                                    auto int_value = toml::value<int64_t>(v).get();
-                                    param.cluster_.insert({str_key, int_value});
-                                }
-                                else if constexpr (toml::is_floating_point<decltype(v)>) {
-                                    auto float_value = toml::value<double>(v).get();
-                                    param.cluster_.insert({str_key, float_value});
-                                }
-                            });
-                        } catch (const std::exception& e) {
-                            LOGE("Load client plugin failed, plugin_id: {}, dll path: {}, errorString: parse config {} failed: {}",
-                                 plugin_id,
-                                 target_plugin_path.toStdString(),
-                                 config_filepath.toStdString(),
-                                 e.what());
-                        }
-                    } else {
-                        LOGE("Load client plugin failed, plugin_id: {}, dll path: {}, errorString: config {} does not exist",
-                             plugin_id,
-                             target_plugin_path.toStdString(),
-                             config_filepath.toStdString());
-                        continue;
-                    }
 
                     if (!plugin->OnCreate(param)) {
                         LOGE("Load client plugin failed, plugin_id: {}, dll path: {}, errorString: OnCreate failed for {}",

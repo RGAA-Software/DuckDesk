@@ -1,7 +1,7 @@
 if(PLUGIN_NET_UDP_ENABLED)
     add_subdirectory(net_udp)
 else()
-    message(STATUS "plugin_net_udp is disabled (PLUGIN_NET_UDP_ENABLED=OFF)")
+    message(STATUS "net_udp is disabled (PLUGIN_NET_UDP_ENABLED=OFF)")
 endif()
 add_subdirectory(net_rtc)
 add_subdirectory(net_ws)

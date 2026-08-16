@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem Build plugin_was_audio_capture against build_official.
+rem Build cap_was_audio against build_official.
 rem Same VS / MSVC environment discovery as build_official.bat.
 
 cd /d "%~dp0..\.."
 
-set "TARGET=plugin_was_audio_capture"
+set "TARGET=cap_was_audio"
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 

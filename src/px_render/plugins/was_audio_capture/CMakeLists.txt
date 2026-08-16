@@ -1,4 +1,4 @@
-project(plugin_was_audio_capture)
+project(cap_was_audio)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

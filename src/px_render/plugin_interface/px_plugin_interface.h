@@ -255,10 +255,10 @@ namespace px
         PxPluginEventCallback event_cbk_ = nullptr;
         std::string plugin_file_name_;
         PxPluginType plugin_type_ = PxPluginType::kUtil;
-        std::string plugin_author_;
+        std::string plugin_author_ = "RGAA";
         std::string plugin_desc_;
-        std::string plugin_version_name_;
-        int64_t plugin_version_code_;
+        std::string plugin_version_name_ = "1.2.0";
+        int64_t plugin_version_code_ = 120;
         bool plugin_enabled_ = true;
         std::string base_path_;
         std::wstring base_data_path_;
