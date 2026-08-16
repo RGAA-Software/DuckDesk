@@ -28,10 +28,10 @@
 namespace px
 {
 
-    constexpr auto kInjectorName = "px_game_hook_injector.exe";
-    // 暂无 32 位版 px_game_hook.dll，32 位游戏明确拒绝注入（见 InjectDll）
+    constexpr auto kInjectorName = "px_gh_injector.exe";
+    // 暂无 32 位版 px_gh.dll，32 位游戏明确拒绝注入（见 InjectDll）
     constexpr auto kX86DllName = "";
-    constexpr auto kX64DllName = "px_game_hook.dll";
+    constexpr auto kX64DllName = "px_gh.dll";
 
     // 注入失败固定重试间隔（不指数退避、不设次数上限，尽快出画面）
     constexpr int kInjectRetryIntervalMs = 100;
@@ -68,7 +68,7 @@ namespace px
 
         if (settings_->capture_.IsVideoInnerCapture()) {
             // Job 挂 KILL_ON_JOB_CLOSE:render 异常死亡/被强杀时,OS 负责杀掉游戏,
-            // 避免残留的旧游戏带着 px_game_hook.dll 重连新 render 的 /ipc 串帧
+            // 避免残留的旧游戏带着 px_gh.dll 重连新 render 的 /ipc 串帧
             game_job_ = CreateJobObjectW(nullptr, nullptr);
             if (game_job_) {
                 JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
@@ -138,7 +138,7 @@ namespace px
         std::wstring exec = StringUtil::ToWString(config_exe_path);
         std::wstring arguments = StringUtil::ToWString(settings_->app_.game_arguments_);
         std::wstring x86_dll;
-        std::wstring x64_dll = L"px_game_hook.dll";
+        std::wstring x64_dll = L"px_gh.dll";
 
         InjectParams inject_params {};
         std::string folder_path = GetExeFolderPath();
@@ -392,7 +392,7 @@ namespace px
         if (inject_alive_fail_count_ < kInjectAliveMaxFailCount) {
             return;
         }
-        LOGW("Target pid: {} gone or px_game_hook.dll unmapped (alive: {}, mapped: {}), will re-inject.",
+        LOGW("Target pid: {} gone or px_gh.dll unmapped (alive: {}, mapped: {}), will re-inject.",
              pid, alive, dll_mapped);
         inject_alive_fail_count_ = 0;
         injected_ = false;
@@ -667,7 +667,7 @@ namespace px
             if (!injected) {
                 auto again = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
                 if (again.ok_ && again.value_) {
-                    LOGW("Injector timed out/failed but px_game_hook.dll is mapped — treat as success");
+                    LOGW("Injector timed out/failed but px_gh.dll is mapped — treat as success");
                     injected = true;
                 }
             }
@@ -810,7 +810,7 @@ namespace px
             if (!injected) {
                 auto again = WinHelper::IsDllInjected(target_process_info->pid_, kX86DllName, kX64DllName);
                 if (again.ok_ && again.value_) {
-                    LOGW("Injector timed out/failed but px_game_hook.dll is mapped — treat as success");
+                    LOGW("Injector timed out/failed but px_gh.dll is mapped — treat as success");
                     injected = true;
                 }
             }
@@ -848,12 +848,12 @@ namespace px
         auto target_dll = std::format("{}/{}", current_exe_path, x64_dll);
         StringUtil::Replace(target_dll, "\\", "/");
 
-        // 32 位目标明确拒绝：暂无 32 位 px_game_hook.dll，且 inject-library 会把
+        // 32 位目标明确拒绝：暂无 32 位 px_gh.dll，且 inject-library 会把
         // 64 位 LoadLibraryW 地址写进 WoW64 进程（行为未定义，可能崩游戏）。
         // 记 permanent failure，停止重试
         if (is_x86) {
             inject_gave_up_ = true;
-            LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 px_game_hook.dll）", pid);
+            LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 px_gh.dll）", pid);
             return false;
         }
         {
@@ -864,7 +864,7 @@ namespace px
                 CloseHandle(process);
                 if (target_is_x86) {
                     inject_gave_up_ = true;
-                    LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 px_game_hook.dll）", pid);
+                    LOGE("暂不支持 32 位游戏, pid: {}, 注入已放弃（需要 32 位版 px_gh.dll）", pid);
                     return false;
                 }
             }

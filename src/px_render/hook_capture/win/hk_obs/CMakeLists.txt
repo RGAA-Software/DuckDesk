@@ -9,7 +9,7 @@ add_subdirectory(ipc_util)
 add_subdirectory(offsets)
 
 cmake_minimum_required(VERSION 3.26)
-project(px_game_hook)
+project(px_gh)
 
 set(CMAKE_CXX_STANDARD 23)
 add_definitions(-DCOMPILE_VULKAN_HOOK)

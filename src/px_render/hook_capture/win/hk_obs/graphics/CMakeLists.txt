@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(px_game_hook)
+project(px_gh)
 
 set(CMAKE_CXX_STANDARD 23)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")

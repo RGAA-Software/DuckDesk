@@ -1,4 +1,4 @@
-// Hook-path ONLY (二选一之 hook): force enable_hook_audio=1, inject px_game_hook.dll,
+// Hook-path ONLY (二选一之 hook): force enable_hook_audio=1, inject px_gh.dll,
 // collect in-process AudioShare WAV. No PID process-loopback in this test.
 //
 // Usage (from build_official/dist):
@@ -88,8 +88,8 @@ StartedGame StartGameSuspended(const std::wstring& game_path) {
 }
 
 bool InjectGraphics(uint32_t pid, const std::filesystem::path& dist) {
-    auto injector = dist / "px_game_hook_injector.exe";
-    auto dll = dist / "px_game_hook.dll";
+    auto injector = dist / "px_gh_injector.exe";
+    auto dll = dist / "px_gh.dll";
     if (!std::filesystem::exists(injector) || !std::filesystem::exists(dll)) {
         std::cerr << "Missing injector/dll under " << dist.string() << "\n";
         return false;
@@ -267,7 +267,7 @@ int wmain(int argc, wchar_t** argv) {
 
     if (!std::filesystem::exists(wav)) {
         std::cerr << "FAIL: hook wav not created. Check "
-                  << (dist / "px_game_hook_32000.log").string() << "\n";
+                  << (dist / "px_gh_32000.log").string() << "\n";
         return 5;
     }
 

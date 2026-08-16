@@ -44,7 +44,7 @@ namespace px
             return resp;
         }
 
-        // 没有配置对应位数的 DLL 名（当前只有 64 位版 px_game_hook.dll），
+        // 没有配置对应位数的 DLL 名（当前只有 64 位版 px_gh.dll），
         // 32 位目标直接视为未注入，避免空串比较导致的无效全量枚举
         if ((x86 && x86_dll_name.empty()) || (!x86 && x64_dll_name.empty())) {
             CloseHandle(hnd_process);

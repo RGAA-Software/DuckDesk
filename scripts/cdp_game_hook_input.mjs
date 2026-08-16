@@ -1,5 +1,5 @@
 // Headless verify: game-hook render → web_client auto-connect → dispatch mouse/keyboard
-// events via CDP → host 端 DLL 应收到并合成 RawInput（检查 px_game_hook_<port>.log）。
+// events via CDP → host 端 DLL 应收到并合成 RawInput（检查 px_gh_<port>.log）。
 // Usage: RENDER_PORT=32101 DEVICE_ID=e2e-machine-1 node scripts/cdp_game_hook_input.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'
@@ -176,7 +176,7 @@ async function main() {
     }
   })()`)
   console.log('[cdp] input probe:', JSON.stringify(probe))
-  console.log('[cdp] OK: input events dispatched; 检查 dist/px_game_hook_' + PORT + '.log 里的')
+  console.log('[cdp] OK: input events dispatched; 检查 dist/px_gh_' + PORT + '.log 里的')
   console.log('[cdp]   "RawInput mouse: ... delta=(...)" 是否有非零位移')
   process.exit(0)
 }
