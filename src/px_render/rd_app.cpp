@@ -975,6 +975,8 @@ namespace px
         config->set_fps(settings_->encoder_.fps_);
         config->set_capturing_monitor_name(capturing_name);
         config->set_file_transfer_enabled(settings_->file_transfer_enabled_);
+        // FT 协议版本:rustdesk 语义 = 2(旧实现已删除,主控按此门控)
+        config->set_ft_protocol_version(2);
         config->set_audio_enabled(settings_->audio_enabled_);
         config->set_can_be_operated(settings_->can_be_operated_);
         //

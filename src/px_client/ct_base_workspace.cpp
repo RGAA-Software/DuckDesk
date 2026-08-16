@@ -517,6 +517,7 @@ namespace px
             //
             settings_->is_render_audio_capture_enabled_ = config.audio_enabled();
             settings_->is_render_be_operated_by_mk_ = config.can_be_operated();
+            settings_->render_ft_protocol_version_ = config.ft_protocol_version();
 
             context_->SendAppMessage(msg);
 
@@ -883,6 +884,11 @@ namespace px
     void BaseWorkspace::RegisterControllerPanelListeners() {
         msg_listener_->Listen<MsgClientOpenFiletrans>([=, this](const MsgClientOpenFiletrans& msg) {
             context_->PostUITask([=, this]() {
+                // FT 协议版本门控:rustdesk 语义 = 2;旧被控(0/缺省)不兼容,提示而非静默失败
+                if (settings_->render_ft_protocol_version_ != 2) {
+                    context_->NotifyAppMessage("Warning", "Controlled side file transfer version incompatible.");
+                    return;
+                }
                 if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
                     plugin->ShowRootWidget();
                 }

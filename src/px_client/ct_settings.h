@@ -169,6 +169,9 @@ namespace px
         // can be operated by mouse/keyboard in render
         bool is_render_be_operated_by_mk_ = true;
 
+        // 被控端文件传输协议版本(rustdesk 语义 = 2;0/缺省 = 旧版,不兼容,入口置灰)
+        uint32_t render_ft_protocol_version_ = 0;
+
         // max speed of remote ethernet
         uint64_t max_transmit_speed_ = 0;
         uint64_t max_receive_speed_ = 0;
