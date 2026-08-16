@@ -306,7 +306,12 @@ void FtEngine::HandleFileAction(const px::FileAction& action) {
         }
         case U::kSendConfirm: {
             const auto& r = action.send_confirm();
+            // 读侧作业(我方在发送)直接确认;否则落到写侧作业
+            // (上传方向:主控 UI 决策后回 send_confirm,定位 .download 写流,
+            // 对应 rustdesk CM 的 ipc::FS::SendConfirm 处理,ui_cm_interface.rs:1138)
             if (auto* job = GetJob(r.id(), read_jobs_)) {
+                job->Confirm(r);
+            } else if (auto* job = GetJob(r.id(), write_jobs_)) {
                 job->Confirm(r);
             }
             break;
@@ -333,6 +338,10 @@ void FtEngine::HandleFileResponse(const px::FileResponse& resp) {
             // 写侧作业移除;保留 .download 供续传(ui_cm WriteError 语义)
             if (auto job = RemoveJob(e.id(), write_jobs_)) {
                 if (job_done_cb_) job_done_cb_(e.id(), e.file_num(), e.error());
+            } else if (response_cb_) {
+                // 非作业语境的 error(create/remove/rename 等目录操作回执)透传上层。
+                // 主控端 UI 据此刷新目录/提示失败;render 壳未设 response_cb_,行为不变。
+                response_cb_(resp);
             }
             break;
         }
@@ -383,6 +392,11 @@ void FtEngine::HandleDone(const px::FileTransferDone& done) {
         job->ModifyTime();
         std::string err = job->job_error().value_or("");
         if (job_done_cb_) job_done_cb_(done.id(), done.file_num(), err);
+    } else if (response_cb_) {
+        // 非作业语境的 done(目录操作回执)透传上层,同 kError 分支。
+        px::FileResponse resp;
+        *resp.mutable_done() = done;
+        response_cb_(resp);
     }
 }
 
@@ -428,9 +442,13 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
         std::string write_path =
             ToUtf8(TransferJob::Join(*p, job->files()[digest.file_num()].name()));
         job->set_digest(digest.file_size(), digest.last_modified());
+        // 续传判定:被控侧写作业 is_resume 恒 false,必须用 digest 里的 is_resume
+        // (ui_cm_interface.rs:1106 CheckDigest 参数语义);主控下载侧本地写作业可能带
+        // is_resume(io_loop.rs ResumeJob),两者取或
+        const bool is_resume = digest.is_resume() || job->is_resume;
         DigestCheckResult res;
         try {
-            res = IsWriteNeedConfirmation(job->is_resume, write_path, digest);
+            res = IsWriteNeedConfirmation(is_resume, write_path, digest);
         } catch (const std::exception& e) {
             Log(std::string("error receiving digest: ") + e.what());
             return;
@@ -445,7 +463,7 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
             case DigestCheckResult::Kind::NeedConfirm: {
                 std::optional<bool> overwrite_strategy = job->default_overwrite_strategy();
                 uint64_t offset = 0;
-                if (res.digest.is_identical() && job->is_resume &&
+                if (res.digest.is_identical() && is_resume &&
                     res.digest.transferred_size() > 0) {
                     overwrite_strategy = true;
                     offset = res.digest.transferred_size();
@@ -455,9 +473,22 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
                         MakeConfirm(digest.id(), digest.file_num(), *overwrite_strategy, offset);
                     job->Confirm(req);
                     Send(NewSendConfirm(req));
-                } else if (overwrite_confirm_cb_) {
-                    overwrite_confirm_cb_(digest.id(), digest.file_num(), write_path, false,
-                                          res.digest.is_identical());
+                } else if (job->is_remote) {
+                    // 本端是主控(下载方向,io_loop.rs:1615 写侧语义):本地 UI 决策
+                    if (overwrite_confirm_cb_) {
+                        overwrite_confirm_cb_(digest.id(), digest.file_num(), write_path, false,
+                                              res.digest.is_identical());
+                    }
+                } else {
+                    // 本端是被控(上传方向,ui_cm_interface.rs:1116-1124 CheckDigest 语义):
+                    // 回发 digest(is_upload=true)给主控,由主控 UI 弹框决策;
+                    // 主控决策后回 send_confirm,经 kSendConfirm 落到本写作业
+                    px::Message msg;
+                    auto* out = msg.mutable_file_response()->mutable_digest();
+                    *out = res.digest;
+                    out->set_is_upload(true);
+                    out->set_is_resume(digest.is_resume());
+                    Send(msg);
                 }
                 break;
             }
@@ -474,12 +505,13 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
 // ---------------- 本端主动操作 ----------------
 
 int32_t FtEngine::SendFiles(const std::string& local_path, bool include_hidden,
-                            const std::string& remote_to, int32_t file_num) {
+                            const std::string& remote_to, int32_t file_num, bool is_resume) {
     int32_t id = NextJobId();
     try {
         TransferJob job = TransferJob::NewRead(id, JobType::Generic, remote_to,
                                                DataSource{ToFsPath(local_path)}, file_num,
                                                include_hidden, false, true);
+        job.is_resume = is_resume;
         std::vector<px::FileEntry> files = job.files();
         uint64_t total_size = job.total_size();
         read_jobs_.push_back(std::move(job));
@@ -491,11 +523,13 @@ int32_t FtEngine::SendFiles(const std::string& local_path, bool include_hidden,
 }
 
 int32_t FtEngine::ReceiveFiles(const std::string& remote_path, bool include_hidden,
-                               const std::string& local_to, int32_t file_num) {
+                               const std::string& local_to, int32_t file_num, bool is_resume) {
     int32_t id = NextJobId();
     TransferJob job = TransferJob::NewWrite(id, JobType::Generic, remote_path,
                                             DataSource{ToFsPath(local_to)}, file_num,
                                             include_hidden, true, true);
+    job.is_resume = is_resume;
+    job.SetFinishedSizeOnResume(); // io_loop.rs:730 ResumeJob 语义
     write_jobs_.push_back(std::move(job));
     Send(NewSend(id, JobType::Generic, remote_path, file_num, include_hidden));
     return id;

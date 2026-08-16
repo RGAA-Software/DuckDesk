@@ -81,13 +81,14 @@ namespace px
             (void)file_num;
             this->TrackJobEnd(job_id, error_or_empty);
         });
-        // render 无本地 UI,覆盖确认无法问人:延后到队列自动"跳过",避免在
-        // HandleDigest 内重入引擎。冲突文件的覆盖/续传决策由主控端 UI 给出
-        // (rustdesk 语义里确认请求本就由发起侧 UI 应答)。
+        // render 无本地 UI。上传方向的覆盖冲突由引擎回发 is_upload=true digest 给主控,
+        // 主控 UI 决策后回 send_confirm(ui_cm_interface.rs:1116 CheckDigest 语义),
+        // 不会走到这里;本回调只是兜底(如 render 主动下载场景):延后到队列自动"跳过",
+        // 避免在 HandleDigest 内重入引擎。
         engine_->SetOverwriteConfirmCallback(
             [this](int32_t job_id, int32_t file_num, const std::string& path,
                    bool is_upload, bool is_identical) {
-                LOGW("ft overwrite confirm on headless render, auto skip: job {}, file #{}, path {}, upload {}, identical {}",
+                LOGW("ft overwrite confirm fallback on headless render, auto skip: job {}, file #{}, path {}, upload {}, identical {}",
                      job_id, file_num, path, is_upload, is_identical);
                 std::lock_guard<std::mutex> lk(task_mutex_);
                 tasks_.emplace_back([this, job_id, file_num]() {

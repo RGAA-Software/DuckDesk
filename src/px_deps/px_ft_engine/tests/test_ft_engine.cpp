@@ -72,17 +72,26 @@ struct Loopback {
     std::vector<std::pair<int32_t, std::string>> b_done;
     std::vector<std::tuple<int32_t, int32_t, std::string, bool, bool>> a_confirm_reqs;
     std::vector<std::tuple<int32_t, int32_t, std::string, bool, bool>> b_confirm_reqs;
+    int blocks_to_b = 0; // A->B 方向数据块计数(续传断言用)
+    int blocks_to_a = 0;
+    std::vector<uint32_t> confirm_offsets_to_b; // A 收到的 send_confirm 偏移(来自 B)
 
     Loopback() {
         a = std::make_unique<FtEngine>([this](const px::Message& m) {
             if (a_to_b_busy) return false;
             ++a_sent_messages;
+            if (m.has_file_response() && m.file_response().has_block()) ++blocks_to_b;
             Deliver(m, b.get());
             return true;
         });
         b = std::make_unique<FtEngine>([this](const px::Message& m) {
             if (b_to_a_busy) return false;
             ++b_sent_messages;
+            if (m.has_file_response() && m.file_response().has_block()) ++blocks_to_a;
+            if (m.has_file_action() && m.file_action().has_send_confirm() &&
+                m.file_action().send_confirm().has_offset_blk()) {
+                confirm_offsets_to_b.push_back(m.file_action().send_confirm().offset_blk());
+            }
             Deliver(m, a.get());
             return true;
         });
@@ -237,7 +246,8 @@ TEST(FtEngine, OverwriteConfirmCallbackThenSkip) {
     EXPECT_EQ(ReadFile(tmp.join("dst.txt")), dst_content);
 }
 
-// "应用到全部":设置 default_overwrite_strategy 后不再回调 UI
+// "应用到全部":主控读侧设置 default_overwrite_strategy 后,后续冲突不再回调 UI
+// (上传方向:冲突决策点在被控回发 digest 后的主控读侧,io_loop.rs:1578)
 TEST(FtEngine, DefaultOverwriteStrategySkipsConfirm) {
     TestTempDir tmp("fte_strategy");
     WriteFile(tmp.join("srcdir") / "a.txt", MakeText(20 * 1024));
@@ -246,17 +256,19 @@ TEST(FtEngine, DefaultOverwriteStrategySkipsConfirm) {
     WriteFile(tmp.join("dstdir") / "b.txt", MakeText(31 * 1024)); // 冲突
 
     Loopback lb;
-    int32_t id = lb.a->SendFiles(tmp.str("srcdir"), false, tmp.str("dstdir"));
-    // 第一个冲突回调到达后设置"全部覆盖"
-    lb.b->SetOverwriteConfirmCallback([&](int32_t bid, int32_t fn, const std::string& p, bool up,
+    // 被控 B 本地不决策(回发 digest)
+    lb.b->SetOverwriteConfirmCallback(nullptr);
+    lb.a->SendFiles(tmp.str("srcdir"), false, tmp.str("dstdir"));
+    // 主控 A 第一个冲突回调到达后设置"全部覆盖"
+    lb.a->SetOverwriteConfirmCallback([&](int32_t aid, int32_t fn, const std::string& p, bool up,
                                           bool ident) {
-        lb.b_confirm_reqs.emplace_back(bid, fn, p, up, ident);
-        lb.b->SetOverwriteStrategy(bid, true);
-        lb.b->ConfirmFile(bid, fn, true, 0);
+        lb.a_confirm_reqs.emplace_back(aid, fn, p, up, ident);
+        lb.a->SetOverwriteStrategy(aid, true);
+        lb.a->ConfirmFile(aid, fn, true, 0);
     });
     lb.Pump();
 
-    EXPECT_EQ(lb.b_confirm_reqs.size(), 1u); // 只弹第一次
+    EXPECT_EQ(lb.a_confirm_reqs.size(), 1u); // 只弹第一次
     EXPECT_EQ(ReadFile(tmp.join("dstdir") / "a.txt"), MakeText(20 * 1024));
     EXPECT_EQ(ReadFile(tmp.join("dstdir") / "b.txt"), MakeText(30 * 1024));
 }
@@ -390,6 +402,80 @@ TEST(FtEngine, OneJobOneBlockPerTick) {
     engine2.Tick();
     EXPECT_EQ(block_count2, 0);
     EXPECT_TRUE(engine2.read_jobs()[0].file_is_waiting());
+}
+
+// 回归:上传冲突时被控侧回发 is_upload=true digest,主控 UI 决策后覆盖生效
+// (ui_cm_interface.rs:1116-1124 CheckDigest NeedConfirm 回发语义)
+TEST(FtEngine, UploadConflictBouncesDigestToController) {
+    TestTempDir tmp("fte_bounce");
+    auto src_content = MakeText(50 * 1024);
+    WriteFile(tmp.join("src.txt"), src_content);
+    WriteFile(tmp.join("dst.txt"), MakeText(60 * 1024)); // 冲突:不同 size
+
+    Loopback lb;
+    // B 模拟被控:不设本地覆盖决策回调(写侧作业 is_remote=false -> 回发 digest)
+    lb.b->SetOverwriteConfirmCallback(nullptr);
+    lb.a->SendFiles(tmp.str("src.txt"), false, tmp.str("dst.txt"));
+
+    // 驱动到主控 A 收到回发的覆盖确认请求
+    for (int i = 0; i < 100 && lb.a_confirm_reqs.empty(); ++i) {
+        lb.a->Tick();
+        lb.b->Tick();
+    }
+    ASSERT_EQ(lb.a_confirm_reqs.size(), 1u);
+    EXPECT_TRUE(std::get<3>(lb.a_confirm_reqs[0]));  // is_upload=true
+    EXPECT_FALSE(std::get<4>(lb.a_confirm_reqs[0])); // 内容不同 -> 非 identical
+    EXPECT_TRUE(lb.b_confirm_reqs.empty());          // 被控侧本地不弹
+
+    // 主控 UI 决策:覆盖
+    lb.a->ConfirmFile(std::get<0>(lb.a_confirm_reqs[0]), std::get<1>(lb.a_confirm_reqs[0]), true,
+                      0);
+    lb.Pump();
+    EXPECT_EQ(ReadFile(tmp.join("dst.txt")), src_content);
+}
+
+// 回归:上传断点续传——digest.is_resume 驱动被控侧消费 .digest 凭证,按偏移续传
+TEST(FtEngine, UploadResumeFromDigestIsResume) {
+    TestTempDir tmp("fte_upload_resume");
+    auto content = MakeText(300 * 1024);
+    WriteFile(tmp.join("src.txt"), content);
+
+    Loopback lb;
+    // 第一轮:传到一半"断线"
+    lb.a->SendFiles(tmp.str("src.txt"), false, tmp.str("dst.txt"));
+    uint64_t partial = 0;
+    for (int i = 0; i < 100; ++i) {
+        lb.a->Tick();
+        lb.b->Tick();
+        std::error_code ec;
+        auto sz = std::filesystem::file_size(tmp.join("dst.txt.download"), ec);
+        if (!ec && sz > 0) {
+            partial = sz;
+            if (partial >= content.size() / 2) break;
+        }
+    }
+    ASSERT_GT(partial, 0u);
+    ASSERT_LT(partial, content.size());
+    ASSERT_TRUE(std::filesystem::exists(tmp.join("dst.txt.digest")));
+    // 断线:两侧作业清空,被控侧保留 .download/.digest
+    lb.a->DisconnectCleanup();
+    lb.b->DisconnectCleanup();
+
+    // 第二轮:is_resume=true 续传
+    int blocks_before = lb.blocks_to_b;
+    lb.a->SendFiles(tmp.str("src.txt"), false, tmp.str("dst.txt"), 0, true);
+    lb.Pump();
+
+    EXPECT_EQ(ReadFile(tmp.join("dst.txt")), content);
+    EXPECT_FALSE(std::filesystem::exists(tmp.join("dst.txt.download")));
+    EXPECT_FALSE(std::filesystem::exists(tmp.join("dst.txt.digest")));
+    // 续传证据:被控回了一个 >0 的字节偏移,且第二轮只补传剩余块
+    ASSERT_FALSE(lb.confirm_offsets_to_b.empty());
+    EXPECT_EQ(lb.confirm_offsets_to_b.back(), partial);
+    int resume_blocks = lb.blocks_to_b - blocks_before;
+    int full_blocks =
+        static_cast<int>((content.size() + kBlockPayloadSize - 1) / kBlockPayloadSize);
+    EXPECT_LT(resume_blocks, full_blocks);
 }
 
 } // namespace

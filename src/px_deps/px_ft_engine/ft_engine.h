@@ -53,9 +53,12 @@ public:
     // 发送回调:见文件头"反压语义"。
     using SendFunc = px::ft::SendFunc;
     // 覆盖确认请求(io_loop.rs override_file_confirm 语义):
-    // 收到 Digest 且无法自动决策(无 default_overwrite_strategy)时回调,
+    // 主控侧收到 Digest 且无法自动决策(无 default_overwrite_strategy)时回调,
     // 上层(UI)决策后调 ConfirmFile() 回喂结果。
-    // path 为发生冲突的本/对端文件路径;is_upload=true 表示上传方向(读侧确认)。
+    // path 为发生冲突的本/对端文件路径;is_upload=true 表示上传方向
+    // (被控回发的 digest,我方是读侧)。
+    // 注意:被控侧(写作业 is_remote=false)的 NeedConfirm 不回调此接口,
+    // 引擎直接回发 is_upload=true 的 digest 给主控(ui_cm_interface.rs:1116)。
     using OverwriteConfirmFunc =
         std::function<void(int32_t job_id, int32_t file_num, const std::string& path,
                            bool is_upload, bool is_identical)>;
@@ -92,13 +95,17 @@ public:
 
     // 上传(io_loop.rs Data::SendFiles is_remote=false):
     // 本地建读作业(递归展开 path),向对端发 FileTransferReceiveRequest。返回作业 id。
+    // is_resume=true 标记续传(io_loop.rs ResumeJob 语义):digest 携带 is_resume,
+    // 对端写侧据此消费 .digest 凭证。
     int32_t SendFiles(const std::string& local_path, bool include_hidden,
-                      const std::string& remote_to, int32_t file_num = 0);
+                      const std::string& remote_to, int32_t file_num = 0, bool is_resume = false);
 
     // 下载(io_loop.rs Data::SendFiles is_remote=true):
     // 本地建写作业写到 local_to,向对端发 FileTransferSendRequest。返回作业 id。
+    // is_resume=true 时本地写作业标记续传,IsWriteNeedConfirmation 消费本地 .digest 凭证。
     int32_t ReceiveFiles(const std::string& remote_path, bool include_hidden,
-                         const std::string& local_to, int32_t file_num = 0);
+                         const std::string& local_to, int32_t file_num = 0,
+                         bool is_resume = false);
 
     void ReadDir(const std::string& path, bool include_hidden);
     void ReadAllFiles(int32_t id, const std::string& path, bool include_hidden);
