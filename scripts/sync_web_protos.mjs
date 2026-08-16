@@ -14,11 +14,11 @@ const src = path.join(repo, 'src', 'px_deps', 'px_message_new')
 const targets = [
   {
     dir: 'web/px_web_client/proto',
-    files: ['px_message.proto', 'px_signaling_message.proto'],
+    files: ['px_message.proto', 'px_signaling_message.proto', 'px_file_transfer.proto'],
   },
   {
     dir: 'src/px_web_client/proto',
-    files: ['px_message.proto', 'px_signaling_message.proto', 'px_client_panel_message.proto'],
+    files: ['px_message.proto', 'px_signaling_message.proto', 'px_client_panel_message.proto', 'px_file_transfer.proto'],
   },
 ]
 

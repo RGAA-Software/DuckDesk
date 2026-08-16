@@ -3,6 +3,7 @@ syntax = "proto3";
 package px;
 
 import "px_signaling_message.proto";
+import "px_file_transfer.proto";
 
 enum RespCode
 {
@@ -58,6 +59,12 @@ enum MessageType {
   kSyncPanelInfo = 250;
   // capture server -> host panel
   kRendererAudioSpectrum = 251;
+
+  // 文件传输(rustdesk 语义,见 px_file_transfer.proto)
+  // client -> render:全部文件操作请求
+  kFileAction = 270;
+  // render -> client:全部文件操作响应
+  kFileResponse = 280;
 
   kLockDevice = 328;
   kStopRender = 329;
@@ -212,6 +219,9 @@ message ServerConfiguration {
   bool audio_enabled = 5;
   // Settings -> Security Settings
   bool can_be_operated = 6;
+  // 文件传输协议版本(rustdesk 语义 = 2;旧实现已删除,0/缺省视为不兼容旧版)
+  // 主控与被控版本不一致时 FT 功能置灰并提示,而非静默失败
+  uint32 ft_protocol_version = 7;
 }
 
 message HeartBeat {
@@ -633,6 +643,10 @@ message Message {
   ChangeMonitorResolution change_monitor_resolution = 240;
   ChangeMonitorResolutionResult change_monitor_resolution_result = 250;
   RendererAudioSpectrum renderer_audio_spectrum = 260;
+
+  // 文件传输(rustdesk 语义)
+  FileAction file_action = 270;
+  FileResponse file_response = 280;
 
   LockDevice lock_device = 338;
   StopRender stop_render = 339;

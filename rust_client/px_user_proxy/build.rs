@@ -5,6 +5,7 @@ fn main() {
     let px_proto = proto_dir.join("px_message.proto");
     println!("cargo:rerun-if-changed={}", rp_proto.display());
     println!("cargo:rerun-if-changed={}", px_proto.display());
+    println!("cargo:rerun-if-changed={}", proto_dir.join("px_file_transfer.proto").display());
 
     let protoc = protoc_bin_vendored::protoc_bin_path().expect("failed to fetch vendored protoc");
     unsafe {

@@ -3,10 +3,12 @@
 // 先解析被依赖的文件、并剥掉 import 语句,即可在同一 Root 内完成解析。
 import protobuf from 'protobufjs'
 import pxSignalingProto from '../../proto/px_signaling_message.proto?raw'
+import pxFileTransferProto from '../../proto/px_file_transfer.proto?raw'
 import pxMessageProto from '../../proto/px_message.proto?raw'
 
 const root = new protobuf.Root()
 protobuf.parse(pxSignalingProto, root)
+protobuf.parse(pxFileTransferProto, root)
 protobuf.parse(pxMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), root)
 
 export const PxMessage = root.lookupType('px.Message')
@@ -20,6 +22,8 @@ export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
 export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
+export const MSG_TYPE_FILE_ACTION = 270 // kFileAction (client -> render,rustdesk 语义)
+export const MSG_TYPE_FILE_RESPONSE = 280 // kFileResponse (render -> client,rustdesk 语义)
 export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
 export const MSG_TYPE_CONNECTION_TAKEN_OVER = 550 // kConnectionTakenOver (render -> client)
 export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
@@ -67,6 +71,8 @@ export function decodeMessage(payload: Uint8Array) {
       capturingMonitorName: string
       fps: number
       fileTransferEnabled: boolean
+      // 文件传输协议版本(rustdesk 语义 = 2;0/缺省为旧版,不兼容)
+      ftProtocolVersion?: number
     }
     // kMonitorSwitched(type=180):采集显示器已切换(切屏回包,含最新显示器列表)
     monitorSwitched?: { name: string; index: number }

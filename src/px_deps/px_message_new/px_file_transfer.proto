@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package px;
+
+// 文件传输消息族,移植自 rustdesk hbb_common message.proto(rustdesk/libs/hbb_common/protos/message.proto:355-512)。
+// 字段编号与上游保持一致,便于对照;语义以 rustdesk fs.rs 为准:
+// - 数据块无序号无 ack,可靠性依赖底层有序流(ft_data_channel / WS / Relay)
+// - 文件级握手:Digest -> SendConfirm(skip/offset_blk) -> Block* -> Done/Error
+// - 断点续传:接收侧落 <path>.download 临时文件 + <path>.digest 凭证
+// 注意:FileTransferSendConfirmRequest.offset_blk 沿上游命名,但实际是**字节偏移**,不是块号。
+
+enum FileType {
+  Dir = 0;
+  DirLink = 2;
+  DirDrive = 3;
+  File = 4;
+  FileLink = 5;
+}
+
+message FileEntry {
+  FileType entry_type = 1;
+  string name = 2;
+  bool is_hidden = 3;
+  uint64 size = 4;
+  uint64 modified_time = 5;
+}
+
+message FileDirectory {
+  int32 id = 1;
+  string path = 2;
+  repeated FileEntry entries = 3;
+}
+
+message ReadDir {
+  string path = 1;
+  bool include_hidden = 2;
+}
+
+message ReadEmptyDirs {
+  string path = 1;
+  bool include_hidden = 2;
+}
+
+message ReadEmptyDirsResponse {
+  string path = 1;
+  repeated FileDirectory empty_dirs = 2;
+}
+
+message ReadAllFiles {
+  int32 id = 1;
+  string path = 2;
+  bool include_hidden = 3;
+}
+
+message FileRename {
+  int32 id = 1;
+  string path = 2;
+  string new_name = 3;
+}
+
+// 主控 -> 被控 方向的全部文件操作请求
+message FileAction {
+  oneof union {
+    ReadDir read_dir = 1;
+    FileTransferSendRequest send = 2;
+    FileTransferReceiveRequest receive = 3;
+    FileDirCreate create = 4;
+    FileRemoveDir remove_dir = 5;
+    FileRemoveFile remove_file = 6;
+    ReadAllFiles all_files = 7;
+    FileTransferCancel cancel = 8;
+    FileTransferSendConfirmRequest send_confirm = 9;
+    FileRename rename = 10;
+    ReadEmptyDirs read_empty_dirs = 11;
+  }
+}
+
+message FileTransferCancel { int32 id = 1; }
+
+// 被控 -> 主控 方向的全部响应
+message FileResponse {
+  oneof union {
+    FileDirectory dir = 1;
+    FileTransferBlock block = 2;
+    FileTransferError error = 3;
+    FileTransferDone done = 4;
+    FileTransferDigest digest = 5;
+    ReadEmptyDirsResponse empty_dirs = 6;
+  }
+}
+
+message FileTransferDigest {
+  int32 id = 1;
+  sint32 file_num = 2;
+  uint64 last_modified = 3;
+  uint64 file_size = 4;
+  bool is_upload = 5;
+  bool is_identical = 6;
+  uint64 transferred_size = 7; // 续传用:已传输字节数
+  bool is_resume = 8;          // 续传用:本次是否为恢复传输
+                               // is_resume=false 且 .digest 存在但正式文件不存在时,
+                               // 接收侧不消费 .digest,按新传输重新确认
+  // 相对上游的增强(预留):文件内容哈希(如 sha256),用于续传强校验。
+  // 第一版只透传不强制校验;上游仅靠 size+mtime 判断同一文件。
+  bytes file_hash = 9;
+}
+
+message FileTransferBlock {
+  int32 id = 1;
+  sint32 file_num = 2;
+  bytes data = 3;
+  bool compressed = 4;
+  uint32 blk_id = 5; // 上游闲置字段,保留编号对齐
+}
+
+message FileTransferError {
+  int32 id = 1;
+  string error = 2;
+  sint32 file_num = 3;
+}
+
+message FileTransferSendRequest {
+  int32 id = 1;
+  string path = 2;
+  bool include_hidden = 3;
+  int32 file_num = 4;
+
+  enum FileType {
+    Generic = 0;
+    Printer = 1; // 上游打印作业用,本实现不启用
+  }
+  FileType file_type = 5;
+}
+
+message FileTransferSendConfirmRequest {
+  int32 id = 1;
+  sint32 file_num = 2;
+  oneof union {
+    bool skip = 3;
+    uint32 offset_blk = 4; // 沿上游命名;实际是字节偏移
+  }
+}
+
+message FileTransferDone {
+  int32 id = 1;
+  sint32 file_num = 2;
+}
+
+message FileTransferReceiveRequest {
+  int32 id = 1;
+  string path = 2; // 写入目标路径
+  repeated FileEntry files = 3;
+  int32 file_num = 4;
+  uint64 total_size = 5;
+}
+
+message FileRemoveDir {
+  int32 id = 1;
+  string path = 2;
+  bool recursive = 3;
+}
+
+message FileRemoveFile {
+  int32 id = 1;
+  string path = 2;
+  sint32 file_num = 3;
+}
+
+message FileDirCreate {
+  int32 id = 1;
+  string path = 2;
+}
