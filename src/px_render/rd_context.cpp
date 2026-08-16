@@ -14,9 +14,6 @@
 #include "px_render/plugins/plugin_manager.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
 
-typedef uint64_t (*FnGenNextGlobalId)();
-FnGenNextGlobalId g_fn_gen_next_global_id = nullptr;
-
 namespace px
 {
     std::shared_ptr<RdContext> RdContext::Make() {
@@ -36,19 +33,6 @@ namespace px
     }
 
     bool RdContext::Init() {
-        auto exe_dir = WinHelper::GetExeFolderPath();
-        auto id_generator_path = StringUtil::ToWString(exe_dir) + L"/px_global_id_generator.dll";
-        static std::shared_ptr<DynamicLibrary> s_id_generator_library;
-        s_id_generator_library = std::make_shared<DynamicLibrary>(id_generator_path);
-        if (!s_id_generator_library->IsLoaded()) {
-            if (!s_id_generator_library->Load()) {
-                LOGE("Load global id generator failed: {}, error: {}",
-                     exe_dir,
-                     s_id_generator_library->GetErrorString());
-                return false;
-            }
-        }
-        g_fn_gen_next_global_id = (FnGenNextGlobalId)s_id_generator_library->GetSymbol("GenNextGlobalId");
         return true;
     }
 
@@ -113,10 +97,6 @@ namespace px
         plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
             plugin->DispatchAppEvent(event);
         });
-    }
-
-    uint64_t RdContext::GenNextNetworkIndex() {
-        return g_fn_gen_next_global_id();
     }
 
 }

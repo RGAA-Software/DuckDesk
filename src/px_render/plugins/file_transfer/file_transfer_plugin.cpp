@@ -9,10 +9,6 @@
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "file_transmission_server/file_transmit_msg_interface.h"
 
-extern "C" {
-    __declspec(dllimport) uint64_t GenNextGlobalId();
-}
-
 PX_PLUGIN_EXPORT(px::FileTransferPlugin)
 
 namespace px
@@ -56,12 +52,6 @@ namespace px
         // translator
         LOGI("Init language: {}", (int)GetCurrentLanguage());
         tcTrMgr()->InitLanguage(GetCurrentLanguage());
-
-        // test //
-        for (int i = 0; i < 10; i++) {
-            LOGI("GlobalId: {}", ::GenNextGlobalId());
-        }
-        // test //
 
         return true;
     }

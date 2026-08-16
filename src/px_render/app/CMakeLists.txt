@@ -19,4 +19,3 @@ elseif (UNIX)
 
 endif ()
 
-add_library(px_global_id_generator SHARED global_id_generator.cpp)

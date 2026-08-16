@@ -17,10 +17,6 @@
 #include "px_message_new/proto_converter.h"
 #include "px_common_new/md5.h"
 
-extern "C" {
-    __declspec(dllimport) uint64_t GenNextGlobalId();
-}
-
 PX_PLUGIN_EXPORT(px::ClipboardPlugin)
 
 namespace px
@@ -53,12 +49,6 @@ namespace px
         PxPluginInterface::OnCreate(param);
         lifetime_token_->store(true);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
-
-        // test //
-        for (int i = 0; i < 10; i++) {
-            LOGI("NextGlobalId: {}", GenNextGlobalId());
-        }
-        // test //
 
         return true;
     }

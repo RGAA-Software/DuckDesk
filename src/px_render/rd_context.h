@@ -54,9 +54,6 @@ namespace px
         // dispatch app event
         void DispatchAppEvent2Plugins(const std::shared_ptr<AppBaseEvent>& event);
 
-        // Next global network index
-        uint64_t GenNextNetworkIndex();
-
     private:
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<Thread> msg_thread_ = nullptr;

@@ -125,7 +125,6 @@ def main():
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/px_render.exe", "px_render.exe"),
-        ("src/px_render/app/px_global_id_generator.dll", "px_global_id_generator.dll"),
         ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client/px_rtc_client.dll"),
     ]
     for rel_src, rel_dst in supplements:

@@ -292,7 +292,7 @@ add_dependencies(px_build_premium_all
     px_osinfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
     plugin_was_audio_capture plugin_opus_encoder px_sdk px_qt_widget plugin_mock_video_stream px_translator
-    px_cms_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer px_global_id_generator
+    px_cms_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer
     px_server_message
 )
 
