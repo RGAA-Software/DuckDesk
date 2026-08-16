@@ -38,12 +38,12 @@ if not exist "%DIST%\px_render.exe" (
     echo Run build_official.bat first.
     exit /b 1
 )
-if not exist "%DIST%\px_graphics.dll" (
-    echo ERROR: %DIST%\px_graphics.dll not found.
+if not exist "%DIST%\px_game_hook.dll" (
+    echo ERROR: %DIST%\px_game_hook.dll not found.
     exit /b 1
 )
-if not exist "%DIST%\px_graphics_util.exe" (
-    echo ERROR: %DIST%\px_graphics_util.exe not found.
+if not exist "%DIST%\px_game_hook_injector.exe" (
+    echo ERROR: %DIST%\px_game_hook_injector.exe not found.
     exit /b 1
 )
 if not exist "%SRC_TOML%" (

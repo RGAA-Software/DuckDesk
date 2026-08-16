@@ -16,7 +16,7 @@ namespace px
 
     std::shared_ptr<AppSharedMessage> DxAddressLoader::LoadDxAddress() {
         auto cap_message = std::make_shared<AppSharedMessage>();
-        auto output = ProcessUtil::StartProcessAndOutput("px_graphics_offsets.exe", {});
+        auto output = ProcessUtil::StartProcessAndOutput("px_game_hook_offsets.exe", {});
         if (output.empty()) {
             LOGE("Failed to run ");
             return nullptr;

@@ -153,12 +153,12 @@ namespace px_capture_d3d11
             return;
         }
 
-        // EasyHook legacy path: SHM frame IPC removed. Use OBS px_graphics + WS /ipc.
+        // EasyHook legacy path: SHM frame IPC removed. Use OBS px_game_hook + WS /ipc.
         static bool s_logged = false;
         if (!s_logged) {
             s_logged = true;
             LOGE("EasyHook capture_dxgi: SHM/ClientIpcManager removed; frames not sent. "
-                 "Use OBS inject (px_graphics).");
+                 "Use OBS inject (px_game_hook).");
         }
         g_frame_index++;
     }

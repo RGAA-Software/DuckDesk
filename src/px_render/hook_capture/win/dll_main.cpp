@@ -2,7 +2,7 @@
 // Created by RGAA on 2023-12-20.
 //
 // Legacy EasyHook entry (ENABLE_HOOK_CAPTURE). Frame IPC is WebSocket /ipc —
-// shared-memory ClientIpcManager has been removed. Prefer OBS inject (px_graphics).
+// shared-memory ClientIpcManager has been removed. Prefer OBS inject (px_game_hook).
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -30,7 +30,7 @@ extern "C" CAPTURETEX_API void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_
     LOGI("----------------------------------------------------");
     LOGI("Inject host  : {}", params->host_exe_folder);
     LOGI("Inject listening port  : {}", params->listening_port);
-    LOGW("EasyHook path: SHM frame IPC removed; use OBS px_graphics + WS /ipc");
+    LOGW("EasyHook path: SHM frame IPC removed; use OBS px_game_hook + WS /ipc");
 
     if (!g_capture_tex.Run()) {
         LOGE("g_capture_tex run  failed!");

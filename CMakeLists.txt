@@ -274,7 +274,7 @@ add_dependencies(px_build_premium_all
     ### render
     plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
     plugin_joystick plugin_media_recorder plugin_net_relay plugin_net_rtc plugin_nvenc_encoder
-    plugin_obj_detector plugin_clipboard px_graphics px_graphics_util px_graphics_offsets
+    plugin_obj_detector plugin_clipboard px_game_hook px_game_hook_injector px_game_hook_offsets
     plugin_net_rtc_local
 
     ### client

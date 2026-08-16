@@ -854,15 +854,15 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
 
     // Boot config is a small file (port + DXGI offsets). Frame IPC is WS /ipc only.
     if (!g_hook_manager->app_shared_msg_ || g_hook_manager->app_shared_msg_->ipc_port_ == 0) {
-        auto fallback_log = std::format(L"{}/px_graphics_boot_fail.log", dll_path);
+        auto fallback_log = std::format(L"{}/px_game_hook_boot_fail.log", dll_path);
         px::Logger::InitLog(fallback_log, true);
         LOGE("Hook boot config missing — refuse to hook (avoid crashing the game)");
         return 0;
     }
 
-    // dll_path is a full file path; put logs next to the DLL, not under ".../px_graphics.dll/".
+    // dll_path is a full file path; put logs next to the DLL, not under ".../px_game_hook.dll/".
     auto log_path = (std::filesystem::path(dll_path).parent_path() /
-                     std::format(L"px_graphics_{}.log", g_hook_manager->app_shared_msg_->ipc_port_))
+                     std::format(L"px_game_hook_{}.log", g_hook_manager->app_shared_msg_->ipc_port_))
                         .wstring();
     px::Logger::InitLog(log_path, true);
     g_hook_manager->StartIpcClient();

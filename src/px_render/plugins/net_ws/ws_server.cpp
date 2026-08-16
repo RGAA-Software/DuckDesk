@@ -186,7 +186,7 @@ namespace px
         // media websocket
         AddWebsocketRouter(kUrlMedia);
         AddWebsocketRouter(kUrlFileTransfer);
-        // game-hook DLL (px_graphics) posts CaptureVideoFrame here
+        // game-hook DLL (px_game_hook) posts CaptureVideoFrame here
         AddIpcRouter();
 #if PX_USER_PROXY_ENABLED
         AddUserProxyRouter();
@@ -424,7 +424,7 @@ namespace px
     }
 
     void WsPluginServer::AddIpcRouter() {
-        // Injected px_graphics.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
+        // Injected px_game_hook.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
         // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
         auto weak_self = weak_from_this();
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
@@ -448,7 +448,7 @@ namespace px
                     if (ipc_msg->version_ != kIpcCaptureVideoFrameVersion
                         || ipc_msg->type_ != kCaptureVideoFrame) {
                         LOGW("IPC video frame version/type mismatch: ver={} type={:#x}, drop "
-                             "(render and px_graphics.dll must be updated together)",
+                             "(render and px_game_hook.dll must be updated together)",
                              ipc_msg->version_, ipc_msg->type_);
                         return;
                     }
@@ -491,7 +491,7 @@ namespace px
                     const auto n = ++s_legacy;
                     if (n == 1 || (n % 100) == 0) {
                         LOGW("IPC legacy CaptureVideoFrame blob rejected n={} "
-                             "(upgrade px_graphics.dll)", n);
+                             "(upgrade px_game_hook.dll)", n);
                     }
                     return;
                 }

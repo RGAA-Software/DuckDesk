@@ -79,7 +79,7 @@ namespace px
         WsDataPtr ws_data_ = nullptr;
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
-        // Injected px_graphics.dll sessions on /ipc (host → game input downlink).
+        // Injected px_game_hook.dll sessions on /ipc (host → game input downlink).
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<asio2::http_session>> ipc_sessions_;
         // Pids allowed on /ipc: this render instance wrote hook boot config for them.
         std::mutex ipc_pid_mtx_;

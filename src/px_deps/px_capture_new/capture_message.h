@@ -229,7 +229,7 @@ namespace px
         uint32_t self_size_{0};
         uint32_t enable_hook_events_{0};
         // 1 = in-process WASAPI audio hook (used when OS lacks process-loopback).
-        // Written into hook_boot before inject; read by px_graphics.dll.
+        // Written into hook_boot before inject; read by px_game_hook.dll.
         uint32_t enable_hook_audio_{0};
     };
 

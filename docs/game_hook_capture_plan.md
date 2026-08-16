@@ -14,7 +14,7 @@
 1. 在 `settings.toml` 填好 `mode = "game-hook"` 与本地 `game-path`
 2. 运行 `scripts\start_render_hook.bat`（仅启 Render；或 `run_game_hook_render.bat` 带无头校验）
 3. 默认 HTTP 端口 `32000`（`--network_listen_port`）
-4. 注入 `px_graphics.dll`（OBS 移植）
+4. 注入 `px_game_hook.dll`（OBS 移植）
 5. 浏览器打开 `http://127.0.0.1:32000/web_client/?deviceId=debug1`，**看到游戏画面**
 6. 鼠标/键盘可控制游戏（焦点可在浏览器；经 `/ipc` → `HookManager` PostMessage + RawInput）
 
@@ -45,13 +45,13 @@ RdSettings::LoadSettings → UpdateSettings(CLI) → ApplyApplicationMode
 RdApplication::Run
   - mode=game-hook：不启动 DDA/GDI
   - StartProcessWithHook() → CreateProcess(game)
-  - AppManager 定时 InjectCaptureDll（px_graphics_util.exe）
+  - AppManager 定时 InjectCaptureDll（px_game_hook_injector.exe）
   - 注入前同步写 boot 文件（非 SHM）:
       %PUBLIC%\GoDesk\hook_boot\application_{pid}.bin
       内容: ipc_port + DXGI offsets（仅启动配置）
         │
         ▼
-游戏进程内 px_graphics.dll
+游戏进程内 px_game_hook.dll
   - 读 boot 文件（ipc_port / DXGI offsets）— 不用 SHM
   - Hook Present（D3D11/12/…，对照 OBS graphics-hook）
   - 共享纹理 HANDLE 元数据 → CaptureVideoFrame
@@ -70,7 +70,7 @@ WsPluginServer(net_ws) /ipc → OnIpcVideoFrame   ※ 仅 loopback；帧为 152B
   浏览器 mouse/key → PluginNetEventRouter
     → CaptureMessageMaker(Mouse/KeyboardEventMessage)
     → RdApplication::PostIpcMessage → **仅** WsPlugin::PostIpcBinaryMessage → /ipc 下行
-    → px_graphics WsIpcClient → HookManager
+    → px_game_hook WsIpcClient → HookManager
        PostMessage(WM_*) + GetRawInputData 队列 + 虚拟 GetCursorPos
   ※ desktop 仍走 EventReplayer → SendInput（global）；inner 时跳过 EventReplayer，避免双路径
   ※ PostIpc 不可 Visit 全部 NetPlugin：旧 DLL 缺 trailing vtable 槽会崩溃
@@ -82,7 +82,7 @@ WsPluginServer(net_ws) /ipc → OnIpcVideoFrame   ※ 仅 loopback；帧为 152B
 
 | 组件 | 状态 |
 |------|------|
-| `px_graphics.dll` / `px_graphics_util.exe`（OBS 移植） | 已有 |
+| `px_game_hook.dll` / `px_game_hook_injector.exe`（OBS 移植） | 已有 |
 | 定时注入 + file bootstrap（WS `/ipc`，非帧 SHM） | 已有 |
 | `OnIpcVideoFrame` → encode → 推流 | 已有 |
 | `application.mode` 读取（desktop / game-hook） | 已有 |
@@ -165,8 +165,8 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 
 | GammaRay | OBS |
 |----------|-----|
-| `hook_capture/win/hk_obs/` → `px_graphics.dll` | `plugins/win-capture/graphics-hook/` |
-| `hk_obs/injector` → `px_graphics_util.exe` | `plugins/win-capture/inject-helper/` |
+| `hook_capture/win/hk_obs/` → `px_game_hook.dll` | `plugins/win-capture/graphics-hook/` |
+| `hk_obs/injector` → `px_game_hook_injector.exe` | `plugins/win-capture/inject-helper/` |
 | `AppManagerWinImpl::InjectDll` | `game-capture.c` inject 调用链 |
 | `AppSharedMessage` / boot file `application_{pid}.bin` | `graphics-hook-info` / hook config |
 | WS `/ipc` + shared texture HANDLE | OBS 帧元数据多为 SHM；GPU 纹理仍可走 shared HANDLE / shmem texture |
@@ -183,7 +183,7 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 4. 反作弊 / 完整性校验可能导致注入失败  
 5. D3D 版本路径差异（11/12/Vulkan）  
 6. 32 位游戏：注入前 `IsWow64Process` 检测命中即明确拒绝（「暂不支持 32 位游戏」），不再反复重试  
-7. `/ipc` 安全：仅接受 loopback 连接；帧为 POD wire 格式。Host render 与 `px_graphics.dll` 必须同批部署（协议变更）
+7. `/ipc` 安全：仅接受 loopback 连接；帧为 POD wire 格式。Host render 与 `px_game_hook.dll` 必须同批部署（协议变更）
 
 ---
 
@@ -194,7 +194,7 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 ### 8.1 /ipc 安全与 wire 格式
 
 1. `/ipc` 只接受 loopback（127.0.0.1 / ::1 / ::ffff:127.0.0.1）连接，非 loopback 立即关闭；此前绑 0.0.0.0 无鉴权，远程可推伪造帧并可收到广播下行的用户键鼠事件。server 本体仍 0.0.0.0 服务浏览器。
-2. 视频帧 wire 改定长 152B 纯 POD `IpcCaptureVideoFrame`（magic=`GRCV` + version=1 + pack(1)），Host 逐字段转换，不再整体 memcpy 含 `std::shared_ptr` 的结构；旧格式显式拒绝 + 限流日志；宽高 clamp 16..8192。**协议变更：Host render 与 `px_graphics.dll` 必须同批部署。**
+2. 视频帧 wire 改定长 152B 纯 POD `IpcCaptureVideoFrame`（magic=`GRCV` + version=1 + pack(1)），Host 逐字段转换，不再整体 memcpy 含 `std::shared_ptr` 的结构；旧格式显式拒绝 + 限流日志；宽高 clamp 16..8192。**协议变更：Host render 与 `px_game_hook.dll` 必须同批部署。**
 3. 死代码 `src/px_render/network/ws_ipc_router.cpp/.h` 已删除，/ipc 实际由 `plugins/net_ws/ws_server.cpp` 的 `AddIpcRouter` 处理。
 
 ### 8.2 注入鲁棒性
@@ -394,7 +394,7 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 ### 14.2 复现/验证工具链(.70 远程调试全流程)
 
 1. **改代码 + 增量编译**:`cmd //c "build_official\_build_inc.bat <target>"`
-   (hook 相关 target:`plugin_frame_carrier`、`px_graphics`;改 hk_video 头文件
+   (hook 相关 target:`plugin_frame_carrier`、`px_game_hook`;改 hk_video 头文件
    还会带动 px_render / px_service 重编)。
 2. **部署 .70**:`tests\_deploy_hookfix_70.bat`(杀 render+游戏进程 → 拷贝 dll →
    服务自动拉起 render)。

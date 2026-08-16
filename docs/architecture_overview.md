@@ -15,7 +15,7 @@
 
 | 组件 | 位置 | 角色 |
 |---|---|---|
-| px_render | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_graphics.dll`，帧经本机 `/ipc` 回传） |
+| px_render | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_game_hook.dll`，帧经本机 `/ipc` 回传） |
 | px_panel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
 | px_client | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
 | px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 CMS 调度（启停游戏实例）、本机控制面 WS `:20375` |
@@ -24,7 +24,7 @@
 | px_cms_server | `rust_server/px_cms_server` | 中心调度：机器列表、应用/实例管理、授权缓存下发，托管 `web/px_cms` 管理前端 |
 | px_auth_server | `rust_server/px_auth_server` | 授权签发/吊销，HTTPS `:30400` |
 | web 观看端 | `web/px_web_client` | 浏览器观看端 SPA，由 render 自己托管在 `/web_client`，WebRTC 收流 |
-| px_graphics.dll | `src/px_render/hook_capture` | 注入游戏的采集 DLL（hook DXGI Present，共享纹理帧经 `/ipc` 回传 render） |
+| px_game_hook.dll | `src/px_render/hook_capture` | 注入游戏的采集 DLL（hook DXGI Present，共享纹理帧经 `/ipc` 回传 render） |
 
 ## 3. 拓扑：控制面与数据面分离
 

@@ -43,8 +43,8 @@ PRODUCT_EXES = {
     "px_function.exe",
     "px_uninstall.exe",
     "px_joystick.exe",
-    "px_graphics_util.exe",
-    "px_graphics_offsets.exe",
+    "px_game_hook_injector.exe",
+    "px_game_hook_offsets.exe",
     "vc_redist.x64.exe",
 }
 
@@ -195,9 +195,9 @@ def main():
     # 6. Hook capture
     # ------------------------------------------------------------------
     hook_capture_files = [
-        ("src/px_render/hook_capture/win/hk_obs/px_graphics.dll", "px_graphics.dll"),
-        ("src/px_render/hook_capture/win/hk_obs/injector/px_graphics_util.exe", "px_graphics_util.exe"),
-        ("src/px_render/hook_capture/win/hk_obs/offsets/px_graphics_offsets.exe", "px_graphics_offsets.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/px_game_hook.dll", "px_game_hook.dll"),
+        ("src/px_render/hook_capture/win/hk_obs/injector/px_game_hook_injector.exe", "px_game_hook_injector.exe"),
+        ("src/px_render/hook_capture/win/hk_obs/offsets/px_game_hook_offsets.exe", "px_game_hook_offsets.exe"),
     ]
     for rel_src, rel_dst in hook_capture_files:
         copy_file(os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))

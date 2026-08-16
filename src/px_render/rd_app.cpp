@@ -744,7 +744,7 @@ namespace px
             init_failed_ = true;
             init_error_ = std::format("StartProcessWithHook failed: {}", settings_->app_.game_path_);
         } else {
-            LOGI("StartProcessWithHook requested OK, inject timer will attach px_graphics.dll");
+            LOGI("StartProcessWithHook requested OK, inject timer will attach px_game_hook.dll");
         }
     }
 
