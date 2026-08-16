@@ -10,11 +10,12 @@ typedef HMODULE (WINAPI *LoadLibraryWFunc)(LPCWSTR lpLibFileName);
 typedef HMODULE (WINAPI *LoadLibraryExAFunc)(LPCSTR lpLibFileName, HANDLE hFile, DWORD dwFlags);
 typedef HMODULE (WINAPI *LoadLibraryExWFunc)(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags);
 
-class AntiHookingProtection
+class PxAntiHookingProtection
 {
 public:
     static void enable()
     {
+        DetourRestoreAfterWith();
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
 
@@ -213,35 +214,17 @@ private:
     };
 };
 
-LoadLibraryAFunc AntiHookingProtection::s_RealLoadLibraryA;
-LoadLibraryWFunc AntiHookingProtection::s_RealLoadLibraryW;
-LoadLibraryExAFunc AntiHookingProtection::s_RealLoadLibraryExA;
-LoadLibraryExWFunc AntiHookingProtection::s_RealLoadLibraryExW;
+LoadLibraryAFunc PxAntiHookingProtection::s_RealLoadLibraryA;
+LoadLibraryWFunc PxAntiHookingProtection::s_RealLoadLibraryW;
+LoadLibraryExAFunc PxAntiHookingProtection::s_RealLoadLibraryExA;
+LoadLibraryExWFunc PxAntiHookingProtection::s_RealLoadLibraryExW;
 
-AH_EXPORT void TCProtectionDummyImport() {}
-
-extern "C"
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+void PxEnableAntiHookingProtection()
 {
-    if (DetourIsHelperProcess()) {
-        return TRUE;
-    }
+    PxAntiHookingProtection::enable();
+}
 
-    switch (fdwReason)
-    {
-    case DLL_PROCESS_ATTACH:
-        DetourRestoreAfterWith();
-        AntiHookingProtection::enable();
-        DisableThreadLibraryCalls(hinstDLL);
-        break;
-    case DLL_PROCESS_DETACH:
-        // Ignore DLL_PROCESS_DETACH on process exit. No need to waste time
-        // unhooking everything if the whole process is being destroyed.
-        if (lpvReserved == NULL) {
-            AntiHookingProtection::disable();
-        }
-        break;
-    }
-
-    return TRUE;
-};
+void PxDisableAntiHookingProtection()
+{
+    PxAntiHookingProtection::disable();
+}

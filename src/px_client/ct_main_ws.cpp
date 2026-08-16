@@ -33,7 +33,7 @@
 #include "version_config.h"
 #include "front_render/vulkan/ct_vulkan_checker.h"
 
-#ifdef TC_PROTECTION_ENABLED
+#ifdef PX_PROTECTION_ENABLED
 #include "px_protection.h"
 #endif
 
@@ -416,8 +416,8 @@ int main(int argc, char** argv) {
     };
     CaptureDumpByBreakpad(&bc);
 
-#ifdef TC_PROTECTION_ENABLED
-    TCProtectionDummyImport();
+#ifdef PX_PROTECTION_ENABLED
+    PxEnableAntiHookingProtection();
 #endif
 
 #endif

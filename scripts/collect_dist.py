@@ -204,15 +204,7 @@ def main():
         copy_file(os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
 
     # ------------------------------------------------------------------
-    # 7. Anti-hooking
-    # ------------------------------------------------------------------
-    copy_file(
-        os.path.join(build_dir, "src", "px_client", "anti_hooking", "px_protection.dll"),
-        os.path.join(dist_dir, "px_protection.dll"),
-    )
-
-    # ------------------------------------------------------------------
-    # 8. Joystick (source tree)
+    # 7. Joystick (source tree)
     # ------------------------------------------------------------------
     joystick_src = os.path.join(build_dir, "..", "src", "px_deps", "px_controller", "vigem", "driver", "px_joystick.exe")
     if os.path.isfile(joystick_src):

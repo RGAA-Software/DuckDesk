@@ -136,8 +136,8 @@ target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::
         px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
 )
 
-if (TC_PROTECTION_ENABLED)
-    add_definitions(-DTC_PROTECTION_ENABLED=1)
+if (PX_PROTECTION_ENABLED)
+    add_definitions(-DPX_PROTECTION_ENABLED=1)
     target_link_libraries(px_client PRIVATE px_protection)
 endif ()
 
