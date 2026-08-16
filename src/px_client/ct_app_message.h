@@ -174,6 +174,10 @@ namespace px
         EUpdate update_type_ = EUpdate::kUnknow;
     };
 
+    class MsgClientOpenFiletrans : public MsgClientBase {
+    public:
+    };
+
     class MsgClientOpenDebugPanel : public MsgClientBase {
     public:
     };

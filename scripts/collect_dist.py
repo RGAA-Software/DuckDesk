@@ -148,7 +148,7 @@ def main():
     # ------------------------------------------------------------------
     # 4. Client plugins  →  dist/deps/ct_plugins/
     # ------------------------------------------------------------------
-    client_plugin_dirs = ["clipboard", "media_record", "multi_screens"]
+    client_plugin_dirs = ["clipboard", "ft", "media_record", "multi_screens"]
     px_plugins_client_dst = os.path.join(dist_dir, "deps", "ct_plugins")
     for plugin_dir in client_plugin_dirs:
         plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)

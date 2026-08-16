@@ -1,0 +1,183 @@
+//
+// ft 主控端插件壳 — rustdesk 协议迁移阶段 3
+//
+
+#include "ft_client_plugin.h"
+#include "ft_core.h"
+#include "ui/ft_window.h"
+
+#include <format>
+
+#include "px_message.pb.h"
+#include "px_message_new/proto_converter.h"
+#include "px_common_new/log.h"
+#include "px_common_new/time_util.h"
+#include "px_client/plugin_interface/ct_plugin_ids.h"
+#include "px_client/plugin_interface/ct_plugin_events.h"
+#include "no_margin_layout.h"
+#include "translator/px_translator.h"
+#include "widget_helper.h"
+
+PX_PLUGIN_EXPORT(px::FtClientPlugin)
+
+namespace px
+{
+
+    // 反压阈值:在途消息数(每块 ~120KB,16 块 ≈ 2MB 上限积压)
+    static constexpr int64_t kMaxOutstandingSends = 16;
+
+    std::string FtClientPlugin::GetPluginId() {
+        return kClientFtPluginId;
+    }
+
+    std::string FtClientPlugin::GetPluginName() {
+        return "File Transfer";
+    }
+
+    std::string FtClientPlugin::GetVersionName() {
+        return "1.0.0";
+    }
+
+    uint32_t FtClientPlugin::GetVersionCode() {
+        return 100;
+    }
+
+    std::string FtClientPlugin::GetPluginDescription() {
+        return "File transfer (rustdesk protocol, px_ft_engine core)";
+    }
+
+    bool FtClientPlugin::OnCreate(const px::ClientPluginParam& param) {
+        ClientPluginInterface::OnCreate(param);
+        plugin_type_ = ClientPluginType::kUtil;
+
+        if (!IsPluginEnabled()) {
+            return true;
+        }
+
+        // core:引擎薄适配层(worker 线程模型,见 ft_core.h)
+        core_ = new FtCore(this);
+        core_->Start();
+
+        // UI:三栏文件管理窗口
+        root_widget_->resize(1280, 760);
+        root_widget_->hide();
+        window_ = new FtWindow(core_, root_widget_);
+        auto layout = new NoMarginHLayout();
+        layout->addWidget(window_);
+        root_widget_->setLayout(layout);
+        WidgetHelper::SetTitleBarColor(root_widget_);
+        root_widget_->setWindowTitle(QString::fromStdString(std::format(
+            "{}[{}]", tcTr("id_file_transfer").toStdString(), plugin_settings_.stream_name_)));
+
+        // 审计:对接 CMS 传输记录链路(旧插件同款事件)
+        connect(core_, &FtCore::SigJobAdded, this, [this](int id, const QString& name, bool is_download) {
+            TrackJobBegin(id, name, is_download);
+        });
+        connect(core_, &FtCore::SigJobDone, this, [this](int id, const QString& error_or_empty) {
+            TrackJobEnd(id, error_or_empty);
+        });
+
+        LOGI("ft client plugin created.");
+        return true;
+    }
+
+    bool FtClientPlugin::OnStop() {
+        if (core_) {
+            core_->Stop();
+        }
+        return ClientPluginInterface::OnStop();
+    }
+
+    bool FtClientPlugin::OnDestroy() {
+        if (core_) {
+            core_->Stop();
+            core_ = nullptr;
+        }
+        window_ = nullptr;
+        return ClientPluginInterface::OnDestroy();
+    }
+
+    void FtClientPlugin::OnMessage(std::shared_ptr<Message> msg) {
+        ClientPluginInterface::OnMessage(msg);
+        const auto type = msg->type();
+        if (type != MessageType::kFileAction && type != MessageType::kFileResponse) {
+            return;
+        }
+        if (core_) {
+            core_->EnqueueMessage(msg);
+        }
+    }
+
+    void FtClientPlugin::ShowRootWidget() {
+        ClientPluginInterface::ShowRootWidget();
+        if (window_) {
+            window_->OnShow();
+        }
+        root_widget_->raise();
+        root_widget_->activateWindow();
+        root_widget_->showNormal();
+    }
+
+    bool FtClientPlugin::HasProcessingTasks() {
+        return core_ && core_->HasJobs();
+    }
+
+    void FtClientPlugin::SyncClientPluginSettings(const px::ClientPluginSettings& st) {
+        ClientPluginInterface::SyncClientPluginSettings(st);
+        plugin_settings_.max_transmit_speed_ = st.max_transmit_speed_;
+        if (core_) {
+            // max_transmit_speed_ 为 bit/s,引擎限速按 byte/s
+            core_->SetRateLimitBytesPerSec(st.max_transmit_speed_ / 8);
+        }
+    }
+
+    bool FtClientPlugin::SendToChannel(const px::Message& msg) {
+        // 线程:ft core worker。引擎不感知通道,type/stream_id/device_id 由壳补齐。
+        px::Message out = msg;
+        if (out.has_file_response()) {
+            out.set_type(MessageType::kFileResponse);
+        } else if (out.has_file_action()) {
+            out.set_type(MessageType::kFileAction);
+        }
+        out.set_stream_id(plugin_settings_.stream_id_);
+        out.set_device_id(plugin_settings_.device_id_);
+        auto data = px::ProtoAsData(&out);
+
+        outstanding_sends_.fetch_add(1);
+        PostWorkTask([this, data]() {
+            auto event = std::make_shared<ClientPluginNetworkEvent>();
+            event->media_channel_ = false;
+            event->buf_ = data;
+            // 在 context work 线程直调路由器;通道忙时 PostFileTransferMessage
+            // 内部自旋等待,只阻塞本插件 work 线程,不影响 UI。
+            CallbackEventDirectly(event);
+            outstanding_sends_.fetch_sub(1);
+        });
+        return outstanding_sends_.load() <= kMaxOutstandingSends;
+    }
+
+    void FtClientPlugin::TrackJobBegin(int32_t job_id, const QString& name, bool is_download) {
+        audit_jobs_[job_id] = name;
+        auto event = std::make_shared<ClientPluginFileTransferBeginEvent>();
+        // router 会对 task_id_ 再做 MD5;带上作业 id 避免同名文件撞记录
+        event->task_id_ = std::format("{}#{}", name.toStdString(), job_id);
+        event->file_path_ = name.toStdString();
+        event->direction_ = is_download ? "In" : "Out";
+        CallbackEvent(event);
+    }
+
+    void FtClientPlugin::TrackJobEnd(int32_t job_id, const QString& error_or_empty) {
+        auto it = audit_jobs_.find(job_id);
+        if (it == audit_jobs_.end()) {
+            return;
+        }
+        auto event = std::make_shared<ClientPluginFileTransferEndEvent>();
+        event->task_id_ = std::format("{}#{}", it->second.toStdString(), job_id);
+        event->file_path_ = it->second.toStdString();
+        event->direction_ = ""; // router 不回填 direction,Begin 已定
+        event->success_ = error_or_empty.isEmpty();
+        CallbackEvent(event);
+        audit_jobs_.erase(it);
+    }
+
+}

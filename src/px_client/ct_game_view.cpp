@@ -315,6 +315,13 @@ namespace px
             this->ctx_->SendAppMessage(MsgClientOpenDebugPanel{});
         });
 
+        controller_panel_->SetOnFileTransListener([=, this](QWidget* w) {
+            ctx_->PostUITask([=]() {
+                controller_panel_->Hide();
+            });
+            this->ctx_->SendAppMessage(MsgClientOpenFiletrans{});
+        });
+
         controller_panel_->SetOnMediaRecordListener([=, this](QWidget* w) {
             ctx_->PostUITask([=]() {
                 controller_panel_->Hide();

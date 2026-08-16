@@ -331,6 +331,41 @@ namespace px
             });
 
         }
+        // file transfer
+        {
+            auto layout = new NoMarginHLayout();
+            auto widget = new BackgroundWidget(ctx, this);
+            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setLayout(layout);
+
+            auto icon = new QLabel(this);
+            icon->setFixedSize(icon_size);
+            icon->setStyleSheet(R"( background-image: url(:resources/image/ic_file_transfer.svg);
+                                    background-repeat:no-repeat;
+                                    background-position: center center;)");
+            layout->addSpacing(item_left_spacing);
+            layout->addWidget(icon);
+
+            auto text = new TcLabel();
+            text->SetTextId("id_file_transfer");
+            text->setStyleSheet(R"(font-weight: bold;)");
+            layout->addWidget(text);
+
+            layout->addStretch();
+            root_layout->addWidget(widget);
+
+            widget->SetOnClickListener([=, this](QWidget* w) {
+                auto plugin_mgr = context_->GetPluginManager();
+                if (auto plugin = plugin_mgr->GetFileTransferPlugin(); !plugin) {
+                    context_->NotifyAppMessage("Warning", "Don't have file transfer plugin.");
+                    return;
+                }
+                if (file_trans_listener_) {
+                    file_trans_listener_(widget);
+                }
+            });
+        }
+
         // media record
         {
             auto layout = new NoMarginHLayout();

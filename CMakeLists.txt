@@ -274,7 +274,7 @@ add_dependencies(px_build_premium_all
     net_rtc_local
 
     ### client
-    media_record_client client_clipboard
+    media_record_client client_clipboard ft_client
 
     ### skins
     skin_interface skin_official skin_loader skin_opensource
