@@ -22,7 +22,6 @@ namespace px
     class PxApplication;
     class HttpHandler;
     class PxSettings;
-    class FileTransferChannel;
     class VisitRecord;
     class VisitRecordOperator;
     class FileTransferRecordOperator;
@@ -37,11 +36,6 @@ namespace px
         int session_type_;
         std::shared_ptr<asio2::http_session> session_ = nullptr;
         std::string stream_id_;
-    };
-
-    class FtSession : public WSSession {
-    public:
-        std::shared_ptr<FileTransferChannel> ch_ = nullptr;
     };
 
     class WsPanelServer : public std::enable_shared_from_this<WsPanelServer> {
@@ -65,9 +59,6 @@ namespace px
 
         // parse /panel/renderer socket
         void ParseRendererMessage(uint64_t socket_fd, std::string_view msg);
-
-        // parse file/transfer
-        void ParseFtBinaryMessage(uint64_t socket_fd, std::string_view msg);
 
         // parse /sys/info
         void ParseSysInfoMessage(uint64_t socket_fd, std::string_view msg);
@@ -104,7 +95,6 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         ConcurrentHashMap<uint64_t, std::shared_ptr<WSSession>> panel_sessions_;
         ConcurrentHashMap<uint64_t, std::shared_ptr<WSSession>> renderer_sessions_;
-        ConcurrentHashMap<uint64_t, std::shared_ptr<FtSession>> ft_sessions_;
         std::shared_ptr<WSSession> sys_info_sess_ = nullptr;
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
         PxSettings* settings_ = nullptr;

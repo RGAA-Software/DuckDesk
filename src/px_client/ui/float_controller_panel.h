@@ -17,7 +17,6 @@ namespace px
         kWorkMode,
         kControl,
         kDisplay,
-        kFileTransfer,
         kDebug,
     };
 
@@ -30,7 +29,6 @@ namespace px
         void paintEvent(QPaintEvent *event) override;
 
         void SetOnDebugListener(OnClickListener&& l) { debug_listener_ = l; }
-        void SetOnFileTransListener(OnClickListener&& listener) { file_trans_listener_ = listener; }
         void SetOnMediaRecordListener(OnClickListener&& listener) { media_record_listener_ = listener; }
         void Hide() override;
         void SetMainControl();
@@ -45,7 +43,6 @@ namespace px
         void UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) override;
     private:
         OnClickListener debug_listener_;
-        OnClickListener file_trans_listener_;
         OnClickListener media_record_listener_;
         std::map<SubPanelType, BaseWidget*> sub_panels_;
         std::vector<ComputerIcon*> computer_icons_;

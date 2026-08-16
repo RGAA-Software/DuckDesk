@@ -6,7 +6,6 @@ import { InputController } from './rtc/input'
 import { sendControlMessage } from './rtc/control'
 import { GamepadController } from './rtc/gamepad'
 import type { GamepadSnapshot } from './rtc/gamepad'
-import { sha256Hex } from './rtc/file_transfer'
 import { PerfCollector, EMPTY_PERF, perfSummaryLine } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
 import { sendClipboardText, parseClipboardText, canReadLocalClipboard } from './rtc/clipboard'
@@ -29,8 +28,6 @@ import {
 import { TlvReassembler } from './rtc/tlv'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import FloatBall from './FloatBall.vue'
-import FileTransferWindow from './FileTransferWindow.vue'
-import { useFileTransfer } from './useFileTransfer'
 
 const { t } = useI18n()
 
@@ -491,40 +488,10 @@ function exposeClipboardPerfDebug() {
   }
 }
 
-// ---------- 文件传输(ft_data_channel)----------
-// 状态与操作在 useFileTransfer composable;UI 在 FileTransferWindow.vue
+// ---------- 文件传输数据通道(ft_data_channel)----------
+// 通道本身保留(render 侧按名字识别,剪贴板文件取数走此通道);
+// 旧文件传输功能已删除,待新实现接入。
 let ftDc: RTCDataChannel | null = null
-const ftVisible = ref(false)
-const ft = useFileTransfer()
-const ftReady = ft.ftReady
-
-// 无头/CDP 调试用:window.__ft
-function exposeFtDebug() {
-  const w = window as unknown as { __ft?: unknown }
-  w.__ft = {
-    ready: () => ft.ftReady.value,
-    listDir: (path: string) => ft.client()?.listDir(path),
-    uploadText: async (name: string, targetDir: string, content: string) => {
-      const client = ft.client()
-      if (!client) throw new Error('ft not ready')
-      const bytes = new TextEncoder().encode(content)
-      const file = new File([bytes.slice().buffer], name)
-      const result = await client.upload(file, targetDir)
-      return { ...result, sha256: await sha256Hex(bytes) }
-    },
-    uploadFile: (file: File, targetDir: string) => {
-      const client = ft.client()
-      if (!client) throw new Error('ft not ready')
-      return client.upload(file, targetDir)
-    },
-    download: async (path: string) => {
-      const r = await ft.client()?.download(path)
-      if (!r) throw new Error('ft not ready')
-      return { taskId: r.taskId, name: r.name, size: r.size, sha256: r.sha256 }
-    },
-    tasks: () => ft.client()?.getTasks() ?? [],
-  }
-}
 
 // 压低 Chrome 视频抖动缓冲/播放余量(跟手性关键)。
 // playoutDelayHint=0:关掉自适应播放延迟;jitterBufferTarget=0:把目标缓冲钉到 0ms。
@@ -837,12 +804,10 @@ function cleanup() {
   remoteMonitors.value = []
   capturingMonitor.value = ''
   remoteFps.value = 0
-  ft.resetFt('连接已断开')
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
   micOn.value = false
   micTransceiver = null
-  // __ft 调试钩子常驻(onMounted 时挂出,内部经 ft.client() 惰性取值),不随连接清理
   const w = window as unknown as { __pc?: RTCPeerConnection | null }
   w.__pc = null
   if (ftDc) {
@@ -1032,14 +997,9 @@ async function connect() {
     ftDc.binaryType = 'arraybuffer'
     ftDc.onopen = () => {
       addLog(`datachannel "${FT_DATA_CHANNEL_LABEL}" onopen`)
-      ft.initFt(ftDc as RTCDataChannel, form.deviceId, form.streamId, addLog)
-    }
-    ftDc.onmessage = (ev: MessageEvent) => {
-      if (ev.data instanceof ArrayBuffer) ft.handleChannelMessage(ev.data)
     }
     ftDc.onclose = () => {
       addLog('ft datachannel onclose')
-      ft.resetFt('文件传输通道已断开')
     }
     ftDc.onerror = (ev: Event) => addLog(`ft datachannel onerror: ${String(ev)}`)
 
@@ -1233,7 +1193,6 @@ onMounted(() => {
   loadQueryParams()
   exposeClipboardPerfDebug()
   exposeInputConnDebug()
-  exposeFtDebug()
   void fetchRenderVersion()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // URL 带了 deviceId/?c= 则自动连接(空密码也可,便于无头/本地调试)
@@ -1302,12 +1261,10 @@ onBeforeUnmount(() => {
       v-model:muted="muted"
       v-model:mic-on="micOn"
       v-model:view-only="viewOnly"
-      v-model:ft-visible="ftVisible"
       v-model:perf-visible="perfVisible"
       v-model:log-visible="logVisible"
       :connected="status === 'connected'"
       :can-disconnect="status === 'connected' || status === 'connecting' || status === 'reconnecting'"
-      :ft-ready="ftReady"
       :perf="perf"
       :remote-fps="remoteFps"
       :clipboard-available="clipboardAvailable"
@@ -1417,8 +1374,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
-
-    <FileTransferWindow v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
   </div>
 </template>
 

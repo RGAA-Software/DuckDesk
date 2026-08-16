@@ -54,7 +54,6 @@ namespace px
         PxDataProviderPlugin* GetMockVideoStreamPlugin();
         PxDataProviderPlugin* GetAudioCapturePlugin();
         PxAudioEncoderPlugin* GetAudioEncoderPlugin();
-        PxPluginInterface* GetFileTransferPlugin();
         PxPluginInterface* GetClipboardPlugin();
         PxPluginInterface* GetRtcPlugin();
         PxNetPlugin* GetUdpPlugin();

@@ -36,7 +36,6 @@ namespace px
         ClientPluginInterface* GetPluginById(const std::string& id);
         MediaRecordPluginClientInterface* GetMediaRecordPlugin();
         ClientClipboardPlugin* GetClipboardPlugin();
-        ClientPluginInterface* GetFileTransferPlugin();
 
         void VisitAllPlugins(const std::function<void(ClientPluginInterface*)>&& visitor);
         void DumpPluginInfo();

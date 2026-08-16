@@ -515,7 +515,6 @@ namespace px
             LOGI("capturing monitors count: {}", monitor_index);
 
             //
-            settings_->is_render_file_transfer_enabled_ = config.file_transfer_enabled();
             settings_->is_render_audio_capture_enabled_ = config.audio_enabled();
             settings_->is_render_be_operated_by_mk_ = config.can_be_operated();
 
@@ -760,11 +759,6 @@ namespace px
 
     void BaseWorkspace::ExitClientWithDialog() {
         QString msg = tcTr("id_exit_client");
-        if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
-             if (plugin->HasProcessingTasks()) {
-                msg = tcTr("id_file_transfer_busy") + msg;
-            }
-        }
         TcDialog dialog(tcTr("id_exit"), msg, this);
         if (dialog.exec() == kDoneOk) {
             if (media_record_plugin_) {
@@ -882,14 +876,6 @@ namespace px
     }
 
     void BaseWorkspace::RegisterControllerPanelListeners() {
-        msg_listener_->Listen<MsgClientOpenFiletrans>([=, this](const MsgClientOpenFiletrans& msg) {
-            context_->PostUITask([=, this]() {
-                if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
-                    plugin->ShowRootWidget();
-                }
-            });
-        });
-
         msg_listener_->Listen<MsgClientOpenDebugPanel>([=, this](const MsgClientOpenDebugPanel& msg) {
             context_->PostUITask([=, this]() {
                 st_panel_->setHidden(false);

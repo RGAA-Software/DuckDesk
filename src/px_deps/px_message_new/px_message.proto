@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package px;
 
-import "px_file_transfer.proto";
 import "px_signaling_message.proto";
 
 enum RespCode
@@ -37,10 +36,6 @@ enum MessageType {
   kOnlineGames = 120;
   // ui server hello
   kUIServerHello = 130;
-  // file transfer
-  kFileTransfer = 140;
-  // file transfer resp
-  kRespFileTransfer = 150;
   // clipboard
   kClipboardInfo = 160;
   // clipboard response
@@ -63,22 +58,6 @@ enum MessageType {
   kSyncPanelInfo = 250;
   // capture server -> host panel
   kRendererAudioSpectrum = 251;
-
-  // file transfer begin
-  kFileOperationEvent = 260;
-  kFileOperateRespRename = 265;
-  kFileOperateRespGetFileList = 270;
-  kFileOperateRespCreateNewFolder = 280;
-  kFileOperateRespExists = 285;
-  kFileOperateRespDel = 290;
-  kFileOperateRespBatchCreateFolders = 295;
-  kFileTransRespUpload = 300;
-  kFileTransRespDownload = 305;
-  kFileTransDirectControl = 310;
-  kFileTransDataPacket = 311;
-  kFileTransDataPacketResponse = 312;
-  kFileTransSaveFileException = 320;
-  // file transfer end
 
   kLockDevice = 328;
   kStopRender = 329;
@@ -455,63 +434,6 @@ message UIServerHello {
 
 }
 
-message FileTransfer {
-  enum FileType {
-    kFile = 0;
-    kFolder = 1;
-  }
-
-  enum FileTransferState {
-    kRequestFileTransfer = 0;
-    // transferring
-    kTransferring = 1;
-    // transfer over
-    kTransferOver = 2;
-    // stopped by user
-    kTransferInterrupted = 3;
-  }
-
-  string id = 1;
-  FileTransferState state = 10;
-  FileType file_type = 20;
-  string relative_path = 30;
-  string filename = 40;
-  bytes data = 50;
-  uint64 filesize = 60;
-  uint64 transferred_size = 70;
-  string file_md5 = 80;
-  string local_filepath = 90;
-  uint64 timestamp = 100;
-  string ref_path = 110;
-  string ref_folder = 120;
-}
-
-message RespFileTransfer {
-  enum FileTransferRespState {
-    // it's ok
-    kTransferReady = 0;
-    // file already exists.
-    kFileAlreadyExists = 1;
-    // the file already exists, but can't delete it.
-    kFileDeleteFailed = 2;
-    // transferring
-    kTransferring = 3;
-    // after compare md5
-    kTransferSuccess = 4;
-    // failed
-    kTransferFailed = 5;
-
-  }
-  string id = 1;
-  FileTransferRespState state = 10;
-  string filename = 20;
-  string local_filepath = 30;
-  uint64 filesize = 40;
-  uint64 transferred_size = 50;
-  float progress = 60;
-  uint64 timestamp = 70;
-}
-
 enum ClipboardType {
   kClipboardText = 0;
   kClipboardImage = 1;
@@ -703,8 +625,6 @@ message Message {
   GamepadState gamepad_state = 120;
   ClientStatistics client_statistics = 140;
   repeated OnlineGame online_games = 160;
-  FileTransfer file_transfer = 180;
-  RespFileTransfer resp_file_transfer = 190;
   ClipboardInfo clipboard_info = 200;
   ClipboardInfoResp clipboard_info_resp = 201;
   SwitchMonitor switch_monitor = 210;
@@ -713,28 +633,6 @@ message Message {
   ChangeMonitorResolution change_monitor_resolution = 240;
   ChangeMonitorResolutionResult change_monitor_resolution_result = 250;
   RendererAudioSpectrum renderer_audio_spectrum = 260;
-
-   // file transfer begin
-  uint64 file_operate_sequence = 270;
-  uint64 file_operate_resp_sequence = 271;
-  RespCode file_operate_resp_code = 272;
-  string file_operate_resp_message = 273;
-  string file_operate_resp_data = 274;
-  FileOperateionsEvent file_operateions_event = 280;
-  FileOperateRespRename file_operate_resp_rename = 285;
-  FileOperateRespGetFileList file_operate_resp_get_file_list = 290;
-  FileOperateRespCreateNewFolder file_operate_resp_create_new_folder = 295;
-  FileOperateRespExists file_operate_resp_exists = 300;
-  FileOperateRespDel file_operate_resp_del = 305;
-  FileOperateRespBatchCreateFolders file_operate_resp_batch_create_folders = 310;
-  FileTransRespUpload file_trans_resp_upload = 315;
-  FileTransRespDownload file_trans_resp_download = 320;
-  FileTransDirectControl file_trans_direct_control = 325;
-  FileTransDataPacket file_trans_data_packet = 326;
-  string file_conn_token = 327;
-  FileTransDataPacketResponse file_trans_data_packet_response = 328;
-  FileTransSaveFileException file_trans_save_file_exception = 330;
-  // file transfer end
 
   LockDevice lock_device = 338;
   StopRender stop_render = 339;

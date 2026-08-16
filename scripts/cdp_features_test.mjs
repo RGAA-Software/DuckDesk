@@ -20,7 +20,7 @@ const require = createRequire(import.meta.url)
 const protobuf = require('../web/px_web_client/node_modules/protobufjs')
 const protoRoot = new protobuf.Root()
 const protoDir = path.join(import.meta.dirname, '../web/px_web_client/proto')
-for (const f of ['px_file_transfer.proto', 'px_signaling_message.proto']) {
+for (const f of ['px_signaling_message.proto']) {
   protobuf.parse(fs.readFileSync(path.join(protoDir, f), 'utf8'), protoRoot)
 }
 const pxSrc = fs

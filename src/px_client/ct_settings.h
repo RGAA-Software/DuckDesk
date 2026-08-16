@@ -163,9 +163,6 @@ namespace px
         ///////
         ///////
         // from render //
-        // file transfer state in render
-        bool is_render_file_transfer_enabled_ = true;
-
         // audio capture enabled in render
         bool is_render_audio_capture_enabled_ = true;
 

@@ -20,7 +20,6 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_render_msg_processor.h"
-#include "render_panel/transfer/file_transfer.h"
 #include "render_panel/database/px_database.h"
 #include "render_panel/database/visit_record.h"
 #include "render_panel/database/visit_record_operator.h"
@@ -41,7 +40,6 @@ namespace px
 
     static std::string kUrlPanel = "/panel";
     static std::string kUrlPanelRenderer = "/panel/renderer";
-    static std::string kUrlFileTransfer = "/file/transfer";
     static std::string kUrlSysInfo = "/sys/info";
 
     // report visit info to cms
@@ -237,8 +235,6 @@ namespace px
         AddWebsocketRouter(kUrlPanel);
         // panel/renderer
         AddWebsocketRouter(kUrlPanelRenderer);
-        // file transfer
-        AddWebsocketRouter(kUrlFileTransfer);
         // sys info
         AddWebsocketRouter(kUrlSysInfo);
 
@@ -262,7 +258,6 @@ namespace px
         }
         panel_sessions_.Clear();
         renderer_sessions_.Clear();
-        ft_sessions_.Clear();
         sys_info_sess_.reset();
     }
 
@@ -275,7 +270,6 @@ namespace px
         }
         panel_sessions_.Clear();
         renderer_sessions_.Clear();
-        ft_sessions_.Clear();
         sys_info_sess_.reset();
     }
 
@@ -297,9 +291,6 @@ namespace px
                 }
                 else if (path == kUrlPanelRenderer) {
                     self->ParseRendererMessage(socket_fd, data);
-                }
-                else if (path == kUrlFileTransfer) {
-                    self->ParseFtBinaryMessage(socket_fd, data);
                 }
                 else if (path == kUrlSysInfo) {
                     if (self->sys_info_sess_) {
@@ -350,14 +341,6 @@ namespace px
                         }
                     });
                 }
-                else if (path == kUrlFileTransfer) {
-                    auto ft_sess = std::make_shared<FtSession>();
-                    ft_sess->socket_fd_ = socket_fd;
-                    ft_sess->session_ = sess_ptr;
-                    ft_sess->ch_ = std::make_shared<FileTransferChannel>(self->context_, sess_ptr);
-                    self->ft_sessions_.Insert(socket_fd, ft_sess);
-                    ft_sess->ch_->OnConnected();
-                }
                 else if (path == kUrlSysInfo) {
                     auto sess = std::make_shared<WSSession>();
                     sess->socket_fd_ = socket_fd;
@@ -376,11 +359,6 @@ namespace px
                 }
                 else if (path == kUrlPanelRenderer) {
                     self->renderer_sessions_.Remove(socket_fd);
-                }
-                else if (path == kUrlFileTransfer) {
-                    if (auto ft_session = self->ft_sessions_.Remove(socket_fd); ft_session.has_value() && ft_session.value()) {
-                        ft_session.value()->ch_->OnDisConnected();
-                    }
                 }
                 else if (path == kUrlSysInfo) {
                     if (self->sys_info_sess_) {
@@ -529,12 +507,6 @@ namespace px
             sub->set_role(1);
         }
         PostRendererMessage(px::RpProtoAsData(&m));
-    }
-
-    void WsPanelServer::ParseFtBinaryMessage(uint64_t socket_fd, std::string_view msg) {
-        if (auto sess = ft_sessions_.TryGet(socket_fd); sess.has_value() && sess.value()) {
-            sess.value()->ch_->ParseBinaryMessage(msg);
-        }
     }
 
     // to /panel/renderer socket

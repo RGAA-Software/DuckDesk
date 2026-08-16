@@ -55,63 +55,6 @@ namespace px
         setLayout(root_layout);
 
         msg_listener_ = context_->ObtainMessageListener();
-        msg_listener_->Listen<EvtFileTransferReady>([=, this](const EvtFileTransferReady& evt) {
-            context_->PostUITask([=, this]() {
-                AddItem(evt);
-                auto item = notifications_[evt.id_];
-                item->UpdateProgressUpdateTime(evt.timestamp_);
-                item->UpdateTitle(evt.name_);
-            });
-        });
-
-        msg_listener_->Listen<EvtFileTransferring>([=, this](const EvtFileTransferring& evt) {
-            if (notifications_.contains(evt.id_)) {
-                auto item = notifications_[evt.id_];
-                item->UpdateProgressDataSize(evt.transferred_size_);
-                item->UpdateProgressUpdateTime(evt.timestamp_);
-                item->UpdateProgress(evt.progress_*100);
-            }
-        });
-
-        msg_listener_->Listen<EvtFileTransferFailed>([=, this](const EvtFileTransferFailed& evt) {
-            context_->PostUITask([=, this]() {
-                if (notifications_.contains(evt.id_)) {
-                    auto item = notifications_[evt.id_];
-                    item->SetState(NotificationState::kNotificationFailed);
-                }
-            });
-        });
-
-        msg_listener_->Listen<EvtFileTransferSuccess>([=, this](const EvtFileTransferSuccess& evt) {
-            context_->PostUITask([=, this]() {
-                if (notifications_.contains(evt.id_)) {
-                    auto item = notifications_[evt.id_];
-                    item->UpdateProgressDataSize(evt.total_size_);
-                    item->UpdateProgressUpdateTime(evt.timestamp_);
-                    item->UpdateProgress(100);
-                    item->SetState(NotificationState::kNotificationSuccess);
-                }
-            });
-        });
-
-        msg_listener_->Listen<EvtFileTransferDeleteFailed>([=, this](const EvtFileTransferDeleteFailed& evt) {
-            context_->PostUITask([=, this]() {
-                if (notifications_.contains(evt.id_)) {
-                    auto item = notifications_[evt.id_];
-                    item->SetState(NotificationState::kNotificationFailed);
-                }
-            });
-        });
-    }
-
-    void NotificationPanel::AddItem(const EvtFileTransferReady& evt) {
-        auto widget = new NotificationItem(context_, evt.id_, ":resources/image/ic_transfer.svg", this);
-        auto item = new QListWidgetItem();
-        item->setSizeHint(QSize(this->width(), 90));
-        widget->SetBelongToItem(item);
-        list_->insertItem(0, item);
-        list_->setItemWidget(item, widget);
-        notifications_.insert({evt.id_, widget});
     }
 
     void NotificationPanel::paintEvent(QPaintEvent *event) {

@@ -35,10 +35,8 @@ namespace px
     class Settings;
     class FloatNotificationHandle;
     class NotificationPanel;
-    class FileTransferChannel;
     class CtStatisticsPanel;
     class FloatButtonStateIndicator;
-    class FileTransInterface;
     class MainProgress;
     class GameView;
     class RtcClientInterface;
@@ -154,7 +152,6 @@ namespace px
         bool is_window_active_ = false;
         acss::QtAdvancedStylesheet* theme_{};
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<FileTransferChannel> file_transfer_ = nullptr;
         uint32_t cursor_type_ = 100000;
         bool force_update_cursor_ = true;
         CtStatisticsPanel* st_panel_ = nullptr;

@@ -152,18 +152,6 @@ namespace px
             return;
         }
 
-        // test beg //
-        if (false) {
-            px::Message pt_msg;
-            if (pt_msg.ParseFromArray(msg->CStr(), msg->Size())) {
-                if (pt_msg.type() == px::kFileTransDataPacket) {
-                    auto pkt = pt_msg.file_trans_data_packet();
-                    LOGI("Send Ft pkt index: {}", pkt.index());
-                }
-            }
-        }
-        // test end //
-
         rtc_client_->PostFtMessage(msg);
     }
 

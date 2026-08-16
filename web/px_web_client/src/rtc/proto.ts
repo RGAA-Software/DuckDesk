@@ -1,13 +1,11 @@
 // px.Message 运行时加载(protobufjs 动态解析,proto 源文件以 ?raw 内联进 bundle)
-// px_message.proto import 了另外两个 proto;三者同 package px,
+// px_message.proto import 了 px_signaling_message.proto;两者同 package px,
 // 先解析被依赖的文件、并剥掉 import 语句,即可在同一 Root 内完成解析。
 import protobuf from 'protobufjs'
-import pxFileTransferProto from '../../proto/px_file_transfer.proto?raw'
 import pxSignalingProto from '../../proto/px_signaling_message.proto?raw'
 import pxMessageProto from '../../proto/px_message.proto?raw'
 
 const root = new protobuf.Root()
-protobuf.parse(pxFileTransferProto, root)
 protobuf.parse(pxSignalingProto, root)
 protobuf.parse(pxMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), root)
 
@@ -28,44 +26,8 @@ export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render ->
 export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render -> client)
 export const MSG_TYPE_INSTANCE_STOPPED = 560 // kInstanceStopped (render -> client)
 
-// ClipboardType(px_message.proto:498-503)
+// ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
-
-// 文件传输相关 MessageType(px_message.proto:67-81)
-export const MSG_TYPE_FILE_OPERATION_EVENT = 260 // kFileOperationEvent
-export const MSG_TYPE_FILE_OPERATE_RESP_RENAME = 265 // kFileOperateRespRename
-export const MSG_TYPE_FILE_OPERATE_RESP_GET_FILE_LIST = 270 // kFileOperateRespGetFileList
-export const MSG_TYPE_FILE_OPERATE_RESP_CREATE_NEW_FOLDER = 280 // kFileOperateRespCreateNewFolder
-export const MSG_TYPE_FILE_OPERATE_RESP_DEL = 290 // kFileOperateRespDel
-export const MSG_TYPE_FILE_TRANS_RESP_UPLOAD = 300 // kFileTransRespUpload
-export const MSG_TYPE_FILE_TRANS_RESP_DOWNLOAD = 305 // kFileTransRespDownload
-export const MSG_TYPE_FILE_TRANS_DATA_PACKET = 311 // kFileTransDataPacket
-export const MSG_TYPE_FILE_TRANS_DATA_PACKET_RESPONSE = 312 // kFileTransDataPacketResponse
-export const MSG_TYPE_FILE_TRANS_SAVE_FILE_EXCEPTION = 320 // kFileTransSaveFileException
-
-// FileOperateionsEvent.OperateType(px_file_transfer.proto:142-153)
-export const FT_OP_DEL = 0
-export const FT_OP_CREATE_NEW_FOLDER = 2
-export const FT_OP_RENAME = 4
-export const FT_OP_GET_FILES_LIST = 5
-export const FT_OP_DOWNLOAD = 8
-export const FT_OP_RECURSIVE_GET_FILES_LIST = 9
-
-// FileTransDataPacket.TransmitDirection / TransmitState
-export const FT_DIR_UPLOAD = 0
-export const FT_DIR_DOWNLOAD = 1
-export const FT_STATE_TRANSMITTING = 0
-export const FT_STATE_END = 1
-export const FT_STATE_ERROR = 2
-export const FT_STATE_CANCEL = 3
-
-// FileTransSaveFileException.SaveFileExceptionCause
-export const FT_SAVE_EX_CANCEL = 2
-
-// FileDescInfo.FileType
-export const FT_FILE_TYPE_DISK = 0
-export const FT_FILE_TYPE_FOLDER = 1
-export const FT_FILE_TYPE_FILE = 2
 
 // KeyEvent.LockKeyStatusCheck
 export const LOCK_KEY_DONT_CARE = 0
@@ -116,57 +78,6 @@ export function decodeMessage(payload: Uint8Array) {
     gameStatusChanged?: { status: number; detail: string }
     // kInstanceStopped(type=560):实例被 CMS 停止,客户端应提示并断开
     instanceStopped?: { reason: string }
-    fileOperateRespSequence?: unknown
-    fileOperateRespCode?: number
-    fileOperateRespMessage?: string
-    fileOperateRespGetFileList?: {
-      ret: boolean
-      msgOfError: string
-      path: string
-      fileInfos: Array<{ type: number; name: string; path: string; size: unknown; date: unknown }>
-    }
-    fileOperateRespRename?: {
-      ret: boolean
-      pathOfOld: string
-      pathOfNew: string
-      msgOfError: string
-    }
-    fileOperateRespCreateNewFolder?: {
-      ret: boolean
-      pathOfParent: string
-      pathOfNewCreated: string
-      msgOfError: string
-    }
-    fileOperateRespDel?: {
-      ret: boolean
-      pathsOfNoDel: string[]
-      msgOfError: string
-    }
-    fileTransRespUpload?: {
-      res: boolean
-      errorCause: number
-      srcFilePath: string
-      targetFilePath: string
-      taskId: string
-    }
-    fileTransRespDownload?: {
-      res: boolean
-      errorCause: number
-      srcFilePath: string
-      targetFilePath: string
-      taskId: string
-    }
-    fileTransDataPacket?: {
-      transmitDirection: number
-      srcFilePath: string
-      targetFilePath: string
-      fileSize: unknown
-      taskId: string
-      index: unknown
-      transmitState: number
-      data: Uint8Array
-    }
-    fileTransDataPacketResponse?: { taskId: string; index: unknown }
     clipboardInfo?: { type: number; msg: Uint8Array }
   }
 }

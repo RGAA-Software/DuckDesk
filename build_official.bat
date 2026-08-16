@@ -97,6 +97,11 @@ rem Always rebuild the web client frontend so collect_dist packages fresh assets
 call :build_npm_web "web\px_web_client" "web_client"
 if errorlevel 1 exit /b %errorlevel%
 
+rem collect_dist.py also packages web\px_cms\dist into dist\px_cms, so build it here
+rem (before cmake --build runs the POST_BUILD collect_dist step).
+call :build_npm_web "web\px_cms" "px_cms"
+if errorlevel 1 exit /b %errorlevel%
+
 cmake --build build_official -j18
 if errorlevel 1 exit /b %errorlevel%
 

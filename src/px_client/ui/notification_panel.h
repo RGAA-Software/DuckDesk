@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include <memory>
 #include <map>
-#include "transfer/file_transfer_events.h"
 
 namespace px
 {
@@ -26,7 +25,6 @@ namespace px
         void paintEvent(QPaintEvent *event) override;
 
     private:
-        void AddItem(const EvtFileTransferReady& evt);
         void ClearCompletedNotifications();
 
     private:

@@ -293,14 +293,6 @@ namespace px
         return nullptr;
     }
 
-    PxPluginInterface* PluginManager::GetFileTransferPlugin() {
-        auto plugin = GetPluginById(kNetFileTransferPluginId);
-        if (plugin) {
-            return (PxPluginInterface*)plugin;
-        }
-        return nullptr;
-    }
-
     PxNetPlugin* PluginManager::GetUdpPlugin() {
         auto plugin = GetPluginById(kNetUdpPluginId);
         if (plugin) {

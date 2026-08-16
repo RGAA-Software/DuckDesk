@@ -35,8 +35,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client/src)
 
 link_directories(${VK_SDK_ROOT}/Lib)
 link_directories(${PX_PROJECT_PATH}/px_3rdparty/libplacebo/lib)

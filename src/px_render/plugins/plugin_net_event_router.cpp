@@ -312,17 +312,6 @@ namespace px {
                     ProcessCtrlAltDelete(std::move(msg));
                     break;
                 }
-                // file transmit start
-                case MessageType::kFileOperationEvent:
-                case MessageType::kFileTransDataPacket:
-                case MessageType::kFileTransSaveFileException: {
-                    //auto file_trans_plugin = plugin_manager_->GetFileTransferPlugin();
-                    //if (file_trans_plugin) {
-                    //    file_trans_plugin->OnMessage(msg);
-                    //}
-                    break;
-                }
-                // file transmit end
                 case MessageType::kClipboardReqAtBegin:
                 case MessageType::kClipboardReqAtEnd:
                 case MessageType::kClipboardReqBuffer:

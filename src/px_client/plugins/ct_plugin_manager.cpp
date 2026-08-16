@@ -169,14 +169,6 @@ namespace px
         return nullptr;
     }
 
-    ClientPluginInterface* ClientPluginManager::GetFileTransferPlugin() {
-        auto plugin = GetPluginById(kClientFileTransferPluginId);
-        if (plugin) {
-            return (ClientPluginInterface*)plugin;
-        }
-        return nullptr;
-    }
-
     void ClientPluginManager::VisitAllPlugins(const std::function<void(ClientPluginInterface *)>&& visitor) {
         for (const auto& [k, plugin] : plugins_) {
             if (visitor) {

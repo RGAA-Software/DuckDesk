@@ -13,7 +13,6 @@ import {PxApp} from "./px_app.ts";
 import {PxProtoMsg, loadMessageType} from "./messages/px_proto_messages.ts";
 
 const protoRoot = await protobuf.load([
-    'proto/px_file_transfer.proto',
     'proto/px_signaling_message.proto',
     'proto/px_message.proto',
 ])

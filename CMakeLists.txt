@@ -81,12 +81,8 @@ include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_server_protocol)
 ## Client
 # include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
 # include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins)
-# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins/file_transfer_client)
-# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins/file_transfer_client/src)
 
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client/src)
 
 ## Server
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRayServer)
@@ -272,13 +268,13 @@ add_dependencies(px_build_premium_all
     px_panel
 
     ### render
-    enc_amf file_transfer frame_carrier frame_resizer cap_gdi
+    enc_amf frame_carrier frame_resizer cap_gdi
     joystick media_recorder net_relay net_rtc enc_nvenc
     obj_detector clipboard px_gh px_gh_injector px_gh_address
     net_rtc_local
 
     ### client
-    media_record_client client_clipboard file_transfer_client
+    media_record_client client_clipboard
 
     ### skins
     skin_interface skin_official skin_loader skin_opensource
@@ -309,7 +305,6 @@ set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
 add_custom_command(TARGET px_build_premium_all PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/px_signaling_message.proto"
-    COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_file_transfer.proto"  "${WEBCLIENT_ROOT}/proto/px_file_transfer.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${WEBCLIENT_ROOT}/proto/px_message.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/px_client_panel_message.proto"
 )
