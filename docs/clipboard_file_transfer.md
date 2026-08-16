@@ -1,5 +1,11 @@
 # 剪贴板文件传输：双向打通与踩坑记录
 
+> **2026-08 注**：独立的"文件传输"功能已整体替换为 rustdesk 方案（见
+> `docs/rustdesk_file_transfer_migration_plan.md`，新插件 `ft` + 引擎 `px_ft_engine`）。
+> 本文描述的**剪贴板**文件传输不受影响：消息（`kClipboardInfo`/`kClipboardReqBuffer` 等）
+> 定义在 `px_message.proto`，与 FT 协议解耦；承载继续走 ft 通道（`PostFileTransferMessage`），
+> 该通道在新方案下保留。
+
 本文记录本地客户端 ↔ 远端主机之间剪贴板**文件**双向传输的实现要点与踩过的坑。文本传输（`CF_UNICODETEXT`）本身是通的，本文只覆盖文件。
 
 ## 架构
