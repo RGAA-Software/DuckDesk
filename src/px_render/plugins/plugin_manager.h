@@ -62,6 +62,7 @@ namespace px
         PxFrameProcessorPlugin* GetFrameResizePlugin();
         PxPluginInterface* GetEventsReplayerPlugin();
         PxPluginInterface* GetRtcLocalPlugin();
+        PxPluginInterface* GetFtPlugin();
         int64_t GetQueuingMediaMsgCountInNetPlugins();
         int64_t GetQueuingFtMsgCountInNetPlugins();
         int GetTotalConnectedClientsCount();

@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 set REPO_ROOT=%~dp0..
 set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common_new\tests
+set FT_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_ft_engine\tests
 set LOG=%REPO_ROOT%\build_official\run_tests.log
 set FAILED=0
 
@@ -38,6 +39,25 @@ for %%t in (
         )
     ) else (
         echo [ERROR] %%t.exe not found in %TEST_DIR% >> "%LOG%" 2>&1
+        set FAILED=1
+    )
+)
+
+for %%t in (
+    test_ft_path_security
+    test_ft_compress
+    test_ft_transfer_job
+    test_ft_engine
+) do (
+    echo ===== %%t ===== >> "%LOG%" 2>&1
+    if exist "%FT_TEST_DIR%\%%t.exe" (
+        "%FT_TEST_DIR%\%%t.exe" >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            echo [FAIL] %%t >> "%LOG%" 2>&1
+            set FAILED=1
+        )
+    ) else (
+        echo [ERROR] %%t.exe not found in %FT_TEST_DIR% >> "%LOG%" 2>&1
         set FAILED=1
     )
 )

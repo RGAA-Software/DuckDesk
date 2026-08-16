@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.22)
+find_package(GTest CONFIG REQUIRED)
+
+function(add_ft_test name source)
+    add_executable(${name} ${source})
+    target_link_libraries(${name} PRIVATE px_ft_engine GTest::gtest GTest::gtest_main)
+endfunction()
+
+add_ft_test(test_ft_path_security test_ft_path_security.cpp)
+add_ft_test(test_ft_compress test_ft_compress.cpp)
+add_ft_test(test_ft_transfer_job test_ft_transfer_job.cpp)
+add_ft_test(test_ft_engine test_ft_engine.cpp)

@@ -270,7 +270,7 @@ add_dependencies(px_build_premium_all
     ### render
     enc_amf frame_carrier frame_resizer cap_gdi
     joystick media_recorder net_relay net_rtc enc_nvenc
-    obj_detector clipboard px_gh px_gh_injector px_gh_address
+    obj_detector clipboard ft px_gh px_gh_injector px_gh_address
     net_rtc_local
 
     ### client

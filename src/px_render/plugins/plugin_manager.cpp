@@ -357,6 +357,14 @@ namespace px
         return nullptr;
     }
 
+    PxPluginInterface* PluginManager::GetFtPlugin() {
+        auto plugin = GetPluginById(kFtPluginId);
+        if (plugin) {
+            return plugin;
+        }
+        return nullptr;
+    }
+
     void PluginManager::VisitAllPlugins(const std::function<void(PxPluginInterface *)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
