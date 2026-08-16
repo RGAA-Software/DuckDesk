@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { stats } from '../data/content'
 
@@ -13,6 +14,64 @@ const cloudBlocks = [
   { x: 16, y: 96, w: 288, h: 24 },
   { x: 40, y: 120, w: 240, h: 24 },
 ]
+
+/* ---------- 终端动态打字机 ---------- */
+/* 4 组脚本覆盖四大业务（云渲染 / 云游戏 / 云桌面 / 远程桌面），
+   文案保持简短（≤ 21 字符），避免超出终端宽度 */
+interface TermLine {
+  text: string
+  out?: boolean
+}
+
+const terminalScripts: { input: string; output: string }[] = [
+  { input: '> render 4k --gpu 64', output: 'done in 00:42:17' },
+  { input: '> play pixelrun --stream', output: '60fps · 23ms' },
+  { input: '> desktop --vcpu 4', output: 'session ready' },
+  { input: '> remote --secure', output: 'connected · ok' },
+]
+
+const termLines = ref<TermLine[]>([])
+const termTyping = ref('')
+const displayLines = computed(() => termLines.value.slice(-3))
+
+let timers: number[] = []
+
+function schedule(fn: () => void, ms: number) {
+  timers.push(window.setTimeout(fn, ms))
+}
+
+function typeLine(line: string, index: number, done: () => void) {
+  termTyping.value = line.slice(0, index)
+  if (index < line.length) {
+    schedule(() => typeLine(line, index + 1, done), 80)
+  } else {
+    schedule(done, 300)
+  }
+}
+
+function runTerminal(step: number) {
+  if (step >= terminalScripts.length) {
+    /* 一轮结束，清屏后重新开始 */
+    schedule(() => {
+      termLines.value = []
+      termTyping.value = ''
+      runTerminal(0)
+    }, 900)
+    return
+  }
+  const s = terminalScripts[step]
+  typeLine(s.input, 1, () => {
+    termLines.value = [...termLines.value, { text: s.input }]
+    termTyping.value = ''
+    schedule(() => {
+      termLines.value = [...termLines.value, { text: s.output, out: true }]
+      schedule(() => runTerminal(step + 1), 1000)
+    }, 400)
+  })
+}
+
+onMounted(() => runTerminal(0))
+onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
 </script>
 
 <template>
@@ -69,34 +128,27 @@ const cloudBlocks = [
           >
             px-render · PIXELS
           </text>
+          <!-- 终端动态输出（打字机效果） -->
           <text
+            v-for="(l, i) in displayLines"
+            :key="`${i}-${l.text}`"
             x="40"
-            y="222"
+            :y="220 + i * 22"
             font-family="'SFMono-Regular', Consolas, monospace"
             font-size="13"
-            fill="#8cf0be"
+            :fill="l.out ? '#8cf0be' : '#eafcf2'"
           >
-            &gt; px render --scene demo_4k --gpu 64
+            {{ l.text }}
           </text>
           <text
             x="40"
-            y="244"
+            :y="220 + displayLines.length * 22"
             font-family="'SFMono-Regular', Consolas, monospace"
             font-size="13"
-            fill="#8cf0be"
+            fill="#eafcf2"
           >
-            &gt; streaming 1080p @ 60fps · 23ms
+            {{ termTyping }}<tspan class="blink" fill="#00b96b">▌</tspan>
           </text>
-          <text
-            x="40"
-            y="266"
-            font-family="'SFMono-Regular', Consolas, monospace"
-            font-size="13"
-            fill="#8cf0be"
-          >
-            &gt; done in 00:42:17
-          </text>
-          <rect class="blink" x="180" y="257" width="9" height="13" fill="#00b96b" />
 
           <!-- 漂浮像素装饰 -->
           <rect class="float-a" x="8" y="148" width="10" height="10" fill="#00b96b" opacity=".45" />
