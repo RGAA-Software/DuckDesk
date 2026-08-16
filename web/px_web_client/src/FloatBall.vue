@@ -13,6 +13,7 @@ import {
   IconPictureInPicture,
   IconSettings,
   IconDeviceDesktop,
+  IconTransfer,
   IconPlayerRecord,
   IconChartBar,
   IconChevronRight,
@@ -59,6 +60,10 @@ interface MonitorSpec {
 const props = withDefaults(
   defineProps<{
   connected: boolean
+  // ft_data_channel 是否已就绪
+  ftReady: boolean
+  // 对端 FT 协议版本是否兼容(rustdesk 语义 = 2;旧版被控置灰入口)
+  ftSupported: boolean
   // 性能采样数据(App.vue 每 2s 更新)
   perf: PerfStats
   // 最近一次收到的远端剪贴板文本
@@ -103,6 +108,7 @@ const { t, locale } = useI18n()
 const muted = defineModel<boolean>('muted', { required: true })
 const micOn = defineModel<boolean>('micOn', { required: true })
 const viewOnly = defineModel<boolean>('viewOnly', { required: true })
+const ftVisible = defineModel<boolean>('ftVisible', { required: true })
 const perfVisible = defineModel<boolean>('perfVisible', { required: true })
 const logVisible = defineModel<boolean>('logVisible', { required: true })
 
@@ -607,6 +613,13 @@ async function onCopyRemote() {
 }
 
 // ---------- 菜单动作 ----------
+// ---------- 菜单动作 ----------
+function openFileTransfer() {
+  if (!props.ftReady || !props.ftSupported) return
+  ftVisible.value = true
+  closePanel()
+}
+
 function togglePerf() {
   perfVisible.value = !perfVisible.value
 }
@@ -714,6 +727,18 @@ onBeforeUnmount(() => {
         <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
         <span class="menu-text">{{ t('float.display') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
+      </button>
+      <button
+        class="menu-item"
+        :disabled="!ftReady || !ftSupported"
+        :title="!ftSupported && connected ? t('float.ftNotSupported') : ''"
+        @click="openFileTransfer"
+      >
+        <span class="menu-icon"><IconTransfer :size="17" /></span>
+        <span class="menu-text">{{ t('float.fileTransfer') }}</span>
+        <span class="menu-state">
+          {{ ftSupported ? (ftReady ? '' : t('float.notReady')) : t('float.ftNotSupported') }}
+        </span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="toggleRecord">
         <span class="menu-icon" :class="{ recording }"><IconPlayerRecord :size="17" /></span>

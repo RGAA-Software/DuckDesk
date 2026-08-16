@@ -28,6 +28,9 @@ import {
 import { TlvReassembler } from './rtc/tlv'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import FloatBall from './FloatBall.vue'
+import FileTransferWindow from './FileTransferWindow.vue'
+import { useFileTransfer } from './useFileTransfer'
+import { sha256Hex } from './rtc/file_transfer'
 
 const { t } = useI18n()
 
@@ -365,6 +368,11 @@ function handleDcBinary(buf: ArrayBuffer) {
         remoteFps.value = cfg.fps
       }
       addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}, fps=${remoteFps.value || '-'}`)
+      // FT 协议版本门控:rustdesk 语义 = 2;旧版被控(缺省/0)不兼容,入口置灰
+      ftProtocolVersion.value = cfg.ftProtocolVersion ?? 0
+      if (!ftSupported.value) {
+        addLog(`对端文件传输协议版本不兼容(ftProtocolVersion=${ftProtocolVersion.value}),文件传输不可用`)
+      }
     } else if (msg.type === MSG_TYPE_MONITOR_SWITCHED && msg.monitorSwitched) {
       // 切屏回包:更新当前采集显示器与输入回放坐标系(否则鼠标仍按旧屏几何映射)
       const name = msg.monitorSwitched.name
@@ -488,10 +496,51 @@ function exposeClipboardPerfDebug() {
   }
 }
 
-// ---------- 文件传输数据通道(ft_data_channel)----------
-// 通道本身保留(render 侧按名字识别,剪贴板文件取数走此通道);
-// 旧文件传输功能已删除,待新实现接入。
+// ---------- 文件传输(ft_data_channel)----------
+// 状态与操作在 useFileTransfer composable;UI 在 FileTransferWindow.vue
 let ftDc: RTCDataChannel | null = null
+const ftVisible = ref(false)
+const ft = useFileTransfer()
+const ftReady = ft.ftReady
+// FT 协议版本(kServerConfiguration.ftProtocolVersion;rustdesk 语义 = 2):
+// null = 尚未收到配置;旧版被控(0/缺省)与新版不互通,入口置灰 + 提示(plan §0 版本门控)
+const ftProtocolVersion = ref<number | null>(null)
+const ftSupported = computed(() => ftProtocolVersion.value === 2)
+
+// 无头/CDP 调试用:window.__ft
+function exposeFtDebug() {
+  const w = window as unknown as { __ft?: unknown }
+  w.__ft = {
+    ready: () => ft.ftReady.value,
+    supported: () => ftSupported.value,
+    listDir: (path: string) => ft.client()?.listDir(path),
+    uploadText: async (name: string, targetDir: string, content: string) => {
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      const bytes = new TextEncoder().encode(content)
+      const file = new File([bytes.slice().buffer], name)
+      const job = ft.uploadFile(file, targetDir)
+      return { jobId: job.id, sha256: await sha256Hex(bytes), size: bytes.length }
+    },
+    download: async (path: string) => {
+      const files = await ft.downloadToMemory(path)
+      const f = files[0]
+      if (!f) throw new Error('no file received')
+      return { name: f.name, size: f.size, sha256: await sha256Hex(f.data) }
+    },
+    removeFile: (path: string) => {
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      return client.removeFile(path)
+    },
+    createDir: (path: string) => {
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      return client.createDir(path)
+    },
+    jobs: () => ft.client()?.getJobs() ?? [],
+  }
+}
 
 // 压低 Chrome 视频抖动缓冲/播放余量(跟手性关键)。
 // playoutDelayHint=0:关掉自适应播放延迟;jitterBufferTarget=0:把目标缓冲钉到 0ms。
@@ -811,6 +860,8 @@ function cleanup() {
   const w = window as unknown as { __pc?: RTCPeerConnection | null }
   w.__pc = null
   if (ftDc) {
+    ft.resetFt('连接已断开')
+    ftProtocolVersion.value = null
     ftDc.onopen = null
     ftDc.onmessage = null
     ftDc.onclose = null
@@ -997,9 +1048,14 @@ async function connect() {
     ftDc.binaryType = 'arraybuffer'
     ftDc.onopen = () => {
       addLog(`datachannel "${FT_DATA_CHANNEL_LABEL}" onopen`)
+      ft.initFt(ftDc as RTCDataChannel, form.deviceId, form.streamId, addLog)
+    }
+    ftDc.onmessage = (ev: MessageEvent) => {
+      if (ev.data instanceof ArrayBuffer) ft.handleChannelMessage(ev.data)
     }
     ftDc.onclose = () => {
       addLog('ft datachannel onclose')
+      ft.resetFt('文件传输通道已断开')
     }
     ftDc.onerror = (ev: Event) => addLog(`ft datachannel onerror: ${String(ev)}`)
 
@@ -1193,6 +1249,7 @@ onMounted(() => {
   loadQueryParams()
   exposeClipboardPerfDebug()
   exposeInputConnDebug()
+  exposeFtDebug()
   void fetchRenderVersion()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // URL 带了 deviceId/?c= 则自动连接(空密码也可,便于无头/本地调试)
@@ -1261,10 +1318,13 @@ onBeforeUnmount(() => {
       v-model:muted="muted"
       v-model:mic-on="micOn"
       v-model:view-only="viewOnly"
+      v-model:ft-visible="ftVisible"
       v-model:perf-visible="perfVisible"
       v-model:log-visible="logVisible"
       :connected="status === 'connected'"
       :can-disconnect="status === 'connected' || status === 'connecting' || status === 'reconnecting'"
+      :ft-ready="ftReady"
+      :ft-supported="ftSupported"
       :perf="perf"
       :remote-fps="remoteFps"
       :clipboard-available="clipboardAvailable"
@@ -1374,6 +1434,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <FileTransferWindow v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
   </div>
 </template>
 
