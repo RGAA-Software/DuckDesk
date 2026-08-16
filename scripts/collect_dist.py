@@ -41,7 +41,6 @@ PRODUCT_EXES = {
     "px_service_manager.exe",
     "px_osinfo.exe",
     "px_function.exe",
-    "px_crash_reporter.exe",
     "px_uninstall.exe",
     "px_joystick.exe",
     "px_graphics_util.exe",

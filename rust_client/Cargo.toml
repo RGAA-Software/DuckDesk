@@ -5,7 +5,6 @@ members = [
     "px_service",
     "px_service/service_core",
     "px_service/service_manager",
-    "px_crash_reporter",
     "px_uninstall",
 ]
 

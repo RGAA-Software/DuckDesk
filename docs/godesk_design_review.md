@@ -76,7 +76,6 @@
 - 每次心跳全量 WMI `Win32_Process` 枚举且在全局锁内(`windows_process.rs:64-77`),WmiPrvSe CPU 常驻偏高。
 - 服务声明接受 SHUTDOWN 却不处理、STOP 不报 STOP_PENDING → 关机/停止留孤儿进程,user proxy 还会继续拉起 panel("服务已停、进程自愈")。
 - SCM 失败动作只配了第一次重启(`manager.rs:115-125`),连续崩两次服务永久停摆。
-- `px_crash_reporter` 整个 main 只有一行 println,Rust 四个常驻进程(一个跑 SYSTEM)崩溃零数据可回收。
 
 ### B6【中】协议层缺陷
 - 两端 SDP 解析失败前就调 `SetRemoteDescription`(`rtc_server.cpp:205-209`、`rtc_connection.cpp:261-263`),空指针直接传给 WebRTC。

@@ -6332,13 +6332,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "px_crash_reporter"
-version = "3.3.36"
-dependencies = [
- "px_base",
-]
-
-[[package]]
 name = "px_service"
 version = "3.3.36"
 dependencies = [

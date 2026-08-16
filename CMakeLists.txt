@@ -173,7 +173,6 @@ set(PX_SYSINFO_EXE_NAME px_osinfo.exe)
 set(PX_SERVICE_EXE_NAME px_service.exe)
 set(PX_SERVICE_MGR_EXE_NAME px_service_manager.exe)
 set(PX_USER_PROXY_EXE_NAME px_function.exe)
-set(PX_CRASH_REPORTER_EXE_NAME px_crash_reporter.exe)
 set(PX_UNINSTALL_EXE_NAME px_uninstall.exe)
 
 set(PX_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
@@ -187,14 +186,12 @@ set(PX_SYSINFO_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX
 set(PX_SERVICE_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_EXE_NAME})
 set(PX_SERVICE_MGR_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_MGR_EXE_NAME})
 set(PX_USER_PROXY_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_USER_PROXY_EXE_NAME})
-set(PX_CRASH_REPORTER_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_CRASH_REPORTER_EXE_NAME})
 set(PX_UNINSTALL_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_UNINSTALL_EXE_NAME})
 
 set(PX_SYSINFO_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SYSINFO_EXE_NAME})
 set(PX_SERVICE_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SERVICE_EXE_NAME})
 set(PX_SERVICE_MGR_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SERVICE_MGR_EXE_NAME})
 set(PX_USER_PROXY_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_USER_PROXY_EXE_NAME})
-set(PX_CRASH_REPORTER_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_CRASH_REPORTER_EXE_NAME})
 set(PX_UNINSTALL_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_UNINSTALL_EXE_NAME})
 
 add_custom_target(px_osinfo_rust
@@ -225,13 +222,6 @@ add_custom_target(px_function_rust
         VERBATIM
 )
 
-add_custom_target(px_crash_reporter_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_crash_reporter --bin px_crash_reporter ${PX_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust px_crash_reporter"
-        VERBATIM
-)
-
 add_custom_target(px_osinfo_stage
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_SYSINFO_RUST_EXE}" "${PX_SYSINFO_STAGED_EXE}"
         DEPENDS px_osinfo_rust
@@ -257,13 +247,6 @@ add_custom_target(px_function_stage
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_USER_PROXY_RUST_EXE}" "${PX_USER_PROXY_STAGED_EXE}"
         DEPENDS px_function_rust
         COMMENT "Staging Rust px_function"
-        VERBATIM
-)
-
-add_custom_target(px_crash_reporter_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_CRASH_REPORTER_RUST_EXE}" "${PX_CRASH_REPORTER_STAGED_EXE}"
-        DEPENDS px_crash_reporter_rust
-        COMMENT "Staging Rust px_crash_reporter"
         VERBATIM
 )
 
@@ -306,7 +289,7 @@ add_dependencies(px_build_premium_all
     ### from former px_build_all (deps + rust stages)
     px_render px_service_stage px_service_manager_stage px_message px_vigem px_plugin
     px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
-    px_crash_reporter_stage px_osinfo_stage
+    px_osinfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
     plugin_was_audio_capture plugin_opus_encoder px_sdk px_qt_widget plugin_mock_video_stream px_translator
     px_cms_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer px_global_id_generator

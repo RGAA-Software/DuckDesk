@@ -268,7 +268,6 @@
    taskkill /f /im px_service_manager.exe /t >nul 2>&1
    taskkill /f /im px_osinfo.exe /t >nul 2>&1
    taskkill /f /im px_function.exe /t >nul 2>&1
-   taskkill /f /im px_crash_reporter.exe /t >nul 2>&1
    echo DONE > C:\Users\Public\_stop_gammaray_done.txt
    '@
    Set-Content -LiteralPath '\\10.0.0.70\C$\Users\Public\_stop_gammaray_70.cmd' -Value $remoteBat -Encoding Ascii
