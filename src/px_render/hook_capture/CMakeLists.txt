@@ -34,7 +34,6 @@ if (WIN32)
 
     ## capture dll
     set(DLL_SRCS
-        win/client_manager.cpp
         win/dll_main.cpp
 
         ## hk_utils
@@ -62,7 +61,6 @@ if (WIN32)
     endif ()
 
     add_subdirectory(win/hk_obs)
-    add_subdirectory(win/hk_gpu_lb)
 
 elseif (APPLE)
 
