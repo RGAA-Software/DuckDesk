@@ -66,7 +66,7 @@ namespace px
         auto wmode = StringUtil::ToWString(mode);
         fp_ = _wfopen(this->file_path_.wstring().c_str(), wmode.c_str());
 #else
-        fp_ = fopen(path.c_str(), mode.c_str());
+        fp_ = fopen(path.string().c_str(), mode.c_str());
 #endif
         if (!fp_) {
             LOGE("Open file failed, mode: {}, file: {}", mode, StringUtil::ToUTF8(path.wstring()));

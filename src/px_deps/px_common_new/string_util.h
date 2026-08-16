@@ -228,7 +228,7 @@ namespace px
 
             while (true) {
                 const size_t iconv_result = iconv(cd, &in_buf, &in_bytes_left, &out_buf, &out_bytes_left);
-                if (iconv_result != reinterpret_cast<size_t>(-1)) {
+                if (iconv_result != static_cast<size_t>(-1)) {
                     break;
                 }
 

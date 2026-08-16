@@ -38,42 +38,40 @@ namespace px
         client_ = std::make_shared<asio2::ws_client>();
         client_->set_auto_reconnect(true);
         client_->set_timeout(std::chrono::milliseconds(3000));
-        client_->start_timer("ws-heartbeat", std::chrono::seconds(1), [thiz = std::weak_ptr(shared_from_this())]() {
-            if (auto self = thiz.lock(); self) {
-                self->HeartBeat();
-            }
+        client_->start_timer("ws-heartbeat", std::chrono::seconds(1), [this]() {
+            HeartBeat();
         });
 
-        client_->bind_init([thiz = std::weak_ptr(shared_from_this())]() {
-            if (auto self = thiz.lock(); self && self->client_) {
-                self->client_->set_no_delay(true);
-                self->client_->ws_stream().set_option(
+        client_->bind_init([this]() {
+            if (client_) {
+                client_->set_no_delay(true);
+                client_->ws_stream().set_option(
                     websocket::stream_base::decorator([](websocket::request_type &req) {
                         req.set(http::field::authorization, "websocket-client-authorization");
                     })
                 );
             }
         })
-        .bind_connect([thiz = std::weak_ptr(shared_from_this())]() {
-            if (auto self = thiz.lock(); self && self->client_) {
+        .bind_connect([this]() {
+            if (client_) {
                 if (asio2::get_last_error()) {
                     LOGE("connect failure : {} {} [ {} - {} - {}]",
-                         asio2::last_error_val(), asio2::last_error_msg().c_str(), self->host_, self->port_, self->device_id_);
+                         asio2::last_error_val(), asio2::last_error_msg().c_str(), host_, port_, device_id_);
                 } else {
-                    LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-                    self->client_->post_queued_event([self]() {
-                        if (self->srv_conn_cbk_) {
-                            self->srv_conn_cbk_();
+                    LOGI("connect success : {} {} ", client_->local_address().c_str(), client_->local_port());
+                    client_->post_queued_event([this]() {
+                        if (srv_conn_cbk_) {
+                            srv_conn_cbk_();
                         }
-                        self->SendHello();
+                        SendHello();
                     });
                 }
             }
         })
-        .bind_disconnect([thiz = std::weak_ptr(shared_from_this())]() {
-            if (auto self = thiz.lock(); self && self->client_) {
-                if (self->srv_dis_conn_cbk_) {
-                    self->srv_dis_conn_cbk_();
+        .bind_disconnect([this]() {
+            if (client_) {
+                if (srv_dis_conn_cbk_) {
+                    srv_dis_conn_cbk_();
                 }
             }
         })
@@ -82,12 +80,10 @@ namespace px
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
             }
         })
-        .bind_recv([thiz = std::weak_ptr(shared_from_this())](std::string_view data) {
-            if (auto self = thiz.lock(); self && self->client_ && self->msg_cbk_) {
-                if (self->msg_cbk_) {
-                    auto cpy_data = Data::Make(data.data(), data.size());
-                    self->msg_cbk_(cpy_data);
-                }
+        .bind_recv([this](std::string_view data) {
+            if (client_ && msg_cbk_) {
+                auto cpy_data = Data::Make(data.data(), data.size());
+                msg_cbk_(cpy_data);
             }
         });
 

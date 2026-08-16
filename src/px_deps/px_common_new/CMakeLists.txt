@@ -145,12 +145,10 @@ if (WIN32)
 endif ()
 
 if (ANDROID)
-    target_link_libraries(px_common_new PUBLIC ${ANDROID_OPENSSL_LIBS})
+    find_package(Iconv REQUIRED)
+    target_link_libraries(px_common_new PUBLIC Iconv::Iconv ${ANDROID_OPENSSL_LIBS})
 endif ()
 
-target_link_libraries(px_common_new PUBLIC leveldb::leveldb fmt::fmt spdlog::spdlog_header_only miniz::miniz)
-if (WIN32)
-    target_link_libraries(px_common_new PUBLIC cpr::cpr)
-endif ()
+target_link_libraries(px_common_new PUBLIC leveldb::leveldb fmt::fmt spdlog::spdlog_header_only miniz::miniz cpr::cpr)
 
 target_include_directories(px_common_new PUBLIC ${PX_PROJECT_PATH}/px_3rdparty/eventbus/src)

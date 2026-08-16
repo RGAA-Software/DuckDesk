@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/id_monitor"
+    android:layout_width="@dimen/monitor_switch_btn_size"
+    android:layout_height="@dimen/monitor_switch_btn_size">
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/id_monitor_btn"
+        android:layout_width="@dimen/monitor_switch_btn_size"
+        android:layout_height="@dimen/monitor_switch_btn_size"
+        android:src="@drawable/ic_desktop" />
+    <TextView
+        android:id="@+id/id_monitor_index"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="9dp"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:text="1"/>
+    <View
+        android:id="@+id/id_monitor_indicator"
+        android:layout_width="6dp"
+        android:layout_height="6dp"
+        android:layout_alignParentLeft="true"
+        android:layout_marginTop="7dp"
+        android:layout_marginLeft="29dp"
+        android:background="@drawable/ic_circle"/>
+</RelativeLayout>

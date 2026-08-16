@@ -4,6 +4,7 @@
 #include <cassert>
 #include <functional>
 #include <iterator>
+#include <mutex>
 #include <shared_mutex>
 #include <vector>
 

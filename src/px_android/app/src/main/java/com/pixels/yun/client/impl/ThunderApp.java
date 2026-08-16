@@ -1,0 +1,174 @@
+package com.pixels.yun.client.impl;
+
+import android.text.TextUtils;
+import android.util.Log;
+import android.view.Surface;
+
+import com.pixels.yun.client.App;
+import com.pixels.yun.client.Settings;
+import com.pixels.yun.client.Statistics;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class ThunderApp {
+
+    private static final String TAG = "Main";
+
+    private final String mIp;
+    private final int mPort;
+    private final boolean mEnableAudio;
+    private final boolean mEnableVideo;
+    private final boolean mEnableController;
+    private final List<Double> mLeftSpectrum = new ArrayList<>();
+    private final List<Double> mRightSpectrum = new ArrayList<>();
+    private long mAudioSpectrumCount = 0;
+    private String mStreamId;
+    private String mRemoteDeviceId;
+
+    private ThunderCallbacks.OnFrameChangedCallback mFrameChangedCallback;
+    private ThunderCallbacks.OnCursorInfoCallback mCursorInfoCallback;
+    private ThunderCallbacks.OnServerConfigurationCallback mOnServerConfigCallback;
+
+    public ThunderApp(String ip, int port, boolean enableAudio, boolean enableVideo, boolean enableController, String streamId, String remoteDeviceId) {
+        mIp = ip;
+        mPort = port;
+        mEnableAudio = enableAudio;
+        mEnableVideo = enableVideo;
+        mEnableController = enableController;
+        mStreamId = streamId;
+        mRemoteDeviceId = remoteDeviceId;
+    }
+    public void init(boolean ssl, Surface surface, boolean hwCodec, boolean useOES, int oesTexId, String deviceId, String streamId) {
+        String targetPath = "/media?visitor_device_id=" + deviceId + "&stream_id=" + streamId + "&remote_device_id=";
+        this.init(ssl, mEnableAudio, mEnableVideo, mEnableController, mIp, mPort, targetPath, surface, hwCodec, useOES, oesTexId, deviceId, streamId, mRemoteDeviceId);
+    }
+    public native int init(boolean ssl, boolean enableAudio, boolean enableVideo, boolean enableController, String ip, int port,
+                           String path, Surface surface, boolean hwCodec, boolean useOES, int oesTexId, String deviceId, String streamId, String remoteDeviceId);
+    public native int start();
+    public native int stop();
+    public native void sendGamepadState(int buttons, int leftTrigger, int rightTrigger, int thumbLX, int thumbLY, int thumbRX, int thumbRY);
+    public native void sendMouseEvent(int event, float xRatio, float yRatio);
+    public native void changeMonitor(int index, String monitorName);
+    public native void nativeCreate();
+    public native void nativeResume();
+    public native void nativePause();
+    public native void nativeDestroy();
+    public native void nativeRenderTick();
+
+    public synchronized List<Double> getLeftSpectrum() {
+        return mLeftSpectrum;
+    }
+
+    public synchronized List<Double> getRightSpectrum() {
+        return mRightSpectrum;
+    }
+
+    public String getStreamId() {
+        return mStreamId;
+    }
+
+    public String getRemoteDeviceId() {
+        return mRemoteDeviceId;
+    }
+
+    // register callbacks
+    public void registerFrameChangedCallback(ThunderCallbacks.OnFrameChangedCallback cbk) {
+        mFrameChangedCallback = cbk;
+    }
+
+    public void registerCursorInfoCallback(ThunderCallbacks.OnCursorInfoCallback cbk) {
+        mCursorInfoCallback = cbk;
+    }
+
+    public void registerServerConfigCallback(ThunderCallbacks.OnServerConfigurationCallback cbk) {
+        mOnServerConfigCallback = cbk;
+    }
+
+    public void onNativeMessage(String msg) {
+        try {
+            JSONObject obj = new JSONObject(msg);
+            String type = obj.getString("type");
+            if (TextUtils.equals(type, "frame") && !Settings.Companion.getInstance().isFullscreen(App.getInstance())) {
+                Log.i(TAG, "frame resize : " + msg);
+                int width = obj.getInt("width");
+                int height = obj.getInt("height");
+                if (mFrameChangedCallback != null) {
+                    mFrameChangedCallback.onFrameChanged(width, height);
+                }
+            }
+            else if (TextUtils.equals(type, "spectrum")) {
+                synchronized (this) {
+                    if (mAudioSpectrumCount++ % 3 != 0) {
+                        return;
+                    }
+                    JSONArray leftSpectrum = obj.getJSONArray("left_spectrum");
+                    JSONArray rightSpectrum = obj.getJSONArray("right_spectrum");
+                    if (mLeftSpectrum.size() != leftSpectrum.length()) {
+                        mLeftSpectrum.clear();
+                    }
+                    if (mRightSpectrum.size() != rightSpectrum.length()) {
+                        mRightSpectrum.clear();
+                    }
+                    boolean leftFullSpectrum = mLeftSpectrum.size() == leftSpectrum.length();
+                    boolean rightFullSpectrum = mRightSpectrum.size() == rightSpectrum.length();
+                    for (int i = 0; i < leftSpectrum.length(); i++) {
+                        if (leftFullSpectrum) {
+                            mLeftSpectrum.set(i, leftSpectrum.getDouble(i));
+                        } else {
+                            mLeftSpectrum.add(leftSpectrum.getDouble(i));
+                        }
+                    }
+                    for (int i = 0; i < rightSpectrum.length(); i++) {
+                        if (rightFullSpectrum) {
+                            mRightSpectrum.set(i, rightSpectrum.getDouble(i));
+                        } else {
+                            mRightSpectrum.add(rightSpectrum.getDouble(i));
+                        }
+                    }
+                }
+            }
+            else if (TextUtils.equals(type, "server_configuration")) {
+                ThunderCallbacks.ServerConfiguration config = new ThunderCallbacks.ServerConfiguration();
+                config.capturingMonitorName = obj.getString("capturing_monitor_name");
+                config.fps = obj.getInt("fps");
+
+                JSONArray monitorsObj = obj.getJSONArray("monitors");
+                for (int i = 0; i < monitorsObj.length(); i++) {
+                    JSONObject monitorItem = monitorsObj.getJSONObject(i);
+                    String monitorName = monitorItem.getString("name");
+                    ThunderCallbacks.MonitorInfo monitorInfo = new ThunderCallbacks.MonitorInfo();
+                    monitorInfo.name = monitorName;
+                    config.monitors.add(monitorInfo);
+                }
+
+                if (mOnServerConfigCallback != null) {
+                    mOnServerConfigCallback.onConfiguration(config);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG, "Parse native message failed: " + msg + ", e: " + e.getMessage());
+        }
+    }
+
+    public void onCursorInfo(float x, float y, int hotspotX, int hotspotY, int width, int height, boolean visible, byte[] data) {
+        if (mCursorInfoCallback == null) {
+            return;
+        }
+        CursorInfo cursorInfo = new CursorInfo();
+        cursorInfo.setX(x);
+        cursorInfo.setY(y);
+        cursorInfo.setHotspotX(hotspotX);
+        cursorInfo.setHotspotY(hotspotY);
+        cursorInfo.setWidth(width);
+        cursorInfo.setHeight(height);
+        cursorInfo.setVisible(visible);
+        cursorInfo.setBitmap(data);
+        mCursorInfoCallback.onCursorInfo(cursorInfo);
+    }
+}

@@ -4,6 +4,7 @@
 #include "EventBus.hpp"
 
 #include <iterator>
+#include <mutex>
 
 namespace dexode
 {

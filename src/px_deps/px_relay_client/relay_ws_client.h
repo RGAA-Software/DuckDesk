@@ -5,6 +5,7 @@
 #ifndef PX_RELAY_WS_CLIENT_H
 #define PX_RELAY_WS_CLIENT_H
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <functional>
@@ -21,7 +22,7 @@ namespace asio2 {
 namespace px
 {
 
-    class RelayWsClient : public RelayNetClient, public std::enable_shared_from_this<RelayWsClient> {
+    class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public RelayNetClient {
     public:
         explicit RelayWsClient(const std::string& host, int port, const std::string& device_id,
                                const std::string& device_name, const std::string& stream_id,
@@ -49,10 +50,10 @@ namespace px
         std::string appkey_;
         bool force_gdi_ = false;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
-        std::atomic_int64_t queuing_msg_count_ = 0;
+        std::atomic<int64_t> queuing_msg_count_ = 0;
         unsigned int post_thread_id_ = 0;
         std::vector<px::RelayDeviceNetInfo> net_info_;
-        std::atomic_int64_t send_index_ = 0;
+        std::atomic<int64_t> send_index_ = 0;
         std::mutex send_mtx_;
     };
 
