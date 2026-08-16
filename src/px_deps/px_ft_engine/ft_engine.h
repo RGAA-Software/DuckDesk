@@ -88,7 +88,9 @@ public:
     void Tick();
 
     // ---------------- 对端消息入口 ----------------
-    void HandleFileAction(const px::FileAction& action);
+    // conn_id: 该消息归属的连接标识(插件壳传 px::Message.stream_id),
+    // 新建作业会带上它,供 DisconnectCleanup(conn_id) 按连接清理。
+    void HandleFileAction(const px::FileAction& action, const std::string& conn_id = "");
     void HandleFileResponse(const px::FileResponse& resp);
 
     // ---------------- 本端主动操作 ----------------
@@ -98,14 +100,15 @@ public:
     // is_resume=true 标记续传(io_loop.rs ResumeJob 语义):digest 携带 is_resume,
     // 对端写侧据此消费 .digest 凭证。
     int32_t SendFiles(const std::string& local_path, bool include_hidden,
-                      const std::string& remote_to, int32_t file_num = 0, bool is_resume = false);
+                      const std::string& remote_to, int32_t file_num = 0, bool is_resume = false,
+                      const std::string& conn_id = "");
 
     // 下载(io_loop.rs Data::SendFiles is_remote=true):
     // 本地建写作业写到 local_to,向对端发 FileTransferSendRequest。返回作业 id。
     // is_resume=true 时本地写作业标记续传,IsWriteNeedConfirmation 消费本地 .digest 凭证。
     int32_t ReceiveFiles(const std::string& remote_path, bool include_hidden,
                          const std::string& local_to, int32_t file_num = 0,
-                         bool is_resume = false);
+                         bool is_resume = false, const std::string& conn_id = "");
 
     void ReadDir(const std::string& path, bool include_hidden);
     void ReadAllFiles(int32_t id, const std::string& path, bool include_hidden);
@@ -118,8 +121,10 @@ public:
     // 显式取消:本地读/写作业都移除;写作业清 .download/.digest(remove_download_file),
     // 并向对端发 FileTransferCancel。断线场景不要调这个,用 DisconnectCleanup()。
     void CancelJob(int32_t id);
-    // 断线清理:直接清空作业表,保留 .download/.digest 供续传。
-    void DisconnectCleanup();
+    // 断线清理:移除该连接的作业,保留 .download/.digest 供续传。
+    // conn_id 非空时只清该连接的作业(迟到的断线事件不会误杀其他/新会话作业);
+    // conn_id 为空 = 清全部(单连接/旧调用方语义),同时清空待发队列。
+    void DisconnectCleanup(const std::string& conn_id = "");
 
     // "应用到全部"覆盖策略(io_loop.rs:673 job.default_overwrite_strategy)
     void SetOverwriteStrategy(int32_t id, std::optional<bool> overwrite);

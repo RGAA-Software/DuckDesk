@@ -53,6 +53,13 @@ namespace px
         void RequestExit() { exit_ = true; }
         bool IsExitRequested() const { return exit_.load(); }
 
+        // 插件级客户端断开事件:ICE 瞬断/终态、媒体 datachannel 独立关闭、ICE 超时
+        // 判死,任一检测点触发,全连接生命周期只发一次(去重)。
+        // stream_id 用真实访客 stream id(与 px::Message.stream_id 一致),
+        // 不用 datachannel 内部 the_conn_id_(MD5)——否则按消息 stream_id 键控的
+        // 插件(ft 文件传输、joystick)永远匹配不上断开事件。
+        void EmitClientDisconnectedEvent();
+
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
@@ -130,6 +137,8 @@ namespace px
         // On100msTimeout 据此超时判死并请求退出,避免死连接拖垮媒体投递。
         std::atomic<int64_t> ice_disconnected_since_ms_{0};
         static constexpr int64_t kIceDisconnectedTimeoutMs = 10000;
+        // 断开事件去重:见 EmitClientDisconnectedEvent
+        std::atomic_bool disconnect_event_sent_ = false;
 
         // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,
         // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true,

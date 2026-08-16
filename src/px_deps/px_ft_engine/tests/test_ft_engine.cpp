@@ -12,6 +12,10 @@
 
 #ifdef _WIN32
 #include <process.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 
 namespace px::ft {
@@ -476,6 +480,114 @@ TEST(FtEngine, UploadResumeFromDigestIsResume) {
     int full_blocks =
         static_cast<int>((content.size() + kBlockPayloadSize - 1) / kBlockPayloadSize);
     EXPECT_LT(resume_blocks, full_blocks);
+}
+
+// 回归:收尾 rename 失败(目标被独占占用)时不得静默成功——
+// 保留 .download/.digest 供续传,作业以错误终结并回 new_error 给主控;
+// 解除占用后按 digest.is_resume 续传可正常完成。
+// (上游 fs.rs:717-718 先删 .digest 再 .ok() 吞 rename 失败,会产生无凭证孤儿)
+TEST(FtEngine, FinalizeRenameFailureKeepsResumeState) {
+#ifndef _WIN32
+    GTEST_SKIP() << "独占文件锁构造依赖 Win32 CreateFile";
+#else
+    TestTempDir tmp("fte_rename_fail");
+    auto content = MakeText(200 * 1024);
+    WriteFile(tmp.join("src.txt"), content);
+    WriteFile(tmp.join("dst.txt"), MakeText(16 * 1024)); // 旧内容,待覆盖
+
+    // 独占打开 dst.txt(share=0),使 B 侧收尾 rename(.download -> dst.txt)失败
+    HANDLE lock = CreateFileW(tmp.join("dst.txt").c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    ASSERT_NE(lock, INVALID_HANDLE_VALUE);
+
+    Loopback lb;
+    lb.a->SendFiles(tmp.str("src.txt"), false, tmp.str("dst.txt"));
+    // 冲突确认:B 回发 is_upload=true digest,A 决策覆盖
+    for (int i = 0; i < 100 && lb.a_confirm_reqs.empty(); ++i) {
+        lb.a->Tick();
+        lb.b->Tick();
+    }
+    ASSERT_EQ(lb.a_confirm_reqs.size(), 1u);
+    lb.a->ConfirmFile(std::get<0>(lb.a_confirm_reqs[0]), std::get<1>(lb.a_confirm_reqs[0]), true,
+                      0);
+    lb.Pump();
+
+    // 块全部写完,但收尾 rename 失败:作业以错误终结,凭证保留
+    ASSERT_EQ(lb.b_done.size(), 1u);
+    EXPECT_NE(lb.b_done[0].second.find("rename"), std::string::npos);
+    EXPECT_TRUE(std::filesystem::exists(tmp.join("dst.txt.download")));
+    EXPECT_TRUE(std::filesystem::exists(tmp.join("dst.txt.digest")));
+    EXPECT_EQ(std::filesystem::file_size(tmp.join("dst.txt.download")), content.size());
+    EXPECT_NE(ReadFile(tmp.join("dst.txt")), content); // 旧内容未被覆盖
+
+    // 解除占用,续传:.digest 凭证在,按偏移(full size)续传后收尾成功
+    CloseHandle(lock);
+    lb.a->SendFiles(tmp.str("src.txt"), false, tmp.str("dst.txt"), 0, true);
+    lb.Pump();
+    EXPECT_EQ(ReadFile(tmp.join("dst.txt")), content);
+    EXPECT_FALSE(std::filesystem::exists(tmp.join("dst.txt.download")));
+    EXPECT_FALSE(std::filesystem::exists(tmp.join("dst.txt.digest")));
+    ASSERT_EQ(lb.b_done.size(), 2u);
+    EXPECT_TRUE(lb.b_done[1].second.empty());
+#endif
+}
+
+// 回归:断线按连接清理——DisconnectCleanup(conn_id) 只清该连接的作业,
+// 不影响其他连接在途作业(迟到的断线事件不误杀新会话/其他会话)。
+TEST(FtEngine, DisconnectCleanupScopedByConnection) {
+    TestTempDir tmp("fte_conn_scope");
+    auto content = MakeText(64 * 1024);
+    WriteFile(tmp.join("src_a.txt"), content);
+    WriteFile(tmp.join("src_b.txt"), content);
+
+    std::vector<px::Message> sent;
+    FtEngine e([&](const px::Message& m) {
+        sent.push_back(m);
+        return true;
+    });
+
+    auto make_send_action = [](int32_t id, const std::string& path) {
+        px::FileAction action;
+        auto* s = action.mutable_send();
+        s->set_id(id);
+        s->set_path(path);
+        s->set_include_hidden(false);
+        s->set_file_num(0);
+        return action;
+    };
+
+    // 两个连接各自建读作业;conn_a 另有一个本端写作业
+    e.HandleFileAction(make_send_action(1, tmp.str("src_a.txt")), "conn_a");
+    e.HandleFileAction(make_send_action(2, tmp.str("src_b.txt")), "conn_b");
+    int32_t wid = e.ReceiveFiles(tmp.str("remote_x.txt"), false, tmp.str("local_x.txt"),
+                                 0, false, "conn_a");
+    (void)wid;
+    ASSERT_EQ(e.read_jobs().size(), 2u);
+    ASSERT_EQ(e.write_jobs().size(), 1u);
+
+    // 只断 conn_a:它的读/写作业都移除,conn_b 的读作业保留
+    e.DisconnectCleanup("conn_a");
+    ASSERT_EQ(e.read_jobs().size(), 1u);
+    EXPECT_EQ(e.read_jobs()[0].id(), 2);
+    EXPECT_EQ(e.read_jobs()[0].conn_id(), "conn_b");
+    EXPECT_TRUE(e.write_jobs().empty());
+
+    // conn_b 的作业仍在正常推进:tick 后发出它自己的 digest
+    sent.clear();
+    e.Tick();
+    bool saw_digest_for_job2 = false;
+    for (const auto& m : sent) {
+        if (m.has_file_response() && m.file_response().has_digest() &&
+            m.file_response().digest().id() == 2) {
+            saw_digest_for_job2 = true;
+        }
+    }
+    EXPECT_TRUE(saw_digest_for_job2);
+
+    // 空 conn_id = 清全部(旧语义,单连接/插件停止场景)
+    e.DisconnectCleanup("");
+    EXPECT_TRUE(e.read_jobs().empty());
+    EXPECT_TRUE(e.write_jobs().empty());
 }
 
 } // namespace

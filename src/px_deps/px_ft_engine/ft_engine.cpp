@@ -169,7 +169,7 @@ void FtEngine::UpdateJobsStatus() {
 
 // ---------------- 对端消息入口 ----------------
 
-void FtEngine::HandleFileAction(const px::FileAction& action) {
+void FtEngine::HandleFileAction(const px::FileAction& action, const std::string& conn_id) {
     using U = px::FileAction::UnionCase;
     switch (action.union_case()) {
         case U::kReadDir: {
@@ -220,6 +220,7 @@ void FtEngine::HandleFileAction(const px::FileAction& action) {
                 TransferJob job = TransferJob::NewRead(s.id(), type, s.path(),
                                                        DataSource{ToFsPath(s.path())}, s.file_num(),
                                                        s.include_hidden(), true, true);
+                job.set_conn_id(conn_id);
                 // connection.rs:5295 - 先把展开后的文件列表回给对端(对端写作业 set_files 用)
                 Send(NewDir(job.id(), s.path(), job.files()));
                 read_jobs_.push_back(std::move(job));
@@ -234,6 +235,7 @@ void FtEngine::HandleFileAction(const px::FileAction& action) {
             TransferJob job = TransferJob::NewWrite(r.id(), JobType::Generic, r.path(),
                                                     DataSource{ToFsPath(r.path())}, r.file_num(),
                                                     false, false, true);
+            job.set_conn_id(conn_id);
             try {
                 job.SetFiles(std::vector<px::FileEntry>(r.files().begin(), r.files().end()));
             } catch (const std::exception& e) {
@@ -378,7 +380,15 @@ void FtEngine::HandleBlock(const px::FileTransferBlock& block) {
         try {
             job->Write(block);
         } catch (const std::exception& e) {
+            // 写失败(含 Write 内收尾上一文件的 rename 失败):作业以错误终结,
+            // .download/.digest 保留供续传,回 new_error 通知对端。
+            // (上游 io_loop.rs:1703 仅忽略,此处选择显式失败,避免假进行中)
             Log(std::string("write block failed: ") + e.what());
+            Send(NewError(block.id(), e.what(), block.file_num()));
+            if (auto removed = RemoveJob(block.id(), write_jobs_)) {
+                if (job_done_cb_) job_done_cb_(block.id(), removed->file_num(), e.what());
+            }
+            return;
         }
         if (job->type() == JobType::Generic) {
             UpdateJobsStatus(); // io_loop.rs:1707
@@ -389,8 +399,18 @@ void FtEngine::HandleBlock(const px::FileTransferBlock& block) {
 void FtEngine::HandleDone(const px::FileTransferDone& done) {
     // io_loop.rs:1711
     if (auto job = RemoveJob(done.id(), write_jobs_)) {
-        job->ModifyTime();
-        std::string err = job->job_error().value_or("");
+        std::string err;
+        try {
+            job->ModifyTime();
+            err = job->job_error().value_or("");
+        } catch (const std::exception& e) {
+            // 收尾 rename 失败:.download/.digest 已保留供续传,作业以错误终结。
+            // 回 new_error 让对端(主控)感知失败,而非假成功(io_loop.rs new_error 语义)
+            Log(std::string("finalize job ") + std::to_string(done.id()) +
+                " failed: " + e.what());
+            err = e.what();
+            Send(NewError(done.id(), err, done.file_num()));
+        }
         if (job_done_cb_) job_done_cb_(done.id(), done.file_num(), err);
     } else if (response_cb_) {
         // 非作业语境的 done(目录操作回执)透传上层,同 kError 分支。
@@ -505,13 +525,15 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
 // ---------------- 本端主动操作 ----------------
 
 int32_t FtEngine::SendFiles(const std::string& local_path, bool include_hidden,
-                            const std::string& remote_to, int32_t file_num, bool is_resume) {
+                            const std::string& remote_to, int32_t file_num, bool is_resume,
+                            const std::string& conn_id) {
     int32_t id = NextJobId();
     try {
         TransferJob job = TransferJob::NewRead(id, JobType::Generic, remote_to,
                                                DataSource{ToFsPath(local_path)}, file_num,
                                                include_hidden, false, true);
         job.is_resume = is_resume;
+        job.set_conn_id(conn_id);
         std::vector<px::FileEntry> files = job.files();
         uint64_t total_size = job.total_size();
         read_jobs_.push_back(std::move(job));
@@ -523,12 +545,14 @@ int32_t FtEngine::SendFiles(const std::string& local_path, bool include_hidden,
 }
 
 int32_t FtEngine::ReceiveFiles(const std::string& remote_path, bool include_hidden,
-                               const std::string& local_to, int32_t file_num, bool is_resume) {
+                               const std::string& local_to, int32_t file_num, bool is_resume,
+                               const std::string& conn_id) {
     int32_t id = NextJobId();
     TransferJob job = TransferJob::NewWrite(id, JobType::Generic, remote_path,
                                             DataSource{ToFsPath(local_to)}, file_num,
                                             include_hidden, true, true);
     job.is_resume = is_resume;
+    job.set_conn_id(conn_id);
     job.SetFinishedSizeOnResume(); // io_loop.rs:730 ResumeJob 语义
     write_jobs_.push_back(std::move(job));
     Send(NewSend(id, JobType::Generic, remote_path, file_num, include_hidden));
@@ -606,11 +630,18 @@ void FtEngine::CancelJob(int32_t id) {
     Send(NewCancel(id));
 }
 
-void FtEngine::DisconnectCleanup() {
-    // 断线:保留 .download/.digest 供续传,只清作业表
-    read_jobs_.clear();
-    write_jobs_.clear();
-    outbox_.clear();
+void FtEngine::DisconnectCleanup(const std::string& conn_id) {
+    // 断线:保留 .download/.digest 供续传,只清作业表。
+    // conn_id 非空时只移除该连接的作业——迟到的断线事件不会误杀其他
+    // (或同 stream id 新会话)作业;空 = 清全部(含待发队列)。
+    if (conn_id.empty()) {
+        read_jobs_.clear();
+        write_jobs_.clear();
+        outbox_.clear();
+        return;
+    }
+    std::erase_if(read_jobs_, [&](const TransferJob& j) { return j.conn_id() == conn_id; });
+    std::erase_if(write_jobs_, [&](const TransferJob& j) { return j.conn_id() == conn_id; });
 }
 
 void FtEngine::SetOverwriteStrategy(int32_t id, std::optional<bool> overwrite) {

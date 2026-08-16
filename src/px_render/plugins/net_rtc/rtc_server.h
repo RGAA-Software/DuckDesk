@@ -30,6 +30,11 @@ namespace px
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
 
+        // 插件级客户端断开事件:ICE 断开/终态、datachannel 独立关闭时触发,
+        // 全连接生命周期只发一次(去重)。stream_id 用真实访客 stream id
+        // (与 px::Message.stream_id 一致),不用 datachannel 内部 the_conn_id_(MD5)。
+        void EmitClientDisconnectedEvent();
+
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
@@ -69,6 +74,8 @@ namespace px
         std::shared_ptr<RtcDataChannel> media_data_channel_ = nullptr;
         std::shared_ptr<RtcDataChannel> ft_data_channel_ = nullptr;
         std::atomic<bool> exit_ = false;
+        // 断开事件去重:见 EmitClientDisconnectedEvent
+        std::atomic_bool disconnect_event_sent_ = false;
     };
 
 }

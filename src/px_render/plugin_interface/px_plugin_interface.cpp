@@ -276,6 +276,27 @@ namespace px
         }
     }
 
+    // FT 派发失败(该 net 插件不承载此 stream,或对端已断开)本是常态:
+    // 分发循环遍历所有 net 插件,不承载的必然返回 false;对端断开后在插件级
+    // 断线事件清理作业前,引擎还会继续往死通道派几个消息。逐条刷 warn 会淹掉
+    // 日志(实机观察过数十秒刷屏),按 插件+stream 限频,每 10s 一条。
+    static std::mutex ft_dispatch_fail_log_mtx;
+    static std::map<std::string, int64_t> ft_dispatch_fail_log_ts;
+
+    static void LogFtDispatchFailed(const std::string& plugin_id, const std::string& stream_id) {
+        auto now = (int64_t)px::TimeUtil::GetCurrentTimestamp();
+        std::lock_guard<std::mutex> lk(ft_dispatch_fail_log_mtx);
+        if (ft_dispatch_fail_log_ts.size() > 1024) {
+            ft_dispatch_fail_log_ts.clear(); // 防长跑进程慢涨,清了重来即可
+        }
+        auto& last = ft_dispatch_fail_log_ts[plugin_id + "|" + stream_id];
+        if (now - last >= 10000) {
+            last = now;
+            LOGW("DispatchTargetFileTransferMessage failed in plugin: {}, stream: {} (rate limited, 1/10s)",
+                 plugin_id, stream_id);
+        }
+    }
+
     void PxPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
@@ -302,7 +323,7 @@ namespace px
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
             if (!plugin->PostTargetFileTransferProtoMessage(stream_id, msg, run_through)) {
-                LOGW("DispatchTargetFileTransferMessage failed in plugin: {}, stream: {}", plugin_id, stream_id);
+                LogFtDispatchFailed(plugin_id, stream_id);
             }
             auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
             if (cost > kSlowPluginDispatchThresholdMs) {

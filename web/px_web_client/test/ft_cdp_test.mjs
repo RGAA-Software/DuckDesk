@@ -150,7 +150,7 @@ async function main() {
     const probe = await (
       await fetch(
         `${TARGET_BASE}/alloc/local/rtc?device_id=${deviceId}&stream_id=ft_probe&safety_pwd_md5=${encodeURIComponent(PWD_MD5)}`,
-        { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"sdp":"probe"}', signal: AbortSignal.timeout(5000) },
+        { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"sdp":"probe"}', signal: AbortSignal.timeout(Number(process.env.FT_PROBE_TIMEOUT_MS || 25000)) },
       )
     ).json()
     if (probe?.code === 700) {

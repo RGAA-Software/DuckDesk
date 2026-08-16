@@ -53,10 +53,18 @@ namespace px
             // 否则该 RtcServer 会变成"ICE 仍在但媒体面已死"的僵尸连接。
             if (name_ == "media_data_channel" && rtc_server_ && !rtc_server_->IsExitRequested()) {
                 LOGW("media_data_channel closed independently, request rtc server exit: {}", rtc_server_->GetConnId());
+                // 先通知插件层(含 ft 文件传输清理),再走退出流程
+                rtc_server_->EmitClientDisconnectedEvent();
                 rtc_server_->RequestExit();
                 if (plugin_) {
                     plugin_->NotifyRtcServerTerminal(rtc_server_->GetConnId(), rtc_server_.get());
                 }
+            }
+            // ft 通道独立关闭(媒体面还活着):只通知插件层清理该连接的传输作业,
+            // 不退出整条连接
+            else if (name_ == "ft_data_channel" && rtc_server_) {
+                LOGW("ft_data_channel closed independently, conn: {}", rtc_server_->GetConnId());
+                rtc_server_->EmitClientDisconnectedEvent();
             }
         }
 

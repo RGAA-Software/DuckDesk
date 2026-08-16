@@ -148,12 +148,14 @@ namespace px
         if (!accepting_.load()) {
             return;
         }
+        LOGW("ft client disconnected, visitor: {}, stream: {}", visitor_device_id, stream_id);
         {
             std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this]() {
-                // 断线清理:保留 .download/.digest 供续传(区别于显式取消)。
-                if (engine_) engine_->DisconnectCleanup();
-                CloseAllAudits(false);
+            tasks_.emplace_back([this, stream_id]() {
+                // 断线清理:只清该连接的作业,保留 .download/.digest 供续传
+                // (区别于显式取消);迟到的断线事件不会误杀新会话作业。
+                if (engine_) engine_->DisconnectCleanup(stream_id);
+                CloseAudits(stream_id, false);
             });
         }
         task_cv_.notify_one();
@@ -220,7 +222,7 @@ namespace px
                         for (const auto& job : engine_->write_jobs()) ids.push_back(job.id());
                         for (int32_t id : ids) engine_->CancelJob(id);
                     }
-                    CloseAllAudits(false);
+                    CloseAudits("", false);
                 });
                 worker_exit_ = true;
             }
@@ -251,7 +253,7 @@ namespace px
                               action.receive().total_size(), msg);
             }
             current_stream_id_ = msg->stream_id();
-            engine_->HandleFileAction(action);
+            engine_->HandleFileAction(action, msg->stream_id());
         } else {
             current_stream_id_ = msg->stream_id();
             engine_->HandleFileResponse(msg->file_response());
@@ -391,6 +393,7 @@ namespace px
         AuditRecord rec;
         rec.the_file_id_ = MD5::Hex(path + "#" + std::to_string(job_id) + "#" + std::to_string(begin_ts));
         rec.begin_timestamp_ = begin_ts;
+        rec.stream_id_ = msg->stream_id();
         audits_[job_id] = rec;
 
         auto event = std::make_shared<PxPluginFileTransferBegin>();
@@ -418,11 +421,14 @@ namespace px
         audits_.erase(it);
     }
 
-    void FtPlugin::CloseAllAudits(bool success) {
-        // 断线/停止时关闭所有悬挂记录,避免 panel 侧留下只有 Begin 的记录。
+    void FtPlugin::CloseAudits(const std::string& stream_id, bool success) {
+        // 断线/停止时关闭悬挂记录,避免 panel 侧留下只有 Begin 的记录。
+        // stream_id 非空时只关该连接的,不影响其他连接在途作业的记录。
         std::vector<int32_t> ids;
-        for (const auto& [id, _] : audits_) {
-            ids.push_back(id);
+        for (const auto& [id, rec] : audits_) {
+            if (stream_id.empty() || rec.stream_id_ == stream_id) {
+                ids.push_back(id);
+            }
         }
         for (int32_t id : ids) {
             TrackJobEnd(id, success ? "" : "interrupted");

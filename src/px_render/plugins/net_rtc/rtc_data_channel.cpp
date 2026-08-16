@@ -48,6 +48,11 @@ namespace px
 
         } else if (data_channel_->state() == webrtc::DataChannelInterface::kClosed) {
             connected_ = false;
+            // datachannel 独立关闭(浏览器页面被杀等):通知插件层清理该连接状态
+            // (ft 文件传输作业等);媒体面是否退出由 ICE 终态/超时判死路径负责
+            if ((name_ == "media_data_channel" || name_ == "ft_data_channel") && rtc_server_) {
+                rtc_server_->EmitClientDisconnectedEvent();
+            }
         }
 
         LOGI("DataChannel[ {} ] state changed: {}, connected: {}", name_, (int)data_channel_->state(), connected_.load());

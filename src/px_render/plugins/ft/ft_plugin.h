@@ -83,7 +83,8 @@ namespace px
                            const std::string& path, uint64_t total_size,
                            const std::shared_ptr<Message>& msg);
         void TrackJobEnd(int32_t job_id, const std::string& error_or_empty);
-        void CloseAllAudits(bool success);
+        // 关闭指定连接的悬挂审计;stream_id 为空 = 全部(插件停止时)
+        void CloseAudits(const std::string& stream_id, bool success);
 
     private:
         std::unique_ptr<px::ft::FtEngine> engine_;
@@ -106,6 +107,7 @@ namespace px
         struct AuditRecord {
             std::string the_file_id_;
             int64_t begin_timestamp_ = 0;
+            std::string stream_id_; // 归属连接,断线按连接闭环审计
         };
         std::unordered_map<int32_t, AuditRecord> audits_;
     };

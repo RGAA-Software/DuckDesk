@@ -105,12 +105,7 @@ namespace px
         });
 
         peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
-            if (!media_data_channel_) {return;}
-            auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
-            event->stream_id_ = media_data_channel_->the_conn_id_;
-            event->end_timestamp_ = (int64_t) TimeUtil::GetCurrentTimestamp();
-            event->duration_ =   event->end_timestamp_ - media_data_channel_->created_timestamp_;
-            this->plugin_->CallbackEvent(event);
+            EmitClientDisconnectedEvent();
         });
 
         CreatePeerConnectionFactory();
@@ -302,6 +297,26 @@ namespace px
         if (ft_data_channel_ && !exit_) {
             ft_data_channel_->On100msTimeout();
         }
+    }
+
+    void RtcServer::EmitClientDisconnectedEvent() {
+        // 全连接生命周期只发一次
+        if (disconnect_event_sent_.exchange(true)) {
+            return;
+        }
+        if (!plugin_) {
+            return;
+        }
+        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
+        // 真实访客 stream id(Start 时信令传入,与 px::Message.stream_id 一致);
+        // 空时回退 datachannel 内部 id(历史行为)
+        event->stream_id_ = !stream_id_.empty() ? stream_id_
+            : (media_data_channel_ ? media_data_channel_->the_conn_id_ : "");
+        event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+        event->duration_ = media_data_channel_
+            ? event->end_timestamp_ - media_data_channel_->created_timestamp_ : 0;
+        plugin_->CallbackEvent(event);
+        LOGW("Client disconnected event emitted, stream: {}", event->stream_id_);
     }
 
     void RtcServer::Exit() {

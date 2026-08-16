@@ -450,13 +450,24 @@ void TransferJob::ModifyTime() {
     // 上游 tokio 文件句柄在 rename 时仍持有,依赖 Unix 语义;Win32 必须显式关闭)
     std::filesystem::path download = ToFsPath(file_path + ".download");
     std::error_code ec;
-    if (data_stream_ && std::filesystem::exists(download, ec)) {
+    const bool had_download = std::filesystem::exists(download, ec);
+    if (data_stream_ && had_download) {
         data_stream_->SyncAll();
         data_stream_.reset();
     }
-    std::filesystem::remove(ToFsPath(file_path + ".digest"), ec);
+    // rename 成功才删 .digest(上游 fs.rs:717-718 先删凭证再 .ok() 静默吞 rename
+    // 失败,此处有意偏离):失败时保留 .download/.digest 供断点续传,并抛错让作业
+    // 以错误终结,由引擎走错误回调/错误消息路径(msg::new_error 语义)
     ec.clear();
     std::filesystem::rename(download, *path, ec);
+    if (ec) {
+        if (had_download) {
+            Bail("failed to rename " + ToUtf8(download) + " to " + file_path + ": " +
+                 ec.message());
+        }
+        return; // 本就没有 .download,保持上游静默语义
+    }
+    std::filesystem::remove(ToFsPath(file_path + ".digest"), ec);
     SetFileMtimeSecs(*path, entry.modified_time());
 }
 

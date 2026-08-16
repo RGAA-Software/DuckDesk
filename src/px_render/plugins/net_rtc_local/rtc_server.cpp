@@ -147,12 +147,7 @@ namespace px
             int64_t expect = 0;
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
-            if (!media_data_channel_) {return;}
-            auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
-            event->stream_id_ = media_data_channel_->the_conn_id_;
-            event->end_timestamp_ = (int64_t) TimeUtil::GetCurrentTimestamp();
-            event->duration_ =   event->end_timestamp_ - media_data_channel_->created_timestamp_;
-            this->plugin_->CallbackEvent(event);
+            EmitClientDisconnectedEvent();
         });
 
         // ICE 终态(Failed/Closed):立即置退出标记停止收发,并通知 plugin 将其
@@ -161,6 +156,7 @@ namespace px
         peer_callback_->SetOnIceTerminalCallback([=, this]() {
             LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", conn_id_);
             exit_ = true;
+            EmitClientDisconnectedEvent();
             if (plugin_) {
                 plugin_->NotifyRtcServerTerminal(conn_id_, this);
             }
@@ -485,6 +481,7 @@ namespace px
             if (now - ice_disconnected_since_ms_.load() >= kIceDisconnectedTimeoutMs) {
                 LOGW("Rtc server ice disconnected timeout, conn_id: {}, will be swept.", conn_id_);
                 exit_ = true;
+                EmitClientDisconnectedEvent();
                 if (plugin_) {
                     plugin_->NotifyRtcServerTerminal(conn_id_, this);
                 }
@@ -594,6 +591,28 @@ namespace px
             return;
         }
         audio_source_->SendAudio(data->DataAddr(), data->Size(), samples, channels, bits);
+    }
+
+    void RtcServer::EmitClientDisconnectedEvent() {
+        // 全连接生命周期只发一次:ICE 瞬断/终态、media datachannel 独立关闭、
+        // ICE 超时判死 都可能触发。
+        if (disconnect_event_sent_.exchange(true)) {
+            return;
+        }
+        if (!plugin_) {
+            return;
+        }
+        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
+        event->conn_id_ = conn_id_;
+        // 真实访客 stream id(Start 时信令传入,与 px::Message.stream_id 一致);
+        // 空时回退 datachannel 内部 id(历史行为)。
+        event->stream_id_ = !stream_id_.empty() ? stream_id_
+            : (media_data_channel_ ? media_data_channel_->the_conn_id_ : "");
+        event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+        event->duration_ = media_data_channel_
+            ? event->end_timestamp_ - media_data_channel_->created_timestamp_ : 0;
+        plugin_->CallbackEvent(event);
+        LOGW("Client disconnected event emitted, conn: {}, stream: {}", conn_id_, event->stream_id_);
     }
 
     void RtcServer::Exit() {

@@ -126,7 +126,9 @@ public:
     // fs.rs:760 write:落 <path>.download,维护 <path>.digest 凭证 JSON({size, modified})
     void Write(const px::FileTransferBlock& block);
 
-    // fs.rs:704 modify_time:删 digest、rename .download -> 正式文件、恢复 mtime
+    // fs.rs:704 modify_time:rename .download -> 正式文件、删 digest、恢复 mtime。
+    // rename 失败(如目标被独占占用)时保留 .download/.digest 供续传并抛
+    // std::runtime_error,调用方负责让作业以错误终结(有意偏离上游 .ok() 静默)。
     void ModifyTime();
 
     // fs.rs:728 remove_download_file:显式取消时清除 .download/.digest(断线不调,保留续传)
@@ -140,6 +142,10 @@ public:
     int32_t id() const { return id_; }
     JobType type() const { return type_; }
     const std::string& remote() const { return remote_; }
+    // 归属连接标识(插件壳传入,通常是访客 stream_id);断线按连接清理用,
+    // 不参与任何协议语义。空 = 未标记(旧调用方/单连接场景)。
+    const std::string& conn_id() const { return conn_id_; }
+    void set_conn_id(std::string v) { conn_id_ = std::move(v); }
     const DataSource& data_source() const { return data_source_; }
     const std::vector<px::FileEntry>& files() const { return files_; }
     int32_t file_num() const { return file_num_; }
@@ -199,6 +205,7 @@ private:
     int32_t id_ = 0;
     JobType type_ = JobType::Generic;
     std::string remote_;
+    std::string conn_id_;
     DataSource data_source_;
     int32_t file_num_ = 0;
     std::vector<px::FileEntry> files_;
