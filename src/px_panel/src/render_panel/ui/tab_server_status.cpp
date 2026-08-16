@@ -50,7 +50,7 @@ namespace px
         return style.arg(url);
     }
 
-    TabServerStatus::TabServerStatus(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {
+    TabServerStatus::TabServerStatus(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
         auto content_root = new NoMarginHLayout();
 
         // LEFT
@@ -266,7 +266,7 @@ namespace px
                 layout->addLayout(item_layout);
             }
 
-            // GammaRayRender port
+            // px_render port
             {
                 auto item_layout = new NoMarginHLayout();
                 item_layout->addSpacing(margin_left);
@@ -290,7 +290,7 @@ namespace px
                 layout->addLayout(item_layout);
             }
 
-            // GammaRayRender port
+            // px_render port
             if (0) {
                 auto item_layout = new NoMarginHLayout();
                 item_layout->addSpacing(margin_left);

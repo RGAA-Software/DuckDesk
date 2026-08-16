@@ -21,13 +21,13 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class CpFileStream;
     class FileTransferRecord;
 
     class CpVirtualFile : public IDataObject, public IDataObjectAsyncCapability {
     public:
-        explicit CpVirtualFile(const std::shared_ptr<GrContext>& ctx);
+        explicit CpVirtualFile(const std::shared_ptr<PxContext>& ctx);
         ~CpVirtualFile();
 
         void Init();
@@ -118,14 +118,14 @@ namespace px
         CLIPFORMAT clip_format_preferred_drop_effect_ = 0;
         BOOL in_async_op_ = false;
         std::shared_ptr<CpFileStream> file_stream_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         // ? clear when transferring...
         std::vector<ClipboardFile> menu_files_;
         std::vector<ClipboardFileWrapper> task_files_;
         long _cRef;
     };
 
-    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<GrContext>& ctx);
+    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<PxContext>& ctx);
 
 };
 

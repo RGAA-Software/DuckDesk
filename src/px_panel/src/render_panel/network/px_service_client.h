@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_WS_PANEL_CLIENT_H
-#define GAMMARAY_WS_CLIENT_H
+#ifndef PX_WS_PANEL_CLIENT_H
+#define PX_WS_CLIENT_H
 
 #include <memory>
 #include <string>
@@ -13,15 +13,15 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
-    class GrStatistics;
+    class PxContext;
+    class PxApplication;
+    class PxStatistics;
     class MessageListener;
     class MsgAuthInfo;
 
-    class GrServiceClient : public std::enable_shared_from_this<GrServiceClient> {
+    class PxServiceClient : public std::enable_shared_from_this<PxServiceClient> {
     public:
-        explicit GrServiceClient(const std::shared_ptr<GrApplication>& app);
+        explicit PxServiceClient(const std::shared_ptr<PxApplication>& app);
         void Start();
         void Exit();
         bool IsAlive();
@@ -34,9 +34,9 @@ namespace px
         void FillAuthInfo(MsgAuthInfo* auth_info);
 
     private:
-        GrStatistics* statistics_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxStatistics* statistics_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
@@ -44,4 +44,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_WS_PANEL_CLIENT_H
+#endif //PX_WS_PANEL_CLIENT_H

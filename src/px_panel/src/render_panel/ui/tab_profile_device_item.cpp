@@ -17,7 +17,7 @@ namespace px
     const QString kDisplayPluginEnabled = "Enabled";
     const QString kDisplayPluginDisabled = "Disabled";
 
-    TabProfileDeviceItemWidget::TabProfileDeviceItemWidget(const std::shared_ptr<GrApplication>& app,
+    TabProfileDeviceItemWidget::TabProfileDeviceItemWidget(const std::shared_ptr<PxApplication>& app,
                        const std::shared_ptr<AccountDevice>& item_info,
                        QWidget* parent) : QWidget(parent) {
         app_ = app;

@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_EVENTS_H
-#define GAMMARAY_GR_PLUGIN_EVENTS_H
+#ifndef PX_RENDER_PLUGIN_EVENTS_H
+#define PX_RENDER_PLUGIN_EVENTS_H
 
 #include <string>
 #include <memory>
@@ -19,7 +19,7 @@ namespace px
     class Data;
     class Image;
 
-    enum class GrPluginEventType {
+    enum class PxPluginEventType {
         kPluginUnknownType,
         kPluginNetClientEvent,
         kPluginClientConnectedEvent,
@@ -49,24 +49,24 @@ namespace px
         kPluginReqParamsBeginStreaming,
     };
 
-    class GrPluginBaseEvent {
+    class PxPluginBaseEvent {
     public:
-        GrPluginBaseEvent() {
+        PxPluginBaseEvent() {
             created_timestamp_ = TimeUtil::GetCurrentTimestamp();
         }
-        virtual ~GrPluginBaseEvent() = default;
+        virtual ~PxPluginBaseEvent() = default;
     public:
         std::string plugin_name_;
-        GrPluginEventType event_type_{GrPluginEventType::kPluginUnknownType};
+        PxPluginEventType event_type_{PxPluginEventType::kPluginUnknownType};
         std::any extra_;
         uint64_t created_timestamp_ = 0;
     };
 
     // kPluginNetClientEvent
-    class GrPluginNetClientEvent : public GrPluginBaseEvent {
+    class PxPluginNetClientEvent : public PxPluginBaseEvent {
     public:
-        GrPluginNetClientEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginNetClientEvent;
+        PxPluginNetClientEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginNetClientEvent;
         }
     public:
         bool is_proto_ = true;
@@ -74,14 +74,14 @@ namespace px
         int64_t socket_fd_ = 0;
         NetPluginType nt_plugin_type_;
         NetChannelType nt_channel_type_;
-        GrNetPlugin* from_plugin_ = nullptr;
+        PxNetPlugin* from_plugin_ = nullptr;
     };
 
-    // GrClientConnectedEvent
-    class GrPluginClientConnectedEvent : public GrPluginBaseEvent {
+    // PxClientConnectedEvent
+    class PxPluginClientConnectedEvent : public PxPluginBaseEvent {
     public:
-        GrPluginClientConnectedEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginClientConnectedEvent;
+        PxPluginClientConnectedEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginClientConnectedEvent;
         }
     public:
         std::string conn_id_;
@@ -91,11 +91,11 @@ namespace px
         int64_t begin_timestamp_ = 0;
     };
 
-    // GrClientDisConnectedEvent
-    class GrPluginClientDisConnectedEvent : public GrPluginBaseEvent {
+    // PxClientDisConnectedEvent
+    class PxPluginClientDisConnectedEvent : public PxPluginBaseEvent {
     public:
-        GrPluginClientDisConnectedEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginClientDisConnectedEvent;
+        PxPluginClientDisConnectedEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginClientDisConnectedEvent;
         }
     public:
         std::string conn_id_;
@@ -105,11 +105,11 @@ namespace px
         int64_t duration_ = 0;
     };
 
-    // GrPluginInsertIdrEvent
-    class GrPluginInsertIdrEvent : public GrPluginBaseEvent {
+    // PxPluginInsertIdrEvent
+    class PxPluginInsertIdrEvent : public PxPluginBaseEvent {
     public:
-        GrPluginInsertIdrEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginInsertIdrEvent;
+        PxPluginInsertIdrEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginInsertIdrEvent;
         }
     public:
         // 目标显示器名:空 = 广播给所有屏(旧行为,WS/Relay 等调用方不变);
@@ -120,24 +120,24 @@ namespace px
 
     // kPluginInvalidateRefFrameEvent:客户端丢失整帧后优先请求 RFI,render 让
     // NVENC 调用 NvEncInvalidateRefFrames() 跳过坏参考帧,而不是立刻插 IDR。
-    class GrPluginInvalidateRefFrameEvent : public GrPluginBaseEvent {
+    class PxPluginInvalidateRefFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginInvalidateRefFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginInvalidateRefFrameEvent;
+        PxPluginInvalidateRefFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginInvalidateRefFrameEvent;
         }
     public:
         std::string mon_name_;
         uint64_t invalid_frame_index_ = 0;
     };
 
-    // GrPluginEncodedVideoFrameEvent
-    class GrPluginEncodedVideoFrameEvent : public GrPluginBaseEvent {
+    // PxPluginEncodedVideoFrameEvent
+    class PxPluginEncodedVideoFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginEncodedVideoFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginEncodedVideoFrameEvent;
+        PxPluginEncodedVideoFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginEncodedVideoFrameEvent;
         }
     public:
-        GrPluginEncodedVideoType type_;
+        PxPluginEncodedVideoType type_;
         std::shared_ptr<Data> data_ = nullptr;
         uint32_t frame_width_ = 0;
         uint32_t frame_height_ = 0;
@@ -147,40 +147,40 @@ namespace px
     };
 
     //
-    class GrPluginCapturedVideoFrameEvent : public GrPluginBaseEvent {
+    class PxPluginCapturedVideoFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginCapturedVideoFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginCapturedVideoFrameEvent;
+        PxPluginCapturedVideoFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginCapturedVideoFrameEvent;
         }
     public:
         CaptureVideoFrame frame_;
     };
 
     //
-    class GrPluginCapturingMonitorInfoEvent : public GrPluginBaseEvent {
+    class PxPluginCapturingMonitorInfoEvent : public PxPluginBaseEvent {
     public:
-        GrPluginCapturingMonitorInfoEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginCapturingMonitorInfoEvent;
+        PxPluginCapturingMonitorInfoEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginCapturingMonitorInfoEvent;
         }
     public:
 
     };
 
     //
-    class GrPluginCursorEvent : public GrPluginBaseEvent {
+    class PxPluginCursorEvent : public PxPluginBaseEvent {
     public:
-        GrPluginCursorEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginCursorEvent;
+        PxPluginCursorEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginCursorEvent;
         }
     public:
         CaptureCursorBitmap cursor_info_;
     };
 
     // Raw video frame from plugins
-    class GrPluginRawVideoFrameEvent : public GrPluginBaseEvent {
+    class PxPluginRawVideoFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRawVideoFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRawVideoFrameEvent;
+        PxPluginRawVideoFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRawVideoFrameEvent;
         }
     public:
         std::shared_ptr<Image> image_ = nullptr;
@@ -189,10 +189,10 @@ namespace px
     };
 
     // Raw audio frame from plugins
-    class GrPluginRawAudioFrameEvent : public GrPluginBaseEvent {
+    class PxPluginRawAudioFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRawAudioFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRawAudioFrameEvent;
+        PxPluginRawAudioFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRawAudioFrameEvent;
         }
     public:
         // left/right/left/right...
@@ -204,10 +204,10 @@ namespace px
     };
 
     // Raw audio frame
-    class GrPluginSplitRawAudioFrameEvent : public GrPluginBaseEvent {
+    class PxPluginSplitRawAudioFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginSplitRawAudioFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginSplitRawAudioFrameEvent;
+        PxPluginSplitRawAudioFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginSplitRawAudioFrameEvent;
         }
     public:
         // left/left/left/...
@@ -221,10 +221,10 @@ namespace px
     };
 
     // Encode audio frame
-    class GrPluginEncodedAudioFrameEvent : public GrPluginBaseEvent {
+    class PxPluginEncodedAudioFrameEvent : public PxPluginBaseEvent {
     public:
-        GrPluginEncodedAudioFrameEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginEncodedAudioFrameEvent;
+        PxPluginEncodedAudioFrameEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginEncodedAudioFrameEvent;
         }
     public:
         int sample_rate_ = 0;
@@ -235,26 +235,26 @@ namespace px
     };
 
     // relay paused
-    class GrPluginRelayPausedEvent : public GrPluginBaseEvent {
+    class PxPluginRelayPausedEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRelayPausedEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRelayPausedEvent;
+        PxPluginRelayPausedEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRelayPausedEvent;
         }
     };
 
     // relay resumed
-    class GrPluginRelayResumedEvent : public GrPluginBaseEvent {
+    class PxPluginRelayResumedEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRelayResumedEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRelayResumeEvent;
+        PxPluginRelayResumedEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRelayResumeEvent;
         }
     };
 
     // rtc answer
-    class GrPluginRtcAnswerSdpEvent : public GrPluginBaseEvent {
+    class PxPluginRtcAnswerSdpEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRtcAnswerSdpEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRtcAnswerSdpEvent;
+        PxPluginRtcAnswerSdpEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRtcAnswerSdpEvent;
         }
 
     public:
@@ -263,10 +263,10 @@ namespace px
     };
 
     // rtc ice
-    class GrPluginRtcIceEvent : public GrPluginBaseEvent {
+    class PxPluginRtcIceEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRtcIceEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRtcIceEvent;
+        PxPluginRtcIceEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRtcIceEvent;
         }
     public:
         std::string stream_id_;
@@ -276,10 +276,10 @@ namespace px
     };
 
     // rtc report event
-    class GrPluginRtcReportEvent : public GrPluginBaseEvent {
+    class PxPluginRtcReportEvent : public PxPluginBaseEvent {
     public:
-        GrPluginRtcReportEvent() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRtcReportEvent;
+        PxPluginRtcReportEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRtcReportEvent;
         }
     public:
         std::string evt_name_;
@@ -288,10 +288,10 @@ namespace px
     };
 
     // file transfer begin
-    class GrPluginFileTransferBegin : public GrPluginBaseEvent {
+    class PxPluginFileTransferBegin : public PxPluginBaseEvent {
     public:
-        GrPluginFileTransferBegin() {
-            event_type_ = GrPluginEventType::kPluginFileTransferBegin;
+        PxPluginFileTransferBegin() {
+            event_type_ = PxPluginEventType::kPluginFileTransferBegin;
         }
     public:
         std::string the_file_id_;
@@ -302,10 +302,10 @@ namespace px
     };
 
     // file transfer end
-    class GrPluginFileTransferEnd : public GrPluginBaseEvent {
+    class PxPluginFileTransferEnd : public PxPluginBaseEvent {
     public:
-        GrPluginFileTransferEnd() {
-            event_type_ = GrPluginEventType::kPluginFileTransferEnd;
+        PxPluginFileTransferEnd() {
+            event_type_ = PxPluginEventType::kPluginFileTransferEnd;
         }
     public:
         bool success_ = false;
@@ -315,20 +315,20 @@ namespace px
     };
 
     // data sent size
-    class GrPluginDataSent : public GrPluginBaseEvent {
+    class PxPluginDataSent : public PxPluginBaseEvent {
     public:
-        GrPluginDataSent() {
-            event_type_ = GrPluginEventType::kPluginDataSent;
+        PxPluginDataSent() {
+            event_type_ = PxPluginEventType::kPluginDataSent;
         }
     public:
         int size_ = 0;
     };
 
     // remote clipboard resp
-    class GrPluginRemoteClipboardResp : public GrPluginBaseEvent {
+    class PxPluginRemoteClipboardResp : public PxPluginBaseEvent {
     public:
-        GrPluginRemoteClipboardResp() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRemoteClipboardResp;
+        PxPluginRemoteClipboardResp() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRemoteClipboardResp;
         }
     public:
         // text / file
@@ -339,20 +339,20 @@ namespace px
 
     // panel stream message
     // request from remote panel
-    class GrPluginPanelStreamMessage : public GrPluginBaseEvent {
+    class PxPluginPanelStreamMessage : public PxPluginBaseEvent {
     public:
-        GrPluginPanelStreamMessage() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginPanelStreamMessage;
+        PxPluginPanelStreamMessage() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginPanelStreamMessage;
         }
     public:
         std::shared_ptr<Data> body_ = nullptr;
     };
 
     // config encoder
-    class GrPluginConfigEncoder : public GrPluginBaseEvent {
+    class PxPluginConfigEncoder : public PxPluginBaseEvent {
     public:
-        GrPluginConfigEncoder() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginConfigEncoder;
+        PxPluginConfigEncoder() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginConfigEncoder;
         }
     public:
         std::string mon_name_;
@@ -361,20 +361,20 @@ namespace px
     };
 
     // relay plugin alive
-    class GrPluginRelayAlive : public GrPluginBaseEvent {
+    class PxPluginRelayAlive : public PxPluginBaseEvent {
     public:
-        GrPluginRelayAlive() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginRelayAlive;
+        PxPluginRelayAlive() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRelayAlive;
         }
     public:
         std::string device_id_;
     };
 
     // kPluginReqParamsBeginStreaming
-    class GrPluginReqParamsBeginStreaming : public GrPluginBaseEvent {
+    class PxPluginReqParamsBeginStreaming : public PxPluginBaseEvent {
     public:
-        GrPluginReqParamsBeginStreaming() : GrPluginBaseEvent() {
-            event_type_ = GrPluginEventType::kPluginReqParamsBeginStreaming;
+        PxPluginReqParamsBeginStreaming() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginReqParamsBeginStreaming;
         }
     public:
         std::string stream_id_;
@@ -383,4 +383,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_PLUGIN_EVENTS_H
+#endif //PX_RENDER_PLUGIN_EVENTS_H

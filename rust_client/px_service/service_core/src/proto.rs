@@ -66,7 +66,7 @@ mod tests {
             r#type: ServiceMessageType::StartServer as i32,
             start_server: Some(MsgStartServer {
                 work_dir: "D:/app".to_string(),
-                app_path: "D:/app/GammaRayRender.exe".to_string(),
+                app_path: "D:/app/px_render.exe".to_string(),
                 args: vec![
                     "--app_mode=desktop".to_string(),
                     "--panel_server_port=1".to_string(),

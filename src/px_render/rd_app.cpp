@@ -597,12 +597,12 @@ namespace px
                         if (!self || self->exit_app_ || !self->plugin_manager_) {
                             return;
                         }
-                        self->plugin_manager_->VisitStreamPlugins([=](GrStreamPlugin *plugin) {
+                        self->plugin_manager_->VisitStreamPlugins([=](PxStreamPlugin *plugin) {
                             plugin->OnRawAudioData(data, samples, channels, bits);
                         });
                         // net_rtc_local consumes raw PCM for the WebRTC audio RTP track
                         // (encoded Opus over DataChannel is intentionally dropped there).
-                        self->plugin_manager_->VisitNetPlugins([=](GrNetPlugin *plugin) {
+                        self->plugin_manager_->VisitNetPlugins([=](PxNetPlugin *plugin) {
                             plugin->OnRawAudioData(data, samples, channels, bits);
                         });
                     });
@@ -648,7 +648,7 @@ namespace px
                     if (!self || self->exit_app_ || !self->plugin_manager_) {
                         return;
                     }
-                    self->plugin_manager_->VisitStreamPlugins([=](GrStreamPlugin *plugin) {
+                    self->plugin_manager_->VisitStreamPlugins([=](PxStreamPlugin *plugin) {
                         plugin->OnSplitRawAudioData(frame.left_ch_data_, frame.right_ch_data_, samples, channels, bits);
                         plugin->OnSplitFFTAudioData(self->fft_left_, self->fft_right_);
                     });
@@ -697,7 +697,7 @@ namespace px
         auto data = Data::From(msg);
         // Host → injected DLL over /ipc (WsPlugin only). Do not VisitNetPlugins for this
         // virtual: unrebuilt net plugin DLLs lack the trailing vtable slot and crash.
-        plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
             if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
                 return;
             }
@@ -709,13 +709,13 @@ namespace px
         if (!msg) {
             return;
         }
-        plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
             plugin->PostProtoMessage(msg, true);
         });
     }
 
     void RdApplication::StartProcessWithHook() {
-        // Frames arrive via /ipc → GrPluginCapturedVideoFrameEvent → CaptureVideoFrame
+        // Frames arrive via /ipc → PxPluginCapturedVideoFrameEvent → CaptureVideoFrame
         // on the app bus (same event as DDA). Encode → PluginStreamEventRouter → web.
         if (!settings_->IsGameHookMode()) {
             LOGI("StartProcessWithHook skipped: application.mode is desktop");
@@ -757,7 +757,7 @@ namespace px
                 return;
             }
             bool only_audio_clients = true;
-            plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+            plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
                 if (plugin->IsWorking() && !plugin->IsOnlyAudioClients()) {
                     only_audio_clients = false;
                 }
@@ -875,7 +875,7 @@ namespace px
         // Allow this pid on /ipc (net_ws). Game restarts get here again with the new
         // pid, so each live game generation is re-registered; stale games injected by
         // dead renders are never registered and get rejected on connect.
-        plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
             if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
                 return;
             }
@@ -1014,12 +1014,12 @@ namespace px
         return plugin_manager_;
     }
 
-    px::GrMonitorCapturePlugin* RdApplication::GetWorkingMonitorCapturePlugin() {
+    px::PxMonitorCapturePlugin* RdApplication::GetWorkingMonitorCapturePlugin() {
         std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
         return capture_plugin_;
     }
 
-    std::map<std::string, GrVideoEncoderPlugin*> RdApplication::GetWorkingVideoEncoderPlugins() const {
+    std::map<std::string, PxVideoEncoderPlugin*> RdApplication::GetWorkingVideoEncoderPlugins() const {
         if (encoder_thread_) {
             return encoder_thread_->GetWorkingVideoEncoderPlugins();
         }
@@ -1118,7 +1118,7 @@ namespace px
         if (!plugin_manager_) {
             return;
         }
-        plugin_manager_->VisitAllPlugins([adapter_uid](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([adapter_uid](PxPluginInterface* plugin) {
             plugin->d3d11_devices_.erase(adapter_uid);
             plugin->d3d11_devices_context_.erase(adapter_uid);
         });
@@ -1261,7 +1261,7 @@ namespace px
         if (!msg || !plugin_manager_) {
             return;
         }
-        plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
             plugin->PostUserProxyMessage(msg);
         });
     }

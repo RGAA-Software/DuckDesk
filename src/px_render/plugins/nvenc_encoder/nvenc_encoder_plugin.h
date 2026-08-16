@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_NVENC_ENCODER_PLUGIN_H
-#define GAMMARAY_NVENC_ENCODER_PLUGIN_H
+#ifndef PX_NVENC_ENCODER_PLUGIN_H
+#define PX_NVENC_ENCODER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 
@@ -12,7 +12,7 @@ namespace px
 
     class NVENCVideoEncoder;
 
-    class NvencEncoderPlugin : public GrVideoEncoderPlugin {
+    class NvencEncoderPlugin : public PxVideoEncoderPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -20,7 +20,7 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         void On1Second() override;
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         void InsertIdr(const std::string& mon_name) override;
@@ -44,4 +44,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

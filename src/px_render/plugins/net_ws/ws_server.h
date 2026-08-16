@@ -21,7 +21,7 @@ namespace px
     class WsUserProxyRouter;
     class HttpHandler;
     class WsPlugin;
-    class GrConnectedClientInfo;
+    class PxConnectedClientInfo;
     class MsgClientHello;
 
     class WsPluginServer : public std::enable_shared_from_this<WsPluginServer> {
@@ -41,7 +41,7 @@ namespace px
         bool IsWorking();
         int64_t GetQueuingMediaMsgCount();
         int64_t GetQueuingFtMsgCount();
-        std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo();
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo();
         void OnClientHello(const std::shared_ptr<MsgClientHello>& event);
 
         void PostUserProxyMessage(std::shared_ptr<Data> msg);

@@ -38,8 +38,8 @@
 namespace px
 {
 
-    StSecurity::StSecurity(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent) {
-        settings_ = GrSettings::Instance();
+    StSecurity::StSecurity(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
+        settings_ = PxSettings::Instance();
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);
@@ -370,7 +370,7 @@ namespace px
                             if (suffix.find("dmp") != std::string::npos) {
                                 need_ignore_it = true;
                                 LOGI("===> dump file: {}", filename);
-                                if (filename.find("GammaRay") != std::string::npos) {
+                                if (filename.find("px_") != std::string::npos) {
                                     need_ignore_it = false;
                                 }
                             }

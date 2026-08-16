@@ -2,8 +2,8 @@
 // Created by RGAA on 1/04/2025.
 //
 
-#ifndef GAMMARAY_TC_TOOLTIP_H
-#define GAMMARAY_TC_TOOLTIP_H
+#ifndef PX_TC_TOOLTIP_H
+#define PX_TC_TOOLTIP_H
 
 #include <QWidget>
 #include <QLabel>
@@ -24,4 +24,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_TC_TOOLTIP_H
+#endif //PX_TC_TOOLTIP_H

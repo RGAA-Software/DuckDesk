@@ -21,13 +21,13 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class TcPasswordInput;
 
     class InputSafetyPwdDialog : public TcCustomTitleBarDialog {
     public:
-        explicit InputSafetyPwdDialog(const std::shared_ptr<GrApplication>& ctx, QWidget* parent = nullptr);
+        explicit InputSafetyPwdDialog(const std::shared_ptr<PxApplication>& ctx, QWidget* parent = nullptr);
         ~InputSafetyPwdDialog() override;
         void paintEvent(QPaintEvent *event) override;
         void closeEvent(QCloseEvent *) override;
@@ -37,8 +37,8 @@ namespace px
         void CreateLayout();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
         TcPasswordInput* pwd_input_ = nullptr;
         TcPasswordInput* pwd_input_again_ = nullptr;
 

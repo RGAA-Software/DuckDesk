@@ -5,8 +5,8 @@
 // See docs/udp_gamestream_channel_plan.md
 //
 
-#ifndef GAMMARAY_GR_UDP_PROTOCOL_H
-#define GAMMARAY_GR_UDP_PROTOCOL_H
+#ifndef PX_UDP_PROTOCOL_H
+#define PX_UDP_PROTOCOL_H
 
 #include <algorithm>
 #include <cstdint>
@@ -43,7 +43,7 @@ namespace px
     //
     // Audio packet (pkt_type=2), 10B header after common:
     //   seq(u32) | timestamp_ms(u32) | payload_len(u16) | Opus payload
-    // 50pps(20ms 一帧),客户端经 GrUdpAudioJitterBuffer 按序交付、缺口走 Opus PLC
+    // 50pps(20ms 一帧),客户端经 PxUdpAudioJitterBuffer 按序交付、缺口走 Opus PLC
     //
     // Ctrl packet (pkt_type=3): subtype(u8) + body
     //   kCtrlHello(1):     device_id_len(u8)+device_id | stream_id_len(u8)+stream_id
@@ -52,7 +52,7 @@ namespace px
     //   kCtrlFrameStatus(4): frame_index(u32) | received(u16) | lost(u16)
     //   kCtrlKick(5):      reason_len(u8)+reason   (render -> client, e.g. taken over)
 
-    class GrUdpProtocol {
+    class PxUdpProtocol {
     public:
         static constexpr uint16_t kMagic = 0x4755; // 'GU'
         static constexpr uint8_t kVersion = 1;
@@ -225,7 +225,7 @@ namespace px
             // pass 2: RS 编码生成 parity 块;失败则整帧退化为无 FEC
             std::vector<std::string> parity;
             if (parity_count > 0) {
-                parity = GrFec::Encode(blocks, parity_count);
+                parity = PxFec::Encode(blocks, parity_count);
                 if ((int)parity.size() != parity_count) {
                     parity_count = 0;
                     parity.clear();
@@ -374,7 +374,7 @@ namespace px
         }
 
         // kCtrlFrameStatus: frame_index(u32) | received(u16) | lost(u16),定长二进制
-        // received/lost 语义见 GrUdpFrameReassembler::on_frame_status_
+        // received/lost 语义见 PxUdpFrameReassembler::on_frame_status_
         static std::shared_ptr<Data> BuildFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost) {
             size_t n = kCommonHeaderSize + 1 + 8;
             auto buf = Data::Make(nullptr, n);
@@ -452,7 +452,7 @@ namespace px
     // frame lost (recovery attempted first); after any loss, P frames are dropped
     // until a key frame completes (mirrors the webrtc_local convention that the
     // first delivered frame must be an IDR).
-    class GrUdpFrameReassembler {
+    class PxUdpFrameReassembler {
     public:
         struct CompleteFrame {
             uint8_t mon_slot_ = 0;
@@ -490,20 +490,20 @@ namespace px
         static bool ValidateRecoveredShard0(const std::string& b0, int data_shards, size_t p) {
             if (b0.size() < 9) return false;
             uint8_t nl = (uint8_t)b0[8];
-            if (nl > GrUdpProtocol::kMaxMonNameLen) return false;
+            if (nl > PxUdpProtocol::kMaxMonNameLen) return false;
             size_t sof_ext = 9 + nl;
             if (b0.size() < sof_ext) return false;
-            uint32_t frame_size = GrUdpProtocol::R32(b0.data() + 4);
+            uint32_t frame_size = PxUdpProtocol::R32(b0.data() + 4);
             // 容量:shard 0 载荷 P - sof_ext,其余 D-1 块各 P ⟺ sof_ext + frame_size <= D * P
             return (uint64_t)sof_ext + frame_size <= (uint64_t)data_shards * p;
         }
 
         // feed one raw UDP packet (common header included)
         void AddPacket(const char* data, size_t size) {
-            GrUdpProtocol::VideoShardInfo shard;
-            if (!GrUdpProtocol::ParseVideoShard(data, size, shard)) return;
+            PxUdpProtocol::VideoShardInfo shard;
+            if (!PxUdpProtocol::ParseVideoShard(data, size, shard)) return;
             if (shard.data_shards_ == 0) return;
-            const bool is_parity = (shard.flags_ & GrUdpProtocol::kFlagParity) != 0;
+            const bool is_parity = (shard.flags_ & PxUdpProtocol::kFlagParity) != 0;
             if (is_parity) {
                 if (shard.parity_shards_ == 0) return;
                 if (shard.shard_index_ < shard.data_shards_ ||
@@ -517,8 +517,8 @@ namespace px
             if (fit != finished_.end() && shard.frame_index_ <= fit->second) {
                 // render 编码器在重连/接管后 frame_index 可能整体回退(本次实测 836 → 63)。
                 // 新流的首包是 SOF+key,把它当成新流并清掉该 mon_slot 的旧水位,而不是继续丢包。
-                bool new_stream = (shard.flags_ & GrUdpProtocol::kFlagSof) &&
-                                  (shard.flags_ & GrUdpProtocol::kFlagKey) &&
+                bool new_stream = (shard.flags_ & PxUdpProtocol::kFlagSof) &&
+                                  (shard.flags_ & PxUdpProtocol::kFlagKey) &&
                                   shard.frame_index_ < fit->second;
                 if (!new_stream) return;
                 assemblies_.erase(shard.mon_slot_);
@@ -550,14 +550,14 @@ namespace px
                     DeclareLoss(shard.mon_slot_, shard.frame_index_ - 1, 0, 0);
                     MarkFinished(shard.mon_slot_, shard.frame_index_ - 1);
                 }
-                if (shard.flags_ & GrUdpProtocol::kFlagSof) {
+                if (shard.flags_ & PxUdpProtocol::kFlagSof) {
                     cur = Assembly{};
                     cur.active_ = true;
                     cur.meta_ready_ = true;
                     cur.frame_index_ = shard.frame_index_;
                     cur.timestamp_ms_ = shard.timestamp_ms_;
-                    cur.key_ = (shard.flags_ & GrUdpProtocol::kFlagKey) != 0;
-                    cur.rfi_recover_ = (shard.flags_ & GrUdpProtocol::kFlagRfiRecover) != 0;
+                    cur.key_ = (shard.flags_ & PxUdpProtocol::kFlagKey) != 0;
+                    cur.rfi_recover_ = (shard.flags_ & PxUdpProtocol::kFlagRfiRecover) != 0;
                     cur.codec_ = shard.codec_;
                     cur.frame_width_ = shard.frame_width_;
                     cur.frame_height_ = shard.frame_height_;
@@ -573,8 +573,8 @@ namespace px
                     cur.meta_ready_ = false;
                     cur.frame_index_ = shard.frame_index_;
                     cur.timestamp_ms_ = shard.timestamp_ms_;
-                    cur.key_ = (shard.flags_ & GrUdpProtocol::kFlagKey) != 0;
-                    cur.rfi_recover_ = (shard.flags_ & GrUdpProtocol::kFlagRfiRecover) != 0;
+                    cur.key_ = (shard.flags_ & PxUdpProtocol::kFlagKey) != 0;
+                    cur.rfi_recover_ = (shard.flags_ & PxUdpProtocol::kFlagRfiRecover) != 0;
                     cur.codec_ = shard.codec_;
                     cur.data_shards_ = shard.data_shards_;
                     cur.shards_.resize((size_t)shard.data_shards_ + shard.parity_shards_);
@@ -601,9 +601,9 @@ namespace px
             auto& slot = cur.shards_[shard.shard_index_];
             if (!slot.filled_) {
                 slot.filled_ = true;
-                if ((shard.flags_ & GrUdpProtocol::kFlagSof) && !is_parity) {
+                if ((shard.flags_ & PxUdpProtocol::kFlagSof) && !is_parity) {
                     // SOF 数据块:保护块 = SOF 扩展 + 载荷
-                    const char* ext = data + GrUdpProtocol::kCommonHeaderSize + GrUdpProtocol::kVideoHeaderSize;
+                    const char* ext = data + PxUdpProtocol::kCommonHeaderSize + PxUdpProtocol::kVideoHeaderSize;
                     size_t ext_len = 9 + shard.mon_name_.size();
                     slot.bytes_.assign(ext, ext_len + shard.payload_len_);
                 }
@@ -613,12 +613,12 @@ namespace px
                 cur.received_++;
                 if (!is_parity) cur.net_data_received_++;
             }
-            if (shard.flags_ & GrUdpProtocol::kFlagSof) {
+            if (shard.flags_ & PxUdpProtocol::kFlagSof) {
                 cur.meta_ready_ = true;
                 cur.mon_name_ = shard.mon_name_;
                 cur.frame_width_ = shard.frame_width_;
                 cur.frame_height_ = shard.frame_height_;
-                cur.rfi_recover_ = (shard.flags_ & GrUdpProtocol::kFlagRfiRecover) != 0;
+                cur.rfi_recover_ = (shard.flags_ & PxUdpProtocol::kFlagRfiRecover) != 0;
             }
 
             int data_filled = 0;
@@ -719,7 +719,7 @@ namespace px
                     blocks.back().append(p - blocks.back().size(), '\0');
                 }
             }
-            if (!GrFec::Decode(blocks, cur.data_shards_)) return false;
+            if (!PxFec::Decode(blocks, cur.data_shards_)) return false;
             for (size_t i = 0; i < blocks.size(); i++) {
                 if (blocks[i].empty()) return false; // 没全填回,防御
                 cur.shards_[i].filled_ = true;
@@ -756,9 +756,9 @@ namespace px
             f.timestamp_ms_ = cur.timestamp_ms_;
             f.key_ = cur.key_;
             f.codec_ = cur.codec_;
-            f.frame_width_ = GrUdpProtocol::R16(b0.data());
-            f.frame_height_ = GrUdpProtocol::R16(b0.data() + 2);
-            uint32_t frame_size = GrUdpProtocol::R32(b0.data() + 4);
+            f.frame_width_ = PxUdpProtocol::R16(b0.data());
+            f.frame_height_ = PxUdpProtocol::R16(b0.data() + 2);
+            uint32_t frame_size = PxUdpProtocol::R32(b0.data() + 4);
             f.mon_name_.assign(b0.data() + 9, nl);
 
             f.data_ = Data::Make(nullptr, frame_size);
@@ -806,7 +806,7 @@ namespace px
     // 2. 缓冲满时绝不能淘汰"最老"(最接近 expected_)的包:expected_ 落后 3 帧以上后,
     //    每来一包删一个最老、判丢只爬 1 格,追赶速度=到达速度,expected_ 永远追不上,
     //    进入永久判丢死循环(日志 50/s 刷盘,接收线程被拖垮,视频跟着卡死)
-    class GrUdpAudioJitterBuffer {
+    class PxUdpAudioJitterBuffer {
     public:
         static constexpr int kMaxBuffered = 16;        // 缓冲上限(320ms),满时丢弃超前的新包
         static constexpr int kMaxConsecutiveLost = 5;  // 单次 Drain 最多连续判丢数
@@ -884,4 +884,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_UDP_PROTOCOL_H
+#endif //PX_UDP_PROTOCOL_H

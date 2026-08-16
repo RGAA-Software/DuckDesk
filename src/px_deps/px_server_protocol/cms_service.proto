@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package cms_service;
 
-// Between Cms (CMS) - GoDesk Windows Service (GammaRayService)
+// Between Cms (CMS) - GoDesk Windows Service (px_service)
 // See docs/cms_app_schedule_plan.md
 
 enum CmsServiceMessageType {

@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn detect_desktop_mode() {
-        let process = ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop");
+        let process = ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=desktop");
         assert!(process.is_render_process());
         assert_eq!(process.render_mode(), RenderMode::Desktop);
         assert_eq!(process.kind(), ProcessKind::DesktopRender);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn detect_inner_mode() {
-        let process = ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=inner");
+        let process = ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=inner");
         assert_eq!(process.kind(), ProcessKind::InnerRender);
     }
 
@@ -156,26 +156,26 @@ mod tests {
     fn detect_game_hook_mode() {
         let process = ProcessSnapshot::new(
             1,
-            "D:/GammaRayRender.exe",
+            "D:/px_render.exe",
             "--app_mode=game-hook --network_listen_port=32000",
         );
         assert_eq!(process.render_mode(), RenderMode::GameHook);
         assert_eq!(process.kind(), ProcessKind::GameHookRender);
         assert!(process.is_game_hook_render_process());
-        assert!(!ProcessSnapshot::new(2, "D:/GammaRayRender.exe", "--app_mode=desktop")
+        assert!(!ProcessSnapshot::new(2, "D:/px_render.exe", "--app_mode=desktop")
             .is_game_hook_render_process());
     }
 
     #[test]
     fn non_render_process_is_other() {
-        let process = ProcessSnapshot::new(1, "D:/GammaRay.exe", "");
+        let process = ProcessSnapshot::new(1, "D:/px_panel.exe", "");
         assert!(!process.is_render_process());
         assert_eq!(process.kind(), ProcessKind::Other);
     }
 
     #[test]
     fn detect_user_proxy_process() {
-        let process = ProcessSnapshot::new(1, "D:/GammaRayUserProxy.exe", "--render-port=20371");
+        let process = ProcessSnapshot::new(1, "D:/px_function.exe", "--render-port=20371");
         assert!(process.is_user_proxy_process());
         assert!(process.is_managed_clipboard_process());
     }
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn collect_process_tree_children_before_root() {
         let procs = vec![
-            ProcessSnapshot::new(10, "D:/GammaRayRender.exe", "--app_mode=game-hook"),
+            ProcessSnapshot::new(10, "D:/px_render.exe", "--app_mode=game-hook"),
             ProcessSnapshot::new(20, r"D:\games\game.exe", "").with_parent(10),
             ProcessSnapshot::new(21, r"D:\games\helper.exe", "").with_parent(20),
             ProcessSnapshot::new(99, r"D:\other.exe", "").with_parent(1),

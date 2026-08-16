@@ -11,7 +11,7 @@ RequestExecutionLevel admin
 ;--------------------------------
 ; App Info
 !define PRODUCT_NAME "GoDesk"
-!define APPNAME "GammaRay"
+!define APPNAME "px_panel"
 !define COMPANY "GoDesk"
 !define INSTALL_DIR "C:\Program Files\GoDesk\App"
 
@@ -97,8 +97,8 @@ Section "Uninstall"
     ; Delete files
     RMDir /r "$INSTDIR"
 
-    ; Delete the auto-start Guard scheduled task (default behavior)
-    nsExec::ExecToLog 'schtasks /Delete /TN GammaRay_Guard_Start /F'
+    ; Delete the auto-start panel scheduled task (default behavior)
+    nsExec::ExecToLog 'schtasks /Delete /TN px_panel_start /F'
 
     ; Delete shortcuts
     Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
@@ -141,34 +141,34 @@ Function StopAndDeleteService
     ; net stop synchronization: first ensure the service is stopped and removed,
     ; cutting off the restart source
     ; (it restarts render/UserProxy every 3s; UserProxy restarts panel/SysInfo every 5s)
-    nsExec::ExecToLog 'net stop "GammaRayService"'
-    nsExec::ExecToLog 'sc delete "GammaRayService"'
+    nsExec::ExecToLog 'net stop "px_service"'
+    nsExec::ExecToLog 'sc delete "px_service"'
 FunctionEnd
 
 Function un.StopAndDeleteService
-    nsExec::ExecToLog 'net stop "GammaRayService"'
-    nsExec::ExecToLog 'sc delete "GammaRayService"'
+    nsExec::ExecToLog 'net stop "px_service"'
+    nsExec::ExecToLog 'sc delete "px_service"'
 FunctionEnd
 
 
 Function KillProcesses
     ; Order: kill the guardian (UserProxy) first, then the guard processes;
     ; SysInfo needs only one kill
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
 FunctionEnd
 
 Function un.KillProcesses
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayUserProxy.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayClientInner.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayRender.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRay.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRaySysInfo.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayService.exe'
-    nsExec::ExecToLog 'taskkill /F /T /IM GammaRayServiceManager.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
 FunctionEnd

@@ -26,7 +26,7 @@ using namespace sqlite_orm;
 namespace px
 {
     namespace {
-        bool IsDbReady(const std::shared_ptr<GrDatabase>& db) {
+        bool IsDbReady(const std::shared_ptr<PxDatabase>& db) {
             if (!db || !db->IsReady()) {
                 LOGE("StreamDBOperator ignored because database is not ready");
                 return false;
@@ -35,7 +35,7 @@ namespace px
         }
     }
 
-    StreamDBOperator::StreamDBOperator(const std::shared_ptr<GrDatabase>& db) {
+    StreamDBOperator::StreamDBOperator(const std::shared_ptr<PxDatabase>& db) {
         db_ = db;
         //CreateTables();
     }

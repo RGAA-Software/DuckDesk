@@ -27,7 +27,7 @@
 //         plugin_ = plugin;
 //         plugin_lifetime_token_ = plugin ? plugin->GetLifetimeToken() : nullptr;
 //         if (plugin) {
-//             event_cbk_ = [plugin, token = plugin_lifetime_token_](const std::shared_ptr<GrPluginBaseEvent>& event) {
+//             event_cbk_ = [plugin, token = plugin_lifetime_token_](const std::shared_ptr<PxPluginBaseEvent>& event) {
 //                 if (!plugin || !token || !token->load()) {
 //                     return;
 //                 }
@@ -294,7 +294,7 @@
 //         if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
 //             return;
 //         }
-//         auto event = std::make_shared<GrPluginFileTransferBegin>();
+//         auto event = std::make_shared<PxPluginFileTransferBegin>();
 //         event->the_file_id_ = stream->GetFileId();
 //         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 //         event->visitor_device_id_ = stream->GetDeviceId();
@@ -318,7 +318,7 @@
 //         if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
 //             return;
 //         }
-//         auto event = std::make_shared<GrPluginFileTransferEnd>();
+//         auto event = std::make_shared<PxPluginFileTransferEnd>();
 //         event->the_file_id_ = stream->GetFileId();
 //         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 //         event->success_ = true;

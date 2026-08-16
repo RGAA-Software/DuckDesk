@@ -11,13 +11,13 @@
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
-    class GrUserManager;
+    class PxContext;
+    class PxSettings;
+    class PxUserManager;
 
-    class GrEventManager {
+    class PxEventManager {
     public:
-        explicit GrEventManager(const std::shared_ptr<GrContext>& context);
+        explicit PxEventManager(const std::shared_ptr<PxContext>& context);
 
         // add cpu event
         bool AddCpuEvent(int cpu_usage);
@@ -32,9 +32,9 @@ namespace px
         bool AddGpuEvent(int gpu_usage, const std::string& gpu_id, const std::string& gpu_name);
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrUserManager> user_mgr_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxUserManager> user_mgr_ = nullptr;
     };
 
 }

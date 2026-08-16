@@ -158,7 +158,7 @@ namespace px
 
         // message listener
         InitListener();
-        // connect to GammaRay Panel
+        // connect to px_panel
         InitPanelClient();
 
         auto end = TimeUtil::GetCurrentTimestamp();

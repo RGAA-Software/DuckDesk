@@ -17,19 +17,19 @@ namespace px
 {
 
     class Thread;
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class VigemDriverManager;
     class MessageListener;
     class ServiceManager;
-    class GrSettings;
+    class PxSettings;
 
-    class GrSystemMonitor : public std::enable_shared_from_this<GrSystemMonitor> {
+    class PxSystemMonitor : public std::enable_shared_from_this<PxSystemMonitor> {
     public:
 
-        static std::shared_ptr<GrSystemMonitor> Make(const std::shared_ptr<GrApplication>& app);
+        static std::shared_ptr<PxSystemMonitor> Make(const std::shared_ptr<PxApplication>& app);
 
-        explicit GrSystemMonitor(const std::shared_ptr<GrApplication>& app);
+        explicit PxSystemMonitor(const std::shared_ptr<PxApplication>& app);
         void Start();
         void Exit();
         std::vector<double> GetCurrentCpuFrequency();
@@ -49,9 +49,9 @@ namespace px
         void CheckThisDeviceInfo();
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<Thread> monitor_thread_ = nullptr;
         bool exit_ = false;
 

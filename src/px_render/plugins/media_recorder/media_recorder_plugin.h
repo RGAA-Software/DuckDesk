@@ -2,15 +2,15 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_RENDER_MEDIA_RECORDER_PLUGIN_H
+#define PX_RENDER_MEDIA_RECORDER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_stream_plugin.h"
 
 namespace px
 {
 
-    class MediaRecorderPlugin : public GrStreamPlugin {
+    class MediaRecorderPlugin : public PxStreamPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -24,7 +24,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::MediaRecorderPlugin)
+PX_PLUGIN_EXPORT(px::MediaRecorderPlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

@@ -14,7 +14,7 @@
 #include <QPointer>
 
 namespace px { 
-	GrConnectedManager::GrConnectedManager(const std::shared_ptr<GrContext>& ctx) : px_ctx_(ctx) {
+	PxConnectedManager::PxConnectedManager(const std::shared_ptr<PxContext>& ctx) : px_ctx_(ctx) {
 		if (!px_ctx_) {
 			LOGE("px_ctx_ is nullptr.");
 			return;
@@ -25,11 +25,11 @@ namespace px {
         InitPanel();
 	}
 
-    bool GrConnectedManager::nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) {
+    bool PxConnectedManager::nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) {
         MSG* msg = static_cast<MSG*>(message);
         if (msg->message == WM_DISPLAYCHANGE) {
             if (px_ctx_) {
-                QPointer<GrConnectedManager> self(this);
+                QPointer<PxConnectedManager> self(this);
                 px_ctx_->PostUIDelayTask([self]() {
                     if (!self) {
                         return;
@@ -42,9 +42,9 @@ namespace px {
         return false;
     }
 
-    void GrConnectedManager::RegisterMessageListener() {
+    void PxConnectedManager::RegisterMessageListener() {
         msg_listener_ = px_ctx_->GetMessageNotifier()->CreateListener();
-        QPointer<GrConnectedManager> self(this);
+        QPointer<PxConnectedManager> self(this);
         msg_listener_->Listen<MsgUpdateConnectedClientsInfo>([=, this](const MsgUpdateConnectedClientsInfo& msg) {
 
             if (!px_ctx_) {
@@ -98,7 +98,7 @@ namespace px {
                 if (!self) {
                     return;
                 }
-                auto settings = GrSettings::Instance();
+                auto settings = PxSettings::Instance();
                 if (0 == self->client_connected_count_ && settings->IsDisconnectAutoLockScreenEnabled()) {
                     LockWorkStation();
                 }
@@ -106,11 +106,11 @@ namespace px {
         });
     }
 
-    void GrConnectedManager::TestShowPanel() {
+    void PxConnectedManager::TestShowPanel() {
         // test
     }
 
-    void GrConnectedManager::AdjustPanelPosition() {
+    void PxConnectedManager::AdjustPanelPosition() {
         auto primary_screen = QApplication::primaryScreen();
         if (!primary_screen) {
             return;
@@ -128,23 +128,23 @@ namespace px {
         }
     }
 
-    void GrConnectedManager::HideAllPanels() {
+    void PxConnectedManager::HideAllPanels() {
         for (auto& item : connected_info_panel_group_) {
             item.second->hide();
         }
     }
 
-    void GrConnectedManager::ShowAllPanels() {
+    void PxConnectedManager::ShowAllPanels() {
         for (auto& item : connected_info_panel_group_) {
             item.second->show();
         }
     }
 
-    void GrConnectedManager::InitPanel() {
+    void PxConnectedManager::InitPanel() {
         AdjustPanelPosition();
     }
 
-    void GrConnectedManager::CreatePanel() {
+    void PxConnectedManager::CreatePanel() {
         for (auto& item : connected_info_panel_group_) {
             delete item.second;
         }

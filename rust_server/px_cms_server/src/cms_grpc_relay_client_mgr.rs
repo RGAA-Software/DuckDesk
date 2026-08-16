@@ -1,6 +1,6 @@
 use crate::cms_grpc_relay_client::CmsGrpcRelayClient;
 use crate::cms_grpc_ws_client_trait::CmsGrpcWsClientTrait;
-use protocol::cms_px_relay::{CmsRelayHeartBeat, CmsRelayHello};
+use protocol::cms_relay::{CmsRelayHeartBeat, CmsRelayHello};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

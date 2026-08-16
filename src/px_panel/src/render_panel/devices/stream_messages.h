@@ -2,8 +2,8 @@
 // Created by RGAA on 10/07/2025.
 //
 
-#ifndef GAMMARAY_STREAM_MESSAGES_H
-#define GAMMARAY_STREAM_MESSAGES_H
+#ifndef PX_STREAM_MESSAGES_H
+#define PX_STREAM_MESSAGES_H
 
 #include <string>
 #include <memory>
@@ -21,7 +21,7 @@ namespace px
 {
 
     // type
-    enum class GrStreamMessageType {
+    enum class PxStreamMessageType {
        kRestartRender,
        kLockScreen,
        kRestartDevice,
@@ -29,53 +29,53 @@ namespace px
     };
 
     // base
-    class GrBaseStreamMessage {
+    class PxBaseStreamMessage {
     public:
         virtual std::string AsJson() = 0;
     public:
-        GrStreamMessageType type_;
+        PxStreamMessageType type_;
         std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
     };
 
     //
-    class GrSmRestartRender : public GrBaseStreamMessage {
+    class PxSmRestartRender : public PxBaseStreamMessage {
     public:
-        GrSmRestartRender() {
-            type_ = GrStreamMessageType::kRestartRender;
+        PxSmRestartRender() {
+            type_ = PxStreamMessageType::kRestartRender;
         }
 
         std::string AsJson() override;
     };
 
     //
-    class GrSmLockScreen : public GrBaseStreamMessage {
+    class PxSmLockScreen : public PxBaseStreamMessage {
     public:
-        GrSmLockScreen() {
-            type_ = GrStreamMessageType::kLockScreen;
+        PxSmLockScreen() {
+            type_ = PxStreamMessageType::kLockScreen;
         }
 
         std::string AsJson() override;
     };
 
     //
-    class GrSmRestartDevice : public GrBaseStreamMessage {
+    class PxSmRestartDevice : public PxBaseStreamMessage {
     public:
-        GrSmRestartDevice() {
-            type_ = GrStreamMessageType::kRestartDevice;
+        PxSmRestartDevice() {
+            type_ = PxStreamMessageType::kRestartDevice;
         }
 
         std::string AsJson() override;
     };
 
     //
-    class GrSmShutdownDevice : public GrBaseStreamMessage {
+    class PxSmShutdownDevice : public PxBaseStreamMessage {
     public:
-        GrSmShutdownDevice() {
-            type_ = GrStreamMessageType::kShutdownDevice;
+        PxSmShutdownDevice() {
+            type_ = PxStreamMessageType::kShutdownDevice;
         }
 
         std::string AsJson() override;
     };
 }
 
-#endif //GAMMARAY_STREAM_MESSAGES_H
+#endif //PX_STREAM_MESSAGES_H

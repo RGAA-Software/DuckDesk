@@ -42,11 +42,11 @@ namespace px
         }
     }
 
-    GrDatabase::GrDatabase(const std::shared_ptr<GrContext>& ctx) {
+    PxDatabase::PxDatabase(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
     }
 
-    bool GrDatabase::Init() {
+    bool PxDatabase::Init() {
         ready_ = false;
         last_error_.clear();
         db_storage_.reset();
@@ -94,30 +94,30 @@ namespace px
         return true;
     }
 
-    std::shared_ptr<VisitRecordOperator> GrDatabase::GetVisitRecordOp() {
+    std::shared_ptr<VisitRecordOperator> PxDatabase::GetVisitRecordOp() {
         return visit_record_op_;
     }
 
-    std::shared_ptr<FileTransferRecordOperator> GrDatabase::GetFileTransferRecordOp() {
+    std::shared_ptr<FileTransferRecordOperator> PxDatabase::GetFileTransferRecordOp() {
         return ft_record_op_;
     }
 
-    std::shared_ptr<StreamDBOperator> GrDatabase::GetStreamDBOperator() {
+    std::shared_ptr<StreamDBOperator> PxDatabase::GetStreamDBOperator() {
         return stream_operator_;
     }
 
-    std::shared_ptr<DBGameOperator> GrDatabase::GetDBGameOperator() {
+    std::shared_ptr<DBGameOperator> PxDatabase::GetDBGameOperator() {
         return db_game_operator_;
     }
 
-    std::vector<std::shared_ptr<VisitRecord>> GrDatabase::ScanUnclosedVisitRecords(int64_t before_timestamp) {
+    std::vector<std::shared_ptr<VisitRecord>> PxDatabase::ScanUnclosedVisitRecords(int64_t before_timestamp) {
         if (visit_record_op_) {
             return visit_record_op_->ScanUnclosedRecords(before_timestamp);
         }
         return {};
     }
 
-    std::vector<std::shared_ptr<FileTransferRecord>> GrDatabase::ScanUnclosedFileTransferRecords(int64_t before_timestamp) {
+    std::vector<std::shared_ptr<FileTransferRecord>> PxDatabase::ScanUnclosedFileTransferRecords(int64_t before_timestamp) {
         if (ft_record_op_) {
             return ft_record_op_->ScanUnclosedRecords(before_timestamp);
         }

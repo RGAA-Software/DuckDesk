@@ -42,7 +42,7 @@ lazy_static::lazy_static! {
 #[tokio::main]
 async fn main() {
     // log
-    let _guard = log_util::init_log("logs/px_auth_server/".to_string(), "log_author".to_string());
+    let _guard = log_util::init_log("logs/px_auth/".to_string(), "log_author".to_string());
 
     let _ = px_base::create_dir_if_not_exists("./web_auth");
 

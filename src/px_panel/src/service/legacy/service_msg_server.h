@@ -2,8 +2,8 @@
 // Created by RGAA on 29/11/2024.
 //
 
-#ifndef GAMMARAY_SERVICE_MSG_SERVER_H
-#define GAMMARAY_SERVICE_MSG_SERVER_H
+#ifndef PX_SERVICE_MSG_SERVER_H
+#define PX_SERVICE_MSG_SERVER_H
 
 #include <string>
 #include <asio2/websocket/ws_server.hpp>
@@ -13,7 +13,7 @@
 namespace px
 {
 
-    class GrService;
+    class PxService;
     class ServiceContext;
     class RenderManager;
 
@@ -27,7 +27,7 @@ namespace px
     class ServiceMsgServer {
     public:
         explicit ServiceMsgServer(const std::shared_ptr<ServiceContext>& context, const std::shared_ptr<RenderManager>& rm);
-        void Init(const std::shared_ptr<GrService>& service);
+        void Init(const std::shared_ptr<PxService>& service);
         void Start();
         void ParseMessage(const std::shared_ptr<SessionWrapper>& sw, std::string_view data);
         void PostBinaryMessage(const std::string& msg);
@@ -44,10 +44,10 @@ namespace px
         std::shared_ptr<asio2::ws_server> server_ = nullptr;
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<SessionWrapper>> sessions_;
         std::shared_ptr<ServiceContext> context_ = nullptr;
-        std::shared_ptr<GrService> service_ = nullptr;
+        std::shared_ptr<PxService> service_ = nullptr;
         std::string service_path_ = "/service/message";
     };
 
 }
 
-#endif //GAMMARAY_SERVICE_MSG_SERVER_H
+#endif //PX_SERVICE_MSG_SERVER_H

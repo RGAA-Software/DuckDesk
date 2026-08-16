@@ -33,12 +33,12 @@ namespace px
         return tcTr("id_op_error") + ":" + QString::number(static_cast<int>(err)) + " " + detail;
     }
 
-    GrCmsManager::GrCmsManager(const std::shared_ptr<GrContext>& context) {
+    PxCmsManager::PxCmsManager(const std::shared_ptr<PxContext>& context) {
         context_ = context;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
-    std::optional<px_cms::AliveConnections> GrCmsManager::QueryAliveConnections(bool show_err_dialog) const {
+    std::optional<px_cms::AliveConnections> PxCmsManager::QueryAliveConnections(bool show_err_dialog) const {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();
@@ -57,7 +57,7 @@ namespace px
         return r.value();
     }
 
-    std::optional<px_cms::AvailableNewConnection> GrCmsManager::QueryNewConnection(bool show_err_dialog) const {
+    std::optional<px_cms::AvailableNewConnection> PxCmsManager::QueryNewConnection(bool show_err_dialog) const {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();

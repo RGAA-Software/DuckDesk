@@ -23,12 +23,12 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class StreamDBOperator;
 
     class StreamSettingsDialog : public TcCustomTitleBarDialog {
     public:
-        StreamSettingsDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
+        StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
         ~StreamSettingsDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -37,7 +37,7 @@ namespace px
         void CreateLayout();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
         QCheckBox* cb_audio_ = nullptr;
         QCheckBox* cb_clipboard_ = nullptr;

@@ -8,8 +8,8 @@
 // rendering), instead of paying webrtc's software decode + I420 copy.
 //
 
-#ifndef GAMMARAY_RTC_ENCODED_FRAME_SINK_H
-#define GAMMARAY_RTC_ENCODED_FRAME_SINK_H
+#ifndef PX_RTC_ENCODED_FRAME_SINK_H
+#define PX_RTC_ENCODED_FRAME_SINK_H
 
 #include <memory>
 #include "rtc_client_interface.h"
@@ -37,4 +37,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_ENCODED_FRAME_SINK_H
+#endif //PX_RTC_ENCODED_FRAME_SINK_H

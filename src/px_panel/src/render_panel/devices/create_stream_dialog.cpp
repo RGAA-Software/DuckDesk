@@ -19,13 +19,13 @@
 namespace px
 {
 
-    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         setFixedSize(375, 475);
         CreateLayout();
     }
 
-    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         stream_item_ = item;
         setFixedSize(375, 475);

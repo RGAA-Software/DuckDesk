@@ -1,4 +1,4 @@
-﻿$serviceName = "GammaRayService"
+$serviceName = "px_service"
 
 # 检查服务是否存在
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -11,7 +11,7 @@ if ($service) {
         Write-Host "服务已停止。"
     }
 
-    Get-Process GammaRayService,GammaRayServiceManager -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process px_service,px_service_manager -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
     # 删除服务
     Write-Host "正在删除服务: $serviceName ..."

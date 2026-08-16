@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_RENDER_FFMPEG_ENCODER_PLUGIN_H
+#define PX_RENDER_FFMPEG_ENCODER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 
@@ -14,7 +14,7 @@ namespace px
     class Image;
     class FFmpegEncoder;
 
-    class FFmpegEncoderPlugin : public GrVideoEncoderPlugin {
+    class FFmpegEncoderPlugin : public PxVideoEncoderPlugin {
     public:
 
         std::string GetPluginId() override;
@@ -25,7 +25,7 @@ namespace px
 
         void On1Second() override;
 
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         void InsertIdr(const std::string& mon_name) override;
@@ -39,7 +39,7 @@ namespace px
         void ExitAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> GetWorkingCapturesInfo() override;
         std::optional<EncoderCapability> GetEncoderCapability(const std::string& monitor_name) override;
-        // 动态调整码率/帧率(WebRTC BWE 经 GrPluginConfigEncoder 事件随动):
+        // 动态调整码率/帧率(WebRTC BWE 经 PxPluginConfigEncoder 事件随动):
         // 码率走 x264 节流重开,fps 走编码输入侧跳帧,均不改 delta 链连续性
         void ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
 
@@ -55,4 +55,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

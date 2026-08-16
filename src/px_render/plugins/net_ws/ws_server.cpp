@@ -188,7 +188,7 @@ namespace px
         AddWebsocketRouter(kUrlFileTransfer);
         // game-hook DLL (px_graphics) posts CaptureVideoFrame here
         AddIpcRouter();
-#if GR_USER_PROXY_ENABLED
+#if PX_USER_PROXY_ENABLED
         AddUserProxyRouter();
 #endif
 
@@ -332,7 +332,7 @@ namespace px
     }
 
     void WsPluginServer::PostUserProxyMessage(std::shared_ptr<Data> msg) {
-#if GR_USER_PROXY_ENABLED
+#if PX_USER_PROXY_ENABLED
         if (!msg) {
             return;
         }
@@ -346,7 +346,7 @@ namespace px
     }
 
     bool WsPluginServer::IsUserProxyConnected() {
-#if GR_USER_PROXY_ENABLED
+#if PX_USER_PROXY_ENABLED
         return user_proxy_router_ && user_proxy_router_->IsConnected();
 #else
         return false;
@@ -462,7 +462,7 @@ namespace px
                         }
                         return;
                     }
-                    auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
+                    auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
                     auto& frame = event->frame_;
                     frame.capture_type_ = ipc_msg->capture_type_;
                     frame.data_length = 0;
@@ -513,7 +513,7 @@ namespace px
                         LOGE("IPC audio: Data::Make failed pcm={}", hdr->data_length);
                         return;
                     }
-                    auto event = std::make_shared<GrPluginRawAudioFrameEvent>();
+                    auto event = std::make_shared<PxPluginRawAudioFrameEvent>();
                     event->full_data_ = pcm;
                     event->sample_rate_ = static_cast<int>(hdr->samples_);
                     event->channels_ = static_cast<int>(hdr->channels_);
@@ -673,7 +673,7 @@ namespace px
 
                 if (path == kUrlMedia) {
                     // notify
-                    const auto event = std::make_shared<GrPluginReqParamsBeginStreaming>();
+                    const auto event = std::make_shared<PxPluginReqParamsBeginStreaming>();
                     event->stream_id_ = stream_id;
                     event->force_gdi_ = force_gdi;
                     self->plugin_->CallbackEvent(event);
@@ -788,7 +788,7 @@ namespace px
     }
 
     void WsPluginServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
-        auto event = std::make_shared<GrPluginClientConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->conn_type_ = "Direct";
@@ -799,7 +799,7 @@ namespace px
     }
 
     void WsPluginServer::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->visitor_device_id_ = visitor_device_id;
@@ -824,15 +824,15 @@ namespace px
         return count;
     }
 
-    std::vector<std::shared_ptr<GrConnectedClientInfo>> WsPluginServer::GetConnectedClientInfo() {
-        std::vector<std::shared_ptr<GrConnectedClientInfo>> clients_info;
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsPluginServer::GetConnectedClientInfo() {
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
         stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
             std::string device_name;
             {
                 std::lock_guard<std::mutex> lock(router->device_name_mtx_);
                 device_name = router->device_name_;
             }
-            clients_info.push_back(std::make_shared<GrConnectedClientInfo>(GrConnectedClientInfo {
+            clients_info.push_back(std::make_shared<PxConnectedClientInfo>(PxConnectedClientInfo {
                 .device_id_ = router->visitor_device_id_,
                 .stream_id_ = router->stream_id_,
                 .device_name_ = device_name,

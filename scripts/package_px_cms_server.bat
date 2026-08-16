@@ -6,23 +6,23 @@ setlocal enabledelayedexpansion
 :: 2. Copy the Ed25519 license public key from a packaged px_auth_server (if present).
 :: 3. Build the Vue CMS frontend.
 :: 4. Build the Rust CMS server.
-:: 5. Copy exe + web assets + config + certs into output\px_cms_server\.
+:: 5. Copy exe + web assets + config + certs into output\px_cms\.
 ::
 :: NOTE: No license file is shipped. The CMS pulls its authorization from the
 ::       auth server at runtime (auth_server_url in px_cms.toml,
 ::       see docs\px_cms_auth_pull.md).
 ::
-:: Result: run output\px_cms_server\px_cms.exe --running-mode=server
+:: Result: run output\px_cms\px_cms.exe --running-mode=server
 ::         and open https://localhost:30500 in a browser.
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
-set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms"
 set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\px_cms"
 set "SERVER_SRC=%REPO_ROOT%\rust_server\px_cms_server"
 set "SERVER_WORKSPACE=%REPO_ROOT%\rust_server"
-set "AUTH_SERVER_OUTPUT=%REPO_ROOT%\output\px_auth_server"
+set "AUTH_SERVER_OUTPUT=%REPO_ROOT%\output\px_auth"
 
 echo ============================================
 echo Packaging px_cms_server
@@ -64,7 +64,7 @@ if exist "%AUTH_SERVER_OUTPUT%\certs\auth_license_public.key" (
     echo        Run scripts\package_px_auth_server.bat first, or obtain the
     echo        public key from your auth server and place it at:
     echo        %CERT_DIR%\auth_license_public.key
-    echo        Alternatively set the GR_AUTH_LICENSE_PUBLIC_KEY env var.
+    echo        Alternatively set the PX_AUTH_LICENSE_PUBLIC_KEY env var.
 )
 
 :license_key_done

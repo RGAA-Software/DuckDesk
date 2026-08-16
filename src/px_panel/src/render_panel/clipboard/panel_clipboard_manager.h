@@ -13,19 +13,19 @@
 namespace px
 {
     class Message;
-    class GrContext;
+    class PxContext;
     class CpVirtualFile;
 
     class MsgClipboardEvent;
 
     class ClipboardManager : public QObject {
     public:
-        explicit ClipboardManager(const std::shared_ptr<GrContext>& ctx);
+        explicit ClipboardManager(const std::shared_ptr<PxContext>& ctx);
         // Client -> Network -> Render -> Render Panel
         void OnRemoteClipboardInfo(std::shared_ptr<Message> msg);
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         CpVirtualFile* virtual_file_ = nullptr;
         IDataObject* data_object_ = nullptr;

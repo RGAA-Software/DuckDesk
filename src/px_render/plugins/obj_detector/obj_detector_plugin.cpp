@@ -33,13 +33,13 @@ namespace px
     }
 
     void ObjDetectorPlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
 
     }
     
-    bool ObjDetectorPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
-        plugin_type_ = GrPluginType::kStream;
+    bool ObjDetectorPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
+        plugin_type_ = PxPluginType::kStream;
 
         if (!IsPluginEnabled()) {
             return true;

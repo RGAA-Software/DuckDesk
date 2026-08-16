@@ -2,8 +2,8 @@
 // Created by RGAA on 26/04/2025.
 //
 
-#ifndef GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
-#define GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
+#ifndef PX_PANEL_STAT_CAPTURE_INFO_ITEM_H
+#define PX_PANEL_STAT_CAPTURE_INFO_ITEM_H
 
 #include "px_qt_widget/px_base_widget.h"
 #include "px_render_panel_message.pb.h"
@@ -12,11 +12,11 @@ namespace px
 {
 
     class TcLabel;
-    class GrContext;
+    class PxContext;
 
     class StatCaptureInfoItem : public TcBaseWidget {
     public:
-        StatCaptureInfoItem(const std::shared_ptr<GrContext>& ctx, QWidget* parent);
+        StatCaptureInfoItem(const std::shared_ptr<PxContext>& ctx, QWidget* parent);
         void paintEvent(QPaintEvent *event) override;
         std::string GetTargetName();
         void UpdateInfo(const std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>& info);
@@ -25,7 +25,7 @@ namespace px
         void Unselect();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         bool selected_ = false;
         TcLabel* lbl_target_name_;
         TcLabel* lbl_capture_size_;
@@ -36,4 +36,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
+#endif //PX_PANEL_STAT_CAPTURE_INFO_ITEM_H

@@ -2,8 +2,8 @@
 // Created by RGAA  on 2024/5/16.
 //
 
-#ifndef GAMMARAY_MONITORS_H
-#define GAMMARAY_MONITORS_H
+#ifndef PX_MONITORS_H
+#define PX_MONITORS_H
 
 #ifdef WIN32
 #include <dxgi.h>
@@ -52,5 +52,5 @@ namespace px
 }
 
 
-#endif //GAMMARAY_MONITORS_H
+#endif //PX_MONITORS_H
 #endif

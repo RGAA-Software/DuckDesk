@@ -175,4 +175,4 @@ namespace px
     }
 }
 
-GR_PLUGIN_EXPORT(px::ClientClipboardPlugin)
+PX_PLUGIN_EXPORT(px::ClientClipboardPlugin)

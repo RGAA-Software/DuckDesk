@@ -22,7 +22,7 @@ namespace px
     const QString kDisplayPluginEnabled = "Enabled";
     const QString kDisplayPluginDisabled = "Disabled";
 
-    StSecurityFileTransferItemWidget::StSecurityFileTransferItemWidget(const std::shared_ptr<GrApplication>& app,
+    StSecurityFileTransferItemWidget::StSecurityFileTransferItemWidget(const std::shared_ptr<PxApplication>& app,
                        const std::shared_ptr<FileTransferRecord>& item_info,
                        QWidget* parent) : QWidget(parent) {
         app_ = app;

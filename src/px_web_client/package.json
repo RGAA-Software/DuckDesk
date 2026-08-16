@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/sync_web_protos.mjs",
+    "prebuild": "node ../../scripts/sync_web_protos.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

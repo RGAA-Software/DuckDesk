@@ -22,7 +22,7 @@ namespace px
     class TabGame : public TabBase {
     public:
 
-        explicit TabGame(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
+        explicit TabGame(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~TabGame() override;
 
         void OnTabShow() override;

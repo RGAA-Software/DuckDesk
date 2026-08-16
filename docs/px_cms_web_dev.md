@@ -21,7 +21,7 @@
 
 1. 确保后端在跑：
    ```
-   output\px_cms_server\px_cms.exe --running-mode=server
+   output\px_cms\px_cms.exe --running-mode=server
    ```
 2. 启动前端 dev server：
    ```
@@ -56,7 +56,7 @@
 脚本做两件事（不重编 Rust 服务端）：
 
 1. `web\px_cms` → `npm ci` + `npm run build`（`vue-tsc` 类型检查 + `vite build`）
-2. 清空旧产物后，把 `dist\*` 拷贝到 `output\px_cms_server\web\`（`px_cms_server` 从 exe 旁的 `web\` 目录提供静态文件）
+2. 清空旧产物后，把 `dist\*` 拷贝到 `output\px_cms\web\`（`px_cms_server` 从 exe 旁的 `web\` 目录提供静态文件）
 
 部署后如 `px_cms_server` 正在运行，重启它才会加载新前端资源。
 

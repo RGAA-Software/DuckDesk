@@ -19,7 +19,7 @@
 namespace px
 {
 
-    InfiniteLoading::InfiniteLoading(const std::shared_ptr<GrContext>& ctx, const QString& msg)
+    InfiniteLoading::InfiniteLoading(const std::shared_ptr<PxContext>& ctx, const QString& msg)
         : QDialog(nullptr) {
 
         setWindowFlags(Qt::FramelessWindowHint|Qt::Dialog);

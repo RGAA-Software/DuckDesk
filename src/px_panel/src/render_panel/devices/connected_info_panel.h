@@ -16,14 +16,14 @@ namespace px {
     class NoMarginHLayout;
     class TcLabel;
     class TcPushButton;
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
 
     // 被客户端连接上来后，显示连接者的一些信息
     class ConnectedInfoPanel : public QWidget {
         Q_OBJECT
     public:
-        ConnectedInfoPanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        ConnectedInfoPanel(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent* event) override;
         void UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info);
         std::string GetStreamId() const;
@@ -65,9 +65,9 @@ namespace px {
         QCheckBox* file_cbox_ = nullptr;
         TcLabel* file_lab_ = nullptr;
         
-        std::shared_ptr<GrContext> ctx_ = nullptr;
+        std::shared_ptr<PxContext> ctx_ = nullptr;
         std::shared_ptr<pxrp::RpConnectedClientInfo> info_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
     };
 
 

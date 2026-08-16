@@ -2,8 +2,8 @@
 // Created by RGAA on 28/02/2025.
 //
 
-#ifndef GAMMARAY_RELAY_ROOM_H
-#define GAMMARAY_RELAY_ROOM_H
+#ifndef PX_RELAY_ROOM_H
+#define PX_RELAY_ROOM_H
 
 #include <string>
 
@@ -35,4 +35,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RELAY_ROOM_H
+#endif //PX_RELAY_ROOM_H

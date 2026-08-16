@@ -110,7 +110,7 @@ namespace px
     }
 
     void RdContext::DispatchAppEvent2Plugins(const std::shared_ptr<AppBaseEvent>& event) {
-        plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
             plugin->DispatchAppEvent(event);
         });
     }

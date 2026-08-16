@@ -2,8 +2,8 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_NVENC_ENCODER_DEFS_H
-#define GAMMARAY_NVENC_ENCODER_DEFS_H
+#ifndef PX_NVENC_ENCODER_DEFS_H
+#define PX_NVENC_ENCODER_DEFS_H
 
 #include <string>
 
@@ -12,4 +12,4 @@ namespace px
     static const std::string kNvencPluginName = "NVENC Encoder";
 }
 
-#endif //GAMMARAY_FFMPEG_ENCODER_DEFS_H
+#endif //PX_FFMPEG_ENCODER_DEFS_H

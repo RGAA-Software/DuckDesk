@@ -2,8 +2,8 @@
 // Created by RGAA on 23/03/2025.
 //
 
-#ifndef GAMMARAY_TC_DIALOG_H
-#define GAMMARAY_TC_DIALOG_H
+#ifndef PX_TC_DIALOG_H
+#define PX_TC_DIALOG_H
 
 #include "px_custom_titlebar_dialog.h"
 
@@ -22,4 +22,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_TC_DIALOG_H
+#endif //PX_TC_DIALOG_H

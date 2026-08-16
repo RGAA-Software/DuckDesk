@@ -2,8 +2,8 @@
 // Created by RGAA on 11/06/2025.
 //
 
-#ifndef GAMMARAY_RENDER_API_H
-#define GAMMARAY_RENDER_API_H
+#ifndef PX_RENDER_API_H
+#define PX_RENDER_API_H
 
 #include <string>
 #include "px_common_new/expected.h"
@@ -31,4 +31,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RENDER_API_H
+#endif //PX_RENDER_API_H

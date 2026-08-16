@@ -1,8 +1,8 @@
-# GammaRayUserProxy 实施计划
+# px_function 实施计划
 
 ## 1. 文档目的
 
-本文档描述在 **不删除现有代码** 的前提下，引入 Rust 进程 `GammaRayUserProxy`（crate：`px_user_proxy`），通过 **主动连接 Render `net_ws` 插件** 承接剪贴板用户态能力，并逐步替代当前 **Render ↔ Panel** 的剪贴板通道。
+本文档描述在 **不删除现有代码** 的前提下，引入 Rust 进程 `px_function`（crate：`px_user_proxy`），通过 **主动连接 Render `net_ws` 插件** 承接剪贴板用户态能力，并逐步替代当前 **Render ↔ Panel** 的剪贴板通道。
 
 前置讨论结论摘要：
 
@@ -20,7 +20,7 @@
 
 | # | 要求 | 说明 |
 |---|------|------|
-| 1 | crate 位于 `rust_client/px_user_proxy`，产物名 `GammaRayUserProxy.exe` | 纳入 `rust_client/Cargo.toml` workspace |
+| 1 | crate 位于 `rust_client/px_user_proxy`，产物名 `px_function.exe` | 纳入 `rust_client/Cargo.toml` workspace |
 | 2 | 注释 Render↔Panel 剪贴板交互代码 | **只注释，不删除**；保留回滚能力 |
 | 3 | Proxy 永久重连 Render | 连接失败 **2 秒** 后重试，**永不停止** |
 | 4 | 日志完善 | 连接、协议、剪贴板读写、重试、异常均需可追踪 |
@@ -43,28 +43,28 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ GammaRayService (SYSTEM, Session 0)                         │
-│   └─ start_desktop → GammaRayRender (SYSTEM, 用户会话)     │
-│   └─ start_desktop → GammaRayUserProxy (WTS 用户令牌)       │
+│ px_service (SYSTEM, Session 0)                         │
+│   └─ start_desktop → px_render (SYSTEM, 用户会话)     │
+│   └─ start_desktop → px_function (WTS 用户令牌)       │
 │   └─ 3s 监控：Render 掉线重启；Render 在但 UserProxy 掉线补拉 │
 └─────────────────────────────────────────────────────────────┘
 
-GammaRayRender (SYSTEM) ◄── ws://127.0.0.1:{port}/user-proxy ── GammaRayUserProxy (用户会话)
+px_render (SYSTEM) ◄── ws://127.0.0.1:{port}/user-proxy ── px_function (用户会话)
 ```
 
-**Guard / Panel** 为现有桌面客户端配套，**不负责**拉起 UserProxy。Guard 仅守护 `GammaRay.exe`（Panel）与 `GammaRaySysInfo.exe`。
+**Guard / Panel** 为现有桌面客户端配套，**不负责**拉起 UserProxy。Guard 仅守护 `px_panel.exe`（Panel）与 `px_osinfo.exe`。
 
 ### 3.1 架构图（剪贴板路径）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ GammaRayService (SYSTEM, Session 0)                         │
+│ px_service (SYSTEM, Session 0)                         │
 │   └─ 启动 Render (SYSTEM, Session 1)                        │
 │   └─ 启动 UserProxy (WTS user token，与 Render 同生共死)    │
 └─────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────┐         ws://127.0.0.1:{port}/user-proxy
-│ GammaRayRender (SYSTEM)  │ ◄────── 主动连接，失败 2s 重试
+│ px_render (SYSTEM)  │ ◄────── 主动连接，失败 2s 重试
 │   plugin: net_ws         │
 │   ├─ /media              │         二进制 RpMessage (protobuf)
 │   ├─ /file/transfer      │
@@ -72,7 +72,7 @@ GammaRayRender (SYSTEM) ◄── ws://127.0.0.1:{port}/user-proxy ── GammaR
 └──────────────────────────┘
 
 ┌──────────────────────────┐
-│ GammaRayUserProxy (hy)   │
+│ px_function (hy)   │
 │   剪贴板监听 / 读写       │
 │   echo 防回环             │
 └──────────────────────────┘
@@ -174,7 +174,7 @@ version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "GammaRayUserProxy"
+name = "px_function"
 path = "src/main.rs"
 
 [dependencies]
@@ -321,7 +321,7 @@ pub const APP_SHARED_ROOT: &str = "GoDesk";  // 与 guard 相同
 | `src/px_panel/.../win_panel_message_loop.cpp` | `OnClipboardUpdate` / `ProcessLocalClipboardUpdate` 及 `kRpClipboardEvent` 发送 | 注释 outbound |
 | `src/px_panel/.../panel_clipboard_manager.cpp` | `OnRemoteClipboardInfo` 全文 | 注释 inbound 写剪贴板 |
 | `src/px_panel/.../px_render_msg_processor.cpp` | `OnMessage` 调 `clipboard_mgr` | 注释 |
-| `src/px_panel/.../network/ws_panel_server.cpp` | `kRpRawRenderMessage` → `GrRenderMsgProcessor`（约 675–683 行） | 注释 |
+| `src/px_panel/.../network/ws_panel_server.cpp` | `kRpRawRenderMessage` → `PxRenderMsgProcessor`（约 675–683 行） | 注释 |
 | `src/px_panel/.../clipboard/win/panel_cp_virtual_file.cpp` | `PostMessage2Renderer` 剪贴板文件相关 | Phase 2 再注释 |
 | `src/px_panel/.../clipboard/win/panel_cp_file_stream.cpp` | `PostMessage2Renderer` | Phase 2 再注释 |
 
@@ -354,9 +354,9 @@ members = [
 仿照其他 Rust 组件增加（原 `GammaRayGuard_rust`/`GammaRayGuard_stage` 已随 Guard 删除）：
 
 ```cmake
-set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
-# GammaRayUserProxy_rust
-# GammaRayUserProxy_stage → copy 到 ${GR_PROJECT_BINARY_PATH}
+set(PX_USER_PROXY_EXE_NAME px_function.exe)
+# px_function_rust
+# px_function_stage → copy 到 ${PX_PROJECT_BINARY_PATH}
 ```
 
 并加入 `dist` / `collect_dist.py` 产物白名单（若需要随官方包发布）。
@@ -367,7 +367,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 
 在 `rust_client/px_service` 中：
 
-- `start_desktop`：`start_process_as_active_user` 拉起 Render 后，**立即**以 `start_process_as_session_user`（**仅 WTS 用户令牌**，不回退 SYSTEM 令牌）拉起 `GammaRayUserProxy.exe`，确保 UserProxy 以登录用户身份运行。
+- `start_desktop`：`start_process_as_active_user` 拉起 Render 后，**立即**以 `start_process_as_session_user`（**仅 WTS 用户令牌**，不回退 SYSTEM 令牌）拉起 `px_function.exe`，确保 UserProxy 以登录用户身份运行。
 - 参数：`--render-port={与 Render network_listen_port 一致}`，从 Render args 的 `--network_listen_port=`（也兼容 `-flag=value` 与 `--flag value` 形式）解析，缺失时用默认 `20371`。
 - `stop_desktop` / Service 停止：终止 Render **与** UserProxy（`is_managed_clipboard_process`）。
 - `monitor_loop`（3s）：Render 缺失则整包 `start_desktop`；Render 在但 UserProxy 缺失则仅补拉 UserProxy（`should_restart_user_proxy`）。
@@ -469,7 +469,7 @@ set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
 | `default_reconnect_secs` | 固定 `2` |
 | `render_ws_url_build` | `ws://127.0.0.1:{port}/user-proxy` 拼接正确 |
 | `render_ws_url_custom_host` | `--render-host` 覆盖 host |
-| `singleton_lock_name` | `GammaRayUserProxy.Singleton` 常量 |
+| `singleton_lock_name` | `px_function.Singleton` 常量 |
 | `cli_parse_defaults` | clap 缺省参数与 config 常量一致 |
 | `cli_parse_overrides` | `--render-port` / `--reconnect-secs` 覆盖 |
 
@@ -551,7 +551,7 @@ scripts\test_user_proxy.bat
 
 | 行为 | 说明 |
 |------|------|
-| 拉起方 | **仅** `GammaRayService.start_desktop` |
+| 拉起方 | **仅** `px_service.start_desktop` |
 | 参数 | `--render-port={network_listen_port}` |
 | 监控 | Service `monitor_loop` 每 3s：Render 在、UserProxy 不在 → 补拉 |
 | 停止 | `stop_desktop` / Service Stop → 杀 Render + UserProxy |
@@ -599,7 +599,7 @@ scripts\test_user_proxy.bat
 | Render | `/media`、`/file/transfer`、Panel `WsPanelClient` 管理消息 |
 | Panel | 插件开关、`kRpCommandRenderer`、连接记录、文件传输审计 |
 | Service | 无界面部署：**Service + Render + UserProxy**；Guard/Panel 可选 |
-| 安装包 | `GammaRayUserProxy.exe` 随构建产出（CMake stage 后存在于 binary 目录） |
+| 安装包 | `px_function.exe` 随构建产出（CMake stage 后存在于 binary 目录） |
 
 ### 10.7 失败判定与日志采集
 
@@ -623,14 +623,14 @@ scripts\test_user_proxy.bat
 ## 11. 回滚方案
 
 1. 取消第 7 节所有 `USER_PROXY_MIGRATION` 注释。
-2. 停止部署 `GammaRayUserProxy.exe`。
-3. Render 侧 `/user-proxy` 路由可保留（无连接时无影响）或编译开关 `GR_USER_PROXY_ENABLED` 关闭。
+2. 停止部署 `px_function.exe`。
+3. Render 侧 `/user-proxy` 路由可保留（无连接时无影响）或编译开关 `PX_USER_PROXY_ENABLED` 关闭。
 
 建议在 `ws_server.cpp` 增加编译宏：
 
 ```cpp
-#ifndef GR_USER_PROXY_ENABLED
-#define GR_USER_PROXY_ENABLED 1
+#ifndef PX_USER_PROXY_ENABLED
+#define PX_USER_PROXY_ENABLED 1
 #endif
 ```
 

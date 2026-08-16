@@ -2,8 +2,8 @@
 // Created by RGAA on 27/05/2025.
 //
 
-#ifndef GAMMARAY_WS_DATA_H
-#define GAMMARAY_WS_DATA_H
+#ifndef PX_WS_DATA_H
+#define PX_WS_DATA_H
 
 namespace px
 {
@@ -14,4 +14,4 @@ namespace px
     using WsDataPtr = std::shared_ptr<WsData>;
 }
 
-#endif //GAMMARAY_WS_DATA_H
+#endif //PX_WS_DATA_H

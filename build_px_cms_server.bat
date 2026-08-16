@@ -7,9 +7,9 @@ rem
 rem Build and deploy px_cms_server in one step:
 rem   [1/3] Build the Vue frontend   web\px_cms          (npm run build)
 rem   [2/3] Build the Rust server    px_cms_server       (cargo build --release)
-rem   [3/3] Copy artifacts into      output\px_cms_server\
-rem           exe      -> output\px_cms_server\px_cms.exe
-rem           frontend -> output\px_cms_server\web\
+rem   [3/3] Copy artifacts into      output\px_cms\
+rem           exe      -> output\px_cms\px_cms.exe
+rem           frontend -> output\px_cms\web\
 rem           (the server serves static files from the web\ dir next to the exe)
 rem
 rem Notes:
@@ -28,9 +28,9 @@ rem --- Per-server settings ---
 set "SERVER_NAME=px_cms_server"
 set "EXE_NAME=px_cms"
 set "WEB_SRC=%REPO_ROOT%\web\px_cms"
-rem Subdirectory under output\%SERVER_NAME%\ that holds the frontend files.
+rem Subdirectory under output\%EXE_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=web"
-set "OUTPUT_DIR=%REPO_ROOT%\output\%SERVER_NAME%"
+set "OUTPUT_DIR=%REPO_ROOT%\output\%EXE_NAME%"
 
 rem aws-lc-sys needs a real NASM. Its fallback prebuilt-nasm shim script
 rem breaks cmake configure under Git Bash (the .sh variant gets selected,

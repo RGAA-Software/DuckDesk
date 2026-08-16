@@ -2,8 +2,8 @@
 // Created by RGAA on 12/06/2025.
 //
 
-#ifndef GAMMARAY_RELAY_ERRORS_H
-#define GAMMARAY_RELAY_ERRORS_H
+#ifndef PX_RELAY_ERRORS_H
+#define PX_RELAY_ERRORS_H
 
 #include <string>
 
@@ -48,4 +48,4 @@ namespace px_relay
     }
 }
 
-#endif //GAMMARAY_RELAY_ERRORS_H
+#endif //PX_RELAY_ERRORS_H

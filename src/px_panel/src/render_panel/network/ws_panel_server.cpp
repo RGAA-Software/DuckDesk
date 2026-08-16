@@ -62,16 +62,16 @@ namespace px
         }
     };
 
-    std::shared_ptr<WsPanelServer> WsPanelServer::Make(const std::shared_ptr<GrApplication>& app) {
+    std::shared_ptr<WsPanelServer> WsPanelServer::Make(const std::shared_ptr<PxApplication>& app) {
         return std::make_shared<WsPanelServer>(app);
     }
 
-    WsPanelServer::WsPanelServer(const std::shared_ptr<GrApplication>& app) {
+    WsPanelServer::WsPanelServer(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
-        stat_ = GrStatistics::Instance();
+        stat_ = PxStatistics::Instance();
         context_ = app_->GetContext();
         http_handler_ = std::make_shared<HttpHandler>(app_);
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         visit_record_op_ = context_->GetDatabase()->GetVisitRecordOp();
         ft_record_op_ = context_->GetDatabase()->GetFileTransferRecordOp();
 
@@ -196,7 +196,7 @@ namespace px
             http_handler_->HandleRunningGames(req, rep);
         });
 
-        // stop the GammaRayRender.exe
+        // stop the px_render.exe
         AddHttpGetRouter(kPathStopServer, [=, this](const auto& path, auto& req, auto& rep) {
             http_handler_->HandleStopServer(req, rep);
         });
@@ -780,7 +780,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), kUrlVisitRecord, 2000);
         auto appkey = grApp->GetAppkey();
@@ -797,7 +797,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), kUrlUpdateVisitRecord, 2000);
         auto appkey = grApp->GetAppkey();
@@ -814,7 +814,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
@@ -831,7 +831,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();

@@ -142,7 +142,7 @@ namespace px
         msg.set_type(pxrp::kRpPluginsInfo);
         auto m_info = msg.mutable_plugins_info();
         auto plugins_info = m_info->mutable_plugins_info();
-        plugin_mgr_->VisitAllPlugins([&](GrPluginInterface* plugin) {
+        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
             auto info = plugins_info->Add();
             info->set_id(plugin->GetPluginId());
             info->set_name(plugin->GetPluginName());
@@ -205,7 +205,7 @@ namespace px
                 settings_->max_receive_speed_ = sub.max_receive_speed();
                 settings_->role_ = sub.role();
 
-                plugin_mgr_->SyncPluginSettingsInfo(GrPluginSettingsInfo {
+                plugin_mgr_->SyncPluginSettingsInfo(PxPluginSettingsInfo {
                     .device_id_ = settings_->device_id_,
                     .device_random_pwd_ = settings_->device_random_pwd_,
                     .device_safety_pwd_ = settings_->device_safety_pwd_,
@@ -277,12 +277,12 @@ namespace px
                 auto buffer = ProtoAsData(resp_msg);
 
                 // 2. send it to net plugins
-                plugin_mgr_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
                     plugin->PostTargetStreamProtoMessage(sub.stream_id(), buffer, true);
                 });
             }
             else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
-                plugin_mgr_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
                     const auto& sub = m.raw_render_msg();
                     auto data = Data::From(sub.msg());
                     LOGI("==> RawRenderMessage--> stream id: {}, data ch: {}", sub.stream_id(), sub.data_channel());
@@ -301,7 +301,7 @@ namespace px
                 net_msg.mutable_hw_info()->set_hw_info(json_msg);
                 net_msg.mutable_hw_info()->set_current_cpu_freq(m.hw_info().current_cpu_freq());
                 auto data = ProtoAsData(&net_msg);
-                plugin_mgr_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
                     plugin->PostProtoMessage(data, true);
                 });
             }
@@ -312,7 +312,7 @@ namespace px
     }
 
     void WsPanelClient::ProcessCommandEnablePlugin(const std::string& plugin_id) {
-        plugin_mgr_->VisitAllPlugins([&](GrPluginInterface* plugin) {
+        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
             if (plugin_id == plugin->GetPluginId()) {
                 LOGI("Enable plugin: {}", plugin->GetPluginName());
                 plugin->EnablePlugin();
@@ -321,7 +321,7 @@ namespace px
     }
 
     void WsPanelClient::ProcessCommandDisablePlugin(const std::string& plugin_id) {
-        plugin_mgr_->VisitAllPlugins([&](GrPluginInterface* plugin) {
+        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
             if (plugin_id == plugin->GetPluginId()) {
                 LOGI("Disable plugin: {}", plugin->GetPluginName());
                 plugin->DisablePlugin();

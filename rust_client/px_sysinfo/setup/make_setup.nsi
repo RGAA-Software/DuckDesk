@@ -4,11 +4,11 @@
 Unicode true
 RequestExecutionLevel admin
 
-!define PRODUCT_NAME "GrSysMonitor Suite"
+!define PRODUCT_NAME "PxSysMonitor Suite"
 !define COMPANY_NAME "GammaRayPremium"
-!define MONITOR_EXE "GrSysMonitor.exe"
-!define HOST_EXE "GrSysMonitorHost.exe"
-!define INSTALL_SUBDIR "GammaRayPremium\GrSysMonitorSuite"
+!define MONITOR_EXE "px_sys_monitor.exe"
+!define HOST_EXE "px_sys_monitor_host.exe"
+!define INSTALL_SUBDIR "GammaRayPremium\PxSysMonitorSuite"
 
 !ifndef OUTPUT_DIR
     !define OUTPUT_DIR "."
@@ -19,7 +19,7 @@ RequestExecutionLevel admin
 !endif
 
 !ifndef INSTALLER_BASENAME
-    !define INSTALLER_BASENAME "GrSysMonitorSuite"
+    !define INSTALLER_BASENAME "PxSysMonitorSuite"
 !endif
 
 Name "${PRODUCT_NAME}"
@@ -50,12 +50,12 @@ Section "Install"
     Delete "$INSTDIR\app.7z"
 
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\GrSysMonitor.lnk" "$INSTDIR\${MONITOR_EXE}"
-    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\GrSysMonitorHost.lnk" "$INSTDIR\${HOST_EXE}"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\px_sys_monitor.lnk" "$INSTDIR\${MONITOR_EXE}"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\px_sys_monitor_host.lnk" "$INSTDIR\${HOST_EXE}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\卸载.lnk" "$INSTDIR\Uninstall.exe"
 
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitor" "$\"$INSTDIR\${MONITOR_EXE}$\" --startup"
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitorHost" "$\"$INSTDIR\${HOST_EXE}$\" --startup"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "px_sys_monitor" "$\"$INSTDIR\${MONITOR_EXE}$\" --startup"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "px_sys_monitor_host" "$\"$INSTDIR\${HOST_EXE}$\" --startup"
 
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
@@ -63,7 +63,7 @@ Section "Install"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "Publisher" "${COMPANY_NAME}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}" "DisplayVersion" "${PRODUCT_VERSION}"
 
-    ; Launch GrSysMonitor after installation completes
+    ; Launch px_sys_monitor after installation completes
     ExecShell "" "$INSTDIR\${MONITOR_EXE}"
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -73,12 +73,12 @@ Section "Uninstall"
     nsExec::ExecToLog 'taskkill /F /T /IM ${MONITOR_EXE}'
     nsExec::ExecToLog 'taskkill /F /T /IM ${HOST_EXE}'
 
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitor"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GrSysMonitorHost"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "px_sys_monitor"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "px_sys_monitor_host"
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
-    Delete "$SMPROGRAMS\${PRODUCT_NAME}\GrSysMonitor.lnk"
-    Delete "$SMPROGRAMS\${PRODUCT_NAME}\GrSysMonitorHost.lnk"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\px_sys_monitor.lnk"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\px_sys_monitor_host.lnk"
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\卸载.lnk"
     RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
 

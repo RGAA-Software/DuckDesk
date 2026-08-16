@@ -1,19 +1,19 @@
 
 import axios, { Axios, type AxiosResponse } from 'axios'
-import {GrConn} from "./px_conn.ts";
-import {GrConnParams} from "./px_sdk_params.ts";
-import {GrSdk} from "./px_sdk.ts";
-import {GrRendererManager} from "../renderer/px_renderer_manager.ts";
-import {GrResponse} from "../base/px_response.ts";
+import {PxConn} from "./px_conn.ts";
+import {PxConnParams} from "./px_sdk_params.ts";
+import {PxSdk} from "./px_sdk.ts";
+import {PxRendererManager} from "../renderer/px_renderer_manager.ts";
+import {PxResponse} from "../base/px_response.ts";
 
-export class GrRtcDirectConn extends GrConn {
+export class PxRtcDirectConn extends PxConn {
 
     // peer connection
     rtcPeerConn: RTCPeerConnection;
     // data channel
     rtcDataChannel: RTCDataChannel;
 
-    constructor(sdk: GrSdk, params: GrConnParams, rendererManager: GrRendererManager) {
+    constructor(sdk: PxSdk, params: PxConnParams, rendererManager: PxRendererManager) {
         super(sdk, params, rendererManager)
     }
 
@@ -123,7 +123,7 @@ export class GrRtcDirectConn extends GrConn {
         try {
             const url = `/api/alloc/local/rtc?device_id=${deviceId}&stream_id=${streamId}`;
             console.log("request url", url);
-            const response: AxiosResponse<GrResponse> = await axios.post(url, body);
+            const response: AxiosResponse<PxResponse> = await axios.post(url, body);
             return response.data;
         } catch (error) {
             console.error("resp error:", error);

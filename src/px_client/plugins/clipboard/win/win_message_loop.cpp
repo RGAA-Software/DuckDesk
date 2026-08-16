@@ -8,7 +8,7 @@
 namespace px
 {
 
-    constexpr char kWindowName[] = "GammaRay_client_MessageWindow";
+    constexpr char kWindowName[] = "PxClient_MessageWindow";
 
     void CALLBACK WinMessageLoop::WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject,
                                                LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime) {

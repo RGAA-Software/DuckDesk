@@ -70,8 +70,8 @@ namespace px
         return "MiniAudio WASAPI loopback (desktop default mix, or per-PID process-loopback)";
     }
 
-    bool WasAudioCapturePlugin::OnCreate(const px::GrPluginParam& param) {
-        GrDataProviderPlugin::OnCreate(param);
+    bool WasAudioCapturePlugin::OnCreate(const px::PxPluginParam& param) {
+        PxDataProviderPlugin::OnCreate(param);
         MemoryStat::Instance();
         restart_thread_ = std::thread([this] { RestartWorkerMain(); });
         LOGI("[WasAudioCapturePlugin] OnCreate");
@@ -154,7 +154,7 @@ namespace px
             if (!data || data->Size() <= 0) {
                 return;
             }
-            auto event = std::make_shared<GrPluginRawAudioFrameEvent>();
+            auto event = std::make_shared<PxPluginRawAudioFrameEvent>();
             event->full_data_ = data;
             event->sample_rate_ = this->samples_;
             event->channels_ = this->channels_;
@@ -166,7 +166,7 @@ namespace px
             if (!sys_settings_.audio_enabled_) {
                 return;
             }
-            auto event = std::make_shared<GrPluginSplitRawAudioFrameEvent>();
+            auto event = std::make_shared<PxPluginSplitRawAudioFrameEvent>();
             event->left_ch_data_ = left;
             event->right_ch_data_ = right;
             event->sample_rate_ = this->samples_;

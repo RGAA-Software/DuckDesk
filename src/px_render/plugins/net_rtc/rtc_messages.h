@@ -2,8 +2,8 @@
 // Created by RGAA on 14/04/2025.
 //
 
-#ifndef GAMMARAY_RTC_MESSAGES_H
-#define GAMMARAY_RTC_MESSAGES_H
+#ifndef PX_RTC_MESSAGES_H
+#define PX_RTC_MESSAGES_H
 
 #include <string>
 
@@ -28,4 +28,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_MESSAGES_H
+#endif //PX_RTC_MESSAGES_H

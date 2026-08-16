@@ -19,12 +19,12 @@ namespace px_cms
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
 
-    class GrDeviceManager {
+    class PxDeviceManager {
     public:
-        explicit GrDeviceManager(const std::shared_ptr<GrContext>& ctx);
+        explicit PxDeviceManager(const std::shared_ptr<PxContext>& ctx);
         // request new device
         // def_device_name: D-{last segment of ip}
         // info: empty
@@ -43,8 +43,8 @@ namespace px
         Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> UpdateUsedTime(int period);
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
 
     };
 

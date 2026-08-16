@@ -2,8 +2,8 @@
 // Created by RGAA on 26/04/2025.
 //
 
-#ifndef GAMMARAY_TC_BASE_WIDGET_H
-#define GAMMARAY_TC_BASE_WIDGET_H
+#ifndef PX_TC_BASE_WIDGET_H
+#define PX_TC_BASE_WIDGET_H
 
 #include <QWidget>
 #include <QPainter>
@@ -39,4 +39,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_BASE_WIDGET_H
+#endif //PX_TC_BASE_WIDGET_H

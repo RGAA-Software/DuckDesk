@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_RENDER_AMF_ENCODER_PLUGIN_H
+#define PX_RENDER_AMF_ENCODER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugins/plugin_ids.h"
@@ -13,7 +13,7 @@ namespace px
 
     class VideoEncoderVCE;
 
-    class AmfEncoderPlugin : public GrVideoEncoderPlugin {
+    class AmfEncoderPlugin : public PxVideoEncoderPlugin {
     public:
 
         std::string GetPluginId() override;
@@ -24,7 +24,7 @@ namespace px
 
         bool CanEncodeTexture() override;
         void On1Second() override;
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         bool IsWorking() override;
@@ -45,4 +45,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

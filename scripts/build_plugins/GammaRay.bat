@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem Build GammaRay panel (settings UI) against build_official.
+rem Build px_panel (settings UI) against build_official.
 
 cd /d "%~dp0..\.."
 
-set "TARGET=GammaRay"
+set "TARGET=px_panel"
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 

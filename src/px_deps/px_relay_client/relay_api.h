@@ -2,8 +2,8 @@
 // Created by RGAA on 28/02/2025.
 //
 
-#ifndef GAMMARAY_RELAY_APIS_H
-#define GAMMARAY_RELAY_APIS_H
+#ifndef PX_RELAY_APIS_H
+#define PX_RELAY_APIS_H
 
 #include <string>
 #include <memory>
@@ -42,4 +42,4 @@ namespace px_relay
 
 }
 
-#endif //GAMMARAY_RELAY_APIS_H
+#endif //PX_RELAY_APIS_H

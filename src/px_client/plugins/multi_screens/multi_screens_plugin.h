@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_CLIENT_MULTI_SCREENS_PLUGIN_H
+#define PX_CLIENT_MULTI_SCREENS_PLUGIN_H
 
 #include "px_client/plugin_interface/ct_plugin_interface.h"
 #include <map>
@@ -31,7 +31,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::MultiScreensPlugin)
+PX_PLUGIN_EXPORT(px::MultiScreensPlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

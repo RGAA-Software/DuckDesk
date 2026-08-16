@@ -41,59 +41,59 @@ extern "C"
 namespace px
 {
 
-    std::shared_ptr<GrPluginContext> GrPluginInterface::GetPluginContext() {
+    std::shared_ptr<PxPluginContext> PxPluginInterface::GetPluginContext() {
         return plugin_context_;
     }
 
-    std::string GrPluginInterface::GetPluginName() {
+    std::string PxPluginInterface::GetPluginName() {
         return "dummy";
     }
 
-    std::string GrPluginInterface::GetPluginAuthor() {
+    std::string PxPluginInterface::GetPluginAuthor() {
         return plugin_author_;
     }
 
-    std::string GrPluginInterface::GetPluginDescription() {
+    std::string PxPluginInterface::GetPluginDescription() {
         return "plugin description";
     }
 
-    GrPluginType GrPluginInterface::GetPluginType() {
+    PxPluginType PxPluginInterface::GetPluginType() {
         return plugin_type_;
     }
 
-    bool GrPluginInterface::IsStreamPlugin() {
-        return plugin_type_ == GrPluginType::kStream;
+    bool PxPluginInterface::IsStreamPlugin() {
+        return plugin_type_ == PxPluginType::kStream;
     }
 
-    std::string GrPluginInterface::GetVersionName() {
+    std::string PxPluginInterface::GetVersionName() {
         return "1.0.0";
     }
 
-    uint32_t GrPluginInterface::GetVersionCode() {
+    uint32_t PxPluginInterface::GetVersionCode() {
         return 1;
     }
 
-    bool GrPluginInterface::IsPluginEnabled() {
+    bool PxPluginInterface::IsPluginEnabled() {
         return plugin_enabled_;
     }
 
-    void GrPluginInterface::EnablePlugin() {
+    void PxPluginInterface::EnablePlugin() {
         plugin_enabled_ = true;
     }
 
-    void GrPluginInterface::DisablePlugin() {
+    void PxPluginInterface::DisablePlugin() {
         plugin_enabled_ = false;
     }
 
-    bool GrPluginInterface::IsWorking() {
+    bool PxPluginInterface::IsWorking() {
         return plugin_enabled_;
     }
 
-    bool GrPluginInterface::OnCreate(const GrPluginParam& param) {
-        if (lifecycle_state_.load() == GrPluginLifecycleState::Running) {
+    bool PxPluginInterface::OnCreate(const PxPluginParam& param) {
+        if (lifecycle_state_.load() == PxPluginLifecycleState::Running) {
             return true;
         }
-        if (lifecycle_state_.load() == GrPluginLifecycleState::Destroyed) {
+        if (lifecycle_state_.load() == PxPluginLifecycleState::Destroyed) {
             return false;
         }
         SnowflakeId::initialize(0, 103);
@@ -110,7 +110,7 @@ namespace px
         if (param.cluster_.contains("base_data_path")) {
             base_data_path_ = std::any_cast<std::wstring>(param.cluster_.at("base_data_path"));
         }
-        plugin_context_ = std::make_shared<GrPluginContext>(GetPluginName());
+        plugin_context_ = std::make_shared<PxPluginContext>(GetPluginName());
         const auto log_path = std::format(L"{}/px_logs/{}.log", base_data_path_, StringUtil::ToWString(plugin_file_name_));
         Logger::InitLog(log_path, true);
         LOGI("{} OnCreate", GetPluginName());
@@ -157,34 +157,34 @@ namespace px
 
         stopped_ = false;
         destroyed_ = false;
-        lifecycle_state_ = GrPluginLifecycleState::Running;
+        lifecycle_state_ = PxPluginLifecycleState::Running;
         return true;
     }
 
-    bool GrPluginInterface::OnResume() {
-        if (lifecycle_state_.load() == GrPluginLifecycleState::Destroyed) {
+    bool PxPluginInterface::OnResume() {
+        if (lifecycle_state_.load() == PxPluginLifecycleState::Destroyed) {
             return false;
         }
         this->stopped_ = false;
-        lifecycle_state_ = GrPluginLifecycleState::Running;
+        lifecycle_state_ = PxPluginLifecycleState::Running;
         return true;
     }
 
-    bool GrPluginInterface::OnStop() {
-        if (lifecycle_state_.load() == GrPluginLifecycleState::Destroyed) {
+    bool PxPluginInterface::OnStop() {
+        if (lifecycle_state_.load() == PxPluginLifecycleState::Destroyed) {
             return true;
         }
-        lifecycle_state_ = GrPluginLifecycleState::Stopping;
+        lifecycle_state_ = PxPluginLifecycleState::Stopping;
         this->stopped_ = true;
         event_cbk_ = nullptr;
         return true;
     }
 
-    bool GrPluginInterface::OnDestroy() {
-        if (lifecycle_state_.load() == GrPluginLifecycleState::Destroyed) {
+    bool PxPluginInterface::OnDestroy() {
+        if (lifecycle_state_.load() == PxPluginLifecycleState::Destroyed) {
             return true;
         }
-        lifecycle_state_ = GrPluginLifecycleState::Stopping;
+        lifecycle_state_ = PxPluginLifecycleState::Stopping;
         stopped_ = true;
         event_cbk_ = nullptr;
         if (plugin_context_) {
@@ -194,24 +194,24 @@ namespace px
         net_plugins_.clear();
         total_plugins_.clear();
         destroyed_ = true;
-        lifecycle_state_ = GrPluginLifecycleState::Destroyed;
+        lifecycle_state_ = PxPluginLifecycleState::Destroyed;
         return true;
     }
 
-    bool GrPluginInterface::IsStoppingOrDestroyed() const {
+    bool PxPluginInterface::IsStoppingOrDestroyed() const {
         auto state = lifecycle_state_.load();
         return stopped_ || destroyed_
-            || state == GrPluginLifecycleState::Stopping
-            || state == GrPluginLifecycleState::Destroyed;
+            || state == PxPluginLifecycleState::Stopping
+            || state == PxPluginLifecycleState::Destroyed;
     }
 
-    void GrPluginInterface::PostWorkTask(std::function<void()>&& task) {
+    void PxPluginInterface::PostWorkTask(std::function<void()>&& task) {
         if (plugin_context_ && !IsStoppingOrDestroyed()) {
             plugin_context_->PostWorkTask(std::move(task));
         }
     }
 
-    void GrPluginInterface::PostUITask(std::function<void()>&& task) {
+    void PxPluginInterface::PostUITask(std::function<void()>&& task) {
         if (IsStoppingOrDestroyed()) {
             return;
         }
@@ -220,17 +220,17 @@ namespace px
         }
     }
 
-    void GrPluginInterface::PostUIDelayTask(int ms, std::function<void()>&& task) {
+    void PxPluginInterface::PostUIDelayTask(int ms, std::function<void()>&& task) {
         if (plugin_context_ && !IsStoppingOrDestroyed()) {
             plugin_context_->PostDelayTask(std::move(task), ms);
         }
     }
 
-    void GrPluginInterface::RegisterEventCallback(const GrPluginEventCallback& cbk) {
+    void PxPluginInterface::RegisterEventCallback(const PxPluginEventCallback& cbk) {
         event_cbk_ = cbk;
     }
 
-    void GrPluginInterface::CallbackEvent(const std::shared_ptr<GrPluginBaseEvent>& event) {
+    void PxPluginInterface::CallbackEvent(const std::shared_ptr<PxPluginBaseEvent>& event) {
         if (!event_cbk_ || IsStoppingOrDestroyed()) {
             return;
         }
@@ -241,42 +241,42 @@ namespace px
         });
     }
 
-    void GrPluginInterface::CallbackEventDirectly(const std::shared_ptr<GrPluginBaseEvent>& event) {
+    void PxPluginInterface::CallbackEventDirectly(const std::shared_ptr<PxPluginBaseEvent>& event) {
         if (event_cbk_ && !IsStoppingOrDestroyed()) {
             event_cbk_(event);
         }
     }
 
-    void GrPluginInterface::On1Second() {
+    void PxPluginInterface::On1Second() {
 
     }
 
-    void GrPluginInterface::InsertIdr() {
-        auto event = std::make_shared<GrPluginInsertIdrEvent>();
+    void PxPluginInterface::InsertIdr() {
+        auto event = std::make_shared<PxPluginInsertIdrEvent>();
         CallbackEvent(event);
     }
 
-    void GrPluginInterface::OnCommand(const std::string& command) {
+    void PxPluginInterface::OnCommand(const std::string& command) {
 
     }
 
-    void GrPluginInterface::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
+    void PxPluginInterface::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
         no_connected_clients_counter_ = 0;
     }
 
-    void GrPluginInterface::OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id) {
+    void PxPluginInterface::OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id) {
 
     }
 
-    void GrPluginInterface::AttachNetPlugin(const std::string& id, GrNetPlugin* plugin) {
+    void PxPluginInterface::AttachNetPlugin(const std::string& id, PxNetPlugin* plugin) {
         net_plugins_[id] = plugin;
     }
 
-    void GrPluginInterface::AttachPlugin(const std::string& id, GrPluginInterface* plugin) {
+    void PxPluginInterface::AttachPlugin(const std::string& id, PxPluginInterface* plugin) {
         total_plugins_[id] = plugin;
     }
 
-    bool GrPluginInterface::HasAttachedNetPlugins() {
+    bool PxPluginInterface::HasAttachedNetPlugins() {
         return !net_plugins_.empty();
     }
 
@@ -293,7 +293,7 @@ namespace px
         }
     }
 
-    void GrPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
+    void PxPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
             plugin->PostProtoMessage(msg, run_through);
@@ -304,7 +304,7 @@ namespace px
         }
     }
 
-    void GrPluginInterface::DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    void PxPluginInterface::DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
             plugin->PostTargetStreamProtoMessage(stream_id, msg, run_through);
@@ -315,7 +315,7 @@ namespace px
         }
     }
 
-    void GrPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    void PxPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
             if (!plugin->PostTargetFileTransferProtoMessage(stream_id, msg, run_through)) {
@@ -328,19 +328,19 @@ namespace px
         }
     }
 
-    void GrPluginInterface::OnMessage(std::shared_ptr<Message> msg) {
+    void PxPluginInterface::OnMessage(std::shared_ptr<Message> msg) {
 
     }
 
-    void GrPluginInterface::OnMessageRaw(const std::any& msg) {
+    void PxPluginInterface::OnMessageRaw(const std::any& msg) {
 
     }
 
-    std::map<std::string, GrNetPlugin*> GrPluginInterface::GetNetPlugins() {
+    std::map<std::string, PxNetPlugin*> PxPluginInterface::GetNetPlugins() {
         return net_plugins_;
     }
 
-    int64_t GrPluginInterface::GetQueuingMediaMsgCountInNetPlugins() {
+    int64_t PxPluginInterface::GetQueuingMediaMsgCountInNetPlugins() {
         int64_t queuing_msg_count = 0;
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             if (plugin->GetConnectedClientsCount() > 0) {
@@ -351,7 +351,7 @@ namespace px
         return queuing_msg_count;
     }
 
-    int64_t GrPluginInterface::GetQueuingFtMsgCountInNetPlugins() {
+    int64_t PxPluginInterface::GetQueuingFtMsgCountInNetPlugins() {
         int64_t queuing_msg_count = 0;
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             if (plugin->GetConnectedClientsCount() > 0) {
@@ -361,7 +361,7 @@ namespace px
         return queuing_msg_count;
     }
 
-    void GrPluginInterface::OnSyncPluginSettingsInfo(const px::GrPluginSettingsInfo& settings) {
+    void PxPluginInterface::OnSyncPluginSettingsInfo(const px::PxPluginSettingsInfo& settings) {
         if (!settings.device_id_.empty()) {
             sys_settings_.device_id_ = settings.device_id_;
         }
@@ -389,11 +389,11 @@ namespace px
         //     sys_settings_.relay_port_, sys_settings_.relay_enabled_, sys_settings_.language_, sys_settings_.role_);
     }
 
-    GrPluginSettingsInfo GrPluginInterface::GetPluginSettingsInfo() {
+    PxPluginSettingsInfo PxPluginInterface::GetPluginSettingsInfo() {
         return sys_settings_;
     }
 
-    void GrPluginInterface::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
+    void PxPluginInterface::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
         if (event->type_ == AppBaseEvent::EType::kConnectedClientCount) {
             auto target_evt = std::dynamic_pointer_cast<MsgConnectedClientCount>(event);
             //LOGI("connected clients count: {}", target_evt->connected_client_count_);
@@ -406,17 +406,17 @@ namespace px
         }
     }
 
-    bool GrPluginInterface::DontHaveConnectedClientsNow() {
+    bool PxPluginInterface::DontHaveConnectedClientsNow() {
         auto dont_have = no_connected_clients_counter_ > 10;
         //LOGI("dont have: {}, count: {}", dont_have, no_connected_clients_counter_);
         return dont_have;
     }
 
-    void GrPluginInterface::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& msg) {
+    void PxPluginInterface::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& msg) {
 
     }
 
-    GrPluginInterface* GrPluginInterface::GetPluginById(const std::string& plugin_id) {
+    PxPluginInterface* PxPluginInterface::GetPluginById(const std::string& plugin_id) {
         for (const auto& [id, plugin] : total_plugins_) {
             if (plugin_id == plugin->GetPluginId()) {
                 return plugin;

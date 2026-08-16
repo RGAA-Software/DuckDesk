@@ -33,8 +33,8 @@
 namespace px
 {
 
-    StController::StController(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent){
-        settings_ = GrSettings::Instance();
+    StController::StController(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent){
+        settings_ = PxSettings::Instance();
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);

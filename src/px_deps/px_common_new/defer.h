@@ -2,8 +2,8 @@
 // Created by RGAA on 18/11/2024.
 //
 
-#ifndef GAMMARAY_DEFER_H
-#define GAMMARAY_DEFER_H
+#ifndef PX_DEFER_H
+#define PX_DEFER_H
 
 #include <memory>
 #include <functional>
@@ -35,4 +35,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_DEFER_H
+#endif //PX_DEFER_H

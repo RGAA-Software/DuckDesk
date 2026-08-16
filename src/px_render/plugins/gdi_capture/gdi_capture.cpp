@@ -228,7 +228,7 @@ namespace px
         cap_video_frame.bottom_ = this->bottom_;
 
         if (plugin_->IsPluginEnabled()) {
-            auto event = std::make_shared<GrPluginCapturedVideoFrameEvent>();
+            auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
             this->plugin_->CallbackEvent(event);
         }

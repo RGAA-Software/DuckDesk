@@ -60,9 +60,9 @@ namespace px
 
     // - - -- - - -- - - - -- -
 
-    AppStreamList::AppStreamList(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent) {
+    AppStreamList::AppStreamList(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent) {
         context_ = ctx;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         db_mgr_ = context_->GetStreamDBManager();
         stream_content_ = (StreamContent*)parent;
         running_stream_mgr_ = context_->GetRunningStreamManager();
@@ -594,7 +594,7 @@ namespace px
 
         TcDialog dialog(tcTr("id_warning"), tcTr("id_ask_lock_screen"));
         if (dialog.exec() == kDoneOk) {
-            auto msg = std::make_shared<GrSmLockScreen>();
+            auto msg = std::make_shared<PxSmLockScreen>();
             msg->stream_item_ = item;
             grApp->PostMessage2RemoteRender(msg);
         }
@@ -608,7 +608,7 @@ namespace px
 
         TcDialog dialog(tcTr("id_warning"), tcTr("id_ask_restart_device"));
         if (dialog.exec() == kDoneOk) {
-            auto msg = std::make_shared<GrSmRestartDevice>();
+            auto msg = std::make_shared<PxSmRestartDevice>();
             msg->stream_item_ = item;
             grApp->PostMessage2RemoteRender(msg);
         }
@@ -622,7 +622,7 @@ namespace px
 
         TcDialog dialog(tcTr("id_warning"), tcTr("id_ask_shutdown_device"));
         if (dialog.exec() == kDoneOk) {
-            auto msg = std::make_shared<GrSmShutdownDevice>();
+            auto msg = std::make_shared<PxSmShutdownDevice>();
             msg->stream_item_ = item;
             grApp->PostMessage2RemoteRender(msg);
         }

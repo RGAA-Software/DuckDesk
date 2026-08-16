@@ -12,11 +12,11 @@ namespace px
     const char* kPipeName = R"(\\.\pipe\running\render_panel)";
     const char* kPipSignal = R"(Good)";
 
-    GrRunningPipe::GrRunningPipe() {
+    PxRunningPipe::PxRunningPipe() {
 
     }
 
-    GrRunningPipe::~GrRunningPipe() {
+    PxRunningPipe::~PxRunningPipe() {
         if (recv_handle_ != INVALID_HANDLE_VALUE) {
             exit_receiving_ = true;
             DisconnectNamedPipe(recv_handle_);
@@ -24,7 +24,7 @@ namespace px
         }
     }
 
-    void GrRunningPipe::StartListening(std::function<void()>&& cbk) {
+    void PxRunningPipe::StartListening(std::function<void()>&& cbk) {
         recv_thread_ = std::make_shared<std::thread>([=, this]() {
             recv_handle_ = CreateNamedPipeA(kPipeName, PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                                             1, 1024, 1024, NMPWAIT_USE_DEFAULT_WAIT, NULL);
@@ -54,7 +54,7 @@ namespace px
         });
     }
 
-    bool GrRunningPipe::SendHello() {
+    bool PxRunningPipe::SendHello() {
         HANDLE handle = CreateFileA(kPipeName, GENERIC_READ | GENERIC_WRITE,
                                                   0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if(handle == INVALID_HANDLE_VALUE){

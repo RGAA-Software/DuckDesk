@@ -2,8 +2,8 @@
 // Created by RGAA on 13/04/2025.
 //
 
-#ifndef GAMMARAY_RTC_CONNECTION_H
-#define GAMMARAY_RTC_CONNECTION_H
+#ifndef PX_RTC_CONNECTION_H
+#define PX_RTC_CONNECTION_H
 
 #include "rtc_client_interface.h"
 #include "px_common_new/webrtc_helper.h"
@@ -114,4 +114,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_CONNECTION_H
+#endif //PX_RTC_CONNECTION_H

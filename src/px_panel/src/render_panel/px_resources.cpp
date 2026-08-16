@@ -15,7 +15,7 @@
 namespace px
 {
 
-    GrResources::GrResources(const std::shared_ptr<GrContext>& ctx) {
+    PxResources::PxResources(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
         res_folder_path_ = QApplication::applicationDirPath() +  "/resources";
         QDir res_dir(res_folder_path_);
@@ -26,7 +26,7 @@ namespace px
         }
     }
 
-    void GrResources::ExtractIconsIfNeeded() {
+    void PxResources::ExtractIconsIfNeeded() {
         const auto res_folder_path = res_folder_path_;
         context_->PostTask([res_folder_path] {
             for (int i = 1; i <= 30; i++) {

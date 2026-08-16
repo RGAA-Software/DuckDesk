@@ -73,7 +73,7 @@ fn to_rp_clipboard_file(file: &ClipboardFileEntry) -> RpClipboardFile {
     }
 }
 
-fn to_tc_clipboard_file(file: &ClipboardFileEntry) -> ClipboardFile {
+fn to_px_clipboard_file(file: &ClipboardFileEntry) -> ClipboardFile {
     ClipboardFile {
         file_name: file.file_name.clone(),
         full_path: file.full_path.clone(),
@@ -100,12 +100,12 @@ pub fn clipboard_files_from_rp(msg: &RpMessage) -> Option<Vec<ClipboardFileEntry
     )
 }
 
-pub fn build_tc_clipboard_files(files: &[ClipboardFileEntry]) -> Vec<u8> {
+pub fn build_px_clipboard_files(files: &[ClipboardFileEntry]) -> Vec<u8> {
     let msg = Message {
         r#type: MessageType::KClipboardInfo as i32,
         clipboard_info: Some(ClipboardInfo {
             r#type: ClipboardType::KClipboardFiles as i32,
-            files: files.iter().map(to_tc_clipboard_file).collect(),
+            files: files.iter().map(to_px_clipboard_file).collect(),
             ..Default::default()
         }),
         ..Default::default()
@@ -113,12 +113,12 @@ pub fn build_tc_clipboard_files(files: &[ClipboardFileEntry]) -> Vec<u8> {
     msg.encode_to_vec()
 }
 
-pub fn build_tc_clipboard_files_resp(files: &[ClipboardFileEntry]) -> Vec<u8> {
+pub fn build_px_clipboard_files_resp(files: &[ClipboardFileEntry]) -> Vec<u8> {
     let msg = Message {
         r#type: MessageType::KClipboardInfoResp as i32,
         clipboard_info_resp: Some(ClipboardInfoResp {
             r#type: ClipboardType::KClipboardFiles as i32,
-            files: files.iter().map(to_tc_clipboard_file).collect(),
+            files: files.iter().map(to_px_clipboard_file).collect(),
             ..Default::default()
         }),
         ..Default::default()
@@ -126,7 +126,7 @@ pub fn build_tc_clipboard_files_resp(files: &[ClipboardFileEntry]) -> Vec<u8> {
     msg.encode_to_vec()
 }
 
-pub fn clipboard_files_from_tc(msg: &Message) -> Option<Vec<ClipboardFileEntry>> {
+pub fn clipboard_files_from_px(msg: &Message) -> Option<Vec<ClipboardFileEntry>> {
     let info = msg.clipboard_info.as_ref()?;
     if info.r#type != ClipboardType::KClipboardFiles as i32 {
         return None;
@@ -169,7 +169,7 @@ pub fn clipboard_text_from_rp(msg: &RpMessage) -> Option<String> {
     Some(String::from_utf8_lossy(&info.msg).into_owned())
 }
 
-pub fn build_tc_clipboard_info(text: &str) -> Vec<u8> {
+pub fn build_px_clipboard_info(text: &str) -> Vec<u8> {
     let msg = Message {
         r#type: MessageType::KClipboardInfo as i32,
         clipboard_info: Some(ClipboardInfo {
@@ -182,7 +182,7 @@ pub fn build_tc_clipboard_info(text: &str) -> Vec<u8> {
     msg.encode_to_vec()
 }
 
-pub fn build_tc_clipboard_info_resp(text: &str) -> Vec<u8> {
+pub fn build_px_clipboard_info_resp(text: &str) -> Vec<u8> {
     let msg = Message {
         r#type: MessageType::KClipboardInfoResp as i32,
         clipboard_info_resp: Some(ClipboardInfoResp {
@@ -221,7 +221,7 @@ pub fn build_raw_render_message_routed(
     msg.encode_to_vec()
 }
 
-fn build_tc_message_routed(
+fn build_px_message_routed(
     msg_type: MessageType,
     route: &StreamRoute,
     fill: impl FnOnce(&mut Message),
@@ -236,8 +236,8 @@ fn build_tc_message_routed(
     msg.encode_to_vec()
 }
 
-pub fn build_tc_req_buffer(req: &ReadChunkRequest, route: &StreamRoute) -> Vec<u8> {
-    let inner = build_tc_message_routed(MessageType::KClipboardReqBuffer, route, |msg| {
+pub fn build_px_req_buffer(req: &ReadChunkRequest, route: &StreamRoute) -> Vec<u8> {
+    let inner = build_px_message_routed(MessageType::KClipboardReqBuffer, route, |msg| {
         msg.cp_req_buffer = Some(ClipboardReqBuffer {
             full_name: req.full_name.clone(),
             req_size: req.req_size,
@@ -248,8 +248,8 @@ pub fn build_tc_req_buffer(req: &ReadChunkRequest, route: &StreamRoute) -> Vec<u
     build_raw_render_message_routed(&inner, true, Some(route))
 }
 
-pub fn build_tc_req_at_begin(full_name: &str, route: &StreamRoute) -> Vec<u8> {
-    let inner = build_tc_message_routed(MessageType::KClipboardReqAtBegin, route, |msg| {
+pub fn build_px_req_at_begin(full_name: &str, route: &StreamRoute) -> Vec<u8> {
+    let inner = build_px_message_routed(MessageType::KClipboardReqAtBegin, route, |msg| {
         msg.cp_req_at_begin = Some(ClipboardReqAtBegin {
             full_name: full_name.to_string(),
         });
@@ -257,8 +257,8 @@ pub fn build_tc_req_at_begin(full_name: &str, route: &StreamRoute) -> Vec<u8> {
     build_raw_render_message_routed(&inner, true, Some(route))
 }
 
-pub fn build_tc_req_at_end(full_name: &str, success: bool, route: &StreamRoute) -> Vec<u8> {
-    let inner = build_tc_message_routed(MessageType::KClipboardReqAtEnd, route, |msg| {
+pub fn build_px_req_at_end(full_name: &str, success: bool, route: &StreamRoute) -> Vec<u8> {
+    let inner = build_px_message_routed(MessageType::KClipboardReqAtEnd, route, |msg| {
         msg.cp_req_at_end = Some(ClipboardReqAtEnd {
             full_name: full_name.to_string(),
             success,
@@ -267,8 +267,8 @@ pub fn build_tc_req_at_end(full_name: &str, success: bool, route: &StreamRoute) 
     build_raw_render_message_routed(&inner, true, Some(route))
 }
 
-pub fn build_tc_resp_buffer(resp: &RespBufferData, route: &StreamRoute) -> Vec<u8> {
-    build_tc_message_routed(MessageType::KClipboardRespBuffer, route, |msg| {
+pub fn build_px_resp_buffer(resp: &RespBufferData, route: &StreamRoute) -> Vec<u8> {
+    build_px_message_routed(MessageType::KClipboardRespBuffer, route, |msg| {
         msg.cp_resp_buffer = Some(ClipboardRespBuffer {
             full_name: resp.full_name.clone(),
             req_size: resp.req_size,
@@ -280,7 +280,7 @@ pub fn build_tc_resp_buffer(resp: &RespBufferData, route: &StreamRoute) -> Vec<u
     })
 }
 
-pub fn clipboard_resp_buffer_from_tc(msg: &Message) -> Option<RespBufferData> {
+pub fn clipboard_resp_buffer_from_px(msg: &Message) -> Option<RespBufferData> {
     if msg.r#type != MessageType::KClipboardRespBuffer as i32 {
         return None;
     }
@@ -295,7 +295,7 @@ pub fn clipboard_resp_buffer_from_tc(msg: &Message) -> Option<RespBufferData> {
     })
 }
 
-pub fn stream_route_from_tc(msg: &Message) -> StreamRoute {
+pub fn stream_route_from_px(msg: &Message) -> StreamRoute {
     StreamRoute {
         stream_id: msg.stream_id.clone(),
         device_id: msg.device_id.clone(),
@@ -309,7 +309,7 @@ pub fn stream_route_from_rp_raw(sub: &RpRawRenderMessage) -> StreamRoute {
     }
 }
 
-pub fn parse_tc_message(bytes: &[u8]) -> Result<Message, prost::DecodeError> {
+pub fn parse_px_message(bytes: &[u8]) -> Result<Message, prost::DecodeError> {
     Message::decode(bytes)
 }
 
@@ -372,8 +372,8 @@ mod tests {
 
     #[test]
     fn px_clipboard_info_roundtrip() {
-        let bytes = build_tc_clipboard_info("host-text");
-        let parsed = parse_tc_message(&bytes).expect("decode");
+        let bytes = build_px_clipboard_info("host-text");
+        let parsed = parse_px_message(&bytes).expect("decode");
         assert_eq!(parsed.r#type, MessageType::KClipboardInfo as i32);
         let info = parsed.clipboard_info.expect("info");
         assert_eq!(info.r#type, ClipboardType::KClipboardText as i32);
@@ -382,26 +382,26 @@ mod tests {
 
     #[test]
     fn px_clipboard_info_resp_roundtrip() {
-        let bytes = build_tc_clipboard_info_resp("resp-text");
-        let parsed = parse_tc_message(&bytes).expect("decode");
+        let bytes = build_px_clipboard_info_resp("resp-text");
+        let parsed = parse_px_message(&bytes).expect("decode");
         assert_eq!(parsed.r#type, MessageType::KClipboardInfoResp as i32);
     }
 
     #[test]
-    fn nested_raw_render_carries_tc_message() {
-        let inner = build_tc_clipboard_info("nested");
+    fn nested_raw_render_carries_px_message() {
+        let inner = build_px_clipboard_info("nested");
         let outer = build_raw_render_message(&inner, false);
         let rp = parse_rp_message(&outer).expect("decode rp");
         let raw = rp.raw_render_msg.expect("raw").msg;
-        let tc = parse_tc_message(&raw).expect("decode tc");
-        let info = tc.clipboard_info.expect("info");
+        let msg = parse_px_message(&raw).expect("decode msg");
+        let info = msg.clipboard_info.expect("info");
         assert_eq!(String::from_utf8_lossy(&info.msg), "nested");
     }
 
     #[test]
     fn unknown_bytes_fails_gracefully() {
         assert!(parse_rp_message(&[0xFF, 0x01]).is_err());
-        assert!(parse_tc_message(&[0xAA]).is_err());
+        assert!(parse_px_message(&[0xAA]).is_err());
     }
 
     #[test]
@@ -430,15 +430,15 @@ mod tests {
             req_start: 100,
             req_size: 4096,
         };
-        let outer = build_tc_req_buffer(&req, &route);
+        let outer = build_px_req_buffer(&req, &route);
         let rp = parse_rp_message(&outer).expect("rp");
         let sub = rp.raw_render_msg.expect("raw");
         assert!(sub.data_channel);
         assert_eq!(sub.stream_id, "stream-a");
-        let tc = parse_tc_message(&sub.msg).expect("tc");
-        assert_eq!(tc.stream_id, "stream-a");
-        assert_eq!(tc.device_id, "device-a");
-        let buf = tc.cp_req_buffer.expect("req");
+        let msg = parse_px_message(&sub.msg).expect("msg");
+        assert_eq!(msg.stream_id, "stream-a");
+        assert_eq!(msg.device_id, "device-a");
+        let buf = msg.cp_req_buffer.expect("req");
         assert_eq!(buf.full_name, "C:/x.bin");
         assert_eq!(buf.req_index, 2);
         assert_eq!(buf.req_start, 100);
@@ -459,9 +459,9 @@ mod tests {
             read_size: 4,
             buffer: b"data".to_vec(),
         };
-        let bytes = build_tc_resp_buffer(&resp, &route);
-        let tc = parse_tc_message(&bytes).expect("tc");
-        let parsed = clipboard_resp_buffer_from_tc(&tc).expect("resp");
+        let bytes = build_px_resp_buffer(&resp, &route);
+        let msg = parse_px_message(&bytes).expect("msg");
+        let parsed = clipboard_resp_buffer_from_px(&msg).expect("resp");
         assert_eq!(parsed, resp);
     }
 
@@ -471,24 +471,24 @@ mod tests {
             stream_id: "s".to_string(),
             device_id: "d".to_string(),
         };
-        let begin_outer = build_tc_req_at_begin("C:/a.txt", &route);
+        let begin_outer = build_px_req_at_begin("C:/a.txt", &route);
         let begin_rp = parse_rp_message(&begin_outer).expect("rp");
-        let begin_tc =
-            parse_tc_message(&begin_rp.raw_render_msg.expect("raw").msg).expect("tc");
+        let begin_msg =
+            parse_px_message(&begin_rp.raw_render_msg.expect("raw").msg).expect("msg");
         assert_eq!(
-            begin_tc.r#type,
+            begin_msg.r#type,
             MessageType::KClipboardReqAtBegin as i32
         );
         assert_eq!(
-            begin_tc.cp_req_at_begin.expect("begin").full_name,
+            begin_msg.cp_req_at_begin.expect("begin").full_name,
             "C:/a.txt"
         );
 
-        let end_outer = build_tc_req_at_end("C:/a.txt", true, &route);
+        let end_outer = build_px_req_at_end("C:/a.txt", true, &route);
         let end_rp = parse_rp_message(&end_outer).expect("rp");
-        let end_tc = parse_tc_message(&end_rp.raw_render_msg.expect("raw").msg).expect("tc");
-        assert_eq!(end_tc.r#type, MessageType::KClipboardReqAtEnd as i32);
-        let end = end_tc.cp_req_at_end.expect("end");
+        let end_msg = parse_px_message(&end_rp.raw_render_msg.expect("raw").msg).expect("msg");
+        assert_eq!(end_msg.r#type, MessageType::KClipboardReqAtEnd as i32);
+        let end = end_msg.cp_req_at_end.expect("end");
         assert_eq!(end.full_name, "C:/a.txt");
         assert!(end.success);
     }

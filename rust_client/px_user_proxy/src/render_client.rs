@@ -11,10 +11,10 @@ use crate::clipboard::virtual_file::RespBufferData;
 use crate::config::{UserProxyConfig, RECONNECT_SECS};
 use crate::proto::{
     self, build_clipboard_text_event, build_heartbeat_message, build_raw_render_message,
-    build_raw_render_message_routed, build_tc_clipboard_files_resp, build_tc_clipboard_info_resp,
-    build_tc_resp_buffer, clipboard_files_from_tc, clipboard_resp_buffer_from_tc,
-    clipboard_text_from_rp, parse_rp_message, parse_tc_message, stream_route_from_rp_raw,
-    stream_route_from_tc, pxrp::RpMessageType, px::MessageType, HEARTBEAT_INTERVAL_SECS,
+    build_raw_render_message_routed, build_px_clipboard_files_resp, build_px_clipboard_info_resp,
+    build_px_resp_buffer, clipboard_files_from_px, clipboard_resp_buffer_from_px,
+    clipboard_text_from_rp, parse_rp_message, parse_px_message, stream_route_from_rp_raw,
+    stream_route_from_px, pxrp::RpMessageType, px::MessageType, HEARTBEAT_INTERVAL_SECS,
 };
 
 type WsSink = futures_util::stream::SplitSink<
@@ -218,8 +218,8 @@ pub fn handle_inbound_rp(
                     handle_inbound_data_channel(&sub, clipboard, client);
                     return;
                 }
-                match parse_tc_message(&sub.msg) {
-                    Ok(px_msg) => handle_inbound_tc(&px_msg, clipboard, client),
+                match parse_px_message(&sub.msg) {
+                    Ok(px_msg) => handle_inbound_px(&px_msg, clipboard, client),
                     Err(err) => error!("parse px::Message failed: {err}, len={}", sub.msg.len()),
                 }
             }
@@ -234,7 +234,7 @@ fn handle_inbound_data_channel(
     clipboard: &crate::clipboard::ClipboardService,
     client: Arc<RenderClient>,
 ) {
-    let px_msg = match parse_tc_message(&sub.msg) {
+    let px_msg = match parse_px_message(&sub.msg) {
         Ok(v) => v,
         Err(err) => {
             error!(
@@ -296,7 +296,7 @@ fn dispatch_req_buffer(
         buffer,
     };
     let reply =
-        build_raw_render_message_routed(&build_tc_resp_buffer(&resp, route), true, Some(route));
+        build_raw_render_message_routed(&build_px_resp_buffer(&resp, route), true, Some(route));
     info!(
         "clipboard req buffer handled, full={}, start={}, size={}, read={}",
         req.full_name, req.req_start, req.req_size, read_size
@@ -315,13 +315,13 @@ fn dispatch_resp_buffer(
 ) {
     if MessageType::try_from(msg.r#type) != Ok(MessageType::KClipboardRespBuffer) {
         info!(
-            "ignored data_channel tc type: {:?}, stream_id={}",
+            "ignored data_channel px type: {:?}, stream_id={}",
             msg.r#type,
             route.as_ref().map(|r| r.stream_id.as_str()).unwrap_or("")
         );
         return;
     }
-    let Some(resp) = clipboard_resp_buffer_from_tc(msg) else {
+    let Some(resp) = clipboard_resp_buffer_from_px(msg) else {
         warn!("clipboard resp buffer missing payload");
         return;
     };
@@ -340,7 +340,7 @@ fn dispatch_resp_buffer(
     }
 }
 
-fn handle_inbound_tc(
+fn handle_inbound_px(
     msg: &proto::px::Message,
     clipboard: &crate::clipboard::ClipboardService,
     client: Arc<RenderClient>,
@@ -360,7 +360,7 @@ fn handle_inbound_tc(
                     error!("apply remote clipboard failed: {err:#}");
                     return;
                 }
-                let resp = build_raw_render_message(&build_tc_clipboard_info_resp(&text), false);
+                let resp = build_raw_render_message(&build_px_clipboard_info_resp(&text), false);
                 tokio::spawn(async move {
                     if let Err(err) = client.send_bytes(resp).await {
                         error!("send clipboard resp failed: {err:#}");
@@ -370,16 +370,16 @@ fn handle_inbound_tc(
             }
 
             if info.r#type == proto::px::ClipboardType::KClipboardFiles as i32 {
-                let Some(files) = clipboard_files_from_tc(msg) else {
+                let Some(files) = clipboard_files_from_px(msg) else {
                     return;
                 };
-                let route = stream_route_from_tc(msg);
+                let route = stream_route_from_px(msg);
                 if let Err(err) = clipboard.apply_remote_files(&files, &route) {
                     error!("apply remote clipboard files failed: {err:#}");
                     return;
                 }
                 let resp =
-                    build_raw_render_message(&build_tc_clipboard_files_resp(&files), false);
+                    build_raw_render_message(&build_px_clipboard_files_resp(&files), false);
                 tokio::spawn(async move {
                     if let Err(err) = client.send_bytes(resp).await {
                         error!("send clipboard files resp failed: {err:#}");
@@ -388,9 +388,9 @@ fn handle_inbound_tc(
             }
         }
         Ok(MessageType::KClipboardRespBuffer) => {
-            dispatch_resp_buffer(msg, clipboard, Some(stream_route_from_tc(msg)));
+            dispatch_resp_buffer(msg, clipboard, Some(stream_route_from_px(msg)));
         }
-        Ok(other) => info!("ignored inbound tc type: {:?}", other),
+        Ok(other) => info!("ignored inbound px type: {:?}", other),
         Err(_) => error!("unknown px::Message type: {}", msg.r#type),
     }
 }
@@ -438,8 +438,8 @@ mod tests {
     }
 
     #[test]
-    fn build_raw_render_from_tc_message() {
-        let inner = proto::build_tc_clipboard_info("x");
+    fn build_raw_render_from_px_message() {
+        let inner = proto::build_px_clipboard_info("x");
         let outer = build_raw_render_message(&inner, false);
         let rp = parse_rp_message(&outer).expect("rp");
         assert_eq!(rp.r#type, RpMessageType::KRpRawRenderMessage as i32);

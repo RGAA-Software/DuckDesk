@@ -2,8 +2,8 @@
 // Created by RGAA on 24/03/2025.
 //
 
-#ifndef GAMMARAY_CT_STREAM_ITEM_NET_TYPE_H
-#define GAMMARAY_CT_STREAM_ITEM_NET_TYPE_H
+#ifndef PX_CT_STREAM_ITEM_NET_TYPE_H
+#define PX_CT_STREAM_ITEM_NET_TYPE_H
 
 #include <string>
 
@@ -22,4 +22,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_STREAM_ITEM_NET_TYPE_H
+#endif //PX_CT_STREAM_ITEM_NET_TYPE_H

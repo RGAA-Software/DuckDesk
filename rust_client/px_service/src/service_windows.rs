@@ -46,7 +46,7 @@ pub fn dispatch_service(port: u16) -> Result<(), String> {
     let _ = BOOTSTRAP_CONFIG.set(config);
     let mut table = [
         SERVICE_TABLE_ENTRYW {
-            lpServiceName: windows::core::PWSTR(w!("GammaRayService").as_ptr() as *mut _),
+            lpServiceName: windows::core::PWSTR(w!("px_service").as_ptr() as *mut _),
             lpServiceProc: Some(service_main),
         },
         SERVICE_TABLE_ENTRYW {
@@ -115,7 +115,7 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut windows::core::PW
         dwWaitHint: 0,
     };
     let status_handle: SERVICE_STATUS_HANDLE = RegisterServiceCtrlHandlerExW(
-        PCWSTR(w!("GammaRayService").as_ptr()),
+        PCWSTR(w!("px_service").as_ptr()),
         Some(service_handler),
         None,
     )

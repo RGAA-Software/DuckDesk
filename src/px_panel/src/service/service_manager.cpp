@@ -15,7 +15,7 @@
 namespace px
 {
     namespace {
-        static const char* kServiceManagerExe = px::kGammaRayServiceManagerExeName;
+        static const char* kServiceManagerExe = px::kPxServiceManagerExeName;
 
         struct ProcessResult {
             bool ok_ = false;

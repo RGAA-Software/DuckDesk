@@ -1,6 +1,6 @@
-import {GrRenderer} from "./px_renderer.ts";
+import {PxRenderer} from "./px_renderer.ts";
 
-export class GrCanvas2DRenderer extends GrRenderer {
+export class PxCanvas2DRenderer extends PxRenderer {
     constructor(name: string, renderCanvas: HTMLCanvasElement) {
         super(name, renderCanvas)
         this.renderCanvasContext = renderCanvas.getContext('2d')

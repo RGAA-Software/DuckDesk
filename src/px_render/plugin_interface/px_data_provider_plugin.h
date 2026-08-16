@@ -2,19 +2,19 @@
 // Created by RGAA on 26/11/2024.
 //
 
-#ifndef GAMMARAY_GR_DATA_PROVIDER_PLUGIN_H
-#define GAMMARAY_GR_DATA_PROVIDER_PLUGIN_H
+#ifndef PX_DATA_PROVIDER_PLUGIN_H
+#define PX_DATA_PROVIDER_PLUGIN_H
 
 #include "px_plugin_interface.h"
 
 namespace px
 {
 
-    class GrDataProviderPlugin : public GrPluginInterface {
+    class PxDataProviderPlugin : public PxPluginInterface {
     public:
-        GrDataProviderPlugin();
-        ~GrDataProviderPlugin() override;
-        bool OnCreate(const px::GrPluginParam& param) override;
+        PxDataProviderPlugin();
+        ~PxDataProviderPlugin() override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
         virtual void StartProviding();
         virtual void StopProviding();
@@ -30,4 +30,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_DATA_PROVIDER_PLUGIN_H
+#endif //PX_DATA_PROVIDER_PLUGIN_H

@@ -18,7 +18,7 @@ namespace px
 {
 
     // Widget
-    MonitorRefreshWidget::MonitorRefreshWidget(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent) {
+    MonitorRefreshWidget::MonitorRefreshWidget(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent) {
         context_ = ctx;
         setAttribute(Qt::WA_TransparentForMouseEvents, true);
         setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
@@ -36,7 +36,7 @@ namespace px
     }
 
     // Refresher
-    MonitorRefresher::MonitorRefresher(const std::shared_ptr<GrContext>& ctx, QWidget* parent) {
+    MonitorRefresher::MonitorRefresher(const std::shared_ptr<PxContext>& ctx, QWidget* parent) {
         context_ = ctx;
         QList<QScreen*> screen_list = QGuiApplication::screens();
         for (const QScreen* screen : screen_list) {

@@ -9,7 +9,7 @@ struct MonitorCli {
 }
 
 fn main() {
-    let _guard = px_sysinfo::single_instance::ensure_single_instance("GrSysMonitor_SingleInstance");
+    let _guard = px_sysinfo::single_instance::ensure_single_instance("PxSysMonitor_SingleInstance");
     if _guard.is_none() {
         return;
     }

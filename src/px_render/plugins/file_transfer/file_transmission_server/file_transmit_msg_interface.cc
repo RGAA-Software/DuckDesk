@@ -147,7 +147,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		//"GetFileList kFileTransRespUpload post error."
 
         // report file upload end
-        auto event = std::make_shared<GrPluginFileTransferEnd>();
+        auto event = std::make_shared<PxPluginFileTransferEnd>();
         event->the_file_id_ = resp_upload->task_id();
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = resp_upload->res();
@@ -166,7 +166,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 
     // 下载开始
     file_trans_manager_->file_transmit_impl_->download_begin_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& stream_id, const std::string& file_path) {
-        auto event = std::make_shared<GrPluginFileTransferBegin>();
+        auto event = std::make_shared<PxPluginFileTransferBegin>();
         event->the_file_id_ = task_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->visitor_device_id_ = device_id;
@@ -178,7 +178,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
     // 下载正常结束
     file_trans_manager_->file_transmit_impl_->download_end_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& stream_id, const std::string& file_path) {
         // report file download end
-        auto event = std::make_shared<GrPluginFileTransferEnd>();
+        auto event = std::make_shared<PxPluginFileTransferEnd>();
         event->the_file_id_ = task_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = true;
@@ -188,7 +188,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
     // 用户取消下载
     file_trans_manager_->file_transmit_impl_->download_canceled_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& stream_id) {
         // report file download canceled
-        auto event = std::make_shared<GrPluginFileTransferEnd>();
+        auto event = std::make_shared<PxPluginFileTransferEnd>();
         event->the_file_id_ = task_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = false;
@@ -208,7 +208,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 		// "GetFileList FileTransRespDownload post error."
 
         // report file download error
-        auto event = std::make_shared<GrPluginFileTransferEnd>();
+        auto event = std::make_shared<PxPluginFileTransferEnd>();
         event->the_file_id_ = task_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = false;
@@ -315,7 +315,7 @@ void FileTransmitMsgInterface::RegisterFileTransmitCallback() {
 	});
 
     file_trans_manager_->file_transmit_impl_->upload_task_created_func_ = [=, this](const std::string& task_id, const std::string& device_id, const std::string& src_path, const std::string& dst_path) {
-        auto event = std::make_shared<GrPluginFileTransferBegin>();
+        auto event = std::make_shared<PxPluginFileTransferBegin>();
         event->the_file_id_ = task_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->visitor_device_id_ = device_id;

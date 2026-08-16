@@ -1,8 +1,8 @@
-//! Keepalive for `GammaRay.exe` and `GammaRaySysInfo.exe` (merged from px_guard).
+//! Keepalive for `px_panel.exe` and `px_osinfo.exe` (merged from px_guard).
 //!
 //! Every `KEEPALIVE_POLL_INTERVAL` the running processes are enumerated via a
 //! Toolhelp snapshot; missing targets are restarted. The panel is started
-//! through the `GammaRay_Panel_Start` scheduled task (elevated, no UAC) with a
+//! through the `px_panel_start` scheduled task (elevated, no UAC) with a
 //! direct spawn as fallback; SysInfo is spawned directly.
 
 use std::path::{Path, PathBuf};
@@ -78,7 +78,7 @@ fn utf16z_to_string(buffer: &[u16]) -> String {
 pub trait ProcessSpawner: Send + Sync + 'static {
     fn spawn_path(&self, exe_path: &Path) -> Result<(), String>;
 
-    /// Start the panel via the registered `GammaRay_Panel_Start` scheduled
+    /// Start the panel via the registered `px_panel_start` scheduled
     /// task (keeps the elevated-start semantics without a UAC prompt); fall
     /// back to a direct spawn when the task run fails.
     fn start_panel(&self, exe_path: &Path) -> Result<(), String> {
@@ -188,7 +188,7 @@ pub fn run_keepalive_tick(
     {
         info!("panel start already triggered, waiting for it to appear (cooldown)");
     } else {
-        warn!("GammaRay.exe missing, starting");
+        warn!("px_panel.exe missing, starting");
         let path = panel_exe_path(app_dir);
         info!("starting panel, path={}", path.display());
         spawner.start_panel(&path)?;
@@ -205,7 +205,7 @@ pub fn run_keepalive_tick(
     {
         info!("sysinfo start already triggered, waiting for it to appear (cooldown)");
     } else {
-        warn!("GammaRaySysInfo.exe missing, starting");
+        warn!("px_osinfo.exe missing, starting");
         let path = sysinfo_exe_path(app_dir);
         info!("starting sysinfo, path={}", path.display());
         spawner.spawn_path(&path)?;
@@ -235,7 +235,7 @@ pub fn run_initial_check(
         return Ok(false);
     }
 
-    warn!("GammaRaySysInfo.exe missing during bootstrap, starting");
+    warn!("px_osinfo.exe missing during bootstrap, starting");
     let path = sysinfo_exe_path(app_dir);
     info!("starting sysinfo, path={}", path.display());
     spawner.spawn_path(&path)?;
@@ -317,13 +317,13 @@ mod tests {
 
     #[test]
     fn finds_panel_case_insensitively() {
-        assert!(has_process_named(&[entry("gammaray.exe")], PANEL_EXE_NAME));
+        assert!(has_process_named(&[entry("px_panel.exe")], PANEL_EXE_NAME));
     }
 
     #[test]
     fn finds_sysinfo_case_insensitively() {
         assert!(has_process_named(
-            &[entry("gammaraysysinfo.exe")],
+            &[entry("px_osinfo.exe")],
             SYSINFO_EXE_NAME
         ));
     }
@@ -337,7 +337,7 @@ mod tests {
         let outcome = run_keepalive_tick(
             &lister,
             &spawner,
-            Path::new("D:/GammaRay"),
+            Path::new("D:/px"),
             &mut KeepaliveState::default(),
         )
         .expect("tick");
@@ -362,7 +362,7 @@ mod tests {
         let outcome = run_keepalive_tick(
             &lister,
             &spawner,
-            Path::new("D:/GammaRay"),
+            Path::new("D:/px"),
             &mut KeepaliveState::default(),
         )
         .expect("tick");
@@ -370,7 +370,7 @@ mod tests {
         assert!(outcome.started_panel);
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
-            &[PathBuf::from("D:/GammaRay/GammaRay.exe")]
+            &[PathBuf::from("D:/px/px_panel.exe")]
         );
     }
 
@@ -383,7 +383,7 @@ mod tests {
         let outcome = run_keepalive_tick(
             &lister,
             &spawner,
-            Path::new("D:/GammaRay"),
+            Path::new("D:/px"),
             &mut KeepaliveState::default(),
         )
         .expect("tick");
@@ -392,7 +392,7 @@ mod tests {
         assert!(outcome.started_sysinfo);
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
-            &[PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe")]
+            &[PathBuf::from("D:/px/px_osinfo.exe")]
         );
     }
 
@@ -403,7 +403,7 @@ mod tests {
         let outcome = run_keepalive_tick(
             &lister,
             &spawner,
-            Path::new("D:/GammaRay"),
+            Path::new("D:/px"),
             &mut KeepaliveState::default(),
         )
         .expect("tick");
@@ -412,8 +412,8 @@ mod tests {
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
             &[
-                PathBuf::from("D:/GammaRay/GammaRay.exe"),
-                PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe"),
+                PathBuf::from("D:/px/px_panel.exe"),
+                PathBuf::from("D:/px/px_osinfo.exe"),
             ]
         );
     }
@@ -425,11 +425,11 @@ mod tests {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
-        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 1");
         assert!(first.started_panel);
         let second =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
                 .expect("tick 2");
         assert!(!second.started_panel, "cooldown must suppress respawn");
         let panel_spawns = spawner
@@ -451,11 +451,11 @@ mod tests {
         };
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
-        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 1");
         assert!(first.started_sysinfo);
         let second =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/GammaRay"), &mut state)
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
                 .expect("tick 2");
         assert!(!second.started_sysinfo, "cooldown must suppress respawn");
         let sysinfo_spawns = spawner
@@ -475,13 +475,13 @@ mod tests {
         let missing = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME)],
         };
-        run_keepalive_tick(&missing, &spawner, Path::new("D:/GammaRay"), &mut state)
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 1");
         assert!(state.sysinfo_respawn_not_before.is_some());
         let alive = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME), entry(SYSINFO_EXE_NAME)],
         };
-        run_keepalive_tick(&alive, &spawner, Path::new("D:/GammaRay"), &mut state)
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 2");
         assert!(state.sysinfo_respawn_not_before.is_none());
     }
@@ -491,13 +491,13 @@ mod tests {
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
         let missing = StaticLister { processes: vec![] };
-        run_keepalive_tick(&missing, &spawner, Path::new("D:/GammaRay"), &mut state)
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 1");
         assert!(state.panel_respawn_not_before.is_some());
         let alive = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME)],
         };
-        run_keepalive_tick(&alive, &spawner, Path::new("D:/GammaRay"), &mut state)
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state)
             .expect("tick 2");
         assert!(state.panel_respawn_not_before.is_none());
     }
@@ -505,7 +505,7 @@ mod tests {
     #[test]
     fn similar_process_names_do_not_count_as_panel() {
         assert!(!has_process_named(
-            &[entry("GammaRayGuard.exe")],
+            &[entry("px_guard.exe")],
             PANEL_EXE_NAME
         ));
     }
@@ -514,12 +514,12 @@ mod tests {
     fn initial_check_only_starts_sysinfo() {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
-        let started = run_initial_check(&lister, &spawner, Path::new("D:/GammaRay"))
+        let started = run_initial_check(&lister, &spawner, Path::new("D:/px"))
             .expect("initial check");
         assert!(started);
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
-            &[PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe")]
+            &[PathBuf::from("D:/px/px_osinfo.exe")]
         );
     }
 
@@ -529,7 +529,7 @@ mod tests {
             processes: vec![entry(SYSINFO_EXE_NAME)],
         };
         let spawner = RecordingSpawner::default();
-        let started = run_initial_check(&lister, &spawner, Path::new("D:/GammaRay"))
+        let started = run_initial_check(&lister, &spawner, Path::new("D:/px"))
             .expect("initial check");
         assert!(!started);
         assert!(spawner.paths.lock().expect("lock").is_empty());
@@ -538,16 +538,16 @@ mod tests {
     #[test]
     fn panel_exe_path_uses_app_directory() {
         assert_eq!(
-            panel_exe_path(Path::new("D:/GammaRay")),
-            PathBuf::from("D:/GammaRay/GammaRay.exe")
+            panel_exe_path(Path::new("D:/px")),
+            PathBuf::from("D:/px/px_panel.exe")
         );
     }
 
     #[test]
     fn sysinfo_exe_path_uses_app_directory() {
         assert_eq!(
-            sysinfo_exe_path(Path::new("D:/GammaRay")),
-            PathBuf::from("D:/GammaRay/GammaRaySysInfo.exe")
+            sysinfo_exe_path(Path::new("D:/px")),
+            PathBuf::from("D:/px/px_osinfo.exe")
         );
     }
 

@@ -22,14 +22,14 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class TcPasswordInput;
     class StNetworkCmsAccessInfo;
 
     class StNetworkAutoJoinDialog : public TcCustomTitleBarDialog {
     public:
-        StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent = nullptr);
+        StNetworkAutoJoinDialog(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent = nullptr);
         ~StNetworkAutoJoinDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -39,8 +39,8 @@ namespace px
         void CreateLayout();
 
     private:
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* edt_stream_name_ = nullptr;
         std::shared_ptr<StNetworkCmsAccessInfo> item_ = nullptr;
         TcPasswordInput* password_input_ = nullptr;

@@ -9,7 +9,7 @@
 #include "px_common_new/log.h"
 #include "px_render/plugins/plugin_ids.h"
 
-GR_PLUGIN_EXPORT(px::AmfEncoderPlugin)
+PX_PLUGIN_EXPORT(px::AmfEncoderPlugin)
 
 namespace px
 {
@@ -39,22 +39,22 @@ namespace px
     }
 
     void AmfEncoderPlugin::On1Second() {
-        GrVideoEncoderPlugin::On1Second();
+        PxVideoEncoderPlugin::On1Second();
     }
 
-    bool AmfEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
-        px::GrVideoEncoderPlugin::OnCreate(param);
+    bool AmfEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
+        px::PxVideoEncoderPlugin::OnCreate(param);
         return true;
     }
 
     bool AmfEncoderPlugin::OnDestroy() {
-        GrVideoEncoderPlugin::OnStop();
+        PxVideoEncoderPlugin::OnStop();
         ExitAll();
-        return GrVideoEncoderPlugin::OnDestroy();
+        return PxVideoEncoderPlugin::OnDestroy();
     }
 
     void AmfEncoderPlugin::InsertIdr() {
-        GrVideoEncoderPlugin::InsertIdr();
+        PxVideoEncoderPlugin::InsertIdr();
         if (IsWorking()) {
             for (const auto& [monitor_name, video_encoder] : video_encoders_) {
                 video_encoder->InsertIdr();
@@ -76,7 +76,7 @@ namespace px
             LOGE("This plugin is disabled!");
             return false;
         }
-        GrVideoEncoderPlugin::Init(config, monitor_name);
+        PxVideoEncoderPlugin::Init(config, monitor_name);
         auto encoder = std::make_shared<VideoEncoderVCE>(this, config.adapter_uid_);
         auto ok = encoder->Initialize(config);
         if (!ok) {

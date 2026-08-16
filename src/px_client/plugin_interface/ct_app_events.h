@@ -2,8 +2,8 @@
 // Created by RGAA on 23/05/2025.
 //
 
-#ifndef GAMMARAY_CT_APP_EVENTS_H
-#define GAMMARAY_CT_APP_EVENTS_H
+#ifndef PX_CT_APP_EVENTS_H
+#define PX_CT_APP_EVENTS_H
 
 #include <memory>
 #include <string>
@@ -36,4 +36,4 @@ namespace px
     // test end
 }
 
-#endif //GAMMARAY_CT_APP_EVENTS_H
+#endif //PX_CT_APP_EVENTS_H

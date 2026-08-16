@@ -63,13 +63,13 @@ autostart=true
 autorestart=true
 stdout_logfile=/opt/px_auth_server/logs/supervisor_stdout.log
 stderr_logfile=/opt/px_auth_server/logs/supervisor_stderr.log
-environment=GR_AUTH_LICENSE_PRIVATE_KEY=""
+environment=PX_AUTH_LICENSE_PRIVATE_KEY=""
 ```
 
 说明：
 
 - `directory=/opt/px_auth_server` 很关键：配置文件、证书、前端、日志都按工作目录相对路径查找。
-- 授权签名私钥建议通过 `environment=GR_AUTH_LICENSE_PRIVATE_KEY="<base64>"` 注入，
+- 授权签名私钥建议通过 `environment=PX_AUTH_LICENSE_PRIVATE_KEY="<base64>"` 注入，
   而不是落盘 `certs/auth_license_private.key`；二选一即可（环境变量优先）。
 - `sudo` 需免密（部署脚本里直接调 `sudo supervisorctl`）。腾讯云 Ubuntu 镜像默认
   `ubuntu` 用户已有 NOPASSWD sudo，一般无需处理。
@@ -97,7 +97,7 @@ sudo mkdir -p /opt/px_auth_server/certs
   生产环境应换成域名正式证书（保持文件名不变）。
 - **授权签名密钥对**：`certs/auth_license_private.key` / `auth_license_public.key`。
   私钥丢失或轮换会导致**所有已签发授权验签失败**，部署后务必备份；
-  公钥需同步给 CMS（`GR_AUTH_LICENSE_PUBLIC_KEY`）。
+  公钥需同步给 CMS（`PX_AUTH_LICENSE_PUBLIC_KEY`）。
 
 ## 5. nginx 反代（可选但推荐）
 

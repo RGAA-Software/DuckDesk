@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_PLUGIN_MANAGER_H
-#define GAMMARAY_PLUGIN_MANAGER_H
+#ifndef PX_CLIENT_PLUGIN_MANAGER_H
+#define PX_CLIENT_PLUGIN_MANAGER_H
 
 #include <memory>
 #include <string>
@@ -53,4 +53,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_PLUGIN_MANAGER_H
+#endif //PX_CLIENT_PLUGIN_MANAGER_H

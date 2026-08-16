@@ -22,7 +22,7 @@ namespace px
     class RnEmpty;
     class MessageListener;
     class QtCircle;
-    class GrSettings;
+    class PxSettings;
     class TcQRWidget;
     class StreamContent;
     class TcImageButton;
@@ -31,11 +31,11 @@ namespace px
     class TcPasswordInput;
     class RoundImageDisplay;
     class TcCircleIndicator;
-    class GrStatistics;
+    class PxStatistics;
 
     class TabServer : public TabBase {
     public:
-        explicit TabServer(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        explicit TabServer(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         ~TabServer() override;
         void OnTabShow() override;
         void OnTabHide() override;
@@ -49,8 +49,8 @@ namespace px
         void UpdateServerState();
 
     private:
-        GrSettings* settings_ = nullptr;
-        GrStatistics* stat_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        PxStatistics* stat_ = nullptr;
         QPixmap qr_pixmap_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QLabel* lbl_machine_code_ = nullptr;

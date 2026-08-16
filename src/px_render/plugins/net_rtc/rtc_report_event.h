@@ -2,8 +2,8 @@
 // Created by RGAA on 20/04/2025.
 //
 
-#ifndef GAMMARAY_RTC_REPORT_EVENT_H
-#define GAMMARAY_RTC_REPORT_EVENT_H
+#ifndef PX_RTC_REPORT_EVENT_H
+#define PX_RTC_REPORT_EVENT_H
 
 #include <string>
 
@@ -18,4 +18,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_RTC_REPORT_EVENT_H
+#endif //PX_RTC_REPORT_EVENT_H

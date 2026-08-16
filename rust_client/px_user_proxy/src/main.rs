@@ -7,12 +7,12 @@ async fn main() {
     match UserProxyApp::bootstrap() {
         Ok(app) => {
             if let Err(err) = app.run().await {
-                eprintln!("GammaRayUserProxy failed: {err:#}");
+                eprintln!("px_function failed: {err:#}");
                 std::process::exit(1);
             }
         }
         Err(err) => {
-            eprintln!("GammaRayUserProxy bootstrap failed: {err:#}");
+            eprintln!("px_function bootstrap failed: {err:#}");
             std::process::exit(1);
         }
     }

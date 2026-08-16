@@ -2,8 +2,8 @@
 // Created by RGAA on 29/05/2025.
 //
 
-#ifndef GAMMARAY_GR_DATABASE_H
-#define GAMMARAY_GR_DATABASE_H
+#ifndef PX_DATABASE_H
+#define PX_DATABASE_H
 
 #include <any>
 #include <memory>
@@ -21,15 +21,15 @@ using namespace sqlite_orm;
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class StreamDBOperator;
     class DBGameOperator;
     class VisitRecordOperator;
     class FileTransferRecordOperator;
 
-    class GrDatabase : public std::enable_shared_from_this<GrDatabase> {
+    class PxDatabase : public std::enable_shared_from_this<PxDatabase> {
     public:
-        explicit GrDatabase(const std::shared_ptr<GrContext>& ctx);
+        explicit PxDatabase(const std::shared_ptr<PxContext>& ctx);
         bool Init();
         bool IsReady() const { return ready_; }
         const std::string& GetLastError() const { return last_error_; }
@@ -131,7 +131,7 @@ namespace px
     private:
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::any db_storage_;
         std::shared_ptr<VisitRecordOperator> visit_record_op_ = nullptr;
         std::shared_ptr<FileTransferRecordOperator> ft_record_op_ = nullptr;
@@ -143,4 +143,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_DATABASE_H
+#endif //PX_DATABASE_H

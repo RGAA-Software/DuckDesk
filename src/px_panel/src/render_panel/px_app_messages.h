@@ -19,7 +19,7 @@ namespace pxrp
 namespace px
 {
     class Message;
-    class GrSettings;
+    class PxSettings;
     class SysInfo;
 
     // can't connect or not installed
@@ -100,7 +100,7 @@ namespace px
     // Settings changed
     class MsgSettingsChanged {
     public:
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
         bool force_update_device_id_ = false;
     };
 

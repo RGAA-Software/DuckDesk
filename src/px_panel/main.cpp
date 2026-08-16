@@ -30,7 +30,7 @@
 
 using namespace px;
 
-std::shared_ptr<GrWorkspace> g_workspace = nullptr;
+std::shared_ptr<PxWorkspace> g_workspace = nullptr;
 
 struct CommandLineOptions {
     bool run_automatically = false;
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
-    GrSettings::Instance()->gl_backend_ = gl_backend.toStdString();
+    PxSettings::Instance()->gl_backend_ = gl_backend.toStdString();
     LOGI("gl_backed:{}", gl_backend.toStdString());
 
     LOGI("Commands:");
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     // pipe — 单实例:已有实例在监听时,SendHello 会成功并通知其前置显示,
     // 本实例直接退出(不再继续启动,避免第二实例抢 SharedPreference 的 LOCK
     // 弹 "Startup failed" 对话框)。
-    auto rn_pipe = std::make_shared<GrRunningPipe>();
+    auto rn_pipe = std::make_shared<PxRunningPipe>();
     if (rn_pipe->SendHello()) {
         LOGI("Another panel instance is running, notified it to foreground, exit this one.");
         return 0;
@@ -206,12 +206,12 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    GrSettings::Instance()->px_data_path_ = data_dir.toStdString();
+    PxSettings::Instance()->px_data_path_ = data_dir.toStdString();
 
     {
         auto auto_start = std::make_shared<px::AutoStart>();
         auto path = QApplication::applicationFilePath().toStdString();
-        auto_start->NewLogonTask((char*)"GammaRay_Panel_Start", (char*)path.c_str(), (char*)"--run_automatically", (char*)"GR");
+        auto_start->NewLogonTask((char*)"px_panel_start", (char*)path.c_str(), (char*)"--run_automatically", (char*)"GR");
     }
 
     auto mon_detector = DxgiMonitorDetector::Instance();
@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
     // init language
     tcTrMgr()->InitLanguage();
 
-    g_workspace = std::make_shared<GrWorkspace>(options.run_automatically, options.skin_name);
+    g_workspace = std::make_shared<PxWorkspace>(options.run_automatically, options.skin_name);
     g_workspace->Init();
     g_workspace->setFixedSize(1450, 800);
     if (!options.run_automatically) {

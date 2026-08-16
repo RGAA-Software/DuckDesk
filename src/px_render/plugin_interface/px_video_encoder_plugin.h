@@ -2,8 +2,8 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_GR_VIDEO_ENCODER_PLUGIN_H
-#define GAMMARAY_GR_VIDEO_ENCODER_PLUGIN_H
+#ifndef PX_VIDEO_ENCODER_PLUGIN_H
+#define PX_VIDEO_ENCODER_PLUGIN_H
 
 #include <d3d11.h>
 #include <mutex>
@@ -110,12 +110,12 @@ namespace px
         std::string msg_;
     };
 
-    class GrVideoEncoderPlugin : public GrPluginInterface {
+    class PxVideoEncoderPlugin : public PxPluginInterface {
     public:
-        GrVideoEncoderPlugin();
-        ~GrVideoEncoderPlugin() override;
+        PxVideoEncoderPlugin();
+        ~PxVideoEncoderPlugin() override;
 
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         void InsertIdr() override;
         // 按屏补 IDR:mon_name 为空时退化为全量 InsertIdr()。
@@ -160,4 +160,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_VIDEO_ENCODER_PLUGIN_H
+#endif //PX_VIDEO_ENCODER_PLUGIN_H

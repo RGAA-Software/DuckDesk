@@ -15,11 +15,11 @@
 
 | 组件 | 位置 | 角色 |
 |---|---|---|
-| GammaRayRender | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_graphics.dll`，帧经本机 `/ipc` 回传） |
-| GammaRayPanel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
-| GammaRayClientInner | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
-| GammaRayService | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 CMS 调度（启停游戏实例）、本机控制面 WS `:20375` |
-| GammaRaySysInfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
+| px_render | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_graphics.dll`，帧经本机 `/ipc` 回传） |
+| px_panel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
+| px_client | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
+| px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 CMS 调度（启停游戏实例）、本机控制面 WS `:20375` |
+| px_osinfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
 | UserProxy | `rust_client/px_user_proxy` | 用户会话代理（剪贴板等），service 看管 |
 | px_cms_server | `rust_server/px_cms_server` | 中心调度：机器列表、应用/实例管理、授权缓存下发，托管 `web/px_cms` 管理前端 |
 | px_auth_server | `rust_server/px_auth_server` | 授权签发/吊销，HTTPS `:30400` |
@@ -33,13 +33,13 @@
    px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ CMS 每小时拉自己的授权 (HMAC appkey 签名)
    px_cms_server :30500 (HTTPS/WSS) + 托管 web/px_cms 管理前端
-        ↑ WSS /cms/service  ←—— GammaRayService (每台被控机一条长连接,
+        ↑ WSS /cms/service  ←—— px_service (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— CMS 管理 Web (游戏/实例启停)
         ↑ WSS /cms/panel ←—— 被控端 panel
 
    被控机器内部 (本机明文 WS):
-   GammaRayService 监听 127.0.0.1:20375
+   px_service 监听 127.0.0.1:20375
         ↑ /service/message ←—— 每一个 render (desktop + 每个 game-hook) 1s 心跳
         ↑ ←—— panel (推授权 AuthInfo、拉起桌面 render 的 StartServer)
 

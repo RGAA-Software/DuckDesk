@@ -2,8 +2,8 @@
 // Created by RGAA on 23/05/2025.
 //
 
-#ifndef GAMMARAY_CT_PLUGIN_IDS_H
-#define GAMMARAY_CT_PLUGIN_IDS_H
+#ifndef PX_CT_PLUGIN_IDS_H
+#define PX_CT_PLUGIN_IDS_H
 
 #include <string>
 
@@ -17,4 +17,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_PLUGIN_IDS_H
+#endif //PX_CT_PLUGIN_IDS_H

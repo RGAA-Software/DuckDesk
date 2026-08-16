@@ -1,7 +1,7 @@
 // CDP 无头 Chrome 端到端验证 px_web_client 三个新功能:
 //   1. 性能面板(getStats 采样) + 帧率画质档
 //   2. 剪贴板文本同步(web<->render 系统剪贴板,经 px_user_proxy)
-//   3. 触屏手势(Input.dispatchTouchEvent 注入,解码 tc.Message 验证 + 物理光标)
+//   3. 触屏手势(Input.dispatchTouchEvent 注入,解码 px.Message 验证 + 物理光标)
 // 用法: node scripts/cdp_features_test.mjs
 // 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GammaRay 套件已在运行
 import { spawn, execFileSync } from 'node:child_process'
@@ -15,7 +15,7 @@ const PAGE_URL =
   'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=feat1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223
 
-// ---------- tc.Message 解码(复用 web 端 proto)----------
+// ---------- px.Message 解码(复用 web 端 proto)----------
 const require = createRequire(import.meta.url)
 const protobuf = require('../web/px_web_client/node_modules/protobufjs')
 const protoRoot = new protobuf.Root()
@@ -23,11 +23,11 @@ const protoDir = path.join(import.meta.dirname, '../web/px_web_client/proto')
 for (const f of ['px_file_transfer.proto', 'px_signaling_message.proto']) {
   protobuf.parse(fs.readFileSync(path.join(protoDir, f), 'utf8'), protoRoot)
 }
-const tcSrc = fs
+const pxSrc = fs
   .readFileSync(path.join(protoDir, 'px_message.proto'), 'utf8')
   .replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, '')
-protobuf.parse(tcSrc, protoRoot)
-const TcMessage = protoRoot.lookupType('tc.Message')
+protobuf.parse(pxSrc, protoRoot)
+const PxMessage = protoRoot.lookupType('px.Message')
 
 const MSG_MOUSE_EVENT = 60
 const BTN = { LEFT_UP: 16, MIDDLE_UP: 32, RIGHT_UP: 64, MOVE: 128, WHEEL: 256, LEFT_DOWN: 1024, MIDDLE_DOWN: 2048, RIGHT_DOWN: 4096 }
@@ -38,8 +38,8 @@ function decodeSentMessages(b64List) {
     const buf = Buffer.from(b64, 'base64')
     if (buf.length < 32) continue // TLV 头 32 字节
     try {
-      out.push(TcMessage.decode(buf.subarray(32)))
-    } catch { /* 非 tc.Message,忽略 */ }
+      out.push(PxMessage.decode(buf.subarray(32)))
+    } catch { /* 非 px.Message,忽略 */ }
   }
   return out
 }

@@ -25,7 +25,7 @@ namespace px
     class TabSettings : public TabBase {
     public:
 
-        explicit TabSettings(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
+        explicit TabSettings(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~TabSettings() override;
 
         void OnTabShow() override;

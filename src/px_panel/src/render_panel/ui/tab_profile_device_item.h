@@ -2,8 +2,8 @@
 // Created by RGAA on 30/04/2025.
 //
 
-#ifndef GAMMARAY_ST_SECURITY_VISITOR_ITEM_WIDGET_H
-#define GAMMARAY_ST_SECURITY_VISITOR_ITEM_WIDGET_H
+#ifndef PX_PANEL_TAB_PROFILE_DEVICE_ITEM_H
+#define PX_PANEL_TAB_PROFILE_DEVICE_ITEM_H
 
 #include <QWidget>
 #include <QPainter>
@@ -16,13 +16,13 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class AccountDevice;
 
     class TabProfileDeviceItemWidget : public QWidget {
     public:
-        TabProfileDeviceItemWidget(const std::shared_ptr<GrApplication>& app,
+        TabProfileDeviceItemWidget(const std::shared_ptr<PxApplication>& app,
                            const std::shared_ptr<AccountDevice>& item_info,
                            QWidget* parent);
         void paintEvent(QPaintEvent *event) override;
@@ -35,8 +35,8 @@ namespace px
 
     private:
         std::shared_ptr<AccountDevice> item_info_;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLabel* lbl_enabled_ = nullptr;
         bool enter_ = false;
         bool pressed_ = false;
@@ -45,4 +45,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ST_PLUGIN_ITEM_WIDGET_H
+#endif //PX_ST_PLUGIN_ITEM_WIDGET_H

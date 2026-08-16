@@ -7,25 +7,25 @@
 namespace px
 {
 
-    GrAudioEncoderPlugin::GrAudioEncoderPlugin() {
+    PxAudioEncoderPlugin::PxAudioEncoderPlugin() {
 
     }
 
-    GrAudioEncoderPlugin::~GrAudioEncoderPlugin() {
+    PxAudioEncoderPlugin::~PxAudioEncoderPlugin() {
 
     }
 
-    bool GrAudioEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrPluginInterface::OnCreate(param);
+    bool PxAudioEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxPluginInterface::OnCreate(param);
 
         return true;
     }
 
-    bool GrAudioEncoderPlugin::OnDestroy() {
-        return GrPluginInterface::OnDestroy();
+    bool PxAudioEncoderPlugin::OnDestroy() {
+        return PxPluginInterface::OnDestroy();
     }
 
-    void GrAudioEncoderPlugin::Encode(const std::shared_ptr<Data>& data, int sample, int channels, int bits) {
+    void PxAudioEncoderPlugin::Encode(const std::shared_ptr<Data>& data, int sample, int channels, int bits) {
 
     }
 

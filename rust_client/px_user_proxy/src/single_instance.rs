@@ -47,7 +47,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        format!("GammaRayUserProxy.Test.{ticks}")
+        format!("px_function.Test.{ticks}")
     }
 
     #[test]

@@ -36,7 +36,7 @@ namespace px
         };
     }
 
-    ClipboardManager::ClipboardManager(const std::shared_ptr<GrContext>& ctx) : QObject(nullptr) {
+    ClipboardManager::ClipboardManager(const std::shared_ptr<PxContext>& ctx) : QObject(nullptr) {
         context_ = ctx;
         clipboard_platform_ = clipboard::CreatePlatform();
     }

@@ -28,7 +28,7 @@ async fn main() {
     let cli = Cli::parse();
     let port = cli.port.or(cli.legacy_port);
     if let Err(err) = app::run(port, cli.console).await {
-        eprintln!("GammaRayService failed: {err}");
+        eprintln!("px_service failed: {err}");
         std::process::exit(1);
     }
 }
@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn cli_accepts_legacy_positional_port() {
-        let cli = Cli::try_parse_from(["GammaRayService.exe", "20375"]).unwrap();
+        let cli = Cli::try_parse_from(["px_service.exe", "20375"]).unwrap();
         assert_eq!(cli.port, None);
         assert_eq!(cli.legacy_port, Some(20375));
         assert!(!cli.console);
@@ -47,14 +47,14 @@ mod tests {
 
     #[test]
     fn cli_accepts_named_port() {
-        let cli = Cli::try_parse_from(["GammaRayService.exe", "--port", "20375"]).unwrap();
+        let cli = Cli::try_parse_from(["px_service.exe", "--port", "20375"]).unwrap();
         assert_eq!(cli.port, Some(20375));
         assert_eq!(cli.legacy_port, None);
     }
 
     #[test]
     fn cli_named_port_can_be_combined_with_console() {
-        let cli = Cli::try_parse_from(["GammaRayService.exe", "--port", "20375", "--console"]).unwrap();
+        let cli = Cli::try_parse_from(["px_service.exe", "--port", "20375", "--console"]).unwrap();
         assert_eq!(cli.port, Some(20375));
         assert!(cli.console);
     }

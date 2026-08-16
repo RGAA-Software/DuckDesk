@@ -103,7 +103,7 @@ namespace px
 //            }
 //            if (is_same) {
 //                // to panel
-//                auto event = std::make_shared<GrPluginRemoteClipboardResp>();
+//                auto event = std::make_shared<PxPluginRemoteClipboardResp>();
 //                auto sub = msg->clipboard_info_resp();
 //                event->content_type_ = (int)sub.type();
 //                event->remote_info_ = sub.msg();

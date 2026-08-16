@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_DESKTOP_CAPTURE_FACTORY_H
-#define GAMMARAY_DESKTOP_CAPTURE_FACTORY_H
+#ifndef PX_DESKTOP_CAPTURE_FACTORY_H
+#define PX_DESKTOP_CAPTURE_FACTORY_H
 
 #include "desktop_capture.h"
 #include "win/desktop_capture/dda_capture.h"
@@ -33,4 +33,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_DESKTOP_CAPTURE_FACTORY_H
+#endif //PX_DESKTOP_CAPTURE_FACTORY_H

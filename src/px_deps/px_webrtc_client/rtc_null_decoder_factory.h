@@ -10,8 +10,8 @@
 // hands out decoders that instantly return a 2x2 black frame per input frame.
 //
 
-#ifndef GAMMARAY_RTC_DUMMY_DECODER_FACTORY_H
-#define GAMMARAY_RTC_DUMMY_DECODER_FACTORY_H
+#ifndef PX_RTC_DUMMY_DECODER_FACTORY_H
+#define PX_RTC_DUMMY_DECODER_FACTORY_H
 
 #include <memory>
 #include <vector>
@@ -83,4 +83,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_DUMMY_DECODER_FACTORY_H
+#endif //PX_RTC_DUMMY_DECODER_FACTORY_H

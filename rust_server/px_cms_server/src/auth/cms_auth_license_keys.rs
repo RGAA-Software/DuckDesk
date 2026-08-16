@@ -3,13 +3,13 @@ use px_auth_mgr::auth_license::{AuthLicense, LicenseVerifier, SignedLicense};
 use px_auth_mgr::authorization::Authorization;
 use std::path::Path;
 
-const PUBLIC_KEY_ENV: &str = "GR_AUTH_LICENSE_PUBLIC_KEY";
+const PUBLIC_KEY_ENV: &str = "PX_AUTH_LICENSE_PUBLIC_KEY";
 const PUBLIC_KEY_FILE: &str = "certs/auth_license_public.key";
 
 /// Loads the Ed25519 public key used to verify signed licenses.
 /// Accepts either the raw 32-byte key or a DER SubjectPublicKeyInfo (44 bytes).
 /// Priority:
-/// 1. `GR_AUTH_LICENSE_PUBLIC_KEY` environment variable (base64).
+/// 1. `PX_AUTH_LICENSE_PUBLIC_KEY` environment variable (base64).
 /// 2. `certs/auth_license_public.key` file (base64).
 pub fn init_license_verifier() -> Result<LicenseVerifier, String> {
     if let Ok(encoded) = std::env::var(PUBLIC_KEY_ENV) {

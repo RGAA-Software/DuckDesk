@@ -34,7 +34,7 @@ const PATH_SYS_INFO: &str = "/sys/info";
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Parser, Clone)]
-#[command(name = "GrSysMonitorHost", version, about)]
+#[command(name = "PxSysMonitorHost", version, about)]
 pub struct HostCli {
     #[arg(long, default_value = "0.0.0.0")]
     host: String,
@@ -97,7 +97,7 @@ fn spawn_host_server(
     status: Arc<Mutex<HostServerStatus>>,
 ) {
     thread::spawn(move || {
-        let runtime = Runtime::new().expect("failed to create GrSysMonitorHost runtime");
+        let runtime = Runtime::new().expect("failed to create PxSysMonitorHost runtime");
         runtime.block_on(async move {
             let listen_addr = format!("{listen_host}:{listen_port}");
             match TcpListener::bind(&listen_addr).await {
@@ -442,7 +442,7 @@ impl Render for SysMonitorHostApp {
                         h_flex()
                             .gap_3()
                             .items_center()
-                            .child(div().text_sm().text_color(cx.theme().foreground).child("GrSysMonitorHost"))
+                            .child(div().text_sm().text_color(cx.theme().foreground).child("PxSysMonitorHost"))
                             .child(
                                 div()
                                     .text_xs()
@@ -537,7 +537,7 @@ impl Render for SysMonitorHostApp {
 }
 
 pub fn run(cli: HostCli) {
-    tray::init_tray("GrSysMonitorHost");
+    tray::init_tray("PxSysMonitorHost");
     let app = gpui_platform::application().with_assets(Assets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
@@ -552,7 +552,7 @@ pub fn run(cli: HostCli) {
         cx.spawn(async move |cx| {
             let start_hidden = cli.startup;
             let window_handle = cx.open_window(window_options, |window, cx| {
-                window.set_window_title("GrSysMonitorHost");
+                window.set_window_title("PxSysMonitorHost");
 
                 Theme::change(ThemeMode::Dark, Some(window), cx);
 
@@ -571,7 +571,7 @@ pub fn run(cli: HostCli) {
                 let view = cx.new(|cx| SysMonitorHostApp::new(window, cx, host_cli));
                 cx.new(|cx| Root::new(view, window, cx))
             })
-            .expect("failed to open GrSysMonitorHost window");
+            .expect("failed to open PxSysMonitorHost window");
 
             #[allow(clippy::redundant_locals)]
             cx.spawn({

@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TC_PUSHBUTTON_H
-#define GAMMARAY_TC_PUSHBUTTON_H
+#ifndef PX_TC_PUSHBUTTON_H
+#define PX_TC_PUSHBUTTON_H
 
 #include "translator/px_translator.h"
 #include <QPushButton>
@@ -20,4 +20,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_PUSHBUTTON_H
+#endif //PX_TC_PUSHBUTTON_H

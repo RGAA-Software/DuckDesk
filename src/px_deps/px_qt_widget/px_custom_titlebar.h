@@ -2,8 +2,8 @@
 // Created by RGAA on 23/03/2025.
 //
 
-#ifndef GAMMARAY_TC_CUSTOM_TITLEBAR_H
-#define GAMMARAY_TC_CUSTOM_TITLEBAR_H
+#ifndef PX_TC_CUSTOM_TITLEBAR_H
+#define PX_TC_CUSTOM_TITLEBAR_H
 
 #include <QWidget>
 #include <QPainter>
@@ -61,4 +61,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_CUSTOM_TITLEBAR_H
+#endif //PX_TC_CUSTOM_TITLEBAR_H

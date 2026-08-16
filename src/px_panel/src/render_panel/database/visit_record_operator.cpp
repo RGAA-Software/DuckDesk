@@ -10,7 +10,7 @@
 namespace px
 {
     namespace {
-        bool IsDbReady(const std::shared_ptr<GrDatabase>& db) {
+        bool IsDbReady(const std::shared_ptr<PxDatabase>& db) {
             if (!db || !db->IsReady()) {
                 LOGE("VisitRecordOperator ignored because database is not ready");
                 return false;
@@ -19,7 +19,7 @@ namespace px
         }
     }
 
-    VisitRecordOperator::VisitRecordOperator(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<GrDatabase>& db) {
+    VisitRecordOperator::VisitRecordOperator(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<PxDatabase>& db) {
         context_ = ctx;
         db_ = db;
     }

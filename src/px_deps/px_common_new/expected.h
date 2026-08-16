@@ -2,8 +2,8 @@
 // Created by RGAA on 26/03/2025.
 //
 
-#ifndef GAMMARAY_EXPECTED_H
-#define GAMMARAY_EXPECTED_H
+#ifndef PX_EXPECTED_H
+#define PX_EXPECTED_H
 
 #include <expected>
 #include <string>
@@ -33,4 +33,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_EXPECTED_H
+#endif //PX_EXPECTED_H

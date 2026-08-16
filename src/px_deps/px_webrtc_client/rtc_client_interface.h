@@ -2,8 +2,8 @@
 // Created by RGAA on 13/04/2025.
 //
 
-#ifndef GAMMARAY_RTC_CLIENT_INTERFACE_H
-#define GAMMARAY_RTC_CLIENT_INTERFACE_H
+#ifndef PX_RTC_CLIENT_INTERFACE_H
+#define PX_RTC_CLIENT_INTERFACE_H
 
 #include <memory>
 #include <string>
@@ -133,4 +133,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_CLIENT_INTERFACE_H
+#endif //PX_RTC_CLIENT_INTERFACE_H

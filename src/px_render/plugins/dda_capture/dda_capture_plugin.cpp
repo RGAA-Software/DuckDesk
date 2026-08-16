@@ -18,14 +18,14 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::DDACapturePlugin)
+PX_PLUGIN_EXPORT(px::DDACapturePlugin)
 
 namespace px
 {
 
     static const int32_t kAllowedMaxContinuousTimeoutTimes = 1200;
 
-    DDACapturePlugin::DDACapturePlugin() : GrMonitorCapturePlugin() {
+    DDACapturePlugin::DDACapturePlugin() : PxMonitorCapturePlugin() {
 
     }
 
@@ -49,8 +49,8 @@ namespace px
         return "DXGI desktop duplication";
     }
 
-    bool DDACapturePlugin::OnCreate(const px::GrPluginParam& param) {
-        GrMonitorCapturePlugin::OnCreate(param);
+    bool DDACapturePlugin::OnCreate(const px::PxPluginParam& param) {
+        PxMonitorCapturePlugin::OnCreate(param);
         InitCursorCapture();
         return true;
     }
@@ -192,7 +192,7 @@ namespace px
     }
 
     bool DDACapturePlugin::OnDestroy() {
-        GrMonitorCapturePlugin::OnStop();
+        PxMonitorCapturePlugin::OnStop();
         StopCapturing();
         destroyed_ = true;
         if (cursor_capture_thread_ && cursor_capture_thread_->IsJoinable()) {
@@ -200,7 +200,7 @@ namespace px
             cursor_capture_thread_ = nullptr;
         }
         cursor_capture_ = nullptr;
-        return GrMonitorCapturePlugin::OnDestroy();
+        return PxMonitorCapturePlugin::OnDestroy();
     }
 
     bool DDACapturePlugin::IsWorking() {
@@ -410,7 +410,7 @@ namespace px
     }
 
     void DDACapturePlugin::SetCaptureFps(int fps) {
-        GrMonitorCapturePlugin::SetCaptureFps(fps);
+        PxMonitorCapturePlugin::SetCaptureFps(fps);
         if (IsWorking()) {
             captures_.ApplyAll([fps](const auto& k, const auto& capture) {
                 if (capture) {
@@ -470,7 +470,7 @@ namespace px
     }
 
     void DDACapturePlugin::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
-        GrPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
+        PxPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
         auto captures = captures_.Clone();
         for (const auto& [monitor_name, capture] : captures) {
             if (!capture) {
@@ -572,10 +572,10 @@ namespace px
 
     void DDACapturePlugin::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
-            LOGI("==> Sorted Monitor's empty, ignore the GrPluginCapturingMonitorInfoEvent");
+            LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
             return;
         }
-        const auto event = std::make_shared<GrPluginCapturingMonitorInfoEvent>();
+        const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
         this->CallbackEvent(event);
     }
 
@@ -591,7 +591,7 @@ namespace px
     }
 
     void DDACapturePlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
-        GrPluginInterface::DispatchAppEvent(event);
+        PxPluginInterface::DispatchAppEvent(event);
         //LOGI("DDACapturePlugin DispatchAppEvent type: {}", static_cast<int>(event->type_));
         if (!event) {
             return;

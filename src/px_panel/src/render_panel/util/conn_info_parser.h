@@ -2,8 +2,8 @@
 // Created by RGAA on 20/05/2025.
 //
 
-#ifndef GAMMARAY_CONN_INFO_PARSER_H
-#define GAMMARAY_CONN_INFO_PARSER_H
+#ifndef PX_CONN_INFO_PARSER_H
+#define PX_CONN_INFO_PARSER_H
 
 #include <memory>
 #include <string>
@@ -13,9 +13,9 @@
 namespace px
 {
 
-    class GrConnectionInfo {
+    class PxConnectionInfo {
     public:
-        class GrConnectionHost {
+        class PxConnectionHost {
         public:
             std::string ip_;
             std::string type_;
@@ -26,7 +26,7 @@ namespace px
         std::string device_name_;
         std::string random_pwd_;
         int icon_idx_{0};
-        std::vector<GrConnectionHost> hosts_;
+        std::vector<PxConnectionHost> hosts_;
         int panel_srv_port_{0};
         int render_srv_port_{0};
         // relay server
@@ -55,9 +55,9 @@ namespace px
     // parse link://xxxx
     class ConnInfoParser {
     public:
-        static std::shared_ptr<GrConnectionInfo> Parse(const std::string& info);
+        static std::shared_ptr<PxConnectionInfo> Parse(const std::string& info);
     };
 
 }
 
-#endif //GAMMARAY_CONN_INFO_PARSER_H
+#endif //PX_CONN_INFO_PARSER_H

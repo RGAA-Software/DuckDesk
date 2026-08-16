@@ -2,8 +2,8 @@
 // Created by RGAA on 10/08/2026.
 //
 
-#ifndef GAMMARAY_RTC_VIDEO_SINK_H
-#define GAMMARAY_RTC_VIDEO_SINK_H
+#ifndef PX_RTC_VIDEO_SINK_H
+#define PX_RTC_VIDEO_SINK_H
 
 #include <memory>
 #include <functional>
@@ -30,4 +30,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_VIDEO_SINK_H
+#endif //PX_RTC_VIDEO_SINK_H

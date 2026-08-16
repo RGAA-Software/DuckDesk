@@ -6,7 +6,7 @@ set "WORKSPACE_DIR=%SCRIPT_DIR%.."
 set "BIN_NAME=%~1"
 
 if "%BIN_NAME%"=="" (
-    set "BIN_NAME=GrSysMonitor"
+    set "BIN_NAME=px_sys_monitor"
 )
 
 echo [px_sysinfo] Building debug binary: %BIN_NAME%

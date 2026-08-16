@@ -66,8 +66,8 @@ mod tests {
     #[test]
     fn user_proxy_path_joins_work_dir() {
         assert_eq!(
-            user_proxy_path("D:/GammaRay"),
-            "D:/GammaRay/GammaRayUserProxy.exe"
+            user_proxy_path("D:/px"),
+            "D:/px/px_function.exe"
         );
     }
 }

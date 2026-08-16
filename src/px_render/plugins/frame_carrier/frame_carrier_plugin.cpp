@@ -13,7 +13,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "image_generator.h"
 
-GR_PLUGIN_EXPORT(px::FrameCarrierPlugin)
+PX_PLUGIN_EXPORT(px::FrameCarrierPlugin)
 
 namespace px
 {
@@ -45,8 +45,8 @@ namespace px
         }
     }
 
-    bool FrameCarrierPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrPluginInterface::OnCreate(param);
+    bool FrameCarrierPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxPluginInterface::OnCreate(param);
         // logo point / 1 pixel
         {
             auto logo_path = std::filesystem::path(StringUtil::ToWString(base_path_)) / L"px_plugins" / L"resources" / L"ic_logo_point.png";
@@ -107,18 +107,18 @@ namespace px
     }
 
     bool FrameCarrierPlugin::OnDestroy() {
-        GrFrameCarrierPlugin::OnStop();
+        PxFrameCarrierPlugin::OnStop();
         for (const auto& [monitor_name, frame_carrier] : frame_carriers_) {
             if (frame_carrier) {
                 frame_carrier->Exit();
             }
         }
         frame_carriers_.clear();
-        return GrFrameCarrierPlugin::OnDestroy();
+        return PxFrameCarrierPlugin::OnDestroy();
     }
 
-    bool FrameCarrierPlugin::InitFrameCarrier(const px::GrCarrierParams &params) {
-        GrFrameCarrierPlugin::InitFrameCarrier(params);
+    bool FrameCarrierPlugin::InitFrameCarrier(const px::PxCarrierParams &params) {
+        PxFrameCarrierPlugin::InitFrameCarrier(params);
         // release the old one
         auto frame_carrier = GetFrameCarrier(params.mon_name_);
         if (frame_carrier != nullptr) {
@@ -139,14 +139,14 @@ namespace px
         return true;
     }
 
-    std::shared_ptr<GrCarriedFrame> FrameCarrierPlugin::CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
+    std::shared_ptr<PxCarriedFrame> FrameCarrierPlugin::CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
         auto frame_carrier = GetFrameCarrier(mon_name);
         if (!frame_carrier) {
             LOGE("Can't find frame carrier for monitor: {}", mon_name);
             return nullptr;
         }
         auto texture_2d = frame_carrier->CopyTexture(mon_name, handle, frame_index);
-        return std::make_shared<GrCarriedFrame>(GrCarriedFrame {
+        return std::make_shared<PxCarriedFrame>(PxCarriedFrame {
             .mon_name_ = mon_name,
             .frame_index_ = frame_index,
             .texture_ = texture_2d,

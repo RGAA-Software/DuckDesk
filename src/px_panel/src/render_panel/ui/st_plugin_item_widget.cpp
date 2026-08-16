@@ -19,7 +19,7 @@ namespace px
     const QString kDisplayPluginEnabled = "Enabled";
     const QString kDisplayPluginDisabled = "Disabled";
 
-    StPluginItemWidget::StPluginItemWidget(const std::shared_ptr<GrApplication>& app,
+    StPluginItemWidget::StPluginItemWidget(const std::shared_ptr<PxApplication>& app,
                        const std::shared_ptr<PluginItemInfo>& item_info,
                        int index,
                        QWidget* parent) : QWidget(parent) {

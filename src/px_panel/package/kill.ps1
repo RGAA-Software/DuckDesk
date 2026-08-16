@@ -1,5 +1,5 @@
-Get-WmiObject Win32_Process -Filter "name = 'GammaRay.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
-Get-WmiObject Win32_Process -Filter "name = 'GammaRayClientInner.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
-Get-WmiObject Win32_Process -Filter "name = 'GammaRayRender.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
-Get-WmiObject Win32_Process -Filter "name = 'GammaRayService.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
-Get-WmiObject Win32_Process -Filter "name = 'GammaRayServiceManager.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
+Get-WmiObject Win32_Process -Filter "name = 'px_panel.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
+Get-WmiObject Win32_Process -Filter "name = 'px_client.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
+Get-WmiObject Win32_Process -Filter "name = 'px_render.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
+Get-WmiObject Win32_Process -Filter "name = 'px_service.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null
+Get-WmiObject Win32_Process -Filter "name = 'px_service_manager.exe'" | Invoke-WmiMethod -Name Terminate | Out-Null

@@ -14,14 +14,14 @@ namespace px
 {
 
     class TcLabel;
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class MessageListener;
     class StNetworkCmsAccessInfo;
 
     class StNetworkSearch : public TcCustomTitleBarDialog {
     public:
-        explicit StNetworkSearch(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
+        explicit StNetworkSearch(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~StNetworkSearch() override;
         void closeEvent(QCloseEvent *) override;
         void OnItemClicked(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
@@ -34,8 +34,8 @@ namespace px
         QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         TcLabel* empty_lbl_ = nullptr;
         QListWidget* list_widget_ = nullptr;

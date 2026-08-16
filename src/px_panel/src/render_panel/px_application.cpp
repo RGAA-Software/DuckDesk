@@ -59,34 +59,34 @@ using namespace nlohmann;
 namespace px
 {
 
-    std::shared_ptr<GrApplication> grApp;
+    std::shared_ptr<PxApplication> grApp;
 
-    std::shared_ptr<GrApplication> GrApplication::Make(QWidget* main_window, bool run_automatically, const std::string& skin_name) {
-        struct GrApplicationEnabler final : GrApplication {
-            GrApplicationEnabler(QWidget* window, bool auto_run, const std::string& skin) : GrApplication(window, auto_run, skin) {}
+    std::shared_ptr<PxApplication> PxApplication::Make(QWidget* main_window, bool run_automatically, const std::string& skin_name) {
+        struct PxApplicationEnabler final : PxApplication {
+            PxApplicationEnabler(QWidget* window, bool auto_run, const std::string& skin) : PxApplication(window, auto_run, skin) {}
         };
 
-        auto app = std::make_shared<GrApplicationEnabler>(main_window, run_automatically, skin_name);
+        auto app = std::make_shared<PxApplicationEnabler>(main_window, run_automatically, skin_name);
         app->Init();
         return app;
     }
 
-    GrApplication::GrApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name) : QObject(main_window) {
+    PxApplication::PxApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name) : QObject(main_window) {
         main_window_ = main_window;
         run_automatically_ = run_automatically;
         requested_skin_name_ = skin_name;
     }
 
-    GrApplication::~GrApplication() = default;
+    PxApplication::~PxApplication() = default;
 
-    void GrApplication::Init() {
-        TimeDuration td("GrApplication::Init");
-        // shared_from_this() below requires this object to be created by GrApplication::Make().
+    void PxApplication::Init() {
+        TimeDuration td("PxApplication::Init");
+        // shared_from_this() below requires this object to be created by PxApplication::Make().
         grApp = shared_from_this();
         msg_notifier_ = std::make_shared<MessageNotifier>();
 
         auto begin_ctx_init_ts = TimeUtil::GetCurrentTimestamp();
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         settings_->Init(msg_notifier_);
         settings_->Load();
         settings_->Dump();
@@ -106,7 +106,7 @@ namespace px
         //FolderUtil::CreateDir(std::format("{}/clients/windows", exeDir));
         //FolderUtil::CreateDir(std::format("{}/clients/android", exeDir));
 
-        context_ = std::make_shared<GrContext>(main_window_);
+        context_ = std::make_shared<PxContext>(main_window_);
         context_->Init(shared_from_this());
         if (!context_->IsDatabaseReady()) {
             const auto db_error = QString::fromStdString(context_->GetDatabaseError());
@@ -115,9 +115,9 @@ namespace px
         auto ctx_init_diff = TimeUtil::GetCurrentTimestamp() - begin_ctx_init_ts;
         LOGI("** Context init used: {}ms", ctx_init_diff);
 
-        user_mgr_ = std::make_shared<GrUserManager>(context_);
+        user_mgr_ = std::make_shared<PxUserManager>(context_);
 
-        device_mgr_ = std::make_shared<GrDeviceManager>(context_);
+        device_mgr_ = std::make_shared<PxDeviceManager>(context_);
 
         // firewall
         auto weak_self = weak_from_this();
@@ -130,23 +130,23 @@ namespace px
         });
 
         auto begin_conn_ts = TimeUtil::GetCurrentTimestamp();
-        auto st = GrStatistics::Instance();
+        auto st = PxStatistics::Instance();
         st->SetContext(context_);
         st->RegisterEventListeners();
 
-        px_connected_manager_ = std::make_shared<GrConnectedManager>(context_);
+        px_connected_manager_ = std::make_shared<PxConnectedManager>(context_);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(context_);
-        rd_msg_processor_ = std::make_shared<GrRenderMsgProcessor>(context_);
+        rd_msg_processor_ = std::make_shared<PxRenderMsgProcessor>(context_);
 
         ws_panel_server_ = WsPanelServer::Make(shared_from_this());
         ws_panel_server_->Start();
 
-        sys_monitor_ = GrSystemMonitor::Make(shared_from_this());
+        sys_monitor_ = PxSystemMonitor::Make(shared_from_this());
         sys_monitor_->Start();
 
         //udp_broadcaster_ = UdpBroadcaster::Make(context_);
 
-        service_client_ = std::make_shared<GrServiceClient>(shared_from_this());
+        service_client_ = std::make_shared<PxServiceClient>(shared_from_this());
         service_client_->Start();
 
         QCoreApplication::instance()->installNativeEventFilter(px_connected_manager_.get());
@@ -181,7 +181,7 @@ namespace px
         }
     }
 
-    void GrApplication::PrepareForShutdown() {
+    void PxApplication::PrepareForShutdown() {
         if (shutdown_prepared_) {
             return;
         }
@@ -197,7 +197,7 @@ namespace px
         }
     }
 
-    void GrApplication::Exit() {
+    void PxApplication::Exit() {
         PrepareForShutdown();
         if (win_msg_loop_) {
             win_msg_loop_->Stop();
@@ -224,7 +224,7 @@ namespace px
         context_->Exit();
     }
 
-    bool GrApplication::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
+    bool PxApplication::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
         if(eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG")
         {
             const auto pMsg = static_cast<MSG*>(message);
@@ -255,11 +255,11 @@ namespace px
         return false;
     }
 
-    bool GrApplication::IsServiceConnected() const {
+    bool PxApplication::IsServiceConnected() const {
         return service_client_ && service_client_->IsAlive();
     }
 
-    bool GrApplication::PostMessage2Service(const std::string& msg) {
+    bool PxApplication::PostMessage2Service(const std::string& msg) {
         if (!IsServiceConnected()) {
             return false;
         }
@@ -267,11 +267,11 @@ namespace px
         return true;
     }
 
-    bool GrApplication::IsRendererConnected() {
+    bool PxApplication::IsRendererConnected() {
         return ws_panel_server_ && ws_panel_server_->IsAlive();
     }
 
-    bool GrApplication::PostMessage2Renderer(std::shared_ptr<Data> msg) {
+    bool PxApplication::PostMessage2Renderer(std::shared_ptr<Data> msg) {
         if (!IsRendererConnected()) {
             return false;
         }
@@ -279,7 +279,7 @@ namespace px
         return true;
     }
 
-    void GrApplication::RefreshClientManagerSettings() {
+    void PxApplication::RefreshClientManagerSettings() {
         std::shared_ptr<Authorization> auth = nullptr;
         if (companion_) {
             auth = companion_->GetAuth();
@@ -287,7 +287,7 @@ namespace px
         // deprecated //
     }
 
-    void GrApplication::RegisterMessageListener() {
+    void PxApplication::RegisterMessageListener() {
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         msg_listener_->Listen<MsgSettingsChanged>([=, this](const MsgSettingsChanged& msg) {
             LOGI("Settings changed...");
@@ -332,7 +332,7 @@ namespace px
         });
     }
 
-    bool GrApplication::RequestNewClientId(bool force_update, bool sync) {
+    bool PxApplication::RequestNewClientId(bool force_update, bool sync) {
         if (!force_update && !settings_->GetDeviceId().empty() && !settings_->GetDeviceRandomPwd().empty()) {
             return false;
         }
@@ -401,35 +401,35 @@ namespace px
         }
     }
 
-    void GrApplication::RegisterFirewall() {
+    void PxApplication::RegisterFirewall() {
         // register firewall
         auto begin_fm_ts = TimeUtil::GetCurrentTimestamp();
-        auto app_path = qApp->applicationDirPath() + "/" + kGammaRayName.c_str();
-        auto render_path = qApp->applicationDirPath() + "/" + kGammaRayRenderName.c_str();
-        auto client_inner_path = qApp->applicationDirPath() + "/" + kGammaRayClientInner.c_str();
-        auto service_path = qApp->applicationDirPath() + "/" + kGammaRayService.c_str();
+        auto app_path = qApp->applicationDirPath() + "/" + kPxPanelName.c_str();
+        auto render_path = qApp->applicationDirPath() + "/" + kPxRenderName.c_str();
+        auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
+        auto service_path = qApp->applicationDirPath() + "/" + kPxServiceName.c_str();
         auto fh = FirewallHelper::Instance();
 
-        fh->RemoveProgramFromFirewall("GammaRayIn");
-        fh->RemoveProgramFromFirewall("GammaRayOut");
-        fh->RemoveProgramFromFirewall("GammaRayRenderIn");
-        fh->RemoveProgramFromFirewall("GammaRayRenderOut");
-        fh->RemoveProgramFromFirewall("GammaRayClientInnerIn");
-        fh->RemoveProgramFromFirewall("GammaRayClientInnerOut");
-        fh->RemoveProgramFromFirewall("GammaRayServiceIn");
-        fh->RemoveProgramFromFirewall("GammaRayServiceOut");
-        fh->RemoveProgramFromFirewall("GammaRayRtcLocalUdpIn");
+        fh->RemoveProgramFromFirewall("PxPanelIn");
+        fh->RemoveProgramFromFirewall("PxPanelOut");
+        fh->RemoveProgramFromFirewall("PxRenderIn");
+        fh->RemoveProgramFromFirewall("PxRenderOut");
+        fh->RemoveProgramFromFirewall("PxClientIn");
+        fh->RemoveProgramFromFirewall("PxClientOut");
+        fh->RemoveProgramFromFirewall("PxServiceIn");
+        fh->RemoveProgramFromFirewall("PxServiceOut");
+        fh->RemoveProgramFromFirewall("PxRtcLocalUdpIn");
 
-        fh->AddProgramToFirewall(RulesInfo("GammaRayIn", app_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayOut", app_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayRenderIn", render_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayRenderOut", render_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerIn", client_inner_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayClientInnerOut", client_inner_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayServiceIn", service_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("GammaRayServiceOut", service_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("PxPanelIn", app_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("PxPanelOut", app_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("PxRenderIn", render_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("PxRenderOut", render_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("PxClientIn", client_inner_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("PxClientOut", client_inner_path.toStdString(), "", 2));
+        fh->AddProgramToFirewall(RulesInfo("PxServiceIn", service_path.toStdString(), "", 1));
+        fh->AddProgramToFirewall(RulesInfo("PxServiceOut", service_path.toStdString(), "", 2));
         // WebRTC local direct connection (net_rtc_local), UDP port range: 60430-60490
-        fh->AddPortToFirewall("GammaRayRtcLocalUdpIn", "60430-60490", 17 /*UDP*/, 1 /*in*/);
+        fh->AddPortToFirewall("PxRtcLocalUdpIn", "60430-60490", 17 /*UDP*/, 1 /*in*/);
         auto fm_diff = TimeUtil::GetCurrentTimestamp()-begin_fm_ts;
         LOGI("** Firewall init used: {}ms", fm_diff);
         LOGI("app path: {}", app_path.toStdString());
@@ -438,11 +438,11 @@ namespace px
         LOGI("client inner path: {}", service_path.toStdString());
     }
 
-    std::shared_ptr<MessageNotifier> GrApplication::GetMessageNotifier() {
+    std::shared_ptr<MessageNotifier> PxApplication::GetMessageNotifier() {
         return msg_notifier_;
     }
 
-    bool GrApplication::CheckLocalDeviceInfoWithPopup() {
+    bool PxApplication::CheckLocalDeviceInfoWithPopup() {
         auto r = this->IsDeviceInfoOk();
         if (r) {
             return true;
@@ -455,14 +455,14 @@ namespace px
         return false;
     }
 
-    void GrApplication::CheckSecurityPassword() {
+    void PxApplication::CheckSecurityPassword() {
         if (settings_->GetDeviceSecurityPwd().empty()) {
             InputSafetyPwdDialog dialog(grApp, grWorkspace.get());
             dialog.exec();
         }
     }
 
-    void GrApplication::UpdateServerSecurityPasswordIfNeeded() {
+    void PxApplication::UpdateServerSecurityPasswordIfNeeded() {
         auto weak_self = weak_from_this();
         context_->PostTask([weak_self]() {
             auto self = weak_self.lock();
@@ -475,7 +475,7 @@ namespace px
         });
     }
 
-    void GrApplication::StartWindowsMessagesLooping() {
+    void PxApplication::StartWindowsMessagesLooping() {
         auto weak_self = weak_from_this();
         win_msg_thread_ = Thread::MakeOnceTask([weak_self]() {
             auto self = weak_self.lock();
@@ -487,7 +487,7 @@ namespace px
         }, "", false);
     }
 
-    bool GrApplication::PostMessage2RemoteRender(const std::shared_ptr<GrBaseStreamMessage>& msg) {
+    bool PxApplication::PostMessage2RemoteRender(const std::shared_ptr<PxBaseStreamMessage>& msg) {
         if (!msg || !msg->stream_item_) {
             return false;
         }
@@ -534,7 +534,7 @@ namespace px
         }
     }
 
-    void GrApplication::LoadPanelCompanion() {
+    void PxApplication::LoadPanelCompanion() {
         auto plugin = std::make_shared<PanelCompanionImpl>();
         if (!plugin->Init()) {
             LOGE("Can't init panel_companion");
@@ -544,18 +544,18 @@ namespace px
         companion_ = plugin;
     }
 
-    PanelCompanion* GrApplication::GetCompanion() {
+    PanelCompanion* PxApplication::GetCompanion() {
         return companion_.get();
     }
 
-    std::string GrApplication::GetAppkey() {
+    std::string PxApplication::GetAppkey() {
         if (companion_ && companion_->GetAuth()) {
             return companion_->GetAuth()->appkey_;
         }
         return "";
     }
 
-    void GrApplication::StartCmsClientIfNeeded() {
+    void PxApplication::StartCmsClientIfNeeded() {
         auto appkey = GetAppkey();
         auto cms_host = settings_->GetCmsServerHost();
         auto cms_port = settings_->GetCmsServerPort();
@@ -576,7 +576,7 @@ namespace px
         }
 
         if (!cms_client_) {
-            cms_client_ = std::make_shared<GrCmsClient>(context_, cms_host, cms_port, device_id);
+            cms_client_ = std::make_shared<PxCmsClient>(context_, cms_host, cms_port, device_id);
         }
         if (!cms_client_->IsStarted()) {
             cms_client_->Start();
@@ -586,27 +586,27 @@ namespace px
         using_cms_port_ = cms_port;
     }
 
-    std::shared_ptr<CmsScanner> GrApplication::GetCmsScanner() {
+    std::shared_ptr<CmsScanner> PxApplication::GetCmsScanner() {
         return cms_scanner_;
     }
 
-    SkinInterface* GrApplication::GetSkin() {
+    SkinInterface* PxApplication::GetSkin() {
         return skin_;
     }
 
-    std::string GrApplication::GetSkinName() {
+    std::string PxApplication::GetSkinName() {
         return skin_ ? skin_->GetSkinName().toStdString() : "";
     }
 
-    bool GrApplication::IsCmsClientAlive() {
+    bool PxApplication::IsCmsClientAlive() {
         return cms_client_ && cms_client_->IsAlive();
     }
 
-    std::shared_ptr<GrUserManager> GrApplication::GetUserManager() {
+    std::shared_ptr<PxUserManager> PxApplication::GetUserManager() {
         return user_mgr_;
     }
 
-    bool GrApplication::IsDeviceInfoOk() {
+    bool PxApplication::IsDeviceInfoOk() {
         auto device_id = settings_->GetDeviceId();
         auto device_random_pwd = settings_->GetDeviceRandomPwd();
         auto device_safety_pwd = settings_->GetDeviceSecurityPwd();
@@ -618,11 +618,11 @@ namespace px
         return true;
     }
 
-    std::shared_ptr<GrDeviceManager> GrApplication::GetDeviceManager() {
+    std::shared_ptr<PxDeviceManager> PxApplication::GetDeviceManager() {
         return device_mgr_;
     }
 
-    bool GrApplication::CanConnectCmsServer() {
+    bool PxApplication::CanConnectCmsServer() {
         cat r = px_cms::CmsDeviceApi::Ping(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), this->GetAppkey());
         return r.has_value() ? r.value() : false;
     }

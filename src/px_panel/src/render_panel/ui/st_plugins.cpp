@@ -26,7 +26,7 @@ namespace px
         }
     };
 
-    StPlugins::StPlugins(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent) {
+    StPlugins::StPlugins(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
         auto root_layout = new NoMarginVLayout();
         auto delegate = new PluginInfoItemDelegate(this);
         stream_list_ = new QListWidget(this);

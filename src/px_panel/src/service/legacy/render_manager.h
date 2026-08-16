@@ -17,10 +17,10 @@
 namespace px
 {
 
-    static const std::string kGammaRayName = px::kGammaRayExeName;
-    static const std::string kGammaRayRenderName = px::kGammaRayRenderExeName;
-    static const std::string kGammaRayClientInner = px::kGammaRayClientInnerExeName;
-    static const std::string kGammaRaySysInfo = px::kGammaRaySysInfoExeName;
+    static const std::string kPxPanelName = px::kPxPanelExeName;
+    static const std::string kPxRenderName = px::kPxRenderExeName;
+    static const std::string kPxClientName = px::kPxClientExeName;
+    static const std::string kPxOsInfoName = px::kPxOsInfoExeName;
 
     class ServiceContext;
     class MessageListener;

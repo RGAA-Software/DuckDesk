@@ -4,8 +4,8 @@
 // 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common_new/px_udp_protocol.h
 //
 
-#ifndef GAMMARAY_UDP_PLUGIN_H
-#define GAMMARAY_UDP_PLUGIN_H
+#ifndef PX_UDP_PLUGIN_H
+#define PX_UDP_PLUGIN_H
 
 #include <map>
 #include <mutex>
@@ -42,7 +42,7 @@ namespace px
         std::atomic<int64_t> last_seen_ms_{0};
     };
 
-    class UdpPlugin : public GrNetPlugin {
+    class UdpPlugin : public PxNetPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -50,7 +50,7 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
 
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
         // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
@@ -65,7 +65,7 @@ namespace px
 
         // data: encode video frame, h264/h265/...(编码线程回调,逐帧分包直发)
         void OnEncodedVideoFrame(const std::string& mon_name,
-                                 const GrPluginEncodedVideoType& video_type,
+                                 const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
@@ -156,7 +156,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::UdpPlugin)
+PX_PLUGIN_EXPORT(px::UdpPlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

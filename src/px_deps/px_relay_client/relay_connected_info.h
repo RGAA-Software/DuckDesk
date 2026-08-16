@@ -2,8 +2,8 @@
 // Created by RGAA on 1/07/2025.
 //
 
-#ifndef GAMMARAY_RELAY_CONNECTED_INFO_H
-#define GAMMARAY_RELAY_CONNECTED_INFO_H
+#ifndef PX_RELAY_CONNECTED_INFO_H
+#define PX_RELAY_CONNECTED_INFO_H
 
 #include <string>
 
@@ -18,4 +18,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_RELAY_CONNECTED_INFO_H
+#endif //PX_RELAY_CONNECTED_INFO_H

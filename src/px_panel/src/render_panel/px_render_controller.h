@@ -17,15 +17,15 @@
 namespace px
 {
 
-    class GrContext;
-    class GrServiceClient;
-    class GrApplication;
+    class PxContext;
+    class PxServiceClient;
+    class PxApplication;
 
-    class GrRenderController {
+    class PxRenderController {
     public:
 
-        explicit GrRenderController(const std::shared_ptr<GrApplication>& app);
-        ~GrRenderController();
+        explicit PxRenderController(const std::shared_ptr<PxApplication>& app);
+        ~PxRenderController();
 
         bool StartServer();
         bool StopServer();
@@ -38,8 +38,8 @@ namespace px
         [[nodiscard]] std::vector<std::string> GetArgs();
 
     private:
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
     };
 
 }

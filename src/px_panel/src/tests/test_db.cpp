@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 TEST(Test_db, read_write) {
     std::cout << "start..." << std::endl;
 
-    auto ctx = std::make_shared<GrContext>();
+    auto ctx = std::make_shared<PxContext>();
     auto gm = std::make_shared<DBGameManager>(ctx);
     gm->Init();
     {

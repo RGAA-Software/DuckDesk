@@ -17,7 +17,7 @@
 namespace px
 {
 
-    TabSettings::TabSettings(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent) {
+    TabSettings::TabSettings(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
         auto root_layout = new NoMarginHLayout();
 
         auto left_button_layout = new NoMarginVLayout();

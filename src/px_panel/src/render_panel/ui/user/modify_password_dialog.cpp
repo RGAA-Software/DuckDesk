@@ -21,7 +21,7 @@
 namespace px
 {
 
-    ModifyPasswordDialog::ModifyPasswordDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    ModifyPasswordDialog::ModifyPasswordDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         setFixedSize(375, 330);
         CreateLayout();

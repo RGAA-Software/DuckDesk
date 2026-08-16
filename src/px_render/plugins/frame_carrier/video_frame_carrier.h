@@ -2,8 +2,8 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_VIDEO_FRAME_CARRIER_H
-#define GAMMARAY_VIDEO_FRAME_CARRIER_H
+#ifndef PX_VIDEO_FRAME_CARRIER_H
+#define PX_VIDEO_FRAME_CARRIER_H
 
 #include <cstdint>
 #include <functional>
@@ -24,7 +24,7 @@ namespace px
     class Image;
     class Thread;
     class FrameCarrierPlugin;
-    class GrFrameProcessorPlugin;
+    class PxFrameProcessorPlugin;
 
     // move video frames from provider / capture
     class VideoFrameCarrier {
@@ -113,4 +113,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_VIDEO_FRAME_CARRIER_H
+#endif //PX_VIDEO_FRAME_CARRIER_H

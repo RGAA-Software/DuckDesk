@@ -11,7 +11,7 @@ namespace px
 
     class PluginDesktopCapture;
 
-    class GdiCapturePlugin : public GrMonitorCapturePlugin {
+    class GdiCapturePlugin : public PxMonitorCapturePlugin {
     public:
         GdiCapturePlugin();
         std::string GetPluginId() override;
@@ -19,7 +19,7 @@ namespace px
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const px::GrPluginParam& param) override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
         bool TryInitSpecificCapture() override;
         bool StartCapturing() override;

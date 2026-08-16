@@ -44,8 +44,8 @@ namespace px
 #endif
     }
 
-    bool OpusEncoderPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrAudioEncoderPlugin::OnCreate(param);
+    bool OpusEncoderPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxAudioEncoderPlugin::OnCreate(param);
         auto key_save_debug_file = "save_debug_file";
         if (HasParam(key_save_debug_file)) {
             debug_opus_decoder_ = GetConfigParam<bool>(key_save_debug_file);
@@ -55,7 +55,7 @@ namespace px
     }
 
     bool OpusEncoderPlugin::OnDestroy() {
-        GrAudioEncoderPlugin::OnDestroy();
+        PxAudioEncoderPlugin::OnDestroy();
         return true;
     }
 
@@ -95,7 +95,7 @@ namespace px
             for (const auto& ef : encoded_frames) {
                 auto encoded_data = Data::Make((char*)ef.data(), ef.size());
 
-                auto event = std::make_shared<GrPluginEncodedAudioFrameEvent>();
+                auto event = std::make_shared<PxPluginEncodedAudioFrameEvent>();
                 event->sample_rate_ = samples;
                 event->channels_ = channels;
                 event->bits_ = bits;

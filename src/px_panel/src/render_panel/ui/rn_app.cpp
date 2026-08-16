@@ -28,7 +28,7 @@ constexpr auto kChartMapCvtTexture = "Map&Cvt Texture";
 namespace px
 {
 
-    RnApp::RnApp(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {
+    RnApp::RnApp(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
         auto root_layout = new NoMarginVLayout();
         auto place_holder = new TcLabel();
         place_holder->setFixedWidth(1100);
@@ -318,7 +318,7 @@ namespace px
     }
 
     void RnApp::UpdateUI() {
-        auto stat = GrStatistics::Instance();
+        auto stat = PxStatistics::Instance();
 
         // column 1
         lbl_app_running_time_->setText(NumFormatter::FormatTime(stat->app_running_time*1000).c_str());

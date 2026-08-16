@@ -22,13 +22,13 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     // Create with host & port
     class CreateStreamDialog : public TcCustomTitleBarDialog {
     public:
-        explicit CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
-        CreateStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
+        explicit CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
+        CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
         ~CreateStreamDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -38,7 +38,7 @@ namespace px
         bool GenStream();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
 
         QLineEdit* ed_name_ = nullptr;
         QLineEdit* ed_host_ = nullptr;

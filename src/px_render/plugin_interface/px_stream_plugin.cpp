@@ -7,20 +7,20 @@
 namespace px
 {
 
-    GrStreamPlugin::GrStreamPlugin() : GrPluginInterface() {
-        plugin_type_ = GrPluginType::kStream;
+    PxStreamPlugin::PxStreamPlugin() : PxPluginInterface() {
+        plugin_type_ = PxPluginType::kStream;
     }
 
-    GrStreamPlugin::~GrStreamPlugin() {
-
-    }
-
-    void GrStreamPlugin::OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) {
+    PxStreamPlugin::~PxStreamPlugin() {
 
     }
 
-    void GrStreamPlugin::OnEncodedVideoFrame(const std::string& mon_name,
-                                            const GrPluginEncodedVideoType& video_type,
+    void PxStreamPlugin::OnVideoEncoderCreated(const std::string& mon_name, const PxPluginEncodedVideoType& type, int width, int height) {
+
+    }
+
+    void PxStreamPlugin::OnEncodedVideoFrame(const std::string& mon_name,
+                                            const PxPluginEncodedVideoType& video_type,
                                             const std::shared_ptr<Data>& data,
                                             uint64_t frame_index,
                                             int frame_width,
@@ -29,17 +29,17 @@ namespace px
 
     }
 
-    void GrStreamPlugin::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
+    void PxStreamPlugin::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
 
     }
 
-    void GrStreamPlugin::OnSplitRawAudioData(const std::shared_ptr<Data>& left_ch_data,
+    void PxStreamPlugin::OnSplitRawAudioData(const std::shared_ptr<Data>& left_ch_data,
                                              const std::shared_ptr<Data>& right_ch_data,
                                              int samples, int channels, int bits) {
 
     }
 
-    void GrStreamPlugin::OnSplitFFTAudioData(const std::vector<double>& left_fft, const std::vector<double>& right_fft) {
+    void PxStreamPlugin::OnSplitFFTAudioData(const std::vector<double>& left_fft, const std::vector<double>& right_fft) {
 
     }
 }

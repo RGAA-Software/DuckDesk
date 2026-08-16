@@ -333,7 +333,7 @@ namespace px
 
         const auto& settings = plugin_->GetPluginSettings();
 
-//        auto event = std::make_shared<GrPluginFileTransferBegin>();
+//        auto event = std::make_shared<PxPluginFileTransferBegin>();
 //        event->the_file_id_ = file_stream_->GetFileId();
 //        event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 //        event->visitor_device_id_ = settings.device_id_;
@@ -366,7 +366,7 @@ namespace px
         if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
             return;
         }
-//        auto event = std::make_shared<GrPluginFileTransferEnd>();
+//        auto event = std::make_shared<PxPluginFileTransferEnd>();
 //        event->the_file_id_ = file_stream_->GetFileId();
 //        event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 //        event->success_ = true;

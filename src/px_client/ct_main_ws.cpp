@@ -412,7 +412,7 @@ int main(int argc, char** argv) {
     // Breakpad
     auto bc = BreakpadContext {
         .version_ = PROJECT_VERSION,
-        .app_name_ = "GammaRayClientInner",
+        .app_name_ = "px_client",
     };
     CaptureDumpByBreakpad(&bc);
 

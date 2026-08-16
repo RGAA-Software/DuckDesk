@@ -6,13 +6,13 @@
 #include <qabstractnativeeventfilter.h>
 
 namespace px { 
-	class GrContext;
+	class PxContext;
 	class MessageListener;
 	class ConnectedInfoSlidingWindow;
 	
-	class GrConnectedManager : public QObject, public QAbstractNativeEventFilter {
+	class PxConnectedManager : public QObject, public QAbstractNativeEventFilter {
 	public:
-		GrConnectedManager(const std::shared_ptr<GrContext>& ctx);
+		PxConnectedManager(const std::shared_ptr<PxContext>& ctx);
 		void RegisterMessageListener();
 		void TestShowPanel();
 		bool nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) override;
@@ -23,7 +23,7 @@ namespace px {
 		void HideAllPanels();
 		void ShowAllPanels();
 	private:
-		std::shared_ptr<GrContext> px_ctx_ = nullptr;
+		std::shared_ptr<PxContext> px_ctx_ = nullptr;
 		std::shared_ptr<MessageListener> msg_listener_ = nullptr;
 
 		std::map<int, ConnectedInfoSlidingWindow*> connected_info_panel_group_;

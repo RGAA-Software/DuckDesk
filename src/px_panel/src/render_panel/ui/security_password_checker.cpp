@@ -15,7 +15,7 @@ namespace px
 {
 
     bool SecurityPasswordChecker::HasSecurityPassword() {
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         return !settings->GetDeviceSecurityPwd().empty();
     }
 
@@ -36,7 +36,7 @@ namespace px
     }
 
     bool SecurityPasswordChecker::IsInputSecurityPasswordOk(const std::string& pwd) {
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         if (settings->GetDeviceSecurityPwd().empty()) {
             return true;
         }

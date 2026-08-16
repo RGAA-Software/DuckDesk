@@ -2,8 +2,8 @@
 // Created by RGAA on 5/12/2024.
 //
 
-#ifndef GAMMARAY_SERVICE_MESSAGES_H
-#define GAMMARAY_SERVICE_MESSAGES_H
+#ifndef PX_SERVICE_MESSAGES_H
+#define PX_SERVICE_MESSAGES_H
 
 namespace px
 {
@@ -20,4 +20,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_SERVICE_MESSAGES_H
+#endif //PX_SERVICE_MESSAGES_H

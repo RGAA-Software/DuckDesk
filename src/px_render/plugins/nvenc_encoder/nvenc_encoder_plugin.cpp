@@ -11,7 +11,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::NvencEncoderPlugin)
+PX_PLUGIN_EXPORT(px::NvencEncoderPlugin)
 
 namespace px
 {
@@ -36,7 +36,7 @@ namespace px
     }
 
     void NvencEncoderPlugin::On1Second() {
-        GrVideoEncoderPlugin::On1Second();
+        PxVideoEncoderPlugin::On1Second();
 #if MEMORY_STST_ON
         plugin_context_->PostWorkTask([=, this]() {
             auto info = MemoryStat::Instance()->GetStatInfo();
@@ -45,19 +45,19 @@ namespace px
 #endif
     }
 
-    bool NvencEncoderPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrVideoEncoderPlugin::OnCreate(param);
+    bool NvencEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxVideoEncoderPlugin::OnCreate(param);
         return true;
     }
 
     bool NvencEncoderPlugin::OnDestroy() {
-        GrVideoEncoderPlugin::OnStop();
+        PxVideoEncoderPlugin::OnStop();
         ExitAll();
-        return GrVideoEncoderPlugin::OnDestroy();
+        return PxVideoEncoderPlugin::OnDestroy();
     }
 
     void NvencEncoderPlugin::InsertIdr() {
-        GrVideoEncoderPlugin::InsertIdr();
+        PxVideoEncoderPlugin::InsertIdr();
         if (IsWorking()) {
             for (const auto& [monitor_index, video_encoder] : video_encoders_) {
                 video_encoder->InsertIdr();
@@ -118,7 +118,7 @@ namespace px
             LOGE("This plugin is disabled!");
             return false;
         }
-        GrVideoEncoderPlugin::Init(config, monitor_name);
+        PxVideoEncoderPlugin::Init(config, monitor_name);
         auto encoder = std::make_shared<NVENCVideoEncoder>(this, config.adapter_uid_);
         LOGI("config bitrate: {} for monitor: {}", config.bitrate, monitor_name);
         auto ok = encoder->Initialize(config);

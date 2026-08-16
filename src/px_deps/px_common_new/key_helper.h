@@ -2,8 +2,8 @@
 // Created by RGAA on 11/08/2024.
 //
 
-#ifndef GAMMARAY_KEY_HELPER_H
-#define GAMMARAY_KEY_HELPER_H
+#ifndef PX_KEY_HELPER_H
+#define PX_KEY_HELPER_H
 
 namespace px
 {
@@ -24,4 +24,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_KEY_HELPER_H
+#endif //PX_KEY_HELPER_H

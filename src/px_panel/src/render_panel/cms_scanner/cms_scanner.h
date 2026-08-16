@@ -14,7 +14,7 @@ namespace px
 {
 
     class Thread;
-    class GrApplication;
+    class PxApplication;
     class MessageListener;
 
     class StNetworkCmsAccessInfo {
@@ -29,7 +29,7 @@ namespace px
 
     class CmsScanner {
     public:
-        explicit CmsScanner(const std::shared_ptr<GrApplication>& app);
+        explicit CmsScanner(const std::shared_ptr<PxApplication>& app);
         //
         void StartUdpReceiver(int port);
         void Exit();
@@ -39,7 +39,7 @@ namespace px
         void ClearInactiveServer();
 
     private:
-        std::shared_ptr<GrApplication> app_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
         // udp receiver thread
         std::shared_ptr<Thread> udp_receiver_thread_ = nullptr;
         std::atomic_bool exit_udp_receiver_ = false;

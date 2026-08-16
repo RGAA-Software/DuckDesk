@@ -2,8 +2,8 @@
 // Created by RGAA on 25/06/2025.
 //
 
-#ifndef GAMMARAY_NOTIFY_DEFS_H
-#define GAMMARAY_NOTIFY_DEFS_H
+#ifndef PX_NOTIFY_DEFS_H
+#define PX_NOTIFY_DEFS_H
 
 #include <QString>
 #include <functional>
@@ -27,4 +27,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_NOTIFY_DEFS_H
+#endif //PX_NOTIFY_DEFS_H

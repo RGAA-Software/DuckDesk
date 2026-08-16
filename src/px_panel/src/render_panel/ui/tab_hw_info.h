@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TAB_HW_INFO_INTERNALS_H
-#define GAMMARAY_TAB_HW_INFO_INTERNALS_H
+#ifndef PX_TAB_HW_INFO_INTERNALS_H
+#define PX_TAB_HW_INFO_INTERNALS_H
 
 #include <map>
 #include <QStackedWidget>
@@ -17,7 +17,7 @@ namespace px
 
     class TabHWInfo : public TabBase {
     public:
-        TabHWInfo(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        TabHWInfo(const std::shared_ptr<PxApplication>& app, QWidget *parent);
 
         void OnTabShow() override;
         void OnTabHide() override;
@@ -28,4 +28,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TAB_PROFILE_H
+#endif //PX_TAB_PROFILE_H

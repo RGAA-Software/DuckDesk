@@ -22,12 +22,12 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class TcPasswordInput;
 
     class InputRemotePwdDialog : public TcCustomTitleBarDialog {
     public:
-        explicit InputRemotePwdDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit InputRemotePwdDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~InputRemotePwdDialog() override;
         void paintEvent(QPaintEvent *event) override;
         void closeEvent(QCloseEvent *) override;
@@ -37,7 +37,7 @@ namespace px
         void CreateLayout();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         TcPasswordInput* pwd_input_ = nullptr;
 
     };

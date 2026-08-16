@@ -21,12 +21,12 @@ const std::string kUserPrefix = "cms_user:";
 namespace px
 {
 
-    GrUserManager::GrUserManager(const std::shared_ptr<GrContext>& ctx) {
+    PxUserManager::PxUserManager(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
-    bool GrUserManager::Register(const std::string& username, const std::string& password) {
+    bool PxUserManager::Register(const std::string& username, const std::string& password) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -50,7 +50,7 @@ namespace px
         return true;
     }
 
-    bool GrUserManager::Login(const std::string& username, const std::string& password, bool show_dialog) {
+    bool PxUserManager::Login(const std::string& username, const std::string& password, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -93,7 +93,7 @@ namespace px
         }
     }
 
-    bool GrUserManager::Logout() {
+    bool PxUserManager::Logout() {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -115,7 +115,7 @@ namespace px
         return true;
     }
 
-    bool GrUserManager::ModifyUsername(const std::string& username) {
+    bool PxUserManager::ModifyUsername(const std::string& username) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -141,7 +141,7 @@ namespace px
         }
     }
 
-    bool GrUserManager::ModifyPassword(const std::string& new_password) {
+    bool PxUserManager::ModifyPassword(const std::string& new_password) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -165,7 +165,7 @@ namespace px
         }
     }
 
-    bool GrUserManager::UpdateAvatar(const std::string& avatar_path) {
+    bool PxUserManager::UpdateAvatar(const std::string& avatar_path) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -188,7 +188,7 @@ namespace px
         }
     }
 
-    std::vector<std::shared_ptr<px_cms::CmsUserDevice>> GrUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
+    std::vector<std::shared_ptr<px_cms::CmsUserDevice>> PxUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -214,7 +214,7 @@ namespace px
         }
     }
 
-    std::shared_ptr<px_cms::CmsUserDevice> GrUserManager::AddDeviceForUser(const std::string& device_id) {
+    std::shared_ptr<px_cms::CmsUserDevice> PxUserManager::AddDeviceForUser(const std::string& device_id) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -234,7 +234,7 @@ namespace px
         return device;
     }
 
-    std::shared_ptr<px_cms::CmsUserDevice> GrUserManager::RemoveDeviceFromUser(const std::string& device_id) {
+    std::shared_ptr<px_cms::CmsUserDevice> PxUserManager::RemoveDeviceFromUser(const std::string& device_id) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -250,7 +250,7 @@ namespace px
         return device;
     }
 
-    void GrUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& password, const std::string& avatar_path) {
+    void PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& password, const std::string& avatar_path) {
         // uid
         context_->SpPutString(KeyUid(), uid);
 
@@ -264,58 +264,58 @@ namespace px
         this->UpdateAvatarPath(avatar_path);
     }
 
-    bool GrUserManager::IsLoggedIn() {
+    bool PxUserManager::IsLoggedIn() {
         auto uid = GetUserId();
         auto username = GetUsername();
         auto password = GetPassword();
         return !uid.empty() && !username.empty() && !password.empty();
     }
 
-    std::string GrUserManager::GetUserId() {
+    std::string PxUserManager::GetUserId() {
         return context_->SpGetString(KeyUid());
     }
 
-    void GrUserManager::UpdateUsername(const std::string& username) {
+    void PxUserManager::UpdateUsername(const std::string& username) {
         context_->SpPutString(KeyUsername(), username);
     }
 
-    std::string GrUserManager::GetUsername() {
+    std::string PxUserManager::GetUsername() {
         return context_->SpGetString(KeyUsername());
     }
 
-    void GrUserManager::UpdatePassword(const std::string& password) {
+    void PxUserManager::UpdatePassword(const std::string& password) {
         context_->SpPutString(KeyPassword(), password);
     }
 
-    std::string GrUserManager::GetPassword() {
+    std::string PxUserManager::GetPassword() {
         return context_->SpGetString(KeyPassword());
     }
 
-    void GrUserManager::UpdateAvatarPath(const std::string& avatar_path) {
+    void PxUserManager::UpdateAvatarPath(const std::string& avatar_path) {
         context_->SpPutString(KeyAvatarPath(), avatar_path);
     }
 
-    std::string GrUserManager::GetAvatarPath() {
+    std::string PxUserManager::GetAvatarPath() {
         return context_->SpGetString(KeyAvatarPath());
     }
 
-    void GrUserManager::Clear() {
+    void PxUserManager::Clear() {
         SaveUserInfo("", "", "", "");
     }
 
-    std::string GrUserManager::KeyUid() {
+    std::string PxUserManager::KeyUid() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserId);
     }
 
-    std::string GrUserManager::KeyUsername() {
+    std::string PxUserManager::KeyUsername() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserName);
     }
 
-    std::string GrUserManager::KeyPassword() {
+    std::string PxUserManager::KeyPassword() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserPassword);
     }
 
-    std::string GrUserManager::KeyAvatarPath() {
+    std::string PxUserManager::KeyAvatarPath() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserAvatarPath);
     }
 

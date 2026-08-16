@@ -2,8 +2,8 @@
 // Created by RGAA on 20/03/2025.
 //
 
-#ifndef GAMMARAY_TC_QR_WIDGET_H
-#define GAMMARAY_TC_QR_WIDGET_H
+#ifndef PX_TC_QR_WIDGET_H
+#define PX_TC_QR_WIDGET_H
 
 #include <QWidget>
 #include <QPixmap>
@@ -25,4 +25,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_QR_WIDGET_H
+#endif //PX_TC_QR_WIDGET_H

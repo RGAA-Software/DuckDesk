@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_WS_PLUGIN_H
-#define GAMMARAY_WS_PLUGIN_H
+#ifndef PX_WS_PLUGIN_H
+#define PX_WS_PLUGIN_H
 
 #include <mutex>
 #include "px_render/plugin_interface/px_net_plugin.h"
@@ -13,7 +13,7 @@ namespace px
 
     class WsPluginServer;
 
-    class WsPlugin : public GrNetPlugin {
+    class WsPlugin : public PxNetPlugin {
     public:
         WsPlugin();
         std::string GetPluginId() override;
@@ -21,7 +21,7 @@ namespace px
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const px::GrPluginParam& param) override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
         void On1Second() override;
         bool IsWorking() override;
@@ -42,14 +42,14 @@ namespace px
         int64_t GetQueuingFtMsgCount() override;
         bool HasEnoughBufferForQueuingMediaMessages() override;
         bool HasEnoughBufferForQueuingFtMessages() override;
-        std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo() override;
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo() override;
         void DispatchAppEvent(const std::shared_ptr<AppBaseEvent> &event) override;
         void OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) override;
-        GrNetPlugin* GetLocalRtcPlugin();
+        PxNetPlugin* GetLocalRtcPlugin();
 
         // 记录当前编码输出的显示器名(Web 端输入回放需要 monitor_name)
         void OnEncodedVideoFrame(const std::string& mon_name,
-                                 const GrPluginEncodedVideoType& video_type,
+                                 const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
@@ -72,4 +72,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

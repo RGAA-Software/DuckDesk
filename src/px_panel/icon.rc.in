@@ -18,9 +18,9 @@ BEGIN
             VALUE "CompanyName", "RGAA"
             VALUE "FileDescription", "GoDesk Panel"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
-            VALUE "InternalName", "GammaRay.exe"
+            VALUE "InternalName", "px_panel.exe"
             VALUE "LegalCopyright", "<https://github.com/rgaa-software> Copyright (c) 2022-2025 RGAA "
-            VALUE "OriginalFilename", "GammaRay.exe"
+            VALUE "OriginalFilename", "px_panel.exe"
             VALUE "ProductName", "GoDesk"
             VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
         END

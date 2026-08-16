@@ -6,7 +6,7 @@
 
 namespace px
 {
-    GrFrameProcessorPlugin::GrFrameProcessorPlugin() {
+    PxFrameProcessorPlugin::PxFrameProcessorPlugin() {
 
     }
 

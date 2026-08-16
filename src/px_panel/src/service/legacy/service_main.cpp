@@ -4,7 +4,7 @@
 //
 // Deprecated:
 // This C++ Windows service implementation is no longer built by CMake.
-// The active service binary is now the Rust `GammaRayService.exe`.
+// The active service binary is now the Rust `px_service.exe`.
 // Keep this file only as historical reference while the Rust replacement
 // remains the production implementation.
 
@@ -26,9 +26,9 @@ using namespace px;
 #pragma comment(lib, "Shlwapi.lib")
 
 std::shared_ptr<ServiceContext> g_context_ = nullptr;
-std::shared_ptr<GrService> g_service_ = nullptr;
+std::shared_ptr<PxService> g_service_ = nullptr;
 
-const std::string kGrServiceName = "GammaRayService";
+const std::string kGrServiceName = "px_service";
 
 std::wstring GetModulePathW(HMODULE hModule)
 {
@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
 
     auto bc = BreakpadContext {
         .version_ = PROJECT_VERSION,
-        .app_name_ = "GammaRayService",
+        .app_name_ = "px_service",
     };
     CaptureDumpByBreakpad(&bc);
 
@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
         LOGI("arg 1: {}", listening_port);
     }
     g_context_ = std::make_shared<ServiceContext>(listening_port);
-    g_service_ = std::make_shared<GrService>(g_context_);
+    g_service_ = std::make_shared<PxService>(g_context_);
     SERVICE_TABLE_ENTRY ServiceTable[] = {
             {(wchar_t*)kGrServiceName.c_str(), (LPSERVICE_MAIN_FUNCTION)ServiceMain},
             {nullptr, nullptr}

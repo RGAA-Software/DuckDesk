@@ -329,7 +329,7 @@ impl ServiceRuntime {
         Ok((port, pid))
     }
 
-    /// Pick a work_dir containing GammaRayRender.exe for game-hook launches.
+    /// Pick a work_dir containing px_render.exe for game-hook launches.
     /// Prefer last desktop work_dir (GoDesk dist) when it still exists; else
     /// service exe directory / current_dir (console local runs).
     fn pick_app_work_dir(&self) -> Result<String, String> {
@@ -358,7 +358,7 @@ impl ServiceRuntime {
                         .is_file()
             })
             .ok_or_else(|| {
-                "no valid work_dir with GammaRayRender.exe (desktop launch / service exe dir)"
+                "no valid work_dir with px_render.exe (desktop launch / service exe dir)"
                     .to_string()
             })
     }
@@ -933,7 +933,7 @@ mod tests {
         let mut runtime = test_runtime(Vec::new());
         let spec = RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         };
         runtime.start_desktop(spec.clone()).unwrap();
@@ -956,7 +956,7 @@ mod tests {
         runtime
             .start_desktop(RenderLaunchSpec {
                 work_dir: "D:/app".to_string(),
-                app_path: "D:/app/GammaRayRender.exe".to_string(),
+                app_path: "D:/app/px_render.exe".to_string(),
                 args: vec![
                     "--app_mode=desktop".to_string(),
                     "--network_listen_port=20400".to_string(),
@@ -965,7 +965,7 @@ mod tests {
             .unwrap();
         let session_launches = manager.session_user_launches.lock().unwrap();
         assert_eq!(session_launches.len(), 1);
-        assert!(session_launches[0].app_path.ends_with("GammaRayUserProxy.exe"));
+        assert!(session_launches[0].app_path.ends_with("px_function.exe"));
         assert_eq!(
             session_launches[0].args,
             vec!["--render-port=20400".to_string()]
@@ -976,7 +976,7 @@ mod tests {
     fn heartbeat_returns_working_after_sync() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
             1,
-            "D:/GammaRayRender.exe",
+            "D:/px_render.exe",
             "--app_mode=desktop",
         )]);
         let response = runtime
@@ -1013,7 +1013,7 @@ mod tests {
     fn render_heartbeat_updates_hung_detection_baseline() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
             1,
-            "D:/GammaRayRender.exe",
+            "D:/px_render.exe",
             "--app_mode=desktop",
         )]);
         assert!(runtime.state.last_render_heartbeat.is_none());
@@ -1089,7 +1089,7 @@ mod tests {
     fn console_connect_stops_desktop_render() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
             1,
-            "D:/GammaRayRender.exe",
+            "D:/px_render.exe",
             "--app_mode=desktop",
         )]);
         runtime
@@ -1112,7 +1112,7 @@ mod tests {
         );
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: "D:/persist".to_string(),
-            app_path: "D:/persist/GammaRayRender.exe".to_string(),
+            app_path: "D:/persist/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         runtime.persist_state().unwrap();
@@ -1125,18 +1125,18 @@ mod tests {
         reloaded.load_persisted_state().unwrap();
         assert_eq!(
             reloaded.state.last_desktop_launch.unwrap().app_path,
-            "D:/persist/GammaRayRender.exe"
+            "D:/persist/px_render.exe"
         );
     }
 
     #[test]
     fn stop_managed_render_only_kills_render() {
         let mut runtime = test_runtime(vec![
-            ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
+            ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=desktop"),
             ProcessSnapshot::new(2, "D:/UnrelatedApp.exe", ""),
-            ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
-            ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
-            ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
+            ProcessSnapshot::new(3, "D:/px_client.exe", ""),
+            ProcessSnapshot::new(4, "D:/px_osinfo.exe", ""),
+            ProcessSnapshot::new(5, "D:/px_function.exe", "--render-port=20371"),
         ]);
         runtime.stop_managed_render().unwrap();
         assert!(!runtime.state.desktop_alive);
@@ -1156,14 +1156,14 @@ mod tests {
             config.clone(),
             Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
                 1,
-                "D:/GammaRayRender.exe",
+                "D:/px_render.exe",
                 "--app_mode=desktop",
             )])),
             Arc::new(MockActions::new()),
         );
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         runtime.handle_command(Command::StopDesktop).unwrap();
@@ -1187,15 +1187,15 @@ mod tests {
     #[test]
     fn stop_control_event_only_kills_managed_processes() {
         let mut runtime = test_runtime(vec![
-            ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
+            ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=desktop"),
             ProcessSnapshot::new(2, "D:/UnrelatedApp.exe", ""),
-            ProcessSnapshot::new(3, "D:/GammaRayClientInner.exe", ""),
-            ProcessSnapshot::new(4, "D:/GammaRaySysInfo.exe", ""),
-            ProcessSnapshot::new(5, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
+            ProcessSnapshot::new(3, "D:/px_client.exe", ""),
+            ProcessSnapshot::new(4, "D:/px_osinfo.exe", ""),
+            ProcessSnapshot::new(5, "D:/px_function.exe", "--render-port=20371"),
         ]);
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         runtime.handle_control_event(ControlEvent::Stop).unwrap();
@@ -1227,7 +1227,7 @@ mod tests {
         }
     }
 
-    /// Temp work_dir with a fake GammaRayRender.exe + temp game exe; start
+    /// Temp work_dir with a fake px_render.exe + temp game exe; start
     /// validation requires both to exist on disk.
     struct AppTestDirs {
         work_dir_s: String,
@@ -1240,7 +1240,7 @@ mod tests {
         let base = std::env::temp_dir().join(format!("px_app_test_{tag}_{}", std::process::id()));
         let work_dir = base.join("work");
         let _ = std::fs::create_dir_all(&work_dir);
-        let render_path = work_dir.join("GammaRayRender.exe");
+        let render_path = work_dir.join("px_render.exe");
         std::fs::write(&render_path, b"fake").unwrap();
         let game_exe = base.join(r"game\Binaries\Win64\game.exe");
         let _ = std::fs::create_dir_all(game_exe.parent().unwrap());
@@ -1263,7 +1263,7 @@ mod tests {
         );
         let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
             1,
-            "D:/GammaRayRender.exe",
+            "D:/px_render.exe",
             "--app_mode=desktop",
         )]));
         let mut runtime = ServiceRuntime::new(
@@ -1441,17 +1441,17 @@ mod tests {
     #[test]
     fn stop_desktop_skips_game_hook_processes() {
         let mut runtime = test_runtime(vec![
-            ProcessSnapshot::new(1, "D:/GammaRayRender.exe", "--app_mode=desktop"),
+            ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=desktop"),
             ProcessSnapshot::new(
                 2,
-                "D:/GammaRayRender.exe",
+                "D:/px_render.exe",
                 "--app_mode=game-hook --network_listen_port=32000",
             ),
-            ProcessSnapshot::new(3, "D:/GammaRayUserProxy.exe", "--render-port=20371"),
+            ProcessSnapshot::new(3, "D:/px_function.exe", "--render-port=20371"),
         ]);
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         runtime.stop_desktop().unwrap();

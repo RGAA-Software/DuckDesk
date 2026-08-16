@@ -2,8 +2,8 @@
 // Created by RGAA on 22/11/2024.
 //
 
-#ifndef GAMMARAY_GR_MONITOR_CAPTURE_PLUGIN_H
-#define GAMMARAY_GR_MONITOR_CAPTURE_PLUGIN_H
+#ifndef PX_MONITOR_CAPTURE_PLUGIN_H
+#define PX_MONITOR_CAPTURE_PLUGIN_H
 
 #include "px_plugin_interface.h"
 #include <optional>
@@ -35,11 +35,11 @@ namespace px
     };
     using WorkingCaptureInfoPtr = std::shared_ptr<WorkingCaptureInfo>;
 
-    class GrMonitorCapturePlugin : public GrPluginInterface {
+    class PxMonitorCapturePlugin : public PxPluginInterface {
     public:
-        GrMonitorCapturePlugin();
+        PxMonitorCapturePlugin();
 
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
         void SetCaptureErrorCallback(const CaptureErrorCallback& cbk);
         
@@ -77,4 +77,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_GR_MONITOR_CAPTURE_PLUGIN_H
+#endif //PX_MONITOR_CAPTURE_PLUGIN_H

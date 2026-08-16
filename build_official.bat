@@ -88,6 +88,11 @@ echo ----------------------BUILD START------------------------
 echo ---------------------------------------------------------
 echo ---------------------------------------------------------
 
+rem Sync message protos from the single source of truth (src\px_deps\px_message_new)
+rem into the web clients so Vite can inline them. Generated at build time, not committed.
+node "%~dp0scripts\sync_web_protos.mjs"
+if errorlevel 1 exit /b %errorlevel%
+
 rem Always rebuild the web client frontend so collect_dist packages fresh assets.
 call :build_npm_web "web\px_web_client" "web_client"
 if errorlevel 1 exit /b %errorlevel%
@@ -97,9 +102,9 @@ if errorlevel 1 exit /b %errorlevel%
 
 rem Build and deploy the three rust servers (frontend + exe + copy to output\).
 rem Each script is self-contained and can also be run standalone.
-rem Skipped when GR_SKIP_SERVERS is set (see build_client.bat: installer only
+rem Skipped when PX_SKIP_SERVERS is set (see build_client.bat: installer only
 rem needs client-side artifacts, servers are built separately).
-if not defined GR_SKIP_SERVERS (
+if not defined PX_SKIP_SERVERS (
     call "%~dp0build_px_cms_server.bat"
     if errorlevel 1 exit /b %errorlevel%
     call "%~dp0build_px_auth_server.bat"
@@ -107,7 +112,7 @@ if not defined GR_SKIP_SERVERS (
     call "%~dp0build_px_desk_server.bat"
     if errorlevel 1 exit /b %errorlevel%
 ) else (
-    echo GR_SKIP_SERVERS set, skipping rust server builds...
+    echo PX_SKIP_SERVERS set, skipping rust server builds...
 )
 
 endlocal

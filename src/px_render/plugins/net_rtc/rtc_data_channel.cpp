@@ -38,7 +38,7 @@ namespace px
 
             // notify
             if (this->name_ == "media_data_channel") {
-                auto event = std::make_shared<GrPluginClientConnectedEvent>();
+                auto event = std::make_shared<PxPluginClientConnectedEvent>();
                 event->stream_id_ = this->the_conn_id_;
                 event->visitor_device_id_ = name_;
                 event->conn_type_ = "RTC";

@@ -1,15 +1,15 @@
-import {GrSdk} from "./client/px_sdk.ts";
-import {GrRendererManager} from "./renderer/px_renderer_manager.ts";
-import {GrConnParams, GrSdkConnType, GrSdkParams} from "./client/px_sdk_params.ts";
+import {PxSdk} from "./client/px_sdk.ts";
+import {PxRendererManager} from "./renderer/px_renderer_manager.ts";
+import {PxConnParams, PxSdkConnType, PxSdkParams} from "./client/px_sdk_params.ts";
 import {getBrowserInfo} from "./util/px_browser_info.ts";
 
-export class GrApp {
+export class PxApp {
 
     // sdk
-    grSdk: GrSdk
+    grSdk: PxSdk
 
     // renderer manager
-    rendererManager: GrRendererManager
+    rendererManager: PxRendererManager
 
     constructor() {
         document.documentElement.style.margin = "0";
@@ -32,29 +32,29 @@ export class GrApp {
         const remoteVideoElement = document.getElementById('remoteVideo') as HTMLVideoElement;
         const rendererName = "webgl";//"webgl";//2d
 
-        this.rendererManager = new GrRendererManager(rendererName, canvas, remoteVideoElement);
+        this.rendererManager = new PxRendererManager(rendererName, canvas, remoteVideoElement);
 
-        let sdkConnType = GrSdkConnType.kWebSocket;
+        let sdkConnType = PxSdkConnType.kWebSocket;
         if (connType == "ws") {
-            sdkConnType = GrSdkConnType.kWebSocket;
+            sdkConnType = PxSdkConnType.kWebSocket;
             remoteVideoElement.style.display = "none";
         }
         else if (connType == "rtc_direct") {
-            sdkConnType = GrSdkConnType.kWebRtcDirect;
+            sdkConnType = PxSdkConnType.kWebRtcDirect;
             canvas.style.display = "none";
         }
         else if (connType == "rtc") {
-            sdkConnType = GrSdkConnType.kWebRtc;
+            sdkConnType = PxSdkConnType.kWebRtc;
             canvas.style.display = "none";
         }
 
-        this.grSdk = new GrSdk(new GrSdkParams({
+        this.grSdk = new PxSdk(new PxSdkParams({
             sdkType: sdkConnType,
             canvas: canvas,
             rendererName: rendererName
         }), this.rendererManager);
 
-        this.grSdk.start(new GrConnParams({
+        this.grSdk.start(new PxConnParams({
             //host: "10.0.0.16",
             // host: "10.0.0.112",
             host: hostParam,

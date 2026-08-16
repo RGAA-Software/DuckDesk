@@ -2,8 +2,8 @@
 // Created by RGAA on 3/03/2025.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_SETTINGS_INFO_H
-#define GAMMARAY_GR_PLUGIN_SETTINGS_INFO_H
+#ifndef PX_PLUGIN_SETTINGS_INFO_H
+#define PX_PLUGIN_SETTINGS_INFO_H
 
 #include <string>
 
@@ -11,7 +11,7 @@ namespace px
 {
 
     // from render panel -> render
-    class GrPluginSettingsInfo {
+    class PxPluginSettingsInfo {
     public:
         // this device, device id
         std::string device_id_;
@@ -43,4 +43,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_PLUGIN_SETTINGS_INFO_H
+#endif //PX_PLUGIN_SETTINGS_INFO_H

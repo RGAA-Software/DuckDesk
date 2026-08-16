@@ -32,7 +32,7 @@
 namespace px
 {
     
-    CpVirtualFile::CpVirtualFile(const std::shared_ptr<GrContext>& ctx) {
+    CpVirtualFile::CpVirtualFile(const std::shared_ptr<PxContext>& ctx) {
         _cRef = 1;
         context_ = ctx;
     }
@@ -302,7 +302,7 @@ namespace px
             ip_address = ips[0].ip_addr_;
         }
 
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         auto ft_record_op = context_->GetDatabase()->GetFileTransferRecordOp();
 
         auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
@@ -331,7 +331,7 @@ namespace px
         }
     }
 
-    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<GrContext>& ctx) {
+    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, const std::shared_ptr<PxContext>& ctx) {
         *ppv = nullptr;
         auto p = new CpVirtualFile(ctx);
         p->Init();
@@ -350,7 +350,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
@@ -367,7 +367,7 @@ namespace px
         if (!record) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
         auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();

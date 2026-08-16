@@ -1,7 +1,7 @@
 # Active directory contract:
 # - `service_manager.cpp` remains the live C++ wrapper used by the panel code.
 # - The original C++ service implementation has been moved to `legacy/`.
-# - Rust `GammaRayService.exe` / `GammaRayServiceManager.exe` are the only
+# - Rust `px_service.exe` / `px_service_manager.exe` are the only
 #   service executables that should be built.
 #
 # Keep the historical source list commented out here to make that switch
@@ -21,8 +21,8 @@ set(SERVICE_MGR_SRCS
         PARENT_SCOPE
 )
 
-# The standalone C++ GammaRayServiceManager executable is also disabled.
-# Rust `GammaRayServiceManager.exe` replaces it, while `service_manager.cpp`
+# The standalone C++ px_service_manager executable is also disabled.
+# Rust `px_service_manager.exe` replaces it, while `service_manager.cpp`
 # remains as the panel-facing wrapper used by the existing C++ application.
 #
 # set(SERVICE_MGR_MAIN_SRCS

@@ -2,8 +2,8 @@
 // Created by RGAA on 7/03/2025.
 //
 
-#ifndef GAMMARAY_THREAD_UTIL_H
-#define GAMMARAY_THREAD_UTIL_H
+#ifndef PX_THREAD_UTIL_H
+#define PX_THREAD_UTIL_H
 
 #include <thread>
 
@@ -19,4 +19,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_THREAD_UTIL_H
+#endif //PX_THREAD_UTIL_H

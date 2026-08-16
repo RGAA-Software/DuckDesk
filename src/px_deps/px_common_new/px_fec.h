@@ -4,8 +4,8 @@
 // Used by px_udp_protocol.h for GameStream-style UDP video FEC (P2).
 //
 
-#ifndef GAMMARAY_GR_FEC_H
-#define GAMMARAY_GR_FEC_H
+#ifndef PX_FEC_H
+#define PX_FEC_H
 
 #include <cstring>
 #include <string>
@@ -18,7 +18,7 @@ namespace px
 
     // 所有保护块必须等长(P 字节);Encode 生成 parity 块,Decode 在缺失数 <= parity 数时
     // 原地填回缺失块。D + parity <= DATA_SHARDS_MAX(255) 由调用方保证。
-    class GrFec {
+    class PxFec {
     public:
         // blocks: D 个等长数据块(每块 P 字节),返回 parity_count 个 P 字节校验块;失败返回空
         static std::vector<std::string> Encode(const std::vector<std::string>& blocks, int parity_count) {
@@ -103,4 +103,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_FEC_H
+#endif //PX_FEC_H

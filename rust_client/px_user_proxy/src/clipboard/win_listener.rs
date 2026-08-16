@@ -130,7 +130,7 @@ fn create_clipboard_listener_window(notify_tx: Sender<()>) -> anyhow::Result<HWN
 
     let instance: windows::Win32::Foundation::HINSTANCE =
         unsafe { GetModuleHandleW(PCWSTR::null())? }.into();
-    let class_name = w!("GammaRay_user_proxy_clipboard");
+    let class_name = w!("px_function_clipboard");
 
     let wnd_class = WNDCLASSW {
         lpfnWndProc: Some(clipboard_wnd_proc),

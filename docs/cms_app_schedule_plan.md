@@ -46,7 +46,7 @@ AppInstance（运行）
 ```
 game_path = join(install_root, game_exe_rel)
 → Base64(UTF-8) → --app_game_path
-GammaRayRender.exe 仍来自 GoDesk 安装目录（work_dir），与应用目录分离。
+px_render.exe 仍来自 GoDesk 安装目录（work_dir），与应用目录分离。
 ```
 
 ---

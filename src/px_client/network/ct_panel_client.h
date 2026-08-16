@@ -2,8 +2,8 @@
 // Created by RGAA on 17/05/2025.
 //
 
-#ifndef GAMMARAY_CT_PANEL_CLIENT_H
-#define GAMMARAY_CT_PANEL_CLIENT_H
+#ifndef PX_CT_PANEL_CLIENT_H
+#define PX_CT_PANEL_CLIENT_H
 
 #include <memory>
 #include <atomic>
@@ -39,4 +39,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_PANEL_CLIENT_H
+#endif //PX_CT_PANEL_CLIENT_H

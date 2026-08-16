@@ -34,15 +34,15 @@ TEST_PREFIX = "test_"
 
 # Product executables we want to keep (basename match)
 PRODUCT_EXES = {
-    "GammaRay.exe",
-    "GammaRayClientInner.exe",
-    "GammaRayRender.exe",
-    "GammaRayService.exe",
-    "GammaRayServiceManager.exe",
-    "GammaRaySysInfo.exe",
-    "GammaRayUserProxy.exe",
-    "GammaRayCrashReporter.exe",
-    "GammaRayUninstall.exe",
+    "px_panel.exe",
+    "px_client.exe",
+    "px_render.exe",
+    "px_service.exe",
+    "px_service_manager.exe",
+    "px_osinfo.exe",
+    "px_function.exe",
+    "px_crash_reporter.exe",
+    "px_uninstall.exe",
     "px_joystick.exe",
     "px_graphics_util.exe",
     "px_graphics_offsets.exe",
@@ -122,10 +122,10 @@ def main():
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
     supplements = [
-        ("src/px_client/GammaRayClientInner.exe", "GammaRayClientInner.exe"),
+        ("src/px_client/px_client.exe", "px_client.exe"),
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
-        ("src/px_render/GammaRayRender.exe", "GammaRayRender.exe"),
+        ("src/px_render/px_render.exe", "px_render.exe"),
         ("src/px_render/app/px_global_id_generator.dll", "px_global_id_generator.dll"),
         ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client/px_rtc_client.dll"),
     ]
@@ -179,7 +179,7 @@ def main():
     os.makedirs(px_skins_dst, exist_ok=True)
 
     # skin_open_source / skin_official DLLs
-    # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to GR_PROJECT_BINARY_PATH
+    # Because CMAKE_RUNTIME_OUTPUT_DIRECTORY is redirected to PX_PROJECT_BINARY_PATH
     # (which points to src/px_deps), the skin DLLs are built there, not under
     # src/px_panel/src/skin/official.
     skins_src = os.path.join(build_dir, "src", "px_deps")

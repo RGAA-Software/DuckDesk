@@ -38,8 +38,8 @@ namespace px
         return "Network via UDP";
     }
 
-    bool UdpPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrNetPlugin::OnCreate(param);
+    bool UdpPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxNetPlugin::OnCreate(param);
         udp_listen_port_ = (int)GetConfigIntParam("udp-listen-port");
         auto config_listen_port = (int)GetConfigIntParam("listen-port");
         if (config_listen_port > 0) {
@@ -82,7 +82,7 @@ namespace px
     }
 
     bool UdpPlugin::OnDestroy() {
-        GrNetPlugin::OnStop();
+        PxNetPlugin::OnStop();
         if (server_) {
             server_->stop();
             server_.reset();
@@ -93,7 +93,7 @@ namespace px
             CloseHandle(pace_timer_);
             pace_timer_ = nullptr;
         }
-        return GrNetPlugin::OnDestroy();
+        return PxNetPlugin::OnDestroy();
     }
 
     // wire 级扫描 px.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)
@@ -235,7 +235,7 @@ namespace px
         // 与视频同一时钟源:steady_clock 单调毫秒
         auto ts = (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count() & 0xffffffff);
-        auto pkt = GrUdpProtocol::BuildAudioPacket(audio_seq_++, ts, payload, payload_len);
+        auto pkt = PxUdpProtocol::BuildAudioPacket(audio_seq_++, ts, payload, payload_len);
         if (!pkt) {
             return;
         }
@@ -272,7 +272,7 @@ namespace px
             }
             opt_sess.value()->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
             // ParseCommon 分流:只处理控制包(上行视频/音频 P2 才启用)
-            if (GrUdpProtocol::ParseCommon(data.data(), data.size()) == GrUdpProtocol::kPktCtrl) {
+            if (PxUdpProtocol::ParseCommon(data.data(), data.size()) == PxUdpProtocol::kPktCtrl) {
                 HandleCtrlPacket(opt_sess.value(), data.data(), data.size());
             }
 
@@ -355,41 +355,41 @@ namespace px
         // kCtrlFrameStatus 是定长二进制体,ParseCtrl 不解析,走专门解析
         uint32_t fs_frame = 0;
         uint16_t fs_received = 0, fs_lost = 0;
-        if (GrUdpProtocol::ParseFrameStatus(data, size, fs_frame, fs_received, fs_lost)) {
+        if (PxUdpProtocol::ParseFrameStatus(data, size, fs_frame, fs_received, fs_lost)) {
             HandleFrameStatus(fs_frame, fs_received, fs_lost);
             return;
         }
         std::string s1, s2;
-        auto subtype = GrUdpProtocol::ParseCtrl(data, size, s1, s2);
+        auto subtype = PxUdpProtocol::ParseCtrl(data, size, s1, s2);
         switch (subtype) {
-            case GrUdpProtocol::kCtrlHello:
+            case PxUdpProtocol::kCtrlHello:
                 HandleHello(udp_sess, s1 /*device_id*/, s2 /*stream_id*/);
                 break;
-            case GrUdpProtocol::kCtrlHeartbeat:
+            case PxUdpProtocol::kCtrlHeartbeat:
                 HandleHeartbeat(udp_sess, s1 /*stream_id*/);
                 break;
-            case GrUdpProtocol::kCtrlIdrRequest: {
+            case PxUdpProtocol::kCtrlIdrRequest: {
                 // 客户端组帧判丢后请求补 IDR;s1 为 mon_name(空 = 全屏)。
                 // 判丢帧与 IDR 请求 1:1,据此累计窗口判丢帧数(见 udp_plugin.h 注释)
                 stat_lost_frames_++;
-                auto event = std::make_shared<GrPluginInsertIdrEvent>();
+                auto event = std::make_shared<PxPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
                 this->CallbackEvent(event);
                 break;
             }
-            case GrUdpProtocol::kCtrlIdrKeepalive: {
+            case PxUdpProtocol::kCtrlIdrKeepalive: {
                 // 连接初始化/无帧超时补关键帧:行为同 IDR 请求,但不计入丢帧统计,
                 // 否则客户端刚连上自动补几发 IDR 就会把动态 FEC 刷到上限。
-                auto event = std::make_shared<GrPluginInsertIdrEvent>();
+                auto event = std::make_shared<PxPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
                 this->CallbackEvent(event);
                 break;
             }
-            case GrUdpProtocol::kCtrlRfi: {
+            case PxUdpProtocol::kCtrlRfi: {
                 // s1 = invalid_frame_index(字符串),s2 = mon_name(空=全屏)。
                 // 丢整帧后优先走参考帧失效,不插 IDR;不支持 RFI 的编码器由上层忽略,
                 // 客户端会在 2s 无完整帧后回退 IDR keepalive。
-                auto event = std::make_shared<GrPluginInvalidateRefFrameEvent>();
+                auto event = std::make_shared<PxPluginInvalidateRefFrameEvent>();
                 try {
                     event->invalid_frame_index_ = std::stoull(s1);
                 } catch (...) {
@@ -493,7 +493,7 @@ namespace px
         }
         if (old_bound && old_bound->sess_) {
             // 通知旧客户端"被接管",再补一条断开事件让统计/状态机闭环
-            auto kick = GrUdpProtocol::BuildKick("taken over");
+            auto kick = PxUdpProtocol::BuildKick("taken over");
             old_bound->sess_->async_send(kick->CStr(), kick->Size(), [kick](std::size_t) {});
             NotifyMediaClientDisConnected(old_bound->conn_id_, old_bound->stream_id_,
                                           old_bound->device_id_, old_bound->begin_timestamp_);
@@ -607,7 +607,7 @@ namespace px
 
     // data: encode video frame, h264/h265/...
     void UdpPlugin::OnEncodedVideoFrame(const std::string& mon_name,
-                                        const GrPluginEncodedVideoType& video_type,
+                                        const PxPluginEncodedVideoType& video_type,
                                         const std::shared_ptr<Data>& data,
                                         uint64_t frame_index,
                                         int frame_width,
@@ -623,17 +623,17 @@ namespace px
                  enc_n, bound_count_.load(), sessions_.Size(), frame_index, key, data->Size());
         }
         uint8_t codec;
-        if (video_type == GrPluginEncodedVideoType::kH264) {
-            codec = GrUdpProtocol::kCodecH264;
+        if (video_type == PxPluginEncodedVideoType::kH264) {
+            codec = PxUdpProtocol::kCodecH264;
         }
-        else if (video_type == GrPluginEncodedVideoType::kH265) {
-            codec = GrUdpProtocol::kCodecH265;
+        else if (video_type == PxPluginEncodedVideoType::kH265) {
+            codec = PxUdpProtocol::kCodecH265;
         }
         else {
             return; // 其它编码类型不在 UDP 媒体面范围内
         }
 
-        GrUdpProtocol::VideoFrameMeta meta;
+        PxUdpProtocol::VideoFrameMeta meta;
         // 透传编码器 frame_index。RFI 恢复依赖客户端上报的 frame_index 与 NVENC
         // inputTimeStamp 完全一致;回退/重连场景已由 client 侧 SOF+key 重流识别处理。
         meta.frame_index_ = (uint32_t)(frame_index & 0xffffffff);
@@ -648,7 +648,7 @@ namespace px
         meta.mon_name_ = mon_name;
         meta.rfi_recover_ = rfi_pending_.exchange(false);
 
-        auto shards = GrUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(),
+        auto shards = PxUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(),
                                                      udp_mtu_, fec_percent_);
         if (shards.empty()) {
             return;
@@ -717,7 +717,7 @@ namespace px
     }
 
     void UdpPlugin::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<GrPluginClientConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->conn_type_ = "UDP";
@@ -728,7 +728,7 @@ namespace px
     }
 
     void UdpPlugin::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->visitor_device_id_ = visitor_device_id;

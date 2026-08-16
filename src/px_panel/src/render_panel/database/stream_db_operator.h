@@ -18,12 +18,12 @@ namespace px_cms
 
 namespace px
 {
-    class GrDatabase;
+    class PxDatabase;
 
     class StreamDBOperator {
     public:
 
-        StreamDBOperator(const std::shared_ptr<GrDatabase>& db);
+        StreamDBOperator(const std::shared_ptr<PxDatabase>& db);
         ~StreamDBOperator();
         static std::string GenUUID();
         void AddStream(const std::shared_ptr<px_cms::CmsStream>& stream);
@@ -45,7 +45,7 @@ namespace px
         //void CreateTables();
 
     private:
-        std::shared_ptr<GrDatabase> db_ = nullptr;
+        std::shared_ptr<PxDatabase> db_ = nullptr;
 
     };
 

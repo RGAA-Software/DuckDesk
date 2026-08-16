@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_PLUGIN_EVENT_ROUTER_H
-#define GAMMARAY_PLUGIN_EVENT_ROUTER_H
+#ifndef PX_PLUGIN_EVENT_ROUTER_H
+#define PX_PLUGIN_EVENT_ROUTER_H
 
 #include <memory>
 #include <string>
@@ -14,29 +14,29 @@ namespace px
     class RdContext;
     class RdApplication;
     class RdStatistics;
-    class GrPluginBaseEvent;
+    class PxPluginBaseEvent;
     class PluginManager;
     class PluginStreamEventRouter;
     class PluginNetEventRouter;
     class MessageNotifier;
-    class GrPluginFileTransferBegin;
-    class GrPluginFileTransferEnd;
-    class GrPluginRemoteClipboardResp;
-    class GrPluginPanelStreamMessage;
+    class PxPluginFileTransferBegin;
+    class PxPluginFileTransferEnd;
+    class PxPluginRemoteClipboardResp;
+    class PxPluginPanelStreamMessage;
 
     class PluginEventRouter {
     public:
         explicit PluginEventRouter(const std::shared_ptr<RdApplication>& app);
-        void ProcessPluginEvent(const std::shared_ptr<GrPluginBaseEvent>& event);
+        void ProcessPluginEvent(const std::shared_ptr<PxPluginBaseEvent>& event);
 
     private:
-        void SendAnswerSdpToRemote(const std::shared_ptr<GrPluginBaseEvent>& event);
-        void SendIceToRemote(const std::shared_ptr<GrPluginBaseEvent>& event);
-        void ReportFileTransferBegin(const std::shared_ptr<GrPluginFileTransferBegin>& event);
-        void ReportFileTransferEnd(const std::shared_ptr<GrPluginFileTransferEnd>& event);
-        void ReportRemoteClipboardResp(const std::shared_ptr<GrPluginRemoteClipboardResp>& event);
+        void SendAnswerSdpToRemote(const std::shared_ptr<PxPluginBaseEvent>& event);
+        void SendIceToRemote(const std::shared_ptr<PxPluginBaseEvent>& event);
+        void ReportFileTransferBegin(const std::shared_ptr<PxPluginFileTransferBegin>& event);
+        void ReportFileTransferEnd(const std::shared_ptr<PxPluginFileTransferEnd>& event);
+        void ReportRemoteClipboardResp(const std::shared_ptr<PxPluginRemoteClipboardResp>& event);
         // from remote panel
-        void ProcessPanelStreamMessage(const std::shared_ptr<GrPluginPanelStreamMessage>& event);
+        void ProcessPanelStreamMessage(const std::shared_ptr<PxPluginPanelStreamMessage>& event);
         void ReportRelayAlive(const std::string& device_id, int64_t timestamp);
 
     private:
@@ -52,4 +52,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_PLUGIN_EVENT_ROUTER_H
+#endif //PX_PLUGIN_EVENT_ROUTER_H

@@ -1,30 +1,30 @@
-import {GrSdk} from "./px_sdk.ts";
-import {GrConnParams, GrSdkParams} from "./px_sdk_params.ts";
-import {GrProtoProcessor} from "../messages/px_proto_processor.ts";
-import {GrRendererManager} from "../renderer/px_renderer_manager.ts";
+import {PxSdk} from "./px_sdk.ts";
+import {PxConnParams, PxSdkParams} from "./px_sdk_params.ts";
+import {PxProtoProcessor} from "../messages/px_proto_processor.ts";
+import {PxRendererManager} from "../renderer/px_renderer_manager.ts";
 
-export class GrConn {
+export class PxConn {
     // sdk
-    grSdk: GrSdk
+    grSdk: PxSdk
 
     // sdk params
-    grSdkParams: GrSdkParams
+    grSdkParams: PxSdkParams
 
     // conn params
-    grConnParams: GrConnParams
+    grConnParams: PxConnParams
 
     // messages processor
-    protoProcessor: GrProtoProcessor
+    protoProcessor: PxProtoProcessor
 
     // renderer manager
-    grRendererManager: GrRendererManager
+    grRendererManager: PxRendererManager
 
-    constructor(sdk: GrSdk, connParams: GrConnParams, rendererManager: GrRendererManager) {
+    constructor(sdk: PxSdk, connParams: PxConnParams, rendererManager: PxRendererManager) {
         this.grSdk = sdk
         this.grSdkParams = sdk.sdkParams
         this.grConnParams = connParams
         this.grRendererManager = rendererManager
-        this.protoProcessor = new GrProtoProcessor(sdk, rendererManager);
+        this.protoProcessor = new PxProtoProcessor(sdk, rendererManager);
     }
 
     async start() {

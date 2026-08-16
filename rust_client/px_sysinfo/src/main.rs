@@ -39,9 +39,9 @@ async fn main() {
         "px_sys_info".to_string(),
     );
 
-    let _instance = px_sysinfo::single_instance::ensure_single_instance("GrSysInfo_SingleInstance");
+    let _instance = px_sysinfo::single_instance::ensure_single_instance("PxOsInfo_SingleInstance");
     if _instance.is_none() {
-        tracing::warn!("another GammaRaySysInfo instance is already running, exiting");
+        tracing::warn!("another px_osinfo instance is already running, exiting");
         return;
     }
 

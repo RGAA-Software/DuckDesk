@@ -2,8 +2,8 @@
 // Created by RGAA on 30/04/2025.
 //
 
-#ifndef GAMMARAY_ST_PLUGIN_ITEM_WIDGET_H
-#define GAMMARAY_ST_PLUGIN_ITEM_WIDGET_H
+#ifndef PX_ST_PLUGIN_ITEM_WIDGET_H
+#define PX_ST_PLUGIN_ITEM_WIDGET_H
 
 #include <QWidget>
 #include <QPainter>
@@ -15,13 +15,13 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class PluginItemInfo;
 
     class StPluginItemWidget : public QWidget {
     public:
-        StPluginItemWidget(const std::shared_ptr<GrApplication>& app,
+        StPluginItemWidget(const std::shared_ptr<PxApplication>& app,
                            const std::shared_ptr<PluginItemInfo>& item_info,
                            int index,
                            QWidget* parent);
@@ -34,11 +34,11 @@ namespace px
 
     private:
         std::shared_ptr<PluginItemInfo> item_info_;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLabel* lbl_enabled_ = nullptr;
     };
 
 }
 
-#endif //GAMMARAY_ST_PLUGIN_ITEM_WIDGET_H
+#endif //PX_ST_PLUGIN_ITEM_WIDGET_H

@@ -13,7 +13,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::EventReplayerPlugin)
+PX_PLUGIN_EXPORT(px::EventReplayerPlugin)
 
 namespace px
 {
@@ -39,12 +39,12 @@ namespace px
     }
 
     void EventReplayerPlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
 
     }
     
-    bool EventReplayerPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
+    bool EventReplayerPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
 
         if (!IsPluginEnabled()) {
             return true;
@@ -55,7 +55,7 @@ namespace px
     }
 
     void EventReplayerPlugin::OnMessage(std::shared_ptr<Message> msg) {
-        GrPluginInterface::OnMessage(msg);
+        PxPluginInterface::OnMessage(msg);
         auto stream_id = msg->stream_id();
         if (msg->type() == MessageType::kMouseEvent) {
             ProcessMouseEvent(msg);

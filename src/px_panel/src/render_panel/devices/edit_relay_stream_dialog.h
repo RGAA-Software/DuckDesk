@@ -22,12 +22,12 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class TcPasswordInput;
 
     class EditRelayStreamDialog : public TcCustomTitleBarDialog {
     public:
-        EditRelayStreamDialog(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
+        EditRelayStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
         ~EditRelayStreamDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -36,7 +36,7 @@ namespace px
         void CreateLayout();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* edt_stream_name_ = nullptr;
         std::shared_ptr<px_cms::CmsStream> stream_item_;
         TcPasswordInput* password_input_ = nullptr;

@@ -1,7 +1,7 @@
-use protocol::grpc_px_relay::RelayRoomsCountRequest;
+use protocol::grpc_relay::RelayRoomsCountRequest;
 use protocol::{
-    grpc_px_relay::grpc_relay_client::GrpcRelayClient, grpc_px_relay::HeartBeatRequest,
-    grpc_px_relay::RelayStreamRequest,
+    grpc_relay::grpc_relay_client::GrpcRelayClient, grpc_relay::HeartBeatRequest,
+    grpc_relay::RelayStreamRequest,
 };
 use serde::Serialize;
 use std::sync::Arc;

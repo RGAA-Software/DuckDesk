@@ -18,13 +18,13 @@ namespace px
 
     const int kMaxClientQueuedMessage = 4096;
 
-    GrServiceClient::GrServiceClient(const std::shared_ptr<GrApplication>& app) {
-        statistics_ = GrStatistics::Instance();
+    PxServiceClient::PxServiceClient(const std::shared_ptr<PxApplication>& app) {
+        statistics_ = PxStatistics::Instance();
         app_ = app;
         context_ = app_->GetContext();
     }
 
-    void GrServiceClient::Start() {
+    void PxServiceClient::Start() {
         auto weak_self = weak_from_this();
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S& msg) {
@@ -90,7 +90,7 @@ namespace px
         }
     }
 
-    void GrServiceClient::ParseMessage(const std::string& msg) {
+    void PxServiceClient::ParseMessage(const std::string& msg) {
         px::ServiceMessage sm;
         try {
             sm.ParseFromString(msg);
@@ -111,17 +111,17 @@ namespace px
         }
     }
 
-    void GrServiceClient::Exit() {
+    void PxServiceClient::Exit() {
         if (client_) {
             client_->stop();
         }
     }
 
-    bool GrServiceClient::IsAlive() {
+    bool PxServiceClient::IsAlive() {
         return client_ && client_->is_started();
     }
 
-    void GrServiceClient::HeartBeat() {
+    void PxServiceClient::HeartBeat() {
         static int64_t hb_idx = 0;
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
@@ -132,18 +132,18 @@ namespace px
         PostNetMessage(msg.SerializeAsString());
     }
 
-    void GrServiceClient::SendAuthInfo() {
+    void PxServiceClient::SendAuthInfo() {
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvAuthInfo);
         FillAuthInfo(msg.mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
     }
 
-    void GrServiceClient::FillAuthInfo(MsgAuthInfo* auth_info) {
+    void PxServiceClient::FillAuthInfo(MsgAuthInfo* auth_info) {
         if (!auth_info) {
             return;
         }
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
         auth_info->set_device_id(settings->GetDeviceId());
         auth_info->set_cms_host(settings->GetCmsServerHost());
         auth_info->set_cms_port(settings->GetCmsServerPort());
@@ -163,10 +163,10 @@ namespace px
         auth_info->set_end_timestamp_ms(auth->end_timestamp_ms_);
     }
 
-    void GrServiceClient::PostNetMessage(const std::string& msg) {
+    void PxServiceClient::PostNetMessage(const std::string& msg) {
         if (client_ && client_->is_started()) {
             if (queuing_message_count_ > kMaxClientQueuedMessage) {
-                LOGW("too many message in queue, discard the message in GrServiceClient");
+                LOGW("too many message in queue, discard the message in PxServiceClient");
                 return;
             }
             queuing_message_count_++;

@@ -1,7 +1,7 @@
-import {GrRenderer} from "./px_renderer.ts";
-import {GrCanvas2DRenderer} from "./px_renderer_2d.ts";
-import {GrWebGLRenderer} from "./px_renderer_webgl.ts";
-import {GrProtoMsg} from "../messages/px_proto_messages.ts";
+import {PxRenderer} from "./px_renderer.ts";
+import {PxCanvas2DRenderer} from "./px_renderer_2d.ts";
+import {PxWebGLRenderer} from "./px_renderer_webgl.ts";
+import {PxProtoMsg} from "../messages/px_proto_messages.ts";
 import '@libmedia/cheap/cheapdef';
 import * as demux from '@libmedia/avformat/demux';
 import { createAVIFormatContext } from '@libmedia/avformat/AVFormatContext';
@@ -47,9 +47,9 @@ import WebGPUDefault8Render from '@libmedia/avrender/image/WebGPUDefault8Render'
 import WebGPUDefault16Render from '@libmedia/avrender/image/WebGPUDefault16Render'
 import WritableStreamRender from '@libmedia/avrender/image/WritableStreamRender'
 
-export class GrRendererManager {
+export class PxRendererManager {
     // renderer
-    // renderer: GrRenderer
+    // renderer: PxRenderer
     renderer: WebGLRender
     // render canvas
     rendererCanvas: any
@@ -70,9 +70,9 @@ export class GrRendererManager {
         this.rendererCanvas = canvas;
         this.remoteVideoElement = remoteVideoElement;
         if (rendererName == '2d') {
-            //this.renderer = new GrCanvas2DRenderer(rendererName, canvas)
+            //this.renderer = new PxCanvas2DRenderer(rendererName, canvas)
         } else if (rendererName == 'webgl') {
-            //this.renderer = new GrWebGLRenderer(rendererName, canvas)
+            //this.renderer = new PxWebGLRenderer(rendererName, canvas)
         }
 
         console.log("isWorkder: ", isWorker());
@@ -85,8 +85,8 @@ export class GrRendererManager {
     }
 
     async onVideoFrame(msg: any) {
-        const isH265 = msg.videoFrame.type == GrProtoMsg.VideoType.values.kNetHevc
-        const isH264 = msg.videoFrame.type == GrProtoMsg.VideoType.values.kNetH264
+        const isH265 = msg.videoFrame.type == PxProtoMsg.VideoType.values.kNetHevc
+        const isH264 = msg.videoFrame.type == PxProtoMsg.VideoType.values.kNetH264
         //console.log("video type.", isH265, isH264);
         if (msg.videoFrame.key && !this.isVideoDecoderInitialized) {
             console.log('this is key frame, will init, ratio: ', window.devicePixelRatio)

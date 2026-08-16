@@ -2,8 +2,8 @@
 // Created by RGAA on 19/03/2025.
 //
 
-#ifndef GAMMARAY_TC_IMAGE_BUTTON_H
-#define GAMMARAY_TC_IMAGE_BUTTON_H
+#ifndef PX_TC_IMAGE_BUTTON_H
+#define PX_TC_IMAGE_BUTTON_H
 
 #include <QWidget>
 #include <QPainter>
@@ -57,4 +57,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_IMAGE_BUTTON_H
+#endif //PX_TC_IMAGE_BUTTON_H

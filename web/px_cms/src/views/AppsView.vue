@@ -491,7 +491,7 @@ onUnmounted(() => {
       v-if="services.length === 0"
       class="mb-3"
       type="warning"
-      title="当前没有在线 Service。请先让目标机器的 GammaRayService 连上 CMS。"
+      title="当前没有在线 Service。请先让目标机器的 px_service 连上 CMS。"
     />
 
     <a-table

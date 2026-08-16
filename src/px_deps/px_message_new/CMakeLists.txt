@@ -4,8 +4,8 @@ project(px_message)
 set(CMAKE_CXX_STANDARD 20)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/asio2/include)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/asio2/3rd)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/include)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
 
 if(ANDROID)
     find_package(Protobuf REQUIRED)

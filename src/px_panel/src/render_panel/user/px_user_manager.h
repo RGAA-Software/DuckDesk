@@ -17,12 +17,12 @@ namespace px_cms
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
 
-    class GrUserManager {
+    class PxUserManager {
     public:
-        explicit GrUserManager(const std::shared_ptr<GrContext>& ctx);
+        explicit PxUserManager(const std::shared_ptr<PxContext>& ctx);
         bool Register(const std::string& username, const std::string& password);
         bool Login(const std::string& username, const std::string& password, bool show_dialog = true);
         bool Logout();
@@ -53,8 +53,8 @@ namespace px
         static std::string KeyAvatarPath();
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
 
     };
 

@@ -7,9 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenSSL REQUIRED)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PX_PROJECT_BINARY_PATH})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PX_PROJECT_BINARY_PATH})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PX_PROJECT_BINARY_PATH})
 
 # configure_file for version_config.h, app_config.h and icon.rc are in src/px_base/CMakeLists.txt
 # icon.rc is generated at ${CMAKE_BINARY_DIR}/src/px_base/icon.rc
@@ -17,21 +17,21 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${GR_PROJECT_BINARY_PATH})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/ui/gd_gui/src)
-include_directories(${GR_PROJECT_PATH})
-include_directories(${GR_PROJECT_PATH}/px_3rdparty)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/eventbus/src)
-include_directories(${GR_PROJECT_BINARY_PATH})
-include_directories(${GR_PROJECT_BINARY_PATH}/px_message_new)
-include_directories(${GR_PROJECT_BINARY_PATH}/px_server_protocol)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/asio2/include)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/asio2/3rd)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/asio2/3rd/asio)
-include_directories(${GR_PROJECT_PATH}/px_3rdparty/webrtc/include/third_party/libyuv/include)
-#include_directories(${GR_PROJECT_PATH}/px_3rdparty/leveldb/include)
+include_directories(${PX_PROJECT_PATH})
+include_directories(${PX_PROJECT_PATH}/px_3rdparty)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/eventbus/src)
+include_directories(${PX_PROJECT_BINARY_PATH})
+include_directories(${PX_PROJECT_BINARY_PATH}/px_message_new)
+include_directories(${PX_PROJECT_BINARY_PATH}/px_server_protocol)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/include)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd/asio)
+include_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/include/third_party/libyuv/include)
+#include_directories(${PX_PROJECT_PATH}/px_3rdparty/leveldb/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
-include_directories(${GR_PROJECT_PATH}/px_qt_widget)
-include_directories(${GR_PROJECT_PATH}/px_client_sdk_new)
+include_directories(${PX_PROJECT_PATH}/px_qt_widget)
+include_directories(${PX_PROJECT_PATH}/px_client_sdk_new)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 
 add_subdirectory(src)
@@ -40,7 +40,7 @@ add_subdirectory(src/service)
 add_subdirectory(src/ui/gd_gui)
 
 set(RES resources/main.qrc resources/qss.qrc res.qrc)
-add_executable(GammaRay WIN32
+add_executable(px_panel WIN32
         main.cpp
         ${RES}
         ${MAIN_SRCS}
@@ -51,19 +51,19 @@ add_executable(GammaRay WIN32
         ${CMAKE_SOURCE_DIR}/src/px_client/network/ct_auth_token.cpp
 )
 
-SET_TARGET_PROPERTIES(GammaRay PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
+SET_TARGET_PROPERTIES(px_panel PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
 
-target_link_libraries(GammaRay PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3 sqlite_orm::sqlite_orm
+target_link_libraries(px_panel PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3 sqlite_orm::sqlite_orm
         px_common_new px_steam_manager_new px_vigem px_message px_cp_message px_plugin px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
         px_relay_client px_translator px_cms_client Dwmapi.lib px_widget_loadings px_client_plugin OpenSSL::Crypto
         px_account_sdk px_rp_message px_profile_client px_hw_info px_global_id_generator px_server_message skin_interface skin_loader gd_gui
 )
-target_link_libraries(GammaRay PRIVATE
+target_link_libraries(px_panel PRIVATE
     unofficial::breakpad::libbreakpad
     unofficial::breakpad::libbreakpad_client
 )
 
-add_custom_command(TARGET GammaRay PRE_BUILD
+add_custom_command(TARGET px_panel PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/px_plugins
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/px_plugins
 )
@@ -84,15 +84,15 @@ add_custom_command(TARGET GammaRay PRE_BUILD
 ### Uninstall End
 
 include(GNUInstallDirs)
-install(TARGETS GammaRay
+install(TARGETS px_panel
         BUNDLE DESTINATION .
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-add_custom_command(TARGET GammaRay POST_BUILD
-        COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:GammaRay> --no-translations --release
-        COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/px_controller/vigem/driver/px_joystick.exe"  "${CMAKE_CURRENT_BINARY_DIR}/"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/language" "${GR_PROJECT_BINARY_PATH}/resources/language"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/qt_material" "${GR_PROJECT_BINARY_PATH}/resources/qt_material"
+add_custom_command(TARGET px_panel POST_BUILD
+        COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:px_panel> --no-translations --release
+        COMMAND ${CMAKE_COMMAND} -E copy "${PX_PROJECT_PATH}/px_controller/vigem/driver/px_joystick.exe"  "${CMAKE_CURRENT_BINARY_DIR}/"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/language" "${PX_PROJECT_BINARY_PATH}/resources/language"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/qt_material" "${PX_PROJECT_BINARY_PATH}/resources/qt_material"
 )

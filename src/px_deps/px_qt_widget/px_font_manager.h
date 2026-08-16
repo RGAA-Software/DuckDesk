@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TC_FONT_MANAGER_H
-#define GAMMARAY_TC_FONT_MANAGER_H
+#ifndef PX_TC_FONT_MANAGER_H
+#define PX_TC_FONT_MANAGER_H
 
 #include <QString>
 #include <QFont>
@@ -29,4 +29,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_FONT_MANAGER_H
+#endif //PX_TC_FONT_MANAGER_H

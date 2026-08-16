@@ -2,8 +2,8 @@
 // Created by RGAA on 16/04/2025.
 //
 
-#ifndef GAMMARAY_NET_TLV_HEADER_H
-#define GAMMARAY_NET_TLV_HEADER_H
+#ifndef PX_NET_TLV_HEADER_H
+#define PX_NET_TLV_HEADER_H
 
 namespace px
 {
@@ -33,4 +33,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_NET_TLV_HEADER_H
+#endif //PX_NET_TLV_HEADER_H

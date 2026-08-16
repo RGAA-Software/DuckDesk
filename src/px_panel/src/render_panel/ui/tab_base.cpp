@@ -18,12 +18,12 @@ void CrashFunction() {
 
 namespace px
 {
-    TabBase::TabBase(const std::shared_ptr<GrApplication>& app, QWidget* parent) : QWidget(parent) {
+    TabBase::TabBase(const std::shared_ptr<PxApplication>& app, QWidget* parent) : QWidget(parent) {
         app_ = app;
         context_ = app->GetContext();
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        statistics_ = GrStatistics::Instance();
+        statistics_ = PxStatistics::Instance();
 
         msg_listener_->Listen<MsgLanguageChanged>([=, this](const MsgLanguageChanged& msg) {
             this->OnTranslate();

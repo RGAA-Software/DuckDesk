@@ -14,13 +14,13 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 #        $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
 #        $<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>)
 
-#set(WEBRTC_ROOT ${GR_PROJECT_PATH}/deps/px_3rdparty/webrtc)
+#set(WEBRTC_ROOT ${PX_PROJECT_PATH}/deps/px_3rdparty/webrtc)
 include_directories(${WEBRTC_ROOT}/)
 include_directories(${WEBRTC_ROOT}/include)
 include_directories(${WEBRTC_ROOT}/include/third_party/abseil-cpp)
 include_directories(${WEBRTC_ROOT}/include/third_party/jsoncpp/source/include/)
 include_directories(${WEBRTC_ROOT}/include/base)
-link_directories(${GR_PROJECT_PATH}/px_3rdparty/webrtc/x64)
+link_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/x64)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 

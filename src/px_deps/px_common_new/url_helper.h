@@ -2,8 +2,8 @@
 // Created by RGAA on 23/11/2024.
 //
 
-#ifndef GAMMARAY_URL_HELPER_H
-#define GAMMARAY_URL_HELPER_H
+#ifndef PX_URL_HELPER_H
+#define PX_URL_HELPER_H
 
 #include <iostream>
 #include <string>
@@ -22,4 +22,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_URL_HELPER_H
+#endif //PX_URL_HELPER_H

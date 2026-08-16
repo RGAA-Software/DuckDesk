@@ -106,7 +106,7 @@ namespace px
 
         peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
             if (!media_data_channel_) {return;}
-            auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
+            auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
             event->stream_id_ = media_data_channel_->the_conn_id_;
             event->end_timestamp_ = (int64_t) TimeUtil::GetCurrentTimestamp();
             event->duration_ =   event->end_timestamp_ - media_data_channel_->created_timestamp_;
@@ -235,14 +235,14 @@ namespace px
     }
 
     void RtcServer::SendSdpToRemote(const std::string& sdp) {
-        auto event = std::make_shared<GrPluginRtcAnswerSdpEvent>();
+        auto event = std::make_shared<PxPluginRtcAnswerSdpEvent>();
         event->stream_id_ = stream_id_;
         event->sdp_ = sdp;
         plugin_->CallbackEvent(event);
     }
 
     void RtcServer::SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index) {
-        auto event = std::make_shared<GrPluginRtcIceEvent>();
+        auto event = std::make_shared<PxPluginRtcIceEvent>();
         event->stream_id_ = stream_id_;
         event->ice_ = ice;
         event->mid_ = mid;

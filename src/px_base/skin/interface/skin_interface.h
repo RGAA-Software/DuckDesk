@@ -2,8 +2,8 @@
 // Created by RGAA on 22/05/2025.
 //
 
-#ifndef GAMMARAY_CT_SKIN_INTERFACE_H
-#define GAMMARAY_CT_SKIN_INTERFACE_H
+#ifndef PX_CT_SKIN_INTERFACE_H
+#define PX_CT_SKIN_INTERFACE_H
 
 #include <mutex>
 #include <map>
@@ -124,4 +124,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_CT_PLUGIN_INTERFACE_H
+#endif //PX_CT_PLUGIN_INTERFACE_H

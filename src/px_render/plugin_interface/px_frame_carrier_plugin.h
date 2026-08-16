@@ -2,8 +2,8 @@
 // Created by RGAA on 27/06/2025.
 //
 
-#ifndef GAMMARAY_GR_FRAME_CARRIER_PLUGIN_H
-#define GAMMARAY_GR_FRAME_CARRIER_PLUGIN_H
+#ifndef PX_RENDER_FRAME_CARRIER_PLUGIN_INTERFACE_H
+#define PX_RENDER_FRAME_CARRIER_PLUGIN_INTERFACE_H
 
 #include <memory>
 #include <optional>
@@ -13,10 +13,10 @@ namespace px
 {
 
     //
-    class GrFrameProcessorPlugin;
+    class PxFrameProcessorPlugin;
 
     // Params
-    class GrCarrierParams {
+    class PxCarrierParams {
     public:
         std::string mon_name_;
         Microsoft::WRL::ComPtr<ID3D11Device> d3d_device_ = nullptr;
@@ -26,7 +26,7 @@ namespace px
     };
 
     // After copied
-    class GrCarriedFrame {
+    class PxCarriedFrame {
     public:
         std::string mon_name_;
         uint64_t frame_index_ = 0;
@@ -35,16 +35,16 @@ namespace px
 #endif
     };
 
-    class GrFrameCarrierPlugin : public GrPluginInterface {
+    class PxFrameCarrierPlugin : public PxPluginInterface {
     public:
         // Create frame carrier
-        virtual bool InitFrameCarrier(const GrCarrierParams& params) {
+        virtual bool InitFrameCarrier(const PxCarrierParams& params) {
             carrier_params_[params.mon_name_] = params;
             return false;
         }
 
         // DDA / GDI / Hook -> Handle -> OpenShared -> Copy it
-        virtual std::shared_ptr<GrCarriedFrame> CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
+        virtual std::shared_ptr<PxCarriedFrame> CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
             return nullptr;
         }
 
@@ -63,9 +63,9 @@ namespace px
         }
 
     protected:
-        std::map<std::string, GrCarrierParams> carrier_params_;
+        std::map<std::string, PxCarrierParams> carrier_params_;
     };
 
 }
 
-#endif //GAMMARAY_GR_FRAME_CARRIER_PLUGIN_H
+#endif //PX_RENDER_FRAME_CARRIER_PLUGIN_INTERFACE_H

@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TAB_SECURITY_INTERNALS_H
-#define GAMMARAY_TAB_SECURITY_INTERNALS_H
+#ifndef PX_TAB_SECURITY_INTERNALS_H
+#define PX_TAB_SECURITY_INTERNALS_H
 
 #include <map>
 #include <QStackedWidget>
@@ -22,7 +22,7 @@ namespace px
 
     class TabSecurityInternals : public TabBase {
     public:
-        TabSecurityInternals(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        TabSecurityInternals(const std::shared_ptr<PxApplication>& app, QWidget *parent);
 
         void OnTabShow() override;
         void OnTabHide() override;
@@ -39,4 +39,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TAB_PROFILE_H
+#endif //PX_TAB_PROFILE_H

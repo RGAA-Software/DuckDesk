@@ -226,8 +226,8 @@ mod tests {
         let start = ServiceMessage {
             r#type: ServiceMessageType::StartServer as i32,
             start_server: Some(MsgStartServer {
-                work_dir: "D:/GammaRay".to_string(),
-                app_path: "D:/GammaRay/GammaRayRender.exe".to_string(),
+                work_dir: "D:/px".to_string(),
+                app_path: "D:/px/px_render.exe".to_string(),
                 args: vec!["--app_mode=desktop".to_string()],
             }),
             ..Default::default()

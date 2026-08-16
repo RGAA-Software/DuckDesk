@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TC_LABEL_H
-#define GAMMARAY_TC_LABEL_H
+#ifndef PX_TC_LABEL_H
+#define PX_TC_LABEL_H
 
 #include <QLabel>
 #include "click_listener.h"
@@ -34,4 +34,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_LABEL_H
+#endif //PX_TC_LABEL_H

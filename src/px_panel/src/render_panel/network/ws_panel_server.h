@@ -18,16 +18,16 @@
 namespace px
 {
     class Data;
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class HttpHandler;
-    class GrSettings;
+    class PxSettings;
     class FileTransferChannel;
     class VisitRecord;
     class VisitRecordOperator;
     class FileTransferRecordOperator;
     class MessageListener;
-    class GrStatistics;
+    class PxStatistics;
     class FileTransferRecord;
     class SysInfo;
 
@@ -46,8 +46,8 @@ namespace px
 
     class WsPanelServer : public std::enable_shared_from_this<WsPanelServer> {
     public:
-        static std::shared_ptr<WsPanelServer> Make(const std::shared_ptr<GrApplication>& app);
-        explicit WsPanelServer(const std::shared_ptr<GrApplication>& ctx);
+        static std::shared_ptr<WsPanelServer> Make(const std::shared_ptr<PxApplication>& app);
+        explicit WsPanelServer(const std::shared_ptr<PxApplication>& ctx);
         ~WsPanelServer();
 
         void Start();
@@ -100,14 +100,14 @@ namespace px
     private:
         std::shared_ptr<asio2::http_server> server_ = nullptr;
         WsDataPtr ws_data_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         ConcurrentHashMap<uint64_t, std::shared_ptr<WSSession>> panel_sessions_;
         ConcurrentHashMap<uint64_t, std::shared_ptr<WSSession>> renderer_sessions_;
         ConcurrentHashMap<uint64_t, std::shared_ptr<FtSession>> ft_sessions_;
         std::shared_ptr<WSSession> sys_info_sess_ = nullptr;
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
         std::shared_ptr<VisitRecordOperator> visit_record_op_ = nullptr;
         std::shared_ptr<FileTransferRecordOperator> ft_record_op_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
@@ -115,7 +115,7 @@ namespace px
         uint64_t max_transmit_speed_ = 0;
         uint64_t max_receive_speed_ = 0;
         // statistics
-        GrStatistics* stat_ = nullptr;
+        PxStatistics* stat_ = nullptr;
         // notify once flag
         std::once_flag notify_event_flag_;
         uint64_t notify_event_count_ = 0;

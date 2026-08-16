@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_STAT_CHART_H
-#define GAMMARAY_STAT_CHART_H
+#ifndef PX_PANEL_STAT_CHART_H
+#define PX_PANEL_STAT_CHART_H
 
 #include <QWidget>
 #include <QChart>
@@ -19,11 +19,11 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     class StatChart : public QWidget {
     public:
-        explicit StatChart(const std::shared_ptr<GrContext>& ctx,
+        explicit StatChart(const std::shared_ptr<PxContext>& ctx,
                            const QString& title,
                            const std::vector<QString>& line_names,
                            QWidget* parent = nullptr);
@@ -31,7 +31,7 @@ namespace px
         void UpdateLines(const std::map<QString, std::vector<int32_t>>& value);
 
     private:
-        std::shared_ptr<GrContext> ctx_ = nullptr;
+        std::shared_ptr<PxContext> ctx_ = nullptr;
         QChart* chart_ = nullptr;
         QChartView* chart_view_ = nullptr;
         QValueAxis* x_axis_ = nullptr;
@@ -42,4 +42,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_STAT_CHART_H
+#endif //PX_PANEL_STAT_CHART_H

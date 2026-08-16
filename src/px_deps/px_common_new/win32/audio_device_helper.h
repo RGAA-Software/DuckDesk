@@ -2,8 +2,8 @@
 // Created by RGAA on 6/08/2024.
 //
 
-#ifndef GAMMARAY_AUDIO_DEVICE_HELPER_H
-#define GAMMARAY_AUDIO_DEVICE_HELPER_H
+#ifndef PX_AUDIO_DEVICE_HELPER_H
+#define PX_AUDIO_DEVICE_HELPER_H
 
 #include <string>
 #include <vector>
@@ -28,4 +28,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_AUDIO_DEVICE_HELPER_H
+#endif //PX_AUDIO_DEVICE_HELPER_H

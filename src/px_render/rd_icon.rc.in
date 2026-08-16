@@ -18,9 +18,9 @@ BEGIN
             VALUE "CompanyName", "RGAA"
             VALUE "FileDescription", "GammaRay Renderer"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
-            VALUE "InternalName", "GammaRayRender.exe"
+            VALUE "InternalName", "px_render.exe"
             VALUE "LegalCopyright", "Copyright (c) 2022-2025 RGAA <https://github.com/rgaa-software>"
-            VALUE "OriginalFilename", "GammaRayRender.exe"
+            VALUE "OriginalFilename", "px_render.exe"
             VALUE "ProductName", "GammaRayRender"
             VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
         END

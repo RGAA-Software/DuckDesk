@@ -51,19 +51,19 @@ namespace px {
         });
     }
 
-    void PluginNetEventRouter::ProcessClientConnectedEvent(const std::shared_ptr<GrPluginClientConnectedEvent>& event) {
+    void PluginNetEventRouter::ProcessClientConnectedEvent(const std::shared_ptr<PxPluginClientConnectedEvent>& event) {
         // has no effects in plugin mode
         context_->SendAppMessage(MsgInsertIDR {});
         context_->SendAppMessage(MsgRefreshScreen{});
         LOGI("New connection established!");
 
         // tell all plugins that a client connected
-        plugin_manager_->VisitAllPlugins([=](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([=](PxPluginInterface* plugin) {
             plugin->OnNewClientConnected(event->visitor_device_id_, event->stream_id_, event->conn_type_);
         });
 
         // tell encoder plugins to insert an I Frame
-        plugin_manager_->VisitEncoderPlugins([=, this](GrVideoEncoderPlugin* plugin) {
+        plugin_manager_->VisitEncoderPlugins([=, this](PxVideoEncoderPlugin* plugin) {
             plugin->InsertIdr();
         });
 
@@ -103,7 +103,7 @@ namespace px {
                 const std::string reason = full_color ? "full_color" : "encoder_format";
                 LOGW("WebRTC connected while pipeline is H265 ({}), notify client", reason);
                 auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
-                plugin_manager_->VisitNetPlugins([=](GrNetPlugin* plugin) {
+                plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
                     if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
                         plugin->PostProtoMessage(tip, false);
                     }
@@ -112,7 +112,7 @@ namespace px {
         }
     }
 
-    void PluginNetEventRouter::ProcessClientDisConnectedEvent(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event) {
+    void PluginNetEventRouter::ProcessClientDisConnectedEvent(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event) {
         MsgClientDisconnected msg{};
         msg.conn_id_ = event->conn_id_;
         msg.visitor_device_id_ = event->visitor_device_id_;
@@ -122,7 +122,7 @@ namespace px {
         context_->SendAppMessage(msg);
 
         // tell all plugins that a client disconnected
-        plugin_manager_->VisitAllPlugins([=](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([=](PxPluginInterface* plugin) {
             plugin->OnClientDisconnected(event->visitor_device_id_, event->stream_id_);
         });
 
@@ -153,7 +153,7 @@ namespace px {
         ReportClientDisConnected(event);
     }
 
-    void PluginNetEventRouter::ProcessCapturingMonitorInfoEvent(const std::shared_ptr<GrPluginCapturingMonitorInfoEvent>& event) const {
+    void PluginNetEventRouter::ProcessCapturingMonitorInfoEvent(const std::shared_ptr<PxPluginCapturingMonitorInfoEvent>& event) const {
         LOGI("Will Update CaptureMonitorInfo to replayer plugin.");
         app_->UpdateCapturingMonitorInfo();
 
@@ -168,7 +168,7 @@ namespace px {
         }
     }
 
-    void PluginNetEventRouter::ProcessNetEvent(const std::shared_ptr<GrPluginNetClientEvent>& event) {
+    void PluginNetEventRouter::ProcessNetEvent(const std::shared_ptr<PxPluginNetClientEvent>& event) {
         if (event->is_proto_ && event->message_) {
             auto msg = std::make_shared<Message>();
             auto parse_res = msg->ParsePartialFromArray(event->message_->CStr(), event->message_->Size());
@@ -181,7 +181,7 @@ namespace px {
             const bool hook_inner = !settings_->app_.IsGlobalReplayMode();
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
                                   msg->type() == MessageType::kKeyEvent;
-            plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
+            plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
                 if (hook_inner && is_input &&
                     plugin->GetPluginId() == kEventReplayerPluginId) {
                     return;
@@ -189,12 +189,12 @@ namespace px {
                 plugin->OnMessage(msg);
             });
 
-#if GR_USER_PROXY_ENABLED
+#if PX_USER_PROXY_ENABLED
             if (msg->type() == MessageType::kClipboardInfo) {
                 LOGI("[LAT-clip] render recv kClipboardInfo, type: {}, files: {}, len: {}", (int)msg->clipboard_info().type(), msg->clipboard_info().files_size(), event->message_->Size());
                 context_->PostTask([=, this]() {
                     bool user_proxy_connected = false;
-                    plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+                    plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
                         if (plugin->IsUserProxyConnected()) {
                             user_proxy_connected = true;
                         }
@@ -221,7 +221,7 @@ namespace px {
                      (int)msg->type(), event->message_->Size());
                 context_->PostTask([=, this]() {
                     bool user_proxy_connected = false;
-                    plugin_manager_->VisitNetPlugins([&](GrNetPlugin* plugin) {
+                    plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
                         if (plugin->IsUserProxyConnected()) {
                             user_proxy_connected = true;
                         }
@@ -404,7 +404,7 @@ namespace px {
         app_->GetContext()->SendAppMessage(event);
 
         auto e = std::make_shared<MsgClientHello>(event);
-        plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
             plugin->DispatchAppEvent(e);
         });
     }
@@ -536,7 +536,7 @@ namespace px {
         event->stream_id_ = msg->stream_id();
         event->hb_index_ = msg->heartbeat().index();
         event->timestamp_ = msg->heartbeat().timestamp();
-        plugin_manager_->VisitAllPlugins([=, this](GrPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
             plugin->DispatchAppEvent(event);
         });
     }
@@ -667,11 +667,11 @@ namespace px {
         });
     }
 
-    void PluginNetEventRouter::ProcessRtcReportEvent(const std::shared_ptr<GrPluginRtcReportEvent>& event) {
+    void PluginNetEventRouter::ProcessRtcReportEvent(const std::shared_ptr<PxPluginRtcReportEvent>& event) {
 
     }
 
-    void PluginNetEventRouter::ReportClientConnected(const std::shared_ptr<GrPluginClientConnectedEvent>& event) {
+    void PluginNetEventRouter::ReportClientConnected(const std::shared_ptr<PxPluginClientConnectedEvent>& event) {
         app_->PostGlobalTask([=, this]() {
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpClientConnected);
@@ -686,7 +686,7 @@ namespace px {
         });
     }
 
-    void PluginNetEventRouter::ReportClientDisConnected(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event) {
+    void PluginNetEventRouter::ReportClientDisConnected(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event) {
         app_->PostGlobalTask([=, this]() {
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpClientDisConnected);
@@ -720,7 +720,7 @@ namespace px {
 //        //exit(0);
 //    }
 
-    void PluginNetEventRouter::ProcessAck(const std::shared_ptr<GrPluginNetClientEvent>& ev, const std::shared_ptr<Message>& m) {
+    void PluginNetEventRouter::ProcessAck(const std::shared_ptr<PxPluginNetClientEvent>& ev, const std::shared_ptr<Message>& m) {
         auto sub = m->ack();
         auto ack = std::make_shared<NetMessageAck>();
         ack->send_time_ = sub.send_time();

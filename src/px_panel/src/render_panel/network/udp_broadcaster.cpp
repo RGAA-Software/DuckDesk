@@ -10,11 +10,11 @@
 namespace px
 {
 
-    std::shared_ptr<UdpBroadcaster> UdpBroadcaster::Make(const std::shared_ptr<GrContext>& ctx) {
+    std::shared_ptr<UdpBroadcaster> UdpBroadcaster::Make(const std::shared_ptr<PxContext>& ctx) {
         return std::make_shared<UdpBroadcaster>(ctx);
     }
 
-    UdpBroadcaster::UdpBroadcaster(const std::shared_ptr<GrContext>& ctx) : QObject(nullptr) {
+    UdpBroadcaster::UdpBroadcaster(const std::shared_ptr<PxContext>& ctx) : QObject(nullptr) {
         context_ = ctx;
         udp_socket_ = new QUdpSocket(this);
         udp_socket_->bind(QHostAddress::AnyIPv4, 21034);
@@ -23,7 +23,7 @@ namespace px
     void UdpBroadcaster::Broadcast(const std::string& msg) {
         QHostAddress broadcastAddress("255.255.255.255");
         // TCP/ws 与 UDP 媒体面共用同一端口
-        quint16 broadcastPort = GrSettings::Instance()->GetRenderServerPort();
+        quint16 broadcastPort = PxSettings::Instance()->GetRenderServerPort();
         QByteArray data = msg.c_str();
         udp_socket_->writeDatagram(data, QHostAddress::Broadcast, broadcastPort);
         //LOGI("Udp broadcast: {}", msg);

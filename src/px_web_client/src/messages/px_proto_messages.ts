@@ -1,6 +1,6 @@
 import { Root, Type } from 'protobufjs'
 
-export const GrProtoMsg = {
+export const PxProtoMsg = {
   MsgRoot: Root,
   // MessageType
   MessageType: Type,
@@ -15,15 +15,15 @@ export const GrProtoMsg = {
 }
 
 export function loadMessageType(root: Root) {
-  GrProtoMsg.MsgRoot = root;
+  PxProtoMsg.MsgRoot = root;
 
   // MessageType
-  GrProtoMsg.MessageType = root.lookupEnum("px.MessageType");
+  PxProtoMsg.MessageType = root.lookupEnum("px.MessageType");
 
   // VideoType
-  GrProtoMsg.VideoType = root.lookupEnum("px.VideoType");
+  PxProtoMsg.VideoType = root.lookupEnum("px.VideoType");
 
-  GrProtoMsg.Message = root.lookupType("px.Message");
-  GrProtoMsg.MsgHello = root.lookupType('px.Hello');
+  PxProtoMsg.Message = root.lookupType("px.Message");
+  PxProtoMsg.MsgHello = root.lookupType('px.Hello');
 
 }

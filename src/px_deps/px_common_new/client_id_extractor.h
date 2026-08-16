@@ -2,8 +2,8 @@
 // Created by RGAA on 6/06/2025.
 //
 
-#ifndef GAMMARAY_CLIENT_ID_EXTRACTOR_H
-#define GAMMARAY_CLIENT_ID_EXTRACTOR_H
+#ifndef PX_CLIENT_ID_EXTRACTOR_H
+#define PX_CLIENT_ID_EXTRACTOR_H
 
 #include <vector>
 #include "string_util.h"
@@ -24,4 +24,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CLIENT_ID_EXTRACTOR_H
+#endif //PX_CLIENT_ID_EXTRACTOR_H

@@ -13,14 +13,14 @@ using namespace nlohmann;
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
-    class GrRunGameManager;
+    class PxContext;
+    class PxApplication;
+    class PxRunGameManager;
 
     class HttpHandler {
     public:
 
-        explicit HttpHandler(const std::shared_ptr<GrApplication>& app);
+        explicit HttpHandler(const std::shared_ptr<PxApplication>& app);
 
         void HandlePing(http::web_request &req, http::web_response &rep);
         void HandleSimpleInfo(http::web_request &req, http::web_response &rep);
@@ -40,9 +40,9 @@ namespace px
         std::string WrapBasicInfo(int code, const std::string& msg, const json& data);
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrRunGameManager> run_game_mgr_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxRunGameManager> run_game_mgr_ = nullptr;
 
     };
 

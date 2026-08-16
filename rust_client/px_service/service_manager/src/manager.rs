@@ -273,10 +273,10 @@ impl ServiceManager {
 
 fn gamma_cleanup_process_names() -> &'static [&'static str] {
     &[
-        "GammaRayRender.exe",
-        "GammaRayClientInner.exe",
-        "GammaRaySysInfo.exe",
-        "GammaRayUserProxy.exe",
+        "px_render.exe",
+        "px_client.exe",
+        "px_osinfo.exe",
+        "px_function.exe",
     ]
 }
 
@@ -461,77 +461,77 @@ mod tests {
 
     #[test]
     fn wide_conversion_adds_trailing_nul() {
-        let value = to_wide("GammaRayService");
+        let value = to_wide("px_service");
         assert_eq!(*value.last().unwrap(), 0);
         assert_eq!(
             String::from_utf16_lossy(&value[..value.len() - 1]),
-            "GammaRayService"
+            "px_service"
         );
     }
 
     #[test]
     fn manager_stores_metadata() {
         let manager = ServiceManager::new(
-            "GammaRayService",
-            "GammaRayService",
-            "** GammaRay Service **",
+            "px_service",
+            "px_service",
+            "px service",
         );
-        assert_eq!(manager.service_name, "GammaRayService");
-        assert_eq!(manager.display_name, "GammaRayService");
-        assert_eq!(manager.description, "** GammaRay Service **");
+        assert_eq!(manager.service_name, "px_service");
+        assert_eq!(manager.display_name, "px_service");
+        assert_eq!(manager.description, "px service");
     }
 
     #[test]
     fn normalize_service_bin_quotes_exe_with_args() {
         let value = normalize_service_bin_command_line(
-            "C:/Program Files/GammaRay/GammaRayService.exe 20375",
+            "C:/Program Files/px/px_service.exe 20375",
         );
         assert_eq!(
             value,
-            "\"C:/Program Files/GammaRay/GammaRayService.exe\" 20375"
+            "\"C:/Program Files/px/px_service.exe\" 20375"
         );
     }
 
     #[test]
     fn normalize_service_bin_keeps_quoted_value() {
         let value = normalize_service_bin_command_line(
-            "\"C:/Program Files/GammaRay/GammaRayService.exe\" 20375",
+            "\"C:/Program Files/px/px_service.exe\" 20375",
         );
         assert_eq!(
             value,
-            "\"C:/Program Files/GammaRay/GammaRayService.exe\" 20375"
+            "\"C:/Program Files/px/px_service.exe\" 20375"
         );
     }
 
     #[test]
     fn normalize_service_bin_quotes_exe_without_args() {
         let value =
-            normalize_service_bin_command_line("C:/Program Files/GammaRay/GammaRayService.exe");
-        assert_eq!(value, "\"C:/Program Files/GammaRay/GammaRayService.exe\"");
+            normalize_service_bin_command_line("C:/Program Files/px/px_service.exe");
+        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\"");
     }
 
     #[test]
     fn parse_service_binary_path_extracts_quoted_exe() {
         let value = parse_service_binary_path(
-            "\"D:/GammaRay/GammaRayService.exe\" 20375",
+            "\"D:/px/px_service.exe\" 20375",
         );
-        assert_eq!(value, "D:/GammaRay/GammaRayService.exe");
+        assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
     fn parse_service_binary_path_extracts_unquoted_exe() {
         let value = parse_service_binary_path(
-            "D:/GammaRay/GammaRayService.exe 20375",
+            "D:/px/px_service.exe 20375",
         );
-        assert_eq!(value, "D:/GammaRay/GammaRayService.exe");
+        assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
     fn parse_service_binary_path_keeps_plain_exe() {
         let value = parse_service_binary_path(
-            "D:/GammaRay/GammaRayService.exe",
+            "D:/px/px_service.exe",
         );
-        assert_eq!(value, "D:/GammaRay/GammaRayService.exe");
+        assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
@@ -539,10 +539,10 @@ mod tests {
         assert_eq!(
             gamma_cleanup_process_names(),
             &[
-                "GammaRayRender.exe",
-                "GammaRayClientInner.exe",
-                "GammaRaySysInfo.exe",
-                "GammaRayUserProxy.exe",
+                "px_render.exe",
+                "px_client.exe",
+                "px_osinfo.exe",
+                "px_function.exe",
             ]
         );
     }

@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_RENDER_SERVICE_CLIENT_H
-#define GAMMARAY_RENDER_SERVICE_CLIENT_H
+#ifndef PX_RENDER_SERVICE_CLIENT_H
+#define PX_RENDER_SERVICE_CLIENT_H
 
 #include <memory>
 #include <string>
@@ -42,4 +42,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_WS_CLIENT_H
+#endif //PX_WS_CLIENT_H

@@ -22,7 +22,7 @@
 namespace px
 {
 
-    ModifyUsernameDialog::ModifyUsernameDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    ModifyUsernameDialog::ModifyUsernameDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         setFixedSize(375, 330);
         CreateLayout();

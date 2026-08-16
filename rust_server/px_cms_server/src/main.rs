@@ -22,7 +22,7 @@ mod net_cm;
 mod net_panel;
 mod net_service;
 mod record;
-mod relay;
+mod cms_relay;
 mod cms_database;
 mod cms_http_util;
 mod cms_router;
@@ -46,10 +46,10 @@ use crate::net_panel::cms_panel_conn_mgr::CmsPanelConnManager;
 use crate::net_service::cms_service_conn_mgr::CmsServiceConnManager;
 use crate::record::cms_file_transfer_manager::CmsFileTransferManager;
 use crate::record::cms_visit_manager::CmsVisitManager;
-use crate::relay::relay_conn_mgr::RelayConnManager;
-use crate::relay::relay_redis_conn::RelayRedisConn;
-use crate::relay::relay_room_mgr::RelayRoomManager;
-use crate::relay::relay_server::RelayServer;
+use crate::cms_relay::relay_conn_mgr::RelayConnManager;
+use crate::cms_relay::relay_redis_conn::RelayRedisConn;
+use crate::cms_relay::relay_room_mgr::RelayRoomManager;
+use crate::cms_relay::relay_server::RelayServer;
 use crate::cms_context::CmsContext;
 use crate::cms_database::CmsDatabase;
 use crate::cms_server::CmsServer;
@@ -144,7 +144,7 @@ async fn run_as_panel(machine_code: String) {
 
     // log
     let _guard = log_util::init_log(
-        "logs/px_cms_server/".to_string(),
+        "logs/px_cms/".to_string(),
         "log_cms_panel".to_string(),
     );
 
@@ -224,7 +224,7 @@ async fn run_as_panel(machine_code: String) {
 
 async fn run_as_server(machine_code: String) {
     // log
-    let _guard = log_util::init_log("logs/px_cms_server/".to_string(), "log_cms".to_string());
+    let _guard = log_util::init_log("logs/px_cms/".to_string(), "log_cms".to_string());
 
     // tls
     rustls::crypto::ring::default_provider()

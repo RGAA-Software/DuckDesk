@@ -27,7 +27,7 @@
 namespace px
 {
 
-    InputSafetyPwdDialog::InputSafetyPwdDialog(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    InputSafetyPwdDialog::InputSafetyPwdDialog(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         app_ = app;
         context_ = app_->GetContext();
         setFixedSize(375, 300);
@@ -40,7 +40,7 @@ namespace px
 
     void InputSafetyPwdDialog::CreateLayout() {
         setWindowTitle(tcTr("id_input_security_password"));
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
 
         auto item_width = 320;
         auto edit_size = QSize(item_width, 35);

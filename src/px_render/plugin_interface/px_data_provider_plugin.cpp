@@ -7,28 +7,28 @@
 namespace px
 {
 
-    GrDataProviderPlugin::GrDataProviderPlugin() {
+    PxDataProviderPlugin::PxDataProviderPlugin() {
 
     }
 
-    GrDataProviderPlugin::~GrDataProviderPlugin() {
+    PxDataProviderPlugin::~PxDataProviderPlugin() {
 
     }
 
-    bool GrDataProviderPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrPluginInterface::OnCreate(param);
+    bool PxDataProviderPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxPluginInterface::OnCreate(param);
         return true;
     }
 
-    bool GrDataProviderPlugin::OnDestroy() {
-        return GrPluginInterface::OnDestroy();
+    bool PxDataProviderPlugin::OnDestroy() {
+        return PxPluginInterface::OnDestroy();
     }
 
-    void GrDataProviderPlugin::StartProviding() {
+    void PxDataProviderPlugin::StartProviding() {
 
     }
 
-    void GrDataProviderPlugin::StopProviding() {
+    void PxDataProviderPlugin::StopProviding() {
 
     }
 

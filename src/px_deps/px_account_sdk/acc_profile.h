@@ -2,8 +2,8 @@
 // Created by RGAA on 30/05/2025.
 //
 
-#ifndef GAMMARAY_ACC_PROFILE_H
-#define GAMMARAY_ACC_PROFILE_H
+#ifndef PX_ACC_PROFILE_H
+#define PX_ACC_PROFILE_H
 
 #include <string>
 #include <cstdint>
@@ -19,4 +19,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ACC_PROFILE_H
+#endif //PX_ACC_PROFILE_H

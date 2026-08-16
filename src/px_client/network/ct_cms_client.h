@@ -2,8 +2,8 @@
 // Created by RGAA on 17/05/2025.
 //
 
-#ifndef GAMMARAY_CT_DASHBOARD_CLIENT_H
-#define GAMMARAY_CT_DASHBOARD_CLIENT_H
+#ifndef PX_CLIENT_CMS_CLIENT_H
+#define PX_CLIENT_CMS_CLIENT_H
 
 #include <memory>
 #include <atomic>
@@ -49,4 +49,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_DASHBOARD_CLIENT_H
+#endif //PX_CLIENT_CMS_CLIENT_H

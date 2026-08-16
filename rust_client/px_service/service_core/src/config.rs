@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-pub const DEFAULT_SERVICE_NAME: &str = "GammaRayService";
-pub const DEFAULT_SERVICE_DISPLAY_NAME: &str = "GammaRayService";
-pub const DEFAULT_SERVICE_DESCRIPTION: &str = "** GammaRay Service **";
+pub const DEFAULT_SERVICE_NAME: &str = "px_service";
+pub const DEFAULT_SERVICE_DISPLAY_NAME: &str = "px_service";
+pub const DEFAULT_SERVICE_DESCRIPTION: &str = "px service";
 pub const DEFAULT_SERVICE_PATH: &str = "/service/message";
 pub const DEFAULT_LISTEN_PORT: u16 = 20375;
 pub const DEFAULT_LISTEN_HOST: &str = "0.0.0.0";
@@ -11,11 +11,11 @@ pub const SERVICE_DATA_FILE: &str = "godesk_service.json";
 pub const SERVICE_LOG_DIR: &str = "px_logs";
 pub const SERVICE_LOG_FILE: &str = "godesk_service.log";
 pub const SERVICE_DATA_DIR: &str = "px_data";
-pub const RENDER_EXE_NAME: &str = "GammaRayRender.exe";
-pub const CLIENT_INNER_EXE_NAME: &str = "GammaRayClientInner.exe";
-pub const SYSINFO_EXE_NAME: &str = "GammaRaySysInfo.exe";
-pub const USER_PROXY_EXE_NAME: &str = "GammaRayUserProxy.exe";
-pub const PANEL_EXE_NAME: &str = "GammaRay.exe";
+pub const RENDER_EXE_NAME: &str = "px_render.exe";
+pub const CLIENT_INNER_EXE_NAME: &str = "px_client.exe";
+pub const SYSINFO_EXE_NAME: &str = "px_osinfo.exe";
+pub const USER_PROXY_EXE_NAME: &str = "px_function.exe";
+pub const PANEL_EXE_NAME: &str = "px_panel.exe";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceConfig {

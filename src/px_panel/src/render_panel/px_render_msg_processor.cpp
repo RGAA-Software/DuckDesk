@@ -12,11 +12,11 @@
 namespace px
 {
 
-    GrRenderMsgProcessor::GrRenderMsgProcessor(const std::shared_ptr<GrContext>& ctx) {
+    PxRenderMsgProcessor::PxRenderMsgProcessor(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
     }
 
-    void GrRenderMsgProcessor::OnMessage(std::shared_ptr<px::Message> msg) const {
+    void PxRenderMsgProcessor::OnMessage(std::shared_ptr<px::Message> msg) const {
         // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
         (void)msg;
 #if 0

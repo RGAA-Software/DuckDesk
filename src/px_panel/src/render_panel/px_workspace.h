@@ -37,18 +37,18 @@ namespace px
 
     class TcLabel;
     class TabBase;
-    class GrContext;
-    class GrSettings;
-    class GrApplication;
+    class PxContext;
+    class PxSettings;
+    class PxApplication;
     class MessageListener;
     class SkinInterface;
-    class GrUserManager;
+    class PxUserManager;
     class RoundImageDisplay;
     class UpgradeHelperWidget;
 
-    class GrWorkspace : public QMainWindow, public std::enable_shared_from_this<GrWorkspace> {
+    class PxWorkspace : public QMainWindow, public std::enable_shared_from_this<PxWorkspace> {
     public:
-        GrWorkspace(bool run_automatically, const std::string& skin_name = "");
+        PxWorkspace(bool run_automatically, const std::string& skin_name = "");
         void Init();
         void closeEvent(QCloseEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
@@ -73,12 +73,12 @@ namespace px
         void CheckAppUpdate(bool from_user_clicked);
         void CheckOffSiteUpdate();
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        PxSettings* settings_ = nullptr;
         SkinInterface* skin_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<GrUserManager> user_mgr_ = nullptr;
+        std::shared_ptr<PxUserManager> user_mgr_ = nullptr;
 
         std::map<TabName, TabBase*> tabs_;
         QPushButton* btn_tab_server_ = nullptr;
@@ -110,7 +110,7 @@ namespace px
         QWidget* jump_to_github_widget_ = nullptr;
     };
 
-    extern std::shared_ptr<GrWorkspace> grWorkspace;
+    extern std::shared_ptr<PxWorkspace> grWorkspace;
 
 }
 

@@ -26,8 +26,8 @@
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
     class StreamDBOperator;
     class StreamContent;
     class MessageListener;
@@ -38,7 +38,7 @@ namespace px
 
     class AppStreamList : public QWidget {
     public:
-        explicit AppStreamList(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit AppStreamList(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~AppStreamList() override;
 
         void LoadStreamItems();
@@ -66,8 +66,8 @@ namespace px
         std::vector<std::shared_ptr<px_cms::CmsStream>> CopyStreams();
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
         std::mutex streams_mtx_;
         std::vector<std::shared_ptr<px_cms::CmsStream>> streams_;

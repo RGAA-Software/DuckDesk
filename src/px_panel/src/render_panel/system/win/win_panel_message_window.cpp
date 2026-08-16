@@ -8,18 +8,18 @@
 namespace px
 {
 
-    constexpr char kWindowClassName[] = "GammaRay_render_panel_MessageWindowClass";
+    constexpr char kWindowClassName[] = "PxPanel_MessageWindowClass";
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;
     std::string WinMessageWindow::class_name_;
     std::atomic<bool> WinMessageWindow::class_registered_ = false;
     std::mutex WinMessageWindow::register_mutex_;
 
-    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(const std::shared_ptr<GrContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
         return std::make_shared<WinMessageWindow>(ctx, message_loop);
     }
 
-    WinMessageWindow::WinMessageWindow(const std::shared_ptr<GrContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
+    WinMessageWindow::WinMessageWindow(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
         context_ = ctx;
         message_loop_ = message_loop;
     }

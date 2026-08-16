@@ -2,8 +2,8 @@
 // Created by RGAA on 30/05/2025.
 //
 
-#ifndef GAMMARAY_ACC_SDK_H
-#define GAMMARAY_ACC_SDK_H
+#ifndef PX_ACC_SDK_H
+#define PX_ACC_SDK_H
 
 #include <memory>
 #include <vector>
@@ -39,4 +39,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ACC_SDK_H
+#endif //PX_ACC_SDK_H

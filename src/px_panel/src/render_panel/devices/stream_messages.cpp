@@ -12,28 +12,28 @@ using namespace nlohmann;
 namespace px
 {
 
-    std::string GrSmRestartRender::AsJson() {
+    std::string PxSmRestartRender::AsJson() {
         json obj;
         obj["event"] = "restart_render";
         obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
         return obj.dump();
     }
 
-    std::string GrSmLockScreen::AsJson() {
+    std::string PxSmLockScreen::AsJson() {
         json obj;
         obj["event"] = "lock_screen";
         obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
         return obj.dump();
     }
 
-    std::string GrSmRestartDevice::AsJson() {
+    std::string PxSmRestartDevice::AsJson() {
         json obj;
         obj["event"] = "restart_device";
         obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();
         return obj.dump();
     }
 
-    std::string GrSmShutdownDevice::AsJson() {
+    std::string PxSmShutdownDevice::AsJson() {
         json obj;
         obj["event"] = "shutdown_device";
         obj["from_device"] = grApp->GetContext()->GetDeviceIdOrIpAddress();

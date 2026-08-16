@@ -7,7 +7,7 @@ edition.workspace = true
 path = "src/lib.rs"
 
 [[bin]]
-name = "GammaRayUserProxy"
+name = "px_function"
 path = "src/main.rs"
 
 [dependencies]

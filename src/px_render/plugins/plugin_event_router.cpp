@@ -39,38 +39,38 @@ namespace px
         stat_ = RdStatistics::Instance();
     }
 
-    void PluginEventRouter::ProcessPluginEvent(const std::shared_ptr<GrPluginBaseEvent>& event) {
+    void PluginEventRouter::ProcessPluginEvent(const std::shared_ptr<PxPluginBaseEvent>& event) {
         // encoded video frame
-        if (event->event_type_ == GrPluginEventType::kPluginEncodedVideoFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginEncodedVideoFrameEvent>(event);
+        if (event->event_type_ == PxPluginEventType::kPluginEncodedVideoFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginEncodedVideoFrameEvent>(event);
             stream_event_router_->ProcessEncodedVideoFrameEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginNetClientEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginNetClientEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginNetClientEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginNetClientEvent>(event);
             net_event_router_->ProcessNetEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginClientConnectedEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginClientConnectedEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginClientConnectedEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginClientConnectedEvent>(event);
             net_event_router_->ProcessClientConnectedEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginClientDisConnectedEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginClientDisConnectedEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginClientDisConnectedEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginClientDisConnectedEvent>(event);
             net_event_router_->ProcessClientDisConnectedEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginCapturedVideoFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginCapturedVideoFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginCapturedVideoFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginCapturedVideoFrameEvent>(event);
             msg_notifier_->SendAppMessage(target_event->frame_);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginCapturingMonitorInfoEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginCapturingMonitorInfoEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginCapturingMonitorInfoEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginCapturingMonitorInfoEvent>(event);
             net_event_router_->ProcessCapturingMonitorInfoEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginCursorEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginCursorEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginCursorEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginCursorEvent>(event);
             msg_notifier_->SendAppMessage(target_event->cursor_info_);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRawVideoFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginRawVideoFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginRawVideoFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRawVideoFrameEvent>(event);
             auto msg = CaptureVideoFrame{};
             msg.frame_width_ = target_event->image_->width;
             msg.frame_height_ = target_event->image_->height;
@@ -80,8 +80,8 @@ namespace px
             msg.frame_format_ = target_event->frame_format_;
             msg_notifier_->SendAppMessage(msg);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRawAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginRawAudioFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginRawAudioFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRawAudioFrameEvent>(event);
             auto msg = CaptureAudioFrame{};
             msg.samples_ = target_event->sample_rate_;
             msg.channels_ = target_event->channels_;
@@ -89,8 +89,8 @@ namespace px
             msg.full_data_ = target_event->full_data_;
             msg_notifier_->SendAppMessage(msg);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginSplitRawAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginSplitRawAudioFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginSplitRawAudioFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginSplitRawAudioFrameEvent>(event);
             auto msg = CaptureAudioFrame{};
             msg.samples_ = target_event->sample_rate_;
             msg.channels_ = target_event->channels_;
@@ -99,86 +99,86 @@ namespace px
             msg.right_ch_data_ = target_event->right_ch_data_;
             msg_notifier_->SendAppMessage(msg);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginEncodedAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginEncodedAudioFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginEncodedAudioFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginEncodedAudioFrameEvent>(event);
             net_event_router_->ProcessEncodedAudioFrameEvent(target_event->data_,
                                                              target_event->sample_rate_,
                                                              target_event->channels_,
                                                              target_event->bits_,
                                                              target_event->frame_size_);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginInsertIdrEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginInsertIdrEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginInsertIdrEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginInsertIdrEvent>(event);
             // mon_name_ 为空 = 广播所有屏(旧行为);非空 = 只给目标屏补 IDR
             const auto mon_name = target_event ? target_event->mon_name_ : "";
-            plugin_manager_->VisitEncoderPlugins([=, this](GrVideoEncoderPlugin* plugin) {
+            plugin_manager_->VisitEncoderPlugins([=, this](PxVideoEncoderPlugin* plugin) {
                 // TODO:
                 //LOGI("Insert IDR for plugin: {}", plugin->GetPluginName());
                 plugin->InsertIdr(mon_name);
             });
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginInvalidateRefFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginInvalidateRefFrameEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginInvalidateRefFrameEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginInvalidateRefFrameEvent>(event);
             const auto mon_name = target_event ? target_event->mon_name_ : "";
             const auto invalid_index = target_event ? target_event->invalid_frame_index_ : 0;
             bool accepted = false;
-            plugin_manager_->VisitEncoderPlugins([&](GrVideoEncoderPlugin* plugin) {
+            plugin_manager_->VisitEncoderPlugins([&](PxVideoEncoderPlugin* plugin) {
                 accepted = plugin->InvalidateRefFrame(mon_name, invalid_index) || accepted;
             });
             if (!accepted) {
                 // 与 Sunshine 一致:编码器不支持 RFI(例如 FFmpeg 软编)时立即补 IDR,
                 // 不要等客户端 2s 无帧超时再回退。
                 LOGW("RFI not accepted by any encoder, fallback to IDR immediately.");
-                plugin_manager_->VisitEncoderPlugins([&](GrVideoEncoderPlugin* plugin) {
+                plugin_manager_->VisitEncoderPlugins([&](PxVideoEncoderPlugin* plugin) {
                     plugin->InsertIdr(mon_name);
                 });
             }
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRelayPausedEvent) {
+        else if (event->event_type_ == PxPluginEventType::kPluginRelayPausedEvent) {
 
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRelayResumeEvent) {
+        else if (event->event_type_ == PxPluginEventType::kPluginRelayResumeEvent) {
 
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRtcAnswerSdpEvent) {
+        else if (event->event_type_ == PxPluginEventType::kPluginRtcAnswerSdpEvent) {
             this->SendAnswerSdpToRemote(event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRtcIceEvent) {
+        else if (event->event_type_ == PxPluginEventType::kPluginRtcIceEvent) {
             this->SendIceToRemote(event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRtcReportEvent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginRtcReportEvent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginRtcReportEvent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRtcReportEvent>(event);
             net_event_router_->ProcessRtcReportEvent(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginFileTransferBegin) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginFileTransferBegin>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginFileTransferBegin) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginFileTransferBegin>(event);
             ReportFileTransferBegin(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginFileTransferEnd) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginFileTransferEnd>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginFileTransferEnd) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginFileTransferEnd>(event);
             ReportFileTransferEnd(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginDataSent) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginDataSent>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginDataSent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginDataSent>(event);
             stat_->AppendMediaBytes(target_event->size_);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRemoteClipboardResp) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginRemoteClipboardResp>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginRemoteClipboardResp) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRemoteClipboardResp>(event);
             ReportRemoteClipboardResp(target_event);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginPanelStreamMessage) {
+        else if (event->event_type_ == PxPluginEventType::kPluginPanelStreamMessage) {
             app_->PostGlobalTask([=, this]() {
-                auto target_event = std::dynamic_pointer_cast<GrPluginPanelStreamMessage>(event);
+                auto target_event = std::dynamic_pointer_cast<PxPluginPanelStreamMessage>(event);
                 ProcessPanelStreamMessage(target_event);
             });
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginConfigEncoder) {
+        else if (event->event_type_ == PxPluginEventType::kPluginConfigEncoder) {
             app_->PostGlobalTask([=, this]() {
                 auto plugins = app_->GetWorkingVideoEncoderPlugins();
-                auto target_event = std::dynamic_pointer_cast<GrPluginConfigEncoder>(event);
+                auto target_event = std::dynamic_pointer_cast<PxPluginConfigEncoder>(event);
                 // GetWorkingVideoEncoderPlugins 按屏索引,多屏会指向同一 plugin 实例;
                 // 去重后再 Config,避免对同一 NVENC 插件连打多次。
-                std::unordered_set<GrVideoEncoderPlugin*> unique_plugins;
+                std::unordered_set<PxVideoEncoderPlugin*> unique_plugins;
                 for (const auto& [mon_name, plugin] : plugins) {
                     if (plugin) {
                         unique_plugins.insert(plugin);
@@ -189,20 +189,20 @@ namespace px
                 }
             });
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginRelayAlive) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginRelayAlive>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginRelayAlive) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRelayAlive>(event);
             ReportRelayAlive(target_event->device_id_, (int64_t)target_event->created_timestamp_);
             //LOGI("Plugin update relay alive: {} -> {}", target_event->device_id_, target_event->created_timestamp_);
         }
-        else if (event->event_type_ == GrPluginEventType::kPluginReqParamsBeginStreaming) {
-            auto target_event = std::dynamic_pointer_cast<GrPluginReqParamsBeginStreaming>(event);
+        else if (event->event_type_ == PxPluginEventType::kPluginReqParamsBeginStreaming) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginReqParamsBeginStreaming>(event);
             //LOGI("ReqParamsBeginStreaming, stream id: {}, force gdi: {}", target_event->stream_id_, target_event->force_gdi_);
             app_->HandleForceGdiEvent(target_event->force_gdi_);
         }
     }
 
-    void PluginEventRouter::SendAnswerSdpToRemote(const std::shared_ptr<GrPluginBaseEvent>& event) {
-        auto target_event = std::dynamic_pointer_cast<GrPluginRtcAnswerSdpEvent>(event);
+    void PluginEventRouter::SendAnswerSdpToRemote(const std::shared_ptr<PxPluginBaseEvent>& event) {
+        auto target_event = std::dynamic_pointer_cast<PxPluginRtcAnswerSdpEvent>(event);
         auto stream_id = target_event->stream_id_;
 
         px::Message pt_msg;
@@ -211,7 +211,7 @@ namespace px
         sub->set_sdp(target_event->sdp_);
         auto msg = ProtoAsData(&pt_msg);
 
-        plugin_manager_->VisitNetPlugins([=, this](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([=, this](PxNetPlugin* plugin) {
             if (plugin->GetPluginId() == kRelayPluginId) {
                 if (stream_id.empty()) {
                     plugin->PostProtoMessage(msg, true);
@@ -224,8 +224,8 @@ namespace px
         });
     }
 
-    void PluginEventRouter::SendIceToRemote(const std::shared_ptr<GrPluginBaseEvent>& event) {
-        auto target_event = std::dynamic_pointer_cast<GrPluginRtcIceEvent>(event);
+    void PluginEventRouter::SendIceToRemote(const std::shared_ptr<PxPluginBaseEvent>& event) {
+        auto target_event = std::dynamic_pointer_cast<PxPluginRtcIceEvent>(event);
         auto stream_id = target_event->stream_id_;
 
         px::Message pt_msg;
@@ -236,7 +236,7 @@ namespace px
         sub->set_sdp_mline_index(target_event->sdp_mline_index_);
         auto msg = ProtoAsData(&pt_msg);//.SerializeAsString();
 
-        plugin_manager_->VisitNetPlugins([=, this](GrNetPlugin* plugin) {
+        plugin_manager_->VisitNetPlugins([=, this](PxNetPlugin* plugin) {
             if (plugin->GetPluginId() == kRelayPluginId) {
                 if (stream_id.empty()) {
                     plugin->PostProtoMessage(msg, true);
@@ -249,7 +249,7 @@ namespace px
         });
     }
 
-    void PluginEventRouter::ReportFileTransferBegin(const std::shared_ptr<GrPluginFileTransferBegin>& event) {
+    void PluginEventRouter::ReportFileTransferBegin(const std::shared_ptr<PxPluginFileTransferBegin>& event) {
         app_->PostGlobalTask([=, this]() {
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpFileTransferBegin);
@@ -264,7 +264,7 @@ namespace px
         });
     }
 
-    void PluginEventRouter::ReportFileTransferEnd(const std::shared_ptr<GrPluginFileTransferEnd>& event) {
+    void PluginEventRouter::ReportFileTransferEnd(const std::shared_ptr<PxPluginFileTransferEnd>& event) {
         app_->PostGlobalTask([=, this]() {
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpFileTransferEnd);
@@ -277,7 +277,7 @@ namespace px
         });
     }
 
-    void PluginEventRouter::ReportRemoteClipboardResp(const std::shared_ptr<GrPluginRemoteClipboardResp>& event) {
+    void PluginEventRouter::ReportRemoteClipboardResp(const std::shared_ptr<PxPluginRemoteClipboardResp>& event) {
         // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
         // Panel echo path replaced by UserProxy local echo when applying remote clipboard.
         (void)event;
@@ -294,7 +294,7 @@ namespace px
 #endif
     }
 
-    void PluginEventRouter::ProcessPanelStreamMessage(const std::shared_ptr<GrPluginPanelStreamMessage>& event) {
+    void PluginEventRouter::ProcessPanelStreamMessage(const std::shared_ptr<PxPluginPanelStreamMessage>& event) {
         if (!event->body_) {
             return;
         }

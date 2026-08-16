@@ -13,7 +13,7 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-GR_PLUGIN_EXPORT(px::FileTransferPlugin)
+PX_PLUGIN_EXPORT(px::FileTransferPlugin)
 
 namespace px
 {
@@ -46,8 +46,8 @@ namespace px
         file_trans_msg_interface_->OnMessage(msg);
     }
 
-    bool FileTransferPlugin::OnCreate(const GrPluginParam& param) {
-        if (!GrPluginInterface::OnCreate(param)) {
+    bool FileTransferPlugin::OnCreate(const PxPluginParam& param) {
+        if (!PxPluginInterface::OnCreate(param)) {
             return false;
         }
         file_trans_msg_interface_ = FileTransmitMsgInterface::Make(this);
@@ -66,8 +66,8 @@ namespace px
         return true;
     }
 
-    void FileTransferPlugin::OnSyncPluginSettingsInfo(const GrPluginSettingsInfo& settings) {
-        GrPluginInterface::OnSyncPluginSettingsInfo(settings);
+    void FileTransferPlugin::OnSyncPluginSettingsInfo(const PxPluginSettingsInfo& settings) {
+        PxPluginInterface::OnSyncPluginSettingsInfo(settings);
         //LOGI("Max transmit speed: {}, Max receive speed: {}", settings.max_transmit_speed_, settings.max_receive_speed_);
         if (!file_trans_msg_interface_) {
             return;

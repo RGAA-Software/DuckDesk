@@ -1,5 +1,5 @@
 /**
- * Inject MsgAuthInfo into GammaRayService local WS (/service/message)
+ * Inject MsgAuthInfo into px_service local WS (/service/message)
  * so cms_client_loop can connect to CMS.
  *
  * Usage:

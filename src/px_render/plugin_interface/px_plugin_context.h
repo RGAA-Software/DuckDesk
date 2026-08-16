@@ -2,8 +2,8 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_CONTEXT_H
-#define GAMMARAY_GR_PLUGIN_CONTEXT_H
+#ifndef PX_RENDER_PLUGIN_CONTEXT_H
+#define PX_RENDER_PLUGIN_CONTEXT_H
 
 #include <functional>
 #include <memory>
@@ -20,10 +20,10 @@ namespace px
 
     class Thread;
 
-    class GrPluginContext {
+    class PxPluginContext {
     public:
-        explicit GrPluginContext(const std::string& plugin_name);
-        ~GrPluginContext() = default;
+        explicit PxPluginContext(const std::string& plugin_name);
+        ~PxPluginContext() = default;
 
         void OnDestroy();
 
@@ -43,4 +43,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_PLUGIN_CONTEXT_H
+#endif //PX_RENDER_PLUGIN_CONTEXT_H

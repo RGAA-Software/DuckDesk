@@ -44,18 +44,18 @@ using namespace nlohmann;
 namespace px
 {
 
-    GrContext::GrContext(QWidget* main_window) : QObject(nullptr) {
+    PxContext::PxContext(QWidget* main_window) : QObject(nullptr) {
         main_window_ = main_window;
     }
 
-    bool GrContext::Init(const std::shared_ptr<GrApplication>& app) {
+    bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         sp_ = SharedPreference::Instance();
         db_ready_ = false;
         db_error_.clear();
 
-        database_ = std::make_shared<GrDatabase>(shared_from_this());
+        database_ = std::make_shared<PxDatabase>(shared_from_this());
         if (database_->Init()) {
             db_ready_ = true;
         } else {
@@ -94,7 +94,7 @@ namespace px
         auto end = TimeUtil::GetCurrentTimestamp();
         LOGI("Detect hardware info used: {}ms", end-beg);
 
-        srv_manager_ = std::make_shared<GrRenderController>(app);
+        srv_manager_ = std::make_shared<PxRenderController>(app);
 
         task_rt_ = std::make_shared<TaskRuntime>(8);
 
@@ -111,17 +111,17 @@ namespace px
             LOGI("IP: {} -> {}", item.ip_addr_, item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS");
         }
 
-        res_manager_ = std::make_shared<GrResources>(shared_from_this());
+        res_manager_ = std::make_shared<PxResources>(shared_from_this());
         res_manager_->ExtractIconsIfNeeded();
 
-        run_game_manager_ = std::make_shared<GrRunGameManager>(shared_from_this());
-        cms_manager_ = std::make_shared<GrCmsManager>(shared_from_this());
-        event_manager_ = std::make_shared<GrEventManager>(shared_from_this());
+        run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
+        cms_manager_ = std::make_shared<PxCmsManager>(shared_from_this());
+        event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
         service_manager_ = ServiceManager::Make();
         std::string base_path = qApp->applicationDirPath().toStdString();
-        std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kGammaRayServiceExeName, settings_->sys_service_port_);
+        std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kPxServiceExeName, settings_->sys_service_port_);
         LOGI("Service path: {}", bin_path);
-        service_manager_->Init("GammaRayService", bin_path, "GammaRat Service", "** GammaRay Service **");
+        service_manager_->Init("px_service", bin_path, "px_service", "** px_service **");
         //service_manager_->Install();
 
         running_stream_mgr_ = std::make_shared<RunningStreamManager>(shared_from_this());
@@ -145,18 +145,18 @@ namespace px
         return true;
     }
 
-    void GrContext::Exit() {
+    void PxContext::Exit() {
         exiting_ = true;
         if (srv_manager_) {
             srv_manager_->Exit();
         }
     }
 
-    std::shared_ptr<SteamManager> GrContext::GetSteamManager() {
+    std::shared_ptr<SteamManager> PxContext::GetSteamManager() {
         return steam_mgr_;
     }
 
-    void GrContext::PostTask(std::function<void()>&& task) {
+    void PxContext::PostTask(std::function<void()>&& task) {
         if (!task_rt_) {
             LOGE("PostTask ignored because task runtime is not ready");
             return;
@@ -164,7 +164,7 @@ namespace px
         task_rt_->Post(SimpleThreadTask::Make(std::move(task)));
     }
 
-    void GrContext::PostTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
+    void PxContext::PostTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
         if (!task_rt_) {
             LOGE("PostTask(exec/callback) ignored because task runtime is not ready");
             return;
@@ -174,7 +174,7 @@ namespace px
         );
     }
 
-    void GrContext::PostUITask(std::function<void()>&& task) {
+    void PxContext::PostUITask(std::function<void()>&& task) {
         auto weak_self = weak_from_this();
         QMetaObject::invokeMethod(this, [weak_self, task = std::move(task)]() {
             auto self = weak_self.lock();
@@ -185,7 +185,7 @@ namespace px
         });
     }
 
-    void GrContext::PostUIDelayTask(std::function<void()>&& task, int ms) {
+    void PxContext::PostUIDelayTask(std::function<void()>&& task, int ms) {
         auto weak_self = weak_from_this();
         this->PostUITask([weak_self, ms, t = std::move(task)]() {
             QTimer::singleShot(ms, [weak_self, t]() {
@@ -198,7 +198,7 @@ namespace px
         });
     }
 
-    void GrContext::PostDelayTask(std::function<void()>&& task, int ms) {
+    void PxContext::PostDelayTask(std::function<void()>&& task, int ms) {
         auto weak_self = weak_from_this();
         this->PostUIDelayTask([weak_self, task = std::move(task)]() mutable {
             auto self = weak_self.lock();
@@ -209,7 +209,7 @@ namespace px
         }, ms);
     }
 
-    void GrContext::PostDBTask(std::function<void()>&& task) {
+    void PxContext::PostDBTask(std::function<void()>&& task) {
         if (!task_rt_) {
             LOGE("PostDBTask ignored because task runtime is not ready");
             return;
@@ -217,7 +217,7 @@ namespace px
         task_rt_->GetLastThread()->Post(SimpleThreadTask::Make(std::move(task)));
     }
 
-    void GrContext::PostDBTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
+    void PxContext::PostDBTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
         if (!task_rt_) {
             LOGE("PostDBTask(exec/callback) ignored because task runtime is not ready");
             return;
@@ -227,15 +227,15 @@ namespace px
         );
     }
 
-    int GrContext::GetIndexByUniqueId() {
+    int PxContext::GetIndexByUniqueId() {
         return std::atoi(settings_->GetDeviceId().c_str())%30+1;
     }
 
-    std::vector<EthernetInfo> GrContext::GetIps() {
+    std::vector<EthernetInfo> PxContext::GetIps() {
         return IPUtil::ScanIPs();
     }
 
-    std::string GrContext::GetFirstAvailableIp() {
+    std::string PxContext::GetFirstAvailableIp() {
         const auto ips = IPUtil::ScanIPs();
         for (const auto& ip : ips) {
             return ip.ip_addr_;
@@ -243,7 +243,7 @@ namespace px
         return "";
     }
 
-    std::string GrContext::GetDeviceIdOrIpAddress() {
+    std::string PxContext::GetDeviceIdOrIpAddress() {
         auto ips = this->GetIps();
         std::string ip_address;
         if (!ips.empty()) {
@@ -254,7 +254,7 @@ namespace px
         return !device_id.empty() ? device_id : ip_address;
     }
 
-    std::string GrContext::MakeDesktopLinkMessage(const std::vector<EthernetInfo>& info) {
+    std::string PxContext::MakeDesktopLinkMessage(const std::vector<EthernetInfo>& info) {
         json obj;
         // device
         // device_id
@@ -291,15 +291,15 @@ namespace px
         return obj.dump();
     }
 
-    std::shared_ptr<DBGameOperator> GrContext::GetDBGameManager() {
+    std::shared_ptr<DBGameOperator> PxContext::GetDBGameManager() {
         return db_game_manager_;
     }
 
-    std::shared_ptr<MessageNotifier> GrContext::GetMessageNotifier() {
+    std::shared_ptr<MessageNotifier> PxContext::GetMessageNotifier() {
         return msg_notifier_;
     }
 
-    std::shared_ptr<MessageListener> GrContext::ObtainMessageListener() {
+    std::shared_ptr<MessageListener> PxContext::ObtainMessageListener() {
         if (!msg_notifier_) {
             LOGE("ObtainMessageListener failed because notifier is not ready");
             return nullptr;
@@ -307,11 +307,11 @@ namespace px
         return msg_notifier_->CreateListener();
     }
 
-    std::shared_ptr<GrRenderController> GrContext::GetRenderController() {
+    std::shared_ptr<PxRenderController> PxContext::GetRenderController() {
         return srv_manager_;
     }
 
-    void GrContext::StartTimers() {
+    void PxContext::StartTimers() {
         timer_ = std::make_shared<asio2::timer>();
         auto weak_self = weak_from_this();
         timer_->start_timer(100, 100, [weak_self]() {
@@ -345,43 +345,43 @@ namespace px
         });
     }
 
-    std::shared_ptr<GrRunGameManager> GrContext::GetRunGameManager() {
+    std::shared_ptr<PxRunGameManager> PxContext::GetRunGameManager() {
         return run_game_manager_;
     }
 
-    std::string GrContext::GetCurrentExeFolder() {
+    std::string PxContext::GetCurrentExeFolder() {
         return QCoreApplication::applicationDirPath().toStdString();
     }
 
-    std::shared_ptr<ServiceManager> GrContext::GetServiceManager() {
+    std::shared_ptr<ServiceManager> PxContext::GetServiceManager() {
         return service_manager_;
     }
 
-    std::shared_ptr<GrApplication> GrContext::GetApplication() {
+    std::shared_ptr<PxApplication> PxContext::GetApplication() {
         return app_;
     }
 
-    std::shared_ptr<GrCmsManager> GrContext::GetCmsManager() {
+    std::shared_ptr<PxCmsManager> PxContext::GetCmsManager() {
         return cms_manager_;
     }
 
-    std::shared_ptr<GrEventManager> GrContext::GetEventManager() {
+    std::shared_ptr<PxEventManager> PxContext::GetEventManager() {
         return event_manager_;
     }
 
-    std::shared_ptr<StreamDBOperator> GrContext::GetStreamDBManager() {
+    std::shared_ptr<StreamDBOperator> PxContext::GetStreamDBManager() {
         return stream_db_mgr_;
     }
 
-    std::shared_ptr<RunningStreamManager> GrContext::GetRunningStreamManager() {
+    std::shared_ptr<RunningStreamManager> PxContext::GetRunningStreamManager() {
         return running_stream_mgr_;
     }
 
-    std::shared_ptr<NotifyManager> GrContext::GetNotifyManager() {
+    std::shared_ptr<NotifyManager> PxContext::GetNotifyManager() {
         return notify_mgr_;
     }
 
-    void GrContext::NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
+    void PxContext::NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
         auto weak_self = weak_from_this();
         QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
             if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
@@ -395,7 +395,7 @@ namespace px
         });
     }
 
-    void GrContext::NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
+    void PxContext::NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
         auto weak_self = weak_from_this();
         QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
             if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
@@ -409,15 +409,15 @@ namespace px
         });
     }
 
-    std::shared_ptr<GrDatabase> GrContext::GetDatabase() {
+    std::shared_ptr<PxDatabase> PxContext::GetDatabase() {
         return database_;
     }
 
-    bool GrContext::IsPreferenceReady() const {
+    bool PxContext::IsPreferenceReady() const {
         return sp_ && sp_->IsReady();
     }
 
-    std::shared_ptr<px_relay::RelayDeviceInfo> GrContext::GetRelayServerSideDeviceInfo(const std::string& relay_host,
+    std::shared_ptr<px_relay::RelayDeviceInfo> PxContext::GetRelayServerSideDeviceInfo(const std::string& relay_host,
                                                                                     int relay_port,
                                                                                     const std::string& relay_appkey,
                                                                                     const std::string& device_id,
@@ -443,7 +443,7 @@ namespace px
 
     }
 
-    void GrContext::SpPutString(const std::string& key, const std::string& value) {
+    void PxContext::SpPutString(const std::string& key, const std::string& value) {
         if (!sp_ || !sp_->IsReady()) {
             LOGE("SpPutString ignored because SharedPreference is not ready, key: {}", key);
             return;
@@ -451,14 +451,14 @@ namespace px
         sp_->Put(key, value);
     }
 
-    std::string GrContext::SpGetString(const std::string& key, const std::string& def_val) {
+    std::string PxContext::SpGetString(const std::string& key, const std::string& def_val) {
         if (!sp_ || !sp_->IsReady()) {
             return def_val;
         }
         return sp_->Get(key, def_val);
     }
 
-    void GrContext::SpPutInteger(const std::string& key, int value) {
+    void PxContext::SpPutInteger(const std::string& key, int value) {
         if (!sp_ || !sp_->IsReady()) {
             LOGE("SpPutInteger ignored because SharedPreference is not ready, key: {}", key);
             return;
@@ -466,7 +466,7 @@ namespace px
         sp_->PutInt(key, value);
     }
 
-    int GrContext::SpGetInteger(const std::string& key, int def_val) {
+    int PxContext::SpGetInteger(const std::string& key, int def_val) {
         if (!sp_ || !sp_->IsReady()) {
             return def_val;
         }

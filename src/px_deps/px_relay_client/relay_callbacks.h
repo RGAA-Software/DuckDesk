@@ -2,8 +2,8 @@
 // Created by RGAA on 1/03/2025.
 //
 
-#ifndef GAMMARAY_RELAY_CALLBACKS_H
-#define GAMMARAY_RELAY_CALLBACKS_H
+#ifndef PX_RELAY_CALLBACKS_H
+#define PX_RELAY_CALLBACKS_H
 
 #include <string>
 #include <memory>
@@ -32,4 +32,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RELAY_CALLBACKS_H
+#endif //PX_RELAY_CALLBACKS_H

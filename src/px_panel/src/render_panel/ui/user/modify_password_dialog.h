@@ -20,12 +20,12 @@ namespace px
 {
 
     class CmsUser;
-    class GrContext;
+    class PxContext;
     class TcPasswordInput;
 
     class ModifyPasswordDialog : public TcCustomTitleBarDialog {
     public:
-        explicit ModifyPasswordDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit ModifyPasswordDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~ModifyPasswordDialog() override;
 
         std::string GetPassword();
@@ -38,7 +38,7 @@ namespace px
         void ModifyPassword();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         TcPasswordInput* password_input_ = nullptr;
         TcPasswordInput* password_input_again_ = nullptr;
 

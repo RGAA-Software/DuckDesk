@@ -2,8 +2,8 @@
 // Created by RGAA on 24/05/2025.
 //
 
-#ifndef GAMMARAY_STREAM_STATE_CHECKER_H
-#define GAMMARAY_STREAM_STATE_CHECKER_H
+#ifndef PX_STREAM_STATE_CHECKER_H
+#define PX_STREAM_STATE_CHECKER_H
 
 #include <memory>
 #include <string>
@@ -18,15 +18,15 @@ namespace px_cms
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
     class MessageListener;
 
     using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<px_cms::CmsStream>>)>;
 
     class StreamStateChecker : public std::enable_shared_from_this<StreamStateChecker> {
     public:
-        explicit StreamStateChecker(const std::shared_ptr<GrContext>& ctx);
+        explicit StreamStateChecker(const std::shared_ptr<PxContext>& ctx);
         void Start();
         void Exit();
         void SetOnCheckedCallback(OnStreamStateCheckedCallback&&);
@@ -35,12 +35,12 @@ namespace px
         void CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items);
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         OnStreamStateCheckedCallback on_checked_cbk_;
     };
 
 }
 
-#endif //GAMMARAY_STREAM_STATE_CHECKER_H
+#endif //PX_STREAM_STATE_CHECKER_H

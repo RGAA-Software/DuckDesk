@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 rem Standalone game-hook debug launcher.
-rem Starts ONLY GammaRayRender (no panel / px_service), then opens web client.
+rem Starts ONLY px_render (no panel / px_service), then opens web client.
 rem See docs/game_hook_capture_plan.md
 
 set "REPO_ROOT=%~dp0.."
@@ -33,8 +33,8 @@ rem of the launcher shell.
 set "VIEW_ARG="
 if defined GAME_VIEW_B64 set "VIEW_ARG=--app_game_view_path=%GAME_VIEW_B64%"
 
-if not exist "%DIST%\GammaRayRender.exe" (
-    echo ERROR: %DIST%\GammaRayRender.exe not found.
+if not exist "%DIST%\px_render.exe" (
+    echo ERROR: %DIST%\px_render.exe not found.
     echo Run build_official.bat first.
     exit /b 1
 )
@@ -60,7 +60,7 @@ echo URL  : %WEB_URL%
 echo.
 
 rem Stop previous render on this port (best-effort).
-taskkill /F /IM GammaRayRender.exe >nul 2>nul
+taskkill /F /IM px_render.exe >nul 2>nul
 timeout /t 1 /nobreak >nul
 
 copy /Y "%SRC_TOML%" "%DIST%\settings.toml" >nul
@@ -75,12 +75,12 @@ echo game-path: from settings.toml
 findstr /I /C:"game-path" "%DIST%\settings.toml"
 
 echo.
-echo Starting GammaRayRender.exe ...
+echo Starting px_render.exe ...
 rem Use PowerShell Start-Process so the render breaks away from the parent job
 rem object (cmd "start" children get killed when Cursor/agent shells exit).
-powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\GammaRayRender.exe' -ArgumentList '--logfile','--app_mode=%APP_MODE%','--capture_video=%CAPTURE_VIDEO%','--capture_video_type=%CAPTURE_VIDEO_TYPE%','--capture_audio=%CAPTURE_AUDIO%','--capture_audio_type=%CAPTURE_AUDIO_TYPE%','--webrtc_enabled=%WEBRTC_ENABLED%','--websocket_enabled=%WEBSOCKET_ENABLED%','--encoder_fps=%ENCODER_FPS%','--encoder_bitrate=%ENCODER_BITRATE%','--encoder_format=%ENCODER_FORMAT%','--network_listen_port=%PORT%','%VIEW_ARG%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
+powershell -NoProfile -Command "Start-Process -FilePath '%DIST%\px_render.exe' -ArgumentList '--logfile','--app_mode=%APP_MODE%','--capture_video=%CAPTURE_VIDEO%','--capture_video_type=%CAPTURE_VIDEO_TYPE%','--capture_audio=%CAPTURE_AUDIO%','--capture_audio_type=%CAPTURE_AUDIO_TYPE%','--webrtc_enabled=%WEBRTC_ENABLED%','--websocket_enabled=%WEBSOCKET_ENABLED%','--encoder_fps=%ENCODER_FPS%','--encoder_bitrate=%ENCODER_BITRATE%','--encoder_format=%ENCODER_FORMAT%','--network_listen_port=%PORT%','%VIEW_ARG%' -WorkingDirectory '%DIST%' -WindowStyle Normal"
 if errorlevel 1 (
-    echo ERROR: failed to Start-Process GammaRayRender.exe
+    echo ERROR: failed to Start-Process px_render.exe
     exit /b 1
 )
 

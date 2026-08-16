@@ -2,8 +2,8 @@
 // Created by RGAA on 29/03/2025.
 //
 
-#ifndef GAMMARAY_TC_PASSWORD_INPUT_H
-#define GAMMARAY_TC_PASSWORD_INPUT_H
+#ifndef PX_TC_PASSWORD_INPUT_H
+#define PX_TC_PASSWORD_INPUT_H
 
 #include <QWidget>
 #include <QLineEdit>
@@ -27,4 +27,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TC_PASSWORD_INPUT_H
+#endif //PX_TC_PASSWORD_INPUT_H

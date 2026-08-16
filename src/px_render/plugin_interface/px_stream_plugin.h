@@ -2,24 +2,24 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_GR_STREAM_PLUGIN_H
-#define GAMMARAY_GR_STREAM_PLUGIN_H
+#ifndef PX_STREAM_PLUGIN_H
+#define PX_STREAM_PLUGIN_H
 
 #include "px_plugin_interface.h"
 
 namespace px
 {
 
-    class GrStreamPlugin : public GrPluginInterface {
+    class PxStreamPlugin : public PxPluginInterface {
     public:
-        GrStreamPlugin();
-        ~GrStreamPlugin() override;
+        PxStreamPlugin();
+        ~PxStreamPlugin() override;
 
         // video
-        void OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) override;
+        void OnVideoEncoderCreated(const std::string& mon_name, const PxPluginEncodedVideoType& type, int width, int height) override;
         // data: encode video frame, h264/h265/...
         void OnEncodedVideoFrame(const std::string& mon_name,
-                                 const GrPluginEncodedVideoType& video_type,
+                                 const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
@@ -46,4 +46,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_STREAM_PLUGIN_H
+#endif //PX_STREAM_PLUGIN_H

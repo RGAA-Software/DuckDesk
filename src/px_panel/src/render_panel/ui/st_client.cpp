@@ -19,7 +19,7 @@
 namespace px
 {
 
-    StClient::StClient(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {
+    StClient::StClient(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
         auto root_layout = new NoMarginVLayout();
         root_layout->addStretch();
         auto content_layout = new NoMarginHLayout();
@@ -59,7 +59,7 @@ namespace px
             item_layout->addWidget(qrcode);
             //auto ips = app_->GetContext()->GetIps();
             //if (!ips.empty()) {
-            //    auto url = std::format("http://{}:{}/clients/android/a.webp", (*ips.begin()).ip_addr_, GrSettings::Instance()->GetPanelServerPort());
+            //    auto url = std::format("http://{}:{}/clients/android/a.webp", (*ips.begin()).ip_addr_, PxSettings::Instance()->GetPanelServerPort());
             //    auto qr_image = QrGenerator::GenQRImage(url, 128);
             //    QImage qimg(qr_image.rgba.data(), qr_image.width, qr_image.height, QImage::Format_RGBA8888);
             //    auto qr_pixmap = QPixmap::fromImage(qimg);

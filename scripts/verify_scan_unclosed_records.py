@@ -3,7 +3,7 @@
 
 Usage:
   python scripts/verify_scan_unclosed_records.py --seed
-  # Start GammaRay.exe, wait ~30s, then:
+  # Start px_panel.exe, wait ~30s, then:
   python scripts/verify_scan_unclosed_records.py --check
   python scripts/verify_scan_unclosed_records.py --cleanup
 """
@@ -60,7 +60,7 @@ def seed() -> None:
     conn.commit()
     conn.close()
     print(f"Seeded unclosed records in {db_path()}")
-    print("Next: start GammaRay.exe, wait >= 30s, then run with --check")
+    print("Next: start px_panel.exe, wait >= 30s, then run with --check")
 
 
 def check() -> int:

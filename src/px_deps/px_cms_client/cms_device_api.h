@@ -2,8 +2,8 @@
 // Created by RGAA on 26/03/2025.
 //
 
-#ifndef GAMMARAY_GR_CMS_MANAGER_H
-#define GAMMARAY_GR_CMS_MANAGER_H
+#ifndef PX_CMS_MANAGER_H
+#define PX_CMS_MANAGER_H
 
 #include <string>
 #include <vector>
@@ -106,4 +106,4 @@ namespace px_cms
 
 }
 
-#endif //GAMMARAY_GR_CMS_MANAGER_H
+#endif //PX_CMS_MANAGER_H

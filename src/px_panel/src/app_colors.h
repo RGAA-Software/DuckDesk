@@ -2,8 +2,8 @@
 // Created by RGAA on 25/01/2025.
 //
 
-#ifndef GAMMARAY_APP_COLORS_H
-#define GAMMARAY_APP_COLORS_H
+#ifndef PX_APP_COLORS_H
+#define PX_APP_COLORS_H
 
 #include <QColor>
 
@@ -32,4 +32,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_APP_COLORS_H
+#endif //PX_APP_COLORS_H

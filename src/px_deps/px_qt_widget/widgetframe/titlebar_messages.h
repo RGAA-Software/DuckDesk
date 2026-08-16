@@ -2,8 +2,8 @@
 // Created by RGAA on 22/03/2025.
 //
 
-#ifndef GAMMARAY_TITLEBAR_MESSAGES_H
-#define GAMMARAY_TITLEBAR_MESSAGES_H
+#ifndef PX_TITLEBAR_MESSAGES_H
+#define PX_TITLEBAR_MESSAGES_H
 
 namespace px
 {
@@ -18,4 +18,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TITLEBAR_MESSAGES_H
+#endif //PX_TITLEBAR_MESSAGES_H

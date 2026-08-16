@@ -22,7 +22,7 @@
 
 using namespace px_relay;
 
-GR_PLUGIN_EXPORT(px::RelayPlugin)
+PX_PLUGIN_EXPORT(px::RelayPlugin)
 
 namespace px
 {
@@ -77,12 +77,12 @@ namespace px
     }
 
     void RelayPlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
 
     }
 
-    bool RelayPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrNetPlugin::OnCreate(param);
+    bool RelayPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxNetPlugin::OnCreate(param);
 
         std::thread([=, this]() {
             int connect_count = 0;
@@ -179,7 +179,7 @@ namespace px
                         LOGI("Stream ID: {}", sub.stream_id());
                         LOGI("Force GDI: {}", sub.force_gdi());
 
-                        const auto event = std::make_shared<GrPluginReqParamsBeginStreaming>();
+                        const auto event = std::make_shared<PxPluginReqParamsBeginStreaming>();
                         event->stream_id_ = sub.stream_id();
                         event->force_gdi_ = sub.force_gdi();
                         this->CallbackEvent(event);
@@ -240,7 +240,7 @@ namespace px
                     media_sdk->SetOnRequestPauseStreamCallback([this]() {
                         paused_stream = true;
 
-                        auto event = std::make_shared<GrPluginRelayPausedEvent>();
+                        auto event = std::make_shared<PxPluginRelayPausedEvent>();
                         this->CallbackEvent(event);
                         LOGI("==> Pause stream.");
                     });
@@ -248,7 +248,7 @@ namespace px
                     media_sdk->SetOnRequestResumeStreamCallback([this]() {
                         paused_stream = false;
 
-                        auto event = std::make_shared<GrPluginRelayResumedEvent>();
+                        auto event = std::make_shared<PxPluginRelayResumedEvent>();
                         this->CallbackEvent(event);
                         LOGI("==> Resume stream.");
                     });
@@ -267,7 +267,7 @@ namespace px
 
                     media_sdk->SetOnNotificationCallback([this](std::shared_ptr<RelayMessage> msg) {
                         const auto sub = msg->notification();
-                        auto event = std::make_shared<GrPluginPanelStreamMessage>();
+                        auto event = std::make_shared<PxPluginPanelStreamMessage>();
                         event->body_ = Data::From(sub.body());
                         CallbackEvent(event);
                     });
@@ -339,7 +339,7 @@ namespace px
     }
 
     bool RelayPlugin::OnDestroy() {
-        GrNetPlugin::OnStop();
+        PxNetPlugin::OnStop();
         if (auto sdk = GetMediaSdk(); sdk) {
             sdk->Stop();
         }
@@ -348,7 +348,7 @@ namespace px
             sdk->Stop();
         }
         SetFtSdk(nullptr);
-        return GrNetPlugin::OnDestroy();
+        return PxNetPlugin::OnDestroy();
     }
 
     void RelayPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
@@ -421,11 +421,11 @@ namespace px
     }
 
     void RelayPlugin::SyncInfo(const px::NetSyncInfo &info) {
-        GrNetPlugin::SyncInfo(info);
+        PxNetPlugin::SyncInfo(info);
     }
 
     void RelayPlugin::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
-        auto event = std::make_shared<GrPluginClientConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->conn_type_ = "Relay";
@@ -436,7 +436,7 @@ namespace px
     }
 
     void RelayPlugin::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
+        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->visitor_device_id_ = visitor_device_id;
@@ -446,8 +446,8 @@ namespace px
         LOGI("DisConn id: {}, visitor device id: {}, duration: {}, begin ts: {}", stream_id, visitor_device_id, event->duration_, begin_timestamp);
     }
 
-    void RelayPlugin::OnSyncPluginSettingsInfo(const px::GrPluginSettingsInfo &settings) {
-        GrPluginInterface::OnSyncPluginSettingsInfo(settings);
+    void RelayPlugin::OnSyncPluginSettingsInfo(const px::PxPluginSettingsInfo &settings) {
+        PxPluginInterface::OnSyncPluginSettingsInfo(settings);
         if (!sys_settings_.appkey_.empty() && sys_settings_.appkey_ != using_appkey_) {
             need_reconnect_ = true;
             LOGW("Appkey changed, need to recreate connection.");
@@ -472,13 +472,13 @@ namespace px
         return true;
     }
 
-    std::vector<std::shared_ptr<GrConnectedClientInfo>> RelayPlugin::GetConnectedClientInfo() {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> RelayPlugin::GetConnectedClientInfo() {
         auto media_sdk = GetMediaSdk();
         if (IsWorking() && media_sdk) {
             auto r = media_sdk->GetConnectedClientInfo();
-            std::vector<std::shared_ptr<GrConnectedClientInfo>> clients_info;
+            std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
             for (const auto& item : r) {
-                clients_info.push_back(std::make_shared<GrConnectedClientInfo>(GrConnectedClientInfo {
+                clients_info.push_back(std::make_shared<PxConnectedClientInfo>(PxConnectedClientInfo {
                     .device_id_ = item->device_id_,
                     .stream_id_ = item->stream_id_,
                     .relay_room_id_ = item->room_id_,
@@ -502,7 +502,7 @@ namespace px
     }
 
     void RelayPlugin::ReportRelayAlive(const std::string& device_id) {
-        auto event = std::make_shared<GrPluginRelayAlive>();
+        auto event = std::make_shared<PxPluginRelayAlive>();
         event->device_id_ = device_id;
         this->CallbackEvent(event);
     }

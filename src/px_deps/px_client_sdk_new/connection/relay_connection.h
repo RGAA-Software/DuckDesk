@@ -2,8 +2,8 @@
 // Created by RGAA on 1/03/2025.
 //
 
-#ifndef GAMMARAY_RELAY_CONNECTION_H
-#define GAMMARAY_RELAY_CONNECTION_H
+#ifndef PX_RELAY_CONNECTION_H
+#define PX_RELAY_CONNECTION_H
 
 #include "connection.h"
 #include <memory>
@@ -50,4 +50,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RELAY_CONNECTION_H
+#endif //PX_RELAY_CONNECTION_H

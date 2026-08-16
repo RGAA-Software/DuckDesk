@@ -2,8 +2,8 @@
 // Created by RGAA on 28/05/2025.
 //
 
-#ifndef GAMMARAY_ST_SECURITY_VISITOR_H
-#define GAMMARAY_ST_SECURITY_VISITOR_H
+#ifndef PX_ST_SECURITY_VISITOR_H
+#define PX_ST_SECURITY_VISITOR_H
 
 #include "tab_base.h"
 #include <memory>
@@ -13,14 +13,14 @@ namespace px
 {
 
     class PageWidget;
-    class GrApplication;
+    class PxApplication;
     class VisitRecord;
     class VisitRecordOperator;
     class StSecurityVisitorItemWidget;
 
     class StSecurityVisitor : public TabBase {
     public:
-        StSecurityVisitor(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        StSecurityVisitor(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         void OnTranslate() override;
 
     private:
@@ -40,4 +40,4 @@ namespace px
     };
 
 }
-#endif //GAMMARAY_ST_SECURITY_VISITOR_H
+#endif //PX_ST_SECURITY_VISITOR_H

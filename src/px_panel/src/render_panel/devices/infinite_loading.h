@@ -2,8 +2,8 @@
 // Created by RGAA on 21/05/2025.
 //
 
-#ifndef GAMMARAY_INIFINITE_LOADING_H
-#define GAMMARAY_INIFINITE_LOADING_H
+#ifndef PX_INIFINITE_LOADING_H
+#define PX_INIFINITE_LOADING_H
 
 #include <memory>
 #include <QDialog>
@@ -16,13 +16,13 @@ namespace px_cms
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class Win10CircleLoadingWidget;
     class Win10HorizontalLoadingWidget;
 
     class InfiniteLoading : public QDialog {
     public:
-        InfiniteLoading(const std::shared_ptr<GrContext>& ctx, const QString& msg);
+        InfiniteLoading(const std::shared_ptr<PxContext>& ctx, const QString& msg);
         void resizeEvent(QResizeEvent *event) override;
         void paintEvent(QPaintEvent *event) override;
         void Close();
@@ -35,4 +35,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_START_STREAM_LOADING_H
+#endif //PX_START_STREAM_LOADING_H

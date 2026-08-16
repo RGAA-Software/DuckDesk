@@ -16,7 +16,7 @@
 
 #include <qpushbutton.h>
 
-GR_PLUGIN_EXPORT(px::MediaRecordPluginClient)
+PX_PLUGIN_EXPORT(px::MediaRecordPluginClient)
 
 namespace px
 {

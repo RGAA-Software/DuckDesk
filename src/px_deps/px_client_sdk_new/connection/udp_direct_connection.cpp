@@ -17,7 +17,7 @@ namespace px
                                              const std::shared_ptr<MessageNotifier>& notifier)
                                              : Connection(params, notifier) {
         // 组帧完成:合成标准 kVideoFrame proto 上送(走与 webrtc_local 相同的回调通道,不回 Ack)
-        reassembler_.on_frame_ = [this](const GrUdpFrameReassembler::CompleteFrame& frame) {
+        reassembler_.on_frame_ = [this](const PxUdpFrameReassembler::CompleteFrame& frame) {
             this->OnCompleteFrame(frame);
         };
         // 判丢:请 render 重发 IDR(空 mon_name = 所有屏)。
@@ -40,7 +40,7 @@ namespace px
         reassembler_.on_frame_status_ = [this](uint8_t mon_slot, uint32_t frame_index,
                                                uint16_t received, uint16_t lost) {
             (void)mon_slot;
-            this->PostBinaryMessage(GrUdpProtocol::BuildFrameStatus(frame_index, received, lost));
+            this->PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(frame_index, received, lost));
         };
         // 音频按序交付:合成标准 kAudioFrame proto 上送(参数与 render opus_encoder 一致:
         // 48k/2ch/16bit,20ms 一帧 960 samples)
@@ -138,7 +138,7 @@ namespace px
                     LOGI("udp direct socket buffer: rcv = {}, snd = {}", rcv.value(), snd.value());
                 }
                 // 立即发 hello,render 按源地址绑定媒体会话并触发该屏 IDR
-                this->PostBinaryMessage(GrUdpProtocol::BuildHello(device_id_, stream_id_));
+                this->PostBinaryMessage(PxUdpProtocol::BuildHello(device_id_, stream_id_));
                 // 显式补一发 IDR 请求。正常路径 render 收到连接事件会自己插 IDR,
                 // 但 render 重启/断线重建时容易出现“hello 已发、关键帧没来”,客户端会
                 // 一直停在“已收到配置信息,等待视频帧”。这里不依赖事件链路,再要一次。
@@ -146,7 +146,7 @@ namespace px
                 this->RequestIdrKeepalive("");
                 // 1s 心跳:保持 NAT 映射,让 render 感知会话在线
                 udp_client_->start_timer(kTimerHeartbeat, 1000, [this]() {
-                    this->PostBinaryMessage(GrUdpProtocol::BuildHeartbeat(stream_id_));
+                    this->PostBinaryMessage(PxUdpProtocol::BuildHeartbeat(stream_id_));
                 });
                 // 无完整视频帧兜底:2s 内没组出帧再请 IDR(节流 1s)。
                 // 丢帧恢复走 RFI 重试,不走这里。
@@ -207,25 +207,25 @@ namespace px
         }
         last_recv_ms_ = TimeUtil::GetCurrentTimestamp();
         auto total = ++recv_pkt_count_;
-        auto pkt_type = GrUdpProtocol::ParseCommon(data, size);
-        if (pkt_type == GrUdpProtocol::kPktVideo) {
+        auto pkt_type = PxUdpProtocol::ParseCommon(data, size);
+        if (pkt_type == PxUdpProtocol::kPktVideo) {
             recv_video_pkt_count_++;
-            GrUdpProtocol::VideoShardInfo shard;
-            if (!GrUdpProtocol::ParseVideoShard(data, size, shard)) {
+            PxUdpProtocol::VideoShardInfo shard;
+            if (!PxUdpProtocol::ParseVideoShard(data, size, shard)) {
                 malformed_video_pkt_count_++;
             }
             reassembler_.AddPacket(data, size);
         }
-        else if (pkt_type == GrUdpProtocol::kPktAudio) {
-            GrUdpProtocol::AudioPacketInfo audio;
-            if (GrUdpProtocol::ParseAudioPacket(data, size, audio)) {
+        else if (pkt_type == PxUdpProtocol::kPktAudio) {
+            PxUdpProtocol::AudioPacketInfo audio;
+            if (PxUdpProtocol::ParseAudioPacket(data, size, audio)) {
                 audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_, audio.payload_len_);
             }
         }
-        else if (pkt_type == GrUdpProtocol::kPktCtrl) {
+        else if (pkt_type == PxUdpProtocol::kPktCtrl) {
             std::string s1, s2;
-            auto subtype = GrUdpProtocol::ParseCtrl(data, size, s1, s2);
-            if (subtype == GrUdpProtocol::kCtrlKick) {
+            auto subtype = PxUdpProtocol::ParseCtrl(data, size, s1, s2);
+            if (subtype == PxUdpProtocol::kCtrlKick) {
                 LOGW("Udp direct kicked by render, reason: {}", s1);
                 if (on_kick_cbk_) {
                     on_kick_cbk_(s1);
@@ -238,7 +238,7 @@ namespace px
         }
     }
 
-    void UdpDirectConnection::OnCompleteFrame(const GrUdpFrameReassembler::CompleteFrame& frame) {
+    void UdpDirectConnection::OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame) {
         last_video_frame_ms_ = TimeUtil::GetCurrentTimestamp();
         if (stopped_ || !video_msg_cbk_ || !frame.data_ || frame.data_->Size() == 0) {
             return;
@@ -249,7 +249,7 @@ namespace px
         auto msg = std::make_shared<px::Message>();
         msg->set_type(px::kVideoFrame);
         auto* video = msg->mutable_video_frame();
-        video->set_type(frame.codec_ == GrUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
+        video->set_type(frame.codec_ == PxUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
         video->set_data(frame.data_->CStr(), frame.data_->Size());
         video->set_frame_index(frame.frame_index_);
         video->set_key(frame.key_);
@@ -264,15 +264,15 @@ namespace px
     }
 
     void UdpDirectConnection::RequestIdr(const std::string& mon_name) {
-        this->PostBinaryMessage(GrUdpProtocol::BuildIdrRequest(mon_name));
+        this->PostBinaryMessage(PxUdpProtocol::BuildIdrRequest(mon_name));
     }
 
     void UdpDirectConnection::RequestIdrKeepalive(const std::string& mon_name) {
-        this->PostBinaryMessage(GrUdpProtocol::BuildIdrKeepalive(mon_name));
+        this->PostBinaryMessage(PxUdpProtocol::BuildIdrKeepalive(mon_name));
     }
 
     void UdpDirectConnection::RequestRfi(uint64_t invalid_frame_index, const std::string& mon_name) {
-        this->PostBinaryMessage(GrUdpProtocol::BuildRfi(invalid_frame_index, mon_name));
+        this->PostBinaryMessage(PxUdpProtocol::BuildRfi(invalid_frame_index, mon_name));
     }
 
     void UdpDirectConnection::CheckNeedIdr() {

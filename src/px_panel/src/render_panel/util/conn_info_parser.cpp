@@ -13,7 +13,7 @@ using namespace nlohmann;
 namespace px
 {
 
-    std::shared_ptr<GrConnectionInfo> ConnInfoParser::Parse(const std::string& info) {
+    std::shared_ptr<PxConnectionInfo> ConnInfoParser::Parse(const std::string& info) {
         std::string prefix = "link://";
         if (!info.starts_with(prefix)) {
             return nullptr;
@@ -23,7 +23,7 @@ namespace px
 
         try {
             LOGI("Origin ConnInfo: {}", target_info);
-            auto conn_info = std::make_shared<GrConnectionInfo>();
+            auto conn_info = std::make_shared<PxConnectionInfo>();
             auto obj = json::parse(target_info);
 
             // device_id
@@ -40,7 +40,7 @@ namespace px
             auto ips_array = obj["ips"];
             if (ips_array.is_array()) {
                 for (const auto& item : ips_array) {
-                    GrConnectionInfo::GrConnectionHost host;
+                    PxConnectionInfo::PxConnectionHost host;
                     host.ip_ = item["ip"].get<std::string>();
                     //host.type_ = item["type"].get<std::string>();
                     conn_info->hosts_.push_back(host);

@@ -2,8 +2,8 @@
 // Created by RGAA on 27/02/2025.
 //
 
-#ifndef GAMMARAY_MGR_CLIENT_SDK_PARAM_H
-#define GAMMARAY_MGR_CLIENT_SDK_PARAM_H
+#ifndef PX_MGR_CLIENT_SDK_PARAM_H
+#define PX_MGR_CLIENT_SDK_PARAM_H
 
 #include <string>
 #include <functional>
@@ -32,4 +32,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_MGR_CLIENT_SDK_PARAM_H
+#endif //PX_MGR_CLIENT_SDK_PARAM_H

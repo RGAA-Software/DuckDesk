@@ -14,7 +14,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::RtcLocalPlugin)
+PX_PLUGIN_EXPORT(px::RtcLocalPlugin)
 
 namespace px
 {
@@ -40,7 +40,7 @@ namespace px
     }
 
     void RtcLocalPlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
         SweepDeadRtcServers();
     }
 
@@ -71,9 +71,9 @@ namespace px
         }
     }
     
-    bool RtcLocalPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
-        plugin_type_ = GrPluginType::kNet;
+    bool RtcLocalPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
+        plugin_type_ = PxPluginType::kNet;
 
         if (!IsPluginEnabled()) {
             return true;
@@ -90,7 +90,7 @@ namespace px
 
     bool RtcLocalPlugin::OnDestroy() {
         // 先进入 Stopping,阻止后续回调/事件继续向外投递;再逐路关闭 RtcServer。
-        GrNetPlugin::OnStop();
+        PxNetPlugin::OnStop();
 
         std::vector<std::shared_ptr<RtcServer>> servers;
         rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
@@ -110,7 +110,7 @@ namespace px
             encoded_seq_by_mon_.clear();
         }
 
-        return GrNetPlugin::OnDestroy();
+        return PxNetPlugin::OnDestroy();
     }
 
     // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
@@ -321,7 +321,7 @@ namespace px
 
     // data: encode video frame, h264/h265/...
     void RtcLocalPlugin::OnEncodedVideoFrame(const std::string& mon_name,
-                             const GrPluginEncodedVideoType& video_type,
+                             const PxPluginEncodedVideoType& video_type,
                              const std::shared_ptr<Data>& data,
                              uint64_t frame_index,
                              int frame_width,
@@ -459,10 +459,10 @@ namespace px
     void RtcLocalPlugin::InsertIdr(const std::string& mon_name) {
         if (mon_name.empty()) {
             // 广播旧行为(新连接首帧 IDR 等需要所有屏的场景)
-            GrPluginInterface::InsertIdr();
+            PxPluginInterface::InsertIdr();
             return;
         }
-        auto event = std::make_shared<GrPluginInsertIdrEvent>();
+        auto event = std::make_shared<PxPluginInsertIdrEvent>();
         event->mon_name_ = mon_name;
         CallbackEvent(event);
     }
@@ -494,7 +494,7 @@ namespace px
         std::vector<CaptureMonitorInfo> result;
         // 插件没有直达 app 的通道,经 total_plugins_ 找工作中的采集插件(DDA 优先,GDI 兜底)
         for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
-            auto capture_plugin = dynamic_cast<GrMonitorCapturePlugin*>(GetPluginById(plugin_id));
+            auto capture_plugin = dynamic_cast<PxMonitorCapturePlugin*>(GetPluginById(plugin_id));
             if (!capture_plugin) {
                 continue;
             }
@@ -512,7 +512,7 @@ namespace px
     void RtcLocalPlugin::EnableAllMonitorCapture() {
         // 与 GetRtcTrackMonitors 同一选取逻辑(DDA 优先,GDI 兜底)
         for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
-            auto capture_plugin = dynamic_cast<GrMonitorCapturePlugin*>(GetPluginById(plugin_id));
+            auto capture_plugin = dynamic_cast<PxMonitorCapturePlugin*>(GetPluginById(plugin_id));
             if (!capture_plugin) {
                 continue;
             }
@@ -524,8 +524,8 @@ namespace px
         }
     }
 
-    GrLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& req,
-                                                                   std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
+    PxLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& req,
+                                                                   std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& callback) {
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
         LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
 
@@ -554,7 +554,7 @@ namespace px
                     }
                 }
                 if (occupied) {
-                    return GrLocalRtcAllocResult::kOccupied;
+                    return PxLocalRtcAllocResult::kOccupied;
                 }
             }
             LOGI("** Remove {} old connection(s).", old_servers.size());
@@ -594,12 +594,12 @@ namespace px
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();
             auto new_answer = AddCandidateIpToAnswer(req->req_ip_, answer);
-            auto reply = std::make_shared<GrLocalRtcReplyInfo>(GrLocalRtcReplyInfo {
+            auto reply = std::make_shared<PxLocalRtcReplyInfo>(PxLocalRtcReplyInfo {
                 .answer_sdp_ = new_answer,
             });
             // 显示器列表(与 video track 同序),多 track 客户端据此做 track→mon_name 映射
             for (const auto& m : GetRtcTrackMonitors()) {
-                reply->monitors_.push_back(GrLocalRtcMonitorInfo {
+                reply->monitors_.push_back(PxLocalRtcMonitorInfo {
                     .name_ = m.name_,
                     .width_ = (int)m.Width(),
                     .height_ = (int)m.Height(),
@@ -614,7 +614,7 @@ namespace px
         rtc_servers_.Insert(conn_id, rtc_server);
         LOGI("Insert to map, will return information");
 
-        return GrLocalRtcAllocResult::kOk;
+        return PxLocalRtcAllocResult::kOk;
     }
 
     std::string RtcLocalPlugin::AddCandidateIpToAnswer(const std::string& ip,const std::string& answer) {

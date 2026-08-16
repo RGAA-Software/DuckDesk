@@ -1,3 +1,3 @@
 fn main() {
-    println!("GammaRayCrashReporter started");
+    println!("px_crash_reporter started");
 }

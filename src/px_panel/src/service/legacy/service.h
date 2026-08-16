@@ -2,8 +2,8 @@
 // Created by RGAA on 21/10/2024.
 //
 
-#ifndef GAMMARAY_SERVICE_H
-#define GAMMARAY_SERVICE_H
+#ifndef PX_SERVICE_H
+#define PX_SERVICE_H
 
 #include <Windows.h>
 #include <memory>
@@ -21,9 +21,9 @@ namespace px
     class ServiceMsgServer;
     class RenderManager;
 
-    class GrService : public std::enable_shared_from_this<GrService> {
+    class PxService : public std::enable_shared_from_this<PxService> {
     public:
-        explicit GrService(const std::shared_ptr<ServiceContext>& ctx);
+        explicit PxService(const std::shared_ptr<ServiceContext>& ctx);
 
         void Run(DWORD argc, LPWSTR* argv, SERVICE_STATUS_HANDLE handle);
 
@@ -64,4 +64,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_SERVICE_H
+#endif //PX_SERVICE_H

@@ -9,16 +9,16 @@
 
 namespace px
 {
-    class GrContext;
+    class PxContext;
     class Message;
 
-    class GrRenderMsgProcessor {
+    class PxRenderMsgProcessor {
     public:
-        explicit GrRenderMsgProcessor(const std::shared_ptr<GrContext>& ctx);
+        explicit PxRenderMsgProcessor(const std::shared_ptr<PxContext>& ctx);
         void OnMessage(std::shared_ptr<px::Message> msg) const;
 
     private:
-        std::weak_ptr<GrContext> context_;
+        std::weak_ptr<PxContext> context_;
     };
 
 }

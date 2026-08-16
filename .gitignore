@@ -33,6 +33,7 @@ web/px_auth/test-results/*
 web/px_auth/playwright-report/*
 build_official/*
 build_opensource/*
+build_probe/*
 output/*
 setup/app/*
 setup/GammaRay_pdb_*/
@@ -55,3 +56,9 @@ _make_setup.log
 
 # Windows reserved device name artifact (can't be indexed by git)
 nul
+
+# Message protos are generated at build time from src/px_deps/px_message_new
+# (single source of truth); the web clients' copies are synced, never committed.
+src/px_web_client/proto/*.proto
+web/px_web_client/proto/*.proto
+

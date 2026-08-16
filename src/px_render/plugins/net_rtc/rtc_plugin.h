@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_RTC_PLUGIN_H
-#define GAMMARAY_RTC_PLUGIN_H
+#ifndef PX_RENDER_RTC_PLUGIN_H
+#define PX_RENDER_RTC_PLUGIN_H
 
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "rtc_messages.h"
@@ -14,14 +14,14 @@ namespace px
 
     class RtcServer;
 
-    class RtcPlugin : public GrNetPlugin {
+    class RtcPlugin : public PxNetPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void OnMessageRaw(const std::any &msg) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
@@ -46,4 +46,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

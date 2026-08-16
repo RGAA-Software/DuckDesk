@@ -23,7 +23,7 @@
 //     class CpFileStream;
 //     class ClipboardPlugin;
 //     class Data;
-//     class GrPluginBaseEvent;
+//     class PxPluginBaseEvent;
 
 //     class CpVirtualFile : public IDataObject/*, public IDataObjectAsyncCapability*/ {
 //     public:
@@ -114,7 +114,7 @@
 //         void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
 
 //     private:
-//         using EventCallback = std::function<void(const std::shared_ptr<GrPluginBaseEvent>&)>;
+//         using EventCallback = std::function<void(const std::shared_ptr<PxPluginBaseEvent>&)>;
 //         using FileTransferDispatchCallback = std::function<void(const std::string&, std::shared_ptr<Data>, bool)>;
 
 //         void ReportFileTransferBegin(CpFileStream* stream);

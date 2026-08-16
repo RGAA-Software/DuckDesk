@@ -53,7 +53,7 @@ namespace px
         LOGI("SetRates: {}", ss.str());
         mTargetBitrate = parameters.bitrate.get_sum_bps();
 
-        auto event = std::make_shared<GrPluginConfigEncoder>();
+        auto event = std::make_shared<PxPluginConfigEncoder>();
         // 按屏定向:多 track 时每条 track 的 BWE 只调整自己那块屏的编码器,
         // 否则空 mon_name 会被广播到所有屏,静态屏 track 的低 fps/低码率
         // 会每秒覆盖活跃屏 track 刚写下的配置(两条 BWE 互踩)。
@@ -266,7 +266,7 @@ namespace px
         encodedImage.SetRtpTimestamp(send_rtp_ts);
         encodedImage.ntp_time_ms_ = send_ntp_ms;
         // RTC factory 只协商 H264。全彩模式主管线会出 HEVC,绝不能再当 H264 塞给浏览器。
-        if (encoded_video_frame->video_type_ == (int)GrPluginEncodedVideoType::kH265) {
+        if (encoded_video_frame->video_type_ == (int)PxPluginEncodedVideoType::kH265) {
             static std::atomic_uint64_t hevc_drops = 0;
             if (++hevc_drops % 120 == 1) {
                 LOGW("RTC drops HEVC frame seq={} (factory is H264-only); disable full-color for WebRTC",

@@ -9,7 +9,7 @@
 
 namespace px
 {
-    constexpr char kWindowClassName[] = "GammaRay_client_MessageWindowClass";
+    constexpr char kWindowClassName[] = "PxClient_MessageWindowClass";
     constexpr UINT kTaskMessage = WM_APP + 1;
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;

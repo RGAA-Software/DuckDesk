@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_GR_STATISTICS_H
-#define GAMMARAY_GR_STATISTICS_H
+#ifndef PX_STATISTICS_H
+#define PX_STATISTICS_H
 
 #include <map>
 #include <memory>
@@ -19,26 +19,26 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class MessageListener;
 
     // relay alive
-    class GrStatRelayAlive {
+    class PxStatRelayAlive {
     public:
         std::string device_id_;
         int64_t created_ts_ = 0;
         int64_t last_update_ts_ = 0;
     };
 
-    class GrStatistics {
+    class PxStatistics {
     public:
 
-        static GrStatistics* Instance() {
-            static GrStatistics instance;
+        static PxStatistics* Instance() {
+            static PxStatistics instance;
             return &instance;
         }
 
-        void SetContext(const std::shared_ptr<GrContext>& ctx) { context_ = ctx;}
+        void SetContext(const std::shared_ptr<PxContext>& ctx) { context_ = ctx;}
         void RegisterEventListeners();
 
         std::map<std::string, std::vector<int32_t>> GetEncodeDurations();
@@ -68,10 +68,10 @@ namespace px
         ConcurrentVector<double> right_spectrum_;
         ConcurrentVector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> captures_info_;
         ConcurrentVector<std::shared_ptr<pxrp::RpConnectedClientInfo>> connected_clients_info_;
-        ConcurrentHashMap<std::string, std::shared_ptr<GrStatRelayAlive>> relays_alive_;
+        ConcurrentHashMap<std::string, std::shared_ptr<PxStatRelayAlive>> relays_alive_;
 
     public:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         // from inner server
         std::atomic_int32_t app_running_time = 0;
@@ -95,4 +95,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_STATISTICS_H
+#endif //PX_STATISTICS_H

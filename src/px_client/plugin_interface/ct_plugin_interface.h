@@ -2,8 +2,8 @@
 // Created by RGAA on 22/05/2025.
 //
 
-#ifndef GAMMARAY_CT_PLUGIN_INTERFACE_H
-#define GAMMARAY_CT_PLUGIN_INTERFACE_H
+#ifndef PX_CT_PLUGIN_INTERFACE_H
+#define PX_CT_PLUGIN_INTERFACE_H
 
 #include <mutex>
 #include <atomic>
@@ -19,15 +19,15 @@
 #include <QtGui/QPixmap>
 #include "ct_plugin_settings.h"
 
-#ifndef GR_PLUGIN_EXPORT
+#ifndef PX_PLUGIN_EXPORT
 #if defined(_WIN32)
-#define GR_PLUGIN_EXPORT(PluginType) \
+#define PX_PLUGIN_EXPORT(PluginType) \
 extern "C" __declspec(dllexport) void* GetInstance() { \
     static PluginType plugin; \
     return &plugin; \
 }
 #else
-#define GR_PLUGIN_EXPORT(PluginType) \
+#define PX_PLUGIN_EXPORT(PluginType) \
 extern "C" __attribute__((visibility("default"))) void* GetInstance() { \
     static PluginType plugin; \
     return &plugin; \
@@ -190,4 +190,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_CT_PLUGIN_INTERFACE_H
+#endif //PX_CT_PLUGIN_INTERFACE_H

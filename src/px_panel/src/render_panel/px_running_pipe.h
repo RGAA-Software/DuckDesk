@@ -2,8 +2,8 @@
 // Created by RGAA on 25/01/2025.
 //
 
-#ifndef GAMMARAY_GR_RUNNING_PIPE_H
-#define GAMMARAY_GR_RUNNING_PIPE_H
+#ifndef PX_RUNNING_PIPE_H
+#define PX_RUNNING_PIPE_H
 
 #include <memory>
 #include <thread>
@@ -13,10 +13,10 @@
 namespace px
 {
 
-    class GrRunningPipe {
+    class PxRunningPipe {
     public:
-        explicit GrRunningPipe();
-        ~GrRunningPipe();
+        explicit PxRunningPipe();
+        ~PxRunningPipe();
         void StartListening(std::function<void()>&& cbk);
         bool SendHello();
 
@@ -28,4 +28,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_RUNNING_PIPE_H
+#endif //PX_RUNNING_PIPE_H

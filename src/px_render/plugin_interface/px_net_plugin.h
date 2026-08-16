@@ -2,8 +2,8 @@
 // Created by RGAA on 21/11/2024.
 //
 
-#ifndef GAMMARAY_GR_NET_PLUGIN_H
-#define GAMMARAY_GR_NET_PLUGIN_H
+#ifndef PX_NET_PLUGIN_H
+#define PX_NET_PLUGIN_H
 
 #include "px_plugin_interface.h"
 #include "px_net_plugin_type.h"
@@ -22,7 +22,7 @@ namespace px
     };
 
     // connected client information
-    class GrConnectedClientInfo {
+    class PxConnectedClientInfo {
     public:
         std::string device_id_;
         // direct mode
@@ -34,18 +34,18 @@ namespace px
     };
 
     // local webrtc request info
-    enum class GrLocalRtcContentType {
+    enum class PxLocalRtcContentType {
         kDesktop,
         kGameStream,
     };
 
-    class GrLocalRtcRequestInfo {
+    class PxLocalRtcRequestInfo {
     public:
         std::string device_id_;
         std::string stream_id_;
         std::string req_ip_;
         std::string sdp_;
-        GrLocalRtcContentType content_type_;
+        PxLocalRtcContentType content_type_;
         // true: 调用方已确认接管,直接顶掉同 stream_id 的现存连接;
         // false: 若现存连接仍活跃,返回 kOccupied 让调用方去确认
         bool takeover_ = false;
@@ -55,7 +55,7 @@ namespace px
     };
 
     // alloc result of a local rtc instance
-    enum class GrLocalRtcAllocResult {
+    enum class PxLocalRtcAllocResult {
         kOk,
         // 同 stream_id 的连接仍在活跃,且未指定 takeover
         kOccupied,
@@ -63,7 +63,7 @@ namespace px
     };
 
     // local webrtc reply info
-    class GrLocalRtcMonitorInfo {
+    class PxLocalRtcMonitorInfo {
     public:
         std::string name_;
         int width_ = 0;
@@ -75,18 +75,18 @@ namespace px
         int bottom_ = 0;
     };
 
-    class GrLocalRtcReplyInfo {
+    class PxLocalRtcReplyInfo {
     public:
         std::string answer_sdp_;
         // 显示器列表(枚举顺序,与 video track 顺序一致),供多 track 客户端做
         // track→mon_name 映射;web/旧客户端忽略此字段
-        std::vector<GrLocalRtcMonitorInfo> monitors_;
+        std::vector<PxLocalRtcMonitorInfo> monitors_;
     };
 
-    class GrNetPlugin : public GrPluginInterface {
+    class PxNetPlugin : public PxPluginInterface {
     public:
-        GrNetPlugin();
-        ~GrNetPlugin() override;
+        PxNetPlugin();
+        ~PxNetPlugin() override;
 
         // Serialized proto message from Renderer
         // to see format details in px_message_new/px_message.proto
@@ -139,12 +139,12 @@ namespace px
         // sent data statistics
         void ReportSentDataSize(int size);
 
-        virtual std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientInfo();
+        virtual std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo();
 
         // alloc a new local rtc server
-        virtual GrLocalRtcAllocResult AllocNewLocalRtcInstance(const std::shared_ptr<GrLocalRtcRequestInfo>& info,
-                                                               std::function<void(const std::shared_ptr<GrLocalRtcReplyInfo>&)>&& callback) {
-            return GrLocalRtcAllocResult::kFailed;
+        virtual PxLocalRtcAllocResult AllocNewLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& info,
+                                                               std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& callback) {
+            return PxLocalRtcAllocResult::kFailed;
         }
 
         // message ack
@@ -152,7 +152,7 @@ namespace px
 
         }
 
-        // Appended at end to avoid shifting existing GrNetPlugin vtable slots.
+        // Appended at end to avoid shifting existing PxNetPlugin vtable slots.
         // Binary CaptureMessage blob to injected game DLL over /ipc (game-hook input).
         virtual void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
 
@@ -167,4 +167,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_NET_PLUGIN_H
+#endif //PX_NET_PLUGIN_H

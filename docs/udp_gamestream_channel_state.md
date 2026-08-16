@@ -10,7 +10,7 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | P0 插件基建 | ✅ 完成 | `net_udp` 插件重写为裸 UDP,ws 控制面不动 |
-| P1 视频面 | ✅ 完成 | render 分 shard 发送,客户端 `GrUdpFrameReassembler` 组帧合成 `kVideoFrame` proto 上送 |
+| P1 视频面 | ✅ 完成 | render 分 shard 发送,客户端 `PxUdpFrameReassembler` 组帧合成 `kVideoFrame` proto 上送 |
 | RS-FEC(视频) | ✅ 完成 | 移植 moonlight `reedsolomon/rs.c` 至 `px_common_new/reedsolomon/`,帧级 parity,默认 20% |
 | 花屏修复(整帧丢失 gap 检测) | ✅ 完成 | 无限 GOP 下丢整帧即请 IDR |
 | FRAME_STATUS 动态 FEC | ✅ 完成 | 客户端逐帧回执,render 5s 窗口按丢帧率调 fec%([配置值, 60]) |
@@ -26,7 +26,7 @@
 | MTU 钳 1024 | ✅ 已配置化 | `mtu` 参数,LAN 默认 1400,公网可配 1024 |
 | UDP 不通回退 ws | ❌ 未做 | |
 
-构建:`build_client.bat`(`GR_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
+构建:`build_client.bat`(`PX_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
 探针:`scripts/udp_fec_probe.mjs`(视频 shard/FEC 统计)、`scripts/udp_audio_probe.mjs`(音频 seq/间隔统计)。
 
 ## 2. 当前状态(2026-08-13 晚,当前最优基线)
@@ -70,7 +70,7 @@
 
 - **现象**:连接约 1 分钟后每个音频包都被判丢(日志 50/s 刷 `PLC conceal`),随后视频卡死。
 - **根因**:判丢条件看缓冲里"最老"的包,缓冲满又淘汰"最老"的包——`expected_` 落后 3 帧以上后,追赶速度 = 到达速度,永远追不上。判丢风暴(50 条/s 日志刷盘 + 50 次/s PLC proto 合成)全在 UDP 接收线程上,视频 shard 处理被饿死。
-- **修复**(`px_udp_protocol.h` `GrUdpAudioJitterBuffer`):
+- **修复**(`px_udp_protocol.h` `PxUdpAudioJitterBuffer`):
   1. 判丢改看"最新"缓冲包(rbegin):缺口等够 60ms 窗口立即收口追平;
   2. 缓冲满时丢弃超前的新包,绝不删最老(断绝死循环);
   3. 对端重启 seq 归零时大幅回退判定为新流,重置重新对齐(否则 render 重启后音频永久无声);
@@ -80,7 +80,7 @@
 ### 3.5 视频 SOF 迟到导致 FEC 恢复被误判丢(2026-08-13)
 
 - **现象**:UDP 乱序时 SOF 包晚于部分数据/parity 包到达,明明 parity 足够恢复,客户端仍判丢并请求 IDR,表现为画面卡顿。
-- **根因**:`GrUdpFrameReassembler` 收到 SOF 时无条件把 `received_` 清 0,SOF 前已收到的数据/parity 块不再计入 distinct 块数,`TryRecoverAndEmit` 拿不到足够块数。
+- **根因**:`PxUdpFrameReassembler` 收到 SOF 时无条件把 `received_` 清 0,SOF 前已收到的数据/parity 块不再计入 distinct 块数,`TryRecoverAndEmit` 拿不到足够块数。
 - **修复**:SOF 只负责补齐元信息,不清空已收到的块;新增 `meta_ready_` 标记区分“从 SOF 建流”和“从非 SOF 建流后补 SOF”。
 - **回归单测**:`ReassembleLateSofKeepsPreSofCounters`(先收数据+parity,再收 SOF,缺一个数据块仍用 parity 恢复,不判丢)。
 
@@ -126,7 +126,7 @@
   3. 客户端这个新进程的 reassembler 已把 `finished_[0]` 抬高到 836,于是把 63..836 的新流全当“迟到旧包”丢弃,直到帧号重新追上 836 才恢复。
 - **修复(两层)**:
   - render 侧根本修复:`net_udp` 不再透传会回退的编码器 `frame_index`,改用 UDP 插件自己的单调帧序号(`enc_n`)写入 `VideoFrameMeta.frame_index_`,保证同一 render 进程内 UDP 帧号永远不回退。
-  - client 侧防御:`UdpDirectConnection::Start()` 重连时清空 reassembler/audio jitter 状态;`GrUdpFrameReassembler` 遇到 `SOF+key` 且帧号回退时,清掉该 `mon_slot` 旧水位立即按新流处理。
+  - client 侧防御:`UdpDirectConnection::Start()` 重连时清空 reassembler/audio jitter 状态;`PxUdpFrameReassembler` 遇到 `SOF+key` 且帧号回退时,清掉该 `mon_slot` 旧水位立即按新流处理。
 - **涉及文件**:`src/px_render/plugins/net_udp/udp_plugin.cpp`、`src/px_deps/px_common_new/px_udp_protocol.h`、`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`。
 
 ### 3.10 直连 UDP 偶发 1~3s 冻结(2026-08-13)
@@ -173,14 +173,14 @@
 |---|---|---|---|
 | RS-FEC,GF(2^8),帧级分块 | `moonlight-common-c/reedsolomon/rs.c` | **直接移植** + 自研封装 | `px_common_new/reedsolomon/`、`px_fec.h` |
 | 帧级 parity,默认 20% 冗余 | Sunshine `config.cpp` fec_percentage=20 | SOF 扩展携带 frame_size,parity=max(1,ceil(D*pct/100)) | `px_udp_protocol.h` ShardVideoFrame |
-| 块齐即重建(够用即恢复) | `RtpVideoQueue.c` | reassembler 收到足够 shard 立即恢复,不等齐 | `GrUdpFrameReassembler` |
+| 块齐即重建(够用即恢复) | `RtpVideoQueue.c` | reassembler 收到足够 shard 立即恢复,不等齐 | `PxUdpFrameReassembler` |
 | FEC 状态逐帧上报驱动主机调 FEC% | `SS_FRAME_FEC_STATUS` | FRAME_STATUS 控制包,render 5s 窗口动态调 fec% | `BuildFrameStatus` / `udp_plugin.cpp` |
 | IDR 请求节流(防巨型 IDR 加重拥塞) | moonlight 控制流 IDR 请求去重 | per mon_slot 1s 节流 | `udp_direct_connection.cpp` |
 | 无限 GOP + 按需 IDR + intra-refresh | Sunshine NVENC/AMF 低延迟参数 | 编码器已开(无限 GOP、intra-refresh) | `encoder_thread.cpp:277-287` |
 | 发送 pacing + 高精度定时 | Sunshine `stream.cpp` pacing 线程 | 80Mbps 速率上限 + 10 shard/批 + `CreateWaitableTimerEx` 高精度 timer | `udp_plugin.cpp` |
 | 大 socket 缓冲抗突发 | (工程实践) | RCVBUF 8MB / SNDBUF 4MB | 双端 udp socket |
 | 彻底丢的音频包喂 NULL 触发 Opus PLC | moonlight 音频队列 | 空 data `kAudioFrame` → `DecodeDummy` | `thunder_sdk.cpp:325-327` |
-| 音频 seq + jitter buffer 按序交付 | `RtpAudioQueue.c` | `GrUdpAudioJitterBuffer`(60ms 容忍窗口) | `px_udp_protocol.h` |
+| 音频 seq + jitter buffer 按序交付 | `RtpAudioQueue.c` | `PxUdpAudioJitterBuffer`(60ms 容忍窗口) | `px_udp_protocol.h` |
 | 控制面/媒体面分离 | GameStream 4 通道架构 | ws 控制面不动,UDP 纯媒体面 + 上行小包控制 | `udp_direct` 模式 |
 | UDP ping 打洞绑定会话 | `VideoStream.c:55-82` SS_PING | hello 按源地址绑定媒体会话并触发 IDR | `BuildHello` / `udp_plugin.cpp` |
 | 音频 RS(4,2) 固定 FEC | `Sunshine/src/stream.cpp:1800` | ❌ 未做(增强项) | — |
@@ -208,7 +208,7 @@
 - 客户端接收端:`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`
 - 音频解码/PLC:`src/px_deps/px_client_sdk_new/thunder_sdk.cpp:316-345`
 - 编码诊断:`src/px_render/app/encoder_thread.cpp:69-74`
-- 单测:`src/px_deps/px_common_new/tests/test_gr_udp_protocol.cpp`(31 例)
+- 单测:`src/px_deps/px_common_new/tests/test_px_udp_protocol.cpp`(31 例)
 - 探针:`scripts/udp_fec_probe.mjs`、`scripts/udp_audio_probe.mjs`
 - 网卡检查/优化:`scripts/check_net_udp.ps1`、`scripts/fix_net_udp.ps1`
 
@@ -236,7 +236,7 @@
 
    成功后产物在 `build_official\dist\`。
 
-   > 铁律:**任何 render 相关修复,都必须把 `GammaRayRender.exe` 和涉及的 `px_plugins\*.dll` 重新部署到 `10.0.0.70`;只更新本地 `dist` 不会让远端 render 生效。**
+   > 铁律:**任何 render 相关修复,都必须把 `px_render.exe` 和涉及的 `px_plugins\*.dll` 重新部署到 `10.0.0.70`;只更新本地 `dist` 不会让远端 render 生效。**
 
 2. **建立 SMB 管理会话**
 
@@ -248,11 +248,11 @@
 
 3. **停止服务并退出所有相关程序**
 
-   优先用远端 `GammaRayServiceManager.exe stop` 直接停服务，不要只用 `sc stop`:
+   优先用远端 `px_service_manager.exe stop` 直接停服务，不要只用 `sc stop`:
 
    ```powershell
    # 远端 App 目录下
-   # C:\Program Files\GoDesk\App\GammaRayServiceManager.exe stop
+   # C:\Program Files\GoDesk\App\px_service_manager.exe stop
    ```
 
    再清理所有 GammaRay 进程。这里用远端一次性 SCM 服务执行一个本地批处理:
@@ -260,15 +260,15 @@
    ```powershell
    $remoteBat = @'
    @echo off
-   "C:\Program Files\GoDesk\App\GammaRayServiceManager.exe" stop > C:\Users\Public\_svc_stop.txt 2>&1
-   taskkill /f /im GammaRay.exe /t >nul 2>&1
-   taskkill /f /im GammaRayRender.exe /t >nul 2>&1
-   taskkill /f /im GammaRayClientInner.exe /t >nul 2>&1
-   taskkill /f /im GammaRayService.exe /t >nul 2>&1
-   taskkill /f /im GammaRayServiceManager.exe /t >nul 2>&1
-   taskkill /f /im GammaRaySysInfo.exe /t >nul 2>&1
-   taskkill /f /im GammaRayUserProxy.exe /t >nul 2>&1
-   taskkill /f /im GammaRayCrashReporter.exe /t >nul 2>&1
+   "C:\Program Files\GoDesk\App\px_service_manager.exe" stop > C:\Users\Public\_svc_stop.txt 2>&1
+   taskkill /f /im px_panel.exe /t >nul 2>&1
+   taskkill /f /im px_render.exe /t >nul 2>&1
+   taskkill /f /im px_client.exe /t >nul 2>&1
+   taskkill /f /im px_service.exe /t >nul 2>&1
+   taskkill /f /im px_service_manager.exe /t >nul 2>&1
+   taskkill /f /im px_osinfo.exe /t >nul 2>&1
+   taskkill /f /im px_function.exe /t >nul 2>&1
+   taskkill /f /im px_crash_reporter.exe /t >nul 2>&1
    echo DONE > C:\Users\Public\_stop_gammaray_done.txt
    '@
    Set-Content -LiteralPath '\\10.0.0.70\C$\Users\Public\_stop_gammaray_70.cmd' -Value $remoteBat -Encoding Ascii
@@ -295,15 +295,15 @@
 
    至少核对:
 
-   - `GammaRay.exe`
-   - `GammaRayClientInner.exe`
-   - `GammaRayRender.exe`
-   - `GammaRayService.exe`
-   - `GammaRayServiceManager.exe`
+   - `px_panel.exe`
+   - `px_client.exe`
+   - `px_render.exe`
+   - `px_service.exe`
+   - `px_service_manager.exe`
    - `px_plugins\plugin_net_udp.dll`
    - `px_plugins\plugin_net_ws.dll`
 
-6. **用 GammaRay.exe 启动**
+6. **用 px_panel.exe 启动**
 
    GUI 程序不要用 `sc create` 的 SYSTEM session 启动,否则会跑到 session 0 看不到界面。用远端计划任务 `/IT` 以登录用户交互启动:
 
@@ -311,7 +311,7 @@
    $pass = '<Administrator 密码>'
    $tn   = 'GammaRayStart_' + (Get-Date -Format 'yyyyMMdd_HHmmss')
    $start = (Get-Date).AddMinutes(2).ToString('HH:mm')
-   $tr    = "'C:\Program Files\GoDesk\App\GammaRay.exe'"
+   $tr    = "'C:\Program Files\GoDesk\App\px_panel.exe'"
    & schtasks.exe @(
        '/create','/s','10.0.0.70','/u','Administrator','/p',$pass,
        '/ru','Administrator','/rp',$pass,

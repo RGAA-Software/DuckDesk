@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_WS_PANEL_CLIENT_H
-#define GAMMARAY_WS_PANEL_CLIENT_H
+#ifndef PX_WS_PANEL_CLIENT_H
+#define PX_WS_PANEL_CLIENT_H
 
 #include <memory>
 #include <string>
@@ -51,4 +51,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_WS_PANEL_CLIENT_H
+#endif //PX_WS_PANEL_CLIENT_H

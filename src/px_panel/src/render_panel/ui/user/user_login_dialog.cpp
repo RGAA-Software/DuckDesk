@@ -21,7 +21,7 @@
 namespace px
 {
 
-    UserLoginDialog::UserLoginDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    UserLoginDialog::UserLoginDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         setFixedSize(375, 475);
         CreateLayout();

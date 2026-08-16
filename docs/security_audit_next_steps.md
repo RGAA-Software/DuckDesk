@@ -31,7 +31,7 @@
 | Rust CMS | `total_size` 与查询使用同一 filter，分页总数正确。 |
 | Web | 文件传输表新增「传输结果」「传输耗时」列；修复 `end==0` 显示为 `-`。 |
 | Web | 搜索时重置页码；修复 `console.error` 文案。 |
-| 编译 | `GammaRay.exe`、`px_cms_server` Release、Vue 前端均构建通过。 |
+| 编译 | `px_panel.exe`、`px_cms_server` Release、Vue 前端均构建通过。 |
 | API 自测 | insert/update/upsert/update-before-insert/query-total 均 200。 |
 
 ---
@@ -153,7 +153,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 
 **验证步骤**：
 
-1. 关闭所有 `GammaRay.exe`、`GammaRayService.exe`、`AweSunService.exe` 等可能锁定 DLL/PDB 的进程。
+1. 关闭所有 `px_panel.exe`、`px_service.exe`、`AweSunService.exe` 等可能锁定 DLL/PDB 的进程。
 2. 用 Python 或 sqlite3 在本地测试数据库插入未闭合记录：
    ```python
    import os, sqlite3, time
@@ -165,7 +165,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
    c.execute("INSERT OR REPLACE INTO file_transfer_record ...", (...))
    conn.commit(); conn.close()
    ```
-3. 启动 `build_official/src/px_deps/GammaRay.exe`，等待至少 30 秒（让 `GrWorkspace::Init()` 和 `WsPanelServer::Start()` 完成）。
+3. 启动 `build_official/src/px_deps/px_panel.exe`，等待至少 30 秒（让 `PxWorkspace::Init()` 和 `WsPanelServer::Start()` 完成）。
 4. 观察以下任一证据：
    - `%ProgramData%/px_logs/godesk.log` 中出现 `ScanAndFixUnclosedRecords: fixed N visit(s), M file transfer(s)`。
    - SQLite 中对应记录的 `end`、`duration`、`success` 被更新。
@@ -174,7 +174,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 
 **预期风险**：
 
-- 若真实启动仍然无法到达 `WsPanelServer::Start()`，需要检查 `GrWorkspace::Init()` 中的前置条件（如服务注册、单实例锁、授权状态）。
+- 若真实启动仍然无法到达 `WsPanelServer::Start()`，需要检查 `PxWorkspace::Init()` 中的前置条件（如服务注册、单实例锁、授权状态）。
 - `ScanAndFixUnclosedRecords` 内部调用同步 HTTP，若 CMS 不可达，每条记录会阻塞 2 秒；后续可考虑改为异步批量上报。
 
 ---
@@ -184,7 +184,7 @@ void CpVirtualFile::RecordFileTransferEnd() {
 #### 3.3.1 真实访问记录链路
 
 1. 启动 `px_cms_server`、MongoDB、Redis。
-2. 启动受控端 `GammaRay.exe`（或 `GammaRayService.exe`）。
+2. 启动受控端 `px_panel.exe`（或 `px_service.exe`）。
 3. 使用客户端连接一次，保持 10 秒以上后断开。
 4. 打开 CMS 安全审计 → 访问记录：
    - 应出现一条记录，`end` 和 `duration` 正确。
@@ -203,8 +203,8 @@ void CpVirtualFile::RecordFileTransferEnd() {
 #### 3.3.3 异常恢复链路
 
 1. 开始一次远程访问或文件传输。
-2. 在连接/传输过程中强制结束 `GammaRay.exe`。
-3. 重新启动 `GammaRay.exe`。
+2. 在连接/传输过程中强制结束 `px_panel.exe`。
+3. 重新启动 `px_panel.exe`。
 4. 确认 CMS 中对应记录被自动闭合，`success` 标记为失败，`duration` 为实际已用时间。
 
 #### 3.3.4 并发与去重
@@ -273,7 +273,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 2. 运行去重脚本。
 3. 部署新版 `px_cms_server`、前端 `web/px_cms/dist`。
 4. 启动 `px_cms_server`，确认日志没有 "create visit conn_id index failed" 等警告。
-5. 部署新版 `GammaRay.exe` / `GammaRayService.exe`。
+5. 部署新版 `px_panel.exe` / `px_service.exe`。
 6. 首次启动后检查本地 SQLite 是否成功升级，以及启动扫描日志。
 
 ---
@@ -303,7 +303,7 @@ db.c_file_transfer_dedup.renameCollection("c_file_transfer");
 
 | 测试项 | 测试方法 | 通过标准 |
 |--------|---------|---------|
-| C++ 编译 | `build_official.bat incremental` | 无错误，生成 `GammaRay.exe` |
+| C++ 编译 | `build_official.bat incremental` | 无错误，生成 `px_panel.exe` |
 | Rust CMS 编译 | `cargo build -p px_cms_server --release` | 无错误 |
 | Web 编译 | `cd web/px_cms && npm run build` | 无类型错误 |
 | 访问记录 insert/update | curl | 200，DB 只有一条 |

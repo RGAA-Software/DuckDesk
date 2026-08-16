@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_CLIPBOARD_PLUGIN_H
-#define GAMMARAY_CLIPBOARD_PLUGIN_H
+#ifndef PX_CLIPBOARD_PLUGIN_H
+#define PX_CLIPBOARD_PLUGIN_H
 
 #include "px_render/plugin_interface/px_plugin_interface.h"
 #include <atomic>
@@ -16,7 +16,7 @@ namespace px
     class ClipboardManager;
     class CpVirtualFile;
 
-    class ClipboardPlugin : public GrPluginInterface {
+    class ClipboardPlugin : public PxPluginInterface {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -25,7 +25,7 @@ namespace px
         std::string GetPluginDescription() override;
         void On1Second() override;
 
-        bool OnCreate(const px::GrPluginParam& param) override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
         std::shared_ptr<std::atomic_bool> GetLifetimeToken() const { return lifetime_token_; }
 
@@ -49,4 +49,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

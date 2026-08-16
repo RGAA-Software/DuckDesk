@@ -33,8 +33,8 @@ namespace px
         return "Mock video frame for testing";
     }
 
-    bool MockVideoStreamPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrDataProviderPlugin::OnCreate(param);
+    bool MockVideoStreamPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxDataProviderPlugin::OnCreate(param);
         return true;
     }
 
@@ -55,7 +55,7 @@ namespace px
                 return;
             }
             frame_index_++;
-            auto event = std::make_shared<GrPluginRawVideoFrameEvent>();
+            auto event = std::make_shared<PxPluginRawVideoFrameEvent>();
             auto size = mock_image_.cols * mock_image_.rows * mock_image_.channels();
             event->image_ = Image::Make(Data::Make((char*)mock_image_.data, size), width_, height_);
             event->frame_index_ = frame_index_;

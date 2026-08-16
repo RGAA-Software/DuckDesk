@@ -27,12 +27,12 @@ namespace px
     class PluginNetEventRouter {
     public :
         explicit PluginNetEventRouter(const std::shared_ptr<RdApplication>& app);
-        void ProcessNetEvent(const std::shared_ptr<GrPluginNetClientEvent>& event);
-        void ProcessClientConnectedEvent(const std::shared_ptr<GrPluginClientConnectedEvent>& event);
-        void ProcessClientDisConnectedEvent(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event);
-        void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<GrPluginCapturingMonitorInfoEvent>& event) const;
+        void ProcessNetEvent(const std::shared_ptr<PxPluginNetClientEvent>& event);
+        void ProcessClientConnectedEvent(const std::shared_ptr<PxPluginClientConnectedEvent>& event);
+        void ProcessClientDisConnectedEvent(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event);
+        void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<PxPluginCapturingMonitorInfoEvent>& event) const;
         void ProcessEncodedAudioFrameEvent(const std::shared_ptr<Data>& data, int samples, int channels, int bits, int frame_size);
-        void ProcessRtcReportEvent(const std::shared_ptr<GrPluginRtcReportEvent>& event);
+        void ProcessRtcReportEvent(const std::shared_ptr<PxPluginRtcReportEvent>& event);
 
     private:
         void ProcessHelloEvent(std::shared_ptr<Message>&& msg);
@@ -69,11 +69,11 @@ namespace px
         void SyncInfoToUdpPlugin(int64_t socket_fd, const std::string& device_id, const std::string& stream_id);
 
         // report client connect/disconnect state
-        void ReportClientConnected(const std::shared_ptr<GrPluginClientConnectedEvent>& event);
-        void ReportClientDisConnected(const std::shared_ptr<GrPluginClientDisConnectedEvent>& event);
+        void ReportClientConnected(const std::shared_ptr<PxPluginClientConnectedEvent>& event);
+        void ReportClientDisConnected(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event);
 
         // ack
-        void ProcessAck(const std::shared_ptr<GrPluginNetClientEvent>& ev, const std::shared_ptr<Message>& m);
+        void ProcessAck(const std::shared_ptr<PxPluginNetClientEvent>& ev, const std::shared_ptr<Message>& m);
 
     private:
         RdSettings* settings_ = nullptr;

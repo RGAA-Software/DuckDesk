@@ -7,9 +7,9 @@ rem
 rem Build and deploy px_auth_server in one step:
 rem   [1/3] Build the Vue frontend   web\px_auth         (npm run build)
 rem   [2/3] Build the Rust server    px_auth_server      (cargo build --release)
-rem   [3/3] Copy artifacts into      output\px_auth_server\
-rem           exe      -> output\px_auth_server\px_auth.exe
-rem           frontend -> output\px_auth_server\web_auth\
+rem   [3/3] Copy artifacts into      output\px_auth\
+rem           exe      -> output\px_auth\px_auth.exe
+rem           frontend -> output\px_auth\web_auth\
 rem           (the server serves static files from the web_auth\ dir next to the exe)
 rem
 rem Notes:
@@ -28,9 +28,9 @@ rem --- Per-server settings ---
 set "SERVER_NAME=px_auth_server"
 set "EXE_NAME=px_auth"
 set "WEB_SRC=%REPO_ROOT%\web\px_auth"
-rem Subdirectory under output\%SERVER_NAME%\ that holds the frontend files.
+rem Subdirectory under output\%EXE_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=web_auth"
-set "OUTPUT_DIR=%REPO_ROOT%\output\%SERVER_NAME%"
+set "OUTPUT_DIR=%REPO_ROOT%\output\%EXE_NAME%"
 
 rem aws-lc-sys needs a real NASM. Its fallback prebuilt-nasm shim script
 rem breaks cmake configure under Git Bash (the .sh variant gets selected,

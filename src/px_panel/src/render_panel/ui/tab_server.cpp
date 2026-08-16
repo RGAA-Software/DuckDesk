@@ -68,9 +68,9 @@
 namespace px
 {
 
-    TabServer::TabServer(const std::shared_ptr<GrApplication>& app, QWidget *parent) : TabBase(app, parent) {
-        settings_ = GrSettings::Instance();
-        stat_ = GrStatistics::Instance();
+    TabServer::TabServer(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
+        settings_ = PxSettings::Instance();
+        stat_ = PxStatistics::Instance();
         running_stream_mgr_ = context_->GetRunningStreamManager();
         stream_db_mgr_ = context_->GetStreamDBManager();
 

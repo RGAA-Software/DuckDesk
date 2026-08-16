@@ -8,7 +8,7 @@ use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use px_base::StrMap;
 use futures_util::stream::SplitSink;
 use prost::Message as ProstMessage;
-use protocol::cms_px_relay::{CmsRelayMessage, CmsRelayMessageType};
+use protocol::cms_relay::{CmsRelayMessage, CmsRelayMessageType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -4,15 +4,15 @@ version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "GammaRaySysInfo"
+name = "px_osinfo"
 path = "src/main.rs"
 
 [[bin]]
-name = "GrSysMonitor"
+name = "px_sys_monitor"
 path = "src/bin/px_sys_monitor.rs"
 
 [[bin]]
-name = "GrSysMonitorHost"
+name = "px_sys_monitor_host"
 path = "src/bin/px_sys_monitor_host.rs"
 
 [features]

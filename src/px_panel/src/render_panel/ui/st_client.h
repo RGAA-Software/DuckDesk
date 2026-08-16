@@ -12,7 +12,7 @@ namespace px
 
     class StClient : public TabBase {
     public:
-        StClient(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        StClient(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         ~StClient() override = default;
 
         void OnTabShow() override;

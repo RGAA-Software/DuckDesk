@@ -63,12 +63,12 @@
 
 namespace px
 {
-    std::shared_ptr<GrWorkspace> grWorkspace;
+    std::shared_ptr<PxWorkspace> grWorkspace;
 
-    GrWorkspace::GrWorkspace(bool run_automatically, const std::string& skin_name) : QMainWindow(nullptr) {
+    PxWorkspace::PxWorkspace(bool run_automatically, const std::string& skin_name) : QMainWindow(nullptr) {
         this->run_automatically_ = run_automatically;
         this->skin_name_ = skin_name;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         //setWindowFlags(windowFlags() | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
         WidgetHelper::SetTitleBarColor(this);
 
@@ -131,7 +131,7 @@ namespace px
         setWindowIcon(theme_->AdvancedStyleSheet->styleIcon());
         qApp->setStyleSheet(theme_->AdvancedStyleSheet->styleSheet());
 
-        app_ = GrApplication::Make(this, run_automatically, skin_name_);
+        app_ = PxApplication::Make(this, run_automatically, skin_name_);
         context_ = app_->GetContext();
         skin_ = grApp->GetSkin();
 
@@ -565,11 +565,11 @@ namespace px
         InitListeners();
     }
 
-    void GrWorkspace::Init() {
+    void PxWorkspace::Init() {
         grWorkspace = shared_from_this();
     }
 
-    void GrWorkspace::ChangeTab(const TabName& tn) {
+    void PxWorkspace::ChangeTab(const TabName& tn) {
         for (auto& [name, tab] : tabs_) {
             if (tn == name) {
                 stacked_widget_->setCurrentWidget(tabs_[tn]);
@@ -582,7 +582,7 @@ namespace px
         }
     }
 
-    void GrWorkspace::closeEvent(QCloseEvent *event) {
+    void PxWorkspace::closeEvent(QCloseEvent *event) {
         if (upgrade_helper_widget_) {
             upgrade_helper_widget_->done(QDialog::Rejected);
             upgrade_helper_widget_->close();
@@ -595,13 +595,13 @@ namespace px
         }
     }
 
-    void GrWorkspace::resizeEvent(QResizeEvent *event) {
+    void PxWorkspace::resizeEvent(QResizeEvent *event) {
         QMainWindow::resizeEvent(event);
     }
 
-    void GrWorkspace::InitListeners() {
+    void PxWorkspace::InitListeners() {
         msg_listener_ = app_->GetMessageNotifier()->CreateListener();
-        QPointer<GrWorkspace> self(this);
+        QPointer<PxWorkspace> self(this);
         msg_listener_->Listen<MsgTitleBarSettingsClicked>([=, this](const MsgTitleBarSettingsClicked& msg) {
             app_->GetContext()->PostUITask([self]() {
                 if (!self) {
@@ -681,11 +681,11 @@ namespace px
         });
     }
 
-    void GrWorkspace::ForceStopAllPrograms(bool uninstall_service) {
+    void PxWorkspace::ForceStopAllPrograms(bool uninstall_service) {
         TcDialog dialog(tcTr("id_exit"), uninstall_service ? tcTr("id_uninstall_gammaray_msg") : tcTr("id_exit_gammaray_msg"), this);
         if (dialog.exec() == kDoneOk) {
             // 关键:通过 service WS 发 StopDesktop,清掉持久化的 last_desktop_launch。
-            // 否则只杀 Render 进程时,仍在跑的 GammaRayService 监控循环会马上把它拉起来
+            // 否则只杀 Render 进程时,仍在跑的 px_service 监控循环会马上把它拉起来
             // (日志: desktop render missing, restarting)。
             if (auto render_ctrl = app_->GetContext()->GetRenderController()) {
                 LOGI("Request service StopDesktop before exit (clear persisted launch).");
@@ -706,8 +706,8 @@ namespace px
                 std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
                 // 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
-                LOGI("Force close all GammaRayClientInner processes first.");
-                px::ProcessHelper::CloseProcessesByName(px::kGammaRayClientInnerExeName);
+                LOGI("Force close all px_client processes first.");
+                px::ProcessHelper::CloseProcessesByName(px::kPxClientExeName);
 
                 if (srv_mgr) {
                     // stop(+optional uninstall) service, then kill leftovers including panel.
@@ -718,16 +718,16 @@ namespace px
                     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
                 }
 
-                px::ProcessHelper::CloseProcessesByName(px::kGammaRayRenderExeName);
-                px::ProcessHelper::CloseProcessesByName(px::kGammaRayUserProxyExeName);
-                px::ProcessHelper::CloseProcessesByName(px::kGammaRaySysInfoExeName);
-                LOGI("Force close current GammaRay process, pid={}", current_pid);
+                px::ProcessHelper::CloseProcessesByName(px::kPxRenderExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kPxFunctionExeName);
+                px::ProcessHelper::CloseProcessesByName(px::kPxOsInfoExeName);
+                LOGI("Force close current px_panel process, pid={}", current_pid);
                 px::ProcessHelper::CloseProcess(current_pid);
             }).detach();
         }
     }
 
-    void GrWorkspace::ShowUserRegisterDialog() {
+    void PxWorkspace::ShowUserRegisterDialog() {
         UserRegisterDialog dialog(app_->GetContext());
         auto r = dialog.exec();
         if (r == 0) {
@@ -735,8 +735,8 @@ namespace px
         }
     }
 
-    void GrWorkspace::Login() {
-        QPointer<GrWorkspace> self(this);
+    void PxWorkspace::Login() {
+        QPointer<PxWorkspace> self(this);
         context_->PostTask([self]() {
             if (!self) {
                 return;
@@ -752,7 +752,7 @@ namespace px
         });
     }
 
-    void GrWorkspace::ShowUserLoginDialog() {
+    void PxWorkspace::ShowUserLoginDialog() {
         UserLoginDialog dialog(app_->GetContext());
         auto r = dialog.exec();
         if (r == -1) {
@@ -764,7 +764,7 @@ namespace px
         }
     }
 
-    void GrWorkspace::ShowSelectAvatarDialog() {
+    void PxWorkspace::ShowSelectAvatarDialog() {
         auto desktop_path = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
         auto image_path = TcDialogUtil::SelectImage(tcTr("id_select_image"), desktop_path, nullptr);
         if (image_path.isEmpty()) {
@@ -794,16 +794,16 @@ namespace px
         }
     }
 
-    void GrWorkspace::UpdateUserInfo() {
+    void PxWorkspace::UpdateUserInfo() {
         UpdateUsername();
         LoadAvatar();
     }
 
-    void GrWorkspace::ClearUserInfo() {
+    void PxWorkspace::ClearUserInfo() {
         lbl_username_->SetTextId("id_guest");
     }
 
-    void GrWorkspace::UpdateUsername() {
+    void PxWorkspace::UpdateUsername() {
         if (user_mgr_->IsLoggedIn()) {
             lbl_username_->SetTextId("");
             lbl_username_->setText(user_mgr_->GetUsername().c_str());
@@ -813,7 +813,7 @@ namespace px
         }
     }
 
-    void GrWorkspace::ShowUserActions() {
+    void PxWorkspace::ShowUserActions() {
         auto menu = new QMenu();
         std::vector<QString> actions = {
             tcTr("id_edit_username"),
@@ -841,7 +841,7 @@ namespace px
         delete menu;
     }
 
-    void GrWorkspace::ProcessUserAction(int index) {
+    void PxWorkspace::ProcessUserAction(int index) {
         // modify username
         if (index == 0) {
             ModifyUsernameDialog dialog(context_);
@@ -886,8 +886,8 @@ namespace px
         }
     }
 
-    void GrWorkspace::LoadAvatar() {
-        QPointer<GrWorkspace> self(this);
+    void PxWorkspace::LoadAvatar() {
+        QPointer<PxWorkspace> self(this);
         context_->PostTask([self]() {
             if (!self) {
                 return;
@@ -933,7 +933,7 @@ namespace px
         });
     }
 
-    void GrWorkspace::SetAvatar(const std::string& filepath) {
+    void PxWorkspace::SetAvatar(const std::string& filepath) {
         auto pixmap = QPixmap::fromImage(QImage(filepath.c_str()));
         if (pixmap.isNull()) {
             return;
@@ -942,13 +942,13 @@ namespace px
         lbl_avatar_->UpdatePixmap(pixmap);
     }
 
-    void GrWorkspace::ClearAvatar() {
+    void PxWorkspace::ClearAvatar() {
         auto pixmap = WidgetHelper::RenderSvgToPixmap(":/resources/image/ic_not_login.svg", QSize(avatar_size_, avatar_size_));
         lbl_avatar_->UpdatePixmap(pixmap);
     }
 
 
-    void GrWorkspace::InitUpdate() {
+    void PxWorkspace::InitUpdate() {
         QObject::connect(UpdateManager::GetInstance(), &UpdateManager::SigFindUpdate, [this](const QVariantMap& data) {
             this->showNormal();
             
@@ -977,17 +977,17 @@ namespace px
         UpdateManager::GetInstance()->CheckUpdate(true, false);
     }
 
-    void GrWorkspace::CheckAppUpdate(bool from_user_clicked) {
+    void PxWorkspace::CheckAppUpdate(bool from_user_clicked) {
         px::UpdateManager::GetInstance()->CheckUpdate(true, from_user_clicked);
     }
 
-    void GrWorkspace::CheckOffSiteUpdate() {
+    void PxWorkspace::CheckOffSiteUpdate() {
         auto pc = grApp->GetCompanion();
         if (!pc) {
             return;
         }
         if (pc->HasUpdateForOffSite()) {
-            QPointer<GrWorkspace> self(this);
+            QPointer<PxWorkspace> self(this);
             app_->GetContext()->PostUITask([self]() {
                 if (!self) {
                     return;
@@ -996,7 +996,7 @@ namespace px
              });
         }
         else {
-            QPointer<GrWorkspace> self(this);
+            QPointer<PxWorkspace> self(this);
             app_->GetContext()->PostUITask([self]() {
                 if (!self) {
                     return;

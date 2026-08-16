@@ -1,7 +1,7 @@
 # Game-Hook 采集打通计划与流程
 
 > 状态：进行中（2026-08）  
-> 目标：`mode = "game-hook"` 时，单独启动一个 `GammaRayRender`，启动游戏、注入采集 DLL，用 web client 看见游戏画面。  
+> 目标：`mode = "game-hook"` 时，单独启动一个 `px_render`，启动游戏、注入采集 DLL，用 web client 看见游戏画面。  
 > 约束：本期**不经过** panel / `px_service`；多 render 编排后置。  
 > OBS 对照：`D:\source\obs-studio\plugins\win-capture`（`game-capture.c` / `graphics-hook` / `inject-helper`）。  
 > 音频梳理：[`game_hook_audio_capture.md`](./game_hook_audio_capture.md)（PID process-loopback / MiniAudio 补丁 / Hook fallback）。  
@@ -142,7 +142,7 @@ scripts\run_game_hook_render.bat
 cd /d build_official\dist
 copy /Y ..\..\src\px_render\settings.toml settings.toml
 rem fill game-path in settings.toml
-GammaRayRender.exe --logfile --app_mode=game-hook --app_game_path=<Base64 UTF-8 path> --capture_video_type=inner --network_listen_port=32000
+px_render.exe --logfile --app_mode=game-hook --app_game_path=<Base64 UTF-8 path> --capture_video_type=inner --network_listen_port=32000
 ```
 
 浏览器：
@@ -399,7 +399,7 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 2. **部署 .70**:`tests\_deploy_hookfix_70.bat`(杀 render+游戏进程 → 拷贝 dll →
    服务自动拉起 render)。
 3. **起实例**:CMS API `POST /api/v1/app/control/app/instance/start`
-   (appkey 从 `output/px_cms_server/logs/px_cms_server/log_cms*.log` 找最新
+   (appkey 从 `output/px_cms/logs/px_cms/log_cms*.log` 找最新
    `stored_appkey`,会随 CMS 重启轮换)。
 4. **无头截图验证**:`scripts/cdp_stream_screenshot.mjs`,用法:
    `WEB_URL="http://10.0.0.70:<port>/web_client/?deviceId=990405157&instanceId=<inst>" OUT=x.png node scripts/cdp_stream_screenshot.mjs`
@@ -471,7 +471,7 @@ game-hook 模式下游戏进程死了（崩溃/被杀）后：
   截图恢复起跑线画面 ✅
 - CMS 停实例后 boot/view/render 全部清理 ✅
 - 部署 render exe 注意：service 会自动拉起桌面 render 锁住 exe，copy 必失败——
-  `tests\_deploy_render_exe_70.bat` 先 `sc stop GammaRayService` 再拷贝，拷完重启
+  `tests\_deploy_render_exe_70.bat` 先 `sc stop px_service` 再拷贝，拷完重启
   service。
 
 ### 15.4 客户端死亡/重启通知（kGameStatusChanged=540）

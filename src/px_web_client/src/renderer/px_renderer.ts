@@ -1,4 +1,4 @@
-export class GrRenderer {
+export class PxRenderer {
     rendererName: string
     lastRenderTime: number
     fps: number

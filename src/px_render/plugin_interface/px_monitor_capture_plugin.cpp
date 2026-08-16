@@ -6,45 +6,45 @@
 
 namespace px
 {
-    GrMonitorCapturePlugin::GrMonitorCapturePlugin() {
+    PxMonitorCapturePlugin::PxMonitorCapturePlugin() {
 
     }
 
-    bool GrMonitorCapturePlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
+    bool PxMonitorCapturePlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
         return true;
     }
 
-    bool GrMonitorCapturePlugin::OnDestroy() {
-        GrPluginInterface::OnDestroy();
+    bool PxMonitorCapturePlugin::OnDestroy() {
+        PxPluginInterface::OnDestroy();
         return true;
     }
 
-    std::vector<CaptureMonitorInfo> GrMonitorCapturePlugin::GetCaptureMonitorInfo() {
+    std::vector<CaptureMonitorInfo> PxMonitorCapturePlugin::GetCaptureMonitorInfo() {
         return {};
     }
 
-    void GrMonitorCapturePlugin::SetCaptureMonitor(const std::string& name) {
+    void PxMonitorCapturePlugin::SetCaptureMonitor(const std::string& name) {
 
     }
 
-    std::string GrMonitorCapturePlugin::GetCapturingMonitor() {
+    std::string PxMonitorCapturePlugin::GetCapturingMonitor() {
         return capturing_monitor_name_;
     }
 
-    void GrMonitorCapturePlugin::SetCaptureFps(int fps) {
+    void PxMonitorCapturePlugin::SetCaptureFps(int fps) {
         capture_fps_ = fps;
     }
 
-    void GrMonitorCapturePlugin::On16MilliSecond() {
+    void PxMonitorCapturePlugin::On16MilliSecond() {
 
     }
 
-    void GrMonitorCapturePlugin::On33MilliSecond() {
+    void PxMonitorCapturePlugin::On33MilliSecond() {
 
     }
 
-    void GrMonitorCapturePlugin::SetCaptureErrorCallback(const px::CaptureErrorCallback& cbk) {
+    void PxMonitorCapturePlugin::SetCaptureErrorCallback(const px::CaptureErrorCallback& cbk) {
         capture_err_callback_ = cbk;
     }
 

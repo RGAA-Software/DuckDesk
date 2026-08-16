@@ -17,7 +17,7 @@ namespace px
     class Data;
     class RtcServer;
     class RtcLocalPlugin;
-    class GrPluginContext;
+    class PxPluginContext;
 
     class RtcDataChannel :  public webrtc::DataChannelObserver {
     public:
@@ -43,7 +43,7 @@ namespace px
 
     private:
         RtcLocalPlugin* plugin_;
-        std::shared_ptr<GrPluginContext> plugin_ctx_ = nullptr;
+        std::shared_ptr<PxPluginContext> plugin_ctx_ = nullptr;
         std::string name_;
         rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel_ = nullptr;
         std::shared_ptr<RtcServer> rtc_server_ = nullptr;

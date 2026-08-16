@@ -2,8 +2,8 @@
 // Created by RGAA on 6/07/2025.
 //
 
-#ifndef GAMMARAY_RP_PROTO_CONVERTER_H
-#define GAMMARAY_RP_PROTO_CONVERTER_H
+#ifndef PX_RP_PROTO_CONVERTER_H
+#define PX_RP_PROTO_CONVERTER_H
 
 #include <memory>
 #include <string>
@@ -26,4 +26,4 @@ namespace px
                                                      bool data_channel,
                                                      bool run_through = false);
 }
-#endif //GAMMARAY_RP_PROTO_CONVERTER_H
+#endif //PX_RP_PROTO_CONVERTER_H

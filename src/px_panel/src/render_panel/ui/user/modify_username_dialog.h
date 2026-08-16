@@ -20,12 +20,12 @@ namespace px
 {
 
     class CmsUser;
-    class GrContext;
+    class PxContext;
     class TcPasswordInput;
 
     class ModifyUsernameDialog : public TcCustomTitleBarDialog {
     public:
-        ModifyUsernameDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        ModifyUsernameDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~ModifyUsernameDialog() override;
 
         std::string GetUsername();
@@ -37,7 +37,7 @@ namespace px
         void ModifyUsername();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* edt_username_ = nullptr;
 
     };

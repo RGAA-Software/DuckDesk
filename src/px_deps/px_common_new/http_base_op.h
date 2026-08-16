@@ -2,8 +2,8 @@
 // Created by RGAA on 27/03/2025.
 //
 
-#ifndef GAMMARAY_HTTP_BASE_OP_H
-#define GAMMARAY_HTTP_BASE_OP_H
+#ifndef PX_HTTP_BASE_OP_H
+#define PX_HTTP_BASE_OP_H
 
 #include <string>
 #include "px_common_new/expected.h"
@@ -16,4 +16,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_HTTP_BASE_OP_H
+#endif //PX_HTTP_BASE_OP_H

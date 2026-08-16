@@ -2,8 +2,8 @@
 // Created by RGAA on 8/04/2025.
 //
 
-#ifndef GAMMARAY_CP_FILE_STRUCT_H
-#define GAMMARAY_CP_FILE_STRUCT_H
+#ifndef PX_PANEL_CP_FILE_STRUCT_H
+#define PX_PANEL_CP_FILE_STRUCT_H
 
 #include <QString>
 #include <cstdint>
@@ -21,4 +21,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CP_FILE_STRUCT_H
+#endif //PX_PANEL_CP_FILE_STRUCT_H

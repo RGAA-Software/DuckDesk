@@ -9,8 +9,8 @@ import React from 'react';
 import protobuf from 'protobufjs'
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import {GrApp} from "./px_app.ts";
-import {GrProtoMsg, loadMessageType} from "./messages/px_proto_messages.ts";
+import {PxApp} from "./px_app.ts";
+import {PxProtoMsg, loadMessageType} from "./messages/px_proto_messages.ts";
 
 const protoRoot = await protobuf.load([
     'proto/px_file_transfer.proto',
@@ -19,7 +19,7 @@ const protoRoot = await protobuf.load([
 ])
 loadMessageType(protoRoot)
 
-const hello = GrProtoMsg.MsgHello.create({
+const hello = PxProtoMsg.MsgHello.create({
     enable_video: true,
     enable_audio: true,
 })
@@ -31,5 +31,5 @@ const root = createRoot(rootElement);
 
 // root.render(<App />);
 
-const grApp = new GrApp();
+const grApp = new PxApp();
 grApp.start();

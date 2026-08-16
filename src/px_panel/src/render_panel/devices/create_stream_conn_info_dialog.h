@@ -22,12 +22,12 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     // Paste link://xxx
     class CreateStreamConnInfoDialog : public TcCustomTitleBarDialog {
     public:
-        explicit CreateStreamConnInfoDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit CreateStreamConnInfoDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~CreateStreamConnInfoDialog() override;
         void paintEvent(QPaintEvent *event) override;
 
@@ -36,7 +36,7 @@ namespace px
         bool GenStream();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* ed_device_name_ = nullptr;
         QTextEdit* ed_conn_info_ = nullptr;
 

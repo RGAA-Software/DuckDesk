@@ -9,7 +9,7 @@ rem every frontend-only change, without rebuilding the Rust server or anything
 rem else.
 rem
 rem   [1/2] Build the Vue frontend   web\px_cms      (npm ci -> npm run build)
-rem   [2/2] Deploy dist\* into       output\px_cms_server\web\
+rem   [2/2] Deploy dist\* into       output\px_cms\web\
 rem
 rem Notes:
 rem   - px_cms_server serves static files from the web\ dir next to its exe,
@@ -24,7 +24,7 @@ cd /d "%~dp0"
 set "REPO_ROOT=%cd%"
 
 set "WEB_SRC=%REPO_ROOT%\web\px_cms"
-set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_cms"
 set "WEB_SUBDIR=web"
 
 echo ============================================
@@ -64,7 +64,7 @@ if not exist "dist\index.html" (
 )
 echo.
 
-rem --- [2/2] Deploy into output\px_cms_server\web\ ---
+rem --- [2/2] Deploy into output\px_cms\web\ ---
 echo [2/2] Deploying to %OUTPUT_DIR%\%WEB_SUBDIR%
 if not exist "%OUTPUT_DIR%" (
     echo       output dir does not exist yet, creating it.

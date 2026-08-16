@@ -20,12 +20,12 @@ static SendSAS_proto _SendSAS = nullptr;
 namespace px
 {
 
-    GrService::GrService(const std::shared_ptr<ServiceContext>& ctx) {
+    PxService::PxService(const std::shared_ptr<ServiceContext>& ctx) {
         context_ = ctx;
         render_manager_ = std::make_shared<RenderManager>(ctx);
     }
 
-    void GrService::Run(DWORD dwArgc, LPWSTR* lpszArgv, SERVICE_STATUS_HANDLE handle) {
+    void PxService::Run(DWORD dwArgc, LPWSTR* lpszArgv, SERVICE_STATUS_HANDLE handle) {
         msg_server_ = std::make_shared<ServiceMsgServer>(context_, render_manager_);
         msg_server_->Init(shared_from_this());
         msg_server_->Start();
@@ -60,7 +60,7 @@ namespace px
 
         LOGI("service already init...");
 
-        task_thread_ = std::thread(std::bind(&GrService::TaskThread, this));
+        task_thread_ = std::thread(std::bind(&PxService::TaskThread, this));
         task_thread_.join();
 
         service_status_.dwControlsAccepted = 0;
@@ -73,7 +73,7 @@ namespace px
         }
     }
 
-    void GrService::OnCtrlStop() {
+    void PxService::OnCtrlStop() {
         //UnInit();
         this->SetStatus(SERVICE_STOP_PENDING);
         exit_ = true;
@@ -82,39 +82,39 @@ namespace px
         this->StopAll();
     }
 
-    void GrService::OnCtrlContinue() {
+    void PxService::OnCtrlContinue() {
         SetStatus(SERVICE_RUNNING);
     }
 
-    void GrService::OnCtrlPause() {
+    void PxService::OnCtrlPause() {
 
     }
 
-    void GrService::OnCtrlInterrogate() {
+    void PxService::OnCtrlInterrogate() {
 
     }
 
-    void GrService::OnConsoleConnect(int id) {
+    void PxService::OnConsoleConnect(int id) {
         context_->PostBgTask([=, this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
             render_manager_->StopDesktopRender();
         });
     }
 
-    void GrService::OnConsoleDisConnect(int id) {
+    void PxService::OnConsoleDisConnect(int id) {
 
     }
 
     //
-    void GrService::OnSessionLogon(int id) {
+    void PxService::OnSessionLogon(int id) {
         LOGI("OnSessionLogon : {}", id);
     }
 
-    void GrService::OnSessionLogoff(int id) {
+    void PxService::OnSessionLogoff(int id) {
         LOGI("OnSessionLogoff : {}", id);
     }
 
-    void GrService::OnSessionLock(int id) {
+    void PxService::OnSessionLock(int id) {
         LOGI("OnSessionLock : {}", id);
         //context_->PostBgTask([=, this]() {
         //    //std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -122,7 +122,7 @@ namespace px
         //});
     }
 
-    void GrService::OnSessionUnlock(int id) {
+    void PxService::OnSessionUnlock(int id) {
         LOGI("OnSessionUnLock : {}", id);
         //context_->PostBgTask([=, this]() {
         //    //std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -130,28 +130,28 @@ namespace px
         //});
     }
 
-    void GrService::SetStatus(DWORD dwState, DWORD dwErrCode, DWORD dwWait) {
+    void PxService::SetStatus(DWORD dwState, DWORD dwErrCode, DWORD dwWait) {
         service_status_.dwCurrentState = dwState;
         service_status_.dwWin32ExitCode = dwErrCode;
         service_status_.dwWaitHint = dwWait;
         ::SetServiceStatus(status_handle_, &service_status_);
     }
 
-    void GrService::StopAll() {
+    void PxService::StopAll() {
         render_manager_->Exit();
-        // GammaRay.exe
+        // px_panel.exe
         auto processes = px::ProcessHelper::GetProcessList(false);
         for (auto& process : processes) {
-            if (process->exe_full_path_.find(kGammaRayRenderName) != std::string::npos
-                || process->exe_full_path_.find(kGammaRayClientInner) != std::string::npos
-                || process->exe_full_path_.find(kGammaRaySysInfo) != std::string::npos) {
+            if (process->exe_full_path_.find(kPxRenderName) != std::string::npos
+                || process->exe_full_path_.find(kPxClientName) != std::string::npos
+                || process->exe_full_path_.find(kPxOsInfoName) != std::string::npos) {
                 LOGI("Kill exe: {}", process->exe_full_path_);
                 px::ProcessHelper::CloseProcess(process->pid_);
             }
         }
     }
 
-    void GrService::TaskThread() {
+    void PxService::TaskThread() {
         while (!exit_) {
             std::unique_lock<std::mutex> lk(cv_mtx_);
             cv_.wait(lk, [=, this]() -> bool {
@@ -168,7 +168,7 @@ namespace px
         }
     }
 
-    void GrService::PostTask(SrvTask&& task) {
+    void PxService::PostTask(SrvTask&& task) {
         {
             std::lock_guard<std::mutex> lk(cv_mtx_);
             tasks_.push(std::move(task));
@@ -176,7 +176,7 @@ namespace px
         cv_.notify_one();
     }
 
-    void GrService::SimulateCtrlAltDelete() {
+    void PxService::SimulateCtrlAltDelete() {
         if (!sasLibrary) {
             sasLibrary = LoadLibraryW(L"sas.dll");
         }
@@ -190,7 +190,7 @@ namespace px
         }
     }
 
-    std::shared_ptr<RenderManager> GrService::GetRenderManager() {
+    std::shared_ptr<RenderManager> PxService::GetRenderManager() {
         return render_manager_;
     }
 

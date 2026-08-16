@@ -31,16 +31,16 @@ scripts/package_px_auth_server.bat
 脚本会依次完成：
 
 1. 检查 `cargo`、`npm`、`openssl` 是否可用。
-2. 在 `output/px_auth_server/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
-3. 在 `output/px_auth_server/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
+2. 在 `output/px_auth/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
+3. 在 `output/px_auth/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
    - `auth_license_private.key`：授权服务器私钥（**必须保密，不可泄露给 CMS/客户端**）。
    - `auth_license_public.key`：CMS 验证授权签名所需的公钥。
 4. 编译前端 `web/px_auth`。
 5. 编译后端 `rust_server/px_auth_server`。
-6. 把所有产物整理到 `output/px_auth_server/`：
+6. 把所有产物整理到 `output/px_auth/`：
 
 ```text
-output/px_auth_server/
+output/px_auth/
 ├── px_auth.exe              # 后端可执行文件
 ├── px_auth.toml    # 配置文件
 ├── certs/
@@ -60,7 +60,7 @@ output/px_auth_server/
 打包完成后，必须编辑：
 
 ```text
-output/px_auth_server/px_auth.toml
+output/px_auth/px_auth.toml
 ```
 
 至少修改以下两项：
@@ -92,7 +92,7 @@ db_path = "mongodb://localhost:27017/"      # MongoDB 连接串
 
 ### 4.2 启动授权服务
 
-在 `output/px_auth_server/` 目录下运行：
+在 `output/px_auth/` 目录下运行：
 
 ```bash
 px_auth.exe
@@ -125,7 +125,7 @@ https://localhost:30400
 
 ### 6.1 证书过期或想换正式证书
 
-替换 `output/px_auth_server/certs/` 下的 `cert.pem` 和 `key.pem` 为你的正式证书文件即可，保持文件名一致。
+替换 `output/px_auth/certs/` 下的 `cert.pem` 和 `key.pem` 为你的正式证书文件即可，保持文件名一致。
 
 ### 6.2 修改 jwt_secret 后之前的 token 失效
 
@@ -147,7 +147,7 @@ cd rust_server
 cargo build -p px_auth_server --release
 ```
 
-然后手动复制到 `output/px_auth_server/` 对应位置，或直接重新运行 `scripts/package_px_auth_server.bat`。
+然后手动复制到 `output/px_auth/` 对应位置，或直接重新运行 `scripts/package_px_auth_server.bat`。
 
 ### 6.4 端口被占用
 
@@ -158,7 +158,7 @@ cargo build -p px_auth_server --release
 `px_cms_server`（CMS）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
 
 ```text
-output/px_auth_server/certs/auth_license_public.key
+output/px_auth/certs/auth_license_public.key
 ```
 
 复制到 CMS 运行目录的：
@@ -167,7 +167,7 @@ output/px_auth_server/certs/auth_license_public.key
 certs/auth_license_public.key
 ```
 
-即可。CMS 也支持通过环境变量 `GR_AUTH_LICENSE_PUBLIC_KEY` 直接传入 base64 公钥。
+即可。CMS 也支持通过环境变量 `PX_AUTH_LICENSE_PUBLIC_KEY` 直接传入 base64 公钥。
 
 > 旧版 AES deploy string 仍可在 CMS 加载阶段被识别（只读兼容），但 `/update/authorization` 接口已拒绝接收新的 AES deploy string，必须使用签名格式。
 
@@ -176,4 +176,4 @@ certs/auth_license_public.key
 - 不要使用自签名证书，替换为可信机构签发的 TLS 证书。
 - `jwt_secret` 使用密码生成器生成足够强度的随机字符串。
 - 为 MongoDB 启用认证，并修改 `db_path` 使用带用户名密码的连接串。
-- **私钥安全**：`auth_license_private.key` 只能存在于 `px_auth_server` 的运行环境，禁止提交到版本仓库或随安装包泄露。建议通过环境变量 `GR_AUTH_LICENSE_PRIVATE_KEY` 注入，而不是把文件随安装包分发。
+- **私钥安全**：`auth_license_private.key` 只能存在于 `px_auth_server` 的运行环境，禁止提交到版本仓库或随安装包泄露。建议通过环境变量 `PX_AUTH_LICENSE_PRIVATE_KEY` 注入，而不是把文件随安装包分发。

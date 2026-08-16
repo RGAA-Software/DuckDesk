@@ -25,7 +25,7 @@
 namespace px
 {
 
-    AddGamePanel::AddGamePanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QDialog(parent) {
+    AddGamePanel::AddGamePanel(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QDialog(parent) {
         context_ = ctx;
         WidgetHelper::SetTitleBarColor(this);
         setWindowTitle(tcTr("id_add_game"));

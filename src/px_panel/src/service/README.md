@@ -1,4 +1,4 @@
-`src/GammaRay/src/service` is now the active integration surface for service-related C++ code.
+`src/px_panel/src/service` is now the active integration surface for service-related C++ code.
 
 Current contents:
 
@@ -8,7 +8,7 @@ Current contents:
 
 The Windows service executables are no longer built from C++ here.
 
-- Rust `rust_client/px_service` builds `GammaRayService.exe`
-- Rust `rust_client/px_service/service_manager` builds `GammaRayServiceManager.exe`
+- Rust `rust_client/px_service` builds `px_service.exe`
+- Rust `rust_client/px_service/service_manager` builds `px_service_manager.exe`
 
 Historical C++ service sources were moved to [`legacy`](./legacy/) for reference only and are not part of the active build.

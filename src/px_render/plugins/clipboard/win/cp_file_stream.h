@@ -2,8 +2,8 @@
 // // Created by RGAA on 8/04/2025.
 // //
 
-// #ifndef GAMMARAY_CP_FILE_STREAM_H
-// #define GAMMARAY_CP_FILE_STREAM_H
+// #ifndef PX_CP_FILE_STREAM_H
+// #define PX_CP_FILE_STREAM_H
 
 // #include <cstdint>
 // #include <atomic>
@@ -121,4 +121,4 @@
 
 // }
 
-// #endif //GAMMARAY_CP_FILE_STREAM_H
+// #endif //PX_CP_FILE_STREAM_H

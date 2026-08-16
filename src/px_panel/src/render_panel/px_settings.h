@@ -77,20 +77,20 @@ namespace px
     static const std::string kResTypeOrigin = "origin";
     static const std::string kResTypeResize = "resize";
 
-    static const std::string kGammaRayName = px::kGammaRayExeName;
-    static const std::string kGammaRayRenderName = px::kGammaRayRenderExeName;
-    static const std::string kGammaRayClientInner = px::kGammaRayClientInnerExeName;
-    static const std::string kGammaRayService = px::kGammaRayServiceExeName;
-    static const std::string kGammaRaySysInfo = px::kGammaRaySysInfoExeName;
+    static const std::string kPxPanelName = px::kPxPanelExeName;
+    static const std::string kPxRenderName = px::kPxRenderExeName;
+    static const std::string kPxClientName = px::kPxClientExeName;
+    static const std::string kPxServiceName = px::kPxServiceExeName;
+    static const std::string kPxOsInfoName = px::kPxOsInfoExeName;
 
     class SharedPreference;
     class MessageNotifier;
 
-    class GrSettings {
+    class PxSettings {
     public:
 
-        static GrSettings* Instance() {
-            static GrSettings st;
+        static PxSettings* Instance() {
+            static PxSettings st;
             return &st;
         }
 

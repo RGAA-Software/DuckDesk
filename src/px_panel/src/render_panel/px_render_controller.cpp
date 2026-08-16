@@ -15,16 +15,16 @@
 namespace px
 {
 
-    GrRenderController::GrRenderController(const std::shared_ptr<GrApplication>& app) {
+    PxRenderController::PxRenderController(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         context_ = app_->GetContext();
     }
 
-    GrRenderController::~GrRenderController() {
+    PxRenderController::~PxRenderController() {
         Exit();
     }
 
-    bool GrRenderController::StartServer() {
+    bool PxRenderController::StartServer() {
         auto args = this->GetArgs();
         LOGI("StartServer Params:");
         QStringList arg_list;
@@ -46,7 +46,7 @@ namespace px
         return true;
     }
 
-    bool GrRenderController::StopServer() {
+    bool PxRenderController::StopServer() {
         px::ServiceMessage srv_msg;
         srv_msg.set_type(ServiceMessageType::kSrvStopServer);
         auto sub = srv_msg.mutable_stop_server();
@@ -54,7 +54,7 @@ namespace px
         return true;
     }
 
-    bool GrRenderController::ReStart() {
+    bool PxRenderController::ReStart() {
         px::ServiceMessage srv_msg;
         srv_msg.set_type(ServiceMessageType::kSrvRestartServer);
         auto sub = srv_msg.mutable_restart_server();
@@ -70,22 +70,22 @@ namespace px
         return true;
     }
 
-    void GrRenderController::Exit() {
+    void PxRenderController::Exit() {
 
     }
 
-    QString GrRenderController::GetWorkDir() {
+    QString PxRenderController::GetWorkDir() {
         return QCoreApplication::applicationDirPath();
     }
 
-    QString GrRenderController::GetAppPath() {
+    QString PxRenderController::GetAppPath() {
         QString current_path = QCoreApplication::applicationDirPath();
-        current_path = current_path.append("/").append(kGammaRayRenderName);
+        current_path = current_path.append("/").append(kPxRenderName);
         return current_path;
     }
 
-    std::vector<std::string> GrRenderController::GetArgs() {
-        auto settings = GrSettings::Instance();
+    std::vector<std::string> PxRenderController::GetArgs() {
+        auto settings = PxSettings::Instance();
         // Always refresh from disk so restart picks up the latest capture device, etc.
         settings->Load();
         std::vector<std::string> args;

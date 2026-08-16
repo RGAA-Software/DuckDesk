@@ -26,7 +26,7 @@ impl UserProxyApp {
         let instance = SingleInstanceGuard::acquire(USER_PROXY_LOCK_NAME)
             .map_err(|err| anyhow::anyhow!(err))?;
         info!(
-            "GammaRayUserProxy starting, render_url={}",
+            "px_function starting, render_url={}",
             config.render_ws_url()
         );
 

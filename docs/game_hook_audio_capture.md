@@ -127,7 +127,7 @@ MiniAudio 的默认设备 loopback、以及（未打补丁前）PID loopback，�
 - PCM16 / 48000 / 2ch（实现内约定；与插件 format callback 对齐）。原 44100 会被 Opus 编码器拒绝（`opus_encoder_create` → `OPUS_BAD_ARG`），Opus 传输路径必然无声；OBS 同样用 48000
 ### 4.2 Plugin 接口扩展
 
-`GrDataProviderPlugin` / `WasAudioCapturePlugin`：
+`PxDataProviderPlugin` / `WasAudioCapturePlugin`：
 
 - `SetAudioLoopbackProcessId(pid)`
 - `GetAudioLoopbackProcessId()`
@@ -329,7 +329,7 @@ test_game_audio_loopback.exe <pid>
 
 > 注：本次验证时采集请求为 PCM16/44100，与 Opus 编码器不兼容（`OPUS_BAD_ARG`），Opus 传输路径实际无声（听到的未走 Opus）；本轮已改为 PCM16/48000/2ch 修复（见文末「2026-08-08 修复」）。
 
-Hook 路径曾失败的根因：`plugin_net_ws` `/ipc` 只转发 `kCaptureVideoFrame`，静默丢弃音频。已改为同时转发 `IpcCaptureAudioFrame` → `GrPluginRawAudioFrameEvent`。
+Hook 路径曾失败的根因：`plugin_net_ws` `/ipc` 只转发 `kCaptureVideoFrame`，静默丢弃音频。已改为同时转发 `IpcCaptureAudioFrame` → `PxPluginRawAudioFrameEvent`。
 
 复测命令摘要：
 

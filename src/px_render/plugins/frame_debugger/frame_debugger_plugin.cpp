@@ -39,8 +39,8 @@ namespace px
 
     }
 
-    bool FrameDebuggerPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrPluginInterface::OnCreate(param);
+    bool FrameDebuggerPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxPluginInterface::OnCreate(param);
         auto key_save_encoded_video = "save_encoded_video";
         if (HasParam(key_save_encoded_video)) {
             save_encoded_video_ = GetConfigParam<bool>(key_save_encoded_video);
@@ -52,7 +52,7 @@ namespace px
         for (const auto& [k, v] : encoded_video_files_) {
             v->Close();
         }
-        return GrStreamPlugin::OnDestroy();
+        return PxStreamPlugin::OnDestroy();
     }
 
     void FrameDebuggerPlugin::OnRawVideoFrameRgba(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, const std::shared_ptr<Image>& image) {
@@ -62,7 +62,7 @@ namespace px
         LOGI("FrameDebugger: mon={}, idx={}, size={}x{}", mon_name, frame_idx, frame_width, frame_height);
     }
 
-    void FrameDebuggerPlugin::OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) {
+    void FrameDebuggerPlugin::OnVideoEncoderCreated(const std::string& mon_name, const PxPluginEncodedVideoType& type, int width, int height) {
         if (mon_name.size() <= 4) {
             return;
         }
@@ -76,7 +76,7 @@ namespace px
         auto part_name = TimeUtil::FormatTimestamp2(TimeUtil::GetCurrentTimestamp());
         auto folder_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath());
         auto display_name = mon_name.substr(4);
-        std::string encoded_video_file_name = std::format("{}/px_data/render/enc_{}_{}.{}", folder_path, display_name, part_name, (type == GrPluginEncodedVideoType::kH264) ? "h264" : "h265");
+        std::string encoded_video_file_name = std::format("{}/px_data/render/enc_{}_{}.{}", folder_path, display_name, part_name, (type == PxPluginEncodedVideoType::kH264) ? "h264" : "h265");
         if (File::Exists(U8Path(encoded_video_file_name))) {
             File::Delete(U8Path(encoded_video_file_name));
         }
@@ -87,7 +87,7 @@ namespace px
     }
 
     void FrameDebuggerPlugin::OnEncodedVideoFrame(const std::string& mon_name,
-                                                  const GrPluginEncodedVideoType& video_type,
+                                                  const PxPluginEncodedVideoType& video_type,
                                                   const std::shared_ptr<Data>& data,
                                                   uint64_t frame_index,
                                                   int frame_width,

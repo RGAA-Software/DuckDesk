@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
     // Breakpad
     auto bc = BreakpadContext {
         .version_ = PROJECT_VERSION,
-        .app_name_ = "GammaRayRender",
+        .app_name_ = "px_render",
     };
     CaptureDumpByBreakpad(&bc);
 

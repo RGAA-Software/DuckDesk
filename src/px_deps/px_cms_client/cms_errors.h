@@ -2,8 +2,8 @@
 // Created by RGAA on 27/03/2025.
 //
 
-#ifndef GAMMARAY_CMS_ERRORS_H
-#define GAMMARAY_CMS_ERRORS_H
+#ifndef PX_CMS_ERRORS_H
+#define PX_CMS_ERRORS_H
 
 #include <string>
 
@@ -96,4 +96,4 @@ namespace px_cms
 
 }
 
-#endif //GAMMARAY_CMS_ERRORS_H
+#endif //PX_CMS_ERRORS_H

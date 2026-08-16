@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_DDA_CAPTURE_PLUGIN_H
-#define GAMMARAY_DDA_CAPTURE_PLUGIN_H
+#ifndef PX_DDA_CAPTURE_PLUGIN_H
+#define PX_DDA_CAPTURE_PLUGIN_H
 #include <optional>
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_common_new/concurrent_hashmap.h"
@@ -15,7 +15,7 @@ namespace px
     class CursorCapture;
     class PluginDesktopCapture;
 
-    class DDACapturePlugin : public GrMonitorCapturePlugin {
+    class DDACapturePlugin : public PxMonitorCapturePlugin {
     public:
         DDACapturePlugin();
         std::string GetPluginId() override;
@@ -24,7 +24,7 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         bool IsWorking() override;
-        bool OnCreate(const px::GrPluginParam& param) override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
         bool TryInitSpecificCapture() override;
         bool StartCapturing() override;
@@ -75,4 +75,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

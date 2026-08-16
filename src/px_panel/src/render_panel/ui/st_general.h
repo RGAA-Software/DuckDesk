@@ -16,7 +16,7 @@ namespace px
 
     class StGeneral : public TabBase {
     public:
-        StGeneral(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        StGeneral(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         ~StGeneral() override = default;
 
         void OnTabShow() override;

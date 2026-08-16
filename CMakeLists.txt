@@ -32,6 +32,23 @@ include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 
 find_package(FFMPEG REQUIRED)
 set(FFMPEG_ROOT ${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET})
+find_package(PkgConfig)
+if(TARGET PkgConfig::modplug)
+    message(STATUS "PROBE: PkgConfig::modplug EXISTS")
+else()
+    message(STATUS "PROBE: PkgConfig::modplug MISSING")
+endif()
+foreach(_probe_lib IN ITEMS modplug srt dav1d openh264)
+    if(TARGET PkgConfig::${_probe_lib})
+        message(STATUS "PROBE: PkgConfig::${_probe_lib} OK")
+    else()
+        message(STATUS "PROBE: PkgConfig::${_probe_lib} MISSING")
+    endif()
+endforeach()
+message(STATUS "PROBE: PKG_CONFIG_EXECUTABLE='${PKG_CONFIG_EXECUTABLE}'")
+message(STATUS "PROBE: CMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'")
+pkg_check_modules(PROBE_MODPLUG IMPORTED_TARGET libmodplug)
+message(STATUS "PROBE: manual pkg_check_modules PROBE_MODPLUG_FOUND='${PROBE_MODPLUG_FOUND}'")
 
 ##Source
 include_directories(${CMAKE_SOURCE_DIR}/)
@@ -135,11 +152,11 @@ find_package(OpenCV REQUIRED)
 
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc)
 
-set(GR_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/px_deps)
+set(PX_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/px_deps)
 if (BUILD_PREMIUM)
-    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/px_deps)
+    set(PX_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR}/src/px_deps)
 else()
-    set(GR_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
+    set(PX_PROJECT_BINARY_PATH ${CMAKE_BINARY_DIR})
 endif()
 
 # Use protobuf from vcpkg
@@ -152,115 +169,115 @@ if(NOT CARGO_EXECUTABLE)
     message(FATAL_ERROR "cargo not found. Rust toolchain is required to build px_sysinfo.")
 endif()
 
-set(GR_SYSINFO_EXE_NAME GammaRaySysInfo.exe)
-set(GR_SERVICE_EXE_NAME GammaRayService.exe)
-set(GR_SERVICE_MGR_EXE_NAME GammaRayServiceManager.exe)
-set(GR_USER_PROXY_EXE_NAME GammaRayUserProxy.exe)
-set(GR_CRASH_REPORTER_EXE_NAME GammaRayCrashReporter.exe)
-set(GR_UNINSTALL_EXE_NAME GammaRayUninstall.exe)
+set(PX_SYSINFO_EXE_NAME px_osinfo.exe)
+set(PX_SERVICE_EXE_NAME px_service.exe)
+set(PX_SERVICE_MGR_EXE_NAME px_service_manager.exe)
+set(PX_USER_PROXY_EXE_NAME px_function.exe)
+set(PX_CRASH_REPORTER_EXE_NAME px_crash_reporter.exe)
+set(PX_UNINSTALL_EXE_NAME px_uninstall.exe)
 
-set(GR_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
-set(GR_RUST_PROFILE debug)
-set(GR_RUST_BUILD_FLAG "")
+set(PX_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
+set(PX_RUST_PROFILE debug)
+set(PX_RUST_BUILD_FLAG "")
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(GR_RUST_PROFILE release)
-    set(GR_RUST_BUILD_FLAG --release)
+    set(PX_RUST_PROFILE release)
+    set(PX_RUST_BUILD_FLAG --release)
 endif()
-set(GR_SYSINFO_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SYSINFO_EXE_NAME})
-set(GR_SERVICE_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_EXE_NAME})
-set(GR_SERVICE_MGR_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_SERVICE_MGR_EXE_NAME})
-set(GR_USER_PROXY_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_USER_PROXY_EXE_NAME})
-set(GR_CRASH_REPORTER_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_CRASH_REPORTER_EXE_NAME})
-set(GR_UNINSTALL_RUST_EXE ${GR_RUST_WORKSPACE_ROOT}/target/${GR_RUST_PROFILE}/${GR_UNINSTALL_EXE_NAME})
+set(PX_SYSINFO_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SYSINFO_EXE_NAME})
+set(PX_SERVICE_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_EXE_NAME})
+set(PX_SERVICE_MGR_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_MGR_EXE_NAME})
+set(PX_USER_PROXY_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_USER_PROXY_EXE_NAME})
+set(PX_CRASH_REPORTER_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_CRASH_REPORTER_EXE_NAME})
+set(PX_UNINSTALL_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_UNINSTALL_EXE_NAME})
 
-set(GR_SYSINFO_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SYSINFO_EXE_NAME})
-set(GR_SERVICE_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_EXE_NAME})
-set(GR_SERVICE_MGR_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_SERVICE_MGR_EXE_NAME})
-set(GR_USER_PROXY_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_USER_PROXY_EXE_NAME})
-set(GR_CRASH_REPORTER_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_CRASH_REPORTER_EXE_NAME})
-set(GR_UNINSTALL_STAGED_EXE ${GR_PROJECT_BINARY_PATH}/${GR_UNINSTALL_EXE_NAME})
+set(PX_SYSINFO_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SYSINFO_EXE_NAME})
+set(PX_SERVICE_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SERVICE_EXE_NAME})
+set(PX_SERVICE_MGR_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_SERVICE_MGR_EXE_NAME})
+set(PX_USER_PROXY_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_USER_PROXY_EXE_NAME})
+set(PX_CRASH_REPORTER_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_CRASH_REPORTER_EXE_NAME})
+set(PX_UNINSTALL_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_UNINSTALL_EXE_NAME})
 
-add_custom_target(GammaRaySysInfo_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin GammaRaySysInfo ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRaySysInfo"
+add_custom_target(px_osinfo_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin px_osinfo ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_osinfo"
         VERBATIM
 )
 
-add_custom_target(GammaRayService_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin GammaRayService ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayService"
+add_custom_target(px_service_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin px_service ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_service"
         VERBATIM
 )
 
-add_custom_target(GammaRayServiceManager_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin GammaRayServiceManager ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayServiceManager"
+add_custom_target(px_service_manager_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin px_service_manager ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_service_manager"
         VERBATIM
 )
 
-add_custom_target(GammaRayUserProxy_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin GammaRayUserProxy ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayUserProxy"
+add_custom_target(px_function_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin px_function ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_function"
         VERBATIM
 )
 
-add_custom_target(GammaRayCrashReporter_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_crash_reporter --bin GammaRayCrashReporter ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayCrashReporter"
+add_custom_target(px_crash_reporter_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_crash_reporter --bin px_crash_reporter ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_crash_reporter"
         VERBATIM
 )
 
-add_custom_target(GammaRaySysInfo_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SYSINFO_RUST_EXE}" "${GR_SYSINFO_STAGED_EXE}"
-        DEPENDS GammaRaySysInfo_rust
-        COMMENT "Staging Rust GammaRaySysInfo"
+add_custom_target(px_osinfo_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_SYSINFO_RUST_EXE}" "${PX_SYSINFO_STAGED_EXE}"
+        DEPENDS px_osinfo_rust
+        COMMENT "Staging Rust px_osinfo"
         VERBATIM
 )
 
-add_custom_target(GammaRayService_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SERVICE_RUST_EXE}" "${GR_SERVICE_STAGED_EXE}"
-        DEPENDS GammaRayService_rust
-        COMMENT "Staging Rust GammaRayService"
+add_custom_target(px_service_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_SERVICE_RUST_EXE}" "${PX_SERVICE_STAGED_EXE}"
+        DEPENDS px_service_rust
+        COMMENT "Staging Rust px_service"
         VERBATIM
 )
 
-add_custom_target(GammaRayServiceManager_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_SERVICE_MGR_RUST_EXE}" "${GR_SERVICE_MGR_STAGED_EXE}"
-        DEPENDS GammaRayServiceManager_rust
-        COMMENT "Staging Rust GammaRayServiceManager"
+add_custom_target(px_service_manager_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_SERVICE_MGR_RUST_EXE}" "${PX_SERVICE_MGR_STAGED_EXE}"
+        DEPENDS px_service_manager_rust
+        COMMENT "Staging Rust px_service_manager"
         VERBATIM
 )
 
-add_custom_target(GammaRayUserProxy_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_USER_PROXY_RUST_EXE}" "${GR_USER_PROXY_STAGED_EXE}"
-        DEPENDS GammaRayUserProxy_rust
-        COMMENT "Staging Rust GammaRayUserProxy"
+add_custom_target(px_function_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_USER_PROXY_RUST_EXE}" "${PX_USER_PROXY_STAGED_EXE}"
+        DEPENDS px_function_rust
+        COMMENT "Staging Rust px_function"
         VERBATIM
 )
 
-add_custom_target(GammaRayCrashReporter_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_CRASH_REPORTER_RUST_EXE}" "${GR_CRASH_REPORTER_STAGED_EXE}"
-        DEPENDS GammaRayCrashReporter_rust
-        COMMENT "Staging Rust GammaRayCrashReporter"
+add_custom_target(px_crash_reporter_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_CRASH_REPORTER_RUST_EXE}" "${PX_CRASH_REPORTER_STAGED_EXE}"
+        DEPENDS px_crash_reporter_rust
+        COMMENT "Staging Rust px_crash_reporter"
         VERBATIM
 )
 
-add_custom_target(GammaRayUninstall_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${GR_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin GammaRayUninstall ${GR_RUST_BUILD_FLAG}
-        WORKING_DIRECTORY ${GR_RUST_WORKSPACE_ROOT}
-        COMMENT "Building Rust GammaRayUninstall"
+add_custom_target(px_uninstall_rust
+        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin px_uninstall ${PX_RUST_BUILD_FLAG}
+        WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
+        COMMENT "Building Rust px_uninstall"
         VERBATIM
 )
 
-add_custom_target(GammaRayUninstall_stage
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GR_UNINSTALL_RUST_EXE}" "${GR_UNINSTALL_STAGED_EXE}"
-        DEPENDS GammaRayUninstall_rust
-        COMMENT "Staging Rust GammaRayUninstall"
+add_custom_target(px_uninstall_stage
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PX_UNINSTALL_RUST_EXE}" "${PX_UNINSTALL_STAGED_EXE}"
+        DEPENDS px_uninstall_rust
+        COMMENT "Staging Rust px_uninstall"
         VERBATIM
 )
 
@@ -269,7 +286,7 @@ add_subdirectory(src)
 add_custom_target(px_build_premium_all ALL COMMENT "Build all targets")
 add_dependencies(px_build_premium_all
     ### main executables
-    GammaRay
+    px_panel
 
     ### render
     plugin_amf_encoder plugin_file_transfer plugin_frame_carrier plugin_frame_resizer plugin_gdi_capture
@@ -287,9 +304,9 @@ add_dependencies(px_build_premium_all
     px_protection
 
     ### from former px_build_all (deps + rust stages)
-    GammaRayRender GammaRayService_stage GammaRayServiceManager_stage px_message px_vigem px_plugin
-    GammaRayClientInner px_relay_client px_rtc_client px_cp_message GammaRayUserProxy_stage px_hw_info
-    GammaRayCrashReporter_stage GammaRaySysInfo_stage
+    px_render px_service_stage px_service_manager_stage px_message px_vigem px_plugin
+    px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
+    px_crash_reporter_stage px_osinfo_stage
     plugin_net_ws plugin_ffmpeg_encoder plugin_frame_debugger plugin_dda_capture
     plugin_was_audio_capture plugin_opus_encoder px_sdk px_qt_widget plugin_mock_video_stream px_translator
     px_cms_client px_account_sdk px_rp_message px_profile_client plugin_event_replayer px_global_id_generator

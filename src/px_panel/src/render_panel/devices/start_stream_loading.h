@@ -2,8 +2,8 @@
 // Created by RGAA on 21/05/2025.
 //
 
-#ifndef GAMMARAY_START_STREAM_LOADING_H
-#define GAMMARAY_START_STREAM_LOADING_H
+#ifndef PX_START_STREAM_LOADING_H
+#define PX_START_STREAM_LOADING_H
 
 #include <memory>
 #include <QDialog>
@@ -16,13 +16,13 @@ namespace px_cms
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class Win10CircleLoadingWidget;
     class Win10HorizontalLoadingWidget;
 
     class StartStreamLoading : public QDialog {
     public:
-        StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type);
+        StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type);
         void resizeEvent(QResizeEvent *event) override;
         void paintEvent(QPaintEvent *event) override;
 
@@ -34,4 +34,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_START_STREAM_LOADING_H
+#endif //PX_START_STREAM_LOADING_H

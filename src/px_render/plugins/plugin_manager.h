@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_PLUGIN_MANAGER_H
-#define GAMMARAY_PLUGIN_MANAGER_H
+#ifndef PX_RENDER_PLUGIN_MANAGER_H
+#define PX_RENDER_PLUGIN_MANAGER_H
 
 #include <memory>
 #include <string>
@@ -22,16 +22,16 @@ namespace px
     class RdSettings;
     class RdApplication;
     class PluginEventRouter;
-    class GrPluginInterface;
-    class GrStreamPlugin;
-    class GrVideoEncoderPlugin;
-    class GrNetPlugin;
-    class GrMonitorCapturePlugin;
-    class GrDataProviderPlugin;
-    class GrAudioEncoderPlugin;
-    class GrFrameCarrierPlugin;
-    class GrFrameProcessorPlugin;
-    class GrConnectedClientInfo;
+    class PxPluginInterface;
+    class PxStreamPlugin;
+    class PxVideoEncoderPlugin;
+    class PxNetPlugin;
+    class PxMonitorCapturePlugin;
+    class PxDataProviderPlugin;
+    class PxAudioEncoderPlugin;
+    class PxFrameCarrierPlugin;
+    class PxFrameProcessorPlugin;
+    class PxConnectedClientInfo;
 
     class PluginManager : public std::enable_shared_from_this<PluginManager> {
     public:
@@ -45,45 +45,45 @@ namespace px
         void ReleaseAllPlugins();
         void ReleasePlugin(const std::string& name);
 
-        GrPluginInterface* GetPluginById(const std::string& id);
-        GrVideoEncoderPlugin* GetFFmpegEncoderPlugin();
-        GrVideoEncoderPlugin* GetNvencEncoderPlugin();
-        GrVideoEncoderPlugin* GetAmfEncoderPlugin();
-        GrMonitorCapturePlugin* GetDDACapturePlugin();
-        GrMonitorCapturePlugin* GetGdiCapturePlugin();
-        GrDataProviderPlugin* GetMockVideoStreamPlugin();
-        GrDataProviderPlugin* GetAudioCapturePlugin();
-        GrAudioEncoderPlugin* GetAudioEncoderPlugin();
-        GrPluginInterface* GetFileTransferPlugin();
-        GrPluginInterface* GetClipboardPlugin();
-        GrPluginInterface* GetRtcPlugin();
-        GrNetPlugin* GetUdpPlugin();
-        GrNetPlugin* GetRelayPlugin();
-        GrFrameCarrierPlugin* GetFrameCarrierPlugin();
-        GrFrameProcessorPlugin* GetFrameResizePlugin();
-        GrPluginInterface* GetEventsReplayerPlugin();
-        GrPluginInterface* GetRtcLocalPlugin();
+        PxPluginInterface* GetPluginById(const std::string& id);
+        PxVideoEncoderPlugin* GetFFmpegEncoderPlugin();
+        PxVideoEncoderPlugin* GetNvencEncoderPlugin();
+        PxVideoEncoderPlugin* GetAmfEncoderPlugin();
+        PxMonitorCapturePlugin* GetDDACapturePlugin();
+        PxMonitorCapturePlugin* GetGdiCapturePlugin();
+        PxDataProviderPlugin* GetMockVideoStreamPlugin();
+        PxDataProviderPlugin* GetAudioCapturePlugin();
+        PxAudioEncoderPlugin* GetAudioEncoderPlugin();
+        PxPluginInterface* GetFileTransferPlugin();
+        PxPluginInterface* GetClipboardPlugin();
+        PxPluginInterface* GetRtcPlugin();
+        PxNetPlugin* GetUdpPlugin();
+        PxNetPlugin* GetRelayPlugin();
+        PxFrameCarrierPlugin* GetFrameCarrierPlugin();
+        PxFrameProcessorPlugin* GetFrameResizePlugin();
+        PxPluginInterface* GetEventsReplayerPlugin();
+        PxPluginInterface* GetRtcLocalPlugin();
         int64_t GetQueuingMediaMsgCountInNetPlugins();
         int64_t GetQueuingFtMsgCountInNetPlugins();
         int GetTotalConnectedClientsCount();
-        std::vector<std::shared_ptr<GrConnectedClientInfo>> GetConnectedClientsInfo();
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientsInfo();
 
-        void VisitAllPlugins(const std::function<void(GrPluginInterface*)>&& visitor);
-        void VisitStreamPlugins(const std::function<void(GrStreamPlugin*)>&& visitor);
-        void VisitUtilPlugins(const std::function<void(GrPluginInterface*)>&& visitor);
-        void VisitEncoderPlugins(const std::function<void(GrVideoEncoderPlugin*)>&& visitor);
-        void VisitNetPlugins(const std::function<void(GrNetPlugin*)>&& visitor);
+        void VisitAllPlugins(const std::function<void(PxPluginInterface*)>&& visitor);
+        void VisitStreamPlugins(const std::function<void(PxStreamPlugin*)>&& visitor);
+        void VisitUtilPlugins(const std::function<void(PxPluginInterface*)>&& visitor);
+        void VisitEncoderPlugins(const std::function<void(PxVideoEncoderPlugin*)>&& visitor);
+        void VisitNetPlugins(const std::function<void(PxNetPlugin*)>&& visitor);
         void DumpPluginInfo();
 
         void On1Second();
 
         // from render panel -> render
-        void SyncPluginSettingsInfo(const GrPluginSettingsInfo& info);
+        void SyncPluginSettingsInfo(const PxPluginSettingsInfo& info);
 
         // is GDI
-        bool IsGDIMonitorCapturePlugin(GrMonitorCapturePlugin* plugin);
+        bool IsGDIMonitorCapturePlugin(PxMonitorCapturePlugin* plugin);
         // is DDA
-        bool IsDDAMonitorCapturePlugin(GrMonitorCapturePlugin* plugin);
+        bool IsDDAMonitorCapturePlugin(PxMonitorCapturePlugin* plugin);
 
     private:
         RdSettings* settings_ = nullptr;
@@ -91,7 +91,7 @@ namespace px
         std::shared_ptr<RdContext> context_ = nullptr;
         // guards plugins_: visitors take a shared lock, ReleaseAllPlugins takes an exclusive one
         std::shared_mutex plugins_mtx_;
-        std::map<std::string, GrPluginInterface*> plugins_;
+        std::map<std::string, PxPluginInterface*> plugins_;
         std::map<std::string, std::shared_ptr<DynamicLibrary>> plugin_libraries_;
         std::shared_ptr<PluginEventRouter> evt_router_ = nullptr;
         std::atomic_bool exiting_ = false;
@@ -99,4 +99,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_PLUGIN_MANAGER_H
+#endif //PX_RENDER_PLUGIN_MANAGER_H

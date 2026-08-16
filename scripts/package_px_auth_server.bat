@@ -6,14 +6,14 @@ setlocal enabledelayedexpansion
 :: 1b. Generate Ed25519 license signing key pair (if missing).
 :: 2. Build the Vue auth frontend.
 :: 3. Build the Rust auth server.
-:: 4. Copy exe + web assets + config + certs into output\px_auth_server\.
+:: 4. Copy exe + web assets + config + certs into output\px_auth\.
 ::
-:: Result: run output\px_auth_server\px_auth.exe and open
+:: Result: run output\px_auth\px_auth.exe and open
 ::         https://localhost:30400 in a browser.
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
-set "OUTPUT_DIR=%REPO_ROOT%\output\px_auth_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_auth"
 set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\px_auth"
 set "SERVER_SRC=%REPO_ROOT%\rust_server\px_auth_server"

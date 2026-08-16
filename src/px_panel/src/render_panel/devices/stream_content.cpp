@@ -101,7 +101,7 @@ namespace px
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
-    StreamContent::StreamContent(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent) {
+    StreamContent::StreamContent(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent) {
         context_ = ctx;
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);

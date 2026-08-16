@@ -17,7 +17,7 @@ using asio::ip::udp;
 namespace px
 {
 
-    CmsScanner::CmsScanner(const std::shared_ptr<GrApplication>& app) {
+    CmsScanner::CmsScanner(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         msg_listener_ = app_->GetMessageNotifier()->CreateListener();
         msg_listener_->Listen<MsgGrTimer2S>([=, this](const MsgGrTimer2S& msg) {

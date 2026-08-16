@@ -5,15 +5,15 @@ setlocal enabledelayedexpansion
 :: 1. Ensure shared TLS certificate (generated once, reused across servers).
 :: 2. Build the Vue desk frontend.
 :: 3. Build the Rust desk server.
-:: 4. Copy exe + web assets + certs into output\px_desk_server\.
+:: 4. Copy exe + web assets + certs into output\px_desk\.
 ::
-:: Result: run output\px_desk_server\px_desk.exe
+:: Result: run output\px_desk\px_desk.exe
 ::         HTTP  on http://localhost:5000
 ::         HTTPS on https://localhost:5001
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
-set "OUTPUT_DIR=%REPO_ROOT%\output\px_desk_server"
+set "OUTPUT_DIR=%REPO_ROOT%\output\px_desk"
 set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\px_desk"
 set "SERVER_SRC=%REPO_ROOT%\rust_server\px_desk_server"

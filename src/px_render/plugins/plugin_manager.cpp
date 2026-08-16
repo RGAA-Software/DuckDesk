@@ -98,7 +98,7 @@ namespace px
 
             auto func = (FnGetInstance) fn_get_instance;
             if (func) {
-                auto plugin = (GrPluginInterface*)func();
+                auto plugin = (PxPluginInterface*)func();
                 if (plugin) {
                     plugin_id = plugin->GetPluginId();
                     if (plugins_.contains(plugin_id)) {
@@ -109,7 +109,7 @@ namespace px
                     }
 
                     auto filename = entry.path().filename().string();
-                    auto param = GrPluginParam {
+                    auto param = PxPluginParam {
                         .cluster_ = {
                             {"name", filename},
                             {"base_path", base_path},
@@ -199,19 +199,19 @@ namespace px
         }
 
         // net plugins
-        std::vector<GrPluginInterface*> plugins;
-        VisitAllPlugins([&](GrPluginInterface* plugin) {
+        std::vector<PxPluginInterface*> plugins;
+        VisitAllPlugins([&](PxPluginInterface* plugin) {
             plugins.push_back(plugin);
-            if (plugin->GetPluginType() != GrPluginType::kNet) {
-                VisitNetPlugins([=, this](GrNetPlugin* np) {
+            if (plugin->GetPluginType() != PxPluginType::kNet) {
+                VisitNetPlugins([=, this](PxNetPlugin* np) {
                     plugin->AttachNetPlugin(np->GetPluginId(), np);
                 });
             }
         });
 
         // total plugins
-        VisitAllPlugins([&](GrPluginInterface* plugin) {
-            for (GrPluginInterface* p : plugins) {
+        VisitAllPlugins([&](PxPluginInterface* plugin) {
+            for (PxPluginInterface* p : plugins) {
                 if (p->GetPluginId() == plugin->GetPluginId()) {
                     continue;
                 }
@@ -223,8 +223,8 @@ namespace px
     void PluginManager::RegisterPluginEventsCallback() {
         this->evt_router_ = std::make_shared<PluginEventRouter>(app_);
         auto weak_self = weak_from_this();
-        VisitAllPlugins([&](GrPluginInterface* plugin) {
-            plugin->RegisterEventCallback([weak_self](const std::shared_ptr<GrPluginBaseEvent>& event) {
+        VisitAllPlugins([&](PxPluginInterface* plugin) {
+            plugin->RegisterEventCallback([weak_self](const std::shared_ptr<PxPluginBaseEvent>& event) {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_ || !self->evt_router_) {
                     return;
@@ -241,7 +241,7 @@ namespace px
         // wait until in-flight visitors leave, then detach the plugin map;
         // OnStop/OnDestroy run outside the lock because plugins may fire
         // events which re-enter the visiting functions
-        std::map<std::string, GrPluginInterface*> plugins;
+        std::map<std::string, PxPluginInterface*> plugins;
         {
             std::unique_lock<std::shared_mutex> lock(plugins_mtx_);
             plugins.swap(plugins_);
@@ -260,7 +260,7 @@ namespace px
 
     }
 
-    GrPluginInterface* PluginManager::GetPluginById(const std::string& id) {
+    PxPluginInterface* PluginManager::GetPluginById(const std::string& id) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         if (!plugins_.contains(id)) {
             return nullptr;
@@ -268,95 +268,95 @@ namespace px
         return plugins_.at(id);
     }
 
-    GrVideoEncoderPlugin* PluginManager::GetFFmpegEncoderPlugin() {
+    PxVideoEncoderPlugin* PluginManager::GetFFmpegEncoderPlugin() {
         auto plugin = GetPluginById(kFFmpegEncoderPluginId);
         if (plugin) {
-            return (GrVideoEncoderPlugin*)plugin;
+            return (PxVideoEncoderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrVideoEncoderPlugin* PluginManager::GetNvencEncoderPlugin() {
+    PxVideoEncoderPlugin* PluginManager::GetNvencEncoderPlugin() {
         auto plugin = GetPluginById(kNvencEncoderPluginId);
         if (plugin) {
-            return (GrVideoEncoderPlugin*)plugin;
+            return (PxVideoEncoderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrVideoEncoderPlugin* PluginManager::GetAmfEncoderPlugin() {
+    PxVideoEncoderPlugin* PluginManager::GetAmfEncoderPlugin() {
         auto plugin = GetPluginById(kAmfEncoderPluginId);
         if (plugin) {
-            return (GrVideoEncoderPlugin*)plugin;
+            return (PxVideoEncoderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrMonitorCapturePlugin* PluginManager::GetDDACapturePlugin() {
+    PxMonitorCapturePlugin* PluginManager::GetDDACapturePlugin() {
         auto plugin = GetPluginById(kDdaCapturePluginId);
         if (plugin) {
-            return (GrMonitorCapturePlugin*)plugin;
+            return (PxMonitorCapturePlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrMonitorCapturePlugin* PluginManager::GetGdiCapturePlugin() {
+    PxMonitorCapturePlugin* PluginManager::GetGdiCapturePlugin() {
         auto plugin = GetPluginById(kGdiCapturePluginId);
         if (plugin) {
-            return (GrMonitorCapturePlugin*)plugin;
+            return (PxMonitorCapturePlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrDataProviderPlugin* PluginManager::GetMockVideoStreamPlugin() {
+    PxDataProviderPlugin* PluginManager::GetMockVideoStreamPlugin() {
         auto plugin = GetPluginById(kMockVideoStreamPluginId);
         if (plugin) {
-            return (GrDataProviderPlugin*)plugin;
+            return (PxDataProviderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrDataProviderPlugin* PluginManager::GetAudioCapturePlugin() {
+    PxDataProviderPlugin* PluginManager::GetAudioCapturePlugin() {
         auto plugin = GetPluginById(kWasAudioCapturePluginId);
         if (plugin) {
-            return (GrDataProviderPlugin*)plugin;
+            return (PxDataProviderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrAudioEncoderPlugin* PluginManager::GetAudioEncoderPlugin() {
+    PxAudioEncoderPlugin* PluginManager::GetAudioEncoderPlugin() {
         auto plugin = GetPluginById(kOpusEncoderPluginId);
         if (plugin) {
-            return (GrAudioEncoderPlugin*)plugin;
+            return (PxAudioEncoderPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrPluginInterface* PluginManager::GetFileTransferPlugin() {
+    PxPluginInterface* PluginManager::GetFileTransferPlugin() {
         auto plugin = GetPluginById(kNetFileTransferPluginId);
         if (plugin) {
-            return (GrPluginInterface*)plugin;
+            return (PxPluginInterface*)plugin;
         }
         return nullptr;
     }
 
-    GrNetPlugin* PluginManager::GetUdpPlugin() {
+    PxNetPlugin* PluginManager::GetUdpPlugin() {
         auto plugin = GetPluginById(kNetUdpPluginId);
         if (plugin) {
-            return (GrNetPlugin*)plugin;
+            return (PxNetPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrPluginInterface* PluginManager::GetClipboardPlugin() {
+    PxPluginInterface* PluginManager::GetClipboardPlugin() {
         auto plugin = GetPluginById(kClipboardPluginId);
         if (plugin) {
-            return (GrPluginInterface*)plugin;
+            return (PxPluginInterface*)plugin;
         }
         return nullptr;
     }
 
-    GrPluginInterface* PluginManager::GetRtcPlugin() {
+    PxPluginInterface* PluginManager::GetRtcPlugin() {
         auto plugin = GetPluginById(kNetRtcPluginId);
         if (plugin) {
             return plugin;
@@ -364,31 +364,31 @@ namespace px
         return nullptr;
     }
 
-    GrNetPlugin* PluginManager::GetRelayPlugin() {
+    PxNetPlugin* PluginManager::GetRelayPlugin() {
         auto plugin = GetPluginById(kRelayPluginId);
         if (plugin) {
-            return (GrNetPlugin*)plugin;
+            return (PxNetPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrFrameCarrierPlugin* PluginManager::GetFrameCarrierPlugin() {
+    PxFrameCarrierPlugin* PluginManager::GetFrameCarrierPlugin() {
         auto plugin = GetPluginById(kFrameCarrierPluginId);
         if (plugin) {
-            return (GrFrameCarrierPlugin*)plugin;
+            return (PxFrameCarrierPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrFrameProcessorPlugin* PluginManager::GetFrameResizePlugin() {
+    PxFrameProcessorPlugin* PluginManager::GetFrameResizePlugin() {
         auto plugin = GetPluginById(kFrameResizerPluginId);
         if (plugin) {
-            return (GrFrameProcessorPlugin*)plugin;
+            return (PxFrameProcessorPlugin*)plugin;
         }
         return nullptr;
     }
 
-    GrPluginInterface* PluginManager::GetEventsReplayerPlugin() {
+    PxPluginInterface* PluginManager::GetEventsReplayerPlugin() {
         auto plugin = GetPluginById(kEventReplayerPluginId);
         if (plugin) {
             return plugin;
@@ -396,7 +396,7 @@ namespace px
         return nullptr;
     }
 
-    GrPluginInterface* PluginManager::GetRtcLocalPlugin() {
+    PxPluginInterface* PluginManager::GetRtcLocalPlugin() {
         auto plugin = GetPluginById(kNetRtcLocalPluginId);
         if (plugin) {
             return plugin;
@@ -404,7 +404,7 @@ namespace px
         return nullptr;
     }
 
-    void PluginManager::VisitAllPlugins(const std::function<void(GrPluginInterface *)>&& visitor) {
+    void PluginManager::VisitAllPlugins(const std::function<void(PxPluginInterface *)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
             if (visitor) {
@@ -413,38 +413,38 @@ namespace px
         }
     }
 
-    void PluginManager::VisitStreamPlugins(const std::function<void(GrStreamPlugin *)>&& visitor) {
+    void PluginManager::VisitStreamPlugins(const std::function<void(PxStreamPlugin *)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
-            if (plugin->GetPluginType() == GrPluginType::kStream) {
-                visitor((GrStreamPlugin *) plugin);
+            if (plugin->GetPluginType() == PxPluginType::kStream) {
+                visitor((PxStreamPlugin *) plugin);
             }
         }
     }
 
-    void PluginManager::VisitUtilPlugins(const std::function<void(GrPluginInterface *)>&& visitor) {
+    void PluginManager::VisitUtilPlugins(const std::function<void(PxPluginInterface *)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
-            if (plugin->GetPluginType() == GrPluginType::kUtil) {
+            if (plugin->GetPluginType() == PxPluginType::kUtil) {
                 visitor(plugin);
             }
         }
     }
 
-    void PluginManager::VisitEncoderPlugins(const std::function<void(GrVideoEncoderPlugin*)>&& visitor) {
+    void PluginManager::VisitEncoderPlugins(const std::function<void(PxVideoEncoderPlugin*)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
-            if (plugin->GetPluginType() == GrPluginType::kEncoder) {
-                visitor((GrVideoEncoderPlugin *) plugin);
+            if (plugin->GetPluginType() == PxPluginType::kEncoder) {
+                visitor((PxVideoEncoderPlugin *) plugin);
             }
         }
     }
 
-    void PluginManager::VisitNetPlugins(const std::function<void(GrNetPlugin*)>&& visitor) {
+    void PluginManager::VisitNetPlugins(const std::function<void(PxNetPlugin*)>&& visitor) {
         std::shared_lock<std::shared_mutex> lock(plugins_mtx_);
         for (const auto& [k, plugin] : plugins_) {
-            if (plugin->GetPluginType() == GrPluginType::kNet) {
-                visitor((GrNetPlugin*) plugin);
+            if (plugin->GetPluginType() == PxPluginType::kNet) {
+                visitor((PxNetPlugin*) plugin);
             }
         }
     }
@@ -468,7 +468,7 @@ namespace px
                 return;
             }
 
-            std::vector<GrPluginInterface*> plugins_snapshot;
+            std::vector<PxPluginInterface*> plugins_snapshot;
             plugins_snapshot.reserve(self->plugins_.size());
             for (const auto& [k, plugin] : self->plugins_) {
                 if (plugin) {
@@ -481,8 +481,8 @@ namespace px
                 if (self->exiting_) {
                     return;
                 }
-                if (plugin->GetPluginType() == GrPluginType::kNet) {
-                    connected_client_count += ((GrNetPlugin*)plugin)->GetConnectedClientsCount();
+                if (plugin->GetPluginType() == PxPluginType::kNet) {
+                    connected_client_count += ((PxNetPlugin*)plugin)->GetConnectedClientsCount();
                 }
             }
 
@@ -506,7 +506,7 @@ namespace px
     void PluginManager::DumpPluginInfo() {
         LOGI("====> Total plugins: {}", plugins_.size());
         int index = 1;
-        VisitAllPlugins([&](GrPluginInterface *plugin) {
+        VisitAllPlugins([&](PxPluginInterface *plugin) {
             LOGI("Plugin {}. [{}] vn: [{}], vc: [{}], enabled: [{}]",
                  index++,
                  plugin->GetPluginName(),
@@ -517,18 +517,18 @@ namespace px
         });
     }
 
-    void PluginManager::SyncPluginSettingsInfo(const GrPluginSettingsInfo& info) {
+    void PluginManager::SyncPluginSettingsInfo(const PxPluginSettingsInfo& info) {
         if (exiting_) {
             return;
         }
-        VisitAllPlugins([&](GrPluginInterface* plugin) {
+        VisitAllPlugins([&](PxPluginInterface* plugin) {
             plugin->OnSyncPluginSettingsInfo(info);
         });
     }
 
     int64_t PluginManager::GetQueuingMediaMsgCountInNetPlugins() {
         int64_t queuing_msg_count = 0;
-        VisitNetPlugins([&](GrNetPlugin* plugin) {
+        VisitNetPlugins([&](PxNetPlugin* plugin) {
             if (plugin->GetConnectedClientsCount() > 0) {
                 queuing_msg_count += plugin->GetQueuingMediaMsgCount();
             }
@@ -538,7 +538,7 @@ namespace px
 
     int64_t PluginManager::GetQueuingFtMsgCountInNetPlugins() {
         int64_t queuing_msg_count = 0;
-        VisitNetPlugins([&](GrNetPlugin* plugin) {
+        VisitNetPlugins([&](PxNetPlugin* plugin) {
             if (plugin->GetConnectedClientsCount() > 0) {
                 queuing_msg_count += plugin->GetQueuingFtMsgCount();
             }
@@ -548,15 +548,15 @@ namespace px
 
     int PluginManager::GetTotalConnectedClientsCount() {
         int total_size = 0;
-        VisitNetPlugins([&](GrNetPlugin* plugin) {
+        VisitNetPlugins([&](PxNetPlugin* plugin) {
             total_size += plugin->GetConnectedClientsCount();
         });
         return total_size;
     }
 
-    std::vector<std::shared_ptr<GrConnectedClientInfo>> PluginManager::GetConnectedClientsInfo() {
-        std::vector<std::shared_ptr<GrConnectedClientInfo>> clients_info;
-        VisitNetPlugins([&](GrNetPlugin* plugin) {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> PluginManager::GetConnectedClientsInfo() {
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
+        VisitNetPlugins([&](PxNetPlugin* plugin) {
             if (auto cs = plugin->GetConnectedClientInfo(); !cs.empty()) {
                 for (auto& info : cs) {
                     clients_info.push_back(info);
@@ -567,12 +567,12 @@ namespace px
     }
 
     // is GDI
-    bool PluginManager::IsGDIMonitorCapturePlugin(GrMonitorCapturePlugin* plugin) {
+    bool PluginManager::IsGDIMonitorCapturePlugin(PxMonitorCapturePlugin* plugin) {
         return plugin && plugin->GetPluginId() == kGdiCapturePluginId;
     }
 
     // is DDA
-    bool PluginManager::IsDDAMonitorCapturePlugin(GrMonitorCapturePlugin* plugin) {
+    bool PluginManager::IsDDAMonitorCapturePlugin(PxMonitorCapturePlugin* plugin) {
         return plugin && plugin->GetPluginId() == kDdaCapturePluginId;
     }
 

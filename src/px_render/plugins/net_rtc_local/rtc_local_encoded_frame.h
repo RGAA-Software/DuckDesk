@@ -16,7 +16,7 @@ namespace px
     class RtcLocalEncodedVideoFrame {
     public:
         std::string mon_name_;
-        //GrPluginEncodedVideoType& video_type;
+        //PxPluginEncodedVideoType& video_type;
         int video_type_;
         std::shared_ptr<Data> data_ = nullptr;
         // 编码器产出序号(本插件按到达顺序编号,每屏独立):

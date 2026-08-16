@@ -2,8 +2,8 @@
 // Created by RGAA on 10/08/2026.
 //
 
-#ifndef GAMMARAY_WEBRTC_LOCAL_CONNECTION_H
-#define GAMMARAY_WEBRTC_LOCAL_CONNECTION_H
+#ifndef PX_WEBRTC_LOCAL_CONNECTION_H
+#define PX_WEBRTC_LOCAL_CONNECTION_H
 
 #include <functional>
 #include <string>
@@ -121,4 +121,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_WEBRTC_LOCAL_CONNECTION_H
+#endif //PX_WEBRTC_LOCAL_CONNECTION_H

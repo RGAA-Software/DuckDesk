@@ -11,8 +11,8 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::proto::{
     build_hello_resp_message, build_raw_render_message, build_raw_render_message_routed,
-    build_tc_clipboard_info, build_tc_resp_buffer, clipboard_text_from_rp, parse_rp_message,
-    parse_tc_message, pxrp::RpMessageType, px::MessageType, StreamRoute,
+    build_px_clipboard_info, build_px_resp_buffer, clipboard_text_from_rp, parse_rp_message,
+    parse_px_message, pxrp::RpMessageType, px::MessageType, StreamRoute,
 };
 use crate::clipboard::virtual_file::RespBufferData;
 
@@ -61,7 +61,7 @@ impl MockRenderHandle {
     }
 
     pub fn send_raw_render_clipboard(&self, text: &str) -> anyhow::Result<()> {
-        let inner = build_tc_clipboard_info(text);
+        let inner = build_px_clipboard_info(text);
         let bytes = build_raw_render_message(&inner, false);
         self.outbound_tx
             .send(bytes)
@@ -73,7 +73,7 @@ impl MockRenderHandle {
         resp: &RespBufferData,
         route: &StreamRoute,
     ) -> anyhow::Result<()> {
-        let inner = build_tc_resp_buffer(resp, route);
+        let inner = build_px_resp_buffer(resp, route);
         let bytes = build_raw_render_message_routed(&inner, true, Some(route));
         self.outbound_tx
             .send(bytes)
@@ -235,10 +235,10 @@ fn handle_inbound(
                 return Ok(None);
             }
 
-            let tc = parse_tc_message(&sub.msg)?;
-            match MessageType::try_from(tc.r#type) {
+            let msg = parse_px_message(&sub.msg)?;
+            match MessageType::try_from(msg.r#type) {
                 Ok(MessageType::KClipboardReqBuffer) => {
-                    let req = tc.cp_req_buffer.expect("req");
+                    let req = msg.cp_req_buffer.expect("req");
                     events.lock().expect("lock").push(MockRenderEvent::ClipboardReqBuffer {
                         full_name: req.full_name.clone(),
                         req_index: req.req_index,
@@ -270,14 +270,14 @@ fn handle_inbound(
                         buffer: chunk.to_vec(),
                     };
                     let reply = build_raw_render_message_routed(
-                        &build_tc_resp_buffer(&resp, &route),
+                        &build_px_resp_buffer(&resp, &route),
                         true,
                         Some(&route),
                     );
                     Ok(Some(reply))
                 }
                 Ok(MessageType::KClipboardReqAtBegin) => {
-                    let begin = tc.cp_req_at_begin.expect("begin");
+                    let begin = msg.cp_req_at_begin.expect("begin");
                     events
                         .lock()
                         .expect("lock")
@@ -287,7 +287,7 @@ fn handle_inbound(
                     Ok(None)
                 }
                 Ok(MessageType::KClipboardReqAtEnd) => {
-                    let end = tc.cp_req_at_end.expect("end");
+                    let end = msg.cp_req_at_end.expect("end");
                     events.lock().expect("lock").push(MockRenderEvent::ClipboardReqAtEnd {
                         full_name: end.full_name,
                         success: end.success,
@@ -367,7 +367,7 @@ mod tests {
             stream_id: "s1".to_string(),
             device_id: "d1".to_string(),
         };
-        let req = crate::proto::build_tc_req_buffer(
+        let req = crate::proto::build_px_req_buffer(
             &crate::clipboard::virtual_file::ReadChunkRequest {
                 full_name: "C:/remote/a.bin".to_string(),
                 req_index: 0,
@@ -385,8 +385,8 @@ mod tests {
                 let rp = parse_rp_message(&bytes).expect("rp");
                 let sub = rp.raw_render_msg.expect("raw");
                 assert!(sub.data_channel);
-                let tc = parse_tc_message(&sub.msg).expect("tc");
-                let resp = tc.cp_resp_buffer.expect("resp");
+                let msg = parse_px_message(&sub.msg).expect("msg");
+                let resp = msg.cp_resp_buffer.expect("resp");
                 assert_eq!(resp.buffer, b"payload");
                 got_resp = true;
                 break;

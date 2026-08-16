@@ -2,8 +2,8 @@
 // Created by RGAA on 20/03/2025.
 //
 
-#ifndef GAMMARAY_MAINWINDOW_WRAPPER_H
-#define GAMMARAY_MAINWINDOW_WRAPPER_H
+#ifndef PX_MAINWINDOW_WRAPPER_H
+#define PX_MAINWINDOW_WRAPPER_H
 
 #include <QMainWindow>
 
@@ -37,4 +37,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_MAINWINDOW_WRAPPER_H
+#endif //PX_MAINWINDOW_WRAPPER_H

@@ -110,7 +110,7 @@ impl VirtualFileCoordinator {
         let route = self
             .session_route()
             .ok_or_else(|| anyhow::anyhow!("virtual file session missing"))?;
-        let bytes = proto::build_tc_req_buffer(req, &route);
+        let bytes = proto::build_px_req_buffer(req, &route);
         self.send_outbound(bytes)
     }
 
@@ -118,14 +118,14 @@ impl VirtualFileCoordinator {
         let route = self
             .session_route()
             .ok_or_else(|| anyhow::anyhow!("virtual file session missing"))?;
-        self.send_outbound(proto::build_tc_req_at_begin(full_name, &route))
+        self.send_outbound(proto::build_px_req_at_begin(full_name, &route))
     }
 
     pub fn send_req_at_end(&self, full_name: &str, success: bool) -> anyhow::Result<()> {
         let route = self
             .session_route()
             .ok_or_else(|| anyhow::anyhow!("virtual file session missing"))?;
-        self.send_outbound(proto::build_tc_req_at_end(full_name, success, &route))
+        self.send_outbound(proto::build_px_req_at_end(full_name, success, &route))
     }
 
     fn send_outbound(&self, bytes: Vec<u8>) -> anyhow::Result<()> {
@@ -193,12 +193,12 @@ mod tests {
         assert_eq!(sub.stream_id, "stream-1");
         assert_eq!(sub.device_id, "device-1");
 
-        let tc = proto::parse_tc_message(&sub.msg).expect("tc");
+        let msg = proto::parse_px_message(&sub.msg).expect("msg");
         assert_eq!(
-            tc.r#type,
+            msg.r#type,
             proto::px::MessageType::KClipboardReqBuffer as i32
         );
-        let req_buf = tc.cp_req_buffer.expect("req");
+        let req_buf = msg.cp_req_buffer.expect("req");
         assert_eq!(req_buf.full_name, "Z:/missing/a.txt");
         assert_eq!(req_buf.req_index, 0);
     }

@@ -1,6 +1,6 @@
-import {GrRenderer} from "./px_renderer.ts";
+import {PxRenderer} from "./px_renderer.ts";
 
-export class GrWebGLRenderer extends GrRenderer {
+export class PxWebGLRenderer extends PxRenderer {
     static vertexShaderSource = `
         attribute vec2 inXY;
 		attribute vec2 inUV;
@@ -29,14 +29,14 @@ export class GrWebGLRenderer extends GrRenderer {
         const gl = (this.renderCanvasContext = renderCanvas.getContext(name, {antialias: true}));
 
         const vertexShader = gl.createShader(gl.VERTEX_SHADER)
-        gl.shaderSource(vertexShader, GrWebGLRenderer.vertexShaderSource)
+        gl.shaderSource(vertexShader, PxWebGLRenderer.vertexShaderSource)
         gl.compileShader(vertexShader)
         if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
             throw gl.getShaderInfoLog(vertexShader)
         }
 
         const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)
-        gl.shaderSource(fragmentShader, GrWebGLRenderer.fragmentShaderSource)
+        gl.shaderSource(fragmentShader, PxWebGLRenderer.fragmentShaderSource)
         gl.compileShader(fragmentShader)
         if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
             throw gl.getShaderInfoLog(fragmentShader)

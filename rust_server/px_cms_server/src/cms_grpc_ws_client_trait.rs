@@ -1,4 +1,4 @@
-use protocol::cms_px_relay::{CmsRelayHeartBeat, CmsRelayHello};
+use protocol::cms_relay::{CmsRelayHeartBeat, CmsRelayHello};
 
 pub trait CmsGrpcWsClientTrait {
     // hello

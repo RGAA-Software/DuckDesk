@@ -16,7 +16,7 @@
 namespace px
 {
 
-    CpFileStream::CpFileStream(const std::shared_ptr<GrContext>& ctx, const ClipboardFileWrapper& fw) : ref_(1) {
+    CpFileStream::CpFileStream(const std::shared_ptr<PxContext>& ctx, const ClipboardFileWrapper& fw) : ref_(1) {
         context_ = ctx;
         cp_file_ = fw;
         gen_file_id_ = MD5::Hex(cp_file_.file_.file_name());

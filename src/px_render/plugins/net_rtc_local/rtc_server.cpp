@@ -111,7 +111,7 @@ namespace px
 
                 input_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    auto event = std::make_shared<GrPluginNetClientEvent>();
+                    auto event = std::make_shared<PxPluginNetClientEvent>();
                     event->is_proto_ = true;
                     event->socket_fd_ = 0;
                     event->nt_plugin_type_ = NetPluginType::kWebRtc;
@@ -148,7 +148,7 @@ namespace px
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
             if (!media_data_channel_) {return;}
-            auto event = std::make_shared<GrPluginClientDisConnectedEvent>();
+            auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
             event->stream_id_ = media_data_channel_->the_conn_id_;
             event->end_timestamp_ = (int64_t) TimeUtil::GetCurrentTimestamp();
             event->duration_ =   event->end_timestamp_ - media_data_channel_->created_timestamp_;
@@ -389,7 +389,7 @@ namespace px
     }
 
     void RtcServer::SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index) {
-        auto event = std::make_shared<GrPluginRtcIceEvent>();
+        auto event = std::make_shared<PxPluginRtcIceEvent>();
         event->stream_id_ = stream_id_;
         event->ice_ = ice;
         event->mid_ = mid;

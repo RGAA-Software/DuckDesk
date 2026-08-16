@@ -12,7 +12,7 @@
 namespace px
 {
 
-    void GrStatistics::RegisterEventListeners() {
+    void PxStatistics::RegisterEventListeners() {
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         msg_listener_->Listen<MsgCaptureStatistics>([=, this](const MsgCaptureStatistics& msg) {
             ProcessCaptureStatistics(msg);
@@ -27,7 +27,7 @@ namespace px
         });
     }
 
-    void GrStatistics::ProcessCaptureStatistics(const MsgCaptureStatistics& msg) {
+    void PxStatistics::ProcessCaptureStatistics(const MsgCaptureStatistics& msg) {
 //        this->audio_frame_gaps_.Clear();
 //        for (auto& v : msg.statistics_->audio_frame_gaps()) {
 //            this->audio_frame_gaps_.PushBack(v);
@@ -127,7 +127,7 @@ namespace px
 
     }
 
-    void GrStatistics::ProcessAudioSpectrum(const MsgServerAudioSpectrum& msg) {
+    void PxStatistics::ProcessAudioSpectrum(const MsgServerAudioSpectrum& msg) {
         this->audio_samples_ = msg.spectrum_->samples();
         this->audio_channels_ = msg.spectrum_->channels();
         this->audio_bits_ = msg.spectrum_->bits();
@@ -148,7 +148,7 @@ namespace px
         //memcpy(this->right_spectrum_.data(), msg.spectrum_->right_spectrum().data(), msg.spectrum_->right_spectrum().size() * sizeof(double));
     }
 
-    void GrStatistics::Process1SCalculation() {
+    void PxStatistics::Process1SCalculation() {
         // speed
         send_speed_bytes = server_send_media_bytes - last_server_send_media_bytes;
         last_server_send_media_bytes = server_send_media_bytes.load();
@@ -156,7 +156,7 @@ namespace px
         //
     }
 
-    std::map<std::string, std::vector<int32_t>> GrStatistics::GetEncodeDurations() {
+    std::map<std::string, std::vector<int32_t>> PxStatistics::GetEncodeDurations() {
         std::map<std::string, std::vector<int32_t>> r;
         encode_durations_.VisitAll([&](auto k, auto& v) {
             r.insert({k, v});
@@ -164,7 +164,7 @@ namespace px
         return r;
     }
 
-    std::map<std::string, std::vector<int32_t>> GrStatistics::GetVideoCaptureGaps() {
+    std::map<std::string, std::vector<int32_t>> PxStatistics::GetVideoCaptureGaps() {
         std::map<std::string, std::vector<int32_t>> r;
         video_capture_gaps_.VisitAll([&](auto k, auto& v) {
             r.insert({k, v});
@@ -172,7 +172,7 @@ namespace px
         return r;
     }
 
-    std::map<std::string, std::vector<int32_t>> GrStatistics::GetCopyTextureDurations() {
+    std::map<std::string, std::vector<int32_t>> PxStatistics::GetCopyTextureDurations() {
         std::map<std::string, std::vector<int32_t>> r;
         copy_texture_durations_.VisitAll([&](auto k, auto& v) {
             r.insert({k, v});
@@ -180,7 +180,7 @@ namespace px
         return r;
     }
 
-    std::map<std::string, std::vector<int32_t>> GrStatistics::GetMapCvtTextureDurations() {
+    std::map<std::string, std::vector<int32_t>> PxStatistics::GetMapCvtTextureDurations() {
         std::map<std::string, std::vector<int32_t>> r;
         map_cvt_texture_durations_.ApplyAll([&](auto k, auto& v) {
             r.insert({k, v});
@@ -188,7 +188,7 @@ namespace px
         return r;
     }
 
-    std::vector<int32_t> GrStatistics::GetAudioFrameGaps() {
+    std::vector<int32_t> PxStatistics::GetAudioFrameGaps() {
         std::vector<int32_t> r;
         audio_frame_gaps_.Visit([&](auto& v) {
             r.push_back((int32_t)v);
@@ -196,7 +196,7 @@ namespace px
         return r;
     }
 
-    std::vector<double> GrStatistics::GetLeftSpectrum() {
+    std::vector<double> PxStatistics::GetLeftSpectrum() {
         std::vector<double> r;
         left_spectrum_.Visit([&](auto& v) {
             r.push_back(v);
@@ -204,7 +204,7 @@ namespace px
         return r;
     }
 
-    std::vector<double> GrStatistics::GetRightSpectrum() {
+    std::vector<double> PxStatistics::GetRightSpectrum() {
         std::vector<double> r;
         right_spectrum_.Visit([&](auto& v) {
             r.push_back(v);
@@ -212,7 +212,7 @@ namespace px
         return r;
     }
 
-    std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> GrStatistics::GetCapturesInfo() {
+    std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> PxStatistics::GetCapturesInfo() {
         std::vector<std::shared_ptr<pxrp::RpMsgWorkingCaptureInfo>> r;
         captures_info_.Visit([&](auto& v) {
             r.push_back(v);
@@ -220,7 +220,7 @@ namespace px
         return r;
     }
 
-    std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> GrStatistics::GetConnectedClientsInfo() {
+    std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> PxStatistics::GetConnectedClientsInfo() {
         std::vector<std::shared_ptr<pxrp::RpConnectedClientInfo>> r;
         connected_clients_info_.Visit([&](auto& v) {
             r.push_back(v);
@@ -228,14 +228,14 @@ namespace px
         return r;
     }
 
-    void GrStatistics::UpdateRelayAlive(const std::string& device_id, int64_t timestamp) {
+    void PxStatistics::UpdateRelayAlive(const std::string& device_id, int64_t timestamp) {
         auto opt_ra = relays_alive_.TryGet(device_id);
         if (opt_ra.has_value()) {
             auto ra = opt_ra.value();
             ra->last_update_ts_ = timestamp;
         }
         else {
-            auto ra = std::make_shared<GrStatRelayAlive>();
+            auto ra = std::make_shared<PxStatRelayAlive>();
             ra->device_id_ = device_id;
             ra->created_ts_ = timestamp;
             ra->last_update_ts_ = timestamp;
@@ -243,7 +243,7 @@ namespace px
         }
     }
 
-    int64_t GrStatistics::GetRelayLastUpdateTimestamp(const std::string& device_id) {
+    int64_t PxStatistics::GetRelayLastUpdateTimestamp(const std::string& device_id) {
         if (auto r = relays_alive_.TryGet(device_id); r.has_value()) {
             return r.value()->last_update_ts_;
         }

@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-06-10.
 //
 
-#ifndef GAMMARAY_ST_NETWORK_H
-#define GAMMARAY_ST_NETWORK_H
+#ifndef PX_ST_NETWORK_H
+#define PX_ST_NETWORK_H
 
 #include <QLabel>
 #include <QLineEdit>
@@ -14,13 +14,13 @@
 namespace px
 {
 
-    class GrApplication;
+    class PxApplication;
     class MessageListener;
     class CmsAccessInfo;
 
     class StNetwork : public TabBase {
     public:
-        explicit StNetwork(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
+        explicit StNetwork(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~StNetwork() override = default;
 
         void OnTabShow() override;
@@ -51,4 +51,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ST_ABOUT_ME_H
+#endif //PX_ST_ABOUT_ME_H

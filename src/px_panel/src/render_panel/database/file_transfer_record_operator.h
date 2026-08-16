@@ -2,8 +2,8 @@
 // Created by RGAA on 29/05/2025.
 //
 
-#ifndef GAMMARAY_FILE_TRANSFER_RECORD_OPERATOR_H
-#define GAMMARAY_FILE_TRANSFER_RECORD_OPERATOR_H
+#ifndef PX_FILE_TRANSFER_RECORD_OPERATOR_H
+#define PX_FILE_TRANSFER_RECORD_OPERATOR_H
 
 #include <memory>
 #include <string>
@@ -14,13 +14,13 @@
 namespace px
 {
 
-    class GrContext;
-    class GrDatabase;
+    class PxContext;
+    class PxDatabase;
     class FileTransferRecord;
 
     class FileTransferRecordOperator {
     public:
-        FileTransferRecordOperator(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<GrDatabase>& db);
+        FileTransferRecordOperator(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<PxDatabase>& db);
 
         void InsertFileTransferRecord(const std::shared_ptr<FileTransferRecord>& record);
         void UpdateFileTransferRecord(const std::string& the_file_id, int64_t end_timestamp, bool success);
@@ -33,12 +33,12 @@ namespace px
         void FlushPendingRecords();
 
     private:
-        std::shared_ptr<GrDatabase> db_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxDatabase> db_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::mutex pending_mutex_;
         std::vector<std::shared_ptr<FileTransferRecord>> pending_records_;
     };
 
 }
 
-#endif //GAMMARAY_VISIT_RECORD_OPERATOR_H
+#endif //PX_VISIT_RECORD_OPERATOR_H

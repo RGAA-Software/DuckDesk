@@ -27,7 +27,7 @@ public:
     void SetAudioFormat(SimpleAudioFormat format, int samples, int channels, int bits);
     void PostAudioData(std::shared_ptr<Data> data);
 
-    // Host-bound sender (dll -> GammaRayRender /ipc). Set after WsIpcClient is up.
+    // Host-bound sender (dll -> px_render /ipc). Set after WsIpcClient is up.
     void SetIpcSender(IpcSender sender);
     void SetWriteWav(bool enable);
 

@@ -33,7 +33,7 @@
 
 - `QLibrary::load()` 失败通常只会跳过。
 - `resolve("GetInstance")` 返回函数但实际 ABI 不匹配时，调用函数或后续虚函数调用可能直接崩溃。
-- `(GrPluginInterface*)func()`、`(ClientPluginInterface*)func()` 是 C 风格强转，没有运行时类型验证。
+- `(PxPluginInterface*)func()`、`(ClientPluginInterface*)func()` 是 C 风格强转，没有运行时类型验证。
 
 风险等级：高。
 
@@ -71,7 +71,7 @@
 - 所有插件实现统一使用一个宏声明导出函数，例如：
 
 ```cpp
-#define GR_PLUGIN_EXPORT(PluginType) \
+#define PX_PLUGIN_EXPORT(PluginType) \
 extern "C" __declspec(dllexport) void* GetInstance() { \
     static PluginType plugin; \
     return &plugin; \
@@ -197,7 +197,7 @@ extern "C" __declspec(dllexport) void* GetInstance() { \
 - 非 QObject 的业务对象使用 `std::weak_ptr`；QObject/UI 对象使用 `QPointer<T>`。
 - 给核心对象加 `exiting_` 标志，`Exit()` 开始时置 true，回调第一行检查。
 - `PostTask`/`PostDelayTask` 增加带 owner token 的重载，owner 失效时自动丢弃任务。
-- 对现有代码先从退出路径最容易撞到的类修：`RdApplication`、`WsPanelServer`、`WsPanelClient`、`BaseWorkspace`、`GrWorkspace`。
+- 对现有代码先从退出路径最容易撞到的类修：`RdApplication`、`WsPanelServer`、`WsPanelClient`、`BaseWorkspace`、`PxWorkspace`。
 
 ## 7. 采集插件切换后直接调用 `capture_plugin_->StartCapturing()`
 
@@ -305,7 +305,7 @@ if (!cp_result || !cp_result->texture_) {
 位置：
 
 - `src/GammaRay/src/render/app/encoder_thread.cpp`
-- `encoder_plugins_` 保存 `GrVideoEncoderPlugin*`
+- `encoder_plugins_` 保存 `PxVideoEncoderPlugin*`
 
 触发条件：
 
@@ -955,7 +955,7 @@ void CrashFunction();
 解决方案：
 
 - `SharedPreference::Init`、数据库初始化失败后明确进入只读/失败状态，不继续构造依赖数据库的 manager。
-- `GrContext::Init()` 中每个 operator 创建后判空。
+- `PxContext::Init()` 中每个 operator 创建后判空。
 - 数据库访问入口返回 `Result<T, Error>`，不要让调用方默认 operator 一定存在。
 - SQLite 打开失败时尝试备份损坏文件并重建新库。
 - ProgramData 目录创建失败时弹出明确错误，不继续启动完整服务。

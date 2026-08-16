@@ -2,8 +2,8 @@
 // Created by RGAA on 19/05/2025.
 //
 
-#ifndef GAMMARAY_SELECT_STREAM_TYPE_DIALOG_H
-#define GAMMARAY_SELECT_STREAM_TYPE_DIALOG_H
+#ifndef PX_SELECT_STREAM_TYPE_DIALOG_H
+#define PX_SELECT_STREAM_TYPE_DIALOG_H
 
 #include <QDialog>
 #include <QHBoxLayout>
@@ -22,15 +22,15 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     class SelectStreamTypeDialog : public TcCustomTitleBarDialog {
     public:
-        explicit SelectStreamTypeDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit SelectStreamTypeDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
 
     private:
     };
 
 }
 
-#endif //GAMMARAY_SELECT_STREAM_TYPE_DIALOG_H
+#endif //PX_SELECT_STREAM_TYPE_DIALOG_H

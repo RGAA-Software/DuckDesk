@@ -8,14 +8,14 @@
 namespace px
 {
 
-    class GrContext;
-    class GrApplication;
+    class PxContext;
+    class PxApplication;
     class WinMessageWindow;
     class MessageListener;
 
     class WinMessageLoop : public std::enable_shared_from_this<WinMessageLoop> {
     public:
-        explicit WinMessageLoop(const std::shared_ptr<GrApplication>& ctx);
+        explicit WinMessageLoop(const std::shared_ptr<PxApplication>& ctx);
         ~WinMessageLoop();
         void Start();
         void Stop();
@@ -35,8 +35,8 @@ namespace px
         std::thread thread_;
         clipboard::EchoFilter echo_filter_;
         std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<WinMessageWindow> message_window_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
     };

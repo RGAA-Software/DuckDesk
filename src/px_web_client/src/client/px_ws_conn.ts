@@ -1,9 +1,9 @@
-import {GrSdk} from "./px_sdk.ts";
-import {GrConnParams} from "./px_sdk_params.ts";
-import {GrRendererManager} from "../renderer/px_renderer_manager.ts";
-import {GrConn} from "./px_conn.ts";
+import {PxSdk} from "./px_sdk.ts";
+import {PxConnParams} from "./px_sdk_params.ts";
+import {PxRendererManager} from "../renderer/px_renderer_manager.ts";
+import {PxConn} from "./px_conn.ts";
 
-export class GrWsConn extends GrConn {
+export class PxWsConn extends PxConn {
 
     // ws
     websocket: WebSocket
@@ -12,7 +12,7 @@ export class GrWsConn extends GrConn {
     hbIndex: number = 0;
     timerId: number = 0;
 
-    constructor(sdk: GrSdk, params: GrConnParams, rendererManager: GrRendererManager) {
+    constructor(sdk: PxSdk, params: PxConnParams, rendererManager: PxRendererManager) {
         super(sdk, params, rendererManager)
     }
 

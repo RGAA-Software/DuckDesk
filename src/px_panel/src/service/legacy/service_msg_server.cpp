@@ -22,7 +22,7 @@ namespace px
         render_manager_ = rm;
     }
 
-    void ServiceMsgServer::Init(const std::shared_ptr<GrService>& service) {
+    void ServiceMsgServer::Init(const std::shared_ptr<PxService>& service) {
         service_ = service;
     }
 

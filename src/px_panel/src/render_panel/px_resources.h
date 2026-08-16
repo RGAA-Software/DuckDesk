@@ -12,16 +12,16 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
-    class GrResources {
+    class PxResources {
     public:
 
-        explicit GrResources(const std::shared_ptr<GrContext>& ctx);
+        explicit PxResources(const std::shared_ptr<PxContext>& ctx);
         void ExtractIconsIfNeeded();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QString res_folder_path_;
     };
 

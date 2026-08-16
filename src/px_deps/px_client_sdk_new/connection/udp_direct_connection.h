@@ -25,10 +25,10 @@ namespace px
 
     // GameStream 风格的裸 UDP 媒体通道(非 KCP),控制面仍走 ws,
     // 由 sdk_net_client.cpp 的 kUdpDirect 分支与 WsConnection 一起启动:
-    // - 上行:hello(按源地址绑定媒体会话)/heartbeat/IDR 请求,均为 GrUdpProtocol 控制包
-    // - 下行:视频 shard 经 GrUdpFrameReassembler 组帧后合成标准 kVideoFrame proto 上送,
+    // - 上行:hello(按源地址绑定媒体会话)/heartbeat/IDR 请求,均为 PxUdpProtocol 控制包
+    // - 下行:视频 shard 经 PxUdpFrameReassembler 组帧后合成标准 kVideoFrame proto 上送,
     //   与 webrtc_local 的 encoded-sink 路径一致(不回 Ack);
-    //   音频包经 GrUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
+    //   音频包经 PxUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
     //   缺口合成空 data proto 通知解码层走 Opus PLC
     // - watchdog:10s 收不到任何 UDP 包视为媒体面断开,走正常断线回调
     class UdpDirectConnection : public Connection {
@@ -60,7 +60,7 @@ namespace px
 
     private:
         void OnUdpPacket(const char* data, size_t size);
-        void OnCompleteFrame(const GrUdpFrameReassembler::CompleteFrame& frame);
+        void OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame);
         void RequestIdr(const std::string& mon_name);
         void RequestIdrKeepalive(const std::string& mon_name);
         void RequestRfi(uint64_t invalid_frame_index, const std::string& mon_name);
@@ -79,8 +79,8 @@ namespace px
         std::string stream_id_;
 
         std::shared_ptr<asio2::udp_client> udp_client_ = nullptr;
-        GrUdpFrameReassembler reassembler_;
-        GrUdpAudioJitterBuffer audio_jitter_;
+        PxUdpFrameReassembler reassembler_;
+        PxUdpAudioJitterBuffer audio_jitter_;
 
         std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
         std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;

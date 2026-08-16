@@ -12,18 +12,18 @@
 namespace px
 {
 
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
 
-    class GrCmsManager {
+    class PxCmsManager {
     public:
-        explicit GrCmsManager(const std::shared_ptr<GrContext>& context);
+        explicit PxCmsManager(const std::shared_ptr<PxContext>& context);
         std::optional<px_cms::AliveConnections> QueryAliveConnections(bool show_err_dialog) const;
         std::optional<px_cms::AvailableNewConnection> QueryNewConnection(bool show_err_dialog) const;
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
     };
 
 }

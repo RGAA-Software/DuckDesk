@@ -2,8 +2,8 @@
 // Created by RGAA on 29/05/2025.
 //
 
-#ifndef GAMMARAY_FILE_TRANSFER_RECORD_H
-#define GAMMARAY_FILE_TRANSFER_RECORD_H
+#ifndef PX_FILE_TRANSFER_RECORD_H
+#define PX_FILE_TRANSFER_RECORD_H
 
 #include <string>
 
@@ -38,4 +38,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_FILE_TRANSFER_RECORD_H
+#endif //PX_FILE_TRANSFER_RECORD_H

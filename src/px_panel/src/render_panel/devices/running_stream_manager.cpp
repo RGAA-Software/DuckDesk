@@ -26,9 +26,9 @@
 namespace px
 {
 
-    RunningStreamManager::RunningStreamManager(const std::shared_ptr<GrContext>& ctx) {
+    RunningStreamManager::RunningStreamManager(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
     }
 
@@ -253,7 +253,7 @@ namespace px
         LOGI("MY RDM PWD: {}", item->device_random_pwd_);
         LOGI("RE RDM PWD: {}", item->remote_device_random_pwd_);
 
-        auto client_inner_path = qApp->applicationDirPath() + "/" + kGammaRayClientInner.c_str();
+        auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
         process->start(client_inner_path, arguments);
         running_processes_.erase(item->stream_id_);
         running_processes_.insert({item->stream_id_, process});

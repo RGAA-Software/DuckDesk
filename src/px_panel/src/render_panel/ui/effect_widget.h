@@ -23,7 +23,7 @@ namespace px
             timer_ = new QTimer(this);
             timer_->setInterval(17);
             timer_conn_ = QObject::connect(timer_, &QTimer::timeout, this, [this] {
-                auto st = GrStatistics::Instance();
+                auto st = PxStatistics::Instance();
                 this->OnDataComing(st->GetLeftSpectrum(), {}/*st->GetRightSpectrum()*/);
                 this->repaint();
             });

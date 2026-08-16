@@ -80,7 +80,7 @@ add_executable(test_hook_audio_wav test_hook_audio_wav.cpp)
 target_link_libraries(test_hook_audio_wav PRIVATE px_common_new)
 target_compile_definitions(test_hook_audio_wav PRIVATE UNICODE _UNICODE)
 set_target_properties(test_hook_audio_wav PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${GR_PROJECT_BINARY_PATH}"
+        RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
 )
 
 # Local test: process-loopback capture of game audio → WAV (Win10 2004+).
@@ -88,7 +88,7 @@ add_executable(test_game_audio_loopback test_game_audio_loopback.cpp)
 target_link_libraries(test_game_audio_loopback PRIVATE ole32 mmdevapi)
 target_compile_definitions(test_game_audio_loopback PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 set_target_properties(test_game_audio_loopback PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${GR_PROJECT_BINARY_PATH}"
+        RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
 )
 
 # Helper: external PID process-loopback → WAV (used by 内录 tooling / host-side tests).
@@ -96,7 +96,7 @@ add_executable(px_audio_pid_capture px_audio_pid_capture.cpp)
 target_link_libraries(px_audio_pid_capture PRIVATE ole32 mmdevapi)
 target_compile_definitions(px_audio_pid_capture PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 set_target_properties(px_audio_pid_capture PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${GR_PROJECT_BINARY_PATH}"
+        RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
 )
 
 # WASAPI sine player — reliable target for in-process hook audio test.
@@ -104,5 +104,5 @@ add_executable(test_wasapi_tone test_wasapi_tone.cpp)
 target_link_libraries(test_wasapi_tone PRIVATE ole32 mmdevapi)
 target_compile_definitions(test_wasapi_tone PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 set_target_properties(test_wasapi_tone PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${GR_PROJECT_BINARY_PATH}"
+        RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
 )

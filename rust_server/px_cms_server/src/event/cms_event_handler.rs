@@ -3,7 +3,7 @@ use crate::event::cms_event_keys::{
     EVENT_CPU, EVENT_DISK, EVENT_GPU, EVENT_MEMORY, EVENT_TYPE, KEY_CPU_USAGE, KEY_DISK_PATH,
     KEY_DISK_USAGE, KEY_GPU_ID, KEY_GPU_NAME, KEY_GPU_USAGE, KEY_MEMORY_USAGE,
 };
-use crate::relay::relay_message::{KEY_DEVICE_NAME, KEY_PAGE_SIZE};
+use crate::cms_relay::relay_message::{KEY_DEVICE_NAME, KEY_PAGE_SIZE};
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
 use crate::cms_defs::{KEY_DEVICE_ID, KEY_DEVICE_IP};

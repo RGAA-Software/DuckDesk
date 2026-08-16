@@ -14,12 +14,12 @@
 namespace px
 {
 
-    GrEventManager::GrEventManager(const std::shared_ptr<GrContext>& context) {
+    PxEventManager::PxEventManager(const std::shared_ptr<PxContext>& context) {
         context_ = context;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
-    bool GrEventManager::AddCpuEvent(int cpu_usage) {
+    bool PxEventManager::AddCpuEvent(int cpu_usage) {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();
@@ -46,7 +46,7 @@ namespace px
         return false;
     }
 
-    bool GrEventManager::AddMemoryEvent(int memory_usage) {
+    bool PxEventManager::AddMemoryEvent(int memory_usage) {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();
@@ -73,7 +73,7 @@ namespace px
         return false;
     }
 
-    bool GrEventManager::AddDiskEvent(int disk_usage, const std::string& disk_path) {
+    bool PxEventManager::AddDiskEvent(int disk_usage, const std::string& disk_path) {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();
@@ -100,7 +100,7 @@ namespace px
         return false;
     }
 
-    bool GrEventManager::AddGpuEvent(int gpu_usage, const std::string& gpu_id, const std::string& gpu_name) {
+    bool PxEventManager::AddGpuEvent(int gpu_usage, const std::string& gpu_id, const std::string& gpu_name) {
         const auto host = settings_->GetCmsServerHost();
         const auto port = settings_->GetCmsServerPort();
         const auto appkey = grApp->GetAppkey();

@@ -1,4 +1,4 @@
-# Game-hook launcher: start GammaRayRender only (no browser / no CDP).
+# Game-hook launcher: start px_render only (no browser / no CDP).
 # Parameter reference — edit values below, then run start_render_hook.bat
 #
 # --app_game_path is Base64(UTF-8 of GamePath) so spaces/Chinese never hit argv code pages.
@@ -23,9 +23,9 @@ $EncoderFormat = 'h264'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Dist = Join-Path $RepoRoot 'build_official\dist'
-$BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\GammaRayRender.exe'
+$BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\px_render.exe'
 $SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
-$Exe = Join-Path $Dist 'GammaRayRender.exe'
+$Exe = Join-Path $Dist 'px_render.exe'
 $WebUrl = "http://127.0.0.1:${Port}/web_client/?deviceId=${DeviceId}"
 $LogPath = "C:\Users\Public\GoDesk\px_logs\godesk_render_${Port}.log"
 
@@ -34,14 +34,14 @@ if (Test-Path -LiteralPath $BuiltExe) {
     $needCopy = -not (Test-Path -LiteralPath $Exe) -or
         ((Get-Item -LiteralPath $BuiltExe).LastWriteTime -gt (Get-Item -LiteralPath $Exe).LastWriteTime)
     if ($needCopy) {
-        Write-Host "Syncing newer GammaRayRender.exe from build tree -> dist"
+        Write-Host "Syncing newer px_render.exe from build tree -> dist"
         New-Item -ItemType Directory -Force -Path $Dist | Out-Null
         Copy-Item -LiteralPath $BuiltExe -Destination $Exe -Force
     }
 }
 
 if (-not (Test-Path -LiteralPath $Exe)) {
-    Write-Error "ERROR: $Exe not found. Build GammaRayRender first."
+    Write-Error "ERROR: $Exe not found. Build px_render first."
     exit 1
 }
 if (-not (Test-Path -LiteralPath $SrcToml)) {
@@ -56,7 +56,7 @@ if (-not (Test-Path -LiteralPath $GamePath)) {
 $gamePathB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($GamePath))
 
 Write-Host '============================================'
-Write-Host 'Game-hook: start GammaRayRender only'
+Write-Host 'Game-hook: start px_render only'
 Write-Host '============================================'
 Write-Host "Dist : $Dist"
 Write-Host "URL  : $WebUrl"
@@ -79,7 +79,7 @@ Write-Host "  --network_listen_port=$Port"
 Write-Host '  --logfile'
 Write-Host ''
 
-Get-Process -Name 'GammaRayRender' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process -Name 'px_render' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 1
 
 Copy-Item -LiteralPath $SrcToml -Destination (Join-Path $Dist 'settings.toml') -Force
@@ -107,7 +107,7 @@ $argList = @(
     "--network_listen_port=$Port"
 )
 
-Write-Host 'Starting GammaRayRender.exe ...'
+Write-Host 'Starting px_render.exe ...'
 Start-Process -FilePath $Exe -ArgumentList $argList -WorkingDirectory $Dist -WindowStyle Normal
 
 $ready = $false
@@ -138,7 +138,7 @@ if (Test-Path -LiteralPath $LogPath) {
     if ($rawB64Fail -and -not $decodedOk) {
         Write-Host ''
         Write-Host 'ERROR: Render treated app_game_path as raw Base64 (not decoded).'
-        Write-Host 'Rebuild GammaRayRender (Base64 decode in rd_main) and retry.'
+        Write-Host 'Rebuild px_render (Base64 decode in rd_main) and retry.'
         Write-Host "Log: $LogPath"
         exit 1
     }

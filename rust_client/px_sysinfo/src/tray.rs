@@ -68,7 +68,7 @@ mod windows_impl {
                 Err(_) => return,
             };
 
-            let class_name = to_wide("GrSysMonitorTrayWindow");
+            let class_name = to_wide("PxSysMonitorTrayWindow");
             let window_name = to_wide(&tooltip);
 
             let wnd_class = WNDCLASSW {

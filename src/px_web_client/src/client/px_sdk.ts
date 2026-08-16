@@ -1,35 +1,35 @@
-import {GrConnParams, GrSdkConnType, GrSdkParams} from "./px_sdk_params.ts";
-import {GrConn} from "./px_conn.ts";
-import {GrRendererManager} from "../renderer/px_renderer_manager.ts";
-import {GrWsConn} from "./px_ws_conn.ts";
-import {GrRtcDirectConn} from "./px_rtc_direct_conn.ts";
+import {PxConnParams, PxSdkConnType, PxSdkParams} from "./px_sdk_params.ts";
+import {PxConn} from "./px_conn.ts";
+import {PxRendererManager} from "../renderer/px_renderer_manager.ts";
+import {PxWsConn} from "./px_ws_conn.ts";
+import {PxRtcDirectConn} from "./px_rtc_direct_conn.ts";
 
-export class GrSdk {
+export class PxSdk {
 
     // params
-    sdkParams: GrSdkParams;
+    sdkParams: PxSdkParams;
 
     // stream conn
-    streamConn: GrConn
+    streamConn: PxConn
 
     // renderer manager
-    rendererManager: GrRendererManager
+    rendererManager: PxRendererManager
 
     // browser info
     browserInfo: Record<string, any>
 
-    constructor(params: GrSdkParams, rendererManager: GrRendererManager) {
+    constructor(params: PxSdkParams, rendererManager: PxRendererManager) {
         this.sdkParams = params;
         this.rendererManager = rendererManager;
         //this.browserInfo = getBrowserInfo();
     }
 
-    start(connParams: GrConnParams): void {
+    start(connParams: PxConnParams): void {
         console.log("connParams:", connParams);
-        if (this.sdkParams.sdkType == GrSdkConnType.kWebSocket) {
+        if (this.sdkParams.sdkType == PxSdkConnType.kWebSocket) {
             this.startWithWss(connParams);
         }
-        else if (this.sdkParams.sdkType == GrSdkConnType.kWebRtcDirect) {
+        else if (this.sdkParams.sdkType == PxSdkConnType.kWebRtcDirect) {
             this.startWithRtcDirect(connParams);
         }
         else {
@@ -37,15 +37,15 @@ export class GrSdk {
         }
     }
 
-    private startWithWss(connParams: GrConnParams) {
+    private startWithWss(connParams: PxConnParams) {
         console.log("startWithWs")
-        this.streamConn = new GrWsConn(this, connParams, this.rendererManager);
+        this.streamConn = new PxWsConn(this, connParams, this.rendererManager);
         this.streamConn.start();
     }
 
-    private startWithRtcDirect(connParams: GrConnParams) {
+    private startWithRtcDirect(connParams: PxConnParams) {
         console.log("startWithRtcDirect")
-        this.streamConn = new GrRtcDirectConn(this, connParams, this.rendererManager);
+        this.streamConn = new PxRtcDirectConn(this, connParams, this.rendererManager);
         this.streamConn.start();
     }
 

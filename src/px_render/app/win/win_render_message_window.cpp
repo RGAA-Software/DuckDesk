@@ -9,7 +9,7 @@
 
 namespace px
 {
-    constexpr char kWindowClassName[] = "GammaRay_render_MessageWindowClass";
+    constexpr char kWindowClassName[] = "PxRender_MessageWindowClass";
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;
     std::string WinMessageWindow::class_name_;

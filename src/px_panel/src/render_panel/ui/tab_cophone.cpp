@@ -29,7 +29,7 @@ namespace px
         }
     };
 
-    TabCoPhone::TabCoPhone(const std::shared_ptr<GrApplication>& app, QWidget *parent)
+    TabCoPhone::TabCoPhone(const std::shared_ptr<PxApplication>& app, QWidget *parent)
         : TabBase(app, parent) {
     }
 

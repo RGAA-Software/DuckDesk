@@ -2,11 +2,11 @@
 // User-proxy WebSocket router for Render (localhost-only, single connection).
 //
 
-#ifndef GAMMARAY_WS_USER_PROXY_ROUTER_H
-#define GAMMARAY_WS_USER_PROXY_ROUTER_H
+#ifndef PX_WS_USER_PROXY_ROUTER_H
+#define PX_WS_USER_PROXY_ROUTER_H
 
-#ifndef GR_USER_PROXY_ENABLED
-#define GR_USER_PROXY_ENABLED 1
+#ifndef PX_USER_PROXY_ENABLED
+#define PX_USER_PROXY_ENABLED 1
 #endif
 
 #include <memory>
@@ -43,4 +43,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_WS_USER_PROXY_ROUTER_H
+#endif //PX_WS_USER_PROXY_ROUTER_H

@@ -17,7 +17,7 @@
 #include "src/core/file_trans_interface.h"
 #include "widget_helper.h"
 
-GR_PLUGIN_EXPORT(px::FileTransferPlugin)
+PX_PLUGIN_EXPORT(px::FileTransferPlugin)
 
 namespace px
 {

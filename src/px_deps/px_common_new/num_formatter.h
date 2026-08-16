@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-23.
 //
 
-#ifndef GAMMARAY_NUM_FORMATTER_H
-#define GAMMARAY_NUM_FORMATTER_H
+#ifndef PX_NUM_FORMATTER_H
+#define PX_NUM_FORMATTER_H
 
 #include <string>
 
@@ -22,4 +22,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_NUM_FORMATTER_H
+#endif //PX_NUM_FORMATTER_H

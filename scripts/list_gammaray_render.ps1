@@ -1,10 +1,10 @@
-# Lists all GammaRay.exe processes with full command-line arguments.
+# Lists all px_panel.exe processes with full command-line arguments.
 # Usage:
 #   .\list_gammaray_processes.ps1
-#   .\list_gammaray_processes.ps1 -Name "GammaRayRender.exe"
+#   .\list_gammaray_processes.ps1 -Name "px_render.exe"
 
 param(
-    [string]$Name = "GammaRayRender.exe"
+    [string]$Name = "px_render.exe"
 )
 
 $filter = "Name = '$Name'"

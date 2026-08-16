@@ -10,7 +10,7 @@
 namespace px
 {
 
-    SelectStreamTypeDialog::SelectStreamTypeDialog(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    SelectStreamTypeDialog::SelectStreamTypeDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         setWindowTitle(tcTr("id_create_a_stream"));
         this->setFixedSize(500, 280);
 

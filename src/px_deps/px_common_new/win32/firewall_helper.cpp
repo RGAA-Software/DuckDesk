@@ -117,7 +117,7 @@ namespace px
 
             if (SUCCEEDED(hr)) {
                 std::wstring ports = StringUtil::ToWString(local_ports);
-                std::wstring desc = StringUtil::ToWString("GammaRay local rtc port rule");
+                std::wstring desc = StringUtil::ToWString("px local rtc port rule");
 
                 fw_rule_item->put_Name((wchar_t *) name.c_str());
                 fw_rule_item->put_Description((wchar_t *) desc.c_str());

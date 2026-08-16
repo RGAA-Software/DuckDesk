@@ -47,7 +47,7 @@ async fn main() {
     let _ = px_base::create_dir_if_not_exists("./static");
 
     // log
-    let _guard = log_util::init_log("logs/px_desk_server/".to_string(), "log_off".to_string());
+    let _guard = log_util::init_log("logs/px_desk/".to_string(), "log_off".to_string());
 
     // settings（exe 旁 px_desk.toml，含管理密码；缺失则自动生成）
     lazy_static::initialize(&gOffSettings);

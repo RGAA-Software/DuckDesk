@@ -8,45 +8,45 @@
 namespace px
 {
 
-    GrNetPlugin::GrNetPlugin() {
-        plugin_type_ = GrPluginType::kNet;
+    PxNetPlugin::PxNetPlugin() {
+        plugin_type_ = PxPluginType::kNet;
     }
 
-    GrNetPlugin::~GrNetPlugin() {
-
-    }
-
-    void GrNetPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+    PxNetPlugin::~PxNetPlugin() {
 
     }
 
-    bool GrNetPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    void PxNetPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+
+    }
+
+    bool PxNetPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         return false;
     }
 
-    bool GrNetPlugin::PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool PxNetPlugin::PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         return false;
     }
 
-    void GrNetPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+    void PxNetPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
     }
 
-    bool GrNetPlugin::IsUserProxyConnected() {
+    bool PxNetPlugin::IsUserProxyConnected() {
         return false;
     }
 
-    void GrNetPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+    void PxNetPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
     }
 
-    void GrNetPlugin::RegisterIpcPid(uint32_t pid) {
+    void PxNetPlugin::RegisterIpcPid(uint32_t pid) {
     }
 
-    void GrNetPlugin::OnClientEventCame(bool is_proto,
+    void PxNetPlugin::OnClientEventCame(bool is_proto,
                                         int64_t socket_fd,
                                         const NetPluginType& nt_plugin_type,
                                         const NetChannelType& ch_type,
                                         std::shared_ptr<Data> msg) {
-        auto event = std::make_shared<GrPluginNetClientEvent>();
+        auto event = std::make_shared<PxPluginNetClientEvent>();
         event->is_proto_ = is_proto;
         event->socket_fd_ = socket_fd;
         event->nt_plugin_type_ = nt_plugin_type;
@@ -56,41 +56,41 @@ namespace px
         CallbackEvent(event);
     }
 
-    bool GrNetPlugin::IsOnlyAudioClients() {
+    bool PxNetPlugin::IsOnlyAudioClients() {
         return false;
     }
 
-    int GrNetPlugin::GetConnectedClientsCount() {
+    int PxNetPlugin::GetConnectedClientsCount() {
         return 0;
     }
 
-    void GrNetPlugin::SyncInfo(const NetSyncInfo& info) {
+    void PxNetPlugin::SyncInfo(const NetSyncInfo& info) {
         sync_info_ = info;
     }
 
-    int64_t GrNetPlugin::GetQueuingMediaMsgCount() {
+    int64_t PxNetPlugin::GetQueuingMediaMsgCount() {
         return 0;
     }
 
-    int64_t GrNetPlugin::GetQueuingFtMsgCount() {
+    int64_t PxNetPlugin::GetQueuingFtMsgCount() {
         return 0;
     }
 
-    bool GrNetPlugin::HasEnoughBufferForQueuingMediaMessages() {
+    bool PxNetPlugin::HasEnoughBufferForQueuingMediaMessages() {
         return false;
     }
 
-    bool GrNetPlugin::HasEnoughBufferForQueuingFtMessages() {
+    bool PxNetPlugin::HasEnoughBufferForQueuingFtMessages() {
         return false;
     }
 
-    void GrNetPlugin::ReportSentDataSize(int size) {
-        auto event = std::make_shared<GrPluginDataSent>();
+    void PxNetPlugin::ReportSentDataSize(int size) {
+        auto event = std::make_shared<PxPluginDataSent>();
         event->size_ = size;
         CallbackEvent(event);
     }
 
-    std::vector<std::shared_ptr<GrConnectedClientInfo>> GrNetPlugin::GetConnectedClientInfo() {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> PxNetPlugin::GetConnectedClientInfo() {
         return {};
     }
 

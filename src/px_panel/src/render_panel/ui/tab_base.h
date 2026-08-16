@@ -12,15 +12,15 @@ namespace px
 {
     constexpr int kTabContentMarginTop = 3;
 
-    class GrContext;
-    class GrSettings;
-    class GrApplication;
+    class PxContext;
+    class PxSettings;
+    class PxApplication;
     class MessageListener;
-    class GrStatistics;
+    class PxStatistics;
 
     class TabBase : public QWidget {
     public:
-        explicit TabBase(const std::shared_ptr<GrApplication>& app, QWidget* parent);
+        explicit TabBase(const std::shared_ptr<PxApplication>& app, QWidget* parent);
         ~TabBase() override;
         virtual void OnTabShow();
         virtual void OnTabHide();
@@ -30,12 +30,12 @@ namespace px
         QObject* GetAttach() {return attach_;}
 
     protected:
-        std::shared_ptr<GrApplication> app_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QObject* attach_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        GrStatistics* statistics_ = nullptr;
+        PxStatistics* statistics_ = nullptr;
     };
 }
 

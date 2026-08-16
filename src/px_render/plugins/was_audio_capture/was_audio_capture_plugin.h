@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_RENDER_WAS_AUDIO_CAPTURE_PLUGIN_H
+#define PX_RENDER_WAS_AUDIO_CAPTURE_PLUGIN_H
 
 #include <atomic>
 #include <condition_variable>
@@ -17,7 +17,7 @@ namespace px
 
     class IAudioCapture;
 
-    class WasAudioCapturePlugin : public GrDataProviderPlugin {
+    class WasAudioCapturePlugin : public PxDataProviderPlugin {
     public:
         ~WasAudioCapturePlugin() override;
 
@@ -28,7 +28,7 @@ namespace px
         std::string GetPluginDescription() override;
         void On1Second() override;
 
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         void OnCommand(const std::string &command) override;
         void StartProviding() override;
         void StopProviding() override;
@@ -74,7 +74,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::WasAudioCapturePlugin)
+PX_PLUGIN_EXPORT(px::WasAudioCapturePlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

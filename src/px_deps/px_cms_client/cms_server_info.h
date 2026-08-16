@@ -2,8 +2,8 @@
 // Created by RGAA on 26/03/2025.
 //
 
-#ifndef GAMMARAY_CMS_SERVER_INFO_H
-#define GAMMARAY_CMS_SERVER_INFO_H
+#ifndef PX_CMS_SERVER_INFO_H
+#define PX_CMS_SERVER_INFO_H
 
 #include <string>
 #include <vector>
@@ -43,4 +43,4 @@ namespace px_cms
 
 }
 
-#endif //GAMMARAY_CMS_SERVER_INFO_H
+#endif //PX_CMS_SERVER_INFO_H

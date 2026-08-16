@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_EVENTS_H
-#define GAMMARAY_GR_PLUGIN_EVENTS_H
+#ifndef PX_CLIENT_PLUGIN_EVENTS_H
+#define PX_CLIENT_PLUGIN_EVENTS_H
 
 #include <string>
 #include <memory>
@@ -145,4 +145,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_GR_PLUGIN_EVENTS_H
+#endif //PX_CLIENT_PLUGIN_EVENTS_H

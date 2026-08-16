@@ -16,44 +16,44 @@ namespace px
 
     class Data;
     class Thread;
-    class GrContext;
+    class PxContext;
     class WsPanelServer;
     class UdpBroadcaster;
-    class GrRenderController;
-    class GrSettings;
-    class GrSystemMonitor;
-    class GrServiceClient;
+    class PxRenderController;
+    class PxSettings;
+    class PxSystemMonitor;
+    class PxServiceClient;
     class WsSigClient;
     class MgrClientSdk;
     class MessageListener;
     class WinMessageLoop;
-    class GrConnectedManager;
-    class GrBaseStreamMessage;
-    class GrRenderMsgProcessor;
+    class PxConnectedManager;
+    class PxBaseStreamMessage;
+    class PxRenderMsgProcessor;
     class ClipboardManager;
     class PanelCompanion;
-    class GrCmsClient;
+    class PxCmsClient;
     class CmsScanner;
     class SkinInterface;
-    class GrUserManager;
-    class GrDeviceManager;
+    class PxUserManager;
+    class PxDeviceManager;
     class MonitorRefresher;
 
-    class GrApplication : public QObject, public QAbstractNativeEventFilter, public std::enable_shared_from_this<GrApplication> {
+    class PxApplication : public QObject, public QAbstractNativeEventFilter, public std::enable_shared_from_this<PxApplication> {
     public:
 
-        static std::shared_ptr<GrApplication> Make(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
+        static std::shared_ptr<PxApplication> Make(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
 
-        ~GrApplication() override;
+        ~PxApplication() override;
 
         bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
         void PrepareForShutdown();
         void Exit();
 
-        std::shared_ptr<GrContext> GetContext() { return context_; }
+        std::shared_ptr<PxContext> GetContext() { return context_; }
         std::shared_ptr<WsPanelServer> GetWsPanelServer() { return ws_panel_server_; }
-        std::shared_ptr<GrServiceClient> GetServiceClient() { return service_client_; }
-        std::shared_ptr<GrRenderMsgProcessor> GetRenderMsgProcessor() { return rd_msg_processor_; }
+        std::shared_ptr<PxServiceClient> GetServiceClient() { return service_client_; }
+        std::shared_ptr<PxRenderMsgProcessor> GetRenderMsgProcessor() { return rd_msg_processor_; }
         std::shared_ptr<ClipboardManager> GetClipboardManager() { return clipboard_mgr_; }
         std::shared_ptr<WinMessageLoop> GetWinMessageLoop() { return win_msg_loop_; }
         bool IsServiceConnected() const;
@@ -78,7 +78,7 @@ namespace px
         void UpdateServerSecurityPasswordIfNeeded();
 
         // send the message to remote render in json format
-        bool PostMessage2RemoteRender(const std::shared_ptr<GrBaseStreamMessage>& msg);
+        bool PostMessage2RemoteRender(const std::shared_ptr<PxBaseStreamMessage>& msg);
 
         // companion for private logics
         PanelCompanion* GetCompanion();
@@ -100,20 +100,20 @@ namespace px
         bool IsCmsClientAlive();
 
         // user manager
-        std::shared_ptr<GrUserManager> GetUserManager();
+        std::shared_ptr<PxUserManager> GetUserManager();
 
         // device info valid or not
         bool IsDeviceInfoOk();
 
         // device manager
-        std::shared_ptr<GrDeviceManager> GetDeviceManager();
+        std::shared_ptr<PxDeviceManager> GetDeviceManager();
 
         // can we connect the cms server
         // Attention: Block to request a net request.
         [[nodiscard]] bool CanConnectCmsServer();
 
     protected:
-        explicit GrApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
+        explicit PxApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
 
     private:
         void Init();
@@ -134,24 +134,24 @@ namespace px
 
     private:
         QWidget* main_window_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<WsPanelServer> ws_panel_server_ = nullptr;
         //std::shared_ptr<UdpBroadcaster> udp_broadcaster_ = nullptr;
-        std::shared_ptr<GrSystemMonitor> sys_monitor_ = nullptr;
-        std::shared_ptr<GrServiceClient> service_client_ = nullptr;
+        std::shared_ptr<PxSystemMonitor> sys_monitor_ = nullptr;
+        std::shared_ptr<PxServiceClient> service_client_ = nullptr;
         QTimer* timer_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         // window messages looping
         std::shared_ptr<Thread> win_msg_thread_ = nullptr;
         std::shared_ptr<WinMessageLoop> win_msg_loop_ = nullptr;
         // listen connections info and show the info panel
-        std::shared_ptr<GrConnectedManager> px_connected_manager_ = nullptr;
+        std::shared_ptr<PxConnectedManager> px_connected_manager_ = nullptr;
 
         // render messages processor
         // message from render -> panel
-        std::shared_ptr<GrRenderMsgProcessor> rd_msg_processor_ = nullptr;
+        std::shared_ptr<PxRenderMsgProcessor> rd_msg_processor_ = nullptr;
 
         // clipboard manager
         std::shared_ptr<ClipboardManager> clipboard_mgr_ = nullptr;
@@ -163,7 +163,7 @@ namespace px
         std::shared_ptr<PanelCompanion> companion_ = nullptr;
 
         // panel cms client
-        std::shared_ptr<GrCmsClient> cms_client_ = nullptr;
+        std::shared_ptr<PxCmsClient> cms_client_ = nullptr;
 
         // cms scanner
         std::shared_ptr<CmsScanner> cms_scanner_ = nullptr;
@@ -172,10 +172,10 @@ namespace px
         SkinInterface* skin_ = nullptr;
 
         // user manager
-        std::shared_ptr<GrUserManager> user_mgr_ = nullptr;
+        std::shared_ptr<PxUserManager> user_mgr_ = nullptr;
 
         // device manager
-        std::shared_ptr<GrDeviceManager> device_mgr_ = nullptr;
+        std::shared_ptr<PxDeviceManager> device_mgr_ = nullptr;
 
         // monitor refresher
         std::shared_ptr<MonitorRefresher> monitor_refresher_ = nullptr;
@@ -183,14 +183,14 @@ namespace px
         // requested skin name from command line
         std::string requested_skin_name_;
 
-        // last cms connection info used by GrCmsClient
+        // last cms connection info used by PxCmsClient
         std::string using_appkey_;
         std::string using_cms_host_;
         int using_cms_port_ = 0;
         bool shutdown_prepared_ = false;
     };
 
-    extern std::shared_ptr<GrApplication> grApp;
+    extern std::shared_ptr<PxApplication> grApp;
 
 }
 

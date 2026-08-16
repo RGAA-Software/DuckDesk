@@ -3,12 +3,12 @@
 ## 测试环境
 
 - **测试日期**：2026-06-26
-- **目标程序**：`GammaRaySysInfo.exe`
+- **目标程序**：`px_osinfo.exe`
 - **测试场景**：指向一个不存在的 Panel 服务（`ws://127.0.0.1:59999/sys/info`），模拟网络失败/断连。
 - **分析工具**：Rust `dhat` crate（跨平台堆分析器）
 - **构建命令**：
   ```bash
-  cargo run -p px_sysinfo --bin GammaRaySysInfo --features dhat-heap -- --port 59999 --exit-after <secs>
+  cargo run -p px_sysinfo --bin px_osinfo --features dhat-heap -- --port 59999 --exit-after <secs>
   ```
 
 ## 原始问题
@@ -59,6 +59,6 @@
 
 ## 后续建议
 
-1. **现场长时间验证**：在出问题的机器上部署修复版本，用任务管理器或 PerfMon 持续观察 `GammaRaySysInfo.exe` 的 Working Set。
+1. **现场长时间验证**：在出问题的机器上部署修复版本，用任务管理器或 PerfMon 持续观察 `px_osinfo.exe` 的 Working Set。
 2. **WPT 分析**：如果 RSS 仍涨，用 Windows Performance Toolkit 的 `WPA` 抓取 `VirtualAlloc`/`HeapAlloc` ETW 跟踪。
 3. **正常连接场景**：当前测试是断网场景。也应在正常连接场景下跑同样测试，确认发送路径没有引入新泄漏。

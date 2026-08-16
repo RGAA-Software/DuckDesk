@@ -2,8 +2,8 @@
 // Created by RGAA  on 2024/4/26.
 //
 
-#ifndef GAMMARAY_GR_RUN_GAME_MANAGER_H
-#define GAMMARAY_GR_RUN_GAME_MANAGER_H
+#ifndef PX_RUN_GAME_MANAGER_H
+#define PX_RUN_GAME_MANAGER_H
 
 #include <memory>
 #include <string>
@@ -14,7 +14,7 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class SteamManager;
     class DBGameOperator;
     class TcDBGame;
@@ -27,11 +27,11 @@ namespace px
         std::vector<uint32_t> pids_;
     };
 
-    class GrRunGameManager {
+    class PxRunGameManager {
     public:
 
-        explicit GrRunGameManager(const std::shared_ptr<GrContext>& ctx);
-        ~GrRunGameManager();
+        explicit PxRunGameManager(const std::shared_ptr<PxContext>& ctx);
+        ~PxRunGameManager();
 
         // 1. steam url: steam://xxxx
         // 2. specific exe path: c:/xx/xx.exe
@@ -54,7 +54,7 @@ namespace px
         Response<bool, std::string> StartNormalGame(const std::string& game_path, const std::vector<std::string>& args);
 
     private:
-        std::shared_ptr<GrContext> px_ctx_ = nullptr;
+        std::shared_ptr<PxContext> px_ctx_ = nullptr;
         std::shared_ptr<SteamManager> steam_mgr_ = nullptr;
         std::shared_ptr<DBGameOperator> db_game_manager_ = nullptr;
         std::vector<std::shared_ptr<RunningGame>> running_games_;
@@ -65,4 +65,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_RUN_GAME_MANAGER_H
+#endif //PX_RUN_GAME_MANAGER_H

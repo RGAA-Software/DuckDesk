@@ -2,8 +2,8 @@
 // Created by RGAA  on 2024/6/21.
 //
 
-#ifndef GAMMARAY_ADD_GAME_PANEL_H
-#define GAMMARAY_ADD_GAME_PANEL_H
+#ifndef PX_ADD_GAME_PANEL_H
+#define PX_ADD_GAME_PANEL_H
 
 #include <QDialog>
 #include <QLabel>
@@ -12,16 +12,16 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     class AddGamePanel : public QDialog {
     public:
-        AddGamePanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent);
+        AddGamePanel(const std::shared_ptr<PxContext>& ctx, QWidget* parent);
     private:
         void SaveGame();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* lbl_game_name_ = nullptr;
         QLabel* lbl_game_installed_dir_ = nullptr;
         QLabel* lbl_game_exe_name_ = nullptr;
@@ -33,4 +33,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ADD_GAME_PANEL_H
+#endif //PX_ADD_GAME_PANEL_H

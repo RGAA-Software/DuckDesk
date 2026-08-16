@@ -14,7 +14,7 @@ using namespace pxrp;
 namespace px
 {
 
-    constexpr char kWindowName[] = "GammaRay_panel_MessageWindow";
+    constexpr char kWindowName[] = "PxPanel_MessageWindow";
 
 
     void CALLBACK WinMessageLoop::WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
@@ -25,7 +25,7 @@ namespace px
         }
     }
 
-    WinMessageLoop::WinMessageLoop(const std::shared_ptr<GrApplication>& app) {
+    WinMessageLoop::WinMessageLoop(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         context_ = app_->GetContext();
         clipboard_platform_ = clipboard::CreatePlatform();

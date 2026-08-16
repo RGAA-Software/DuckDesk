@@ -190,8 +190,8 @@ mod tests {
     fn state_detects_desktop_render() {
         let mut state = ServiceState::default();
         state.update_processes(&[
-            ProcessSnapshot::new(1, "GammaRayRender.exe", "--app_mode=inner"),
-            ProcessSnapshot::new(2, "GammaRayRender.exe", "--app_mode=desktop"),
+            ProcessSnapshot::new(1, "px_render.exe", "--app_mode=inner"),
+            ProcessSnapshot::new(2, "px_render.exe", "--app_mode=desktop"),
         ]);
         assert!(state.desktop_alive);
         assert_eq!(state.desktop_pid, Some(2));
@@ -203,7 +203,7 @@ mod tests {
         let mut state = ServiceState::default();
         state.update_desktop_launch(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         state.update_processes(&[]);
@@ -227,12 +227,12 @@ mod tests {
         let mut state = ServiceState::default();
         state.update_desktop_launch(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         state.update_processes(&[ProcessSnapshot::new(
             1,
-            "GammaRayRender.exe",
+            "px_render.exe",
             "--app_mode=desktop",
         )]);
         assert!(state.should_restart_user_proxy());
@@ -280,12 +280,12 @@ mod tests {
         let mut state = ServiceState::default();
         state.update_desktop_launch(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         state.update_processes(&[ProcessSnapshot::new(
             1,
-            "GammaRayRender.exe",
+            "px_render.exe",
             "--app_mode=desktop",
         )]);
         state
@@ -354,7 +354,7 @@ mod tests {
         );
         state.update_desktop_launch(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
-            app_path: "D:/app/GammaRayRender.exe".to_string(),
+            app_path: "D:/app/px_render.exe".to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         assert!(state.last_render_heartbeat.is_none());

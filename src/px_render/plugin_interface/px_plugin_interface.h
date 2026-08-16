@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_INTERFACE_H
-#define GAMMARAY_GR_PLUGIN_INTERFACE_H
+#ifndef PX_PLUGIN_INTERFACE_H
+#define PX_PLUGIN_INTERFACE_H
 
 #include <mutex>
 #include <atomic>
@@ -19,15 +19,15 @@
 #include "app/app_messages.h"
 #include "px_capture_new/capture_message.h"
 
-#ifndef GR_PLUGIN_EXPORT
+#ifndef PX_PLUGIN_EXPORT
 #if defined(_WIN32)
-#define GR_PLUGIN_EXPORT(PluginType) \
+#define PX_PLUGIN_EXPORT(PluginType) \
 extern "C" __declspec(dllexport) void* GetInstance() { \
     static PluginType plugin; \
     return &plugin; \
 }
 #else
-#define GR_PLUGIN_EXPORT(PluginType) \
+#define PX_PLUGIN_EXPORT(PluginType) \
 extern "C" __attribute__((visibility("default"))) void* GetInstance() { \
     static PluginType plugin; \
     return &plugin; \
@@ -41,19 +41,19 @@ namespace px
 
     class Data;
     class Image;
-    class GrPluginBaseEvent;
-    class GrPluginContext;
-    class GrNetPlugin;
+    class PxPluginBaseEvent;
+    class PxPluginContext;
+    class PxNetPlugin;
     class Message;
 
     // param
-    class GrPluginParam {
+    class PxPluginParam {
     public:
         std::map<std::string, std::any> cluster_;
     };
 
     // plugin type
-    enum class GrPluginType {
+    enum class PxPluginType {
         kStream,
         kEncoder,
         kNet,
@@ -61,7 +61,7 @@ namespace px
     };
 
     // encoded video type
-    enum class GrPluginEncodedVideoType {
+    enum class PxPluginEncodedVideoType {
         kH264,
         kH265,
         kVp8,
@@ -69,7 +69,7 @@ namespace px
         kAv1
     };
 
-    enum class GrPluginLifecycleState {
+    enum class PxPluginLifecycleState {
         Created,
         Running,
         Stopping,
@@ -77,25 +77,25 @@ namespace px
     };
 
     // callback
-    using GrPluginEventCallback = std::function<void(const std::shared_ptr<GrPluginBaseEvent>&)>;
+    using PxPluginEventCallback = std::function<void(const std::shared_ptr<PxPluginBaseEvent>&)>;
 
     // interface
-    class GrPluginInterface {
+    class PxPluginInterface {
     public:
-        GrPluginInterface() = default;
-        virtual ~GrPluginInterface() = default;
+        PxPluginInterface() = default;
+        virtual ~PxPluginInterface() = default;
 
-        GrPluginInterface(const GrPluginInterface&) = delete;
-        GrPluginInterface& operator=(const GrPluginInterface&) = delete;
+        PxPluginInterface(const PxPluginInterface&) = delete;
+        PxPluginInterface& operator=(const PxPluginInterface&) = delete;
 
-        std::shared_ptr<GrPluginContext> GetPluginContext();
+        std::shared_ptr<PxPluginContext> GetPluginContext();
 
         // info
         virtual std::string GetPluginId() = 0;
         virtual std::string GetPluginName();
         virtual std::string GetPluginAuthor();
         virtual std::string GetPluginDescription();
-        virtual GrPluginType GetPluginType();
+        virtual PxPluginType GetPluginType();
         virtual bool IsStreamPlugin();
 
         // version
@@ -111,7 +111,7 @@ namespace px
         virtual bool IsWorking();
 
         // lifecycle
-        virtual bool OnCreate(const GrPluginParam& param);
+        virtual bool OnCreate(const PxPluginParam& param);
         virtual bool OnResume();
         virtual bool OnStop();
         virtual bool OnDestroy();
@@ -123,9 +123,9 @@ namespace px
         void PostUIDelayTask(int ms, std::function<void()>&& task);
 
         // event
-        void RegisterEventCallback(const GrPluginEventCallback& cbk);
-        void CallbackEvent(const std::shared_ptr<GrPluginBaseEvent>& event);
-        void CallbackEventDirectly(const std::shared_ptr<GrPluginBaseEvent>& event);
+        void RegisterEventCallback(const PxPluginEventCallback& cbk);
+        void CallbackEvent(const std::shared_ptr<PxPluginBaseEvent>& event);
+        void CallbackEventDirectly(const std::shared_ptr<PxPluginBaseEvent>& event);
 
         virtual void On1Second();
 
@@ -140,9 +140,9 @@ namespace px
         virtual void OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id);
 
         // net plugins
-        void AttachNetPlugin(const std::string& id, GrNetPlugin* plugin);
+        void AttachNetPlugin(const std::string& id, PxNetPlugin* plugin);
         // total plugins
-        void AttachPlugin(const std::string& id, GrPluginInterface* plugin);
+        void AttachPlugin(const std::string& id, PxPluginInterface* plugin);
 
         //
         bool HasAttachedNetPlugins();
@@ -172,19 +172,19 @@ namespace px
         // msg: Parsed messages
         virtual void OnMessageRaw(const std::any& msg);
 
-        std::map<std::string, GrNetPlugin*> GetNetPlugins();
+        std::map<std::string, PxNetPlugin*> GetNetPlugins();
         int64_t GetQueuingMediaMsgCountInNetPlugins();
         int64_t GetQueuingFtMsgCountInNetPlugins();
 
         // settings from render panel
         // render panel -> render -> plugins
-        virtual void OnSyncPluginSettingsInfo(const GrPluginSettingsInfo& settings);
+        virtual void OnSyncPluginSettingsInfo(const PxPluginSettingsInfo& settings);
 
         // app events
         // render -> plugins
         virtual void DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event);
 
-        GrPluginSettingsInfo GetPluginSettingsInfo();
+        PxPluginSettingsInfo GetPluginSettingsInfo();
 
         bool DontHaveConnectedClientsNow();
 
@@ -193,11 +193,11 @@ namespace px
 
         // stream
         // video
-        virtual void OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) {}
+        virtual void OnVideoEncoderCreated(const std::string& mon_name, const PxPluginEncodedVideoType& type, int width, int height) {}
 
         // data: encode video frame, h264/h265/...
         virtual void OnEncodedVideoFrame(const std::string& mon_name,
-                                         const GrPluginEncodedVideoType& video_type,
+                                         const PxPluginEncodedVideoType& video_type,
                                          const std::shared_ptr<Data>& data,
                                          uint64_t frame_index,
                                          int frame_width,
@@ -222,7 +222,7 @@ namespace px
                                          int samples, int channels, int bits) {}
         virtual void OnSplitFFTAudioData(const std::vector<double>& left_fft, const std::vector<double>& right_fft) {}
 
-        GrPluginInterface* GetPluginById(const std::string& plugin_id);
+        PxPluginInterface* GetPluginById(const std::string& plugin_id);
     protected:
         bool HasParam(const std::string& k) {
             return param_.cluster_.count(k) > 0;
@@ -247,14 +247,14 @@ namespace px
         double GetConfigDoubleParam(const std::string& k) { return GetConfigParam<double>(k); }
 
     protected:
-        std::shared_ptr<GrPluginContext> plugin_context_ = nullptr;
+        std::shared_ptr<PxPluginContext> plugin_context_ = nullptr;
         std::atomic_bool stopped_ = false;
         std::atomic_bool destroyed_ = false;
-        std::atomic<GrPluginLifecycleState> lifecycle_state_ = GrPluginLifecycleState::Created;
-        GrPluginParam param_;
-        GrPluginEventCallback event_cbk_ = nullptr;
+        std::atomic<PxPluginLifecycleState> lifecycle_state_ = PxPluginLifecycleState::Created;
+        PxPluginParam param_;
+        PxPluginEventCallback event_cbk_ = nullptr;
         std::string plugin_file_name_;
-        GrPluginType plugin_type_ = GrPluginType::kUtil;
+        PxPluginType plugin_type_ = PxPluginType::kUtil;
         std::string plugin_author_;
         std::string plugin_desc_;
         std::string plugin_version_name_;
@@ -264,11 +264,11 @@ namespace px
         std::wstring base_data_path_;
         std::string capture_audio_device_id_;
         // active net plugins...
-        std::map<std::string, GrNetPlugin*> net_plugins_;
+        std::map<std::string, PxNetPlugin*> net_plugins_;
         // total plugins
-        std::map<std::string, GrPluginInterface*> total_plugins_;
+        std::map<std::string, PxPluginInterface*> total_plugins_;
         // settings
-        GrPluginSettingsInfo sys_settings_{};
+        PxPluginSettingsInfo sys_settings_{};
         // no connected clients counter
         std::atomic_int64_t no_connected_clients_counter_ = 0;
 
@@ -281,4 +281,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_PLUGIN_INTERFACE_H
+#endif //PX_PLUGIN_INTERFACE_H

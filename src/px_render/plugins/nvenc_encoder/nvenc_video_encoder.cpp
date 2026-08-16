@@ -192,14 +192,14 @@ namespace px
 
         for (std::vector<uint8_t> &packet: out_packet) {
             auto encoded_data = Data::Make((char *) packet.data(), packet.size());
-            auto event = std::make_shared<GrPluginEncodedVideoFrameEvent>();
+            auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
             event->type_ = [=, this]() {
                 if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {
-                    return GrPluginEncodedVideoType::kH265;
+                    return PxPluginEncodedVideoType::kH265;
                 } else if (encoder_config_.codec_type == EVideoCodecType::kH264) {
-                    return GrPluginEncodedVideoType::kH264;
+                    return PxPluginEncodedVideoType::kH264;
                 } else {
-                    return GrPluginEncodedVideoType::kH264;
+                    return PxPluginEncodedVideoType::kH264;
                 }
             }();
             event->data_ = encoded_data;

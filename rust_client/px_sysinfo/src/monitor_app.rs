@@ -51,7 +51,7 @@ fn monitor_connection_config_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     base.push("GammaRayPremium");
-    base.push("GrSysMonitor");
+    base.push("PxSysMonitor");
     base.push("connection.json");
     base
 }
@@ -245,7 +245,7 @@ impl Render for SysMonitorApp {
                         h_flex()
                             .gap_3()
                             .items_center()
-                            .child(div().text_sm().text_color(cx.theme().foreground).child("GrSysMonitor"))
+                            .child(div().text_sm().text_color(cx.theme().foreground).child("PxSysMonitor"))
                             .child(
                                 div()
                                     .text_xs()
@@ -293,7 +293,7 @@ impl Render for SysMonitorApp {
 }
 
 pub fn run(start_hidden: bool) {
-    tray::init_tray("GrSysMonitor");
+    tray::init_tray("PxSysMonitor");
     let app = gpui_platform::application().with_assets(Assets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
@@ -306,7 +306,7 @@ pub fn run(start_hidden: bool) {
 
         cx.spawn(async move |cx| {
             let window_handle = cx.open_window(window_options, |window, cx| {
-                window.set_window_title("GrSysMonitor");
+                window.set_window_title("PxSysMonitor");
 
                 Theme::change(ThemeMode::Dark, Some(window), cx);
 
@@ -324,7 +324,7 @@ pub fn run(start_hidden: bool) {
                 let view = cx.new(|cx| SysMonitorApp::new(window, cx));
                 cx.new(|cx| Root::new(view, window, cx))
             })
-            .expect("failed to open GrSysMonitor window");
+            .expect("failed to open PxSysMonitor window");
 
             #[allow(clippy::redundant_locals)]
             cx.spawn({

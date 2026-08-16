@@ -2,8 +2,8 @@
 // Created by RGAA on 4/02/2025.
 //
 
-#ifndef GAMMARAY_TAB_SERVER_STATUS_H
-#define GAMMARAY_TAB_SERVER_STATUS_H
+#ifndef PX_TAB_SERVER_STATUS_H
+#define PX_TAB_SERVER_STATUS_H
 
 #include "tab_base.h"
 
@@ -21,12 +21,12 @@ namespace px
     class MessageListener;
     class QtCircle;
     class QtVertical;
-    class GrStatistics;
+    class PxStatistics;
     class TcLabel;
 
     class TabServerStatus : public TabBase {
     public:
-        explicit TabServerStatus(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        explicit TabServerStatus(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         ~TabServerStatus() override;
 
         void OnTabShow() override;
@@ -55,4 +55,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_TAB_SERVER_STATUS_H
+#endif //PX_TAB_SERVER_STATUS_H

@@ -2,8 +2,8 @@
 // Created by RGAA on 29/05/2025.
 //
 
-#ifndef GAMMARAY_VISIT_RECORD_H
-#define GAMMARAY_VISIT_RECORD_H
+#ifndef PX_VISIT_RECORD_H
+#define PX_VISIT_RECORD_H
 
 #include <string>
 
@@ -38,4 +38,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_VISIT_RECORD_H
+#endif //PX_VISIT_RECORD_H

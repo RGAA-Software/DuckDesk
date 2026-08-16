@@ -2,8 +2,8 @@
 // Created by RGAA on 21/10/2024.
 //
 
-#ifndef GAMMARAY_SERVICE_CONTEXT_H
-#define GAMMARAY_SERVICE_CONTEXT_H
+#ifndef PX_SERVICE_CONTEXT_H
+#define PX_SERVICE_CONTEXT_H
 
 #include <memory>
 #include <asio2/asio2.hpp>
@@ -41,4 +41,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_SERVICE_CONTEXT_H
+#endif //PX_SERVICE_CONTEXT_H

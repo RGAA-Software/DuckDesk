@@ -2,8 +2,8 @@
 // Created by RGAA on 6/07/2025.
 //
 
-#ifndef GAMMARAY_CONCURRENT_TYPE_H
-#define GAMMARAY_CONCURRENT_TYPE_H
+#ifndef PX_CONCURRENT_TYPE_H
+#define PX_CONCURRENT_TYPE_H
 
 #include <mutex>
 #include <string>
@@ -87,4 +87,4 @@ namespace px
     using Mutex = px::ConcurrentType<T>;
 }
 
-#endif //GAMMARAY_CONCURRENT_TYPE_H
+#endif //PX_CONCURRENT_TYPE_H

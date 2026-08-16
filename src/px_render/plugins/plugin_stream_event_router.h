@@ -2,8 +2,8 @@
 // Created by RGAA on 21/11/2024.
 //
 
-#ifndef GAMMARAY_PLUGIN_STREAM_EVENT_ROUTER_H
-#define GAMMARAY_PLUGIN_STREAM_EVENT_ROUTER_H
+#ifndef PX_PLUGIN_STREAM_EVENT_ROUTER_H
+#define PX_PLUGIN_STREAM_EVENT_ROUTER_H
 
 #include <memory>
 #include "px_render/plugin_interface/px_plugin_events.h"
@@ -20,7 +20,7 @@ namespace px
     public:
         explicit PluginStreamEventRouter(const std::shared_ptr<RdApplication>& app);
 
-        void ProcessEncodedVideoFrameEvent(const std::shared_ptr<GrPluginEncodedVideoFrameEvent>& event);
+        void ProcessEncodedVideoFrameEvent(const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event);
 
     private:
         RdStatistics* statistics_ = nullptr;
@@ -31,4 +31,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_PLUGIN_STREAM_EVENT_ROUTER_H
+#endif //PX_PLUGIN_STREAM_EVENT_ROUTER_H

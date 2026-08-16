@@ -2,8 +2,8 @@
 // Created by RGAA on 19/11/2024.
 //
 
-#ifndef GAMMARAY_GR_PLUGIN_CONTEXT_H
-#define GAMMARAY_GR_PLUGIN_CONTEXT_H
+#ifndef PX_CLIENT_PLUGIN_CONTEXT_H
+#define PX_CLIENT_PLUGIN_CONTEXT_H
 
 #include <QObject>
 #include <functional>
@@ -41,4 +41,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_GR_PLUGIN_CONTEXT_H
+#endif //PX_CLIENT_PLUGIN_CONTEXT_H

@@ -2,8 +2,8 @@
 // Created by RGAA on 20/02/2025.
 //
 
-#ifndef GAMMARAY_CT_MAIN_PROGRESS_H
-#define GAMMARAY_CT_MAIN_PROGRESS_H
+#ifndef PX_CT_MAIN_PROGRESS_H
+#define PX_CT_MAIN_PROGRESS_H
 
 #include <QWidget>
 #include <QLabel>
@@ -44,4 +44,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_MAIN_PROGRESS_H
+#endif //PX_CT_MAIN_PROGRESS_H

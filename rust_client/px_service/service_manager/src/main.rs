@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use crate::manager::{ServiceManager, ServiceStatus};
 
 #[derive(Parser)]
-#[command(name = "GammaRayServiceManager")]
+#[command(name = "px_service_manager")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -35,9 +35,9 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
     let manager = ServiceManager::new(
-        "GammaRayService",
-        "GammaRayService",
-        "** GammaRay Service **",
+        "px_service",
+        "px_service",
+        "px service",
     );
     let result = match cli.command {
         Command::Install { service_bin } => manager
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn cli_accepts_stop_command() {
-        let cli = Cli::try_parse_from(["GammaRayServiceManager.exe", "stop"]).unwrap();
+        let cli = Cli::try_parse_from(["px_service_manager.exe", "stop"]).unwrap();
         assert!(matches!(cli.command, Command::Stop));
     }
 }

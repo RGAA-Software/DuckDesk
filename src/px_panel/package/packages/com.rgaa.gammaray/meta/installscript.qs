@@ -30,17 +30,17 @@
 function Component()
 {
     function stopAndDeleteService() {
-        var result = installer.execute("sc",["stop", "GammaRayService"]);
-        console.log("===> [sc stop GammaRayService] result: ", result);
+        var result = installer.execute("sc",["stop", "px_service"]);
+        console.log("===> [sc stop px_service] result: ", result);
 
-        result = installer.execute("taskkill", ["/F", "/IM", "GammaRayService.exe"]);
-        console.log("===> [taskkill GammaRayService.exe] result: ", result);
+        result = installer.execute("taskkill", ["/F", "/IM", "px_service.exe"]);
+        console.log("===> [taskkill px_service.exe] result: ", result);
 
-        result = installer.execute("taskkill", ["/F", "/IM", "GammaRayServiceManager.exe"]);
-        console.log("===> [taskkill GammaRayServiceManager.exe] result: ", result);
+        result = installer.execute("taskkill", ["/F", "/IM", "px_service_manager.exe"]);
+        console.log("===> [taskkill px_service_manager.exe] result: ", result);
 
-        result = installer.execute("sc",["delete", "GammaRayService"]);
-        console.log("===> [sc delete GammaRayService] result: ", result);
+        result = installer.execute("sc",["delete", "px_service"]);
+        console.log("===> [sc delete px_service] result: ", result);
     }
 
     //installer.setDefaultPageVisible(QInstaller.Introduction, false);
@@ -48,8 +48,8 @@ function Component()
     if (installer.isInstaller()) {
 
 
-        var result = installer.execute("sc",["query", "GammaRayService"]);
-        console.log("===>[sc query GammaRayService] result: ");
+        var result = installer.execute("sc",["query", "px_service"]);
+        console.log("===>[sc query px_service] result: ");
 
         var running = false;
         result.forEach(function(element) {
@@ -62,7 +62,7 @@ function Component()
                 running = true;
             }
         });
-        console.log("Is GammaRayService running? ", running);
+        console.log("Is px_service running? ", running);
 
         var targetDir = installer.value("TargetDir");
         console.log("Installation dir: ", targetDir);
@@ -87,8 +87,8 @@ function Component()
 
         installer.installationFinished.connect(function() {
             console.log("===> Install finished.");
-            installer.performOperation("Execute", targetDir + "/GammaRay.exe");
-            //installer.executeDetached(targetDir + "/GammaRay.exe");
+            installer.performOperation("Execute", targetDir + "/px_panel.exe");
+            //installer.executeDetached(targetDir + "/px_panel.exe");
         });
 
     }
@@ -121,17 +121,17 @@ Component.prototype.createOperations = function()
     // call default implementation to actually install README.txt!
     component.createOperations();
 
-    component.addOperation("CreateShortcut", "@TargetDir@/GammaRay.exe", "@StartMenuDir@/GammaRay.lnk",
+    component.addOperation("CreateShortcut", "@TargetDir@/px_panel.exe", "@StartMenuDir@/px_panel.lnk",
         "workingDirectory=@TargetDir@", "iconPath=@TargetDir@/px_icon.ico",
-        "description=Open GammaRay");
+        "description=Open px_panel");
 
-    component.addOperation("CreateShortcut", "@TargetDir@/GammaRay.exe", "@DesktopDir@/GammaRay.lnk", "iconPath=@TargetDir@/px_icon.ico",
+    component.addOperation("CreateShortcut", "@TargetDir@/px_panel.exe", "@DesktopDir@/px_panel.lnk", "iconPath=@TargetDir@/px_icon.ico",
     "workingDirectory=@TargetDir@");
 
-    // component.addOperation("CreateShortcut", "@TargetDir@/GammaRayClient.exe", "@StartMenuDir@/GammaRayClient.lnk",
+    // component.addOperation("CreateShortcut", "@TargetDir@/px_client.exe", "@StartMenuDir@/px_client.lnk",
     //     "workingDirectory=@TargetDir@", "iconPath=@TargetDir@/px_client_icon.ico",
-    //     "description=Open GammaRayClient");
+    //     "description=Open px_client");
 
-    // component.addOperation("CreateShortcut", "@TargetDir@/GammaRayClient.exe", "@DesktopDir@/GammaRayClient.lnk", "iconPath=@TargetDir@/px_client_icon.ico",
+    // component.addOperation("CreateShortcut", "@TargetDir@/px_client.exe", "@DesktopDir@/px_client.lnk", "iconPath=@TargetDir@/px_client_icon.ico",
     // "workingDirectory=@TargetDir@");
 }

@@ -22,18 +22,18 @@ using namespace cms_panel;
 
 namespace px
 {
-    GrCmsClient::GrCmsClient(const std::shared_ptr<GrContext>& ctx,
+    PxCmsClient::PxCmsClient(const std::shared_ptr<PxContext>& ctx,
                                const std::string& host,
                                int port,
                                const std::string& device_id) {
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
         context_ = ctx;
         host_ = host;
         port_ = port;
         device_id_ = device_id;
     }
 
-    void GrCmsClient::Start() {
+    void PxCmsClient::Start() {
         auto weak_self = weak_from_this();
 
         msg_listener_ = context_->ObtainMessageListener();
@@ -129,7 +129,7 @@ namespace px
         }
     }
 
-    void GrCmsClient::Stop() {
+    void PxCmsClient::Stop() {
         if (msg_listener_) {
             msg_listener_->UnListenAll();
         }
@@ -140,15 +140,15 @@ namespace px
         }
     }
 
-    bool GrCmsClient::IsStarted() {
+    bool PxCmsClient::IsStarted() {
         return client_ != nullptr;
     }
 
-    bool GrCmsClient::IsActive() {
+    bool PxCmsClient::IsActive() {
         return IsStarted() && client_->is_started();
     }
 
-    void GrCmsClient::Hello() {
+    void PxCmsClient::Hello() {
         if (!IsActive()) {
             return;
         }
@@ -162,7 +162,7 @@ namespace px
         PostBinMessage(msg.SerializeAsString());
     }
 
-    void GrCmsClient::Heartbeat() {
+    void PxCmsClient::Heartbeat() {
         if (!IsActive()) {
             return;
         }
@@ -199,13 +199,13 @@ namespace px
         PostBinMessage(msg.SerializeAsString());
     }
 
-    void GrCmsClient::PostBinMessage(const std::string& m) {
+    void PxCmsClient::PostBinMessage(const std::string& m) {
         if (IsActive()) {
             client_->async_send(m);
         }
     }
 
-    void GrCmsClient::ParseMessage(const std::string& m) {
+    void PxCmsClient::ParseMessage(const std::string& m) {
         auto pm = std::make_shared<cms_panel::CmsPanelMessage>();
         bool r = pm->ParsePartialFromString(m);
         if (!r) {
@@ -223,7 +223,7 @@ namespace px
         }
     }
 
-    bool GrCmsClient::IsAlive() const {
+    bool PxCmsClient::IsAlive() const {
         auto current_timestamp = TimeUtil::GetCurrentTimestamp();
         auto diff = current_timestamp - last_received_timestamp_ < 3100;
         //LOGI("Diff alive: {}", diff);

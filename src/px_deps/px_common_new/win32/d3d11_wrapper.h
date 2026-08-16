@@ -2,8 +2,8 @@
 // Created by RGAA on 1/05/2025.
 //
 
-#ifndef GAMMARAY_D3D11_WRAPPER_H
-#define GAMMARAY_D3D11_WRAPPER_H
+#ifndef PX_D3D11_WRAPPER_H
+#define PX_D3D11_WRAPPER_H
 #ifdef WIN32
 
 #include <memory>
@@ -42,4 +42,4 @@ namespace px
 
 }
 #endif
-#endif //GAMMARAY_D3D11_WRAPPER_H
+#endif //PX_D3D11_WRAPPER_H

@@ -108,7 +108,7 @@ namespace px
 
     };
 
-    StNetworkSearch::StNetworkSearch(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    StNetworkSearch::StNetworkSearch(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         app_ = app;
         context_ = app_->GetContext();
         setFixedSize(640, 480);
@@ -134,7 +134,7 @@ namespace px
 
     void StNetworkSearch::CreateLayout() {
         setWindowTitle(tcTr("id_file_trans_search"));
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
 
         auto item_width = 600;
 

@@ -21,7 +21,7 @@
 namespace px
 {
 
-    StNetworkAutoJoinDialog::StNetworkAutoJoinDialog(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    StNetworkAutoJoinDialog::StNetworkAutoJoinDialog(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<StNetworkCmsAccessInfo>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         app_ = app;
         context_ = app_->GetContext();
         item_ = item;

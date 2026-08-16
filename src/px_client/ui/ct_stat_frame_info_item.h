@@ -2,8 +2,8 @@
 // Created by RGAA on 26/04/2025.
 //
 
-#ifndef GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
-#define GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
+#ifndef PX_CLIENT_STAT_FRAME_INFO_ITEM_H
+#define PX_CLIENT_STAT_FRAME_INFO_ITEM_H
 
 #include "px_qt_widget/px_base_widget.h"
 
@@ -50,4 +50,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_STAT_CAPTURE_INFO_ITEM_H
+#endif //PX_CLIENT_STAT_FRAME_INFO_ITEM_H

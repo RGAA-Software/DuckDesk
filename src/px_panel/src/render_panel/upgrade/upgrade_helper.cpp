@@ -519,7 +519,7 @@ namespace px {
 
 	//UpdateChecker
 	std::string GetUpgradeRootAddr() {
-        auto settings = GrSettings::Instance();
+        auto settings = PxSettings::Instance();
 		std::string upgrade_host = settings->GetCmsServerHost();
 		std::string upgrade_addr = std::format("https://{}:{}", upgrade_host, settings->GetCmsServerPort());
 		return upgrade_addr;

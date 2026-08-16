@@ -7,14 +7,14 @@ const DEFAULT_APP_NAME: &str = "GoDesk";
 
 pub const USER_PROXY_LOG_DIR: &str = "px_logs";
 pub const USER_PROXY_LOG_FILE: &str = "godesk_user_proxy.log";
-pub const USER_PROXY_LOCK_NAME: &str = "GammaRayUserProxy.Singleton";
+pub const USER_PROXY_LOCK_NAME: &str = "PxFunction.Singleton";
 pub const DEFAULT_RENDER_HOST: &str = "127.0.0.1";
 pub const DEFAULT_RENDER_PORT: u16 = 20371;
 pub const DEFAULT_WS_PATH: &str = "/user-proxy";
 pub const RECONNECT_SECS: u64 = 2;
-pub const PANEL_EXE_NAME: &str = "GammaRay.exe";
-pub const SYSINFO_EXE_NAME: &str = "GammaRaySysInfo.exe";
-pub const PANEL_TASK_NAME: &str = "GammaRay_Panel_Start";
+pub const PANEL_EXE_NAME: &str = "px_panel.exe";
+pub const SYSINFO_EXE_NAME: &str = "px_osinfo.exe";
+pub const PANEL_TASK_NAME: &str = "px_panel_start";
 pub const KEEPALIVE_POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// After triggering a panel start (async via the scheduled task), wait this
 /// long before considering another respawn, so slow task-engine starts do not
@@ -26,7 +26,7 @@ pub const PANEL_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
 pub const SYSINFO_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
 
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
-#[command(name = "GammaRayUserProxy")]
+#[command(name = "px_function")]
 pub struct CliArgs {
     #[arg(long, default_value = DEFAULT_RENDER_HOST)]
     pub render_host: String,
@@ -169,12 +169,12 @@ mod tests {
 
     #[test]
     fn singleton_lock_name() {
-        assert_eq!(USER_PROXY_LOCK_NAME, "GammaRayUserProxy.Singleton");
+        assert_eq!(USER_PROXY_LOCK_NAME, "PxFunction.Singleton");
     }
 
     #[test]
     fn cli_parse_defaults() {
-        let args = CliArgs::parse_from(["GammaRayUserProxy"]);
+        let args = CliArgs::parse_from(["px_function"]);
         assert_eq!(args.render_host, DEFAULT_RENDER_HOST);
         assert_eq!(args.render_port, DEFAULT_RENDER_PORT);
         assert_eq!(args.path, DEFAULT_WS_PATH);
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn cli_parse_overrides() {
         let args = CliArgs::parse_from([
-            "GammaRayUserProxy",
+            "px_function",
             "--render-port",
             "30000",
             "--reconnect-secs",

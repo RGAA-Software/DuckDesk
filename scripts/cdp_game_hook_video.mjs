@@ -1,5 +1,5 @@
 // Headless verify: game-hook render → web_client auto-connect → video frames.
-// Assumes GammaRayRender already listening on 20371 (see run_game_hook_render.bat).
+// Assumes px_render already listening on 20371 (see run_game_hook_render.bat).
 // Usage: node scripts/cdp_game_hook_video.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'

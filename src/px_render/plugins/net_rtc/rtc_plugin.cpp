@@ -35,8 +35,8 @@ namespace px
         return "Network via RTC";
     }
 
-    bool RtcPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrNetPlugin::OnCreate(param);
+    bool RtcPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxNetPlugin::OnCreate(param);
 
         //
         plugin_context_->StartTimer(100, [=, this]() {
@@ -221,4 +221,4 @@ namespace px
 
 }
 
-GR_PLUGIN_EXPORT(px::RtcPlugin)
+PX_PLUGIN_EXPORT(px::RtcPlugin)

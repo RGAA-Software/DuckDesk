@@ -7,10 +7,10 @@ import subprocess
 from pathlib import Path
 
 
-PRODUCT_NAME = "GrSysMonitor Suite"
-INSTALLER_BASENAME = "GrSysMonitorSuite"
-MONITOR_EXE = "GrSysMonitor.exe"
-HOST_EXE = "GrSysMonitorHost.exe"
+PRODUCT_NAME = "PxSysMonitor Suite"
+INSTALLER_BASENAME = "PxSysMonitorSuite"
+MONITOR_EXE = "px_sys_monitor.exe"
+HOST_EXE = "px_sys_monitor_host.exe"
 
 
 def load_config(config_path: Path) -> dict:
@@ -72,11 +72,11 @@ def run_checked(cmd: list[str], cwd: Path) -> None:
 
 def build_release_binaries(workspace_dir: Path) -> None:
     run_checked(
-        ["cargo", "build", "-p", "px_sysinfo", "--release", "--bin", "GrSysMonitor"],
+        ["cargo", "build", "-p", "px_sysinfo", "--release", "--bin", "px_sys_monitor"],
         workspace_dir,
     )
     run_checked(
-        ["cargo", "build", "-p", "px_sysinfo", "--release", "--bin", "GrSysMonitorHost"],
+        ["cargo", "build", "-p", "px_sysinfo", "--release", "--bin", "px_sys_monitor_host"],
         workspace_dir,
     )
 
@@ -128,7 +128,7 @@ def build_nsis(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build GrSysMonitor installer")
+    parser = argparse.ArgumentParser(description="Build px_sys_monitor installer")
     parser.add_argument(
         "--skip-build",
         action="store_true",

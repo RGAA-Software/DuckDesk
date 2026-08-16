@@ -2,8 +2,8 @@
 // Created by RGAA on 28/02/2025.
 //
 
-#ifndef GAMMARAY_RELAY_CLIENT_SDK_H
-#define GAMMARAY_RELAY_CLIENT_SDK_H
+#ifndef PX_RELAY_CLIENT_SDK_H
+#define PX_RELAY_CLIENT_SDK_H
 
 #include <memory>
 #include <functional>
@@ -95,4 +95,4 @@ namespace px
     };
 }
 
-#endif //GAMMARAY_RELAY_CLIENT_SDK_H
+#endif //PX_RELAY_CLIENT_SDK_H

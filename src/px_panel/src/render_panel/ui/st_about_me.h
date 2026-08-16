@@ -2,19 +2,19 @@
 // Created by RGAA on 2024-06-10.
 //
 
-#ifndef GAMMARAY_ST_ABOUT_ME_H
-#define GAMMARAY_ST_ABOUT_ME_H
+#ifndef PX_ST_ABOUT_ME_H
+#define PX_ST_ABOUT_ME_H
 
 #include <QLabel>
 #include "tab_base.h"
 
 namespace px
 {
-    class GrApplication;
+    class PxApplication;
 
     class StAboutMe : public TabBase {
     public:
-        explicit StAboutMe(const std::shared_ptr<GrApplication>& app, QWidget* parent = nullptr);
+        explicit StAboutMe(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~StAboutMe() override = default;
 
         void OnTabShow() override;
@@ -26,4 +26,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_ST_ABOUT_ME_H
+#endif //PX_ST_ABOUT_ME_H

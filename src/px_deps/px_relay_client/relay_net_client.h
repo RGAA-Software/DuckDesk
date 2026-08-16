@@ -2,8 +2,8 @@
 // Created by RGAA on 1/03/2025.
 //
 
-#ifndef GAMMARAY_RELAY_NET_CLIENT_H
-#define GAMMARAY_RELAY_NET_CLIENT_H
+#ifndef PX_RELAY_NET_CLIENT_H
+#define PX_RELAY_NET_CLIENT_H
 
 #include "relay_callbacks.h"
 
@@ -64,4 +64,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RELAY_NET_CLIENT_H
+#endif //PX_RELAY_NET_CLIENT_H

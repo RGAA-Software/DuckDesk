@@ -20,7 +20,7 @@
 namespace px
 {
 
-    StartStreamLoading::StartStreamLoading(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type)
+    StartStreamLoading::StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type)
         : QDialog(nullptr) {
 
         setWindowFlags(Qt::FramelessWindowHint|Qt::Dialog);

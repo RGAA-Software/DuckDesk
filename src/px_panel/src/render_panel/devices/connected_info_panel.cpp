@@ -17,8 +17,8 @@
 
 namespace px {
 
-	ConnectedInfoPanel::ConnectedInfoPanel(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
-		GrSettings* settings = GrSettings::Instance();
+	ConnectedInfoPanel::ConnectedInfoPanel(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
+		PxSettings* settings = PxSettings::Instance();
 		if (!settings) {
 			return;
 		}

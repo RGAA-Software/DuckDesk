@@ -8,29 +8,29 @@
 namespace px
 {
 
-    GrVideoEncoderPlugin::GrVideoEncoderPlugin() : GrPluginInterface() {
-        plugin_type_ = GrPluginType::kEncoder;
+    PxVideoEncoderPlugin::PxVideoEncoderPlugin() : PxPluginInterface() {
+        plugin_type_ = PxPluginType::kEncoder;
     }
 
-    GrVideoEncoderPlugin::~GrVideoEncoderPlugin() {
+    PxVideoEncoderPlugin::~PxVideoEncoderPlugin() {
 
     }
 
-    bool GrVideoEncoderPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
+    bool PxVideoEncoderPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
         return true;
     }
 
-    bool GrVideoEncoderPlugin::OnDestroy() {
-        return GrPluginInterface::OnDestroy();
+    bool PxVideoEncoderPlugin::OnDestroy() {
+        return PxPluginInterface::OnDestroy();
     }
 
-    bool GrVideoEncoderPlugin::CanEncodeTexture() {
+    bool PxVideoEncoderPlugin::CanEncodeTexture() {
         return false;
     }
 
-    bool GrVideoEncoderPlugin::Init(const EncoderConfig& config, const std::string& monitor_name) {
-        LOGI("GrVideoEncoderPlugin Init, {}x{}", config.encode_width, config.encode_height);
+    bool PxVideoEncoderPlugin::Init(const EncoderConfig& config, const std::string& monitor_name) {
+        LOGI("PxVideoEncoderPlugin Init, {}x{}", config.encode_width, config.encode_height);
         encoder_configs_[monitor_name] = config;
         out_width_ = config.encode_width;
         out_height_ = config.encode_height;
@@ -38,34 +38,34 @@ namespace px
         return true;
     }
 
-    VideoEncoderError GrVideoEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError PxVideoEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
         return VideoEncoderError::NotImplemented();
     }
 
-    VideoEncoderError GrVideoEncoderPlugin::Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError PxVideoEncoderPlugin::Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) {
         return VideoEncoderError::NotImplemented();
     }
 
-    void GrVideoEncoderPlugin::InsertIdr() {
+    void PxVideoEncoderPlugin::InsertIdr() {
         insert_idr_ = true;
     }
 
-    void GrVideoEncoderPlugin::InsertIdr(const std::string& mon_name) {
+    void PxVideoEncoderPlugin::InsertIdr(const std::string& mon_name) {
         // 默认实现:无视屏名,全量补 IDR(保持未 override 插件的旧行为)
         InsertIdr();
     }
 
-    void GrVideoEncoderPlugin::On1Second() {
+    void PxVideoEncoderPlugin::On1Second() {
         if (client_side_media_recording_) {
             InsertIdr();
         }
     }
 
-    void GrVideoEncoderPlugin::SetClientSideMediaRecording(bool recording) {
+    void PxVideoEncoderPlugin::SetClientSideMediaRecording(bool recording) {
         client_side_media_recording_ = recording;
     }
 
-    std::optional<EncoderConfig> GrVideoEncoderPlugin::GetEncoderConfig(const std::string& monitor_name) {
+    std::optional<EncoderConfig> PxVideoEncoderPlugin::GetEncoderConfig(const std::string& monitor_name) {
 
         if (encoder_configs_.find(monitor_name) != encoder_configs_.end()) {
             return encoder_configs_[monitor_name];
@@ -73,11 +73,11 @@ namespace px
         return std::nullopt;
     }
 
-    void GrVideoEncoderPlugin::Exit(const std::string& monitor_name) {
+    void PxVideoEncoderPlugin::Exit(const std::string& monitor_name) {
 
     }
 
-    void GrVideoEncoderPlugin::ExitAll() {
+    void PxVideoEncoderPlugin::ExitAll() {
 
     }
 

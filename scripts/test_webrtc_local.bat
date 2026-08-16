@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 rem ============================================================================
 rem test_webrtc_local.bat
 rem
-rem Launch GammaRayClientInner.exe in "WebRTC Local" mode against a render on
+rem Launch px_client.exe in "WebRTC Local" mode against a render on
 rem the LAN (default: this machine, 127.0.0.1:20371), bypassing the panel.
 rem
 rem Usage:
@@ -32,7 +32,7 @@ rem ============================================================================
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
 
-set "CLIENT_EXE=%REPO_ROOT%\build_official\dist\GammaRayClientInner.exe"
+set "CLIENT_EXE=%REPO_ROOT%\build_official\dist\px_client.exe"
 if not exist "%CLIENT_EXE%" (
     echo ERROR: %CLIENT_EXE% not found. Run build_official.bat first.
     exit /b 1

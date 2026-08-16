@@ -19,7 +19,7 @@ MongoDB (mongodb://localhost:27017, 硬编码)
 
 - 前端源码：`web/px_desk/`（Vue 3 SPA），构建产物 `web/px_desk/dist/`
 - 已构建产物快照：`rust_server/web/`（index.html + assets）
-- 部署：`scripts/package_px_desk_server.bat` 将 `dist/*` 拷贝到 `output/px_desk_server/static/`，与 `px_desk.exe` 一起打包
+- 部署：`scripts/package_px_desk_server.bat` 将 `dist/*` 拷贝到 `output/px_desk/static/`，与 `px_desk.exe` 一起打包
 - TLS 证书：可执行文件旁 `certs/cert.pem` / `certs/key.pem`（可用 `scripts/ensure_tls_cert.bat` 生成），缺失则启动失败
 
 ## 2. 后端：rust_server/px_desk_server

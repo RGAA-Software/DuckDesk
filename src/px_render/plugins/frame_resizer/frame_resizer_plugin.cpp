@@ -8,7 +8,7 @@
 #include "frame_render.h"
 #include "px_common_new/log.h"
 
-GR_PLUGIN_EXPORT(px::FrameResizerPlugin)
+PX_PLUGIN_EXPORT(px::FrameResizerPlugin)
 
 namespace px
 {
@@ -69,9 +69,9 @@ namespace px
         return final_texture;
     }
 
-    std::optional<GrFrameResizeInfo> FrameResizerPlugin::GetFrameResizeInfo(const std::string& mon_name) {
+    std::optional<PxFrameResizeInfo> FrameResizerPlugin::GetFrameResizeInfo(const std::string& mon_name) {
         if (auto frame_render = GetFrameRender(mon_name); frame_render) {
-            return GrFrameResizeInfo {
+            return PxFrameResizeInfo {
                 .mon_name_ = mon_name,
                 .resize_width_ = frame_render->GetTargetWidth(),
                 .resize_height_ = frame_render->GetTargetHeight(),

@@ -2,8 +2,8 @@
 // Created by RGAA on 18/02/2025.
 //
 
-#ifndef GAMMARAY_FFMPEG_ENCODER_H
-#define GAMMARAY_FFMPEG_ENCODER_H
+#ifndef PX_FFMPEG_ENCODER_H
+#define PX_FFMPEG_ENCODER_H
 
 #include <any>
 #include <memory>
@@ -69,4 +69,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_FFMPEG_ENCODER_H
+#endif //PX_FFMPEG_ENCODER_H

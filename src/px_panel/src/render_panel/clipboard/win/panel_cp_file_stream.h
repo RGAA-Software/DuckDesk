@@ -2,8 +2,8 @@
 // Created by RGAA on 8/04/2025.
 //
 
-#ifndef GAMMARAY_CP_FILE_STREAM_H
-#define GAMMARAY_CP_FILE_STREAM_H
+#ifndef PX_PANEL_CP_FILE_STREAM_H
+#define PX_PANEL_CP_FILE_STREAM_H
 
 #include <cstdint>
 #include <memory>
@@ -24,12 +24,12 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
 
     class CpFileStream : public IStream {
     public:
 
-        CpFileStream(const std::shared_ptr<GrContext>& ctx, const ClipboardFileWrapper& fw);
+        CpFileStream(const std::shared_ptr<PxContext>& ctx, const ClipboardFileWrapper& fw);
 
         virtual ~CpFileStream() {
 
@@ -103,7 +103,7 @@ namespace px
         std::string GetStreamId();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         LONG ref_;
         uint64_t file_size_ {0};
         std::atomic_int64_t current_position_ = 0;
@@ -121,4 +121,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CP_FILE_STREAM_H
+#endif //PX_PANEL_CP_FILE_STREAM_H

@@ -12,7 +12,7 @@
 namespace px
 {
 
-    GameInfoPreview::GameInfoPreview(const std::shared_ptr<GrApplication>& app, const std::shared_ptr<TcDBGame>& game, QWidget* parent)
+    GameInfoPreview::GameInfoPreview(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<TcDBGame>& game, QWidget* parent)
         : QDialog(parent) {
         WidgetHelper::SetTitleBarColor(this);
         this->setWindowTitle(tcTr("id_game_info"));

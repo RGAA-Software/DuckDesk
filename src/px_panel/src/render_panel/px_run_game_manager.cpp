@@ -28,17 +28,17 @@ using namespace nlohmann;
 namespace px
 {
 
-    GrRunGameManager::GrRunGameManager(const std::shared_ptr<GrContext>& ctx) {
+    PxRunGameManager::PxRunGameManager(const std::shared_ptr<PxContext>& ctx) {
         this->px_ctx_ = ctx;
         this->steam_mgr_ = ctx->GetSteamManager();
         this->db_game_manager_ = ctx->GetDBGameManager();
     }
 
-    GrRunGameManager::~GrRunGameManager() {
+    PxRunGameManager::~PxRunGameManager() {
 
     }
 
-    Response<bool, std::string> GrRunGameManager::StartGame(const std::string& game_path, const std::vector<std::string>& args) {
+    Response<bool, std::string> PxRunGameManager::StartGame(const std::string& game_path, const std::vector<std::string>& args) {
         auto resp = Response<bool, std::string>::Make(false, "");
         auto ok_resp = [&]() {
             resp.ok_ = true;
@@ -87,7 +87,7 @@ namespace px
         return resp;
     }
 
-    bool GrRunGameManager::StartSteamGame(const std::string &game_path, const std::vector<std::string>& args) {
+    bool PxRunGameManager::StartSteamGame(const std::string &game_path, const std::vector<std::string>& args) {
         const std::wstring& target_exec = StringUtil::ToWString(game_path);
         if (game_path.find("bigpicture") != std::string::npos) {
             // steam big picture mode
@@ -104,7 +104,7 @@ namespace px
         }
     }
 
-    Response<bool, std::string> GrRunGameManager::StopGame(const std::string& game_id) {
+    Response<bool, std::string> PxRunGameManager::StopGame(const std::string& game_id) {
         auto resp = Response<bool, std::string>::Make(false, "");
         if (game_process_) {
             game_process_->kill();
@@ -123,7 +123,7 @@ namespace px
         return resp;
     }
 
-    Response<bool, std::string> GrRunGameManager::StartNormalGame(const std::string& game_path, const std::vector<std::string>& args) {
+    Response<bool, std::string> PxRunGameManager::StartNormalGame(const std::string& game_path, const std::vector<std::string>& args) {
         auto resp = Response<bool, std::string>::Make(false, "");
         if (!std::filesystem::exists(StringUtil::ToWString(game_path))) {
             resp.value_ = std::format("Exe not exists: {}", game_path);
@@ -144,7 +144,7 @@ namespace px
         return resp;
     }
 
-    std::shared_ptr<SteamApp> GrRunGameManager::FindInSteamManager(const std::string& game_path) {
+    std::shared_ptr<SteamApp> PxRunGameManager::FindInSteamManager(const std::string& game_path) {
         if (!SteamManager::IsSteamPath(game_path)) {
             LOGI("path: {} is not a steam url", game_path);
             return nullptr;
@@ -164,7 +164,7 @@ namespace px
         return nullptr;
     }
 
-    std::shared_ptr<TcDBGame> GrRunGameManager::FindInDBGameManager(const std::string& game_path) {
+    std::shared_ptr<TcDBGame> PxRunGameManager::FindInDBGameManager(const std::string& game_path) {
         if (SteamManager::IsSteamPath(game_path)) {
             // find by steam id
             auto app_id_str = SteamManager::ParseSteamIdFromPath(game_path);
@@ -180,7 +180,7 @@ namespace px
         }
     }
 
-    void GrRunGameManager::CheckRunningGame() {
+    void PxRunGameManager::CheckRunningGame() {
         auto beg = TimeUtil::GetCurrentTimestamp();
         running_processes_ = ProcessHelper::GetProcessList(true);
         auto db_games = this->db_game_manager_->GetAllGames();
@@ -234,7 +234,7 @@ namespace px
         //LOGI("check game alive used : {}ms", end - beg);
     }
 
-    std::string GrRunGameManager::GetRunningGamesAsJson() {
+    std::string PxRunGameManager::GetRunningGamesAsJson() {
         json obj = json::array();
         for (auto& rg : running_games_) {
             json item;
@@ -245,7 +245,7 @@ namespace px
         return obj.dump(2);
     }
 
-    std::string GrRunGameManager::GetRunningGamesAsProto() {
+    std::string PxRunGameManager::GetRunningGamesAsProto() {
         px::Message msg;
         msg.set_type(px::MessageType::kOnlineGames);
         auto online_games = msg.mutable_online_games();
@@ -257,7 +257,7 @@ namespace px
         return msg.SerializeAsString();
     }
 
-    std::vector<uint64_t> GrRunGameManager::GetRunningGameIds() {
+    std::vector<uint64_t> PxRunGameManager::GetRunningGameIds() {
         std::vector<uint64_t> game_ids;
         for (auto& rg : running_games_) {
             game_ids.push_back(rg->game_->game_id_);
@@ -265,7 +265,7 @@ namespace px
         return game_ids;
     }
 
-    std::vector<std::shared_ptr<ProcessInfo>> GrRunGameManager::GetRunningProcesses() {
+    std::vector<std::shared_ptr<ProcessInfo>> PxRunGameManager::GetRunningProcesses() {
         return running_processes_;
     }
 

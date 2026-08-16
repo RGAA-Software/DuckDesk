@@ -2,8 +2,8 @@
 // Created by RGAA on 20/02/2025.
 //
 
-#ifndef GAMMARAY_SDK_ERRORS_H
-#define GAMMARAY_SDK_ERRORS_H
+#ifndef PX_SDK_ERRORS_H
+#define PX_SDK_ERRORS_H
 
 #include <string>
 
@@ -17,4 +17,4 @@ namespace px
     static std::string SdkErrorCodeToString(SdkErrorCode code);
 }
 
-#endif //GAMMARAY_SDK_ERRORS_H
+#endif //PX_SDK_ERRORS_H

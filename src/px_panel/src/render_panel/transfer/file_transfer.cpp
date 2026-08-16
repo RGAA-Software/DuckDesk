@@ -16,10 +16,10 @@
 namespace px
 {
 
-    FileTransferChannel::FileTransferChannel(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<asio2::http_session>& sess) {
+    FileTransferChannel::FileTransferChannel(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<asio2::http_session>& sess) {
         context_ = ctx;
         sess_ = sess;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
     void FileTransferChannel::OnConnected() {

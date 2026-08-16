@@ -14,12 +14,12 @@ using namespace sqlite_orm;
 
 namespace px
 {
-    class GrContext;
-    class GrDatabase;
+    class PxContext;
+    class PxDatabase;
 
     class DBGameOperator {
     public:
-        explicit DBGameOperator(const std::shared_ptr<GrContext>& ctx, const std::shared_ptr<GrDatabase>& db);
+        explicit DBGameOperator(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<PxDatabase>& db);
 
         void SaveOrUpdateGame(const std::shared_ptr<TcDBGame>& game);
         std::shared_ptr<TcDBGame> GetGameByGameId(uint64_t gid);
@@ -30,8 +30,8 @@ namespace px
         void BatchSaveOrUpdateGames(const std::vector<std::shared_ptr<TcDBGame>>& games);
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
-        std::shared_ptr<GrDatabase> db_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxDatabase> db_ = nullptr;
     };
 }
 

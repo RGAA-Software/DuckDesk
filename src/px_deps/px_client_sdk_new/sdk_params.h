@@ -2,8 +2,8 @@
 // Created by RGAA on 16/04/2025.
 //
 
-#ifndef GAMMARAY_SDK_PARAMS_H
-#define GAMMARAY_SDK_PARAMS_H
+#ifndef PX_SDK_PARAMS_H
+#define PX_SDK_PARAMS_H
 
 #include "px_message.pb.h"
 
@@ -90,4 +90,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_SDK_PARAMS_H
+#endif //PX_SDK_PARAMS_H

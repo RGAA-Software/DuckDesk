@@ -11,7 +11,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::JoystickPlugin)
+PX_PLUGIN_EXPORT(px::JoystickPlugin)
 
 namespace px
 {
@@ -37,12 +37,12 @@ namespace px
     }
 
     void JoystickPlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
 
     }
     
-    bool JoystickPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
+    bool JoystickPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
 
         if (!IsPluginEnabled()) {
             return true;
@@ -53,7 +53,7 @@ namespace px
     }
 
     void JoystickPlugin::OnMessage(std::shared_ptr<Message> msg) {
-        GrPluginInterface::OnMessage(msg);
+        PxPluginInterface::OnMessage(msg);
         auto stream_id = msg->stream_id();
         if (msg->type() == px::MessageType::kHello) {
             auto sub = msg->hello();

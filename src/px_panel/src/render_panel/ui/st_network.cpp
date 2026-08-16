@@ -37,7 +37,7 @@
 namespace px
 {
 
-    StNetwork::StNetwork(const std::shared_ptr<GrApplication>& app, QWidget* parent) : TabBase(app, parent){
+    StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent){
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);

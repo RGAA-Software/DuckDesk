@@ -1,5 +1,5 @@
 @echo off
-rem Console-mode GammaRayService start/stop helper for manual testing.
+rem Console-mode px_service start/stop helper for manual testing.
 rem Usage:
 rem   scripts\service_test_ctl.bat start [port]   (default port 20375)
 rem   scripts\service_test_ctl.bat stop
@@ -11,7 +11,7 @@ set "ACTION=%~1"
 set "PORT=%~2"
 if "%PORT%"=="" set "PORT=20375"
 set "DIST=%~dp0..\build_official\dist"
-set "EXE=%DIST%\GammaRayService.exe"
+set "EXE=%DIST%\px_service.exe"
 
 if /I "%ACTION%"=="start" goto :start
 if /I "%ACTION%"=="stop" goto :stop
@@ -24,29 +24,29 @@ if not exist "%EXE%" (
     echo ERROR: %EXE% not found. Run build_official.bat first.
     exit /b 1
 )
-tasklist /FI "IMAGENAME eq GammaRayService.exe" | findstr /I "GammaRayService.exe" >nul
+tasklist /FI "IMAGENAME eq px_service.exe" | findstr /I "px_service.exe" >nul
 if not errorlevel 1 (
-    echo GammaRayService already running. Stop it first: %~nx0 stop
+    echo px_service already running. Stop it first: %~nx0 stop
     exit /b 1
 )
-echo Starting GammaRayService --console --port %PORT% (workdir=%DIST%)
-start "GammaRayService" /D "%DIST%" "%EXE%" --console --port %PORT%
+echo Starting px_service --console --port %PORT% (workdir=%DIST%)
+start "px_service" /D "%DIST%" "%EXE%" --console --port %PORT%
 exit /b 0
 
 :stop
-taskkill /F /IM GammaRayService.exe >nul 2>&1
+taskkill /F /IM px_service.exe >nul 2>&1
 if errorlevel 1 (
-    echo GammaRayService not running.
+    echo px_service not running.
 ) else (
-    echo GammaRayService stopped.
+    echo px_service stopped.
 )
 exit /b 0
 
 :status
-tasklist /FI "IMAGENAME eq GammaRayService.exe" | findstr /I "GammaRayService.exe" >nul
+tasklist /FI "IMAGENAME eq px_service.exe" | findstr /I "px_service.exe" >nul
 if errorlevel 1 (
-    echo GammaRayService: not running
+    echo px_service: not running
     exit /b 1
 )
-tasklist /FI "IMAGENAME eq GammaRayService.exe"
+tasklist /FI "IMAGENAME eq px_service.exe"
 exit /b 0

@@ -17,12 +17,12 @@
 namespace px
 {
 
-    GrDeviceManager::GrDeviceManager(const std::shared_ptr<GrContext>& ctx) {
+    PxDeviceManager::PxDeviceManager(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
-    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> GrDeviceManager::RequestNewDevice(const std::string& def_device_name, const std::string& info) {
+    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> PxDeviceManager::RequestNewDevice(const std::string& def_device_name, const std::string& info) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -30,7 +30,7 @@ namespace px
         return r;
     }
 
-    bool GrDeviceManager::UpdateDesktopLink(const std::string& desktop_link, const std::string& desktop_link_raw) {
+    bool PxDeviceManager::UpdateDesktopLink(const std::string& desktop_link, const std::string& desktop_link_raw) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -47,7 +47,7 @@ namespace px
         }
     }
 
-    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> GrDeviceManager::UpdateDeviceName(const std::string& device_name) {
+    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> PxDeviceManager::UpdateDeviceName(const std::string& device_name) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -56,7 +56,7 @@ namespace px
         return r;
     }
 
-    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> GrDeviceManager::UpdateUsedTime(int period) {
+    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> PxDeviceManager::UpdateUsedTime(int period) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
@@ -65,7 +65,7 @@ namespace px
         return r;
     }
 
-    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> GrDeviceManager::QueryDevice(const std::string& device_id) {
+    Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> PxDeviceManager::QueryDevice(const std::string& device_id) {
         return px_cms::CmsDeviceApi::QueryDevice(settings_->GetCmsServerHost(),
                                                 settings_->GetCmsServerPort(),
                                                 grApp->GetAppkey(),

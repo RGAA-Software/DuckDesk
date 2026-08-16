@@ -3,14 +3,14 @@ use px_auth_mgr::auth_license::{AuthLicense, LicenseSigner, SignedLicense};
 use px_auth_mgr::authorization::Authorization;
 use std::path::Path;
 
-const PRIVATE_KEY_ENV: &str = "GR_AUTH_LICENSE_PRIVATE_KEY";
+const PRIVATE_KEY_ENV: &str = "PX_AUTH_LICENSE_PRIVATE_KEY";
 const PRIVATE_KEY_FILE: &str = "certs/auth_license_private.key";
 const PUBLIC_KEY_FILE: &str = "certs/auth_license_public.key";
 
 /// Initializes the license signer for this auth server process.
 ///
 /// Priority:
-/// 1. `GR_AUTH_LICENSE_PRIVATE_KEY` environment variable (base64 PKCS#8 v1/v2).
+/// 1. `PX_AUTH_LICENSE_PRIVATE_KEY` environment variable (base64 PKCS#8 v1/v2).
 /// 2. `certs/auth_license_private.key` file (base64 PKCS#8 v1/v2).
 /// 3. Generate a new key pair and persist it (development only; logs a warning).
 pub fn init_license_signer() -> Result<LicenseSigner, String> {

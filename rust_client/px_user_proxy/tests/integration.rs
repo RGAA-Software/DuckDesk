@@ -10,7 +10,7 @@ use px_user_proxy::config::UserProxyConfig;
 use px_user_proxy::engine::UserProxyEngine;
 use px_user_proxy::mock_render::{wait_for_event, MockRenderEvent};
 use px_user_proxy::proto::{
-    build_raw_render_message, build_tc_clipboard_files, parse_tc_message, px::MessageType,
+    build_raw_render_message, build_px_clipboard_files, parse_px_message, px::MessageType,
     StreamRoute,
 };
 use px_user_proxy::render_client::RenderClient;
@@ -231,11 +231,11 @@ async fn integration_virtual_file_apply_installs_session() {
         ref_path: "missing.bin".to_string(),
         total_size: 11,
     }];
-    let inner = build_tc_clipboard_files(&files);
-    let mut tc = parse_tc_message(&inner).expect("tc");
-    tc.stream_id = route.stream_id.clone();
-    tc.device_id = route.device_id.clone();
-    let bytes = build_raw_render_message(&tc.encode_to_vec(), false);
+    let inner = build_px_clipboard_files(&files);
+    let mut msg = parse_px_message(&inner).expect("msg");
+    msg.stream_id = route.stream_id.clone();
+    msg.device_id = route.device_id.clone();
+    let bytes = build_raw_render_message(&msg.encode_to_vec(), false);
     server.handle().drain_events();
     px_user_proxy::render_client::handle_inbound_rp(
         &bytes,
@@ -423,12 +423,12 @@ fn integration_proto_resp_buffer_matches_panel_fields() {
         read_size: 4,
         buffer: b"test".to_vec(),
     };
-    let bytes = px_user_proxy::proto::build_tc_resp_buffer(&resp, &route);
-    let tc = parse_tc_message(&bytes).expect("tc");
-    assert_eq!(tc.r#type, MessageType::KClipboardRespBuffer as i32);
-    assert_eq!(tc.stream_id, "sid");
-    assert_eq!(tc.device_id, "did");
-    let parsed = tc.cp_resp_buffer.expect("resp");
+    let bytes = px_user_proxy::proto::build_px_resp_buffer(&resp, &route);
+    let msg = parse_px_message(&bytes).expect("msg");
+    assert_eq!(msg.r#type, MessageType::KClipboardRespBuffer as i32);
+    assert_eq!(msg.stream_id, "sid");
+    assert_eq!(msg.device_id, "did");
+    let parsed = msg.cp_resp_buffer.expect("resp");
     assert_eq!(parsed.req_index, 7);
     assert_eq!(parsed.buffer, b"test");
 }

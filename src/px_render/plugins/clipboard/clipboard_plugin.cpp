@@ -21,7 +21,7 @@ extern "C" {
     __declspec(dllimport) uint64_t GenNextGlobalId();
 }
 
-GR_PLUGIN_EXPORT(px::ClipboardPlugin)
+PX_PLUGIN_EXPORT(px::ClipboardPlugin)
 
 namespace px
 {
@@ -49,8 +49,8 @@ namespace px
 
     }
 
-    bool ClipboardPlugin::OnCreate(const px::GrPluginParam &param) {
-        GrPluginInterface::OnCreate(param);
+    bool ClipboardPlugin::OnCreate(const px::PxPluginParam &param) {
+        PxPluginInterface::OnCreate(param);
         lifetime_token_->store(true);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
 
@@ -65,14 +65,14 @@ namespace px
 
     bool ClipboardPlugin::OnDestroy() {
         lifetime_token_->store(false);
-        GrPluginInterface::OnStop();
-        return GrPluginInterface::OnDestroy();
+        PxPluginInterface::OnStop();
+        return PxPluginInterface::OnDestroy();
     }
 
     void ClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {
         if (msg->type() == MessageType::kClipboardInfoResp) {
             // tell the panel, remote info
-            auto event = std::make_shared<GrPluginRemoteClipboardResp>();
+            auto event = std::make_shared<PxPluginRemoteClipboardResp>();
             auto sub = msg->clipboard_info_resp();
             event->content_type_ = (int)sub.type();
             event->remote_info_ = sub.msg();
@@ -101,7 +101,7 @@ namespace px
 
     void ClipboardPlugin::OnRequestFileBegin(std::shared_ptr<Message> msg) {
         auto sub = msg->cp_req_at_begin();
-        auto event = std::make_shared<GrPluginFileTransferBegin>();
+        auto event = std::make_shared<PxPluginFileTransferBegin>();
         event->the_file_id_ = MD5::Hex(sub.full_name());
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->visitor_device_id_ = msg->device_id();
@@ -112,7 +112,7 @@ namespace px
 
     void ClipboardPlugin::OnRequestFileEnd(std::shared_ptr<Message> msg) {
         auto sub = msg->cp_req_at_end();
-        auto event = std::make_shared<GrPluginFileTransferEnd>();
+        auto event = std::make_shared<PxPluginFileTransferEnd>();
         event->the_file_id_ = MD5::Hex(sub.full_name());
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->success_ = true;

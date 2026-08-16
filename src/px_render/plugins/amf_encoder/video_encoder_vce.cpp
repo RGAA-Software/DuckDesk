@@ -377,14 +377,14 @@ namespace px
         //LOGI("VCE encode latency: {} ms. Size={} bytes frameIndex={}, length : {}", double(current_time - start_time) / MILLISEC_TIME, (int)buffer->GetSize(), frameIndex, length);
 
         auto encoded_data = Data::Make((char*)p, length);
-        auto event = std::make_shared<GrPluginEncodedVideoFrameEvent>();
+        auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
         event->type_ = [=]() {
             if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {
-                return GrPluginEncodedVideoType::kH265;
+                return PxPluginEncodedVideoType::kH265;
             } else if (encoder_config_.codec_type == EVideoCodecType::kH264) {
-                return GrPluginEncodedVideoType::kH264;
+                return PxPluginEncodedVideoType::kH264;
             } else {
-                return GrPluginEncodedVideoType::kH264;
+                return PxPluginEncodedVideoType::kH264;
             }
         }();
         event->data_ = encoded_data;

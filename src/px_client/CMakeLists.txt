@@ -1,4 +1,4 @@
-project(GammaRayClient)
+project(px_client)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,7 +39,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins/file_transfer_client/src)
 
 link_directories(${VK_SDK_ROOT}/Lib)
-link_directories(${GR_PROJECT_PATH}/px_3rdparty/libplacebo/lib)
+link_directories(${PX_PROJECT_PATH}/px_3rdparty/libplacebo/lib)
 
 qt_add_resources(RES ${CMAKE_SOURCE_DIR}/src/px_panel/resources/main.qrc resources.qrc)
 add_compile_options(/bigobj)
@@ -119,10 +119,10 @@ endif ()
 
 add_subdirectory(anti_hooking)
 add_subdirectory(plugins)
-add_executable(GammaRayClientInner WIN32 ${SRCS_WS} ${CLIPBOARD_SRCS} ${CLIPBOARD_WIN_SRCS} ${SRCS_WIN})
+add_executable(px_client WIN32 ${SRCS_WS} ${CLIPBOARD_SRCS} ${CLIPBOARD_WIN_SRCS} ${SRCS_WIN})
 if (APPLE)
-    set_target_properties(GammaRayClientInner PROPERTIES
-            MACOSX_BUNDLE_GUI_IDENTIFIER com.tc.client.client
+    set_target_properties(px_client PROPERTIES
+            MACOSX_BUNDLE_GUI_IDENTIFIER com.px.client
             MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
             MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
             MACOSX_BUNDLE TRUE
@@ -130,7 +130,7 @@ if (APPLE)
     )
 endif()
 
-target_link_libraries(GammaRayClientInner PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
+target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
         px_common_new px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
@@ -138,12 +138,12 @@ target_link_libraries(GammaRayClientInner PRIVATE Qt6::Widgets Qt6::Core Qt6::Op
 
 if (TC_PROTECTION_ENABLED)
     add_definitions(-DTC_PROTECTION_ENABLED=1)
-    target_link_libraries(GammaRayClientInner PRIVATE px_protection)
+    target_link_libraries(px_client PRIVATE px_protection)
 endif ()
 
 if (WIN32)
-    add_custom_command(TARGET GammaRayClientInner POST_BUILD
-            COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:GammaRayClientInner> --no-translations --release
+    add_custom_command(TARGET px_client POST_BUILD
+            COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:px_client> --no-translations --release
             # ffmpeg is now statically linked via vcpkg; no DLLs to copy
             # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${CMAKE_BINARY_DIR}"
             # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avdevice-61.dll"  "${CMAKE_BINARY_DIR}"
@@ -153,11 +153,11 @@ if (WIN32)
             # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/postproc-58.dll"  "${CMAKE_BINARY_DIR}"
             # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swresample-5.dll"  "${CMAKE_BINARY_DIR}"
             # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swscale-8.dll"  "${CMAKE_BINARY_DIR}"
-            COMMAND ${CMAKE_COMMAND} -E copy "${GR_PROJECT_PATH}/px_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${PX_PROJECT_PATH}/px_3rdparty/libplacebo/lib/libplacebo-349.dll"  "${CMAKE_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/language" "${CMAKE_CURRENT_BINARY_DIR}/resources/language"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/px_panel/resources/qt_material" "${CMAKE_CURRENT_BINARY_DIR}/resources/qt_material"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${GR_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PX_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/px_skins"
     )
 
 elseif (APPLE)

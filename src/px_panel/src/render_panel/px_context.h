@@ -26,28 +26,28 @@ namespace px
 
     class SteamManager;
     class SharedPreference;
-    class GrSettings;
+    class PxSettings;
     class DBGameOperator;
-    class GrResources;
-    class GrRenderController;
-    class GrRunGameManager;
+    class PxResources;
+    class PxRenderController;
+    class PxRunGameManager;
     class ServiceManager;
-    class GrApplication;
+    class PxApplication;
     class NotifyManager;
-    class GrDatabase;
-    class GrCmsManager;
-    class GrEventManager;
+    class PxDatabase;
+    class PxCmsManager;
+    class PxEventManager;
 
     // Device list
     class StreamDBOperator;
     class TaskRuntime;
     class RunningStreamManager;
 
-    class GrContext : public QObject, public std::enable_shared_from_this<GrContext> {
+    class PxContext : public QObject, public std::enable_shared_from_this<PxContext> {
     public:
-        explicit GrContext(QWidget* main_window);
+        explicit PxContext(QWidget* main_window);
 
-        bool Init(const std::shared_ptr<GrApplication>& app);
+        bool Init(const std::shared_ptr<PxApplication>& app);
         void Exit();
         std::shared_ptr<SteamManager> GetSteamManager();
         // Post task in runtime
@@ -80,9 +80,9 @@ namespace px
 
         std::shared_ptr<DBGameOperator> GetDBGameManager();
         std::shared_ptr<ServiceManager> GetServiceManager();
-        std::shared_ptr<GrApplication> GetApplication();
-        std::shared_ptr<GrCmsManager> GetCmsManager();
-        std::shared_ptr<GrEventManager> GetEventManager();
+        std::shared_ptr<PxApplication> GetApplication();
+        std::shared_ptr<PxCmsManager> GetCmsManager();
+        std::shared_ptr<PxEventManager> GetEventManager();
 
         template<typename T>
         void SendAppMessage(const T& m) {
@@ -92,12 +92,12 @@ namespace px
         }
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
         std::shared_ptr<MessageListener> ObtainMessageListener();
-        std::shared_ptr<GrRenderController> GetRenderController();
-        std::shared_ptr<GrRunGameManager> GetRunGameManager();
+        std::shared_ptr<PxRenderController> GetRenderController();
+        std::shared_ptr<PxRunGameManager> GetRunGameManager();
         static std::string GetCurrentExeFolder();
         std::shared_ptr<StreamDBOperator> GetStreamDBManager();
         std::shared_ptr<RunningStreamManager> GetRunningStreamManager();
-        std::shared_ptr<GrDatabase> GetDatabase();
+        std::shared_ptr<PxDatabase> GetDatabase();
         bool IsDatabaseReady() const { return db_ready_; }
         const std::string& GetDatabaseError() const { return db_error_; }
         bool IsPreferenceReady() const;
@@ -133,25 +133,25 @@ namespace px
 
     private:
         QWidget* main_window_ = nullptr;
-        GrSettings* settings_ = nullptr;
+        PxSettings* settings_ = nullptr;
         SharedPreference* sp_ = nullptr;
-        std::shared_ptr<GrApplication> app_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
         std::shared_ptr<SteamManager> steam_mgr_ = nullptr;
         std::shared_ptr<TaskRuntime> task_rt_ = nullptr;
         //std::vector<EthernetInfo> ips_;
         std::shared_ptr<DBGameOperator> db_game_manager_ = nullptr;
-        std::shared_ptr<GrResources> res_manager_ = nullptr;
+        std::shared_ptr<PxResources> res_manager_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        std::shared_ptr<GrRenderController> srv_manager_ = nullptr;
+        std::shared_ptr<PxRenderController> srv_manager_ = nullptr;
         std::shared_ptr<asio2::timer> timer_ = nullptr;
-        std::shared_ptr<GrRunGameManager> run_game_manager_ = nullptr;
+        std::shared_ptr<PxRunGameManager> run_game_manager_ = nullptr;
         std::shared_ptr<ServiceManager> service_manager_ =  nullptr;
         std::shared_ptr<StreamDBOperator> stream_db_mgr_ = nullptr;
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<NotifyManager> notify_mgr_ = nullptr;
-        std::shared_ptr<GrDatabase> database_ = nullptr;
-        std::shared_ptr<GrCmsManager> cms_manager_ = nullptr;
-        std::shared_ptr<GrEventManager> event_manager_ = nullptr;
+        std::shared_ptr<PxDatabase> database_ = nullptr;
+        std::shared_ptr<PxCmsManager> cms_manager_ = nullptr;
+        std::shared_ptr<PxEventManager> event_manager_ = nullptr;
         bool db_ready_ = false;
         std::string db_error_;
         std::atomic_bool exiting_ = false;

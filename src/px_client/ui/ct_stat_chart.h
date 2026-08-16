@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-20.
 //
 
-#ifndef GAMMARAY_STAT_CHART_H
-#define GAMMARAY_STAT_CHART_H
+#ifndef PX_CLIENT_STAT_CHART_H
+#define PX_CLIENT_STAT_CHART_H
 
 #include <QWidget>
 #include <QChart>
@@ -52,4 +52,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_STAT_CHART_H
+#endif //PX_CLIENT_STAT_CHART_H

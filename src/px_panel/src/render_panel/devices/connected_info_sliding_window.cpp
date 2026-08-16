@@ -12,7 +12,7 @@
 
 namespace px {
 
-	ConnectedInfoSlidingWindow::ConnectedInfoSlidingWindow(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
+	ConnectedInfoSlidingWindow::ConnectedInfoSlidingWindow(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
 		InitView();
 	}
 

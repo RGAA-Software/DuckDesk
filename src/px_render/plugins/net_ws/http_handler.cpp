@@ -86,7 +86,7 @@ namespace px
             return;
         }
 
-        auto event = std::make_shared<GrPluginPanelStreamMessage>();
+        auto event = std::make_shared<PxPluginPanelStreamMessage>();
         event->body_ = Data::From(body);
         this->plugin_->CallbackEvent(event);
 
@@ -159,20 +159,20 @@ namespace px
             return;
         }
 
-        // enum class GrLocalRtcContentType {
+        // enum class PxLocalRtcContentType {
         //     kDesktop,
         //     kGameStream,
         // };
-        auto content_type = [&]() -> GrLocalRtcContentType {
+        auto content_type = [&]() -> PxLocalRtcContentType {
             if (auto param = GetParam(params, "content_type"); param.has_value()) {
                 if (param.value() == "game_stream") {
-                    return GrLocalRtcContentType::kGameStream;
+                    return PxLocalRtcContentType::kGameStream;
                 }
             }
-            return GrLocalRtcContentType::kDesktop;
+            return PxLocalRtcContentType::kDesktop;
         }();
 
-        auto rtc_req = std::make_shared<GrLocalRtcRequestInfo>();
+        auto rtc_req = std::make_shared<PxLocalRtcRequestInfo>();
         rtc_req->device_id_ = device_id.value();
         rtc_req->stream_id_ = stream_id.value();
         rtc_req->req_ip_ = session_ptr->remote_address();
@@ -190,16 +190,16 @@ namespace px
 
         std::mutex cv_mtx;
         std::condition_variable cv;
-        std::shared_ptr<GrLocalRtcReplyInfo> reply_info = nullptr;
-        auto r = rtc_plugin->AllocNewLocalRtcInstance(rtc_req, [&](const std::shared_ptr<GrLocalRtcReplyInfo>& reply) {
+        std::shared_ptr<PxLocalRtcReplyInfo> reply_info = nullptr;
+        auto r = rtc_plugin->AllocNewLocalRtcInstance(rtc_req, [&](const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
             reply_info = reply;
             cv.notify_all();
         });
-        if (r == GrLocalRtcAllocResult::kOccupied) {
+        if (r == PxLocalRtcAllocResult::kOccupied) {
             SendErrorJson(resp, kHandlerErrRtcLocalOccupied);
             return;
         }
-        if (r != GrLocalRtcAllocResult::kOk) {
+        if (r != PxLocalRtcAllocResult::kOk) {
             SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
             return;
         }

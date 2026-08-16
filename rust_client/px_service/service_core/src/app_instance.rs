@@ -118,7 +118,7 @@ pub fn encode_game_path_b64(game_path: &Path) -> String {
     base64_encode(&s)
 }
 
-/// Build GammaRayRender launch spec for a game-hook app instance.
+/// Build px_render launch spec for a game-hook app instance.
 /// `game_path` is the boot exe (launched normally); when `view` is set the
 /// render discovers and injects that real game process instead of the boot.
 pub fn build_game_hook_launch_spec(
@@ -731,19 +731,19 @@ mod tests {
     fn listen_port_token_boundary() {
         // Substring pitfall: port 3200 must not match "--network_listen_port=32000".
         assert!(!cmdline_has_listen_port(
-            "GammaRayRender.exe --app_mode=game-hook --network_listen_port=32000",
+            "px_render.exe --app_mode=game-hook --network_listen_port=32000",
             3200
         ));
         assert!(cmdline_has_listen_port(
-            "GammaRayRender.exe --app_mode=game-hook --network_listen_port=32000 --capture_video=true",
+            "px_render.exe --app_mode=game-hook --network_listen_port=32000 --capture_video=true",
             32000
         ));
         // Token at end of cmdline also matches.
         assert!(cmdline_has_listen_port(
-            "GammaRayRender.exe --network_listen_port=32001",
+            "px_render.exe --network_listen_port=32001",
             32001
         ));
-        assert!(!cmdline_has_listen_port("GammaRayRender.exe", 32000));
+        assert!(!cmdline_has_listen_port("px_render.exe", 32000));
     }
 
     #[test]
@@ -753,12 +753,12 @@ mod tests {
         let processes = vec![
             ProcessSnapshot::new(
                 100,
-                "D:/GoDesk/GammaRayRender.exe",
+                "D:/GoDesk/px_render.exe",
                 "--app_mode=game-hook --network_listen_port=32000",
             ),
             ProcessSnapshot::new(
                 101,
-                "D:/GoDesk/GammaRayRender.exe",
+                "D:/GoDesk/px_render.exe",
                 "--app_mode=game-hook --network_listen_port=32005",
             ),
             ProcessSnapshot::new(102, r"D:\apps\CarGame\Binaries\Win64\game.exe", ""),

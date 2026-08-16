@@ -2,8 +2,8 @@
 // Created by RGAA on 27/02/2025.
 //
 
-#ifndef GAMMARAY_MGR_DEVICE_H
-#define GAMMARAY_MGR_DEVICE_H
+#ifndef PX_MGR_DEVICE_H
+#define PX_MGR_DEVICE_H
 
 #include <memory>
 #include <string>
@@ -73,4 +73,4 @@ namespace px_cms
 
 }
 
-#endif //GAMMARAY_MGR_DEVICE_H
+#endif //PX_MGR_DEVICE_H

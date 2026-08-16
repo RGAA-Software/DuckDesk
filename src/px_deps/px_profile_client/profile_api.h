@@ -2,8 +2,8 @@
 // Created by RGAA on 11/04/2025.
 //
 
-#ifndef GAMMARAY_PROFILE_API_H
-#define GAMMARAY_PROFILE_API_H
+#ifndef PX_PROFILE_API_H
+#define PX_PROFILE_API_H
 
 #include <string>
 
@@ -50,4 +50,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_PROFILE_API_H
+#endif //PX_PROFILE_API_H

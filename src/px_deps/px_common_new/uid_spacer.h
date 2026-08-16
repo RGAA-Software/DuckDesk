@@ -2,8 +2,8 @@
 // Created by RGAA on 24/01/2025.
 //
 
-#ifndef GAMMARAY_UID_SPACER_H
-#define GAMMARAY_UID_SPACER_H
+#ifndef PX_UID_SPACER_H
+#define PX_UID_SPACER_H
 
 #include <string>
 
@@ -25,4 +25,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_UID_SPACER_H
+#endif //PX_UID_SPACER_H

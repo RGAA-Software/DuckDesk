@@ -17,7 +17,7 @@ namespace px
 
     class RnApp : public TabBase {
     public:
-        RnApp(const std::shared_ptr<GrApplication>& app, QWidget *parent);
+        RnApp(const std::shared_ptr<PxApplication>& app, QWidget *parent);
         ~RnApp() override = default;
 
         void OnTabShow() override;

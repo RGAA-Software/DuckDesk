@@ -41,8 +41,8 @@ namespace px
     namespace {
         bool HasServiceBinaries() {
             const auto base_path = QCoreApplication::applicationDirPath();
-            return QFileInfo::exists(base_path + "/" + px::kGammaRayRenderExeName) &&
-                   QFileInfo::exists(base_path + "/" + px::kGammaRayServiceExeName);
+            return QFileInfo::exists(base_path + "/" + px::kPxRenderExeName) &&
+                   QFileInfo::exists(base_path + "/" + px::kPxServiceExeName);
         }
 
         std::string ExtractServiceExecutablePath(const std::string& value) {
@@ -68,25 +68,25 @@ namespace px
         }
     }
 
-    std::shared_ptr<GrSystemMonitor> GrSystemMonitor::Make(const std::shared_ptr<GrApplication>& app) {
-        return std::make_shared<GrSystemMonitor>(app);
+    std::shared_ptr<PxSystemMonitor> PxSystemMonitor::Make(const std::shared_ptr<PxApplication>& app) {
+        return std::make_shared<PxSystemMonitor>(app);
     }
 
-    GrSystemMonitor::GrSystemMonitor(const std::shared_ptr<GrApplication>& app) {
+    PxSystemMonitor::PxSystemMonitor(const std::shared_ptr<PxApplication>& app) {
         this->app_ = app;
         this->context_ = app->GetContext();
         this->service_manager_ = context_->GetServiceManager();
-        this->settings_ = GrSettings::Instance();
+        this->settings_ = PxSettings::Instance();
     }
 
-    void GrSystemMonitor::Start() {
+    void PxSystemMonitor::Start() {
         const bool has_service_binaries = HasServiceBinaries();
         if (has_service_binaries) {
             CheckServiceAlive();
             // install service
             this->service_manager_->Install();
         } else {
-            LOGI("{} or {} not found in app dir, skip service management.", px::kGammaRayRenderExeName, px::kGammaRayServiceExeName);
+            LOGI("{} or {} not found in app dir, skip service management.", px::kPxRenderExeName, px::kPxServiceExeName);
         }
 
         vigem_driver_manager_ = VigemDriverManager::Make();
@@ -181,14 +181,14 @@ namespace px
         }, "sys_monitor", false);
     }
 
-    void GrSystemMonitor::Exit() {
+    void PxSystemMonitor::Exit() {
         exit_ = true;
         if (monitor_thread_ && monitor_thread_->IsJoinable()) {
             monitor_thread_->Join();
         }
     }
 
-    bool GrSystemMonitor::CheckViGEmDriver() {
+    bool PxSystemMonitor::CheckViGEmDriver() {
         DWORD major = 0, minor = 0;
         std::wstring path = L"C:\\Windows\\System32\\drivers\\ViGEmBus.sys";
 
@@ -204,7 +204,7 @@ namespace px
         }
     }
 
-    bool GrSystemMonitor::GetFileVersion(const std::wstring& filePath, DWORD& major, DWORD& minor){
+    bool PxSystemMonitor::GetFileVersion(const std::wstring& filePath, DWORD& major, DWORD& minor){
         DWORD dummy;
         DWORD size = GetFileVersionInfoSizeW(filePath.c_str(), &dummy);
         if (size == 0) {
@@ -227,7 +227,7 @@ namespace px
         return true;
     }
 
-    bool GrSystemMonitor::TryConnectViGEmDriver() {
+    bool PxSystemMonitor::TryConnectViGEmDriver() {
         // driver seems already exists, try to connect
         if (!connect_vigem_success_) {
             connect_vigem_success_ = vigem_driver_manager_->TryConnect();
@@ -242,8 +242,8 @@ namespace px
         }
     }
 
-    void GrSystemMonitor::InstallViGem(bool silent) {
-        auto exe_folder_path = GrContext::GetCurrentExeFolder();
+    void PxSystemMonitor::InstallViGem(bool silent) {
+        auto exe_folder_path = PxContext::GetCurrentExeFolder();
         std::string cmd;
         if (silent) {
             cmd = std::format("{}/px_joystick.exe /S", exe_folder_path);
@@ -256,7 +256,7 @@ namespace px
         }
     }
 
-    void GrSystemMonitor::NotifyViGEnState(bool ok) {
+    void PxSystemMonitor::NotifyViGEnState(bool ok) {
         static bool first_emit_state = true;
         const auto weak_self = weak_from_this();
         auto task = [weak_self, ok]() {
@@ -279,7 +279,7 @@ namespace px
         }
     }
 
-    void GrSystemMonitor::RegisterMessageListener() {
+    void PxSystemMonitor::RegisterMessageListener() {
         msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         const auto weak_self = weak_from_this();
         msg_listener_->Listen<MsgInstallViGEm>([=, this](const MsgInstallViGEm& msg) {
@@ -288,7 +288,7 @@ namespace px
                 if (!self || self->exit_) {
                     return;
                 }
-                px::GrSystemMonitor::InstallViGem(true);
+                px::PxSystemMonitor::InstallViGem(true);
             });
         });
 
@@ -318,7 +318,7 @@ namespace px
         });
     }
 
-    Response<bool, bool> GrSystemMonitor::CheckRenderAlive() {
+    Response<bool, bool> PxSystemMonitor::CheckRenderAlive() {
         auto resp = Response<bool, bool>::Make(false, false);
         auto processes = ProcessHelper::GetProcessList(false);
         if (processes.empty()) {
@@ -329,7 +329,7 @@ namespace px
         LOGI("-------------------------------------------------------------------");
         for (auto& p : processes) {
             LOGI("p.exe_name: {}", p->exe_full_path_);
-            if (p->exe_full_path_.find(kGammaRayRenderName) != std::string::npos) {
+            if (p->exe_full_path_.find(kPxRenderName) != std::string::npos) {
                 resp.value_ = true;
                 //LOGI("Yes, find it.");
                 break;
@@ -338,7 +338,7 @@ namespace px
         return resp;
     }
 
-    void GrSystemMonitor::CheckServiceAlive() {
+    void PxSystemMonitor::CheckServiceAlive() {
         px::ServiceStatus serv_status = this->service_manager_->QueryStatus();
         if (px::ServiceStatus::kUnknownStatus == serv_status) {
             return;
@@ -379,21 +379,21 @@ namespace px
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             auto processes = px::ProcessHelper::GetProcessList(false);
             for (auto& process : processes) {
-                if (process->exe_full_path_.find(kGammaRayClientInner) != std::string::npos) {
+                if (process->exe_full_path_.find(kPxClientName) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
                     px::ProcessHelper::CloseProcess(process->pid_);
                     break;
                 }
             }
             for (auto& process : processes) {
-                if (process->exe_full_path_.find(kGammaRayRenderName) != std::string::npos) {
+                if (process->exe_full_path_.find(kPxRenderName) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
                     px::ProcessHelper::CloseProcess(process->pid_);
                     break;
                 }
             }
             for (auto& process : processes) {
-                if (process->exe_full_path_.find(kGammaRayName) != std::string::npos) {
+                if (process->exe_full_path_.find(kPxPanelName) != std::string::npos) {
                     LOGI("Kill exe: {}", process->exe_full_path_);
                     if (cur_pid != process->pid_) {
                         px::ProcessHelper::CloseProcess(process->pid_);
@@ -403,16 +403,16 @@ namespace px
         }
     }
 
-    void GrSystemMonitor::StartServer() {
+    void PxSystemMonitor::StartServer() {
         if (!HasServiceBinaries()) {
-            LOGI("{} or {} not found in app dir, skip StartServer.", px::kGammaRayRenderExeName, px::kGammaRayServiceExeName);
+            LOGI("{} or {} not found in app dir, skip StartServer.", px::kPxRenderExeName, px::kPxServiceExeName);
             return;
         }
         auto srv_mgr = context_->GetRenderController();
         srv_mgr->StartServer();
     }
 
-    void GrSystemMonitor::CheckThisDeviceInfo() {
+    void PxSystemMonitor::CheckThisDeviceInfo() {
         //LOGI("CheckThisDeviceInfo...");
         // profile server
         auto has_pr_server = HttpBaseOp::CanPingServer(true, settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey());
@@ -482,7 +482,7 @@ namespace px
         }
     }
 
-    std::vector<double> GrSystemMonitor::GetCurrentCpuFrequency() {
+    std::vector<double> PxSystemMonitor::GetCurrentCpuFrequency() {
         std::lock_guard<std::mutex> guard(cpu_frequency_mtx_);
         std::vector<double> frequencies;
         for (const auto& v : current_cpu_frequency_) {

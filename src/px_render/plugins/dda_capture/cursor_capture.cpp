@@ -270,7 +270,7 @@ namespace px
             current_data = cursor_bitmap.data_->AsString();
         }
 
-        auto event = std::make_shared<GrPluginCursorEvent>();
+        auto event = std::make_shared<PxPluginCursorEvent>();
         event->cursor_info_ = cursor_bitmap;
 
         if (current_data != last_data && !current_data.empty()) {

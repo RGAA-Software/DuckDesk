@@ -8,12 +8,12 @@
 #include "px_render/plugins/plugin_ids.h"
 #include "gdi_capture.h"
 
-GR_PLUGIN_EXPORT(px::GdiCapturePlugin)
+PX_PLUGIN_EXPORT(px::GdiCapturePlugin)
 
 namespace px
 {
 
-    GdiCapturePlugin::GdiCapturePlugin() : GrMonitorCapturePlugin() {
+    GdiCapturePlugin::GdiCapturePlugin() : PxMonitorCapturePlugin() {
 
     }
 
@@ -38,23 +38,23 @@ namespace px
     }
 
     void GdiCapturePlugin::On1Second() {
-        GrPluginInterface::On1Second();
+        PxPluginInterface::On1Second();
     }
     
-    bool GdiCapturePlugin::OnCreate(const px::GrPluginParam &param) {
-        GrMonitorCapturePlugin::OnCreate(param);
+    bool GdiCapturePlugin::OnCreate(const px::PxPluginParam &param) {
+        PxMonitorCapturePlugin::OnCreate(param);
         LOGI("GdiCapturePlugin OnCreate");
         return true;
     }
 
     bool GdiCapturePlugin::OnDestroy() {
-        GrMonitorCapturePlugin::OnStop();
+        PxMonitorCapturePlugin::OnStop();
         for (const auto& [mon, capture] : captures_) {
             capture->PauseCapture();
             capture->StopCapture();
         }
         captures_.clear();
-        return GrMonitorCapturePlugin::OnDestroy();
+        return PxMonitorCapturePlugin::OnDestroy();
     }
 
     std::vector<CaptureMonitorInfo> GdiCapturePlugin::GetCaptureMonitorInfo() {
@@ -141,7 +141,7 @@ namespace px
     }
 
     void GdiCapturePlugin::SetCaptureFps(int fps) {
-        GrMonitorCapturePlugin::SetCaptureFps(fps);
+        PxMonitorCapturePlugin::SetCaptureFps(fps);
         if (IsWorking()) {
             for (const auto& [dev_name, capture] : captures_) {
                 capture->SetCaptureFps(fps);
@@ -150,7 +150,7 @@ namespace px
     }
 
     void GdiCapturePlugin::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
-        GrPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
+        PxPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
         for (const auto& [k, capture] : captures_) {
             capture->RefreshScreen();
             capture->TryWakeOs();
@@ -165,7 +165,7 @@ namespace px
     }
 
     void GdiCapturePlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
-        GrPluginInterface::DispatchAppEvent(event);
+        PxPluginInterface::DispatchAppEvent(event);
         //LOGI("GdiCapturePlugin DispatchAppEvent type: {}", static_cast<int>(event->type_));
         if (!event) {
             return;
@@ -324,10 +324,10 @@ namespace px
 
     void GdiCapturePlugin::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
-            LOGI("==> Sorted Monitor's empty, ignore the GrPluginCapturingMonitorInfoEvent");
+            LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
             return;
         }
-        const auto event = std::make_shared<GrPluginCapturingMonitorInfoEvent>();
+        const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
         this->CallbackEvent(event);
     }
 

@@ -15,7 +15,7 @@
 namespace px
 {
 
-    StatChart::StatChart(const std::shared_ptr<GrContext>& ctx,
+    StatChart::StatChart(const std::shared_ptr<PxContext>& ctx,
                          const QString& title,
                          const std::vector<QString>& line_names,
                          QWidget* parent) : QWidget(parent) {

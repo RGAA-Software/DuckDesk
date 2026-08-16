@@ -28,7 +28,7 @@ using namespace nlohmann;
 namespace px
 {
 
-    HttpHandler::HttpHandler(const std::shared_ptr<GrApplication>& app) {
+    HttpHandler::HttpHandler(const std::shared_ptr<PxApplication>& app) {
         this->context_ = app->GetContext();
         this->app_ = app;
         this->run_game_mgr_ = app->GetContext()->GetRunGameManager();

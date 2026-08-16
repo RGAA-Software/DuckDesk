@@ -4,7 +4,7 @@
 //
 // Deprecated:
 // This standalone C++ service manager executable is no longer built.
-// The active manager binary is the Rust `GammaRayServiceManager.exe`.
+// The active manager binary is the Rust `px_service_manager.exe`.
 
 #include <format>
 #include <iostream>
@@ -24,11 +24,11 @@ int main(int argc, char** argv) {
     QApplication app(argc, argv);
     std::string base_path = app.applicationDirPath().toStdString();
     std::cout << "path: " << base_path << std::endl;
-    std::string bin_path = std::format("{}/{}", base_path, px::kGammaRayServiceExeName);
+    std::string bin_path = std::format("{}/{}", base_path, px::kPxServiceExeName);
     std::cout << "binpath: " << bin_path << std::endl;
 
     g_service_manager = ServiceManager::Make();
-    g_service_manager->Init(px::kGammaRayServiceExeName, bin_path, "GammaRat Service", "** GammaRay Service **");
+    g_service_manager->Init(px::kPxServiceExeName, bin_path, "px_service", "** px_service **");
 
     bool exit = false;
     while (!exit) {
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
             g_service_manager->Remove(true);
             auto processes = px::ProcessHelper::GetProcessList(false);
             for (auto& process : processes) {
-                if (process->exe_full_path_.find(px::kGammaRayExeName) != std::string::npos) {
+                if (process->exe_full_path_.find(px::kPxPanelExeName) != std::string::npos) {
                     std::cout << "Kill exe: " << process->exe_full_path_ << std::endl;
                     px::ProcessHelper::CloseProcess(process->pid_);
                     break;

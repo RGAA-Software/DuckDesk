@@ -2,8 +2,8 @@
 // Created by RGAA on 22/10/2024.
 //
 
-#ifndef GAMMARAY_SERVICE_MANAGER_H
-#define GAMMARAY_SERVICE_MANAGER_H
+#ifndef PX_SERVICE_MANAGER_H
+#define PX_SERVICE_MANAGER_H
 
 #include <memory>
 #include <string>
@@ -44,4 +44,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_SERVICE_MANAGER_H
+#endif //PX_SERVICE_MANAGER_H

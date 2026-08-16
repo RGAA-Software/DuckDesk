@@ -20,7 +20,7 @@ pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
         SERVICE_LOG_FILE.to_string(),
     );
     info!(
-        "GammaRayService starting, port={}, console_mode={}, data_root={}, log_root={}",
+        "px_service starting, port={}, console_mode={}, data_root={}, log_root={}",
         actual_port,
         console_mode,
         config.data_root.display(),

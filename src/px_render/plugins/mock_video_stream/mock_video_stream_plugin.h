@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_MEDIA_RECORDER_PLUGIN_H
-#define GAMMARAY_MEDIA_RECORDER_PLUGIN_H
+#ifndef PX_RENDER_MOCK_VIDEO_STREAM_PLUGIN_H
+#define PX_RENDER_MOCK_VIDEO_STREAM_PLUGIN_H
 
 #include "px_render/plugin_interface/px_data_provider_plugin.h"
 #include <opencv2/opencv.hpp>
@@ -11,14 +11,14 @@
 namespace px
 {
 
-    class MockVideoStreamPlugin : public GrDataProviderPlugin {
+    class MockVideoStreamPlugin : public PxDataProviderPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
-        bool OnCreate(const px::GrPluginParam& param) override;
+        bool OnCreate(const px::PxPluginParam& param) override;
         void On1Second() override;
         void StartProviding() override;
         void StopProviding() override;
@@ -36,7 +36,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::MockVideoStreamPlugin)
+PX_PLUGIN_EXPORT(px::MockVideoStreamPlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

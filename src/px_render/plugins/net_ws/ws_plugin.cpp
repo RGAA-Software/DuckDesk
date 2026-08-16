@@ -11,12 +11,12 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-GR_PLUGIN_EXPORT(px::WsPlugin)
+PX_PLUGIN_EXPORT(px::WsPlugin)
 
 namespace px
 {
 
-    WsPlugin::WsPlugin() : GrNetPlugin() {
+    WsPlugin::WsPlugin() : PxNetPlugin() {
 
     }
 
@@ -40,8 +40,8 @@ namespace px
         return "Network via WebSocket";
     }
 
-    bool WsPlugin::OnCreate(const px::GrPluginParam& param) {
-        GrPluginInterface::OnCreate(param);
+    bool WsPlugin::OnCreate(const px::PxPluginParam& param) {
+        PxPluginInterface::OnCreate(param);
         game_hook_mode_ = GetConfigStringParam("app_mode") == "game-hook";
         auto listen_port = GetConfigIntParam("ws-listen-port");
         auto config_listen_port = GetConfigIntParam("listen-port");
@@ -54,12 +54,12 @@ namespace px
     }
 
     bool WsPlugin::OnDestroy() {
-        GrNetPlugin::OnStop();
+        PxNetPlugin::OnStop();
         if (ws_server_) {
             ws_server_->Exit();
             ws_server_.reset();
         }
-        return GrNetPlugin::OnDestroy();
+        return PxNetPlugin::OnDestroy();
     }
 
     void WsPlugin::On1Second() {
@@ -190,7 +190,7 @@ namespace px
         return GetConnectedClientsCount() > 0;
     }
 
-    std::vector<std::shared_ptr<GrConnectedClientInfo>> WsPlugin::GetConnectedClientInfo() {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsPlugin::GetConnectedClientInfo() {
         if (IsWorking()) {
             return ws_server_->GetConnectedClientInfo();
         }
@@ -206,9 +206,9 @@ namespace px
         }
     }
 
-    GrNetPlugin* WsPlugin::GetLocalRtcPlugin() {
+    PxNetPlugin* WsPlugin::GetLocalRtcPlugin() {
         if (auto plugin = GetPluginById(kNetRtcLocalPluginId); plugin) {
-            return (GrNetPlugin*)plugin;
+            return (PxNetPlugin*)plugin;
         }
         return nullptr;
     }
@@ -225,7 +225,7 @@ namespace px
     }
 
     void WsPlugin::OnEncodedVideoFrame(const std::string& mon_name,
-                                       const GrPluginEncodedVideoType& video_type,
+                                       const PxPluginEncodedVideoType& video_type,
                                        const std::shared_ptr<Data>& data,
                                        uint64_t frame_index,
                                        int frame_width,

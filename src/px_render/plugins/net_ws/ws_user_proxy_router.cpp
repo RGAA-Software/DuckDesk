@@ -96,12 +96,12 @@ namespace px
         // (plugin_manager 只给非 net 插件挂载),需经 total_plugins_ 按 id 找到后
         // 逐个投递。必须覆盖 rtc/rtc_local(WebRTC 网页客户端)和 relay/udp(原生
         // 客户端主路径)——此前白名单只有 rtc,relay 客户端永远收不到远端消息。
-        auto for_each_net_plugin = [&](const std::function<void(GrNetPlugin*)>& fn) {
+        auto for_each_net_plugin = [&](const std::function<void(PxNetPlugin*)>& fn) {
             fn(plugin);
             for (const auto& id : { kNetRtcPluginId, kNetRtcLocalPluginId,
                                     kRelayPluginId, kNetUdpPluginId }) {
                 if (auto p = plugin->GetPluginById(id); p && p != plugin) {
-                    if (auto np = dynamic_cast<GrNetPlugin*>(p)) {
+                    if (auto np = dynamic_cast<PxNetPlugin*>(p)) {
                         fn(np);
                     }
                 }
@@ -111,7 +111,7 @@ namespace px
         if (m.type() == pxrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
             auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
-                for_each_net_plugin([&](GrNetPlugin* np) {
+                for_each_net_plugin([&](PxNetPlugin* np) {
                     np->PostProtoMessage(buffer, false);
                 });
             };
@@ -151,7 +151,7 @@ namespace px
             bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
             LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
                  sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
-            for_each_net_plugin([&](GrNetPlugin* np) {
+            for_each_net_plugin([&](PxNetPlugin* np) {
                 if (sub.data_channel()) {
                     np->PostTargetFileTransferProtoMessage(sub.stream_id(), buffer, sub.run_through());
                 } else {

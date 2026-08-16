@@ -9,7 +9,7 @@
 namespace px
 {
 
-    StatCaptureInfoItem::StatCaptureInfoItem(const std::shared_ptr<GrContext>& ctx, QWidget* parent) : TcBaseWidget(parent) {
+    StatCaptureInfoItem::StatCaptureInfoItem(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcBaseWidget(parent) {
         context_ = ctx;
 
         auto root_layout = new NoMarginVLayout();

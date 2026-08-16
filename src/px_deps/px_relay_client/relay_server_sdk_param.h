@@ -2,8 +2,8 @@
 // Created by RGAA on 1/03/2025.
 //
 
-#ifndef GAMMARAY_RELAY_SERVER_SDK_PARAM_H
-#define GAMMARAY_RELAY_SERVER_SDK_PARAM_H
+#ifndef PX_RELAY_SERVER_SDK_PARAM_H
+#define PX_RELAY_SERVER_SDK_PARAM_H
 
 #include <string>
 #include "relay_device_info.h"
@@ -27,4 +27,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RELAY_SERVER_SDK_PARAM_H
+#endif //PX_RELAY_SERVER_SDK_PARAM_H

@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_FRAME_DEBUGGER_PLUGIN_H
-#define GAMMARAY_FRAME_DEBUGGER_PLUGIN_H
+#ifndef PX_FRAME_DEBUGGER_PLUGIN_H
+#define PX_FRAME_DEBUGGER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_stream_plugin.h"
 
@@ -12,7 +12,7 @@ namespace px
 
     class File;
 
-    class FrameDebuggerPlugin : public GrStreamPlugin {
+    class FrameDebuggerPlugin : public PxStreamPlugin {
     public:
 
         std::string GetPluginId() override;
@@ -21,10 +21,10 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         void On1Second() override;
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
 
-        void OnVideoEncoderCreated(const std::string& mon_name, const GrPluginEncodedVideoType& type, int width, int height) override;
+        void OnVideoEncoderCreated(const std::string& mon_name, const PxPluginEncodedVideoType& type, int width, int height) override;
 
         // raw video frame in rgba format
         // image: Raw image
@@ -32,7 +32,7 @@ namespace px
 
         // data: encode video frame, h264/h265/...
         void OnEncodedVideoFrame(const std::string& mon_name,
-                                 const GrPluginEncodedVideoType& video_type,
+                                 const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
@@ -43,7 +43,7 @@ namespace px
         void OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) override;
 
     private:
-        GrPluginEncodedVideoType encoded_video_type_{};
+        PxPluginEncodedVideoType encoded_video_type_{};
         bool save_encoded_video_ = false;
         std::map<std::string, std::shared_ptr<File>> encoded_video_files_;
         bool new_client_in_ = false;
@@ -52,7 +52,7 @@ namespace px
 }
 
 
-GR_PLUGIN_EXPORT(px::FrameDebuggerPlugin)
+PX_PLUGIN_EXPORT(px::FrameDebuggerPlugin)
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

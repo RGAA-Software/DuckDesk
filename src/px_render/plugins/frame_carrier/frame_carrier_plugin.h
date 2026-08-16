@@ -2,8 +2,8 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef GAMMARAY_FRAME_CARRIER_PLUGIN_H
-#define GAMMARAY_FRAME_CARRIER_PLUGIN_H
+#ifndef PX_RENDER_FRAME_CARRIER_PLUGIN_H
+#define PX_RENDER_FRAME_CARRIER_PLUGIN_H
 
 #include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 
@@ -13,9 +13,9 @@ namespace px
     class File;
     class Image;
     class VideoFrameCarrier;
-    class GrFrameProcessorPlugin;
+    class PxFrameProcessorPlugin;
 
-    class FrameCarrierPlugin : public GrFrameCarrierPlugin {
+    class FrameCarrierPlugin : public PxFrameCarrierPlugin {
     public:
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -23,14 +23,14 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         void On1Second() override;
-        bool OnCreate(const px::GrPluginParam &param) override;
+        bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
 
         // init carrier
-        bool InitFrameCarrier(const px::GrCarrierParams &params) override;
+        bool InitFrameCarrier(const px::PxCarrierParams &params) override;
 
         // copy texture
-        std::shared_ptr<GrCarriedFrame> CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) override;
+        std::shared_ptr<PxCarriedFrame> CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) override;
 
         // Map Texture from GPU -> CPU
         bool MapRawTexture(const std::string& mon_name, const Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture, DXGI_FORMAT format, int height,
@@ -77,4 +77,4 @@ namespace px
 
 
 
-#endif //GAMMARAY_UDP_PLUGIN_H
+#endif //PX_UDP_PLUGIN_H

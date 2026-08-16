@@ -37,7 +37,7 @@ namespace px
         }
     };
 
-    TabProfile::TabProfile(const std::shared_ptr<GrApplication>& app, QWidget *parent)
+    TabProfile::TabProfile(const std::shared_ptr<PxApplication>& app, QWidget *parent)
         : TabBase(app, parent) {
 #ifdef WIN32
         auto hwnd = HWND(winId());

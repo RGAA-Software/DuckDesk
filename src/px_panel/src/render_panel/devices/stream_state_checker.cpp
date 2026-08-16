@@ -19,10 +19,10 @@
 namespace px
 {
 
-    StreamStateChecker::StreamStateChecker(const std::shared_ptr<GrContext>& ctx) {
+    StreamStateChecker::StreamStateChecker(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
         msg_listener_ = context_->ObtainMessageListener();
-        settings_ = GrSettings::Instance();
+        settings_ = PxSettings::Instance();
     }
 
     void StreamStateChecker::Start() {

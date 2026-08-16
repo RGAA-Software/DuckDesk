@@ -2,8 +2,8 @@
 // Created by RGAA on 25/06/2025.
 //
 
-#ifndef GAMMARAY_CT_PLUGIN_SETTINGS_H
-#define GAMMARAY_CT_PLUGIN_SETTINGS_H
+#ifndef PX_CT_PLUGIN_SETTINGS_H
+#define PX_CT_PLUGIN_SETTINGS_H
 
 #include <string>
 
@@ -25,4 +25,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_PLUGIN_SETTINGS_H
+#endif //PX_CT_PLUGIN_SETTINGS_H

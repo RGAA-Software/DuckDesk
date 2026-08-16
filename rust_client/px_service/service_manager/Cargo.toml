@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "GammaRayServiceManager"
+name = "px_service_manager"
 path = "src/main.rs"
 
 [dependencies]

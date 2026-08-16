@@ -40,7 +40,7 @@ namespace px
                 }
                 this->CheckAliveRenders(processes);
                 if (!IsDesktopRenderAlive() && !this->desktop_work_dir_.empty() && !this->desktop_app_path_.empty() && !this->desktop_app_args_.empty()) {
-                    LOGI("GammaRayRender.exe not exist! Will start!");
+                    LOGI("px_render.exe not exist! Will start!");
                     StartDesktopRenderInternal(this->desktop_work_dir_, this->desktop_app_path_, this->desktop_app_args_);
                 }
 
@@ -105,7 +105,7 @@ namespace px
         // kill all
         auto processes = ProcessHelper::GetProcessList(false);
         for (auto& p : processes) {
-            if (p->exe_full_path_.find(kGammaRayRenderName) != std::string::npos) {
+            if (p->exe_full_path_.find(kPxRenderName) != std::string::npos) {
                 ProcessHelper::CloseProcess(p->pid_);
             }
         }
@@ -143,8 +143,8 @@ namespace px
         bool found_desktop_render = false;
         std::map<RenderProcessId, std::shared_ptr<RenderProcess>> ps;
         for (auto& p : processes) {
-            // not GammaRayRender.exe
-            if (p->exe_full_path_.find(kGammaRayRenderName) == std::string::npos) {
+            // not px_render.exe
+            if (p->exe_full_path_.find(kPxRenderName) == std::string::npos) {
                 continue;
             }
 
@@ -180,7 +180,7 @@ namespace px
 
     bool RenderManager::CheckPanelAlive(const std::vector<std::shared_ptr<ProcessInfo>>& processes) {
         for (auto& p : processes) {
-            if (p->exe_full_path_.find(kGammaRayName) != std::string::npos) {
+            if (p->exe_full_path_.find(kPxPanelName) != std::string::npos) {
                 return true;
             }
         }
@@ -189,7 +189,7 @@ namespace px
 
     bool RenderManager::StartDesktopRenderInternal(const std::string& _work_dir, const std::string& _app_path, const std::string& args) {
         QString work_dir = QString::fromStdString(_work_dir);
-        QString current_path = QString::fromStdString(std::format("{}/{} {}", _work_dir, kGammaRayRenderName, args));
+        QString current_path = QString::fromStdString(std::format("{}/{} {}", _work_dir, kPxRenderName, args));
         return ProcessUtil::StartProcessInSameUser(current_path.toStdWString(), work_dir.toStdWString(), false);
     }
 
@@ -211,7 +211,7 @@ namespace px
         //todo: alive ? , return true
 
         QString work_dir = QString::fromStdString(_work_dir);
-        QString current_path = QString::fromStdString(std::format("{}/{} {}", _work_dir, kGammaRayRenderName, ss.str()));
+        QString current_path = QString::fromStdString(std::format("{}/{} {}", _work_dir, kPxRenderName, ss.str()));
         return ProcessUtil::StartProcessInSameUser(current_path.toStdWString(), work_dir.toStdWString(), false);
 
         bool start_result = StartDesktopRenderInternal(this->desktop_work_dir_, this->desktop_app_path_, ss.str());

@@ -13,7 +13,7 @@
 namespace px
 {
 
-    class GrContext;
+    class PxContext;
     class AppStreamList;
 
     using OnStartingStreamCallback = std::function<void(const px_cms::CmsStream&)>;
@@ -45,7 +45,7 @@ namespace px
 
     class StreamContent : public QWidget {
     public:
-        explicit StreamContent(const std::shared_ptr<GrContext>& ctx, QWidget* parent = nullptr);
+        explicit StreamContent(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~StreamContent() override;
         void resizeEvent(QResizeEvent *event) override;
 
@@ -53,7 +53,7 @@ namespace px
         void HideEmptyTip();
 
     private:
-        std::shared_ptr<GrContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         AppStreamList* stream_list_ = nullptr;
         AddButton* add_btn_ = nullptr;
         QLabel* empty_tip_ = nullptr;

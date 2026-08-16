@@ -122,7 +122,7 @@ mod tests {
         let state = PersistedServiceState {
             desktop_launch: Some(PersistedRenderLaunchSpec {
                 work_dir: "D:/app".to_string(),
-                app_path: "D:/app/GammaRayRender.exe".to_string(),
+                app_path: "D:/app/px_render.exe".to_string(),
                 args: vec!["--app_mode=desktop".to_string()],
             }),
         };

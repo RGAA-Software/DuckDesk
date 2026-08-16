@@ -2,8 +2,8 @@
 // Created by RGAA on 23/06/2025.
 //
 
-#ifndef GAMMARAY_RETRY_CONN_DIALOG_H
-#define GAMMARAY_RETRY_CONN_DIALOG_H
+#ifndef PX_RETRY_CONN_DIALOG_H
+#define PX_RETRY_CONN_DIALOG_H
 
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
@@ -25,4 +25,4 @@ namespace px
 }
 
 
-#endif //GAMMARAY_RETRY_CONN_DIALOG_H
+#endif //PX_RETRY_CONN_DIALOG_H

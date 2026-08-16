@@ -2,8 +2,8 @@
 // Created by RGAA on 17/05/2025.
 //
 
-#ifndef GAMMARAY_CT_DASHBOARD_CLIENT_H
-#define GAMMARAY_CT_DASHBOARD_CLIENT_H
+#ifndef PX_PANEL_CMS_CLIENT_H
+#define PX_PANEL_CMS_CLIENT_H
 
 #include <memory>
 #include <asio2/websocket/wss_client.hpp>
@@ -11,15 +11,15 @@
 
 namespace px
 {
-    class GrContext;
-    class GrSettings;
+    class PxContext;
+    class PxSettings;
     class MessageListener;
     class SysInfo;
 
     // Between Panel <-> Cms
-    class GrCmsClient : public std::enable_shared_from_this<GrCmsClient> {
+    class PxCmsClient : public std::enable_shared_from_this<PxCmsClient> {
     public:
-        explicit GrCmsClient(const std::shared_ptr<GrContext>& ctx,
+        explicit PxCmsClient(const std::shared_ptr<PxContext>& ctx,
                               const std::string& host,
                               int port,
                               const std::string& device_id);
@@ -36,8 +36,8 @@ namespace px
         void Heartbeat();
 
     private:
-        GrSettings* settings_ = nullptr;
-        std::shared_ptr<GrContext> context_ = nullptr;
+        PxSettings* settings_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::wss_client> client_ = nullptr;
         std::string host_;
         int port_ = 0;
@@ -51,4 +51,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_CT_DASHBOARD_CLIENT_H
+#endif //PX_PANEL_CMS_CLIENT_H

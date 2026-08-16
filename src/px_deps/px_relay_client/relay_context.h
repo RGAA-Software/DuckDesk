@@ -2,8 +2,8 @@
 // Created by RGAA on 27/02/2025.
 //
 
-#ifndef GAMMARAY_MGR_CONTEXT_H
-#define GAMMARAY_MGR_CONTEXT_H
+#ifndef PX_MGR_CONTEXT_H
+#define PX_MGR_CONTEXT_H
 
 #include "px_common_new/message_notifier.h"
 
@@ -30,4 +30,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_MGR_CONTEXT_H
+#endif //PX_MGR_CONTEXT_H

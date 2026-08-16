@@ -7,8 +7,8 @@
 // its own AudioPlayer(the same player used by the ws/relay proto-audio path).
 //
 
-#ifndef GAMMARAY_RTC_AUDIO_SINK_H
-#define GAMMARAY_RTC_AUDIO_SINK_H
+#ifndef PX_RTC_AUDIO_SINK_H
+#define PX_RTC_AUDIO_SINK_H
 
 #include <memory>
 #include "rtc_client_interface.h"
@@ -39,4 +39,4 @@ namespace px
 
 }
 
-#endif //GAMMARAY_RTC_AUDIO_SINK_H
+#endif //PX_RTC_AUDIO_SINK_H
