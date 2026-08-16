@@ -12,7 +12,6 @@ export default {
     industries: '行业应用',
     cooperation: '合作模式',
     advantages: '技术优势',
-    packages: '服务套餐',
     faq: '常见问题',
     contact: '商务合作',
   },
@@ -82,11 +81,12 @@ export default {
     eyebrow: '// COOPERATION · 合作模式',
     title: '四种合作方式',
     desc: '根据你的业务形态与资源情况，选择最合适的合作方式。',
+    badge: '推荐',
     items: {
-      license: {
-        title: '技术授权',
-        desc: '授权使用云游戏、云渲染、云桌面全套技术栈，快速构建自有云服务能力。',
-        suited: '适合：有自研平台的技术团队',
+      custom: {
+        title: '定制服务',
+        desc: '根据业务场景，定制云游戏、云渲染、云桌面、远程桌面技术方案与内容，按需开发与交付。',
+        suited: '适合：有定制需求的企业客户',
       },
       api: {
         title: 'API 对接',
@@ -127,42 +127,6 @@ export default {
       design: { title: '方案设计', desc: '输出技术方案与部署架构' },
       delivery: { title: '部署交付', desc: '环境搭建、联调测试与上线' },
       support: { title: '运维支持', desc: '持续监控、优化与技术支持' },
-    },
-  },
-  packages: {
-    eyebrow: '// PACKAGES · 服务套餐',
-    title: '合作方案',
-    desc: '按需选择合作方案，价格采用商务咨询制，根据业务规模与技术要求评估。',
-    badge: '推荐',
-    items: {
-      standard: {
-        name: '标准服务包',
-        tagline: '面向快速上线的小型项目',
-        price: '按量计费 · 商务咨询',
-        features: ['标准 API / SDK 接入', '共享资源池，按量计费', '标准 SLA 保障', '在线技术支持'],
-      },
-      custom: {
-        name: '定制方案',
-        tagline: '面向业务场景的专属技术方案',
-        price: '按项目评估 · 商务咨询',
-        features: [
-          '场景化架构设计与调优',
-          '专属资源池与带宽保障',
-          '定制 SLA 与安全策略',
-          '专属技术对接人',
-        ],
-      },
-      private: {
-        name: '私有化部署',
-        tagline: '面向数据敏感与本地化需求',
-        price: '按项目评估 · 商务咨询',
-        features: [
-          '全量组件私有化交付',
-          '数据不出域、内网运行',
-          '高可用架构与容灾',
-          '驻场与远程运维支持',
-        ],
-      },
     },
   },
   faq: {

@@ -18,6 +18,7 @@ const { t } = useI18n()
 
       <div class="coop-grid">
         <article v-for="c in cooperation" :key="c.key" class="px-card coop-card">
+          <span v-if="c.featured" class="px-badge">{{ t('cooperation.badge') }}</span>
           <div class="coop-icon">
             <PxIcon :art="c.icon" :size="36" />
           </div>
@@ -39,9 +40,21 @@ const { t } = useI18n()
 }
 
 .coop-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 28px 24px;
+}
+
+.px-badge {
+  position: absolute;
+  top: -1px;
+  right: 22px;
+  padding: 4px 12px;
+  background: var(--px-green);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 1px;
 }
 
 .coop-icon {

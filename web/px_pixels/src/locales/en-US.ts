@@ -12,7 +12,6 @@ export default {
     industries: 'Industries',
     cooperation: 'Partnership',
     advantages: 'Why Us',
-    packages: 'Packages',
     faq: 'FAQ',
     contact: 'Business Inquiry',
   },
@@ -98,11 +97,12 @@ export default {
     eyebrow: '// PARTNERSHIP',
     title: 'Four Partnership Models',
     desc: 'Choose the model that best fits your business and resources.',
+    badge: 'Recommended',
     items: {
-      license: {
-        title: 'Technology Licensing',
-        desc: 'License the full cloud gaming, cloud rendering and cloud desktop stack to rapidly build your own cloud service capabilities.',
-        suited: 'Ideal for: tech teams building their own platforms',
+      custom: {
+        title: 'Custom Services',
+        desc: 'Tailor cloud gaming, cloud rendering, cloud desktop and remote desktop solutions and content to business scenarios, with on-demand development and delivery.',
+        suited: 'Ideal for: custom needs',
       },
       api: {
         title: 'API Integration',
@@ -143,47 +143,6 @@ export default {
       design: { title: 'Solution Design', desc: 'Deliver technical solution and deployment architecture' },
       delivery: { title: 'Deployment', desc: 'Environment setup, integration testing and launch' },
       support: { title: 'Operations Support', desc: 'Continuous monitoring, optimization and support' },
-    },
-  },
-  packages: {
-    eyebrow: '// PACKAGES',
-    title: 'Engagement Packages',
-    desc: 'Pricing is consultation-based and assessed by business scale and technical requirements.',
-    badge: 'Recommended',
-    items: {
-      standard: {
-        name: 'Standard Package',
-        tagline: 'For small projects that need to launch quickly',
-        price: 'Pay-as-you-go · Contact Us',
-        features: [
-          'Standard API / SDK access',
-          'Shared resource pool, pay per use',
-          'Standard SLA guarantee',
-          'Online technical support',
-        ],
-      },
-      custom: {
-        name: 'Custom Solution',
-        tagline: 'Tailored technical solution for your scenario',
-        price: 'Project-based · Contact Us',
-        features: [
-          'Scenario-specific architecture design and tuning',
-          'Dedicated resource pool and bandwidth',
-          'Custom SLA and security policies',
-          'Dedicated technical contact',
-        ],
-      },
-      private: {
-        name: 'Private Deployment',
-        tagline: 'For data-sensitive and on-premise needs',
-        price: 'Project-based · Contact Us',
-        features: [
-          'Full-stack private delivery',
-          'Data stays on-premise, intranet operation',
-          'High-availability architecture and disaster recovery',
-          'On-site and remote operations support',
-        ],
-      },
     },
   },
   faq: {

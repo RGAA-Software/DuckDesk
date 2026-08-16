@@ -9,7 +9,6 @@ export const navItems = [
   { key: 'industries', href: '#industries' },
   { key: 'cooperation', href: '#cooperation' },
   { key: 'advantages', href: '#advantages' },
-  { key: 'packages', href: '#packages' },
   { key: 'faq', href: '#faq' },
 ]
 
@@ -36,14 +35,16 @@ export const services = [
   },
   {
     key: 'cloudGame',
+    /* 像素手柄（Xbox 风格：中间圆形 Xbox 键 + 两侧摇杆） */
     icon: [
-      '..xxxx..',
-      '.x....x.',
-      'x..xx..x',
-      'x..xx..x',
-      'x......x',
-      '.x....x.',
-      '..xxxx..',
+      '.xx......xx.',
+      'x..x....x..x',
+      'x...xxxx...x',
+      'x...xxxx...x',
+      'x..x....x..x',
+      'xxxx....xxxx',
+      'x..........x',
+      '.xxxxxxxxxx.',
     ],
   },
   {
@@ -140,18 +141,20 @@ export const industries = [
   },
 ]
 
-/* ---------- 合作模式 ---------- */
+/* ---------- 合作模式（featured 卡片显示"推荐"徽章） ---------- */
 export const cooperation = [
   {
-    key: 'license',
+    key: 'custom',
+    featured: true,
     icon: [
       '.xxxxxx.',
+      'x.xxxx.x',
+      'xx.xx.xx',
+      'xxx..xxx',
+      'xxx..xxx',
+      'xx.xx.xx',
+      'x.xxxx.x',
       '.xxxxxx.',
-      '.xxxxxx.',
-      '.xxxxxx.',
-      '.xxxxxx.',
-      '..xxxx..',
-      '...xx...',
     ],
   },
   {
@@ -168,6 +171,7 @@ export const cooperation = [
   },
   {
     key: 'private',
+    featured: true,
     icon: [
       'xxxxxxxx',
       'xxxxxxxx',
@@ -268,16 +272,6 @@ export const advantages = [
 
 /* ---------- 服务流程 ---------- */
 export const processSteps = [{ key: 'inquiry' }, { key: 'design' }, { key: 'delivery' }, { key: 'support' }]
-
-/* ---------- 服务套餐 ---------- */
-export const packages = [
-  { key: 'standard', featured: false },
-  { key: 'custom', featured: true },
-  { key: 'private', featured: false },
-]
-
-/* 每档套餐的特性数量（语言包 features 数组长度） */
-export const packageFeatureCount = 4
 
 /* ---------- 常见问题 ---------- */
 export const faqs = [

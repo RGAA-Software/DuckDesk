@@ -13,7 +13,6 @@ import Industries from './components/Industries.vue'
 import Cooperation from './components/Cooperation.vue'
 import Advantages from './components/Advantages.vue'
 import Process from './components/Process.vue'
-import Packages from './components/Packages.vue'
 import Faq from './components/Faq.vue'
 import Contact from './components/Contact.vue'
 import SiteFooter from './components/SiteFooter.vue'
@@ -55,7 +54,6 @@ watchEffect(() => {
         <Cooperation />
         <Advantages />
         <Process />
-        <Packages />
         <Faq />
         <Contact />
       </main>

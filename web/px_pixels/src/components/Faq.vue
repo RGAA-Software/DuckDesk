@@ -10,7 +10,7 @@ const activeKey = ref<string[]>(['0'])
 
 <template>
   <section id="faq" class="px-section">
-    <div class="container faq-container">
+    <div class="container">
       <SectionHead
         :eyebrow="t('faq.eyebrow')"
         :title="t('faq.title')"
@@ -27,11 +27,8 @@ const activeKey = ref<string[]>(['0'])
 </template>
 
 <style scoped>
-.faq-container {
-  max-width: 860px;
-}
-
 .faq-collapse {
+  max-width: 860px;
   margin-top: 40px;
   background: transparent;
 }
