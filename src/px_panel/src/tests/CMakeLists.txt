@@ -28,3 +28,15 @@ add_executable(test_access_decrypt test_access_decrypt.cpp)
 find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 target_link_libraries(test_access_decrypt PRIVATE OpenSSL::Crypto nlohmann_json::nlohmann_json)
+
+add_executable(test_records_catalog test_records_catalog.cpp
+        ../render_panel/network/records_catalog.cpp)
+target_link_libraries(test_records_catalog PRIVATE GTest::gtest GTest::gtest_main)
+
+add_executable(test_records_ticket test_records_ticket.cpp
+        ../render_panel/network/records_ticket.cpp)
+target_link_libraries(test_records_ticket PRIVATE GTest::gtest GTest::gtest_main OpenSSL::Crypto)
+
+add_executable(test_record_transfer test_record_transfer.cpp
+        ../render_panel/network/record_transfer.cpp)
+target_link_libraries(test_record_transfer PRIVATE GTest::gtest GTest::gtest_main)

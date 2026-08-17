@@ -4,6 +4,7 @@ use crate::event::cms_event::CmsEvent;
 use crate::gCmsSettings;
 use crate::net_client::cms_client_conn::CmsClientConnVo;
 use crate::record::cms_file_transfer::CmsFileTransfer;
+use crate::record::cms_render_record::CmsRenderRecord;
 use crate::record::cms_visit::CmsVisit;
 use crate::stream::cms_stream::CmsStream;
 use crate::update::update_info::UpdateInfo;
@@ -30,6 +31,8 @@ pub struct CmsDatabase {
     pub c_visit: Option<Arc<Mutex<Collection<CmsVisit>>>>,
     // record: file transfer
     pub c_file_transfer: Option<Arc<Mutex<Collection<CmsFileTransfer>>>>,
+    // record: render records cache (design doc 6.3)
+    pub c_records: Option<Arc<Mutex<Collection<CmsRenderRecord>>>>,
     // user device relationship
     pub c_user_device: Option<Arc<Mutex<Collection<CmsUserDevice>>>>,
     // cms conn; use adapter
@@ -115,6 +118,17 @@ impl CmsDatabase {
                 }
                 self.c_file_transfer = Some(Arc::new(Mutex::new(c_file_transfer)));
 
+                // record: render records cache
+                let c_records: Collection<CmsRenderRecord> = database.collection("c_records");
+                let rec_index = IndexModel::builder()
+                    .keys(doc! { "id": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_records.create_index(rec_index).await {
+                    tracing::warn!("create c_records id index failed: {}", e);
+                }
+                self.c_records = Some(Arc::new(Mutex::new(c_records)));
+
                 let c_user_device: Collection<CmsUserDevice> =
                     database.collection("c_user_device");
                 self.c_user_device = Some(Arc::new(Mutex::new(c_user_device)));
@@ -198,6 +212,10 @@ impl CmsDatabase {
 
     pub fn file_transfer(&self) -> Arc<Mutex<Collection<CmsFileTransfer>>> {
         self.c_file_transfer.clone().unwrap()
+    }
+
+    pub fn records(&self) -> Arc<Mutex<Collection<CmsRenderRecord>>> {
+        self.c_records.clone().unwrap()
     }
 
     pub fn user_device(&self) -> Arc<Mutex<Collection<CmsUserDevice>>> {

@@ -29,6 +29,7 @@ extern "C" {
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <vector>
 
 namespace px {
@@ -161,7 +162,9 @@ struct RecordWriter::Impl {
         : cfg_(cfg),
           clock_ms_(cfg.clock_ms ? cfg.clock_ms : std::function<int64_t()>(DefaultClockMs)),
           session_start_ms_(clock_ms_()),
-          recording_(true) {}
+          recording_(true) {
+        CleanupStaleRecordingMarkers();
+    }
 
     ~Impl() {
         Stop();
@@ -191,6 +194,34 @@ struct RecordWriter::Impl {
     AVStream* vstream_ = nullptr;
     AVStream* astream_ = nullptr;
     int64_t written_bytes_ = 0;
+    std::string current_path_; // 当前分段路径(sidecar 标记用)
+
+    // ---- 录制中 sidecar 标记(xxx.mp4.recording) ----
+    // 文件打开(写完 header)后创建,关闭(moov 落盘)后删除;
+    // 录像查看功能据此过滤不可播的进行中文件,不用 mtime 启发式
+    void CreateRecordingMarker() {
+        if (current_path_.empty()) return;
+        std::ofstream(current_path_ + ".recording", std::ios::trunc).close();
+    }
+
+    void RemoveRecordingMarker() {
+        if (current_path_.empty()) return;
+        std::error_code ec;
+        std::filesystem::remove(current_path_ + ".recording", ec);
+        current_path_.clear();
+    }
+
+    // 进程启动时本 writer 尚无打开文件,目录里残留的标记都是上次崩溃的孤儿
+    void CleanupStaleRecordingMarkers() {
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        if (!fs::exists(cfg_.dir, ec)) return;
+        for (auto& e : fs::directory_iterator(cfg_.dir, ec)) {
+            if (e.path().extension() == ".recording") {
+                fs::remove(e.path(), ec);
+            }
+        }
+    }
 
     // 墙钟 ms*90 / ms*48 量化后可能出现同毫秒多帧 => dts 重复。
     // 对 muxer/播放器做严格单调递增保护(同段内)。
@@ -394,6 +425,7 @@ private:
 
     bool OpenFile() {
         auto path = MakeFilePath();
+        current_path_ = path;
         int r = avformat_alloc_output_context2(&fmt_, nullptr, "mp4", path.c_str());
         if (r < 0) {
             std::fprintf(stderr, "[record_writer] alloc output ctx failed: %d\n", r);
@@ -450,6 +482,7 @@ private:
         written_bytes_ = 0;
         ++segment_no_;
         writing_ = true;
+        CreateRecordingMarker();
         std::fprintf(stderr, "[record_writer] segment %lld opened: %s\n",
                      (long long)segment_no_, path.c_str());
 
@@ -475,6 +508,7 @@ private:
         astream_ = nullptr;
         written_bytes_ = 0;
         writing_ = false;
+        RemoveRecordingMarker(); // moov 已落盘,文件可播
         CleanupOldFiles();
     }
 

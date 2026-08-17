@@ -18,6 +18,10 @@ fn default_force_authorize() -> bool {
     true
 }
 
+fn default_ssl_enable() -> bool {
+    true
+}
+
 /// 鉴权是否放行（force_authorize=false 时所有 WS/HTTP 鉴权过滤直接通过）。
 pub async fn is_auth_bypassed() -> bool {
     !gCmsSettings.lock().await.force_authorize
@@ -63,6 +67,12 @@ pub struct CmsSettings {
     /// px_cms.toml 显式写 force_authorize = false。
     #[serde(default = "default_force_authorize")]
     pub force_authorize: bool,
+
+    /// true = 主服务走 HTTPS（rustls，需要 ssl_cert/ssl_key，缺证书拒绝启动）；
+    /// false = 主服务绑纯 HTTP（局域网部署，避免页面内嵌 http:// 设备内容
+    /// 被浏览器混合内容拦截）。缺省 true。
+    #[serde(default = "default_ssl_enable")]
+    pub ssl_enable: bool,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]

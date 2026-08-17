@@ -83,6 +83,21 @@ pub enum CmsApiError {
 
     #[error("max streams reached")]
     MaxStreamsReached,
+
+    #[error("device is offline")]
+    DeviceOffline,
+
+    #[error("request to device timed out")]
+    RequestTimeout,
+
+    #[error("invalid or expired upload token")]
+    TokenInvalid,
+
+    #[error("record not found")]
+    RecordNotFound,
+
+    #[error("device has no safety password")]
+    SafetyPwdMissing,
 }
 
 // CmsApiError -> Response
@@ -125,13 +140,20 @@ impl CmsApiError {
             CmsApiError::FileTransferNotFound => 625,
             CmsApiError::MachineCodeNotMatched => 623,
             CmsApiError::MaxStreamsReached => 624,
+            CmsApiError::DeviceOffline => 626,
+            CmsApiError::RequestTimeout => 627,
+            CmsApiError::TokenInvalid => 628,
+            CmsApiError::RecordNotFound => 629,
+            CmsApiError::SafetyPwdMissing => 630,
         }
     }
 
     pub fn status_code(&self) -> StatusCode {
         match self {
-            CmsApiError::InvalidAppkey => StatusCode::UNAUTHORIZED,
+            CmsApiError::InvalidAppkey | CmsApiError::TokenInvalid => StatusCode::UNAUTHORIZED,
             CmsApiError::MaxStreamsReached => StatusCode::FORBIDDEN,
+            CmsApiError::DeviceOffline => StatusCode::SERVICE_UNAVAILABLE,
+            CmsApiError::RequestTimeout => StatusCode::GATEWAY_TIMEOUT,
             CmsApiError::InvalidAuthorization
             | CmsApiError::MachineCodeNotMatched
             | CmsApiError::InvalidParams
@@ -154,7 +176,9 @@ impl CmsApiError {
             | CmsApiError::VersionNotFound
             | CmsApiError::FileNotFound
             | CmsApiError::VisitNotFound
-            | CmsApiError::FileTransferNotFound => StatusCode::BAD_REQUEST,
+            | CmsApiError::FileTransferNotFound
+            | CmsApiError::RecordNotFound
+            | CmsApiError::SafetyPwdMissing => StatusCode::BAD_REQUEST,
             CmsApiError::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

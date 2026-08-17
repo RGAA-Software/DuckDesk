@@ -54,27 +54,35 @@ impl CmsServer {
         let web_cms_dir = current_dir.join("web");
         tracing::info!("assets_dir: {:?}", &web_cms_dir);
 
-        // configure certificate and private key used by https
-        let cp = current_dir.to_string_lossy().to_string()
-            + "/"
-            + gCmsSettings.lock().await.ssl_cert.as_str(); //.join("certs").join("cert.pem");
-        let kp = current_dir.to_string_lossy().to_string()
-            + "/"
-            + gCmsSettings.lock().await.ssl_key.as_str(); //.join("certs").join("key.pem");
-        tracing::info!("cp: {:?}", &cp);
-        tracing::info!("cp: {:?}", &kp);
+        let ssl_enable = gCmsSettings.lock().await.ssl_enable;
+        tracing::info!("ssl_enable: {}", ssl_enable);
 
-        let config = RustlsConfig::from_pem_file(
-            current_dir.join("certs").join("cert.pem"),
-            current_dir.join("certs").join("key.pem"),
-        )
-        .await;
+        // configure certificate and private key used by https (ssl_enable=false 时跳过,
+        // 局域网纯 HTTP 部署允许不部署证书)
+        let tls_config = if ssl_enable {
+            let cp = current_dir.to_string_lossy().to_string()
+                + "/"
+                + gCmsSettings.lock().await.ssl_cert.as_str(); //.join("certs").join("cert.pem");
+            let kp = current_dir.to_string_lossy().to_string()
+                + "/"
+                + gCmsSettings.lock().await.ssl_key.as_str(); //.join("certs").join("key.pem");
+            tracing::info!("cp: {:?}", &cp);
+            tracing::info!("cp: {:?}", &kp);
 
-        if let Err(e) = config {
-            tracing::error!("==> {}", e);
-            return;
-        }
-        let config = config.unwrap();
+            let config = RustlsConfig::from_pem_file(
+                current_dir.join("certs").join("cert.pem"),
+                current_dir.join("certs").join("key.pem"),
+            )
+            .await;
+
+            if let Err(e) = config {
+                tracing::error!("==> {}", e);
+                return;
+            }
+            Some(config.unwrap())
+        } else {
+            None
+        };
         let context = gCmsContext.clone();
 
         // Default CORS policy: deny cross-origin requests. Browser clients must be served
@@ -210,11 +218,27 @@ impl CmsServer {
         });
 
         let addr = SocketAddr::from(([0, 0, 0, 0], self.port));
-        tracing::info!("https.listening on {}", addr);
-        axum_server::bind_rustls(addr, config)
-            .serve(router.into_make_service_with_connect_info::<SocketAddr>())
-            .await
-            .unwrap();
+        match tls_config {
+            Some(config) => {
+                tracing::info!("https.listening on {}", addr);
+                axum_server::bind_rustls(addr, config)
+                    .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                    .await
+                    .unwrap();
+            }
+            None => {
+                // 局域网纯 HTTP 部署(ssl_enable=false):页面内嵌 http:// 设备内容
+                // (panel 录像、render 托管的 web client)不被混合内容拦截
+                tracing::info!("http.listening on {} (ssl_enable=false)", addr);
+                let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+                axum::serve(
+                    listener,
+                    router.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .await
+                .unwrap();
+            }
+        }
     }
 
     pub async fn ping(State(_ctx): State<Arc<Mutex<CmsContext>>>) -> Json<RespMessage<String>> {

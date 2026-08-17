@@ -45,7 +45,9 @@ use crate::net_cm::cms_cm_mgr::CmsCMManager;
 use crate::net_panel::cms_panel_conn_mgr::CmsPanelConnManager;
 use crate::net_service::cms_service_conn_mgr::CmsServiceConnManager;
 use crate::record::cms_file_transfer_manager::CmsFileTransferManager;
+use crate::record::cms_render_record_manager::CmsRenderRecordManager;
 use crate::record::cms_visit_manager::CmsVisitManager;
+use crate::record::record_tunnel::RecordTunnelManager;
 use crate::cms_relay::relay_conn_mgr::RelayConnManager;
 use crate::cms_relay::relay_redis_conn::RelayRedisConn;
 use crate::cms_relay::relay_room_mgr::RelayRoomManager;
@@ -112,6 +114,10 @@ lazy_static::lazy_static! {
     // record
     pub static ref gRecordVisitManager: Arc<CmsVisitManager> = CmsVisitManager::new();
     pub static ref gRecordFileTransferManager: Arc<CmsFileTransferManager> = CmsFileTransferManager::new();
+
+    // render records view (design doc 6.2 / 6.3)
+    pub static ref gRenderRecordManager: Arc<CmsRenderRecordManager> = CmsRenderRecordManager::new();
+    pub static ref gRecordTunnel: Arc<RecordTunnelManager> = RecordTunnelManager::new();
 }
 
 #[derive(Parser, Debug)]
@@ -247,6 +253,7 @@ async fn run_as_server(machine_code: String) {
     let _ = px_base::create_dir_if_not_exists("./uploads/logs");
     let _ = px_base::create_dir_if_not_exists("./uploads/avatar");
     let _ = px_base::create_dir_if_not_exists("./uploads/update_info");
+    let _ = px_base::create_dir_if_not_exists("./uploads/records");
 
     {
         let exe_dir = px_base::current_exe_dir();
@@ -319,6 +326,12 @@ async fn run_as_server(machine_code: String) {
         let server = RelayServer::new("0.0.0.0".to_string(), relay_port, gCmsContext.clone());
         server.start().await;
     });
+
+    // render-records temp-cache cleanup (TTL 24h / 10GB threshold, keep exempt)
+    crate::record::record_cleaner::start_cleanup_task(
+        gRenderRecordManager.clone(),
+        gRecordTunnel.clone(),
+    );
 
     // cms server
     let srv_task = async move {

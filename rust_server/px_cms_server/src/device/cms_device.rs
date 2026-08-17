@@ -53,6 +53,14 @@ pub struct CmsDevice {
 
     #[serde(default)]
     pub active: bool,
+
+    // local NIC IPv4 list reported by panel at handshake (design doc 5.2)
+    #[serde(default)]
+    pub panel_lan_ips: Vec<String>,
+
+    // panel http server port (records api), 0 = unknown (use default 20369)
+    #[serde(default)]
+    pub panel_http_port: i64,
 }
 
 impl CmsDevice {

@@ -7,6 +7,13 @@ pub struct CmsPanelHello {
     pub user_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub device_name: ::prost::alloc::string::String,
+    /// local NIC IPv4 list (loopback / link-local excluded), reported at handshake
+    /// for the cms render-records view (docs/cms_render_records_view_design.md 5.2)
+    #[prost(string, repeated, tag = "4")]
+    pub panel_lan_ips: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// panel http server port (records api, default 20369)
+    #[prost(int32, tag = "5")]
+    pub panel_http_port: i32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CmsPanelHeartBeat {
@@ -34,6 +41,70 @@ pub struct CmsSysInfo {
     pub info: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RecordFileInfo {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(int64, tag = "2")]
+    pub size: i64,
+    /// unix seconds
+    #[prost(int64, tag = "3")]
+    pub mtime: i64,
+    #[prost(string, tag = "4")]
+    pub monitor: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub codec: ::prost::alloc::string::String,
+}
+/// cms -> panel: request the record file list of the device
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RecordListReq {
+    #[prost(string, tag = "1")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub req_id: ::prost::alloc::string::String,
+}
+/// panel -> cms: response of RecordListReq (matched by req_id)
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RecordListResp {
+    #[prost(string, tag = "1")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub req_id: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "3")]
+    pub files: ::prost::alloc::vec::Vec<RecordFileInfo>,
+    /// non-empty when the listing failed
+    #[prost(string, tag = "4")]
+    pub error: ::prost::alloc::string::String,
+}
+/// cms -> panel: fetch one record file; panel uploads it to upload_url
+/// (POST /api/v1/record/upload, multipart, token checked by cms)
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RecordFetchReq {
+    #[prost(string, tag = "1")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub req_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub filename: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub token: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub upload_url: ::prost::alloc::string::String,
+}
+/// panel -> cms: upload finished / failed
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RecordFetchDone {
+    #[prost(string, tag = "1")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub req_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub filename: ::prost::alloc::string::String,
+    #[prost(bool, tag = "4")]
+    pub ok: bool,
+    #[prost(string, tag = "5")]
+    pub error: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CmsPanelMessage {
     #[prost(enumeration = "CmsPanelMessageType", tag = "1")]
     pub msg_type: i32,
@@ -45,12 +116,24 @@ pub struct CmsPanelMessage {
     pub heartbeat: ::core::option::Option<CmsPanelHeartBeat>,
     #[prost(message, optional, tag = "40")]
     pub sys_info: ::core::option::Option<CmsSysInfo>,
+    #[prost(message, optional, tag = "50")]
+    pub record_list_req: ::core::option::Option<RecordListReq>,
+    #[prost(message, optional, tag = "51")]
+    pub record_list_resp: ::core::option::Option<RecordListResp>,
+    #[prost(message, optional, tag = "52")]
+    pub record_fetch_req: ::core::option::Option<RecordFetchReq>,
+    #[prost(message, optional, tag = "53")]
+    pub record_fetch_done: ::core::option::Option<RecordFetchDone>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum CmsPanelMessageType {
     KCmsPanelHello = 0,
     KCmsPanelHeartBeat = 1,
+    KRecordListReq = 2,
+    KRecordListResp = 3,
+    KRecordFetchReq = 4,
+    KRecordFetchDone = 5,
 }
 impl CmsPanelMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -61,6 +144,10 @@ impl CmsPanelMessageType {
         match self {
             Self::KCmsPanelHello => "kCmsPanelHello",
             Self::KCmsPanelHeartBeat => "kCmsPanelHeartBeat",
+            Self::KRecordListReq => "kRecordListReq",
+            Self::KRecordListResp => "kRecordListResp",
+            Self::KRecordFetchReq => "kRecordFetchReq",
+            Self::KRecordFetchDone => "kRecordFetchDone",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -68,6 +155,10 @@ impl CmsPanelMessageType {
         match value {
             "kCmsPanelHello" => Some(Self::KCmsPanelHello),
             "kCmsPanelHeartBeat" => Some(Self::KCmsPanelHeartBeat),
+            "kRecordListReq" => Some(Self::KRecordListReq),
+            "kRecordListResp" => Some(Self::KRecordListResp),
+            "kRecordFetchReq" => Some(Self::KRecordFetchReq),
+            "kRecordFetchDone" => Some(Self::KRecordFetchDone),
             _ => None,
         }
     }

@@ -12,6 +12,7 @@ import VideoWall from '@/views/VideoWall.vue'
 import EventView from '@/views/EventView.vue'
 import LoginView from '@/views/LoginView.vue'
 import AppsView from '@/views/AppsView.vue'
+import DeviceRecords from '@/views/DeviceRecords.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -73,6 +74,15 @@ const router = createRouter({
           component: AppsView,
           meta: {
             title: '应用调度',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: '/records/:device_id',
+          name: 'device-records',
+          component: DeviceRecords,
+          meta: {
+            title: '设备录像',
             requiresAuth: true,
           },
         },

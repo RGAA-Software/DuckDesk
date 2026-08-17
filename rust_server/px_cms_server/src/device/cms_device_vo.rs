@@ -64,6 +64,14 @@ pub struct CmsDeviceVo {
 
     #[serde(default)]
     pub sys_info: SysInfo,
+
+    // local NIC IPv4 list reported by panel (design doc 5.2)
+    #[serde(default)]
+    pub panel_lan_ips: Vec<String>,
+
+    // panel http server port (records api)
+    #[serde(default)]
+    pub panel_http_port: i64,
 }
 
 impl CmsDeviceVo {
@@ -85,6 +93,8 @@ impl CmsDeviceVo {
             device_ip_addr: device.get_ip_from_link(),
             active: device.active,
             sys_info: Default::default(),
+            panel_lan_ips: device.panel_lan_ips.clone(),
+            panel_http_port: device.panel_http_port,
         }
     }
 }

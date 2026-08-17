@@ -27,6 +27,9 @@ pub struct CmsPanelConn {
     pub hb_index: i64,
     pub device_ip_addr: String,
     pub sys_info_array: Vec<SysInfo>,
+    // local NIC IPv4 list reported in CmsPanelHello (design doc 5.2)
+    pub panel_lan_ips: Vec<String>,
+    pub panel_http_port: i32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -39,6 +42,10 @@ pub struct CmsPanelConnVo {
     pub last_update_timestamp: i64,
     pub device_ip_addr: String,
     pub sys_info: SysInfo,
+    #[serde(default)]
+    pub panel_lan_ips: Vec<String>,
+    #[serde(default)]
+    pub panel_http_port: i32,
 }
 
 impl CmsPanelConn {
@@ -62,6 +69,8 @@ impl CmsPanelConn {
             hb_index: 0,
             device_ip_addr: "".to_string(),
             sys_info_array: Default::default(),
+            panel_lan_ips: Default::default(),
+            panel_http_port: 0,
         }
     }
 
@@ -79,6 +88,8 @@ impl CmsPanelConn {
             last_update_timestamp: self.last_update_timestamp,
             device_ip_addr: self.device_ip_addr.to_string(),
             sys_info,
+            panel_lan_ips: self.panel_lan_ips.clone(),
+            panel_http_port: self.panel_http_port,
         }
     }
 
@@ -96,6 +107,31 @@ impl CmsPanelConn {
             let device_id = sub.device_id;
             self.user_id = sub.user_id;
             self.device_name = sub.device_name;
+            // panel reports its local NIC ips at handshake (design doc 5.2);
+            // keep them on the conn and persist into the device table
+            self.panel_lan_ips = sub.panel_lan_ips.clone();
+            self.panel_http_port = sub.panel_http_port;
+            {
+                let device_id = device_id.clone();
+                let ips = sub.panel_lan_ips;
+                let port = sub.panel_http_port as i64;
+                tokio::spawn(async move {
+                    if let Err(e) = crate::gDeviceManager
+                        .update_device_field(device_id.clone(), "panel_lan_ips".to_string(), ips)
+                        .await
+                    {
+                        tracing::warn!("persist panel_lan_ips for {} failed: {:?}", device_id, e);
+                    }
+                    if port > 0 {
+                        if let Err(e) = crate::gDeviceManager
+                            .update_device_field(device_id.clone(), "panel_http_port".to_string(), port)
+                            .await
+                        {
+                            tracing::warn!("persist panel_http_port for {} failed: {:?}", device_id, e);
+                        }
+                    }
+                });
+            }
             self.send_hello(device_id, self.user_id.clone()).await;
         } else if m.msg_type == CmsPanelMessageType::KCmsPanelHeartBeat {
             let sub = m.heartbeat.unwrap();
@@ -128,6 +164,30 @@ impl CmsPanelConn {
             }
             self.send_heartbeat(hb_index, self.device_id.clone(), self.user_id.clone())
                 .await;
+        } else if m.msg_type == CmsPanelMessageType::KRecordListResp {
+            // record tunnel family (design doc 6.2)
+            if let Some(resp) = m.record_list_resp {
+                if !crate::gRecordTunnel.complete_list(resp) {
+                    tracing::warn!("record list resp with unknown req_id, dropped");
+                }
+            }
+        } else if m.msg_type == CmsPanelMessageType::KRecordFetchDone {
+            if let Some(done) = m.record_fetch_done {
+                if done.ok {
+                    tracing::info!("record fetch done: {}/{}", done.device_id, done.filename);
+                } else {
+                    tracing::error!(
+                        "record fetch failed: {}/{}: {}",
+                        done.device_id,
+                        done.filename,
+                        done.error
+                    );
+                    let _ = crate::gRenderRecordManager
+                        .mark_error(&done.device_id, &done.filename, &done.error)
+                        .await;
+                }
+                crate::gRecordTunnel.remove_inflight(&done.device_id, &done.filename);
+            }
         }
 
         true
@@ -140,6 +200,7 @@ impl CmsPanelConn {
             device_id,
             user_id,
             device_name: self.device_name.clone(),
+            ..Default::default()
         });
         let buffer = pl_msg.encode_to_vec();
         self.send_bin_message_vec(buffer).await;

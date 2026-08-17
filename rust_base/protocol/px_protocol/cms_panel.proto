@@ -7,12 +7,21 @@ package cms_panel;
 enum CmsPanelMessageType {
   kCmsPanelHello = 0;
   kCmsPanelHeartBeat = 1;
+  kRecordListReq = 2;
+  kRecordListResp = 3;
+  kRecordFetchReq = 4;
+  kRecordFetchDone = 5;
 }
 
 message CmsPanelHello {
   string device_id = 1;
   string user_id = 2;
   string device_name = 3;
+  // local NIC IPv4 list (loopback / link-local excluded), reported at handshake
+  // for the cms render-records view (docs/cms_render_records_view_design.md 5.2)
+  repeated string panel_lan_ips = 4;
+  // panel http server port (records api, default 20369)
+  int32 panel_http_port = 5;
 }
 
 message CmsPanelHeartBeat {
@@ -31,10 +40,59 @@ message CmsSysInfo {
   string info = 1;
 }
 
+// ---- render records tunnel family (design doc 6.2) ----
+
+message RecordFileInfo {
+  string name = 1;
+  int64 size = 2;
+  // unix seconds
+  int64 mtime = 3;
+  string monitor = 4;
+  string codec = 5;
+}
+
+// cms -> panel: request the record file list of the device
+message RecordListReq {
+  string device_id = 1;
+  string req_id = 2;
+}
+
+// panel -> cms: response of RecordListReq (matched by req_id)
+message RecordListResp {
+  string device_id = 1;
+  string req_id = 2;
+  repeated RecordFileInfo files = 3;
+  // non-empty when the listing failed
+  string error = 4;
+}
+
+// cms -> panel: fetch one record file; panel uploads it to upload_url
+// (POST /api/v1/record/upload, multipart, token checked by cms)
+message RecordFetchReq {
+  string device_id = 1;
+  string req_id = 2;
+  string filename = 3;
+  string token = 4;
+  string upload_url = 5;
+}
+
+// panel -> cms: upload finished / failed
+message RecordFetchDone {
+  string device_id = 1;
+  string req_id = 2;
+  string filename = 3;
+  bool ok = 4;
+  string error = 5;
+}
+
 message CmsPanelMessage {
   CmsPanelMessageType msg_type = 1;
   string device_id = 10;
   CmsPanelHello hello = 20;
   CmsPanelHeartBeat heartbeat = 30;
   CmsSysInfo sys_info = 40;
+  RecordListReq record_list_req = 50;
+  RecordListResp record_list_resp = 51;
+  RecordFetchReq record_fetch_req = 52;
+  RecordFetchDone record_fetch_done = 53;
 }

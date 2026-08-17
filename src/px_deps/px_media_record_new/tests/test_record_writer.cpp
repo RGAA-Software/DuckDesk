@@ -22,6 +22,7 @@ extern "C" {
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <random>
 #include <string>
 #include <vector>
@@ -379,6 +380,48 @@ TEST(RecordWriter, RollingAndCleanup) {
         << "audio must stay continuous across segments";
     // 幸存段(3 个上限)至少覆盖 ~2 个完整段; 旧段被删是滚动清理的预期行为
     EXPECT_GT(video_total_ms, 9000) << "surviving segments must cover at least ~2 full segments";
+}
+
+TEST(RecordWriter, RecordingSidecarMarker) {
+    auto dir = MakeTempDir();
+    VirtualClock clk;
+    RecordWriterConfig cfg;
+    cfg.dir = dir;
+    cfg.clock_ms = [&]() { return clk.ms; };
+
+    H264Gen gen;
+    ASSERT_TRUE(OpenH264Encoder(gen, 320, 240, 30, 30));
+
+    {
+        auto w = RecordWriter::Make(cfg);
+        FeedAV(*w, gen, clk, 2, 30, 30, true);
+
+        // 录制中: mp4 存在且 sidecar 标记存在(查看功能据此过滤不可播文件)
+        auto files = ListMp4(dir);
+        ASSERT_EQ(files.size(), 1u);
+        const auto marker = files[0].string() + ".recording";
+        EXPECT_TRUE(fs::exists(marker)) << "in-progress file must have .recording sidecar";
+
+        w->Stop();
+        // 关闭后 moov 落盘: sidecar 必须被删除
+        EXPECT_FALSE(fs::exists(marker)) << "finished file must not keep .recording sidecar";
+        EXPECT_TRUE(fs::exists(files[0]));
+    }
+
+    // 崩溃残留: 手工造孤儿标记,新 writer 构造时应清理(此时本 writer 无打开文件)
+    auto files = ListMp4(dir);
+    ASSERT_EQ(files.size(), 1u);
+    const auto orphan = files[0].string() + ".recording";
+    {
+        std::ofstream(orphan, std::ios::trunc).close();
+        ASSERT_TRUE(fs::exists(orphan));
+        auto w2 = RecordWriter::Make(cfg);
+        EXPECT_FALSE(fs::exists(orphan)) << "stale orphan marker must be cleaned on start";
+        w2->Stop();
+    }
+
+    CloseH264Encoder(gen);
+    fs::remove_all(dir);
 }
 
 TEST(RecordWriter, EarlyStop) {

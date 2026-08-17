@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { notification } from 'ant-design-vue'
+
+const router = useRouter()
 
 const hardwareDialogVisible = ref(false)
 const currentSelectedDevice = ref<Device>()
@@ -65,6 +68,12 @@ const handleOpenWebDesktop = (index: number, device: Device) => {
     console.error(e)
     notification.error({ message: '解析设备链接失败' })
   }
+}
+
+// 跳转到设备录像查看页（/records/:device_id）
+const handleOpenRecords = (index: number, device: Device) => {
+  console.log('open records: ', index, device.device_id)
+  router.push(`/records/${device.device_id}`)
 }
 
 const devices = ref<Device[]>([])
@@ -321,6 +330,10 @@ const handleSearchDevices = async () => {
           <template #default="{ record, index }">
             <a-button size="small" @click="handleHardwareInfo(index, record)">
               硬件
+            </a-button>
+
+            <a-button size="small" @click="handleOpenRecords(index, record)">
+              录像
             </a-button>
 
             <a-button

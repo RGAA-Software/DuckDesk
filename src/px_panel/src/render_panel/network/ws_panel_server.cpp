@@ -6,6 +6,7 @@
 #include <QApplication>
 #include "apis.h"
 #include "http_handler.h"
+#include "records_http_handler.h"
 #include "px_message.pb.h"
 #include "render_panel/px_settings.h"
 #include <nlohmann/json.hpp>
@@ -69,6 +70,7 @@ namespace px
         stat_ = PxStatistics::Instance();
         context_ = app_->GetContext();
         http_handler_ = std::make_shared<HttpHandler>(app_);
+        records_http_handler_ = std::make_shared<RecordsHttpHandler>(app_);
         settings_ = PxSettings::Instance();
         visit_record_op_ = context_->GetDatabase()->GetVisitRecordOp();
         ft_record_op_ = context_->GetDatabase()->GetFileTransferRecordOp();
@@ -212,6 +214,21 @@ namespace px
         // res
         AddHttpGetRouter("/res/*", [=, this](const auto& path, auto& req, auto& rep) {
             http_handler_->HandleResourcesFile(req, rep);
+        });
+
+        // render records: file list (docs/cms_render_records_view_design.md 5.1)
+        AddHttpGetRouter("/records", [=, this](const auto& path, auto& req, auto& rep) {
+            records_http_handler_->HandleRecordsList(req, rep);
+        });
+
+        // render records: dir/space info (lightweight, for web topology probing)
+        AddHttpGetRouter("/records/info", [=, this](const auto& path, auto& req, auto& rep) {
+            records_http_handler_->HandleRecordsInfo(req, rep);
+        });
+
+        // render records: file download with manual Range support
+        AddHttpGetRouter("/records/*", [=, this](const auto& path, auto& req, auto& rep) {
+            records_http_handler_->HandleRecordFile(req, rep);
         });
 
         // cache

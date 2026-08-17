@@ -5,6 +5,10 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/network/px_service_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/render_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/px_cms_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_catalog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_ticket.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_http_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/record_transfer.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game_operator.cpp

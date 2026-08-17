@@ -21,6 +21,7 @@ namespace px
     class PxContext;
     class PxApplication;
     class HttpHandler;
+    class RecordsHttpHandler;
     class PxSettings;
     class VisitRecord;
     class VisitRecordOperator;
@@ -97,6 +98,7 @@ namespace px
         ConcurrentHashMap<uint64_t, std::shared_ptr<WSSession>> renderer_sessions_;
         std::shared_ptr<WSSession> sys_info_sess_ = nullptr;
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
+        std::shared_ptr<RecordsHttpHandler> records_http_handler_ = nullptr;
         PxSettings* settings_ = nullptr;
         std::shared_ptr<VisitRecordOperator> visit_record_op_ = nullptr;
         std::shared_ptr<FileTransferRecordOperator> ft_record_op_ = nullptr;
