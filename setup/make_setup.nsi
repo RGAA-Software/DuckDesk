@@ -13,7 +13,7 @@ RequestExecutionLevel admin
 !define PRODUCT_NAME "GoDesk"
 !define APPNAME "px_panel"
 !define COMPANY "GoDesk"
-!define INSTALL_DIR "C:\Program Files\GoDesk\App"
+!define INSTALL_DIR "C:\Program Files\PixelsRender"
 
 !ifndef OUTPUT_DIR
     !define OUTPUT_DIR "."
