@@ -1,3 +1,2 @@
 !define PRODUCT_VERSION "3.3.36"
 !define PRODUCT_VERSION_CODE 30336
-!define TARGET_TYPE "Official"
