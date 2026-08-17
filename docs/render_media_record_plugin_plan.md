@@ -186,8 +186,8 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 - `monitor`：显示器名，去掉 `\\.\` 设备路径前缀并做文件名安全化（`\\.\DISPLAY1` → `DISPLAY1`）；单屏固定 `mon0` 或省略（实现时定，默认保留 `mon0` 保持格式统一）。
 - 时间戳：墙上时钟，`YYYYMMDD_HH.MM.SS`（人类可读；pts 仍用单调时钟，两者互不干扰）。
 - **目录**：
-  - Render 端默认：`C:\Users\Public\Pixels\recordings\`（`FolderUtil::GetProgramDataPath()` = Public\Pixels，与 `px_data`、frame_debugger 输出同约定）；`settings.toml` 新增 `[record] dir`，非空则覆盖默认（自动创建目录）。
-  - 客户端：维持现状——`screen_recording_path_`（面板可设置），未设置时 fallback 系统"视频"文件夹。
+  - Render 端默认：`C:\Users\Public\Pixels\px_render_records\`（`FolderUtil::GetProgramDataPath()` = Public\Pixels，与 `px_data`、frame_debugger 输出同约定）；`settings.toml` 新增 `[record] dir`，非空则覆盖默认（自动创建目录）。
+  - 客户端：`screen_recording_path_`（面板可设置）优先，未设置时默认 `C:\Users\Public\Pixels\px_client_records`。
 
 ### 4.5 自动录制配置
 
@@ -196,7 +196,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
   ```toml
   [record]
   auto_enabled = false   # 有人连接自动录，无人连接自动停
-  dir = ""               # 录像目录，空 = 默认 C:\Users\Public\Pixels\recordings
+  dir = ""               # 录像目录，空 = 默认 C:\Users\Public\Pixels\px_render_records
   ```
 
 - `RdSettings` 增加 `record_auto_` / `record_dir_` 成员 + TOML 解析。
@@ -305,7 +305,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 2. 客户端与 Render 端**共用 `px_media_record_new`**，客户端同步获得 1GB/24 滚动规则（两端行为一致）。
 3. 命名：`record_{device_id}_{mon}_{时间戳}.mp4`；device_id 用**本机（录制方）**的 device_id。
 4. 24 个文件配额**全局共享**（约束总容量）。
-5. Render 默认目录 `C:\Users\Public\Pixels\recordings\`，`settings.toml` 可覆盖；客户端目录维持现状。
+5. Render 默认目录 `C:\Users\Public\Pixels\px_render_records\`，`settings.toml` 可覆盖；客户端目录维持现状。
 6. `[record] auto_enabled = false`（默认关）。
 7. 自动录制开启时，面板手动按钮忽略。
 

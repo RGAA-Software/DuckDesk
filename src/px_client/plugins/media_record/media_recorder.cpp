@@ -6,9 +6,9 @@
 #include "px_client/plugin_interface/ct_plugin_context.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
 
+#include <filesystem>
 #include <QDir>
 #include <QApplication>
-#include <QStandardPaths>
 
 namespace px {
 
@@ -18,7 +18,8 @@ static std::string ResolveRecordDir(MediaRecordPluginClient* plugin) {
         record_path = plugin->GetScreenRecordingPath();
     }
     if (record_path.empty()) {
-        record_path = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation).toStdString();
+        // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
+        record_path = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / "px_client_records").string();
     }
 
     QDir qdir{QString::fromStdString(record_path)};
