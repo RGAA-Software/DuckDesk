@@ -245,3 +245,47 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 - `src/px_client/plugins/ft/`（新增，替代 `plugins/file_transfer_client/`）— Qt 插件：引擎薄适配 + 全新三栏 UI
 - `web/px_web_client/`（`rtc/file_transfer.ts` + `useFileTransfer.ts` + `FileTransferWindow.vue` 整套新作）— Web 重写目标
 - 测试环境：被控实机 `10.0.0.90`（administrator / dolit@321，仅内部联调）
+
+---
+
+## 7. 实施状态（as-built，2026-08-17 完成）
+
+全部阶段已实施并通过验证。commit 序列：
+
+| Commit | 内容 |
+|---|---|
+| `575a3a7f4` | 旧 FT 整体删除（起始点） |
+| `b8efb5370` | 阶段 1：proto 移植 |
+| `0b7f98621` | 阶段 2：`px_ft_engine` + render `ft` 插件 |
+| `7ca2345e2` | 修复：上传冲突回发 Digest、`digest.is_resume()` 续传判定 |
+| `8d5f9e870` / `12b19a282` | 阶段 3：Qt `ft_client` 插件 + 全新三栏 UI |
+| `6ed38b631` | 阶段 4：Web 整套新作 |
+| `5030f15ec` / `42c713f4b` | 阶段 5：版本门控 + 文档 |
+| `c0621a420` | 实机 E2E 发现的 P1/P2 修复 |
+| `d3f61677d` | E2E 测试脚本 |
+
+### 与计划的有意偏离（实施中定稿）
+
+1. 压缩算法 zstd → **miniz(zlib deflate)**（仓库已有依赖，Web 端用 fflate 对齐 zlib 格式）；解压保留 256MB 炸弹上限。
+2. 块载荷 **120KB**（避开 TLV 128KB 分片边界，计划 §5.4 已预见）。
+3. `DispatchTargetFileTransferMessage` 经核实**线程安全**（net 插件内部自带跨线程 PostTask），worker 直调，无回程队列；"通道忙"判定用 net 插件排队水位（>256 或 buffer 不足）。
+4. `InitDataStream` 先置 waiting 再发 digest（send 回调同步投递会重入，顺序与 rustdesk 相反）。
+5. `ModifyTime()` 先关流再 rename（Windows 句柄语义）；且 **rename 成功才删 .digest，失败抛错并通知对端**（P2 修复，有意偏离 fs.rs 的静默 `.ok()`）。
+6. `DisconnectCleanup(conn_id)` 按连接清理（E2E 发现 RTC 断线事件缺失已补：net_rtc/net_rtc_local 四个检测点派发，stream_id 用真实访客 id）。
+7. 覆盖确认：被控侧 NeedConfirm 回发 `is_upload=true` Digest 由主控 UI 决策（对齐 ui_cm_interface.rs:1116）；render 无 UI 的自动跳过只作兜底。
+
+### 验证结果
+
+- 单测：48 个 GTest 全绿（fs.rs 路径安全用例全量移植、续传、覆盖决策、压缩、断线清理、rename 失败保凭证）。
+- 构建：C++(ninja)/Web(vite)/Rust(cargo check)三端通过。
+- 实机 10.0.0.90 E2E：旧被控门控置灰 ✓；新版冒烟 8/8 ✓；扩展 24/0 ✓（50MB 断点续传 offset 精确、sha256 一致；覆盖确认；空目录；特殊字符）；杀页面后作业同秒级清理 ✓。
+
+### 遗留事项
+
+- Qt 客户端真实 UI 手工回归未做（E2E 走 Web 协议级）。
+- 通道矩阵只实测了 RTC；WS/Relay/RTC P2P 大文件未实测。限速与 CMS 审计落库未实机核对。
+- 文件数上限为常量 10000（代码内 TODO，待设置体系加字段）。
+- Digest `file_hash` 预留未启用。
+- 独立"仅文件传输"会话模式按计划另立项，未做。
+- Qt UI 小遗留：上传冲突弹框无远端文件大小（需扩引擎回调签名）；目录操作失败无 toast；下载每条目多发一次 ReadEmptyDirs 空查询。
+- RTC connected 事件 stream id 仍是 MD5（断开侧已对齐真实 id，配对如需再处理）。
