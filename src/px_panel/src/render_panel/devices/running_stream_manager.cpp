@@ -4,10 +4,11 @@
 
 #include "running_stream_manager.h"
 #include <QApplication>
-#include <qstandardpaths.h>
+#include <filesystem>
 
 #include "px_device_manager.h"
 #include "px_common_new/base64.h"
+#include "px_common_new/folder_util.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_context.h"
 #include "px_common_new/log.h"
@@ -169,9 +170,9 @@ namespace px
 
         std::string screen_recording_path = settings_->GetScreenRecordingPath();
         if (screen_recording_path.empty()) {
-            QString movies_path = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
-            screen_recording_path = movies_path.toStdString();
-            settings_->SetScreenRecordingPath(screen_recording_path);
+            // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
+            screen_recording_path =
+                (std::filesystem::path(FolderUtil::GetProgramDataPath()) / "px_client_records").string();
         }
 
         bool show_watermark = true;

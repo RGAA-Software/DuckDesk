@@ -11,7 +11,6 @@
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QOpenGLWidget>
-#include <qstandardpaths.h>
 #include "thunder_sdk.h"
 #include "px_client/ct_client_context.h"
 #include "ct_base_workspace.h"
@@ -280,7 +279,9 @@ void ParseCommandLine(QApplication& app) {
             settings->screen_recording_path_ = value.toStdString();
         }
         else {
-            settings->screen_recording_path_ = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation).toStdString();
+            // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
+            settings->screen_recording_path_ =
+                (std::filesystem::path(FolderUtil::GetProgramDataPath()) / "px_client_records").string();
         }
     }
 

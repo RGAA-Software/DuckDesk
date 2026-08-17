@@ -10,7 +10,7 @@
 #include <QCheckBox>
 #include <QDebug>
 #include <QFileDialog>
-#include <QStandardPaths>
+#include <filesystem>
 
 #include "px_label.h"
 #include "px_dialog.h"
@@ -22,6 +22,7 @@
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
+#include "px_common_new/folder_util.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
 #include "px_common_new/win32/audio_device_helper.h"
 #include "render_panel/px_app_messages.h"
@@ -252,9 +253,8 @@ namespace px
 
                 std::string record_path = settings_->GetScreenRecordingPath();
                 if (record_path.empty()) {
-                    QString movies_path = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
-                    record_path = movies_path.toStdString();
-                    settings_->SetScreenRecordingPath(record_path);
+                    // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
+                    record_path = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / "px_client_records").string();
                 }
                 edit->setText(QString::fromStdString(record_path));
 

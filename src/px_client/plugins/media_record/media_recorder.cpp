@@ -75,12 +75,15 @@ void MediaRecorder::RecvAudioFrame(const AudioFrame& frame) {
 }
 
 void MediaRecorder::EndRecord() {
+    // 只在实际录制过(创建过 writer)的 recorder 上弹通知,
+    // 否则多显示器槽位里没参与录制的实例也会弹一遍 toast
+    bool recorded = (writer_ != nullptr);
     if (writer_) {
         writer_->Stop();
         writer_ = nullptr;
     }
 
-    if (plugin_) {
+    if (plugin_ && recorded) {
         auto record_dir = ResolveRecordDir(plugin_);
         if (!record_dir.empty()) {
             auto event = std::make_shared<ClientPluginNotifyMsgEvent>();
