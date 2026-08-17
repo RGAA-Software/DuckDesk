@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/ft_client_plugin.cpp
@@ -12,6 +13,7 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/ui/ft_file_panel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ui/ft_transfer_queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ui/ft_overwrite_dialog.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ft_res.qrc
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})

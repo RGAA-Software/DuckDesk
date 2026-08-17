@@ -233,12 +233,37 @@ TEST(PathSecurity, ReadDirRootListsDrives) {
     auto fd = ReadDir("/", false);
     bool has_drive = false;
     for (const auto& e : fd.entries()) {
-        if (e.entry_type() == px::FileType::DirDrive && e.name().size() == 2 &&
-            e.name()[1] == ':') {
+        // 盘符项:name 为 Shell 显示名(带卷标),导航用 abs_path("C:/" 形态)
+        if (e.entry_type() == px::FileType::DirDrive && e.abs_path().size() == 3 &&
+            e.abs_path()[1] == ':' && e.abs_path()[2] == '/') {
             has_drive = true;
         }
     }
     EXPECT_TRUE(has_drive);
+}
+
+// "C:" 盘符相对路径必须归一为盘根 "C:/",否则会被解析成进程 CWD
+TEST(PathSecurity, ReadDirDriveLetterNormalizesToRoot) {
+    const char* sysdrive = getenv("SYSTEMDRIVE"); // 通常 "C:"
+    ASSERT_NE(sysdrive, nullptr);
+    auto fd = ReadDir(sysdrive, false);
+    EXPECT_EQ(fd.path(), std::string(sysdrive) + "/");
+    EXPECT_GT(fd.entries_size(), 0); // 系统盘根目录必有内容
+}
+
+// 根视图应追加常用文件夹(用户目录/桌面等),携带 abs_path 供导航
+TEST(PathSecurity, ReadDirRootIncludesPinnedFolders) {
+    auto fd = ReadDir("/", false);
+    bool has_pinned = false;
+    for (const auto& e : fd.entries()) {
+        if (e.entry_type() == px::FileType::Dir && !e.abs_path().empty() &&
+            !e.name().empty()) {
+            has_pinned = true;
+            // abs_path 必须真实存在且为目录
+            EXPECT_TRUE(std::filesystem::is_directory(ToFsPath(e.abs_path())));
+        }
+    }
+    EXPECT_TRUE(has_pinned); // USERPROFILE 至少有一个
 }
 #endif
 

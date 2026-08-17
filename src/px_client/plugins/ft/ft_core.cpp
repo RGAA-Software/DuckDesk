@@ -394,6 +394,9 @@ namespace px
             info.is_drive_ = e.entry_type() == px::FileType::DirDrive;
             info.size_ = e.size();
             info.modified_time_ = (int64_t)e.modified_time();
+            if (!e.abs_path().empty()) {
+                info.abs_path_ = QString::fromStdString(e.abs_path());
+            }
             out.push_back(info);
         }
         return out;

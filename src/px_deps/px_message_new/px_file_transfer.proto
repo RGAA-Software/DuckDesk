@@ -23,6 +23,10 @@ message FileEntry {
   bool is_hidden = 3;
   uint64 size = 4;
   uint64 modified_time = 5;
+  // 绝对路径(可选):仅 Windows 根视图("/")的常用文件夹项携带,
+  // 此时 name 为本地化显示名(如 "桌面"/"Downloads"),导航以 abs_path 为准。
+  // 附加字段,旧端忽略;目录内普通项不设置,保持 rustdesk 逐字段对齐语义。
+  string abs_path = 6;
 }
 
 message FileDirectory {

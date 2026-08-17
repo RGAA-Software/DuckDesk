@@ -6,6 +6,7 @@
 #define PX_CLIENT_FT_WINDOW_H
 
 #include <QWidget>
+#include <QHash>
 #include <deque>
 
 #include "../ft_core.h"
@@ -25,6 +26,8 @@ namespace px
 
         // 插件 ShowRootWidget 时调用:首显初始化两侧目录
         void OnShow();
+        // 远程栏标题显示对端标识(设备 ID 或名称)
+        void SetRemoteDeviceName(const QString& name);
 
     private:
         void ShowNextOverwriteConfirm();
@@ -46,6 +49,9 @@ namespace px
         };
         std::deque<PendingConfirm> pending_confirms_;
         bool confirm_showing_ = false;
+
+        // 作业方向(job id -> 是否下载),完成后刷新接收侧列表用
+        QHash<int, bool> job_download_;
     };
 
 }

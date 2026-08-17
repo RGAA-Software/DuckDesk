@@ -1,7 +1,8 @@
 //
 // ft 文件列表面板(本地/远程共用) — rustdesk 协议迁移阶段 3
-// 三栏布局中的左/右栏:导航工具条 + 文件表(名称/大小/修改时间)。
+// 三栏布局中的左/右栏:导航工具条 + 面包屑 + 文件表(名称/大小/修改时间/类型)。
 // 本地栏直接读 QDir;远程栏经 FtCore::ReadDir 驱动,ShowDir 回显。
+// 本地栏根视图("此电脑")= 盘符 + 常用文件夹(桌面/下载/文档/图片/音乐/视频/用户目录)。
 //
 
 #ifndef PX_CLIENT_FT_FILE_PANEL_H
@@ -15,6 +16,7 @@
 
 #include "../ft_core.h"
 
+class QHBoxLayout;
 class QLineEdit;
 class QPushButton;
 class QTableWidget;
@@ -49,9 +51,11 @@ namespace px
 
         // 远程栏:read_dir 回包回显(UI 线程)
         void ShowDir(const QString& path, const QVector<FtEntryInfo>& entries);
-        // 本地栏:初始导航到用户主目录;远程栏:导航到 "/"(盘符列表)
+        // 两侧一致:回到根视图("此电脑",本地 "" 对应远程 "/")
         void NavigateHome();
         void Refresh();
+        // 远程栏标题追加对端标识(设备 ID 或名称)
+        void SetDeviceName(const QString& name);
 
     signals:
         // 传输请求(由 FtWindow 接线到 FtCore)
@@ -61,6 +65,10 @@ namespace px
     private:
         void NavigateTo(const QString& path);
         void RefreshLocal();
+        void FillRemote(); // 按当前排序填充远程栏(数据源 last_entries_)
+        void FillLocalDrivesAndPinned(); // 本地根视图:盘符 + 常用文件夹
+        void RebuildBreadcrumb();
+        void OnSortRequested(int col);
         QString EntryFullPath(const QString& name) const;
         QString ParentDirOf(const QString& path) const;
         QStringList SelectedPaths() const;
@@ -78,11 +86,17 @@ namespace px
     private:
         FtCore* core_ = nullptr;
         bool is_local_ = false;
-        QString current_dir_; // 本地:"" 表示盘符列表;远程:"/" 表示盘符列表
+        QString current_dir_; // 本地:"" 表示根视图(此电脑);远程:"/" 表示盘符列表
 
-        QLineEdit* path_edit_ = nullptr;
+        QHBoxLayout* crumb_bar_ = nullptr; // 面包屑(重建式)
         FtFileTable* table_ = nullptr;
         QPushButton* transfer_btn_ = nullptr;
+        QLabel* title_label_ = nullptr;
+
+        // 排序状态(两栏各自独立):默认按名称升序,目录/盘符恒排前
+        int sort_col_ = 0;
+        Qt::SortOrder sort_order_ = Qt::AscendingOrder;
+        QVector<FtEntryInfo> last_entries_; // 远程栏最近回包,排序刷新用
     };
 
 }

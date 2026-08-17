@@ -280,6 +280,35 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 - 构建：C++(ninja)/Web(vite)/Rust(cargo check)三端通过。
 - 实机 10.0.0.90 E2E：旧被控门控置灰 ✓；新版冒烟 8/8 ✓；扩展 24/0 ✓（50MB 断点续传 offset 精确、sha256 一致；覆盖确认；空目录；特殊字符）；杀页面后作业同秒级清理 ✓。
 
+### Qt UI 迭代(2026-08-17 实机回归驱动,第二轮)
+
+UI 在实机回归后整体翻新为卡片式三栏结构,主要改动与踩坑:
+
+**结构(对齐参考 UI 的交互结构,浅色主题)**
+- 面包屑导航替代路径输入框:`此电脑 > D: > ...`,段按钮点击直接跳转。
+- 文件表 4 列(名称/大小/修改时间/类型),表头点击排序带箭头,目录/盘符恒排前。
+- 底部传输队列默认折叠为摘要条(最近任务:扩展名图标/名称/大小/方向·状态),箭头展开后占满整个窗口;不可拖动分割。
+- 窗口灰底 + 左右文件栏/底部条白色圆角卡片;上传/下载为箭头按钮(朝向=数据流向),贴中间缝。
+- 进度条 6px 圆角细条;取消为圆形小图标钮。
+
+**根视图"此电脑"(协议有扩展)**
+- `FileEntry` 新增可选字段 `abs_path = 6`(附加字段,旧端忽略,不破坏线兼容):根视图的盘符与常用文件夹项携带,导航以它为准,`name` 仅作显示名。
+- 本地根视图:盘符(Shell 卷标显示名)+ 常用文件夹(用户目录/桌面/下载/文档/图片/音乐/视频),`SHGetFileInfoW(SHGFI_DISPLAYNAME)` 取系统本地化名称。
+- 远程根视图:引擎 `ReadDir("/")` 同样追加常用文件夹。**被控端跑在 SYSTEM 服务进程**,改用活动会话用户 token 解析(`WTSGetActiveConsoleSessionId` + `WTSQueryUserToken` + 带 token 的 `SHGetKnownFolderPath` / `GetUserProfileDirectoryW`),拿到登录用户的目录;无活动会话退回进程账户。
+- 盘符显示名带卷标("NewDisk (D:)"),`abs_path` 为 "D:/"。
+
+**引擎修复**
+- `ReadDir` 盘符归一化:`"D:"` 在 Windows 是"该盘当前目录"的相对语义(会解析到被控进程 CWD,实测列出了 dist 目录),统一归一为 `"D:/"` 盘根。
+
+**踩坑记录(后续插件开发注意)**
+- `px_qt_widget` 是静态库,翻译单例 `TcTranslatorManager` 在每个 dll 内是独立副本:插件 `OnCreate` 必须自行 `tcTrMgr()->InitLanguage()`,否则全部文案显示 "not find"。
+- 裸 `QWidget` 子类上样式表背景(圆角卡片)不自绘,必须 `setAttribute(Qt::WA_StyledBackground, true)`。
+- 语言 JSON 由 px_panel 链接后的 POST_BUILD 拷入构建目录:只改语言包不重链 px_panel 时,dist 里的 JSON 不会刷新。
+- 图标:`scripts/download_material_icons.py` 从 Google Fonts(Material Symbols CDN)下载 SVG 并烘焙填充色(Qt 仅支持 SVG Tiny 子集,不支持 currentColor);ft 插件自带 `ft_res.qrc`(prefix `/ft`,避免与 panel 的 `:/icons` 资源路径冲突)。
+- 构建/打包前需停掉从 dist 运行的进程与 `px_service` 服务(SCM 会自动拉起),否则 collect_dist 删 dist 目录报 Access Denied。
+
+**验证**:引擎单测 `test_ft_path_security` 20/20、`test_ft_engine` 15/15 全绿(新增盘符归一化、根视图常用文件夹用例);实机 Qt UI 多轮回归。
+
 ### 遗留事项
 
 - Qt 客户端真实 UI 手工回归未做（E2E 走 Web 协议级）。

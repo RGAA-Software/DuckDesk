@@ -1,6 +1,8 @@
 #include "ft_path.h"
 
 #include <chrono>
+#include <cctype>
+#include <algorithm>
 #include <stdexcept>
 #include <system_error>
 
@@ -8,7 +10,17 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <initguid.h>
 #include <windows.h>
+#include <knownfolders.h>
+#include <shlobj.h>    // SHGetKnownFolderPath / FOLDERID_*
+#include <shellapi.h>  // SHGetFileInfoW
+#include <userenv.h>   // GetUserProfileDirectoryW
+#include <wtsapi32.h>  // WTSGetActiveConsoleSessionId / WTSQueryUserToken
+#pragma comment(lib, "shell32")
+#pragma comment(lib, "ole32")
+#pragma comment(lib, "userenv")
+#pragma comment(lib, "wtsapi32")
 #endif
 
 namespace px::ft {
@@ -16,6 +28,77 @@ namespace px::ft {
 namespace {
 
 [[noreturn]] void Bail(const std::string& msg) { throw std::runtime_error(msg); }
+
+#ifdef _WIN32
+// Shell 本地化显示名(盘符 -> "本地磁盘 (C:)",常用文件夹 -> "桌面"/"Downloads" 等)
+std::string ShellDisplayName(const std::wstring& native_path) {
+    SHFILEINFOW sfi{};
+    const DWORD_PTR ok = SHGetFileInfoW(native_path.c_str(), 0, &sfi, sizeof(sfi),
+                                        SHGFI_DISPLAYNAME);
+    if (!ok) return {};
+    return ToUtf8(std::filesystem::path(sfi.szDisplayName));
+}
+
+// 常用文件夹绝对路径:用户目录 + 桌面/下载/文档/图片/音乐/视频(Known Folder)。
+// 被控端通常跑在 SYSTEM 账户的服务进程里,USERPROFILE/KnownFolder 会解析到
+// systemprofile;优先用活动会话用户的 token 解析,拿到的是登录用户的目录。
+std::vector<std::wstring> PinnedFolderPaths() {
+    std::vector<std::wstring> paths;
+
+    HANDLE token = nullptr;
+    const DWORD sess = WTSGetActiveConsoleSessionId();
+    if (sess != 0xFFFFFFFF && !WTSQueryUserToken(sess, &token)) {
+        token = nullptr; // 无活动会话(锁屏/未登录)时退回进程账户
+    }
+
+    if (token) {
+        wchar_t buf[MAX_PATH] = {};
+        DWORD len = MAX_PATH;
+        if (GetUserProfileDirectoryW(token, buf, &len)) {
+            paths.emplace_back(buf);
+        }
+    } else if (const wchar_t* p = _wgetenv(L"USERPROFILE")) {
+        paths.emplace_back(p);
+    }
+    const KNOWNFOLDERID* ids[] = {
+        &FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Documents,
+        &FOLDERID_Pictures, &FOLDERID_Music, &FOLDERID_Videos,
+    };
+    for (const auto* id : ids) {
+        PWSTR p = nullptr;
+        // 带 token 时 SHGetKnownFolderPath 解析的是该用户的目录
+        if (SUCCEEDED(SHGetKnownFolderPath(*id, 0, token, &p)) && p) {
+            paths.emplace_back(p);
+            CoTaskMemFree(p);
+        }
+    }
+    if (token) CloseHandle(token);
+    return paths;
+}
+
+// ReadDir("/") 追加常用文件夹:name = 本地化显示名,abs_path = 实际路径('/' 分隔)。
+// 客户端根视图据此直接导航(abs_path 优先于 name 拼接)。
+void AppendPinnedFolders(px::FileDirectory& dir) {
+    std::vector<std::wstring> seen;
+    for (const auto& raw : PinnedFolderPaths()) {
+        std::error_code ec;
+        const auto canon = std::filesystem::weakly_canonical(std::filesystem::path(raw), ec);
+        if (ec || canon.empty() || !std::filesystem::is_directory(canon, ec)) continue;
+        if (std::find(seen.begin(), seen.end(), canon) != seen.end()) continue; // 去重
+        seen.push_back(canon);
+
+        px::FileEntry* e = dir.add_entries();
+        e->set_entry_type(px::FileType::Dir);
+        std::string abs = ToUtf8(canon);
+        std::replace(abs.begin(), abs.end(), '\\', '/');
+        e->set_abs_path(abs);
+        std::string display = ShellDisplayName(canon.native());
+        if (display.empty()) display = ToUtf8(canon.filename());
+        e->set_name(display);
+        e->set_modified_time(GetFileMtimeSecs(canon));
+    }
+}
+#endif // _WIN32
 
 // fs.rs:121 get_file_name
 std::string GetFileName(const std::filesystem::path& p) { return ToUtf8(p.filename()); }
@@ -127,22 +210,37 @@ std::string GetHomeAsString() {
 
 px::FileDirectory ReadDir(const std::string& path, bool include_hidden) {
     px::FileDirectory dir;
-    dir.set_path(path);
 #ifdef _WIN32
     // fs.rs:41 - Windows 下 "/" 列盘符
     if (path == "/") {
+        dir.set_path(path);
         DWORD drives = GetLogicalDrives();
         for (int i = 0; i < 32; ++i) {
             if (drives & (1u << i)) {
+                const char letter = static_cast<char>('A' + i);
                 px::FileEntry* e = dir.add_entries();
-                e->set_name(std::string(1, static_cast<char>('A' + i)) + ":");
+                // name = Shell 显示名(带卷标,"NewDisk (D:)"),abs_path = "D:/" 供导航
+                std::string display = ShellDisplayName(std::wstring(1, letter) + L":\\");
+                e->set_name(display.empty() ? std::string(1, letter) + ":" : display);
+                e->set_abs_path(std::string(1, letter) + ":/");
                 e->set_entry_type(px::FileType::DirDrive);
             }
         }
+        // 追加常用文件夹(用户目录/桌面/下载/文档/图片/音乐/视频):
+        // name 为 Shell 本地化显示名,abs_path 为实际路径(导航用)。
+        AppendPinnedFolders(dir);
         return dir;
     }
 #endif
-    std::filesystem::path fs_path = ToFsPath(path);
+    // 盘符根目录规范化:"D:" 在 Windows 上是"该盘当前目录"的相对语义
+    // (会解析到进程 CWD 所在目录),统一归一为 "D:/" 盘根。
+    std::string norm = path;
+    if (norm.size() == 2 && norm[1] == ':' &&
+        std::isalpha(static_cast<unsigned char>(norm[0]))) {
+        norm += '/';
+    }
+    dir.set_path(norm);
+    std::filesystem::path fs_path = ToFsPath(norm);
     std::error_code ec;
     std::filesystem::directory_iterator it(
         fs_path, std::filesystem::directory_options::skip_permission_denied, ec);

@@ -1,0 +1,14 @@
+<RCC>
+    <!-- prefix /ft:避免与 px_panel qss.qrc 的 :/icons 冲突(同进程内资源路径全局可见) -->
+    <qresource prefix="/ft">
+        <file>icons/ic_home.svg</file>
+        <file>icons/ic_arrow_upward.svg</file>
+        <file>icons/ic_refresh.svg</file>
+        <file>icons/ic_create_new_folder.svg</file>
+        <file>icons/ic_arrow_forward.svg</file>
+        <file>icons/ic_arrow_back.svg</file>
+        <file>icons/ic_close.svg</file>
+        <file>icons/ic_expand_less.svg</file>
+        <file>icons/ic_expand_more.svg</file>
+    </qresource>
+</RCC>

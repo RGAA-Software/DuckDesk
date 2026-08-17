@@ -54,6 +54,10 @@ namespace px
             return true;
         }
 
+        // px_qt_widget 是静态库,插件 dll 内有独立的 TcTranslatorManager 实例,
+        // 宿主进程已加载的语言表不会带过来,必须在插件内自行初始化。
+        tcTrMgr()->InitLanguage();
+
         // core:引擎薄适配层(worker 线程模型,见 ft_core.h)
         core_ = new FtCore(this);
         core_->Start();
@@ -66,8 +70,13 @@ namespace px
         layout->addWidget(window_);
         root_widget_->setLayout(layout);
         WidgetHelper::SetTitleBarColor(root_widget_);
-        root_widget_->setWindowTitle(QString::fromStdString(std::format(
-            "{}[{}]", tcTr("id_file_transfer").toStdString(), plugin_settings_.stream_name_)));
+        const QString remote_name = !plugin_settings_.stream_name_.empty()
+            ? QString::fromStdString(plugin_settings_.stream_name_)
+            : QString::fromStdString(plugin_settings_.device_id_);
+        root_widget_->setWindowTitle(
+            QString("%1 [%2]").arg(tcTr("id_file_transfer"), remote_name));
+        // 远程栏标题显示对端标识(远端: xxx)
+        window_->SetRemoteDeviceName(remote_name);
 
         // 审计:对接 CMS 传输记录链路(旧插件同款事件)
         connect(core_, &FtCore::SigJobAdded, this, [this](int id, const QString& name, bool is_download) {

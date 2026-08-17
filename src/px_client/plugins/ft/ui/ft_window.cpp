@@ -9,6 +9,7 @@
 
 #include <QSplitter>
 #include <QVBoxLayout>
+#include <QHash>
 
 #include "px_common_new/log.h"
 #include "translator/px_translator.h"
@@ -18,29 +19,39 @@ namespace px
 
     FtWindow::FtWindow(FtCore* core, QWidget* parent)
         : QWidget(parent), core_(core) {
+        // 窗口灰底 + 白色圆角卡片(左右文件栏 / 底部传输条)
+        setObjectName("ftRoot");
+        setAttribute(Qt::WA_StyledBackground, true); // 裸 QWidget 子类需显式开启,样式表背景才会自绘
+        setStyleSheet("#ftRoot { background: #f0f2f5; }"
+                      "#ftCard { background: #ffffff; border-radius: 10px; }"
+                      "QSplitter::handle { background: transparent; }");
         auto* root = new QVBoxLayout(this);
-        root->setContentsMargins(0, 0, 0, 0);
-        root->setSpacing(0);
+        root->setContentsMargins(8, 8, 8, 8);
+        root->setSpacing(8);
 
-        auto* main_split = new QSplitter(Qt::Vertical, this);
-
-        // 上:本地 | 远程
-        auto* pane_split = new QSplitter(Qt::Horizontal, main_split);
+        // 上:本地 | 远程(圆角卡片,中间仅 8px 缝,不可上下拖动)
+        auto* pane_split = new QSplitter(Qt::Horizontal, this);
+        pane_split->setHandleWidth(8);
         local_panel_ = new FtFilePanel(core_, true, pane_split);
         remote_panel_ = new FtFilePanel(core_, false, pane_split);
+        local_panel_->setObjectName("ftCard");
+        remote_panel_->setObjectName("ftCard");
         pane_split->addWidget(local_panel_);
         pane_split->addWidget(remote_panel_);
         pane_split->setStretchFactor(0, 1);
         pane_split->setStretchFactor(1, 1);
 
-        // 下:传输队列
-        queue_ = new FtTransferQueue(core_, main_split);
+        // 下:传输队列(圆角卡片;展开后占满整个窗口)
+        queue_ = new FtTransferQueue(core_, this);
+        queue_->setObjectName("ftCard");
 
-        main_split->addWidget(pane_split);
-        main_split->addWidget(queue_);
-        main_split->setStretchFactor(0, 3);
-        main_split->setStretchFactor(1, 1);
-        root->addWidget(main_split);
+        root->addWidget(pane_split, 1);
+        root->addWidget(queue_, 0);
+        connect(queue_, &FtTransferQueue::SigExpandedToggled, this,
+                [this, root, pane_split](bool expanded) {
+            pane_split->setVisible(!expanded);
+            root->setStretch(1, expanded ? 1 : 0); // 展开后队列占满窗口
+        });
 
         // ---------------- 传输请求接线 ----------------
         connect(local_panel_, &FtFilePanel::SigUploadRequested, this, [this](const QStringList& paths) {
@@ -65,10 +76,23 @@ namespace px
                 [this](const QString& path, const QVector<FtEntryInfo>& entries) {
             remote_panel_->ShowDir(path, entries);
         });
-        connect(core_, &FtCore::SigJobAdded, queue_, &FtTransferQueue::AddJob);
+        connect(core_, &FtCore::SigJobAdded, this,
+                [this](int id, const QString& name, bool is_download) {
+            job_download_[id] = is_download;
+            queue_->AddJob(id, name, is_download);
+        });
         connect(core_, &FtCore::SigJobProgress, queue_, &FtTransferQueue::UpdateJob);
         connect(core_, &FtCore::SigJobDone, this, [this](int id, const QString& err) {
             queue_->FinishJob(id, err);
+            // 传输结束自动刷新接收侧:上传->远程栏,下载->本地栏
+            const bool is_download = job_download_.take(id);
+            if (err.isEmpty()) {
+                if (is_download) {
+                    local_panel_->Refresh();
+                } else {
+                    remote_panel_->Refresh();
+                }
+            }
         });
         connect(core_, &FtCore::SigOverwriteConfirm, this,
                 [this](int job_id, int file_num, const QString& path, bool is_upload, bool is_identical) {
@@ -83,6 +107,12 @@ namespace px
             }
             remote_panel_->Refresh();
         });
+    }
+
+    void FtWindow::SetRemoteDeviceName(const QString& name) {
+        if (remote_panel_) {
+            remote_panel_->SetDeviceName(name);
+        }
     }
 
     void FtWindow::OnShow() {

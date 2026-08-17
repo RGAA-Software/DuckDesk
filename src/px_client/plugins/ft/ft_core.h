@@ -44,6 +44,8 @@ namespace px
         bool is_drive_ = false;
         uint64_t size_ = 0;
         int64_t modified_time_ = 0; // 秒
+        // 绝对路径(仅根视图常用文件夹项携带):name 是本地化显示名,导航用 abs_path_
+        QString abs_path_;
     };
 
     // 作业进度快照(对齐引擎 TransferJobStatus,Qt 元类型化)
