@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
         MessageBoxA(0, 0, 0, 0);
     }
 
-    auto lock_name = std::format(L"godesk_render_lock_{}", settings->transmission_.listening_port_);
+    auto lock_name = std::format(L"pixels_render_lock_{}", settings->transmission_.listening_port_);
     wchar_t temp_path[MAX_PATH];
     GetTempPathW(MAX_PATH, temp_path);
     auto lock_path = (std::filesystem::path(temp_path) / lock_name).wstring();

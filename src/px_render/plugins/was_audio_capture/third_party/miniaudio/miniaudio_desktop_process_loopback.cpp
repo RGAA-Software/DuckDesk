@@ -1,4 +1,4 @@
-// GoDesk patch: Win32-desktop process-loopback activation for miniaudio.
+// Pixels patch: Win32-desktop process-loopback activation for miniaudio.
 //
 // Upstream miniaudio (desktop) does:
 //   IMMDeviceEnumerator::GetDevice(L"VAD\\Process_Loopback")

@@ -1,6 +1,6 @@
 ![](docs/gammaray/images/px_text_logo.png)
-#### 💖 This Repo is the OpenSource version of [GoDesk In Steam(NOT released now)](https://store.steampowered.com/app/2947460/GoDesk/), please download at [HERE](https://github.com/RGAA-Software/GammaRay/releases)
-#### 💖 这是GoDesk的开源版, 全功能版移步[Steam(暂未开放下载)](https://store.steampowered.com/app/2947460/GoDesk/)或者[Release](https://github.com/RGAA-Software/GammaRay/releases), 免费.
+#### 💖 This Repo is the OpenSource version of [Pixels In Steam(NOT released now)](https://store.steampowered.com/app/2947460/Pixels/), please download at [HERE](https://github.com/RGAA-Software/GammaRay/releases)
+#### 💖 这是Pixels的开源版, 全功能版移步[Steam(暂未开放下载)](https://store.steampowered.com/app/2947460/Pixels/)或者[Release](https://github.com/RGAA-Software/GammaRay/releases), 免费.
 
 ### Showcases
 [企业功能演示](https://www.bilibili.com/video/BV1ZGDhBGEAA/)  
@@ -11,8 +11,8 @@
 ##### 1. [How To Use](docs/gammaray/How_to_use.md)
 ##### 2. [How To Build](docs/gammaray/How_to_build.md)
 ## More
-#### [Official Site (官网)](https://godesk.uk)
-#### [Documentation (文档)](https://docs.godesk.uk)
+#### [Official Site (官网)](https://pixels.yun)
+#### [Documentation (文档)](https://docs.pixels.yun)
 
 ### GammaRay
 #### ⚡️Stream your game fame and desktop to other devices, and replay gamepad,keyboard,mouse events on the host PC. In a word, It's a alternative of TeamViewer, ToDesk, RustDesk, etc.

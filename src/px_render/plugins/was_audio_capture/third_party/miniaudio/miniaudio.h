@@ -23380,7 +23380,7 @@ typedef struct
 #define MA_VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK L"VAD\\Process_Loopback"
 
 #if defined(MA_WIN32_DESKTOP) || defined(MA_WIN32_GDK)
-/* GoDesk: desktop process-loopback must use ActivateAudioInterfaceAsync (see miniaudio_desktop_process_loopback.cpp). */
+/* Pixels: desktop process-loopback must use ActivateAudioInterfaceAsync (see miniaudio_desktop_process_loopback.cpp). */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23425,7 +23425,7 @@ static ma_result ma_context_get_IAudioClient__wasapi(ma_context* pContext, ma_de
 
 #if defined(MA_WIN32_DESKTOP) || defined(MA_WIN32_GDK)
     /*
-    GoDesk fix: upstream desktop path calls IMMDeviceEnumerator::GetDevice("VAD\\Process_Loopback"),
+    Pixels fix: upstream desktop path calls IMMDeviceEnumerator::GetDevice("VAD\\Process_Loopback"),
     which returns E_INVALIDARG (that string is not an MMDevice id). Process loopback must use
     ActivateAudioInterfaceAsync — upstream only did that for UWP.
     */
@@ -23437,7 +23437,7 @@ static ma_result ma_context_get_IAudioClient__wasapi(ma_context* pContext, ma_de
             *ppDeviceInterface = NULL; /* no IMMDevice for process loopback */
         }
         if (result != MA_SUCCESS) {
-            ma_log_postf(ma_context_get_log(pContext), MA_LOG_LEVEL_ERROR, "[WASAPI] GoDesk desktop process-loopback ActivateAudioInterfaceAsync failed for pid %u (result=%d).\n", loopbackProcessID, (int)result);
+            ma_log_postf(ma_context_get_log(pContext), MA_LOG_LEVEL_ERROR, "[WASAPI] Pixels desktop process-loopback ActivateAudioInterfaceAsync failed for pid %u (result=%d).\n", loopbackProcessID, (int)result);
         }
     } else {
         result = ma_context_get_IAudioClient_Desktop__wasapi(pContext, deviceType, pDeviceID, pActivationParams, ppAudioClient, ppDeviceInterface);
@@ -24079,7 +24079,7 @@ static ma_result ma_device_init_internal__wasapi(ma_context* pContext, ma_device
             ma_IPropertyStore_Release(pProperties);
         }
     } else if (usingProcessLoopback) {
-        /* GoDesk: process-loopback has no IMMDevice — synthesize a name/id. */
+        /* Pixels: process-loopback has no IMMDevice — synthesize a name/id. */
         ma_strncpy_s(pData->deviceName, sizeof(pData->deviceName), "Process Loopback", (size_t)-1);
         MA_COPY_MEMORY(pData->id.wasapi, MA_VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, (ma_wcslen(MA_VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK) + 1) * sizeof(wchar_t));
     }
@@ -24340,7 +24340,7 @@ static ma_result ma_device_init__wasapi(ma_device* pDevice, const ma_device_conf
         /* We must always have a valid ID. */
         ma_strcpy_s_WCHAR(pDevice->capture.id.wasapi, sizeof(pDevice->capture.id.wasapi), data.id.wasapi);
 
-        /* GoDesk: initial init previously never copied deviceName (only reinit did). */
+        /* Pixels: initial init previously never copied deviceName (only reinit did). */
         if (data.deviceName[0] != '\0') {
             ma_strcpy_s(pDevice->capture.name, sizeof(pDevice->capture.name), data.deviceName);
         }
@@ -42764,7 +42764,7 @@ MA_API ma_result ma_device_post_init(ma_device* pDevice, ma_device_type deviceTy
         ma_device_info deviceInfo;
 
         if (deviceType == ma_device_type_capture || deviceType == ma_device_type_duplex || deviceType == ma_device_type_loopback) {
-            /* GoDesk: process-loopback has no MMDevice; keep the name set by the WASAPI backend. */
+            /* Pixels: process-loopback has no MMDevice; keep the name set by the WASAPI backend. */
             if (deviceType == ma_device_type_loopback && pDevice->wasapi.loopbackProcessID != 0 && pDevice->capture.name[0] != '\0') {
                 /* keep backend name */
             } else {

@@ -47,7 +47,7 @@ namespace px
             max_file_count_ = 24;
         }
         if (record_dir_.empty()) {
-            // 默认: C:\Users\Public\GoDesk\recordings (与 px_data 同约定)
+            // 默认: C:\Users\Public\Pixels\recordings (与 px_data 同约定)
             record_dir_ = (std::filesystem::path(base_data_path_) / "recordings").string();
         }
 

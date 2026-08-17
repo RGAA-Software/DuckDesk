@@ -148,7 +148,7 @@ namespace px
         }
         inject_params.listening_port = settings_->transmission_.listening_port_;
         // Kept in sync with hook_boot AppSharedMessage::enable_hook_audio_ (OBS inject path uses boot file).
-        // GODESK_FORCE_HOOK_AUDIO=1 forces in-process hook even when PID loopback is available.
+        // PIXELS_FORCE_HOOK_AUDIO=1 forces in-process hook even when PID loopback is available.
         inject_params.enable_hook_audio = PreferProcessLoopbackCapture() ? 0u : 1u;
 
         // steam prefix

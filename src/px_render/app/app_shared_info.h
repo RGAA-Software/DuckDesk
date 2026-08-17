@@ -18,7 +18,7 @@ namespace px
     class RdContext;
 
     // Writes hook bootstrap config for the injected DLL (ipc port + DXGI offsets).
-    // Uses a small file under Public\GoDesk\hook_boot\ — NOT shared memory.
+    // Uses a small file under Public\Pixels\hook_boot\ — NOT shared memory.
     // Ongoing frame IPC is plain WebSocket /ipc.
     class AppSharedInfo {
     public:

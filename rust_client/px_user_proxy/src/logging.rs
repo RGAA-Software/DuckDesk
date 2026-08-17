@@ -17,7 +17,7 @@ mod tests {
     }
 
     #[test]
-    fn log_root_under_godesk() {
+    fn log_root_under_pixels() {
         assert_eq!(
             crate::config::user_proxy_log_root(),
             crate::config::app_shared_root().join("px_logs")

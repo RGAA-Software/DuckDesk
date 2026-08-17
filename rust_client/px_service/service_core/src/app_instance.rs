@@ -547,7 +547,7 @@ mod tests {
     fn launch_spec_is_game_hook_with_b64_path_and_port() {
         let req = sample_req("i1", 32010);
         let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
-        let spec = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, None);
+        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, None);
         assert!(is_game_hook_launch(&spec));
         assert!(spec.app_path.ends_with(RENDER_EXE_NAME));
         assert_eq!(extract_listen_port(&spec.args), Some(32010));
@@ -570,7 +570,7 @@ mod tests {
             view_path: game.clone(),
             base_args: None,
         };
-        let spec = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, Some(&view));
+        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, Some(&view));
         // view path is passed base64-encoded like the boot path.
         let view_arg = spec
             .args
@@ -584,7 +584,7 @@ mod tests {
         assert!(spec.args.iter().any(|a| a == "--app_game_args=-dx11"));
         assert!(!spec.args.iter().any(|a| a.starts_with("--app_game_arguments")));
         // Without a view, no view arg is emitted.
-        let spec_no_view = build_game_hook_launch_spec(r"D:\GoDesk", &req, 32010, &game, None);
+        let spec_no_view = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, None);
         assert!(!spec_no_view
             .args
             .iter()
@@ -597,7 +597,7 @@ mod tests {
         // 验证 begin_start 在非 UE 路径下参数原样传递、无 view 路径。
         let mut reg = AppInstanceRegistry::new();
         let req = sample_req("ue", 32800);
-        let rec = reg.begin_start(r"D:\GoDesk", req).unwrap();
+        let rec = reg.begin_start(r"D:\Pixels", req).unwrap();
         assert!(rec
             .launch
             .args
@@ -610,24 +610,24 @@ mod tests {
     fn registry_allocates_ports_and_blocks_duplicates() {
         let mut reg = AppInstanceRegistry::new().with_port_range(32000, 32002);
         let r1 = reg
-            .begin_start(r"D:\GoDesk", sample_req("a", 0))
+            .begin_start(r"D:\Pixels", sample_req("a", 0))
             .unwrap()
             .clone();
         assert_eq!(r1.listen_port, 32000);
         let r2 = reg
-            .begin_start(r"D:\GoDesk", sample_req("b", 0))
+            .begin_start(r"D:\Pixels", sample_req("b", 0))
             .unwrap()
             .clone();
         assert_eq!(r2.listen_port, 32001);
         // preferred conflict
         let err = reg
-            .begin_start(r"D:\GoDesk", sample_req("c", 32000))
+            .begin_start(r"D:\Pixels", sample_req("c", 32000))
             .unwrap_err();
         assert!(err.contains("already in use"));
         // same instance while running
         reg.mark_running("a", 111).unwrap();
         let err = reg
-            .begin_start(r"D:\GoDesk", sample_req("a", 0))
+            .begin_start(r"D:\Pixels", sample_req("a", 0))
             .unwrap_err();
         assert!(err.contains("already"));
     }
@@ -635,8 +635,8 @@ mod tests {
     #[test]
     fn registry_multi_instance_same_app_different_ports() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\GoDesk", sample_req("i1", 32100)).unwrap();
-        reg.begin_start(r"D:\GoDesk", sample_req("i2", 32101)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("i1", 32100)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("i2", 32101)).unwrap();
         reg.mark_running("i1", 10).unwrap();
         reg.mark_running("i2", 11).unwrap();
         let sums = reg.summaries();
@@ -649,27 +649,27 @@ mod tests {
     #[test]
     fn stop_releases_port_for_reuse() {
         let mut reg = AppInstanceRegistry::new().with_port_range(32200, 32200);
-        reg.begin_start(r"D:\GoDesk", sample_req("x", 0)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("x", 0)).unwrap();
         reg.mark_running("x", 99).unwrap();
         reg.begin_stop("x").unwrap();
         reg.mark_stopped("x").unwrap();
-        let again = reg.begin_start(r"D:\GoDesk", sample_req("y", 0)).unwrap();
+        let again = reg.begin_start(r"D:\Pixels", sample_req("y", 0)).unwrap();
         assert_eq!(again.listen_port, 32200);
     }
 
     #[test]
     fn failed_start_releases_port() {
         let mut reg = AppInstanceRegistry::new().with_port_range(32300, 32300);
-        reg.begin_start(r"D:\GoDesk", sample_req("f", 0)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("f", 0)).unwrap();
         reg.mark_failed("f", "spawn failed").unwrap();
-        let again = reg.begin_start(r"D:\GoDesk", sample_req("g", 0)).unwrap();
+        let again = reg.begin_start(r"D:\Pixels", sample_req("g", 0)).unwrap();
         assert_eq!(again.listen_port, 32300);
     }
 
     #[test]
     fn should_not_treat_desktop_as_game_hook_kill_target() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\GoDesk", sample_req("g1", 32400)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g1", 32400)).unwrap();
         reg.mark_running("g1", 42).unwrap();
         assert!(reg.should_kill_pid_for_instance("g1", 42));
         assert!(!reg.should_kill_pid_for_instance("g1", 43));
@@ -688,9 +688,9 @@ mod tests {
     #[test]
     fn port_pool_exhaustion() {
         let mut reg = AppInstanceRegistry::new().with_port_range(32500, 32500);
-        reg.begin_start(r"D:\GoDesk", sample_req("only", 0)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("only", 0)).unwrap();
         let err = reg
-            .begin_start(r"D:\GoDesk", sample_req("two", 0))
+            .begin_start(r"D:\Pixels", sample_req("two", 0))
             .unwrap_err();
         assert!(err.contains("no free listen_port"));
     }
@@ -720,11 +720,11 @@ mod tests {
         let mut reg = AppInstanceRegistry::new();
         for port in [80, 31999, 33000, 70000] {
             let err = reg
-                .begin_start(r"D:\GoDesk", sample_req("x", port))
+                .begin_start(r"D:\Pixels", sample_req("x", port))
                 .unwrap_err();
             assert!(err.contains("out of range") || err.contains("out of u16 range"));
         }
-        reg.begin_start(r"D:\GoDesk", sample_req("ok", 32600)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("ok", 32600)).unwrap();
     }
 
     #[test]
@@ -753,12 +753,12 @@ mod tests {
         let processes = vec![
             ProcessSnapshot::new(
                 100,
-                "D:/GoDesk/px_render.exe",
+                "D:/Pixels/px_render.exe",
                 "--app_mode=game-hook --network_listen_port=32000",
             ),
             ProcessSnapshot::new(
                 101,
-                "D:/GoDesk/px_render.exe",
+                "D:/Pixels/px_render.exe",
                 "--app_mode=game-hook --network_listen_port=32005",
             ),
             ProcessSnapshot::new(102, r"D:\apps\CarGame\Binaries\Win64\game.exe", ""),
@@ -779,13 +779,13 @@ mod tests {
     #[test]
     fn summaries_only_report_active_states() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\GoDesk", sample_req("s1", 32700)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("s1", 32700)).unwrap();
         reg.mark_running("s1", 10).unwrap();
         reg.begin_stop("s1").unwrap();
         reg.mark_stopped("s1").unwrap();
-        reg.begin_start(r"D:\GoDesk", sample_req("f1", 32701)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("f1", 32701)).unwrap();
         reg.mark_failed("f1", "boom").unwrap();
-        reg.begin_start(r"D:\GoDesk", sample_req("r1", 32702)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("r1", 32702)).unwrap();
         let sums = reg.summaries();
         assert_eq!(sums.len(), 1);
         assert_eq!(sums[0].instance_id, "r1");
@@ -795,12 +795,12 @@ mod tests {
     #[test]
     fn prune_finished_removes_aged_records() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\GoDesk", sample_req("old", 32710)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("old", 32710)).unwrap();
         reg.mark_failed("old", "boom").unwrap();
-        reg.begin_start(r"D:\GoDesk", sample_req("new", 32711)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("new", 32711)).unwrap();
         reg.begin_stop("new").unwrap();
         reg.mark_stopped("new").unwrap();
-        reg.begin_start(r"D:\GoDesk", sample_req("act", 32712)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("act", 32712)).unwrap();
         // Age the "old" record beyond the TTL; "new" stays fresh.
         reg.instances.get_mut("old").unwrap().finished_at =
             Some(Instant::now() - FINISHED_RECORD_TTL - Duration::from_secs(1));
@@ -813,13 +813,13 @@ mod tests {
     #[test]
     fn finished_record_rejects_stale_state_transitions() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\GoDesk", sample_req("g", 32720)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g", 32720)).unwrap();
         reg.begin_stop("g").unwrap();
         reg.mark_stopped("g").unwrap();
         // A start task that was still waiting must not resurrect the record.
         assert!(reg.mark_running("g", 55).is_err());
         // A stale stop task must not clobber a re-started record.
-        reg.begin_start(r"D:\GoDesk", sample_req("g", 32721)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g", 32721)).unwrap();
         assert!(reg.mark_stopped("g").is_err());
         assert_eq!(reg.get("g").unwrap().state, AppInstanceState::Starting);
     }

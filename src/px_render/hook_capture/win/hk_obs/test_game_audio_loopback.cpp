@@ -361,7 +361,7 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     client->Stop();
-    const auto out = std::filesystem::path(L"C:\\Users\\Public\\GoDesk\\hook_audio_game_pid.wav");
+    const auto out = std::filesystem::path(L"C:\\Users\\Public\\Pixels\\hook_audio_game_pid.wav");
     WriteWav(out, pcm, fmt.nChannels, static_cast<int>(fmt.nSamplesPerSec));
     std::wcout << L"Wrote " << out.wstring() << L" samples=" << pcm.size() << L" (~"
                << (fmt.nChannels ? pcm.size() / (fmt.nChannels * fmt.nSamplesPerSec) : 0)

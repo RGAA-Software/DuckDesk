@@ -119,15 +119,15 @@ describe('authorization validation', () => {
     })).toMatchObject({ ok: false })
   })
 
-  it('recognizes godesk_cms and labels its max_streams as Max Streams', () => {
-    expect(normalizeProduct('godesk_cms')).toBe('godesk_cms')
+  it('recognizes Pixels_cms and labels its max_streams as Max Streams', () => {
+    expect(normalizeProduct('Pixels_cms')).toBe('Pixels_cms')
     expect(normalizeProduct('gopico')).toBe('gopico')
     expect(normalizeProduct('unknown')).toBe('cms')
 
     expect(validateUpdateAuthorization({
       days: '30',
       max_streams: '0',
-      product: 'godesk_cms',
+      product: 'Pixels_cms',
     })).toMatchObject({
       ok: false,
       message: `Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`,

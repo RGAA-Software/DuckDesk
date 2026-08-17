@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::config::{SERVICE_DATA_DIR, SERVICE_LOG_DIR};
 
-const DEFAULT_APP_NAME: &str = "GoDesk";
+const DEFAULT_APP_NAME: &str = "Pixels";
 
 pub fn public_share_dir() -> PathBuf {
     match std::env::var_os("PUBLIC") {

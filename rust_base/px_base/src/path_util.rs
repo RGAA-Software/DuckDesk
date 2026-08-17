@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-pub const DEFAULT_APP_NAME: &str = "GoDesk";
+pub const DEFAULT_APP_NAME: &str = "Pixels";
 pub const PX_LOG_DIR: &str = "px_logs";
 pub const PX_DATA_DIR: &str = "px_data";
 
-/// Matches C++ FolderUtil::GetProgramDataPath("GoDesk") — %PUBLIC%/GoDesk
+/// Matches C++ FolderUtil::GetProgramDataPath("Pixels") — %PUBLIC%/Pixels
 pub fn public_share_dir() -> PathBuf {
     match std::env::var_os("PUBLIC") {
         Some(value) => PathBuf::from(value),
@@ -30,11 +30,11 @@ mod tests {
 
     #[test]
     fn shared_root_extends_public_dir() {
-        assert_eq!(app_shared_root(), public_share_dir().join("GoDesk"));
+        assert_eq!(app_shared_root(), public_share_dir().join("Pixels"));
     }
 
     #[test]
-    fn default_roots_live_under_godesk() {
+    fn default_roots_live_under_pixels() {
         let root = app_shared_root();
         assert_eq!(default_data_root(), root.join("px_data"));
         assert_eq!(default_log_root(), root.join("px_logs"));

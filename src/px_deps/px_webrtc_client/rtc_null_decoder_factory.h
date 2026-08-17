@@ -59,7 +59,7 @@ namespace px
 
         DecoderInfo GetDecoderInfo() const override {
             return DecoderInfo {
-                .implementation_name = "godesk-null",
+                .implementation_name = "pixels-null",
                 .is_hardware_accelerated = false,
             };
         }

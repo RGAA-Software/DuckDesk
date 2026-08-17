@@ -42,7 +42,7 @@ namespace px
                             std::function<bool(const std::string& path, const std::string& filename)>&& ignore_predicate,
                             bool overwrite = true);
 
-        static std::wstring GetProgramDataPath(const std::string& app = "GoDesk");
+        static std::wstring GetProgramDataPath(const std::string& app = "Pixels");
 
         static bool DeleteDir(const U8Path& path);
 

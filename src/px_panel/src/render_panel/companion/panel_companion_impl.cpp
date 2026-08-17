@@ -206,7 +206,7 @@ namespace px
     }
 
     bool PanelCompanionImpl::HasUpdateForOffSite() {
-        auto client = HttpClient::MakeSSL("godesk.uk", 443, "/api/v1/query/product/version", 2000);
+        auto client = HttpClient::MakeSSL("pixels.yun", 443, "/api/v1/query/product/version", 2000);
         auto resp = client->Request();
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("response failed: {}", resp.status);

@@ -85,7 +85,7 @@ async function handleLogout() {
 }
 
 async function handleJumpOffSite() {
-  window.open('https://godesk.uk', '_blank', 'noopener,noreferrer')
+  window.open('https://pixels.yun', '_blank', 'noopener,noreferrer')
 }
 
 // access info

@@ -124,7 +124,7 @@ namespace px
                 label->setFixedSize(size, size);
                 layout->addWidget(label);
                 label->SetOnImageButtonClicked([]() {
-                    QDesktopServices::openUrl(QUrl("https://store.steampowered.com/app/2947460/GoDesk/"));
+                    QDesktopServices::openUrl(QUrl("https://store.steampowered.com/app/2947460/Pixels/"));
                 });
                 label->SetOnImageButtonHovering([=, this](QWidget*) {
                     this->setCursor(Qt::PointingHandCursor);
@@ -160,7 +160,7 @@ namespace px
                 label->setFixedSize(size, size);
                 layout->addWidget(label);
                 label->SetOnImageButtonClicked([]() {
-                    QDesktopServices::openUrl(QUrl("https://godesk.uk"));
+                    QDesktopServices::openUrl(QUrl("https://pixels.yun"));
                 });
                 label->SetOnImageButtonHovering([=, this](QWidget*) {
                     this->setCursor(Qt::PointingHandCursor);

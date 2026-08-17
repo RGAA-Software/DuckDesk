@@ -7,7 +7,7 @@
 - 填写设备 ID、安全密码,通过 WebRTC 直连被控端(render)。流 ID 由设备 ID 自动派生(`web_<deviceId>`,只读),同一台设备同时只允许一路连接。
 - 新连接遇到设备已被占用时(render 返回 code 704),页面提示"是否接管",确认后带 `takeover=1` 重新发信令,顶掉旧连接。
 - 支持 URL query 参数带入:`/?deviceId=xxx&password=zzz`(或 `pwd_md5=`),带入后仍可手动修改。
-- 信令流程:创建 `RTCPeerConnection`(不配置 iceServers)→ 创建 label 为 `godesk` 的 datachannel → `createOffer` → `setLocalDescription` → 等待 ICE gathering complete(不使用 trickle)→ POST 到同源 `/alloc/local/rtc` → 收到 `answer_sdp` 后 `setRemoteDescription`。
+- 信令流程:创建 `RTCPeerConnection`(不配置 iceServers)→ 创建 label 为 `Pixels` 的 datachannel → `createOffer` → `setLocalDescription` → 等待 ICE gathering complete(不使用 trickle)→ POST 到同源 `/alloc/local/rtc` → 收到 `answer_sdp` 后 `setRemoteDescription`。
 - 远端视频流全屏显示;datachannel 的 onopen/onmessage/onclose 打印日志(为后续控制消息预留)。
 - 状态展示:未连接 / 连接中 / 已连接 / 失败(含错误原因),失败后可重新连接。
 

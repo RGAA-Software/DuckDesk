@@ -1160,7 +1160,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn device_pull_registers_godesk_cms_device() {
+    async fn device_pull_registers_Pixels_cms_device() {
         use crate::authorization_manager::clear_authorization_memory_store;
         let _guard = STORE_LOCK.lock().unwrap();
         clear_authorization_memory_store();
@@ -1188,8 +1188,8 @@ mod tests {
             }
         };
 
-        // product=godesk_cms -> 200, auto-registered as a new trial device.
-        let resp = pull(r#"{"product":"godesk_cms","device_code":"1234-5678"}"#).await;
+        // product=Pixels_cms -> 200, auto-registered as a new trial device.
+        let resp = pull(r#"{"product":"Pixels_cms","device_code":"1234-5678"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&bytes).unwrap();
@@ -1199,7 +1199,7 @@ mod tests {
         assert!(!json["data"]["deploy_str"].as_str().unwrap().is_empty());
 
         // Second pull for the same device: known device, not registered_new.
-        let resp = pull(r#"{"product":"godesk_cms","device_code":"1234-5678"}"#).await;
+        let resp = pull(r#"{"product":"Pixels_cms","device_code":"1234-5678"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&bytes).unwrap();

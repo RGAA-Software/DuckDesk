@@ -2,7 +2,7 @@
 //!
 //! 与 gopico/clientbox/goagent 三端语义一致：
 //! - 启动时及周期性向 auth server `POST /api/v1/device/pull` 上报机器码
-//!   （product=godesk_cms），未知设备自动注册为试用授权；
+//!   （product=Pixels_cms），未知设备自动注册为试用授权；
 //! - 拉取到的签名 license 复用现有验签/落库链路
 //!   （LicenseVerifier → license_to_authorization → KvStorage → AuthManager）；
 //! - 响应 revoked=true 时清空本地授权（内存 + KvStorage 缓存）；
@@ -15,7 +15,7 @@ use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gCmsContext, gCmsDatabas
 use px_auth_mgr::app_credential as cred;
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
-use px_auth_mgr::authorization::{Authorization, PRODUCT_GODESK_CMS};
+use px_auth_mgr::authorization::{Authorization, PRODUCT_Pixels_CMS};
 use px_base::{get_current_timestamp, RespMessage};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ pub async fn pull_once() -> Result<PullOutcome, String> {
     }
 
     let request = DevicePullRequest {
-        product: PRODUCT_GODESK_CMS.to_string(),
+        product: PRODUCT_Pixels_CMS.to_string(),
         device_code: machine_code,
         client_version: env!("CARGO_PKG_VERSION").to_string(),
         client_status: "ok".to_string(),

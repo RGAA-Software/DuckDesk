@@ -63,7 +63,7 @@ namespace px
         {
             //QImage image;
             //image.load(":/resources/ic_logo_src.png");
-            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 22, true, "www.godesk.uk");
+            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 22, true, "www.pixels.yun");
             LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image->width, image->height, image->channels, image->data->Size());
             for (int h = 0; h < image->height; h++) {
                 for (int w = 0; w < image->width; w++) {
@@ -79,7 +79,7 @@ namespace px
         {
             // QImage image;
             // image.load(":/resources/ic_logo_src_big.png");
-            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, "www.godesk.uk");
+            auto image = ImageGenerator::CreateGrayscaleWithText(256, 48, 0xff, 0x00, 24, true, "www.pixels.yun");
             LOGI("logo src image, size: {}x{}, channels:{}, data size: {}", image->width, image->height, image->channels, image->data->Size());
             for (int h = 0; h < image->height; h++) {
                 for (int w = 0; w < image->width; w++) {

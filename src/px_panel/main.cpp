@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
 
     // init sp
     auto data_dir = base_dir + "/px_data";
-    if (!SharedPreference::Instance()->Init(data_dir.toStdWString(), "godesk.dat")) {
+    if (!SharedPreference::Instance()->Init(data_dir.toStdWString(), "pixels.dat")) {
         auto err = QString::fromStdString(SharedPreference::Instance()->GetLastError());
         QMessageBox::critical(nullptr, "Startup failed", "SharedPreference init failed:\n" + err);
         return -1;

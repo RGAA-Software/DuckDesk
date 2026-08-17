@@ -28,7 +28,7 @@ namespace px
         auto exe_path = QString::fromStdWString(FolderUtil::GetCurrentFilePath()).toStdString();
         auto folder_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()) + "/px_data";
         LOGI("Folder path: {}", folder_path.toStdString());
-        if (!sp_->Init(folder_path.toStdWString(), "godesk_service.dat")) {
+        if (!sp_->Init(folder_path.toStdWString(), "pixels_service.dat")) {
             LOGE("Init gammaray_service.data failed!");
         }
 

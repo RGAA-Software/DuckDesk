@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn panel_respawn_is_suppressed_during_cooldown() {
         // schtasks /Run 是异步的,panel 可能要几秒才出现;冷却期内不得重复拉起,
-        // 否则会起多个实例抢 godesk.dat 的 LOCK。
+        // 否则会起多个实例抢 pixels.dat 的 LOCK。
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();

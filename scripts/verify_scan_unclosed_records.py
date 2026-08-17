@@ -21,7 +21,7 @@ TEST_FILE_ID = "audit-test-file-id"
 
 def db_path() -> str:
     public = os.environ.get("PUBLIC", r"C:\Users\Public")
-    return os.path.join(public, "GoDesk", "px_data", "px_data.db")
+    return os.path.join(public, "Pixels", "px_data", "px_data.db")
 
 
 def connect() -> sqlite3.Connection:

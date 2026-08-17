@@ -267,7 +267,7 @@ mod tests {
         r#"
 server_port = 30400
 db_path = "mongodb://localhost:27017/"
-verify_server = "https://godesk.uk:30400"
+verify_server = "https://pixels.yun:30400"
 
 [bootstrap]
 jwt_secret = "test-secret-must-be-at-least-32-bytes"
@@ -294,7 +294,7 @@ visitor_password = ""
         let err = AuthorSettings::parse_from_toml(
             r#"
 server_port = 30400
-verify_server = "https://godesk.uk:30400"
+verify_server = "https://pixels.yun:30400"
 
 [bootstrap]
 jwt_secret = "test-secret-must-be-at-least-32-bytes"
@@ -317,7 +317,7 @@ visitor_name = "Visitor"
             ),
             (
                 "verify_server",
-                r#"verify_server = "https://godesk.uk:30400""#,
+                r#"verify_server = "https://pixels.yun:30400""#,
                 r#"verify_server = " ""#,
             ),
             (
@@ -547,7 +547,7 @@ admin_password = \"secret\"\n";
             &path,
             r#"server_port = 30400
 db_path = "mongodb://localhost:27017/"
-verify_server = "https://godesk.uk:30400"
+verify_server = "https://pixels.yun:30400"
 
 [bootstrap]
 # comment that must be preserved

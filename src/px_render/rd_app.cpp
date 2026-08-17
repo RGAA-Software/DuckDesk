@@ -97,7 +97,7 @@ namespace px
         // sp
         sp_ = SharedPreference::Instance();
         auto path = FolderUtil::GetProgramDataPath() + L"/px_data";
-        std::string sp_name = std::format("godesk_render_{}.dat", settings_->transmission_.listening_port_);
+        std::string sp_name = std::format("pixels_render_{}.dat", settings_->transmission_.listening_port_);
         if (!sp_->Init(path, sp_name)) {
             init_failed_ = true;
             init_error_ = std::format("Init render SharedPreference failed, path: {}, file: {}, error: {}",
@@ -856,7 +856,7 @@ namespace px
         app_shared_message_->ipc_port_ = settings_->transmission_.listening_port_;
         app_shared_message_->self_size_ = sizeof(AppSharedMessage);
         app_shared_message_->enable_hook_events_ = 1;
-        // Prefer OS process-loopback when available; otherwise (or GODESK_FORCE_HOOK_AUDIO=1)
+        // Prefer OS process-loopback when available; otherwise (or PIXELS_FORCE_HOOK_AUDIO=1)
         // enable in-process WASAPI/XAudio2 hook.
         const bool prefer_pid = PreferProcessLoopbackCapture();
         app_shared_message_->enable_hook_audio_ = prefer_pid ? 0u : 1u;

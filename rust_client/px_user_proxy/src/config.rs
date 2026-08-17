@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use clap::Parser;
 
-const DEFAULT_APP_NAME: &str = "GoDesk";
+const DEFAULT_APP_NAME: &str = "Pixels";
 
 pub const USER_PROXY_LOG_DIR: &str = "px_logs";
 pub const USER_PROXY_LOG_FILE: &str = "pixels_user_proxy.log";
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn shared_root_extends_public_dir() {
-        assert_eq!(app_shared_root(), public_share_dir().join("GoDesk"));
+        assert_eq!(app_shared_root(), public_share_dir().join("Pixels"));
     }
 
     #[test]

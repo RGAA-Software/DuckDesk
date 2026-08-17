@@ -270,7 +270,7 @@ namespace px
         }
         auto monitors = plugin_->GetRtcTrackMonitors();
         multi_track_mode_ = offer_video_mlines > 1 && !monitors.empty();
-        static constexpr const char* kMediaStreamId = "godesk_media";
+        static constexpr const char* kMediaStreamId = "pixels_media";
         if (multi_track_mode_) {
             int track_index = 0;
             for (const auto& m : monitors) {

@@ -40,11 +40,11 @@ inline bool IsProcessLoopbackCaptureSupported() {
 #endif
 }
 
-// Test/debug: set GODESK_FORCE_HOOK_AUDIO=1 to force in-process hook and skip host PID loopback.
+// Test/debug: set PIXELS_FORCE_HOOK_AUDIO=1 to force in-process hook and skip host PID loopback.
 inline bool ForceInProcessHookAudio() {
 #ifdef WIN32
     char buf[16] = {};
-    const DWORD n = GetEnvironmentVariableA("GODESK_FORCE_HOOK_AUDIO", buf, sizeof(buf));
+    const DWORD n = GetEnvironmentVariableA("PIXELS_FORCE_HOOK_AUDIO", buf, sizeof(buf));
     if (n == 0 || n >= sizeof(buf)) {
         return false;
     }

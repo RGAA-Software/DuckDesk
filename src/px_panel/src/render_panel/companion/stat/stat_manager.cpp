@@ -17,7 +17,7 @@ using namespace nlohmann;
 #if LOCAL_HOST
 cat sHost = "127.0.0.1";
 #else
-cat sHost = "godesk.uk";
+cat sHost = "pixels.yun";
 #endif
 
 namespace px
@@ -33,7 +33,7 @@ namespace px
     }
 
     bool StatManager::ReportWorkingAuth(const std::shared_ptr<SysInfo>& info) {
-        cat host = sHost;//"godesk.uk";
+        cat host = sHost;//"pixels.yun";
         cat port = 30300;
         cat client = HttpClient::MakeSSL(host, port, kUpdateAuthStat, 5000);
         json obj;
