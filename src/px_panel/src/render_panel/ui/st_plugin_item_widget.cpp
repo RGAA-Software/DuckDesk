@@ -10,6 +10,7 @@
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
 #include "px_message_new/rp_proto_converter.h"
+#include "px_render/plugins/plugin_ids.h"
 #include <QLabel>
 #include <QPushButton>
 
@@ -113,6 +114,25 @@ namespace px
             });
         }
 
+        // server-side screen recording: 只有 media_recorder 插件显示录制按钮
+        if (item_info_->id_ == kMediaRecorderPluginId) {
+            auto btn = new QPushButton(this);
+            btn->setFixedSize(size);
+            btn->setText("Start Record");
+            content_layout->addWidget(btn);
+            content_layout->addSpacing(10);
+            connect(btn, &QPushButton::clicked, this, [=, this]() {
+                if (btn->text() == "Start Record") {
+                    btn->setText("Stop Record");
+                    SendRecordCommand(true);
+                }
+                else {
+                    btn->setText("Start Record");
+                    SendRecordCommand(false);
+                }
+            });
+        }
+
         content_layout->addSpacing(10);
 
         setLayout(root_layout);
@@ -169,6 +189,16 @@ namespace px
         pt_msg.set_type(pxrp::RpMessageType::kRpCommandRenderer);
         auto sub = pt_msg.mutable_command_renderer();
         sub->set_command(enabled ? pxrp::RpPanelCommand::kEnablePlugin : pxrp::RpPanelCommand::kDisablePlugin);
+        sub->set_plugin_id(item_info_->id_);
+        app_->PostMessage2Renderer(px::RpProtoAsData(&pt_msg));
+    }
+
+    void StPluginItemWidget::SendRecordCommand(bool start) {
+        pxrp::RpMessage pt_msg;
+        pt_msg.set_type(pxrp::RpMessageType::kRpCommandRenderer);
+        auto sub = pt_msg.mutable_command_renderer();
+        sub->set_command(start ? pxrp::RpPanelCommand::kStartMediaRecordServerSide
+                               : pxrp::RpPanelCommand::kStopMediaRecordServerSide);
         sub->set_plugin_id(item_info_->id_);
         app_->PostMessage2Renderer(px::RpProtoAsData(&pt_msg));
     }

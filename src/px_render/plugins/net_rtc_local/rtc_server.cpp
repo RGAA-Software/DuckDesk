@@ -604,6 +604,10 @@ namespace px
         }
         auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
         event->conn_id_ = conn_id_;
+        // visitor 标识与连接事件保持一致(真实访客 stream id):
+        // 连接/断开事件必须能按 id 配对, 否则按 visitor 键控的插件
+        // (如 media_recorder 自动录制的启停)永远等不到配对断开。
+        event->visitor_device_id_ = !stream_id_.empty() ? stream_id_ : conn_id_;
         // 真实访客 stream id(Start 时信令传入,与 px::Message.stream_id 一致);
         // 空时回退 datachannel 内部 id(历史行为)。
         event->stream_id_ = !stream_id_.empty() ? stream_id_

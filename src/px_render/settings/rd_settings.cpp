@@ -58,6 +58,12 @@ namespace px
         app_.event_replay_mode_ = std::string("global") == result["application"]["event-replay-mode"].value_or("global")
                                   ? TargetApplication::EventReplayMode::kGlobal : TargetApplication::EventReplayMode::kHookInner;
 
+        // [record] server-side screen recording
+        record_auto_ = result["record"]["auto_enabled"].value_or(false);
+        record_dir_ = result["record"]["dir"].value_or("");
+        record_max_segment_bytes_ = result["record"]["max_segment_bytes"].value_or(1024LL * 1024 * 1024);
+        record_max_file_count_ = (int)result["record"]["max_file_count"].value_or(24LL);
+
         // Mode drives capture type; rd_main re-applies after CLI UpdateSettings.
         ApplyApplicationMode();
         return true;

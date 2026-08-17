@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 set REPO_ROOT=%~dp0..
 set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common_new\tests
 set FT_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_ft_engine\tests
+set RECORD_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_media_record_new\tests
 set LOG=%REPO_ROOT%\build_official\run_tests.log
 set FAILED=0
 
@@ -58,6 +59,22 @@ for %%t in (
         )
     ) else (
         echo [ERROR] %%t.exe not found in %FT_TEST_DIR% >> "%LOG%" 2>&1
+        set FAILED=1
+    )
+)
+
+for %%t in (
+    test_record_writer
+) do (
+    echo ===== %%t ===== >> "%LOG%" 2>&1
+    if exist "%RECORD_TEST_DIR%\%%t.exe" (
+        "%RECORD_TEST_DIR%\%%t.exe" >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            echo [FAIL] %%t >> "%LOG%" 2>&1
+            set FAILED=1
+        )
+    ) else (
+        echo [ERROR] %%t.exe not found in %RECORD_TEST_DIR% >> "%LOG%" 2>&1
         set FAILED=1
     )
 )

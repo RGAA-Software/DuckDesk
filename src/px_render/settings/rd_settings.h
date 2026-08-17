@@ -177,6 +177,11 @@ namespace px
         uint64_t max_transmit_speed_ = 0;
         uint64_t max_receive_speed_ = 0;
         int role_ = 1;
+        // server-side screen recording ([record] in settings.toml)
+        bool record_auto_ = true;
+        std::string record_dir_;
+        int64_t record_max_segment_bytes_ = 1024LL * 1024 * 1024;
+        int record_max_file_count_ = 24;
 
     private:
         const std::string kFullColorModeKey = "enable_full_color_mode";

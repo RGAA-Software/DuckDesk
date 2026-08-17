@@ -44,3 +44,13 @@ debug-enabled = false
 # inner => replay events in process
 event-replay-mode = "global"
 
+# server-side screen recording (render 端录屏插件)
+# auto_enabled = true 时, 有人连接自动开始录制, 无人连接自动停止
+# dir 为空时使用默认目录: C:\Users\Public\GoDesk\recordings
+# max_segment_bytes / max_file_count 可选覆盖滚动录制参数(默认 1GB / 24 个)
+[record]
+auto_enabled = true
+dir = ""
+#max_segment_bytes = 1073741824
+#max_file_count = 24
+

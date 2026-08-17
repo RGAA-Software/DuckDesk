@@ -90,6 +90,9 @@ message RpPluginsInfo {
 enum RpPanelCommand {
   kEnablePlugin = 0;
   kDisablePlugin = 1;
+  // server-side screen recording (media_recorder plugin)
+  kStartMediaRecordServerSide = 2;
+  kStopMediaRecordServerSide = 3;
 }
 
 message RpPanelCommandRenderer {

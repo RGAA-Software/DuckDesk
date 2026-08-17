@@ -1,86 +1,38 @@
 #pragma once
 
-#include <string>
 #include <memory>
-#include <chrono>
-
-extern "C" {
-#include "libavutil/opt.h"
-#include "libavutil/channel_layout.h"
-#include "libavutil/common.h"
-#include "libavutil/imgutils.h"
-#include "libavutil/mathematics.h"
-#include "libavutil/samplefmt.h"
-#include "libavutil/time.h"
-#include "libavutil/fifo.h"
-#include "libavcodec/avcodec.h"
-#include "libavformat/avformat.h"
-#include "libavformat/avio.h"
-#include "libavdevice/avdevice.h"
-#include "libavfilter/avfilter.h"
-#include "libavfilter/buffersink.h"
-#include "libavfilter/buffersrc.h"
-#include "libswscale/swscale.h"
-#include "libswresample/swresample.h" //重采样
-#include "libavutil/audio_fifo.h"
-#include "libavutil/avassert.h"
-#include "libavutil/avstring.h"
-#include "libavutil/frame.h"
-}
+#include <string>
 
 #include "px_message.pb.h"
 
-namespace px { 
+namespace px {
 
 class MediaRecordPluginClient;
+class RecordWriter;
 
-class MediaRecorder { 
+// 客户端侧录屏适配层:把收到的编码流(VideoFrame/AudioFrame)转交给共享录制核心
+// RecordWriter(px_media_record_new), 由核心负责 remux MP4 / 1GB 分段 / 滚动清理。
+class MediaRecorder {
 public:
-	static std::shared_ptr<MediaRecorder> Make(MediaRecordPluginClient* plugin);
+    static std::shared_ptr<MediaRecorder> Make(MediaRecordPluginClient* plugin);
 
     explicit MediaRecorder(MediaRecordPluginClient* plugin);
     ~MediaRecorder();
 
-	void SetFilePath(std::string name);
+    void EndRecord();
 
-	bool InitFFmpeg();
+    void RecvVideoFrame(const VideoFrame& frame);
 
-	void InitByVideoFrame(const VideoFrame& frame);
-	
-	void EndRecord();
+    void RecvAudioFrame(const AudioFrame& frame);
 
-	void RecvVideoFrame(const VideoFrame& frame);
-
-	void SaveVideoFrame(const VideoFrame& frame);
-
-	void RecvAudioFrame(const AudioFrame& frame);
-
-	void SetIndex(int idx);
+    void SetIndex(int idx);
 private:
+    void EnsureWriter();
 
-	AVFormatContext* format_ctx_ = nullptr;
-	AVStream* video_stream_ = nullptr;
-	AVStream* audio_stream_ = nullptr;
-	AVPixelFormat pix_fmt_ = AV_PIX_FMT_NONE;
-	std::string file_name_;
-	int width_ = -1;
-	int height_ = -1;
-	int video_stream_index_ = -1;
-	int audio_stream_index_ = -1;
-
-	int video_frame_count_ = 0;
-	int audio_frame_count_ = 0;
-
-	std::chrono::system_clock::time_point start_time_;
-
-	MediaRecordPluginClient* plugin_ = nullptr;
-
-	px::VideoType video_codec_ =  px::VideoType::kNetH264;
-
-	std::atomic<bool> init_ok_ = false;
-
-	//录屏器索引
-	int index_ = 0;
+    MediaRecordPluginClient* plugin_ = nullptr;
+    //录屏器索引(对应显示器)
+    int index_ = 0;
+    std::shared_ptr<RecordWriter> writer_;
 };
 
 }

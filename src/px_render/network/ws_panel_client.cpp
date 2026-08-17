@@ -234,6 +234,16 @@ namespace px
                 else if (sub.command() == pxrp::RpPanelCommand::kDisablePlugin) {
                     ProcessCommandDisablePlugin(plugin_id);
                 }
+                else if (sub.command() == pxrp::RpPanelCommand::kStartMediaRecordServerSide ||
+                         sub.command() == pxrp::RpPanelCommand::kStopMediaRecordServerSide) {
+                    auto plugin = plugin_mgr_->GetPluginById(plugin_id);
+                    if (plugin) {
+                        auto cmd = (sub.command() == pxrp::RpPanelCommand::kStartMediaRecordServerSide)
+                                       ? "record:start" : "record:stop";
+                        LOGI("CommandRenderer: media record {} -> {}", cmd, plugin_id);
+                        plugin->OnCommand(cmd);
+                    }
+                }
             }
             // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
 #if 0

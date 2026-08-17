@@ -279,6 +279,17 @@ namespace px
         std::map<uint64_t, Microsoft::WRL::ComPtr<ID3D11DeviceContext>> d3d11_devices_context_;
     };
 
+    // 编码音频消费端(录制插件等可选实现)。
+    // 注意: 刻意不向 PxPluginInterface 添加虚函数——那会改变 PxPluginInterface/
+    // PxNetPlugin 的虚表布局, 与旧插件 DLL 二进制不兼容(槽位错位导致崩溃)。
+    // 消费端通过 dynamic_cast 检测, 未实现的插件不受影响。
+    class PxEncodedAudioSink {
+    public:
+        virtual ~PxEncodedAudioSink() = default;
+        // data: 编码后的音频包(Opus)
+        virtual void OnEncodedAudioFrame(const std::shared_ptr<Data>& data, int samples, int channels, int bits, int frame_size) = 0;
+    };
+
 }
 
 #endif //PX_PLUGIN_INTERFACE_H

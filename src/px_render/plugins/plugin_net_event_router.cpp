@@ -32,6 +32,7 @@
 #include "px_capture_new/capture_message_maker.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
+#include "px_render/plugin_interface/px_stream_plugin.h"
 
 namespace px {
 
@@ -624,6 +625,18 @@ namespace px {
         auto net_msg = NetMessageMaker::MakeAudioFrameMsg(data, samples, channels, bits, frame_size);
         //statistics_->AppendMediaBytes(net_msg.size());
         app_->PostNetMessage(net_msg);
+
+        // 编码音频分发给可选的 PxEncodedAudioSink 消费端(录制插件等, 零重编码)。
+        // 用 dynamic_cast 检测实现者, 不改变基类虚表布局(与旧插件 DLL 保持 ABI 兼容)。
+        // 与视频分发路径一致, 走 Stream 插件专用任务线程, 串行回调。
+        auto pm = plugin_manager_;
+        app_->GetContext()->PostStreamPluginTask([pm, data, samples, channels, bits, frame_size]() {
+            pm->VisitStreamPlugins([=](PxStreamPlugin* plugin) {
+                if (auto* sink = dynamic_cast<PxEncodedAudioSink*>(plugin)) {
+                    sink->OnEncodedAudioFrame(data, samples, channels, bits, frame_size);
+                }
+            });
+        });
     }
 
     void PluginNetEventRouter::ProcessCtrlAltDelete(std::shared_ptr<Message>&& msg) {

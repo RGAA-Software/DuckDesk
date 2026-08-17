@@ -44,6 +44,9 @@ namespace px
         // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
         void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
         const std::string& GetConnId() const { return conn_id_; }
+        // 真实访客 stream id(信令传入,与 px::Message.stream_id 一致)。
+        // 连接/断开事件都用它做 visitor 标识,保证按 id 键控的插件能配对。
+        const std::string& GetStreamId() const { return stream_id_; }
         // client_nonce: web client 的浏览器标识(launch 页 nonce)。
         // 新连接 nonce 与现存活跃连接相同 = 同一浏览器,信令直接自动接管,
         // 不再回 704 让用户确认;不同 nonce 维持占用确认流程

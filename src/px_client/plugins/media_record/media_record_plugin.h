@@ -29,7 +29,7 @@ namespace px
         void StartRecord() override;
         void EndRecord() override;
 
-        [[nodiscard]] std::string GetScreenRecordingPath() const ;
+        [[nodiscard]] std::string GetScreenRecordingPath() const;
     private:
         std::map<std::string, QLabel*> previewers_;
         

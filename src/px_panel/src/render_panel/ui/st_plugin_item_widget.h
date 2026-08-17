@@ -31,6 +31,7 @@ namespace px
     private:
         void UpdatePluginStatus(bool enabled);
         void SwitchPluginStatusInner(bool enabled);
+        void SendRecordCommand(bool start);
 
     private:
         std::shared_ptr<PluginItemInfo> item_info_;

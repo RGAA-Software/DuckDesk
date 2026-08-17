@@ -167,6 +167,20 @@ if not exist "%OUTPUT_DIR%\certs\cert.pem" (
         exit /b 1
     )
 )
+rem license public key (CMS 校验授权签名用; 从打包过的 px_auth_server 种入, 只补缺不覆盖)
+if not exist "%OUTPUT_DIR%\certs\auth_license_public.key" (
+    if exist "%REPO_ROOT%\output\px_auth\certs\auth_license_public.key" (
+        copy /Y "%REPO_ROOT%\output\px_auth\certs\auth_license_public.key" "%OUTPUT_DIR%\certs\auth_license_public.key" >nul
+        if errorlevel 1 (
+            echo ERROR: Failed to copy auth_license_public.key.
+            exit /b 1
+        )
+        echo       Seeded license public key from packaged px_auth_server.
+    ) else (
+        echo WARNING: auth_license_public.key not found in output\px_auth\certs.
+        echo          Run scripts\package_px_auth_server.bat once to generate the key pair.
+    )
+)
 rem frontend (wipe target first so stale hashed assets cannot linger)
 if exist "%OUTPUT_DIR%\%WEB_SUBDIR%" rmdir /S /Q "%OUTPUT_DIR%\%WEB_SUBDIR%"
 mkdir "%OUTPUT_DIR%\%WEB_SUBDIR%"
