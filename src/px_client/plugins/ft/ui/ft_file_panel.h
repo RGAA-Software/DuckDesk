@@ -29,16 +29,24 @@ namespace px
 
     class FtCore;
 
-    // 面板内文件表:重写 mimeData 携带面板来源(本地/远程)与选中路径
+    // 面板内文件表:重写 mimeData 携带面板来源(本地/远程)与选中路径;
+    // 整行 hover(与选中同色),QTableWidget 原生 hover 只有单元格级
     class FtFileTable : public QTableWidget {
         Q_OBJECT
     public:
         explicit FtFileTable(bool is_local, QWidget* parent = nullptr);
         QStringList SelectedPaths() const; // 选中项的完整路径(由面板填充 UserRole)
+        void ClearHover(); // 重填数据前复位 hover 行
     protected:
         QMimeData* mimeData(const QList<QTableWidgetItem*>& items) const override;
+        void mouseMoveEvent(QMouseEvent* event) override;
+        void leaveEvent(QEvent* event) override;
+        void paintEvent(QPaintEvent* event) override; // 叠加整行 hover 高亮
+    private:
+        void SetHoverRow(int row);
     private:
         bool is_local_ = false;
+        int hover_row_ = -1;
     };
 
     class FtFilePanel : public QWidget {
@@ -74,6 +82,7 @@ namespace px
         QStringList SelectedPaths() const;
         void OnDoubleClick(int row);
         void OnContextMenu(const QPoint& pos);
+        void UpdateTransferBtn(); // 按选中状态切换高亮(蓝)/普通(灰)
         void DoNewFolder();
         void DoRename();
         void DoDelete();
@@ -82,6 +91,7 @@ namespace px
         // drag & drop
         void dragEnterEvent(QDragEnterEvent* event) override;
         void dropEvent(QDropEvent* event) override;
+        void resizeEvent(QResizeEvent* event) override; // 宽度变化时重算面包屑折叠
 
     private:
         FtCore* core_ = nullptr;

@@ -67,4 +67,5 @@ web/px_web_client/proto/*.proto
 rustdesk/
 
 # local test scripts/logs/screenshots and remote-admin credentials (never commit)
-tests/
+# NOTE: anchored to repo root only — nested tests/ dirs (e.g. px_deps/*/tests) stay tracked
+/tests/

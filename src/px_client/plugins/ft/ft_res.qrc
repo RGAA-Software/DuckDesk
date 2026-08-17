@@ -10,5 +10,8 @@
         <file>icons/ic_close.svg</file>
         <file>icons/ic_expand_less.svg</file>
         <file>icons/ic_expand_more.svg</file>
+        <file>icons/ic_chevron_right.svg</file>
+        <file>icons/ic_gray_arrow_forward.svg</file>
+        <file>icons/ic_gray_arrow_back.svg</file>
     </qresource>
 </RCC>

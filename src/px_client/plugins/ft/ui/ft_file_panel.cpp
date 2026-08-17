@@ -5,6 +5,7 @@
 #include "ft_file_panel.h"
 
 #include <QDateTime>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileIconProvider>
@@ -12,7 +13,6 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QIcon>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -25,6 +25,12 @@
 #include <QVBoxLayout>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QMouseEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QResizeEvent>
+#include <QStyledItemDelegate>
 
 #include <algorithm>
 
@@ -61,7 +67,6 @@ namespace px
         QTableWidget::item { border: none; padding-left: 4px; }
         QTableWidget::item:selected { background-color: #2979ff; color: #ffffff; }
         QTableWidget::item:selected:!active { background-color: #2979ff; color: #ffffff; }
-        QTableWidget::item:hover { background: #e3e9f3; }
     )";
 
     static QString FormatSize(uint64_t size) {
@@ -84,6 +89,48 @@ namespace px
         return suffix;
     }
 
+    // 输入对话框(替代 QInputDialog:全局皮肤下其输入框过矮、按钮宽度不一且文字看不清)。
+    // 固定输入框 32px 高、两按钮等宽 88x30。
+    static bool GetTextInput(QWidget* parent, const QString& title,
+                             const QString& def, QString* out) {
+        QDialog dlg(parent);
+        dlg.setWindowTitle(title);
+        dlg.setMinimumWidth(360);
+        dlg.setStyleSheet(
+            "QDialog { background: #ffffff; }"
+            "QLineEdit { background: #ffffff; border: 1px solid #d0d5dd; border-radius: 4px;"
+            " color: #333333; padding: 0 8px; selection-background-color: #2979ff; }"
+            "QLineEdit:focus { border-color: #2979ff; }");
+        auto* v = new QVBoxLayout(&dlg);
+        v->setContentsMargins(16, 16, 16, 16);
+        v->setSpacing(12);
+        auto* edit = new QLineEdit(def, &dlg);
+        edit->setFixedHeight(32);
+        edit->selectAll();
+        v->addWidget(edit);
+        auto* bl = new QHBoxLayout();
+        bl->setSpacing(10);
+        bl->addStretch(1);
+        auto* cancel_btn = new QPushButton(tcTr("id_cancel"), &dlg);
+        auto* ok_btn = new QPushButton(tcTr("id_ok"), &dlg);
+        cancel_btn->setFixedSize(88, 30);
+        ok_btn->setFixedSize(88, 30);
+        cancel_btn->setStyleSheet(
+            "QPushButton { border: 1px solid #d0d5dd; border-radius: 4px; background: #f5f6f8; color: #333333; }"
+            "QPushButton:hover { background: #e9edf3; }");
+        ok_btn->setStyleSheet(
+            "QPushButton { border: none; border-radius: 4px; background: #2979ff; color: #ffffff; }"
+            "QPushButton:hover { background: #448aff; }");
+        bl->addWidget(cancel_btn);
+        bl->addWidget(ok_btn);
+        v->addLayout(bl);
+        QObject::connect(ok_btn, &QPushButton::clicked, &dlg, &QDialog::accept);
+        QObject::connect(cancel_btn, &QPushButton::clicked, &dlg, &QDialog::reject);
+        if (dlg.exec() != QDialog::Accepted) return false;
+        *out = edit->text();
+        return true;
+    }
+
 #ifdef _WIN32
     // Shell 显示名(盘符 -> "本地磁盘 (C:)"/"NewDisk (D:)",常用文件夹 -> 本地化名称)
     static QString ShellDisplayName(const QString& path) {
@@ -98,6 +145,18 @@ namespace px
 #endif
 
     // ---------------- FtFileTable ----------------
+
+    // 代理:抹掉单元格级 MouseOver,避免全局皮肤 qss 把 hover 画成单列底色
+    class FtNoCellHoverDelegate : public QStyledItemDelegate {
+    public:
+        using QStyledItemDelegate::QStyledItemDelegate;
+        void paint(QPainter* painter, const QStyleOptionViewItem& option,
+                   const QModelIndex& index) const override {
+            QStyleOptionViewItem opt(option);
+            opt.state &= ~QStyle::State_MouseOver;
+            QStyledItemDelegate::paint(painter, opt, index);
+        }
+    };
 
     FtFileTable::FtFileTable(bool is_local, QWidget* parent)
         : QTableWidget(parent), is_local_(is_local) {
@@ -121,6 +180,8 @@ namespace px
         setShowGrid(false);
         setAlternatingRowColors(true);
         setStyleSheet(kTableStyle);
+        setItemDelegate(new FtNoCellHoverDelegate(this)); // 屏蔽皮肤单格 hover 底色
+        setMouseTracking(true); // 整行 hover 需要持续跟踪
         setDragEnabled(true);
         setDragDropMode(QAbstractItemView::DragOnly);
         setContextMenuPolicy(Qt::CustomContextMenu);
@@ -140,6 +201,41 @@ namespace px
         mime->setData(is_local_ ? kMimeLocalPaths : kMimeRemotePaths,
                       paths.join('\n').toUtf8());
         return mime;
+    }
+
+    // ---------------- 整行 hover(与选中同色) ----------------
+    // 皮肤 qss 一旦接管 ::item 背景,逐格 setBackground 会被忽略,
+    // 故 hover 只记行号,在 paintEvent 里整行叠一层半透明品牌蓝(文字/图标仍可读)
+
+    void FtFileTable::SetHoverRow(int row) {
+        if (row == hover_row_) return;
+        hover_row_ = row;
+        viewport()->update();
+    }
+
+    void FtFileTable::paintEvent(QPaintEvent* event) {
+        QTableWidget::paintEvent(event);
+        if (hover_row_ < 0 || hover_row_ >= rowCount()) return;
+        if (selectionModel()->isRowSelected(hover_row_, QModelIndex())) return; // 选中行已是实色蓝
+        const QRect cell = visualRect(model()->index(hover_row_, 0));
+        if (!cell.isValid()) return;
+        QPainter p(viewport());
+        p.fillRect(QRect(0, cell.top(), viewport()->width(), cell.height()),
+                   QColor(41, 121, 255, 45)); // #2979ff 淡色
+    }
+
+    void FtFileTable::ClearHover() {
+        hover_row_ = -1; // 数据刚重建,旧行号已失效,无需逐格清刷
+    }
+
+    void FtFileTable::mouseMoveEvent(QMouseEvent* event) {
+        SetHoverRow(rowAt(event->pos().y()));
+        QTableWidget::mouseMoveEvent(event);
+    }
+
+    void FtFileTable::leaveEvent(QEvent* event) {
+        SetHoverRow(-1);
+        QTableWidget::leaveEvent(event);
     }
 
     // ---------------- FtFilePanel ----------------
@@ -174,17 +270,19 @@ namespace px
         auto* up_btn = make_btn(":/ft/icons/ic_arrow_upward.svg", tcTr("id_file_trans_parent_directory"));
         auto* refresh_btn = make_btn(":/ft/icons/ic_refresh.svg", tcTr("id_file_trans_refresh"));
         auto* new_folder_btn = make_btn(":/ft/icons/ic_create_new_folder.svg", tcTr("id_file_trans_new_folder"));
-        // 方向按钮:上传 →(指向远端)、下载 ←(指向本机),箭头朝向即数据流向
-        transfer_btn_ = make_btn(is_local_ ? ":/ft/icons/ic_arrow_forward.svg" : ":/ft/icons/ic_arrow_back.svg",
+        // 方向按钮:上传 →(指向远端)、下载 ←(指向本机),箭头朝向即数据流向。
+        // 默认普通(灰图标);列表有选中项时高亮(蓝底白箭头),见 UpdateTransferBtn。
+        transfer_btn_ = make_btn(":/ft/icons/ic_gray_arrow_forward.svg",
                                  tcTr(is_local_ ? "id_file_trans_upload" : "id_file_trans_down"));
         transfer_btn_->setFixedSize(40, 32);
-        transfer_btn_->setStyleSheet("QPushButton { background: #2979ff; border: none; border-radius: 4px; }"
-                                     "QPushButton:hover { background: #448aff; }");
 
-        // 面包屑(路径段按钮,点击导航;根 = 此电脑)
+        // 面包屑(路径段按钮,点击导航;根 = 此电脑),整条圆角灰底
         auto* crumb_wrap = new QWidget(this);
+        crumb_wrap->setObjectName("ftCrumb");
+        crumb_wrap->setAttribute(Qt::WA_StyledBackground, true);
+        crumb_wrap->setStyleSheet("#ftCrumb { background: #f0f2f5; border-radius: 6px; }");
         crumb_bar_ = new QHBoxLayout(crumb_wrap);
-        crumb_bar_->setContentsMargins(2, 0, 2, 0);
+        crumb_bar_->setContentsMargins(6, 2, 6, 2);
         crumb_bar_->setSpacing(0);
 
         if (is_local_) {
@@ -223,7 +321,20 @@ namespace px
         });
         connect(table_, &QTableWidget::customContextMenuRequested, this, &FtFilePanel::OnContextMenu);
         connect(table_->horizontalHeader(), &QHeaderView::sectionClicked, this, &FtFilePanel::OnSortRequested);
+        connect(table_, &QTableWidget::itemSelectionChanged, this, &FtFilePanel::UpdateTransferBtn);
+        UpdateTransferBtn();
         RebuildBreadcrumb();
+    }
+
+    void FtFilePanel::UpdateTransferBtn() {
+        const bool active = !SelectedPaths().isEmpty();
+        transfer_btn_->setIcon(QIcon(active
+            ? (is_local_ ? ":/ft/icons/ic_arrow_forward.svg" : ":/ft/icons/ic_arrow_back.svg")
+            : (is_local_ ? ":/ft/icons/ic_gray_arrow_forward.svg" : ":/ft/icons/ic_gray_arrow_back.svg")));
+        transfer_btn_->setStyleSheet(active
+            ? "QPushButton { background: #2979ff; border: none; border-radius: 4px; }"
+              "QPushButton:hover { background: #448aff; }"
+            : "");
     }
 
     void FtFilePanel::SetDeviceName(const QString& name) {
@@ -281,15 +392,58 @@ namespace px
     }
 
     // 面包屑:此电脑 > D: > sub > ...;点击段导航
+    // 宽度超预算时中段自动折叠进 "…" 菜单(保留根与尾部段),避免撑宽窗口挤压对侧栏
     void FtFilePanel::RebuildBreadcrumb() {
         QLayoutItem* item;
         while ((item = crumb_bar_->takeAt(0)) != nullptr) {
             if (item->widget()) item->widget()->deleteLater();
             delete item;
         }
+        auto* wrap = crumb_bar_->parentWidget();
 
-        auto add_btn = [this](const QString& text, const QString& target) {
-            auto* b = new QPushButton(text, crumb_bar_->parentWidget());
+        // 段列表:根(此电脑)+ 各级目录
+        QList<QPair<QString, QString>> segs; // (显示文本, 导航目标)
+        segs.append({tcTr("id_file_trans_this_pc"), is_local_ ? QString() : QString("/")});
+        QString p = current_dir_;
+        if (!is_local_ && (p == "/" || p.isEmpty())) p.clear();
+        if (!p.isEmpty()) {
+            const auto parts = p.split('/', Qt::SkipEmptyParts); // ["D:", "foo", ...]
+            QString prefix;
+            for (int i = 0; i < parts.size(); ++i) {
+                if (i == 0) {
+                    prefix = parts[0].endsWith(':') ? parts[0] + "/" : parts[0];
+                } else {
+                    prefix += (prefix.endsWith('/') ? "" : "/") + parts[i];
+                }
+                segs.append({parts[i], prefix});
+            }
+        }
+
+        // 宽度预算与单段 elide(只影响显示,不影响导航目标)
+        const QFontMetrics fm(wrap->font());
+        const int sep_w = 14, ellipsis_w = 34, max_seg_w = 160;
+        auto display_of = [&](int i) { return fm.elidedText(segs[i].first, Qt::ElideMiddle, max_seg_w); };
+        auto seg_w = [&](int i) { return fm.horizontalAdvance(display_of(i)) + 14; /*padding*/ };
+        int avail = wrap->contentsRect().width() - 4;
+        if (avail <= 0) avail = 480; // 首次构建尚无布局宽度,给保守默认
+
+        // 计算需折叠的中段:hidden[i]=true 的进 "…" 菜单
+        QVector<bool> hidden(segs.size(), false);
+        auto total_w = [&]() {
+            int w = 0, elems = 0;
+            bool menu_done = false;
+            for (int i = 0; i < segs.size(); ++i) {
+                if (hidden[i]) {
+                    if (!menu_done) { w += ellipsis_w; ++elems; menu_done = true; }
+                    continue;
+                }
+                w += seg_w(i); ++elems;
+            }
+            return w + (elems > 0 ? (elems - 1) * sep_w : 0);
+        };
+        for (int i = 1; i < segs.size() - 1 && total_w() > avail; ++i) hidden[i] = true;
+
+        auto style_btn = [](QPushButton* b) {
             b->setFlat(true);
             b->setCursor(Qt::PointingHandCursor);
             b->setFixedHeight(28);
@@ -297,39 +451,58 @@ namespace px
                 "QPushButton { color: #333333; background: transparent; border: none;"
                 " border-radius: 4px; padding: 0 6px; }"
                 "QPushButton:hover { background: #e3e9f3; }");
+        };
+        auto add_btn = [&](const QString& text, const QString& target) {
+            auto* b = new QPushButton(text, wrap);
+            style_btn(b);
             connect(b, &QPushButton::clicked, this, [this, target]() {
                 NavigateTo(target);
             });
             crumb_bar_->addWidget(b);
         };
-        auto add_sep = [this]() {
-            auto* l = new QLabel(">", crumb_bar_->parentWidget());
-            l->setStyleSheet("color: #999; padding: 0 2px;");
-            crumb_bar_->addWidget(l);
+        auto add_sep = [&]() {
+            auto* l = new QLabel(wrap);
+            l->setPixmap(QIcon(":/ft/icons/ic_chevron_right.svg").pixmap(14, 14));
+            crumb_bar_->addWidget(l, 0, Qt::AlignVCenter);
         };
 
-        add_btn(tcTr("id_file_trans_this_pc"), is_local_ ? QString() : QString("/"));
-
-        QString p = current_dir_;
-        if (!is_local_ && (p == "/" || p.isEmpty())) p.clear();
-        if (!p.isEmpty()) {
-            const auto segs = p.split('/', Qt::SkipEmptyParts); // ["D:", "foo", ...]
-            QString prefix;
-            for (int i = 0; i < segs.size(); ++i) {
-                if (i == 0) {
-                    prefix = segs[0].endsWith(':') ? segs[0] + "/" : segs[0];
-                } else {
-                    prefix += (prefix.endsWith('/') ? "" : "/") + segs[i];
+        bool menu_done = false;
+        for (int i = 0; i < segs.size(); ++i) {
+            if (hidden[i]) {
+                if (!menu_done) {
+                    menu_done = true;
+                    add_sep();
+                    auto* b = new QPushButton(QStringLiteral("…"), wrap);
+                    style_btn(b);
+                    b->setFixedWidth(ellipsis_w);
+                    auto* menu = new QMenu(b);
+                    for (int j = 0; j < segs.size(); ++j) {
+                        if (!hidden[j]) continue;
+                        const QString target = segs[j].second;
+                        menu->addAction(segs[j].first, this,
+                                        [this, target]() { NavigateTo(target); });
+                    }
+                    connect(b, &QPushButton::clicked, this, [b, menu]() {
+                        menu->exec(b->mapToGlobal(QPoint(0, b->height())));
+                    });
+                    crumb_bar_->addWidget(b);
                 }
-                add_sep();
-                add_btn(segs[i], prefix);
+                continue;
             }
+            if (i > 0) add_sep();
+            add_btn(display_of(i), segs[i].second);
         }
         crumb_bar_->addStretch(1);
     }
 
+    void FtFilePanel::resizeEvent(QResizeEvent* event) {
+        QWidget::resizeEvent(event);
+        RebuildBreadcrumb(); // 宽度变化后重算折叠
+    }
+
     void FtFilePanel::RefreshLocal() {
         table_->setRowCount(0);
+        table_->ClearHover();
         RebuildBreadcrumb();
 
         if (current_dir_.isEmpty()) {
@@ -484,6 +657,7 @@ namespace px
         });
 
         table_->setRowCount(0);
+        table_->ClearHover();
         table_->setRowCount((int)entries.size());
         int row = 0;
         // 盘符/目录用通用图标;文件按扩展名取本机关联图标(远端系统图标拿不到)
@@ -589,11 +763,9 @@ namespace px
     }
 
     void FtFilePanel::DoNewFolder() {
-        bool ok = false;
-        const QString name = QInputDialog::getText(this, tcTr("id_file_trans_new_folder"),
-                                                   tcTr("id_file_trans_name"), QLineEdit::Normal,
-                                                   "", &ok);
-        if (!ok || name.trimmed().isEmpty()) return;
+        QString name;
+        if (!GetTextInput(this, tcTr("id_file_trans_new_folder"), "", &name)) return;
+        if (name.trimmed().isEmpty()) return;
         if (name.contains('/') || name.contains('\\')) return;
         if (is_local_) {
             if (current_dir_.isEmpty()) return;
@@ -614,11 +786,9 @@ namespace px
         const QString old_path = paths.first();
         const QString old_name = QDir(old_path).dirName().isEmpty()
             ? old_path : QFileInfo(old_path).fileName();
-        bool ok = false;
-        const QString new_name = QInputDialog::getText(this, tcTr("id_file_trans_rename"),
-                                                       tcTr("id_file_trans_name"), QLineEdit::Normal,
-                                                       old_name, &ok);
-        if (!ok || new_name.trimmed().isEmpty() || new_name == old_name) return;
+        QString new_name;
+        if (!GetTextInput(this, tcTr("id_file_trans_rename"), old_name, &new_name)) return;
+        if (new_name.trimmed().isEmpty() || new_name == old_name) return;
         if (new_name.contains('/') || new_name.contains('\\')) return;
         if (is_local_) {
             if (!QDir().rename(old_path, QFileInfo(old_path).absolutePath() + "/" + new_name)) {
