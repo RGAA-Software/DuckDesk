@@ -62,3 +62,9 @@ nul
 src/px_web_client/proto/*.proto
 web/px_web_client/proto/*.proto
 
+
+# rustdesk upstream reference clone (read-only reference for the ft rewrite)
+rustdesk/
+
+# local test scripts/logs/screenshots and remote-admin credentials (never commit)
+tests/
