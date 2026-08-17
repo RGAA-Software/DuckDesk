@@ -75,7 +75,7 @@ namespace px
         auto menu = new QMenu(this);
         sys_tray_icon_ = new QSystemTrayIcon(this);
         sys_tray_icon_->setIcon(QIcon(":/resources/px_icon.png"));
-        sys_tray_icon_->setToolTip(tr("GoDesk"));
+        sys_tray_icon_->setToolTip(tr("Pixels"));
 
         auto ac_show = new QAction(tcTr("id_show_panel"), this);
         auto ac_exit = new QAction(tcTr("id_exit_all_programs"), this);
@@ -166,7 +166,7 @@ namespace px
                                        version).c_str());
         }
         else {
-            setWindowTitle(std::format("Godesk(V{} {})", PROJECT_VERSION, version).c_str());
+            setWindowTitle(std::format("Pixels(V{} {})", PROJECT_VERSION, version).c_str());
         }
 
         qApp->installNativeEventFilter(app_.get());

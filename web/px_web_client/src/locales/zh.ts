@@ -1,7 +1,7 @@
 export default {
   app: {
-    title: 'GoDesk',
-    titleWithId: 'GoDesk({id})',
+    title: 'Pixels',
+    titleWithId: 'Pixels({id})',
     deviceId: '设备 ID',
     streamId: '流 ID',
     streamIdTip: '由设备 ID 自动生成,同一设备同时只允许一路连接',

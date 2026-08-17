@@ -45,7 +45,7 @@ std::string g_nt_type_;
 
 void ParseCommandLine(QApplication& app) {
     QCommandLineParser parser;
-    parser.setApplicationDescription("GoDesk Client");
+    parser.setApplicationDescription("Pixels Client");
     parser.addHelpOption();
     parser.addVersionOption();
 

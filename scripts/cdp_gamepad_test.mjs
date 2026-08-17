@@ -1,6 +1,6 @@
 // CDP 无头 Chrome 验证 px_web_client 手柄回传(Gamepad API -> kGamepadState -> render ViGEm 虚拟 X360)
 // 用法: node scripts/cdp_gamepad_test.mjs
-// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
+// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + Pixels 套件已在运行
 // 验证点:
 //   1. 工具条「手柄」按钮开启 -> __gamepad.on() === true
 //   2. 开启后 render 日志出现 joystick 插件分配虚拟手柄(Connect VIGEM / target connected)

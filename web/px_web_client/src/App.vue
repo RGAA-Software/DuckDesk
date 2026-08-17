@@ -1280,7 +1280,7 @@ onBeforeUnmount(() => {
 
     <!-- 连接/等画面/失败加载页(无顶部参数条,参数由 URL 带入) -->
     <div v-if="showLoading" class="loading-page">
-      <img class="loading-logo" :src="logoUrl" alt="GoDesk" />
+      <img class="loading-logo" :src="logoUrl" alt="Pixels" />
       <div class="loading-title">
         {{ status === 'failed' ? t('status.failed') : t('loading.title') }}
       </div>

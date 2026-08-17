@@ -38,7 +38,7 @@ impl CmsLanguage {
     pub fn new_english() -> CmsLanguage {
         CmsLanguage {
             zh_cn: false,
-            app_name: "GoDesk CM".to_string(),
+            app_name: "Pixels CM".to_string(),
             copy: "Copy".to_string(),
             update: "Update".to_string(),
             restart: "Restart".to_string(),
@@ -70,7 +70,7 @@ impl CmsLanguage {
     pub fn new_chinese() -> CmsLanguage {
         CmsLanguage {
             zh_cn: true,
-            app_name: "GoDesk管理端".to_string(),
+            app_name: "Pixels管理端".to_string(),
             copy: "复制".to_string(),
             update: "更新".to_string(),
             restart: "重启".to_string(),

@@ -166,7 +166,7 @@ fn open_for_append(path: &Path) -> io::Result<File> {
 fn normalize_log_filename(name: &str) -> String {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return "godesk.log".to_string();
+        return "pixels.log".to_string();
     }
     let path = Path::new(trimmed);
     if path.extension().is_some() {
@@ -195,24 +195,24 @@ mod tests {
     #[test]
     fn normalize_log_filename_appends_log_suffix() {
         assert_eq!(
-            normalize_log_filename("godesk_service"),
-            "godesk_service.log"
+            normalize_log_filename("pixels_service"),
+            "pixels_service.log"
         );
         assert_eq!(
-            normalize_log_filename("godesk_render_20371.log"),
-            "godesk_render_20371.log"
+            normalize_log_filename("pixels_render_20371.log"),
+            "pixels_render_20371.log"
         );
     }
 
     #[test]
     fn rotated_log_filename_inserts_index_before_extension() {
         assert_eq!(
-            rotated_log_filename("godesk_service.log", 1),
-            "godesk_service.1.log"
+            rotated_log_filename("pixels_service.log", 1),
+            "pixels_service.1.log"
         );
         assert_eq!(
-            rotated_log_filename("godesk_render_20371.log", 4),
-            "godesk_render_20371.4.log"
+            rotated_log_filename("pixels_render_20371.log", 4),
+            "pixels_render_20371.4.log"
         );
     }
 }

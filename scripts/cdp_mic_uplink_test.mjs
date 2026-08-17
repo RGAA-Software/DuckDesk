@@ -1,6 +1,6 @@
 // CDP 无头 Chrome 验证:浏览器麦克风上行 -> render 解码 -> WASAPI 播放
 // 用法: node scripts/cdp_mic_uplink_test.mjs
-// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
+// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + Pixels 套件已在运行
 // 无头 Chrome 用假音频设备(getUserMedia 无需真麦克风,输出固定蜂鸣音)
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'

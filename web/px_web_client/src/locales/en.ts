@@ -1,7 +1,7 @@
 export default {
   app: {
-    title: 'GoDesk',
-    titleWithId: 'GoDesk({id})',
+    title: 'Pixels',
+    titleWithId: 'Pixels({id})',
     deviceId: 'Device ID',
     streamId: 'Stream ID',
     streamIdTip: 'Derived from device ID; only one connection per device is allowed',

@@ -16,12 +16,12 @@ BEGIN
         BLOCK "040004b0"
         BEGIN
             VALUE "CompanyName", "RGAA"
-            VALUE "FileDescription", "GoDesk Panel"
+            VALUE "FileDescription", "Pixels Panel"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
             VALUE "InternalName", "px_panel.exe"
             VALUE "LegalCopyright", "<https://github.com/rgaa-software> Copyright (c) 2022-2025 RGAA "
             VALUE "OriginalFilename", "px_panel.exe"
-            VALUE "ProductName", "GoDesk"
+            VALUE "ProductName", "Pixels"
             VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
         END
     END

@@ -1,13 +1,13 @@
 // CDP 无头 Chrome 验证 px_web_client 悬浮工具条
 // 用法: node scripts/cdp_toolbar_test.mjs
-// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
+// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + Pixels 套件已在运行
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const RENDER_LOG = 'C:/Users/Public/GoDesk/px_logs/godesk_render_20371.log'
+const RENDER_LOG = 'C:/Users/Public/GoDesk/px_logs/pixels_render_20371.log'
 const PAGE_URL =
   'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=toolbar1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9222

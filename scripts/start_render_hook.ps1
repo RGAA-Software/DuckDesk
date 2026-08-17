@@ -27,7 +27,7 @@ $BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\px_render.exe'
 $SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
 $Exe = Join-Path $Dist 'px_render.exe'
 $WebUrl = "http://127.0.0.1:${Port}/web_client/?deviceId=${DeviceId}"
-$LogPath = "C:\Users\Public\GoDesk\px_logs\godesk_render_${Port}.log"
+$LogPath = "C:\Users\Public\GoDesk\px_logs\pixels_render_${Port}.log"
 
 # Incremental cmake builds land under src/px_render; sync into dist when newer.
 if (Test-Path -LiteralPath $BuiltExe) {

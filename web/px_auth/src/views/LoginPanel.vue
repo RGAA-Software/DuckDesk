@@ -86,8 +86,8 @@
 
     <!-- 左侧品牌区 -->
     <section class="login-hero">
-      <div class="brand-mark">GD</div>
-      <h1 class="brand-title">GoDesk 授权中心</h1>
+      <div class="brand-mark">PX</div>
+      <h1 class="brand-title">Pixels 授权中心</h1>
       <p class="brand-sub">License &amp; Authorization Management</p>
       <ul class="brand-points">
         <li><span class="dot" />集中管理产品授权与设备配额</li>
@@ -140,7 +140,7 @@
         登 录
       </el-button>
 
-      <p class="card-footer">GoDesk · 安全授权服务</p>
+      <p class="card-footer">Pixels · 安全授权服务</p>
     </section>
   </div>
 </template>

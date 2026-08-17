@@ -77,7 +77,7 @@ const LAUNCH_PAGE: &str = r#"<!DOCTYPE html>
 <script>
 const appId = "__APP_ID__";
 const appkey = "__APPKEY__";
-const nonceKey = "godesk_launch_nonce_" + appId;
+const nonceKey = "pixels_launch_nonce_" + appId;
 let nonce = null;
 try {
   nonce = localStorage.getItem(nonceKey);

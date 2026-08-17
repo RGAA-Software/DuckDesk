@@ -13,7 +13,7 @@ pub fn init_user_proxy_logging() -> LogGuard {
 mod tests {
     #[test]
     fn log_file_name_constant() {
-        assert_eq!(crate::config::USER_PROXY_LOG_FILE, "godesk_user_proxy.log");
+        assert_eq!(crate::config::USER_PROXY_LOG_FILE, "pixels_user_proxy.log");
     }
 
     #[test]

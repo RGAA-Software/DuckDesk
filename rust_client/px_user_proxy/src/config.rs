@@ -6,7 +6,7 @@ use clap::Parser;
 const DEFAULT_APP_NAME: &str = "GoDesk";
 
 pub const USER_PROXY_LOG_DIR: &str = "px_logs";
-pub const USER_PROXY_LOG_FILE: &str = "godesk_user_proxy.log";
+pub const USER_PROXY_LOG_FILE: &str = "pixels_user_proxy.log";
 pub const USER_PROXY_LOCK_NAME: &str = "PxFunction.Singleton";
 pub const DEFAULT_RENDER_HOST: &str = "127.0.0.1";
 pub const DEFAULT_RENDER_PORT: u16 = 20371;
@@ -137,7 +137,7 @@ mod tests {
             user_proxy_log_file(),
             app_shared_root()
                 .join("px_logs")
-                .join("godesk_user_proxy.log")
+                .join("pixels_user_proxy.log")
         );
     }
 

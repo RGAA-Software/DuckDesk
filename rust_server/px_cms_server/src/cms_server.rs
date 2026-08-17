@@ -154,7 +154,7 @@ impl CmsServer {
                 any(cms_panel_ws_handler::panel_handler)
                     .layer(middleware::from_fn(cms_panel_token_filter_fn)),
             )
-            // websocket; between GoDesk windows service and cms
+            // websocket; between Pixels windows service and cms
             .route(
                 "/cms/service",
                 any(cms_service_ws_handler::service_handler)

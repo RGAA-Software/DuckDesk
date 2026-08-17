@@ -30,7 +30,7 @@ const categories = [
   { key: 'gopico', label: 'GoPico' },
   { key: 'clientbox', label: 'ClientBox' },
   { key: 'goagent', label: 'GoAgent' },
-  { key: 'godesk_cms', label: 'GoDesk CMS' },
+  { key: 'godesk_cms', label: 'Pixels CMS' },
 ]
 
 const activeTab = ref('gopico')

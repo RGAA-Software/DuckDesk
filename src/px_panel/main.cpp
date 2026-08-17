@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto log_path = base_dir + "/px_logs/godesk.log";
+    auto log_path = base_dir + "/px_logs/pixels.log";
     Logger::InitLog(log_path.toStdWString(), true);
 
     // Check OpenGL Backend

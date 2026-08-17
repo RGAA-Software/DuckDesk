@@ -274,7 +274,7 @@ int main(int argc, char** argv) {
     settings->LoadSettingsFromDatabase();
 
     // Log
-    auto log_file_path = std::format(L"{}/px_logs/godesk_render_{}.log",
+    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log",
          FolderUtil::GetProgramDataPath(), settings->transmission_.listening_port_);
     Logger::InitLog(log_file_path, FLAGS_logfile);
 

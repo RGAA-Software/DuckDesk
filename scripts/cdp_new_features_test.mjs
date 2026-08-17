@@ -1,6 +1,6 @@
 // CDP 无头 Chrome 验证 px_web_client 新功能:画中画 / 本地录制 / 自动重连 / 指针锁定
 // 用法: node scripts/cdp_new_features_test.mjs
-// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GoDesk 套件已在运行
+// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + Pixels 套件已在运行
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'

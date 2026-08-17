@@ -19,7 +19,7 @@ namespace px
 
     // app name
     QString SkinOpenSource::GetAppName() {
-        return "GoDesk";
+        return "Pixels";
     }
 
     // version

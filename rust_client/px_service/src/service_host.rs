@@ -330,7 +330,7 @@ impl ServiceRuntime {
     }
 
     /// Pick a work_dir containing px_render.exe for game-hook launches.
-    /// Prefer last desktop work_dir (GoDesk dist) when it still exists; else
+    /// Prefer last desktop work_dir (Pixels dist) when it still exists; else
     /// service exe directory / current_dir (console local runs).
     fn pick_app_work_dir(&self) -> Result<String, String> {
         let candidate_dirs = [

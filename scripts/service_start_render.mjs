@@ -20,8 +20,8 @@ function varint(n) {
   return Buffer.from(out)
 }
 const start = Buffer.concat([
-  fieldStr(1, 'C:/Program Files/GoDesk/App'),
-  fieldStr(2, 'C:/Program Files/GoDesk/App/px_render.exe'),
+  fieldStr(1, 'C:/Program Files/PixelsRender'),
+  fieldStr(2, 'C:/Program Files/PixelsRender/px_render.exe'),
   fieldStr(3, '--app_mode=desktop'),
 ])
 const msg = Buffer.concat([Buffer.from([(2 << 3) | 2]), varint(start.length), start])

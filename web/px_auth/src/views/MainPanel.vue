@@ -46,7 +46,7 @@
       <el-header class="app-header flex items-center gap-3">
         <span class="logo-dot" />
         <span class="app-title">授权管理系统</span>
-        <span class="app-badge">GoDesk</span>
+        <span class="app-badge">Pixels</span>
         <div class="flex-1" />
         <el-button v-if="isAdmin" type="primary" @click="openDialog">创建授权</el-button>
         <el-button :loading="isLoggingOut" :disabled="isLoggingOut" @click="logout">退出登录</el-button>

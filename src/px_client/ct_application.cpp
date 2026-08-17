@@ -36,7 +36,7 @@ namespace px
         settings_ = Settings::Instance();
         resize(1515, 768);
         auto notifier = this->context_->GetMessageNotifier();
-        (new MainWindowWrapper(notifier, this))->Setup(tr("GoDesk Client"));
+        (new MainWindowWrapper(notifier, this))->Setup(tr("Pixels Client"));
 
         theme_ = new MainWindowPrivate(this);
         QString app_dir = qApp->applicationDirPath();

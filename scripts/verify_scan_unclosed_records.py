@@ -104,7 +104,7 @@ def check() -> int:
     if ok:
         print("ScanAndFixUnclosedRecords verification passed.")
         return 0
-    print("Verification failed. Check godesk.log for ScanAndFixUnclosedRecords.")
+    print("Verification failed. Check pixels.log for ScanAndFixUnclosedRecords.")
     return 1
 
 

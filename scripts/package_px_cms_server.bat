@@ -152,7 +152,7 @@ echo      - [app_credential]  : same appkey/app_secret as the auth server (if re
 echo   4. Ensure %CERT_DIR%\auth_license_public.key is present
 echo      (issued by px_auth_server).
 echo   5. The CMS auto-registers as a trial device on first run; switch it to
-echo      licensed in the px_auth_server admin UI (GoDesk CMS device list).
+echo      licensed in the px_auth_server admin UI (Pixels CMS device list).
 echo.
 echo Run (headless server mode):
 echo   %OUTPUT_DIR%\px_cms.exe --running-mode=server
