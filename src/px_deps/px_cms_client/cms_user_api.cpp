@@ -3,6 +3,7 @@
 //
 
 #include "cms_user_api.h"
+#include "cms_http_client.h"
 #include <nlohmann/json.hpp>
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
@@ -62,7 +63,7 @@ namespace px_cms
                                                                 const std::string& appkey,
                                                                 const std::string& username,
                                                                 const std::string& hash_password) {
-        auto client = px::HttpClient::MakeSSL(host, port, kRegister);
+        auto client = MakeCmsHttpClient(host, port, kRegister);
 
         json obj;
         obj[kUserName] = username;
@@ -96,7 +97,7 @@ namespace px_cms
                                                              const std::string& username,
                                                              const std::string& hash_password,
                                                              const std::string& device_id) {
-        auto client = px::HttpClient::MakeSSL(host, port, kLogin);
+        auto client = MakeCmsHttpClient(host, port, kLogin);
 
         json obj;
         obj[kUserName] = username;
@@ -130,7 +131,7 @@ namespace px_cms
                                                               const std::string& appkey,
                                                               const std::string& uid,
                                                               const std::string& hash_password) {
-        auto client = px::HttpClient::MakeSSL(host, port, kLogout);
+        auto client = MakeCmsHttpClient(host, port, kLogout);
 
         std::map<std::string, std::string> query = {
             {"appkey", appkey}
@@ -162,7 +163,7 @@ namespace px_cms
                                                               const std::string& hash_password,
                                                               const std::map<std::string, std::string>& values) {
 
-        auto client = px::HttpClient::MakeSSL(host, port, kUpdate);
+        auto client = MakeCmsHttpClient(host, port, kUpdate);
 
         std::map<std::string, std::string> query = {
             {"appkey", appkey}
@@ -196,7 +197,7 @@ namespace px_cms
                                                                       const std::string& uid,
                                                                       const std::string& old_hash_password,
                                                                       const std::string& new_hash_password) {
-        auto client = px::HttpClient::MakeSSL(host, port, kUpdatePassword);
+        auto client = MakeCmsHttpClient(host, port, kUpdatePassword);
 
         std::map<std::string, std::string> query = {
             {"appkey", appkey}
@@ -228,7 +229,7 @@ namespace px_cms
                                                                     const std::string& uid,
                                                                     const std::string& hash_password,
                                                                     const std::string& avatar_path) {
-        auto client = px::HttpClient::MakeSSL(host, port, kUpdateAvatar);
+        auto client = MakeCmsHttpClient(host, port, kUpdateAvatar);
 
         std::map<std::string, std::string> query = {
             {"uid", uid},

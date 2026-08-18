@@ -162,7 +162,7 @@ echo   %OUTPUT_DIR%\px_cms.exe
 echo.
 echo Open in browser:
 echo   https://localhost:30500
-echo   Health check: http://localhost:30499/ping
+echo   Health check: http://localhost:30500/ping
 echo.
 echo NOTE: Since the certificate is self-signed, browsers will show a
 echo       security warning. Accept the risk or replace certs\cert.pem

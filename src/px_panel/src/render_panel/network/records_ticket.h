@@ -26,7 +26,10 @@ namespace px
 
     std::string RecordsHmacSha256Hex(const std::string& key, const std::string& message);
 
-    // key = MD5 hex of the device security password
+    // MD5 hex of a RAW security password. Note the panel stores the safety
+    // password already md5-hashed (PxSettings::GetDeviceSecurityPwd), so the
+    // runtime HMAC key is that stored value used DIRECTLY — do not pass it
+    // through this function again (records_http_handler::CheckTicket).
     std::string MakeRecordsTicketKey(const std::string& device_security_pwd);
 
     // filename is the concrete file name for downloads, "*" for list/info endpoints.

@@ -4,15 +4,14 @@
 
 ## 1. 端口与后端结构
 
-`px_cms_server` 监听两个端口，功能不同：
+`px_cms_server` 只监听一个端口：
 
 | 端口 | 协议 | 功能 |
 |------|------|------|
-| **30500**（`cms_port`） | HTTPS（自签名证书） | 完整服务：所有 `/api/v1/*`、WebSocket（`/cms/*`）、静态资源（`/assets` `/uploads` 等）、SPA fallback |
-| **30499**（`30500 - 1`） | HTTP | 仅 `/ping` 健康检查，不提供 API / WS |
+| **30500**（`cms_port`） | HTTPS 或 HTTP（由 `px_cms.toml` 的 `ssl_enable` 决定，缺省 true） | 完整服务：所有 `/api/v1/*`、WebSocket（`/cms/*`）、静态资源（`/assets` `/uploads` 等）、`/ping` 健康检查、SPA fallback |
 
-- 浏览器访问后台固定走 `https://<ip>:30500`。
-- `30499` 只用于存活探针（`curl http://localhost:30499/ping`）。
+- 浏览器访问后台走 `https://<ip>:30500`（`ssl_enable=false` 时为 `http://<ip>:30500`）。
+- 存活探针：`curl http://localhost:30500/ping`。
 - 后端 CORS 策略是「拒绝所有跨域」，因此浏览器跨端口直连 API 会被拦截，开发模式必须走 Vite 代理。
 
 ## 2. 日常开发（`npm run dev` + HMR，推荐）

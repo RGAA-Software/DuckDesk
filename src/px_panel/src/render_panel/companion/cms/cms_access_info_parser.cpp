@@ -18,7 +18,8 @@ namespace px
     //     "srv_cms_port": 30500,
     //     "srv_udp_broadcast_port": 30501,
     //     "srv_relay_port": 30502,
-    //     "srv_appkey": "ff785bd3031bc6cf920a782e50f43dcb"
+    //     "srv_appkey": "ff785bd3031bc6cf920a782e50f43dcb",
+    //     "srv_ssl_enable": true
     // }
 
     std::shared_ptr<CmsAccessInfo> CmsAccessInfoParser::ParseInfo(const std::string& info) {
@@ -31,6 +32,8 @@ namespace px
             ac_info->cms_config_.srv_cms_port_ = cms_obj["srv_cms_port"].get<int>();
             ac_info->cms_config_.srv_relay_port_ = cms_obj["srv_relay_port"].get<int>();
             ac_info->cms_config_.srv_appkey_ = cms_obj["srv_appkey"].get<std::string>();
+            // default true, old deployments don't broadcast this field
+            ac_info->cms_config_.srv_ssl_enable_ = cms_obj.value("srv_ssl_enable", true);
             return ac_info;
         }
         catch (std::exception& e) {

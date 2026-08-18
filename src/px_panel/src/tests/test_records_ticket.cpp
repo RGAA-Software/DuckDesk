@@ -25,6 +25,19 @@ TEST(RecordsTicket, TicketKeyIsMd5OfPwd) {
     EXPECT_EQ(px::MakeRecordsTicketKey("123456"), px::RecordsMd5Hex("123456"));
 }
 
+// Pinned cross-side vectors: must byte-match the rust cms signer
+// (rust_server/px_cms_server/src/record/record_ticket.rs). The HMAC key is the
+// device's safety_pwd_md5 string itself — the panel already stores md5(pwd) in
+// device_safety_pwd, so records_http_handler must use it as-is, NOT re-hash it.
+// vectors computed with: printf '<msg>' | openssl dgst -sha256 -hmac '<key>'
+TEST(RecordsTicket, CrossSidePinnedVector) {
+    const std::string key = "0123456789abcdef0123456789abcdef";
+    EXPECT_EQ(px::SignRecordsTicket("dev123", "rec_A_20260817_10.30.00.mp4", 1700000000, key),
+              "d80a475bd9e12baab82e41b8b6eb080e23c4b60d87e5bfb33f7b3ed98955166d");
+    EXPECT_EQ(px::SignRecordsTicket("dev123", "*", 1700000000, key),
+              "09931dc9fa11e5a1b462e41b6821568fcd1ee5c00e4f656e16e00b2a14e06469");
+}
+
 TEST(RecordsTicket, SignFormatForFile) {
     const std::string key = px::MakeRecordsTicketKey("pwd");
     const std::string tk = px::SignRecordsTicket("dev1", "rec_A_20260817_10.30.00.mp4", 1700000000, key);

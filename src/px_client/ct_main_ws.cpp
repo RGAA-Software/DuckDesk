@@ -60,6 +60,9 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_cms_port("cms_port", "Cms Port", "9999", "0");
     parser.addOption(opt_cms_port);
 
+    QCommandLineOption opt_cms_ssl("cms_ssl", "Cms SSL(wss/ws)", "true/false", "true");
+    parser.addOption(opt_cms_ssl);
+
     QCommandLineOption opt_appkey("appkey", "appkey", "x", "");
     parser.addOption(opt_appkey);
 
@@ -196,6 +199,8 @@ void ParseCommandLine(QApplication& app) {
     // cms
     settings->cms_host_ = parser.value(opt_cms_host).toStdString();
     settings->cms_port_ = parser.value(opt_cms_port).toInt();
+    // 缺省 true,保持旧的 wss 行为;显式传 --cms_ssl=false 时走明文 ws
+    settings->cms_ssl_ = parser.value(opt_cms_ssl) != "false";
 
     auto audio_on = parser.value(opt_audio).toInt();
     settings->audio_on_ = (audio_on == 1);
@@ -499,6 +504,7 @@ int main(int argc, char** argv) {
     LOGI("appkey: {}", settings->appkey_);
     LOGI("cms host: {}", settings->cms_host_);
     LOGI("cms port: {}", settings->cms_port_);
+    LOGI("cms ssl: {}", settings->cms_ssl_);
     LOGI("audio on: {}", settings->audio_on_);
     LOGI("clipboard on: {}", settings->clipboard_on_);
     LOGI("device id: {}", settings->device_id_);

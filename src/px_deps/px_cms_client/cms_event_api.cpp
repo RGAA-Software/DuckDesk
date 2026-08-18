@@ -3,6 +3,7 @@
 //
 
 #include "cms_event_api.h"
+#include "cms_http_client.h"
 #include "cms_server_info.h"
 #include "cms_errors.h"
 #include <nlohmann/json.hpp>
@@ -32,7 +33,7 @@ namespace px
                                                               int port,
                                                               const std::string& appkey,
                                                               const CmsEventPtr& event) {
-        auto client = HttpClient::MakeSSL(host, port, kApiAddEvent, 2000);
+        auto client = px_cms::MakeCmsHttpClient(host, port, kApiAddEvent, 2000);
 
         const auto data = event->AsJson();
         auto resp = client->Post({

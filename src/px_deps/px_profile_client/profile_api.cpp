@@ -3,6 +3,7 @@
 //
 
 #include "profile_api.h"
+#include <atomic>
 #include "px_common_new/http_client.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/log.h"
@@ -12,6 +13,16 @@ using namespace nlohmann;
 
 namespace px
 {
+
+    static std::atomic_bool g_profile_ssl_enabled = true;
+
+    void ProfileApi::SetSslEnabled(bool enabled) {
+        g_profile_ssl_enabled = enabled;
+    }
+
+    bool ProfileApi::IsSslEnabled() {
+        return g_profile_ssl_enabled;
+    }
 
     ///verify/device/info
     ProfileVerifyResult ProfileApi::VerifyDeviceInfo(const std::string& pr_srv_host,
@@ -26,8 +37,9 @@ namespace px
         if (pr_srv_host.empty() || pr_srv_port <= 0) {
             return ProfileVerifyResult::kVfEmptyServerHost;
         }
-        auto client =
-                HttpClient::MakeSSL(pr_srv_host, pr_srv_port, "/api/v1/device/control/verify/device/info", 3000);
+        auto client = IsSslEnabled()
+                ? HttpClient::MakeSSL(pr_srv_host, pr_srv_port, "/api/v1/device/control/verify/device/info", 3000)
+                : HttpClient::Make(pr_srv_host, pr_srv_port, "/api/v1/device/control/verify/device/info", 3000);
         auto resp = client->Request({
             {"device_id", device_id},
             {"random_pwd_md5", random_pwd_md5.empty() ? "" : random_pwd_md5},

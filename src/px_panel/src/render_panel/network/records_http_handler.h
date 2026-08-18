@@ -34,6 +34,8 @@ namespace px
         void HandleRecordFile(http::web_request &req, http::web_response &rep);
 
     private:
+        // ACAO:* so the cms web page (different origin) can fetch these endpoints
+        static void SetCorsHeaders(http::web_response& rep);
         // verifies tk/exp query params, filename_or_star = "*" for list/info
         bool CheckTicket(http::web_request &req, http::web_response &rep, const std::string& filename_or_star);
         std::string RecordsDir() const;

@@ -47,6 +47,8 @@ namespace px
         int srv_cms_port_ = 0;
         std::string srv_appkey_;
         int srv_relay_port_ = 0;
+        // whether the cms server requires ssl(https/wss), default true for old deployments
+        bool srv_ssl_enable_ = true;
 
     public:
         [[nodiscard]] bool IsValid() const {
@@ -93,7 +95,7 @@ namespace px
         virtual void OnTimer5S() = 0;
 
         // Cms
-        virtual void UpdateCmsServerConfig(const std::string& host, int port) = 0;
+        virtual void UpdateCmsServerConfig(const std::string& host, int port, bool ssl_enable) = 0;
         virtual void UpdateAppkey(const std::string& appkey) = 0;
         virtual std::shared_ptr<Authorization> RequestAuth() = 0;
         virtual std::shared_ptr<Authorization> GetAuth() = 0;

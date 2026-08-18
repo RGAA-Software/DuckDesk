@@ -34,6 +34,13 @@ namespace px
         this->app_ = app;
     }
 
+    // The cms web page lives on the cms origin and reads these endpoints via
+    // cross-origin fetch (probe/list). Without ACAO the browser blocks the
+    // response entirely and the page wrongly falls back to the cms tunnel.
+    void RecordsHttpHandler::SetCorsHeaders(http::web_response& rep) {
+        rep.set(http::field::access_control_allow_origin, "*");
+    }
+
     std::string RecordsHttpHandler::RecordsDir() const {
         return GetRenderRecordsDir();
     }
@@ -42,7 +49,10 @@ namespace px
                                          const std::string& filename_or_star) {
         auto settings = PxSettings::Instance();
         const std::string device_id = settings->GetDeviceId();
-        const std::string ticket_key = MakeRecordsTicketKey(settings->GetDeviceSecurityPwd());
+        // the stored safety password is already the md5 hex that cms keeps as
+        // safety_pwd_md5; it is used directly as the HMAC key (design 5.3).
+        // do NOT hash it again here, or cms-issued tickets will never match.
+        const std::string ticket_key = settings->GetDeviceSecurityPwd();
 
         const auto query = req.query();
         auto params = UrlHelper::ParseQueryString(std::string(query.data(), query.size()));
@@ -66,6 +76,7 @@ namespace px
     }
 
     void RecordsHttpHandler::HandleRecordsList(http::web_request &req, http::web_response &rep) {
+        SetCorsHeaders(rep);
         if (!CheckTicket(req, rep, "*")) {
             return;
         }
@@ -87,6 +98,7 @@ namespace px
     }
 
     void RecordsHttpHandler::HandleRecordsInfo(http::web_request &req, http::web_response &rep) {
+        SetCorsHeaders(rep);
         if (!CheckTicket(req, rep, "*")) {
             return;
         }
@@ -111,6 +123,7 @@ namespace px
     }
 
     void RecordsHttpHandler::HandleRecordFile(http::web_request &req, http::web_response &rep) {
+        SetCorsHeaders(rep);
         // extract + decode filename from "/records/{filename}"
         const auto path_sv = req.path();
         const std::string target = std::string(path_sv.data(), path_sv.size());

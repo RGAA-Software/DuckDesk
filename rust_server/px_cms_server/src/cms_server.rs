@@ -198,25 +198,6 @@ impl CmsServer {
             })
             .with_state(context.clone());
 
-        // HTTP plaintext port only exposes /ping for health checks.
-        let http_host = self.host.clone();
-        let http_port = self.port - 1;
-        tracing::info!("http.listening on {}:{}", http_host, http_port);
-        tokio::spawn(async move {
-            let http_ping_router = Router::new()
-                .route("/ping", get(CmsServer::ping))
-                .with_state(context.clone());
-            let listener = tokio::net::TcpListener::bind(format!("{}:{}", http_host, http_port))
-                .await
-                .unwrap();
-            axum::serve(
-                listener,
-                http_ping_router.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .await
-            .unwrap();
-        });
-
         let addr = SocketAddr::from(([0, 0, 0, 0], self.port));
         match tls_config {
             Some(config) => {

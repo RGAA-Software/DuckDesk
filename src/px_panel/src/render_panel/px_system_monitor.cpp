@@ -415,7 +415,7 @@ namespace px
     void PxSystemMonitor::CheckThisDeviceInfo() {
         //LOGI("CheckThisDeviceInfo...");
         // profile server
-        auto has_pr_server = HttpBaseOp::CanPingServer(true, settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey());
+        auto has_pr_server = HttpBaseOp::CanPingServer(settings_->IsCmsSslEnabled(), settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey());
         if (!has_pr_server) {
             return;
         }

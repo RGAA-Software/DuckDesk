@@ -1006,6 +1006,7 @@ mod tests {
             end_timestamp_ms: 1_900_000_000_000,
             cms_host: "cms.example.com".to_string(),
             cms_port: 8443,
+            cms_ssl: true,
         }
     }
 

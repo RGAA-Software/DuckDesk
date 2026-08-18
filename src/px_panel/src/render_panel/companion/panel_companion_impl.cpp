@@ -79,8 +79,8 @@ namespace px
         });
     }
 
-    void PanelCompanionImpl::UpdateCmsServerConfig(const std::string &host, int port) {
-        cms_settings_->UpdateServerConfig(host, port);
+    void PanelCompanionImpl::UpdateCmsServerConfig(const std::string &host, int port, bool ssl_enable) {
+        cms_settings_->UpdateServerConfig(host, port, ssl_enable);
     }
 
     void PanelCompanionImpl::UpdateAppkey(const std::string& appkey) {

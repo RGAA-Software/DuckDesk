@@ -143,6 +143,7 @@ impl CmsSettings {
             srv_udp_broadcast_port: self.udp_broadcast_port,
             srv_relay_port: self.relay_port,
             srv_appkey: appkey,
+            srv_ssl_enable: self.ssl_enable,
         }
     }
 

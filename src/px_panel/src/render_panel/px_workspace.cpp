@@ -896,7 +896,7 @@ namespace px
             if (avatar_path.starts_with("./")) {
                 avatar_path = avatar_path.substr(1);
             }
-            auto avatar_url_path = std::format("https://{}:{}{}?appkey={}", self->settings_->GetCmsServerHost(), self->settings_->GetCmsServerPort(), avatar_path, grApp->GetAppkey());
+            auto avatar_url_path = std::format("{}://{}:{}{}?appkey={}", PxSettings::GetCmsHttpScheme(), self->settings_->GetCmsServerHost(), self->settings_->GetCmsServerPort(), avatar_path, grApp->GetAppkey());
             auto target_avatar_path = self->settings_->GetGrDataCachePath() + "/" + self->user_mgr_->GetUserId() + + "." + FileUtil::GetFileSuffix(avatar_path);
             LOGI("Cached avatar path: {}", target_avatar_path);
             if (File::Exists(U8Path(target_avatar_path))) {

@@ -135,14 +135,15 @@ namespace px
 
         if (!settings_->device_id_.empty() && !settings_->cms_host_.empty() && settings_->cms_port_ > 0 && !settings_->appkey_.empty()) {
             LOGI("Will start cms client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
-            cms_client_ = std::make_shared<CtCmsClient>(sdk_,
-                                                          context_,
-                                                          settings_->cms_host_,
-                                                          settings_->cms_port_,
-                                                          settings_->device_id_,
-                                                          settings_->remote_device_id_,
-                                                          settings_->host_,
-                                                          settings_->appkey_);
+            cms_client_ = CtCmsClient::Make(sdk_,
+                                            context_,
+                                            settings_->cms_host_,
+                                            settings_->cms_port_,
+                                            settings_->device_id_,
+                                            settings_->remote_device_id_,
+                                            settings_->host_,
+                                            settings_->appkey_,
+                                            settings_->cms_ssl_);
             cms_client_->Start();
         }
 

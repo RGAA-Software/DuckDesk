@@ -11,6 +11,7 @@ set(SRCS
     cms_user_device_api.cpp
     cms_event.cpp
     cms_event_api.cpp
+    cms_http_client.cpp
 )
 
 add_library(${PROJECT_NAME} ${SRCS})

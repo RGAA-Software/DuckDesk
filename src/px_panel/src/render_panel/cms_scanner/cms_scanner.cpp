@@ -56,6 +56,7 @@ namespace px
                                         .relay_port_ = ac->cms_config_.srv_relay_port_,
                                         .origin_info_ = msg,
                                         .update_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp(),
+                                        .cms_ssl_enable_ = ac->cms_config_.srv_ssl_enable_,
                                     });
                                     //LOGI("*Received cms: {}, {}", info->cms_ip_, TimeUtil::FormatTimestamp(info->update_timestamp_));
                                     {

@@ -351,7 +351,7 @@ namespace px
         }
         auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
+        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}
@@ -368,7 +368,7 @@ namespace px
         }
         auto settings = PxSettings::Instance();
         std::string serv_host = settings->GetCmsServerHost();
-        auto client = HttpClient::MakeSSL(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
+        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
         auto appkey = grApp->GetAppkey();
         auto resp = client->Post({
             {"appkey", appkey}

@@ -147,6 +147,7 @@ namespace px
         auth_info->set_device_id(settings->GetDeviceId());
         auth_info->set_cms_host(settings->GetCmsServerHost());
         auth_info->set_cms_port(settings->GetCmsServerPort());
+        auth_info->set_cms_ssl(settings->IsCmsSslEnabled());
         auto companion = app_->GetCompanion();
         auto auth = companion ? companion->GetAuth() : nullptr;
         if (!auth) {

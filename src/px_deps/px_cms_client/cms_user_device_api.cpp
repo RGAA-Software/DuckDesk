@@ -3,6 +3,7 @@
 //
 
 #include "cms_user_device_api.h"
+#include "cms_http_client.h"
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/http_base_op.h"
@@ -29,7 +30,7 @@ namespace px_cms
                                             const std::string& uid,
                                             int page,
                                             int page_size) {
-        const auto client = HttpClient::MakeSSL(host, port, kQueryUserDevices, 2000);
+        const auto client = MakeCmsHttpClient(host, port, kQueryUserDevices, 2000);
         auto resp = client->Request({
             {"appkey", appkey},
             {kUserId, uid},
@@ -74,7 +75,7 @@ namespace px_cms
                                         const std::string& appkey,
                                         const std::string& uid,
                                         const std::string& device_id) {
-        const auto client = HttpClient::MakeSSL(host, port, kAddDeviceForUser, 2000);
+        const auto client = MakeCmsHttpClient(host, port, kAddDeviceForUser, 2000);
         json obj;
         obj[kUserId] = uid;
         obj[kDeviceId] = device_id;
@@ -104,7 +105,7 @@ namespace px_cms
                                             const std::string& appkey,
                                             const std::string& uid,
                                             const std::string& device_id) {
-        const auto client = HttpClient::MakeSSL(host, port, kRemoveDeviceFromUser, 2000);
+        const auto client = MakeCmsHttpClient(host, port, kRemoveDeviceFromUser, 2000);
         json obj;
         obj[kUserId] = uid;
         obj[kDeviceId] = device_id;

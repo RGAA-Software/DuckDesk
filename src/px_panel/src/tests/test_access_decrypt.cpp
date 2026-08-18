@@ -115,6 +115,7 @@ struct CmsSrvConfig {
     int srv_cms_port = 0;
     std::string srv_appkey;
     int srv_relay_port = 0;
+    bool srv_ssl_enable = true;
     bool IsValid() const {
         return !srv_w3c_ip.empty() && srv_cms_port > 0 && !srv_appkey.empty() && srv_relay_port > 0;
     }
@@ -135,6 +136,8 @@ static std::shared_ptr<CmsAccessInfo> parse_access_info(const std::string& info)
         ac->cms_config.srv_cms_port = cms["srv_cms_port"].get<int>();
         ac->cms_config.srv_relay_port= cms["srv_relay_port"].get<int>();
         ac->cms_config.srv_appkey    = cms["srv_appkey"].get<std::string>();
+        // default true, old deployments don't broadcast this field
+        ac->cms_config.srv_ssl_enable= cms.value("srv_ssl_enable", true);
         return ac;
     } catch (std::exception& e) {
         std::cerr << "parse error: " << e.what() << "\n  info: " << info << "\n";
@@ -188,7 +191,29 @@ int main() {
     std::cout << "  srv_cms_port  : " << info->cms_config.srv_cms_port << "\n";
     std::cout << "  srv_relay_port : " << info->cms_config.srv_relay_port << "\n";
     std::cout << "  srv_appkey     : " << info->cms_config.srv_appkey << "\n";
+    std::cout << "  srv_ssl_enable : " << (info->cms_config.srv_ssl_enable ? "true" : "false") << "\n";
     std::cout << "  valid          : " << (info->IsValid() ? "yes" : "no") << "\n";
+
+    // 3.1 srv_ssl_enable: missing field defaults to true (old deployments)
+    if (!info->cms_config.srv_ssl_enable) {
+        std::cerr << "FAIL: srv_ssl_enable should default to true when missing\n";
+        return 1;
+    }
+
+    // 3.2 srv_ssl_enable: honored when present
+    auto no_ssl = parse_access_info(
+        R"({"cms_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_cms_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":false}})");
+    if (!no_ssl || !no_ssl->IsValid() || no_ssl->cms_config.srv_ssl_enable) {
+        std::cerr << "FAIL: srv_ssl_enable=false was not parsed\n";
+        return 1;
+    }
+    auto with_ssl = parse_access_info(
+        R"({"cms_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_cms_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":true}})");
+    if (!with_ssl || !with_ssl->IsValid() || !with_ssl->cms_config.srv_ssl_enable) {
+        std::cerr << "FAIL: srv_ssl_enable=true was not parsed\n";
+        return 1;
+    }
+    std::cout << "srv_ssl_enable default/present cases: OK\n";
 
     // 4. round-trip
     std::string re_enc = aes_encrypt(plaintext, key);

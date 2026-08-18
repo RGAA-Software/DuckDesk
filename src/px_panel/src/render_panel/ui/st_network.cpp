@@ -21,6 +21,7 @@
 #include "st_network_search.h"
 #include "px_cms_client/cms_device_api.h"
 #include "px_cms_client/cms_device.h"
+#include "px_cms_client/cms_http_client.h"
 #include "px_relay_client/relay_api.h"
 #include "px_common_new/message_notifier.h"
 #include "render_panel/cms_scanner/cms_scanner.h"
@@ -524,6 +525,9 @@ namespace px
         }
 
         auto appkey = ac_info->cms_config_.srv_appkey_;
+        // the pasted access string carries the ssl switch, sync it into the cms api library
+        // before pinging; Save()/settings Load() will persist & re-sync it later
+        px_cms::SetCmsSslEnabled(ac_info->cms_config_.srv_ssl_enable_);
         {
             auto r = px_cms::CmsDeviceApi::Ping(ac_info->cms_config_.srv_w3c_ip_, ac_info->cms_config_.srv_cms_port_, appkey);
             if (!r.has_value() || !r.value()) {
@@ -573,13 +577,18 @@ namespace px
 
         SaveCmsAccessInfo();
 
+        // sync the ssl switch from the pasted access string (default true, compatible with old deployments)
+        if (auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString()); ac_info) {
+            settings_->SetCmsSslEnabled(ac_info->cms_config_.srv_ssl_enable_);
+        }
+
         // Load again
         settings_->Load();
 
         // companion
         auto companion = grApp->GetCompanion();
         if (companion) {
-            companion->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort());
+            companion->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), settings_->IsCmsSslEnabled());
 
             // Extract the appkey from the pasted access string so
             // RequestAuth uses the current appkey, not a stale cached one.

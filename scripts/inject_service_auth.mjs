@@ -17,6 +17,7 @@ function parseArgs(argv) {
     appkey: '',
     cmsHost: '127.0.0.1',
     cmsPort: 30500,
+    cmsSsl: true,
   }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -27,6 +28,7 @@ function parseArgs(argv) {
     else if (a === '--appkey') out.appkey = n
     else if (a === '--cms-host') out.cmsHost = n
     else if (a === '--cms-port') out.cmsPort = Number(n)
+    else if (a === '--cms-ssl') out.cmsSsl = n !== 'false'
     else continue
     i++
   }
@@ -88,6 +90,8 @@ function encodeAuthInfo(opts) {
     encInt64(9, BigInt(Date.now()) + 86400000n * 30n),
     encString(10, opts.cmsHost),
     encInt32(11, opts.cmsPort),
+    // bool cms_ssl = 12 (proto3 default is false = plain ws, encode it explicitly)
+    encInt32(12, opts.cmsSsl ? 1 : 0),
   ])
 }
 

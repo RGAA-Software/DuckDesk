@@ -189,6 +189,7 @@ namespace px
             << std::format("--appkey={}", grApp->GetAppkey()).c_str()
             << std::format("--cms_host={}", settings_->GetCmsServerHost()).c_str()
             << std::format("--cms_port={}", settings_->GetCmsServerPort()).c_str()
+            << std::format("--cms_ssl={}", settings_->IsCmsSslEnabled()).c_str()
             << std::format("--audio={}", item->audio_enabled_).c_str()
             << std::format("--clipboard={}", item->clipboard_enabled_).c_str()
             << std::format("--stream_id={}", item->stream_id_).c_str()

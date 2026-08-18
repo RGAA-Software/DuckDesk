@@ -3,6 +3,7 @@
 //
 
 #include "cms_device_api.h"
+#include "cms_http_client.h"
 #include "cms_server_info.h"
 #include "cms_errors.h"
 #include <nlohmann/json.hpp>
@@ -58,7 +59,7 @@ namespace px_cms
 
     // Ping
     px::Result<bool, CmsApiError> CmsDeviceApi::Ping(const std::string& host, int port, const std::string& appkey) {
-        auto client = HttpClient::MakeSSL(host, port, kCmsPing, 3000);
+        auto client = MakeCmsHttpClient(host, port, kCmsPing, 3000);
         auto resp = client->Request({
             {"appkey", appkey}
         });
@@ -109,7 +110,7 @@ namespace px_cms
             hw_info = GetUUID();
         }
 
-        auto client = HttpClient::MakeSSL(host, port, kApiRequestNewDevice);
+        auto client = MakeCmsHttpClient(host, port, kApiRequestNewDevice);
         auto resp = client->Post({
 #ifdef WIN32
             {"platform", "windows"},
@@ -146,7 +147,7 @@ namespace px_cms
                                                                  int port,
                                                                  const std::string& appkey,
                                                                  const std::string& target_device_id) {
-        auto client = HttpClient::MakeSSL(host, port, kApiUpdateRandomPwd);
+        auto client = MakeCmsHttpClient(host, port, kApiUpdateRandomPwd);
         auto resp = client->Post({
             {"device_id", target_device_id},
             {"appkey", appkey}
@@ -175,7 +176,7 @@ namespace px_cms
                                                                  const std::string& appkey,
                                                                  const std::string& target_device_id,
                                                                  const std::string& safety_pwd_md5) {
-        auto client = HttpClient::MakeSSL(host, port, kApiUpdateSafetyPwd, 2000);
+        auto client = MakeCmsHttpClient(host, port, kApiUpdateSafetyPwd, 2000);
         auto resp = client->Post({
             {"device_id", target_device_id},
             {"safety_pwd_md5", safety_pwd_md5},
@@ -204,7 +205,7 @@ namespace px_cms
                                                              int port,
                                                              const std::string& appkey,
                                                              const std::string& device_id) {
-        auto client = HttpClient::MakeSSL(host, port, kApiQueryDeviceById);
+        auto client = MakeCmsHttpClient(host, port, kApiQueryDeviceById);
         auto resp = client->Request({
             {"device_id", device_id},
             {"appkey", appkey}
@@ -232,7 +233,7 @@ namespace px_cms
                                        int port,
                                        const std::string& appkey,
                                        const std::string& device_id) {
-        auto client = HttpClient::MakeSSL(host, port, kApiQueryPanelConnByDeviceId);
+        auto client = MakeCmsHttpClient(host, port, kApiQueryPanelConnByDeviceId);
         auto resp = client->Request({
             {"device_id", device_id},
             {"appkey", appkey}
@@ -248,7 +249,7 @@ namespace px_cms
                                                                              const std::string& device_id,
                                                                              const std::string& desktop_link,
                                                                              const std::string& desktop_link_raw) {
-        auto client = HttpClient::MakeSSL(host, port, kApiUpdateDesktopLink, 2000);
+        auto client = MakeCmsHttpClient(host, port, kApiUpdateDesktopLink, 2000);
         json obj;
         obj[kDeviceId] = device_id;
         obj[kDeviceDesktopLink] = desktop_link;
@@ -280,7 +281,7 @@ namespace px_cms
                                                                             const std::string& appkey,
                                                                             const std::string& device_id,
                                                                             const std::string& device_name) {
-        auto client = HttpClient::MakeSSL(host, port, kApiUpdateDeviceName, 2000);
+        auto client = MakeCmsHttpClient(host, port, kApiUpdateDeviceName, 2000);
         json obj;
         obj[kDeviceId] = device_id;
         obj[kDeviceName] = device_name;
@@ -311,7 +312,7 @@ namespace px_cms
                                                                           const std::string& appkey,
                                                                           const std::string& device_id,
                                                                           int period) {
-        auto client = HttpClient::MakeSSL(host, port, kApiAppendUsedTime, 2000);
+        auto client = MakeCmsHttpClient(host, port, kApiAppendUsedTime, 2000);
         json obj;
         obj[kDeviceId] = device_id;
         obj["period"] = period;

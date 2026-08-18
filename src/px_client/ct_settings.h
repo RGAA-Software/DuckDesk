@@ -54,6 +54,8 @@ namespace px
         // Cms
         std::string cms_host_;
         int cms_port_ = 0;
+        // whether the CMS connection uses wss(true, default) or plain ws(false)
+        bool cms_ssl_ = true;
 
         std::string version_;
         bool audio_on_ = false;

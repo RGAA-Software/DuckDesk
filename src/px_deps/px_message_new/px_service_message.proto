@@ -46,6 +46,8 @@ message MsgAuthInfo {
   // cms(CMS) server address, so the service can connect to CMS
   string cms_host = 10;
   int32 cms_port = 11;
+  // whether the CMS websocket connection uses TLS (wss) or plain ws
+  bool cms_ssl = 12;
 }
 
 message MsgHeartBeat {

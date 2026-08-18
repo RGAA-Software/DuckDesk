@@ -31,7 +31,7 @@ namespace px
         void OnTimer5S() override;
 
         // Cms
-        void UpdateCmsServerConfig(const std::string &host, int port) override;
+        void UpdateCmsServerConfig(const std::string &host, int port, bool ssl_enable) override;
         void UpdateAppkey(const std::string& appkey) override;
         std::shared_ptr<Authorization> RequestAuth() override;
         std::shared_ptr<Authorization> GetAuth() override;

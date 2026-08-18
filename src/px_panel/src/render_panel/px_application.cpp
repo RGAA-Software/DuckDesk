@@ -94,7 +94,7 @@ namespace px
         // panel companion
         LoadPanelCompanion();
         if (companion_) {
-            companion_->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort());
+            companion_->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), settings_->IsCmsSslEnabled());
         }
 
         skin_ = SkinLoader::LoadSkin(requested_skin_name_);
@@ -566,9 +566,10 @@ namespace px
 
         const bool host_changed = (cms_host != using_cms_host_);
         const bool port_changed = (cms_port != using_cms_port_);
-        if (appkey != using_appkey_ || host_changed || port_changed) {
-            LOGW("Cms config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, will release WS:CmsClient and recreate it.",
-                 using_appkey_, appkey, using_cms_host_, cms_host, using_cms_port_, cms_port);
+        const bool ssl_changed = (settings_->IsCmsSslEnabled() != using_cms_ssl_);
+        if (appkey != using_appkey_ || host_changed || port_changed || ssl_changed) {
+            LOGW("Cms config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:CmsClient and recreate it.",
+                 using_appkey_, appkey, using_cms_host_, cms_host, using_cms_port_, cms_port, using_cms_ssl_, settings_->IsCmsSslEnabled());
             if (cms_client_) {
                 cms_client_->Stop();
                 cms_client_ = nullptr;
@@ -576,7 +577,7 @@ namespace px
         }
 
         if (!cms_client_) {
-            cms_client_ = std::make_shared<PxCmsClient>(context_, cms_host, cms_port, device_id);
+            cms_client_ = PxCmsClient::Make(context_, cms_host, cms_port, device_id);
         }
         if (!cms_client_->IsStarted()) {
             cms_client_->Start();
@@ -584,6 +585,7 @@ namespace px
         using_appkey_ = appkey;
         using_cms_host_ = cms_host;
         using_cms_port_ = cms_port;
+        using_cms_ssl_ = settings_->IsCmsSslEnabled();
     }
 
     std::shared_ptr<CmsScanner> PxApplication::GetCmsScanner() {

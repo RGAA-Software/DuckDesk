@@ -89,7 +89,7 @@ The CMS pulls its authorization from the auth server at runtime
 `docs/px_cms_auth_pull.md`); no local license file is shipped.
 
 Run `output\px_cms\px_cms.exe --running-mode=server` and open
-`https://localhost:30500` (health check: `http://localhost:30499/ping`).
+`https://localhost:30500` (health check: `http://localhost:30500/ping`).
 
 ### `package_px_desk_server.bat`
 

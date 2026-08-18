@@ -6,45 +6,29 @@
 #define PX_CLIENT_CMS_CLIENT_H
 
 #include <memory>
-#include <atomic>
-#include <asio2/websocket/wss_client.hpp>
+#include <string>
 
 namespace px
 {
     class ClientContext;
     class ThunderSdk;
 
-    class CtCmsClient : public std::enable_shared_from_this<CtCmsClient> {
+    // Cms connection client, the transport(ws/wss) is selected by the ssl flag in Make().
+    class CtCmsClient {
     public:
-        explicit CtCmsClient(const std::shared_ptr<ThunderSdk>& sdk,
-                              const std::shared_ptr<ClientContext>& ctx,
-                              const std::string& host,
-                              int port,
-                              const std::string& device_id,
-                              const std::string& remote_device_id,
-                              const std::string& remote_device_ip,
-                              const std::string& appkey);
-        void Start();
-        void Exit();
+        virtual ~CtCmsClient() = default;
+        virtual void Start() = 0;
+        virtual void Exit() = 0;
 
-    private:
-        void ParseMessage(const std::string& data);
-        bool IsAlive() const;
-        void Hello();
-        void Heartbeat();
-
-    private:
-        std::shared_ptr<ThunderSdk> sdk_;
-        std::shared_ptr<ClientContext> context_ = nullptr;
-        std::shared_ptr<asio2::wss_client> client_ = nullptr;
-        std::string host_;
-        int port_ = 0;
-        std::string device_id_;
-        std::string remote_device_id_;
-        std::string remote_device_ip_;
-        std::string appkey_;
-        int64_t hb_index_ = 0;
-        std::atomic_bool exiting_ = false;
+        static std::shared_ptr<CtCmsClient> Make(const std::shared_ptr<ThunderSdk>& sdk,
+                                                  const std::shared_ptr<ClientContext>& ctx,
+                                                  const std::string& host,
+                                                  int port,
+                                                  const std::string& device_id,
+                                                  const std::string& remote_device_id,
+                                                  const std::string& remote_device_ip,
+                                                  const std::string& appkey,
+                                                  bool ssl);
     };
 
 }

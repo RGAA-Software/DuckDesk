@@ -34,6 +34,11 @@ namespace px
 
     class ProfileApi {
     public:
+        // whether the profile(cms) server requires ssl(https), default true for old deployments.
+        // the panel process syncs this switch from PxSettings(cms_ssl_enable).
+        static void SetSslEnabled(bool enabled);
+        static bool IsSslEnabled();
+
         // verify device_id/random_pwd pair
         // pr_srv_host: profile server host
         // pr_srv_port: profile server port

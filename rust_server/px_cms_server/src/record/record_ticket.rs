@@ -6,6 +6,13 @@
 //!   message = "{device_id}|{filename_or_*}|{exp}"   (exp = unix seconds)
 //!   key     = device.safety_pwd_md5                (md5 hex string, as bytes)
 //!   tk      = lowercase hex of HMAC-SHA256(key, message)
+//!
+//! Pinned vectors (also asserted by the panel gtest
+//! test_records_ticket.cpp / CrossSidePinnedVector):
+//!   key=0123456789abcdef0123456789abcdef dev123|rec_A_20260817_10.30.00.mp4|1700000000
+//!     -> d80a475bd9e12baab82e41b8b6eb080e23c4b60d87e5bfb33f7b3ed98955166d
+//!   key=0123456789abcdef0123456789abcdef dev123|*|1700000000
+//!     -> 09931dc9fa11e5a1b462e41b6821568fcd1ee5c00e4f656e16e00b2a14e06469
 
 use ring::hmac;
 
@@ -63,6 +70,21 @@ mod tests {
         assert_ne!(
             tk,
             sign_record_ticket("dev123", "*", 1700000000, "0123456789abcdef0123456789abcdef")
+        );
+    }
+
+    /// pinned vectors shared with the panel gtest (CrossSidePinnedVector);
+    /// if either side changes the byte format, both tests fail
+    #[test]
+    fn cross_side_pinned_vector() {
+        let key = "0123456789abcdef0123456789abcdef";
+        assert_eq!(
+            sign_record_ticket("dev123", "rec_A_20260817_10.30.00.mp4", 1700000000, key),
+            "d80a475bd9e12baab82e41b8b6eb080e23c4b60d87e5bfb33f7b3ed98955166d"
+        );
+        assert_eq!(
+            sign_record_ticket("dev123", "*", 1700000000, key),
+            "09931dc9fa11e5a1b462e41b6821568fcd1ee5c00e4f656e16e00b2a14e06469"
         );
     }
 

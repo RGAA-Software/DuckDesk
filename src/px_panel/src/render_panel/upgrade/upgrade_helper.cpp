@@ -521,7 +521,7 @@ namespace px {
 	std::string GetUpgradeRootAddr() {
         auto settings = PxSettings::Instance();
 		std::string upgrade_host = settings->GetCmsServerHost();
-		std::string upgrade_addr = std::format("https://{}:{}", upgrade_host, settings->GetCmsServerPort());
+		std::string upgrade_addr = std::format("{}://{}:{}", PxSettings::GetCmsHttpScheme(), upgrade_host, settings->GetCmsServerPort());
 		return upgrade_addr;
 	}
 

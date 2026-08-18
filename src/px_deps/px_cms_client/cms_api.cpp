@@ -3,6 +3,7 @@
 //
 
 #include "cms_api.h"
+#include "cms_http_client.h"
 
 #include "cms_device.h"
 #include "px_common_new/log.h"
@@ -53,7 +54,7 @@ namespace px_cms
     CmsApi::QueryAliveConnections(const std::string& host,
                                    int port,
                                    const std::string& appkey) {
-        const auto client = HttpClient::MakeSSL(host, port, kQueryAliveConnections, 2000);
+        const auto client = MakeCmsHttpClient(host, port, kQueryAliveConnections, 2000);
         auto resp = client->Request({
             {"appkey", appkey},
         });
@@ -80,7 +81,7 @@ namespace px_cms
 
     px::Result<AvailableNewConnection, CmsApiError>
     CmsApi::QueryAvailableNewConnection(const std::string& host, int port, const std::string& appkey) {
-        const auto client = HttpClient::MakeSSL(host, port, kQueryAvailableNewConnection, 2000);
+        const auto client = MakeCmsHttpClient(host, port, kQueryAvailableNewConnection, 2000);
         auto resp = client->Request({
             {"appkey", appkey},
         });

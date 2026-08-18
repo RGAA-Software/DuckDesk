@@ -187,6 +187,7 @@ namespace px
         std::string using_appkey_;
         std::string using_cms_host_;
         int using_cms_port_ = 0;
+        bool using_cms_ssl_ = true;
         bool shutdown_prepared_ = false;
     };
 

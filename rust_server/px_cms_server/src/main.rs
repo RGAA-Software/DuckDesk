@@ -193,6 +193,10 @@ async fn run_as_panel(machine_code: String) {
         height: h,
     }));
 
+    let (cms_port, ssl_enable) = {
+        let s = gCmsSettings.lock().await;
+        (s.cms_port, s.ssl_enable)
+    };
     let state = CmsUIState {
         cms_alive: false,
         cms_alive_pid: 0,
@@ -202,6 +206,8 @@ async fn run_as_panel(machine_code: String) {
         redis_ok: false,
         mongodb_ok: false,
         show_exit_dialog: false,
+        cms_port,
+        ssl_enable,
     };
     tracing::info!("state: {:#?}", state);
 

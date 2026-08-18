@@ -255,3 +255,112 @@ web 请求设备 X 的录像列表/播放
 2. panel `/records` 鉴权：**强制开启，cms 签发短时效 ticket（HMAC）**，口令不放 URL（§5.3）。
 3. 拓扑 2 下载：与播放同源，随播放实现，不单独做。
 4. panel IP 透传：字段 `panel_lan_ips`（数组），panel 握手时主动上报本机网卡 IP（§5.2）。
+
+## 12. 双机联调记录（2026-08-17,本机 CMS 10.0.0.16 + 设备 10.0.0.90)
+
+### 12.1 联调拓扑与环境
+
+- CMS 跑本机（HTTPS,`output/px_cms`,force_authorize=false）；设备 10.0.0.90 全新安装 `Pixels_3.3.42_Setup.exe`（装到 `C:\Program Files\PixelsRender`)。
+- 设备 CMS 配置通过 leveldb 注入工具 `tests/sp_put`(panel 设置持久化在 `px_data\pixels.dat` / `panel_companion.dat`)：`cms_server_host/port`、`relay_server_host/port`、`key_auth_appkey`、`device_safety_pwd`(md5)。注入前必须停 px_service 并杀净 px_panel，否则 leveldb LOCK 被占。
+- 远程运维通道：SMB(`\\10.0.0.90\C$`)+ schtasks 以 SYSTEM 远程执行（WinRM 需 TrustedHosts，未用）。
+- 注意：px_service 注册了失败自动重启（3s),`sc stop` 也会被拉回；要真停需先 `sc config start= disabled`。
+
+### 12.2 联调发现并修复的缺陷（已随代码提交）
+
+1. **ticket 双重 MD5(panel 侧 bug)**:`records_http_handler.cpp` 用 `MakeRecordsTicketKey(GetDeviceSecurityPwd())` 再 hash 一次，而 panel 存的 `device_safety_pwd` 本身就是 md5,CMS 直接用 `safety_pwd_md5` 当 HMAC key → 所有 ticket 校验必然 403。修复：handler 直接用存储值；两侧各加同一组 pinned HMAC 向量测试（`cross_side_pinned_vector` / `CrossSidePinnedVector`）锁定字节级兼容。
+2. **panel /records 缺 CORS 头**:CMS web(https 源）跨源 `fetch` 探测/列表被浏览器拦截，前端误判直连不通而回退拓扑 2。修复：三个 handler 统一加 `Access-Control-Allow-Origin: *`（无自定义头，无 preflight;`<video>` 本就不受 CORS 限）。
+
+### 12.3 测试矩阵执行结果
+
+§9.1/9.2 单测与 curl 集成：全绿（ticket 12 例、rust 4 例、catalog/transfer 等此前已过）。
+
+§9.3 拓扑 1（同网段）:
+- 设备上线注册（`/cms/panel` + relay `server_/ft_server_`)、`panel_lan_ips=["10.0.0.90"]` 透传 ✓
+- ticket 签发 + 直连列表 / Range(206 首段/尾段、416 越界）、路径穿越 400、录制中文件 403(不出列表也不可下载）✓
+- 浏览器 E2E(`scripts/cdp_records_e2e.mjs`,headless Chrome)：列表渲染、直连播放、拖拽 seek（见 206)、h264+**Opus** 样例可播、控制台零报错 ✓
+- 浏览器直下 md5 与设备一致 ✓
+- 下载到 CMS：fresh→ready、`keep=true`、md5 一致、重复调用幂等（仅翻标记）✓；DELETE 生效 ✓
+
+§9.4 拓扑 2（断 20369 模拟隔离；90 防火墙原为全关，临时开启+6 分钟自动恢复保险）:
+- 自动回退"经 CMS 回传"徽标，无报错弹窗 ✓
+- 点播触发回传 → 完成后自动开播（`/uploads/records/...`,206)✓
+- 幂等：已回传文件重复点播即刻可播，不重传 ✓
+- 设备离线（用 panel 未连的设备 990405157)：页面提示"设备离线，无法查看录像" ✓
+
+§9.5 回归：render 不在时 panel 列表/下载不受影响（出口在 panel)✓
+
+未覆盖（遗留）:TTL 24h / 10GB 阈值清理未实测（时间成本）；多网卡 `panel_lan_ips` 仅单网卡验证；真实 render 录制文件未验（用同形态预制样例代替）。
+
+### 12.4 已知遗留（后续工作）
+
+- ~~**HTTP 部署的前置**:panel 连 CMS 长连硬编码 `wss`~~ → 已完成，见 §13(2026-08-18 全 HTTP 化）。
+- ticket TTL 600s，超长视频跨过期点拖拽会 403（前端需续期或重取）。
+- 直连拉取落盘 mtime 记 0（幂等键精度略低）；CMS 重启后 `c_records` 可能残留 fetching 态。
+
+## 13. 全 HTTP 化改造（2026-08-18,ssl_enable 开关贯通四端）
+
+### 13.1 目标与设计
+
+CMS 以 `ssl_enable=false` 纯 HTTP 运行时，panel / px_service / px_client 三端原先硬编码的 `wss://`/`https://` 必须能跟随切换，浏览器不再需要 `--allow-running-insecure-content`。
+
+开关源头是 CMS 配置 `px_cms.toml` 的 `ssl_enable`（缺省 true，向后兼容旧 HTTPS 部署），经 access 广播下发，逐端持久化：
+
+- **CMS(rust)**:`CmsServerConfig` 新增 `srv_ssl_enable`(serde 缺省 true，旧 access 串无此字段时视为 HTTPS);`get_server_config` 从 `ssl_enable` 填充。`cms_server.rs` 本就有 `ssl_enable=false` 的纯 HTTP 监听分支。
+- **panel(C++)**:PxSettings 新键 `cms_ssl_enable`（缺省 true)+ `IsCmsSslEnabled()`;access 解析链（`cms_access_info_parser.cpp` → `CmsSrvConfig::srv_ssl_enable_` → `cms_scanner` → `st_network.cpp::Save`）落盘；`PxCmsClient` 重构为抽象接口 + `PxCmsClientImpl<ClientType>` 模板（`asio2::wss_client`/`asio2::ws_client`)，工厂按开关实例化，开关变化触发长连重建；约 30 处 `HttpClient::MakeSSL` 收口为 `PxSettings::MakeCmsHttpClient` / `px_cms::MakeCmsHttpClient` / `ProfileApi`(px_deps 两库用包级 atomic 布尔 + setter 注入，panel `Load()` 时同步）。
+- **proto**:`MsgAuthInfo` 新增 `bool cms_ssl = 12`(proto3 缺省 false，注入工具需显式传 true,`inject_service_auth.mjs` 已加 `--cms-ssl` 参数）。
+- **px_client(C++)**:`--cms_ssl` 命令行（panel `running_stream_manager` 启动时透传）;`CtCmsClient` 同样模板化按开关选 ws/wss。
+- **px_service(rust)**:`cms_client.rs` 按 `cms_ssl` 选 `connect_async`(ws）或 `connect_async_tls_with_config`(wss，保留 NoCertVerifier);`auth_info_to_json` 带 `cms_ssl` 字段。
+
+relay 两端本来就是明文，web 端已协议自适应，均不需要改。
+
+### 13.2 验证结果
+
+- 单测：`test_access_decrypt` 新增三组断言（旧串缺省 true / 显式 false / 显式 true)✓;`test_records_ticket` 12/12 ✓;rust `px_cms_server` access_info 3 例、`px_service` 33/33 ✓。
+- 部署：本机 CMS `ssl_enable=false` 重启，日志 `http.listening on 0.0.0.0:30500 (ssl_enable=false)`;90 侧重拷新 `px_service.exe`/`px_panel.exe` + `sp_put` 注入 `cms_ssl_enable=false`(`tests/_redeploy_service_90.bat` 新增、`_redeploy_panel_90.bat`、`_cfg3_90.bat` + `cfg_panel3_90.bat` 带杀 panel 重试）。
+- 90 重连：CMS 日志确认 relay 与 `/cms/panel` 明文 ws 握手来自 10.0.0.90 ✓。
+- E2E(HTTP，无 `--ignore-certificate-errors`/`--allow-running-insecure-content`):§9.3 拓扑 1 全项（列表/ticket/206/拖拽/控制台零报错）✓；离线提示（990405157)✓;CMS web 冒烟（`scripts/cdp_cms_smoke.mjs`：设备列表/多画面墙/资源总览渲染正常、控制台零报错）✓。
+
+### 13.3 遗留
+
+- CMS → px_auth_server 的授权拉取仍是 `https://127.0.0.1:30400`(auth server 侧未动，独立部署时再议）。
+- `px_common_new/tests/test_http.cpp` 手动测试仍直连 MakeSSL(127.0.0.1)，未加开关。
+
+### 13.4 端口收口（2026-08-18)
+
+原 `cms_port - 1`(30499）的 ping-only 明文监听已删除，`/ping` 由主端口统一提供（主路由本就有该路由）。panel 侧 `CmsDeviceApi::Ping` / `CanPingServer` 本来就打主端口，无需改动；CMS 控制台（egui)"打开"按钮由写死 `http://ip:30499` 改为按 `ssl_enable`/`cms_port` 拼主端口 URL。验证：`30500/ping` 200、30499 连接拒绝、90 明文 ws 重连正常。
+
+### 13.5 部署形态约定（2026-08-18 确认）
+
+**内网/自托管部署（当前形态，推荐默认）**：全链路明文 HTTP/WS——CMS `ssl_enable=false`(30500 单端口承载 HTTP/WS/REST/`/ping`/静态资源），设备端 `cms_ssl_enable=false`，浏览器无需任何特殊 flag，无混合内容问题。render 侧本来就是明文（web client 托管 20371、panel 录像 20369 均为 plain HTTP)，无需改造。
+
+**公网部署：nginx 终结 TLS，后端零改动**。nginx 反代 30500 时必须透传 WebSocket 升级头（`/cms/panel`、`/cms/website` 等长连），并放宽超时与上传体积：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name cms.example.com;
+    ssl_certificate     /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+    client_max_body_size 1g;        # 对齐后端 1GB 限制(录像/安装包上传)
+
+    location / {
+        proxy_pass http://127.0.0.1:30500;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;      # WS 必需
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;                    # WS 长连保活
+    }
+}
+```
+
+公网部署的配套约束：
+
+1. **设备端开关**：设备 `cms_ssl_enable=true`（缺省值）以 wss 连 nginx 443；所有 wss 客户端均为 `verify_none`/`NoCertVerifier`，自签证书可连，CA 证书则浏览器零警告。
+2. **relay(30502）也是 WS**，过中继的设备需要第二个 server 块单独反代。
+3. **UDP 广播（30501）不过公网**，设备靠粘贴 access 串接入（公网场景本来如此）。
+4. **混合内容的根治靠"不直连设备"**:https 页面内嵌 `http://设备IP:20369/20371` 仍会被浏览器拦，因此公网形态下录像走拓扑 2（经 CMS 回传，URL 为同源 `/uploads/records/...`)、远程桌面走 relay 而非直连 web client——页面内不出现任何 `http://设备IP` 内容，nginx 一层即完整解决。LAN 直连模式仅适用于内网。
+5. **WebRTC 媒体面**(DTLS-SRTP）与 nginx 无关；P2P 打洞失败时需 TURN 或全 relay，属另一层部署问题。
+
+TLS 能力在代码里是双向保留的：CMS 拨回 `ssl_enable=true` + 设备重新下发 access 串即回到 HTTPS/WSS 直连模式（此时浏览器对自签证书有警告、且混合内容问题回归，仅建议配合受信证书使用）。

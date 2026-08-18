@@ -21,6 +21,8 @@
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
+#include "px_cms_client/cms_http_client.h"
+#include "px_profile_client/profile_api.h"
 namespace px
 {
 
@@ -57,6 +59,10 @@ namespace px
         if (file_transfer_folder_.empty()) {
             file_transfer_folder_ = qApp->applicationDirPath().toStdString();
         }
+
+        // sync the cms ssl switch into the cms api libraries
+        px_cms::SetCmsSslEnabled(IsCmsSslEnabled());
+        ProfileApi::SetSslEnabled(IsCmsSslEnabled());
     }
 
     void PxSettings::Dump() {
@@ -506,6 +512,29 @@ namespace px
 
     std::string PxSettings::GetCmsAccessInfo() {
         return sp_->Get(kStCmsAccessInfo, "");
+    }
+
+    void PxSettings::SetCmsSslEnabled(bool enabled) {
+        sp_->Put(kStCmsSslEnable, enabled ? kStTrue : kStFalse);
+        // sync the switch into the cms api libraries
+        px_cms::SetCmsSslEnabled(enabled);
+        ProfileApi::SetSslEnabled(enabled);
+    }
+
+    bool PxSettings::IsCmsSslEnabled() {
+        auto value = sp_->Get(kStCmsSslEnable);
+        return value.empty() || value == kStTrue;
+    }
+
+    std::shared_ptr<HttpClient> PxSettings::MakeCmsHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms) {
+        if (Instance()->IsCmsSslEnabled()) {
+            return HttpClient::MakeSSL(host, port, path, timeout_ms);
+        }
+        return HttpClient::Make(host, port, path, timeout_ms);
+    }
+
+    std::string PxSettings::GetCmsHttpScheme() {
+        return Instance()->IsCmsSslEnabled() ? "https" : "http";
     }
 
     void PxSettings::SetSkinName(const std::string& name) {

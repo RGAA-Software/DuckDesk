@@ -25,6 +25,7 @@ namespace px
         int relay_port_;
         std::string origin_info_;
         int64_t update_timestamp_ = 0;
+        bool cms_ssl_enable_ = true;
     };
 
     class CmsScanner {

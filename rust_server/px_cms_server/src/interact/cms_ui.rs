@@ -33,6 +33,10 @@ pub struct CmsUIState {
     pub redis_ok: bool,
     pub mongodb_ok: bool,
     pub show_exit_dialog: bool,
+    /// 主端口（web/API/WS/ping 全部走这一个端口）
+    pub cms_port: u16,
+    /// true = https, false = http（拼"打开"按钮的目标 URL 用）
+    pub ssl_enable: bool,
 }
 
 pub struct CmsUI {
@@ -475,9 +479,16 @@ impl eframe::App for CmsUI {
                                 )
                                 .clicked()
                             {
-                                // open the site
+                                // open the site (web/API 同端口, 协议随 ssl_enable)
+                                let (scheme, port) = {
+                                    let s = self.state.lock().unwrap();
+                                    (
+                                        if s.ssl_enable { "https" } else { "http" },
+                                        s.cms_port,
+                                    )
+                                };
                                 if webbrowser::open(
-                                    format!("http://{}:30499", self.selected_ip).as_str(),
+                                    format!("{}://{}:{}", scheme, self.selected_ip, port).as_str(),
                                 )
                                 .is_ok()
                                 {

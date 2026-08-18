@@ -70,6 +70,7 @@ namespace px
     static const std::string kStDisplayRandomPwd = "display_random_pwd";
     static const std::string kStPreferDecoder = "prefer_decoder";
     static const std::string kStCmsAccessInfo = "cms_access_info";
+    static const std::string kStCmsSslEnable = "cms_ssl_enable";
     static const std::string kStSkinName = "skin_name";
 
     static const std::string kStTrue = "true";
@@ -85,6 +86,7 @@ namespace px
 
     class SharedPreference;
     class MessageNotifier;
+    class HttpClient;
 
     class PxSettings {
     public:
@@ -265,6 +267,15 @@ namespace px
         // Cms access info
         void SetCmsAccessInfo(const std::string& info);
         std::string GetCmsAccessInfo();
+
+        // Cms ssl enabled (from cms access broadcast, default true)
+        void SetCmsSslEnabled(bool enabled);
+        bool IsCmsSslEnabled();
+
+        // make a http(s) client to CMS, scheme selected by IsCmsSslEnabled()
+        static std::shared_ptr<HttpClient> MakeCmsHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
+        // "https" / "http" selected by IsCmsSslEnabled()
+        static std::string GetCmsHttpScheme();
 
         // skin name
         void SetSkinName(const std::string& name);

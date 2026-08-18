@@ -35,12 +35,12 @@ const RECONNECT_DELAY_SECS: u64 = 2;
 const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 
-/// WSS client loop towards the CMS (px_cms_server) `/cms/service` endpoint.
+/// WS/WSS client loop towards the CMS (px_cms_server) `/cms/service` endpoint.
 ///
-/// The CMS address (cms_host/cms_port), appkey and device_id all come from
-/// the authorization info the panel pushes to this service, so the loop first
-/// waits until `state.last_auth_info` is present. A fresh connection token is
-/// generated on every reconnect.
+/// The CMS address (cms_host/cms_port) and whether TLS is used (cms_ssl),
+/// appkey and device_id all come from the authorization info the panel pushes
+/// to this service, so the loop first waits until `state.last_auth_info` is
+/// present. A fresh connection token is generated on every reconnect.
 pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
     let mut stop_rx = {
         let guard = runtime.lock().await;
@@ -66,6 +66,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         let url = build_cms_url(
             &auth_info.cms_host,
             auth_info.cms_port,
+            auth_info.cms_ssl,
             &auth_info.appkey,
             &token,
             &auth_info.device_id,
@@ -73,13 +74,22 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
 
         *sender.lock().await = None;
         // Endpoint without credentials for logs (the URL carries appkey+token).
-        let endpoint = cms_endpoint(&auth_info.cms_host, auth_info.cms_port);
-        let connect = tokio_tungstenite::connect_async_tls_with_config(
-            url.clone(),
-            None,
-            false,
-            Some(tls_connector()),
-        );
+        let endpoint = cms_endpoint(&auth_info.cms_host, auth_info.cms_port, auth_info.cms_ssl);
+        // the wss branch keeps the existing TLS config (certificate verification off);
+        // both connect futures yield the same stream type, so wrap them in one async block
+        let connect = async {
+            if auth_info.cms_ssl {
+                tokio_tungstenite::connect_async_tls_with_config(
+                    url.clone(),
+                    None,
+                    false,
+                    Some(tls_connector()),
+                )
+                .await
+            } else {
+                tokio_tungstenite::connect_async(url.clone()).await
+            }
+        };
         let stream = match timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS), connect).await {
             Ok(Ok((stream, _response))) => {
                 info!("connected to cms {endpoint}");
@@ -256,19 +266,22 @@ async fn send_frame(sender: &Arc<Mutex<Option<WsSink>>>, frame: Vec<u8>) -> bool
 }
 
 /// Endpoint string safe for logs: no appkey/token query params.
-fn cms_endpoint(host: &str, port: i32) -> String {
-    format!("wss://{host}:{port}/cms/service")
+fn cms_endpoint(host: &str, port: i32, ssl: bool) -> String {
+    let scheme = if ssl { "wss" } else { "ws" };
+    format!("{scheme}://{host}:{port}/cms/service")
 }
 
 fn build_cms_url(
     host: &str,
     port: i32,
+    ssl: bool,
     appkey: &str,
     token: &ConnectionToken,
     device_id: &str,
 ) -> String {
+    let scheme = if ssl { "wss" } else { "ws" };
     format!(
-        "wss://{host}:{port}/cms/service?appkey={appkey}&token={}&ts={}&nonce={}&device_id={device_id}",
+        "{scheme}://{host}:{port}/cms/service?appkey={appkey}&token={}&ts={}&nonce={}&device_id={device_id}",
         token.token, token.ts, token.nonce
     )
 }
@@ -565,6 +578,7 @@ fn auth_info_to_json(info: &MsgAuthInfo) -> String {
         "end_timestamp_ms": info.end_timestamp_ms,
         "cms_host": info.cms_host,
         "cms_port": info.cms_port,
+        "cms_ssl": info.cms_ssl,
     })
     .to_string()
 }
@@ -648,6 +662,7 @@ mod tests {
             end_timestamp_ms: 1_900_000_000_000,
             cms_host: "cms.example.com".to_string(),
             cms_port: 8443,
+            cms_ssl: true,
         }
     }
 
@@ -658,7 +673,7 @@ mod tests {
             ts: 1234567890,
             nonce: "cafe".to_string(),
         };
-        let url = build_cms_url("cms.example.com", 8443, "ak-1", &token, "dev-1");
+        let url = build_cms_url("cms.example.com", 8443, true, "ak-1", &token, "dev-1");
         assert_eq!(
             url,
             "wss://cms.example.com:8443/cms/service?appkey=ak-1&token=deadbeef&ts=1234567890&nonce=cafe&device_id=dev-1"
@@ -666,11 +681,24 @@ mod tests {
     }
 
     #[test]
+    fn url_uses_ws_scheme_when_ssl_off() {
+        let token = ConnectionToken {
+            token: "deadbeef".to_string(),
+            ts: 1234567890,
+            nonce: "cafe".to_string(),
+        };
+        let url = build_cms_url("cms.example.com", 8080, false, "ak-1", &token, "dev-1");
+        assert!(url.starts_with("ws://cms.example.com:8080/cms/service?"));
+        assert!(!url.contains("wss://"));
+    }
+
+    #[test]
     fn log_endpoint_carries_no_credentials() {
-        let endpoint = cms_endpoint("cms.example.com", 8443);
+        let endpoint = cms_endpoint("cms.example.com", 8443, true);
         assert_eq!(endpoint, "wss://cms.example.com:8443/cms/service");
         assert!(!endpoint.contains("appkey"));
         assert!(!endpoint.contains("token"));
+        assert_eq!(cms_endpoint("cms.example.com", 8080, false), "ws://cms.example.com:8080/cms/service");
     }
 
     #[test]
@@ -688,6 +716,7 @@ mod tests {
         assert_eq!(value["end_timestamp_ms"], 1_900_000_000_000i64);
         assert_eq!(value["cms_host"], "cms.example.com");
         assert_eq!(value["cms_port"], 8443);
+        assert_eq!(value["cms_ssl"], true);
     }
 
     #[test]
