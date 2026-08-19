@@ -57,7 +57,7 @@ app_secret = ""
 # change this URL (for example http://127.0.0.1:18080) to change the ZLM HTTP
 # port; CMS synchronizes the adjacent px_media/config.ini at startup.
 # When ZLM is remote, use its private/LAN address instead.
-media_server_url = "http://127.0.0.1:8080"
+media_server_url = "http://127.0.0.1:12888"
 # Copy the [api] secret from px_media/config.ini for a non-loopback ZLM.
 # Keep this empty only for a local 127.0.0.1 test deployment.
 api_secret = ""

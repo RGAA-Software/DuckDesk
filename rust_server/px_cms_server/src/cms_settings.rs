@@ -23,7 +23,7 @@ fn default_ssl_enable() -> bool {
 }
 
 fn default_media_server_url() -> String {
-    "http://127.0.0.1:8080".to_string()
+    "http://127.0.0.1:12888".to_string()
 }
 
 fn default_live_app() -> String {
