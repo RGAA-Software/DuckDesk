@@ -27,6 +27,7 @@ pub fn run(
         size: iced::Size::new(PANEL_WIDTH, PANEL_HEIGHT),
         min_size: Some(iced::Size::new(760.0, 440.0)),
         icon,
+        visible: true,
         ..Default::default()
     };
 

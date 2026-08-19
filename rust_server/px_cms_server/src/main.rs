@@ -128,28 +128,31 @@ struct Args {
     running_mode: String,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args = Args::parse();
     let machine_code = px_base::machine_code::generate_machine_code();
 
     if args.running_mode == "server" {
-        run_as_server(machine_code).await;
+        tokio::runtime::Runtime::new()
+            .expect("create CMS server runtime")
+            .block_on(run_as_server(machine_code));
     } else if args.running_mode == "system_service" {
         run_as_system_service(machine_code);
     } else {
-        run_as_panel(machine_code).await;
+        run_as_panel(machine_code);
     }
 }
 
 fn run_as_system_service(_machine_code: String) {}
 
-async fn run_as_panel(machine_code: String) {
-    // load settings
-    CmsSettings::load_settings().await;
-
+fn run_as_panel(machine_code: String) {
     // log
     let _guard = log_util::init_log("logs/px_cms/".to_string(), "log_cms_panel".to_string());
+    let previous_panic_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        tracing::error!("CMS panel panicked: {panic_info}");
+        previous_panic_hook(panic_info);
+    }));
 
     let locale = match get_locale() {
         Some(locale) => locale,
@@ -163,17 +166,25 @@ async fn run_as_panel(machine_code: String) {
         CmsLanguage::new_chinese()
     };
 
-    // load the cached authorization (KvStorage; 面板进程未初始化 KvStorage 时为空操作)
-    gAuthManager.lock().await.load().await;
-    let auth = gAuthManager.lock().await.get_auth().await;
-
-    // 已使用时间由服务器锚定的有效期推导（见 AuthManager::get_used_time）
-    let used_time: i64 = gAuthManager.lock().await.get_used_time().await;
+    // Iced owns the Tokio runtime for the panel event loop. Complete the
+    // asynchronous bootstrap in a short-lived runtime first; otherwise
+    // Iced would attempt to nest its runtime and panic during startup.
+    let (auth, used_time, settings) = tokio::runtime::Runtime::new()
+        .expect("create CMS panel bootstrap runtime")
+        .block_on(async {
+            CmsSettings::load_settings().await;
+            // load the cached authorization (KvStorage; 面板进程未初始化 KvStorage 时为空操作)
+            gAuthManager.lock().await.load().await;
+            let auth = gAuthManager.lock().await.get_auth().await;
+            // 已使用时间由服务器锚定的有效期推导（见 AuthManager::get_used_time）
+            let used_time = gAuthManager.lock().await.get_used_time().await;
+            let settings = gCmsSettings.lock().await.clone();
+            (auth, used_time, settings)
+        });
 
     tracing::info!("used time: {}", used_time);
     tracing::info!("auth: {:#?}", auth);
 
-    let settings = gCmsSettings.lock().await.clone();
     let r = cms_panel::run(language, machine_code, auth, used_time, settings);
     if let Err(e) = r {
         tracing::error!("{}", e);
