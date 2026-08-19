@@ -68,11 +68,9 @@ impl CmsServiceConnManager {
         for conn in self.connections.lock().await.values() {
             all_conn.push(conn.lock().await.clone());
         }
-        if all_conn.is_empty() {
-            Err(CmsApiError::ConnectionNotFound)
-        } else {
-            Ok(all_conn)
-        }
+        // An empty collection is a normal state while no Service is online.
+        // Callers need the list itself to decide how to present offline nodes.
+        Ok(all_conn)
     }
 
     pub async fn get_all_conn_info(&self) -> Result<Vec<CmsServiceConnVo>, CmsApiError> {
@@ -80,11 +78,9 @@ impl CmsServiceConnManager {
         for conn in self.connections.lock().await.values() {
             all_conn.push(conn.lock().await.as_info());
         }
-        if all_conn.is_empty() {
-            Err(CmsApiError::ConnectionNotFound)
-        } else {
-            Ok(all_conn)
-        }
+        // No online Service is not an API error: return [] so schedules and
+        // known-but-offline devices remain manageable from the CMS web UI.
+        Ok(all_conn)
     }
 
     pub async fn get_all_conn_count(&self) -> usize {
@@ -167,9 +163,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_all_conn_info_returns_vos() {
+    async fn get_all_conn_info_returns_empty_or_vos() {
         let mgr = CmsServiceConnManager::new();
-        assert!(mgr.get_all_conn_info().await.is_err());
+        assert!(mgr.get_all_conn_info().await.unwrap().is_empty());
+        assert!(mgr.get_all_conn().await.unwrap().is_empty());
 
         mgr.add_conn("d1".to_string(), make_conn("d1", "appkey-1"))
             .await;

@@ -83,6 +83,37 @@ function openNodeList(row: ViewRow) {
 
 const onlineIds = computed(() => new Set(services.value.map((s) => s.device_id)))
 
+interface DeviceOption {
+  device_id: string
+  label: string
+  online: boolean
+}
+
+// The device inventory is persistent, while `services` only contains machines
+// connected right now. Keep their union so an offline machine can still be
+// configured as an application node.
+const deviceOptions = computed<DeviceOption[]>(() => {
+  const options = new Map<string, DeviceOption>()
+  for (const device of devices.value) {
+    if (!device.device_id) continue
+    options.set(device.device_id, {
+      device_id: device.device_id,
+      label: device.device_name ? `${device.device_name} (${device.device_id})` : device.device_id,
+      online: onlineIds.value.has(device.device_id),
+    })
+  }
+  for (const service of services.value) {
+    if (!options.has(service.device_id)) {
+      options.set(service.device_id, {
+        device_id: service.device_id,
+        label: service.device_id,
+        online: true,
+      })
+    }
+  }
+  return [...options.values()].sort((a, b) => Number(b.online) - Number(a.online) || a.label.localeCompare(b.label))
+})
+
 function seqOf(id: string): number {
   const m = id.match(/^(?:inst|req)-(\d+)-/)
   return m ? Number(m[1]) : 0
@@ -157,6 +188,10 @@ function runningCount(row: ViewRow): number {
   return row.nodes.filter((n) => n.instance?.state === 'running').length
 }
 
+function onlineNodeCount(row: ViewRow): number {
+  return row.nodes.filter((n) => n.online).length
+}
+
 function resetFormForCreate() {
   editing.value = false
   form.value = {
@@ -191,7 +226,7 @@ function openEdit(row: ViewRow) {
 
 async function openNodeCreate(row: ViewRow) {
   nodeEditing.value = false
-  const deviceId = services.value[0]?.device_id || ''
+  const deviceId = services.value[0]?.device_id || deviceOptions.value[0]?.device_id || ''
   const port = deviceId ? ((await nextPort(deviceId)) ?? 32000) : 32000
   nodeForm.value = {
     node_id: '',
@@ -223,16 +258,16 @@ async function onNodeDeviceChange(deviceId: string) {
 async function refresh() {
   loading.value = true
   try {
-    const [r, i, s, d] = await Promise.all([
+    const [rowsResult, instancesResult, servicesResult, devicesResult] = await Promise.allSettled([
       listAppRows(),
       listInstances(),
       queryAllServiceConn(),
       queryDevices('', '', '', '', 1, 200),
     ])
-    if (r) rowsRaw.value = r
-    if (i) instances.value = i
-    if (s) services.value = s
-    if (d) devices.value = d
+    if (rowsResult.status === 'fulfilled' && rowsResult.value) rowsRaw.value = rowsResult.value
+    if (instancesResult.status === 'fulfilled' && instancesResult.value) instances.value = instancesResult.value
+    if (servicesResult.status === 'fulfilled' && servicesResult.value) services.value = servicesResult.value
+    if (devicesResult.status === 'fulfilled' && devicesResult.value) devices.value = devicesResult.value
   } finally {
     loading.value = false
   }
@@ -491,7 +526,7 @@ onUnmounted(() => {
       v-if="services.length === 0"
       class="mb-3"
       type="warning"
-      title="当前没有在线 Service。请先让目标机器的 px_service 连上 CMS。"
+      title="当前没有在线 Service；仍可查看和新增应用/节点。离线节点会标记为离线，待 px_service 连上 CMS 后即可启动。"
     />
 
     <a-table
@@ -522,13 +557,21 @@ onUnmounted(() => {
           </a-tag>
         </template>
       </a-table-column>
+      <a-table-column title="机器状态" width="120">
+        <template #default="{ record }">
+          <a-tag v-if="record.nodes.length > 0" :color="onlineNodeCount(record) > 0 ? 'success' : 'default'">
+            {{ onlineNodeCount(record) }}/{{ record.nodes.length }} 在线
+          </a-tag>
+          <span v-else class="text-gray-400">未配置节点</span>
+        </template>
+      </a-table-column>
       <a-table-column title="操作" width="320" fixed="right">
         <template #default="{ record }">
           <a-button type="link" @click="openEdit(record)">编辑</a-button>
           <a-button type="link" @click="openNodeCreate(record)">新建节点</a-button>
           <a-button
             type="link"
-            :disabled="record.nodes.length === 0"
+            :disabled="onlineNodeCount(record) === 0"
             @click="handleStart(record)"
           >
             启动
@@ -699,15 +742,15 @@ onUnmounted(() => {
             v-model:value="nodeForm.device_id"
             class="w-full"
             show-search
-            placeholder="选择在线机器"
+            placeholder="选择机器（离线也可配置）"
             @change="onNodeDeviceChange"
           >
             <a-select-option
-              v-for="s in services"
-              :key="s.device_id"
-              :value="s.device_id"
+              v-for="device in deviceOptions"
+              :key="device.device_id"
+              :value="device.device_id"
             >
-              {{ s.device_id }}
+              {{ device.label }}（{{ device.online ? '在线' : '离线' }}）
             </a-select-option>
           </a-select>
         </a-form-item>
