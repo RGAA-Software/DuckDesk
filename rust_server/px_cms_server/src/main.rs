@@ -246,6 +246,12 @@ async fn run_as_server(machine_code: String) {
     // settings
     CmsSettings::load_settings().await;
 
+    // The fixed ZLMediaKit executable is deployed beside px_cms.exe.  Start
+    // it only for a local media_server_url; a remote ZLM remains externally
+    // managed.
+    let live_settings = gCmsSettings.lock().await.live.clone();
+    crate::media_sidecar::ensure_started(&live_settings).await;
+
     // update machine code
     gCmsContext
         .lock()

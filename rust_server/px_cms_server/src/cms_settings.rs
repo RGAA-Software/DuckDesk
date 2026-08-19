@@ -22,6 +22,49 @@ fn default_ssl_enable() -> bool {
     true
 }
 
+fn default_media_server_url() -> String {
+    "http://127.0.0.1:8080".to_string()
+}
+
+fn default_live_app() -> String {
+    "live".to_string()
+}
+
+fn default_live_app_id() -> String {
+    "cargame_debug".to_string()
+}
+
+fn default_auto_start_media_server() -> bool {
+    true
+}
+
+/// ZLMediaKit integration settings. `api_secret` is deliberately server-only:
+/// the CMS issues short-lived playback tickets instead of returning this value
+/// or a direct media-server URL to the browser.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
+pub struct CmsLiveSettings {
+    pub media_server_url: String,
+    pub api_secret: String,
+    pub app: String,
+    pub default_app_id: String,
+    /// Start the fixed px_media.exe sidecar when media_server_url is local.
+    #[serde(default = "default_auto_start_media_server")]
+    pub auto_start_media_server: bool,
+}
+
+impl Default for CmsLiveSettings {
+    fn default() -> Self {
+        Self {
+            media_server_url: default_media_server_url(),
+            api_secret: String::new(),
+            app: default_live_app(),
+            default_app_id: default_live_app_id(),
+            auto_start_media_server: default_auto_start_media_server(),
+        }
+    }
+}
+
 /// 鉴权是否放行（force_authorize=false 时所有 WS/HTTP 鉴权过滤直接通过）。
 pub async fn is_auth_bypassed() -> bool {
     !gCmsSettings.lock().await.force_authorize
@@ -73,6 +116,10 @@ pub struct CmsSettings {
     /// 被浏览器混合内容拦截）。缺省 true。
     #[serde(default = "default_ssl_enable")]
     pub ssl_enable: bool,
+
+    /// ZLMediaKit discovery and CMS-proxied HLS playback configuration.
+    #[serde(default)]
+    pub live: CmsLiveSettings,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]
