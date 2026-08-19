@@ -70,7 +70,8 @@ impl RecordTunnelManager {
         req_id: &str,
         rx: oneshot::Receiver<RecordListResp>,
     ) -> Result<RecordListResp, CmsApiError> {
-        self.wait_list_with_timeout(req_id, rx, LIST_REQ_TIMEOUT).await
+        self.wait_list_with_timeout(req_id, rx, LIST_REQ_TIMEOUT)
+            .await
     }
 
     pub async fn wait_list_with_timeout(

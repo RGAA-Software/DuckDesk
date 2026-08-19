@@ -2,19 +2,17 @@ use crate::app_schedule::handler::{
     handle_create_application, handle_create_placement, handle_delete_app, handle_delete_node,
     handle_launch_app, handle_launch_node, handle_launch_start, handle_list_app_rows,
     handle_list_applications, handle_list_instances, handle_list_nodes, handle_list_placements,
-    handle_next_port, handle_save_app, handle_save_node, handle_start_instance,
-    handle_start_node, handle_stop_instance,
+    handle_next_port, handle_save_app, handle_save_node, handle_start_instance, handle_start_node,
+    handle_stop_instance,
 };
-use crate::filter::cms_appkey_filter;
 use crate::cms_context::CmsContext;
+use crate::filter::cms_appkey_filter;
 use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_app_schedule_router(
-    context: Arc<Mutex<CmsContext>>,
-) -> Router<Arc<Mutex<CmsContext>>> {
+pub fn make_app_schedule_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<CmsContext>>> {
     Router::new()
         .route(
             "/app/create",

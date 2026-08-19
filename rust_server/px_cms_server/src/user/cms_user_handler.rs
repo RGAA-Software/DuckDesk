@@ -1,17 +1,17 @@
-use crate::event::cms_event::CmsEvent;
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
 use crate::cms_defs::KEY_DEVICE_ID;
 use crate::cms_http_util::{
     get_body, get_body_str, get_int_param, get_int_param_or, get_str_param, get_str_param_or,
 };
+use crate::event::cms_event::CmsEvent;
 use crate::user::cms_user::{CmsUser, CmsUserAdapter};
 use crate::user::cms_user_keys::{
     KEY_AUTH_ID, KEY_AUTH_PASSWORD, KEY_AVATAR_PATH, KEY_FILE, KEY_HASH_PASSWORD,
     KEY_NEW_HASH_PASSWORD, KEY_PAGE, KEY_PAGE_SIZE, KEY_PASSWORD, KEY_SIZE, KEY_SORT_DIRECTION,
     KEY_SORT_FIELD, KEY_USER_ID, KEY_USER_NAME, KEY_USER_PREFIX,
 };
-use crate::{gAuthManager, gDeviceManager, gCmsEventMgr, gUserManager};
+use crate::{gAuthManager, gCmsEventMgr, gDeviceManager, gUserManager};
 use axum::body::Body;
 use axum::extract::{Multipart, Query, State};
 use axum::http::{HeaderValue, StatusCode};

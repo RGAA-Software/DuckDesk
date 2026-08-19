@@ -1,4 +1,5 @@
 #include "nvenc_video_encoder.h"
+#include <exception>
 #include "px_common_new/data.h"
 #include "px_common_new/image.h"
 #include "px_common_new/log.h"
@@ -50,6 +51,18 @@ namespace px
             nv_encoder_->CreateEncoder(&initializeParams);
         } catch (const NVENCException& e) {
             LOGI("Config failed: {} => {}", (int)e.getErrorCode(), e.what());
+            return false;
+        } catch (const std::exception& e) {
+            // Driver/SDK mismatches have historically surfaced as a standard
+            // exception here (especially while opening HEVC). Do not let an
+            // exception escape the encoder worker and terminate px_render;
+            // returning false lets the selection chain fall back to FFmpeg.
+            LOGE("NVENC CreateEncoder exception: {}", e.what());
+            nv_encoder_.reset();
+            return false;
+        } catch (...) {
+            LOGE("NVENC CreateEncoder raised an unknown exception.");
+            nv_encoder_.reset();
             return false;
         }
         LOGI("NVENC init success.");
@@ -535,6 +548,14 @@ namespace px
         catch (const NVENCException& e) {
             nv_encoder_ = nullptr;
             LOGI("NVENC NvEncoderD3D11 failed: {} => {}", (int)e.getErrorCode(), e.what());
+            return false;
+        } catch (const std::exception& e) {
+            nv_encoder_ = nullptr;
+            LOGE("NVENC NvEncoderD3D11 exception: {}", e.what());
+            return false;
+        } catch (...) {
+            nv_encoder_ = nullptr;
+            LOGE("NVENC NvEncoderD3D11 raised an unknown exception.");
             return false;
         }
         return true;

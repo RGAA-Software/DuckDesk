@@ -28,8 +28,14 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&info).expect("serialize");
-        assert!(json.contains("\"cms_srv_config\""), "missing cms_srv_config: {json}");
-        assert!(json.contains("\"srv_cms_port\":30500"), "missing srv_cms_port: {json}");
+        assert!(
+            json.contains("\"cms_srv_config\""),
+            "missing cms_srv_config: {json}"
+        );
+        assert!(
+            json.contains("\"srv_cms_port\":30500"),
+            "missing srv_cms_port: {json}"
+        );
         assert!(!json.contains("spvr"), "old spvr keys leaked: {json}");
     }
 
@@ -47,7 +53,10 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&info).expect("serialize");
-        assert!(json.contains("\"srv_ssl_enable\":false"), "missing srv_ssl_enable: {json}");
+        assert!(
+            json.contains("\"srv_ssl_enable\":false"),
+            "missing srv_ssl_enable: {json}"
+        );
         let parsed: CmsAccessInfo = serde_json::from_str(&json).expect("deserialize");
         assert!(!parsed.cms_srv_config.srv_ssl_enable);
     }

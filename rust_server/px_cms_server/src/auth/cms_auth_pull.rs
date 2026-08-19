@@ -11,13 +11,13 @@
 use crate::auth::cms_auth_license_keys::{init_license_verifier, license_to_authorization};
 use crate::auth::cms_auth_manager::KEY_AUTHORIZATION;
 use crate::cms_settings::DEFAULT_AUTH_PULL_INTERVAL_SECS;
-use crate::{gAuthManager, gKvStorage, gLicenseVerifier, gCmsContext, gCmsDatabase, gCmsSettings};
+use crate::{gAuthManager, gCmsContext, gCmsDatabase, gCmsSettings, gKvStorage, gLicenseVerifier};
+use mongodb::bson::doc;
 use px_auth_mgr::app_credential as cred;
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
 use px_auth_mgr::authorization::{Authorization, PRODUCT_Pixels_CMS};
 use px_base::{get_current_timestamp, RespMessage};
-use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -138,7 +138,10 @@ pub async fn pull_once() -> Result<PullOutcome, String> {
     let msg: RespMessage<DevicePullResponse> =
         serde_json::from_str(&text).map_err(|e| format!("parse response: {e}"))?;
     if msg.code != 200 {
-        return Err(format!("auth server rejected pull: code={} msg={}", msg.code, msg.message));
+        return Err(format!(
+            "auth server rejected pull: code={} msg={}",
+            msg.code, msg.message
+        ));
     }
     let data = msg.data;
 
@@ -193,7 +196,11 @@ pub async fn start_pull_loop() {
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
         }
     });
-    tracing::info!("auth pull loop started, interval={}s, url={}", interval_secs, base_url);
+    tracing::info!(
+        "auth pull loop started, interval={}s, url={}",
+        interval_secs,
+        base_url
+    );
 }
 
 /// 验签 deploy string 并落库（KvStorage 缓存 + AuthManager）。
@@ -225,7 +232,8 @@ async fn apply_deploy_string(deploy_str: &str, mode: &str) -> Result<Authorizati
     }
 
     let existing = gAuthManager.lock().await.get_auth().await;
-    let mut auth = license_to_authorization(&signed.license, Some(&existing), deploy_str.to_string());
+    let mut auth =
+        license_to_authorization(&signed.license, Some(&existing), deploy_str.to_string());
 
     // mode 不在 license 签名负载里，由 pull 响应携带；空（异常）时保持 licensed。
     if !mode.is_empty() {
@@ -237,7 +245,9 @@ async fn apply_deploy_string(deploy_str: &str, mode: &str) -> Result<Authorizati
 
     // save to db (KvStorage 未初始化时 put 返回 false，如面板进程，属正常降级)
     if !gKvStorage.lock().await.put(KEY_AUTHORIZATION, deploy_str) {
-        tracing::warn!("auth pull: KvStorage put failed (not initialized?), authorization kept in memory only");
+        tracing::warn!(
+            "auth pull: KvStorage put failed (not initialized?), authorization kept in memory only"
+        );
     }
 
     // update auth manager

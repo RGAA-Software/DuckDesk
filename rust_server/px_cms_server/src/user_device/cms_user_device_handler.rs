@@ -4,7 +4,7 @@ use crate::cms_defs::KEY_DEVICE_ID;
 use crate::cms_http_util::{get_body, get_body_str, get_int_param, get_str_param};
 use crate::user::cms_user_keys::{KEY_PAGE, KEY_PAGE_SIZE, KEY_USER_ID};
 use crate::user_device::cms_user_device::{CmsUserDevice, CmsUserDeviceAdapter};
-use crate::{gDeviceManager, gCmsUserDeviceMgr, gUserManager};
+use crate::{gCmsUserDeviceMgr, gDeviceManager, gUserManager};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;

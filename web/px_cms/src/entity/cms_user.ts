@@ -8,7 +8,6 @@ export class CmsUser {
     public update_timestamp: number = 0,
     public deleted: boolean = false,
     public avatar_path: string = '',
-    public administrator: boolean = false,
     public total: number = 0,
   ) {}
 }

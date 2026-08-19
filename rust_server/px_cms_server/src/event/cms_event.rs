@@ -5,8 +5,8 @@ use crate::event::cms_event_keys::{
     EVENT_USER_DELETE, EVENT_USER_LOGIN, EVENT_USER_LOGOUT, EVENT_USER_REGISTER, EVENT_USER_UPDATE,
     EVENT_USER_UPDATE_PASSWORD,
 };
-use px_base::sys_info::SysInfo;
 use mongodb::bson::oid::ObjectId;
+use px_base::sys_info::SysInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

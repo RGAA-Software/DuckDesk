@@ -1,3 +1,4 @@
+use crate::cms_context::CmsContext;
 use crate::device::cms_device_handler::{
     append_used_time, handle_count_devices, handle_create_new_device, handle_query_devices,
     handle_query_total_used_time, query_device_by_id, update_desktop_link, update_device_active,
@@ -5,7 +6,6 @@ use crate::device::cms_device_handler::{
 };
 use crate::filter::cms_appkey_filter;
 use crate::filter::cms_device_filter::filter as cms_device_id_filter;
-use crate::cms_context::CmsContext;
 use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;
@@ -69,8 +69,7 @@ pub fn make_device_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<C
         )
         .route(
             "/query/total/used/time",
-            get(handle_query_total_used_time)
-                .layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_query_total_used_time).layer(middleware::from_fn(cms_appkey_filter::filter)),
         )
         .with_state(context)
 }

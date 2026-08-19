@@ -24,7 +24,6 @@ namespace px_cms
     const std::string kUserUpdateTimestamp = "update_timestamp";
     const std::string kUserDeleted = "deleted";
     const std::string kUserAvatarPath = "avatar_path";
-    const std::string kUserAdministrator = "administrator";
     const std::string kPage = "page";
     const std::string kPageSize = "page_size";
 
@@ -46,7 +45,6 @@ namespace px_cms
         int64_t updated_timestamp_ = 0;
         bool deleted_ = false;
         std::string avatar_path_;
-        bool administrator_;
     };
 
     using CmsUserPtr = std::shared_ptr<CmsUser>;

@@ -58,18 +58,35 @@ mod tests {
     #[test]
     fn ticket_format_matches_panel_contract() {
         // message = device_id|file|exp, key = safety_pwd_md5 (as bytes)
-        let tk = sign_record_ticket("dev123", "rec_A_20260817_10.30.00.mp4", 1700000000, "0123456789abcdef0123456789abcdef");
+        let tk = sign_record_ticket(
+            "dev123",
+            "rec_A_20260817_10.30.00.mp4",
+            1700000000,
+            "0123456789abcdef0123456789abcdef",
+        );
         assert_eq!(tk.len(), 64);
-        assert!(tk.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(tk
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         // deterministic
         assert_eq!(
             tk,
-            sign_record_ticket("dev123", "rec_A_20260817_10.30.00.mp4", 1700000000, "0123456789abcdef0123456789abcdef")
+            sign_record_ticket(
+                "dev123",
+                "rec_A_20260817_10.30.00.mp4",
+                1700000000,
+                "0123456789abcdef0123456789abcdef"
+            )
         );
         // different file -> different ticket
         assert_ne!(
             tk,
-            sign_record_ticket("dev123", "*", 1700000000, "0123456789abcdef0123456789abcdef")
+            sign_record_ticket(
+                "dev123",
+                "*",
+                1700000000,
+                "0123456789abcdef0123456789abcdef"
+            )
         );
     }
 

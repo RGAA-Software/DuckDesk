@@ -3,11 +3,9 @@ use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
-use px_base::sys_info::SysInfo;
 use prost::Message as ProstMessage;
-use protocol::cms_panel::{
-    CmsPanelHeartBeat, CmsPanelHello, CmsPanelMessage, CmsPanelMessageType,
-};
+use protocol::cms_panel::{CmsPanelHeartBeat, CmsPanelHello, CmsPanelMessage, CmsPanelMessageType};
+use px_base::sys_info::SysInfo;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -124,10 +122,18 @@ impl CmsPanelConn {
                     }
                     if port > 0 {
                         if let Err(e) = crate::gDeviceManager
-                            .update_device_field(device_id.clone(), "panel_http_port".to_string(), port)
+                            .update_device_field(
+                                device_id.clone(),
+                                "panel_http_port".to_string(),
+                                port,
+                            )
                             .await
                         {
-                            tracing::warn!("persist panel_http_port for {} failed: {:?}", device_id, e);
+                            tracing::warn!(
+                                "persist panel_http_port for {} failed: {:?}",
+                                device_id,
+                                e
+                            );
                         }
                     }
                 });

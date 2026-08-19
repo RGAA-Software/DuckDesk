@@ -1,5 +1,5 @@
 use crate::auth::cms_auth_license_keys::parse_and_verify_signed_license;
-use crate::{gKvStorage, gLicenseVerifier, gCmsContext};
+use crate::{gCmsContext, gKvStorage, gLicenseVerifier};
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::authorization::Authorization;
 use px_base::get_current_timestamp;
@@ -30,7 +30,10 @@ impl AuthManager {
     pub async fn load(&mut self) -> bool {
         let auth_str = match gKvStorage.lock().await.get(KEY_AUTHORIZATION) {
             Some(str) if !str.trim().is_empty() => {
-                tracing::info!("load: found cached authorization in KvStorage (len={})", str.len());
+                tracing::info!(
+                    "load: found cached authorization in KvStorage (len={})",
+                    str.len()
+                );
                 str
             }
             _ => {
@@ -47,12 +50,7 @@ impl AuthManager {
             now_ms
         );
 
-        let Some(verifier) = gLicenseVerifier
-            .lock()
-            .await
-            .as_ref()
-            .map(Arc::clone)
-        else {
+        let Some(verifier) = gLicenseVerifier.lock().await.as_ref().map(Arc::clone) else {
             tracing::error!("load: license verifier not initialized");
             return false;
         };

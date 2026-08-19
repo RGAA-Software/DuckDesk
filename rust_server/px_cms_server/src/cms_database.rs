@@ -129,8 +129,7 @@ impl CmsDatabase {
                 }
                 self.c_records = Some(Arc::new(Mutex::new(c_records)));
 
-                let c_user_device: Collection<CmsUserDevice> =
-                    database.collection("c_user_device");
+                let c_user_device: Collection<CmsUserDevice> = database.collection("c_user_device");
                 self.c_user_device = Some(Arc::new(Mutex::new(c_user_device)));
 
                 let c_client_conn: Collection<CmsClientConnVo> =

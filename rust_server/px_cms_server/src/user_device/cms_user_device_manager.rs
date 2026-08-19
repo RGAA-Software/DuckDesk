@@ -1,10 +1,10 @@
+use crate::cms_api_error::CmsApiError;
 use crate::device::cms_device::CmsDevice;
 use crate::device::cms_device_keys::KEY_DEVICE_ID;
-use crate::cms_api_error::CmsApiError;
 use crate::user::cms_user::CmsUser;
 use crate::user::cms_user_keys::KEY_USER_ID;
 use crate::user_device::cms_user_device::{CmsUserDevice, CmsUserDeviceAdapter};
-use crate::{gDeviceManager, gCmsDatabase, gUserManager};
+use crate::{gCmsDatabase, gDeviceManager, gUserManager};
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 use std::sync::Arc;

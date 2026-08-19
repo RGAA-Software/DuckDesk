@@ -4,9 +4,9 @@ use mongodb::options::ReturnDocument;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::cms_api_error::CmsApiError;
 use crate::gCmsDatabase;
 use crate::record::cms_visit::{CmsUpdateVisit, CmsVisit};
-use crate::cms_api_error::CmsApiError;
 
 pub struct CmsVisitManager {}
 
@@ -22,10 +22,7 @@ impl CmsVisitManager {
         tracing::info!("insert new visit {:?}", info);
         // Use replace_one with upsert to make insert idempotent based on conn_id.
         let filter = doc! { "conn_id": &info.conn_id };
-        let r = coll
-            .replace_one(filter, info.clone())
-            .upsert(true)
-            .await;
+        let r = coll.replace_one(filter, info.clone()).upsert(true).await;
         if let Err(e) = r {
             tracing::error!("insert/replace error: {}", e);
             return Err(CmsApiError::DatabaseError);
@@ -33,10 +30,7 @@ impl CmsVisitManager {
         Ok(info)
     }
 
-    pub async fn update_visit_info(
-        &self,
-        update: CmsUpdateVisit,
-    ) -> Result<CmsVisit, CmsApiError> {
+    pub async fn update_visit_info(&self, update: CmsUpdateVisit) -> Result<CmsVisit, CmsApiError> {
         if update.conn_id.is_empty() {
             return Err(CmsApiError::InvalidParams);
         }

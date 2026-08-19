@@ -128,15 +128,22 @@ pub async fn delete_instances_by_app(app_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn load_all() -> Result<(Vec<Application>, Vec<AppPlacement>, Vec<AppNode>, Vec<AppInstance>), String> {
+pub async fn load_all() -> Result<
+    (
+        Vec<Application>,
+        Vec<AppPlacement>,
+        Vec<AppNode>,
+        Vec<AppInstance>,
+    ),
+    String,
+> {
     let db = gCmsDatabase.lock().await;
     let (Some(c_app), Some(c_plc), Some(c_node), Some(c_inst)) = (
         db.c_app.clone(),
         db.c_app_placement.clone(),
         db.c_app_node.clone(),
         db.c_app_instance.clone(),
-    )
-    else {
+    ) else {
         return Ok((vec![], vec![], vec![], vec![]));
     };
     drop(db);

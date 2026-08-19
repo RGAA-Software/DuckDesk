@@ -1,5 +1,5 @@
-use crate::gAuthManager;
 use crate::cms_api_error::CmsApiError;
+use crate::gAuthManager;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
@@ -64,13 +64,20 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         || path.starts_with("/web/")
         || path.starts_with("/assets/")
     {
-        tracing::info!("appkey filter: whitelisted path='{}' uri='{}'", path, full_uri);
+        tracing::info!(
+            "appkey filter: whitelisted path='{}' uri='{}'",
+            path,
+            full_uri
+        );
         return next.run(req).await;
     }
 
     let query = req.uri().query().unwrap_or("");
     let parsed = serde_urlencoded::from_str::<AppkeyQueryParams>(query);
-    let req_appkey = parsed.as_ref().map(|p| p.appkey.clone()).unwrap_or_default();
+    let req_appkey = parsed
+        .as_ref()
+        .map(|p| p.appkey.clone())
+        .unwrap_or_default();
 
     if req_appkey.is_empty() {
         tracing::warn!(
@@ -119,11 +126,7 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         return CmsApiError::InvalidAppkey.into_response();
     }
 
-    tracing::info!(
-        "appkey filter: OK path='{}' appkey='{}'",
-        path,
-        req_appkey
-    );
+    tracing::info!("appkey filter: OK path='{}' appkey='{}'", path, req_appkey);
     next.run(req).await
 }
 

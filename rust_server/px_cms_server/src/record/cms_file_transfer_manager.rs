@@ -1,6 +1,6 @@
+use crate::cms_api_error::CmsApiError;
 use crate::gCmsDatabase;
 use crate::record::cms_file_transfer::{CmsFileTransfer, CmsUpdateFileTransfer};
-use crate::cms_api_error::CmsApiError;
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson};
 use mongodb::options::ReturnDocument;
@@ -24,10 +24,7 @@ impl CmsFileTransferManager {
         tracing::info!("insert new file_transfer {:?}", info);
         // Use replace_one with upsert to make insert idempotent based on the_file_id.
         let filter = doc! { "the_file_id": &info.the_file_id };
-        let r = coll
-            .replace_one(filter, info.clone())
-            .upsert(true)
-            .await;
+        let r = coll.replace_one(filter, info.clone()).upsert(true).await;
         if let Err(e) = r {
             tracing::error!("insert/replace error: {}", e);
             return Err(CmsApiError::DatabaseError);

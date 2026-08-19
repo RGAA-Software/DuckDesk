@@ -1,6 +1,3 @@
-use crate::device::cms_device::CmsDevice;
-use crate::device::cms_device_vo::CmsDeviceVo;
-use crate::device::cms_id_generator::PrIdGenerator;
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
 use crate::cms_defs::{
@@ -8,10 +5,13 @@ use crate::cms_defs::{
     KEY_DEVICE_NAME, KEY_IP, KEY_OFFLINE, KEY_ONLINE, KEY_ONLINE_STATE, KEY_PWD_TYPE,
 };
 use crate::cms_http_util::{
-    get_body, get_body_bool, get_body_str, get_int_param, get_str_param,
-    get_str_param_allow_empty, get_str_param_or,
+    get_body, get_body_bool, get_body_str, get_int_param, get_str_param, get_str_param_allow_empty,
+    get_str_param_or,
 };
-use crate::{gDeviceManager, gIdGenerator, gCmsPanelConnMgr};
+use crate::device::cms_device::CmsDevice;
+use crate::device::cms_device_vo::CmsDeviceVo;
+use crate::device::cms_id_generator::PrIdGenerator;
+use crate::{gCmsPanelConnMgr, gDeviceManager, gIdGenerator};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;
@@ -187,14 +187,13 @@ pub async fn handle_query_devices(
                     );
                     continue;
                 }
-            } else if online_state == KEY_OFFLINE
-                && online {
-                    tracing::info!(
-                        "this device is online: {}, but we need offline devices, ignore it.",
-                        device.device_id
-                    );
-                    continue;
-                }
+            } else if online_state == KEY_OFFLINE && online {
+                tracing::info!(
+                    "this device is online: {}, but we need offline devices, ignore it.",
+                    device.device_id
+                );
+                continue;
+            }
         }
         let mut device_vo = CmsDeviceVo::from(&device);
         device_vo.online = online;

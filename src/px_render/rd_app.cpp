@@ -127,6 +127,15 @@ namespace px
         plugin_manager_->RegisterPluginEventsCallback();
         plugin_manager_->DumpPluginInfo();
 
+        // Game-hook first frames can arrive while the target process is still
+        // bringing up its D3D device.  On some NVIDIA drivers, creating our
+        // first device at exactly that moment may block indefinitely.  Create
+        // and cache the default hardware device before starting/injecting the
+        // game; GenerateD3DDevice resolves it to its actual adapter LUID.
+        if (!GenerateD3DDevice(static_cast<uint64_t>(-1))) {
+            LOGW("Early D3D11 device prewarm failed; will retry for the frame adapter.");
+        }
+
         statistics_->SetApplication(shared_from_this());
         statistics_->StartMonitor();
 
@@ -1068,11 +1077,13 @@ namespace px
 
         D3D_FEATURE_LEVEL featureLevel;
         if (adapter_found) {
+            LOGI("D3D11CreateDevice begin for matched adapter uid={}", adapter_uid);
             res = D3D11CreateDevice(adapter.Get(),
                                 D3D_DRIVER_TYPE_UNKNOWN, nullptr,
                                 D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                 nullptr, 0, D3D11_SDK_VERSION,
                                 &new_device_wrapper->d3d11_device_, &featureLevel, &new_device_wrapper->d3d11_device_context_);
+            LOGI("D3D11CreateDevice end for matched adapter uid={}, hr={}", adapter_uid, res);
         }
         else {
             LOGW("Adapter uid {} not found or virtual/RDP path, fallback to generic D3D device creation", adapter_uid);
@@ -1098,10 +1109,27 @@ namespace px
             ClearD3DDevice(adapter_uid);
             return false;
         } else {
+            uint64_t device_adapter_uid = adapter_uid;
+            if (adapter_uid == static_cast<uint64_t>(-1)) {
+                ComPtr<IDXGIDevice> dxgi_device;
+                ComPtr<IDXGIAdapter> device_adapter;
+                DXGI_ADAPTER_DESC device_desc{};
+                if (SUCCEEDED(new_device_wrapper->d3d11_device_.As(&dxgi_device))
+                    && dxgi_device
+                    && SUCCEEDED(dxgi_device->GetAdapter(&device_adapter))
+                    && device_adapter
+                    && SUCCEEDED(device_adapter->GetDesc(&device_desc))) {
+                    device_adapter_uid = device_desc.AdapterLuid.LowPart;
+                    LOGI("D3D11 prewarm resolved adapter: {} (uid={})",
+                         StringUtil::ToUTF8(device_desc.Description), device_adapter_uid);
+                } else {
+                    LOGW("D3D11 prewarm could not resolve the selected adapter LUID.");
+                }
+            }
             LOGI("D3D11CreateDevice mDevice = {}", (void *) new_device_wrapper->d3d11_device_.Get());
-            new_device_wrapper->adapter_uid_ = adapter_uid;
-            d3d11_devices_[adapter_uid] = new_device_wrapper;
-            d3d11_device_failure_counts_[adapter_uid] = 0;
+            new_device_wrapper->adapter_uid_ = device_adapter_uid;
+            d3d11_devices_[device_adapter_uid] = new_device_wrapper;
+            d3d11_device_failure_counts_[device_adapter_uid] = 0;
             return true;
         }
     }

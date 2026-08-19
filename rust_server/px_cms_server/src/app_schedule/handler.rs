@@ -3,9 +3,9 @@ use crate::app_schedule::manager::{
     AppInstance, AppNode, AppPlacement, AppRowVo, Application, CreateApplicationReq,
     CreatePlacementReq, InstanceState, SaveAppReq, SaveNodeReq, StartInstanceReq,
 };
-use crate::gDeviceManager;
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
+use crate::gDeviceManager;
 use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::Json;
@@ -29,7 +29,10 @@ async fn build_launch_url(inst: &AppInstance, nonce: Option<&str>) -> Result<Str
             inst.error.clone()
         });
     }
-    let ip = match gDeviceManager.query_device_by_id(inst.device_id.clone()).await {
+    let ip = match gDeviceManager
+        .query_device_by_id(inst.device_id.clone())
+        .await
+    {
         Ok(d) => {
             let ip = d.get_ip_from_link();
             if ip.is_empty() {
@@ -39,7 +42,10 @@ async fn build_launch_url(inst: &AppInstance, nonce: Option<&str>) -> Result<Str
             }
         }
         Err(e) => {
-            tracing::warn!("query device {} for launch redirect failed: {e}", inst.device_id);
+            tracing::warn!(
+                "query device {} for launch redirect failed: {e}",
+                inst.device_id
+            );
             "127.0.0.1".to_string()
         }
     };
@@ -136,9 +142,11 @@ pub async fn handle_launch_app(
             }
         };
     }
-    Html(LAUNCH_PAGE
-        .replace("__APP_ID__", &app_id)
-        .replace("__APPKEY__", q.appkey.as_deref().unwrap_or("")))
+    Html(
+        LAUNCH_PAGE
+            .replace("__APP_ID__", &app_id)
+            .replace("__APPKEY__", q.appkey.as_deref().unwrap_or("")),
+    )
     .into_response()
 }
 

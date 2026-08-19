@@ -13,6 +13,7 @@ import EventView from '@/views/EventView.vue'
 import LoginView from '@/views/LoginView.vue'
 import AppsView from '@/views/AppsView.vue'
 import DeviceRecords from '@/views/DeviceRecords.vue'
+import LiveViewer from '@/views/LiveViewer.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -65,6 +66,15 @@ const router = createRouter({
           component: VideoWall,
           meta: {
             title: '多画面墙',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: '/live-viewer',
+          name: 'live-viewer',
+          component: LiveViewer,
+          meta: {
+            title: '直播观看',
             requiresAuth: true,
           },
         },

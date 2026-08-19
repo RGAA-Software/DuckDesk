@@ -295,7 +295,11 @@ impl eframe::App for CmsUI {
                                 )
                             };
                             let mode_text = if auth_id_empty {
-                                if self.language.is_zh_cn() { "未授权" } else { "None" }
+                                if self.language.is_zh_cn() {
+                                    "未授权"
+                                } else {
+                                    "None"
+                                }
                             } else if self.language.is_zh_cn() {
                                 match mode.as_str() {
                                     "trial" => "试用",
@@ -353,7 +357,10 @@ impl eframe::App for CmsUI {
                                             .await
                                             .map(|_| ());
                                         if let Err(e) = &r {
-                                            tracing::error!("refresh: pull authorization failed: {}", e);
+                                            tracing::error!(
+                                                "refresh: pull authorization failed: {}",
+                                                e
+                                            );
                                         }
                                         let (auth, used_time) = refresh_auth().await;
                                         state.lock().unwrap().auth = auth;
@@ -482,10 +489,7 @@ impl eframe::App for CmsUI {
                                 // open the site (web/API 同端口, 协议随 ssl_enable)
                                 let (scheme, port) = {
                                     let s = self.state.lock().unwrap();
-                                    (
-                                        if s.ssl_enable { "https" } else { "http" },
-                                        s.cms_port,
-                                    )
+                                    (if s.ssl_enable { "https" } else { "http" }, s.cms_port)
                                 };
                                 if webbrowser::open(
                                     format!("{}://{}:{}", scheme, self.selected_ip, port).as_str(),
@@ -596,7 +600,8 @@ impl eframe::App for CmsUI {
                 && ui
                     .add_sized([150.0, 32.0], egui::Button::new("Settings"))
                     .clicked()
-                {}
+            {
+            }
         });
 
         if self.state.lock().unwrap().show_exit_dialog {

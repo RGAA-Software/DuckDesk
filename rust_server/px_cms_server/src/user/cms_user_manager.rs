@@ -1,6 +1,6 @@
+use crate::cms_api_error::CmsApiError;
 use crate::device::cms_id_generator::PrIdGenerator;
 use crate::gCmsDatabase;
-use crate::cms_api_error::CmsApiError;
 use crate::user::cms_user::CmsUser;
 use crate::user::cms_user_keys::{KEY_DELETED, KEY_PASSWORD, KEY_USER_ID, KEY_USER_NAME};
 use futures_util::StreamExt;
@@ -37,7 +37,6 @@ impl CmsUserManager {
             update_timestamp: px_base::get_current_timestamp(),
             deleted: false,
             avatar_path: "".to_string(),
-            administrator: false,
             total: 0,
         };
 
@@ -279,7 +278,7 @@ impl CmsUserManager {
 
 #[cfg(test)]
 mod tests {
-    
+
     #[test]
     fn test_gen_random_users() {
         for _i in 0..10 {}

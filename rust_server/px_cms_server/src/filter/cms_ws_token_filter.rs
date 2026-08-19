@@ -4,8 +4,8 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 
-use crate::gAuthManager;
 use crate::cms_api_error::CmsApiError;
+use crate::gAuthManager;
 use px_auth_mgr::auth_token::verify_connection_token;
 use px_base::get_current_timestamp;
 
@@ -21,11 +21,7 @@ struct WsTokenQueryParams {
 ///
 /// - `check_max_streams`: only `/cms/client` should enforce the authorization's
 ///   `max_streams` limit and pass a `StreamReservation` to the handler.
-async fn verify_and_run(
-    mut req: Request<Body>,
-    next: Next,
-    check_max_streams: bool,
-) -> Response {
+async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: bool) -> Response {
     let path = req.uri().path();
     // force_authorize=false: skip all token checks (local/test deployments).
     if crate::cms_settings::is_auth_bypassed().await {
@@ -187,9 +183,7 @@ mod tests {
 
     #[test]
     fn rejects_missing_params() {
-        assert!(
-            serde_urlencoded::from_str::<WsTokenQueryParams>("appkey=1&token=2&ts=3").is_err()
-        );
+        assert!(serde_urlencoded::from_str::<WsTokenQueryParams>("appkey=1&token=2&ts=3").is_err());
         assert!(
             serde_urlencoded::from_str::<WsTokenQueryParams>("appkey=1&token=2&nonce=n").is_err()
         );
@@ -199,7 +193,11 @@ mod tests {
     async fn client_rejects_when_auth_not_loaded() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
         crate::gCmsSettings.lock().await.force_authorize = true;
-        gAuthManager.lock().await.update_auth(Default::default()).await;
+        gAuthManager
+            .lock()
+            .await
+            .update_auth(Default::default())
+            .await;
 
         let response = client_router()
             .oneshot(
@@ -388,7 +386,11 @@ mod tests {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
         crate::gCmsSettings.lock().await.force_authorize = false;
         // No authorization loaded, no appkey/token params: must still pass.
-        gAuthManager.lock().await.update_auth(Default::default()).await;
+        gAuthManager
+            .lock()
+            .await
+            .update_auth(Default::default())
+            .await;
 
         let response = client_router()
             .oneshot(

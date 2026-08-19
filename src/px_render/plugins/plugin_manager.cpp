@@ -131,7 +131,12 @@ namespace px
                             {"record_auto_enabled", settings_->record_auto_},
                             {"record_dir", settings_->record_dir_},
                             {"record_max_segment_bytes", settings_->record_max_segment_bytes_},
-                            {"record_max_file_count", (int64_t)settings_->record_max_file_count_}
+                            {"record_max_file_count", (int64_t)settings_->record_max_file_count_},
+                            {"push_enabled", settings_->push_enabled_},
+                            {"push_rtmp_url", settings_->push_rtmp_url_},
+                            {"push_audio_bitrate", (int64_t)settings_->push_audio_bitrate_},
+                            {"live_stream_id", settings_->live_stream_id_},
+                            {"push_primary_monitor", settings_->push_primary_monitor_}
                         },
                     };
 

@@ -142,8 +142,7 @@ impl CmsSettings {
     }
 
     pub async fn load_settings() {
-        let toml_content = std::fs::read_to_string("px_cms.toml")
-            .expect("can't read px_cms.toml");
+        let toml_content = std::fs::read_to_string("px_cms.toml").expect("can't read px_cms.toml");
         let mut ns: CmsSettings = toml::from_str(&toml_content).expect("parse toml failed");
         //tracing::info!("Load Settings:\n{:#?}", ns);
         tracing::info!("the w3c ip: {}", ns.server_w3c_ip);

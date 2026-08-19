@@ -85,6 +85,8 @@ DEFINE_int32(language, 0, "");
 DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
 // appkey
 DEFINE_string(appkey, "", "appkey");
+DEFINE_string(live_stream_id, "", "CMS-issued live stream id");
+DEFINE_string(push_primary_monitor, "", "primary monitor name for live push");
 
 void UpdateSettings(RdSettings* settings) {
     if (FLAGS_steam_app_id > 0) {
@@ -178,6 +180,12 @@ void UpdateSettings(RdSettings* settings) {
 
     // appkey
     settings->appkey_ = FLAGS_appkey;
+    if (!FLAGS_live_stream_id.empty()) {
+        settings->live_stream_id_ = FLAGS_live_stream_id;
+    }
+    if (!FLAGS_push_primary_monitor.empty()) {
+        settings->push_primary_monitor_ = FLAGS_push_primary_monitor;
+    }
 }
 
 void PrintInputArgs() {
@@ -226,6 +234,8 @@ void PrintInputArgs() {
     LOGI("app mode: {} => {}", FLAGS_app_mode, (int)settings->app_mode_);
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings->app_.event_replay_mode_);
     LOGI("appkey : {}", FLAGS_appkey);
+    LOGI("live stream id: {}", settings->live_stream_id_);
+    LOGI("push primary monitor: {}", settings->push_primary_monitor_);
     LOGI("--------------In args end----------------");
 }
 

@@ -1,10 +1,10 @@
 #![windows_subsystem = "windows"]
 
-mod device;
-mod filter;
 mod cms_api_error;
 mod cms_context;
 mod cms_defs;
+mod device;
+mod filter;
 // mod cms_grpc_relay_client;
 // mod cms_grpc_relay_client_mgr;
 // mod cms_grpc_ws_client_trait;
@@ -14,18 +14,20 @@ mod cms_settings;
 
 mod app_schedule;
 mod auth;
+mod cms_database;
+mod cms_http_util;
+mod cms_relay;
+mod cms_router;
 mod config;
 mod event;
 mod interact;
+mod live;
+mod media_sidecar;
 mod net_client;
 mod net_cm;
 mod net_panel;
 mod net_service;
 mod record;
-mod cms_relay;
-mod cms_database;
-mod cms_http_util;
-mod cms_router;
 mod stream;
 mod system;
 mod update;
@@ -34,6 +36,14 @@ mod user_device;
 
 use crate::auth::cms_auth_license_keys::init_license_verifier;
 use crate::auth::cms_auth_manager::AuthManager;
+use crate::cms_context::CmsContext;
+use crate::cms_database::CmsDatabase;
+use crate::cms_relay::relay_conn_mgr::RelayConnManager;
+use crate::cms_relay::relay_redis_conn::RelayRedisConn;
+use crate::cms_relay::relay_room_mgr::RelayRoomManager;
+use crate::cms_relay::relay_server::RelayServer;
+use crate::cms_server::CmsServer;
+use crate::cms_settings::CmsSettings;
 use crate::device::cms_device_manager::CmsDeviceManager;
 use crate::device::cms_id_generator::PrIdGenerator;
 use crate::event::cms_event_manager::CmsEventManager;
@@ -48,14 +58,6 @@ use crate::record::cms_file_transfer_manager::CmsFileTransferManager;
 use crate::record::cms_render_record_manager::CmsRenderRecordManager;
 use crate::record::cms_visit_manager::CmsVisitManager;
 use crate::record::record_tunnel::RecordTunnelManager;
-use crate::cms_relay::relay_conn_mgr::RelayConnManager;
-use crate::cms_relay::relay_redis_conn::RelayRedisConn;
-use crate::cms_relay::relay_room_mgr::RelayRoomManager;
-use crate::cms_relay::relay_server::RelayServer;
-use crate::cms_context::CmsContext;
-use crate::cms_database::CmsDatabase;
-use crate::cms_server::CmsServer;
-use crate::cms_settings::CmsSettings;
 use crate::stream::cms_stream_manager::CmsStreamManager;
 use crate::system::cms_system_manager::CmsSystemManager;
 use crate::update::update_info_manager::UpdateInfoManager;
@@ -149,10 +151,7 @@ async fn run_as_panel(machine_code: String) {
     CmsSettings::load_settings().await;
 
     // log
-    let _guard = log_util::init_log(
-        "logs/px_cms/".to_string(),
-        "log_cms_panel".to_string(),
-    );
+    let _guard = log_util::init_log("logs/px_cms/".to_string(), "log_cms_panel".to_string());
 
     let locale = match get_locale() {
         Some(locale) => locale,
@@ -288,7 +287,9 @@ async fn run_as_server(machine_code: String) {
         tracing::error!("Database initialization failed");
         return;
     }
-    crate::app_schedule::gAppScheduleManager.load_from_db().await;
+    crate::app_schedule::gAppScheduleManager
+        .load_from_db()
+        .await;
 
     // Redis
     let redis_url = gCmsSettings.lock().await.redis_url.clone();
@@ -318,7 +319,9 @@ async fn run_as_server(machine_code: String) {
     // (first run, expired license, etc.) the server still starts; the
     // background pull loop will fetch the authorization from the auth server.
     if !gAuthManager.lock().await.load().await {
-        tracing::warn!("no valid authorization loaded; starting unlicensed — will pull from the auth server");
+        tracing::warn!(
+            "no valid authorization loaded; starting unlicensed — will pull from the auth server"
+        );
     }
 
     // 网络上报授权：启动时立即 pull 一次，之后按 auth_pull_interval_secs 周期 pull。

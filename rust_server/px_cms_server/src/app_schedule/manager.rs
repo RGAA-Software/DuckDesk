@@ -280,15 +280,14 @@ impl AppScheduleManager {
         format!("{prefix}-{n}-{}", &Uuid::new_v4().to_string()[..8])
     }
 
-    pub async fn create_application(&self, req: CreateApplicationReq) -> Result<Application, String> {
+    pub async fn create_application(
+        &self,
+        req: CreateApplicationReq,
+    ) -> Result<Application, String> {
         if req.name.trim().is_empty() || req.game_exe_rel.trim().is_empty() {
             return Err("name and game_exe_rel required".to_string());
         }
-        let game_path = req
-            .game_path
-            .unwrap_or_default()
-            .trim()
-            .to_string();
+        let game_path = req.game_path.unwrap_or_default().trim().to_string();
         let app = Application {
             app_id: self.next_id("app"),
             name: req.name.trim().to_string(),
@@ -297,9 +296,7 @@ impl AppScheduleManager {
             default_game_args: req.default_game_args.unwrap_or_default(),
             encoder_fps: req.encoder_fps.unwrap_or(60),
             encoder_bitrate: req.encoder_bitrate.unwrap_or(20),
-            encoder_format: req
-                .encoder_format
-                .unwrap_or_else(|| "h264".to_string()),
+            encoder_format: req.encoder_format.unwrap_or_else(|| "h264".to_string()),
             webrtc_enabled: true,
             websocket_enabled: true,
             listen_port: req.listen_port.unwrap_or(0),
@@ -398,7 +395,11 @@ impl AppScheduleManager {
 
     fn suggest_next_port_locked(g: &Inner, device_id: &str) -> Result<i32, String> {
         let used = Self::collect_used_ports_locked(g, device_id);
-        let max = used.iter().copied().max().unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
+        let max = used
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
         let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
         if next <= DEFAULT_LISTEN_PORT_END {
             return Ok(next);
@@ -440,10 +441,7 @@ impl AppScheduleManager {
                 )
                 && inst.listen_port == port
             {
-                return Err(format!(
-                    "端口 {port} 正被实例 {} 使用中",
-                    inst.instance_id
-                ));
+                return Err(format!("端口 {port} 正被实例 {} 使用中", inst.instance_id));
             }
         }
         Ok(())
@@ -489,9 +487,9 @@ impl AppScheduleManager {
                 encoder_fps: req
                     .encoder_fps
                     .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_fps).unwrap_or(60)),
-                encoder_bitrate: req.encoder_bitrate.unwrap_or_else(|| {
-                    existing.as_ref().map(|e| e.encoder_bitrate).unwrap_or(20)
-                }),
+                encoder_bitrate: req
+                    .encoder_bitrate
+                    .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_bitrate).unwrap_or(20)),
                 encoder_format: req.encoder_format.unwrap_or_else(|| {
                     existing
                         .as_ref()
@@ -601,11 +599,7 @@ impl AppScheduleManager {
                     .as_ref()
                     .map(|e| e.install_root.clone())
                     .filter(|s| !s.is_empty())
-                    .or_else(|| {
-                        split_game_path(&app.game_path)
-                            .ok()
-                            .map(|(root, _)| root)
-                    })
+                    .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
                     .ok_or_else(|| "install_root 为空且无法从应用路径推导".to_string())?,
             };
 
@@ -616,12 +610,7 @@ impl AppScheduleManager {
                     Some(s) if !s.is_empty() => s.to_string(),
                     _ => {
                         // 默认名:节点N(按该应用现有节点数)
-                        let n = g
-                            .nodes
-                            .values()
-                            .filter(|x| x.app_id == app.app_id)
-                            .count()
-                            + 1;
+                        let n = g.nodes.values().filter(|x| x.app_id == app.app_id).count() + 1;
                         format!("节点{n}")
                     }
                 },
@@ -715,8 +704,7 @@ impl AppScheduleManager {
                 .collect();
             for pid in &plc_ids {
                 if let Some(p) = g.placements.remove(pid) {
-                    g.placement_by_app_device
-                        .remove(&(p.app_id, p.device_id));
+                    g.placement_by_app_device.remove(&(p.app_id, p.device_id));
                 }
             }
             // Drop stopped instances of this app from memory.
@@ -758,8 +746,10 @@ impl AppScheduleManager {
             device_id: req.device_id,
             install_root: req.install_root.trim().to_string(),
         };
-        g.placement_by_app_device
-            .insert((p.app_id.clone(), p.device_id.clone()), p.placement_id.clone());
+        g.placement_by_app_device.insert(
+            (p.app_id.clone(), p.device_id.clone()),
+            p.placement_id.clone(),
+        );
         g.placements.insert(p.placement_id.clone(), p.clone());
         drop(g);
         if let Err(e) = crate::app_schedule::store::upsert_placement(&p).await {
@@ -769,11 +759,23 @@ impl AppScheduleManager {
     }
 
     pub async fn list_placements(&self) -> Vec<AppPlacement> {
-        self.inner.lock().await.placements.values().cloned().collect()
+        self.inner
+            .lock()
+            .await
+            .placements
+            .values()
+            .cloned()
+            .collect()
     }
 
     pub async fn list_instances(&self) -> Vec<AppInstance> {
-        self.inner.lock().await.instances.values().cloned().collect()
+        self.inner
+            .lock()
+            .await
+            .instances
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// 应用级启动:自动选一个节启动。候选 = 该应用的节中「无活跃实例 ∧ 端口
@@ -816,7 +818,10 @@ impl AppScheduleManager {
                 if inst.state != InstanceState::Starting {
                     return Ok(inst);
                 }
-                if let Some(cur) = self.wait_instance_leave_starting(&inst.instance_id, 30).await {
+                if let Some(cur) = self
+                    .wait_instance_leave_starting(&inst.instance_id, 30)
+                    .await
+                {
                     return Ok(cur);
                 }
                 // 在途实例异常消失,落回正常启动流程
@@ -868,11 +873,19 @@ impl AppScheduleManager {
                 match candidate {
                     None => None,
                     Some(node) => {
-                        match resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel) {
+                        match resolve_start_paths(
+                            &app.game_path,
+                            &node.install_root,
+                            &app.game_exe_rel,
+                        ) {
                             Err(e) => return Err(e),
                             Ok((install_root, game_exe_rel)) => {
-                                let inst =
-                                    self.pre_occupy_instance_locked(&mut g, &node, &app, &client_key);
+                                let inst = self.pre_occupy_instance_locked(
+                                    &mut g,
+                                    &node,
+                                    &app,
+                                    &client_key,
+                                );
                                 Some((node, app, inst, install_root, game_exe_rel))
                             }
                         }
@@ -919,7 +932,11 @@ impl AppScheduleManager {
     }
 
     /// 等待实例脱离 Starting(启动回执最长 ~25s),返回最新快照;实例消失返回 None。
-    async fn wait_instance_leave_starting(&self, instance_id: &str, secs: u64) -> Option<AppInstance> {
+    async fn wait_instance_leave_starting(
+        &self,
+        instance_id: &str,
+        secs: u64,
+    ) -> Option<AppInstance> {
         for _ in 0..secs {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cur = {
@@ -990,7 +1007,12 @@ impl AppScheduleManager {
                     return Err(format!("节点「{}」已在运行或启动中", node.name));
                 }
             }
-            Self::ensure_node_port_available_locked(&g, &node.device_id, node.listen_port, Some(node_id))?;
+            Self::ensure_node_port_available_locked(
+                &g,
+                &node.device_id,
+                node.listen_port,
+                Some(node_id),
+            )?;
             let app = g
                 .apps
                 .get(&node.app_id)
@@ -1271,11 +1293,7 @@ impl AppScheduleManager {
         }
     }
 
-    pub async fn on_stop_result(
-        &self,
-        device_id: String,
-        result: CmsServiceStopAppInstanceResult,
-    ) {
+    pub async fn on_stop_result(&self, device_id: String, result: CmsServiceStopAppInstanceResult) {
         let already_gone = !result.ok
             && (result.error.contains("unknown instance_id")
                 || result.error.contains("unknown instance"));
@@ -1556,11 +1574,7 @@ impl AppScheduleManager {
                 continue;
             }
             let app = g.apps.get(&app_id).cloned().unwrap();
-            let legacy_plc = g
-                .placements
-                .values()
-                .find(|p| p.app_id == app_id)
-                .cloned();
+            let legacy_plc = g.placements.values().find(|p| p.app_id == app_id).cloned();
             let install_root = legacy_plc
                 .as_ref()
                 .map(|p| p.install_root.clone())
@@ -1613,7 +1627,12 @@ impl AppScheduleManager {
     }
 
     /// Test helper: inject without network.
-    pub async fn inject_for_test(&self, app: Application, placement: AppPlacement, inst: AppInstance) {
+    pub async fn inject_for_test(
+        &self,
+        app: Application,
+        placement: AppPlacement,
+        inst: AppInstance,
+    ) {
         let mut g = self.inner.lock().await;
         g.placement_by_app_device.insert(
             (placement.app_id.clone(), placement.device_id.clone()),
@@ -1802,10 +1821,7 @@ mod tests {
             },
         )
         .await;
-        assert_eq!(
-            mgr.list_instances().await[0].state,
-            InstanceState::Stopped
-        );
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Stopped);
     }
 
     #[tokio::test]
@@ -2130,8 +2146,10 @@ mod tests {
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n1".into(), node_with_port("a", "m1", 32000));
-            g.nodes.insert("n2".into(), node_with_port("a", "m1", 32001));
+            g.nodes
+                .insert("n1".into(), node_with_port("a", "m1", 32000));
+            g.nodes
+                .insert("n2".into(), node_with_port("a", "m1", 32001));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32002);
         // 另一台机器不受影响
@@ -2143,13 +2161,15 @@ mod tests {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n1".into(), node_with_port("a", "m1", 32999));
+            g.nodes
+                .insert("n1".into(), node_with_port("a", "m1", 32999));
         }
         // max+1 exceeds the pool: suggest the first free port from the start.
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n2".into(), node_with_port("a", "m1", 32000));
+            g.nodes
+                .insert("n2".into(), node_with_port("a", "m1", 32000));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32001);
     }
@@ -2215,10 +2235,7 @@ mod tests {
         mgr.inject_for_test(app, plc, inst).await;
         // Malformed packet must not be treated as "no instances".
         mgr.reconcile_from_service_hb("d".into(), "{not-json").await;
-        assert_eq!(
-            mgr.list_instances().await[0].state,
-            InstanceState::Running
-        );
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Running);
     }
 
     #[tokio::test]
@@ -2244,8 +2261,7 @@ mod tests {
         let (app, plc, mut inst) = fixture(InstanceState::Failed);
         inst.error = "timeout".into();
         mgr2.inject_for_test(app, plc, inst).await;
-        mgr2
-            .reconcile_from_service_hb("d".into(), r#"[{"instance_id":"i","state":"running"}]"#)
+        mgr2.reconcile_from_service_hb("d".into(), r#"[{"instance_id":"i","state":"running"}]"#)
             .await;
         assert_eq!(mgr2.list_instances().await[0].state, InstanceState::Running);
     }
@@ -2288,10 +2304,7 @@ mod tests {
             },
         )
         .await;
-        assert_eq!(
-            mgr.list_instances().await[0].state,
-            InstanceState::Starting
-        );
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Starting);
     }
 
     #[tokio::test]
@@ -2556,7 +2569,10 @@ mod tests {
         )
         .await;
         let nodes = mgr.list_nodes(None).await;
-        assert!(nodes[0].last_run_at > 0, "last_run_at should be set on Running");
+        assert!(
+            nodes[0].last_run_at > 0,
+            "last_run_at should be set on Running"
+        );
     }
 
     #[tokio::test]
@@ -2712,7 +2728,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(inst.instance_id, "i-d", "dedup must return in-flight instance");
+        assert_eq!(
+            inst.instance_id, "i-d",
+            "dedup must return in-flight instance"
+        );
         assert!(matches!(inst.state, InstanceState::Running));
         assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
         // 实例刚转入 Running(60s 窗口内):同 key 再调直接返回它,不多开
@@ -2727,7 +2746,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(inst.instance_id, "i-d", "running-window dedup must reuse instance");
+        assert_eq!(
+            inst.instance_id, "i-d",
+            "running-window dedup must reuse instance"
+        );
         assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
         // 不同 key:不命中去重,走正常选节(唯一节点已被占 -> 报无空闲节点)
         let err = mgr
@@ -2817,7 +2839,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(inst.instance_id, "i-e", "permanent dedup must reuse old running instance");
+        assert_eq!(
+            inst.instance_id, "i-e",
+            "permanent dedup must reuse old running instance"
+        );
         assert_eq!(mgr.list_instances().await.len(), 1, "no extra instance");
         // 非永久:超出 60s 窗口,不复用,走正常选节(唯一节点被占 -> 报无空闲节点)
         let err = mgr

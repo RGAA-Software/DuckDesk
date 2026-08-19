@@ -44,7 +44,9 @@ pub fn select_threshold_devices(
     // group keep==false records by device, preserving oldest-first order
     let mut groups: BTreeMap<String, (i64, i64)> = BTreeMap::new(); // device -> (oldest_ts, bytes)
     for r in records_oldest_first.iter().filter(|r| !r.keep) {
-        let g = groups.entry(r.device_id.clone()).or_insert((r.updated_timestamp, 0));
+        let g = groups
+            .entry(r.device_id.clone())
+            .or_insert((r.updated_timestamp, 0));
         g.0 = g.0.min(r.updated_timestamp);
         g.1 += r.size.max(r.progress);
     }
@@ -171,10 +173,10 @@ mod tests {
     fn threshold_picks_oldest_devices_and_skips_keep() {
         // total 1000, threshold 400 -> must free >= 600
         let records = vec![
-            rec("a", "d1", false, 1, 300),  // d1 oldest, 300
-            rec("b", "d2", false, 2, 400),  // d2, 400
-            rec("c", "d3", false, 3, 200),  // d3 newest, 200
-            rec("k", "d4", true, 0, 1000),  // kept: never selected, size ignored
+            rec("a", "d1", false, 1, 300), // d1 oldest, 300
+            rec("b", "d2", false, 2, 400), // d2, 400
+            rec("c", "d3", false, 3, 200), // d3 newest, 200
+            rec("k", "d4", true, 0, 1000), // kept: never selected, size ignored
         ];
         let devices = select_threshold_devices(&records, 1000, 400);
         // d1 (300) not enough (700 left > 400) -> d2 too (300 left <= 400)

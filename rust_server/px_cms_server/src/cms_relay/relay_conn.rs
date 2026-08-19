@@ -1,7 +1,7 @@
+use crate::cms_context::CmsContext;
 use crate::cms_relay::relay_message::{
     KEY_CLIENT_W3C_HOST, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP, KEY_STREAM_ID,
 };
-use crate::cms_context::CmsContext;
 use crate::{gRelayRedisConn, gRelayRoomMgr};
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket};
@@ -125,7 +125,8 @@ impl RelayConn {
             ..Default::default()
         };
         use prost::Message as ProstMessage;
-        self.send_bin_message(Bytes::from(reply.encode_to_vec())).await;
+        self.send_bin_message(Bytes::from(reply.encode_to_vec()))
+            .await;
     }
 
     pub async fn on_heartbeat(&mut self, m: RelayMessage) {
@@ -148,7 +149,8 @@ impl RelayConn {
                 ..Default::default()
             };
             use prost::Message as ProstMessage;
-            self.send_bin_message(Bytes::from(reply.encode_to_vec())).await;
+            self.send_bin_message(Bytes::from(reply.encode_to_vec()))
+                .await;
         }
     }
 

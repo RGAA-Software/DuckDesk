@@ -1,7 +1,7 @@
 use crate::app_schedule::gAppScheduleManager;
+use crate::cms_context::CmsContext;
 use crate::gCmsServiceConnMgr;
 use crate::net_service::cms_service_conn::CmsServiceConn;
-use crate::cms_context::CmsContext;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
@@ -62,8 +62,7 @@ async fn handle_socket(
 
         let sender = Arc::new(Mutex::new(sender));
         let service_conn =
-            CmsServiceConn::new(context.clone(), sender, device_id.clone(), appkey.clone())
-                .await;
+            CmsServiceConn::new(context.clone(), sender, device_id.clone(), appkey.clone()).await;
         let cms_conn = Arc::new(Mutex::new(service_conn));
         let epoch = gCmsServiceConnMgr
             .add_conn(device_id.clone(), cms_conn.clone())

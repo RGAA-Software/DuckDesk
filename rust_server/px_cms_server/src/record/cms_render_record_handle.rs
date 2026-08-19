@@ -285,8 +285,10 @@ pub async fn handle_record_list(
 
     // merge cms-side state
     let stored = gRenderRecordManager.query_by_device(&device_id).await?;
-    let mut stored_map: HashMap<String, CmsRenderRecord> =
-        stored.into_iter().map(|r| (r.filename.clone(), r)).collect();
+    let mut stored_map: HashMap<String, CmsRenderRecord> = stored
+        .into_iter()
+        .map(|r| (r.filename.clone(), r))
+        .collect();
 
     let mut files: Vec<RecordWebItem> = Vec::new();
     for f in resp.files {
@@ -380,7 +382,11 @@ pub async fn handle_record_upload(
         .unwrap_or(0);
 
     if !gRecordTunnel.validate_token(&token, &device_id, &filename) {
-        tracing::warn!("record upload: invalid token for {}/{}", device_id, filename);
+        tracing::warn!(
+            "record upload: invalid token for {}/{}",
+            device_id,
+            filename
+        );
         return Err(CmsApiError::TokenInvalid);
     }
 
@@ -471,7 +477,12 @@ pub async fn handle_record_upload(
         gRenderRecordManager
             .mark_ready(&device_id, &filename, received, mtime)
             .await?;
-        tracing::info!("record upload ok: {}/{} {} bytes", device_id, filename, received);
+        tracing::info!(
+            "record upload ok: {}/{} {} bytes",
+            device_id,
+            filename,
+            received
+        );
     }
     gRecordTunnel.remove_inflight(&device_id, &filename);
     Ok(Json(ok_resp("upload ok".to_string())))
@@ -495,7 +506,9 @@ pub async fn handle_record_download(
             // already here: just pin it (6.4 idempotency)
             RECORD_STATE_READY if disk_file_exists(&device_id, &filename) => {
                 if !rec.keep {
-                    gRenderRecordManager.set_keep(&device_id, &filename, true).await?;
+                    gRenderRecordManager
+                        .set_keep(&device_id, &filename, true)
+                        .await?;
                 }
                 return Ok(Json(ok_resp(RecordDownloadResp {
                     state: RECORD_STATE_READY.to_string(),
@@ -505,7 +518,9 @@ pub async fn handle_record_download(
             }
             // in-flight: pin it, the completion path keeps the flag
             RECORD_STATE_FETCHING => {
-                gRenderRecordManager.set_keep(&device_id, &filename, true).await?;
+                gRenderRecordManager
+                    .set_keep(&device_id, &filename, true)
+                    .await?;
                 return Ok(Json(ok_resp(RecordDownloadResp {
                     state: "downloading".to_string(),
                     id,
@@ -522,7 +537,9 @@ pub async fn handle_record_download(
     gRenderRecordManager
         .upsert_fetch_start(&device_id, &filename)
         .await?;
-    gRenderRecordManager.set_keep(&device_id, &filename, true).await?;
+    gRenderRecordManager
+        .set_keep(&device_id, &filename, true)
+        .await?;
     if !gRecordTunnel.add_inflight(&device_id, &filename) {
         // someone else just triggered it; the record is already pinned
         return Ok(Json(ok_resp(RecordDownloadResp {
@@ -637,7 +654,12 @@ async fn pull_url_to_file(url: &str, device_id: &str, filename: &str) -> Result<
                 .await;
         }
     }
-    tracing::info!("direct pull ok: {}/{} {} bytes", device_id, filename, received);
+    tracing::info!(
+        "direct pull ok: {}/{} {} bytes",
+        device_id,
+        filename,
+        received
+    );
     Ok(received)
 }
 
@@ -665,7 +687,9 @@ mod tests {
 
     #[test]
     fn filename_whitelist() {
-        assert!(is_valid_record_filename("rec_DISPLAY1_20260817_10.30.00.mp4"));
+        assert!(is_valid_record_filename(
+            "rec_DISPLAY1_20260817_10.30.00.mp4"
+        ));
         assert!(is_valid_record_filename("a-b_c.d.mp4"));
         assert!(!is_valid_record_filename(""));
         assert!(!is_valid_record_filename("a.mp4x"));

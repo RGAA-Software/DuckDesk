@@ -18,6 +18,7 @@ namespace px
     const std::string kFFmpegEncoderPluginId = "cbc9690d-456a-4f74-b594-44468637f3c3";
     const std::string kFrameDebuggerPluginId = "bfb3fadc-6f37-401c-a927-88c3ae2d1e95";
     const std::string kMediaRecorderPluginId = "21d1c305-e68c-4079-8a4a-d00735be609b";
+    const std::string kLivePusherPluginId = "f158b253-40a9-4a4a-8fb7-2b595d9f4f6f";
     const std::string kNetRtcPluginId = "4998fd5a-7cfa-4c4d-af88-8714a14f5ab5";
     const std::string kNetUdpPluginId = "00fc65ed-b824-4845-ac5a-8635bc2336a8";
     const std::string kNetWsPluginId = "711882d5-8987-4c80-826f-a783f3df9240";

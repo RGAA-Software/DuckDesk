@@ -1,7 +1,5 @@
-use crate::net_service::cms_service_conn::{
-    CmsServiceConn, CmsServiceConnPtr, CmsServiceConnVo,
-};
 use crate::cms_api_error::CmsApiError;
+use crate::net_service::cms_service_conn::{CmsServiceConn, CmsServiceConnPtr, CmsServiceConnVo};
 use egui::ahash::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -59,10 +57,7 @@ impl CmsServiceConnManager {
         }
     }
 
-    pub async fn get_conn_info(
-        &self,
-        device_id: String,
-    ) -> Result<CmsServiceConnVo, CmsApiError> {
+    pub async fn get_conn_info(&self, device_id: String) -> Result<CmsServiceConnVo, CmsApiError> {
         let conn = self.get_conn(device_id).await?;
         let conn = conn.lock().await.clone();
         Ok(conn.as_info())
@@ -208,17 +203,18 @@ mod tests {
                 version: "2.0.0".to_string(),
             });
             assert!(
-                c.process_message("test".to_string(), axum::body::Bytes::from(hello.encode_to_vec()))
-                    .await
+                c.process_message(
+                    "test".to_string(),
+                    axum::body::Bytes::from(hello.encode_to_vec())
+                )
+                .await
             );
             assert_eq!(c.version, "2.0.0");
             assert!(c.hello_timestamp > 0);
             assert_eq!(c.last_update_timestamp, c.hello_timestamp);
 
             let mut hb = protocol::cms_service::CmsServiceMessage::default();
-            hb.set_msg_type(
-                protocol::cms_service::CmsServiceMessageType::KCmsServiceHeartBeat,
-            );
+            hb.set_msg_type(protocol::cms_service::CmsServiceMessageType::KCmsServiceHeartBeat);
             hb.heartbeat = Some(protocol::cms_service::CmsServiceHeartBeat {
                 hb_index: 42,
                 device_id: "d1".to_string(),
@@ -227,8 +223,11 @@ mod tests {
                 instances_json: "[]".to_string(),
             });
             assert!(
-                c.process_message("test".to_string(), axum::body::Bytes::from(hb.encode_to_vec()))
-                    .await
+                c.process_message(
+                    "test".to_string(),
+                    axum::body::Bytes::from(hb.encode_to_vec())
+                )
+                .await
             );
             assert_eq!(c.hb_index, 42);
             assert!(!c.render_alive);
@@ -236,8 +235,11 @@ mod tests {
 
             // garbage payload -> parse error -> false
             assert!(
-                !c.process_message("test".to_string(), axum::body::Bytes::from(vec![0xff, 0xff]))
-                    .await
+                !c.process_message(
+                    "test".to_string(),
+                    axum::body::Bytes::from(vec![0xff, 0xff])
+                )
+                .await
             );
         }
     }

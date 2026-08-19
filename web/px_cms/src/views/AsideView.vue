@@ -5,6 +5,7 @@ import {
   ApiOutlined,
   AppstoreOutlined,
   DesktopOutlined,
+  VideoCameraOutlined,
   HomeOutlined,
   LayoutOutlined,
   LineChartOutlined,
@@ -32,6 +33,7 @@ const activeMenu = computed(() => {
     '/online-connection',
     '/connection-monitor',
     '/video-wall',
+    '/live-viewer',
     '/apps',
     '/security-internal',
     '/events',
@@ -93,6 +95,11 @@ const handleClickLogo = async () => {
       <a-menu-item key="/video-wall">
         <template #icon><LayoutOutlined /></template>
         <span class="">多画面墙</span>
+      </a-menu-item>
+
+      <a-menu-item key="/live-viewer">
+        <template #icon><VideoCameraOutlined /></template>
+        <span class="">直播观看</span>
       </a-menu-item>
 
       <a-menu-item key="/apps">

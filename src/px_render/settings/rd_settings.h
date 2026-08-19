@@ -182,6 +182,13 @@ namespace px
         std::string record_dir_;
         int64_t record_max_segment_bytes_ = 1024LL * 1024 * 1024;
         int record_max_file_count_ = 24;
+        // live push ([push] in settings.toml). This is a passive consumer of
+        // the existing remote-session media pipeline; it never enables capture.
+        bool push_enabled_ = false;
+        std::string push_rtmp_url_;
+        int push_audio_bitrate_ = 96000;
+        std::string live_stream_id_;
+        std::string push_primary_monitor_;
 
     private:
         const std::string kFullColorModeKey = "enable_full_color_mode";

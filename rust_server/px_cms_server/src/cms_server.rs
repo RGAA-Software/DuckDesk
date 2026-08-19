@@ -1,10 +1,10 @@
+use crate::cms_context::CmsContext;
+use crate::filter::cms_statistics_filter::filter as cms_statistics_filter;
+use crate::filter::cms_timer_filter::filter as cms_timer_filter;
 use crate::filter::cms_ws_token_filter::{
     client_filter as cms_client_token_filter_fn, panel_filter as cms_panel_token_filter_fn,
     website_filter as cms_website_token_filter_fn,
 };
-use crate::filter::cms_statistics_filter::filter as cms_statistics_filter;
-use crate::filter::cms_timer_filter::filter as cms_timer_filter;
-use crate::cms_context::CmsContext;
 use crate::{gCmsContext, gCmsSettings};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::response::IntoResponse;
@@ -17,19 +17,20 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::app_schedule::router::make_app_schedule_router;
 use crate::auth::cms_auth_router::make_auth_router;
+use crate::cms_router::make_cms_router;
 use crate::device::cms_device_router::make_device_router;
 use crate::event::cms_event_router::make_event_router;
+use crate::live::cms_live_router::make_live_router;
 use crate::net_client::cms_client_router::make_client_router;
 use crate::net_client::cms_client_ws_handler;
 use crate::net_cm::cms_cm_ws_handler;
 use crate::net_panel::cms_panel_router::make_panel_router;
 use crate::net_panel::cms_panel_ws_handler;
-use crate::app_schedule::router::make_app_schedule_router;
 use crate::net_service::cms_service_router::make_service_router;
 use crate::net_service::cms_service_ws_handler;
 use crate::record::cms_record_router::make_record_router;
-use crate::cms_router::make_cms_router;
 use crate::stream::cms_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::cms_user_router::make_user_router;
@@ -94,14 +95,16 @@ impl CmsServer {
         let router = Router::new()
             // Static files served from web/ directory.
             .nest_service("/assets", ServeDir::new(web_cms_dir.join("assets")))
-            .route_service("/favicon.ico", ServeFile::new(web_cms_dir.join("favicon.ico")))
+            .route_service(
+                "/favicon.ico",
+                ServeFile::new(web_cms_dir.join("favicon.ico")),
+            )
             // .nest_service("/web",
             //     ServeDir::new(web_cms_dir).append_index_html_on_directories(true),
             // )
             .nest_service(
                 "/uploads",
-                ServeDir::new(current_dir.join("uploads"))
-                    .append_index_html_on_directories(true),
+                ServeDir::new(current_dir.join("uploads")).append_index_html_on_directories(true),
             )
             //.fallback_service(ServeDir::new(web_cms_dir).append_index_html_on_directories(true))
             // device
@@ -120,6 +123,8 @@ impl CmsServer {
                 "/api/v1/stream/control",
                 make_stream_router(context.clone()),
             )
+            // ZLMediaKit live discovery + CMS-ticketed HLS playback.
+            .nest("/api/v1/live/control", make_live_router(context.clone()))
             // connected panel
             .nest("/api/v1/panel/control", make_panel_router(context.clone()))
             // connected service

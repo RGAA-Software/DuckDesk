@@ -2,8 +2,8 @@ use crate::auth::cms_auth_pull::{pull_once, PullOutcome};
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
 use crate::cms_http_util::{get_body, get_body_str, get_body_str_or_empty};
-use crate::user::cms_user_keys::{KEY_PASSWORD, KEY_USER_NAME};
 use crate::gAuthManager;
+use crate::user::cms_user_keys::{KEY_PASSWORD, KEY_USER_NAME};
 use axum::body::Body;
 use axum::extract::{ConnectInfo, State};
 use axum::Json;
@@ -42,7 +42,9 @@ pub async fn handle_pull_authorization(
         }
         Ok(PullOutcome::Revoked) => {
             tracing::warn!("pull/authorization: authorization revoked by auth server");
-            Ok(Json(ok_resp(build_auth_status(Authorization::default(), local).await)))
+            Ok(Json(ok_resp(
+                build_auth_status(Authorization::default(), local).await,
+            )))
         }
         Err(e) => {
             tracing::error!("pull/authorization: pull failed: {}", e);
@@ -101,8 +103,16 @@ async fn build_auth_status(auth: Authorization, include_credentials: bool) -> Au
         used_time_ms,
         valid: authorized && left_time_ms > 0 && !expired,
         machine_code,
-        username: if include_credentials { auth.username } else { String::new() },
-        password: if include_credentials { auth.password } else { String::new() },
+        username: if include_credentials {
+            auth.username
+        } else {
+            String::new()
+        },
+        password: if include_credentials {
+            auth.password
+        } else {
+            String::new()
+        },
     }
 }
 
@@ -326,8 +336,8 @@ mod tests {
         assert_eq!(sanitized.username, "user-1");
         assert_eq!(sanitized.created_timestamp_ms, 0);
         assert_eq!(sanitized.mode, "licensed"); // Authorization::default().mode
-        // Password is the only field that should remain hidden in the sanitized DTO.
-        // (It is not part of SanitizedAuthorization.)
+                                                // Password is the only field that should remain hidden in the sanitized DTO.
+                                                // (It is not part of SanitizedAuthorization.)
     }
 
     #[test]

@@ -33,10 +33,6 @@ pub struct CmsUser {
     #[serde(default)]
     pub avatar_path: String,
 
-    // is manager
-    #[serde(default, deserialize_with = "px_base::serde_as_bool")]
-    pub administrator: bool,
-
     #[serde(skip_deserializing, skip_serializing)]
     pub total: u32,
 }

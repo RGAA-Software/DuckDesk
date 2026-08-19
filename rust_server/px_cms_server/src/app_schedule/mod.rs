@@ -1,5 +1,5 @@
-pub mod manager;
 pub mod handler;
+pub mod manager;
 pub mod router;
 pub mod store;
 
@@ -9,5 +9,6 @@ use lazy_static::lazy_static;
 use std::sync::Arc;
 
 lazy_static! {
-    pub static ref gAppScheduleManager: Arc<AppScheduleManager> = Arc::new(AppScheduleManager::new());
+    pub static ref gAppScheduleManager: Arc<AppScheduleManager> =
+        Arc::new(AppScheduleManager::new());
 }

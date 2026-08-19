@@ -19,13 +19,19 @@ $WebsocketEnabled = 'true'
 $EncoderFps = '60'
 $EncoderBitrate = '20'
 $EncoderFormat = 'h264'
+$LiveStreamId = "${DeviceId}__app__cargame_debug"
+$LivePushEnabled = $true
 # =============================
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Dist = Join-Path $RepoRoot 'build_official\dist'
 $BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\px_render.exe'
+$BuiltLivePusher = Join-Path $RepoRoot 'build_official\src\px_render\plugins\live_pusher\live_pusher.dll'
+$BuiltNvencEncoder = Join-Path $RepoRoot 'build_official\src\px_render\plugins\nvenc_encoder\enc_nvenc.dll'
 $SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
 $Exe = Join-Path $Dist 'px_render.exe'
+$LivePusher = Join-Path $Dist 'deps\rd_plugins\live_pusher.dll'
+$NvencEncoder = Join-Path $Dist 'deps\rd_plugins\enc_nvenc.dll'
 $WebUrl = "http://127.0.0.1:${Port}/web_client/?deviceId=${DeviceId}"
 $LogPath = "C:\Users\Public\Pixels\px_logs\pixels_render_${Port}.log"
 
@@ -76,6 +82,8 @@ Write-Host "  --encoder_fps=$EncoderFps"
 Write-Host "  --encoder_bitrate=$EncoderBitrate"
 Write-Host "  --encoder_format=$EncoderFormat"
 Write-Host "  --network_listen_port=$Port"
+Write-Host "  --device_id=$DeviceId"
+Write-Host "  --live_stream_id=$LiveStreamId"
 Write-Host '  --logfile'
 Write-Host ''
 
@@ -88,7 +96,30 @@ $tomlPath = Join-Path $Dist 'settings.toml'
 if (Test-Path -LiteralPath $tomlPath) {
     $toml = Get-Content -LiteralPath $tomlPath -Raw
     $toml = $toml -replace 'event-replay-mode\s*=\s*"[^"]*"', 'event-replay-mode = "inner"'
+    if ($LivePushEnabled) {
+        $toml = $toml -replace '(?ms)(\[push\]\s*\r?\n)enabled\s*=\s*false', '$1enabled = true'
+    }
     Set-Content -LiteralPath $tomlPath -Value $toml -NoNewline
+}
+
+if (Test-Path -LiteralPath $BuiltLivePusher) {
+    $needCopy = -not (Test-Path -LiteralPath $LivePusher) -or
+        ((Get-Item -LiteralPath $BuiltLivePusher).LastWriteTime -gt (Get-Item -LiteralPath $LivePusher).LastWriteTime)
+    if ($needCopy) {
+        Write-Host "Syncing live_pusher.dll into render plugins"
+        Copy-Item -LiteralPath $BuiltLivePusher -Destination $LivePusher -Force
+    }
+}
+
+# H.264/H.265 encoder fixes are delivered as a plugin too; keep the local
+# game-hook verification tree in sync with the just-built DLL.
+if (Test-Path -LiteralPath $BuiltNvencEncoder) {
+    $needCopy = -not (Test-Path -LiteralPath $NvencEncoder) -or
+        ((Get-Item -LiteralPath $BuiltNvencEncoder).LastWriteTime -gt (Get-Item -LiteralPath $NvencEncoder).LastWriteTime)
+    if ($needCopy) {
+        Write-Host "Syncing enc_nvenc.dll into render plugins"
+        Copy-Item -LiteralPath $BuiltNvencEncoder -Destination $NvencEncoder -Force
+    }
 }
 
 $argList = @(
@@ -104,11 +135,13 @@ $argList = @(
     "--encoder_fps=$EncoderFps",
     "--encoder_bitrate=$EncoderBitrate",
     "--encoder_format=$EncoderFormat",
-    "--network_listen_port=$Port"
+    "--network_listen_port=$Port",
+    "--device_id=$DeviceId",
+    "--live_stream_id=$LiveStreamId"
 )
 
 Write-Host 'Starting px_render.exe ...'
-Start-Process -FilePath $Exe -ArgumentList $argList -WorkingDirectory $Dist -WindowStyle Normal
+Start-Process -FilePath $Exe -ArgumentList $argList -WorkingDirectory $Dist -WindowStyle Hidden
 
 $ready = $false
 for ($i = 1; $i -le 60; $i++) {

@@ -41,11 +41,7 @@ impl CmsRenderRecordManager {
         device_id: &str,
     ) -> Result<Vec<CmsRenderRecord>, CmsApiError> {
         let coll = gCmsDatabase.lock().await.records();
-        let cursor = coll
-            .lock()
-            .await
-            .find(doc! {"device_id": device_id})
-            .await;
+        let cursor = coll.lock().await.find(doc! {"device_id": device_id}).await;
         let mut cursor = match cursor {
             Ok(c) => c,
             Err(e) => {
@@ -233,7 +229,12 @@ impl CmsRenderRecordManager {
         Ok(())
     }
 
-    pub async fn set_keep(&self, device_id: &str, filename: &str, keep: bool) -> Result<(), CmsApiError> {
+    pub async fn set_keep(
+        &self,
+        device_id: &str,
+        filename: &str,
+        keep: bool,
+    ) -> Result<(), CmsApiError> {
         let coll = gCmsDatabase.lock().await.records();
         let r = coll
             .lock()
