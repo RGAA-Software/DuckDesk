@@ -1,7 +1,19 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
+
+fn copy_required(source: &str, destination: &Path) {
+    if !Path::new(source).is_file() {
+        panic!("required CMS media artifact is missing: {source}");
+    }
+    fs::copy(source, destination).unwrap_or_else(|error| {
+        panic!("failed to copy {source} to {}: {error}", destination.display())
+    });
+}
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/px_cms.toml");
+    println!("cargo:rerun-if-changed=media/px_media.exe");
+    println!("cargo:rerun-if-changed=media/config.ini");
     #[cfg(windows)]
     {
         let mut res = winres::WindowsResource::new();
@@ -24,6 +36,12 @@ fn main() {
     if let Err(e) = fs::copy(src_path, dest_path) {
         eprintln!("copy settings failed: {}", e);
     }
+
+    // ZLMediaKit is a fixed, prebuilt CMS sidecar.  Keep its executable and
+    // default configuration beside px_cms.exe so Cargo builds are directly
+    // runnable and the package script can deploy the exact same layout.
+    copy_required("media/px_media.exe", &dest_folder.join("px_media.exe"));
+    copy_required("media/config.ini", &dest_folder.join("config.ini"));
 
     // make certs if needed
     let certs_folder = dest_folder.join("certs");

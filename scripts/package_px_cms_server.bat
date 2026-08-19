@@ -22,6 +22,7 @@ set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\px_cms"
 set "SERVER_SRC=%REPO_ROOT%\rust_server\px_cms_server"
 set "SERVER_WORKSPACE=%REPO_ROOT%\rust_server"
+set "MEDIA_SRC=%SERVER_SRC%\media"
 set "AUTH_SERVER_OUTPUT=%REPO_ROOT%\output\px_auth"
 
 echo ============================================
@@ -116,6 +117,26 @@ if errorlevel 1 (
 copy /Y "%SERVER_SRC%\src\px_cms.toml" "%OUTPUT_DIR%\px_cms.toml" >nul
 if errorlevel 1 (
     echo ERROR: Failed to copy px_cms.toml.
+    exit /b 1
+)
+
+:: fixed ZLMediaKit sidecar (runs from the same directory as px_cms.exe)
+if not exist "%MEDIA_SRC%\px_media.exe" (
+    echo ERROR: Fixed ZLMediaKit binary is missing: %MEDIA_SRC%\px_media.exe
+    exit /b 1
+)
+if not exist "%MEDIA_SRC%\config.ini" (
+    echo ERROR: ZLMediaKit config is missing: %MEDIA_SRC%\config.ini
+    exit /b 1
+)
+copy /Y "%MEDIA_SRC%\px_media.exe" "%OUTPUT_DIR%\px_media.exe" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to copy px_media.exe.
+    exit /b 1
+)
+copy /Y "%MEDIA_SRC%\config.ini" "%OUTPUT_DIR%\config.ini" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to copy ZLMediaKit config.ini.
     exit /b 1
 )
 
