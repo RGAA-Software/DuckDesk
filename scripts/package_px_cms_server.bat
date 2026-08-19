@@ -120,7 +120,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: fixed ZLMediaKit sidecar (runs from the same directory as px_cms.exe)
+:: Fixed ZLMediaKit sidecar. It must be deployed with its complete runtime:
+:: FFmpeg/SRT/WebRTC/OpenSSL DLLs and media_www are loaded at runtime.
 if not exist "%MEDIA_SRC%\px_media.exe" (
     echo ERROR: Fixed ZLMediaKit binary is missing: %MEDIA_SRC%\px_media.exe
     exit /b 1
@@ -129,13 +130,16 @@ if not exist "%MEDIA_SRC%\config.ini" (
     echo ERROR: ZLMediaKit config is missing: %MEDIA_SRC%\config.ini
     exit /b 1
 )
-copy /Y "%MEDIA_SRC%\px_media.exe" "%OUTPUT_DIR%\px_media.exe" >nul
-if errorlevel 1 (
+robocopy "%MEDIA_SRC%" "%OUTPUT_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 (
+    echo ERROR: Failed to copy the ZLMediaKit runtime.
+    exit /b 1
+)
+if not exist "%OUTPUT_DIR%\px_media.exe" (
     echo ERROR: Failed to copy px_media.exe.
     exit /b 1
 )
-copy /Y "%MEDIA_SRC%\config.ini" "%OUTPUT_DIR%\config.ini" >nul
-if errorlevel 1 (
+if not exist "%OUTPUT_DIR%\config.ini" (
     echo ERROR: Failed to copy ZLMediaKit config.ini.
     exit /b 1
 )
