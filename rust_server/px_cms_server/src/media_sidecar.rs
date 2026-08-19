@@ -39,6 +39,14 @@ fn local_media_port(media_server_url: &str) -> Result<Option<u16>, String> {
     Ok(Some(port))
 }
 
+/// Whether CMS owns a local px_media.exe for this configured media URL.
+/// Remote ZLMediaKit deployments are deliberately not managed by the panel.
+pub fn is_local_sidecar_url(media_server_url: &str) -> bool {
+    local_media_port(media_server_url)
+        .map(|port| port.is_some())
+        .unwrap_or(false)
+}
+
 fn parse_port(port: &str) -> Result<u16, String> {
     if port.is_empty() {
         return Ok(80);

@@ -48,8 +48,7 @@ use crate::device::cms_device_manager::CmsDeviceManager;
 use crate::device::cms_id_generator::PrIdGenerator;
 use crate::event::cms_event_manager::CmsEventManager;
 use crate::interact::cms_lang::CmsLanguage;
-use crate::interact::cms_ui;
-use crate::interact::cms_ui::CmsUIState;
+use crate::interact::cms_panel;
 use crate::net_client::cms_client_conn_mgr::CmsClientConnManager;
 use crate::net_cm::cms_cm_mgr::CmsCMManager;
 use crate::net_panel::cms_panel_conn_mgr::CmsPanelConnManager;
@@ -64,7 +63,6 @@ use crate::update::update_info_manager::UpdateInfoManager;
 use crate::user::cms_user_manager::CmsUserManager;
 use crate::user_device::cms_user_device_manager::CmsUserDeviceManager;
 use clap::Parser;
-use egui::IconData;
 use px_auth_mgr::auth_license::LicenseVerifier;
 use px_base::{kv_storage::KvStorage, log_util, redis_util};
 use redis::aio::ConnectionManager;
@@ -175,59 +173,8 @@ async fn run_as_panel(machine_code: String) {
     tracing::info!("used time: {}", used_time);
     tracing::info!("auth: {:#?}", auth);
 
-    // icon
-    let icon_data = include_bytes!("../assets/px_icon.png");
-    let img = image::load_from_memory_with_format(icon_data, image::ImageFormat::Png).unwrap();
-    let rgba_data = img.into_rgba8();
-    let (w, h) = (rgba_data.width(), rgba_data.height());
-    let raw_data: Vec<u8> = rgba_data.into_raw();
-
-    let mut options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 540.0]),
-        ..Default::default()
-    };
-    options.viewport.icon = Some(Arc::<IconData>::new(IconData {
-        rgba: raw_data,
-        width: w,
-        height: h,
-    }));
-
-    let (cms_port, ssl_enable) = {
-        let s = gCmsSettings.lock().await;
-        (s.cms_port, s.ssl_enable)
-    };
-    let state = CmsUIState {
-        cms_alive: false,
-        cms_alive_pid: 0,
-        relay_alive: true,
-        auth,
-        used_time,
-        redis_ok: false,
-        mongodb_ok: false,
-        show_exit_dialog: false,
-        cms_port,
-        ssl_enable,
-    };
-    tracing::info!("state: {:#?}", state);
-
-    let state = Arc::new(std::sync::Mutex::new(state));
-
-    let r = eframe::run_native(
-        language.app_name.clone().as_str(),
-        options,
-        Box::new(|cc| {
-            cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            // This gives us image support:
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-
-            Ok(Box::new(cms_ui::CmsUI::new(
-                cc,
-                language,
-                machine_code,
-                state,
-            )))
-        }),
-    );
+    let settings = gCmsSettings.lock().await.clone();
+    let r = cms_panel::run(language, machine_code, auth, used_time, settings);
     if let Err(e) = r {
         tracing::error!("{}", e);
     }

@@ -1,6 +1,6 @@
 use crate::cms_api_error::CmsApiError;
 use crate::net_panel::cms_panel_conn::{CmsPanelConn, CmsPanelConnPtr, CmsPanelConnVo};
-use egui::ahash::HashMap;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 
 pub struct CmsPanelConnManager {

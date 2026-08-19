@@ -31,10 +31,7 @@ prost = "0.14.1"
 tonic = "0.14.1"
 lazy_static = "1.5.0"
 toml = "0.9.5"
-egui = "0.33.0"
-eframe = "0.33.0"
-egui_extras = { version = "0.33.0", features = ["all_loaders"] }
-image = { version = "0.25", features = ["jpeg", "png"] } # Add the types you want support for
+iced = { version = "0.14.0", default-features = false, features = ["image", "tokio", "wgpu"] }
 thiserror = "2.0.17"
 ring = "0.17"
 base64 = "0.22"
@@ -42,7 +39,6 @@ clap = { version = "4.5.51", features = ["derive"] }
 csv = "1.4.0"
 chrono = "0.4.42"
 sys-locale = "0.3.2"
-egui-notify = "0.21.0"
 arboard = "3.6.1"
 sysinfo = "0.37.0"
 md5 = "0.8.0"

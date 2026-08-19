@@ -1,4 +1,5 @@
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct CmsLanguage {
     zh_cn: bool,
     // app settings
