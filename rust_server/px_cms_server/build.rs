@@ -43,6 +43,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/px_cms.toml");
     println!("cargo:rerun-if-changed=media/px_media.exe");
     println!("cargo:rerun-if-changed=media/config.ini");
+    println!("cargo:rerun-if-changed=media/px_turn.exe");
+    println!("cargo:rerun-if-changed=media/COTURN_LICENSE");
     println!("cargo:rerun-if-changed=media");
     #[cfg(windows)]
     {
@@ -72,6 +74,8 @@ fn main() {
     // by px_media.exe, so shipping only the executable is not sufficient.
     copy_required("media/px_media.exe", &dest_folder.join("px_media.exe"));
     copy_required("media/config.ini", &dest_folder.join("config.ini"));
+    copy_required("media/px_turn.exe", &dest_folder.join("px_turn.exe"));
+    copy_required("media/COTURN_LICENSE", &dest_folder.join("COTURN_LICENSE"));
     copy_media_runtime(Path::new("media"), dest_folder);
 
     // make certs if needed

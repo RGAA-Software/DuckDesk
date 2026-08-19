@@ -208,6 +208,8 @@ async fn run_as_server(machine_code: String) {
     // managed.
     let live_settings = gCmsSettings.lock().await.live.clone();
     crate::media_sidecar::ensure_started(&live_settings).await;
+    let turn_server_ip = gCmsSettings.lock().await.server_w3c_ip.clone();
+    crate::media_sidecar::ensure_turn_started(&turn_server_ip).await;
 
     // update machine code
     gCmsContext

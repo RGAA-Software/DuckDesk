@@ -3,6 +3,11 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
+const TURN_LISTENING_PORT: u16 = 20128;
+const TURN_MIN_RELAY_PORT: u16 = 20200;
+const TURN_MAX_RELAY_PORT: u16 = 20500;
+const TURN_REALM: &str = "px-turn.invalid";
+
 fn local_media_port(media_server_url: &str) -> Result<Option<u16>, String> {
     let authority = media_server_url
         .trim()
@@ -180,6 +185,114 @@ pub async fn ensure_started(settings: &CmsLiveSettings) {
     tracing::warn!(
         port,
         "px_media was started but is not listening yet; inspect its log/config.ini"
+    );
+}
+
+/// Starts the bundled Coturn sidecar without a turnserver.conf file. The
+/// server address is the CMS address selected in `server_w3c_ip`, which is
+/// automatically resolved to a local IPv4 address when it is left empty.
+///
+/// Long-term credentials are deliberately enabled even before CMS-issued
+/// TURN REST credentials are wired in, so this sidecar can never become an
+/// anonymous relay merely because it is bundled with CMS.
+pub async fn ensure_turn_started(server_ip: &str) {
+    let server_ip = server_ip.trim();
+    if server_ip.parse::<std::net::IpAddr>().is_err() {
+        tracing::error!(
+            server_ip,
+            "px_turn startup skipped: CMS address is not an IP address"
+        );
+        return;
+    }
+
+    let exe_path = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            tracing::error!("cannot determine CMS executable path for px_turn: {error}");
+            return;
+        }
+    };
+    let Some(directory) = exe_path.parent() else {
+        tracing::error!("cannot determine CMS executable directory for px_turn");
+        return;
+    };
+    let turn_exe = directory.join("px_turn.exe");
+    if !turn_exe.is_file() {
+        tracing::error!(exe = %turn_exe.display(), "px_turn sidecar is not deployed beside px_cms.exe");
+        return;
+    }
+    if port_is_open(server_ip, TURN_LISTENING_PORT).await {
+        tracing::info!(
+            server_ip,
+            port = TURN_LISTENING_PORT,
+            "px_turn is already listening"
+        );
+        return;
+    }
+
+    let listening_port = TURN_LISTENING_PORT.to_string();
+    let min_relay_port = TURN_MIN_RELAY_PORT.to_string();
+    let max_relay_port = TURN_MAX_RELAY_PORT.to_string();
+    let mut command = Command::new(&turn_exe);
+    command.current_dir(directory).args([
+        "-n", // Do not load turnserver.conf.
+        "-p",
+        &listening_port,
+        "-L",
+        server_ip,
+        "-E",
+        server_ip,
+        "--min-port",
+        &min_relay_port,
+        "--max-port",
+        &max_relay_port,
+        "--fingerprint",
+        "--lt-cred-mech",
+        "--realm",
+        TURN_REALM,
+        "--stale-nonce",
+        "--no-multicast-peers",
+        "--no-tls",
+        "--log-file",
+        "./px_turn.log",
+        "--simple-log",
+    ]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    match command.spawn() {
+        Ok(child) => tracing::info!(
+            pid = child.id(),
+            server_ip,
+            port = TURN_LISTENING_PORT,
+            min_relay_port = TURN_MIN_RELAY_PORT,
+            max_relay_port = TURN_MAX_RELAY_PORT,
+            "started px_turn sidecar"
+        ),
+        Err(error) => {
+            tracing::error!(exe = %turn_exe.display(), "failed to start px_turn: {error}");
+            return;
+        }
+    }
+
+    for _ in 0..20 {
+        if port_is_open(server_ip, TURN_LISTENING_PORT).await {
+            tracing::info!(
+                server_ip,
+                port = TURN_LISTENING_PORT,
+                "px_turn sidecar is ready"
+            );
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    tracing::warn!(
+        server_ip,
+        port = TURN_LISTENING_PORT,
+        "px_turn was started but is not listening yet; inspect px_turn.log"
     );
 }
 

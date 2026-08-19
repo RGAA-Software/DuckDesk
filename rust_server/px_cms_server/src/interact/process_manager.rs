@@ -32,6 +32,7 @@ impl LocalProcessState {
 pub struct CmsProcessManager {
     cms_exe: PathBuf,
     media_exe: PathBuf,
+    turn_exe: PathBuf,
     media_managed: bool,
     lifecycle: AtomicU8,
     operation_lock: Mutex<()>,
@@ -46,6 +47,7 @@ impl CmsProcessManager {
             .ok_or_else(|| "CMS executable has no parent directory".to_string())?;
         Ok(Self {
             media_exe: directory.join("px_media.exe"),
+            turn_exe: directory.join("px_turn.exe"),
             cms_exe,
             // `auto_start_media_server` only controls startup. When the media
             // URL is local, panel exit must always clean up the adjacent
@@ -119,7 +121,7 @@ impl CmsProcessManager {
     fn stop_local_processes(&self) {
         let mut system = System::new_all();
         system.refresh_processes(ProcessesToUpdate::All, true);
-        let (cms_pids, media_pids) = self.matching_pids_from(&system);
+        let (cms_pids, media_pids, turn_pids) = self.matching_pids_from(&system);
 
         // Stop the server first, then the media sidecar. The former may still
         // be writing to ZLM while it exits, but both are guaranteed gone before
@@ -132,6 +134,9 @@ impl CmsProcessManager {
                 kill_pid(&system, pid);
             }
         }
+        for pid in turn_pids {
+            kill_pid(&system, pid);
+        }
 
         // `kill_with` is asynchronous on Windows. Wait briefly and issue a
         // second kill if a process has not released yet; restart must not race
@@ -140,8 +145,11 @@ impl CmsProcessManager {
             std::thread::sleep(std::time::Duration::from_millis(100));
             let mut refreshed = System::new_all();
             refreshed.refresh_processes(ProcessesToUpdate::All, true);
-            let (cms_pids, media_pids) = self.matching_pids_from(&refreshed);
-            if cms_pids.is_empty() && (!self.media_managed || media_pids.is_empty()) {
+            let (cms_pids, media_pids, turn_pids) = self.matching_pids_from(&refreshed);
+            if cms_pids.is_empty()
+                && (!self.media_managed || media_pids.is_empty())
+                && turn_pids.is_empty()
+            {
                 break;
             }
             for pid in cms_pids {
@@ -152,11 +160,14 @@ impl CmsProcessManager {
                     kill_pid(&refreshed, pid);
                 }
             }
+            for pid in turn_pids {
+                kill_pid(&refreshed, pid);
+            }
         }
     }
 
     fn snapshot_from(&self, system: &System) -> LocalProcessState {
-        let (cms_pids, media_pids) = self.matching_pids_from(system);
+        let (cms_pids, media_pids, _) = self.matching_pids_from(system);
         let mut state = LocalProcessState {
             media_managed: self.media_managed,
             ..Default::default()
@@ -166,10 +177,11 @@ impl CmsProcessManager {
         state
     }
 
-    fn matching_pids_from(&self, system: &System) -> (Vec<u32>, Vec<u32>) {
+    fn matching_pids_from(&self, system: &System) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
         let own_pid = std::process::id();
         let mut cms_pids = Vec::new();
         let mut media_pids = Vec::new();
+        let mut turn_pids = Vec::new();
         for (pid, process) in system.processes() {
             if pid.as_u32() == own_pid {
                 continue;
@@ -181,9 +193,11 @@ impl CmsProcessManager {
                 cms_pids.push(pid.as_u32());
             } else if self.media_managed && same_path(exe, &self.media_exe) {
                 media_pids.push(pid.as_u32());
+            } else if same_path(exe, &self.turn_exe) {
+                turn_pids.push(pid.as_u32());
             }
         }
-        (cms_pids, media_pids)
+        (cms_pids, media_pids, turn_pids)
     }
 }
 
