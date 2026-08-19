@@ -4,8 +4,10 @@ use crate::interact::cms_lang::CmsLanguage;
 use crate::interact::process_manager::{CmsProcessManager, LocalProcessState};
 use crate::{gAuthManager, gCmsContext, gCmsSettings};
 use arboard::Clipboard;
-use iced::widget::{button, column, container, pick_list, row, scrollable, text, Space};
-use iced::{window, Element, Length, Subscription, Task, Theme};
+use iced::widget::{
+    button, column, container, mouse_area, pick_list, row, scrollable, stack, text, Space,
+};
+use iced::{window, Background, Color, Element, Length, Subscription, Task, Theme};
 use px_auth_mgr::authorization::Authorization;
 use px_base::ip_util::get_clean_ipv4_addresses;
 use px_base::{mongodb_util, redis_util};
@@ -13,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const PANEL_WIDTH: f32 = 960.0;
-const PANEL_HEIGHT: f32 = 540.0;
+const PANEL_HEIGHT: f32 = 620.0;
 
 pub fn run(
     language: CmsLanguage,
@@ -25,7 +27,7 @@ pub fn run(
     let icon = window::icon::from_file_data(include_bytes!("../../assets/px_icon.png"), None).ok();
     let window_settings = window::Settings {
         size: iced::Size::new(PANEL_WIDTH, PANEL_HEIGHT),
-        min_size: Some(iced::Size::new(760.0, 440.0)),
+        min_size: Some(iced::Size::new(820.0, 540.0)),
         icon,
         visible: true,
         ..Default::default()
@@ -263,123 +265,214 @@ impl CmsPanel {
             "远端/未托管".to_string()
         };
 
-        let rows = column![
-            setting_row(
-                &self.language.st_server_id,
-                text(&self.machine_code),
-                button(self.language.copy.as_str()).on_press(Message::CopyMachineCode)
-            ),
-            setting_row(
-                &self.language.st_auth_state,
-                text(auth_text),
-                button(self.language.refresh.as_str()).on_press(Message::RefreshAuth)
-            ),
-            setting_row(
-                "登录账号",
-                text(login_text),
-                button(self.language.copy.as_str()).on_press(Message::CopyLogin)
-            ),
-            setting_row(
-                &self.language.st_cms_state,
-                colored_status(cms_status, self.process_state.cms_running()),
-                button(self.language.restart.as_str())
-                    .on_press_maybe((!self.exiting).then_some(Message::Restart))
-            ),
-            setting_row(
-                "本地媒体服务",
-                colored_status(media_status, self.process_state.media_running()),
-                Space::new()
-            ),
-            setting_row(
-                &self.language.st_cms_website,
-                pick_list(
-                    self.ips.clone(),
-                    Some(self.selected_ip.clone()),
-                    Message::SelectIp
-                )
-                .width(Length::Fill),
-                button(self.language.open.as_str()).on_press(Message::OpenWeb)
-            ),
-            setting_row(
-                &self.language.redis_state,
-                colored_status(
-                    if self.redis_ok {
-                        "运行中".to_string()
-                    } else {
-                        "未运行".to_string()
-                    },
-                    self.redis_ok
-                ),
-                Space::new()
-            ),
-            setting_row(
-                &self.language.mongodb_state,
-                colored_status(
-                    if self.mongodb_ok {
-                        "运行中".to_string()
-                    } else {
-                        "未运行".to_string()
-                    },
-                    self.mongodb_ok
-                ),
-                Space::new()
-            ),
-            setting_row(
-                &self.language.st_exit_server,
-                text("将停止本地 CMS 与 px_media"),
-                button(text(&self.language.exit).style(text::danger))
-                    .on_press(Message::CloseRequested)
-            ),
+        let running_count = [
+            self.process_state.cms_running(),
+            self.process_state.media_running(),
+            self.redis_ok && self.mongodb_ok,
         ]
-        .spacing(14)
+        .into_iter()
+        .filter(|running| *running)
+        .count();
+
+        let header = row![
+            column![
+                text("Pixels CMS").size(30),
+                text("本机服务控制台 · 管理、诊断与访问入口").size(15),
+            ]
+            .spacing(5),
+            Space::new().width(Length::Fill),
+            status_pill(format!("{running_count}/3 服务正常"), running_count == 3),
+        ]
+        .align_y(iced::Alignment::Center)
         .width(Length::Fill);
 
-        let mut body = column![text(&self.language.server_settings).size(28), rows]
-            .spacing(24)
-            .padding(28)
-            .width(Length::Fill);
+        let services = card(
+            "服务状态",
+            "本机进程与数据依赖",
+            column![
+                service_item(
+                    "CMS 管理服务",
+                    "HTTP 管理、应用调度与 API",
+                    cms_status,
+                    self.process_state.cms_running()
+                ),
+                service_item(
+                    "本地媒体服务",
+                    "px_media / ZLMediaKit",
+                    media_status,
+                    self.process_state.media_running()
+                ),
+                service_item(
+                    "Redis",
+                    "会话与实时状态",
+                    status_label(self.redis_ok),
+                    self.redis_ok
+                ),
+                service_item(
+                    "MongoDB",
+                    "配置与业务数据",
+                    status_label(self.mongodb_ok),
+                    self.mongodb_ok
+                ),
+                row![
+                    Space::new().width(Length::Fill),
+                    button("重启本机 CMS")
+                        .on_press_maybe((!self.exiting).then_some(Message::Restart))
+                ]
+                .align_y(iced::Alignment::Center),
+            ]
+            .spacing(15),
+        )
+        .width(Length::FillPortion(11));
+
+        let access = card(
+            "访问与授权",
+            "打开管理网页，或核验授权信息",
+            column![
+                info_row(
+                    "管理网页",
+                    pick_list(
+                        self.ips.clone(),
+                        Some(self.selected_ip.clone()),
+                        Message::SelectIp
+                    )
+                    .width(Length::Fill),
+                    button(self.language.open.as_str()).on_press(Message::OpenWeb)
+                ),
+                info_row(
+                    "设备机器码",
+                    text(&self.machine_code),
+                    button(self.language.copy.as_str()).on_press(Message::CopyMachineCode)
+                ),
+                info_row(
+                    "授权状态",
+                    text(auth_text),
+                    button(self.language.refresh.as_str()).on_press(Message::RefreshAuth)
+                ),
+                info_row(
+                    "登录账号",
+                    text(login_text),
+                    button(self.language.copy.as_str()).on_press(Message::CopyLogin)
+                ),
+            ]
+            .spacing(16),
+        )
+        .width(Length::FillPortion(12));
+
+        let mut page = column![
+            header,
+            row![services, access]
+                .spacing(18)
+                .width(Length::Fill)
+                .align_y(iced::Alignment::Start),
+            exit_area(self.exiting),
+        ]
+        .spacing(20)
+        .padding(28)
+        .width(Length::Fill);
+
         if let Some(notice) = &self.notice {
-            body = body.push(
+            page = page.push(
                 container(text(notice))
-                    .padding(10)
+                    .padding([10, 14])
                     .style(container::rounded_box),
             );
         }
-        if self.show_exit_dialog {
-            body = body.push(exit_confirmation(&self.language));
-        }
         if self.exiting {
-            body = body.push(text("正在停止 CMS 与本地 px_media…"));
+            page = page.push(text("正在停止 CMS 与本地 px_media…"));
         }
 
-        container(scrollable(body).width(Length::Fill).height(Length::Fill))
+        let base = container(scrollable(page).width(Length::Fill).height(Length::Fill))
             .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+        if self.show_exit_dialog {
+            stack![base, exit_confirmation()]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            base.into()
+        }
     }
 }
 
-fn setting_row<'a>(
-    label: &'a str,
-    value: impl Into<Element<'a, Message>>,
-    action: impl Into<Element<'a, Message>>,
+fn card<'a>(
+    title: &'a str,
+    subtitle: &'a str,
+    content: impl Into<Element<'a, Message>>,
+) -> iced::widget::Container<'a, Message> {
+    container(
+        column![
+            text(title).size(21),
+            text(subtitle).size(14),
+            content.into()
+        ]
+        .spacing(8)
+        .width(Length::Fill),
+    )
+    .padding(20)
+    .style(container::rounded_box)
+}
+
+fn service_item<'a>(
+    title: &'a str,
+    subtitle: &'a str,
+    state: String,
+    running: bool,
 ) -> Element<'a, Message> {
     row![
-        container(text(label)).width(Length::Fixed(150.0)),
-        container(value).width(Length::Fill),
-        container(action).width(Length::Fixed(90.0)),
+        column![text(title).size(16), text(subtitle).size(13)].spacing(3),
+        Space::new().width(Length::Fill),
+        status_pill(state, running),
     ]
-    .spacing(16)
     .align_y(iced::Alignment::Center)
     .into()
 }
 
-fn colored_status(value: String, ok: bool) -> Element<'static, Message> {
-    if ok {
-        text(value).style(text::success).into()
-    } else {
-        text(value).style(text::danger).into()
-    }
+fn info_row<'a>(
+    label: &'a str,
+    value: impl Into<Element<'a, Message>>,
+    action: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    column![
+        text(label).size(14),
+        row![
+            container(value).width(Length::Fill),
+            container(action).width(Length::Fixed(82.0)),
+        ]
+        .spacing(10)
+        .align_y(iced::Alignment::Center),
+    ]
+    .spacing(5)
+    .into()
+}
+
+fn status_pill<'a>(value: String, ok: bool) -> Element<'a, Message> {
+    let color = if ok { text::success } else { text::danger };
+    container(text(value).style(color).size(14))
+        .padding([5, 10])
+        .style(container::rounded_box)
+        .into()
+}
+
+fn exit_area(exiting: bool) -> Element<'static, Message> {
+    container(
+        row![
+            column![
+                text("关闭本机服务").size(16),
+                text("退出面板时，将停止本机 CMS 与 px_media；远端 ZLMediaKit 不受影响。").size(13),
+            ]
+            .spacing(3),
+            Space::new().width(Length::Fill),
+            button(text("退出并停止服务").style(text::danger))
+                .on_press_maybe((!exiting).then_some(Message::CloseRequested)),
+        ]
+        .align_y(iced::Alignment::Center),
+    )
+    .padding([14, 18])
+    .style(container::rounded_box)
+    .into()
 }
 
 fn panel_update(panel: &mut CmsPanel, message: Message) -> Task<Message> {
@@ -402,21 +495,31 @@ fn panel_theme(_: &CmsPanel) -> Theme {
     Theme::TokyoNight
 }
 
-fn exit_confirmation(language: &CmsLanguage) -> Element<'_, Message> {
-    container(
+fn exit_confirmation() -> Element<'static, Message> {
+    let dialog = container(
         column![
-            text(&language.st_ask_exit_server).size(20),
-            text("这会停止本机的 CMS 服务与由它托管的 px_media。远端 ZLMediaKit 不受影响。"),
+            text("确认退出").size(25),
+            text("是否停止本机 CMS 服务？").size(17),
+            text("这会一并停止由 CMS 托管的 px_media。远端 ZLMediaKit 不受影响。").size(14),
             row![
-                button(language.cancel.as_str()).on_press(Message::CancelExit),
-                button(language.sure.as_str()).on_press(Message::ConfirmExit),
+                Space::new().width(Length::Fill),
+                button("取消").on_press(Message::CancelExit),
+                button(text("停止服务并退出").style(text::danger)).on_press(Message::ConfirmExit),
             ]
-            .spacing(12),
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
         ]
         .spacing(14),
     )
-    .padding(18)
-    .style(container::rounded_box)
+    .width(Length::Fixed(460.0))
+    .padding(26)
+    .style(container::rounded_box);
+
+    mouse_area(container(dialog).center(Length::Fill).style(|_| {
+        container::Style::default()
+            .background(Background::Color(Color::from_rgba(0.02, 0.03, 0.08, 0.70)))
+    }))
+    .on_press(Message::CancelExit)
     .into()
 }
 
