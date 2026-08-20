@@ -109,14 +109,18 @@ try {
   })()`)
   await command('Page.navigate', { url: base + '/live-viewer' })
   await sleep(3000)
-  const clicked = await evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')]
-      .find((item) => item.textContent?.includes('刷新并观看') || item.textContent?.includes('启动并观看'))
-    if (!button) return { clicked: false, title: document.title, text: document.body.innerText.slice(0, 400) }
-    button.click()
-    return { clicked: true }
+  const entryState = await evaluate(`(() => {
+    const video = document.querySelector('video')
+    return {
+      videoPresent: Boolean(video),
+      currentTime: video?.currentTime || 0,
+      title: document.title,
+      text: document.body.innerText.slice(0, 400),
+    }
   })()`)
-  if (!clicked?.clicked) throw new Error(`refresh-and-watch button unavailable: ${clicked?.text || ''}`)
+  if (!entryState?.videoPresent) {
+    throw new Error(`live stream did not load automatically on entry: ${entryState?.text || ''}`)
+  }
   await evaluate(`(() => {
     window.__cmsPlaybackEvents = []
     const video = document.querySelector('video')
@@ -162,7 +166,7 @@ try {
   const events = await evaluate('window.__cmsPlaybackEvents || []')
   const result = samples.at(-1)
   const movingSamples = samples.filter((sample, index) => index === 0 || sample.currentTime > samples[index - 1].currentTime + 0.2).length
-  console.log(JSON.stringify({ ...result, flv, observeMs, movingSamples, events, samples }))
+  console.log(JSON.stringify({ ...result, flv, entryState, observeMs, movingSamples, events, samples }))
   process.exitCode = result?.videoWidth > 0 && result?.currentTime > 0 && movingSamples >= Math.max(1, sampleCount - 2) ? 0 : 1
 } finally {
   try { ws?.close() } catch {}

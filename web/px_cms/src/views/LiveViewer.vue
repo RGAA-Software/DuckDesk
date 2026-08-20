@@ -21,6 +21,8 @@ const video = ref<HTMLVideoElement | null>(null)
 const playerError = ref('')
 let flvPlayer: mpegts.Player | null = null
 let refreshTimer: number | undefined
+let selectionAutoPlayReady = false
+let selectionRevision = 0
 
 interface LiveNodeOption {
   app: AppRow
@@ -280,17 +282,27 @@ async function refreshCatalog(chooseDefault = false) {
   }
 }
 
-watch([selectedAppId, selectedNodeId], () => {
+watch([selectedAppId, selectedNodeId], async () => {
+  const revision = ++selectionRevision
   applyTarget(selectedTarget.value)
   status.value = null
   playerError.value = ''
   destroyPlayer()
+  if (!selectionAutoPlayReady) return
+
+  // Application changes can also replace the selected node in the same Vue
+  // update. Wait for that selection to settle and only play the latest one.
+  await nextTick()
+  if (revision !== selectionRevision || !selectedTarget.value || !selectedDeviceId.value) return
+  await refreshStatus(true)
 })
 
 watch(selectedAppId, () => choosePreferredNode())
 
 onMounted(async () => {
   await refreshCatalog(true)
+  selectionAutoPlayReady = true
+  if (selectedTarget.value && selectedDeviceId.value) await refreshStatus(true)
   refreshTimer = window.setInterval(() => {
     void refreshCatalog(false)
     // Keep the status fresh. Playback itself is not recreated while it is healthy.
@@ -367,9 +379,9 @@ onUnmounted(() => {
         <span><b>实例状态：</b>{{ instanceStateText(selectedTarget.instance?.state) }}</span>
       </div>
       <div class="mt-3 text-xs text-slate-500">
-        选择节点后自动使用其设备 ID
-        与应用标识。主流命名：&lt;device_id&gt;__app__&lt;app_id&gt;；观看端仅拉取 HTTP-FLV 主流，不建立
-        WebRTC 会话。
+        进入页面或切换应用、节点后会自动拉取在线主流，并使用所选节点的设备 ID
+        与应用标识。主流命名：&lt;device_id&gt;__app__&lt;app_id&gt;；观看端仅拉取 HTTP-FLV
+        主流，不建立 WebRTC 会话。
       </div>
     </a-card>
 
