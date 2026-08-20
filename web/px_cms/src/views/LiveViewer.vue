@@ -159,10 +159,14 @@ async function attachPlayer(playUrl: string) {
     stashInitialSize: 64,
     lazyLoad: false,
     deferLoadAfterSourceOpen: false,
-    // Do not seek inside MSE: it causes visible rebuffering if less than one
-    // GOP is available.  liveSync only uses a small playback-rate adjustment
-    // to recover sub-second drift after a transient network stall.
-    liveBufferLatencyChasing: false,
+    // Two-stage live-edge control: small drift is recovered smoothly by
+    // playback-rate adjustment; a backlog over two seconds is corrected by
+    // seeking near the buffered live edge. This prevents latency accumulated
+    // by a throttled/background tab from growing without bound.
+    liveBufferLatencyChasing: true,
+    liveBufferLatencyChasingOnPaused: false,
+    liveBufferLatencyMaxLatency: 2.0,
+    liveBufferLatencyMinRemain: 0.5,
     liveSync: true,
     liveSyncMaxLatency: 1.0,
     liveSyncTargetLatency: 0.45,

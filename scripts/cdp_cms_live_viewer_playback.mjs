@@ -9,6 +9,9 @@ import path from 'node:path'
 const base = process.env.CMS_URL || 'https://127.0.0.1:30500'
 const cdpPort = Number(process.env.CDP_PORT || 9511)
 const observeMs = Number(process.env.CMS_PLAYBACK_OBSERVE_MS || 7000)
+const pauseAfterMs = Number(process.env.CMS_PLAYBACK_PAUSE_AFTER_MS || 0)
+const pauseDurationMs = Number(process.env.CMS_PLAYBACK_PAUSE_DURATION_MS || 0)
+const summaryOnly = process.env.CMS_PLAYBACK_SUMMARY_ONLY === '1'
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
@@ -132,6 +135,25 @@ try {
       }))
     }
   })()`)
+  let pauseProbe = null
+  const pauseTask = pauseAfterMs > 0 && pauseDurationMs > 0
+    ? (async () => {
+        await sleep(pauseAfterMs)
+        await evaluate("document.querySelector('video')?.pause()")
+        await sleep(pauseDurationMs)
+        pauseProbe = await evaluate(`(() => {
+          const video = document.querySelector('video')
+          const buffered = video?.buffered
+          const bufferedEnd = buffered?.length ? buffered.end(buffered.length - 1) : 0
+          return video ? {
+            currentTime: Number(video.currentTime.toFixed(3)),
+            bufferedEnd: Number(bufferedEnd.toFixed(3)),
+            latencyBeforeResume: Number((bufferedEnd - video.currentTime).toFixed(3)),
+          } : null
+        })()`)
+        await evaluate("document.querySelector('video')?.play()")
+      })()
+    : Promise.resolve()
   const samples = []
   const sampleCount = Math.max(1, Math.ceil(observeMs / 1000))
   for (let index = 0; index < sampleCount; index += 1) {
@@ -163,11 +185,34 @@ try {
     } : { videoMissing: true, flvRequests, error }
   })()`))
   }
+  await pauseTask
   const events = await evaluate('window.__cmsPlaybackEvents || []')
   const result = samples.at(-1)
   const movingSamples = samples.filter((sample, index) => index === 0 || sample.currentTime > samples[index - 1].currentTime + 0.2).length
-  console.log(JSON.stringify({ ...result, flv, entryState, observeMs, movingSamples, events, samples }))
-  process.exitCode = result?.videoWidth > 0 && result?.currentTime > 0 && movingSamples >= Math.max(1, sampleCount - 2) ? 0 : 1
+  const maxLatency = Math.max(...samples.map((sample) => sample.bufferedLatency || 0))
+  const sampledTimeline = summaryOnly
+    ? samples.filter((_, index) => index === 0 || index === samples.length - 1 || (index + 1) % 30 === 0)
+    : samples
+  console.log(JSON.stringify({
+    ...result,
+    flv,
+    entryState,
+    observeMs,
+    pauseAfterMs,
+    pauseDurationMs,
+    pauseProbe,
+    movingSamples,
+    maxLatency,
+    events,
+    samples: sampledTimeline,
+  }))
+  const allowedStaticSamples = Math.ceil(pauseDurationMs / 1000) + 3
+  process.exitCode = result?.videoWidth > 0
+    && result?.currentTime > 0
+    && result?.bufferedLatency < 2
+    && movingSamples >= Math.max(1, sampleCount - allowedStaticSamples)
+    ? 0
+    : 1
 } finally {
   try { ws?.close() } catch {}
   try { chrome.kill() } catch {}
