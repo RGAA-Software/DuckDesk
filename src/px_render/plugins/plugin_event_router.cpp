@@ -199,6 +199,16 @@ namespace px
             //LOGI("ReqParamsBeginStreaming, stream id: {}, force gdi: {}", target_event->stream_id_, target_event->force_gdi_);
             app_->HandleForceGdiEvent(target_event->force_gdi_);
         }
+        else if (event->event_type_ == PxPluginEventType::kPluginRedeemConnectionTicket) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginRedeemConnectionTicketEvent>(event);
+            if (target_event) {
+                app_->RedeemConnectionTicket(
+                    target_event->ticket_,
+                    target_event->client_nonce_,
+                    target_event->instance_id_,
+                    std::move(target_event->callback_));
+            }
+        }
     }
 
     void PluginEventRouter::SendAnswerSdpToRemote(const std::shared_ptr<PxPluginBaseEvent>& event) {

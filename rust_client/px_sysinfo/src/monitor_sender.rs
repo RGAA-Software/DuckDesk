@@ -86,7 +86,10 @@ impl MonitorSenderHandle {
     }
 
     pub fn status(&self) -> SenderStatus {
-        self.status.lock().map(|status| status.clone()).unwrap_or_default()
+        self.status
+            .lock()
+            .map(|status| status.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -105,9 +108,14 @@ fn spawn_sender_thread(
             const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
             loop {
-                let desired_snapshot = desired.lock().map(|value| value.clone()).unwrap_or_default();
-                let current_target =
-                    format!("ws://{}:{}/sys/info", desired_snapshot.host, desired_snapshot.port);
+                let desired_snapshot = desired
+                    .lock()
+                    .map(|value| value.clone())
+                    .unwrap_or_default();
+                let current_target = format!(
+                    "ws://{}:{}/sys/info",
+                    desired_snapshot.host, desired_snapshot.port
+                );
 
                 if !desired_snapshot.enabled {
                     ws = None;
@@ -129,10 +137,7 @@ fn spawn_sender_thread(
                         Ok(Ok((stream, _))) => {
                             ws = Some(stream);
                             update_status(&status, true, current_target, "Connected", "");
-                            tracing::info!(
-                                "monitor sender connected to {}",
-                                target
-                            );
+                            tracing::info!("monitor sender connected to {}", target);
                         }
                         Ok(Err(err)) => {
                             let err_str = err.to_string();
@@ -176,7 +181,10 @@ fn spawn_sender_thread(
                     continue;
                 };
 
-                let payload = latest_json.lock().map(|value| value.clone()).unwrap_or_default();
+                let payload = latest_json
+                    .lock()
+                    .map(|value| value.clone())
+                    .unwrap_or_default();
                 if payload.is_empty() {
                     sleep(Duration::from_millis(300)).await;
                     continue;
@@ -200,13 +208,7 @@ fn spawn_sender_thread(
                     }
                     Ok(Err(err)) => {
                         let err_str = err.to_string();
-                        update_status(
-                            &status,
-                            false,
-                            target.clone(),
-                            "SendFailed",
-                            &err_str,
-                        );
+                        update_status(&status, false, target.clone(), "SendFailed", &err_str);
                         tracing::error!("monitor sender send failed: {}", err_str);
                         ws = None;
                         sleep(RECONNECT_DELAY).await;

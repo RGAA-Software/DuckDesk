@@ -154,7 +154,9 @@ fn file_name_ref(path: &Path) -> String {
 }
 
 fn relative_ref_path(base_folder: &Path, full_path: &Path) -> Option<String> {
-    let full = full_path.canonicalize().unwrap_or_else(|_| full_path.to_path_buf());
+    let full = full_path
+        .canonicalize()
+        .unwrap_or_else(|_| full_path.to_path_buf());
     let base = base_folder
         .canonicalize()
         .unwrap_or_else(|_| base_folder.to_path_buf());
@@ -185,7 +187,9 @@ fn make_file_entry(full_path: &Path, ref_path: &str) -> Option<ClipboardFileEntr
         .unwrap_or(0);
     Some(ClipboardFileEntry {
         full_path: path_to_forward_slashes(
-            &full_path.canonicalize().unwrap_or_else(|_| full_path.to_path_buf()),
+            &full_path
+                .canonicalize()
+                .unwrap_or_else(|_| full_path.to_path_buf()),
         ),
         file_name: file_name_ref(full_path),
         ref_path: ref_path.to_string(),
@@ -289,7 +293,8 @@ mod tests {
         fs::write(&a, b"a").expect("write");
         fs::write(&b, b"b").expect("write");
 
-        let entries = build_file_entries_from_paths(&[a.display().to_string(), b.display().to_string()]);
+        let entries =
+            build_file_entries_from_paths(&[a.display().to_string(), b.display().to_string()]);
         assert_eq!(entries.len(), 2);
         let refs: Vec<_> = entries.iter().map(|e| e.ref_path.as_str()).collect();
         assert!(refs.contains(&"a.txt"));

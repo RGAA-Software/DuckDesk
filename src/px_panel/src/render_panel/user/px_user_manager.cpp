@@ -4,6 +4,7 @@
 
 #include "px_user_manager.h"
 #include <format>
+#include <tuple>
 #include "px_common_new/log.h"
 #include "px_cms_client/cms_user.h"
 #include "px_cms_client/cms_user_api.h"
@@ -17,6 +18,7 @@
 #include <Windows.h>
 #include <wincred.h>
 #include <QString>
+#include <QUuid>
 
 const std::string kUserPrefix = "cms_user:";
 
@@ -28,35 +30,15 @@ namespace px
         settings_ = PxSettings::Instance();
     }
 
-    bool PxUserManager::Register(const std::string& username, const std::string& password) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto r = px_cms::CmsUserApi::Register(host, port, appkey, username, password);
-        if (r.has_value()) {
-            context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_register_success"));
-            return Login(username, password, false);
-        }
-        else {
-            auto err = r.error();
-            LOGE("Register failed, err: {}, msg: {}", (int)err, px_cms::CmsApiErrorAsString(err));
-            context_->PostUITask([=, this]() {
-                QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
-                TcDialog dialog(tcTr("id_error"), msg);
-                dialog.exec();
-            });
-        }
-        return false;
-    }
-
     bool PxUserManager::Login(const std::string& username, const std::string& password, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto r = px_cms::CmsUserApi::Login(host, port, username, password);
         if (r.has_value()) {
+            ClearGuestSession();
             auto login = r.value();
             auto user = login.user;
-            if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_)) {
+            if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_, user->must_change_password_)) {
                 // Do not leave a live server-side session behind when the
                 // Windows credential vault cannot persist its token.
                 auto logout_result = px_cms::CmsUserApi::Logout(host, port, login.access_token);
@@ -80,7 +62,7 @@ namespace px
         }
         else {
             auto err = r.error();
-            LOGE("Register failed, err: {}, msg: {}", (int)err, px_cms::CmsApiErrorAsString(err));
+            LOGE("Login failed, err: {}, msg: {}", (int)err, px_cms::CmsApiErrorAsString(err));
             if (show_dialog) {
                 context_->PostUITask([=, this]() {
                     QString msg = tcTr("id_op_error") + ":" + QString::number((int) err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
@@ -96,9 +78,15 @@ namespace px
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto r = px_cms::CmsUserApi::Logout(host, port, GetAccessToken());
+        // Logging out is a local security boundary. Clear the credential even
+        // when CMS is temporarily unreachable; the remote session will expire
+        // and must not keep the Panel appearing signed in.
+        const auto username = GetUsername();
+        const auto uid = GetUserId();
+        Clear();
+        ClearGuestSession();
         if (r.has_value()) {
-            LOGI("Logout: {} {}", GetUsername(), GetUserId());
-            Clear();
+            LOGI("Logout: {} {}", username, uid);
         }
         else {
             auto err = r.error();
@@ -107,18 +95,13 @@ namespace px
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
         }
-        return true;
+        return r.has_value();
     }
 
     bool PxUserManager::ModifyUsername(const std::string& username) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        std::map<std::string, std::string> values = {
-            {px_cms::kUserName, username}
-        };
-        auto r = px_cms::CmsUserApi::Update(host, port, appkey, uid, "", values);
+        auto r = px_cms::CmsUserApi::UpdateProfile(host, port, GetAccessToken(), username);
         if (r.has_value()) {
             auto user = r.value();
             this->UpdateUsername(user->username_);
@@ -139,10 +122,13 @@ namespace px
         auto port = settings_->GetCmsServerPort();
         auto r = px_cms::CmsUserApi::UpdatePassword(host, port, GetAccessToken(), current_password, new_password);
         if (r.has_value()) {
+            auto login = r.value();
+            auto user = login.user;
+            if (!SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_, user->must_change_password_)) {
+                Clear();
+                return false;
+            }
             context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_update_success"));
-            // Password changes increment auth_version and invalidate every
-            // existing session, including this one.
-            Clear();
             return true;
         }
         else {
@@ -157,9 +143,7 @@ namespace px
     bool PxUserManager::UpdateAvatar(const std::string& avatar_path) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        auto r = px_cms::CmsUserApi::UpdateAvatar(host, port, appkey, uid, avatar_path);
+        auto r = px_cms::CmsUserApi::UpdateAvatar(host, port, GetAccessToken(), avatar_path);
         if (r.has_value()) {
             auto user = r.value();
             UpdateAvatarPath(user->avatar_path_);
@@ -178,14 +162,18 @@ namespace px
     std::vector<std::shared_ptr<px_cms::CmsUserDevice>> PxUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        if (uid.empty()) {
+        auto access_token = GetAccessToken();
+        if (access_token.empty()) {
             return {};
         }
-        auto r = px_cms::CmsUserDeviceApi::QueryUserBindDevices(host, port, appkey, uid, page, page_size);
+        (void)page;
+        (void)page_size;
+        auto r = px_cms::CmsUserDeviceApi::QueryUserBindDevices(host, port, access_token);
         if (!r.has_value()) {
             auto err = r.error();
+            if (err == px_cms::CmsApiError::kAuthenticationRequired) {
+                HandleExpiredUserSession();
+            }
             if (show_dialog) {
                 grApp->GetContext()->PostUITask([=, this]() {
 
@@ -199,43 +187,121 @@ namespace px
         }
     }
 
-    std::shared_ptr<px_cms::CmsUserDevice> PxUserManager::AddDeviceForUser(const std::string& device_id) {
+    px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> PxUserManager::IssueDeviceTicket(
+        const std::string& device_id,
+        const std::string& client_nonce,
+        const std::vector<std::string>& requested_permissions) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        if (uid.empty()) {
-            return nullptr;
+        auto result = px_cms::CmsUserDeviceApi::IssueDeviceTicket(
+            host, port, GetAccessToken(), device_id, client_nonce, requested_permissions);
+        if (!result.has_value()
+            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            HandleExpiredUserSession();
         }
-        auto r = px_cms::CmsUserDeviceApi::AddDeviceForUser(host, port, appkey, uid, device_id);
-        if (!r.has_value()) {
-            auto ctx = grApp->GetContext();
-            ctx->PostUITask([=, this]() {
-
-            });
-            return nullptr;
-        }
-        auto device = r.value();
-        return device;
+        return result;
     }
 
-    std::shared_ptr<px_cms::CmsUserDevice> PxUserManager::RemoveDeviceFromUser(const std::string& device_id) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        if (uid.empty()) {
-            return nullptr;
+    px::Result<std::vector<px_cms::CmsUserApplication>, px_cms::CmsApiError>
+    PxUserManager::QueryApps() {
+        auto [token, guest] = ResourceSession();
+        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
+        auto result = px_cms::CmsUserAppApi::QueryApps(settings_->GetCmsServerHost(),
+            settings_->GetCmsServerPort(), token, guest);
+        if (!result.has_value()
+            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            if (guest) ClearGuestSession(); else HandleExpiredUserSession();
+            std::tie(token, guest) = ResourceSession();
+            if (!token.empty()) result = px_cms::CmsUserAppApi::QueryApps(
+                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token, guest);
         }
-        auto r = px_cms::CmsUserDeviceApi::RemoveDeviceFromUser(host, port, appkey, uid, device_id);
-        if (!r.has_value()) {
-            return nullptr;
-        }
-        auto device = r.value();
-        return device;
+        return result;
     }
 
-    bool PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path) {
+    px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError>
+    PxUserManager::StartApp(const std::string& app_id, const std::string& client_nonce) {
+        auto [token, guest] = ResourceSession();
+        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
+        auto result = px_cms::CmsUserAppApi::StartApp(settings_->GetCmsServerHost(),
+            settings_->GetCmsServerPort(), token, app_id, client_nonce, guest);
+        if (!result.has_value()
+            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            if (guest) ClearGuestSession(); else HandleExpiredUserSession();
+            std::tie(token, guest) = ResourceSession();
+            if (!token.empty()) result = px_cms::CmsUserAppApi::StartApp(
+                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+                app_id, client_nonce, guest);
+        }
+        return result;
+    }
+
+    px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError>
+    PxUserManager::IssueInstanceTicket(const std::string& instance_id,
+        const std::string& client_nonce,
+        const std::vector<std::string>& requested_permissions) {
+        auto [token, guest] = ResourceSession();
+        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
+        auto result = px_cms::CmsUserAppApi::IssueInstanceTicket(settings_->GetCmsServerHost(),
+            settings_->GetCmsServerPort(), token, instance_id, client_nonce,
+            requested_permissions, guest);
+        if (!result.has_value()
+            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            // A new guest session does not own the old instance, so this retry
+            // will intentionally fail with 404. The caller then refreshes the
+            // catalog and starts a new instance under the new guest identity.
+            if (guest) ClearGuestSession(); else HandleExpiredUserSession();
+            std::tie(token, guest) = ResourceSession();
+            if (!token.empty()) result = px_cms::CmsUserAppApi::IssueInstanceTicket(
+                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+                instance_id, client_nonce, requested_permissions, guest);
+        }
+        return result;
+    }
+
+    px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError>
+    PxUserManager::StopInstance(const std::string& instance_id) {
+        auto [token, guest] = ResourceSession();
+        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
+        auto result = px_cms::CmsUserAppApi::StopInstance(settings_->GetCmsServerHost(),
+            settings_->GetCmsServerPort(), token, instance_id, guest);
+        if (!result.has_value()
+            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            if (guest) ClearGuestSession(); else HandleExpiredUserSession();
+            std::tie(token, guest) = ResourceSession();
+            if (!token.empty()) result = px_cms::CmsUserAppApi::StopInstance(
+                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+                instance_id, guest);
+        }
+        return result;
+    }
+
+    std::pair<std::string, bool> PxUserManager::ResourceSession() {
+        if (auto token = GetAccessToken(); !token.empty()) {
+            return {std::move(token), false};
+        }
+        std::lock_guard<std::mutex> guard(guest_session_mutex_);
+        if (guest_access_token_.empty()) {
+            const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+            const auto result = px_cms::CmsUserAppApi::CreateGuestSession(
+                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), nonce);
+            if (!result.has_value()) return {{}, true};
+            guest_access_token_ = result.value();
+        }
+        return {guest_access_token_, true};
+    }
+
+    void PxUserManager::ClearGuestSession() {
+        std::lock_guard<std::mutex> guard(guest_session_mutex_);
+        guest_access_token_.clear();
+    }
+
+    void PxUserManager::HandleExpiredUserSession() {
+        Clear();
+        ClearGuestSession();
+        context_->SendAppMessage(MsgUserLoggedOut {});
+    }
+
+    bool PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path, bool must_change_password) {
         if (!SaveAccessToken(access_token)) {
             return false;
         }
@@ -248,6 +314,7 @@ namespace px
 
         // avatar path
         this->UpdateAvatarPath(avatar_path);
+        context_->SpPutInteger(KeyMustChangePassword(), must_change_password ? 1 : 0);
         return true;
     }
 
@@ -316,11 +383,16 @@ namespace px
         return context_->SpGetString(KeyAvatarPath());
     }
 
+    bool PxUserManager::IsPasswordChangeRequired() {
+        return context_->SpGetInteger(KeyMustChangePassword(), 0) != 0;
+    }
+
     void PxUserManager::Clear() {
         DeleteAccessToken();
         context_->SpPutString(KeyUid(), "");
         UpdateUsername("");
         UpdateAvatarPath("");
+        context_->SpPutInteger(KeyMustChangePassword(), 0);
     }
 
     std::string PxUserManager::KeyUid() {
@@ -337,6 +409,10 @@ namespace px
 
     std::string PxUserManager::KeyAvatarPath() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserAvatarPath);
+    }
+
+    std::string PxUserManager::KeyMustChangePassword() {
+        return std::format("{}{}", kUserPrefix, px_cms::kUserMustChangePassword);
     }
 
 }

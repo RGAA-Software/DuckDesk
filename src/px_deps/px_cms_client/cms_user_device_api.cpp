@@ -10,12 +10,10 @@
 #include "cms_user.h"
 #include "cms_user_device.h"
 #include "cms_device.h"
+#include <format>
 #include <nlohmann/json.hpp>
 
-const std::string kUserDeviceControl = "/api/v1/user_device/control";
-const std::string kQueryUserDevices = kUserDeviceControl + "/query/user/devices";
-const std::string kAddDeviceForUser = kUserDeviceControl + "/add/device/for/user";
-const std::string kRemoveDeviceFromUser = kUserDeviceControl + "/remove/device/from/user";
+const std::string kQueryUserDevices = "/api/v1/user/devices";
 
 using namespace px;
 using namespace nlohmann;
@@ -26,17 +24,10 @@ namespace px_cms
     px::Result<std::vector<std::shared_ptr<CmsUserDevice>>, CmsApiError>
     CmsUserDeviceApi::QueryUserBindDevices(const std::string& host,
                                             int port,
-                                            const std::string& appkey,
-                                            const std::string& uid,
-                                            int page,
-                                            int page_size) {
+                                            const std::string& access_token) {
         const auto client = MakeCmsHttpClient(host, port, kQueryUserDevices, 2000);
-        auto resp = client->Request({
-            {"appkey", appkey},
-            {kUserId, uid},
-            {kPage, std::to_string(page)},
-            {kPageSize, std::to_string(page_size)},
-        });
+        client->SetHeader("Authorization", "Bearer " + access_token);
+        auto resp = client->Request();
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("QueryUserDevices failed: {}", resp.status);
@@ -69,62 +60,40 @@ namespace px_cms
         }
     }
 
-    px::Result<std::shared_ptr<CmsUserDevice>, CmsApiError>
-    CmsUserDeviceApi::AddDeviceForUser(const std::string& host,
+    px::Result<CmsConnectionTicket, CmsApiError>
+    CmsUserDeviceApi::IssueDeviceTicket(const std::string& host,
                                         int port,
-                                        const std::string& appkey,
-                                        const std::string& uid,
-                                        const std::string& device_id) {
-        const auto client = MakeCmsHttpClient(host, port, kAddDeviceForUser, 2000);
+                                        const std::string& access_token,
+                                        const std::string& device_id,
+                                        const std::string& client_nonce,
+                                        const std::vector<std::string>& requested_permissions) {
+        const auto path = std::format("/api/v1/user/devices/{}/ticket", device_id);
+        const auto client = MakeCmsHttpClient(host, port, path, 3000);
+        client->SetHeader("Authorization", "Bearer " + access_token);
         json obj;
-        obj[kUserId] = uid;
-        obj[kDeviceId] = device_id;
-        auto resp = client->Post({
-            {"appkey", appkey},
-        }, obj.dump());
+        obj["client_nonce"] = client_nonce;
+        obj["requested_permissions"] = requested_permissions;
+        auto resp = client->Post({}, obj.dump(), "application/json");
 
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("QueryUserDevices failed: {}", resp.status);
+            LOGE("IssueDeviceTicket failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
         }
 
         try {
-            json obj = json::parse(resp.body)[kData];
-            auto r = CmsUserDevice::FromObj(obj);
-            return r;
+            auto data = json::parse(resp.body)[kData];
+            CmsConnectionTicket result;
+            result.ticket = data.value("ticket", "");
+            result.launch_url = data.value("launch_url", "");
+            result.expires_at = data.value("expires_at", 0LL);
+            result.permissions = data.value("permissions", std::vector<std::string>{});
+            if (result.ticket.empty() || result.launch_url.empty()) {
+                return TcErr(CmsApiError::kParseJsonFailed);
+            }
+            return result;
         }
         catch (const std::exception& e) {
-            LOGE("QueryUserBindDevices parse failed: {}", e.what());
-            return TcErr(CmsApiError::kParseJsonFailed);
-        }
-    }
-
-    px::Result<std::shared_ptr<CmsUserDevice>, CmsApiError>
-    CmsUserDeviceApi::RemoveDeviceFromUser(const std::string& host,
-                                            int port,
-                                            const std::string& appkey,
-                                            const std::string& uid,
-                                            const std::string& device_id) {
-        const auto client = MakeCmsHttpClient(host, port, kRemoveDeviceFromUser, 2000);
-        json obj;
-        obj[kUserId] = uid;
-        obj[kDeviceId] = device_id;
-        auto resp = client->Post({
-            {"appkey", appkey},
-        }, obj.dump());
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("QueryUserDevices failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
-        }
-
-        try {
-            json obj = json::parse(resp.body)[kData];
-            auto r = CmsUserDevice::FromObj(obj);
-            return r;
-        }
-        catch (const std::exception& e) {
-            LOGE("QueryUserBindDevices parse failed: {}", e.what());
+            LOGE("IssueDeviceTicket parse failed: {}", e.what());
             return TcErr(CmsApiError::kParseJsonFailed);
         }
     }

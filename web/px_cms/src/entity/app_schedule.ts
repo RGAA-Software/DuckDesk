@@ -45,6 +45,10 @@ export interface AppInstance {
   pid: number
   error: string
   web_client_hint: string
+  owner_type: 'guest' | 'user' | 'admin' | ''
+  owner_id: string
+  owner_session_id: string
+  created_at_ms: number
 }
 
 /** Flattened app row from CMS /app/rows, nodes embedded. */

@@ -15,6 +15,8 @@ use uuid::Uuid;
 
 /// How long HTTP start waits for Service StartAppInstanceResult before failing.
 const START_RESULT_TIMEOUT: Duration = Duration::from_secs(25);
+const STOP_RESULT_TIMEOUT: Duration = Duration::from_secs(10);
+const PROCESS_LOST_GRACE_MS: i64 = 15_000;
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -42,6 +44,18 @@ pub struct Application {
     /// kept only to migrate pre-node rows (see load_from_db).
     #[serde(default)]
     pub listen_port: i32,
+    #[serde(default)]
+    pub access_mode: AppAccessMode,
+    #[serde(default)]
+    pub version: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AppAccessMode {
+    #[default]
+    Public,
+    Acl,
 }
 
 /// 节(node):应用下的一路可运行单元。机器/安装目录/端口都绑在节上;
@@ -74,6 +88,8 @@ pub struct AppRowVo {
     pub encoder_fps: i32,
     pub encoder_bitrate: i32,
     pub encoder_format: String,
+    pub access_mode: AppAccessMode,
+    pub version: i64,
     pub nodes: Vec<AppNode>,
 }
 
@@ -88,6 +104,8 @@ pub struct SaveAppReq {
     pub encoder_fps: Option<i32>,
     pub encoder_bitrate: Option<i32>,
     pub encoder_format: Option<String>,
+    pub access_mode: Option<AppAccessMode>,
+    pub version: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,6 +221,29 @@ pub struct AppInstance {
     /// 客户端重发到达时实例往往已 Running,只看 Starting 会漏)。
     #[serde(default)]
     pub created_at_ms: i64,
+    #[serde(default)]
+    pub started_at_ms: i64,
+    #[serde(default)]
+    pub stopped_at_ms: i64,
+    #[serde(default)]
+    pub owner_type: String,
+    #[serde(default)]
+    pub owner_id: String,
+    #[serde(default)]
+    pub owner_session_id: String,
+    #[serde(default)]
+    pub client_nonce: String,
+    /// Optimistic state-machine revision. New instances start at one and every
+    /// state transition increments it before persistence.
+    #[serde(default = "default_instance_version")]
+    pub version: i64,
+    /// Last heartbeat in which Service reported this instance as active.
+    #[serde(default)]
+    pub last_heartbeat_at_ms: i64,
+}
+
+fn default_instance_version() -> i64 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,6 +301,13 @@ struct Inner {
     request_index: HashMap<String, String>,
     /// HTTP start waits here until Service posts StartAppInstanceResult.
     start_waiters: HashMap<String, oneshot::Sender<AppInstance>>,
+    /// Stop uses the same receipt discipline as start. Without this waiter a
+    /// lost Service response leaves an instance in `stopping` forever.
+    stop_waiters: HashMap<String, oneshot::Sender<AppInstance>>,
+    /// First time an active instance was absent from Service state. This is a
+    /// transient suspicion marker; only continuous absence for the full grace
+    /// period becomes PROCESS_LOST.
+    suspect_since: HashMap<String, i64>,
 }
 
 pub struct AppScheduleManager {
@@ -300,6 +348,8 @@ impl AppScheduleManager {
             webrtc_enabled: true,
             websocket_enabled: true,
             listen_port: req.listen_port.unwrap_or(0),
+            access_mode: AppAccessMode::Public,
+            version: 1,
         };
         {
             let mut g = self.inner.lock().await;
@@ -313,6 +363,33 @@ impl AppScheduleManager {
 
     pub async fn list_applications(&self) -> Vec<Application> {
         self.inner.lock().await.apps.values().cloned().collect()
+    }
+
+    pub async fn get_application(&self, app_id: &str) -> Option<Application> {
+        self.inner.lock().await.apps.get(app_id).cloned()
+    }
+
+    pub async fn update_access_mode(
+        &self,
+        app_id: &str,
+        version: i64,
+        access_mode: AppAccessMode,
+    ) -> Result<Application, String> {
+        let app = {
+            let mut inner = self.inner.lock().await;
+            let app = inner
+                .apps
+                .get_mut(app_id)
+                .ok_or_else(|| "RESOURCE_NOT_FOUND".to_string())?;
+            if app.version != version {
+                return Err("VERSION_CONFLICT".to_string());
+            }
+            app.access_mode = access_mode;
+            app.version += 1;
+            app.clone()
+        };
+        crate::app_schedule::store::upsert_application(&app).await?;
+        Ok(app)
     }
 
     pub async fn list_app_rows(&self) -> Vec<AppRowVo> {
@@ -352,6 +429,8 @@ impl AppScheduleManager {
                 encoder_fps: app.encoder_fps,
                 encoder_bitrate: app.encoder_bitrate,
                 encoder_format: app.encoder_format.clone(),
+                access_mode: app.access_mode.clone(),
+                version: app.version,
                 nodes,
             });
         }
@@ -473,6 +552,11 @@ impl AppScheduleManager {
                         .ok_or_else(|| format!("应用不存在: {id}"))
                 })
                 .transpose()?;
+            if let Some(existing) = existing.as_ref() {
+                if req.version != Some(existing.version) {
+                    return Err("VERSION_CONFLICT".to_string());
+                }
+            }
             let app = Application {
                 app_id: app_id.clone(),
                 name: req.name.trim().to_string(),
@@ -499,6 +583,13 @@ impl AppScheduleManager {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: existing.as_ref().map(|e| e.listen_port).unwrap_or(0),
+                access_mode: req.access_mode.unwrap_or_else(|| {
+                    existing
+                        .as_ref()
+                        .map(|e| e.access_mode.clone())
+                        .unwrap_or_default()
+                }),
+                version: existing.as_ref().map(|e| e.version + 1).unwrap_or(1),
             };
             g.apps.insert(app.app_id.clone(), app.clone());
             app
@@ -512,6 +603,8 @@ impl AppScheduleManager {
             encoder_fps: app.encoder_fps,
             encoder_bitrate: app.encoder_bitrate,
             encoder_format: app.encoder_format,
+            access_mode: app.access_mode,
+            version: app.version,
             nodes: Vec::new(),
         };
         let g = self.inner.lock().await;
@@ -778,6 +871,28 @@ impl AppScheduleManager {
             .collect()
     }
 
+    pub async fn get_instance(&self, instance_id: &str) -> Option<AppInstance> {
+        self.inner.lock().await.instances.get(instance_id).cloned()
+    }
+
+    pub async fn list_instances_for_owner(
+        &self,
+        owner_type: &str,
+        owner_id: &str,
+    ) -> Vec<AppInstance> {
+        let mut instances: Vec<_> = self
+            .inner
+            .lock()
+            .await
+            .instances
+            .values()
+            .filter(|instance| instance.owner_type == owner_type && instance.owner_id == owner_id)
+            .cloned()
+            .collect();
+        instances.sort_by(|left, right| right.created_at_ms.cmp(&left.created_at_ms));
+        instances
+    }
+
     /// 应用级启动:自动选一个节启动。候选 = 该应用的节中「无活跃实例 ∧ 端口
     /// 未被同机活跃实例占用」者;按 last_run_at 最老(从未运行优先)、seq_no
     /// 最小排序,取第一个 Service 在线的。req.device_id/listen_port 为遗留
@@ -792,6 +907,17 @@ impl AppScheduleManager {
     /// false(IP 兜底):Running 仅在 60s 窗口内复用 —— 窗口覆盖 Running 是因为
     /// 启动回执 ~1s 就返回,客户端重发(实测 2~4s 后到达)看到的实例往往已是 Running。
     pub async fn start_instance(&self, req: StartInstanceReq) -> Result<AppInstance, String> {
+        self.start_instance_owned(req, "admin", "", "", "").await
+    }
+
+    pub async fn start_instance_owned(
+        &self,
+        req: StartInstanceReq,
+        owner_type: &str,
+        owner_id: &str,
+        owner_session_id: &str,
+        client_nonce: &str,
+    ) -> Result<AppInstance, String> {
         if let Some(key) = req.client_key.as_deref().filter(|k| !k.is_empty()) {
             let dup = {
                 let g = self.inner.lock().await;
@@ -800,6 +926,9 @@ impl AppScheduleManager {
                     .find(|i| {
                         i.app_id == req.app_id
                             && i.client_key == key
+                            && i.owner_type == owner_type
+                            && i.owner_id == owner_id
+                            && i.owner_session_id == owner_session_id
                             && (i.state == InstanceState::Starting
                                 || (i.state == InstanceState::Running
                                     && (req.client_key_permanent
@@ -885,6 +1014,10 @@ impl AppScheduleManager {
                                     &node,
                                     &app,
                                     &client_key,
+                                    owner_type,
+                                    owner_id,
+                                    owner_session_id,
+                                    client_nonce,
                                 );
                                 Some((node, app, inst, install_root, game_exe_rel))
                             }
@@ -917,6 +1050,7 @@ impl AppScheduleManager {
                         g.request_index.remove(&inst.request_id);
                         if let Some(i) = g.instances.get_mut(&inst.instance_id) {
                             i.state = InstanceState::Failed;
+                            i.version += 1;
                             i.error = format!("service offline: {}", node.device_id);
                             Some(i.clone())
                         } else {
@@ -961,6 +1095,10 @@ impl AppScheduleManager {
         node: &AppNode,
         app: &Application,
         client_key: &str,
+        owner_type: &str,
+        owner_id: &str,
+        owner_session_id: &str,
+        client_nonce: &str,
     ) -> AppInstance {
         let request_id = self.next_id("req");
         let instance_id = self.next_id("inst");
@@ -981,6 +1119,14 @@ impl AppScheduleManager {
             web_client_hint: String::new(),
             client_key: client_key.to_string(),
             created_at_ms: now_ms(),
+            started_at_ms: 0,
+            stopped_at_ms: 0,
+            owner_type: owner_type.to_string(),
+            owner_id: owner_id.to_string(),
+            owner_session_id: owner_session_id.to_string(),
+            client_nonce: client_nonce.to_string(),
+            version: 1,
+            last_heartbeat_at_ms: 0,
         };
         g.request_index
             .insert(request_id.clone(), instance_id.clone());
@@ -1020,7 +1166,8 @@ impl AppScheduleManager {
                 .ok_or_else(|| format!("unknown app_id {}", node.app_id))?;
             let (install_root, game_exe_rel) =
                 resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)?;
-            let inst = self.pre_occupy_instance_locked(&mut g, &node, &app, "");
+            let inst =
+                self.pre_occupy_instance_locked(&mut g, &node, &app, "", "admin", "", "", "");
             (node, app, inst, install_root, game_exe_rel)
         };
         if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
@@ -1034,6 +1181,7 @@ impl AppScheduleManager {
                     g.request_index.remove(&inst.request_id);
                     if let Some(i) = g.instances.get_mut(&inst.instance_id) {
                         i.state = InstanceState::Failed;
+                        i.version += 1;
                         i.error = format!("service offline: {}", node.device_id);
                         Some(i.clone())
                     } else {
@@ -1100,6 +1248,7 @@ impl AppScheduleManager {
                 g.request_index.remove(&request_id);
                 if let Some(i) = g.instances.get_mut(&instance_id) {
                     i.state = InstanceState::Failed;
+                    i.version += 1;
                     i.error = "下发到 Service 失败".to_string();
                     Some(i.clone())
                 } else {
@@ -1137,7 +1286,9 @@ impl AppScheduleManager {
                     if let Some(i) = g.instances.get_mut(&instance_id) {
                         if matches!(i.state, InstanceState::Starting) {
                             i.state = InstanceState::Failed;
-                            i.error = "等待 Service 启动结果超时".to_string();
+                            i.version += 1;
+                            i.stopped_at_ms = now_ms();
+                            i.error = "START_TIMEOUT".to_string();
                         }
                         Some(i.clone())
                     } else {
@@ -1146,13 +1297,16 @@ impl AppScheduleManager {
                 };
                 if let Some(failed) = snapshot {
                     let _ = crate::app_schedule::store::upsert_instance(&failed).await;
-                    return Err(if failed.error.is_empty() {
-                        "等待 Service 启动结果超时".to_string()
-                    } else {
-                        failed.error
-                    });
+                    // A late successful launch must not become an orphan
+                    // process after the caller has already observed failure.
+                    let compensation = CmsServiceStopAppInstance {
+                        request_id: self.next_id("compensate-stop"),
+                        instance_id: failed.instance_id.clone(),
+                    };
+                    let _ = conn.lock().await.send_stop_app_instance(compensation).await;
+                    return Err("START_TIMEOUT".to_string());
                 }
-                Err("等待 Service 启动结果超时".to_string())
+                Err("START_TIMEOUT".to_string())
             }
         }
     }
@@ -1169,6 +1323,7 @@ impl AppScheduleManager {
                 return Err(format!("instance already {:?}", inst.state));
             }
             inst.state = InstanceState::Stopping;
+            inst.version += 1;
             inst.request_id = request_id.clone();
             let device_id = inst.device_id.clone();
             let snapshot = inst.clone();
@@ -1187,6 +1342,8 @@ impl AppScheduleManager {
                     g.request_index.remove(&request_id);
                     if let Some(i) = g.instances.get_mut(instance_id) {
                         i.state = InstanceState::Stopped;
+                        i.version += 1;
+                        i.stopped_at_ms = now_ms();
                         i.pid = 0;
                         i.error.clear();
                         Some(i.clone())
@@ -1201,16 +1358,25 @@ impl AppScheduleManager {
             }
         };
         let stop = CmsServiceStopAppInstance {
-            request_id,
+            request_id: request_id.clone(),
             instance_id: instance_id.to_string(),
         };
+        let (wait_tx, wait_rx) = oneshot::channel();
+        self.inner
+            .lock()
+            .await
+            .stop_waiters
+            .insert(request_id.clone(), wait_tx);
         let ok = conn.lock().await.send_stop_app_instance(stop).await;
         if !ok {
             let snapshot = {
                 let mut g = self.inner.lock().await;
                 let g = &mut *g;
+                g.stop_waiters.remove(&request_id);
                 if let Some(i) = g.instances.get_mut(instance_id) {
                     i.state = InstanceState::Failed;
+                    i.version += 1;
+                    i.stopped_at_ms = now_ms();
                     i.error = "下发停止失败".to_string();
                     g.request_index.remove(&i.request_id);
                     Some(i.clone())
@@ -1223,8 +1389,41 @@ impl AppScheduleManager {
             }
             return Err("下发停止失败".to_string());
         }
-        let g = self.inner.lock().await;
-        Ok(g.instances.get(instance_id).cloned().unwrap())
+        match tokio::time::timeout(STOP_RESULT_TIMEOUT, wait_rx).await {
+            Ok(Ok(final_instance)) if final_instance.state == InstanceState::Stopped => {
+                Ok(final_instance)
+            }
+            Ok(Ok(final_instance)) => Err(if final_instance.error.is_empty() {
+                "停止失败".to_string()
+            } else {
+                final_instance.error
+            }),
+            Ok(Err(_)) => Err("停止结果通道已关闭".to_string()),
+            Err(_) => {
+                let snapshot = {
+                    let mut g = self.inner.lock().await;
+                    g.stop_waiters.remove(&request_id);
+                    g.request_index.remove(&request_id);
+                    if let Some(instance) = g.instances.get_mut(instance_id) {
+                        if instance.state == InstanceState::Stopping
+                            && instance.request_id == request_id
+                        {
+                            instance.state = InstanceState::Failed;
+                            instance.version += 1;
+                            instance.stopped_at_ms = now_ms();
+                            instance.error = "STOP_TIMEOUT".to_string();
+                        }
+                        Some(instance.clone())
+                    } else {
+                        None
+                    }
+                };
+                if let Some(instance) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&instance).await;
+                }
+                Err("STOP_TIMEOUT".to_string())
+            }
+        }
     }
 
     pub async fn on_start_result(
@@ -1266,6 +1465,11 @@ impl AppScheduleManager {
             } else {
                 if result.ok {
                     inst.state = InstanceState::Running;
+                    inst.version += 1;
+                    if inst.started_at_ms == 0 {
+                        inst.started_at_ms = now_ms();
+                    }
+                    inst.stopped_at_ms = 0;
                     inst.listen_port = result.listen_port;
                     inst.pid = result.pid;
                     inst.error.clear();
@@ -1282,6 +1486,8 @@ impl AppScheduleManager {
                     }
                 } else {
                     inst.state = InstanceState::Failed;
+                    inst.version += 1;
+                    inst.stopped_at_ms = now_ms();
                     inst.error = result.error;
                     // Terminal state: drop the request mapping.
                     g.request_index.remove(&result.request_id);
@@ -1310,6 +1516,7 @@ impl AppScheduleManager {
         let treat_stopped = result.ok || already_gone;
         let mut guard = self.inner.lock().await;
         let g = &mut *guard;
+        let waiter = g.stop_waiters.remove(&result.request_id);
         let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
             // Also match by instance_id directly
             if let Some(inst) = g.instances.get_mut(&result.instance_id) {
@@ -1324,17 +1531,24 @@ impl AppScheduleManager {
                 }
                 if treat_stopped {
                     inst.state = InstanceState::Stopped;
+                    inst.version += 1;
+                    inst.stopped_at_ms = now_ms();
                     inst.pid = 0;
                     inst.error.clear();
                 } else {
                     // Do not leave Stopping forever on stop failure.
                     inst.state = InstanceState::Failed;
+                    inst.version += 1;
+                    inst.stopped_at_ms = now_ms();
                     inst.error = result.error;
                 }
                 g.request_index.remove(&inst.request_id);
                 let snap = inst.clone();
                 drop(guard);
                 let _ = crate::app_schedule::store::upsert_instance(&snap).await;
+                if let Some(waiter) = waiter {
+                    let _ = waiter.send(snap);
+                }
             } else {
                 tracing::warn!(
                     "stop result unknown request {} from {}",
@@ -1356,10 +1570,14 @@ impl AppScheduleManager {
             } else {
                 if treat_stopped {
                     inst.state = InstanceState::Stopped;
+                    inst.version += 1;
+                    inst.stopped_at_ms = now_ms();
                     inst.pid = 0;
                     inst.error.clear();
                 } else {
                     inst.state = InstanceState::Failed;
+                    inst.version += 1;
+                    inst.stopped_at_ms = now_ms();
                     inst.error = result.error;
                 }
                 // Terminal state: drop the request mapping.
@@ -1372,12 +1590,37 @@ impl AppScheduleManager {
         drop(guard);
         if let Some(inst) = snapshot {
             let _ = crate::app_schedule::store::upsert_instance(&inst).await;
+            if let Some(waiter) = waiter {
+                let _ = waiter.send(inst);
+            }
         }
     }
 
-    /// Align CMS state with what Service reports in HB — in both directions:
-    /// active in CMS but missing from HB => stopped; active in HB but
-    /// stopped/failed in CMS => revived to Running (pid/port backfilled).
+    /// Begin the process-loss grace period as soon as a Service connection is
+    /// lost. A reconnecting Service clears these markers with its heartbeat.
+    pub async fn mark_device_suspect(&self, device_id: &str) {
+        let now = now_ms();
+        let mut g = self.inner.lock().await;
+        let ids: Vec<String> = g
+            .instances
+            .values()
+            .filter(|instance| {
+                instance.device_id == device_id
+                    && matches!(
+                        instance.state,
+                        InstanceState::Running | InstanceState::Stopping
+                    )
+            })
+            .map(|instance| instance.instance_id.clone())
+            .collect();
+        for instance_id in ids {
+            g.suspect_since.entry(instance_id).or_insert(now);
+        }
+    }
+
+    /// Align CMS state with what Service reports in HB — in both directions.
+    /// Missing instances first become suspect and are only finalized after a
+    /// continuous 15-second absence; a single incomplete heartbeat is harmless.
     /// Only `running`/`starting`/`stopping` rows in HB count as alive — a ghost
     /// `stopped` entry with the same instance_id must not keep CMS in Running.
     pub async fn reconcile_from_service_hb(&self, device_id: String, instances_json: &str) {
@@ -1420,32 +1663,27 @@ impl AppScheduleManager {
             .map(|r| (r.instance_id.clone(), r))
             .collect();
 
+        let now = now_ms();
         let (snapshots, known_ids) = {
             let mut g = self.inner.lock().await;
             let g = &mut *g;
+            let Inner {
+                instances,
+                suspect_since,
+                request_index,
+                ..
+            } = g;
             let mut out = Vec::new();
-            for inst in g.instances.values_mut() {
+            for inst in instances.values_mut() {
                 if inst.device_id != device_id {
                     continue;
                 }
-                match inst.state {
-                    InstanceState::Running | InstanceState::Stopping => {
-                        if !active.contains_key(&inst.instance_id) {
-                            tracing::info!(
-                                "reconcile: device {} instance {} was {:?} but not active in service HB — mark stopped",
-                                device_id,
-                                inst.instance_id,
-                                inst.state
-                            );
-                            inst.state = InstanceState::Stopped;
-                            inst.pid = 0;
-                            inst.error.clear();
-                            g.request_index.remove(&inst.request_id);
-                            out.push(inst.clone());
-                        }
-                    }
-                    InstanceState::Stopped | InstanceState::Failed => {
-                        if let Some(rep) = active.get(&inst.instance_id) {
+                if let Some(rep) = active.get(&inst.instance_id) {
+                    suspect_since.remove(&inst.instance_id);
+                    let heartbeat_due = now.saturating_sub(inst.last_heartbeat_at_ms) >= 10_000;
+                    inst.last_heartbeat_at_ms = now;
+                    match inst.state {
+                        InstanceState::Stopped | InstanceState::Failed => {
                             tracing::info!(
                                 "reconcile: device {} instance {} was {:?} but active in service HB — restore running (pid={} port={})",
                                 device_id,
@@ -1455,6 +1693,11 @@ impl AppScheduleManager {
                                 rep.listen_port
                             );
                             inst.state = InstanceState::Running;
+                            inst.version += 1;
+                            if inst.started_at_ms == 0 {
+                                inst.started_at_ms = now;
+                            }
+                            inst.stopped_at_ms = 0;
                             inst.pid = rep.pid;
                             if rep.listen_port > 0 {
                                 inst.listen_port = rep.listen_port;
@@ -1462,14 +1705,50 @@ impl AppScheduleManager {
                             inst.error.clear();
                             out.push(inst.clone());
                         }
+                        InstanceState::Running | InstanceState::Stopping => {
+                            if rep.pid != 0 {
+                                inst.pid = rep.pid;
+                            }
+                            if rep.listen_port > 0 {
+                                inst.listen_port = rep.listen_port;
+                            }
+                            if heartbeat_due {
+                                out.push(inst.clone());
+                            }
+                        }
+                        InstanceState::Starting => {}
                     }
+                    continue;
+                }
+                match inst.state {
+                    InstanceState::Running | InstanceState::Stopping => {
+                        let missing_since =
+                            suspect_since.entry(inst.instance_id.clone()).or_insert(now);
+                        if now.saturating_sub(*missing_since) >= PROCESS_LOST_GRACE_MS {
+                            tracing::info!(
+                                "reconcile: device {} instance {} was {:?} and absent for {}ms — mark stopped",
+                                device_id,
+                                inst.instance_id,
+                                inst.state,
+                                now.saturating_sub(*missing_since)
+                            );
+                            inst.state = InstanceState::Stopped;
+                            inst.version += 1;
+                            inst.stopped_at_ms = now;
+                            inst.pid = 0;
+                            inst.error = "PROCESS_LOST".to_string();
+                            request_index.remove(&inst.request_id);
+                            suspect_since.remove(&inst.instance_id);
+                            out.push(inst.clone());
+                        }
+                    }
+                    InstanceState::Stopped | InstanceState::Failed => {}
                     // Starting: still waiting for the start receipt; HB alone
                     // must not flip it either way.
                     InstanceState::Starting => {}
                 }
             }
-            let known: std::collections::HashSet<String> = g
-                .instances
+            let known: std::collections::HashSet<String> = instances
                 .values()
                 .filter(|i| i.device_id == device_id)
                 .map(|i| i.instance_id.clone())
@@ -1490,30 +1769,21 @@ impl AppScheduleManager {
         }
     }
 
-    /// CMS restarted while waiting for a receipt: transitional states would
-    /// otherwise live forever. starting => failed, stopping => stopped.
-    /// Returns true when the instance was healed (caller must persist it).
+    /// Normalize records loaded from older test builds. Transitional states
+    /// deliberately remain intact until Service heartbeat reconciliation so a
+    /// CMS restart cannot duplicate or incorrectly terminate a live process.
     fn heal_instance_after_restart(inst: &mut AppInstance) -> bool {
-        match inst.state {
-            InstanceState::Starting => {
-                inst.state = InstanceState::Failed;
-                inst.error = "CMS restarted".to_string();
-                true
-            }
-            InstanceState::Stopping => {
-                inst.state = InstanceState::Stopped;
-                inst.pid = 0;
-                inst.error.clear();
-                true
-            }
-            _ => false,
+        if inst.version <= 0 {
+            inst.version = 1;
+            return true;
         }
+        false
     }
 
     pub async fn load_from_db(&self) {
         match crate::app_schedule::store::load_all().await {
             Ok((apps, placements, nodes, instances)) => {
-                let (healed, migrated) = {
+                let (healed, migrated, suspect_devices) = {
                     let mut g = self.inner.lock().await;
                     for app in apps {
                         g.apps.insert(app.app_id.clone(), app);
@@ -1536,6 +1806,7 @@ impl AppScheduleManager {
                         self.seq.store(max_seq + 1, Ordering::Relaxed);
                     }
                     let mut healed = Vec::new();
+                    let mut suspect_devices = std::collections::HashSet::new();
                     for mut i in instances {
                         if Self::heal_instance_after_restart(&mut i) {
                             tracing::info!(
@@ -1547,6 +1818,10 @@ impl AppScheduleManager {
                         } else {
                             g.request_index
                                 .insert(i.request_id.clone(), i.instance_id.clone());
+                        }
+                        if matches!(i.state, InstanceState::Running | InstanceState::Stopping) {
+                            g.suspect_since.insert(i.instance_id.clone(), now_ms());
+                            suspect_devices.insert(i.device_id.clone());
                         }
                         g.instances.insert(i.instance_id.clone(), i);
                     }
@@ -1561,13 +1836,25 @@ impl AppScheduleManager {
                         healed.len(),
                         migrated.len()
                     );
-                    (healed, migrated)
+                    (healed, migrated, suspect_devices)
                 };
                 for i in healed {
                     let _ = crate::app_schedule::store::upsert_instance(&i).await;
                 }
                 for n in migrated {
                     let _ = crate::app_schedule::store::upsert_node(&n).await;
+                }
+                // If a Service never reconnects there will be no heartbeat to
+                // trigger reconciliation, so close the startup grace window
+                // explicitly. Reconnected devices clear suspicion beforehand.
+                for device_id in suspect_devices {
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(PROCESS_LOST_GRACE_MS as u64))
+                            .await;
+                        crate::app_schedule::gAppScheduleManager
+                            .reconcile_from_service_hb(device_id, "[]")
+                            .await;
+                    });
                 }
             }
             Err(e) => tracing::warn!("load app schedule from mongo failed: {e}"),
@@ -1781,6 +2068,7 @@ mod tests {
             webrtc_enabled: true,
             websocket_enabled: true,
             listen_port: 32000,
+            ..Default::default()
         };
         let placement = AppPlacement {
             placement_id: "plc-1".into(),
@@ -1802,6 +2090,7 @@ mod tests {
             web_client_hint: String::new(),
             client_key: String::new(),
             created_at_ms: 0,
+            ..Default::default()
         };
         mgr.inject_for_test(app, placement, inst).await;
         mgr.on_start_result(
@@ -1850,6 +2139,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32001,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -1871,6 +2161,7 @@ mod tests {
                 web_client_hint: String::new(),
                 client_key: String::new(),
                 created_at_ms: 0,
+                ..Default::default()
             },
         )
         .await;
@@ -1907,6 +2198,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32000,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -1928,6 +2220,7 @@ mod tests {
                 web_client_hint: String::new(),
                 client_key: String::new(),
                 created_at_ms: 0,
+                ..Default::default()
             },
         )
         .await;
@@ -1962,6 +2255,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32000,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -1983,9 +2277,18 @@ mod tests {
                 web_client_hint: String::new(),
                 client_key: String::new(),
                 created_at_ms: 0,
+                ..Default::default()
             },
         )
         .await;
+        // One incomplete heartbeat only starts the suspicion window.
+        mgr.reconcile_from_service_hb("dev-1".into(), "[]").await;
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Running);
+        mgr.inner
+            .lock()
+            .await
+            .suspect_since
+            .insert("ghost".into(), now_ms() - PROCESS_LOST_GRACE_MS);
         mgr.reconcile_from_service_hb("dev-1".into(), "[]").await;
         let i = &mgr.list_instances().await[0];
         assert_eq!(i.state, InstanceState::Stopped);
@@ -2008,6 +2311,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32000,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -2029,10 +2333,16 @@ mod tests {
                 web_client_hint: String::new(),
                 client_key: String::new(),
                 created_at_ms: 0,
+                ..Default::default()
             },
         )
         .await;
         // Same id still listed, but Service says stopped → CMS must clear Running.
+        mgr.inner
+            .lock()
+            .await
+            .suspect_since
+            .insert("ghost".into(), now_ms() - PROCESS_LOST_GRACE_MS);
         mgr.reconcile_from_service_hb(
             "dev-1".into(),
             r#"[{"instance_id":"ghost","state":"stopped"}]"#,
@@ -2073,6 +2383,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2213,6 +2525,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32000,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),
@@ -2234,6 +2547,7 @@ mod tests {
                 web_client_hint: String::new(),
                 client_key: String::new(),
                 created_at_ms: 0,
+                ..Default::default()
             },
         )
     }
@@ -2318,21 +2632,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heal_instance_after_restart_fixes_transitional_states() {
+    async fn restart_preserves_transitional_states_for_service_reconcile() {
         let (_, _, mut inst) = fixture(InstanceState::Starting);
         assert!(AppScheduleManager::heal_instance_after_restart(&mut inst));
-        assert_eq!(inst.state, InstanceState::Failed);
-        assert_eq!(inst.error, "CMS restarted");
+        assert_eq!(inst.state, InstanceState::Starting);
+        assert_eq!(inst.version, 1);
 
         let (_, _, mut inst) = fixture(InstanceState::Stopping);
         inst.pid = 5;
         assert!(AppScheduleManager::heal_instance_after_restart(&mut inst));
-        assert_eq!(inst.state, InstanceState::Stopped);
-        assert_eq!(inst.pid, 0);
+        assert_eq!(inst.state, InstanceState::Stopping);
+        assert_eq!(inst.pid, 5);
 
         let (_, _, mut inst) = fixture(InstanceState::Running);
-        assert!(!AppScheduleManager::heal_instance_after_restart(&mut inst));
+        assert!(AppScheduleManager::heal_instance_after_restart(&mut inst));
         assert_eq!(inst.state, InstanceState::Running);
+
+        assert!(!AppScheduleManager::heal_instance_after_restart(&mut inst));
+        assert_eq!(inst.version, 1);
     }
 
     #[tokio::test]
@@ -2347,6 +2664,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2378,6 +2697,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2411,6 +2732,7 @@ mod tests {
                     web_client_hint: String::new(),
                     client_key: String::new(),
                     created_at_ms: 0,
+                    ..Default::default()
                 },
             );
         }
@@ -2471,6 +2793,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2529,6 +2853,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2563,6 +2889,7 @@ mod tests {
                     web_client_hint: String::new(),
                     client_key: String::new(),
                     created_at_ms: 0,
+                    ..Default::default()
                 },
             );
         }
@@ -2599,6 +2926,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2644,6 +2973,7 @@ mod tests {
                     web_client_hint: String::new(),
                     client_key: String::new(),
                     created_at_ms: 0,
+                    ..Default::default()
                 },
             );
         }
@@ -2681,6 +3011,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2715,6 +3047,8 @@ mod tests {
                     web_client_hint: String::new(),
                     client_key: "ip1".into(),
                     created_at_ms: now_ms(),
+                    owner_type: "admin".into(),
+                    ..Default::default()
                 },
             );
         }
@@ -2801,6 +3135,8 @@ mod tests {
                 encoder_fps: None,
                 encoder_bitrate: None,
                 encoder_format: None,
+                access_mode: None,
+                version: None,
             })
             .await
             .unwrap();
@@ -2835,6 +3171,8 @@ mod tests {
                     web_client_hint: String::new(),
                     client_key: "nonce-e".into(),
                     created_at_ms: now_ms() - 3_600_000,
+                    owner_type: "admin".into(),
+                    ..Default::default()
                 },
             );
         }
@@ -2885,6 +3223,7 @@ mod tests {
                 webrtc_enabled: true,
                 websocket_enabled: true,
                 listen_port: 32055,
+                ..Default::default()
             },
             AppPlacement {
                 placement_id: "p".into(),

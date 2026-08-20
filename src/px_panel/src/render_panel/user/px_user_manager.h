@@ -6,13 +6,12 @@
 #define GAMMARAYPREMIUM_USERMANAGER_H
 
 #include <memory>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
-
-namespace px_cms
-{
-    class CmsUserDevice;
-}
+#include "px_cms_client/cms_user_device_api.h"
+#include "px_cms_client/cms_user_app_api.h"
 
 namespace px
 {
@@ -23,7 +22,6 @@ namespace px
     class PxUserManager {
     public:
         explicit PxUserManager(const std::shared_ptr<PxContext>& ctx);
-        bool Register(const std::string& username, const std::string& password);
         bool Login(const std::string& username, const std::string& password, bool show_dialog = true);
         bool Logout();
         bool ModifyUsername(const std::string& username);
@@ -31,31 +29,48 @@ namespace px
         bool UpdateAvatar(const std::string& avatar_path);
         // user - device
         std::vector<std::shared_ptr<px_cms::CmsUserDevice>> QueryBindDevices(int page, int page_size, bool show_dialog);
-        std::shared_ptr<px_cms::CmsUserDevice> AddDeviceForUser(const std::string& device_id);
-        std::shared_ptr<px_cms::CmsUserDevice> RemoveDeviceFromUser(const std::string& device_id);
+        px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> IssueDeviceTicket(
+            const std::string& device_id,
+            const std::string& client_nonce,
+            const std::vector<std::string>& requested_permissions);
+        px::Result<std::vector<px_cms::CmsUserApplication>, px_cms::CmsApiError> QueryApps();
+        px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError> StartApp(
+            const std::string& app_id, const std::string& client_nonce);
+        px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> IssueInstanceTicket(
+            const std::string& instance_id, const std::string& client_nonce,
+            const std::vector<std::string>& requested_permissions);
+        px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError> StopInstance(
+            const std::string& instance_id);
 
         bool IsLoggedIn();
         std::string GetUserId();
         std::string GetUsername();
         std::string GetAccessToken();
         std::string GetAvatarPath();
+        bool IsPasswordChangeRequired();
         void Clear();
 
     private:
-        bool SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path);
+        bool SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path, bool must_change_password);
         void UpdateUsername(const std::string& username);
         bool SaveAccessToken(const std::string& access_token);
         void DeleteAccessToken();
         void UpdateAvatarPath(const std::string& avatar_path);
+        std::pair<std::string, bool> ResourceSession();
+        void ClearGuestSession();
+        void HandleExpiredUserSession();
 
         static std::string KeyUid();
         static std::string KeyUsername();
         std::wstring CredentialTarget() const;
         static std::string KeyAvatarPath();
+        static std::string KeyMustChangePassword();
 
     private:
         PxSettings* settings_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
+        std::mutex guest_session_mutex_;
+        std::string guest_access_token_;
 
     };
 

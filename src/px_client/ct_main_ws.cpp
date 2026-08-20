@@ -105,6 +105,12 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_remote_device_sp("remote_device_sp", "remote_device sp", "value", "");
     parser.addOption(opt_remote_device_sp);
 
+    QCommandLineOption opt_connection_ticket("connection_ticket", "CMS one-time connection ticket", "value", "");
+    parser.addOption(opt_connection_ticket);
+
+    QCommandLineOption opt_connection_nonce("connection_nonce", "CMS connection nonce", "value", "");
+    parser.addOption(opt_connection_nonce);
+
     QCommandLineOption opt_enable_p2p("enable_p2p", "enable p2p", "value", "0");
     parser.addOption(opt_enable_p2p);
 
@@ -261,6 +267,8 @@ void ParseCommandLine(QApplication& app) {
     if (!settings->remote_device_safety_pwd_.empty()) {
         settings->remote_device_safety_pwd_ = Base64::Base64Decode(settings->remote_device_safety_pwd_);
     }
+    settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
+    settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
 
     settings->enable_p2p_ = parser.value(opt_enable_p2p).toInt() == 1;
     settings->auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
@@ -501,16 +509,16 @@ int main(int argc, char** argv) {
     LOGI("host: {}", g_remote_host_);
     LOGI("port: {}", g_remote_port_);
     LOGI("udp port: {}", settings->udp_port_);
-    LOGI("appkey: {}", settings->appkey_);
+    LOGI("appkey configured: {}", !settings->appkey_.empty());
     LOGI("cms host: {}", settings->cms_host_);
     LOGI("cms port: {}", settings->cms_port_);
     LOGI("cms ssl: {}", settings->cms_ssl_);
     LOGI("audio on: {}", settings->audio_on_);
     LOGI("clipboard on: {}", settings->clipboard_on_);
     LOGI("device id: {}", settings->device_id_);
-    LOGI("device rdm pwd: {}", settings->device_random_pwd_);
+    LOGI("device random password configured: {}", !settings->device_random_pwd_.empty());
     LOGI("remote device id: {}", settings->remote_device_id_);
-    LOGI("remote device rdm pwd: {}", settings->remote_device_random_pwd_);
+    LOGI("remote device password configured: {}", !settings->remote_device_random_pwd_.empty() || !settings->remote_device_safety_pwd_.empty());
     LOGI("stream id: {}", settings->stream_id_);
     LOGI("network type: {} => {}", g_nt_type_, (int)settings->network_type_);
     LOGI("show max window: {}", (int)settings->auto_layout_screens_);
@@ -526,7 +534,7 @@ int main(int argc, char** argv) {
     LOGI("decoder: {}", settings->decoder_);
     LOGI("relay host: {}", settings->relay_host_);
     LOGI("relay port: {}", settings->relay_port_);
-    LOGI("relay appkey: {}", settings->relay_appkey_);
+    LOGI("relay appkey configured: {}", !settings->relay_appkey_.empty());
     LOGI("force software: {}", settings->force_software_);
     LOGI("show watermark: {}", settings->show_watermark_);
     LOGI("force gdi: {}", settings->force_gdi_);
@@ -589,6 +597,8 @@ int main(int argc, char** argv) {
         .force_gdi_ = settings->force_gdi_,
         .remote_device_random_pwd_ = settings->remote_device_random_pwd_,
         .remote_device_safety_pwd_ = settings->remote_device_safety_pwd_,
+        .connection_ticket_ = settings->connection_ticket_,
+        .connection_nonce_ = settings->connection_nonce_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();

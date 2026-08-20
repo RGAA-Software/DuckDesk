@@ -93,8 +93,7 @@ impl ClipboardService {
             self.backend.write_file_paths(&local_paths)?;
             match self.backend.read_content() {
                 Ok(content) if content.has_files() => {
-                    self.echo
-                        .set_remote_echo(&files_signature(&content.files));
+                    self.echo.set_remote_echo(&files_signature(&content.files));
                 }
                 Ok(_) => {}
                 Err(err) => tracing::warn!("read back clipboard files for echo failed: {err:#}"),

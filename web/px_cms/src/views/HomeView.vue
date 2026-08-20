@@ -6,8 +6,11 @@ import { computed, onMounted } from 'vue'
 import { refreshSharedAuthorization, sharedAuthorization } from '@/model/auth_state.ts'
 import { formatDurationHMS } from '@/util/time.ts'
 import { useTheme } from '@/composables/useTheme'
+import { useWsStore } from '@/stores/ws'
+import { HOST_PORT } from '@/http.ts'
 const route = useRoute()
 const { isDark } = useTheme()
+const wsStore = useWsStore()
 
 const headerTitle = computed(() => {
   return (route.meta.title as string) ?? ''
@@ -34,6 +37,8 @@ const authUsedInfo = computed(() => {
 })
 
 onMounted(async () => {
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  wsStore.connect(`${wsProtocol}://${HOST_PORT}/cms/website`)
   await refreshSharedAuthorization()
 })
 </script>

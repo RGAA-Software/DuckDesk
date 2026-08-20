@@ -215,7 +215,10 @@ mod tests {
         let mut state = ServiceState::default();
         state.desktop_alive = true;
         let response = state.heartbeat_response(7);
-        assert_eq!(response.message_type(), Some(ServiceMessageType::HeartBeatResp));
+        assert_eq!(
+            response.message_type(),
+            Some(ServiceMessageType::HeartBeatResp)
+        );
         assert_eq!(
             response.heart_beat_resp.unwrap().render_status_enum(),
             Some(RenderStatus::Working)
@@ -301,16 +304,18 @@ mod tests {
     #[test]
     fn render_hung_when_no_heartbeat_after_grace() {
         let mut state = hung_test_state();
-        state.desktop_started_at =
-            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.desktop_started_at = Some(
+            std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1),
+        );
         assert!(state.render_hung());
     }
 
     #[test]
     fn render_not_hung_with_fresh_heartbeat() {
         let mut state = hung_test_state();
-        state.desktop_started_at =
-            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.desktop_started_at = Some(
+            std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1),
+        );
         state.note_render_heartbeat();
         assert!(!state.render_hung());
     }
@@ -318,10 +323,13 @@ mod tests {
     #[test]
     fn render_hung_with_stale_heartbeat() {
         let mut state = hung_test_state();
-        state.desktop_started_at =
-            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.desktop_started_at = Some(
+            std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1),
+        );
         state.last_render_heartbeat = Some(
-            std::time::Instant::now() - RENDER_HEARTBEAT_TIMEOUT - std::time::Duration::from_secs(1),
+            std::time::Instant::now()
+                - RENDER_HEARTBEAT_TIMEOUT
+                - std::time::Duration::from_secs(1),
         );
         assert!(state.render_hung());
     }
@@ -329,8 +337,9 @@ mod tests {
     #[test]
     fn render_hung_requires_alive_launch_and_no_stop() {
         let mut state = hung_test_state();
-        state.desktop_started_at =
-            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.desktop_started_at = Some(
+            std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1),
+        );
         // Explicit stop must suppress hung detection.
         state.stop_requested = true;
         assert!(!state.render_hung());
@@ -340,8 +349,9 @@ mod tests {
         assert!(!state.render_hung());
         // Launch record cleared (explicit stop) -> no hung detection either.
         let mut state = hung_test_state();
-        state.desktop_started_at =
-            Some(std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1));
+        state.desktop_started_at = Some(
+            std::time::Instant::now() - RENDER_STARTUP_GRACE - std::time::Duration::from_secs(1),
+        );
         state.last_desktop_launch = None;
         assert!(!state.render_hung());
     }
@@ -350,7 +360,9 @@ mod tests {
     fn new_launch_resets_hung_baseline() {
         let mut state = hung_test_state();
         state.last_render_heartbeat = Some(
-            std::time::Instant::now() - RENDER_HEARTBEAT_TIMEOUT - std::time::Duration::from_secs(1),
+            std::time::Instant::now()
+                - RENDER_HEARTBEAT_TIMEOUT
+                - std::time::Duration::from_secs(1),
         );
         state.update_desktop_launch(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),

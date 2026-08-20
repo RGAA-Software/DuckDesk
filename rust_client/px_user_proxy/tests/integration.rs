@@ -10,7 +10,7 @@ use px_user_proxy::config::UserProxyConfig;
 use px_user_proxy::engine::UserProxyEngine;
 use px_user_proxy::mock_render::{wait_for_event, MockRenderEvent};
 use px_user_proxy::proto::{
-    build_raw_render_message, build_px_clipboard_files, parse_px_message, px::MessageType,
+    build_px_clipboard_files, build_raw_render_message, parse_px_message, px::MessageType,
     StreamRoute,
 };
 use px_user_proxy::render_client::RenderClient;
@@ -21,22 +21,14 @@ fn test_config(port: u16) -> UserProxyConfig {
         .with_ws_path("/user-proxy")
 }
 
-async fn setup_engine(
-    port: u16,
-) -> (
-    Arc<UserProxyEngine>,
-    Arc<InMemoryClipboard>,
-) {
+async fn setup_engine(port: u16) -> (Arc<UserProxyEngine>, Arc<InMemoryClipboard>) {
     setup_engine_with_virtual_files(port, false).await
 }
 
 async fn setup_engine_with_virtual_files(
     port: u16,
     with_virtual: bool,
-) -> (
-    Arc<UserProxyEngine>,
-    Arc<InMemoryClipboard>,
-) {
+) -> (Arc<UserProxyEngine>, Arc<InMemoryClipboard>) {
     let (backend, _notify_rx) = InMemoryClipboard::new_pair();
     let backend = Arc::new(backend);
     let render_client = RenderClient::new(test_config(port));
@@ -70,7 +62,9 @@ fn spawn_outbound_forwarder(client: Arc<RenderClient>, outbound_rx: mpsc::Receiv
 
 #[tokio::test]
 async fn integration_connects_and_sends_hello() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, _) = setup_engine(server.port()).await;
     assert!(
         engine
@@ -90,7 +84,9 @@ async fn integration_connects_and_sends_hello() {
 
 #[tokio::test]
 async fn integration_remote_clipboard_apply_and_resp() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, backend) = setup_engine(server.port()).await;
     assert!(
         engine
@@ -121,7 +117,9 @@ async fn integration_remote_clipboard_apply_and_resp() {
 
 #[tokio::test]
 async fn integration_local_clipboard_to_render() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, backend) = setup_engine(server.port()).await;
     assert!(
         engine
@@ -150,7 +148,9 @@ async fn integration_local_clipboard_to_render() {
 
 #[tokio::test]
 async fn integration_echo_suppresses_outbound_loop() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, backend) = setup_engine(server.port()).await;
     assert!(
         engine
@@ -175,7 +175,9 @@ async fn integration_echo_suppresses_outbound_loop() {
 
 #[tokio::test]
 async fn integration_reconnects_after_server_drop() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let port = server.port();
     let (engine, _) = setup_engine(port).await;
     assert!(
@@ -212,7 +214,9 @@ async fn integration_reconnects_after_server_drop() {
 async fn integration_virtual_file_apply_installs_session() {
     use prost::Message as ProstMessage;
 
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, backend) = setup_engine_with_virtual_files(server.port(), true).await;
     assert!(
         engine
@@ -260,7 +264,9 @@ async fn integration_virtual_file_apply_installs_session() {
 
 #[tokio::test]
 async fn integration_virtual_file_req_buffer_roundtrip() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     server
         .handle()
         .set_virtual_file("Z:/not/local/missing.bin", b"hello-world".to_vec());
@@ -341,14 +347,16 @@ async fn integration_virtual_file_full_stream_via_coordinator() {
     for (index, chunk) in [b"abcd", b"efgh"].iter().enumerate() {
         let req = stream.begin_read(4).expect("begin");
         assert_eq!(req.req_index, index as i64);
-        assert!(coordinator.on_resp_buffer(px_user_proxy::clipboard::virtual_file::RespBufferData {
-            full_name: req.full_name.clone(),
-            req_index: req.req_index,
-            req_start: req.req_start,
-            req_size: req.req_size,
-            read_size: chunk.len() as i64,
-            buffer: chunk.to_vec(),
-        }));
+        assert!(coordinator.on_resp_buffer(
+            px_user_proxy::clipboard::virtual_file::RespBufferData {
+                full_name: req.full_name.clone(),
+                req_index: req.req_index,
+                req_start: req.req_start,
+                req_size: req.req_size,
+                read_size: chunk.len() as i64,
+                buffer: chunk.to_vec(),
+            }
+        ));
         let mut buf = [0u8; 4];
         let n = stream.complete_read(&mut buf).expect("read");
         output.extend_from_slice(&buf[..n]);
@@ -359,7 +367,9 @@ async fn integration_virtual_file_full_stream_via_coordinator() {
 
 #[tokio::test]
 async fn integration_data_channel_resp_buffer_dispatch() {
-    let server = px_user_proxy::mock_render::start().await.expect("mock render");
+    let server = px_user_proxy::mock_render::start()
+        .await
+        .expect("mock render");
     let (engine, backend) = setup_engine_with_virtual_files(server.port(), true).await;
     assert!(
         engine

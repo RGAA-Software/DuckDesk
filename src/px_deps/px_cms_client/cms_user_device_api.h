@@ -19,6 +19,13 @@ namespace px_cms
 
     class CmsUserDevice;
 
+    struct CmsConnectionTicket {
+        std::string ticket;
+        std::string launch_url;
+        int64_t expires_at = 0;
+        std::vector<std::string> permissions;
+    };
+
     class CmsUserDeviceApi {
     public:
         // query user-devices
@@ -26,28 +33,17 @@ namespace px_cms
         px::Result<std::vector<std::shared_ptr<CmsUserDevice>>, CmsApiError>
         QueryUserBindDevices(const std::string& host,
                              int port,
-                             const std::string& appkey,
-                             const std::string& uid,
-                             int page,
-                             int page_size);
+                             const std::string& access_token);
 
-        // add a device to user
+        // Issue a short-lived, one-time device connection ticket.
         static
-        px::Result<std::shared_ptr<CmsUserDevice>, CmsApiError>
-        AddDeviceForUser(const std::string& host,
-                         int port,
-                         const std::string& appkey,
-                         const std::string& uid,
-                         const std::string& device_id);
-
-        // remove a device from user
-        static
-        px::Result<std::shared_ptr<CmsUserDevice>, CmsApiError>
-        RemoveDeviceFromUser(const std::string& host,
-                             int port,
-                             const std::string& appkey,
-                             const std::string& uid,
-                             const std::string& device_id);
+        px::Result<CmsConnectionTicket, CmsApiError>
+        IssueDeviceTicket(const std::string& host,
+                          int port,
+                          const std::string& access_token,
+                          const std::string& device_id,
+                          const std::string& client_nonce,
+                          const std::vector<std::string>& requested_permissions);
     };
 
 }

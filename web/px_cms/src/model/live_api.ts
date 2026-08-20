@@ -20,7 +20,6 @@ export async function queryLiveStatus(deviceId: string, appId: string): Promise<
     params: {
       device_id: deviceId.trim(),
       app_id: appId.trim(),
-      appkey: localStorage.getItem('appkey'),
     },
   })
   if (response.status !== 200 || response.data?.code !== 200) {

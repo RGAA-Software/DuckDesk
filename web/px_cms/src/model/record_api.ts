@@ -68,8 +68,6 @@ export class RecordApiError extends Error {
   }
 }
 
-const appkey = () => localStorage.getItem('appkey')
-
 // unwrap axios error -> RecordApiError with the business code when present
 function toRecordApiError(e: unknown): RecordApiError {
   if (e instanceof AxiosError && e.response?.data) {
@@ -98,7 +96,7 @@ function unwrap<T>(resp: { status: number; data: { code: number; message: string
 export async function getRecordAccess(deviceId: string): Promise<RecordAccessInfo> {
   try {
     const resp = await axiosHttp.get('/api/v1/record/access', {
-      params: { device_id: deviceId, appkey: appkey() },
+      params: { device_id: deviceId },
     })
     return unwrap<RecordAccessInfo>(resp)
   } catch (e) {
@@ -111,7 +109,7 @@ export async function getRecordAccess(deviceId: string): Promise<RecordAccessInf
 export async function getRecordTicket(deviceId: string, file: string): Promise<RecordTicket> {
   try {
     const resp = await axiosHttp.get('/api/v1/record/ticket', {
-      params: { device_id: deviceId, file: file, appkey: appkey() },
+      params: { device_id: deviceId, file: file },
     })
     return unwrap<RecordTicket>(resp)
   } catch (e) {
@@ -123,7 +121,7 @@ export async function getRecordTicket(deviceId: string, file: string): Promise<R
 export async function getRecordList(deviceId: string): Promise<RecordListResp> {
   try {
     const resp = await axiosHttp.get('/api/v1/record/list', {
-      params: { device_id: deviceId, appkey: appkey() },
+      params: { device_id: deviceId },
     })
     return unwrap<RecordListResp>(resp)
   } catch (e) {
@@ -135,7 +133,7 @@ export async function getRecordList(deviceId: string): Promise<RecordListResp> {
 export async function fetchRecord(deviceId: string, file: string): Promise<RecordFetchResp> {
   try {
     const resp = await axiosHttp.get('/api/v1/record/fetch', {
-      params: { device_id: deviceId, file: file, appkey: appkey() },
+      params: { device_id: deviceId, file: file },
     })
     return unwrap<RecordFetchResp>(resp)
   } catch (e) {
@@ -150,7 +148,7 @@ export async function downloadRecordToCms(
 ): Promise<RecordDownloadResp> {
   try {
     const resp = await axiosHttp.post(
-      '/api/v1/record/download?appkey=' + appkey(),
+      '/api/v1/record/download',
       { device_id: deviceId, filename: filename },
     )
     return unwrap<RecordDownloadResp>(resp)
@@ -163,7 +161,7 @@ export async function downloadRecordToCms(
 export async function deleteRecord(id: string): Promise<void> {
   try {
     const resp = await axiosHttp.delete(
-      '/api/v1/record/' + encodeURIComponent(id) + '?appkey=' + appkey(),
+      '/api/v1/record/' + encodeURIComponent(id),
     )
     unwrap<string>(resp)
   } catch (e) {

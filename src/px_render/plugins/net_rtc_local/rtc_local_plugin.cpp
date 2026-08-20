@@ -635,6 +635,7 @@ namespace px
         auto rtc_server = RtcServer::Make(this);
         rtc_server->SetConnId(conn_id);
         rtc_server->SetClientNonce(req->client_nonce_);
+        rtc_server->SetPermissions(req->capability_enforced_, req->permissions_);
         rtc_server->Start(req->stream_id_, req->sdp_, req->session_role_);
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();

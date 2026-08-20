@@ -27,12 +27,26 @@ namespace px_cms
     std::shared_ptr<CmsUserDevice> CmsUserDevice::FromObj(const json& obj) {
         try {
             auto ud = std::make_shared<CmsUserDevice>();
-            ud->uid_ = obj[kUserId].get<std::string>();
-            ud->device_id_ = obj[kDeviceId].get<std::string>();
-            ud->created_ts_ = obj["created_ts"].get<int64_t>();
-            ud->created_ts_readable_ = obj["created_ts_readable"].get<std::string>();
-            ud->user_ = CmsUser::FromObj(obj["user"]);
-            ud->device_ = CmsDevice::FromObj(obj["device"]);
+            ud->uid_ = obj.value(kUserId, "");
+            ud->device_id_ = obj.value(kDeviceId, "");
+            ud->created_ts_ = obj.value("created_ts", 0LL);
+            ud->created_ts_readable_ = obj.value("created_ts_readable", "");
+            if (obj.contains("user") && obj.contains("device")) {
+                ud->user_ = CmsUser::FromObj(obj["user"]);
+                ud->device_ = CmsDevice::FromObj(obj["device"]);
+            }
+            else {
+                // Secure /api/v1/user/devices summary: deliberately has no
+                // desktop link, password, uid or internal endpoint.
+                ud->device_ = std::make_shared<CmsDevice>();
+                ud->device_->device_id_ = ud->device_id_;
+                ud->device_->device_name_ = obj.value("name", "");
+                ud->device_->active_ = obj.value("online", false);
+                ud->device_->last_update_timestamp_ = obj.value("last_seen_at", 0LL);
+            }
+            if (ud->device_id_.empty() || !ud->device_) {
+                return nullptr;
+            }
             return ud;
         }
         catch (const std::exception& e) {

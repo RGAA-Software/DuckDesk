@@ -3,6 +3,7 @@ use crate::event::cms_event_handler::{
     handle_add_event, handle_add_log, handle_count_events, handle_query_events, handle_remove_event,
 };
 use crate::filter::cms_appkey_filter;
+use crate::user::session_router::{require_admin, require_admin_write};
 use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;
@@ -16,15 +17,15 @@ pub fn make_event_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<Cm
         )
         .route(
             "/remove",
-            post(handle_remove_event).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            post(handle_remove_event).layer(middleware::from_fn(require_admin_write)),
         )
         .route(
             "/query",
-            get(handle_query_events).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_query_events).layer(middleware::from_fn(require_admin)),
         )
         .route(
             "/count/events",
-            get(handle_count_events).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_count_events).layer(middleware::from_fn(require_admin)),
         )
         .route(
             "/add/log",

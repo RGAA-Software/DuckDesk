@@ -71,6 +71,7 @@ namespace px
         std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
         std::mutex streams_mtx_;
         std::vector<std::shared_ptr<px_cms::CmsStream>> streams_;
+        std::vector<std::shared_ptr<px_cms::CmsStream>> cms_app_streams_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QListWidget* stream_list_ = nullptr;
         StreamContent* stream_content_ = nullptr;

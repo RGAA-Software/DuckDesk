@@ -9,12 +9,12 @@ use tokio::task::JoinHandle;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::proto::{
-    build_hello_resp_message, build_raw_render_message, build_raw_render_message_routed,
-    build_px_clipboard_info, build_px_resp_buffer, clipboard_text_from_rp, parse_rp_message,
-    parse_px_message, pxrp::RpMessageType, px::MessageType, StreamRoute,
-};
 use crate::clipboard::virtual_file::RespBufferData;
+use crate::proto::{
+    build_hello_resp_message, build_px_clipboard_info, build_px_resp_buffer,
+    build_raw_render_message, build_raw_render_message_routed, clipboard_text_from_rp,
+    parse_px_message, parse_rp_message, px::MessageType, pxrp::RpMessageType, StreamRoute,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockRenderEvent {
@@ -31,8 +31,13 @@ pub enum MockRenderEvent {
         stream_id: String,
         device_id: String,
     },
-    ClipboardReqAtBegin { full_name: String },
-    ClipboardReqAtEnd { full_name: String, success: bool },
+    ClipboardReqAtBegin {
+        full_name: String,
+    },
+    ClipboardReqAtEnd {
+        full_name: String,
+        success: bool,
+    },
 }
 
 #[derive(Clone)]
@@ -157,11 +162,7 @@ async fn spawn_server(listener: TcpListener, port: u16) -> anyhow::Result<MockRe
         }
     });
 
-    Ok(MockRenderServer {
-        handle,
-        task,
-        port,
-    })
+    Ok(MockRenderServer { handle, task, port })
 }
 
 fn is_loopback(addr: SocketAddr) -> bool {
@@ -239,14 +240,17 @@ fn handle_inbound(
             match MessageType::try_from(msg.r#type) {
                 Ok(MessageType::KClipboardReqBuffer) => {
                     let req = msg.cp_req_buffer.expect("req");
-                    events.lock().expect("lock").push(MockRenderEvent::ClipboardReqBuffer {
-                        full_name: req.full_name.clone(),
-                        req_index: req.req_index,
-                        req_start: req.req_start,
-                        req_size: req.req_size,
-                        stream_id: sub.stream_id.clone(),
-                        device_id: sub.device_id.clone(),
-                    });
+                    events
+                        .lock()
+                        .expect("lock")
+                        .push(MockRenderEvent::ClipboardReqBuffer {
+                            full_name: req.full_name.clone(),
+                            req_index: req.req_index,
+                            req_start: req.req_start,
+                            req_size: req.req_size,
+                            stream_id: sub.stream_id.clone(),
+                            device_id: sub.device_id.clone(),
+                        });
 
                     let route = StreamRoute {
                         stream_id: sub.stream_id.clone(),
@@ -259,7 +263,9 @@ fn handle_inbound(
                         .cloned()
                         .unwrap_or_default();
                     let start = req.req_start.max(0) as usize;
-                    let end = start.saturating_add(req.req_size.max(0) as usize).min(file.len());
+                    let end = start
+                        .saturating_add(req.req_size.max(0) as usize)
+                        .min(file.len());
                     let chunk = file.get(start..end).unwrap_or_default();
                     let resp = RespBufferData {
                         full_name: req.full_name,
@@ -288,10 +294,13 @@ fn handle_inbound(
                 }
                 Ok(MessageType::KClipboardReqAtEnd) => {
                     let end = msg.cp_req_at_end.expect("end");
-                    events.lock().expect("lock").push(MockRenderEvent::ClipboardReqAtEnd {
-                        full_name: end.full_name,
-                        success: end.success,
-                    });
+                    events
+                        .lock()
+                        .expect("lock")
+                        .push(MockRenderEvent::ClipboardReqAtEnd {
+                            full_name: end.full_name,
+                            success: end.success,
+                        });
                     Ok(None)
                 }
                 _ => Ok(None),
@@ -324,12 +333,12 @@ mod tests {
     async fn mock_render_accepts_hello() {
         let server = start().await.expect("start");
         let url = format!("ws://127.0.0.1:{}/", server.port());
-        let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
-        ws.send(Message::Binary(
-            crate::proto::build_hello_message().into(),
-        ))
-        .await
-        .expect("send");
+        let (mut ws, _) = tokio_tungstenite::connect_async(url)
+            .await
+            .expect("connect");
+        ws.send(Message::Binary(crate::proto::build_hello_message().into()))
+            .await
+            .expect("send");
         assert!(
             wait_for_event(
                 &server.handle(),
@@ -357,7 +366,9 @@ mod tests {
     async fn mock_render_auto_replies_req_buffer() {
         let server = start().await.expect("start");
         let url = format!("ws://127.0.0.1:{}/", server.port());
-        let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+        let (mut ws, _) = tokio_tungstenite::connect_async(url)
+            .await
+            .expect("connect");
 
         server
             .handle()

@@ -135,6 +135,32 @@ namespace px
         return ToHttpResponse(response);
     }
 
+    HttpResponse HttpClient::Patch(const std::map<std::string, std::string>& query, const std::string& body, const std::string content_type) {
+        cpr::Parameters params;
+        for (const auto& [k, v] : query) {
+            params.Add({k, v});
+        }
+
+        auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
+        cpr::Session session;
+        session.SetUrl(cpr::Url{url_path});
+        session.SetVerifySsl(verify_ssl_);
+        session.SetBody(body);
+        session.SetTimeout(cpr::Timeout{this->timeout_ms_});
+        auto headers = headers_;
+        if (!content_type.empty()) {
+            headers["Content-Type"] = content_type;
+        }
+        if (!headers.empty()) {
+            session.SetHeader(ToCprHeader(headers));
+        }
+        session.SetParameters(params);
+
+        cpr::Response response = session.Patch();
+        req_path_ = response.url.str();
+        return ToHttpResponse(response);
+    }
+
     //auto resp = client.PostMultiPart(
     //    // query 参数
     //    {
@@ -199,6 +225,39 @@ namespace px
 
         // POST
         cpr::Response response = session.Post();
+        req_path_ = response.url.str();
+        return ToHttpResponse(response);
+    }
+
+    HttpResponse HttpClient::PutMultiPart(const std::map<std::string, std::string>& query,
+                                          const std::map<std::string, std::string>& form_parts,
+                                          const std::map<std::string, std::string>& file_parts) {
+        auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
+        cpr::Session session;
+        session.SetUrl(cpr::Url{url_path});
+        session.SetVerifySsl(verify_ssl_);
+        session.SetTimeout(cpr::Timeout{timeout_ms_});
+        if (!headers_.empty()) {
+            session.SetHeader(ToCprHeader(headers_));
+        }
+        if (!query.empty()) {
+            cpr::Parameters params;
+            for (const auto& [k, v] : query) {
+                params.Add({k, v});
+            }
+            session.SetParameters(params);
+        }
+
+        cpr::Multipart multipart{};
+        for (const auto& [k, v] : form_parts) {
+            multipart.parts.emplace_back(k, v);
+        }
+        for (const auto& [k, file_path] : file_parts) {
+            multipart.parts.emplace_back(k, cpr::File{file_path});
+        }
+        session.SetMultipart(multipart);
+
+        cpr::Response response = session.Put();
         req_path_ = response.url.str();
         return ToHttpResponse(response);
     }

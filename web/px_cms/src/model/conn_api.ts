@@ -5,11 +5,7 @@ import type { PanelConn } from '@/entity/panel_conn.ts'
 
 // query all service connections
 export async function queryAllServiceConn(): Promise<ServiceConn[] | null> {
-  const resp = await axiosHttp.get('/api/v1/service/control/query/all/service/conn', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/service/control/query/all/service/conn')
   if (resp.status !== 200) {
     console.error('queryAllServiceConn failed', resp)
     return null
@@ -26,11 +22,7 @@ export async function queryAllServiceConn(): Promise<ServiceConn[] | null> {
 
 // query all panel connections
 export async function queryAllPanelConn(): Promise<PanelConn[] | null> {
-  const resp = await axiosHttp.get('/api/v1/panel/control/query/all/panel/conn', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/panel/control/query/all/panel/conn')
   if (resp.status !== 200) {
     console.error('queryAllPanelConn failed', resp)
     return null

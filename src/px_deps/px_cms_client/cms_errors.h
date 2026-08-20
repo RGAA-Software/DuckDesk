@@ -16,6 +16,11 @@ namespace px_cms
         kInvalidHostAddress = 1,
         kParseJsonFailed,
 
+        kAuthenticationRequired = 401,
+        kForbidden = 403,
+        kNotFound = 404,
+        kConflict = 409,
+
         kInvalidParams = 600,
         kDatabaseError = 601,
         kDeviceNotFound = 602,
@@ -48,6 +53,10 @@ namespace px_cms
         switch (err) {
             case CmsApiError::kInvalidHostAddress: return "Invalid host address";
             case CmsApiError::kParseJsonFailed: return "Parse server response failed";
+            case CmsApiError::kAuthenticationRequired: return "Authentication required";
+            case CmsApiError::kForbidden: return "Operation forbidden";
+            case CmsApiError::kNotFound: return "Resource not found";
+            case CmsApiError::kConflict: return "Resource state conflict";
             case CmsApiError::kInvalidParams: return "Invalid parameters";
             case CmsApiError::kDatabaseError: return "Database operation failed";
             case CmsApiError::kDeviceNotFound: return "Device not found";

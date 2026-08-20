@@ -33,4 +33,3 @@ pub fn get_body_str_or_empty(body: &serde_json::Value, key: &str) -> String {
         .unwrap_or("")
         .to_string()
 }
-

@@ -1,19 +1,44 @@
 use crate::cms_api_error::CmsApiError;
-use crate::device::cms_id_generator::PrIdGenerator;
 use crate::gCmsDatabase;
 use crate::user::cms_user::CmsUser;
-use crate::user::cms_user_keys::{KEY_DELETED, KEY_USER_ID};
+use crate::user::cms_user_keys::KEY_USER_ID;
 use crate::user::password;
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
-use mongodb::bson::{doc, Bson, Document};
+use mongodb::bson::{doc, Document};
 use std::sync::Arc;
 
 pub struct CmsUserManager {}
 
-pub struct GeneratedCmsUser {
-    pub user: CmsUser,
-    pub initial_password: String,
+fn validated_username(value: &str) -> Result<(String, String), CmsApiError> {
+    // Do not silently canonicalize surrounding whitespace: accepting a value
+    // different from what the caller submitted makes account names ambiguous.
+    let username = value.to_string();
+    if username.chars().count() < 3
+        || username.chars().count() > 64
+        || username.chars().any(char::is_control)
+        || username.trim() != username
+        || username.contains('/')
+        || username.contains('\\')
+    {
+        return Err(CmsApiError::InvalidParams);
+    }
+    let normalized = username.to_lowercase();
+    Ok((username, normalized))
+}
+
+fn regex_literal(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\\' | '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|'
+        ) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 impl CmsUserManager {
@@ -26,10 +51,7 @@ impl CmsUserManager {
         username: String,
         plain_password: String,
     ) -> Result<CmsUser, CmsApiError> {
-        let username = username.trim().to_string();
-        if username.chars().count() < 3 || username.chars().count() > 64 {
-            return Err(CmsApiError::InvalidParams);
-        }
+        let (username, username_normalized) = validated_username(&username)?;
         let r = self.query_user_by_username(username.clone()).await;
         if let Ok(_user) = r {
             tracing::warn!("the user: {} already exists", username);
@@ -45,12 +67,13 @@ impl CmsUserManager {
         let user = CmsUser {
             uid,
             username: username.clone(),
-            username_normalized: username.trim().to_lowercase(),
+            username_normalized,
             password_hash,
             assigned: false,
             created_timestamp: px_base::get_current_timestamp(),
             update_timestamp: px_base::get_current_timestamp(),
             deleted: false,
+            disabled: false,
             avatar_path: "".to_string(),
             auth_version: 1,
             must_change_password: false,
@@ -67,66 +90,182 @@ impl CmsUserManager {
         self.query_user_by_username(username).await
     }
 
-    pub async fn delete_user(&self, uid: String) -> Result<CmsUser, CmsApiError> {
-        let c_user = gCmsDatabase.lock().await.user();
-        let r = c_user
+    /// Creates an administrator-managed account.  The caller may show the
+    /// initial password once, but the persisted account always requires a
+    /// password change before resource access is allowed.
+    pub async fn create_managed_user(
+        &self,
+        username: String,
+        plain_password: String,
+    ) -> Result<CmsUser, CmsApiError> {
+        let user = self.register_user(username, plain_password).await?;
+        let collection = gCmsDatabase.lock().await.user();
+        let result = collection
             .lock()
             .await
             .update_one(
-                doc! {"uid": uid.clone()},
-                doc! {"$set": doc!{KEY_DELETED: true}},
+                doc! { "uid": &user.uid, "deleted": false },
+                doc! {
+                    "$set": {
+                        "must_change_password": true,
+                        "update_timestamp": px_base::get_current_timestamp(),
+                    },
+                    "$inc": { "version": 1_i64 }
+                },
             )
-            .await;
-        if let Err(e) = r {
-            tracing::error!("failed to delete user: {}, id: {}", e, uid);
-            return Err(CmsApiError::DatabaseError);
-        }
-        let user = self.query_user_by_id(uid).await?;
-        Ok(user)
-    }
-
-    pub async fn active_user(&self, uid: String) -> Result<CmsUser, CmsApiError> {
-        let c_user = gCmsDatabase.lock().await.user();
-        let r = c_user
-            .lock()
             .await
-            .update_one(
-                doc! {"uid": uid.clone()},
-                doc! {"$set": doc!{KEY_DELETED: false}},
-            )
-            .await;
-        if let Err(e) = r {
-            tracing::error!("failed to active user: {}, id: {}", e, uid);
-            return Err(CmsApiError::DatabaseError);
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if result.matched_count == 0 {
+            return Err(CmsApiError::UserNotFound);
         }
-        let user = self.query_user_by_id(uid).await?;
-        Ok(user)
+        self.query_user_by_id(user.uid).await
     }
 
-    pub async fn update_user<T>(
+    pub async fn admin_update_user(
         &self,
         uid: String,
-        key: String,
-        val: T,
-    ) -> Result<CmsUser, CmsApiError>
-    where
-        T: Into<Bson>,
-    {
-        let filter_doc = doc! {"uid": uid.clone()};
-        let mut update_doc = doc! {};
-        let mut sub_update_doc = doc! {key: val};
-        sub_update_doc.insert("update_timestamp", px_base::get_current_timestamp());
-        update_doc.insert("$set", sub_update_doc);
-
-        let c_user = gCmsDatabase.lock().await.user();
-
-        if let Err(e) = c_user.lock().await.update_one(filter_doc, update_doc).await {
-            tracing::error!("update user failed: {}", e);
-            return Err(CmsApiError::DatabaseError);
+        version: i64,
+        username: Option<String>,
+        disabled: Option<bool>,
+        avatar_path: Option<String>,
+    ) -> Result<CmsUser, CmsApiError> {
+        let mut set = doc! { "update_timestamp": px_base::get_current_timestamp() };
+        let mut revoke_sessions = false;
+        if let Some(username) = username {
+            let (username, normalized) = validated_username(&username)?;
+            if let Ok(existing) = self.query_user_by_username(username.clone()).await {
+                if existing.uid != uid {
+                    return Err(CmsApiError::UserAlreadyExists);
+                }
+            }
+            set.insert("username", username);
+            set.insert("username_normalized", normalized);
+        }
+        if let Some(disabled) = disabled {
+            set.insert("disabled", disabled);
+            revoke_sessions = disabled;
+        }
+        if let Some(avatar_path) = avatar_path {
+            let avatar_path = avatar_path.trim();
+            if avatar_path.len() > 512 || avatar_path.chars().any(char::is_control) {
+                return Err(CmsApiError::InvalidParams);
+            }
+            set.insert("avatar_path", avatar_path);
         }
 
-        let user = self.query_user_by_id(uid).await?;
-        Ok(user)
+        let mut inc = doc! { "version": 1_i64 };
+        if revoke_sessions {
+            inc.insert("auth_version", 1_i64);
+        }
+        let collection = gCmsDatabase.lock().await.user();
+        let result = collection
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "version": version, "deleted": false },
+                doc! { "$set": set, "$inc": inc },
+            )
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if result.matched_count == 0 {
+            return match self.query_user_by_id(uid.clone()).await {
+                Ok(_) => Err(CmsApiError::VersionConflict),
+                Err(_) => Err(CmsApiError::UserNotFound),
+            };
+        }
+        if revoke_sessions {
+            crate::gUserSessionManager.revoke_all(&uid).await?;
+        }
+        self.query_user_by_id(uid).await
+    }
+
+    pub async fn admin_delete_user(
+        &self,
+        uid: String,
+        version: i64,
+    ) -> Result<CmsUser, CmsApiError> {
+        let collection = gCmsDatabase.lock().await.user();
+        let result = collection
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "version": version, "deleted": false },
+                doc! {
+                    "$set": {
+                        "deleted": true,
+                        "disabled": true,
+                        "update_timestamp": px_base::get_current_timestamp(),
+                    },
+                    "$inc": { "version": 1_i64, "auth_version": 1_i64 }
+                },
+            )
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if result.matched_count == 0 {
+            return match self.query_user_by_id(uid.clone()).await {
+                Ok(user) if user.deleted => Ok(user),
+                Ok(_) => Err(CmsApiError::VersionConflict),
+                Err(_) => Err(CmsApiError::UserNotFound),
+            };
+        }
+        crate::gUserSessionManager.revoke_all(&uid).await?;
+        self.query_user_by_id(uid).await
+    }
+
+    pub async fn admin_reset_password(
+        &self,
+        uid: String,
+        version: i64,
+        plain_password: String,
+    ) -> Result<CmsUser, CmsApiError> {
+        let password_hash =
+            password::hash(&plain_password).map_err(|_| CmsApiError::InvalidParams)?;
+        let collection = gCmsDatabase.lock().await.user();
+        let result = collection
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "version": version, "deleted": false },
+                doc! {
+                    "$set": {
+                        "password_hash": password_hash,
+                        "must_change_password": true,
+                        "update_timestamp": px_base::get_current_timestamp(),
+                    },
+                    "$inc": { "version": 1_i64, "auth_version": 1_i64 }
+                },
+            )
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if result.matched_count == 0 {
+            return match self.query_user_by_id(uid.clone()).await {
+                Ok(_) => Err(CmsApiError::VersionConflict),
+                Err(_) => Err(CmsApiError::UserNotFound),
+            };
+        }
+        crate::gUserSessionManager.revoke_all(&uid).await?;
+        self.query_user_by_id(uid).await
+    }
+
+    pub async fn revoke_all_sessions(&self, uid: String) -> Result<CmsUser, CmsApiError> {
+        let collection = gCmsDatabase.lock().await.user();
+        let result = collection
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "deleted": false },
+                doc! {
+                    "$set": { "update_timestamp": px_base::get_current_timestamp() },
+                    "$inc": { "auth_version": 1_i64, "version": 1_i64 }
+                },
+            )
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if result.matched_count == 0 {
+            return Err(CmsApiError::UserNotFound);
+        }
+        crate::gUserSessionManager.revoke_all(&uid).await?;
+        self.query_user_by_id(uid).await
     }
 
     pub async fn update_user_password(
@@ -140,6 +279,7 @@ impl CmsUserManager {
         let update_doc = doc! {
             "$set": {
                 "password_hash": password_hash,
+                "must_change_password": false,
                 "update_timestamp": px_base::get_current_timestamp(),
             },
             "$inc": { "auth_version": 1_i64, "version": 1_i64 }
@@ -152,6 +292,68 @@ impl CmsUserManager {
             .await
             .map_err(|e| {
                 tracing::error!("update user password failed: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+        self.query_user_by_id(uid).await
+    }
+
+    pub async fn update_username(
+        &self,
+        uid: String,
+        username: String,
+    ) -> Result<CmsUser, CmsApiError> {
+        let (username, normalized) = validated_username(&username)?;
+        if let Ok(existing) = self.query_user_by_username(username.clone()).await {
+            if existing.uid != uid {
+                return Err(CmsApiError::UserAlreadyExists);
+            }
+        }
+
+        let c_user = gCmsDatabase.lock().await.user();
+        c_user
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "deleted": false },
+                doc! {
+                    "$set": {
+                        "username": username,
+                        "username_normalized": normalized,
+                        "update_timestamp": px_base::get_current_timestamp(),
+                    },
+                    "$inc": { "version": 1_i64 }
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("update username failed: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+        self.query_user_by_id(uid).await
+    }
+
+    pub async fn update_avatar_path(
+        &self,
+        uid: String,
+        avatar_path: String,
+    ) -> Result<CmsUser, CmsApiError> {
+        let c_user = gCmsDatabase.lock().await.user();
+        c_user
+            .lock()
+            .await
+            .update_one(
+                doc! { "uid": &uid, "deleted": false },
+                doc! {
+                    "$set": {
+                        "avatar_path": avatar_path,
+                        "update_timestamp": px_base::get_current_timestamp(),
+                    },
+                    "$inc": { "version": 1_i64 }
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("update avatar path failed: {}", e);
                 CmsApiError::DatabaseError
             })?;
         self.query_user_by_id(uid).await
@@ -205,11 +407,11 @@ impl CmsUserManager {
         let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
-        let mut and_conditions: Vec<Document> = Vec::new();
+        let mut and_conditions: Vec<Document> = vec![doc! { "deleted": false }];
         if !username.is_empty() {
             and_conditions.push(doc! {
                 "username": {
-                    "$regex": username,
+                    "$regex": regex_literal(&username),
                     "$options": "i"
                 }
             });
@@ -217,19 +419,13 @@ impl CmsUserManager {
         if !uid.is_empty() {
             and_conditions.push(doc! {
                "uid": {
-                    "$regex": uid,
+                    "$regex": regex_literal(&uid),
                     "$options": "i"
                 }
             });
         }
 
-        let filter = if and_conditions.is_empty() {
-            doc! {}
-        } else {
-            doc! {
-                "$and": and_conditions
-            }
-        };
+        let filter = doc! { "$and": and_conditions };
 
         //tracing::info!("filter: {:#?}", filter);
 
@@ -267,58 +463,51 @@ impl CmsUserManager {
     }
 
     pub async fn count_users(&self) -> Result<u32, CmsApiError> {
+        self.count_users_matching("").await
+    }
+
+    pub async fn count_users_matching(&self, username: &str) -> Result<u32, CmsApiError> {
         let c_user = gCmsDatabase.lock().await.user();
         let r = c_user.lock().await;
-        if let Ok(count) = r.count_documents(doc! {}).await {
+        let mut filter = doc! { "deleted": false };
+        if !username.is_empty() {
+            filter.insert(
+                "username",
+                doc! { "$regex": regex_literal(username), "$options": "i" },
+            );
+        }
+        if let Ok(count) = r.count_documents(filter).await {
             Ok(count as u32)
         } else {
             Err(CmsApiError::DatabaseError)
         }
     }
-
-    pub async fn batch_gen_random_users(
-        &self,
-        batch_size: i32,
-        name_prefix: String,
-    ) -> Result<Vec<GeneratedCmsUser>, CmsApiError> {
-        let prefix = if name_prefix.is_empty() {
-            "User:".to_string()
-        } else {
-            name_prefix
-        };
-        let mut user_index = 0;
-        let mut users = Vec::new();
-        for _i in 0..batch_size {
-            loop {
-                let username = format!("{}{}", prefix, user_index);
-                user_index += 1;
-                let user = self.query_user_by_username(username.clone()).await;
-                if let Ok(_user) = user {
-                    continue;
-                }
-                let password = PrIdGenerator::generate_random_pwd();
-                tracing::info!("generated initial password for user: {}", username);
-                let user = self.register_user(username, password.clone()).await?;
-                users.push(GeneratedCmsUser {
-                    user,
-                    initial_password: password,
-                });
-                break;
-            }
-        }
-        Ok(users)
-    }
-
-    pub fn batch_gen_csv_users() -> Result<Vec<CmsUser>, CmsApiError> {
-        Ok(vec![CmsUser::default()])
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
     fn test_gen_random_users() {
         for _i in 0..10 {}
+    }
+
+    #[test]
+    fn user_search_is_treated_as_literal_text() {
+        assert_eq!(regex_literal("a[b].*"), r"a\[b\]\.\*");
+    }
+
+    #[test]
+    fn username_validation_normalizes_and_rejects_ambiguous_names() {
+        assert_eq!(
+            validated_username("Alice").unwrap(),
+            ("Alice".to_string(), "alice".to_string())
+        );
+        assert!(validated_username("ab").is_err());
+        assert!(validated_username(" Alice ").is_err());
+        assert!(validated_username("ali/ce").is_err());
+        assert!(validated_username("ali\\ce").is_err());
+        assert!(validated_username("ali\nce").is_err());
     }
 }

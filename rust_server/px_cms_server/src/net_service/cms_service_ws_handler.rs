@@ -82,12 +82,13 @@ async fn handle_socket(
         gCmsServiceConnMgr
             .remove_conn(device_id.clone(), &cms_conn)
             .await;
+        gAppScheduleManager.mark_device_suspect(&device_id).await;
         // Do NOT reconcile immediately: a TCP blip would permanently mark live
         // instances stopped. Wait a few HB periods; if the device reconnects
         // meanwhile (epoch bumped by add_conn), cancel the reconcile.
         tokio::spawn(async move {
             tokio::time::sleep(DISCONNECT_RECONCILE_DELAY).await;
-            if gCmsServiceConnMgr.epoch() != epoch {
+            if gCmsServiceConnMgr.device_epoch(&device_id).await != Some(epoch) {
                 return;
             }
             gAppScheduleManager

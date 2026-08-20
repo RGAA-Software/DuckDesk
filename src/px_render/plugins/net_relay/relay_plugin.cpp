@@ -138,8 +138,8 @@ namespace px
 
                 auto media_sdk = GetMediaSdk();
                 if (!media_sdk || !media_sdk->IsAlive()) {
-                    LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey: {}",
-                     connect_count++, srv_device_id, relay_host, relay_port, sys_settings_.appkey_);
+                    LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey configured: {}",
+                     connect_count++, srv_device_id, relay_host, relay_port, !sys_settings_.appkey_.empty());
 
                     // using appkey
                     using_appkey_ = sys_settings_.appkey_;

@@ -19,6 +19,9 @@ enum CmsServiceMessageType {
   kCmsServiceCreateWallSession = 6;
   // Service -> CMS
   kCmsServiceCreateWallSessionResult = 7;
+  // Service -> CMS, then CMS -> Service.
+  kCmsServiceRedeemConnectionTicket = 8;
+  kCmsServiceRedeemConnectionTicketResult = 9;
 }
 
 message CmsServiceHello {
@@ -100,6 +103,33 @@ message CmsServiceCreateWallSessionResult {
   string answer_sdp = 5;
 }
 
+message CmsServiceRedeemConnectionTicket {
+  string request_id = 1;
+  // Informational only. CMS uses the device identity bound to this WebSocket.
+  string device_id = 2;
+  string ticket = 3;
+  string client_nonce = 4;
+  string instance_id = 5;
+}
+
+message CmsConnectionGrant {
+  string kind = 1;
+  string device_id = 2;
+  string app_id = 3;
+  string instance_id = 4;
+  string subject_type = 5;
+  string subject_id = 6;
+  repeated string permissions = 7;
+  int64 expires_at = 8;
+}
+
+message CmsServiceRedeemConnectionTicketResult {
+  string request_id = 1;
+  bool ok = 2;
+  string code = 3;
+  CmsConnectionGrant grant = 4;
+}
+
 message CmsServiceMessage {
   CmsServiceMessageType msg_type = 1;
   string device_id = 10;
@@ -111,4 +141,6 @@ message CmsServiceMessage {
   CmsServiceStopAppInstanceResult stop_app_instance_result = 70;
   CmsServiceCreateWallSession create_wall_session = 80;
   CmsServiceCreateWallSessionResult create_wall_session_result = 90;
+  CmsServiceRedeemConnectionTicket redeem_connection_ticket = 100;
+  CmsServiceRedeemConnectionTicketResult redeem_connection_ticket_result = 110;
 }

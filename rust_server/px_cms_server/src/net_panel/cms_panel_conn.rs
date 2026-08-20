@@ -34,7 +34,6 @@ pub struct CmsPanelConn {
 pub struct CmsPanelConnVo {
     pub device_id: String,
     pub device_name: String,
-    pub appkey: String,
     pub user_id: String,
     pub hello_timestamp: i64,
     pub last_update_timestamp: i64,
@@ -80,7 +79,6 @@ impl CmsPanelConn {
         CmsPanelConnVo {
             device_id: self.device_id.to_string(),
             device_name: self.device_name.to_string(),
-            appkey: self.appkey.to_string(),
             user_id: self.user_id.to_string(),
             hello_timestamp: self.hello_timestamp,
             last_update_timestamp: self.last_update_timestamp,

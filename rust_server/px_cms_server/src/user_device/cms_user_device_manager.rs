@@ -3,10 +3,14 @@ use crate::device::cms_device::CmsDevice;
 use crate::device::cms_device_keys::KEY_DEVICE_ID;
 use crate::user::cms_user::{CmsUser, CmsUserView};
 use crate::user::cms_user_keys::KEY_USER_ID;
-use crate::user_device::cms_user_device::{CmsUserDevice, CmsUserDeviceAdapter};
+use crate::user_device::cms_user_device::{
+    CmsUserDevice, CmsUserDeviceAdapter, CmsUserDeviceSummary,
+};
 use crate::{gCmsDatabase, gDeviceManager, gUserManager};
 use futures_util::StreamExt;
 use mongodb::bson::doc;
+use px_base::get_current_readable_timestamp;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 pub struct CmsUserDeviceManager {}
@@ -59,7 +63,8 @@ impl CmsUserDeviceManager {
             return Err(CmsApiError::DatabaseError);
         }
 
-        user_device_adapter
+        self.query_by_uid_device_id(user_device.uid, user_device.device_id)
+            .await
     }
 
     pub async fn remove_device_from_user(
@@ -153,5 +158,141 @@ impl CmsUserDeviceManager {
             devices.push(self.make_user_device_adapter(user_device, user.clone(), device));
         }
         Ok(devices)
+    }
+
+    pub async fn query_user_device_summaries(
+        &self,
+        uid: String,
+    ) -> Result<Vec<CmsUserDeviceSummary>, CmsApiError> {
+        let mut authorized_ids =
+            crate::identity::manager::IdentityManager::authorized_device_ids(&uid).await?;
+        let c_user_device = gCmsDatabase.lock().await.user_device();
+        let mut cursor = c_user_device
+            .lock()
+            .await
+            .find(doc! { KEY_USER_ID: uid })
+            .sort(doc! { "created_ts": -1_i32, KEY_DEVICE_ID: 1_i32 })
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to query user device summaries: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+
+        while let Some(user_device) = cursor.next().await {
+            let user_device = user_device.map_err(|e| {
+                tracing::error!("failed to read user device grant: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+            authorized_ids.insert(user_device.device_id);
+        }
+
+        let mut devices = Vec::new();
+        for device_id in authorized_ids {
+            match gDeviceManager.query_device_by_id(device_id).await {
+                Ok(device) => devices.push(CmsUserDeviceSummary::from(device)),
+                Err(CmsApiError::DeviceNotFound) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        devices.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then(left.device_id.cmp(&right.device_id))
+        });
+        Ok(devices)
+    }
+
+    pub async fn user_has_device(&self, uid: &str, device_id: &str) -> Result<bool, CmsApiError> {
+        let personal = gCmsDatabase
+            .lock()
+            .await
+            .user_device()
+            .lock()
+            .await
+            .find_one(doc! { KEY_USER_ID: uid, KEY_DEVICE_ID: device_id })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .is_some();
+        if personal {
+            return Ok(true);
+        }
+        let group_ids: BTreeSet<_> =
+            crate::identity::manager::IdentityManager::groups_for_user(uid)
+                .await?
+                .into_iter()
+                .map(|group| group.gid)
+                .collect();
+        if group_ids.is_empty() {
+            return Ok(false);
+        }
+        Ok(gCmsDatabase
+            .lock()
+            .await
+            .group_device_grant()
+            .lock()
+            .await
+            .find_one(doc! { "gid": { "$in": group_ids.into_iter().collect::<Vec<_>>() }, KEY_DEVICE_ID: device_id })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .is_some())
+    }
+
+    pub async fn personal_device_ids(&self, uid: &str) -> Result<Vec<String>, CmsApiError> {
+        let mut cursor = gCmsDatabase
+            .lock()
+            .await
+            .user_device()
+            .lock()
+            .await
+            .find(doc! { KEY_USER_ID: uid })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        let mut ids = Vec::new();
+        while let Some(item) = cursor.next().await {
+            ids.push(item.map_err(|_| CmsApiError::DatabaseError)?.device_id);
+        }
+        ids.sort();
+        ids.dedup();
+        Ok(ids)
+    }
+
+    pub async fn replace_personal_devices(
+        &self,
+        uid: &str,
+        device_ids: Vec<String>,
+    ) -> Result<Vec<String>, CmsApiError> {
+        let user = gUserManager.query_user_by_id(uid.to_string()).await?;
+        if user.deleted {
+            return Err(CmsApiError::UserNotFound);
+        }
+        let mut desired = BTreeSet::new();
+        for device_id in device_ids {
+            if device_id.is_empty() || !desired.insert(device_id.clone()) {
+                continue;
+            }
+            gDeviceManager.query_device_by_id(device_id).await?;
+        }
+        let collection = gCmsDatabase.lock().await.user_device();
+        collection
+            .lock()
+            .await
+            .delete_many(doc! { KEY_USER_ID: uid })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        let now = px_base::get_current_timestamp();
+        for device_id in &desired {
+            collection
+                .lock()
+                .await
+                .insert_one(CmsUserDevice {
+                    uid: uid.to_string(),
+                    device_id: device_id.clone(),
+                    created_ts: now,
+                    created_ts_readable: get_current_readable_timestamp(),
+                })
+                .await
+                .map_err(|_| CmsApiError::DatabaseError)?;
+        }
+        Ok(desired.into_iter().collect())
     }
 }

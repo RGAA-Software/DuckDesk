@@ -16,11 +16,95 @@
 #include "px_common_new/time_util.h"
 #include <atomic>
 #include <format>
+#include <optional>
 
 using namespace webrtc;
 
 namespace px
 {
+    namespace {
+        std::optional<uint64_t> ReadVarint(const std::string& data, size_t& offset) {
+            uint64_t value = 0;
+            for (int shift = 0; shift < 64 && offset < data.size(); shift += 7) {
+                const auto byte = static_cast<uint8_t>(data[offset++]);
+                value |= static_cast<uint64_t>(byte & 0x7f) << shift;
+                if ((byte & 0x80) == 0) {
+                    return value;
+                }
+            }
+            return std::nullopt;
+        }
+
+        // Read only field 10(Message.type) from the protobuf envelope. This
+        // intentionally avoids pulling a second Abseil/Protobuf ABI into the
+        // WebRTC plugin, which uses WebRTC's bundled Abseil.
+        std::optional<int> ExtractMessageType(const std::string& data) {
+            size_t offset = 0;
+            while (offset < data.size()) {
+                const auto tag = ReadVarint(data, offset);
+                if (!tag || *tag == 0) {
+                    return std::nullopt;
+                }
+                const auto field = static_cast<uint32_t>(*tag >> 3);
+                const auto wire = static_cast<uint32_t>(*tag & 7);
+                if (field == 10 && wire == 0) {
+                    const auto value = ReadVarint(data, offset);
+                    return value ? std::optional<int>(static_cast<int>(*value)) : std::nullopt;
+                }
+                switch (wire) {
+                    case 0:
+                        if (!ReadVarint(data, offset)) return std::nullopt;
+                        break;
+                    case 1:
+                        if (offset + 8 > data.size()) return std::nullopt;
+                        offset += 8;
+                        break;
+                    case 2: {
+                        const auto length = ReadVarint(data, offset);
+                        if (!length || *length > data.size() - offset) return std::nullopt;
+                        offset += static_cast<size_t>(*length);
+                        break;
+                    }
+                    case 5:
+                        if (offset + 4 > data.size()) return std::nullopt;
+                        offset += 4;
+                        break;
+                    default:
+                        return std::nullopt;
+                }
+            }
+            return std::nullopt;
+        }
+
+        bool IsClipboardMessage(const int type) {
+            return type == 160 || type == 161 || type == 349
+                || type == 350 || type == 351 || type == 360;
+        }
+
+        bool IsInteractiveControlMessage(const int type) {
+            switch (type) {
+                case 50:  // key
+                case 60:  // mouse
+                case 80:  // gamepad
+                case 170: // switch monitor
+                case 190: // switch work mode
+                case 200: // change resolution
+                case 230: // insert key frame
+                case 328: // lock device
+                case 329: // stop render
+                case 330: // ctrl-alt-delete
+                case 340: // update desktop
+                case 341: // hard update desktop
+                case 460: // full color
+                case 470: // start recording
+                case 471: // stop recording
+                case 480: // modify fps
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
 
     std::shared_ptr<RtcServer> RtcServer::Make(RtcLocalPlugin* plugin) {
         return std::make_shared<RtcServer>(plugin);
@@ -97,11 +181,31 @@ namespace px
 
                 // data callback
                 media_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                    if (capability_enforced_) {
+                        const auto message_type = ExtractMessageType(data);
+                        if (!message_type) {
+                            LOGW("Drop malformed media control message from capability session");
+                            return;
+                        }
+                        if (IsClipboardMessage(*message_type) && !HasPermission("clipboard")) {
+                            LOGW("Drop clipboard message: ticket does not grant clipboard permission");
+                            return;
+                        }
+                        if (IsInteractiveControlMessage(*message_type) && !HasPermission("input")) {
+                            LOGW("Drop interactive control message: ticket does not grant input permission");
+                            return;
+                        }
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kMedia, payload_msg);
                 });
             }
             else if (name == "ft_data_channel") {
+                if (!HasPermission("file")) {
+                    LOGW("Close file-transfer channel: ticket does not grant file permission");
+                    ch->Close();
+                    return;
+                }
                 ft_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
 
                 // data callback
@@ -111,6 +215,11 @@ namespace px
                 });
             }
             else if (name == "input_data_channel") {
+                if (!HasPermission("input")) {
+                    LOGW("Close input channel: ticket does not grant input permission");
+                    ch->Close();
+                    return;
+                }
                 // web client 的低延迟输入通道(unreliable/unordered)。
                 // 走 CallbackEventDirectly:跳过 OnClientEventCame→PostWorkTask
                 // 排队(插件 work 线程在高负载时可能多等数 ms),在 WebRTC
@@ -325,7 +434,7 @@ namespace px
         // CMS wall sessions are video-only by contract. Do not create an RTP
         // audio sender at all; this saves capture/encode/network work and makes
         // the privacy boundary independent of browser mute state.
-        if (!IsWallObserver()) {
+        if (!IsWallObserver() && HasPermission("audio")) {
             audio_source_ = AudioSourceImpl::Create();
             auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
             // 多 track 模式下音频用独立 stream id,避免和多路 video 混在同一 stream;
@@ -379,7 +488,7 @@ namespace px
 
         LOGI("Will create answer sdp.");
         webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
-        options.offer_to_receive_audio = !IsWallObserver();
+        options.offer_to_receive_audio = !IsWallObserver() && HasPermission("audio");
         options.offer_to_receive_video = true;
         peer_conn_->CreateAnswer(this->create_answer_callback_.get(), options);
 

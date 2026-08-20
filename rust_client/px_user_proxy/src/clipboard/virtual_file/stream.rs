@@ -149,11 +149,7 @@ impl VirtualFileStreamCore {
                     return Err(StreamError::Timeout);
                 }
                 let slice = remaining.min(Duration::from_millis(50));
-                guard = self
-                    .resp_ready
-                    .wait_timeout(guard, slice)
-                    .expect("wait")
-                    .0;
+                guard = self.resp_ready.wait_timeout(guard, slice).expect("wait").0;
                 #[cfg(windows)]
                 crate::clipboard::win_platform::pump_sta_messages();
             }
@@ -279,7 +275,10 @@ mod tests {
         let mut buf = [0u8; 4];
         assert!(matches!(
             core.complete_read(&mut buf),
-            Err(StreamError::IndexMismatch { expected: 0, got: 99 })
+            Err(StreamError::IndexMismatch {
+                expected: 0,
+                got: 99
+            })
         ));
     }
 
@@ -290,7 +289,10 @@ mod tests {
         let _req = core.begin_read(4).expect("begin");
         core.exit();
         let mut buf = [0u8; 4];
-        assert!(matches!(core.complete_read(&mut buf), Err(StreamError::Exited)));
+        assert!(matches!(
+            core.complete_read(&mut buf),
+            Err(StreamError::Exited)
+        ));
     }
 
     #[test]
@@ -299,7 +301,10 @@ mod tests {
             VirtualFileStreamCore::new(sample_file()).with_read_timeout(Duration::from_millis(30));
         let _req = core.begin_read(4).expect("begin");
         let mut buf = [0u8; 4];
-        assert!(matches!(core.complete_read(&mut buf), Err(StreamError::Timeout)));
+        assert!(matches!(
+            core.complete_read(&mut buf),
+            Err(StreamError::Timeout)
+        ));
     }
 
     #[test]

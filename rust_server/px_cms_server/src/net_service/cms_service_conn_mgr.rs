@@ -6,50 +6,61 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct CmsServiceConnManager {
-    connections: Mutex<HashMap<String, CmsServiceConnPtr>>,
-    /// Bumped on every add_conn; disconnect handlers capture it to detect a
-    /// reconnect during the delayed-reconcile window.
-    epoch: AtomicU64,
+    state: Mutex<ConnectionState>,
+    next_epoch: AtomicU64,
+}
+
+#[derive(Default)]
+struct ConnectionState {
+    connections: HashMap<String, CmsServiceConnPtr>,
+    /// Epochs are device-scoped. A reconnect of D2 must never cancel the
+    /// delayed disconnect reconciliation for D1.
+    epochs: HashMap<String, u64>,
 }
 
 impl CmsServiceConnManager {
     pub fn new() -> Self {
         Self {
-            connections: Mutex::new(Default::default()),
-            epoch: AtomicU64::new(0),
+            state: Mutex::new(ConnectionState::default()),
+            next_epoch: AtomicU64::new(0),
         }
     }
 
     /// Insert conn and return the new epoch. A stale connection for the same
     /// device_id is proactively closed so its recv loop ends.
     pub async fn add_conn(&self, device_id: String, conn: CmsServiceConnPtr) -> u64 {
-        let old = self.connections.lock().await.insert(device_id, conn);
-        let epoch = self.epoch.fetch_add(1, Ordering::Relaxed) + 1;
+        let epoch = self.next_epoch.fetch_add(1, Ordering::Relaxed) + 1;
+        let old = {
+            let mut state = self.state.lock().await;
+            state.epochs.insert(device_id.clone(), epoch);
+            state.connections.insert(device_id, conn)
+        };
         if let Some(old) = old {
             old.lock().await.close().await;
         }
         epoch
     }
 
-    pub fn epoch(&self) -> u64 {
-        self.epoch.load(Ordering::Relaxed)
+    pub async fn device_epoch(&self, device_id: &str) -> Option<u64> {
+        self.state.lock().await.epochs.get(device_id).copied()
     }
 
     /// Compare-and-remove: only evict if the stored connection is the exact
     /// same Arc — otherwise a slow recv_task of an old connection would wipe
     /// the newer connection of a reconnecting device.
     pub async fn remove_conn(&self, device_id: String, conn: &CmsServiceConnPtr) {
-        let mut conns = self.connections.lock().await;
-        if conns
+        let mut state = self.state.lock().await;
+        if state
+            .connections
             .get(&device_id)
             .is_some_and(|cur| Arc::ptr_eq(cur, conn))
         {
-            conns.remove(&device_id);
+            state.connections.remove(&device_id);
         }
     }
 
     pub async fn get_conn(&self, device_id: String) -> Result<CmsServiceConnPtr, CmsApiError> {
-        let conn = self.connections.lock().await.get(&device_id).cloned();
+        let conn = self.state.lock().await.connections.get(&device_id).cloned();
         if let Some(conn) = conn {
             Ok(conn)
         } else {
@@ -65,7 +76,7 @@ impl CmsServiceConnManager {
 
     pub async fn get_all_conn(&self) -> Result<Vec<CmsServiceConn>, CmsApiError> {
         let mut all_conn = Vec::new();
-        for conn in self.connections.lock().await.values() {
+        for conn in self.state.lock().await.connections.values() {
             all_conn.push(conn.lock().await.clone());
         }
         // An empty collection is a normal state while no Service is online.
@@ -75,7 +86,7 @@ impl CmsServiceConnManager {
 
     pub async fn get_all_conn_info(&self) -> Result<Vec<CmsServiceConnVo>, CmsApiError> {
         let mut all_conn = Vec::new();
-        for conn in self.connections.lock().await.values() {
+        for conn in self.state.lock().await.connections.values() {
             all_conn.push(conn.lock().await.as_info());
         }
         // No online Service is not an API error: return [] so schedules and
@@ -84,11 +95,11 @@ impl CmsServiceConnManager {
     }
 
     pub async fn get_all_conn_count(&self) -> usize {
-        self.connections.lock().await.len()
+        self.state.lock().await.connections.len()
     }
 
     pub async fn is_service_online(&self, device_id: String) -> Result<bool, CmsApiError> {
-        for id in self.connections.lock().await.keys() {
+        for id in self.state.lock().await.connections.keys() {
             if *id == device_id {
                 return Ok(true);
             }
@@ -163,6 +174,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn epochs_are_scoped_to_each_device() {
+        let mgr = CmsServiceConnManager::new();
+        let d1_epoch = mgr
+            .add_conn("d1".to_string(), make_conn("d1", "appkey-1"))
+            .await;
+        let _d2_epoch = mgr
+            .add_conn("d2".to_string(), make_conn("d2", "appkey-1"))
+            .await;
+
+        assert_eq!(mgr.device_epoch("d1").await, Some(d1_epoch));
+        let d1_reconnected = mgr
+            .add_conn("d1".to_string(), make_conn("d1", "appkey-1"))
+            .await;
+        assert!(d1_reconnected > d1_epoch);
+        assert_eq!(mgr.device_epoch("d1").await, Some(d1_reconnected));
+    }
+
+    #[tokio::test]
     async fn get_all_conn_info_returns_empty_or_vos() {
         let mgr = CmsServiceConnManager::new();
         assert!(mgr.get_all_conn_info().await.unwrap().is_empty());
@@ -174,7 +203,6 @@ mod tests {
         assert_eq!(infos.len(), 1);
         let info = &infos[0];
         assert_eq!(info.device_id, "d1");
-        assert_eq!(info.appkey, "appkey-1");
         assert_eq!(info.version, "1.0.0");
         assert_eq!(info.hello_timestamp, 100);
         assert_eq!(info.last_update_timestamp, 200);

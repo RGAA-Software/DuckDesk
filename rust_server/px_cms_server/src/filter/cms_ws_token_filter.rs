@@ -6,6 +6,8 @@ use serde::Deserialize;
 
 use crate::cms_api_error::CmsApiError;
 use crate::gAuthManager;
+use crate::gUserSessionManager;
+use crate::user::session_handler::{cookie_value, ADMIN_SESSION_COOKIE};
 use px_auth_mgr::auth_token::verify_connection_token;
 use px_base::get_current_timestamp;
 
@@ -102,7 +104,16 @@ pub async fn panel_filter(req: Request<Body>, next: Next) -> Response {
 
 /// `/cms/website` filter: verifies the HMAC token only.
 pub async fn website_filter(req: Request<Body>, next: Next) -> Response {
-    verify_and_run(req, next, false).await
+    if crate::cms_settings::is_auth_bypassed().await {
+        return next.run(req).await;
+    }
+    if let Some(token) = cookie_value(req.headers(), ADMIN_SESSION_COOKIE) {
+        return match gUserSessionManager.authenticate_admin(&token).await {
+            Ok(_) => next.run(req).await,
+            Err(error) => error.into_response(),
+        };
+    }
+    CmsApiError::AuthenticationRequired.into_response()
 }
 
 #[cfg(test)]
@@ -321,7 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn website_accepts_valid_token() {
+    async fn website_rejects_native_appkey_token() {
         let _guard = TOKEN_TEST_LOCK.lock().unwrap();
         crate::gCmsSettings.lock().await.force_authorize = true;
         gAuthManager
@@ -341,7 +352,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

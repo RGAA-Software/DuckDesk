@@ -5,7 +5,9 @@ use std::sync::{Arc, Mutex};
 use tracing::{info, warn};
 
 use crate::clipboard::content::{files_signature, ClipboardFileEntry};
-use crate::clipboard::virtual_file::stream::{ReadChunkRequest, RespBufferData, VirtualFileStreamCore};
+use crate::clipboard::virtual_file::stream::{
+    ReadChunkRequest, RespBufferData, VirtualFileStreamCore,
+};
 use crate::proto::{self, StreamRoute};
 
 #[derive(Debug, Clone)]
@@ -47,10 +49,7 @@ impl VirtualFileCoordinator {
         }
         *self.session.lock().expect("lock") = Some(session);
         *self.active_stream.lock().expect("lock") = None;
-        info!(
-            "virtual file session installed, count={}",
-            streams.len()
-        );
+        info!("virtual file session installed, count={}", streams.len());
     }
 
     pub fn session_files(&self) -> Option<Vec<ClipboardFileEntry>> {
@@ -102,7 +101,10 @@ impl VirtualFileCoordinator {
                 return true;
             }
         }
-        warn!("virtual file resp buffer with no matching stream, full_name={}", resp.full_name);
+        warn!(
+            "virtual file resp buffer with no matching stream, full_name={}",
+            resp.full_name
+        );
         false
     }
 

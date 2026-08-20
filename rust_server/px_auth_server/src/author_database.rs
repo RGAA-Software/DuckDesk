@@ -1,7 +1,7 @@
 use crate::author::Author;
 use crate::author_customer::Customer;
-use px_auth_mgr::authorization::Authorization;
 use mongodb::{Client, Collection};
+use px_auth_mgr::authorization::Authorization;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

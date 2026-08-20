@@ -1,7 +1,6 @@
 // service 连接信息
 export interface ServiceConn {
   device_id: string
-  appkey: string
   version: string
   hello_timestamp: number
   last_update_timestamp: number

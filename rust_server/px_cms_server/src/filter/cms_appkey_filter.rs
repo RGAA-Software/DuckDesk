@@ -28,10 +28,6 @@ struct AppkeyQueryParams {
 /// on the auth server being the authority for issuing signed licenses, and it
 /// MUST NOT return credential fields (see AuthStatus).
 ///
-/// `verify/auth/account` is whitelisted because it IS the credential check
-/// (license username/password); on success it returns the appkey so the web
-/// UI can call appkey-protected endpoints afterwards.
-///
 /// `get/auth/status` is whitelisted so the login page can show the machine
 /// code / authorization state before any authorization exists. It returns a
 /// safe view without any credential fields.
@@ -42,7 +38,6 @@ const APPKEY_FILTER_WHITELIST: &[&str] = &[
     "/gen/raw/access/info",
     // Nested under /api/v1/auth/control -> stripped path
     "/pull/authorization",
-    "/verify/auth/account",
     "/get/auth/status",
     // Root-level static paths
     "/",
@@ -124,8 +119,8 @@ mod tests {
         // Other auth endpoints must NOT be whitelisted.
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/get/authorization"));
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/update/password"));
-        // Login & safe status endpoints ARE whitelisted (see doc comment).
-        assert!(APPKEY_FILTER_WHITELIST.contains(&"/verify/auth/account"));
+        // Safe status is public, credential verification is not.
+        assert!(!APPKEY_FILTER_WHITELIST.contains(&"/verify/auth/account"));
         assert!(APPKEY_FILTER_WHITELIST.contains(&"/get/auth/status"));
 
         // Substring or prefix variants must NOT be whitelisted (defense against bypasses).

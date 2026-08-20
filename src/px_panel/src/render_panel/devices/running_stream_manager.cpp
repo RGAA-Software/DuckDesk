@@ -248,12 +248,25 @@ namespace px
             << std::format("--gl_backend={}", settings_->gl_backend_).c_str()
             << std::format("--force_direct={}", item->force_direct_ ? 1 : 0).c_str()
             ;
+        if (!item->connection_ticket_.empty()) {
+            arguments
+                << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
+                << std::format("--connection_nonce={}", item->connection_nonce_).c_str();
+        }
         LOGI("Start client inner args:");
         for (auto& arg : arguments) {
-            LOGI("{}", arg.toStdString());
+            const auto value = arg.toStdString();
+            if (value.starts_with("--connection_ticket=")
+                || value.starts_with("--remote_device_rp=")
+                || value.starts_with("--remote_device_sp=")
+                || value.starts_with("--device_rp=")
+                || value.starts_with("--device_sp=")) {
+                LOGI("{}=<redacted>", value.substr(0, value.find('=')));
+            }
+            else {
+                LOGI("{}", value);
+            }
         }
-        LOGI("MY RDM PWD: {}", item->device_random_pwd_);
-        LOGI("RE RDM PWD: {}", item->remote_device_random_pwd_);
 
         auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
         process->start(client_inner_path, arguments);

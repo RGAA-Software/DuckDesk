@@ -5,8 +5,8 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
 use protocol::cms_service::{
-    CmsServiceCreateWallSession, CmsServiceHeartBeat, CmsServiceHello, CmsServiceMessage,
-    CmsServiceMessageType,
+    CmsConnectionGrant, CmsServiceCreateWallSession, CmsServiceHeartBeat, CmsServiceHello,
+    CmsServiceMessage, CmsServiceMessageType, CmsServiceRedeemConnectionTicketResult,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -32,7 +32,6 @@ pub struct CmsServiceConn {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CmsServiceConnVo {
     pub device_id: String,
-    pub appkey: String,
     pub version: String,
     pub hello_timestamp: i64,
     pub last_update_timestamp: i64,
@@ -69,7 +68,6 @@ impl CmsServiceConn {
     pub fn as_info(&self) -> CmsServiceConnVo {
         CmsServiceConnVo {
             device_id: self.device_id.to_string(),
-            appkey: self.appkey.to_string(),
             version: self.version.to_string(),
             hello_timestamp: self.hello_timestamp,
             last_update_timestamp: self.last_update_timestamp,
@@ -128,6 +126,56 @@ impl CmsServiceConn {
             if let Some(sub) = m.create_wall_session_result {
                 crate::wall::cms_wall_handler::on_wall_session_result(sub).await;
             }
+        } else if m.msg_type == CmsServiceMessageType::KCmsServiceRedeemConnectionTicket {
+            let Some(request) = m.redeem_connection_ticket else {
+                tracing::warn!("ticket redemption message without request body");
+                return true;
+            };
+            let request_id = request.request_id.clone();
+            let instance_id =
+                (!request.instance_id.is_empty()).then_some(request.instance_id.as_str());
+            let result = crate::connection_ticket::manager::ConnectionTicketManager::redeem(
+                &request.ticket,
+                &self.device_id,
+                &request.client_nonce,
+                instance_id,
+                &request_id,
+            )
+            .await;
+            let response = match result {
+                Ok(grant) => CmsServiceRedeemConnectionTicketResult {
+                    request_id,
+                    ok: true,
+                    code: "OK".to_string(),
+                    grant: Some(CmsConnectionGrant {
+                        kind: grant.kind,
+                        device_id: grant.device_id,
+                        app_id: grant.app_id.unwrap_or_default(),
+                        instance_id: grant.instance_id.unwrap_or_default(),
+                        subject_type: grant.subject_type,
+                        subject_id: grant.subject_id,
+                        permissions: grant.permissions,
+                        expires_at: grant.expires_at,
+                    }),
+                },
+                Err(error) => {
+                    tracing::warn!(request_id = %request_id, "connection ticket redemption rejected");
+                    CmsServiceRedeemConnectionTicketResult {
+                        request_id,
+                        ok: false,
+                        code: match error {
+                            crate::cms_api_error::CmsApiError::TicketExpiredOrUsed => {
+                                "TICKET_EXPIRED_OR_USED"
+                            }
+                            crate::cms_api_error::CmsApiError::InvalidParams => "INVALID_ARGUMENT",
+                            _ => "TICKET_REJECTED",
+                        }
+                        .to_string(),
+                        grant: None,
+                    }
+                }
+            };
+            self.send_redeem_result(response).await;
         }
 
         true
@@ -198,6 +246,18 @@ impl CmsServiceConn {
         sv_msg.device_id = self.device_id.clone();
         sv_msg.create_wall_session = Some(request);
         self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
+            .await
+    }
+
+    async fn send_redeem_result(
+        &mut self,
+        response: CmsServiceRedeemConnectionTicketResult,
+    ) -> bool {
+        let mut message = CmsServiceMessage::default();
+        message.set_msg_type(CmsServiceMessageType::KCmsServiceRedeemConnectionTicketResult);
+        message.device_id = self.device_id.clone();
+        message.redeem_connection_ticket_result = Some(response);
+        self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
             .await
     }
 

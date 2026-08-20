@@ -22,6 +22,8 @@ use crate::auth::cms_auth_router::make_auth_router;
 use crate::cms_router::make_cms_router;
 use crate::device::cms_device_router::make_device_router;
 use crate::event::cms_event_router::make_event_router;
+use crate::identity::public_router::make_public_resource_router;
+use crate::identity::router::make_admin_identity_router;
 use crate::live::cms_live_router::make_live_router;
 use crate::net_client::cms_client_router::make_client_router;
 use crate::net_client::cms_client_ws_handler;
@@ -33,9 +35,7 @@ use crate::net_service::cms_service_ws_handler;
 use crate::record::cms_record_router::make_record_router;
 use crate::stream::cms_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
-use crate::user::cms_user_router::make_user_router;
 use crate::user::session_router::{make_session_router, make_user_self_router};
-use crate::user_device::cms_user_device_router::make_user_device_router;
 use crate::wall::cms_wall_router::make_wall_router;
 use axum::middleware::{self};
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -119,9 +119,13 @@ impl CmsServer {
             // cms
             .nest("/api/v1/cms/control", make_cms_router(context.clone()))
             // user
-            .nest("/api/v1/user/control", make_user_router(context.clone()))
             .nest("/api/v1/session", make_session_router(context.clone()))
             .nest("/api/v1/user", make_user_self_router(context.clone()))
+            .nest("/api/v1/admin", make_admin_identity_router(context.clone()))
+            .nest(
+                "/api/v1/public",
+                make_public_resource_router(context.clone()),
+            )
             // stream
             .nest(
                 "/api/v1/stream/control",
@@ -150,11 +154,6 @@ impl CmsServer {
             )
             // event
             .nest("/api/v1/event/control", make_event_router(context.clone()))
-            // user-device
-            .nest(
-                "/api/v1/user_device/control",
-                make_user_device_router(context.clone()),
-            )
             // update
             .nest("/api/v1/update", make_update_router(context.clone()))
             .nest("/api/v1/record", make_record_router(context.clone()))

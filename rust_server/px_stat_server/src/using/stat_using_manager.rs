@@ -2,8 +2,8 @@ use crate::gStatDatabase;
 use crate::stat_api_error::StatApiError;
 use crate::stat_api_keys::{KEY_SYS_INFO, KEY_UPDATED_TS};
 use crate::using::stat_open_up::StatOpenUp;
-use px_base::get_current_timestamp;
 use mongodb::bson::doc;
+use px_base::get_current_timestamp;
 
 pub struct StatUsingManager {}
 

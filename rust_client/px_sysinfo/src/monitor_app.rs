@@ -3,21 +3,20 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui::{
-    App, AppContext, Context, IntoElement, ParentElement, Render, Styled, Window, WindowBounds,
-    WindowOptions, div, px, size,
+    div, px, size, App, AppContext, Context, IntoElement, ParentElement, Render, Styled, Window,
+    WindowBounds, WindowOptions,
 };
 use gpui_component::{
-    ActiveTheme, Root, Theme, ThemeMode, TitleBar,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputState},
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
-    v_flex,
+    v_flex, ActiveTheme, Root, Theme, ThemeMode, TitleBar,
 };
 use gpui_component_assets::Assets;
-use smol::Timer;
 use serde::{Deserialize, Serialize};
+use smol::Timer;
 
 use crate::monitor_dashboard::{render_connection_summary, render_dashboard};
 use crate::monitor_model::{MachineTelemetry, MonitorTab};
@@ -120,18 +119,16 @@ impl SysMonitorApp {
         };
         this.sender_status = this.sender.status();
 
-        cx.spawn(async move |this, cx| {
-            loop {
-                Timer::after(INTERVAL).await;
-                if this
-                    .update(cx, |this, cx| {
-                        this.refresh();
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            Timer::after(INTERVAL).await;
+            if this
+                .update(cx, |this, cx| {
+                    this.refresh();
+                    cx.notify();
+                })
+                .is_err()
+            {
+                break;
             }
         })
         .detach();
@@ -169,7 +166,12 @@ impl SysMonitorApp {
         cx.notify();
     }
 
-    fn connect_sender(&mut self, _event: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn connect_sender(
+        &mut self,
+        _event: &gpui::ClickEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let config = self.current_connection_config(cx, true);
         self.sender.connect(config.host.clone(), config.port);
         save_monitor_connection_config(&config);
@@ -201,7 +203,12 @@ impl SysMonitorApp {
                 h_flex()
                     .gap_3()
                     .items_center()
-                    .child(div().text_sm().text_color(cx.theme().foreground).child("推送到 Host"))
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().foreground)
+                            .child("推送到 Host"),
+                    )
                     .child(div().w(px(240.)).child(Input::new(&self.host_input)))
                     .child(div().w(px(120.)).child(Input::new(&self.port_input)))
                     .child(
@@ -245,7 +252,12 @@ impl Render for SysMonitorApp {
                         h_flex()
                             .gap_3()
                             .items_center()
-                            .child(div().text_sm().text_color(cx.theme().foreground).child("PxSysMonitor"))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().foreground)
+                                    .child("PxSysMonitor"),
+                            )
                             .child(
                                 div()
                                     .text_xs()
@@ -263,7 +275,10 @@ impl Render for SysMonitorApp {
                             .mr_4()
                             .text_xs()
                             .text_color(cx.theme().muted_foreground)
-                            .child(format!("刷新时间 {}", self.telemetry.current.timestamp_readable)),
+                            .child(format!(
+                                "刷新时间 {}",
+                                self.telemetry.current.timestamp_readable
+                            )),
                     ),
             )
             .child(self.render_connection_panel(cx))
@@ -305,26 +320,27 @@ pub fn run(start_hidden: bool) {
         };
 
         cx.spawn(async move |cx| {
-            let window_handle = cx.open_window(window_options, |window, cx| {
-                window.set_window_title("PxSysMonitor");
+            let window_handle = cx
+                .open_window(window_options, |window, cx| {
+                    window.set_window_title("PxSysMonitor");
 
-                Theme::change(ThemeMode::Dark, Some(window), cx);
+                    Theme::change(ThemeMode::Dark, Some(window), cx);
 
-                window.on_window_should_close(cx, |window, _cx| {
-                    tray::hide_window(window);
-                    false
-                });
+                    window.on_window_should_close(cx, |window, _cx| {
+                        tray::hide_window(window);
+                        false
+                    });
 
-                if start_hidden {
-                    tray::hide_window(window);
-                } else {
-                    window.activate_window();
-                }
+                    if start_hidden {
+                        tray::hide_window(window);
+                    } else {
+                        window.activate_window();
+                    }
 
-                let view = cx.new(|cx| SysMonitorApp::new(window, cx));
-                cx.new(|cx| Root::new(view, window, cx))
-            })
-            .expect("failed to open PxSysMonitor window");
+                    let view = cx.new(|cx| SysMonitorApp::new(window, cx));
+                    cx.new(|cx| Root::new(view, window, cx))
+                })
+                .expect("failed to open PxSysMonitor window");
 
             #[allow(clippy::redundant_locals)]
             cx.spawn({

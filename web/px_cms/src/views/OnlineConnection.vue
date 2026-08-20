@@ -24,7 +24,6 @@ async function queryOnlineClients(page: number, pageSize: number) {
     params: {
       page: page,
       page_size: pageSize,
-      appkey: localStorage.getItem('appkey'),
       sort_time: -1,
     },
   })

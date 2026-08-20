@@ -85,9 +85,9 @@ impl AuthorSettings {
         let new_secret = generate_random_secret();
         let updated_content = replace_toml_string_field(&toml_content, "jwt_secret", &new_secret)
             .ok_or_else(|| AuthorSettingsError::InvalidField {
-                field: "bootstrap.jwt_secret",
-                message: "field not found in settings file",
-            })?;
+            field: "bootstrap.jwt_secret",
+            message: "field not found in settings file",
+        })?;
 
         // Parse the updated content first; only write back if parsing succeeds.
         let settings = Self::parse_from_toml(&updated_content)?;
@@ -130,12 +130,13 @@ impl AuthorSettings {
             self.bootstrap.visitor_password.as_deref(),
         )?;
         if self.require_app_credential {
-            let cred = self.app_credential.as_ref().ok_or_else(|| {
-                AuthorSettingsError::InvalidField {
-                    field: "app_credential",
-                    message: "required when require_app_credential is true",
-                }
-            })?;
+            let cred =
+                self.app_credential
+                    .as_ref()
+                    .ok_or_else(|| AuthorSettingsError::InvalidField {
+                        field: "app_credential",
+                        message: "required when require_app_credential is true",
+                    })?;
             validate_non_empty("app_credential.appkey", &cred.appkey)?;
             validate_non_empty("app_credential.app_secret", &cred.app_secret)?;
         }
@@ -161,7 +162,8 @@ fn replace_toml_string_field(content: &str, field: &str, new_value: &str) -> Opt
         .split('\n')
         .map(|line| {
             // Strip trailing '\r' (from CRLF) for key matching, but preserve it in output.
-            let (body, cr) = line.strip_suffix('\r')
+            let (body, cr) = line
+                .strip_suffix('\r')
                 .map(|b| (b, "\r"))
                 .unwrap_or((line, ""));
 

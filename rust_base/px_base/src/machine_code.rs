@@ -301,7 +301,10 @@ mod tests {
 
     #[test]
     fn code_is_deterministic_for_same_factors() {
-        assert_eq!(sample_factors().machine_code(), sample_factors().machine_code());
+        assert_eq!(
+            sample_factors().machine_code(),
+            sample_factors().machine_code()
+        );
     }
 
     #[test]

@@ -58,7 +58,6 @@ namespace px
         void InitListeners();
         void ForceStopAllPrograms(bool uninstall_service);
         void Login();
-        void ShowUserRegisterDialog();
         void ShowUserLoginDialog();
         void ShowSelectAvatarDialog();
         void UpdateUsername();

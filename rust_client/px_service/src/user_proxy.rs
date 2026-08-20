@@ -46,10 +46,7 @@ mod tests {
             20400
         );
         assert_eq!(
-            extract_render_port(&[
-                "--network_listen_port".to_string(),
-                "20401".to_string()
-            ]),
+            extract_render_port(&["--network_listen_port".to_string(), "20401".to_string()]),
             20401
         );
         assert_eq!(
@@ -65,9 +62,6 @@ mod tests {
 
     #[test]
     fn user_proxy_path_joins_work_dir() {
-        assert_eq!(
-            user_proxy_path("D:/px"),
-            "D:/px/px_function.exe"
-        );
+        assert_eq!(user_proxy_path("D:/px"), "D:/px/px_function.exe");
     }
 }

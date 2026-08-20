@@ -7,6 +7,7 @@
 
 #include "px_common_new/webrtc_helper.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
+#include <algorithm>
 
 namespace px
 {
@@ -56,6 +57,14 @@ namespace px
         // 不再回 704 让用户确认;不同 nonce 维持占用确认流程
         void SetClientNonce(const std::string& nonce) { client_nonce_ = nonce; }
         const std::string& GetClientNonce() const { return client_nonce_; }
+        void SetPermissions(bool capability_enforced, const std::vector<std::string>& permissions) {
+            capability_enforced_ = capability_enforced;
+            permissions_ = permissions;
+        }
+        bool HasPermission(const std::string& permission) const {
+            return !capability_enforced_
+                || std::find(permissions_.begin(), permissions_.end(), permission) != permissions_.end();
+        }
         // 请求退出:置 exit_ 标记,停止一切收发;真正的资源回收由 plugin 延迟 Sweep
         void RequestExit() { exit_ = true; }
         bool IsExitRequested() const { return exit_.load(); }
@@ -138,6 +147,8 @@ namespace px
         std::atomic<bool> cleaned_up_ = false;
         std::string conn_id_;
         std::string client_nonce_;
+        std::vector<std::string> permissions_;
+        bool capability_enforced_ = false;
         bool wall_observer_ = false;
         std::atomic_bool ice_connected_ = false;
         int64_t created_timestamp_ms_ = 0;

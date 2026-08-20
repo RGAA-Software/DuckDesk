@@ -56,10 +56,20 @@ namespace px
             }
             if (asio2::get_last_error()) {
                 LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
-            } else {
-                LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+                return;
             }
-
+            LOGI("tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+        })
+        .bind_upgrade([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || !self->client_ || !self->context_) {
+                return;
+            }
+            if (asio2::get_last_error()) {
+                LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                return;
+            }
+            LOGI("websocket upgrade success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
             self->context_->PostTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || !self->context_) {
@@ -67,14 +77,7 @@ namespace px
                 }
                 self->context_->SendAppMessage(MsgConnectedToService{});
             });
-
             self->SendAuthInfo();
-
-        })
-        .bind_upgrade([]() {
-            if (asio2::get_last_error()) {
-                LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
-            }
         })
         .bind_recv([weak_self](std::string_view data) {
             auto self = weak_self.lock();

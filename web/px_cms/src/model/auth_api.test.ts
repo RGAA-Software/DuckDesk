@@ -24,8 +24,7 @@ describe('queryAuthorization', () => {
     localStorage.clear()
   })
 
-  it('sends the stored appkey as a query parameter', async () => {
-    localStorage.setItem('appkey', 'test-appkey-123')
+  it('uses the HttpOnly admin session without exposing an appkey', async () => {
     vi.mocked(axiosHttp.get).mockResolvedValue({
       status: 200,
       data: { code: 200, data: { appkey: 'test-appkey-123' } },
@@ -33,12 +32,7 @@ describe('queryAuthorization', () => {
 
     await queryAuthorization()
 
-    expect(axiosHttp.get).toHaveBeenCalledWith(
-      '/api/v1/auth/control/get/authorization',
-      {
-        params: { appkey: 'test-appkey-123' },
-      },
-    )
+    expect(axiosHttp.get).toHaveBeenCalledWith('/api/v1/auth/control/get/authorization')
   })
 })
 

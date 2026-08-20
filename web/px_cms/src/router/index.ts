@@ -5,6 +5,7 @@ import ResourcesView from '@/views/ResourcesView.vue'
 import DevicesList from '@/views/DevicesList.vue'
 import SecurityInternal from '@/views/SecurityInternal.vue'
 import UserManager from '@/views/UserManager.vue'
+import GroupManager from '@/views/GroupManager.vue'
 import ProfileInfo from '@/views/ProfileInfo.vue'
 import OnlineConnection from '@/views/OnlineConnection.vue'
 import ConnectionMonitor from '@/views/ConnectionMonitor.vue'
@@ -14,6 +15,16 @@ import LoginView from '@/views/LoginView.vue'
 import AppsView from '@/views/AppsView.vue'
 import DeviceRecords from '@/views/DeviceRecords.vue'
 import LiveViewer from '@/views/LiveViewer.vue'
+import { queryAdminSession } from '@/model/admin_session_api.ts'
+import UserLayout from '@/user/UserLayout.vue'
+import UserLogin from '@/user/UserLogin.vue'
+import UserHome from '@/user/UserHome.vue'
+import UserDevices from '@/user/UserDevices.vue'
+import UserApps from '@/user/UserApps.vue'
+import UserActivity from '@/user/UserActivity.vue'
+import UserProfile from '@/user/UserProfile.vue'
+import PublicApps from '@/user/PublicApps.vue'
+import { queryUser } from '@/user/api'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -124,6 +135,12 @@ const router = createRouter({
           },
         },
         {
+          path: '/group-manager',
+          name: 'group-manager',
+          component: GroupManager,
+          meta: { title: '用户组与授权', requiresAuth: true },
+        },
+        {
           path: '/profile-info',
           name: 'profile-info',
           component: ProfileInfo,
@@ -148,17 +165,40 @@ const router = createRouter({
         requiresAuth: false,
       },
     },
+    {
+      path: '/user/login',
+      name: 'user-login',
+      component: UserLogin,
+      meta: { title: '用户登录' },
+    },
+    { path: '/user/public-apps', component: PublicApps, meta: { title: '公共云端应用' } },
+    {
+      path: '/user',
+      component: UserLayout,
+      redirect: '/user/home',
+      children: [
+        { path: 'home', component: UserHome, meta: { title: '我的资源', requiresUser: true } },
+        { path: 'devices', component: UserDevices, meta: { title: '我的远程桌面', requiresUser: true } },
+        { path: 'apps', component: UserApps, meta: { title: '云端应用', requiresUser: true } },
+        { path: 'activity', component: UserActivity, meta: { title: '实例与活动', requiresUser: true } },
+        { path: 'profile', component: UserProfile, meta: { title: '个人中心', requiresUser: true } },
+      ],
+    },
   ],
 })
 
-router.beforeEach((to, from, next) => {
-  const isLoggedIn = sessionStorage.getItem('admin_authenticated') === '1'
-
-  if (!isLoggedIn && to.meta.requiresAuth) {
-    next({ path: '/', replace: true })
-  } else {
-    next()
+router.beforeEach(async (to) => {
+  if (to.meta.requiresUser) {
+    const user = await queryUser()
+    if (!user) return { path: '/user/login', query: { redirect: to.fullPath }, replace: true }
+    if (user.must_change_password && to.path !== '/user/profile') {
+      return { path: '/user/profile', replace: true }
+    }
+    return true
   }
+  if (!to.meta.requiresAuth) return true
+  const admin = await queryAdminSession()
+  return admin ? true : { path: '/', replace: true }
 })
 
 

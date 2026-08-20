@@ -1,11 +1,17 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Ninja parses cl.exe /showIncludes output to track header dependencies.
+rem Force the stable English prefix; localized output can otherwise leave stale
+rem objects after a header-only ABI change.
+set "VSLANG=1033"
+
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 
 if exist "%VSWHERE%" (
-    for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+    for %%V in ("%VSWHERE%") do set "VSWHERE_CMD=%%~sV"
+    for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
         set "VS_INSTALL_DIR=%%i"
     )
 )
@@ -19,7 +25,8 @@ if "%VS_INSTALL_DIR%"=="" (
 
 if "%VS_INSTALL_DIR%"=="" (
     if exist "%VSWHERE%" (
-        for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+        for %%V in ("%VSWHERE%") do set "VSWHERE_CMD=%%~sV"
+        for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_INSTALL_DIR=%%i"
         )
     )
@@ -39,6 +46,8 @@ if "%VS_INSTALL_DIR%"=="" (
 
 call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
+rem VsDevCmd may overwrite VSLANG, so enforce it after environment setup too.
+set "VSLANG=1033"
 
 rem VsDevCmd points VCPKG_ROOT to the VS-bundled vcpkg (no protobuf tools).
 rem Pin protoc from the project vcpkg for rust_base/protocol build.rs.
@@ -74,6 +83,22 @@ if /I "%1"=="reconfigure" (
 rem Default: incremental build (skip CMake configure).
 rem Fall back to configure when the build tree does not exist yet.
 if exist "build_official\build.ninja" (
+    set "MSVC_DEPS_PREFIX_OK="
+    for /r "build_official\CMakeFiles" %%F in (CMakeCXXCompiler.cmake) do (
+        findstr.exe /c:"Note: including file:" "%%F" >nul 2>&1 && set "MSVC_DEPS_PREFIX_OK=1"
+    )
+    if not defined MSVC_DEPS_PREFIX_OK (
+        echo Existing build tree has an incompatible MSVC dependency prefix.
+        echo Cleaning generated CMake metadata once so Ninja can rebuild reliable dependencies...
+        cmake --build build_official --target clean
+        if errorlevel 1 exit /b %errorlevel%
+        if exist "build_official\CMakeFiles" rmdir /s /q "build_official\CMakeFiles"
+        if exist "build_official\CMakeCache.txt" del /q "build_official\CMakeCache.txt"
+        if exist "build_official\build.ninja" del /q "build_official\build.ninja"
+        if exist "build_official\.ninja_deps" del /q "build_official\.ninja_deps"
+        if exist "build_official\.ninja_log" del /q "build_official\.ninja_log"
+        goto :do_configure
+    )
     echo Incremental build, skipping CMake configure...
     goto :do_build
 )

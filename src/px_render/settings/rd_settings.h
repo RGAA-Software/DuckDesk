@@ -154,6 +154,7 @@ namespace px
         int panel_server_port_ = 0;
         std::string service_server_host_ = "127.0.0.1";
         int service_server_port_ = 20375;
+        std::string service_ipc_token_;
         std::string device_id_;
         std::string device_random_pwd_;
         std::string device_safety_pwd_;

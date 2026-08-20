@@ -26,12 +26,7 @@ fn gen_pair() -> (String, String) {
 }
 
 /// Upsert `[app_credential]` 段（保留文件其余内容），并按需设置 require_app_credential。
-fn upsert_settings(
-    content: &str,
-    appkey: &str,
-    app_secret: &str,
-    require: Option<bool>,
-) -> String {
+fn upsert_settings(content: &str, appkey: &str, app_secret: &str, require: Option<bool>) -> String {
     let mut out = String::with_capacity(content.len() + 256);
     let mut in_cred_section = false;
     let mut wrote_section = false;
@@ -44,7 +39,9 @@ fn upsert_settings(
             out.push('\n');
             if in_cred_section {
                 wrote_section = true;
-                out.push_str(&format!("appkey = \"{appkey}\"\napp_secret = \"{app_secret}\"\n"));
+                out.push_str(&format!(
+                    "appkey = \"{appkey}\"\napp_secret = \"{app_secret}\"\n"
+                ));
             }
             continue;
         }
@@ -120,7 +117,9 @@ fn main() {
                 }));
             }
             "-h" | "--help" => {
-                println!("Usage: app_credential_gen [--write] [--file PATH] [--require true|false] [--appkey HEX] [--secret HEX]");
+                println!(
+                    "Usage: app_credential_gen [--write] [--file PATH] [--require true|false] [--appkey HEX] [--secret HEX]"
+                );
                 return;
             }
             other => {

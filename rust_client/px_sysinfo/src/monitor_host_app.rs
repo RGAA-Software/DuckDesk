@@ -6,16 +6,15 @@ use std::time::Duration;
 use clap::Parser;
 use futures_util::StreamExt;
 use gpui::{
-    App, AppContext, Context, IntoElement, ParentElement, Render, SharedString, Styled, Window,
-    WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px, size,
+    div, prelude::FluentBuilder as _, px, size, App, AppContext, Context, IntoElement,
+    ParentElement, Render, SharedString, Styled, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Root, Selectable, StyledExt, Theme, ThemeMode, TitleBar,
     button::{Button, ButtonVariants as _},
     h_flex,
     scroll::ScrollableElement,
     tab::{Tab, TabBar},
-    v_flex,
+    v_flex, ActiveTheme, Icon, IconName, Root, Selectable, StyledExt, Theme, ThemeMode, TitleBar,
 };
 use gpui_component_assets::Assets;
 use px_base::sys_info::SysInfo;
@@ -68,12 +67,7 @@ impl HostServerHandle {
             last_error: String::new(),
         }));
 
-        spawn_host_server(
-            listen_host,
-            listen_port,
-            machines.clone(),
-            status.clone(),
-        );
+        spawn_host_server(listen_host, listen_port, machines.clone(), status.clone());
 
         Self { machines, status }
     }
@@ -86,7 +80,10 @@ impl HostServerHandle {
     }
 
     fn status(&self) -> HostServerStatus {
-        self.status.lock().map(|status| status.clone()).unwrap_or_default()
+        self.status
+            .lock()
+            .map(|status| status.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -266,18 +263,16 @@ impl SysMonitorHostApp {
         };
         this.refresh();
 
-        cx.spawn(async move |this, cx| {
-            loop {
-                Timer::after(POLL_INTERVAL).await;
-                if this
-                    .update(cx, |this, cx| {
-                        this.refresh();
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            Timer::after(POLL_INTERVAL).await;
+            if this
+                .update(cx, |this, cx| {
+                    this.refresh();
+                    cx.notify();
+                })
+                .is_err()
+            {
+                break;
             }
         })
         .detach();
@@ -288,12 +283,14 @@ impl SysMonitorHostApp {
     fn refresh(&mut self) {
         self.server_status = self.server.status();
         self.machines = self.server.machines();
-        self.machines.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+        self.machines
+            .sort_by(|a, b| a.display_name.cmp(&b.display_name));
 
-        let selected_exists = self
-            .selected_machine
-            .as_ref()
-            .is_some_and(|selected| self.machines.iter().any(|item| &item.machine_id == selected));
+        let selected_exists = self.selected_machine.as_ref().is_some_and(|selected| {
+            self.machines
+                .iter()
+                .any(|item| &item.machine_id == selected)
+        });
         if !selected_exists {
             self.selected_machine = self.machines.first().map(|item| item.machine_id.clone());
         }
@@ -307,12 +304,7 @@ impl SysMonitorHostApp {
         })
     }
 
-    fn select_machine(
-        &mut self,
-        machine_id: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn select_machine(&mut self, machine_id: &str, _window: &mut Window, cx: &mut Context<Self>) {
         self.selected_machine = Some(machine_id.to_owned());
         cx.notify();
     }
@@ -342,13 +334,18 @@ impl SysMonitorHostApp {
                     .flex_1()
                     .overflow_y_scrollbar()
                     .child(
-                        v_flex().gap_2().children(self.machines.iter().map(|machine| {
-                            let selected = self
-                                .selected_machine
-                                .as_ref()
-                                .is_some_and(|item| item == &machine.machine_id);
-                            let machine_id = machine.machine_id.clone();
-                            Button::new(SharedString::from(format!("machine-{}", machine.machine_id)))
+                        v_flex()
+                            .gap_2()
+                            .children(self.machines.iter().map(|machine| {
+                                let selected = self
+                                    .selected_machine
+                                    .as_ref()
+                                    .is_some_and(|item| item == &machine.machine_id);
+                                let machine_id = machine.machine_id.clone();
+                                Button::new(SharedString::from(format!(
+                                    "machine-{}",
+                                    machine.machine_id
+                                )))
                                 .ghost()
                                 .selected(selected)
                                 .w_full()
@@ -392,41 +389,41 @@ impl SysMonitorHostApp {
                                                         .child(
                                                             div()
                                                                 .text_xs()
-                                                                .text_color(cx.theme().muted_foreground)
-                                                                .child(machine.display_name.clone()),
+                                                                .text_color(
+                                                                    cx.theme().muted_foreground,
+                                                                )
+                                                                .child(
+                                                                    machine.display_name.clone(),
+                                                                ),
                                                         ),
                                                 ),
                                         )
                                         .when(selected, |this| {
                                             this.child(
-                                                div()
-                                                    .pr(px(10.))
-                                                    .child(
-                                                        Icon::new(IconName::Check)
-                                                            .text_color(cx.theme().green),
-                                                    ),
+                                                div().pr(px(10.)).child(
+                                                    Icon::new(IconName::Check)
+                                                        .text_color(cx.theme().green),
+                                                ),
                                             )
                                         }),
                                 )
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.select_machine(&machine_id, window, cx);
-                                }))
-                        })),
+                                .on_click(cx.listener(
+                                    move |this, _, window, cx| {
+                                        this.select_machine(&machine_id, window, cx);
+                                    },
+                                ))
+                            })),
                     ),
             )
     }
 
     fn render_empty(&self, cx: &Context<Self>) -> impl IntoElement {
-        v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("当前没有机器连接到 /sys/info"),
-            )
+        v_flex().size_full().items_center().justify_center().child(
+            div()
+                .text_sm()
+                .text_color(cx.theme().muted_foreground)
+                .child("当前没有机器连接到 /sys/info"),
+        )
     }
 }
 
@@ -442,12 +439,25 @@ impl Render for SysMonitorHostApp {
                         h_flex()
                             .gap_3()
                             .items_center()
-                            .child(div().text_sm().text_color(cx.theme().foreground).child("PxSysMonitorHost"))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().foreground)
+                                    .child("PxSysMonitorHost"),
+                            )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(format!("监听 {}{}", self.server_status.listen_addr, if self.server_status.last_error.is_empty() { String::new() } else { format!(" | {}", self.server_status.last_error) })),
+                                    .child(format!(
+                                        "监听 {}{}",
+                                        self.server_status.listen_addr,
+                                        if self.server_status.last_error.is_empty() {
+                                            String::new()
+                                        } else {
+                                            format!(" | {}", self.server_status.last_error)
+                                        }
+                                    )),
                             ),
                     )
                     .child(
@@ -468,69 +478,58 @@ impl Render for SysMonitorHostApp {
                     .items_start()
                     .child(self.render_sidebar(cx))
                     .child(
-                        div()
-                            .flex_1()
-                            .h_full()
-                            .min_h_0()
-                            .overflow_hidden()
-                            .child(
-                                v_flex()
-                                    .size_full()
-                                    .items_start()
-                                    .when(self.selected_machine().is_none(), |this| {
-                                        this.child(self.render_empty(cx))
-                                    })
-                                    .when_some(self.selected_machine(), |this, machine| {
-                                        this.child(
-                                            div()
-                                                .px_4()
-                                                .py_3()
-                                                .text_xs()
-                                                .text_color(cx.theme().muted_foreground)
-                                                .child(format!(
-                                                    "{} | {} | 最后上报 {}",
-                                                    machine.display_name,
-                                                    machine.peer_addr,
-                                                    machine.last_seen
-                                                )),
-                                        )
-                                        .child(
-                                            TabBar::new("host-monitor-tabs")
-                                                .segmented()
-                                                .px_3()
-                                                .py_2()
-                                                .selected_index(active_tab_index)
-                                                .on_click(cx.listener(
-                                                    |this, ix: &usize, window, cx| {
-                                                        this.set_active_tab(*ix, window, cx);
-                                                    },
-                                                ))
-                                                .child(Tab::new().label("总览"))
-                                                .child(Tab::new().label("CPU / 内存"))
-                                                .child(Tab::new().label("GPU"))
-                                                .child(Tab::new().label("存储"))
-                                                .child(Tab::new().label("网络"))
-                                                .child(Tab::new().label("传感器")),
-                                        )
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .w_full()
-                                                .min_h_0()
-                                                .overflow_hidden()
-                                                .child(
-                                                    div()
-                                                        .size_full()
-                                                        .overflow_y_scrollbar()
-                                                        .child(render_dashboard(
-                                                            &machine.telemetry,
-                                                            self.active_tab,
-                                                            cx,
-                                                        )),
+                        div().flex_1().h_full().min_h_0().overflow_hidden().child(
+                            v_flex()
+                                .size_full()
+                                .items_start()
+                                .when(self.selected_machine().is_none(), |this| {
+                                    this.child(self.render_empty(cx))
+                                })
+                                .when_some(self.selected_machine(), |this, machine| {
+                                    this.child(
+                                        div()
+                                            .px_4()
+                                            .py_3()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(format!(
+                                                "{} | {} | 最后上报 {}",
+                                                machine.display_name,
+                                                machine.peer_addr,
+                                                machine.last_seen
+                                            )),
+                                    )
+                                    .child(
+                                        TabBar::new("host-monitor-tabs")
+                                            .segmented()
+                                            .px_3()
+                                            .py_2()
+                                            .selected_index(active_tab_index)
+                                            .on_click(cx.listener(
+                                                |this, ix: &usize, window, cx| {
+                                                    this.set_active_tab(*ix, window, cx);
+                                                },
+                                            ))
+                                            .child(Tab::new().label("总览"))
+                                            .child(Tab::new().label("CPU / 内存"))
+                                            .child(Tab::new().label("GPU"))
+                                            .child(Tab::new().label("存储"))
+                                            .child(Tab::new().label("网络"))
+                                            .child(Tab::new().label("传感器")),
+                                    )
+                                    .child(
+                                        div().flex_1().w_full().min_h_0().overflow_hidden().child(
+                                            div().size_full().overflow_y_scrollbar().child(
+                                                render_dashboard(
+                                                    &machine.telemetry,
+                                                    self.active_tab,
+                                                    cx,
                                                 ),
-                                        )
-                                    }),
-                            ),
+                                            ),
+                                        ),
+                                    )
+                                }),
+                        ),
                     ),
             )
     }
@@ -551,27 +550,28 @@ pub fn run(cli: HostCli) {
         let cli = cli.clone();
         cx.spawn(async move |cx| {
             let start_hidden = cli.startup;
-            let window_handle = cx.open_window(window_options, |window, cx| {
-                window.set_window_title("PxSysMonitorHost");
+            let window_handle = cx
+                .open_window(window_options, |window, cx| {
+                    window.set_window_title("PxSysMonitorHost");
 
-                Theme::change(ThemeMode::Dark, Some(window), cx);
+                    Theme::change(ThemeMode::Dark, Some(window), cx);
 
-                window.on_window_should_close(cx, |window, _cx| {
-                    tray::hide_window(window);
-                    false
-                });
+                    window.on_window_should_close(cx, |window, _cx| {
+                        tray::hide_window(window);
+                        false
+                    });
 
-                if start_hidden {
-                    tray::hide_window(window);
-                } else {
-                    window.activate_window();
-                }
+                    if start_hidden {
+                        tray::hide_window(window);
+                    } else {
+                        window.activate_window();
+                    }
 
-                let host_cli = cli.clone();
-                let view = cx.new(|cx| SysMonitorHostApp::new(window, cx, host_cli));
-                cx.new(|cx| Root::new(view, window, cx))
-            })
-            .expect("failed to open PxSysMonitorHost window");
+                    let host_cli = cli.clone();
+                    let view = cx.new(|cx| SysMonitorHostApp::new(window, cx, host_cli));
+                    cx.new(|cx| Root::new(view, window, cx))
+                })
+                .expect("failed to open PxSysMonitorHost window");
 
             #[allow(clippy::redundant_locals)]
             cx.spawn({

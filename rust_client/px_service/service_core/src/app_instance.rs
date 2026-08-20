@@ -401,7 +401,10 @@ impl AppInstanceRegistry {
             .ok_or_else(|| format!("unknown instance_id {instance_id}"))?;
         // A concurrent Stop may have finished the record while the start task
         // was still waiting; never resurrect a finished instance.
-        if matches!(rec.state, AppInstanceState::Stopped | AppInstanceState::Failed) {
+        if matches!(
+            rec.state,
+            AppInstanceState::Stopped | AppInstanceState::Failed
+        ) {
             return Err(format!(
                 "instance {instance_id} already stopped/failed, refusing mark_running"
             ));
@@ -412,7 +415,11 @@ impl AppInstanceRegistry {
         Ok(())
     }
 
-    pub fn mark_failed(&mut self, instance_id: &str, error: impl Into<String>) -> Result<(), String> {
+    pub fn mark_failed(
+        &mut self,
+        instance_id: &str,
+        error: impl Into<String>,
+    ) -> Result<(), String> {
         let rec = self
             .instances
             .get_mut(instance_id)
@@ -431,7 +438,10 @@ impl AppInstanceRegistry {
             .instances
             .get_mut(instance_id)
             .ok_or_else(|| format!("unknown instance_id {instance_id}"))?;
-        if matches!(rec.state, AppInstanceState::Stopped | AppInstanceState::Failed) {
+        if matches!(
+            rec.state,
+            AppInstanceState::Stopped | AppInstanceState::Failed
+        ) {
             return Err(format!("instance {instance_id} already stopped/failed"));
         }
         rec.state = AppInstanceState::Stopping;
@@ -510,10 +520,13 @@ pub fn port_bindable(port: u16) -> bool {
 }
 
 /// Client URL helper for CMS / tests.
-pub fn build_web_client_url(host: &str, listen_port: u16, device_id: &str, instance_id: &str) -> String {
-    format!(
-        "http://{host}:{listen_port}/web_client/?deviceId={device_id}&instanceId={instance_id}"
-    )
+pub fn build_web_client_url(
+    host: &str,
+    listen_port: u16,
+    device_id: &str,
+    instance_id: &str,
+) -> String {
+    format!("http://{host}:{listen_port}/web_client/?deviceId={device_id}&instanceId={instance_id}")
 }
 
 #[cfg(test)]
@@ -596,7 +609,10 @@ mod tests {
         assert!(decoded.contains("VehicleGame"));
         // game args flag must match render's gflags name (app_game_args).
         assert!(spec.args.iter().any(|a| a == "--app_game_args=-dx11"));
-        assert!(!spec.args.iter().any(|a| a.starts_with("--app_game_arguments")));
+        assert!(!spec
+            .args
+            .iter()
+            .any(|a| a.starts_with("--app_game_arguments")));
         // Without a view, no view arg is emitted.
         let spec_no_view = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, None);
         assert!(!spec_no_view
@@ -612,11 +628,7 @@ mod tests {
         let mut reg = AppInstanceRegistry::new();
         let req = sample_req("ue", 32800);
         let rec = reg.begin_start(r"D:\Pixels", req).unwrap();
-        assert!(rec
-            .launch
-            .args
-            .iter()
-            .any(|a| a == "--app_game_args=-dx11"));
+        assert!(rec.launch.args.iter().any(|a| a == "--app_game_args=-dx11"));
         assert!(rec.view_game_path.is_none());
     }
 
@@ -649,8 +661,10 @@ mod tests {
     #[test]
     fn registry_multi_instance_same_app_different_ports() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("i1", 32100)).unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("i2", 32101)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("i1", 32100))
+            .unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("i2", 32101))
+            .unwrap();
         reg.mark_running("i1", 10).unwrap();
         reg.mark_running("i2", 11).unwrap();
         let sums = reg.summaries();
@@ -683,7 +697,8 @@ mod tests {
     #[test]
     fn should_not_treat_desktop_as_game_hook_kill_target() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("g1", 32400)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g1", 32400))
+            .unwrap();
         reg.mark_running("g1", 42).unwrap();
         assert!(reg.should_kill_pid_for_instance("g1", 42));
         assert!(!reg.should_kill_pid_for_instance("g1", 43));
@@ -702,7 +717,8 @@ mod tests {
     #[test]
     fn port_pool_exhaustion() {
         let mut reg = AppInstanceRegistry::new().with_port_range(32500, 32500);
-        reg.begin_start(r"D:\Pixels", sample_req("only", 0)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("only", 0))
+            .unwrap();
         let err = reg
             .begin_start(r"D:\Pixels", sample_req("two", 0))
             .unwrap_err();
@@ -738,7 +754,8 @@ mod tests {
                 .unwrap_err();
             assert!(err.contains("out of range") || err.contains("out of u16 range"));
         }
-        reg.begin_start(r"D:\Pixels", sample_req("ok", 32600)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("ok", 32600))
+            .unwrap();
     }
 
     #[test]
@@ -793,13 +810,16 @@ mod tests {
     #[test]
     fn summaries_only_report_active_states() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("s1", 32700)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("s1", 32700))
+            .unwrap();
         reg.mark_running("s1", 10).unwrap();
         reg.begin_stop("s1").unwrap();
         reg.mark_stopped("s1").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("f1", 32701)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("f1", 32701))
+            .unwrap();
         reg.mark_failed("f1", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("r1", 32702)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("r1", 32702))
+            .unwrap();
         let sums = reg.summaries();
         assert_eq!(sums.len(), 1);
         assert_eq!(sums[0].instance_id, "r1");
@@ -809,12 +829,15 @@ mod tests {
     #[test]
     fn prune_finished_removes_aged_records() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("old", 32710)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("old", 32710))
+            .unwrap();
         reg.mark_failed("old", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("new", 32711)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("new", 32711))
+            .unwrap();
         reg.begin_stop("new").unwrap();
         reg.mark_stopped("new").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("act", 32712)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("act", 32712))
+            .unwrap();
         // Age the "old" record beyond the TTL; "new" stays fresh.
         reg.instances.get_mut("old").unwrap().finished_at =
             Some(Instant::now() - FINISHED_RECORD_TTL - Duration::from_secs(1));
@@ -827,13 +850,15 @@ mod tests {
     #[test]
     fn finished_record_rejects_stale_state_transitions() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("g", 32720)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g", 32720))
+            .unwrap();
         reg.begin_stop("g").unwrap();
         reg.mark_stopped("g").unwrap();
         // A start task that was still waiting must not resurrect the record.
         assert!(reg.mark_running("g", 55).is_err());
         // A stale stop task must not clobber a re-started record.
-        reg.begin_start(r"D:\Pixels", sample_req("g", 32721)).unwrap();
+        reg.begin_start(r"D:\Pixels", sample_req("g", 32721))
+            .unwrap();
         assert!(reg.mark_stopped("g").is_err());
         assert_eq!(reg.get("g").unwrap().state, AppInstanceState::Starting);
     }

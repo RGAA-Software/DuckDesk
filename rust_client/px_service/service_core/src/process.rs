@@ -162,8 +162,10 @@ mod tests {
         assert_eq!(process.render_mode(), RenderMode::GameHook);
         assert_eq!(process.kind(), ProcessKind::GameHookRender);
         assert!(process.is_game_hook_render_process());
-        assert!(!ProcessSnapshot::new(2, "D:/px_render.exe", "--app_mode=desktop")
-            .is_game_hook_render_process());
+        assert!(
+            !ProcessSnapshot::new(2, "D:/px_render.exe", "--app_mode=desktop")
+                .is_game_hook_render_process()
+        );
     }
 
     #[test]
@@ -194,7 +196,11 @@ mod tests {
     #[test]
     fn find_game_exe_by_path_or_name() {
         let procs = vec![
-            ProcessSnapshot::new(1, r"D:\1_test_games\CarGame\Binaries\Win64\VehicleGame-Win64-Shipping.exe", ""),
+            ProcessSnapshot::new(
+                1,
+                r"D:\1_test_games\CarGame\Binaries\Win64\VehicleGame-Win64-Shipping.exe",
+                "",
+            ),
             ProcessSnapshot::new(2, r"C:\Windows\notepad.exe", ""),
         ];
         let hits = find_pids_for_game_exe(

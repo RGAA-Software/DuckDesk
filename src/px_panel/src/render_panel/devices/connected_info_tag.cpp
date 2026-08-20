@@ -4,7 +4,7 @@
 
 namespace px {
 
-    ConnectedInfoTag::ConnectedInfoTag(QWidget* parent) {
+    ConnectedInfoTag::ConnectedInfoTag(QWidget* parent) : QWidget(parent) {
 	    setAttribute(Qt::WA_TranslucentBackground);
         setFixedSize(28, 32);
     }

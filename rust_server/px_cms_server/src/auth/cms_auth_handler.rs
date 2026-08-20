@@ -1,15 +1,15 @@
 use crate::auth::cms_auth_pull::{pull_once, PullOutcome};
 use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
-use crate::cms_http_util::{get_body, get_body_str, get_body_str_or_empty};
+use crate::cms_http_util::{get_body, get_body_str};
 use crate::gAuthManager;
-use crate::user::cms_user_keys::{KEY_PASSWORD, KEY_USER_NAME};
+use crate::user::cms_user_keys::KEY_PASSWORD;
 use axum::body::Body;
 use axum::extract::{ConnectInfo, State};
 use axum::Json;
 use px_auth_mgr::authorization::Authorization;
 use px_auth_mgr::time_util;
-use px_base::{get_current_timestamp, md5_hex, ok_resp, RespMessage};
+use px_base::{get_current_timestamp, ok_resp, RespMessage};
 use serde::Serialize;
 use serde_json::Value;
 use std::net::SocketAddr;
@@ -111,18 +111,22 @@ pub async fn handle_get_auth_status(
     Ok(Json(ok_resp(build_auth_status(auth, local).await)))
 }
 
-const KEY_OLD_PASSWORD: &str = "old_password";
-const KEY_APP_SECRET: &str = "app_secret";
+const KEY_CURRENT_PASSWORD: &str = "current_password";
+
+fn constant_time_equal(left: &str, right: &str) -> bool {
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, b"pixels-admin-password-v1");
+    let expected = ring::hmac::sign(&key, left.as_bytes());
+    ring::hmac::verify(&key, right.as_bytes(), expected.as_ref()).is_ok()
+}
 
 pub async fn handle_update_auth_password(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     b: Body,
-) -> Result<Json<RespMessage<Authorization>>, CmsApiError> {
+) -> Result<Json<RespMessage<SanitizedAuthorization>>, CmsApiError> {
     let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str()).map_err(|_| CmsApiError::InvalidParams)?;
     let password = get_body_str(&r, KEY_PASSWORD)?;
-    let old_password = get_body_str_or_empty(&r, KEY_OLD_PASSWORD);
-    let provided_secret = get_body_str_or_empty(&r, KEY_APP_SECRET);
+    let current_password = get_body_str(&r, KEY_CURRENT_PASSWORD)?;
     if password.is_empty() {
         tracing::error!("password is empty! can't modify it!");
         return Err(CmsApiError::InvalidParams);
@@ -134,12 +138,8 @@ pub async fn handle_update_auth_password(
         return Err(CmsApiError::DatabaseError);
     }
 
-    // require old password or app_secret to change the auth password
-    let old_password_ok = !old_password.is_empty()
-        && md5_hex(&auth.password).to_lowercase() == old_password.to_lowercase();
-    let app_secret_ok = !provided_secret.is_empty() && provided_secret == auth.app_secret;
-    if !old_password_ok && !app_secret_ok {
-        tracing::error!("update password failed: neither old password nor app_secret matched");
+    if !constant_time_equal(&auth.password, &current_password) {
+        tracing::warn!("admin password change rejected");
         return Err(CmsApiError::PasswordInvalid);
     }
 
@@ -158,7 +158,7 @@ pub async fn handle_update_auth_password(
     let used_time_ms = gAuthManager.lock().await.get_used_time().await;
     auth.used_time_ms = used_time_ms;
 
-    Ok(Json(ok_resp(auth)))
+    Ok(Json(ok_resp(SanitizedAuthorization::from(auth))))
 }
 
 pub async fn handle_get_authorization(
@@ -263,31 +263,6 @@ pub fn compute_auth_time_status(
     let expired = used_time_ms >= total_time_ms || end_timestamp_ms <= now_ms;
     let left_time_ms = (total_time_ms - used_time_ms).max(0);
     (left_time_ms, expired)
-}
-
-pub async fn handle_verify_auth_account(
-    State(_context): State<Arc<Mutex<CmsContext>>>,
-    b: Body,
-) -> Result<Json<RespMessage<String>>, CmsApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let username = get_body_str(&r, KEY_USER_NAME)?;
-    let password = get_body_str(&r, KEY_PASSWORD)?.to_lowercase();
-
-    let auth = gAuthManager.lock().await.get_auth().await;
-    if auth.auth_id.is_empty() {
-        tracing::info!("auth id is empty! can't modify it!");
-        return Err(CmsApiError::DatabaseError);
-    }
-
-    let matched = auth.username == username && md5_hex(&auth.password).to_lowercase() == password;
-    if matched {
-        // 登录本身就是凭据校验（license 里的 username/password），通过后将
-        // appkey 返回给前端保存，供后续受 appkey filter 保护的接口使用。
-        Ok(Json(ok_resp(auth.appkey)))
-    } else {
-        Err(CmsApiError::PasswordInvalid)
-    }
 }
 
 #[cfg(test)]

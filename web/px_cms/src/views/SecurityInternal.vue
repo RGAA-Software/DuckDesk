@@ -37,7 +37,6 @@ async function queryVisits(
     params: {
       page: page,
       page_size: pageSize,
-      appkey: localStorage.getItem('appkey'),
       sort_time: -1,
       visit_device_id: visitDevice ? visitDevice.trim() : '',
       target_device_id: targetDevice ? targetDevice.trim() : '',
@@ -120,7 +119,6 @@ async function queryFileTransfers(
     params: {
       page: page,
       page_size: pageSize,
-      appkey: localStorage.getItem('appkey'),
       sort_time: -1,
       visit_device_id: visitDevice ? visitDevice.trim() : '',
       target_device_id: targetDevice ? targetDevice.trim() : '',

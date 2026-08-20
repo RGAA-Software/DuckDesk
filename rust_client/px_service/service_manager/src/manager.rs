@@ -10,18 +10,18 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Services::{
-    ChangeServiceConfig2W, ChangeServiceConfigW, CloseServiceHandle, ControlService, CreateServiceW,
-    DeleteService, ENUM_SERVICE_TYPE, OpenSCManagerW, OpenServiceW, QueryServiceConfigW,
-    QueryServiceStatusEx, SERVICE_ERROR, SERVICE_START_TYPE, StartServiceW, SC_ACTION,
-    SC_ACTION_RESTART, SC_HANDLE, SC_MANAGER_ALL_ACCESS, SC_MANAGER_CONNECT,
-    SC_STATUS_PROCESS_INFO, SERVICE_ALL_ACCESS, SERVICE_AUTO_START, SERVICE_CONFIG_DESCRIPTION,
+    ChangeServiceConfig2W, ChangeServiceConfigW, CloseServiceHandle, ControlService,
+    CreateServiceW, DeleteService, OpenSCManagerW, OpenServiceW, QueryServiceConfigW,
+    QueryServiceStatusEx, StartServiceW, ENUM_SERVICE_TYPE, SC_ACTION, SC_ACTION_RESTART,
+    SC_HANDLE, SC_MANAGER_ALL_ACCESS, SC_MANAGER_CONNECT, SC_STATUS_PROCESS_INFO,
+    SERVICE_ALL_ACCESS, SERVICE_AUTO_START, SERVICE_CONFIG_DESCRIPTION,
     SERVICE_CONFIG_FAILURE_ACTIONS, SERVICE_CONTROL_STOP, SERVICE_DESCRIPTIONW,
-    SERVICE_ENUMERATE_DEPENDENTS, SERVICE_ERROR_NORMAL, SERVICE_FAILURE_ACTIONSW,
+    SERVICE_ENUMERATE_DEPENDENTS, SERVICE_ERROR, SERVICE_ERROR_NORMAL, SERVICE_FAILURE_ACTIONSW,
     SERVICE_NO_CHANGE, SERVICE_QUERY_CONFIG, SERVICE_QUERY_STATUS, SERVICE_RUNNING,
-    SERVICE_STATUS, SERVICE_STATUS_PROCESS, SERVICE_STOP, SERVICE_STOPPED, SERVICE_STOP_PENDING,
-    SERVICE_WIN32_OWN_PROCESS,
+    SERVICE_START_TYPE, SERVICE_STATUS, SERVICE_STATUS_PROCESS, SERVICE_STOP, SERVICE_STOPPED,
+    SERVICE_STOP_PENDING, SERVICE_WIN32_OWN_PROCESS,
 };
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
+use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ServiceStatus {
@@ -80,11 +80,7 @@ impl ServiceManager {
                 SERVICE_ALL_ACCESS,
             );
             let service = if let Ok(handle) = existing {
-                update_service_config(
-                    handle,
-                    &self.display_name,
-                    &service_command_line,
-                )?;
+                update_service_config(handle, &self.display_name, &service_command_line)?;
                 handle
             } else {
                 CreateServiceW(
@@ -253,8 +249,9 @@ impl ServiceManager {
 
             let mut entry = PROCESSENTRY32W::default();
             entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-            let mut has_entry =
-                Process32FirstW(snapshot, &mut entry).map(|_| true).unwrap_or(false);
+            let mut has_entry = Process32FirstW(snapshot, &mut entry)
+                .map(|_| true)
+                .unwrap_or(false);
             while has_entry {
                 let exe_name = wide_cstr_to_string(&entry.szExeFile);
                 let should_kill = target_names
@@ -263,7 +260,9 @@ impl ServiceManager {
                 if should_kill || entry.th32ProcessID == current_pid {
                     let _ = kill_process(entry.th32ProcessID);
                 }
-                has_entry = Process32NextW(snapshot, &mut entry).map(|_| true).unwrap_or(false);
+                has_entry = Process32NextW(snapshot, &mut entry)
+                    .map(|_| true)
+                    .unwrap_or(false);
             }
         }
 
@@ -471,11 +470,7 @@ mod tests {
 
     #[test]
     fn manager_stores_metadata() {
-        let manager = ServiceManager::new(
-            "px_service",
-            "px_service",
-            "px service",
-        );
+        let manager = ServiceManager::new("px_service", "px_service", "px service");
         assert_eq!(manager.service_name, "px_service");
         assert_eq!(manager.display_name, "px_service");
         assert_eq!(manager.description, "px service");
@@ -483,54 +478,38 @@ mod tests {
 
     #[test]
     fn normalize_service_bin_quotes_exe_with_args() {
-        let value = normalize_service_bin_command_line(
-            "C:/Program Files/px/px_service.exe 20375",
-        );
-        assert_eq!(
-            value,
-            "\"C:/Program Files/px/px_service.exe\" 20375"
-        );
+        let value = normalize_service_bin_command_line("C:/Program Files/px/px_service.exe 20375");
+        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 20375");
     }
 
     #[test]
     fn normalize_service_bin_keeps_quoted_value() {
-        let value = normalize_service_bin_command_line(
-            "\"C:/Program Files/px/px_service.exe\" 20375",
-        );
-        assert_eq!(
-            value,
-            "\"C:/Program Files/px/px_service.exe\" 20375"
-        );
+        let value =
+            normalize_service_bin_command_line("\"C:/Program Files/px/px_service.exe\" 20375");
+        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 20375");
     }
 
     #[test]
     fn normalize_service_bin_quotes_exe_without_args() {
-        let value =
-            normalize_service_bin_command_line("C:/Program Files/px/px_service.exe");
+        let value = normalize_service_bin_command_line("C:/Program Files/px/px_service.exe");
         assert_eq!(value, "\"C:/Program Files/px/px_service.exe\"");
     }
 
     #[test]
     fn parse_service_binary_path_extracts_quoted_exe() {
-        let value = parse_service_binary_path(
-            "\"D:/px/px_service.exe\" 20375",
-        );
+        let value = parse_service_binary_path("\"D:/px/px_service.exe\" 20375");
         assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
     fn parse_service_binary_path_extracts_unquoted_exe() {
-        let value = parse_service_binary_path(
-            "D:/px/px_service.exe 20375",
-        );
+        let value = parse_service_binary_path("D:/px/px_service.exe 20375");
         assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
     fn parse_service_binary_path_keeps_plain_exe() {
-        let value = parse_service_binary_path(
-            "D:/px/px_service.exe",
-        );
+        let value = parse_service_binary_path("D:/px/px_service.exe");
         assert_eq!(value, "D:/px/px_service.exe");
     }
 

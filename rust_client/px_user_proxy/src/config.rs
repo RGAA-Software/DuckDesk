@@ -125,10 +125,7 @@ mod tests {
 
     #[test]
     fn user_proxy_log_root_path() {
-        assert_eq!(
-            user_proxy_log_root(),
-            app_shared_root().join("px_logs")
-        );
+        assert_eq!(user_proxy_log_root(), app_shared_root().join("px_logs"));
     }
 
     #[test]

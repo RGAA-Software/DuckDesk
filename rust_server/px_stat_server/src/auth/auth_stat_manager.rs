@@ -2,8 +2,8 @@ use crate::auth::auth_stat::StatAuth;
 use crate::gStatDatabase;
 use crate::stat_api_error::StatApiError;
 use crate::stat_api_keys::{KEY_AUTH_ID, KEY_SYS_INFO, KEY_UPDATED_TS};
-use px_base::get_current_timestamp;
 use mongodb::bson::doc;
+use px_base::get_current_timestamp;
 use std::sync::Arc;
 
 pub struct StatAuthManager {}

@@ -3,13 +3,8 @@ import iconLogo from '@/assets/ic_logo.png'
 import { computed, onMounted, ref } from 'vue'
 import { notification } from 'ant-design-vue'
 import { pullAuthorization, queryAuthStatus, type AuthStatus } from '@/model/auth_api.ts'
-import axiosHttp, { BASE_URL } from '@/http.ts'
-
-import CryptoJS from 'crypto-js'
-
-const md5 = (input: string): string => {
-  return CryptoJS.MD5(input).toString()
-}
+import { BASE_URL } from '@/http.ts'
+import { loginAdmin } from '@/model/admin_session_api.ts'
 
 import { useRouter } from 'vue-router'
 import { copyText } from '@/util/clipboard.ts'
@@ -99,7 +94,6 @@ const authExpireText = computed(() => {
 async function handleLogin() {
   localStorage.setItem('username', inputUsername.value)
   if (await login(inputUsername.value, inputPassword.value)) {
-    sessionStorage.setItem('admin_authenticated', '1')
     // replace this page and jump to main page
     await router.replace('/home')
   }
@@ -107,27 +101,13 @@ async function handleLogin() {
 
 async function login(username: string, password: string) {
   try {
-    const resp = await axiosHttp.post('/api/v1/auth/control/verify/auth/account', {
-      username: username,
-      password: md5(password),
-    })
-    if (resp.status !== 200) {
-      console.error('change password failed', resp)
-      return false
-    }
-
-    const data = resp.data
-    if (data.code !== 200) {
-      console.error('login failed, data:', data)
+    const profile = await loginAdmin(username, password)
+    if (!profile) {
       notification.error({
-        message: '登录失败:' + data.code,
+        message: '登录失败：账号或密码错误',
       })
       return false
     } else {
-      // 登录成功后端返回 appkey，保存供后续受 appkey filter 保护的接口使用
-      if (data.data) {
-        localStorage.setItem('appkey', data.data)
-      }
       notification.success({
         message: '登录成功',
       })

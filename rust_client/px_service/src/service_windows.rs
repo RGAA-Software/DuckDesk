@@ -63,7 +63,10 @@ unsafe extern "system" fn service_handler(
     event_data: *mut core::ffi::c_void,
     _context: *mut core::ffi::c_void,
 ) -> u32 {
-    info!("service handler received control={}, event_type={}", control, event_type);
+    info!(
+        "service handler received control={}, event_type={}",
+        control, event_type
+    );
     if let Some(sender) = control_sender().lock().unwrap().as_ref() {
         match control {
             SERVICE_CONTROL_STOP => {

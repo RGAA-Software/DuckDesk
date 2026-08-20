@@ -78,13 +78,9 @@ export async function queryAuthStatus(): Promise<AuthStatus | null> {
   }
 }
 
-// 查询完整授权信息（含 appkey 等，受 appkey filter 保护，需登录后使用）。
+// 查询管理端授权信息；认证由 HttpOnly 管理会话 Cookie 提供。
 export async function queryAuthorization() {
-  const resp = await axiosHttp.get('/api/v1/auth/control/get/authorization', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/auth/control/get/authorization')
   if (resp.status !== 200) {
     console.error('query users failed', resp)
     return null

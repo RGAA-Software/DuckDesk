@@ -29,8 +29,7 @@ pub fn get_body_str(body: &serde_json::Value, key: &str) -> Result<String, Autho
 }
 
 pub fn get_body_int(body: &serde_json::Value, key: &str) -> Result<i64, AuthorApiError> {
-    body
-        .get(key)
+    body.get(key)
         .and_then(|v| v.as_i64())
         .ok_or(AuthorApiError::InvalidParams)
 }

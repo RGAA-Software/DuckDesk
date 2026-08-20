@@ -71,7 +71,10 @@ impl ProcessLister for ToolhelpProcessLister {
 }
 
 fn utf16z_to_string(buffer: &[u16]) -> String {
-    let end = buffer.iter().position(|value| *value == 0).unwrap_or(buffer.len());
+    let end = buffer
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(buffer.len());
     String::from_utf16_lossy(&buffer[..end])
 }
 
@@ -124,7 +127,10 @@ fn run_panel_scheduled_task() -> Result<(), String> {
         .status()
         .map_err(|err| format!("spawn schtasks failed: {err}"))?;
     if status.success() {
-        info!("panel start requested via scheduled task {}", PANEL_TASK_NAME);
+        info!(
+            "panel start requested via scheduled task {}",
+            PANEL_TASK_NAME
+        );
         Ok(())
     } else {
         Err(format!("schtasks exited with {status}"))
@@ -293,12 +299,18 @@ mod tests {
 
     impl ProcessSpawner for RecordingSpawner {
         fn spawn_path(&self, exe_path: &Path) -> Result<(), String> {
-            self.paths.lock().expect("lock").push(exe_path.to_path_buf());
+            self.paths
+                .lock()
+                .expect("lock")
+                .push(exe_path.to_path_buf());
             Ok(())
         }
 
         fn start_panel(&self, exe_path: &Path) -> Result<(), String> {
-            self.paths.lock().expect("lock").push(exe_path.to_path_buf());
+            self.paths
+                .lock()
+                .expect("lock")
+                .push(exe_path.to_path_buf());
             Ok(())
         }
     }
@@ -425,12 +437,11 @@ mod tests {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
-        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 1");
+        let first =
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state).expect("tick 1");
         assert!(first.started_panel);
         let second =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
-                .expect("tick 2");
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state).expect("tick 2");
         assert!(!second.started_panel, "cooldown must suppress respawn");
         let panel_spawns = spawner
             .paths
@@ -451,12 +462,11 @@ mod tests {
         };
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
-        let first = run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 1");
+        let first =
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state).expect("tick 1");
         assert!(first.started_sysinfo);
         let second =
-            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state)
-                .expect("tick 2");
+            run_keepalive_tick(&lister, &spawner, Path::new("D:/px"), &mut state).expect("tick 2");
         assert!(!second.started_sysinfo, "cooldown must suppress respawn");
         let sysinfo_spawns = spawner
             .paths
@@ -475,14 +485,12 @@ mod tests {
         let missing = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME)],
         };
-        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 1");
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state).expect("tick 1");
         assert!(state.sysinfo_respawn_not_before.is_some());
         let alive = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME), entry(SYSINFO_EXE_NAME)],
         };
-        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 2");
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state).expect("tick 2");
         assert!(state.sysinfo_respawn_not_before.is_none());
     }
 
@@ -491,31 +499,26 @@ mod tests {
         let spawner = RecordingSpawner::default();
         let mut state = KeepaliveState::default();
         let missing = StaticLister { processes: vec![] };
-        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 1");
+        run_keepalive_tick(&missing, &spawner, Path::new("D:/px"), &mut state).expect("tick 1");
         assert!(state.panel_respawn_not_before.is_some());
         let alive = StaticLister {
             processes: vec![entry(PANEL_EXE_NAME)],
         };
-        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state)
-            .expect("tick 2");
+        run_keepalive_tick(&alive, &spawner, Path::new("D:/px"), &mut state).expect("tick 2");
         assert!(state.panel_respawn_not_before.is_none());
     }
 
     #[test]
     fn similar_process_names_do_not_count_as_panel() {
-        assert!(!has_process_named(
-            &[entry("px_guard.exe")],
-            PANEL_EXE_NAME
-        ));
+        assert!(!has_process_named(&[entry("px_guard.exe")], PANEL_EXE_NAME));
     }
 
     #[test]
     fn initial_check_only_starts_sysinfo() {
         let lister = StaticLister { processes: vec![] };
         let spawner = RecordingSpawner::default();
-        let started = run_initial_check(&lister, &spawner, Path::new("D:/px"))
-            .expect("initial check");
+        let started =
+            run_initial_check(&lister, &spawner, Path::new("D:/px")).expect("initial check");
         assert!(started);
         assert_eq!(
             spawner.paths.lock().expect("lock").as_slice(),
@@ -529,8 +532,8 @@ mod tests {
             processes: vec![entry(SYSINFO_EXE_NAME)],
         };
         let spawner = RecordingSpawner::default();
-        let started = run_initial_check(&lister, &spawner, Path::new("D:/px"))
-            .expect("initial check");
+        let started =
+            run_initial_check(&lister, &spawner, Path::new("D:/px")).expect("initial check");
         assert!(!started);
         assert!(spawner.paths.lock().expect("lock").is_empty());
     }

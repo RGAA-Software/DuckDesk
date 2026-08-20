@@ -3,11 +3,13 @@ use std::os::windows::ffi::OsStrExt;
 use std::time::Duration;
 
 use windows::core::BOOL;
-use windows::Win32::Foundation::{GlobalFree, HGLOBAL, HANDLE, POINT};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, POINT};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardData, OpenClipboard, SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT};
+use windows::Win32::System::Memory::{
+    GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT,
+};
 use windows::Win32::System::Ole::{OleInitialize, OleSetClipboard};
 use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -104,11 +106,7 @@ pub(crate) fn build_hdrop_global(paths: &[&str]) -> anyhow::Result<HGLOBAL> {
     }
     let mut wide_paths = Vec::new();
     for path in paths {
-        wide_paths.extend(
-            OsStr::new(path)
-                .encode_wide()
-                .chain(std::iter::once(0)),
-        );
+        wide_paths.extend(OsStr::new(path).encode_wide().chain(std::iter::once(0)));
     }
     wide_paths.push(0);
 
@@ -168,7 +166,10 @@ impl WinClipboardPlatform {
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        anyhow::bail!("clipboard clear failed after retries: {:#}", last_err.unwrap())
+        anyhow::bail!(
+            "clipboard clear failed after retries: {:#}",
+            last_err.unwrap()
+        )
     }
 
     fn try_clear() -> anyhow::Result<()> {
@@ -215,9 +216,11 @@ impl WinClipboardPlatform {
             }
 
             let hdrop = GetClipboardData(CF_HDROP);
-            tracing::info!("clipboard read: cf_hdrop_available={}, text_len={}",
+            tracing::info!(
+                "clipboard read: cf_hdrop_available={}, text_len={}",
                 hdrop.is_ok(),
-                content.text.as_ref().map(|t| t.len()).unwrap_or(0));
+                content.text.as_ref().map(|t| t.len()).unwrap_or(0)
+            );
             if let Ok(handle) = hdrop {
                 let paths = Self::read_hdrop_paths(HDROP(handle.0 as *mut _));
                 tracing::info!("clipboard read: hdrop file count={}", paths.len());
@@ -240,8 +243,7 @@ impl WinClipboardPlatform {
         if ptr.is_null() {
             return None;
         }
-        let wide =
-            std::slice::from_raw_parts(ptr as *const u16, Self::wide_len(ptr as *const u16));
+        let wide = std::slice::from_raw_parts(ptr as *const u16, Self::wide_len(ptr as *const u16));
         let text = String::from_utf16_lossy(wide);
         if let Err(err) = global_unlock(hglobal) {
             tracing::warn!("read clipboard text unlock: {err:#}");
@@ -306,8 +308,8 @@ impl WinClipboardPlatform {
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
-            let mem =
-                GlobalAlloc(GMEM_MOVEABLE, bytes).map_err(|err| anyhow::anyhow!("GlobalAlloc failed: {err}"))?;
+            let mem = GlobalAlloc(GMEM_MOVEABLE, bytes)
+                .map_err(|err| anyhow::anyhow!("GlobalAlloc failed: {err}"))?;
             let ptr = GlobalLock(mem);
             if ptr.is_null() {
                 let _ = GlobalFree(Some(mem));
@@ -385,7 +387,9 @@ mod tests {
         let _lock = CLIPBOARD_TEST_LOCK.lock().unwrap();
         let platform = WinClipboardPlatform::new();
         platform.clear().expect("clear");
-        platform.write_text("px_user_proxy_roundtrip").expect("write");
+        platform
+            .write_text("px_user_proxy_roundtrip")
+            .expect("write");
         let read = platform.read_content().expect("read");
         assert_eq!(read.text.as_deref(), Some("px_user_proxy_roundtrip"));
         platform.clear().expect("clear");

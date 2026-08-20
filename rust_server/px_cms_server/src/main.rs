@@ -19,7 +19,9 @@ mod cms_http_util;
 mod cms_relay;
 mod cms_router;
 mod config;
+mod connection_ticket;
 mod event;
+mod identity;
 mod interact;
 mod live;
 mod media_sidecar;
@@ -30,6 +32,7 @@ mod net_service;
 mod record;
 mod stream;
 mod system;
+mod test_reset;
 mod update;
 mod user;
 mod user_device;
@@ -129,10 +132,30 @@ struct Args {
     // Display UI or not
     #[arg(short, long, default_value_t = String::from(""))]
     running_mode: String,
+
+    /// Destructive test-only reset. Requires environment="test" and the exact
+    /// database name in --reset-test-database.
+    #[arg(long, default_value_t = false)]
+    confirm_reset_test_identity_data: bool,
+    #[arg(long, default_value_t = String::new())]
+    reset_test_database: String,
 }
 
 fn main() {
     let args = Args::parse();
+    if args.confirm_reset_test_identity_data {
+        let result = tokio::runtime::Runtime::new()
+            .expect("create reset runtime")
+            .block_on(async {
+                CmsSettings::load_settings().await;
+                test_reset::reset(&args.reset_test_database).await
+            });
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+        return;
+    }
     let machine_code = px_base::machine_code::generate_machine_code();
 
     if args.running_mode == "server" {
@@ -186,7 +209,14 @@ fn run_as_panel(machine_code: String) {
         });
 
     tracing::info!("used time: {}", used_time);
-    tracing::info!("auth: {:#?}", auth);
+    tracing::info!(
+        auth_id = %auth.auth_id,
+        auth_name = %auth.auth_name,
+        mode = %auth.mode,
+        days = auth.days,
+        max_streams = auth.max_streams,
+        "CMS panel authorization loaded (credentials redacted)"
+    );
 
     let r = cms_panel::run(language, machine_code, auth, used_time, settings);
     if let Err(e) = r {
@@ -205,6 +235,10 @@ async fn run_as_server(machine_code: String) {
 
     // settings
     CmsSettings::load_settings().await;
+    if let Err(error) = gCmsSettings.lock().await.validate_for_server() {
+        tracing::error!(%error, "CMS security configuration rejected");
+        return;
+    }
 
     // The fixed ZLMediaKit executable is deployed beside px_cms.exe.  Start
     // it only for a local media_server_url; a remote ZLM remains externally
@@ -257,11 +291,12 @@ async fn run_as_server(machine_code: String) {
     // Redis
     let redis_url = gCmsSettings.lock().await.redis_url.clone();
     let redis_conn = redis_util::get_redis_conn_mgr(redis_url.clone()).await;
-    if let Err(err) = redis_conn {
-        tracing::error!("connect to redis failed: {}", err.to_string());
+    if redis_conn.is_err() {
+        tracing::error!("connect to configured Redis server failed (details redacted)");
         return;
     }
-    tracing::info!("connected to redis: {}", redis_url);
+    // The Redis URL may contain a password. Keep connection details out of logs.
+    tracing::info!("connected to configured Redis server");
     gRelayRedisConn.lock().await.set_conn(redis_conn.unwrap());
 
     // generator

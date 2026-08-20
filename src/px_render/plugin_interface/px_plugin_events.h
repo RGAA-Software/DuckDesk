@@ -7,6 +7,8 @@
 
 #include <string>
 #include <memory>
+#include <functional>
+#include <vector>
 #include "px_net_plugin.h"
 #include "px_plugin_interface.h"
 #include "px_common_new/image.h"
@@ -47,6 +49,7 @@ namespace px
         kPluginPanelStreamMessage,
         kPluginConfigEncoder,
         kPluginReqParamsBeginStreaming,
+        kPluginRedeemConnectionTicket,
     };
 
     class PxPluginBaseEvent {
@@ -60,6 +63,17 @@ namespace px
         PxPluginEventType event_type_{PxPluginEventType::kPluginUnknownType};
         std::any extra_;
         uint64_t created_timestamp_ = 0;
+    };
+
+    class PxPluginRedeemConnectionTicketEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginRedeemConnectionTicketEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginRedeemConnectionTicket;
+        }
+        std::string ticket_;
+        std::string client_nonce_;
+        std::string instance_id_;
+        std::function<void(bool, const std::string&, const std::vector<std::string>&)> callback_;
     };
 
     // kPluginNetClientEvent

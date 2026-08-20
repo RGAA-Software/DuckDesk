@@ -1,8 +1,17 @@
-use axum::http::StatusCode;
+use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use px_base::RespMessage;
+use serde::Serialize;
 use thiserror::Error;
+
+#[derive(Serialize)]
+struct CmsErrorResponse {
+    code: i32,
+    error: &'static str,
+    message: String,
+    data: Option<()>,
+    request_id: String,
+}
 
 #[derive(Debug, Error, PartialEq)]
 pub enum CmsApiError {
@@ -107,6 +116,24 @@ pub enum CmsApiError {
 
     #[error("forbidden")]
     Forbidden,
+
+    #[error("group not found")]
+    GroupNotFound,
+
+    #[error("version conflict")]
+    VersionConflict,
+
+    #[error("resource not found")]
+    ResourceNotFound,
+
+    #[error("ticket expired or already used")]
+    TicketExpiredOrUsed,
+
+    #[error("rate limit exceeded")]
+    RateLimited,
+
+    #[error("quota exceeded")]
+    QuotaExceeded,
 }
 
 // CmsApiError -> Response
@@ -115,12 +142,52 @@ impl IntoResponse for CmsApiError {
         let status = self.status_code();
         let code = self.business_code();
         let msg = self.to_string();
-        let body = Json(RespMessage::new_data(code, msg, ""));
-        (status, body).into_response()
+        let request_id = uuid::Uuid::new_v4().simple().to_string();
+        let body = Json(CmsErrorResponse {
+            code,
+            error: self.error_name(),
+            message: msg,
+            data: None,
+            request_id: request_id.clone(),
+        });
+        let mut response = (status, body).into_response();
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json; charset=utf-8"),
+        );
+        if let Ok(value) = HeaderValue::from_str(&request_id) {
+            response.headers_mut().insert("x-request-id", value);
+        }
+        if matches!(self, CmsApiError::RateLimited | CmsApiError::QuotaExceeded) {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+        }
+        response
     }
 }
 
 impl CmsApiError {
+    pub fn error_name(&self) -> &'static str {
+        match self {
+            CmsApiError::InvalidParams => "INVALID_ARGUMENT",
+            CmsApiError::AuthenticationRequired => "AUTH_REQUIRED",
+            CmsApiError::InvalidCredentials => "AUTH_INVALID_CREDENTIALS",
+            CmsApiError::Forbidden | CmsApiError::MaxStreamsReached => "SUBJECT_FORBIDDEN",
+            CmsApiError::GroupNotFound
+            | CmsApiError::ResourceNotFound
+            | CmsApiError::DeviceNotFound
+            | CmsApiError::UserNotFound => "RESOURCE_NOT_FOUND",
+            CmsApiError::VersionConflict => "VERSION_CONFLICT",
+            CmsApiError::TicketExpiredOrUsed => "TICKET_EXPIRED_OR_USED",
+            CmsApiError::RateLimited => "RATE_LIMITED",
+            CmsApiError::QuotaExceeded => "QUOTA_EXCEEDED",
+            CmsApiError::DeviceOffline => "DEVICE_OFFLINE",
+            CmsApiError::RequestTimeout => "SCHEDULER_UNAVAILABLE",
+            _ => "REQUEST_FAILED",
+        }
+    }
+
     pub fn business_code(&self) -> i32 {
         match self {
             CmsApiError::InvalidParams => 600,
@@ -157,6 +224,12 @@ impl CmsApiError {
             CmsApiError::AuthenticationRequired => 631,
             CmsApiError::InvalidCredentials => 632,
             CmsApiError::Forbidden => 633,
+            CmsApiError::GroupNotFound => 634,
+            CmsApiError::VersionConflict => 635,
+            CmsApiError::ResourceNotFound => 636,
+            CmsApiError::TicketExpiredOrUsed => 637,
+            CmsApiError::RateLimited => 638,
+            CmsApiError::QuotaExceeded => 639,
         }
     }
 
@@ -167,6 +240,10 @@ impl CmsApiError {
             | CmsApiError::AuthenticationRequired
             | CmsApiError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             CmsApiError::MaxStreamsReached | CmsApiError::Forbidden => StatusCode::FORBIDDEN,
+            CmsApiError::VersionConflict => StatusCode::CONFLICT,
+            CmsApiError::GroupNotFound | CmsApiError::ResourceNotFound => StatusCode::NOT_FOUND,
+            CmsApiError::TicketExpiredOrUsed => StatusCode::GONE,
+            CmsApiError::RateLimited | CmsApiError::QuotaExceeded => StatusCode::TOO_MANY_REQUESTS,
             CmsApiError::DeviceOffline => StatusCode::SERVICE_UNAVAILABLE,
             CmsApiError::RequestTimeout => StatusCode::GATEWAY_TIMEOUT,
             CmsApiError::InvalidAuthorization
@@ -231,5 +308,17 @@ mod tests {
     fn response_preserves_business_code_in_body() {
         let resp = CmsApiError::InvalidAppkey.into_response();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json; charset=utf-8"
+        );
+        assert_eq!(resp.headers().get("x-request-id").unwrap().len(), 32);
+    }
+
+    #[test]
+    fn throttling_errors_include_retry_after() {
+        let resp = CmsApiError::RateLimited.into_response();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(resp.headers().get(header::RETRY_AFTER).unwrap(), "60");
     }
 }

@@ -84,10 +84,34 @@ pub async fn upsert_instance(i: &AppInstance) -> Result<(), String> {
         return Ok(());
     };
     let coll = coll.lock().await;
-    coll.replace_one(doc! { "instance_id": &i.instance_id }, i.clone())
-        .upsert(true)
-        .await
-        .map_err(|e| e.to_string())?;
+    if i.version <= 1 {
+        // Initial reservation. Subsequent transitions never return to version
+        // one, so allowing the insert/upsert here is safe and idempotent.
+        coll.replace_one(doc! { "instance_id": &i.instance_id }, i.clone())
+            .upsert(true)
+            .await
+            .map_err(|e| e.to_string())?;
+    } else {
+        // A heartbeat can persist the current revision, while a state change
+        // replaces exactly the preceding revision. Anything older is a late
+        // receipt and must not overwrite the current state.
+        let result = coll
+            .replace_one(
+                doc! {
+                    "instance_id": &i.instance_id,
+                    "version": { "$in": [i.version - 1, i.version] }
+                },
+                i.clone(),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if result.matched_count != 1 {
+            return Err(format!(
+                "stale instance transition rejected: {} version {}",
+                i.instance_id, i.version
+            ));
+        }
+    }
     Ok(())
 }
 

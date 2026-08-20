@@ -471,27 +471,6 @@ function handleOpenClient(node: ViewNode) {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-/** CMS 启动链接:浏览器打开 = 自动选节点/指定节点 → 启动 → 302 进 web client。 */
-function launchUrl(path: string): string {
-  return `${window.location.origin}/api/v1/app/control${path}?appkey=${localStorage.getItem('appkey')}`
-}
-
-async function copyLaunchUrl(path: string) {
-  const url = launchUrl(path)
-  try {
-    await navigator.clipboard.writeText(url)
-  } catch {
-    // 非安全上下文等场景退化
-    const ta = document.createElement('textarea')
-    ta.value = url
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-  }
-  message.success(`启动链接已复制，发给任何人即可一键启动进流`, 4)
-}
-
 /** 分页总数文案（antd 的 show-total 需要函数）。 */
 function nodeTotalText(total: number): string {
   return `共 ${total} 个`
@@ -576,13 +555,6 @@ onUnmounted(() => {
           >
             启动
           </a-button>
-          <a-button
-            type="link"
-            :disabled="record.nodes.length === 0"
-            @click="copyLaunchUrl(`/app/launch/${record.app_id}`)"
-          >
-            链接
-          </a-button>
           <a-button type="link" danger @click="handleDelete(record)">删除</a-button>
         </template>
       </a-table-column>
@@ -622,6 +594,14 @@ onUnmounted(() => {
             </a-tag>
           </template>
         </a-table-column>
+        <a-table-column title="使用者" min-width="150">
+          <template #default="{ record: node }">
+            <span v-if="node.instance?.owner_type">
+              {{ node.instance.owner_type }} · {{ node.instance.owner_id || '—' }}
+            </span>
+            <span v-else class="text-gray-400">管理员/本地</span>
+          </template>
+        </a-table-column>
         <a-table-column title="错误" min-width="200" ellipsis>
           <template #default="{ record: node }">
             <span v-if="node.instance?.error" class="err-text">{{ node.instance.error }}</span>
@@ -650,13 +630,6 @@ onUnmounted(() => {
               @click="handleOpenClient(node)"
             >
               打开
-            </a-button>
-            <a-button
-              type="link"
-              :disabled="!node.online || stateOf(node) === 'running' || stateOf(node) === 'starting'"
-              @click="copyLaunchUrl(`/app/node/launch/${node.node_id}`)"
-            >
-              链接
             </a-button>
             <a-button type="link" @click="openNodeEdit(node)">编辑</a-button>
             <a-button

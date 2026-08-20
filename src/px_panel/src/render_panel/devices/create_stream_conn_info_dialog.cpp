@@ -211,12 +211,6 @@ namespace px
                 .auto_start_ = true,
             });
 
-            if (const auto remote_device_id = item->remote_device_id_; !remote_device_id.empty()) {
-                context_->PostTask([=]() {
-                    const auto user_mgr = grApp->GetUserManager();
-                    user_mgr->AddDeviceForUser(remote_device_id);
-                });
-            }
             context_->PostUIDelayTask([dialog, self]() {
                 if (!self) {
                     dialog->hide();

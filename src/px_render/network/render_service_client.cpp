@@ -49,9 +49,10 @@ namespace px
             }
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
+            const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
             self->client_->ws_stream().set_option(
-                websocket::stream_base::decorator([](websocket::request_type &req) {
-                    req.set(http::field::authorization, "websocket-client-authorization");}
+                websocket::stream_base::decorator([ipc_token](websocket::request_type &req) {
+                    req.set(http::field::authorization, "Bearer " + ipc_token);}
                 )
             );
         })
@@ -64,10 +65,23 @@ namespace px
                 auto wstr = StringUtil::ToWString(asio2::last_error_msg());
                 auto str = StringUtil::ToUTF8(wstr);
                 LOGE("RenderServiceClient, connect failure : {} {}", asio2::last_error_val(), str);
-            } else {
-                LOGI("RenderServiceClient, connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+                return;
             }
-
+            LOGI("RenderServiceClient, tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+        })
+        .bind_disconnect([]() {
+            LOGE("RenderServiceClient disconnected");
+        })
+        .bind_upgrade([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || !self->context_) {
+                return;
+            }
+            if (asio2::get_last_error()) {
+                LOGE("RenderServiceClient, upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                return;
+            }
+            LOGI("RenderServiceClient, websocket upgrade success");
             self->context_->PostTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || !self->context_) {
@@ -75,15 +89,6 @@ namespace px
                 }
                 self->context_->SendAppMessage(MsgRenderConnected2Service{});
             });
-
-        })
-        .bind_disconnect([]() {
-            LOGE("RenderServiceClient disconnected");
-        })
-        .bind_upgrade([]() {
-            if (asio2::get_last_error()) {
-                LOGE("RenderServiceClient, upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
-            }
         })
         .bind_recv([weak_self](std::string_view data) {
             auto self = weak_self.lock();
@@ -97,7 +102,7 @@ namespace px
         auto settings = RdSettings::Instance();
         LOGI("Will connect to service : {}:{}", settings->service_server_host_, settings->service_server_port_);
         // the /ws is the websocket upgraged target
-        if (!client_->async_start(settings->service_server_host_, settings->service_server_port_, "/service/message?from=panel")) {
+        if (!client_->async_start(settings->service_server_host_, settings->service_server_port_, "/service/message?from=render")) {
             LOGE("RenderServiceClient, connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
         else {
@@ -125,6 +130,24 @@ namespace px
             // CMS stopped this instance: notify clients then exit gracefully
             LOGW("kSrvStopServer received from service, stopping render...");
             app_->OnServiceRequestedStop();
+        }
+        else if (sm.type() == ServiceMessageType::kSrvRedeemConnectionTicketResp) {
+            const auto& sub = sm.redeem_connection_ticket_resp();
+            std::function<void(bool, const std::string&, const std::vector<std::string>&)> callback;
+            {
+                std::scoped_lock lock(ticket_callbacks_mtx_);
+                const auto it = ticket_callbacks_.find(sub.request_id());
+                if (it == ticket_callbacks_.end()) {
+                    return;
+                }
+                callback = std::move(it->second);
+                ticket_callbacks_.erase(it);
+            }
+            std::vector<std::string> permissions;
+            if (sub.has_grant()) {
+                permissions.assign(sub.grant().permissions().begin(), sub.grant().permissions().end());
+            }
+            callback(sub.ok(), sub.code(), permissions);
         }
     }
 
@@ -164,6 +187,33 @@ namespace px
                 --self->queuing_message_count_;
             });
         }
+    }
+
+    void RenderServiceClient::RedeemConnectionTicket(
+        const std::string& ticket,
+        const std::string& client_nonce,
+        const std::string& instance_id,
+        std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback) {
+        if (!IsAlive() || ticket.empty() || client_nonce.empty()) {
+            callback(false, "INVALID_ARGUMENT", {});
+            return;
+        }
+        const auto request_id = std::format(
+            "render-{}-{}",
+            RdSettings::Instance()->transmission_.listening_port_,
+            ++ticket_request_seq_);
+        {
+            std::scoped_lock lock(ticket_callbacks_mtx_);
+            ticket_callbacks_[request_id] = std::move(callback);
+        }
+        px::ServiceMessage message;
+        message.set_type(ServiceMessageType::kSrvRedeemConnectionTicket);
+        auto* request = message.mutable_redeem_connection_ticket();
+        request->set_request_id(request_id);
+        request->set_ticket(ticket);
+        request->set_client_nonce(client_nonce);
+        request->set_instance_id(instance_id);
+        PostNetMessage(message.SerializeAsString());
     }
 
 }

@@ -522,13 +522,19 @@ bool QtAdvancedStylesheetPrivate::parseVariablesFromXml(
 {
 	while (s.readNextStartElement())
 	{
-		if (s.name() != TagName)
+		// QXmlStreamReader exposes names and attributes as QStringView values
+		// backed by its internal token buffer.  readElementText() advances the
+		// reader and invalidates those views, so materialize owned strings before
+		// advancing.  Keeping the attribute view here caused startup heap
+		// corruption in Qt 6.8.
+		const QString ElementName = s.name().toString();
+		if (ElementName != TagName)
 		{
 			setError(QtAdvancedStylesheet::ThemeXmlError, "Malformed theme "
-                                "file - expected tag <" + TagName + "> instead of " + s.name().toString());
+                                "file - expected tag <" + TagName + "> instead of " + ElementName);
 			return false;
 		}
-		auto Name = s.attributes().value("name");
+		const QString Name = s.attributes().value("name").toString();
 		if (Name.isEmpty())
 		{
 			setError(QtAdvancedStylesheet::ThemeXmlError, "Malformed theme file - "
@@ -544,7 +550,7 @@ bool QtAdvancedStylesheetPrivate::parseVariablesFromXml(
 			return false;
 		}
 
-		Variables.insert(Name.toString(), Value);
+		Variables.insert(Name, Value);
 	}
 
 	return true;

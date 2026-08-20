@@ -20,15 +20,6 @@ namespace px_cms
 
     class CmsUserApi {
     public:
-        // register
-        static
-        px::Result<CmsUserPtr, CmsApiError>
-        Register(const std::string& host,
-                 int port,
-                 const std::string& appkey,
-                 const std::string& username,
-                 const std::string& password);
-
         // login
         static
         px::Result<CmsUserLoginResult, CmsApiError>
@@ -44,18 +35,16 @@ namespace px_cms
                int port,
                const std::string& access_token);
 
-        // update
+        // update the authenticated user's profile
         static
         px::Result<CmsUserPtr, CmsApiError>
-        Update(const std::string& host,
-               int port,
-               const std::string& appkey,
-               const std::string& uid,
-               const std::string& hash_password,
-               const std::map<std::string, std::string>& values);
+        UpdateProfile(const std::string& host,
+                      int port,
+                      const std::string& access_token,
+                      const std::string& username);
 
         static
-        px::Result<CmsUserPtr, CmsApiError>
+        px::Result<CmsUserLoginResult, CmsApiError>
         UpdatePassword(const std::string& host,
                        int port,
                        const std::string& access_token,
@@ -67,8 +56,7 @@ namespace px_cms
         px::Result<CmsUserPtr, CmsApiError>
         UpdateAvatar(const std::string& host,
                      int port,
-                     const std::string& appkey,
-                     const std::string& uid,
+                     const std::string& access_token,
                      const std::string& avatar_path);
     };
 

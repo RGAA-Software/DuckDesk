@@ -8,6 +8,10 @@
 #include <memory>
 #include <string>
 #include <atomic>
+#include <functional>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
 #include <asio2/websocket/wss_client.hpp>
 
 namespace px
@@ -26,6 +30,11 @@ namespace px
         void Exit() const;
         bool IsAlive() const;
         void PostNetMessage(const std::string& msg);
+        void RedeemConnectionTicket(
+            const std::string& ticket,
+            const std::string& client_nonce,
+            const std::string& instance_id,
+            std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback);
 
     private:
         void HeartBeat();
@@ -38,6 +47,11 @@ namespace px
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
+        std::mutex ticket_callbacks_mtx_;
+        std::unordered_map<std::string,
+            std::function<void(bool, const std::string&, const std::vector<std::string>&)>>
+            ticket_callbacks_;
+        std::atomic_uint64_t ticket_request_seq_ = 0;
     };
 
 }

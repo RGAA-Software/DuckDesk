@@ -54,7 +54,7 @@ namespace px_relay
             {"appkey", appkey}
         });
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("GetRelayDeviceInfo failed, status: {}, body: {}, host: {}:{}, appkey: {}", resp.status, resp.body, host, port, appkey);
+            LOGE("GetRelayDeviceInfo failed, status: {}, host: {}:{}", resp.status, host, port);
             return TRError(resp.status);
         }
 

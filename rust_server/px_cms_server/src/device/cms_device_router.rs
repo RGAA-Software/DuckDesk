@@ -6,6 +6,7 @@ use crate::device::cms_device_handler::{
 };
 use crate::filter::cms_appkey_filter;
 use crate::filter::cms_device_filter::filter as cms_device_id_filter;
+use crate::user::session_router::{require_admin, require_admin_write};
 use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;
@@ -25,11 +26,11 @@ pub fn make_device_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<C
         )
         .route(
             "/query/devices",
-            get(handle_query_devices).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_query_devices).layer(middleware::from_fn(require_admin)),
         )
         .route(
             "/count/devices",
-            get(handle_count_devices).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_count_devices).layer(middleware::from_fn(require_admin)),
         )
         .route(
             "/query/device/by/id",
@@ -61,15 +62,15 @@ pub fn make_device_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<C
         )
         .route(
             "/update/device/name",
-            post(update_device_name).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            post(update_device_name).layer(middleware::from_fn(require_admin_write)),
         )
         .route(
             "/update/device/active",
-            post(update_device_active).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            post(update_device_active).layer(middleware::from_fn(require_admin_write)),
         )
         .route(
             "/query/total/used/time",
-            get(handle_query_total_used_time).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            get(handle_query_total_used_time).layer(middleware::from_fn(require_admin)),
         )
         .with_state(context)
 }

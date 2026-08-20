@@ -43,7 +43,6 @@
 #include "px_label.h"
 #include "no_margin_layout.h"
 #include "ui/user/user_login_dialog.h"
-#include "ui/user/user_register_dialog.h"
 #include "px_cms_client/cms_user_api.h"
 #include "ui/tab_cophone.h"
 #include "skin/interface/skin_interface.h"
@@ -727,14 +726,6 @@ namespace px
         }
     }
 
-    void PxWorkspace::ShowUserRegisterDialog() {
-        UserRegisterDialog dialog(app_->GetContext());
-        auto r = dialog.exec();
-        if (r == 0) {
-            UpdateUserInfo();
-        }
-    }
-
     void PxWorkspace::Login() {
         QPointer<PxWorkspace> self(this);
         context_->PostTask([self]() {
@@ -744,6 +735,22 @@ namespace px
             if (!self->user_mgr_->IsLoggedIn()) {
                 return;
             }
+            if (self->user_mgr_->IsPasswordChangeRequired()) {
+                self->context_->PostUITask([self]() {
+                    if (!self || !self->user_mgr_->IsLoggedIn()) {
+                        return;
+                    }
+                    ModifyPasswordDialog dialog(self->context_, self);
+                    if (dialog.exec() != kDoneOk) {
+                        self->user_mgr_->Logout();
+                        self->ClearAvatar();
+                        self->ClearUserInfo();
+                        return;
+                    }
+                    self->UpdateUserInfo();
+                });
+                return;
+            }
             self->LoadAvatar();
         });
     }
@@ -751,11 +758,7 @@ namespace px
     void PxWorkspace::ShowUserLoginDialog() {
         UserLoginDialog dialog(app_->GetContext());
         auto r = dialog.exec();
-        if (r == -1) {
-            //
-            ShowUserRegisterDialog();
-        }
-        else if (r == 0) {
+        if (r == 0) {
             UpdateUserInfo();
         }
     }

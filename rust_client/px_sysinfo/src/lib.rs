@@ -1,5 +1,5 @@
-pub mod monitor_dashboard;
 pub mod monitor_app;
+pub mod monitor_dashboard;
 pub mod monitor_host_app;
 pub mod monitor_model;
 pub mod monitor_sender;

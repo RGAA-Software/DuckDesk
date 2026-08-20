@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::identity::model::GroupRef;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CmsUser {
     // uid, generated bson id -> md5 hex it
@@ -32,6 +34,11 @@ pub struct CmsUser {
     #[serde(default, deserialize_with = "px_base::serde_as_bool")]
     pub deleted: bool,
 
+    // Administratively disabled accounts remain visible and can be enabled
+    // again; this is intentionally distinct from soft deletion.
+    #[serde(default, deserialize_with = "px_base::serde_as_bool")]
+    pub disabled: bool,
+
     // avatar path
     #[serde(default)]
     pub avatar_path: String,
@@ -59,6 +66,7 @@ pub struct CmsUserView {
     pub created_timestamp: i64,
     pub update_timestamp: i64,
     pub deleted: bool,
+    pub disabled: bool,
     pub avatar_path: String,
 
     #[serde(default)]
@@ -69,6 +77,8 @@ pub struct CmsUserView {
 
     #[serde(default)]
     pub version: i64,
+    #[serde(default)]
+    pub groups: Vec<GroupRef>,
     pub total: u32,
 }
 
@@ -81,10 +91,12 @@ impl From<&CmsUser> for CmsUserView {
             created_timestamp: user.created_timestamp,
             update_timestamp: user.update_timestamp,
             deleted: user.deleted,
+            disabled: user.disabled,
             avatar_path: user.avatar_path.clone(),
             auth_version: user.auth_version,
             must_change_password: user.must_change_password,
             version: user.version,
+            groups: Vec::new(),
             total: user.total,
         }
     }
@@ -94,21 +106,6 @@ impl From<CmsUser> for CmsUserView {
     fn from(user: CmsUser) -> Self {
         Self::from(&user)
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CmsUserAdapter {
-    #[serde(rename = "User ID")]
-    pub uid: String,
-
-    #[serde(rename = "User Name")]
-    pub user_name: String,
-
-    #[serde(rename = "Password")]
-    pub password: String,
-
-    #[serde(rename = "Created Time")]
-    pub created_time: String,
 }
 
 #[cfg(test)]

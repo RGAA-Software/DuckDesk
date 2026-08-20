@@ -6,9 +6,7 @@ use std::time::Duration;
 use sysinfo::System;
 use windows::core::PCSTR;
 use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::{
-    MessageBoxA, IDYES, MB_ICONQUESTION, MB_YESNO,
-};
+use windows::Win32::UI::WindowsAndMessaging::{MessageBoxA, IDYES, MB_ICONQUESTION, MB_YESNO};
 
 #[derive(Parser, Debug)]
 #[command(name = "px_uninstall")]
@@ -94,7 +92,10 @@ fn run_service_manager(args: &[&str]) {
     let exe_dir = px_base::current_exe_dir();
     let exe_path = PathBuf::from(&exe_dir).join("px_service_manager.exe");
     if !exe_path.exists() {
-        eprintln!("Warning: px_service_manager.exe not found at {:?}", exe_path);
+        eprintln!(
+            "Warning: px_service_manager.exe not found at {:?}",
+            exe_path
+        );
         return;
     }
     let mut cmd = Command::new(&exe_path);
@@ -102,7 +103,10 @@ fn run_service_manager(args: &[&str]) {
     match cmd.spawn().and_then(|mut child| child.wait()) {
         Ok(status) => {
             if !status.success() {
-                eprintln!("Warning: px_service_manager exited with code: {:?}", status.code());
+                eprintln!(
+                    "Warning: px_service_manager exited with code: {:?}",
+                    status.code()
+                );
             }
         }
         Err(e) => {

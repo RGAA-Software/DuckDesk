@@ -58,11 +58,7 @@ const findDeviceToShow = async () => {
 
 /// query total devices count
 const countDevices = async () => {
-  const resp = await axiosHttp.get('/api/v1/device/control/count/devices', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/device/control/count/devices')
   if (resp.status !== 200) {
     console.error('queryDevices failed', resp)
     return null
@@ -80,11 +76,7 @@ const countDevices = async () => {
 
 /// query total connection count
 const countOnlineConnections = async () => {
-  const resp = await axiosHttp.get('/api/v1/client/control/count/alive/conns', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/client/control/count/alive/conns')
   if (resp.status !== 200) {
     console.error('queryDevices failed', resp)
     return null
@@ -102,11 +94,7 @@ const countOnlineConnections = async () => {
 
 /// query total users
 const countTotalUsers = async () => {
-  const resp = await axiosHttp.get('/api/v1/user/control/count/users', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/admin/users?page=1&page_size=1')
   if (resp.status !== 200) {
     console.error('queryDevices failed', resp)
     return null
@@ -118,18 +106,14 @@ const countTotalUsers = async () => {
     return null
   }
 
-  totalUsers.value = data.data
-  console.log('total online connections: ', data.data)
+  totalUsers.value = data.data.total
+  console.log('total users: ', data.data.total)
 }
 
 /// query total used time
 const queryTotalUsedTIme = async () => {
   ///api/v1/device/control/query/total/used/time
-  const resp = await axiosHttp.get('/api/v1/device/control/query/total/used/time', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/device/control/query/total/used/time')
   if (resp.status !== 200) {
     console.error('queryDevices failed', resp)
     return null
@@ -148,11 +132,7 @@ const queryTotalUsedTIme = async () => {
 /// query total events
 const queryTotalEvents = async () => {
   ///api/v1/device/control/query/total/used/time
-  const resp = await axiosHttp.get('/api/v1/event/control/count/events', {
-    params: {
-      appkey: localStorage.getItem('appkey'),
-    },
-  })
+  const resp = await axiosHttp.get('/api/v1/event/control/count/events')
   if (resp.status !== 200) {
     console.error('queryDevices failed', resp)
     return null

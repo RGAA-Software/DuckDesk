@@ -21,6 +21,7 @@ relay_port = 30502
 
 # mongodb装在本机，则不需要修改
 # mongodb url
+environment = "test"
 mongodb_url = "mongodb://localhost:27017/"
 
 # redis装在本机，则不需要修改
@@ -32,6 +33,7 @@ ssl_cert = "certs/cert.pem"
 
 ## key.pem
 ssl_key = "certs/key.pem"
+privacy_hash_salt = "local-test-only-privacy-salt"
 
 # 授权服务器地址（px_auth_server）
 auth_server_url = "https://127.0.0.1:30400"
@@ -70,3 +72,26 @@ default_app_id = "cargame_debug"
 # Start px_media.exe automatically only when media_server_url points to this
 # machine. Set false when the local sidecar is managed by Windows Service.
 auto_start_media_server = true
+
+[user]
+registration_mode = "closed"
+panel_sliding_days = 30
+panel_absolute_days = 90
+web_sliding_hours = 12
+web_absolute_days = 30
+admin_sliding_hours = 2
+admin_absolute_hours = 8
+guest_absolute_hours = 24
+ticket_expire_seconds = 30
+
+[user.rate_limit]
+login_per_ip_per_minute = 10
+login_per_account_per_15_minutes = 20
+guest_session_per_ip_per_hour = 30
+start_per_subject_per_minute = 6
+
+[user.quota]
+guest_concurrent_instances = 1
+user_concurrent_instances = 3
+guest_daily_minutes = 60
+public_app_global_concurrency = 20

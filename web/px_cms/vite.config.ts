@@ -27,6 +27,11 @@ export default defineConfig({
         target: CMS_PROXY_TARGET,
         changeOrigin: true,
         secure: false,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            if (req.headers.host) proxyReq.setHeader('x-forwarded-host', req.headers.host)
+          })
+        },
       },
       // WebSocket 通道（/cms/website 等），必须 ws:true 才能转发升级握手
       '/cms': {

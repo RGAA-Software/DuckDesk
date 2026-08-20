@@ -10,6 +10,10 @@
 #include <QWidget>
 #include <QProcess>
 #include <QPointer>
+#include <QUrl>
+#include <QUrlQuery>
+#include <QUuid>
+#include <unordered_set>
 
 #include "px_dialog.h"
 #include "px_label.h"
@@ -36,6 +40,7 @@
 #include "px_cms_client/cms_user.h"
 #include "px_cms_client/cms_device.h"
 #include "px_cms_client/cms_user_device.h"
+#include "px_cms_client/cms_user_app_api.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_workspace.h"
 #include "render_panel/network/render_api.h"
@@ -109,6 +114,21 @@ namespace px
                 self->state_checker_->UpdateCurrentStreamItems(streams);
             });
         }, 2200);
+
+        // Load CMS resources for both signed-in users and anonymous Panel
+        // sessions. Public applications must be visible on the first screen;
+        // requiring a login event or a manual refresh leaves guest access
+        // unreachable.
+        context_->PostUIDelayTask([self, ctx = context_]() {
+            if (!self) {
+                return;
+            }
+            ctx->PostTask([self]() {
+                if (self) {
+                    self->RequestBindDevices();
+                }
+            });
+        }, 300);
     }
 
     AppStreamList::~AppStreamList() = default;
@@ -290,12 +310,37 @@ namespace px
             });
         });
 
+        msg_listener_->Listen<MsgUserLoggedOut>([self, ctx = context_](const MsgUserLoggedOut& msg) {
+            ctx->PostTask([self]() {
+                if (!self) {
+                    return;
+                }
+                self->RequestBindDevices();
+            });
+        });
+
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
             this->LoadStreamItems();
         });
     }
 
     void AppStreamList::RegisterActions(int index, QListWidgetItem* cur_item) {
+        const auto stream = streams_.at(index);
+        if (stream->connect_type_ == "cms_app_ticket") {
+            auto menu = new QMenu();
+            auto connect_action = menu->addAction(tcTr("id_start_control"));
+            auto view_action = menu->addAction(tcTr("id_only_viewing"));
+            auto stop_action = menu->addAction(tcTr("id_stop_control"));
+            connect(connect_action, &QAction::triggered, this,
+                    [=, this]() { StartStream(cur_item, stream, false); });
+            connect(view_action, &QAction::triggered, this,
+                    [=, this]() { StartStream(cur_item, stream, true); });
+            connect(stop_action, &QAction::triggered, this,
+                    [=, this]() { StopStream(stream); });
+            menu->exec(QCursor::pos());
+            delete menu;
+            return;
+        }
         std::vector<QString> actions = {
             tcTr("id_start_control"),
             tcTr("id_stop_control"),
@@ -383,16 +428,80 @@ namespace px
     }
 
     void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing) {
-        auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
-        if (!si.has_value()) {
-            LOGE("read stream item from db failed: {}", item->stream_id_);
-            return;
+        std::shared_ptr<px_cms::CmsStream> target_item;
+        const bool uses_cms_app_ticket = item->connect_type_ == "cms_app_ticket";
+        if (uses_cms_app_ticket) {
+            target_item = item;
+        } else {
+            auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
+            if (!si.has_value()) {
+                LOGE("read stream item from db failed: {}", item->stream_id_);
+                return;
+            }
+            target_item = si.value();
         }
-
-        const auto& target_item = si.value();
         // may start with [Only Viewing]
         if (force_only_viewing) {
             target_item->only_viewing_ = true;
+        }
+
+        const bool uses_cms_ticket = target_item->connect_type_ == "cms_ticket" || uses_cms_app_ticket;
+        if (uses_cms_ticket) {
+            const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+            std::vector<std::string> permissions {"view"};
+            if (!target_item->only_viewing_) {
+                permissions.push_back("input");
+            }
+            px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> ticket_result =
+                TcErr(px_cms::CmsApiError::kInvalidParams);
+            if (uses_cms_app_ticket) {
+                if (target_item->cms_instance_id_.empty()) {
+                    auto start_result = grApp->GetUserManager()->StartApp(target_item->cms_app_id_, nonce);
+                    if (!start_result.has_value() || start_result.value().state != "running") {
+                        LOGE("CMS application start failed or did not reach running");
+                        TcDialog dialog(tcTr("id_connect_failed"),
+                                        "The CMS could not start this application", grWorkspace.get());
+                        dialog.exec();
+                        return;
+                    }
+                    target_item->cms_instance_id_ = start_result.value().instance_id;
+                }
+                ticket_result = grApp->GetUserManager()->IssueInstanceTicket(
+                    target_item->cms_instance_id_, nonce, permissions);
+            } else {
+                ticket_result = grApp->GetUserManager()->IssueDeviceTicket(
+                    target_item->remote_device_id_, nonce, permissions);
+            }
+            if (!ticket_result.has_value()) {
+                LOGE("CMS connection ticket request failed: {}", static_cast<int>(ticket_result.error()));
+                if (uses_cms_app_ticket) {
+                    // The instance may have stopped or belonged to an expired
+                    // guest session. A subsequent click should start a fresh
+                    // owned instance instead of retrying the stale id.
+                    target_item->cms_instance_id_.clear();
+                }
+                TcDialog dialog(tcTr("id_connect_failed"),
+                                "The CMS did not authorize this connection", grWorkspace.get());
+                dialog.exec();
+                return;
+            }
+            const auto& ticket = ticket_result.value();
+            const QUrl launch_url(QString::fromStdString(ticket.launch_url));
+            if (!launch_url.isValid() || launch_url.host().isEmpty() || launch_url.port() <= 0) {
+                LOGE("CMS returned an invalid device launch endpoint");
+                TcDialog dialog(tcTr("id_connect_failed"),
+                                "The CMS returned an invalid device endpoint", grWorkspace.get());
+                dialog.exec();
+                return;
+            }
+            target_item->stream_host_ = launch_url.host().toStdString();
+            target_item->stream_port_ = launch_url.port();
+            if (uses_cms_app_ticket) {
+                const QUrlQuery query(launch_url);
+                target_item->remote_device_id_ = query.queryItemValue("deviceId").toStdString();
+            }
+            target_item->connection_ticket_ = ticket.ticket;
+            target_item->connection_nonce_ = nonce;
         }
 
         // get render configuration; to check the render online or not
@@ -406,9 +515,9 @@ namespace px
                                      ? target_item->remote_device_safety_pwd_
                                      : (!target_item->remote_device_random_pwd_.empty()
                                         ? MD5::Hex(target_item->remote_device_random_pwd_) : std::string(""));
-            auto ok = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_,
-                                                        candidate_pwd_md5).value_or(false);
-            for (;;) {
+            auto ok = uses_cms_ticket || RenderApi::VerifySecurityPassword(
+                target_item->stream_host_, target_item->stream_port_, candidate_pwd_md5).value_or(false);
+            for (; !uses_cms_ticket;) {
                 LOGI("VerifySecurityPassword result: {}", ok);
                 if (ok) {
                     break;
@@ -449,7 +558,10 @@ namespace px
             }
 
             // start via udp, webrtc or websocket, depends on the "use_udp"/"use_webrtc" options
-            if (target_item->use_udp_) {
+            if (uses_cms_ticket) {
+                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
+            }
+            else if (target_item->use_udp_) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeUdpDirect, true);
             }
             else if (target_item->use_webrtc_) {
@@ -463,7 +575,7 @@ namespace px
             // we can't connect directly
             LOGI("We can *NOT* connect directly: {}:{}, will try relay!", target_item->stream_host_, target_item->stream_port_);
             LOGI("Stream id: {}", target_item->stream_id_);
-            LOGI("origin random: {}, target random: {}", item->remote_device_random_pwd_, target_item->remote_device_random_pwd_);
+            LOGI("Remote connection credentials copied from the selected device");
             LOGI("stream host: {}, remote device id: {}", target_item->stream_host_, target_item->remote_device_id_);
             if (target_item->HasRelayInfo()) {
                 LOGI("Yes, we have relay info: {} {}", target_item->relay_host_, target_item->relay_port_);
@@ -492,7 +604,8 @@ namespace px
                 }
 
                 // NO password, just input one
-                LOGI("device id: {}, random: {}, safety: {}", target_item->device_id_, target_item->remote_device_random_pwd_, target_item->remote_device_safety_pwd_);
+                LOGI("Connecting to device: {}; credentials configured: {}", target_item->device_id_,
+                     !target_item->remote_device_random_pwd_.empty() || !target_item->remote_device_safety_pwd_.empty());
                 QString input_password;
                 if (target_item->remote_device_random_pwd_.empty() && target_item->remote_device_safety_pwd_.empty()) {
                     InputRemotePwdDialog dlg_input_pwd(context_);
@@ -556,12 +669,12 @@ namespace px
                 if (verify_result == ProfileVerifyResult::kVfSuccessRandomPwd || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
                     db_mgr_->UpdateStreamRandomPwd(target_item->stream_id_, remote_random_pwd);
                     target_item->remote_device_random_pwd_ = remote_random_pwd;
-                    LOGI("Update the Random! {}", remote_random_pwd);
+                    LOGI("Updated the saved random-password credential");
                 }
                 else if (verify_result == ProfileVerifyResult::kVfSuccessSafetyPwd || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
                     db_mgr_->UpdateStreamSafetyPwd(target_item->stream_id_, remote_safety_pwd);
                     target_item->remote_device_safety_pwd_ = remote_safety_pwd;
-                    LOGI("Update the Safety!", remote_safety_pwd);
+                    LOGI("Updated the saved safety-password credential");
                 }
 
                 // start via websocket
@@ -578,6 +691,21 @@ namespace px
     }
 
     void AppStreamList::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
+        if (item->connect_type_ == "cms_app_ticket") {
+            running_stream_mgr_->StopStream(item);
+            if (item->cms_instance_id_.empty()) return;
+            const auto instance_id = item->cms_instance_id_;
+            QPointer<AppStreamList> self(this);
+            context_->PostTask([self, item, instance_id]() {
+                if (!self) return;
+                const auto result = grApp->GetUserManager()->StopInstance(instance_id);
+                if (result.has_value()) {
+                    item->cms_instance_id_.clear();
+                    self->RequestBindDevices();
+                }
+            });
+            return;
+        }
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -656,14 +784,6 @@ namespace px
             // delete it from database
             auto mgr = context_->GetStreamDBManager();
             mgr->DeleteStream(item->_id);
-
-            // delete from user
-            if (const auto remote_device_id = item->remote_device_id_; !remote_device_id.empty()) {
-                context_->PostTask([=]() {
-                    const auto user_mgr = grApp->GetUserManager();
-                    user_mgr->RemoveDeviceFromUser(remote_device_id);
-                });
-            }
 
             LoadStreamItems();
         }
@@ -783,6 +903,8 @@ namespace px
                 auto db_mgr = self->context_->GetStreamDBManager();
                 std::lock_guard<std::mutex> guard(self->streams_mtx_);
                 self->streams_ = db_mgr->GetAllStreamsSortByCreatedTime();
+                self->streams_.insert(self->streams_.end(), self->cms_app_streams_.begin(),
+                                      self->cms_app_streams_.end());
 
                 // bench test
                 // auto fn_rand_a_upper_char = []() -> char {
@@ -826,24 +948,28 @@ namespace px
     void AppStreamList::RequestBindDevices() {
         auto user_mgr = grApp->GetUserManager();
         auto user_devices = user_mgr->QueryBindDevices(1, 200, false);
+        std::unordered_set<std::string> authorized_device_ids;
         for (const auto& ud : user_devices) {
-            if (ud->device_id_.empty() || !ud->user_ || !ud->device_) {
+            if (!ud->device_id_.empty() && ud->device_) {
+                authorized_device_ids.insert(ud->device_id_);
+            }
+        }
+
+        // CMS-sourced devices are a projection of the current identity, not a
+        // permanent local address-book entry. Remove stale cards (and stop a
+        // local connection if necessary) on logout, account switch or ACL
+        // revocation so another user cannot see the previous user's devices.
+        for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
+            if (stream->connect_type_ == "cms_ticket"
+                && !authorized_device_ids.contains(stream->remote_device_id_)) {
+                running_stream_mgr_->StopStream(stream);
+                db_mgr_->DeleteStream(stream->_id);
+            }
+        }
+        for (const auto& ud : user_devices) {
+            if (ud->device_id_.empty() || !ud->device_) {
                 LOGE("Invalid user-device, user-device: {}", ud->Dump());
                 continue;
-            }
-
-            auto link = ud->device_->desktop_link_;
-            auto conn_info = ConnInfoParser::Parse(link);
-            if (!conn_info) {
-                LOGI("Parse link failed, user-device: {}", ud->Dump());
-                continue;
-            }
-
-            std::string direct_host;
-            int direct_port = 0;
-            if (!conn_info->hosts_.empty()) {
-                direct_host = conn_info->hosts_[0].ip_;
-                direct_port = conn_info->render_srv_port_;
             }
 
             auto db_mgr = context_->GetStreamDBManager();
@@ -851,31 +977,55 @@ namespace px
             if (opt_device.has_value()) {
                 // update info
                 const auto& stream = opt_device.value();
-                stream->remote_device_random_pwd_ = conn_info->random_pwd_;
                 stream->stream_name_ = ud->device_->device_name_;
-                stream->stream_host_ = direct_host;
-                stream->stream_port_ = direct_port;
-                stream->relay_host_ = conn_info->relay_host_;
-                stream->relay_port_ = conn_info->relay_port_;
-                //stream->relay_appkey_ = conn_info->relay_appkey_;
+                stream->remote_device_random_pwd_.clear();
+                stream->remote_device_safety_pwd_.clear();
+                stream->stream_host_.clear();
+                stream->stream_port_ = 0;
+                stream->relay_host_.clear();
+                stream->relay_port_ = 0;
+                stream->connect_type_ = "cms_ticket";
+                stream->use_webrtc_ = true;
                 db_mgr->UpdateStream(stream);
             }
             else {
                 // insert device
                 std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
-                item->remote_device_id_ = conn_info->device_id_;
-                item->remote_device_random_pwd_ = conn_info->random_pwd_;
+                item->remote_device_id_ = ud->device_id_;
                 item->stream_name_ = ud->device_->device_name_;
-                item->stream_host_ = direct_host;
-                item->stream_port_ = direct_port;
-                item->relay_host_ = conn_info->relay_host_;
-                item->relay_port_ = conn_info->relay_port_;
-                //item->relay_appkey_ = conn_info->relay_appkey_;
                 item->encode_bps_ = 0;
                 item->encode_fps_ = 0;
-                item->clipboard_enabled_ = true;
+                item->clipboard_enabled_ = false;
+                item->audio_enabled_ = false;
+                item->connect_type_ = "cms_ticket";
+                item->use_webrtc_ = true;
                 db_mgr->AddStream(item);
             }
+        }
+
+        std::vector<std::shared_ptr<px_cms::CmsStream>> app_streams;
+        if (const auto apps_result = user_mgr->QueryApps(); apps_result.has_value()) {
+            for (const auto& app : apps_result.value()) {
+                auto stream = std::make_shared<px_cms::CmsStream>();
+                stream->stream_id_ = "cms-app-" + app.app_id;
+                stream->stream_name_ = app.name
+                    + (app.access_mode == "public" ? " [Public]" : " [Authorized]");
+                stream->connect_type_ = "cms_app_ticket";
+                stream->cms_app_id_ = app.app_id;
+                stream->use_webrtc_ = true;
+                stream->audio_enabled_ = false;
+                stream->clipboard_enabled_ = false;
+                stream->cms_online_ = true;
+                if (app.running_instance) {
+                    stream->cms_instance_id_ = app.running_instance->instance_id;
+                    stream->direct_online_ = app.running_instance->state == "running";
+                }
+                app_streams.push_back(std::move(stream));
+            }
+        }
+        {
+            std::lock_guard<std::mutex> guard(streams_mtx_);
+            cms_app_streams_ = std::move(app_streams);
         }
 
         LoadStreamItems();

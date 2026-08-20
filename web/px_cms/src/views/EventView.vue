@@ -19,7 +19,6 @@ async function queryEvents(
     params: {
       page: page,
       page_size: pageSize,
-      appkey: localStorage.getItem('appkey'),
       sort_time: -1,
       event_type: eventType,
       device_id: deviceId,

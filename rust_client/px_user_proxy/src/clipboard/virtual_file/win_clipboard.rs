@@ -11,20 +11,20 @@ use windows::core::{BOOL, HRESULT, PCWSTR};
 use windows::Win32::Foundation::{HGLOBAL, S_FALSE, S_OK};
 use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_NORMAL;
 use windows::Win32::System::Com::{
-    IDataObject, IDataObject_Impl, IAdviseSink, IEnumFORMATETC, IEnumSTATDATA, IStream,
-    DATADIR_GET, DVASPECT_CONTENT, FORMATETC, LOCKTYPE, STGC, STGMEDIUM, STATFLAG, STGTY_STREAM,
-    STREAM_SEEK, STREAM_SEEK_CUR, STREAM_SEEK_END, STREAM_SEEK_SET, TYMED_HGLOBAL, TYMED_ISTREAM,
-    ISequentialStream_Impl, IStream_Impl, STATSTG,
+    IAdviseSink, IDataObject, IDataObject_Impl, IEnumFORMATETC, IEnumSTATDATA,
+    ISequentialStream_Impl, IStream, IStream_Impl, DATADIR_GET, DVASPECT_CONTENT, FORMATETC,
+    LOCKTYPE, STATFLAG, STATSTG, STGC, STGMEDIUM, STGTY_STREAM, STREAM_SEEK, STREAM_SEEK_CUR,
+    STREAM_SEEK_END, STREAM_SEEK_SET, TYMED_HGLOBAL, TYMED_ISTREAM,
 };
 use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
 use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock};
 use windows::Win32::System::Ole::{OleFlushClipboard, OleSetClipboard};
 use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
 use windows::Win32::UI::Shell::{
-    IDataObjectAsyncCapability, IDataObjectAsyncCapability_Impl, CFSTR_FILECONTENTS,
-    CFSTR_FILEDESCRIPTOR, CFSTR_PREFERREDDROPEFFECT, FILEDESCRIPTORW,
-    FILEGROUPDESCRIPTORW, FD_ATTRIBUTES, FD_CREATETIME, FD_FILESIZE, FD_PROGRESSUI, FD_WRITESTIME,
-    SHCreateStdEnumFmtEtc,
+    IDataObjectAsyncCapability, IDataObjectAsyncCapability_Impl, SHCreateStdEnumFmtEtc,
+    CFSTR_FILECONTENTS, CFSTR_FILEDESCRIPTOR, CFSTR_PREFERREDDROPEFFECT, FD_ATTRIBUTES,
+    FD_CREATETIME, FD_FILESIZE, FD_PROGRESSUI, FD_WRITESTIME, FILEDESCRIPTORW,
+    FILEGROUPDESCRIPTORW,
 };
 use windows_implement::implement;
 
@@ -299,7 +299,11 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
         let tymed = unsafe { (*pformatetcin).tymed };
         debug!(
             "virtual file GetData format={} tymed={} file_desc={} file_content={} preferred={}",
-            format, tymed, self.formats.file_desc, self.formats.file_content, self.formats.preferred_drop_effect
+            format,
+            tymed,
+            self.formats.file_desc,
+            self.formats.file_content,
+            self.formats.preferred_drop_effect
         );
 
         if format == self.formats.file_desc && (tymed & TYMED_HGLOBAL.0 as u32) != 0 {
@@ -361,7 +365,8 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
 
         if format == self.formats.preferred_drop_effect && (tymed & TYMED_HGLOBAL.0 as u32) != 0 {
             unsafe {
-                let mem = GlobalAlloc(clipboard_global_alloc_flags(), 4).map_err(|_| com_err(0x8007000E))?;
+                let mem = GlobalAlloc(clipboard_global_alloc_flags(), 4)
+                    .map_err(|_| com_err(0x8007000E))?;
                 let ptr = GlobalLock(mem);
                 if ptr.is_null() {
                     return Err(com_err(0x8007000E));
@@ -386,7 +391,10 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
         let format = unsafe { (*pformatetc).cfFormat };
         debug!(
             "virtual file QueryGetData format={} file_desc={} file_content={} preferred={}",
-            format, self.formats.file_desc, self.formats.file_content, self.formats.preferred_drop_effect
+            format,
+            self.formats.file_desc,
+            self.formats.file_content,
+            self.formats.preferred_drop_effect
         );
         if format == self.formats.file_desc
             || format == self.formats.file_content
@@ -429,11 +437,7 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
         unsafe { SHCreateStdEnumFmtEtc(&formats) }
     }
 
-    fn GetDataHere(
-        &self,
-        _: *const FORMATETC,
-        _: *mut STGMEDIUM,
-    ) -> windows::core::Result<()> {
+    fn GetDataHere(&self, _: *const FORMATETC, _: *mut STGMEDIUM) -> windows::core::Result<()> {
         Err(com_err(0x80040064))
     }
 
@@ -551,10 +555,7 @@ pub fn install_virtual_file_clipboard(
                     break;
                 }
                 Err(err) => {
-                    warn!(
-                        "OleSetClipboard virtual file retry {}: {err}",
-                        attempt + 1
-                    );
+                    warn!("OleSetClipboard virtual file retry {}: {err}", attempt + 1);
                 }
             }
         }

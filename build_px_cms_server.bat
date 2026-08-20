@@ -14,7 +14,8 @@ rem           (the server serves static files from the web\ dir next to the exe)
 rem
 rem Notes:
 rem   - Existing *.toml configs, certs\ and runtime data under output\ are
-rem     NOT touched.
+rem     preserved. The frozen px_media/px_turn runtime is refreshed on every
+rem     deployment so the server and its managed media services stay in sync.
 rem   - For the first full deployment (certs, config template, runtime dirs)
 rem     use scripts\package_px_cms_server.bat instead.
 rem   - A running server locks its exe; stop it first, otherwise the exe copy
@@ -28,6 +29,7 @@ rem --- Per-server settings ---
 set "SERVER_NAME=px_cms_server"
 set "EXE_NAME=px_cms"
 set "WEB_SRC=%REPO_ROOT%\web\px_cms"
+set "MEDIA_SRC=%REPO_ROOT%\rust_server\px_cms_server\media"
 rem Subdirectory under output\%EXE_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=web"
 set "OUTPUT_DIR=%REPO_ROOT%\output\%EXE_NAME%"
@@ -92,7 +94,8 @@ if not "%VisualStudioVersion:~0,2%"=="18" (
     set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
     set "VS_INSTALL_DIR="
     if exist "!VSWHERE!" (
-        for /f "usebackq tokens=*" %%i in (`"!VSWHERE!" -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL_DIR=%%i"
+        for %%V in ("!VSWHERE!") do set "VSWHERE_CMD=%%~sV"
+        for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL_DIR=%%i"
     )
     if "!VS_INSTALL_DIR!"=="" (
         if exist "%ProgramFiles%\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\Community"
@@ -157,6 +160,22 @@ rem config template (seed on first deploy only; never overwrite an existing conf
 if not exist "%OUTPUT_DIR%\%EXE_NAME%.toml" (
     copy /Y "%REPO_ROOT%\rust_server\target\release\%EXE_NAME%.toml" "%OUTPUT_DIR%\%EXE_NAME%.toml" >nul
     if errorlevel 1 echo WARNING: Failed to copy %EXE_NAME%.toml.
+)
+
+rem Fixed ZLMediaKit/Coturn runtime. Keep the sidecars and their DLL/config
+rem beside px_cms.exe on every normal build, not only first-time packaging.
+if not exist "%MEDIA_SRC%\px_media.exe" (
+    echo ERROR: Fixed media runtime is missing: %MEDIA_SRC%\px_media.exe
+    exit /b 1
+)
+if not exist "%MEDIA_SRC%\px_turn.exe" (
+    echo ERROR: Fixed TURN runtime is missing: %MEDIA_SRC%\px_turn.exe
+    exit /b 1
+)
+robocopy "%MEDIA_SRC%" "%OUTPUT_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 (
+    echo ERROR: Failed to deploy media runtime beside %EXE_NAME%.exe.
+    exit /b 1
 )
 
 rem shared TLS cert (all servers share one; seed on first deploy only)

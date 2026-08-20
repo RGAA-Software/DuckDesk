@@ -1,9 +1,9 @@
 use crate::author_appkey_generator::gen_appkey_secret;
 use crate::author_license_keys::sign_authorization_model;
 use crate::{gAuthorDatabase, gAuthorSettings, gLicenseSigner};
-use px_auth_mgr::authorization::{Authorization, AuthorizationVo};
 use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{Bson, DateTime, Document, Regex, doc};
+use px_auth_mgr::authorization::{Authorization, AuthorizationVo};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -398,7 +398,10 @@ impl AuthorizationManager {
         }
     }
 
-    pub async fn revoke_authorization(&self, auth_id: String) -> Result<Authorization, AuthorizationError> {
+    pub async fn revoke_authorization(
+        &self,
+        auth_id: String,
+    ) -> Result<Authorization, AuthorizationError> {
         let auth = self.query_authorization_by_id(auth_id.clone()).await;
         let mut auth = match auth {
             Some(a) => a,

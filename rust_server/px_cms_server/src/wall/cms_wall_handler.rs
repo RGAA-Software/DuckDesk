@@ -3,9 +3,7 @@ use crate::cms_context::CmsContext;
 use crate::{gCmsServiceConnMgr, gDeviceManager};
 use axum::extract::State;
 use axum::Json;
-use protocol::cms_service::{
-    CmsServiceCreateWallSession, CmsServiceCreateWallSessionResult,
-};
+use protocol::cms_service::{CmsServiceCreateWallSession, CmsServiceCreateWallSessionResult};
 use px_base::{ok_resp, RespMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -78,7 +76,10 @@ pub async fn create_wall_session(
     let request_id = format!("wall_req_{}", uuid::Uuid::new_v4().simple());
     let session_id = format!("wall_{}", uuid::Uuid::new_v4().simple());
     let (tx, rx) = oneshot::channel();
-    WALL_SESSION_WAITERS.lock().await.insert(request_id.clone(), tx);
+    WALL_SESSION_WAITERS
+        .lock()
+        .await
+        .insert(request_id.clone(), tx);
 
     let sent = service_conn
         .lock()

@@ -124,6 +124,50 @@ pub struct CmsServiceCreateWallSessionResult {
     pub answer_sdp: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CmsServiceRedeemConnectionTicket {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    /// Informational only. CMS uses the device identity bound to this WebSocket.
+    #[prost(string, tag = "2")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub ticket: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub client_nonce: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub instance_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CmsConnectionGrant {
+    #[prost(string, tag = "1")]
+    pub kind: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub app_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub subject_type: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub subject_id: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "7")]
+    pub permissions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(int64, tag = "8")]
+    pub expires_at: i64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CmsServiceRedeemConnectionTicketResult {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub ok: bool,
+    #[prost(string, tag = "3")]
+    pub code: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "4")]
+    pub grant: ::core::option::Option<CmsConnectionGrant>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CmsServiceMessage {
     #[prost(enumeration = "CmsServiceMessageType", tag = "1")]
     pub msg_type: i32,
@@ -151,6 +195,14 @@ pub struct CmsServiceMessage {
     pub create_wall_session_result: ::core::option::Option<
         CmsServiceCreateWallSessionResult,
     >,
+    #[prost(message, optional, tag = "100")]
+    pub redeem_connection_ticket: ::core::option::Option<
+        CmsServiceRedeemConnectionTicket,
+    >,
+    #[prost(message, optional, tag = "110")]
+    pub redeem_connection_ticket_result: ::core::option::Option<
+        CmsServiceRedeemConnectionTicketResult,
+    >,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -168,6 +220,9 @@ pub enum CmsServiceMessageType {
     KCmsServiceCreateWallSession = 6,
     /// Service -> CMS
     KCmsServiceCreateWallSessionResult = 7,
+    /// Service -> CMS, then CMS -> Service.
+    KCmsServiceRedeemConnectionTicket = 8,
+    KCmsServiceRedeemConnectionTicketResult = 9,
 }
 impl CmsServiceMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -188,6 +243,12 @@ impl CmsServiceMessageType {
             Self::KCmsServiceCreateWallSessionResult => {
                 "kCmsServiceCreateWallSessionResult"
             }
+            Self::KCmsServiceRedeemConnectionTicket => {
+                "kCmsServiceRedeemConnectionTicket"
+            }
+            Self::KCmsServiceRedeemConnectionTicketResult => {
+                "kCmsServiceRedeemConnectionTicketResult"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -206,6 +267,12 @@ impl CmsServiceMessageType {
             "kCmsServiceCreateWallSession" => Some(Self::KCmsServiceCreateWallSession),
             "kCmsServiceCreateWallSessionResult" => {
                 Some(Self::KCmsServiceCreateWallSessionResult)
+            }
+            "kCmsServiceRedeemConnectionTicket" => {
+                Some(Self::KCmsServiceRedeemConnectionTicket)
+            }
+            "kCmsServiceRedeemConnectionTicketResult" => {
+                Some(Self::KCmsServiceRedeemConnectionTicketResult)
             }
             _ => None,
         }

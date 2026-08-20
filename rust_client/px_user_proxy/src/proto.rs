@@ -8,12 +8,12 @@ pub mod px {
     include!(concat!(env!("OUT_DIR"), "/px.rs"));
 }
 
-use pxrp::{
-    RpClipboardFile, RpClipboardInfo, RpMessage, RpMessageType, RpRawRenderMessage, RpClipboardType,
-};
 use px::{
     ClipboardFile, ClipboardInfo, ClipboardInfoResp, ClipboardReqAtBegin, ClipboardReqAtEnd,
-    ClipboardReqBuffer, ClipboardRespBuffer, Message, MessageType, ClipboardType,
+    ClipboardReqBuffer, ClipboardRespBuffer, ClipboardType, Message, MessageType,
+};
+use pxrp::{
+    RpClipboardFile, RpClipboardInfo, RpClipboardType, RpMessage, RpMessageType, RpRawRenderMessage,
 };
 
 use crate::clipboard::content::ClipboardFileEntry;
@@ -354,10 +354,7 @@ mod tests {
         let bytes = build_clipboard_text_event("sync-me");
         let parsed = parse_rp_message(&bytes).expect("decode");
         assert_eq!(parsed.r#type, RpMessageType::KRpClipboardEvent as i32);
-        assert_eq!(
-            clipboard_text_from_rp(&parsed).as_deref(),
-            Some("sync-me")
-        );
+        assert_eq!(clipboard_text_from_rp(&parsed).as_deref(), Some("sync-me"));
     }
 
     #[test]
@@ -473,12 +470,8 @@ mod tests {
         };
         let begin_outer = build_px_req_at_begin("C:/a.txt", &route);
         let begin_rp = parse_rp_message(&begin_outer).expect("rp");
-        let begin_msg =
-            parse_px_message(&begin_rp.raw_render_msg.expect("raw").msg).expect("msg");
-        assert_eq!(
-            begin_msg.r#type,
-            MessageType::KClipboardReqAtBegin as i32
-        );
+        let begin_msg = parse_px_message(&begin_rp.raw_render_msg.expect("raw").msg).expect("msg");
+        assert_eq!(begin_msg.r#type, MessageType::KClipboardReqAtBegin as i32);
         assert_eq!(
             begin_msg.cp_req_at_begin.expect("begin").full_name,
             "C:/a.txt"

@@ -182,7 +182,10 @@ pub async fn handle_live_flv(
         return response.status().into_response();
     }
     let mut headers = axum::http::HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("video/x-flv"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("video/x-flv"),
+    );
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     (headers, Body::from_stream(response.bytes_stream())).into_response()
 }
@@ -245,7 +248,10 @@ fn ini_value(contents: &str, section: &str, key: &str) -> Option<String> {
         if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
             continue;
         }
-        if let Some(header) = line.strip_prefix('[').and_then(|value| value.strip_suffix(']')) {
+        if let Some(header) = line
+            .strip_prefix('[')
+            .and_then(|value| value.strip_suffix(']'))
+        {
             in_section = header.trim().eq_ignore_ascii_case(section);
             continue;
         }
@@ -407,7 +413,10 @@ mod tests {
     #[test]
     fn reads_only_the_api_secret_from_ini() {
         let config = "[http]\nsecret=wrong\n[api]\n; comment\nsecret = local-secret\n";
-        assert_eq!(ini_value(config, "api", "secret").as_deref(), Some("local-secret"));
+        assert_eq!(
+            ini_value(config, "api", "secret").as_deref(),
+            Some("local-secret")
+        );
         assert_eq!(ini_value(config, "api", "missing"), None);
     }
 }

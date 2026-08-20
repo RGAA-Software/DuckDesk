@@ -38,6 +38,7 @@ const activeMenu = computed(() => {
     '/security-internal',
     '/events',
     '/user-manager',
+    '/group-manager',
     '/profile-info',
   ]
 
@@ -120,6 +121,11 @@ const handleClickLogo = async () => {
       <a-menu-item key="/user-manager">
         <template #icon><TeamOutlined /></template>
         <span class="">用户管理</span>
+      </a-menu-item>
+
+      <a-menu-item key="/group-manager">
+        <template #icon><TeamOutlined /></template>
+        <span class="">用户组与授权</span>
       </a-menu-item>
 
       <a-menu-item key="/profile-info">

@@ -1297,6 +1297,19 @@ namespace px
         service_client_->PostNetMessage(m.SerializeAsString());
     }
 
+    void RdApplication::RedeemConnectionTicket(
+        const std::string& ticket,
+        const std::string& client_nonce,
+        const std::string& instance_id,
+        std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback) const {
+        if (!service_client_ || !service_client_->IsAlive()) {
+            callback(false, "SERVICE_UNAVAILABLE", {});
+            return;
+        }
+        service_client_->RedeemConnectionTicket(
+            ticket, client_nonce, instance_id, std::move(callback));
+    }
+
     void RdApplication::OnServiceRequestedStop() {
         LOGW("Service requested stop (CMS stop instance), notify clients then exit.");
         // broadcast kInstanceStopped to all RTC clients, then leave some time

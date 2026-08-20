@@ -23,7 +23,15 @@ export class PxApp {
     start(): void {
 
         const queryParams = new URLSearchParams(window.location.search);
-        const hostParam = queryParams.get('host');
+        const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const ticket = fragment.get('ticket') ?? undefined;
+        const clientNonce = fragment.get('nonce') ?? queryParams.get('nonce') ?? undefined;
+        const instanceId = fragment.get('instance') ?? queryParams.get('instanceId') ?? undefined;
+        const deviceId = queryParams.get('deviceId') ?? undefined;
+        if (window.location.hash) {
+            window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        }
+        const hostParam = queryParams.get('host') ?? window.location.hostname;
         const connType = queryParams.get('connType');
         console.log('a参数值:', hostParam, connType);
 
@@ -34,7 +42,7 @@ export class PxApp {
 
         this.rendererManager = new PxRendererManager(rendererName, canvas, remoteVideoElement);
 
-        let sdkConnType = PxSdkConnType.kWebSocket;
+        let sdkConnType = ticket ? PxSdkConnType.kWebRtcDirect : PxSdkConnType.kWebSocket;
         if (connType == "ws") {
             sdkConnType = PxSdkConnType.kWebSocket;
             remoteVideoElement.style.display = "none";
@@ -58,7 +66,11 @@ export class PxApp {
             //host: "10.0.0.16",
             // host: "10.0.0.112",
             host: hostParam,
-            port: 20371
+            port: window.location.port ? Number(window.location.port) : 20371,
+            ticket,
+            clientNonce,
+            deviceId,
+            instanceId,
         }));
 
         console.log("browse info: ", getBrowserInfo());

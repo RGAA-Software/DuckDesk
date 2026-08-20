@@ -1,6 +1,6 @@
+use mongodb::bson::uuid;
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_base::hash_util::{HashAlgo, compute_hash};
-use mongodb::bson::uuid;
 use rand::Rng;
 
 pub struct AppkeySecret {

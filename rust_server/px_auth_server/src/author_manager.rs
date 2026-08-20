@@ -120,7 +120,9 @@ impl AuthorManager {
 
         if self.find_author_by_name(name.clone()).await.is_some() {
             // Author exists — update password and role from config.
-            return self.update_author_password(&name, &password_hash, role).await;
+            return self
+                .update_author_password(&name, &password_hash, role)
+                .await;
         }
 
         // Author does not exist — create it.
@@ -157,7 +159,10 @@ impl AuthorManager {
         }
         let updated = r.map(|r| r.matched_count > 0).unwrap_or(false);
         if updated {
-            tracing::info!("bootstrap account '{}' password updated from settings", name);
+            tracing::info!(
+                "bootstrap account '{}' password updated from settings",
+                name
+            );
         }
         updated
     }
@@ -238,10 +243,10 @@ impl AuthorManager {
     ) -> Option<Author> {
         if let Some(author) = self.find_author_by_name(author_name.clone()).await
             && author.name == author_name
-                && Self::verify_password(&plain_password, &author.password_hash)
-            {
-                return Some(author);
-            }
+            && Self::verify_password(&plain_password, &author.password_hash)
+        {
+            return Some(author);
+        }
         None
     }
 }
@@ -306,7 +311,10 @@ mod tests {
 
     #[test]
     fn validated_name_uses_configured_name() {
-        assert_eq!(validated_name("ConfiguredAdmin"), Some("ConfiguredAdmin".to_string()));
+        assert_eq!(
+            validated_name("ConfiguredAdmin"),
+            Some("ConfiguredAdmin".to_string())
+        );
     }
 
     #[test]

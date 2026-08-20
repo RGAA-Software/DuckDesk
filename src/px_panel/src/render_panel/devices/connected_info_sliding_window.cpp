@@ -26,13 +26,17 @@ namespace px {
 		main_hbox_layout_->addStretch(1);
         {
             auto layout = new NoMarginVLayout();
-            tag_ = new ConnectedInfoTag();
+            // Build child widgets with their final owner. ConnectedInfoPanel
+            // installs a graphics effect and creates a complete child tree in
+            // its constructor, so avoid an unnecessary top-level-to-child
+            // reparent after that initialization has completed.
+            tag_ = new ConnectedInfoTag(this);
             layout->addSpacing(5);
             layout->addWidget(tag_);
             main_hbox_layout_->addLayout(layout);
             layout->addStretch();
         }
-        panel_ = new ConnectedInfoPanel(ctx_);
+        panel_ = new ConnectedInfoPanel(ctx_, this);
         main_hbox_layout_->addWidget(panel_);
 		tag_->installEventFilter(this);
 	}

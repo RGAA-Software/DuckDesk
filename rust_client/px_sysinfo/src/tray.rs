@@ -39,22 +39,23 @@ mod windows_impl {
 
     use gpui::Window;
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::Shell::{
-        NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW, Shell_NotifyIconW,
+        Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DispatchMessageW,
-        GetCursorPos, GetMessageW, HICON, HMENU, IDI_APPLICATION, LoadIconW, MF_STRING, MSG,
-        PostQuitMessage, RegisterClassW, SW_HIDE, SW_RESTORE, SW_SHOW, SetForegroundWindow,
-        ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
-        WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_LBUTTONDBLCLK,
-        WM_LBUTTONUP, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPEDWINDOW,
+        AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
+        DispatchMessageW, GetCursorPos, GetMessageW, LoadIconW, PostQuitMessage, RegisterClassW,
+        SetForegroundWindow, ShowWindow, TrackPopupMenu, TranslateMessage, HICON, HMENU,
+        IDI_APPLICATION, MF_STRING, MSG, SW_HIDE, SW_RESTORE, SW_SHOW, TPM_BOTTOMALIGN,
+        TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_COMMAND,
+        WM_CONTEXTMENU, WM_DESTROY, WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_RBUTTONUP, WNDCLASSW,
+        WS_OVERLAPPEDWINDOW,
     };
-    use windows::core::PCWSTR;
 
-    use super::{TrayCommand, push_command};
+    use super::{push_command, TrayCommand};
 
     const TRAY_CALLBACK_MESSAGE: u32 = WM_APP + 1;
     const MENU_SHOW_ID: usize = 1001;
@@ -167,7 +168,11 @@ mod windows_impl {
 
     fn copy_tooltip(data: &mut NOTIFYICONDATAW, tooltip: &str) {
         let wide = to_wide(tooltip);
-        for (index, value) in wide.iter().take(data.szTip.len().saturating_sub(1)).enumerate() {
+        for (index, value) in wide
+            .iter()
+            .take(data.szTip.len().saturating_sub(1))
+            .enumerate()
+        {
             data.szTip[index] = *value;
         }
     }

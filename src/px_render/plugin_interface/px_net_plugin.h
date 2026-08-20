@@ -61,6 +61,10 @@ namespace px
         // 浏览器 nonce(web client 经 launch 页带入)。与现存活跃连接的
         // nonce 相同 = 同一浏览器重复打开,信令视为自动接管,不报 kOccupied
         std::string client_nonce_;
+        // Server-issued capability snapshot from a consumed CMS ticket.
+        // Empty permissions still mean no capabilities when this flag is true.
+        bool capability_enforced_ = false;
+        std::vector<std::string> permissions_;
     };
 
     // alloc result of a local rtc instance

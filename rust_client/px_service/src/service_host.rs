@@ -1,3 +1,5 @@
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use rand::RngCore;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,7 +12,7 @@ use service_core::{
     AppInstanceRegistry, PersistedServiceState, RenderLaunchSpec, ServiceState, StartAppRequest,
     FINISHED_RECORD_TTL,
 };
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tracing::{error, info, warn};
 
 use crate::user_proxy;
@@ -28,7 +30,33 @@ pub struct ServiceRuntime {
     /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
     /// 用于 CMS 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
+    pub ticket_redeem_tx: Option<mpsc::Sender<TicketRedeemRequest>>,
+    /// Per-service-start credential required by the loopback Render IPC WS.
+    /// It is never persisted and is only passed to child Render processes.
+    pub ipc_token: String,
     stop_tx: broadcast::Sender<()>,
+}
+
+pub struct TicketRedeemRequest {
+    pub request_id: String,
+    pub ticket: String,
+    pub client_nonce: String,
+    pub instance_id: String,
+    pub response: oneshot::Sender<TicketRedeemResult>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TicketRedeemResult {
+    pub ok: bool,
+    pub code: String,
+    pub kind: String,
+    pub device_id: String,
+    pub app_id: String,
+    pub instance_id: String,
+    pub subject_type: String,
+    pub subject_id: String,
+    pub permissions: Vec<String>,
+    pub expires_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +78,8 @@ impl ServiceRuntime {
     ) -> Self {
         let storage = ServiceStorage::new(config.storage_file());
         let (stop_tx, _) = broadcast::channel(4);
+        let mut ipc_bytes = [0_u8; 32];
+        rand::rng().fill_bytes(&mut ipc_bytes);
         Self {
             config,
             storage,
@@ -58,6 +88,8 @@ impl ServiceRuntime {
             state: ServiceState::default(),
             app_registry: AppInstanceRegistry::new(),
             render_senders: std::collections::HashMap::new(),
+            ticket_redeem_tx: None,
+            ipc_token: URL_SAFE_NO_PAD.encode(ipc_bytes),
             stop_tx,
         }
     }
@@ -137,8 +169,11 @@ impl ServiceRuntime {
             }
             Command::AuthInfo(auth_info) => {
                 info!(
-                    "received auth info, device_id={}, appkey={}, cms={}:{}",
-                    auth_info.device_id, auth_info.appkey, auth_info.cms_host, auth_info.cms_port
+                    "received auth info, device_id={}, appkey_configured={}, cms={}:{}",
+                    auth_info.device_id,
+                    !auth_info.appkey.is_empty(),
+                    auth_info.cms_host,
+                    auth_info.cms_port
                 );
                 self.state.last_auth_info = Some(auth_info);
                 Ok(None)
@@ -147,13 +182,16 @@ impl ServiceRuntime {
                 self.windows_actions.send_ctrl_alt_delete()?;
                 Ok(None)
             }
+            Command::RedeemConnectionTicket { .. } => {
+                Err("ticket redemption must use the asynchronous service path".to_string())
+            }
         }
     }
 
     pub fn start_desktop(&mut self, spec: RenderLaunchSpec) -> Result<(), String> {
         info!(
-            "start desktop requested, work_dir={}, app_path={}, args={:?}",
-            spec.work_dir, spec.app_path, spec.args
+            "start desktop requested, work_dir={}, app_path={}",
+            spec.work_dir, spec.app_path
         );
         self.sync_process_state()?;
         if self.state.desktop_alive {
@@ -164,10 +202,13 @@ impl ServiceRuntime {
             warn!("desktop render already alive with different launch spec, stopping first");
             self.stop_desktop()?;
         }
+        let mut secure_args = spec.args.clone();
+        secure_args.retain(|arg| !arg.starts_with("--service_ipc_token="));
+        secure_args.push(format!("--service_ipc_token={}", self.ipc_token));
         self.process_manager.start_process_as_active_user(
             &spec.work_dir,
             &spec.app_path,
-            &spec.args,
+            &secure_args,
         )?;
         if let Err(err) = self.start_user_proxy(&spec) {
             warn!("start user proxy failed: {err}");
@@ -234,23 +275,30 @@ impl ServiceRuntime {
                 game_path.display()
             ));
         }
-        let (record, process_manager) = {
+        let (record, process_manager, ipc_token) = {
             let mut guard = runtime.lock().await;
             let work_dir = guard.pick_app_work_dir()?;
             let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
-            (record, guard.process_manager.clone())
+            (
+                record,
+                guard.process_manager.clone(),
+                guard.ipc_token.clone(),
+            )
         };
         let instance_id = record.instance_id.clone();
         let port = record.listen_port;
-        let launch = record.launch.clone();
+        let mut launch = record.launch.clone();
+        launch
+            .args
+            .retain(|arg| !arg.starts_with("--service_ipc_token="));
+        launch.args.push(format!("--service_ipc_token={ipc_token}"));
         info!(
-            "start app instance {}, game={}, view={:?}, work_dir={}, port={}, args={:?}",
+            "start app instance {}, game={}, view={:?}, work_dir={}, port={}",
             instance_id,
             game_path.display(),
             record.view_game_path,
             launch.work_dir,
-            port,
-            launch.args
+            port
         );
         if let Err(err) = process_manager.start_process_as_active_user(
             &launch.work_dir,
@@ -378,17 +426,12 @@ impl ServiceRuntime {
             .filter(|r| {
                 matches!(
                     r.state,
-                    AppInstanceState::Running | AppInstanceState::Stopping | AppInstanceState::Failed
+                    AppInstanceState::Running
+                        | AppInstanceState::Stopping
+                        | AppInstanceState::Failed
                 )
             })
-            .map(|r| {
-                (
-                    r.instance_id.clone(),
-                    r.listen_port,
-                    r.pid,
-                    r.state.clone(),
-                )
-            })
+            .map(|r| (r.instance_id.clone(), r.listen_port, r.pid, r.state.clone()))
             .collect();
         if candidates.is_empty() {
             return;
@@ -462,8 +505,7 @@ impl ServiceRuntime {
         }
         tokio::time::sleep(Duration::from_millis(800)).await;
         let processes = process_manager.list_processes().unwrap_or_default();
-        let game_path =
-            service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel).ok();
+        let game_path = service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel).ok();
 
         let mut kill_pids: Vec<u32> = Vec::new();
         let mut identity_mismatch = false;
@@ -494,15 +536,12 @@ impl ServiceRuntime {
             .or_else(|| find_game_hook_pid_by_port(&process_manager, rec.listen_port));
 
         if let Some(pid) = render_pid {
-            kill_pids.extend(service_core::process::collect_process_tree(
-                &processes, pid,
-            ));
+            kill_pids.extend(service_core::process::collect_process_tree(&processes, pid));
         }
         if let Some(gp) = game_path.as_ref() {
-            for pid in service_core::process::find_pids_for_game_exe(
-                &processes,
-                &gp.to_string_lossy(),
-            ) {
+            for pid in
+                service_core::process::find_pids_for_game_exe(&processes, &gp.to_string_lossy())
+            {
                 if !kill_pids.contains(&pid) {
                     kill_pids.push(pid);
                 }
@@ -644,8 +683,7 @@ async fn wait_game_process(
 ) -> bool {
     for _ in 0..attempts {
         if let Ok(processes) = process_manager.list_processes() {
-            if !service_core::process::find_pids_for_game_exe(&processes, game_path).is_empty()
-            {
+            if !service_core::process::find_pids_for_game_exe(&processes, game_path).is_empty() {
                 return true;
             }
         }
@@ -854,10 +892,11 @@ mod tests {
                 *next += 1;
                 pid
             };
-            self.processes
-                .lock()
-                .unwrap()
-                .push(ProcessSnapshot::new(pid, app_path, args.join(" ")));
+            self.processes.lock().unwrap().push(ProcessSnapshot::new(
+                pid,
+                app_path,
+                args.join(" "),
+            ));
             // 模拟 game-hook render 拉起游戏子进程,wait_game_process 才能通过。
             if args.iter().any(|a| a == "--app_mode=game-hook") {
                 if let Some(b64) = args.iter().find_map(|a| a.strip_prefix("--app_game_path=")) {
@@ -948,11 +987,8 @@ mod tests {
             std::env::temp_dir().join("px_logs_test_up"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let mut runtime = ServiceRuntime::new(
-            config,
-            manager.clone(),
-            Arc::new(MockActions::new()),
-        );
+        let mut runtime =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         runtime
             .start_desktop(RenderLaunchSpec {
                 work_dir: "D:/app".to_string(),
@@ -1143,7 +1179,9 @@ mod tests {
         assert!(!runtime.state.desktop_alive);
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
-        assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
+        assert!(processes
+            .iter()
+            .all(|process| !process.is_managed_clipboard_process()));
     }
 
     #[test]
@@ -1208,7 +1246,9 @@ mod tests {
         );
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
-        assert!(processes.iter().all(|process| !process.is_managed_clipboard_process()));
+        assert!(processes
+            .iter()
+            .all(|process| !process.is_managed_clipboard_process()));
     }
 
     fn sample_start_req(id: &str, port: i32, install_root: &str) -> StartAppRequest {
@@ -1269,11 +1309,8 @@ mod tests {
             "D:/px_render.exe",
             "--app_mode=desktop",
         )]));
-        let mut runtime = ServiceRuntime::new(
-            config,
-            manager.clone(),
-            Arc::new(MockActions::new()),
-        );
+        let mut runtime =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: dirs.work_dir_s.clone(),
             app_path: dirs.render_path.to_string_lossy().to_string(),
@@ -1324,11 +1361,7 @@ mod tests {
         assert!(kills.contains(&game_pid), "must kill game child");
         // desktop pid not killed
         assert!(!kills.contains(&1));
-        assert!(manager
-            .list_processes()
-            .unwrap()
-            .iter()
-            .any(|p| p.pid == 1));
+        assert!(manager.list_processes().unwrap().iter().any(|p| p.pid == 1));
     }
 
     #[tokio::test]
@@ -1340,7 +1373,8 @@ mod tests {
             std::env::temp_dir().join("px_logs_app_reuse"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        let mut runtime =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: dirs.work_dir_s.clone(),
             app_path: dirs.render_path.to_string_lossy().to_string(),
@@ -1396,7 +1430,8 @@ mod tests {
             std::env::temp_dir().join("px_logs_app_killfail"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let mut runtime = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        let mut runtime =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: dirs.work_dir_s.clone(),
             app_path: dirs.render_path.to_string_lossy().to_string(),
@@ -1459,7 +1494,10 @@ mod tests {
         });
         runtime.stop_desktop().unwrap();
         let left = runtime.process_manager.list_processes().unwrap();
-        assert!(left.iter().any(|p| p.pid == 2), "game-hook must survive desktop stop");
+        assert!(
+            left.iter().any(|p| p.pid == 2),
+            "game-hook must survive desktop stop"
+        );
         assert!(!left.iter().any(|p| p.pid == 1));
     }
 

@@ -1,12 +1,11 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use prost::Message;
-use rustls::client::danger::{
-    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
-};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use service_core::MsgAuthInfo;
@@ -17,16 +16,17 @@ use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, warn};
 
-use px_auth_mgr::app_secret_util::calculate_app_secret;
-use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use protocol::cms_service::{
     CmsServiceCreateWallSession, CmsServiceCreateWallSessionResult, CmsServiceHeartBeat,
-    CmsServiceHello, CmsServiceMessage, CmsServiceMessageType, CmsServiceStartAppInstance,
+    CmsServiceHello, CmsServiceMessage, CmsServiceMessageType, CmsServiceRedeemConnectionTicket,
+    CmsServiceRedeemConnectionTicketResult, CmsServiceStartAppInstance,
     CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance, CmsServiceStopAppInstanceResult,
 };
+use px_auth_mgr::app_secret_util::calculate_app_secret;
+use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use service_core::StartAppRequest;
 
-use crate::service_host::ServiceRuntime;
+use crate::service_host::{ServiceRuntime, TicketRedeemRequest, TicketRedeemResult};
 
 type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>;
 
@@ -48,6 +48,8 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
     };
     let sender: Arc<Mutex<Option<WsSink>>> = Arc::new(Mutex::new(None));
     let mut hb_index: i64 = 0;
+    let (ticket_tx, mut ticket_rx) = tokio::sync::mpsc::channel::<TicketRedeemRequest>(32);
+    runtime.lock().await.ticket_redeem_tx = Some(ticket_tx);
 
     loop {
         // wait until the panel has delivered the authorization info
@@ -127,8 +129,7 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
             guard.subscribe_stop()
         };
         let heartbeat_task = tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
+            let mut interval = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -173,6 +174,8 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
 
         // receive loop: handle Start/Stop app commands from CMS
         let mut should_stop = false;
+        let mut pending_tickets: HashMap<String, tokio::sync::oneshot::Sender<TicketRedeemResult>> =
+            HashMap::new();
         loop {
             tokio::select! {
                 msg = receiver.next() => {
@@ -183,6 +186,23 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                         }
                         Some(Ok(TungsteniteMessage::Binary(bin))) => {
                             match parse_cms_inbound(&bin) {
+                                Ok(Some(CmsInboundCommand::RedeemTicketResult(result))) => {
+                                    if let Some(reply) = pending_tickets.remove(&result.request_id) {
+                                        let grant = result.grant.unwrap_or_default();
+                                        let _ = reply.send(TicketRedeemResult {
+                                            ok: result.ok,
+                                            code: result.code,
+                                            kind: grant.kind,
+                                            device_id: grant.device_id,
+                                            app_id: grant.app_id,
+                                            instance_id: grant.instance_id,
+                                            subject_type: grant.subject_type,
+                                            subject_id: grant.subject_id,
+                                            permissions: grant.permissions,
+                                            expires_at: grant.expires_at,
+                                        });
+                                    }
+                                }
                                 Ok(Some(cmd)) => {
                                     // Start/Stop 可能耗时数秒(等 render 监听端口、
                                     // 等游戏进程),派生独立任务处理并异步回传结果,
@@ -208,6 +228,31 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
                         }
                     }
                 }
+                request = ticket_rx.recv() => {
+                    let Some(request) = request else { continue; };
+                    if pending_tickets.contains_key(&request.request_id) {
+                        let _ = request.response.send(TicketRedeemResult {
+                            code: "DUPLICATE_REQUEST_ID".to_string(),
+                            ..Default::default()
+                        });
+                        continue;
+                    }
+                    let frame = encode_message(&redeem_ticket_message(
+                        &auth_info.device_id,
+                        &request.request_id,
+                        &request.ticket,
+                        &request.client_nonce,
+                        &request.instance_id,
+                    ));
+                    if send_frame(&sender, frame).await {
+                        pending_tickets.insert(request.request_id, request.response);
+                    } else {
+                        let _ = request.response.send(TicketRedeemResult {
+                            code: "CMS_UNAVAILABLE".to_string(),
+                            ..Default::default()
+                        });
+                    }
+                }
                 _ = stop_rx.recv() => {
                     info!("cms client loop received stop signal");
                     should_stop = true;
@@ -217,6 +262,12 @@ pub async fn cms_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), 
         }
 
         heartbeat_task.abort();
+        for (_, response) in pending_tickets.drain() {
+            let _ = response.send(TicketRedeemResult {
+                code: "CMS_DISCONNECTED".to_string(),
+                ..Default::default()
+            });
+        }
         *sender.lock().await = None;
         if should_stop {
             return Ok(());
@@ -302,6 +353,7 @@ fn hello_message(device_id: &str, appkey: &str) -> CmsServiceMessage {
         stop_app_instance_result: None,
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
 }
 
@@ -329,6 +381,7 @@ fn heartbeat_message(
         stop_app_instance_result: None,
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
 }
 
@@ -340,6 +393,7 @@ pub enum CmsInboundCommand {
         instance_id: String,
     },
     CreateWallSession(CmsServiceCreateWallSession),
+    RedeemTicketResult(CmsServiceRedeemConnectionTicketResult),
 }
 
 /// Parse a CMS binary frame into an inbound command (if any).
@@ -347,9 +401,7 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
     let msg = CmsServiceMessage::decode(bytes).map_err(|e| e.to_string())?;
     match CmsServiceMessageType::try_from(msg.msg_type) {
         Ok(CmsServiceMessageType::KCmsServiceStartAppInstance) => {
-            let s = msg
-                .start_app_instance
-                .ok_or("missing start_app_instance")?;
+            let s = msg.start_app_instance.ok_or("missing start_app_instance")?;
             Ok(Some(CmsInboundCommand::StartApp(StartAppRequest {
                 request_id: s.request_id,
                 instance_id: s.instance_id,
@@ -374,17 +426,48 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
                 instance_id: s.instance_id,
             }))
         }
-        Ok(CmsServiceMessageType::KCmsServiceCreateWallSession) => Ok(Some(
-            CmsInboundCommand::CreateWallSession(
-                msg.create_wall_session.ok_or("missing create_wall_session")?,
-            ),
-        )),
+        Ok(CmsServiceMessageType::KCmsServiceCreateWallSession) => {
+            Ok(Some(CmsInboundCommand::CreateWallSession(
+                msg.create_wall_session
+                    .ok_or("missing create_wall_session")?,
+            )))
+        }
+        Ok(CmsServiceMessageType::KCmsServiceRedeemConnectionTicketResult) => {
+            Ok(Some(CmsInboundCommand::RedeemTicketResult(
+                msg.redeem_connection_ticket_result
+                    .ok_or("missing redeem_connection_ticket_result")?,
+            )))
+        }
         Ok(CmsServiceMessageType::KCmsServiceHello)
         | Ok(CmsServiceMessageType::KCmsServiceHeartBeat)
         | Ok(CmsServiceMessageType::KCmsServiceStartAppInstanceResult)
         | Ok(CmsServiceMessageType::KCmsServiceStopAppInstanceResult)
         | Ok(CmsServiceMessageType::KCmsServiceCreateWallSessionResult) => Ok(None),
+        Ok(CmsServiceMessageType::KCmsServiceRedeemConnectionTicket) => {
+            Err("CMS must not send ticket redemption requests".to_string())
+        }
         Err(_) => Err(format!("unknown cms service msg_type {}", msg.msg_type)),
+    }
+}
+
+fn redeem_ticket_message(
+    device_id: &str,
+    request_id: &str,
+    ticket: &str,
+    client_nonce: &str,
+    instance_id: &str,
+) -> CmsServiceMessage {
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceRedeemConnectionTicket as i32,
+        device_id: device_id.to_string(),
+        redeem_connection_ticket: Some(CmsServiceRedeemConnectionTicket {
+            request_id: request_id.to_string(),
+            device_id: device_id.to_string(),
+            ticket: ticket.to_string(),
+            client_nonce: client_nonce.to_string(),
+            instance_id: instance_id.to_string(),
+        }),
+        ..Default::default()
     }
 }
 
@@ -415,6 +498,7 @@ pub fn start_app_result_message(
         stop_app_instance_result: None,
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
 }
 
@@ -441,6 +525,7 @@ pub fn stop_app_result_message(
         }),
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
 }
 
@@ -481,10 +566,7 @@ async fn create_wall_session_on_local_render(
     {
         return Err("invalid wall session request".to_string());
     }
-    let url = format!(
-        "http://127.0.0.1:{}/alloc/local/rtc",
-        request.render_port
-    );
+    let url = format!("http://127.0.0.1:{}/alloc/local/rtc", request.render_port);
     let response = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(2))
         .timeout(Duration::from_secs(13))
@@ -506,7 +588,10 @@ async fn create_wall_session_on_local_render(
         .json()
         .await
         .map_err(|err| format!("invalid render response: {err}"))?;
-    let code = body.get("code").and_then(serde_json::Value::as_i64).unwrap_or_default();
+    let code = body
+        .get("code")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or_default();
     let answer = body
         .get("data")
         .and_then(|value| value.get("answer_sdp"))
@@ -550,6 +635,7 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
         stop_app_instance_result: None,
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
     .encode_to_vec()
 }
@@ -569,6 +655,7 @@ pub fn encode_stop_app_command(device_id: &str, request_id: &str, instance_id: &
         stop_app_instance_result: None,
         create_wall_session: None,
         create_wall_session_result: None,
+        ..Default::default()
     }
     .encode_to_vec()
 }
@@ -669,6 +756,7 @@ fn spawn_cms_command_handler(
                     result,
                 )))
             }
+            CmsInboundCommand::RedeemTicketResult(_) => None,
         };
         if let Some(frame) = reply {
             if !send_frame(&sender, frame).await {
@@ -812,7 +900,10 @@ mod tests {
         assert_eq!(endpoint, "wss://cms.example.com:8443/cms/service");
         assert!(!endpoint.contains("appkey"));
         assert!(!endpoint.contains("token"));
-        assert_eq!(cms_endpoint("cms.example.com", 8080, false), "ws://cms.example.com:8080/cms/service");
+        assert_eq!(
+            cms_endpoint("cms.example.com", 8080, false),
+            "ws://cms.example.com:8080/cms/service"
+        );
     }
 
     #[test]
@@ -847,8 +938,12 @@ mod tests {
 
     #[test]
     fn heartbeat_message_carries_index_and_liveness() {
-        let message = heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]");
-        assert_eq!(message.msg_type, CmsServiceMessageType::KCmsServiceHeartBeat);
+        let message =
+            heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]");
+        assert_eq!(
+            message.msg_type,
+            CmsServiceMessageType::KCmsServiceHeartBeat
+        );
         let heartbeat = message.heartbeat.unwrap();
         assert_eq!(heartbeat.instances_json, "[{\"instance_id\":\"i1\"}]");
         assert_eq!(heartbeat.hb_index, 7);
@@ -939,7 +1034,10 @@ mod tests {
             ..Default::default()
         };
 
-        match parse_cms_inbound(&command.encode_to_vec()).unwrap().unwrap() {
+        match parse_cms_inbound(&command.encode_to_vec())
+            .unwrap()
+            .unwrap()
+        {
             CmsInboundCommand::CreateWallSession(got) => {
                 assert_eq!(got.request_id, "wall-req-1");
                 assert_eq!(got.session_id, "wall-session-1");

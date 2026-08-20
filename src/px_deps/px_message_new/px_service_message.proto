@@ -10,6 +10,8 @@ enum ServiceMessageType {
   kSrvHeartBeatResp = 4;
   kSrvReqCtrlAltDelete = 5;
   kSrvAuthInfo = 6;
+  kSrvRedeemConnectionTicket = 7;
+  kSrvRedeemConnectionTicketResp = 8;
 }
 
 message MsgStartServer {
@@ -67,6 +69,31 @@ message MsgReqCtrlAltDelete {
   string req_stream_id = 2;
 }
 
+message MsgRedeemConnectionTicket {
+  string request_id = 1;
+  string ticket = 2;
+  string client_nonce = 3;
+  string instance_id = 4;
+}
+
+message MsgConnectionGrant {
+  string kind = 1;
+  string device_id = 2;
+  string app_id = 3;
+  string instance_id = 4;
+  string subject_type = 5;
+  string subject_id = 6;
+  repeated string permissions = 7;
+  int64 expires_at = 8;
+}
+
+message MsgRedeemConnectionTicketResp {
+  string request_id = 1;
+  bool ok = 2;
+  string code = 3;
+  MsgConnectionGrant grant = 4;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -77,4 +104,6 @@ message ServiceMessage {
   MsgReqCtrlAltDelete req_ctrl_alt_delete = 7;
   // sent by panel right after connecting, and embedded in every heartbeat
   MsgAuthInfo auth_info = 8;
+  MsgRedeemConnectionTicket redeem_connection_ticket = 9;
+  MsgRedeemConnectionTicketResp redeem_connection_ticket_resp = 10;
 }

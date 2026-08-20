@@ -29,10 +29,7 @@ pub async fn handle_verify_author(
     let author_name = get_body_str(&r, KEY_AUTHOR_NAME)?;
     let author_token = get_body_str(&r, KEY_AUTHOR_TOKEN)?;
     let jwt_name = author_name.clone();
-    tracing::info!(
-        "px_auth login requested, author_name={}",
-        author_name
-    );
+    tracing::info!("px_auth login requested, author_name={}", author_name);
     if let Some(author) = gAuthorManager
         .verify_author(author_name, author_token)
         .await
@@ -49,8 +46,7 @@ pub async fn handle_verify_author(
     }
 }
 
-pub async fn handle_query_authors(
-) -> Result<Json<RespMessage<Vec<Author>>>, AuthorApiError> {
+pub async fn handle_query_authors() -> Result<Json<RespMessage<Vec<Author>>>, AuthorApiError> {
     let authors = gAuthorManager.find_authors().await;
     if let Err(e) = authors {
         tracing::error!("find authors failed: {}", e);

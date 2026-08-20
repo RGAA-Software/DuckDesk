@@ -61,6 +61,43 @@ impl WindowsProcessManager {
     }
 }
 
+const SENSITIVE_ARG_NAMES: &[&str] = &[
+    "--service_ipc_token",
+    "--user_session_token",
+    "--connection_ticket",
+    "--ticket",
+    "--appkey",
+    "--app_key",
+    "--password",
+];
+
+fn is_sensitive_arg_name(value: &str) -> bool {
+    SENSITIVE_ARG_NAMES
+        .iter()
+        .any(|name| value.eq_ignore_ascii_case(name))
+}
+
+fn redact_args(args: &[String]) -> Vec<String> {
+    let mut redact_next = false;
+    args.iter()
+        .map(|arg| {
+            if redact_next {
+                redact_next = false;
+                return "<redacted>".to_string();
+            }
+            if let Some((name, _)) = arg.split_once('=') {
+                if is_sensitive_arg_name(name) {
+                    return format!("{name}=<redacted>");
+                }
+            }
+            if is_sensitive_arg_name(arg) {
+                redact_next = true;
+            }
+            arg.clone()
+        })
+        .collect()
+}
+
 impl ProcessManager for WindowsProcessManager {
     fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         let com = COMLibrary::new().map_err(|err| err.to_string())?;
@@ -100,9 +137,10 @@ impl ProcessManager for WindowsProcessManager {
         app_path: &str,
         args: &[String],
     ) -> Result<(), String> {
+        let safe_args = redact_args(args);
         info!(
             "start process as active user requested, work_dir={}, app_path={}, args={:?}",
-            work_dir, app_path, args
+            work_dir, app_path, safe_args
         );
         match start_process_with_service_token_session(work_dir, app_path, args) {
             Ok(()) => {
@@ -151,9 +189,10 @@ impl ProcessManager for WindowsProcessManager {
         app_path: &str,
         args: &[String],
     ) -> Result<(), String> {
+        let safe_args = redact_args(args);
         info!(
             "start process as session user (WTS token only) requested, work_dir={}, app_path={}, args={:?}",
-            work_dir, app_path, args
+            work_dir, app_path, safe_args
         );
         start_process_with_wts_user_token(work_dir, app_path, args)
     }
@@ -299,9 +338,10 @@ unsafe fn create_process_with_token(
     app_path: &str,
     args: &[String],
 ) -> Result<(), String> {
+    let safe_args = redact_args(args);
     info!(
         "CreateProcessAsUserW prepare begin, method={}, work_dir={}, app_path={}, args={:?}",
-        launch_method, work_dir, app_path, args
+        launch_method, work_dir, app_path, safe_args
     );
     let mut environment: *mut c_void = std::ptr::null_mut();
     let env_result = CreateEnvironmentBlock(&mut environment, Some(primary_token), false);
@@ -319,9 +359,10 @@ unsafe fn create_process_with_token(
     );
 
     let command = build_command_line(app_path, args);
+    let safe_command = build_command_line(app_path, &safe_args);
     info!(
         "CreateProcessAsUserW launching, method={}, command={}, work_dir={}, desktop=WinSta0\\Default",
-        launch_method, command, work_dir
+        launch_method, safe_command, work_dir
     );
     let mut command_w: Vec<u16> = command.encode_utf16().chain(Some(0)).collect();
     let work_dir_w: Vec<u16> = work_dir.encode_utf16().chain(Some(0)).collect();
@@ -363,16 +404,17 @@ unsafe fn create_process_with_token(
         let err = result.unwrap_err();
         error!(
             "CreateProcessAsUserW failed, method={}, command={}, work_dir={}, error={}",
-            launch_method, command, work_dir, err
+            launch_method, safe_command, work_dir, err
         );
         Err(format!("CreateProcessAsUserW failed: {err}"))
     }
 }
 
 fn start_process_direct(work_dir: &str, app_path: &str, args: &[String]) -> Result<(), String> {
+    let safe_args = redact_args(args);
     info!(
         "direct CreateProcess begin, work_dir={}, app_path={}, args={:?}",
-        work_dir, app_path, args
+        work_dir, app_path, safe_args
     );
     let mut cmd = std::process::Command::new(app_path);
     cmd.args(args)
@@ -425,4 +467,26 @@ fn escape_arg(arg: &str) -> String {
     escaped.push_str(&"\\".repeat(backslashes * 2));
     escaped.push('"');
     escaped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_command_line, redact_args};
+
+    #[test]
+    fn sensitive_process_arguments_are_redacted_for_logs() {
+        let args = vec![
+            "--app_mode=desktop".to_string(),
+            "--service_ipc_token=local-secret".to_string(),
+            "--user_session_token".to_string(),
+            "session-secret".to_string(),
+        ];
+        let safe = redact_args(&args);
+        let line = build_command_line("px_render.exe", &safe);
+        assert!(line.contains("--app_mode=desktop"));
+        assert!(line.contains("--service_ipc_token=<redacted>"));
+        assert!(line.contains("--user_session_token <redacted>"));
+        assert!(!line.contains("local-secret"));
+        assert!(!line.contains("session-secret"));
+    }
 }

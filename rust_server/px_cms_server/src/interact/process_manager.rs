@@ -217,7 +217,8 @@ fn is_server_command(args: &[std::ffi::OsString]) -> bool {
         .iter()
         .map(|arg| arg.to_string_lossy())
         .collect::<Vec<_>>();
-    args.iter().any(|arg| arg == "-r=server" || arg == "--running-mode=server")
+    args.iter()
+        .any(|arg| arg == "-r=server" || arg == "--running-mode=server")
         || args
             .windows(2)
             .any(|pair| pair[0] == "--running-mode" && pair[1] == "server")

@@ -34,6 +34,9 @@ namespace px_cms
             user->updated_timestamp_ = obj[kUserUpdateTimestamp].get<int64_t>();
             user->deleted_ = obj[kUserDeleted].get<bool>();
             user->avatar_path_ = obj[kUserAvatarPath].get<std::string>();
+            user->auth_version_ = obj.value(kUserAuthVersion, 0LL);
+            user->must_change_password_ = obj.value(kUserMustChangePassword, false);
+            user->version_ = obj.value(kUserVersion, 0LL);
             return user;
         }
         catch (const std::exception& e) {
@@ -57,6 +60,9 @@ namespace px_cms
         oss << std::setw(22) << "updated_timestamp:"  << updated_timestamp_ << "\n";
         oss << std::setw(22) << "deleted:"            << (deleted_ ? "true" : "false") << "\n";
         oss << std::setw(22) << "avatar_path:"        << avatar_path_ << "\n";
+        oss << std::setw(22) << "auth_version:"       << auth_version_ << "\n";
+        oss << std::setw(22) << "must_change_password:" << (must_change_password_ ? "true" : "false") << "\n";
+        oss << std::setw(22) << "version:"            << version_ << "\n";
         return oss.str();
     }
 

@@ -8,12 +8,8 @@ import type {
   StartInstanceReq,
 } from '@/entity/app_schedule.ts'
 
-function appkeyParams() {
-  return { appkey: localStorage.getItem('appkey') }
-}
-
 async function unwrapList<T>(path: string): Promise<T[] | null> {
-  const resp = await axiosHttp.get(path, { params: appkeyParams() })
+  const resp = await axiosHttp.get(path)
   if (resp.status !== 200 || resp.data?.code !== 200) {
     console.error(path, 'failed', resp)
     return null
@@ -27,14 +23,14 @@ export async function listAppRows(): Promise<AppRow[] | null> {
 
 export async function nextPort(deviceId: string): Promise<number | null> {
   const resp = await axiosHttp.get('/api/v1/app/control/app/next-port', {
-    params: { ...appkeyParams(), device_id: deviceId },
+    params: { device_id: deviceId },
   })
   if (resp.status !== 200 || resp.data?.code !== 200) return null
   return resp.data.data as number
 }
 
 export async function saveApp(req: SaveAppReq): Promise<{ ok: true; data: AppRow } | { ok: false; message: string }> {
-  const resp = await axiosHttp.post('/api/v1/app/control/app/save', req, { params: appkeyParams() })
+  const resp = await axiosHttp.post('/api/v1/app/control/app/save', req)
   if (resp.status !== 200) {
     return { ok: false, message: '网络错误' }
   }
@@ -48,7 +44,6 @@ export async function deleteApp(appId: string): Promise<{ ok: true } | { ok: fal
   const resp = await axiosHttp.post(
     `/api/v1/app/control/app/delete/${encodeURIComponent(appId)}`,
     null,
-    { params: appkeyParams() },
   )
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
@@ -60,9 +55,7 @@ export async function deleteApp(appId: string): Promise<{ ok: true } | { ok: fal
 export async function saveNode(
   req: SaveNodeReq,
 ): Promise<{ ok: true; data: AppNode } | { ok: false; message: string }> {
-  const resp = await axiosHttp.post('/api/v1/app/control/app/node/save', req, {
-    params: appkeyParams(),
-  })
+  const resp = await axiosHttp.post('/api/v1/app/control/app/node/save', req)
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
     return { ok: false, message: resp.data?.message || '保存节点失败' }
@@ -74,7 +67,6 @@ export async function deleteNode(nodeId: string): Promise<{ ok: true } | { ok: f
   const resp = await axiosHttp.post(
     `/api/v1/app/control/app/node/delete/${encodeURIComponent(nodeId)}`,
     null,
-    { params: appkeyParams() },
   )
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
@@ -89,7 +81,6 @@ export async function startNode(
   const resp = await axiosHttp.post(
     `/api/v1/app/control/app/node/start/${encodeURIComponent(nodeId)}`,
     null,
-    { params: appkeyParams() },
   )
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
@@ -105,9 +96,7 @@ export async function listInstances(): Promise<AppInstance[] | null> {
 export async function startInstance(
   req: StartInstanceReq,
 ): Promise<{ ok: true; data: AppInstance } | { ok: false; message: string }> {
-  const resp = await axiosHttp.post('/api/v1/app/control/app/instance/start', req, {
-    params: appkeyParams(),
-  })
+  const resp = await axiosHttp.post('/api/v1/app/control/app/instance/start', req)
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {
     return { ok: false, message: resp.data?.message || '启动失败' }
@@ -121,7 +110,6 @@ export async function stopInstance(
   const resp = await axiosHttp.post(
     `/api/v1/app/control/app/instance/stop/${encodeURIComponent(instanceId)}`,
     null,
-    { params: appkeyParams() },
   )
   if (resp.status !== 200) return { ok: false, message: '网络错误' }
   if (resp.data?.code !== 200) {

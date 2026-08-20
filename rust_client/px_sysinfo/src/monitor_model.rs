@@ -109,11 +109,17 @@ impl MachineTelemetry {
     }
 
     pub fn latest_send_rate(&self) -> f64 {
-        self.history.back().map(|point| point.net_send_mb).unwrap_or(0.0)
+        self.history
+            .back()
+            .map(|point| point.net_send_mb)
+            .unwrap_or(0.0)
     }
 
     pub fn latest_recv_rate(&self) -> f64 {
-        self.history.back().map(|point| point.net_recv_mb).unwrap_or(0.0)
+        self.history
+            .back()
+            .map(|point| point.net_recv_mb)
+            .unwrap_or(0.0)
     }
 
     fn record_sample(&mut self) {

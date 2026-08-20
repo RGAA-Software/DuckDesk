@@ -71,9 +71,56 @@ pub struct CmsEvent {
     pub gpu_id: String,
     #[serde(default)]
     pub gpu_name: String,
+
+    /// Structured security-audit fields. Legacy telemetry events leave these
+    /// empty, so old event readers remain compatible.
+    #[serde(default)]
+    pub actor_type: String,
+    #[serde(default)]
+    pub actor_id: String,
+    #[serde(default)]
+    pub action: String,
+    #[serde(default)]
+    pub result: String,
+    #[serde(default)]
+    pub target_type: String,
+    #[serde(default)]
+    pub target_id: String,
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
 }
 
 impl CmsEvent {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_audit(
+        actor_type: &str,
+        actor_id: &str,
+        action: &str,
+        result: &str,
+        target_type: &str,
+        target_id: &str,
+        reason: &str,
+        metadata: HashMap<String, String>,
+    ) -> Self {
+        Self {
+            event_id: ObjectId::new().to_hex(),
+            timestamp: px_base::get_current_timestamp(),
+            readable_timestamp: px_base::get_current_readable_timestamp(),
+            event_type: "security_audit".to_string(),
+            actor_type: actor_type.to_string(),
+            actor_id: actor_id.to_string(),
+            action: action.to_string(),
+            result: result.to_string(),
+            target_type: target_type.to_string(),
+            target_id: target_id.to_string(),
+            reason: reason.to_string(),
+            metadata,
+            ..Default::default()
+        }
+    }
+
     pub fn new_register(uid: String, username: String) -> Self {
         let mut event = CmsEvent::default();
         event.event_id = ObjectId::new().to_hex();

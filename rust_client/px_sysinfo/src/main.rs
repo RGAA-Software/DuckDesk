@@ -1,8 +1,8 @@
+use clap::Parser as ClapParser;
+use clap_derive::Parser;
 use px_base::log_util;
 use px_base::path_util::default_log_root;
 use px_sysinfo::{gSysInfoMgr, gSysPanelClient};
-use clap::Parser as ClapParser;
-use clap_derive::Parser;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -57,7 +57,10 @@ async fn main() {
 
     if let Some(secs) = args.exit_after {
         tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
-        tracing::info!("exit-after {}s reached, shutting down for heap profiling", secs);
+        tracing::info!(
+            "exit-after {}s reached, shutting down for heap profiling",
+            secs
+        );
         return;
     }
 

@@ -10,6 +10,11 @@
 #include "ws_plugin.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
+#include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <vector>
 
 namespace px
 {
@@ -19,6 +24,16 @@ namespace px
     constexpr auto kHandlerErrNoRtcLocalPlugin = 702;
     constexpr auto kHandlerErrCreateRtcLocalServerFailed = 703;
     constexpr auto kHandlerErrRtcLocalOccupied = 704;
+    constexpr auto kHandlerErrConnectionTicketRejected = 705;
+
+    struct TicketRedeemWaitState {
+        std::mutex mutex_;
+        std::condition_variable cv_;
+        bool completed_ = false;
+        bool ok_ = false;
+        std::string code_;
+        std::vector<std::string> permissions_;
+    };
 
     HttpHandler::HttpHandler(WsPlugin* plugin) {
         this->plugin_ = plugin;
@@ -39,6 +54,9 @@ namespace px
         }
         else if (code == kHandlerErrRtcLocalOccupied) {
             return "Rtc local connection occupied";
+        }
+        else if (code == kHandlerErrConnectionTicketRejected) {
+            return "Connection ticket rejected";
         }
         return BaseHandler::GetErrorMessage(code);
     }
@@ -123,26 +141,82 @@ namespace px
         auto target = req.target();
 
         LOGI("req host:port, {}:{}, target: {}", req.host(), req.port(), target);
-        LOGI("body: {}", body);
         LOGI("req, remote: {} {} , client: {} {}",
              session_ptr->remote_address().c_str(), session_ptr->remote_port(),
              session_ptr->local_address().c_str(), session_ptr->local_port());
 
-        // verify security password first, same as /verify/security/password
         auto params = GetQueryParams(req.query());
-        if (!VerifySafetyPassword(params)) {
-            resp.fill_json(WrapBasicInfo(kHandlerErrVerifySafetyPasswordFailed,
-                                         GetErrorMessage(kHandlerErrVerifySafetyPasswordFailed), std::string("")),
-                           http::status::forbidden);
-            return;
-        }
-
         std::string sdp;
+        std::string ticket;
+        std::string body_nonce;
+        std::string body_instance_id;
         try {
             auto obj = nlohmann::json::parse(body);
             sdp = obj["sdp"];
+            ticket = obj.value("ticket", "");
+            body_nonce = obj.value("client_nonce", "");
+            body_instance_id = obj.value("instance_id", "");
         } catch(std::exception& e) {
             SendErrorJson(resp, kHandlerErrParams);
+            return;
+        }
+
+        std::vector<std::string> ticket_permissions;
+        if (!ticket.empty()) {
+            if (body_nonce.empty()) {
+                SendErrorJson(resp, kHandlerErrParams);
+                return;
+            }
+            auto wait_state = std::make_shared<TicketRedeemWaitState>();
+            auto event = std::make_shared<PxPluginRedeemConnectionTicketEvent>();
+            event->ticket_ = ticket;
+            event->client_nonce_ = body_nonce;
+            event->instance_id_ = body_instance_id;
+            event->callback_ = [wait_state](
+                bool ok,
+                const std::string& code,
+                const std::vector<std::string>& permissions) {
+                {
+                    std::scoped_lock lock(wait_state->mutex_);
+                    wait_state->ok_ = ok;
+                    wait_state->code_ = code;
+                    wait_state->permissions_ = permissions;
+                    wait_state->completed_ = true;
+                }
+                wait_state->cv_.notify_all();
+            };
+            plugin_->CallbackEvent(event);
+            std::unique_lock lock(wait_state->mutex_);
+            wait_state->cv_.wait_for(lock, std::chrono::seconds(3), [&] {
+                return wait_state->completed_;
+            });
+            if (!wait_state->completed_ || !wait_state->ok_) {
+                LOGW("Connection ticket rejected: {}", wait_state->code_);
+                resp.fill_json(
+                    WrapBasicInfo(
+                        kHandlerErrConnectionTicketRejected,
+                        GetErrorMessage(kHandlerErrConnectionTicketRejected),
+                        std::string("")),
+                    http::status::forbidden);
+                return;
+            }
+            ticket_permissions = wait_state->permissions_;
+            if (std::find(ticket_permissions.begin(), ticket_permissions.end(), "view") == ticket_permissions.end()) {
+                LOGW("Connection ticket rejected: missing view capability");
+                resp.fill_json(
+                    WrapBasicInfo(
+                        kHandlerErrConnectionTicketRejected,
+                        GetErrorMessage(kHandlerErrConnectionTicketRejected),
+                        std::string("")),
+                    http::status::forbidden);
+                return;
+            }
+        }
+        else if (!VerifySafetyPassword(params)) {
+            // Static passwords remain only for the explicit manual/debug path.
+            resp.fill_json(WrapBasicInfo(kHandlerErrVerifySafetyPasswordFailed,
+                                         GetErrorMessage(kHandlerErrVerifySafetyPasswordFailed), std::string("")),
+                           http::status::forbidden);
             return;
         }
 
@@ -178,6 +252,8 @@ namespace px
         rtc_req->req_ip_ = session_ptr->remote_address();
         rtc_req->sdp_ = sdp;
         rtc_req->content_type_ = content_type;
+        rtc_req->capability_enforced_ = !ticket.empty();
+        rtc_req->permissions_ = ticket_permissions;
         // wall_observer is accepted only after the safety password validation
         // above. CMS keeps that credential server-side and proxies signaling;
         // browsers never need to receive it.
@@ -202,6 +278,9 @@ namespace px
         // RtcLocalPlugin::AllocNewLocalRtcInstance 的占用判断
         if (auto param = GetParam(params, "client_nonce"); param.has_value()) {
             rtc_req->client_nonce_ = param.value();
+        }
+        if (!body_nonce.empty()) {
+            rtc_req->client_nonce_ = body_nonce;
         }
 
         std::mutex cv_mtx;

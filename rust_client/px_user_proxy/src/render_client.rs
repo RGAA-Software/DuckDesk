@@ -10,17 +10,15 @@ use tracing::{error, info, warn};
 use crate::clipboard::virtual_file::RespBufferData;
 use crate::config::{UserProxyConfig, RECONNECT_SECS};
 use crate::proto::{
-    self, build_clipboard_text_event, build_heartbeat_message, build_raw_render_message,
-    build_raw_render_message_routed, build_px_clipboard_files_resp, build_px_clipboard_info_resp,
-    build_px_resp_buffer, clipboard_files_from_px, clipboard_resp_buffer_from_px,
-    clipboard_text_from_rp, parse_rp_message, parse_px_message, stream_route_from_rp_raw,
-    stream_route_from_px, pxrp::RpMessageType, px::MessageType, HEARTBEAT_INTERVAL_SECS,
+    self, build_clipboard_text_event, build_heartbeat_message, build_px_clipboard_files_resp,
+    build_px_clipboard_info_resp, build_px_resp_buffer, build_raw_render_message,
+    build_raw_render_message_routed, clipboard_files_from_px, clipboard_resp_buffer_from_px,
+    clipboard_text_from_rp, parse_px_message, parse_rp_message, px::MessageType,
+    pxrp::RpMessageType, stream_route_from_px, stream_route_from_rp_raw, HEARTBEAT_INTERVAL_SECS,
 };
 
 type WsSink = futures_util::stream::SplitSink<
-    tokio_tungstenite::WebSocketStream<
-        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-    >,
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
     WsMessage,
 >;
 
@@ -268,12 +266,16 @@ fn dispatch_req_buffer(
     let read_size = match std::fs::File::open(&req.full_name) {
         Ok(mut file) => {
             use std::io::{Read, Seek, SeekFrom};
-            match file.seek(SeekFrom::Start(start)).and_then(|_| {
-                file.take(size as u64).read_to_end(&mut buffer)
-            }) {
+            match file
+                .seek(SeekFrom::Start(start))
+                .and_then(|_| file.take(size as u64).read_to_end(&mut buffer))
+            {
                 Ok(n) => n as i64,
                 Err(err) => {
-                    warn!("clipboard req buffer read failed: {} ({err:#})", req.full_name);
+                    warn!(
+                        "clipboard req buffer read failed: {} ({err:#})",
+                        req.full_name
+                    );
                     0
                 }
             }
@@ -378,8 +380,7 @@ fn handle_inbound_px(
                     error!("apply remote clipboard files failed: {err:#}");
                     return;
                 }
-                let resp =
-                    build_raw_render_message(&build_px_clipboard_files_resp(&files), false);
+                let resp = build_raw_render_message(&build_px_clipboard_files_resp(&files), false);
                 tokio::spawn(async move {
                     if let Err(err) = client.send_bytes(resp).await {
                         error!("send clipboard files resp failed: {err:#}");

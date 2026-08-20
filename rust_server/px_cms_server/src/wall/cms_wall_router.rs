@@ -1,5 +1,5 @@
 use crate::cms_context::CmsContext;
-use crate::filter::cms_appkey_filter;
+use crate::user::session_router::require_admin_write;
 use crate::wall::cms_wall_handler::create_wall_session;
 use axum::routing::post;
 use axum::{middleware, Router};
@@ -10,7 +10,7 @@ pub fn make_wall_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<Cms
     Router::new()
         .route(
             "/session",
-            post(create_wall_session).layer(middleware::from_fn(cms_appkey_filter::filter)),
+            post(create_wall_session).layer(middleware::from_fn(require_admin_write)),
         )
         .with_state(context)
 }

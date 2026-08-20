@@ -1,15 +1,15 @@
-use crate::px_relay::RelayMessageType;
 use crate::cms_client::CmsClientMessageType;
 use crate::cms_panel::CmsPanelMessageType;
 use crate::cms_relay::CmsRelayMessageType;
 use crate::cms_service::CmsServiceMessageType;
+use crate::px_relay::RelayMessageType;
 
-pub mod grpc_relay;
-pub mod px_relay;
 pub mod cms_client;
 pub mod cms_panel;
 pub mod cms_relay;
 pub mod cms_service;
+pub mod grpc_relay;
+pub mod px_relay;
 
 impl PartialEq<RelayMessageType> for i32 {
     fn eq(&self, other: &RelayMessageType) -> bool {

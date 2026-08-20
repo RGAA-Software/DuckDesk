@@ -1,7 +1,11 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{
+        rand_core::{OsRng, RngCore},
+        PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+    },
     Algorithm, Argon2, Params, Version,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 
 const MIN_PASSWORD_CHARS: usize = 8;
 const MAX_PASSWORD_CHARS: usize = 128;
@@ -22,6 +26,15 @@ pub fn validate(password: &str) -> Result<(), String> {
         return Err("password cannot be whitespace only".to_string());
     }
     Ok(())
+}
+
+/// Generate a URL-safe 128-bit initial password. The raw password is returned
+/// only to the creating administrator and is never persisted alongside its
+/// Argon2 verifier.
+pub fn generate_random() -> String {
+    let mut bytes = [0_u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    format!("Px{}", URL_SAFE_NO_PAD.encode(bytes))
 }
 
 pub fn hash(password: &str) -> Result<String, String> {
@@ -66,5 +79,15 @@ mod tests {
     #[test]
     fn legacy_md5_is_never_accepted_as_a_verifier() {
         assert!(!verify("password", "5f4dcc3b5aa765d61d8327deb882cf99"));
+    }
+
+    #[test]
+    fn generated_password_has_at_least_128_bits_of_random_input() {
+        let first = generate_random();
+        let second = generate_random();
+        assert_eq!(first.len(), 24);
+        assert!(first.starts_with("Px"));
+        assert_ne!(first, second);
+        assert!(validate(&first).is_ok());
     }
 }

@@ -1,6 +1,6 @@
 # CMS 用户、用户组与资源访问控制设计
 
-> 状态：待评审 v5.1（2026-08-20）
+> 状态：核心功能已实现 v6.1（2026-08-20）；本文以当前代码为准，生产集群增强项单独标为“后续”。
 > 适用范围：单个 CMS 部署（单租户）下的终端用户、CMS 管理者、设备和云端应用。
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 CMS 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
@@ -85,7 +85,8 @@ pub struct CmsUser {
     pub assigned: bool,
     pub created_timestamp: i64,
     pub update_timestamp: i64,
-    pub deleted: bool,              // true 即禁用/软删除，不能登录
+    pub disabled: bool,             // 可逆禁用；仍在管理员列表中
+    pub deleted: bool,              // 不可由普通编辑恢复的软删除；默认查询排除
     pub avatar_path: String,
     pub auth_version: i64,          // 改密/全量注销时递增
 }
@@ -95,7 +96,7 @@ pub struct CmsUser {
 - `CmsUserProfile`、`CmsUserAdminView` 均不含密码、密码哈希和内部 Mongo 字段。
 - username 建立大小写归一后的唯一索引；显示名称可保留原始大小写。
 - 密码只使用 Argon2id。旧 `password`/MD5 记录直接删除，不提供识别、登录或透明升级分支。
-- 禁用、软删除、重置密码、用户主动“退出全部设备”时递增 `auth_version` 并撤销全部会话。
+- 禁用、软删除、重置密码、用户主动“退出全部设备”时递增 `auth_version` 并撤销全部会话；禁用可重新启用，删除记录不再出现在默认列表。
 
 ### 3.2 用户组与授权关系
 
@@ -115,7 +116,7 @@ c_group_app_grant
   gid, app_id, created_at          unique(gid, app_id)
 ```
 
-- 删除组时在事务可用时使用事务；否则采用“先标记组删除，再幂等清理关系”的可恢复流程。
+- 删除组采用“先带 version 软删除，再幂等清理关系”的可恢复流程；清理中断时重复删除即可完成。
 - 个人设备授权继续使用 `c_user_device`，但只能由 admin 授予，或通过受控的一次性设备认领码建立。
 - 删除/禁用设备和应用时不必立即删除历史 grant，但授权查询必须剔除无效资源；后台任务可异步清理孤儿关系。
 
@@ -149,6 +150,7 @@ pub struct CmsSession {
 | 客户端 | 传输 | 本地保存 |
 |---|---|---|
 | Panel | `Authorization: Bearer <user_token>` | Windows Credential Manager/DPAPI；禁止 SQLite 明文 |
+| 未登录 Panel | `Authorization: Bearer <guest_token>` | 仅保存在进程内存，过期后自动重建；只能访问 public 应用 |
 | 浏览器用户门户 | `__Host-px_user_session` Cookie | Secure、HttpOnly、SameSite=Lax、Path=/ |
 | 浏览器管理后台 | `__Host-px_admin_session` Cookie | 与用户 Cookie 名称和校验中间件完全分离 |
 
@@ -265,6 +267,7 @@ registration_mode = "closed" # closed | invite | open
 - 随机明文密码只存在于生成请求内存中，并通过一次下载响应输出。
 - 数据库只保存 Argon2id；不得将明文写入日志、事件、临时文件或普通用户 DTO。
 - CSV 下载响应使用 `Cache-Control: no-store`；生成完成后无法再次查看相同明文密码，只能重置。
+- 管理后台每次可创建 1–500 个账号，可选择初始组；用户名使用指定前缀与随机后缀，避免并发批次冲突。
 
 ## 6. 接口设计
 
@@ -286,6 +289,9 @@ POST /api/v1/user/register             # 按 registration_mode
 
 ```text
 GET  /api/v1/user/me
+PATCH /api/v1/user/me                         # { username }
+PUT   /api/v1/user/me/avatar                  # multipart(file)，最大 2 MiB
+POST  /api/v1/user/me/password                # { current_password, new_password }；成功后撤销旧会话并换发当前 token
 GET  /api/v1/user/resources/summary
 GET  /api/v1/user/devices
 POST /api/v1/user/devices/{device_id}/ticket
@@ -294,8 +300,9 @@ POST /api/v1/user/apps/{app_id}/start
 GET  /api/v1/user/instances
 POST /api/v1/user/instances/{instance_id}/ticket
 POST /api/v1/user/instances/{instance_id}/stop
-POST /api/v1/user/password/change
 ```
+
+`GET /api/v1/user/devices` 在服务端合并个人 `c_user_device` 与用户所属组的设备授权，去重并剔除无效设备，只返回 `DeviceSummary`；不得返回 `desktop_link`、静态密码或内部地址。
 
 - 所有 uid/owner_id 从 session 获取。
 - start 返回用户可见的实例状态；成功时可同时返回一次性 `launch_url`。
@@ -356,17 +363,17 @@ Panel/浏览器
 
 ### 8.1 Panel
 
-1. 左侧导航保留“远程桌面”，新增独立一级“云端应用”。
-2. 未登录时可进入云端应用，只显示 public；CMS 自动建立 guest session。
-3. 登录后显示 public + 当前用户 ACL 应用；顶部显示该主体自己的运行实例。
-4. 应用卡片只展示公开/专属、状态和启动/进入，不展示节点、设备或端口。
+1. 当前版本在现有远程连接卡片列表中合并云端应用卡片，复用成熟的直连、全屏和控制链路；应用卡片不写入本地设备数据库。
+2. 未登录首次进入设备页即自动建立仅存于内存的 `guest_panel` Bearer 会话并加载 public 应用，不依赖登录事件或手工刷新。
+3. 登录后显示 public + 当前用户 ACL 应用；退出、会话过期、切换账号或 ACL 收缩时立即重新对账，清除上一主体的 CMS 设备卡片和应用卡片。
+4. 应用卡片标识公开/专属及运行状态，只提供启动/进入/停止，不展示节点、设备或端口；新实例的 HTTP 202 与幂等复用的 HTTP 200 都按成功处理。
 5. Panel 只保存 user token 到 Windows 安全存储，不保存明文密码。
 6. 设备和应用连接都从 CMS 申请 ticket；静态密码只在手工连接调试入口使用。
 
 ### 8.2 CMS 管理后台
 
 - 使用 admin cookie，不再把 appkey 或密码存入 localStorage。
-- 用户页：创建、禁用、软删除、重置密码、组成员、会话撤销、一次性 CSV。
+- 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、个人设备授权、会话撤销、邀请码。
 - 用户组页：CRUD、成员、设备 grant、应用 grant、孤儿授权提示。
 - 应用页：public/acl 编辑、获授权组数量、无授权风险提示。
 - 实例页：显示 owner 类型/名称、来源应用、节点、状态和管理员停止操作。
@@ -408,7 +415,7 @@ public 应用允许匿名启动，但必须具备以下保护：
 
 1. 单 IP 建立 guest session 和登录尝试限流。
 2. 单 guest session 的启动频率、并发实例数和每日累计时长配额。
-3. 单 public 应用的全局并发上限和排队上限。
+3. 单 public 应用的全局并发上限；容量不足立即返回 429，客户端退避重试，不在 CMS 内维护悬挂队列。
 4. 同一 client_nonce + app_id 的短时间幂等启动，避免刷新页面重复建实例。
 5. 达到阈值返回 429/409，不泄露节点容量细节。
 6. 管理后台显示 guest 实例及其脱敏来源，支持封禁 IP hash/guest id。
@@ -538,7 +545,7 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 - 失败响应统一为 `{ "code": <业务码>, "message": <稳定错误文本>, "data": null, "request_id": <追踪号> }`，不得带数据库错误、路径、密钥或栈信息。
 - 时间字段统一为 UTC Unix 毫秒，字段名以 `_at` 结尾；ID 均为不透明字符串，客户端不得解析。
 - 列表请求统一接受 `page`（从 1 开始，默认 1，最大 100000）、`page_size`（默认 20，最大 100）、`keyword` 和 `sort`；响应为 `{ items, page, page_size, total }`。
-- 写接口接受 `Idempotency-Key`。创建用户、启动应用、签发 ticket 和批量导入必须保证同一主体下 5 分钟内同 key 返回同一结果。
+- 应用启动通过 `owner_session_id + app_id + client_nonce` 唯一约束实现幂等；ticket 保持一次性语义。通用 `Idempotency-Key` 存储属于后续多副本增强，不作为当前单机版本接口。
 - 修改和删除接受实体 `version`；Mongo 更新条件包含当前 version，冲突返回 409，成功后 version 递增。
 - 只允许显式 DTO 字段，未知字段返回 400；字符串先 trim，再校验长度和 Unicode 控制字符。
 
@@ -546,8 +553,8 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 
 ```text
 POST /api/v1/session/guest
-request:  { client_nonce }
-response: { csrf_token, expires_at }                 # Web 由 Set-Cookie 保存 session
+request:  { client_nonce, client_type? }             # Panel 显式传 panel
+response: { csrf_token, expires_at, access_token? }  # 仅 Panel 返回临时 guest Bearer；Web 使用 Cookie
 
 POST /api/v1/session/user/login
 request:  { username, password, client_type }
@@ -568,7 +575,7 @@ response: { profile, csrf_token, expires_at, absolute_expires_at }
 ```
 
 - 浏览器从 `X-CSRF-Token` 响应头或登录响应体取得 CSRF token，后续写请求使用同名请求头；服务端保存其 hash 并与 session 绑定。
-- Panel 登录只接受 `client_type=panel`，在响应体取得 Bearer token；浏览器登录不在响应体返回 token。
+- Panel 登录只接受 `client_type=panel`，在响应体取得 Bearer token；浏览器登录不在响应体返回 token。未登录 Panel 可取得独立 `guest_panel` Bearer，该 token 不写磁盘且不能调用用户或管理接口。
 - 登录失败统一返回 401/`AUTH_INVALID_CREDENTIALS`；禁用用户也不泄露具体原因。限流返回 429 和 `Retry-After`。
 - Set-Cookie 和清除 Cookie 必须在服务端完成；logout 即使 session 已过期也返回幂等成功。
 
@@ -592,12 +599,17 @@ TicketResponse    { ticket, launch_url, expires_at, permissions }
 ### 15.4 账号管理请求
 
 ```text
-POST   /api/v1/admin/users                 { username, initial_password?, group_ids[] }
-PATCH  /api/v1/admin/users/{uid}           { version, username?, disabled?, avatar_url? }
+POST   /api/v1/admin/users                 { username, initial_password?, group_ids[], device_ids[] }
+POST   /api/v1/admin/users/batch.csv       { size, username_prefix, group_ids[] }
+PATCH  /api/v1/admin/users/{uid}           { version, username?, disabled?, avatar_url?, group_ids?, device_ids? }
 DELETE /api/v1/admin/users/{uid}           { version }
 POST   /api/v1/admin/users/{uid}/password/reset
                                                { version, generated | supplied_password }
 POST   /api/v1/admin/users/{uid}/sessions/revoke-all {}
+GET    /api/v1/admin/users/{uid}/sessions
+GET    /api/v1/admin/guest-sessions
+POST   /api/v1/admin/guest-sessions/{sid}/block
+                                               { block_guest_id, block_ip_hash, reason? }
 
 POST   /api/v1/admin/groups                { name, remark? }
 PATCH  /api/v1/admin/groups/{gid}           { version, name?, remark? }
@@ -607,9 +619,9 @@ PUT    /api/v1/admin/groups/{gid}/devices   { version, device_ids[] }
 PUT    /api/v1/admin/groups/{gid}/apps      { version, app_ids[] }
 ```
 
-- PUT 授权接口表达“期望的完整集合”，在一个事务中计算增删差异；Mongo 未启用事务时使用带 operation_id 的可重放两阶段更新。
+- PUT 授权接口表达“期望的完整集合”，先校验全部目标和实体 version，再替换关系。当前测试/单机部署采用可重试的幂等全量替换；Mongo 多文档事务和 operation_id 恢复日志属于后续多副本增强。
 - 管理员重置密码使 `auth_version + 1` 并撤销全部用户会话。随机初始密码只在该响应显示一次。
-- 删除用户是软删除并撤销会话；同名账号不得直接复用，必须由管理员显式恢复原账号或改名。
+- 创建用户时组和个人设备 ID 会先完整校验，设置完成后才返回一次性初始密码，避免前端第二次请求失败后丢失密码。删除用户是软删除并撤销会话；删除记录保留用户名占位，当前版本不提供恢复或同名复用。
 
 ### 15.5 资源和实例请求
 
@@ -657,14 +669,15 @@ POST /api/v1/user/instances/{instance_id}/stop
 | `c_group_app_grant` | unique(`gid`,`app_id`)，(`app_id`,`gid`) |
 | `c_user_device` | unique(`uid`,`device_id`)，(`device_id`,`uid`) |
 | `c_user_session` | unique(`token_hash`)，unique(`sid`)，TTL(`cleanup_at`, expireAfterSeconds=0)，(`subject_type`,`subject_id`,`revoked_at`) |
+| `c_guest_block` | unique(`kind`,`value`)；kind 为 `guest_id` 或脱敏 `ip_hash` |
 | `c_user_invite` | unique(`invite_hash`)，TTL(`expires_at`, 0)，(`used_at`) |
 | `c_connection_ticket` | unique(`ticket_hash`)，TTL(`expires_at`, 0)，(`session_id`,`consumed_at`) |
 | `c_app` | unique(`app_id`)，(`access_mode`,`name`) |
 | `c_app_instance` | unique(`instance_id`)，unique(`owner_session_id`,`app_id`,`client_nonce`) partial active，(`owner_type`,`owner_id`,`state`) |
 
 - session 的 `cleanup_at = min(expires_at, absolute_expires_at)`；每次滑动续期同时更新 cleanup_at，但不得越过 absolute_expires_at。
-- 所有关系写入前验证两端资源存在且未删除。Mongo 支持事务时关系写入、版本递增和审计事件同事务提交。
-- 服务启动必须创建/校验全部索引；唯一索引或 TTL 索引失败时身份与 ACL 路由保持关闭，健康检查报告 degraded。
+- 所有关系写入前验证两端资源存在且未删除；当前使用实体 version 与唯一索引防冲突。跨集合事务化审计属于后续多副本增强。
+- 服务启动必须创建/校验全部关键唯一索引和 TTL 索引；任一失败时 CMS 不进入监听阶段。
 - 重置工具只允许数据库名精确等于 `db_gr_cms_server` 且配置显式 `environment = "test"` 时运行；执行前打印集合和文档数量，要求命令行 `--confirm-reset-test-identity-data`，不提供 HTTP 重置接口。
 
 ## 17. Service WebSocket 与票据兑换契约
@@ -686,21 +699,20 @@ CMS -> Service  RedeemConnectionTicketResponse {
 - protocol protobuf 分配固定消息号；request_id 在单条 WS 上唯一，CMS 回包必须原样携带。
 - CMS 以该 WS 已绑定的 device_id 覆盖请求字段并原子消费 ticket；设备不一致返回拒绝且不消费，防止错误节点使合法 ticket 失效。
 - ticket 原文不得出现在 tracing、protobuf Debug 输出或错误响应中；只记录 ticket_hash 前 8 位和 request_id。
-- 兑换请求超时 3 秒；Service 最多用同一 request_id 重试一次。CMS 对相同 request_id 返回第一次结果，但成功 ticket 不允许被另一请求再次使用。
+- Service 兑换超时后连接失败，客户端重新向 CMS 申请新 ticket；成功 ticket 由 Mongo 原子条件保证只能被消费一次。request_id 回包保持一致，跨重连响应缓存属于后续增强。
 - CMS/Service 断线时停止新兑换；已建立 RTC 连接可继续，除非收到 revoke/stop。重连后先完成实例心跳对账，再开放 ticket 兑换。
 - appkey/app_secret 至少每 90 天轮换，允许当前和上一把密钥重叠 10 分钟；`force_authorize=false` 只能在 loopback 自动化测试启用，非 loopback 启动必须拒绝。
 
 ## 18. 应用实例状态机
 
 ```text
-queued -> starting -> running -> stopping -> stopped
-   |         |          |           |
-   +-------> failed <---+-----------+
+starting -> running -> stopping -> stopped
+   |          |           |
+   +-------> failed <-----+
 ```
 
 | 状态 | 可执行操作 | 超时/退出 |
 |---|---|---|
-| queued | owner/admin 查询、取消 | 排队超过 60 秒 -> failed(`QUEUE_TIMEOUT`) |
 | starting | 查询、admin/owner 停止 | 25 秒无启动回执 -> failed(`START_TIMEOUT`) 并发送补偿 stop |
 | running | 申请 ticket、owner/admin 停止 | Service 心跳连续缺失 15 秒先标记 suspect；重连对账仍缺失 -> stopped(`PROCESS_LOST`) |
 | stopping | 查询 | 10 秒无停止回执 -> failed(`STOP_TIMEOUT`)，后台继续回收 |
@@ -709,26 +721,27 @@ queued -> starting -> running -> stopping -> stopped
 - 每次状态变更使用 `instance_id + version + current_state` 条件更新，防止迟到回执覆盖新状态。
 - instance 保存 owner、client_nonce、created/started/stopped/last_heartbeat 时间以及稳定 error_code；不得只依赖内存状态。
 - owner session 退出不立即停止 running 实例；进入应用空闲计时。媒体/控制客户端归零 5 秒后通知应用停止渲染，实例无人使用达到 `idle_instance_timeout_secs` 后停止进程。
-- CMS 重启从 Mongo 恢复 queued/starting/running/stopping，等待 Service 心跳对账；对账窗口内不重复启动。
+- CMS 重启从 Mongo 恢复 starting/running/stopping，等待 Service 心跳对账；对账窗口内不重复启动。
+- 当前版本不建立服务端启动队列：没有空闲节点或 public 全局并发达到上限时立即失败，避免浏览器退出后遗留无人认领的 queued 实例。
 - 同 owner_session + app_id + client_nonce 的活跃实例唯一；重复 start 返回原实例。guest 登录为 user 后不转移旧 guest 实例归属。
 
 ## 19. 注册、邀请与密码生命周期
 
 - 用户名：trim 后 3–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
 - 密码：8–128 个字符；拒绝全空白；服务端 Argon2id 参数为 memory 64 MiB、iterations 3、parallelism 1、随机盐 16 bytes，hash 使用 PHC 字符串保存。
-- open 注册必须通过 guest session、CSRF 和限流；invite 注册额外提交一次性 invite，CMS 在创建用户的同一事务原子标记 used_at。
+- open 注册必须通过 guest session、CSRF 和限流；invite 注册额外提交一次性 invite。CMS 先原子保留邀请码，创建失败则释放，成功后提交 used_at；异常中断留下的短时保留可再次释放。
 - 邀请默认 24 小时有效、最多使用一次，可绑定初始组；创建响应只显示一次原始邀请码，数据库仅保存 SHA-256/HMAC hash。
 - 管理员可生成随机初始密码或提供满足规则的密码。随机密码使用至少 96 bit CSPRNG，不包含易混淆字符。
 - 管理员重置后设置 `must_change_password=true`；该用户只能访问 `/me`、改密和 logout，首次改密成功才解除。
 - 用户改密必须提交当前明文密码，经 Argon2 验证后写入新 hash，递增 auth_version 并撤销除当前请求外的会话；当前会话随响应重新签发。
-- 连续 5 次登录失败后账号 + IP 进入指数退避，最大 15 分钟；不做永久锁定，管理员可清除退避状态。
+- 当前对账号和 IP 分别使用固定窗口限流（默认每账号 15 分钟 20 次、每 IP 每分钟 10 次）；指数退避与管理员手动清除属于后续风控增强。
 - 不提供“找回密码邮件”流程；当前版本由管理员重置。任何初始密码、邀请码或 CSV 明文均禁止进入日志。
 
 ## 20. 默认配置与保留策略
 
 ```toml
-[environment]
-name = "test"                       # test | production
+environment = "test"                        # test | production
+privacy_hash_salt = "replace-with-random"    # production 至少 16 bytes，仅服务端保存
 
 [user]
 registration_mode = "closed"        # closed | invite | open
@@ -739,7 +752,7 @@ web_absolute_days = 30
 admin_sliding_hours = 2
 admin_absolute_hours = 8
 guest_absolute_hours = 24
-invite_expire_hours = 24
+ticket_expire_seconds = 30
 
 [user.rate_limit]
 login_per_ip_per_minute = 10
@@ -752,26 +765,10 @@ guest_concurrent_instances = 1
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20
-public_app_queue_limit = 50
 
-[user.ticket]
-expire_seconds = 30
-redeem_timeout_seconds = 3
-
-[user.instance]
-queue_timeout_seconds = 60
-start_timeout_seconds = 25
-stop_timeout_seconds = 10
-empty_client_grace_seconds = 5
-idle_instance_timeout_seconds = 300
-
-[user.retention]
-security_audit_days = 180
-instance_history_days = 30
-rate_limit_state_hours = 24
 ```
 
 - production 禁止空 session HMAC key、空 service secret、`force_authorize=false`、HTTP 外部登录和 test reset 开关。
-- session/ticket/CSRF 服务端密钥从操作系统安全存储或环境注入，不能写入仓库；启动时缺失即失败，不自动生成导致重启后全量失效。
+- session、ticket 与 CSRF 原文使用操作系统 CSPRNG 生成，Mongo 只保存 SHA-256；无需在仓库配置可逆服务端密钥。
 - 配额是安全默认值，可由管理员向下或向上调整；任何值变更记录审计。值为 0 表示禁止，不表示无限。
-- 安全审计到期批量清理；当前进行中的实例、未完成调度和有效会话不受普通历史清理任务影响。
+- session、invite 和 ticket 使用 TTL 自动清理；审计与实例历史的可配置保留任务属于后续运维增强。

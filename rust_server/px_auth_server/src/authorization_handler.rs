@@ -177,9 +177,7 @@ pub async fn handle_verify_appkey_secret(
     }
 }
 
-pub async fn handle_verify_license(
-    body: Body,
-) -> Result<Json<RespMessage<bool>>, AuthorApiError> {
+pub async fn handle_verify_license(body: Body) -> Result<Json<RespMessage<bool>>, AuthorApiError> {
     let body = get_body(body).await?;
     let value: serde_json::Value =
         serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
@@ -399,8 +397,7 @@ pub async fn handle_gopico_client_report(
     body: Body,
 ) -> Result<Json<RespMessage<GopicoClientReportResponse>>, AuthorApiError> {
     let body = get_body(body).await?;
-    let value: Value =
-        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let value: Value = serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
     let auth_str = get_body_str(&value, "data")?;
     let machine_code = get_body_str(&value, "machine_code")?;
     let opt_str = |key: &str| {
@@ -631,8 +628,7 @@ pub async fn handle_gopico_verify_online(
     body: Body,
 ) -> Result<Json<RespMessage<GopicoOnlineVerifyResponse>>, AuthorApiError> {
     let body = get_body(body).await?;
-    let value: Value =
-        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let value: Value = serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
     let auth_str = get_body_str(&value, "data")?;
     let machine_code = get_body_str(&value, "machine_code")?;
 
@@ -786,8 +782,7 @@ pub async fn handle_device_pull(
     body: Body,
 ) -> Result<Json<RespMessage<DevicePullResponse>>, AuthorApiError> {
     let body = get_body(body).await?;
-    let value: Value =
-        serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
+    let value: Value = serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
     let product = get_body_str(&value, "product")?;
     let device_code = get_body_str(&value, "device_code")?;
     validate_machine_code(&device_code)?;

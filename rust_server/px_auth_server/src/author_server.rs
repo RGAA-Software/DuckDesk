@@ -4,9 +4,8 @@ use crate::author_handler::{
 use crate::authorization_handler::{
     handle_create_new_authorization, handle_create_new_deploy_authorization,
     handle_device_delete_authorization, handle_device_pull, handle_device_revoke_authorization,
-    handle_device_update_authorization,
-    handle_gopico_client_report, handle_gopico_create_new_deploy_authorization,
-    handle_gopico_query_authorizations,
+    handle_device_update_authorization, handle_gopico_client_report,
+    handle_gopico_create_new_deploy_authorization, handle_gopico_query_authorizations,
     handle_gopico_query_deploy_authorization_by_id, handle_gopico_revoke_authorization,
     handle_gopico_update_authorization, handle_gopico_verify_online,
     handle_product_query_authorizations, handle_query_authorization_by_id,
@@ -221,8 +220,7 @@ pub fn build_router(web_dir: PathBuf) -> Router {
         // Device self-registration & license pull (gopico / clientbox / goagent)
         .route(
             "/api/v1/device/pull",
-            post(handle_device_pull)
-                .layer(middleware::from_fn(app_credential_filter::filter)),
+            post(handle_device_pull).layer(middleware::from_fn(app_credential_filter::filter)),
         )
         .route(
             "/api/v1/device/update/authorization",
@@ -585,10 +583,7 @@ mod tests {
         assert!(deploy.contains('.'));
 
         // Online verify — valid.
-        let verify_body = format!(
-            r#"{{"data":"{}","machine_code":"mc-gopico-e2e"}}"#,
-            deploy
-        );
+        let verify_body = format!(r#"{{"data":"{}","machine_code":"mc-gopico-e2e"}}"#, deploy);
         let verify_resp = router
             .clone()
             .oneshot(
@@ -1061,7 +1056,10 @@ mod tests {
                 if admin {
                     b = b.header("Authorization", token_for(AuthorRole::Admin));
                 }
-                router.oneshot(b.body(Body::from(body)).unwrap()).await.unwrap()
+                router
+                    .oneshot(b.body(Body::from(body)).unwrap())
+                    .await
+                    .unwrap()
             }
         };
 
@@ -1116,16 +1114,14 @@ mod tests {
         assert_eq!(json["data"]["max_streams"], 2);
 
         // 5. Invalid mode -> 400.
-        let update = format!(
-            r#"{{"auth_id":"{auth_id}","mode":"vip","days":7,"max_devices":2,"role":1}}"#
-        );
+        let update =
+            format!(r#"{{"auth_id":"{auth_id}","mode":"vip","days":7,"max_devices":2,"role":1}}"#);
         let resp = post("/api/v1/device/update/authorization", update, true).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         // 5b. Role is optional now (deprecated) -> update without role succeeds.
-        let update = format!(
-            r#"{{"auth_id":"{auth_id}","mode":"licensed","days":30,"max_devices":3}}"#
-        );
+        let update =
+            format!(r#"{{"auth_id":"{auth_id}","mode":"licensed","days":30,"max_devices":3}}"#);
         let resp = post("/api/v1/device/update/authorization", update, true).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -1234,7 +1230,10 @@ mod tests {
                 if admin {
                     b = b.header("Authorization", token_for(AuthorRole::Admin));
                 }
-                router.oneshot(b.body(Body::from(body)).unwrap()).await.unwrap()
+                router
+                    .oneshot(b.body(Body::from(body)).unwrap())
+                    .await
+                    .unwrap()
             }
         };
 
@@ -1390,7 +1389,10 @@ mod tests {
         let resp = router
             .clone()
             .oneshot(pull_req(vec![
-                (cred::HEADER_APP_KEY, "ffffffffffffffffffffffffffffffff".to_string()),
+                (
+                    cred::HEADER_APP_KEY,
+                    "ffffffffffffffffffffffffffffffff".to_string(),
+                ),
                 (cred::HEADER_APP_TIMESTAMP, ts.to_string()),
                 (cred::HEADER_APP_SIGN, sign),
             ]))

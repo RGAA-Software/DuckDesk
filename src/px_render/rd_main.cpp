@@ -70,6 +70,7 @@ DEFINE_string(panel_server_host, "127.0.0.1", "");
 DEFINE_int32(panel_server_port, 0, "");
 DEFINE_string(service_server_host, "127.0.0.1", "");
 DEFINE_int32(service_server_port, 20375, "");
+DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
 // file transfer enabled
@@ -160,6 +161,7 @@ void UpdateSettings(RdSettings* settings) {
     settings->panel_server_port_ = FLAGS_panel_server_port;
     settings->service_server_host_ = FLAGS_service_server_host;
     settings->service_server_port_ = FLAGS_service_server_port;
+    settings->service_ipc_token_ = FLAGS_service_ipc_token;
 
     // can be operated
     settings->can_be_operated_ = FLAGS_can_be_operated;
@@ -229,7 +231,7 @@ void PrintInputArgs() {
     LOGI("coturn server address: {}", FLAGS_coturn_server_address);
     LOGI("coturn server port: {}", FLAGS_coturn_server_port);
     LOGI("device id: {}", FLAGS_device_id);
-    LOGI("device random pwd: {}", FLAGS_device_random_pwd);
+    LOGI("device random password configured: {}", !FLAGS_device_random_pwd.empty());
     LOGI("panel server host: {}", FLAGS_panel_server_host);
     LOGI("panel server port: {}", FLAGS_panel_server_port);
     LOGI("service server host: {}", FLAGS_service_server_host);
@@ -243,7 +245,7 @@ void PrintInputArgs() {
     LOGI("language: {}", FLAGS_language);
     LOGI("app mode: {} => {}", FLAGS_app_mode, (int)settings->app_mode_);
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings->app_.event_replay_mode_);
-    LOGI("appkey : {}", FLAGS_appkey);
+    LOGI("appkey configured: {}", !FLAGS_appkey.empty());
     LOGI("live stream id: {}", settings->live_stream_id_);
     LOGI("push rtmp url configured: {}", !settings->push_rtmp_url_.empty());
     LOGI("push primary monitor: {}", settings->push_primary_monitor_);

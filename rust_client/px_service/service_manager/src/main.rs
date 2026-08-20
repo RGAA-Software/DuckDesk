@@ -34,11 +34,7 @@ enum Command {
 
 fn main() {
     let cli = Cli::parse();
-    let manager = ServiceManager::new(
-        "px_service",
-        "px_service",
-        "px service",
-    );
+    let manager = ServiceManager::new("px_service", "px_service", "px service");
     let result = match cli.command {
         Command::Install { service_bin } => manager
             .install(&service_bin)

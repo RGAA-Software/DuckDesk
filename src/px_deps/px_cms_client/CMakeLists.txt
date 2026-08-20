@@ -9,6 +9,7 @@ set(SRCS
     cms_stream.cpp
     cms_user_device.cpp
     cms_user_device_api.cpp
+    cms_user_app_api.cpp
     cms_event.cpp
     cms_event_api.cpp
     cms_http_client.cpp

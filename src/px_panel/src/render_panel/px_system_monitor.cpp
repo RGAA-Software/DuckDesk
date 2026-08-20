@@ -446,7 +446,7 @@ namespace px
 
         auto local_random_pwd_md5 = MD5::Hex(settings_->GetDeviceRandomPwd());
         if (device->random_pwd_md5_ != local_random_pwd_md5) {
-            LOGW("***Random pwd not equals, will refresh, srv: {} => local: {}", device->random_pwd_md5_, local_random_pwd_md5);
+            LOGW("Remote random-password verifier changed; refreshing it");
             auto opt_update_device = px_cms::CmsDeviceApi::UpdateRandomPwd(settings_->GetCmsServerHost(),
                                                                     settings_->GetCmsServerPort(),
                                                                     grApp->GetAppkey(),
@@ -466,7 +466,7 @@ namespace px
 
         auto current_device_security_pwd = settings_->GetDeviceSecurityPwd();
         if (device->safety_pwd_md5_ != settings_->GetDeviceSecurityPwd() && !current_device_security_pwd.empty()) {
-            LOGW("***Safety pwd not equals, will refresh, srv: {} => local: {}", device->safety_pwd_md5_, current_device_security_pwd);
+            LOGW("Remote safety-password verifier changed; refreshing it");
             // update safety password
             auto update_device = px_cms::CmsDeviceApi::UpdateSafetyPwd(settings_->GetCmsServerHost(),
                                                                 settings_->GetCmsServerPort(),
@@ -474,10 +474,10 @@ namespace px
                                                                 settings_->GetDeviceId(),
                                                                 current_device_security_pwd);
             if (!update_device) {
-                LOGE("***UpdateSafetyPwd failed for : {}, SPWD: {}", settings_->GetDeviceId(), current_device_security_pwd);
+                LOGE("***UpdateSafetyPwd failed for device: {}", settings_->GetDeviceId());
             }
             else {
-                LOGI("***UpdateSafetyPwd success {}, SPWD: {}", settings_->GetDeviceId(), current_device_security_pwd);
+                LOGI("***UpdateSafetyPwd succeeded for device: {}", settings_->GetDeviceId());
             }
         }
     }

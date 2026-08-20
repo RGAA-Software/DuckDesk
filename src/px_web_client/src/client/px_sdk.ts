@@ -25,7 +25,11 @@ export class PxSdk {
     }
 
     start(connParams: PxConnParams): void {
-        console.log("connParams:", connParams);
+        console.log("starting connection", {
+            host: connParams.host,
+            port: connParams.port,
+            connectionType: connParams.connectionType,
+        });
         if (this.sdkParams.sdkType == PxSdkConnType.kWebSocket) {
             this.startWithWss(connParams);
         }

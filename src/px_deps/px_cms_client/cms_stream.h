@@ -134,6 +134,12 @@ namespace px_cms
 
         //
         bool cms_online_ = false;
+
+        // Ephemeral CMS capability grant. Never persisted by the stream DB.
+        std::string connection_ticket_;
+        std::string connection_nonce_;
+        std::string cms_app_id_;
+        std::string cms_instance_id_;
     };
 
 }

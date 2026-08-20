@@ -6,14 +6,14 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::DataExchange::AddClipboardFormatListener;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, RegisterClassW, WNDCLASSW, WM_CLIPBOARDUPDATE, HWND_MESSAGE,
-    WINDOW_EX_STYLE, WINDOW_STYLE,
+    CreateWindowExW, DefWindowProcW, RegisterClassW, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE,
+    WM_CLIPBOARDUPDATE, WNDCLASSW,
 };
 
 use crate::clipboard::backend::ClipboardBackend;
 use crate::clipboard::content::ClipboardContent;
-use crate::clipboard::virtual_file::VirtualFileCoordinator;
 use crate::clipboard::virtual_file::install_virtual_file_clipboard;
+use crate::clipboard::virtual_file::VirtualFileCoordinator;
 use crate::clipboard::win_platform::{pump_sta_messages, wait_sta_messages, WinClipboardPlatform};
 
 enum ClipboardRequest {
@@ -53,7 +53,10 @@ impl ClipboardBackend for WinClipboardWorker {
         self.platform.write_file_paths(paths)
     }
 
-    fn write_virtual_files(&self, coordinator: std::sync::Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+    fn write_virtual_files(
+        &self,
+        coordinator: std::sync::Arc<VirtualFileCoordinator>,
+    ) -> anyhow::Result<()> {
         install_virtual_file_clipboard(coordinator)
     }
 }
@@ -61,8 +64,7 @@ impl ClipboardBackend for WinClipboardWorker {
 impl ClipboardBackend for WinClipboardBackend {
     fn read_content(&self) -> anyhow::Result<ClipboardContent> {
         let (tx, rx) = std::sync::mpsc::channel();
-        self.request_tx
-            .send(ClipboardRequest::ReadContent(tx))?;
+        self.request_tx.send(ClipboardRequest::ReadContent(tx))?;
         rx.recv()?
     }
 
@@ -84,19 +86,20 @@ impl ClipboardBackend for WinClipboardBackend {
         rx.recv()?
     }
 
-    fn write_virtual_files(&self, coordinator: std::sync::Arc<VirtualFileCoordinator>) -> anyhow::Result<()> {
+    fn write_virtual_files(
+        &self,
+        coordinator: std::sync::Arc<VirtualFileCoordinator>,
+    ) -> anyhow::Result<()> {
         let (tx, rx) = std::sync::mpsc::channel();
-        self.request_tx
-            .send(ClipboardRequest::WriteVirtualFiles {
-                coordinator,
-                reply: tx,
-            })?;
+        self.request_tx.send(ClipboardRequest::WriteVirtualFiles {
+            coordinator,
+            reply: tx,
+        })?;
         rx.recv()?
     }
 }
 
-pub fn spawn_win_clipboard_listener(
-) -> anyhow::Result<(WinClipboardBackend, Receiver<()>)> {
+pub fn spawn_win_clipboard_listener() -> anyhow::Result<(WinClipboardBackend, Receiver<()>)> {
     let (notify_tx, notify_rx) = std::sync::mpsc::channel();
     let (request_tx, request_rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()

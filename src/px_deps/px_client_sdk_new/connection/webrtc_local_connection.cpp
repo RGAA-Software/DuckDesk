@@ -219,6 +219,10 @@ namespace px
 
         nlohmann::json body;
         body["sdp"] = offer_sdp;
+        if (!sdk_params_->connection_ticket_.empty()) {
+            body["ticket"] = sdk_params_->connection_ticket_;
+            body["client_nonce"] = sdk_params_->connection_nonce_;
+        }
 
         auto client = HttpClient::Make(sdk_params_->ip_, sdk_params_->port_, "/alloc/local/rtc", 15000);
         auto resp = client->Post(query, body.dump(), "application/json");

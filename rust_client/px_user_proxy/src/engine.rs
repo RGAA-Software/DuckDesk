@@ -21,9 +21,11 @@ impl UserProxyEngine {
 
     pub fn start_render_loop(self: &Arc<Self>) {
         let engine = Arc::clone(self);
-        self.render_client.clone().spawn_reconnect_loop(move |bytes| {
-            handle_inbound_rp(&bytes, &engine.clipboard, engine.render_client.clone());
-        });
+        self.render_client
+            .clone()
+            .spawn_reconnect_loop(move |bytes| {
+                handle_inbound_rp(&bytes, &engine.clipboard, engine.render_client.clone());
+            });
     }
 
     pub async fn on_local_clipboard_update(&self) {
@@ -91,7 +93,10 @@ impl UserProxyEngine {
         }
     }
 
-    fn should_skip_files_outbound(&self, files: &[crate::clipboard::content::ClipboardFileEntry]) -> bool {
+    fn should_skip_files_outbound(
+        &self,
+        files: &[crate::clipboard::content::ClipboardFileEntry],
+    ) -> bool {
         let signature = crate::clipboard::content::files_signature(files);
         self.clipboard.echo.should_skip_outbound(&signature)
     }

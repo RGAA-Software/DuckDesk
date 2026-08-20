@@ -6,15 +6,13 @@ import { formatDurationHMS, formatTimestamp } from '@/util/time.ts'
 import { notification } from 'ant-design-vue'
 import { pullAuthorization } from '@/model/auth_api.ts'
 import { refreshSharedAuthorization, sharedAuthorization as authorization } from '@/model/auth_state.ts'
-import CryptoJS from 'crypto-js'
-
-const md5 = (input: string): string => {
-  return CryptoJS.MD5(input).toString()
-}
+import { logoutAdmin } from '@/model/admin_session_api.ts'
+import { useWsStore } from '@/stores/ws'
 
 import { useRouter } from 'vue-router'
 import {copyText} from "@/util/clipboard.ts";
 const router = useRouter()
+const wsStore = useWsStore()
 
 const newPassword = ref<string>('')
 const oldPassword = ref<string>('')
@@ -45,10 +43,10 @@ async function handleChangePassword() {
   }
 
   const resp = await axiosHttp.post(
-    '/api/v1/auth/control/update/password?appkey=' + localStorage.getItem('appkey'),
+    '/api/v1/auth/control/update/password',
     {
       password: newPassword.value,
-      old_password: md5(oldPassword.value),
+      current_password: oldPassword.value,
     },
   )
   if (resp.status !== 200) {
@@ -72,7 +70,7 @@ async function handleChangePassword() {
 }
 
 const handleRefreshAuth = async () => {
-  // pull 返回的是安全状态（不含凭据），完整授权信息需带 appkey 重新查询；
+  // pull 返回的是安全状态（不含凭据），完整授权信息由管理会话重新查询；
   // 走共享状态，右上角（HomeView）授权状态会同步更新
   await pullAuthorization()
   await refreshSharedAuthorization()
@@ -80,7 +78,8 @@ const handleRefreshAuth = async () => {
 
 //
 async function handleLogout() {
-  sessionStorage.removeItem('admin_authenticated')
+  await logoutAdmin()
+  wsStore.close()
   await router.replace('/')
 }
 
@@ -90,9 +89,7 @@ async function handleJumpOffSite() {
 
 // access info
 async function queryAccessInfo() {
-  const resp = await axiosHttp.get(
-    '/api/v1/cms/control/gen/access/info?appkey=' + localStorage.getItem('appkey'),
-  )
+  const resp = await axiosHttp.get('/api/v1/cms/control/gen/access/info')
   if (resp.status !== 200) {
     console.error('query access info failed', resp)
     return false
@@ -158,20 +155,6 @@ async function handleCopyAccessInfo() {
           <div class="flex items-center h-8">
             <div class="w-35 text-slate-500">ID</div>
             <div class="text-medium text-slate-600 font-semibold">{{ authorization?.auth_id }}</div>
-          </div>
-          <div class="h-2" />
-
-          <div class="flex items-center h-8">
-            <div class="w-35 text-slate-500">App Key</div>
-            <div class="text-medium text-slate-600 font-semibold">{{ authorization?.appkey }}</div>
-          </div>
-          <div class="h-2" />
-
-          <div class="flex items-center h-8">
-            <div class="w-35 text-slate-500">App Secret</div>
-            <div class="text-medium text-slate-600 font-semibold">
-              {{ authorization?.app_secret || '-' }}
-            </div>
           </div>
           <div class="h-2" />
 

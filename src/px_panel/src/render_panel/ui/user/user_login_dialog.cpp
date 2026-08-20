@@ -16,6 +16,7 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
 #include "render_panel/user/px_user_manager.h"
+#include "modify_password_dialog.h"
 #include "px_common_new/log.h"
 
 namespace px
@@ -106,18 +107,6 @@ namespace px
             content_layout->addLayout(layout);
         }
 
-        // or
-        {
-            auto lbl = new TcLabel(this);
-            auto layout = new NoMarginHLayout();
-            layout->addStretch();
-            layout->addWidget(lbl);
-            layout->addStretch();
-            lbl->setText("-or-");
-            content_layout->addSpacing(20);
-            content_layout->addLayout(layout);
-        }
-
         {
 
             auto style = "QLabel {"
@@ -141,16 +130,6 @@ namespace px
             {
                 auto lbl = new TcLabel(this);
                 lbl->SetOnClickListener([=, this](QWidget* w) {
-                    done(-1);
-                });
-                layout->addWidget(lbl);
-                lbl->setStyleSheet(style);
-                lbl->SetTextId("id_register");
-            }
-            layout->addSpacing(15);
-            {
-                auto lbl = new TcLabel(this);
-                lbl->SetOnClickListener([=, this](QWidget* w) {
                     TcDialog dialog(tcTr("id_tips"), tcTr("id_consult_admin_to_change_password"));
                     dialog.exec();
                 });
@@ -160,7 +139,7 @@ namespace px
             }
             layout->addStretch();
 
-            content_layout->addSpacing(10);
+            content_layout->addSpacing(20);
             content_layout->addLayout(layout);
         }
 
@@ -189,6 +168,13 @@ namespace px
         }
         bool r = user_mgr->Login(username, password);
         if (r) {
+            if (user_mgr->IsPasswordChangeRequired()) {
+                ModifyPasswordDialog dialog(context_, this);
+                if (dialog.exec() != kDoneOk) {
+                    user_mgr->Logout();
+                    return;
+                }
+            }
             done(0);
         }
         else {

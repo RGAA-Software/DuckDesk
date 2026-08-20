@@ -18,7 +18,6 @@ export async function queryDevices(
       online_state: state ? state.trim() : '',
       page: page,
       page_size: pageSize,
-      appkey: localStorage.getItem('appkey'),
     },
   })
   if (resp.status !== 200) {
@@ -39,7 +38,7 @@ export async function queryDevices(
 // update device active state
 export async function updateDeviceActive(device: Device, active: boolean) {
   const resp = await axiosHttp.post(
-    '/api/v1/device/control/update/device/active?appkey=' + localStorage.getItem('appkey'),
+    '/api/v1/device/control/update/device/active',
     {
       device_id: device.device_id,
       active: active,
@@ -58,4 +57,3 @@ export async function updateDeviceActive(device: Device, active: boolean) {
 
   return true
 }
-

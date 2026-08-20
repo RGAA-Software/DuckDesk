@@ -1,11 +1,11 @@
 use adlx::helper::AdlxHelper;
 use anyhow::Result;
+use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
+use nvml_wrapper::Nvml;
 use px_base::sys_info::{
     SysComponentInfo, SysCpuInfo, SysDiskInfo, SysGpuInfo, SysInfo, SysIpNetwork, SysMemInfo,
     SysNetworkInfo, SysOsInfo, SysSingleCpuInfo,
 };
-use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
-use nvml_wrapper::Nvml;
 use sysinfo::{Components, Disks, Networks, System, Users};
 
 #[derive(Debug, Clone)]

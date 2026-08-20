@@ -32,7 +32,36 @@ export const HOST_PORT = getHostPort()
 const axiosHttp = axios.create({
   baseURL: getBaseURL(),
   timeout: 5000,
+  withCredentials: true,
   headers: { 'X-Custom-Header': 'foobar' },
 })
+
+const CSRF_STORAGE_KEY = 'px_admin_csrf'
+
+export function setAdminCsrfToken(token: string) {
+  if (token) sessionStorage.setItem(CSRF_STORAGE_KEY, token)
+  else sessionStorage.removeItem(CSRF_STORAGE_KEY)
+}
+
+export function getAdminCsrfToken(): string {
+  return sessionStorage.getItem(CSRF_STORAGE_KEY) || ''
+}
+
+axiosHttp.interceptors.request.use((config) => {
+  const method = (config.method || 'get').toLowerCase()
+  if (!['get', 'head', 'options'].includes(method)) {
+    const csrf = getAdminCsrfToken()
+    if (csrf) config.headers.set('X-CSRF-Token', csrf)
+  }
+  return config
+})
+
+axiosHttp.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) setAdminCsrfToken('')
+    return Promise.reject(error)
+  },
+)
 
 export default axiosHttp

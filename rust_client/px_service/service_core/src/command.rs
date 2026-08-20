@@ -17,6 +17,12 @@ pub enum Command {
         req_device_id: String,
         req_stream_id: String,
     },
+    RedeemConnectionTicket {
+        request_id: String,
+        ticket: String,
+        client_nonce: String,
+        instance_id: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,8 +68,22 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
                 req_stream_id: request.req_stream_id,
             }
         }
+        ServiceMessageType::RedeemConnectionTicket => {
+            let request = message
+                .redeem_connection_ticket
+                .ok_or("missing redeem_connection_ticket payload")?;
+            Command::RedeemConnectionTicket {
+                request_id: request.request_id,
+                ticket: request.ticket,
+                client_nonce: request.client_nonce,
+                instance_id: request.instance_id,
+            }
+        }
         ServiceMessageType::HeartBeatResp => {
             return Err("heart_beat_resp is outbound only".to_string())
+        }
+        ServiceMessageType::RedeemConnectionTicketResp => {
+            return Err("redeem_connection_ticket_resp is outbound only".to_string())
         }
     };
     Ok(DispatchResult { command })

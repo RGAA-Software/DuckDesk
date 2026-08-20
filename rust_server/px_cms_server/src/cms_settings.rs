@@ -90,8 +90,85 @@ pub struct AppCredentialSettings {
     pub app_secret: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
+pub struct UserRateLimitSettings {
+    pub login_per_ip_per_minute: usize,
+    pub login_per_account_per_15_minutes: usize,
+    pub guest_session_per_ip_per_hour: usize,
+    pub start_per_subject_per_minute: usize,
+}
+
+impl Default for UserRateLimitSettings {
+    fn default() -> Self {
+        Self {
+            login_per_ip_per_minute: 10,
+            login_per_account_per_15_minutes: 20,
+            guest_session_per_ip_per_hour: 30,
+            start_per_subject_per_minute: 6,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
+pub struct UserQuotaSettings {
+    pub guest_concurrent_instances: usize,
+    pub user_concurrent_instances: usize,
+    pub guest_daily_minutes: usize,
+    pub public_app_global_concurrency: usize,
+}
+
+impl Default for UserQuotaSettings {
+    fn default() -> Self {
+        Self {
+            guest_concurrent_instances: 1,
+            user_concurrent_instances: 3,
+            guest_daily_minutes: 60,
+            public_app_global_concurrency: 20,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(default)]
+pub struct CmsUserSettings {
+    pub registration_mode: String,
+    pub panel_sliding_days: i64,
+    pub panel_absolute_days: i64,
+    pub web_sliding_hours: i64,
+    pub web_absolute_days: i64,
+    pub admin_sliding_hours: i64,
+    pub admin_absolute_hours: i64,
+    pub guest_absolute_hours: i64,
+    pub ticket_expire_seconds: i64,
+    pub rate_limit: UserRateLimitSettings,
+    pub quota: UserQuotaSettings,
+}
+
+impl Default for CmsUserSettings {
+    fn default() -> Self {
+        Self {
+            registration_mode: "closed".to_string(),
+            panel_sliding_days: 30,
+            panel_absolute_days: 90,
+            web_sliding_hours: 12,
+            web_absolute_days: 30,
+            admin_sliding_hours: 2,
+            admin_absolute_hours: 8,
+            guest_absolute_hours: 24,
+            ticket_expire_seconds: 30,
+            rate_limit: UserRateLimitSettings::default(),
+            quota: UserQuotaSettings::default(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct CmsSettings {
+    /// Deployment guard used by destructive maintenance commands.
+    #[serde(default = "default_environment")]
+    pub environment: String,
     pub server_name: String,
     pub server_w3c_ip: String,
     pub cms_port: u16,
@@ -101,6 +178,11 @@ pub struct CmsSettings {
     pub redis_url: String,
     pub ssl_cert: String,
     pub ssl_key: String,
+
+    /// Server-only salt for IP/User-Agent correlation hashes. Production must
+    /// provide an installation-specific value and must never expose it to Web.
+    #[serde(default)]
+    pub privacy_hash_salt: String,
 
     /// 授权服务器地址（px_auth_server）。
     #[serde(default = "default_auth_server_url")]
@@ -130,6 +212,11 @@ pub struct CmsSettings {
     #[serde(default)]
     pub live: CmsLiveSettings,
 
+    /// End-user identity, throttling and quota policy. Registration defaults
+    /// to closed; legacy appkey registration is never enabled by this value.
+    #[serde(default)]
+    pub user: CmsUserSettings,
+
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]
     pub upload_path: String,
@@ -145,9 +232,42 @@ pub struct CmsSettings {
     pub abs_upload_logs_path: String,
 }
 
+fn default_environment() -> String {
+    "production".to_string()
+}
+
 impl CmsSettings {
     pub fn new() -> Self {
         CmsSettings::default()
+    }
+
+    /// Reject insecure production combinations before any listener or managed
+    /// sidecar is started. Test deployments remain explicit through
+    /// `environment = "test"`; production never silently downgrades auth/TLS.
+    pub fn validate_for_server(&self) -> Result<(), String> {
+        if !matches!(self.environment.as_str(), "test" | "production") {
+            return Err("environment must be either 'test' or 'production'".to_string());
+        }
+        if self.environment == "production" {
+            if !self.force_authorize {
+                return Err("production requires force_authorize=true".to_string());
+            }
+            if !self.ssl_enable {
+                return Err("production external login requires ssl_enable=true".to_string());
+            }
+            if self.ssl_cert.trim().is_empty() || self.ssl_key.trim().is_empty() {
+                return Err("production TLS certificate and key must be configured".to_string());
+            }
+            if self.privacy_hash_salt.as_bytes().len() < 16 {
+                return Err(
+                    "production privacy_hash_salt must contain at least 16 bytes".to_string(),
+                );
+            }
+        }
+        if !(5..=300).contains(&self.user.ticket_expire_seconds) {
+            return Err("user.ticket_expire_seconds must be between 5 and 300".to_string());
+        }
+        Ok(())
     }
 
     pub async fn load_settings() {
@@ -203,6 +323,62 @@ impl CmsSettings {
     }
 
     pub fn dump(&self) {
-        tracing::info!("{:#?}", self);
+        tracing::info!(
+            environment = %self.environment,
+            server_name = %self.server_name,
+            server_w3c_ip = %self.server_w3c_ip,
+            cms_port = self.cms_port,
+            udp_broadcast_port = self.udp_broadcast_port,
+            relay_port = self.relay_port,
+            ssl_enable = self.ssl_enable,
+            force_authorize = self.force_authorize,
+            media_server_url = %self.live.media_server_url,
+            registration_mode = %self.user.registration_mode,
+            "CMS settings loaded (secrets redacted)"
+        );
+    }
+}
+
+#[cfg(test)]
+mod security_tests {
+    use super::CmsSettings;
+
+    fn base() -> CmsSettings {
+        let mut settings = CmsSettings::default();
+        settings.environment = "production".to_string();
+        settings.force_authorize = true;
+        settings.ssl_enable = true;
+        settings.ssl_cert = "cert.pem".to_string();
+        settings.ssl_key = "key.pem".to_string();
+        settings.privacy_hash_salt = "installation-specific-salt".to_string();
+        settings.user.ticket_expire_seconds = 30;
+        settings
+    }
+
+    #[test]
+    fn production_rejects_auth_or_tls_downgrade() {
+        let mut settings = base();
+        assert!(settings.validate_for_server().is_ok());
+        settings.force_authorize = false;
+        assert!(settings.validate_for_server().is_err());
+        settings.force_authorize = true;
+        settings.ssl_enable = false;
+        assert!(settings.validate_for_server().is_err());
+        settings.ssl_enable = true;
+        settings.privacy_hash_salt.clear();
+        assert!(settings.validate_for_server().is_err());
+    }
+
+    #[test]
+    fn only_explicit_environment_names_and_bounded_ticket_ttl_are_accepted() {
+        let mut settings = base();
+        settings.environment = "prod".to_string();
+        assert!(settings.validate_for_server().is_err());
+        settings.environment = "test".to_string();
+        settings.force_authorize = false;
+        settings.ssl_enable = false;
+        assert!(settings.validate_for_server().is_ok());
+        settings.user.ticket_expire_seconds = 301;
+        assert!(settings.validate_for_server().is_err());
     }
 }

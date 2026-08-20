@@ -27,7 +27,10 @@ impl WebsocketService {
             .await
             .map_err(|err| err.to_string())?;
         loop {
-            let (stream, _) = listener.accept().await.map_err(|err| err.to_string())?;
+            let (stream, peer) = listener.accept().await.map_err(|err| err.to_string())?;
+            if !peer.ip().is_loopback() {
+                continue;
+            }
             let runtime = self.runtime.clone();
             let expected_path = config.ws_path.clone();
             tokio::spawn(async move {
@@ -42,13 +45,29 @@ async fn handle_connection(
     runtime: Arc<Mutex<ServiceRuntime>>,
     expected_path: String,
 ) -> Result<(), String> {
+    let ipc_token = runtime.lock().await.ipc_token.clone();
     let ws_stream = accept_hdr_async(stream, move |req: &Request, resp: Response| {
-        if req.uri().path() == expected_path {
+        let render_authorized = req
+            .headers()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value == format!("Bearer {ipc_token}"));
+        // The listener itself only accepts loopback peers. The interactive
+        // Panel is the local controller and predates the per-process Render
+        // credential, so keep its explicit `from=panel` control channel
+        // compatible. Render processes still must present the ephemeral
+        // bearer token injected by px_service at launch.
+        let panel_controller = req.uri().query().is_some_and(|query| {
+            query
+                .split('&')
+                .any(|item| item.eq_ignore_ascii_case("from=panel"))
+        });
+        if req.uri().path() == expected_path && (render_authorized || panel_controller) {
             Ok(resp)
         } else {
             Err(
                 tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
-                    "invalid path".to_string(),
+                    "forbidden".to_string(),
                 )),
             )
         }
@@ -92,11 +111,63 @@ async fn handle_connection(
                 Ok(result) => result.command,
                 Err(_) => continue,
             };
-            let response = {
-                let mut guard = runtime.lock().await;
-                match guard.handle_command(command) {
-                    Ok(response) => response,
-                    Err(_) => continue,
+            let response = match command {
+                service_core::command::Command::RedeemConnectionTicket {
+                    request_id,
+                    ticket,
+                    client_nonce,
+                    instance_id,
+                } => {
+                    let channel = runtime.lock().await.ticket_redeem_tx.clone();
+                    if let Some(channel) = channel {
+                        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                        let request = crate::service_host::TicketRedeemRequest {
+                            request_id: request_id.clone(),
+                            ticket,
+                            client_nonce,
+                            instance_id,
+                            response: reply_tx,
+                        };
+                        match channel.send(request).await {
+                            Ok(()) => match tokio::time::timeout(
+                                std::time::Duration::from_secs(3),
+                                reply_rx,
+                            )
+                            .await
+                            {
+                                Ok(Ok(result)) => Some(ticket_response(request_id, result)),
+                                _ => Some(ticket_response(
+                                    request_id,
+                                    crate::service_host::TicketRedeemResult {
+                                        code: "CMS_TIMEOUT".to_string(),
+                                        ..Default::default()
+                                    },
+                                )),
+                            },
+                            Err(_) => Some(ticket_response(
+                                request_id,
+                                crate::service_host::TicketRedeemResult {
+                                    code: "CMS_UNAVAILABLE".to_string(),
+                                    ..Default::default()
+                                },
+                            )),
+                        }
+                    } else {
+                        Some(ticket_response(
+                            request_id,
+                            crate::service_host::TicketRedeemResult {
+                                code: "CMS_UNAVAILABLE".to_string(),
+                                ..Default::default()
+                            },
+                        ))
+                    }
+                }
+                command => {
+                    let mut guard = runtime.lock().await;
+                    match guard.handle_command(command) {
+                        Ok(response) => response,
+                        Err(_) => continue,
+                    }
                 }
             };
             if let Some(response) = response {
@@ -116,24 +187,51 @@ async fn handle_connection(
     Ok(())
 }
 
+fn ticket_response(
+    request_id: String,
+    result: crate::service_host::TicketRedeemResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::RedeemConnectionTicketResp as i32,
+        redeem_connection_ticket_resp: Some(service_core::MsgRedeemConnectionTicketResp {
+            request_id,
+            ok: result.ok,
+            code: result.code,
+            grant: result.ok.then_some(service_core::MsgConnectionGrant {
+                kind: result.kind,
+                device_id: result.device_id,
+                app_id: result.app_id,
+                instance_id: result.instance_id,
+                subject_type: result.subject_type,
+                subject_id: result.subject_id,
+                permissions: result.permissions,
+                expires_at: result.expires_at,
+            }),
+        }),
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::{Arc as StdArc, Mutex as StdMutex};
     use std::time::Duration;
 
-    use crate::windows_actions::WindowsActions;
-    use crate::windows_actions::SystemActions;
-    use crate::windows_process::{ProcessManager, WindowsProcessManager};
     use crate::service_host::ServiceRuntime;
+    use crate::windows_actions::SystemActions;
+    use crate::windows_actions::WindowsActions;
+    use crate::windows_process::{ProcessManager, WindowsProcessManager};
     use service_core::config::ServiceConfig;
     use service_core::process::ProcessSnapshot;
+    use service_core::windows_util::{default_service_data_root, default_service_log_root};
     use service_core::{
         encode_service_message, MsgHeartBeat, MsgStartServer, RenderLaunchSpec, RenderStatus,
         ServiceMessage, ServiceMessageType,
     };
-    use service_core::windows_util::{default_service_data_root, default_service_log_root};
-    use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use tokio_tungstenite::{
+        connect_async, tungstenite::client::IntoClientRequest, tungstenite::Message,
+    };
 
     struct MockProcessManager {
         processes: StdMutex<Vec<ProcessSnapshot>>,
@@ -155,7 +253,10 @@ mod tests {
         }
 
         fn kill_process(&self, pid: u32) -> Result<(), String> {
-            self.processes.lock().unwrap().retain(|process| process.pid != pid);
+            self.processes
+                .lock()
+                .unwrap()
+                .retain(|process| process.pid != pid);
             Ok(())
         }
 
@@ -209,7 +310,11 @@ mod tests {
         drop(port_listener);
 
         let process_manager = StdArc::new(MockProcessManager::new());
-        let mut config = ServiceConfig::new(port, default_service_data_root(), default_service_log_root());
+        let mut config = ServiceConfig::new(
+            port,
+            default_service_data_root(),
+            default_service_log_root(),
+        );
         config.listen_host = "127.0.0.1".to_string();
         let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
             config,
@@ -220,9 +325,14 @@ mod tests {
         let task = tokio::spawn(async move { service.run_console().await });
         tokio::time::sleep(Duration::from_millis(150)).await;
 
-        let (mut ws, _) = connect_async(format!("ws://127.0.0.1:{port}/service/message"))
-            .await
+        let token = runtime.lock().await.ipc_token.clone();
+        let mut request = format!("ws://127.0.0.1:{port}/service/message")
+            .into_client_request()
             .unwrap();
+        request
+            .headers_mut()
+            .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        let (mut ws, _) = connect_async(request).await.unwrap();
         let start = ServiceMessage {
             r#type: ServiceMessageType::StartServer as i32,
             start_server: Some(MsgStartServer {
@@ -258,6 +368,37 @@ mod tests {
             Some(RenderStatus::Working)
         );
         assert_eq!(process_manager.launches.lock().unwrap().len(), 2);
+
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn websocket_service_accepts_loopback_panel_controller_without_render_token() {
+        let port_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = port_listener.local_addr().unwrap().port();
+        drop(port_listener);
+
+        let mut config = ServiceConfig::new(
+            port,
+            default_service_data_root(),
+            default_service_log_root(),
+        );
+        config.listen_host = "127.0.0.1".to_string();
+        let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
+            config,
+            StdArc::new(MockProcessManager::new()),
+            StdArc::new(MockActions),
+        )));
+        let service = WebsocketService::new(runtime);
+        let task = tokio::spawn(async move { service.run_console().await });
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        let panel_url = format!("ws://127.0.0.1:{port}/service/message?from=panel");
+        let (mut panel, _) = connect_async(panel_url).await.unwrap();
+        panel.close(None).await.unwrap();
+
+        let render_url = format!("ws://127.0.0.1:{port}/service/message?from=render");
+        assert!(connect_async(render_url).await.is_err());
 
         task.abort();
     }

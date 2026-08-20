@@ -103,10 +103,11 @@ export class WallRtcSession {
 
       const controller = new AbortController()
       const timeout = window.setTimeout(() => controller.abort(), 18000)
-      const appkey = localStorage.getItem('appkey') ?? ''
-      const response = await fetch(`/api/v1/wall/control/session?appkey=${encodeURIComponent(appkey)}`, {
+      const csrf = sessionStorage.getItem('px_admin_csrf') || ''
+      const response = await fetch('/api/v1/wall/control/session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ device_id: this.deviceId, offer_sdp: pc.localDescription.sdp }),
         signal: controller.signal,
       }).finally(() => window.clearTimeout(timeout))

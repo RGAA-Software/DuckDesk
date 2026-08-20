@@ -62,5 +62,6 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         return AuthorApiError::InvalidAppCredential.into_response();
     }
 
-    next.run(Request::from_parts(parts, Body::from(bytes))).await
+    next.run(Request::from_parts(parts, Body::from(bytes)))
+        .await
 }
