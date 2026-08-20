@@ -113,14 +113,11 @@ function applyTarget(target?: LiveNodeOption) {
   selectedDeviceId.value = target?.node.device_id || ''
 }
 
-function choosePreferredNode() {
+function chooseDefaultNode() {
   const current = nodeOptions.value.find((target) => target.node.node_id === selectedNodeId.value)
-  const preferred =
-    current ||
-    nodeOptions.value.find((target) => target.instance?.state === 'running') ||
-    nodeOptions.value[0]
-  selectedNodeId.value = preferred?.node.node_id || ''
-  applyTarget(preferred)
+  const target = current || nodeOptions.value[0]
+  selectedNodeId.value = target?.node.node_id || ''
+  applyTarget(target)
 }
 
 const streamLabel = computed(() => status.value?.stream_id || '')
@@ -269,14 +266,9 @@ async function refreshCatalog(chooseDefault = false) {
       devices.value = devicesResult.value
 
     if (!apps.value.some((app) => app.app_id === selectedAppId.value)) {
-      selectedAppId.value =
-        apps.value.find((app) =>
-          app.nodes.some((node) => latestInstance(app.app_id, node)?.state === 'running'),
-        )?.app_id ||
-        apps.value[0]?.app_id ||
-        ''
+      selectedAppId.value = apps.value[0]?.app_id || ''
     }
-    if (chooseDefault || !selectedTarget.value) choosePreferredNode()
+    if (chooseDefault || !selectedTarget.value) chooseDefaultNode()
   } finally {
     catalogLoading.value = false
   }
@@ -297,7 +289,7 @@ watch([selectedAppId, selectedNodeId], async () => {
   await refreshStatus(true)
 })
 
-watch(selectedAppId, () => choosePreferredNode())
+watch(selectedAppId, () => chooseDefaultNode())
 
 onMounted(async () => {
   await refreshCatalog(true)
