@@ -33,6 +33,7 @@ namespace px
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         int GetConnectedClientsCount() override;
+        int GetMediaConsumersCount() override;
         int64_t GetQueuingMediaMsgCount() override;
         int64_t GetQueuingFtMsgCount() override;
         bool HasEnoughBufferForQueuingMediaMessages() override;
@@ -64,11 +65,10 @@ namespace px
         // samples = sample rate (Hz).
         void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) override;
 
-        // 按编码产出序号顺序取帧:返回 mon_name 屏 seq > after_seq 的最旧一帧(严格按
-        // 编码器产出顺序消费,H264 delta 链不断裂;NVENC 跳帧编码时采集序号不连续,
-        // 不能再按采集序号匹配)。out_gap: 有未消费的帧被淘汰(缓存溢出)时为 true,
-        // 消费端应 InsertIdr 等关键帧续接。无新帧返回 nullptr。
-        std::shared_ptr<RtcLocalEncodedVideoFrame> PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap);
+        // 按编码产出序号非破坏性读取:每个 WebRTC 编码器持有独立 cursor,多连接
+        // 可读取同一帧。生产端有界缓存负责淘汰旧帧;out_gap 表示该消费者落后并
+        // 丢失了 delta 链,消费端应 InsertIdr 等待关键帧续接。
+        std::shared_ptr<RtcLocalEncodedVideoFrame> ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap);
         // 有界等待该屏 seq > after_seq 的编码帧到达(Encode 首次 Pop 为空时调用),
         // 等到返回 true。用于把"采集帧驱动的 Encode 只能搬上一帧"的固有 1.5 帧
         // 拾取延迟压缩到编码管线延迟以内;超时返回 false,调用方按现状空转返回。
@@ -105,7 +105,7 @@ namespace px
     private:
         px::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
         // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
-        // webrtc 编码线程(PopNextEncodedVideoFrame)并发访问,必须加锁。
+        // webrtc 编码线程(ReadNextEncodedVideoFrame)并发访问,必须加锁。
         // key = (mon_name, seq):按屏隔离 + 按产出序号数值有序
         std::mutex encoded_video_frames_mtx_;
         std::map<std::pair<std::string, uint64_t>, std::shared_ptr<RtcLocalEncodedVideoFrame>> encoded_video_frames_;
@@ -120,6 +120,9 @@ namespace px
         // 重复喂会让 webrtc Encode 双倍消费 seq,断链)。纯 GDI/mock 时没有
         // shared-texture 事件,由 YUV 裸帧路径驱动 webrtc。
         std::atomic<int64_t> last_shared_tex_ts_{0};
+        // libwebrtc 的 SSL 环境是进程级资源。RTC Local 允许多个会话并存后，
+        // 不能再由单个 RtcServer 的退出去清理，否则会破坏其余在线连接。
+        bool ssl_initialized_ = false;
     };
 
 }

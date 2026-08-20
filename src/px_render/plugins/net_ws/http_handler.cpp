@@ -178,6 +178,22 @@ namespace px
         rtc_req->req_ip_ = session_ptr->remote_address();
         rtc_req->sdp_ = sdp;
         rtc_req->content_type_ = content_type;
+        // wall_observer is accepted only after the safety password validation
+        // above. CMS keeps that credential server-side and proxies signaling;
+        // browsers never need to receive it.
+        if (auto param = GetParam(params, "session_role");
+            param.has_value() && param.value() == "wall_observer") {
+            // Hidden/no-audit observer is privileged. Only px_service on this
+            // machine may request it; remote callers with a device password
+            // still get the normal, visible interactive role.
+            const auto remote = session_ptr->remote_address();
+            if (remote != "127.0.0.1" && remote != "::1") {
+                LOGW("Reject remote wall_observer request from {}", remote);
+                SendErrorJson(resp, kHandlerErrParams);
+                return;
+            }
+            rtc_req->session_role_ = PxLocalRtcSessionRole::kWallObserver;
+        }
         // takeover=1: 客户端已确认接管,直接顶掉同 stream_id 的现存连接
         if (auto param = GetParam(params, "takeover"); param.has_value()) {
             rtc_req->takeover_ = (param.value() == "1" || param.value() == "true");

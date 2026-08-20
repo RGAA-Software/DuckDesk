@@ -34,12 +34,14 @@ namespace px
         return plugin_;
     }
 
-    bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp) {
+    bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp,
+                          PxLocalRtcSessionRole session_role) {
         this->stream_id_ = stream_id;
         this->offer_sdp_ = offer_sdp;
+        this->wall_observer_ = session_role == PxLocalRtcSessionRole::kWallObserver;
+        this->created_timestamp_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         webrtc::field_trial::InitFieldTrialsFromString("");
         rtc::LogMessage::LogToDebug(rtc::LS_ERROR);
-        rtc::InitializeSSL();
 
         set_remote_offer_sdp_callback_ = SetSessCallback::Make(shared_from_this());
         set_local_answer_sdp_callback_ = SetSessCallback::Make(shared_from_this());
@@ -83,6 +85,13 @@ namespace px
         });
 
         peer_callback_->SetOnDataChannelCallback([=, this](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
+            // A wall observer is receive-only. Even a crafted offer must not
+            // obtain an input, file-transfer or protocol channel.
+            if (IsWallObserver()) {
+                LOGW("Ignore data channel from wall observer: {}", name);
+                ch->Close();
+                return;
+            }
             if (name == "media_data_channel") {
                 media_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
 
@@ -129,11 +138,15 @@ namespace px
 
         // network state
         peer_callback_->SetOnIceConnectedCallback([=, this]() {
+            ice_connected_ = true;
             ice_disconnected_since_ms_ = 0;
         });
 
         // 远端音频轨(浏览器麦克风上行):接收解码后经 WASAPI 播放
         peer_callback_->SetOnAudioTrackCallback([=, this](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+            if (IsWallObserver()) {
+                return;
+            }
             this->OnRemoteAudioTrack(std::move(track));
         });
 
@@ -142,8 +155,9 @@ namespace px
         });
 
         peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
+            ice_connected_ = false;
             // 记录 Disconnected 起始时刻,On100msTimeout 负责超时判死。
-            // 若 ICE 之后恢复为 Connected,OnIceConnectedCallback 会清零该标记。
+            // 若 ICE 在 5 秒宽限期内恢复为 Connected,回调会清零该标记。
             int64_t expect = 0;
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
@@ -153,6 +167,7 @@ namespace px
         // 从 rtc_servers_ 中清除。注意:此回调运行在 libwebrtc 线程上,不能在此
         // 直接 Exit()(会 Stop/join 当前线程),真正的资源回收由 plugin 延迟 Sweep。
         peer_callback_->SetOnIceTerminalCallback([=, this]() {
+            ice_connected_ = false;
             LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", conn_id_);
             exit_ = true;
             EmitClientDisconnectedEvent();
@@ -307,16 +322,20 @@ namespace px
             video_tracks_.push_back(mvt);
         }
 
-        // audio source
-        audio_source_ = AudioSourceImpl::Create();
-        auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
-        // 多 track 模式下音频用独立 stream id,避免和多路 video 混在同一 stream;
-        // 单 track 模式保持与 video 同 stream(web 端 srcObject 需要)
-        if (multi_track_mode_) {
-            peer_conn_->AddTrack(audio_track, { std::format("{}_audio", kMediaStreamId) });
-        }
-        else {
-            peer_conn_->AddTrack(audio_track, { kMediaStreamId });
+        // CMS wall sessions are video-only by contract. Do not create an RTP
+        // audio sender at all; this saves capture/encode/network work and makes
+        // the privacy boundary independent of browser mute state.
+        if (!IsWallObserver()) {
+            audio_source_ = AudioSourceImpl::Create();
+            auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
+            // 多 track 模式下音频用独立 stream id,避免和多路 video 混在同一 stream;
+            // 单 track 模式保持与 video 同 stream(web 端 srcObject 需要)
+            if (multi_track_mode_) {
+                peer_conn_->AddTrack(audio_track, { std::format("{}_audio", kMediaStreamId) });
+            }
+            else {
+                peer_conn_->AddTrack(audio_track, { kMediaStreamId });
+            }
         }
 
         // BWE 初始种子:默认起始估计只有 300kbps,爬坡期 pacing 饿死视频码流,
@@ -360,7 +379,7 @@ namespace px
 
         LOGI("Will create answer sdp.");
         webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
-        options.offer_to_receive_audio = true;
+        options.offer_to_receive_audio = !IsWallObserver();
         options.offer_to_receive_video = true;
         peer_conn_->CreateAnswer(this->create_answer_callback_.get(), options);
 
@@ -454,6 +473,16 @@ namespace px
         return !exit_ && media_data_channel_ && media_data_channel_->IsConnected();
     }
 
+    bool RtcServer::IsMediaConsumerActive() const {
+        if (exit_) {
+            return false;
+        }
+        // Observer offers intentionally have no data channel. Count the
+        // allocated session while ICE is being established, then its ICE
+        // lifecycle owns cleanup. Interactive sessions retain legacy behavior.
+        return IsWallObserver() || (media_data_channel_ && media_data_channel_->IsConnected());
+    }
+
     bool RtcServer::IsFtDataChannelConnected() {
         return !exit_ && ft_data_channel_ && ft_data_channel_->IsConnected();
     }
@@ -475,6 +504,16 @@ namespace px
     }
 
     void RtcServer::On100msTimeout() {
+        if (!exit_ && wall_observer_ && !ice_connected_) {
+            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
+            if (now - created_timestamp_ms_ >= kWallObserverConnectTimeoutMs) {
+                LOGW("Wall observer connect timeout, conn_id: {}, will be swept.", conn_id_);
+                exit_ = true;
+                if (plugin_) {
+                    plugin_->NotifyRtcServerTerminal(conn_id_, this);
+                }
+            }
+        }
         if (!exit_ && ice_disconnected_since_ms_.load() != 0) {
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             if (now - ice_disconnected_since_ms_.load() >= kIceDisconnectedTimeoutMs) {
@@ -593,6 +632,9 @@ namespace px
     }
 
     void RtcServer::EmitClientDisconnectedEvent() {
+        if (IsWallObserver()) {
+            return;
+        }
         // 全连接生命周期只发一次:ICE 瞬断/终态、media datachannel 独立关闭、
         // ICE 超时判死 都可能触发。
         if (disconnect_event_sent_.exchange(true)) {
@@ -659,7 +701,6 @@ namespace px
         input_data_channel_ = nullptr;
         ping_data_channel_ = nullptr;
 
-        rtc::CleanupSSL();
     }
 
 }

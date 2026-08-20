@@ -32,6 +32,12 @@ fn main() {
     }
 
     let proto_dir = manifest_dir.join("../../src/px_deps/px_server_protocol");
+    // Protocol sources live outside this crate, so Cargo cannot discover
+    // changes automatically. Keep generated Rust in sync on incremental builds.
+    println!(
+        "cargo:rerun-if-changed={}",
+        proto_dir.join("cms_service.proto").display()
+    );
 
     tonic_prost_build::configure()
         .build_server(true)

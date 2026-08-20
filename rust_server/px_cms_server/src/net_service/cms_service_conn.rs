@@ -5,7 +5,8 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
 use protocol::cms_service::{
-    CmsServiceHeartBeat, CmsServiceHello, CmsServiceMessage, CmsServiceMessageType,
+    CmsServiceCreateWallSession, CmsServiceHeartBeat, CmsServiceHello, CmsServiceMessage,
+    CmsServiceMessageType,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -123,6 +124,10 @@ impl CmsServiceConn {
                     .on_stop_result(self.device_id.clone(), sub)
                     .await;
             }
+        } else if m.msg_type == CmsServiceMessageType::KCmsServiceCreateWallSessionResult {
+            if let Some(sub) = m.create_wall_session_result {
+                crate::wall::cms_wall_handler::on_wall_session_result(sub).await;
+            }
         }
 
         true
@@ -183,6 +188,15 @@ impl CmsServiceConn {
         sv_msg.set_msg_type(CmsServiceMessageType::KCmsServiceStopAppInstance);
         sv_msg.device_id = self.device_id.clone();
         sv_msg.stop_app_instance = Some(stop);
+        self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
+            .await
+    }
+
+    pub async fn send_create_wall_session(&mut self, request: CmsServiceCreateWallSession) -> bool {
+        let mut sv_msg = CmsServiceMessage::default();
+        sv_msg.set_msg_type(CmsServiceMessageType::KCmsServiceCreateWallSession);
+        sv_msg.device_id = self.device_id.clone();
+        sv_msg.create_wall_session = Some(request);
         self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
             .await
     }

@@ -39,6 +39,14 @@ namespace px
         kGameStream,
     };
 
+    // Local RTC session purpose. Wall observers are trusted, read-only CMS
+    // monitoring sessions: they consume video but are deliberately excluded
+    // from the normal visitor lifecycle, controls, audio and audit statistics.
+    enum class PxLocalRtcSessionRole {
+        kInteractive,
+        kWallObserver,
+    };
+
     class PxLocalRtcRequestInfo {
     public:
         std::string device_id_;
@@ -46,6 +54,7 @@ namespace px
         std::string req_ip_;
         std::string sdp_;
         PxLocalRtcContentType content_type_;
+        PxLocalRtcSessionRole session_role_ = PxLocalRtcSessionRole::kInteractive;
         // true: 调用方已确认接管,直接顶掉同 stream_id 的现存连接;
         // false: 若现存连接仍活跃,返回 kOccupied 让调用方去确认
         bool takeover_ = false;
@@ -159,6 +168,11 @@ namespace px
         // Appended after PostIpcBinaryMessage (same vtable-slot caution applies).
         // Register a game pid that is allowed to connect /ipc (written boot config for it).
         virtual void RegisterIpcPid(uint32_t pid);
+
+        // Media consumers may include non-business observers which must keep
+        // capture/encoding alive without appearing as connected visitors.
+        // Appended at the end to preserve the existing plugin ABI layout.
+        virtual int GetMediaConsumersCount();
 
     protected:
         NetSyncInfo sync_info_{};

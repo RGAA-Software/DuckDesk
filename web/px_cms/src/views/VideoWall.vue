@@ -1,309 +1,280 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { notification } from 'ant-design-vue'
+import { computed, markRaw, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { Device } from '@/entity/device.ts'
 import { queryDevices } from '@/model/device_api.ts'
-import { buildWebClientUrl } from '@/util/web_client_url.ts'
-
-type CellStatus = 'connecting' | 'loaded' | 'unreachable'
+import { WallRtcSession, type WallRtcState, type WallRtcStats } from '@/model/wall_rtc.ts'
 
 interface WallCell {
-  deviceId: string
-  deviceName: string
+  device: Device
+  state: WallRtcState | 'offline'
+  message: string
   ip: string
-  port: string
-  password: string
-  src: string
-  status: CellStatus
-  // 每次连接自增,作为 iframe 的 key 强制重建,保证重新加载
-  gen: number
+  port: number
+  stats: WallRtcStats
+  stream: MediaStream | null
+  // Structural public surface keeps Vue's reactive type unwrapping from
+  // exposing the class' private RTCPeerConnection internals.
+  session: Pick<WallRtcSession, 'start' | 'close'> | null
+  retryTimer: number
+  retryAttempt: number
 }
 
-const MAX_CELLS = 9
-const LOAD_TIMEOUT_MS = 10000
-
+const PAGE_SIZE = 9
 const devices = ref<Device[]>([])
-const selectedIds = ref<string[]>([])
+const loading = ref(false)
+const currentPage = ref(1)
+const videoElements = new Map<string, HTMLVideoElement>()
 const cells = ref<WallCell[]>([])
-const globalPassword = ref('')
 
-const loadTimers = new Map<string, number>()
+const sortedDevices = computed(() =>
+  [...devices.value].sort((a, b) => {
+    if (a.online !== b.online) return a.online ? -1 : 1
+    return `${a.device_name}\u0000${a.device_id}`.localeCompare(`${b.device_name}\u0000${b.device_id}`, 'zh-CN')
+  }),
+)
+const total = computed(() => sortedDevices.value.length)
+const pageDevices = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return sortedDevices.value.slice(start, start + PAGE_SIZE)
+})
 
-// desktop_link: link://base64(json{did, ips[], rdpt, ...}),同 DevicesList 的解析逻辑
-function parseDesktopLink(device: Device): { did: string; ip: string; port: string } | null {
+const emptyStats = (): WallRtcStats => ({
+  width: 0,
+  height: 0,
+  fps: 0,
+  bitrateKbps: 0,
+  rttMs: 0,
+  codec: '',
+})
+
+function parseEndpoint(device: Device) {
   try {
-    const raw = device.desktop_link.startsWith('link://')
-      ? device.desktop_link.substring(7)
-      : device.desktop_link
-    const info = JSON.parse(atob(raw))
-    // ips 元素可能是字符串,也可能是 {ip: "..."} 结构
-    const first = info.ips?.[0]
-    const ip = typeof first === 'string' ? first : first?.ip
-    const port = info.rdpt
-    if (!ip || !port) {
-      return null
+    const raw = device.desktop_link_raw
+      ? JSON.parse(device.desktop_link_raw)
+      : JSON.parse(atob(device.desktop_link.replace(/^link:\/\//, '')))
+    const first = raw.ips?.[0]
+    return {
+      ip: typeof first === 'string' ? first : first?.ip || '',
+      port: Number(raw.rdpt || 0),
     }
-    return { did: info.did || device.device_id, ip, port: String(port) }
-  } catch (e) {
-    console.error('parse desktop_link failed', e)
-    return null
+  } catch {
+    return { ip: '', port: 0 }
   }
 }
 
-function buildSrc(cell: WallCell): string {
-  // ?c= 编码 deviceId/password,与 panel / web_client 对齐
-  return buildWebClientUrl(cell.ip, cell.port, {
-    deviceId: cell.deviceId,
-    password: cell.password || undefined,
-  })
+function setVideoRef(deviceId: string, element: unknown) {
+  if (!(element instanceof HTMLVideoElement)) {
+    videoElements.delete(deviceId)
+    return
+  }
+  videoElements.set(deviceId, element)
+  const cell = cells.value.find((item) => item.device.device_id === deviceId)
+  // 统计数据每秒更新会触发组件重渲染；不要反复给同一个 video 赋值
+  // srcObject，否则 Chrome 会偶发把 readyState/currentTime 重置后再缓冲。
+  if (cell?.stream && element.srcObject !== cell.stream) {
+    element.srcObject = cell.stream
+    void element.play().catch(() => undefined)
+  }
 }
 
-function clearLoadTimer(deviceId: string) {
-  const t = loadTimers.get(deviceId)
-  if (t !== undefined) {
-    window.clearTimeout(t)
-    loadTimers.delete(deviceId)
+function closeCells() {
+  for (const cell of cells.value) {
+    if (cell.retryTimer) window.clearTimeout(cell.retryTimer)
+    cell.retryTimer = 0
+    cell.session?.close(false)
+    cell.session = null
+    cell.stream = null
+  }
+  for (const video of videoElements.values()) video.srcObject = null
+  videoElements.clear()
+}
+
+async function buildPage() {
+  closeCells()
+  cells.value = pageDevices.value.map((device) => {
+    const endpoint = parseEndpoint(device)
+    return reactive<WallCell>({
+      device,
+      state: device.online ? 'connecting' : 'offline',
+      message: device.online ? '准备连接' : '设备离线',
+      ip: endpoint.ip,
+      port: endpoint.port,
+      stats: emptyStats(),
+      stream: null,
+      session: null,
+      retryTimer: 0,
+      retryAttempt: 0,
+    })
+  })
+  await nextTick()
+  for (const cell of cells.value) {
+    if (cell.device.online) connectCell(cell)
   }
 }
 
 function connectCell(cell: WallCell) {
-  clearLoadTimer(cell.deviceId)
-  cell.status = 'connecting'
-  cell.src = buildSrc(cell)
-  cell.gen += 1
-  loadTimers.set(
-    cell.deviceId,
-    window.setTimeout(() => {
-      // 超时仍未触发 load,认为 render 不可达
-      if (cell.status === 'connecting') {
-        cell.status = 'unreachable'
-      }
-      loadTimers.delete(cell.deviceId)
-    }, LOAD_TIMEOUT_MS),
+  if (cell.retryTimer) window.clearTimeout(cell.retryTimer)
+  cell.retryTimer = 0
+  cell.session?.close(false)
+  cell.stream = null
+  cell.stats = emptyStats()
+  const video = videoElements.get(cell.device.device_id)
+  if (video) video.srcObject = null
+
+  const session = markRaw(
+    new WallRtcSession(cell.device.device_id, {
+      onState: (state, message) => {
+        cell.state = state
+        cell.message = message ?? stateText(state)
+        if (state === 'playing') {
+          if (cell.retryTimer) window.clearTimeout(cell.retryTimer)
+          cell.retryTimer = 0
+          cell.retryAttempt = 0
+        }
+        if (state === 'error') scheduleReconnect(cell)
+      },
+      onStream: (stream) => {
+        cell.stream = stream
+        const target = videoElements.get(cell.device.device_id)
+        if (target && target.srcObject !== stream) {
+          target.srcObject = stream
+          void target.play().catch(() => undefined)
+        }
+      },
+      onStats: (stats) => (cell.stats = stats),
+      onEndpoint: (ip, port) => {
+        cell.ip = ip
+        cell.port = port
+      },
+    }),
   )
+  cell.session = session
+  void session.start()
 }
 
-function onFrameLoad(cell: WallCell) {
-  // 只证明页面本身加载出来了,WebRTC 是否出画面由 iframe 内的 web_client 自己展示
-  clearLoadTimer(cell.deviceId)
-  if (cell.status === 'connecting') {
-    cell.status = 'loaded'
+function scheduleReconnect(cell: WallCell) {
+  if (cell.retryTimer || !cell.device.online) return
+  const delays = [3000, 10000, 30000]
+  const delay = delays[Math.min(cell.retryAttempt, delays.length - 1)] ?? 30000
+  cell.retryAttempt += 1
+  cell.message = `${cell.message}，${Math.round(delay / 1000)} 秒后重连`
+  cell.retryTimer = window.setTimeout(() => {
+    cell.retryTimer = 0
+    if (cells.value.includes(cell) && cell.device.online) connectCell(cell)
+  }, delay)
+}
+
+async function loadDevices() {
+  loading.value = true
+  try {
+    const result = await queryDevices('', '', '', '', 1, 1000)
+    devices.value = result ?? []
+    const maxPage = Math.max(1, Math.ceil(devices.value.length / PAGE_SIZE))
+    if (currentPage.value > maxPage) currentPage.value = maxPage
+    await buildPage()
+  } finally {
+    loading.value = false
   }
 }
 
-const handleApplyGlobalPassword = () => {
-  if (!globalPassword.value) {
-    notification.warning({ message: '请先输入统一密码' })
-    return
-  }
-  for (const cell of cells.value) {
-    cell.password = globalPassword.value
-    connectCell(cell)
-  }
+function stateText(state: WallRtcState | 'offline') {
+  if (state === 'playing') return '画面传输中'
+  if (state === 'connected') return '媒体已连接'
+  if (state === 'connecting') return '连接中…'
+  if (state === 'error') return '连接失败'
+  if (state === 'offline') return '设备离线'
+  return '已断开'
 }
 
-// antd select 无 multiple-limit 等价属性,在 change 里截断到上限,保持原多选上限行为
-const handleSelectChange = (ids: string[]) => {
-  if (ids.length > MAX_CELLS) {
-    selectedIds.value = ids.slice(0, MAX_CELLS)
-  }
+function stateColor(state: WallRtcState | 'offline') {
+  if (state === 'playing') return 'success'
+  if (state === 'connecting' || state === 'connected') return 'processing'
+  return 'error'
 }
 
-// 勾选变化时重建格子,保留同一设备已输入的密码
-watch(selectedIds, (ids) => {
-  const oldById = new Map(cells.value.map((c) => [c.deviceId, c]))
-  const next: WallCell[] = []
-  for (const id of ids) {
-    const device = devices.value.find((d) => d.device_id === id)
-    if (!device) {
-      continue
-    }
-    const old = oldById.get(id)
-    if (old) {
-      oldById.delete(id)
-      next.push(old)
-      continue
-    }
-    const info = parseDesktopLink(device)
-    if (!info) {
-      notification.error({ message: `设备「${device.device_name}」的链接缺少 IP 或端口信息` })
-      continue
-    }
-    next.push({
-      deviceId: info.did,
-      deviceName: device.device_name,
-      ip: info.ip,
-      port: info.port,
-      password: '',
-      src: '',
-      status: 'connecting',
-      gen: 0,
-    })
-  }
-  for (const removed of oldById.values()) {
-    clearLoadTimer(removed.deviceId)
-  }
-  cells.value = next
-  // 新格子先按无密码加载,等用户输入密码后再重连
-  for (const cell of cells.value) {
-    if (!cell.src) {
-      connectCell(cell)
-    }
-  }
-})
-
-const gridStyle = computed(() => {
-  const n = cells.value.length
-  const cols = n <= 1 ? 1 : n <= 4 ? 2 : 3
-  return {
-    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-  }
-})
-
-const statusTagType = (status: CellStatus) => {
-  if (status === 'loaded') return 'success'
-  if (status === 'unreachable') return 'error'
-  return 'warning'
+function videoInfo(cell: WallCell) {
+  const s = cell.stats
+  if (!s.width) return '等待视频信息'
+  return `${s.codec || 'H264'} · ${s.width}×${s.height} · ${s.fps} fps · ${s.bitrateKbps} Kbps`
 }
 
-const statusText = (status: CellStatus) => {
-  if (status === 'loaded') return '页面已加载'
-  if (status === 'unreachable') return '无法到达 render'
-  return '连接中…'
-}
-
-onMounted(async () => {
-  const result = await queryDevices('', '', '', '', 1, 100)
-  devices.value = result ?? []
-})
-
-onUnmounted(() => {
-  for (const t of loadTimers.values()) {
-    window.clearTimeout(t)
-  }
-  loadTimers.clear()
-})
+watch(currentPage, () => void buildPage())
+onMounted(() => void loadDevices())
+onUnmounted(closeCells)
 </script>
 
 <template>
-  <div class="w-full">
-    <a-card class="w-full">
-      <div class="flex items-end flex-wrap">
-        <div class="w-100 flex flex-col items-start">
-          <span class="!text-sm">选择设备(最多 {{ MAX_CELLS }} 台)</span>
-          <div class="h-2" />
-          <a-select
-            v-model:value="selectedIds"
-            mode="multiple"
-            :max-tag-count="MAX_CELLS"
-            placeholder="勾选要上墙的设备"
-            class="w-full"
-            @change="handleSelectChange"
-          >
-            <a-select-option
-              v-for="d in devices"
-              :key="d.device_id"
-              :label="`${d.device_name} (${d.device_id})`"
-              :value="d.device_id"
-              :disabled="!d.online"
-            >
-              <span>{{ d.device_name }} ({{ d.device_id }})</span>
-              <a-tag class="!ml-2" size="small" :color="d.online ? 'success' : 'error'">
-                {{ d.online ? '在线' : '离线' }}
-              </a-tag>
-            </a-select-option>
-          </a-select>
-        </div>
-
-        <div class="w-5" />
-        <div class="w-60 flex flex-col items-start">
-          <span class="!text-sm">统一安全密码(同密码场景)</span>
-          <div class="h-2" />
-          <a-input-password
-            v-model:value="globalPassword"
-            placeholder="应用到所有格子"
-            @pressEnter="handleApplyGlobalPassword"
-          />
-        </div>
-
-        <div class="w-5" />
-        <a-button type="primary" class="w-32" @click="handleApplyGlobalPassword">
-          应用到全部
-        </a-button>
+  <div class="wall-page">
+    <div class="wall-toolbar">
+      <div>
+        <h2>多画面墙</h2>
+        <p>后台只读监看 · 无声音 · 不计入连接统计与审计</p>
       </div>
-    </a-card>
+      <div class="toolbar-actions">
+        <span>共 {{ total }} 台设备，在线优先</span>
+        <a-button :loading="loading" @click="loadDevices">刷新设备</a-button>
+      </div>
+    </div>
 
-    <div class="h-2" />
+    <a-empty v-if="!loading && cells.length === 0" description="暂无设备" />
 
-    <a-card class="w-full" :bordered="false">
-      <template #title>
-        <span class="text-lg font-bold text-slate-800">多画面墙</span>
-      </template>
-
-      <a-empty v-if="cells.length === 0" description="请先在上方勾选设备" />
-
-      <div v-else class="wall-grid" :style="gridStyle">
-        <div v-for="cell in cells" :key="cell.deviceId" class="wall-cell">
-          <div class="flex items-center justify-between px-2 pt-2">
-            <span class="font-bold text-sm truncate" :title="cell.deviceId">
-              {{ cell.deviceName }} ({{ cell.deviceId }})
-            </span>
-            <a-tag size="small" :color="statusTagType(cell.status)">
-              {{ statusText(cell.status) }}
-            </a-tag>
+    <div v-else class="wall-grid">
+      <article v-for="cell in cells" :key="cell.device.device_id" class="wall-cell">
+        <header class="cell-header">
+          <div class="device-title">
+            <strong :title="cell.device.device_name">{{ cell.device.device_name || '未命名设备' }}</strong>
+            <span>{{ cell.device.device_id }}</span>
           </div>
+          <a-tag :color="stateColor(cell.state)">{{ stateText(cell.state) }}</a-tag>
+        </header>
 
-          <div class="flex items-center px-2 py-1">
-            <a-input-password
-              v-model:value="cell.password"
-              size="small"
-              placeholder="安全密码"
-              @pressEnter="connectCell(cell)"
-            />
-            <div class="w-1" />
-            <a-button size="small" type="primary" @click="connectCell(cell)">连接</a-button>
-          </div>
-
-          <div class="cell-body">
-            <iframe
-              v-if="cell.src"
-              :key="cell.gen"
-              :src="cell.src"
-              class="cell-frame"
-              @load="onFrameLoad(cell)"
-            ></iframe>
+        <div class="video-stage">
+          <video
+            :ref="(el) => setVideoRef(cell.device.device_id, el)"
+            autoplay
+            muted
+            playsinline
+          ></video>
+          <div v-if="cell.state !== 'playing'" class="video-placeholder">
+            <span>{{ cell.message }}</span>
+            <a-button v-if="cell.device.online && cell.state === 'error'" size="small" @click="connectCell(cell)">
+              重试
+            </a-button>
           </div>
         </div>
-      </div>
-    </a-card>
+
+        <footer class="cell-footer">
+          <span>{{ cell.ip || '未上报 IP' }}{{ cell.port ? `:${cell.port}` : '' }}</span>
+          <span>{{ videoInfo(cell) }}</span>
+          <span v-if="cell.stats.rttMs">RTT {{ cell.stats.rttMs }} ms</span>
+        </footer>
+      </article>
+    </div>
+
+    <div v-if="total > PAGE_SIZE" class="wall-pagination">
+      <a-pagination v-model:current="currentPage" :page-size="PAGE_SIZE" :total="total" :show-size-changer="false" />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.wall-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.wall-cell {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  overflow: hidden;
-  height: 42vh;
-  min-height: 280px;
-}
-
-.cell-body {
-  flex: 1;
-  min-height: 0;
-  background: #000;
-}
-
-.cell-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
+.wall-page { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+.wall-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: #fff; border: 1px solid #e7eaf0; border-radius: 8px; }
+.wall-toolbar h2 { margin: 0; color: #182235; font-size: 20px; font-weight: 700; }
+.wall-toolbar p { margin: 4px 0 0; color: #7a8495; font-size: 13px; }
+.toolbar-actions { display: flex; align-items: center; gap: 14px; color: #667085; font-size: 13px; }
+.wall-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.wall-cell { min-width: 0; overflow: hidden; background: #fff; border: 1px solid #dde2ea; border-radius: 7px; box-shadow: 0 2px 8px rgba(18, 32, 56, .05); }
+.cell-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 48px; padding: 0 10px; }
+.device-title { min-width: 0; display: flex; flex-direction: column; }
+.device-title strong { overflow: hidden; color: #1d2939; font-size: 13px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.device-title span { color: #8b95a5; font: 11px/16px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.video-stage { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0d1118; }
+.video-stage video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.video-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #aeb7c5; font-size: 13px; background: radial-gradient(circle at center, #202938 0, #0d1118 72%); }
+.cell-footer { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 5px 10px; overflow: hidden; color: #687386; font-size: 11px; white-space: nowrap; }
+.cell-footer span:nth-child(2) { flex: 1; overflow: hidden; text-align: center; text-overflow: ellipsis; }
+.wall-pagination { display: flex; justify-content: center; padding: 6px 0 12px; }
+@media (max-width: 1200px) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .wall-grid { grid-template-columns: 1fr; } .wall-toolbar { align-items: flex-start; flex-direction: column; gap: 12px; } }
 </style>

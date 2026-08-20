@@ -66,6 +66,7 @@ namespace px
         int64_t GetQueuingMediaMsgCountInNetPlugins();
         int64_t GetQueuingFtMsgCountInNetPlugins();
         int GetTotalConnectedClientsCount();
+        int GetTotalMediaConsumersCount();
         std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientsInfo();
 
         void VisitAllPlugins(const std::function<void(PxPluginInterface*)>&& visitor);

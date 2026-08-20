@@ -64,6 +64,10 @@ namespace px
         return 0;
     }
 
+    int PxNetPlugin::GetMediaConsumersCount() {
+        return GetConnectedClientsCount();
+    }
+
     void PxNetPlugin::SyncInfo(const NetSyncInfo& info) {
         sync_info_ = info;
     }

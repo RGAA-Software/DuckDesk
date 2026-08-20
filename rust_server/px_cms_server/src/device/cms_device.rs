@@ -1,5 +1,6 @@
 use crate::device::cms_desktop_link::DesktopLinkRaw;
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct CmsDevice {
@@ -78,5 +79,64 @@ impl CmsDevice {
                 "".to_string()
             }
         }
+    }
+
+    /// Reachable render HTTP endpoints advertised by the desktop panel.
+    /// The safety credential intentionally stays in CMS and is never exposed
+    /// by the wall signaling API.
+    pub fn get_render_endpoints(&self) -> Vec<(String, i32)> {
+        match DesktopLinkRaw::from(self.desktop_link_raw.as_str()) {
+            Ok(v) if v.rdpt > 0 && v.rdpt <= u16::MAX as i32 => v
+                .ips
+                .into_iter()
+                // Accept literal IP addresses only. Besides catching corrupt
+                // links this prevents a stored hostname from turning the CMS
+                // proxy into an unrestricted DNS/HTTP forwarder.
+                .filter_map(|item| {
+                    item.ip
+                        .parse::<IpAddr>()
+                        .ok()
+                        .map(|ip| (ip.to_string(), v.rdpt))
+                })
+                .collect(),
+            Ok(_) => Vec::new(),
+            Err(e) => {
+                tracing::warn!("parse render endpoint failed for {}: {}", self.device_id, e);
+                Vec::new()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn device_with_link(ips: &str, port: i32) -> CmsDevice {
+        CmsDevice {
+            device_id: "dev-1".to_string(),
+            desktop_link_raw: format!(
+                r#"{{"did":"dev-1","dn":"desk","iidx":0,"ips":{ips},"ppt":0,"rdpt":{port},"rlak":"","rlpt":0,"rlst":"","rpwd":""}}"#
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn render_endpoints_accept_only_literal_ips_and_valid_ports() {
+        let device = device_with_link(
+            r#"[{"ip":"192.168.1.9"},{"ip":"host.invalid"},{"ip":"::1"}]"#,
+            32004,
+        );
+        assert_eq!(
+            device.get_render_endpoints(),
+            vec![
+                ("192.168.1.9".to_string(), 32004),
+                ("::1".to_string(), 32004)
+            ]
+        );
+        assert!(device_with_link(r#"[{"ip":"127.0.0.1"}]"#, 70000)
+            .get_render_endpoints()
+            .is_empty());
     }
 }

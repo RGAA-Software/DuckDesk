@@ -35,6 +35,7 @@ use crate::stream::cms_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::cms_user_router::make_user_router;
 use crate::user_device::cms_user_device_router::make_user_device_router;
+use crate::wall::cms_wall_router::make_wall_router;
 use axum::middleware::{self};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -125,6 +126,8 @@ impl CmsServer {
             )
             // ZLMediaKit live discovery + CMS-ticketed HLS playback.
             .nest("/api/v1/live/control", make_live_router(context.clone()))
+            // Trusted, same-origin signaling for the read-only 3x3 wall.
+            .nest("/api/v1/wall/control", make_wall_router(context.clone()))
             // connected panel
             .nest("/api/v1/panel/control", make_panel_router(context.clone()))
             // connected service

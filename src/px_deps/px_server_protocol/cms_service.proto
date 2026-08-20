@@ -14,6 +14,11 @@ enum CmsServiceMessageType {
   // Service -> CMS
   kCmsServiceStartAppInstanceResult = 4;
   kCmsServiceStopAppInstanceResult = 5;
+  // CMS -> Service -> local desktop render. This trusted hop is the only
+  // authority allowed to create a hidden, read-only wall observer.
+  kCmsServiceCreateWallSession = 6;
+  // Service -> CMS
+  kCmsServiceCreateWallSessionResult = 7;
 }
 
 message CmsServiceHello {
@@ -78,6 +83,23 @@ message CmsServiceStopAppInstanceResult {
   string error = 4;
 }
 
+message CmsServiceCreateWallSession {
+  string request_id = 1;
+  string session_id = 2;
+  string device_id = 3;
+  int32 render_port = 4;
+  string safety_pwd_md5 = 5;
+  string offer_sdp = 6;
+}
+
+message CmsServiceCreateWallSessionResult {
+  string request_id = 1;
+  string session_id = 2;
+  bool ok = 3;
+  string error = 4;
+  string answer_sdp = 5;
+}
+
 message CmsServiceMessage {
   CmsServiceMessageType msg_type = 1;
   string device_id = 10;
@@ -87,4 +109,6 @@ message CmsServiceMessage {
   CmsServiceStopAppInstance stop_app_instance = 50;
   CmsServiceStartAppInstanceResult start_app_instance_result = 60;
   CmsServiceStopAppInstanceResult stop_app_instance_result = 70;
+  CmsServiceCreateWallSession create_wall_session = 80;
+  CmsServiceCreateWallSessionResult create_wall_session_result = 90;
 }

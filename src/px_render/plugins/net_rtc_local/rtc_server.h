@@ -20,6 +20,7 @@ namespace px
     class VideoSourceImpl;
     class VideoTrackSourceImpl;
     class RemoteAudioSink;
+    enum class PxLocalRtcSessionRole;
 
     // 一路 video track 对应一台显示器:每条 track 只发自己那块屏的帧
     struct MonitorVideoTrack {
@@ -35,11 +36,14 @@ namespace px
         explicit RtcServer(RtcLocalPlugin* plugin);
         RtcLocalPlugin* GetPlugin();
 
-        bool Start(const std::string& stream_id, const std::string& offer_sdp);
+        bool Start(const std::string& stream_id, const std::string& offer_sdp,
+                   PxLocalRtcSessionRole session_role);
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
         bool IsFtDataChannelConnected();
+        bool IsMediaConsumerActive() const;
+        bool IsWallObserver() const { return wall_observer_; }
 
         // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
         void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
@@ -134,6 +138,9 @@ namespace px
         std::atomic<bool> cleaned_up_ = false;
         std::string conn_id_;
         std::string client_nonce_;
+        bool wall_observer_ = false;
+        std::atomic_bool ice_connected_ = false;
+        int64_t created_timestamp_ms_ = 0;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
         // ICE 进入 Disconnected 的起始时间(0 = 未处于 Disconnected)。
         // 网络/对端异常断开时 ICE 可能长期停在 Disconnected 而不进 Failed/Closed,
@@ -143,7 +150,14 @@ namespace px
         // still recoverable. Confirm it for one second before emitting the
         // final client-disconnected event; RdApplication then applies the
         // user-facing five-second no-client grace period.
-        static constexpr int64_t kIceDisconnectedTimeoutMs = 1000;
+        // ICE 的 Disconnected 可能只是网卡切换/短暂丢包。给连接 5 秒恢复窗口，
+        // 与媒体消费者退出后的采集保活窗口一致，避免监看墙和普通客户端闪断。
+        static constexpr int64_t kIceDisconnectedTimeoutMs = 5000;
+        // A browser may abandon an offer before ICE connects. Hidden wall
+        // sessions have no data channel whose close event could reclaim them,
+        // so expire incomplete observers explicitly instead of leaking one of
+        // the bounded observer slots forever.
+        static constexpr int64_t kWallObserverConnectTimeoutMs = 15000;
         // 断开事件去重:见 EmitClientDisconnectedEvent
         std::atomic_bool disconnect_event_sent_ = false;
 

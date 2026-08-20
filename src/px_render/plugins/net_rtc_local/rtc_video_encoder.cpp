@@ -133,7 +133,7 @@ namespace px
             LOGI("Encode call #{}, mon={}, consumed_seq={}", encode_calls.load(), mon_name, consumed_seq_);
         }
         bool seq_gap = false;
-        auto encoded_video_frame = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+        auto encoded_video_frame = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
         if (!encoded_video_frame || !encoded_video_frame->data_) {
             // 有界等待(≠忙等):Encode 由采集帧驱动,此刻本采集帧的编码通常
             // 即将完成(NVENC 管线延迟 ~10ms)。等它产出立即发出,把"只能搬
@@ -141,7 +141,7 @@ namespace px
             // 8ms < 16.6ms 帧周期,给 encoder queue 留有余量;超时按现状
             // 空转返回,不打乱 pacing。新帧到达时插件侧 cv 会立即唤醒。
             if (plugin_->WaitForEncodedFrame(mon_name, consumed_seq_, 8)) {
-                encoded_video_frame = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+                encoded_video_frame = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
             }
         }
         if (!encoded_video_frame || !encoded_video_frame->data_) {
@@ -157,7 +157,7 @@ namespace px
         if (pending > kMaxBacklogFrames) {
             while (true) {
                 bool gap = false;
-                auto f = plugin_->PopNextEncodedVideoFrame(mon_name, consumed_seq_, gap);
+                auto f = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, gap);
                 if (!f || !f->data_) {
                     break;
                 }

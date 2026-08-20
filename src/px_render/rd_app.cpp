@@ -909,7 +909,7 @@ namespace px
     }
 
     bool RdApplication::HasConnectedPeer() const {
-        if (plugin_manager_->GetTotalConnectedClientsCount()) {
+        if (plugin_manager_->GetTotalMediaConsumersCount()) {
             return true;
         }
         if (!settings_->IsGameHookMode()) {
@@ -1254,17 +1254,35 @@ namespace px
     }
 
     ComPtr<ID3D11Device> RdApplication::GetD3DDevice(uint64_t adapter_uid) {
-        if (!d3d11_devices_.contains(adapter_uid)) {
-            return nullptr;
+        if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
+            return it->second ? it->second->d3d11_device_ : nullptr;
         }
-        return d3d11_devices_[adapter_uid]->d3d11_device_;
+        // GDI/raw capture has no DXGI adapter LUID and reports UINT64_MAX.
+        // GenerateD3DDevice resolves a generic hardware device to its real
+        // adapter LUID before caching it, so look up that resolved default
+        // instead of immediately creating another device under the sentinel.
+        if (adapter_uid == static_cast<uint64_t>(-1)) {
+            for (const auto& [uid, wrapper] : d3d11_devices_) {
+                if (wrapper && wrapper->d3d11_device_) {
+                    return wrapper->d3d11_device_;
+                }
+            }
+        }
+        return nullptr;
     }
 
     ComPtr<ID3D11DeviceContext> RdApplication::GetD3DContext(uint64_t adapter_uid) {
-        if (!d3d11_devices_.contains(adapter_uid)) {
-            return nullptr;
+        if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
+            return it->second ? it->second->d3d11_device_context_ : nullptr;
         }
-        return d3d11_devices_[adapter_uid]->d3d11_device_context_;
+        if (adapter_uid == static_cast<uint64_t>(-1)) {
+            for (const auto& [uid, wrapper] : d3d11_devices_) {
+                if (wrapper && wrapper->d3d11_device_context_) {
+                    return wrapper->d3d11_device_context_;
+                }
+            }
+        }
+        return nullptr;
     }
 
     void RdApplication::ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const {

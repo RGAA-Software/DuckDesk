@@ -447,13 +447,21 @@ namespace px
                 }
             }
 
-            int connected_client_count = 0;
+            int media_consumer_count = 0;
             for (auto* plugin : plugins_snapshot) {
                 if (self->exiting_) {
                     return;
                 }
                 if (plugin->GetPluginType() == PxPluginType::kNet) {
-                    connected_client_count += ((PxNetPlugin*)plugin)->GetConnectedClientsCount();
+                    auto* net_plugin = static_cast<PxNetPlugin*>(plugin);
+                    // GetMediaConsumersCount is a tail ABI extension currently
+                    // implemented only by RTC Local. Do not invoke that slot on
+                    // independently built legacy network DLLs: they may have a
+                    // shorter vtable. Their media-consumer count is identical
+                    // to their ordinary connected-client count anyway.
+                    media_consumer_count += plugin->GetPluginId() == kNetRtcLocalPluginId
+                        ? net_plugin->GetMediaConsumersCount()
+                        : net_plugin->GetConnectedClientsCount();
                 }
             }
 
@@ -467,7 +475,10 @@ namespace px
                 // connected clients count
                 {
                     auto event = std::make_shared<MsgConnectedClientCount>();
-                    event->connected_client_count_ = connected_client_count;
+                    // This event drives capture/encoder idle state. It counts
+                    // hidden media observers too, while public statistics use
+                    // GetTotalConnectedClientsCount below.
+                    event->connected_client_count_ = media_consumer_count;
                     plugin->DispatchAppEvent(event);
                 }
             }
@@ -521,6 +532,16 @@ namespace px
         int total_size = 0;
         VisitNetPlugins([&](PxNetPlugin* plugin) {
             total_size += plugin->GetConnectedClientsCount();
+        });
+        return total_size;
+    }
+
+    int PluginManager::GetTotalMediaConsumersCount() {
+        int total_size = 0;
+        VisitNetPlugins([&](PxNetPlugin* plugin) {
+            total_size += plugin->GetPluginId() == kNetRtcLocalPluginId
+                ? plugin->GetMediaConsumersCount()
+                : plugin->GetConnectedClientsCount();
         });
         return total_size;
     }

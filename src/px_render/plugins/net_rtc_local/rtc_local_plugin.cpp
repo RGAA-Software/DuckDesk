@@ -61,11 +61,10 @@ namespace px
             }
         });
         for (const auto& [k, srv] : dead_servers) {
-            auto removed = rtc_servers_.Remove(k);
-            if (removed.has_value() && removed.value() != srv) {
-                // 同 key 已被 takeover 的新实例占用,放回去,只清理旧的
-                rtc_servers_.Insert(k, removed.value());
-            }
+            // 只删除扫描到的旧对象；同 key 已被新会话复用时保持新值不动。
+            rtc_servers_.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
+                return current == srv;
+            });
             LOGI("Sweep dead rtc server: {}", k);
             srv->Exit();
         }
@@ -77,6 +76,12 @@ namespace px
 
         if (!IsPluginEnabled()) {
             return true;
+        }
+
+        ssl_initialized_ = rtc::InitializeSSL();
+        if (!ssl_initialized_) {
+            LOGE("RTC Local failed to initialize SSL.");
+            return false;
         }
 
         plugin_context_->StartTimer(100, [=, this]() {
@@ -108,6 +113,11 @@ namespace px
             std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
             encoded_video_frames_.clear();
             encoded_seq_by_mon_.clear();
+        }
+
+        if (ssl_initialized_) {
+            rtc::CleanupSSL();
+            ssl_initialized_ = false;
         }
 
         return PxNetPlugin::OnDestroy();
@@ -264,8 +274,18 @@ namespace px
     int RtcLocalPlugin::GetConnectedClientsCount() {
         int count = 0;
         rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
-            if (srv->IsDataChannelConnected()) {
+            if (!srv->IsWallObserver() && srv->IsDataChannelConnected()) {
                 count++;
+            }
+        });
+        return count;
+    }
+
+    int RtcLocalPlugin::GetMediaConsumersCount() {
+        int count = 0;
+        rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->IsMediaConsumerActive()) {
+                ++count;
             }
         });
         return count;
@@ -330,9 +350,6 @@ namespace px
         // 诊断:确认编码帧是否到达本插件(每 300 帧打一条)
         static std::atomic_uint64_t encoded_frame_count = 0;
         auto ecnt = ++encoded_frame_count;
-        if (ecnt == 1 || ecnt % 300 == 0) {
-            LOGI("OnEncodedVideoFrame #{}, idx={}, key={}, cache={}", ecnt, frame_index, key, encoded_video_frames_.size());
-        }
         {
             std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
 
@@ -361,6 +378,10 @@ namespace px
                    && first_of_mon->first.first == mon_name) {
                 first_of_mon = encoded_video_frames_.erase(first_of_mon);
                 --mon_count;
+            }
+            if (ecnt == 1 || ecnt % 300 == 0) {
+                LOGI("OnEncodedVideoFrame #{}, idx={}, key={}, cache={}",
+                     ecnt, frame_index, key, encoded_video_frames_.size());
             }
         }
 
@@ -426,14 +447,14 @@ namespace px
                  cnt, data->Size(), samples, channels, bits, rtc_servers_.Size());
         }
         rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
-            if (!srv || srv->IsExitRequested()) {
+            if (!srv || srv->IsExitRequested() || srv->IsWallObserver()) {
                 return;
             }
             srv->OnRawAudioData(data, samples, channels, bits);
         });
     }
 
-    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::PopNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
+    std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
         std::lock_guard<std::mutex> lk(encoded_video_frames_mtx_);
         out_gap = false;
         // 该屏 seq 严格大于 after_seq 的最旧一帧(序消费,保证 H264 delta 链完整)
@@ -443,9 +464,10 @@ namespace px
         }
         // 最旧可取帧的 seq 跳号:中间有未消费的帧被缓存上限淘汰,delta 链已断
         out_gap = (it->first.second != after_seq + 1);
-        auto encoded_frame = it->second;
-        encoded_video_frames_.erase(it);
-        return encoded_frame;
+        // Non-destructive read: every RtcSharedVideoEncoder owns its own cursor.
+        // The producer's bounded per-monitor cache evicts old frames, so one
+        // slow observer cannot retain memory or steal frames from other peers.
+        return it->second;
     }
 
     bool RtcLocalPlugin::WaitForEncodedFrame(const std::string& mon_name, uint64_t after_seq, int timeout_ms) {
@@ -529,14 +551,33 @@ namespace px
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
         LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
 
-        // 单路独占:web 与原生客户端都走 rtc local,stream_id 各不相同
-        // (web 固定为 web_<device_id>,原生用自己的 stream id),只按 conn_id
-        // 判断占用跨端对不上,必须全局判断:任意一路仍活跃的连接都算占用。
+        const bool is_observer = req->session_role_ == PxLocalRtcSessionRole::kWallObserver;
+        static constexpr size_t kMaxWallObservers = 16;
+
+        // Observer sessions coexist with the single interactive connection.
+        // They use unique CMS-issued stream ids and never participate in the
+        // takeover flow.
         std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> old_servers;
+        size_t observer_count = 0;
         rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-            old_servers.emplace_back(k, srv);
+            if (!srv || srv->IsExitRequested()) {
+                return;
+            }
+            if (srv->IsWallObserver()) {
+                ++observer_count;
+            }
+            else {
+                old_servers.emplace_back(k, srv);
+            }
         });
-        if (!old_servers.empty()) {
+        if (is_observer) {
+            const bool duplicate = rtc_servers_.HasKey(conn_id);
+            if (observer_count >= kMaxWallObservers || duplicate) {
+                LOGW("Reject wall observer, count: {}, duplicate: {}", observer_count, duplicate);
+                return PxLocalRtcAllocResult::kFailed;
+            }
+        }
+        else if (!old_servers.empty()) {
             // 旧连接的 datachannel 仍活跃且调用方未确认接管:报告占用,由客户端决定
             // (web 弹确认后带 takeover=1 重试;原生客户端收到 704 会自动带 takeover 重试)
             if (!req->takeover_) {
@@ -557,7 +598,7 @@ namespace px
                     return PxLocalRtcAllocResult::kOccupied;
                 }
             }
-            LOGI("** Remove {} old connection(s).", old_servers.size());
+            LOGI("** Remove {} old interactive connection(s).", old_servers.size());
             // 顶掉之前先通知旧客户端"连接被接管"(kConnectionTakenOver),
             // 让它给出明确提示并停止重连,而不是表现成一次普通断线。
             // px.Message{ type: kConnectionTakenOver(550) } 的 wire 字节:
@@ -575,7 +616,11 @@ namespace px
             // 先从 map 整体摘除,让新连接立即可建;
             // Exit() 里 webrtc 线程 Stop() 可能因对端会话繁忙而长时间阻塞,
             // 绝不能跑在调用方线程(HTTP 信令线程)上,否则 takeover 请求会挂死信令
-            rtc_servers_.Clear();
+            for (const auto& [k, srv] : old_servers) {
+                rtc_servers_.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
+                    return current == srv;
+                });
+            }
             std::thread([old_servers = std::move(old_servers)]() {
                 // 给"被接管"通知留出 SCTP 发送时间,再销毁旧连接
                 std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -590,7 +635,7 @@ namespace px
         auto rtc_server = RtcServer::Make(this);
         rtc_server->SetConnId(conn_id);
         rtc_server->SetClientNonce(req->client_nonce_);
-        rtc_server->Start(req->stream_id_, req->sdp_);
+        rtc_server->Start(req->stream_id_, req->sdp_, req->session_role_);
         rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
             auto answer = rtc_server->GetAnswerSdp();
             auto new_answer = AddCandidateIpToAnswer(req->req_ip_, answer);

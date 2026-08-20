@@ -96,6 +96,34 @@ pub struct CmsServiceStopAppInstanceResult {
     pub error: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CmsServiceCreateWallSession {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub session_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub device_id: ::prost::alloc::string::String,
+    #[prost(int32, tag = "4")]
+    pub render_port: i32,
+    #[prost(string, tag = "5")]
+    pub safety_pwd_md5: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub offer_sdp: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CmsServiceCreateWallSessionResult {
+    #[prost(string, tag = "1")]
+    pub request_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub session_id: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub ok: bool,
+    #[prost(string, tag = "4")]
+    pub error: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub answer_sdp: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CmsServiceMessage {
     #[prost(enumeration = "CmsServiceMessageType", tag = "1")]
     pub msg_type: i32,
@@ -117,6 +145,12 @@ pub struct CmsServiceMessage {
     pub stop_app_instance_result: ::core::option::Option<
         CmsServiceStopAppInstanceResult,
     >,
+    #[prost(message, optional, tag = "80")]
+    pub create_wall_session: ::core::option::Option<CmsServiceCreateWallSession>,
+    #[prost(message, optional, tag = "90")]
+    pub create_wall_session_result: ::core::option::Option<
+        CmsServiceCreateWallSessionResult,
+    >,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -129,6 +163,11 @@ pub enum CmsServiceMessageType {
     /// Service -> CMS
     KCmsServiceStartAppInstanceResult = 4,
     KCmsServiceStopAppInstanceResult = 5,
+    /// CMS -> Service -> local desktop render. This trusted hop is the only
+    /// authority allowed to create a hidden, read-only wall observer.
+    KCmsServiceCreateWallSession = 6,
+    /// Service -> CMS
+    KCmsServiceCreateWallSessionResult = 7,
 }
 impl CmsServiceMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -145,6 +184,10 @@ impl CmsServiceMessageType {
                 "kCmsServiceStartAppInstanceResult"
             }
             Self::KCmsServiceStopAppInstanceResult => "kCmsServiceStopAppInstanceResult",
+            Self::KCmsServiceCreateWallSession => "kCmsServiceCreateWallSession",
+            Self::KCmsServiceCreateWallSessionResult => {
+                "kCmsServiceCreateWallSessionResult"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -159,6 +202,10 @@ impl CmsServiceMessageType {
             }
             "kCmsServiceStopAppInstanceResult" => {
                 Some(Self::KCmsServiceStopAppInstanceResult)
+            }
+            "kCmsServiceCreateWallSession" => Some(Self::KCmsServiceCreateWallSession),
+            "kCmsServiceCreateWallSessionResult" => {
+                Some(Self::KCmsServiceCreateWallSessionResult)
             }
             _ => None,
         }

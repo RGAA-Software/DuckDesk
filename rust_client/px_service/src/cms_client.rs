@@ -20,9 +20,9 @@ use tracing::{error, info, warn};
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use protocol::cms_service::{
-    CmsServiceHeartBeat, CmsServiceHello, CmsServiceMessage, CmsServiceMessageType,
-    CmsServiceStartAppInstance, CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance,
-    CmsServiceStopAppInstanceResult,
+    CmsServiceCreateWallSession, CmsServiceCreateWallSessionResult, CmsServiceHeartBeat,
+    CmsServiceHello, CmsServiceMessage, CmsServiceMessageType, CmsServiceStartAppInstance,
+    CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance, CmsServiceStopAppInstanceResult,
 };
 use service_core::StartAppRequest;
 
@@ -300,6 +300,8 @@ fn hello_message(device_id: &str, appkey: &str) -> CmsServiceMessage {
         stop_app_instance: None,
         start_app_instance_result: None,
         stop_app_instance_result: None,
+        create_wall_session: None,
+        create_wall_session_result: None,
     }
 }
 
@@ -325,6 +327,8 @@ fn heartbeat_message(
         stop_app_instance: None,
         start_app_instance_result: None,
         stop_app_instance_result: None,
+        create_wall_session: None,
+        create_wall_session_result: None,
     }
 }
 
@@ -335,6 +339,7 @@ pub enum CmsInboundCommand {
         request_id: String,
         instance_id: String,
     },
+    CreateWallSession(CmsServiceCreateWallSession),
 }
 
 /// Parse a CMS binary frame into an inbound command (if any).
@@ -369,10 +374,16 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
                 instance_id: s.instance_id,
             }))
         }
+        Ok(CmsServiceMessageType::KCmsServiceCreateWallSession) => Ok(Some(
+            CmsInboundCommand::CreateWallSession(
+                msg.create_wall_session.ok_or("missing create_wall_session")?,
+            ),
+        )),
         Ok(CmsServiceMessageType::KCmsServiceHello)
         | Ok(CmsServiceMessageType::KCmsServiceHeartBeat)
         | Ok(CmsServiceMessageType::KCmsServiceStartAppInstanceResult)
-        | Ok(CmsServiceMessageType::KCmsServiceStopAppInstanceResult) => Ok(None),
+        | Ok(CmsServiceMessageType::KCmsServiceStopAppInstanceResult)
+        | Ok(CmsServiceMessageType::KCmsServiceCreateWallSessionResult) => Ok(None),
         Err(_) => Err(format!("unknown cms service msg_type {}", msg.msg_type)),
     }
 }
@@ -402,6 +413,8 @@ pub fn start_app_result_message(
             pid,
         }),
         stop_app_instance_result: None,
+        create_wall_session: None,
+        create_wall_session_result: None,
     }
 }
 
@@ -426,6 +439,87 @@ pub fn stop_app_result_message(
             ok,
             error: error.to_string(),
         }),
+        create_wall_session: None,
+        create_wall_session_result: None,
+    }
+}
+
+fn wall_session_result_message(
+    device_id: &str,
+    request_id: &str,
+    session_id: &str,
+    result: Result<String, String>,
+) -> CmsServiceMessage {
+    let (ok, answer_sdp, error) = match result {
+        Ok(answer) => (true, answer, String::new()),
+        Err(error) => (false, String::new(), error),
+    };
+    CmsServiceMessage {
+        msg_type: CmsServiceMessageType::KCmsServiceCreateWallSessionResult as i32,
+        device_id: device_id.to_string(),
+        create_wall_session_result: Some(CmsServiceCreateWallSessionResult {
+            request_id: request_id.to_string(),
+            session_id: session_id.to_string(),
+            ok,
+            error,
+            answer_sdp,
+        }),
+        ..Default::default()
+    }
+}
+
+async fn create_wall_session_on_local_render(
+    request: &CmsServiceCreateWallSession,
+) -> Result<String, String> {
+    if request.render_port <= 0 || request.render_port > u16::MAX as i32 {
+        return Err("invalid render port".to_string());
+    }
+    if request.device_id.is_empty()
+        || request.session_id.is_empty()
+        || request.safety_pwd_md5.is_empty()
+        || request.offer_sdp.is_empty()
+    {
+        return Err("invalid wall session request".to_string());
+    }
+    let url = format!(
+        "http://127.0.0.1:{}/alloc/local/rtc",
+        request.render_port
+    );
+    let response = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(13))
+        .build()
+        .map_err(|err| err.to_string())?
+        .post(url)
+        .query(&[
+            ("device_id", request.device_id.as_str()),
+            ("stream_id", request.session_id.as_str()),
+            ("safety_pwd_md5", request.safety_pwd_md5.as_str()),
+            ("session_role", "wall_observer"),
+        ])
+        .json(&serde_json::json!({ "sdp": &request.offer_sdp }))
+        .send()
+        .await
+        .map_err(|err| format!("local render unavailable: {err}"))?;
+    let status = response.status();
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|err| format!("invalid render response: {err}"))?;
+    let code = body.get("code").and_then(serde_json::Value::as_i64).unwrap_or_default();
+    let answer = body
+        .get("data")
+        .and_then(|value| value.get("answer_sdp"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if status.is_success() && code == 200 && !answer.is_empty() {
+        Ok(answer.to_string())
+    } else {
+        let message = body
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("render rejected wall session");
+        Err(format!("{message} (HTTP {status}, code {code})"))
     }
 }
 
@@ -454,6 +548,8 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
         stop_app_instance: None,
         start_app_instance_result: None,
         stop_app_instance_result: None,
+        create_wall_session: None,
+        create_wall_session_result: None,
     }
     .encode_to_vec()
 }
@@ -471,6 +567,8 @@ pub fn encode_stop_app_command(device_id: &str, request_id: &str, instance_id: &
         }),
         start_app_instance_result: None,
         stop_app_instance_result: None,
+        create_wall_session: None,
+        create_wall_session_result: None,
     }
     .encode_to_vec()
 }
@@ -559,6 +657,18 @@ fn spawn_cms_command_handler(
                     }
                 }
             },
+            CmsInboundCommand::CreateWallSession(request) => {
+                let result = create_wall_session_on_local_render(&request).await;
+                if let Err(err) = &result {
+                    warn!("create wall session failed: {err}");
+                }
+                Some(encode_message(&wall_session_result_message(
+                    &device_id,
+                    &request.request_id,
+                    &request.session_id,
+                    result,
+                )))
+            }
         };
         if let Some(frame) = reply {
             if !send_frame(&sender, frame).await {
@@ -811,5 +921,46 @@ mod tests {
 
         let fail = start_app_result_message("dev-1", "r", "i", false, "boom", 0, 0);
         assert!(!fail.start_app_instance_result.unwrap().ok);
+    }
+
+    #[test]
+    fn wall_session_command_and_result_round_trip() {
+        let command = CmsServiceMessage {
+            msg_type: CmsServiceMessageType::KCmsServiceCreateWallSession as i32,
+            device_id: "dev-1".into(),
+            create_wall_session: Some(CmsServiceCreateWallSession {
+                request_id: "wall-req-1".into(),
+                session_id: "wall-session-1".into(),
+                device_id: "dev-1".into(),
+                render_port: 20371,
+                safety_pwd_md5: "secret-md5".into(),
+                offer_sdp: "v=0\r\nthis-is-a-test-offer".into(),
+            }),
+            ..Default::default()
+        };
+
+        match parse_cms_inbound(&command.encode_to_vec()).unwrap().unwrap() {
+            CmsInboundCommand::CreateWallSession(got) => {
+                assert_eq!(got.request_id, "wall-req-1");
+                assert_eq!(got.session_id, "wall-session-1");
+                assert_eq!(got.render_port, 20371);
+                assert_eq!(got.safety_pwd_md5, "secret-md5");
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+
+        let response = wall_session_result_message(
+            "dev-1",
+            "wall-req-1",
+            "wall-session-1",
+            Ok("v=0\r\nthis-is-a-test-answer".into()),
+        );
+        let decoded = CmsServiceMessage::decode(response.encode_to_vec().as_slice()).unwrap();
+        let body = decoded.create_wall_session_result.unwrap();
+        assert!(body.ok);
+        assert_eq!(body.request_id, "wall-req-1");
+        assert_eq!(body.session_id, "wall-session-1");
+        assert!(body.answer_sdp.contains("test-answer"));
+        assert!(body.error.is_empty());
     }
 }

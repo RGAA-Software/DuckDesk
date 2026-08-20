@@ -33,6 +33,7 @@ mod system;
 mod update;
 mod user;
 mod user_device;
+mod wall;
 
 use crate::auth::cms_auth_license_keys::init_license_verifier;
 use crate::auth::cms_auth_manager::AuthManager;
