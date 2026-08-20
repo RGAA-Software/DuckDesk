@@ -5,11 +5,11 @@ use crate::cms_http_util::{
     get_body, get_body_str, get_int_param, get_int_param_or, get_str_param, get_str_param_or,
 };
 use crate::event::cms_event::CmsEvent;
-use crate::user::cms_user::{CmsUser, CmsUserAdapter};
+use crate::user::cms_user::{CmsUserAdapter, CmsUserView};
 use crate::user::cms_user_keys::{
     KEY_AUTH_ID, KEY_AUTH_PASSWORD, KEY_AVATAR_PATH, KEY_FILE, KEY_HASH_PASSWORD,
-    KEY_NEW_HASH_PASSWORD, KEY_PAGE, KEY_PAGE_SIZE, KEY_PASSWORD, KEY_SIZE, KEY_SORT_DIRECTION,
-    KEY_SORT_FIELD, KEY_USER_ID, KEY_USER_NAME, KEY_USER_PREFIX,
+    KEY_NEW_HASH_PASSWORD, KEY_NEW_PASSWORD, KEY_PAGE, KEY_PAGE_SIZE, KEY_PASSWORD, KEY_SIZE,
+    KEY_SORT_DIRECTION, KEY_SORT_FIELD, KEY_USER_ID, KEY_USER_NAME, KEY_USER_PREFIX,
 };
 use crate::{gAuthManager, gCmsEventMgr, gDeviceManager, gUserManager};
 use axum::body::Body;
@@ -27,35 +27,35 @@ use tokio::sync::Mutex;
 pub async fn handle_register_user(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     b: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let username = r[KEY_USER_NAME].as_str().unwrap();
-    let hash_password = r[KEY_HASH_PASSWORD].as_str().unwrap();
-    if username.is_empty() || hash_password.is_empty() {
+    let password = get_body_str(&r, KEY_PASSWORD)?;
+    if username.is_empty() || password.is_empty() {
         tracing::error!("register user failed, username or password is empty");
         return Err(CmsApiError::InvalidParams);
     }
 
     let user = gUserManager
-        .register_user(username.to_string(), hash_password.to_string())
+        .register_user(username.to_string(), password)
         .await?;
 
     // record the event
     let event = CmsEvent::new_register(user.uid.clone(), user.username.clone());
     let _ = gCmsEventMgr.add_event(event).await;
 
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn handle_login(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     b: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let username = get_body_str(&r, KEY_USER_NAME)?;
-    let hash_password = get_body_str(&r, KEY_HASH_PASSWORD)?;
+    let password = get_body_str(&r, KEY_PASSWORD)?;
     let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
     tracing::info!("login, username: {}, device id: {}", username, device_id);
 
@@ -65,7 +65,7 @@ pub async fn handle_login(
     let user = gUserManager.query_user_by_username(username).await?;
     tracing::info!("found user when login: {}", user.username);
 
-    if user.password == hash_password {
+    if crate::user::password::verify(&password, &user.password_hash) && !user.deleted {
         // record the event
         let event = CmsEvent::new_login(user.uid.clone(), user.username.clone());
         gCmsEventMgr.add_event(event).await?;
@@ -75,7 +75,7 @@ pub async fn handle_login(
             .bind_logged_in_user(device.device_id, user.uid.clone())
             .await?;
 
-        return Ok(Json(ok_resp(user)));
+        return Ok(Json(ok_resp(CmsUserView::from(user))));
     }
 
     Err(CmsApiError::UserNotFound)
@@ -84,25 +84,25 @@ pub async fn handle_login(
 pub async fn handle_logout(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     b: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let uid = r[KEY_USER_ID].as_str().unwrap();
-    let hash_password = r[KEY_HASH_PASSWORD].as_str().unwrap();
-    if uid.is_empty() || hash_password.is_empty() {
+    let password = get_body_str(&r, KEY_PASSWORD)?;
+    if uid.is_empty() || password.is_empty() {
         tracing::error!("register user failed, username or password is empty");
         return Err(CmsApiError::InvalidParams);
     }
 
     let user = gUserManager.query_user_by_id(uid.to_string()).await?;
-    if user.password == hash_password {
+    if crate::user::password::verify(&password, &user.password_hash) {
         // record the event
         let event = CmsEvent::new_logout(user.uid.clone(), user.username.clone());
         let _ = gCmsEventMgr.add_event(event).await;
 
         // process logout
         // clear status in server if you have
-        return Ok(Json(ok_resp(user)));
+        return Ok(Json(ok_resp(CmsUserView::from(user))));
     }
 
     Err(CmsApiError::UserNotFound)
@@ -111,7 +111,7 @@ pub async fn handle_logout(
 pub async fn handle_delete_user(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     body: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let uid = r[KEY_USER_ID].as_str().unwrap();
@@ -126,13 +126,13 @@ pub async fn handle_delete_user(
     let event = CmsEvent::new_delete(user.uid.clone(), user.username.clone());
     let _ = gCmsEventMgr.add_event(event).await;
 
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn handle_active_user(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     body: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let uid = r[KEY_USER_ID].as_str().unwrap();
@@ -147,13 +147,13 @@ pub async fn handle_active_user(
     let event = CmsEvent::new_active(user.uid.clone(), user.username.clone());
     let _ = gCmsEventMgr.add_event(event).await;
 
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn handle_update_user(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     body: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let uid = r[KEY_USER_ID].as_str().unwrap().to_string();
@@ -165,7 +165,12 @@ pub async fn handle_update_user(
     let mut update_success = false;
     if let Value::Object(map) = &r {
         for (key, value) in map {
-            if key == KEY_USER_ID || key == KEY_HASH_PASSWORD {
+            if key == KEY_USER_ID
+                || key == KEY_HASH_PASSWORD
+                || key == KEY_PASSWORD
+                || key == KEY_NEW_HASH_PASSWORD
+                || key == KEY_NEW_PASSWORD
+            {
                 continue;
             }
             match value {
@@ -229,7 +234,7 @@ pub async fn handle_update_user(
             CmsEvent::new_update(user.uid.clone(), user.username.clone(), update_new_values);
         let _ = gCmsEventMgr.add_event(event).await;
 
-        Ok(Json(ok_resp(user)))
+        Ok(Json(ok_resp(CmsUserView::from(user))))
     } else {
         Err(CmsApiError::UserUpdateFailed)
     }
@@ -239,7 +244,7 @@ pub async fn handle_update_avatar(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
     mut multipart: Multipart,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let uid = get_str_param_or(&query, KEY_USER_ID, "")?;
     tracing::info!("update avatar, uid: {}", uid);
     let user = gUserManager.query_user_by_id(uid.clone()).await?;
@@ -298,34 +303,32 @@ pub async fn handle_update_avatar(
 
     let user = gUserManager.query_user_by_id(uid.clone()).await?;
 
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn handle_update_password(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     body: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let body = get_body(body).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let uid = r[KEY_USER_ID].as_str().unwrap().to_string();
-    let hash_password = r[KEY_HASH_PASSWORD].as_str().unwrap().to_string();
-    let new_hash_password = r[KEY_NEW_HASH_PASSWORD].as_str().unwrap().to_string();
+    let password = get_body_str(&r, KEY_PASSWORD)?;
+    let new_password = get_body_str(&r, KEY_NEW_PASSWORD)?;
     let auth_id = r[KEY_AUTH_ID].as_str().unwrap_or("").to_string();
     let auth_password = r[KEY_AUTH_PASSWORD].as_str().unwrap_or("").to_string();
-    if uid.is_empty() || new_hash_password.is_empty() {
-        tracing::error!(
-            "error params, uid:{}, password:{}, new_password:{}",
-            uid,
-            hash_password,
-            new_hash_password
-        );
+    if uid.is_empty() || new_password.is_empty() {
+        tracing::error!("update password rejected: uid is empty or new password is empty");
         return Err(CmsApiError::InvalidParams);
     }
 
     let user = gUserManager.query_user_by_id(uid.clone()).await?;
     tracing::info!("found user to update password: {}", user.username);
 
-    tracing::info!("in auth id: {}, auth password: {}", auth_id, auth_password);
+    tracing::info!(
+        "password change requested, admin credential supplied: {}",
+        !auth_id.is_empty()
+    );
     // verify authorization
     let is_auth_ok = gAuthManager
         .lock()
@@ -337,7 +340,7 @@ pub async fn handle_update_password(
     } else {
         tracing::info!("will change password by user itself");
         // check old password
-        if hash_password != user.password {
+        if !crate::user::password::verify(&password, &user.password_hash) {
             tracing::error!("password is not equal");
             return Err(CmsApiError::VerifyPasswordFailed);
         }
@@ -345,42 +348,42 @@ pub async fn handle_update_password(
 
     // update new password
     gUserManager
-        .update_user_password(uid.clone(), new_hash_password.clone())
+        .update_user_password(uid.clone(), new_password)
         .await?;
 
     // record the event
     let mut update_new_values = HashMap::new();
-    update_new_values.insert(KEY_PASSWORD.to_string(), new_hash_password);
+    update_new_values.insert(KEY_PASSWORD.to_string(), "[REDACTED]".to_string());
     let event =
         CmsEvent::new_update_password(user.uid.clone(), user.username.clone(), update_new_values);
     let _ = gCmsEventMgr.add_event(event).await;
 
     let user = gUserManager.query_user_by_id(uid).await?;
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn query_user_by_id(
     State(_ctx): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let uid = get_str_param(&query, KEY_USER_ID)?;
     let user = gUserManager.query_user_by_id(uid.clone()).await?;
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn query_user_by_name(
     State(_ctx): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let username = get_str_param(&query, KEY_USER_NAME)?;
     let user = gUserManager.query_user_by_username(username).await?;
-    Ok(Json(ok_resp(user)))
+    Ok(Json(ok_resp(CmsUserView::from(user))))
 }
 
 pub async fn query_users(
     State(_ctx): State<Arc<Mutex<CmsContext>>>,
     query: Query<HashMap<String, String>>,
-) -> Result<Json<RespMessage<Vec<CmsUser>>>, CmsApiError> {
+) -> Result<Json<RespMessage<Vec<CmsUserView>>>, CmsApiError> {
     let page = get_int_param(&query, KEY_PAGE)?;
     let page_size = get_int_param(&query, KEY_PAGE_SIZE)?;
     let sort_field = get_str_param_or(&query, KEY_SORT_FIELD, "")?;
@@ -416,7 +419,9 @@ pub async fn query_users(
         user.total = total_users;
     }
 
-    Ok(Json(ok_resp(users)))
+    Ok(Json(ok_resp(
+        users.into_iter().map(CmsUserView::from).collect(),
+    )))
 }
 
 pub async fn count_users(
@@ -440,12 +445,12 @@ pub async fn handle_batch_generate_random_users(
         .await?;
     let mut wtr = csv::Writer::from_writer(Vec::new());
 
-    for user in users.clone() {
+    for generated in users {
         let user_adapter = CmsUserAdapter {
-            uid: user.uid.clone(),
-            user_name: user.username.clone(),
-            password: user.password.clone(),
-            created_time: px_base::format_readable_timestamp(user.created_timestamp),
+            uid: generated.user.uid,
+            user_name: generated.user.username,
+            password: generated.initial_password,
+            created_time: px_base::format_readable_timestamp(generated.user.created_timestamp),
         };
         wtr.serialize(user_adapter).map_err(|e| {
             tracing::error!("failed to serialize user: {}", e);
@@ -484,7 +489,7 @@ fn build_download_response(content: &str, filename: &str, content_type: &str) ->
         )
         .header(
             axum::http::header::CACHE_CONTROL,
-            HeaderValue::from_static("no-cache"),
+            HeaderValue::from_static("no-store"),
         )
         .body(axum::body::Body::from(content.to_string()))
         .unwrap()
@@ -493,6 +498,6 @@ fn build_download_response(content: &str, filename: &str, content_type: &str) ->
 pub async fn handle_batch_generate_csv_users(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     _body: Body,
-) -> Result<Json<RespMessage<CmsUser>>, CmsApiError> {
-    Ok(Json(ok_resp(CmsUser::default())))
+) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
+    Ok(Json(ok_resp(CmsUserView::default())))
 }

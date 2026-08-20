@@ -49,6 +49,13 @@ namespace px_cms
 
     using CmsUserPtr = std::shared_ptr<CmsUser>;
 
+    struct CmsUserLoginResult {
+        CmsUserPtr user;
+        std::string access_token;
+        int64_t expires_at = 0;
+        int64_t absolute_expires_at = 0;
+    };
+
 }
 
 #endif //GAMMARAYPREMIUM_CMS_USER_H

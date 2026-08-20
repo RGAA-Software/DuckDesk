@@ -429,7 +429,7 @@ namespace px
         auto srv_remote_device_id = "server_" + device_id;
         auto relay_result = px_relay::RelayApi::GetRelayDeviceInfo(relay_host, relay_port, srv_remote_device_id, relay_appkey);
         if (!relay_result) {
-            LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}, appkey: {}", srv_remote_device_id, px_relay::RelayError2String(relay_result.error()), relay_result.error(), relay_appkey);
+            LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}", srv_remote_device_id, px_relay::RelayError2String(relay_result.error()), relay_result.error());
             if (show_dialog) {
                 TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
                 dialog.exec();

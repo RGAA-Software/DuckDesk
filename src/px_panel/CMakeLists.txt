@@ -57,6 +57,7 @@ target_link_libraries(px_panel PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::
         px_common_new px_steam_manager_new px_vigem px_message px_cp_message px_plugin px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
         px_relay_client px_translator px_cms_client Dwmapi.lib px_widget_loadings px_client_plugin OpenSSL::Crypto
         px_account_sdk px_rp_message px_profile_client px_hw_info px_server_message skin_interface skin_loader gd_gui
+        Advapi32.lib
 )
 target_link_libraries(px_panel PRIVATE
     unofficial::breakpad::libbreakpad

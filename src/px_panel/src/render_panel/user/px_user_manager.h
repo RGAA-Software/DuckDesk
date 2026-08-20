@@ -27,7 +27,7 @@ namespace px
         bool Login(const std::string& username, const std::string& password, bool show_dialog = true);
         bool Logout();
         bool ModifyUsername(const std::string& username);
-        bool ModifyPassword(const std::string& new_password);
+        bool ModifyPassword(const std::string& current_password, const std::string& new_password);
         bool UpdateAvatar(const std::string& avatar_path);
         // user - device
         std::vector<std::shared_ptr<px_cms::CmsUserDevice>> QueryBindDevices(int page, int page_size, bool show_dialog);
@@ -37,19 +37,20 @@ namespace px
         bool IsLoggedIn();
         std::string GetUserId();
         std::string GetUsername();
-        std::string GetPassword();
+        std::string GetAccessToken();
         std::string GetAvatarPath();
         void Clear();
 
     private:
-        void SaveUserInfo(const std::string& uid, const std::string& username, const std::string& password, const std::string& avatar_path);
+        bool SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path);
         void UpdateUsername(const std::string& username);
-        void UpdatePassword(const std::string& password);
+        bool SaveAccessToken(const std::string& access_token);
+        void DeleteAccessToken();
         void UpdateAvatarPath(const std::string& avatar_path);
 
         static std::string KeyUid();
         static std::string KeyUsername();
-        static std::string KeyPassword();
+        std::wstring CredentialTarget() const;
         static std::string KeyAvatarPath();
 
     private:

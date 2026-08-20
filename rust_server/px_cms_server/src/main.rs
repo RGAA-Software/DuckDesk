@@ -62,6 +62,7 @@ use crate::stream::cms_stream_manager::CmsStreamManager;
 use crate::system::cms_system_manager::CmsSystemManager;
 use crate::update::update_info_manager::UpdateInfoManager;
 use crate::user::cms_user_manager::CmsUserManager;
+use crate::user::session::CmsUserSessionManager;
 use crate::user_device::cms_user_device_manager::CmsUserDeviceManager;
 use clap::Parser;
 use px_auth_mgr::auth_license::LicenseVerifier;
@@ -90,6 +91,7 @@ lazy_static::lazy_static! {
     // Database
     pub static ref gCmsDatabase: Arc<Mutex<CmsDatabase>> = Arc::new(Mutex::new(CmsDatabase::new()));
     pub static ref gUserManager: Arc<CmsUserManager> = CmsUserManager::new();
+    pub static ref gUserSessionManager: Arc<CmsUserSessionManager> = CmsUserSessionManager::new();
 
     // Profile
     pub static ref gDeviceManager: Arc<CmsDeviceManager> = CmsDeviceManager::new();

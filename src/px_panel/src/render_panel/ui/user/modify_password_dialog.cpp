@@ -23,7 +23,7 @@ namespace px
 
     ModifyPasswordDialog::ModifyPasswordDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
-        setFixedSize(375, 330);
+        setFixedSize(375, 420);
         CreateLayout();
     }
 
@@ -44,20 +44,20 @@ namespace px
 
         content_layout->addSpacing(25);
 
-        // 1. password
+        // 1. current password
         {
             auto layout = new NoMarginVLayout();
             auto label = new TcLabel(this);
             label->setFixedWidth(item_width);
             label->setStyleSheet(R"(color: #333333; font-weight: 700; font-size:13px;)");
-            label->SetTextId("id_password");
+            label->SetTextId("id_current_password");
             label->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
             layout->addWidget(label);
             layout->addSpacing(10);
 
             auto edit = new TcPasswordInput(this);
-            password_input_ = edit;
-            password_input_->SetPassword("");
+            current_password_input_ = edit;
+            current_password_input_->SetPassword("");
 
             edit->setFixedSize(edit_size);
             layout->addWidget(edit);
@@ -67,21 +67,43 @@ namespace px
 
         content_layout->addSpacing(25);
 
-        // 2. password again
+        // 2. new password
         {
             auto layout = new NoMarginVLayout();
             auto label = new TcLabel(this);
             label->setFixedWidth(item_width);
             label->setStyleSheet(R"(color: #333333; font-weight: 700; font-size:13px;)");
-            label->SetTextId("id_re_password");
+            label->SetTextId("id_new_password");
             label->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
             layout->addWidget(label);
             layout->addSpacing(10);
 
             auto edit = new TcPasswordInput(this);
-            password_input_again_ = edit;
-            password_input_again_->SetPassword("");
+            new_password_input_ = edit;
+            new_password_input_->SetPassword("");
 
+            edit->setFixedSize(edit_size);
+            layout->addWidget(edit);
+            layout->addStretch();
+            content_layout->addLayout(layout);
+        }
+
+        content_layout->addSpacing(25);
+
+        // 3. repeat new password
+        {
+            auto layout = new NoMarginVLayout();
+            auto label = new TcLabel(this);
+            label->setFixedWidth(item_width);
+            label->setStyleSheet(R"(color: #333333; font-weight: 700; font-size:13px;)");
+            label->SetTextId("id_repeat_new_password");
+            label->setAlignment(Qt::AlignLeft|Qt::AlignVCenter);
+            layout->addWidget(label);
+            layout->addSpacing(10);
+
+            auto edit = new TcPasswordInput(this);
+            new_password_input_again_ = edit;
+            new_password_input_again_->SetPassword("");
             edit->setFixedSize(edit_size);
             layout->addWidget(edit);
             layout->addStretch();
@@ -104,39 +126,44 @@ namespace px
 
             content_layout->addLayout(layout);
         }
-        content_layout->addSpacing(60);
+        content_layout->addSpacing(35);
     }
 
     void ModifyPasswordDialog::paintEvent(QPaintEvent *event) {
         TcCustomTitleBarDialog::paintEvent(event);
     }
 
-    std::string ModifyPasswordDialog::GetPassword() {
-        return password_input_->GetPassword().toStdString();
+    std::string ModifyPasswordDialog::GetCurrentPassword() {
+        return current_password_input_->GetPassword().toStdString();
     }
 
-    std::string ModifyPasswordDialog::GetPasswordAgain() {
-        return password_input_again_->GetPassword().toStdString();
+    std::string ModifyPasswordDialog::GetNewPassword() {
+        return new_password_input_->GetPassword().toStdString();
+    }
+
+    std::string ModifyPasswordDialog::GetNewPasswordAgain() {
+        return new_password_input_again_->GetPassword().toStdString();
     }
 
     void ModifyPasswordDialog::ModifyPassword() {
         auto user_mgr = grApp->GetUserManager();
-        auto password = GetPassword();
-        auto password_again = GetPasswordAgain();
-        if (password.empty() || password_again.empty()) {
+        auto current_password = GetCurrentPassword();
+        auto new_password = GetNewPassword();
+        auto new_password_again = GetNewPasswordAgain();
+        if (current_password.empty() || new_password.empty() || new_password_again.empty()) {
             return;
         }
-        if (password != password_again) {
+        if (new_password != new_password_again) {
             TcDialog dialog(tcTr("id_error"), tcTr("id_password_invalid"));
             dialog.exec();
             return;
         }
-        bool r = user_mgr->ModifyPassword(password);
+        bool r = user_mgr->ModifyPassword(current_password, new_password);
         if (r) {
             done(kDoneOk);
         }
         else {
-            LOGE("ModifyPassword failed: {}", password);
+            LOGE("ModifyPassword failed");
         }
     }
 

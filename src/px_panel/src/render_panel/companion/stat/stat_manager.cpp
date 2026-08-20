@@ -51,7 +51,6 @@ namespace px
         }
 
         try {
-            LOGI("report auth: {}", response.body);
             cat value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;
@@ -80,7 +79,6 @@ namespace px
         }
 
         try {
-            LOGI("report auth: {}", response.body);
             cat value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;

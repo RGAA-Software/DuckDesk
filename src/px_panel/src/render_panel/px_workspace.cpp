@@ -741,13 +741,9 @@ namespace px
             if (!self) {
                 return;
             }
-            auto username = self->user_mgr_->GetUsername();
-            auto password = self->user_mgr_->GetPassword();
-            if (username.empty() || password.empty()) {
+            if (!self->user_mgr_->IsLoggedIn()) {
                 return;
             }
-            self->user_mgr_->Login(username, password, false);
-
             self->LoadAvatar();
         });
     }

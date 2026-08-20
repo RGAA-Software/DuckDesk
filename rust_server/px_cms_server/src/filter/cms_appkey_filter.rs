@@ -52,7 +52,6 @@ const APPKEY_FILTER_WHITELIST: &[&str] = &[
 
 pub async fn filter(req: Request<Body>, next: Next) -> Response {
     let path = req.uri().path();
-    let full_uri = req.uri().to_string();
 
     // force_authorize=false: skip all appkey checks (local/test deployments).
     if crate::cms_settings::is_auth_bypassed().await {
@@ -64,11 +63,7 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         || path.starts_with("/web/")
         || path.starts_with("/assets/")
     {
-        tracing::info!(
-            "appkey filter: whitelisted path='{}' uri='{}'",
-            path,
-            full_uri
-        );
+        tracing::info!("appkey filter: whitelisted path='{}'", path);
         return next.run(req).await;
     }
 
@@ -80,21 +75,15 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         .unwrap_or_default();
 
     if req_appkey.is_empty() {
-        tracing::warn!(
-            "appkey filter: no appkey in query, path='{}' uri='{}'",
-            path,
-            full_uri
-        );
+        tracing::warn!("appkey filter: no appkey in query, path='{}'", path);
         return CmsApiError::InvalidAppkey.into_response();
     }
 
     let auth = gAuthManager.lock().await.get_auth().await;
     if auth.auth_id.is_empty() {
         tracing::warn!(
-            "appkey filter: no authorization loaded in CMS, \
-             path='{}' req_appkey='{}' stored_appkey='(empty)'",
-            path,
-            req_appkey
+            "appkey filter: no authorization loaded in CMS, path='{}'",
+            path
         );
         return CmsApiError::InvalidAppkey.into_response();
     }
@@ -104,29 +93,16 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     let expected_app_secret = calculate_app_secret_helper(&req_appkey);
 
     if stored_appkey != req_appkey {
-        tracing::warn!(
-            "appkey filter: appkey mismatch, path='{}' \
-             req_appkey='{}' stored_appkey='{}'",
-            path,
-            req_appkey,
-            stored_appkey
-        );
+        tracing::warn!("appkey filter: appkey mismatch, path='{}'", path);
         return CmsApiError::InvalidAppkey.into_response();
     }
 
     if stored_app_secret != expected_app_secret {
-        tracing::warn!(
-            "appkey filter: app_secret mismatch, path='{}' \
-             req_appkey='{}' expected_secret='{}' stored_secret='{}'",
-            path,
-            req_appkey,
-            expected_app_secret,
-            stored_app_secret
-        );
+        tracing::warn!("appkey filter: app_secret mismatch, path='{}'", path);
         return CmsApiError::InvalidAppkey.into_response();
     }
 
-    tracing::info!("appkey filter: OK path='{}' appkey='{}'", path, req_appkey);
+    tracing::info!("appkey filter: OK path='{}'", path);
     next.run(req).await
 }
 

@@ -4684,6 +4684,7 @@ name = "px_cms_server"
 version = "3.2.17"
 dependencies = [
  "arboard",
+ "argon2",
  "axum",
  "axum-extra",
  "axum-server",

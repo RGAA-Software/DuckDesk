@@ -59,27 +59,19 @@ impl AuthManager {
             Ok(auth) => {
                 tracing::info!(
                     "load: signed auth loaded OK, auth_id='{}' auth_name='{}' \
-                     machine_code='{}' appkey='{}' days={} max_streams={} username='{}' \
-                     password_len={}",
+                     machine_code='{}' days={} max_streams={} username='{}'",
                     auth.auth_id,
                     auth.auth_name,
                     auth.machine_code,
-                    auth.appkey,
                     auth.days,
                     auth.max_streams,
-                    auth.username,
-                    auth.password.len()
+                    auth.username
                 );
                 self.update_auth(auth).await;
                 true
             }
             Err(e) => {
-                tracing::error!(
-                    "load: failed to parse/verify signed license: {}. \
-                     auth_str preview='{}'",
-                    e,
-                    &auth_str[..auth_str.len().min(80)]
-                );
+                tracing::error!("load: failed to parse/verify signed license: {}", e);
                 false
             }
         }

@@ -80,7 +80,7 @@ const handleRefreshAuth = async () => {
 
 //
 async function handleLogout() {
-  localStorage.setItem('token', '')
+  sessionStorage.removeItem('admin_authenticated')
   await router.replace('/')
 }
 

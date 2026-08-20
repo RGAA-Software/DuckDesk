@@ -603,7 +603,7 @@ namespace px
                 dialog.exec();
                 return;
             }
-            LOGI("Requested auth, id: {} , appkey: {}", auth->auth_id_, auth->appkey_);
+            LOGI("Requested auth, id: {}", auth->auth_id_);
         }
 
         // refresh settings

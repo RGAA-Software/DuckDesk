@@ -192,7 +192,7 @@ namespace px
             done(0);
         }
         else {
-            LOGE("Login failed: {} {}", username, password);
+            LOGE("Login failed for user: {}", username);
         }
     }
 

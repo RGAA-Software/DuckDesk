@@ -3,3 +3,7 @@ pub mod cms_user_handler;
 pub(crate) mod cms_user_keys;
 pub mod cms_user_manager;
 pub mod cms_user_router;
+pub mod password;
+pub mod session;
+pub mod session_handler;
+pub mod session_router;

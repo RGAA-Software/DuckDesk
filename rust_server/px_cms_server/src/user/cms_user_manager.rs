@@ -2,13 +2,19 @@ use crate::cms_api_error::CmsApiError;
 use crate::device::cms_id_generator::PrIdGenerator;
 use crate::gCmsDatabase;
 use crate::user::cms_user::CmsUser;
-use crate::user::cms_user_keys::{KEY_DELETED, KEY_PASSWORD, KEY_USER_ID, KEY_USER_NAME};
+use crate::user::cms_user_keys::{KEY_DELETED, KEY_USER_ID};
+use crate::user::password;
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{doc, Bson, Document};
 use std::sync::Arc;
 
 pub struct CmsUserManager {}
+
+pub struct GeneratedCmsUser {
+    pub user: CmsUser,
+    pub initial_password: String,
+}
 
 impl CmsUserManager {
     pub fn new() -> Arc<Self> {
@@ -18,8 +24,12 @@ impl CmsUserManager {
     pub async fn register_user(
         &self,
         username: String,
-        hash_password: String,
+        plain_password: String,
     ) -> Result<CmsUser, CmsApiError> {
+        let username = username.trim().to_string();
+        if username.chars().count() < 3 || username.chars().count() > 64 {
+            return Err(CmsApiError::InvalidParams);
+        }
         let r = self.query_user_by_username(username.clone()).await;
         if let Ok(_user) = r {
             tracing::warn!("the user: {} already exists", username);
@@ -28,15 +38,23 @@ impl CmsUserManager {
 
         let object_id = ObjectId::new();
         let uid = px_base::md5_hex(&object_id.to_string());
+        let password_hash = password::hash(&plain_password).map_err(|e| {
+            tracing::warn!("invalid password while registering user: {}", e);
+            CmsApiError::InvalidParams
+        })?;
         let user = CmsUser {
             uid,
             username: username.clone(),
-            password: hash_password,
+            username_normalized: username.trim().to_lowercase(),
+            password_hash,
             assigned: false,
             created_timestamp: px_base::get_current_timestamp(),
             update_timestamp: px_base::get_current_timestamp(),
             deleted: false,
             avatar_path: "".to_string(),
+            auth_version: 1,
+            must_change_password: false,
+            version: 1,
             total: 0,
         };
 
@@ -114,10 +132,29 @@ impl CmsUserManager {
     pub async fn update_user_password(
         &self,
         uid: String,
-        password: String,
+        plain_password: String,
     ) -> Result<CmsUser, CmsApiError> {
-        self.update_user(uid, KEY_PASSWORD.to_string(), password)
+        let password_hash =
+            password::hash(&plain_password).map_err(|_| CmsApiError::InvalidParams)?;
+        let filter_doc = doc! {"uid": uid.clone()};
+        let update_doc = doc! {
+            "$set": {
+                "password_hash": password_hash,
+                "update_timestamp": px_base::get_current_timestamp(),
+            },
+            "$inc": { "auth_version": 1_i64, "version": 1_i64 }
+        };
+        let c_user = gCmsDatabase.lock().await.user();
+        c_user
+            .lock()
             .await
+            .update_one(filter_doc, update_doc)
+            .await
+            .map_err(|e| {
+                tracing::error!("update user password failed: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+        self.query_user_by_id(uid).await
     }
 
     pub async fn query_user_by_id(&self, uid: String) -> Result<CmsUser, CmsApiError> {
@@ -140,7 +177,7 @@ impl CmsUserManager {
     pub async fn query_user_by_username(&self, username: String) -> Result<CmsUser, CmsApiError> {
         let c_user = gCmsDatabase.lock().await.user();
         let filter = doc! {
-            KEY_USER_NAME: username.clone(),
+            "username_normalized": username.trim().to_lowercase(),
         };
         let r = c_user.lock().await.find_one(filter).await;
         if let Err(e) = r {
@@ -243,7 +280,7 @@ impl CmsUserManager {
         &self,
         batch_size: i32,
         name_prefix: String,
-    ) -> Result<Vec<CmsUser>, CmsApiError> {
+    ) -> Result<Vec<GeneratedCmsUser>, CmsApiError> {
         let prefix = if name_prefix.is_empty() {
             "User:".to_string()
         } else {
@@ -260,11 +297,12 @@ impl CmsUserManager {
                     continue;
                 }
                 let password = PrIdGenerator::generate_random_pwd();
-                tracing::info!("gen : {} {}", username, password);
-                let hash_password = px_base::md5_hex(&password);
-                let mut r = self.register_user(username, hash_password).await?;
-                r.password = password;
-                users.push(r);
+                tracing::info!("generated initial password for user: {}", username);
+                let user = self.register_user(username, password.clone()).await?;
+                users.push(GeneratedCmsUser {
+                    user,
+                    initial_password: password,
+                });
                 break;
             }
         }

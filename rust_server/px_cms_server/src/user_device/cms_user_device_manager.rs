@@ -1,7 +1,7 @@
 use crate::cms_api_error::CmsApiError;
 use crate::device::cms_device::CmsDevice;
 use crate::device::cms_device_keys::KEY_DEVICE_ID;
-use crate::user::cms_user::CmsUser;
+use crate::user::cms_user::{CmsUser, CmsUserView};
 use crate::user::cms_user_keys::KEY_USER_ID;
 use crate::user_device::cms_user_device::{CmsUserDevice, CmsUserDeviceAdapter};
 use crate::{gCmsDatabase, gDeviceManager, gUserManager};
@@ -27,7 +27,7 @@ impl CmsUserDeviceManager {
             device_id: user_device.device_id,
             created_ts: user_device.created_ts,
             created_ts_readable: user_device.created_ts_readable,
-            user,
+            user: CmsUserView::from(user),
             device,
         }
     }

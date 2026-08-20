@@ -12,7 +12,6 @@ namespace px_cms
 {
 
     std::shared_ptr<CmsUser> CmsUser::FromJson(const std::string& json_str) {
-        LOGI("Will parse json: {}", json_str);
         try {
             auto obj = json::parse(json_str);
             return FromObj(obj);
@@ -28,7 +27,8 @@ namespace px_cms
             auto user = std::make_shared<CmsUser>();
             user->uid_ = obj[kUserId].get<std::string>();
             user->username_ = obj[kUserName].get<std::string>();
-            user->password_ = obj[kUserPassword].get<std::string>();
+            // Password verifiers are deliberately absent from CMS responses.
+            user->password_.clear();
             user->assigned_ = obj[kUserAssigned].get<bool>();
             user->created_timestamp_ = obj[kUserCreatedTimestamp].get<int64_t>();
             user->updated_timestamp_ = obj[kUserUpdateTimestamp].get<int64_t>();
@@ -52,7 +52,6 @@ namespace px_cms
         oss << std::left;
         oss << std::setw(22) << "uid:"                << uid_ << "\n";
         oss << std::setw(22) << "username:"           << username_ << "\n";
-        oss << std::setw(22) << "password:"           << password_ << "\n";
         oss << std::setw(22) << "assigned:"           << assigned_ << "\n";
         oss << std::setw(22) << "created_timestamp:"  << created_timestamp_ << "\n";
         oss << std::setw(22) << "updated_timestamp:"  << updated_timestamp_ << "\n";

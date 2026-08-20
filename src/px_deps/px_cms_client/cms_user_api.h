@@ -27,26 +27,22 @@ namespace px_cms
                  int port,
                  const std::string& appkey,
                  const std::string& username,
-                 const std::string& hash_password);
+                 const std::string& password);
 
         // login
         static
-        px::Result<CmsUserPtr, CmsApiError>
+        px::Result<CmsUserLoginResult, CmsApiError>
         Login(const std::string& host,
               int port,
-              const std::string& appkey,
               const std::string& username,
-              const std::string& hash_password,
-              const std::string& device_id);
+              const std::string& password);
 
         // logout
         static
-        px::Result<CmsUserPtr, CmsApiError>
+        px::Result<bool, CmsApiError>
         Logout(const std::string& host,
                int port,
-               const std::string& appkey,
-               const std::string& uid,
-               const std::string& hash_password);
+               const std::string& access_token);
 
         // update
         static
@@ -62,10 +58,9 @@ namespace px_cms
         px::Result<CmsUserPtr, CmsApiError>
         UpdatePassword(const std::string& host,
                        int port,
-                       const std::string& appkey,
-                       const std::string& uid,
-                       const std::string& old_hash_password,
-                       const std::string& new_hash_password);
+                       const std::string& access_token,
+                       const std::string& old_password,
+                       const std::string& new_password);
 
         // update avatar
         static
@@ -74,7 +69,6 @@ namespace px_cms
                      int port,
                      const std::string& appkey,
                      const std::string& uid,
-                     const std::string& hash_password,
                      const std::string& avatar_path);
     };
 

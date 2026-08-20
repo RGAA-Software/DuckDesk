@@ -28,8 +28,9 @@ namespace px
         explicit ModifyPasswordDialog(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
         ~ModifyPasswordDialog() override;
 
-        std::string GetPassword();
-        std::string GetPasswordAgain();
+        std::string GetCurrentPassword();
+        std::string GetNewPassword();
+        std::string GetNewPasswordAgain();
 
         void paintEvent(QPaintEvent *event) override;
 
@@ -39,8 +40,9 @@ namespace px
 
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
-        TcPasswordInput* password_input_ = nullptr;
-        TcPasswordInput* password_input_again_ = nullptr;
+        TcPasswordInput* current_password_input_ = nullptr;
+        TcPasswordInput* new_password_input_ = nullptr;
+        TcPasswordInput* new_password_input_again_ = nullptr;
 
     };
 

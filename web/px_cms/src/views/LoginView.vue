@@ -42,25 +42,13 @@ onMounted(async () => {
 async function refreshAuthStatus() {
   authStatus.value = await queryAuthStatus()
   console.log('auth status:', authStatus.value)
-  autofillLogin(authStatus.value)
-}
-
-// 本机访问时后端会附带登录凭据，自动填入登录表单
-function autofillLogin(st: AuthStatus | null) {
-  if (st?.username) {
-    inputUsername.value = st.username
-  }
-  if (st?.password) {
-    inputPassword.value = st.password
-  }
 }
 
 async function handleRefreshAuth() {
   if (refreshing.value) return
   refreshing.value = true
   try {
-    const st = await pullAuthorization()
-    autofillLogin(st)
+    await pullAuthorization()
     await refreshAuthStatus()
   } finally {
     refreshing.value = false
@@ -111,7 +99,7 @@ const authExpireText = computed(() => {
 async function handleLogin() {
   localStorage.setItem('username', inputUsername.value)
   if (await login(inputUsername.value, inputPassword.value)) {
-    localStorage.setItem('token', inputPassword.value)
+    sessionStorage.setItem('admin_authenticated', '1')
     // replace this page and jump to main page
     await router.replace('/home')
   }

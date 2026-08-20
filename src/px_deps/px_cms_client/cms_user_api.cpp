@@ -23,10 +23,10 @@ const std::string kCmsUserControl = "/api/v1/user/control";
 const std::string kRegister = kCmsUserControl + "/register";
 
 // login
-const std::string kLogin = kCmsUserControl + "/login";
+const std::string kLogin = "/api/v1/session/user/login";
 
 // logout
-const std::string kLogout = kCmsUserControl + "/logout";
+const std::string kLogout = "/api/v1/session/user/logout";
 
 // delete
 const std::string kDelete = kCmsUserControl + "/delete";
@@ -41,7 +41,7 @@ const std::string kActive = kCmsUserControl + "/active";
 const std::string kUpdateAvatar = kCmsUserControl + "/update/avatar";
 
 // update password
-const std::string kUpdatePassword = kCmsUserControl + "/update/password";
+const std::string kUpdateSelfPassword = "/api/v1/user/me/password";
 
 // query user by id
 const std::string kQueryUserById = kCmsUserControl + "/query/user/by/id";
@@ -62,19 +62,19 @@ namespace px_cms
                                                                 int port,
                                                                 const std::string& appkey,
                                                                 const std::string& username,
-                                                                const std::string& hash_password) {
+                                                                const std::string& password) {
         auto client = MakeCmsHttpClient(host, port, kRegister);
 
         json obj;
         obj[kUserName] = username;
-        obj[kUserHashPassword] = hash_password;
+        obj[kUserPassword] = password;
 
         auto resp = client->Post({
             {"appkey", appkey}
         }, obj.dump());
 
-        LOGI("Register, status:{}, {}, address-> {}:{}, user-> {}:{}, appkey: {}",
-             resp.status, resp.body, host, port, username, hash_password, appkey);
+        LOGI("Register, status:{}, address-> {}:{}, user-> {}",
+             resp.status, host, port, username);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Register failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
@@ -91,25 +91,21 @@ namespace px_cms
     }
 
     // login
-    px::Result<CmsUserPtr, CmsApiError> CmsUserApi::Login(const std::string& host,
+    px::Result<CmsUserLoginResult, CmsApiError> CmsUserApi::Login(const std::string& host,
                                                              int port,
-                                                             const std::string& appkey,
                                                              const std::string& username,
-                                                             const std::string& hash_password,
-                                                             const std::string& device_id) {
+                                                             const std::string& password) {
         auto client = MakeCmsHttpClient(host, port, kLogin);
 
         json obj;
         obj[kUserName] = username;
-        obj[kUserHashPassword] = hash_password;
-        obj[kDeviceId] = device_id;
+        obj[kUserPassword] = password;
+        obj["client_type"] = "panel";
 
-        auto resp = client->Post({
-             {"appkey", appkey}
-        }, obj.dump());
+        auto resp = client->Post({}, obj.dump(), "application/json");
 
-        LOGI("Login, status:{}, {}, address-> {}:{}, user-> {}:{}, appkey: {}",
-             resp.status, resp.body, host, port, username, hash_password, appkey);
+        LOGI("Login, status:{}, address-> {}:{}, user-> {}",
+             resp.status, host, port, username);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Register failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
@@ -117,7 +113,15 @@ namespace px_cms
 
         try {
             auto data = json::parse(resp.body)["data"];
-            return CmsUser::FromObj(data);
+            CmsUserLoginResult result;
+            result.user = CmsUser::FromObj(data["profile"]);
+            result.access_token = data["access_token"].get<std::string>();
+            result.expires_at = data["expires_at"].get<int64_t>();
+            result.absolute_expires_at = data["absolute_expires_at"].get<int64_t>();
+            if (!result.user || result.access_token.empty()) {
+                return TcErr(CmsApiError::kParseJsonFailed);
+            }
+            return result;
         }
         catch(std::exception& e) {
             LOGE("Parse json failed: {}", e.what());
@@ -126,29 +130,20 @@ namespace px_cms
     }
 
     // logout
-    px::Result<CmsUserPtr, CmsApiError> CmsUserApi::Logout(const std::string& host,
+    px::Result<bool, CmsApiError> CmsUserApi::Logout(const std::string& host,
                                                               int port,
-                                                              const std::string& appkey,
-                                                              const std::string& uid,
-                                                              const std::string& hash_password) {
+                                                              const std::string& access_token) {
         auto client = MakeCmsHttpClient(host, port, kLogout);
 
-        std::map<std::string, std::string> query = {
-            {"appkey", appkey}
-        };
-
-        json obj;
-        obj[kUserId] = uid;
-        obj[kUserHashPassword] = hash_password;
-        auto resp = client->Post(query, obj.dump());
+        client->SetHeader("Authorization", "Bearer " + access_token);
+        auto resp = client->Post({}, "{}", "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Logout failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
         }
 
         try {
-            auto data = json::parse(resp.body)["data"];
-            return CmsUser::FromObj(data);
+            return json::parse(resp.body)["data"].get<bool>();
         }
         catch(std::exception& e) {
             LOGE("Logout Parse json failed: {}", e.what());
@@ -193,21 +188,16 @@ namespace px_cms
 
     px::Result<CmsUserPtr, CmsApiError> CmsUserApi::UpdatePassword(const std::string& host,
                                                                       int port,
-                                                                      const std::string& appkey,
-                                                                      const std::string& uid,
-                                                                      const std::string& old_hash_password,
-                                                                      const std::string& new_hash_password) {
-        auto client = MakeCmsHttpClient(host, port, kUpdatePassword);
-
-        std::map<std::string, std::string> query = {
-            {"appkey", appkey}
-        };
+                                                                      const std::string& access_token,
+                                                                      const std::string& old_password,
+                                                                      const std::string& new_password) {
+        auto client = MakeCmsHttpClient(host, port, kUpdateSelfPassword);
+        client->SetHeader("Authorization", "Bearer " + access_token);
 
         json obj;
-        obj[kUserId] = uid;
-        obj[kUserHashPassword] = old_hash_password;
-        obj[kUserNewHashPassword] = new_hash_password;
-        auto resp = client->Post(query, obj.dump());
+        obj["current_password"] = old_password;
+        obj["new_password"] = new_password;
+        auto resp = client->Post({}, obj.dump(), "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
@@ -227,7 +217,6 @@ namespace px_cms
                                                                     int port,
                                                                     const std::string& appkey,
                                                                     const std::string& uid,
-                                                                    const std::string& hash_password,
                                                                     const std::string& avatar_path) {
         auto client = MakeCmsHttpClient(host, port, kUpdateAvatar);
 
@@ -241,8 +230,8 @@ namespace px_cms
         };
         auto resp = client->PostMultiPart(query, form_parts, file_parts);
 
-        LOGI("Update Avatar, status:{}, {}, address-> {}:{}, user-> {}:{}, appkey: {}, avatar path: {}",
-             resp.status, resp.body, host, port, uid, hash_password, appkey, avatar_path);
+        LOGI("Update Avatar, status:{}, address-> {}:{}, user-> {}, avatar path: {}",
+             resp.status, host, port, uid, avatar_path);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update Avatar failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);

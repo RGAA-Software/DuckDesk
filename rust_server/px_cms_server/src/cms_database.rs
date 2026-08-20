@@ -9,6 +9,7 @@ use crate::record::cms_visit::CmsVisit;
 use crate::stream::cms_stream::CmsStream;
 use crate::update::update_info::UpdateInfo;
 use crate::user::cms_user::CmsUser;
+use crate::user::session::CmsUserSession;
 use crate::user_device::cms_user_device::CmsUserDevice;
 use mongodb::bson::doc;
 use mongodb::options::{ClientOptions, IndexOptions};
@@ -25,6 +26,7 @@ pub struct CmsDatabase {
     pub c_event: Option<Arc<Mutex<Collection<CmsEvent>>>>,
     // user
     pub c_user: Option<Arc<Mutex<Collection<CmsUser>>>>,
+    pub c_user_session: Option<Arc<Mutex<Collection<CmsUserSession>>>>,
     // stream
     pub c_stream: Option<Arc<Mutex<Collection<CmsStream>>>>,
     // record: visit
@@ -89,7 +91,47 @@ impl CmsDatabase {
 
                 // user
                 let c_user: Collection<CmsUser> = database.collection("c_user");
+                let user_uid_index = IndexModel::builder()
+                    .keys(doc! { "uid": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_user.create_index(user_uid_index).await {
+                    tracing::warn!("create c_user uid index failed: {}", e);
+                }
+                let user_name_index = IndexModel::builder()
+                    .keys(doc! { "username_normalized": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build();
+                if let Err(e) = c_user.create_index(user_name_index).await {
+                    tracing::warn!("create c_user normalized username index failed: {}", e);
+                }
                 self.c_user = Some(Arc::new(Mutex::new(c_user)));
+
+                let c_user_session: Collection<CmsUserSession> =
+                    database.collection("c_user_session");
+                for index in [
+                    IndexModel::builder()
+                        .keys(doc! { "sid": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "token_hash": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "cleanup_at": 1 })
+                        .options(
+                            IndexOptions::builder()
+                                .expire_after(std::time::Duration::from_secs(0))
+                                .build(),
+                        )
+                        .build(),
+                ] {
+                    if let Err(e) = c_user_session.create_index(index).await {
+                        tracing::warn!("create c_user_session index failed: {}", e);
+                    }
+                }
+                self.c_user_session = Some(Arc::new(Mutex::new(c_user_session)));
 
                 // stream
                 let c_stream: Collection<CmsStream> = database.collection("c_stream");
@@ -199,6 +241,10 @@ impl CmsDatabase {
 
     pub fn user(&self) -> Arc<Mutex<Collection<CmsUser>>> {
         self.c_user.clone().unwrap()
+    }
+
+    pub fn user_session(&self) -> Arc<Mutex<Collection<CmsUserSession>>> {
+        self.c_user_session.clone().unwrap()
     }
 
     pub fn stream(&self) -> Arc<Mutex<Collection<CmsStream>>> {

@@ -568,8 +568,8 @@ namespace px
         const bool port_changed = (cms_port != using_cms_port_);
         const bool ssl_changed = (settings_->IsCmsSslEnabled() != using_cms_ssl_);
         if (appkey != using_appkey_ || host_changed || port_changed || ssl_changed) {
-            LOGW("Cms config changed, appkey: {} => {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:CmsClient and recreate it.",
-                 using_appkey_, appkey, using_cms_host_, cms_host, using_cms_port_, cms_port, using_cms_ssl_, settings_->IsCmsSslEnabled());
+            LOGW("Cms config changed, credential_changed: {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:CmsClient and recreate it.",
+                 appkey != using_appkey_, using_cms_host_, cms_host, using_cms_port_, cms_port, using_cms_ssl_, settings_->IsCmsSslEnabled());
             if (cms_client_) {
                 cms_client_->Stop();
                 cms_client_ = nullptr;

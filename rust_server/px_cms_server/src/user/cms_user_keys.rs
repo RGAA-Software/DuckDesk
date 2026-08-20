@@ -8,6 +8,8 @@ pub const KEY_HASH_PASSWORD: &str = "hash_password";
 
 pub const KEY_NEW_HASH_PASSWORD: &str = "new_hash_password";
 
+pub const KEY_NEW_PASSWORD: &str = "new_password";
+
 pub const KEY_DELETED: &str = "deleted";
 
 pub const KEY_PAGE: &str = "page";

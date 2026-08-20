@@ -55,7 +55,7 @@ namespace px
         cat max_streams = pc_->GetSP()->GetInt(kAuthMaxStreams);
         cat end_timestamp_ms = pc_->GetSP()->GetInt64(kAuthEndTimestampMs);
         if (auth_id.empty() || appkey.empty()) {
-            LOGW("No auth loaded from storage, id: {}, appkey: {}, role: {}", auth_id, appkey, role);
+            LOGW("No auth loaded from storage, id: {}, role: {}", auth_id, role);
             return;
         }
         const auto auth = std::make_shared<Authorization>();
@@ -65,7 +65,7 @@ namespace px
         auth->appkey_ = appkey;
         auth->role_ = static_cast<AuthRole>(role);
         this->auth_.Update(auth);
-        LOGI("Load auth from storage: auth id: {}, appkey: {}, role: {} ", auth_id, appkey, role);
+        LOGI("Load auth from storage: auth id: {}, role: {} ", auth_id, role);
     }
 
     void AuthManager::FlushToStorage() {
@@ -148,7 +148,7 @@ namespace px
             auth = std::make_shared<Authorization>();
         }
         if (auth->appkey_ != appkey) {
-            LOGI("UpdateAppkey: '{}' -> '{}'", auth->appkey_, appkey);
+            LOGI("CMS application credential updated");
             auth->appkey_ = appkey;
             auth_.Update(auth);
             FlushToStorage();

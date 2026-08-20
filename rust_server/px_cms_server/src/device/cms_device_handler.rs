@@ -171,7 +171,7 @@ pub async fn handle_query_devices(
 
     let mut vo_devices = Vec::new();
     for device in devices {
-        tracing::info!("link: {}", device.desktop_link_raw);
+        tracing::info!(device_id = %device.device_id, "desktop link updated");
 
         // online or not
         let online = gCmsPanelConnMgr

@@ -18,7 +18,9 @@ namespace px_cms
             return FromObj(obj);
         }
         catch(std::exception& e) {
-            LOGE("ParseJsonAsDevice failed: {}, message: {}", e.what(), body);
+            // A device response can contain connection credentials. Never log
+            // the response body when parsing fails.
+            LOGE("ParseJsonAsDevice failed: {}", e.what());
             return nullptr;
         }
     }
@@ -56,12 +58,12 @@ namespace px_cms
         oss << std::setw(22) << "seed:"                << seed_ << "\n";
         oss << std::setw(22) << "created_timestamp:"   << created_timestamp_ << "\n";
         oss << std::setw(22) << "last_update_timestamp:" << last_update_timestamp_ << "\n";
-        oss << std::setw(22) << "random_pwd_md5:"      << random_pwd_md5_ << "\n";
-        oss << std::setw(22) << "safety_pwd_md5:"      << safety_pwd_md5_ << "\n";
+        oss << std::setw(22) << "random_pwd_md5:"      << "<redacted>" << "\n";
+        oss << std::setw(22) << "safety_pwd_md5:"      << "<redacted>" << "\n";
         oss << std::setw(22) << "used_time:"           << used_time_ << "\n";
-        oss << std::setw(22) << "gen_random_pwd:"      << gen_random_pwd_ << "\n";
-        oss << std::setw(22) << "desktop_link:"        << desktop_link_ << "\n";
-        oss << std::setw(22) << "desktop_link_raw:"    << desktop_link_raw_ << "\n";
+        oss << std::setw(22) << "gen_random_pwd:"      << "<redacted>" << "\n";
+        oss << std::setw(22) << "desktop_link:"        << "<redacted>" << "\n";
+        oss << std::setw(22) << "desktop_link_raw:"    << "<redacted>" << "\n";
         oss << std::setw(22) << "active:"              << active_ << "\n";
         return oss.str();
     }

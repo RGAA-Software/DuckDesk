@@ -34,6 +34,7 @@ use crate::record::cms_record_router::make_record_router;
 use crate::stream::cms_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::cms_user_router::make_user_router;
+use crate::user::session_router::{make_session_router, make_user_self_router};
 use crate::user_device::cms_user_device_router::make_user_device_router;
 use crate::wall::cms_wall_router::make_wall_router;
 use axum::middleware::{self};
@@ -119,6 +120,8 @@ impl CmsServer {
             .nest("/api/v1/cms/control", make_cms_router(context.clone()))
             // user
             .nest("/api/v1/user/control", make_user_router(context.clone()))
+            .nest("/api/v1/session", make_session_router(context.clone()))
+            .nest("/api/v1/user", make_user_self_router(context.clone()))
             // stream
             .nest(
                 "/api/v1/stream/control",

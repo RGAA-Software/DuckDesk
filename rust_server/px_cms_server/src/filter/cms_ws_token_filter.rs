@@ -32,11 +32,11 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
     let params = match serde_urlencoded::from_str::<WsTokenQueryParams>(query) {
         Ok(p) => p,
         Err(e) => {
+            // The raw query contains the connection token. Keep it out of logs.
             tracing::warn!(
-                "ws filter: missing/malformed params path='{}' error='{}' query='{}'",
+                "ws filter: missing/malformed params path='{}' error='{}'",
                 path,
-                e,
-                query
+                e
             );
             return CmsApiError::InvalidAppkey.into_response();
         }
@@ -44,22 +44,12 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
 
     let auth = gAuthManager.lock().await.get_auth().await;
     if auth.appkey.is_empty() || auth.app_secret.is_empty() {
-        tracing::warn!(
-            "ws filter: no authorization loaded, path='{}' req_appkey='{}' \
-             stored_appkey='(empty)' stored_secret='(empty)'",
-            path,
-            params.appkey
-        );
+        tracing::warn!("ws filter: no authorization loaded, path='{}'", path);
         return CmsApiError::InvalidAppkey.into_response();
     }
 
     if auth.appkey != params.appkey {
-        tracing::warn!(
-            "ws filter: appkey mismatch, path='{}' req_appkey='{}' stored_appkey='{}'",
-            path,
-            params.appkey,
-            auth.appkey
-        );
+        tracing::warn!("ws filter: appkey mismatch, path='{}'", path);
         return CmsApiError::InvalidAppkey.into_response();
     }
 
@@ -73,18 +63,14 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
         now_ms,
     ) {
         tracing::warn!(
-            "ws filter: token verification failed, path='{}' appkey='{}' \
-         token='{}' ts={} nonce='{}'",
+            "ws filter: token verification failed, path='{}' ts={}",
             path,
-            params.appkey,
-            &params.token[..params.token.len().min(16)],
-            params.ts,
-            params.nonce
+            params.ts
         );
         return CmsApiError::InvalidAppkey.into_response();
     }
 
-    tracing::info!("ws filter: OK path='{}' appkey='{}'", path, params.appkey);
+    tracing::info!("ws filter: OK path='{}'", path);
 
     if check_max_streams {
         let reservation = match crate::gCmsClientConnMgr.try_reserve_stream(auth.max_streams) {

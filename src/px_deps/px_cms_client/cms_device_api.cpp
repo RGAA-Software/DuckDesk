@@ -122,8 +122,8 @@ namespace px_cms
              {"device_name", default_name}
         });
 
-        LOGI("RequestNewDevice, hw_info: {}, appkey: {}", hw_info, appkey);
-        LOGI("NewDeviceResp, status: {}, body: {}", resp.status, resp.body);
+        LOGI("RequestNewDevice, hw_info: {}", hw_info);
+        LOGI("NewDeviceResp, status: {}", resp.status);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Request new device failed, code: {}", resp.status);
             return TcErr((CmsApiError)resp.status);

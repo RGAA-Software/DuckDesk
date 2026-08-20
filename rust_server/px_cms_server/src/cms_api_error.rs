@@ -98,6 +98,15 @@ pub enum CmsApiError {
 
     #[error("device has no safety password")]
     SafetyPwdMissing,
+
+    #[error("authentication required")]
+    AuthenticationRequired,
+
+    #[error("invalid credentials")]
+    InvalidCredentials,
+
+    #[error("forbidden")]
+    Forbidden,
 }
 
 // CmsApiError -> Response
@@ -145,13 +154,19 @@ impl CmsApiError {
             CmsApiError::TokenInvalid => 628,
             CmsApiError::RecordNotFound => 629,
             CmsApiError::SafetyPwdMissing => 630,
+            CmsApiError::AuthenticationRequired => 631,
+            CmsApiError::InvalidCredentials => 632,
+            CmsApiError::Forbidden => 633,
         }
     }
 
     pub fn status_code(&self) -> StatusCode {
         match self {
-            CmsApiError::InvalidAppkey | CmsApiError::TokenInvalid => StatusCode::UNAUTHORIZED,
-            CmsApiError::MaxStreamsReached => StatusCode::FORBIDDEN,
+            CmsApiError::InvalidAppkey
+            | CmsApiError::TokenInvalid
+            | CmsApiError::AuthenticationRequired
+            | CmsApiError::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            CmsApiError::MaxStreamsReached | CmsApiError::Forbidden => StatusCode::FORBIDDEN,
             CmsApiError::DeviceOffline => StatusCode::SERVICE_UNAVAILABLE,
             CmsApiError::RequestTimeout => StatusCode::GATEWAY_TIMEOUT,
             CmsApiError::InvalidAuthorization

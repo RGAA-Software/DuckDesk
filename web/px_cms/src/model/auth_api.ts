@@ -4,7 +4,6 @@ import axios from "axios";
 
 // 授权状态（安全视图，后端 AuthStatus）：不含 appkey/app_secret，
 // 因此无需 appkey 即可查询（登录页在未授权前展示用）。
-// username/password 仅在服务器本机浏览器访问时由后端附带（用于自动填充登录表单）。
 export interface AuthStatus {
   authorized: boolean
   mode: string // 'trial' | 'licensed' | ''（未授权）
@@ -14,8 +13,6 @@ export interface AuthStatus {
   used_time_ms: number
   valid: boolean
   machine_code: string
-  username?: string
-  password?: string
 }
 
 // 手动触发一次向授权服务器的网络上报/拉取。该接口在 appkey filter 白名单内，

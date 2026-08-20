@@ -5,7 +5,6 @@
 #include "px_user_manager.h"
 #include <format>
 #include "px_common_new/log.h"
-#include "px_common_new/md5.h"
 #include "px_cms_client/cms_user.h"
 #include "px_cms_client/cms_user_api.h"
 #include "px_cms_client/cms_user_device_api.h"
@@ -15,6 +14,9 @@
 #include "render_panel/px_app_messages.h"
 #include "px_label.h"
 #include "px_dialog.h"
+#include <Windows.h>
+#include <wincred.h>
+#include <QString>
 
 const std::string kUserPrefix = "cms_user:";
 
@@ -30,13 +32,10 @@ namespace px
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
-        auto hash_password = MD5::Hex(password);
-        auto r = px_cms::CmsUserApi::Register(host, port, appkey, username, hash_password);
+        auto r = px_cms::CmsUserApi::Register(host, port, appkey, username, password);
         if (r.has_value()) {
-            auto user = r.value();
-            this->SaveUserInfo(user->uid_, user->username_, password, user->avatar_path_);
             context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_register_success"));
-            LOGI("Register success");
+            return Login(username, password, false);
         }
         else {
             auto err = r.error();
@@ -47,31 +46,31 @@ namespace px
                 dialog.exec();
             });
         }
-        return true;
+        return false;
     }
 
     bool PxUserManager::Login(const std::string& username, const std::string& password, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto hash_password = MD5::Hex(password);
-
-        auto device_id = settings_->GetDeviceId();
-        if (device_id.empty()) {
-            if (show_dialog) {
-                context_->PostUITask([=, this]() {
-                    QString msg = tcTr("id_unmanaged_device");
-                    TcDialog dialog(tcTr("id_error"), msg);
-                    dialog.exec();
-                });
-            }
-            return false;
-        }
-
-        auto r = px_cms::CmsUserApi::Login(host, port, appkey, username, hash_password, device_id);
+        auto r = px_cms::CmsUserApi::Login(host, port, username, password);
         if (r.has_value()) {
-            auto user = r.value();
-            this->SaveUserInfo(user->uid_, user->username_, password, user->avatar_path_);
+            auto login = r.value();
+            auto user = login.user;
+            if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_)) {
+                // Do not leave a live server-side session behind when the
+                // Windows credential vault cannot persist its token.
+                auto logout_result = px_cms::CmsUserApi::Logout(host, port, login.access_token);
+                if (!logout_result.has_value()) {
+                    LOGW("Failed to revoke CMS session after credential vault error");
+                }
+                if (show_dialog) {
+                    context_->PostUITask([this]() {
+                        TcDialog dialog(tcTr("id_error"), tcTr("id_op_error"));
+                        dialog.exec();
+                    });
+                }
+                return false;
+            }
             context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_login_success"));
 
             // send a logged in message
@@ -96,11 +95,7 @@ namespace px
     bool PxUserManager::Logout() {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        auto password = GetPassword();
-        auto hash_password = MD5::Hex(password);
-        auto r = px_cms::CmsUserApi::Logout(host, port, appkey, uid, hash_password);
+        auto r = px_cms::CmsUserApi::Logout(host, port, GetAccessToken());
         if (r.has_value()) {
             LOGI("Logout: {} {}", GetUsername(), GetUserId());
             Clear();
@@ -120,12 +115,10 @@ namespace px
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
         auto uid = GetUserId();
-        auto password = GetPassword();
-        auto hash_password = MD5::Hex(password);
         std::map<std::string, std::string> values = {
             {px_cms::kUserName, username}
         };
-        auto r = px_cms::CmsUserApi::Update(host, port, appkey, uid, hash_password, values);
+        auto r = px_cms::CmsUserApi::Update(host, port, appkey, uid, "", values);
         if (r.has_value()) {
             auto user = r.value();
             this->UpdateUsername(user->username_);
@@ -141,19 +134,15 @@ namespace px
         }
     }
 
-    bool PxUserManager::ModifyPassword(const std::string& new_password) {
+    bool PxUserManager::ModifyPassword(const std::string& current_password, const std::string& new_password) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto uid = GetUserId();
-        auto password = GetPassword();
-        auto hash_password = MD5::Hex(password);
-        auto new_hash_password = MD5::Hex(new_password);
-        auto r = px_cms::CmsUserApi::UpdatePassword(host, port, appkey, uid, hash_password, new_hash_password);
+        auto r = px_cms::CmsUserApi::UpdatePassword(host, port, GetAccessToken(), current_password, new_password);
         if (r.has_value()) {
-            auto user = r.value();
-            this->UpdatePassword(new_password);
             context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_update_success"));
+            // Password changes increment auth_version and invalidate every
+            // existing session, including this one.
+            Clear();
             return true;
         }
         else {
@@ -170,9 +159,7 @@ namespace px
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
         auto uid = GetUserId();
-        auto password = GetPassword();
-        auto hash_password = MD5::Hex(password);
-        auto r = px_cms::CmsUserApi::UpdateAvatar(host, port, appkey, uid, hash_password, avatar_path);
+        auto r = px_cms::CmsUserApi::UpdateAvatar(host, port, appkey, uid, avatar_path);
         if (r.has_value()) {
             auto user = r.value();
             UpdateAvatarPath(user->avatar_path_);
@@ -193,8 +180,6 @@ namespace px
         auto port = settings_->GetCmsServerPort();
         auto appkey = grApp->GetAppkey();
         auto uid = GetUserId();
-        auto password = GetPassword();
-        auto hash_password = MD5::Hex(password);
         if (uid.empty()) {
             return {};
         }
@@ -250,25 +235,27 @@ namespace px
         return device;
     }
 
-    void PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& password, const std::string& avatar_path) {
+    bool PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path) {
+        if (!SaveAccessToken(access_token)) {
+            return false;
+        }
+
         // uid
         context_->SpPutString(KeyUid(), uid);
 
         // username
         this->UpdateUsername(username);
 
-        // password
-        this->UpdatePassword(password);
-
         // avatar path
         this->UpdateAvatarPath(avatar_path);
+        return true;
     }
 
     bool PxUserManager::IsLoggedIn() {
         auto uid = GetUserId();
         auto username = GetUsername();
-        auto password = GetPassword();
-        return !uid.empty() && !username.empty() && !password.empty();
+        auto access_token = GetAccessToken();
+        return !uid.empty() && !username.empty() && !access_token.empty();
     }
 
     std::string PxUserManager::GetUserId() {
@@ -283,12 +270,42 @@ namespace px
         return context_->SpGetString(KeyUsername());
     }
 
-    void PxUserManager::UpdatePassword(const std::string& password) {
-        context_->SpPutString(KeyPassword(), password);
+    bool PxUserManager::SaveAccessToken(const std::string& access_token) {
+        if (access_token.empty()) {
+            DeleteAccessToken();
+            return true;
+        }
+        auto target = CredentialTarget();
+        CREDENTIALW credential{};
+        credential.Type = CRED_TYPE_GENERIC;
+        credential.TargetName = const_cast<wchar_t*>(target.c_str());
+        credential.CredentialBlobSize = static_cast<DWORD>(access_token.size());
+        credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char*>(access_token.data()));
+        credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
+        credential.UserName = const_cast<wchar_t*>(L"Pixels CMS user session");
+        if (!CredWriteW(&credential, 0)) {
+            LOGE("Save CMS user session failed, win32 error: {}", GetLastError());
+            return false;
+        }
+        return true;
     }
 
-    std::string PxUserManager::GetPassword() {
-        return context_->SpGetString(KeyPassword());
+    std::string PxUserManager::GetAccessToken() {
+        PCREDENTIALW credential = nullptr;
+        auto target = CredentialTarget();
+        if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &credential)) {
+            return {};
+        }
+        std::string token(reinterpret_cast<const char*>(credential->CredentialBlob), credential->CredentialBlobSize);
+        CredFree(credential);
+        return token;
+    }
+
+    void PxUserManager::DeleteAccessToken() {
+        auto target = CredentialTarget();
+        if (!CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0) && GetLastError() != ERROR_NOT_FOUND) {
+            LOGW("Delete CMS user session failed, win32 error: {}", GetLastError());
+        }
     }
 
     void PxUserManager::UpdateAvatarPath(const std::string& avatar_path) {
@@ -300,7 +317,10 @@ namespace px
     }
 
     void PxUserManager::Clear() {
-        SaveUserInfo("", "", "", "");
+        DeleteAccessToken();
+        context_->SpPutString(KeyUid(), "");
+        UpdateUsername("");
+        UpdateAvatarPath("");
     }
 
     std::string PxUserManager::KeyUid() {
@@ -311,8 +331,8 @@ namespace px
         return std::format("{}{}", kUserPrefix, px_cms::kUserName);
     }
 
-    std::string PxUserManager::KeyPassword() {
-        return std::format("{}{}", kUserPrefix, px_cms::kUserPassword);
+    std::wstring PxUserManager::CredentialTarget() const {
+        return QString::fromStdString(std::format("Pixels.CMS.UserSession.{}:{}", settings_->GetCmsServerHost(), settings_->GetCmsServerPort())).toStdWString();
     }
 
     std::string PxUserManager::KeyAvatarPath() {
