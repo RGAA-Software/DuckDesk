@@ -86,6 +86,7 @@ DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => setti
 // appkey
 DEFINE_string(appkey, "", "appkey");
 DEFINE_string(live_stream_id, "", "CMS-issued live stream id");
+DEFINE_string(push_rtmp_url, "", "CMS-issued RTMP publish URL template");
 DEFINE_string(push_primary_monitor, "", "primary monitor name for live push");
 
 void UpdateSettings(RdSettings* settings) {
@@ -183,6 +184,15 @@ void UpdateSettings(RdSettings* settings) {
     if (!FLAGS_live_stream_id.empty()) {
         settings->live_stream_id_ = FLAGS_live_stream_id;
     }
+    if (!FLAGS_push_rtmp_url.empty()) {
+        settings->push_rtmp_url_ = FLAGS_push_rtmp_url;
+    }
+    // A CMS-scheduled application supplies both values explicitly.  Treat that
+    // pair as the live-push enable signal so a packaged settings.toml can keep
+    // passive pushing disabled for ordinary desktop/standalone launches.
+    if (!FLAGS_live_stream_id.empty() && !FLAGS_push_rtmp_url.empty()) {
+        settings->push_enabled_ = true;
+    }
     if (!FLAGS_push_primary_monitor.empty()) {
         settings->push_primary_monitor_ = FLAGS_push_primary_monitor;
     }
@@ -235,6 +245,7 @@ void PrintInputArgs() {
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings->app_.event_replay_mode_);
     LOGI("appkey : {}", FLAGS_appkey);
     LOGI("live stream id: {}", settings->live_stream_id_);
+    LOGI("push rtmp url configured: {}", !settings->push_rtmp_url_.empty());
     LOGI("push primary monitor: {}", settings->push_primary_monitor_);
     LOGI("--------------In args end----------------");
 }

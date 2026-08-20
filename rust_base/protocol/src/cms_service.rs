@@ -53,6 +53,14 @@ pub struct CmsServiceStartAppInstance {
     pub webrtc_enabled: bool,
     #[prost(bool, tag = "12")]
     pub websocket_enabled: bool,
+    /// Deterministic CMS live stream name, normally \<device_id>**app**\<app_id>.
+    /// Empty keeps backward compatibility and disables the passive RTMP pusher.
+    #[prost(string, tag = "13")]
+    pub live_stream_id: ::prost::alloc::string::String,
+    /// RTMP publishing template, for example
+    /// rtmp://127.0.0.1:1935/live/{live_stream_id}. Empty uses render settings.
+    #[prost(string, tag = "14")]
+    pub push_rtmp_url: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CmsServiceStopAppInstance {

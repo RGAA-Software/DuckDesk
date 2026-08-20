@@ -213,7 +213,14 @@ fn same_path(left: &Path, right: &Path) -> bool {
 }
 
 fn is_server_command(args: &[std::ffi::OsString]) -> bool {
-    args.iter().any(|arg| arg.to_string_lossy() == "-r=server")
+    let args = args
+        .iter()
+        .map(|arg| arg.to_string_lossy())
+        .collect::<Vec<_>>();
+    args.iter().any(|arg| arg == "-r=server" || arg == "--running-mode=server")
+        || args
+            .windows(2)
+            .any(|pair| pair[0] == "--running-mode" && pair[1] == "server")
 }
 
 #[cfg(test)]
@@ -228,5 +235,18 @@ mod tests {
             OsString::from("-r=server"),
         ]));
         assert!(!is_server_command(&[OsString::from("px_cms.exe")]));
+    }
+
+    #[test]
+    fn recognizes_all_supported_server_argument_forms() {
+        assert!(is_server_command(&[
+            OsString::from("px_cms.exe"),
+            OsString::from("--running-mode=server"),
+        ]));
+        assert!(is_server_command(&[
+            OsString::from("px_cms.exe"),
+            OsString::from("--running-mode"),
+            OsString::from("server"),
+        ]));
     }
 }

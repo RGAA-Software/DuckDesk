@@ -147,7 +147,6 @@ namespace px
             int64_t expect = 0;
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
-            EmitClientDisconnectedEvent();
         });
 
         // ICE 终态(Failed/Closed):立即置退出标记停止收发,并通知 plugin 将其

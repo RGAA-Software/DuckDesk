@@ -358,6 +358,8 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
                 encoder_format: s.encoder_format,
                 webrtc_enabled: s.webrtc_enabled,
                 websocket_enabled: s.websocket_enabled,
+                live_stream_id: s.live_stream_id,
+                push_rtmp_url: s.push_rtmp_url,
             })))
         }
         Ok(CmsServiceMessageType::KCmsServiceStopAppInstance) => {
@@ -446,6 +448,8 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
             encoder_format: req.encoder_format.clone(),
             webrtc_enabled: req.webrtc_enabled,
             websocket_enabled: req.websocket_enabled,
+            live_stream_id: req.live_stream_id.clone(),
+            push_rtmp_url: req.push_rtmp_url.clone(),
         }),
         stop_app_instance: None,
         start_app_instance_result: None,
@@ -767,6 +771,8 @@ mod tests {
             encoder_format: "h264".into(),
             webrtc_enabled: true,
             websocket_enabled: true,
+            live_stream_id: "device-test__app__app-test".into(),
+            push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".into(),
         };
         let bytes = encode_start_app_command("dev-1", &req);
         match parse_cms_inbound(&bytes).unwrap().unwrap() {

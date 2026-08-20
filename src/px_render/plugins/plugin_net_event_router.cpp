@@ -367,7 +367,19 @@ namespace px {
 //                    break;
 //                }
                 case kStopRender: {
+                    // A game-hook render owns the game in a kill-on-close job.
+                    // A browser opening a stream must never be able to end that
+                    // game through a control-packet mismatch. CMS owns the
+                    // lifecycle of game-hook instances and sends kSrvStopServer
+                    // over its authenticated service channel instead.
+                    LOGW("kStopRender received from client: device={}, stream={}",
+                         msg->device_id(), msg->stream_id());
+                    if (settings_->IsGameHookMode()) {
+                        LOGW("Ignore client kStopRender for game-hook instance; use CMS stop action instead.");
+                        break;
+                    }
                     ProcessUtil::KillProcess(GetCurrentProcessId());
+                    break;
                 }
                 case kLockDevice: {
                     context_->SendAppMessage(MsgPanelStreamLockScreen{});

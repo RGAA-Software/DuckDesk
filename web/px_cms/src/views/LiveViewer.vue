@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import Hls from 'hls.js'
+import mpegts from 'mpegts.js'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { notification } from 'ant-design-vue'
 import type { Device } from '@/entity/device.ts'
 import { queryDevices } from '@/model/device_api.ts'
 import { queryLiveStatus, type LiveStatus } from '@/model/live_api.ts'
 import type { AppInstance, AppNode, AppRow, InstanceState } from '@/entity/app_schedule.ts'
-import { listAppRows, listInstances } from '@/model/app_api.ts'
+import { listAppRows, listInstances, startNode } from '@/model/app_api.ts'
 
 const devices = ref<Device[]>([])
 const apps = ref<AppRow[]>([])
@@ -19,7 +19,7 @@ const loading = ref(false)
 const catalogLoading = ref(false)
 const video = ref<HTMLVideoElement | null>(null)
 const playerError = ref('')
-let hls: Hls | null = null
+let flvPlayer: mpegts.Player | null = null
 let refreshTimer: number | undefined
 
 interface LiveNodeOption {
@@ -35,6 +35,25 @@ function sequenceOf(instanceId: string): number {
   return match ? Number(match[1]) : 0
 }
 
+function instanceStatePriority(state?: InstanceState): number {
+  // Instance IDs are generated independently by each CMS process and are not
+  // a reliable chronology after a CMS restart. Always prefer the active
+  // instance for a node; use the ID only as a deterministic tie breaker.
+  switch (state) {
+    case 'running':
+      return 5
+    case 'starting':
+      return 4
+    case 'stopping':
+      return 3
+    case 'failed':
+      return 2
+    case 'stopped':
+    default:
+      return 1
+  }
+}
+
 function latestInstance(appId: string, node: AppNode): AppInstance | undefined {
   return instances.value
     .filter(
@@ -45,7 +64,11 @@ function latestInstance(appId: string, node: AppNode): AppInstance | undefined {
           : instance.device_id === node.device_id && instance.listen_port === node.listen_port),
     )
     .slice()
-    .sort((left, right) => sequenceOf(right.instance_id) - sequenceOf(left.instance_id))[0]
+    .sort(
+      (left, right) =>
+        instanceStatePriority(right.state) - instanceStatePriority(left.state) ||
+        sequenceOf(right.instance_id) - sequenceOf(left.instance_id),
+    )[0]
 }
 
 const nodeOptions = computed<LiveNodeOption[]>(() => {
@@ -101,8 +124,8 @@ function choosePreferredNode() {
 const streamLabel = computed(() => status.value?.stream_id || '')
 
 function destroyPlayer() {
-  hls?.destroy()
-  hls = null
+  flvPlayer?.destroy()
+  flvPlayer = null
   if (video.value) {
     video.value.pause()
     video.value.removeAttribute('src')
@@ -117,30 +140,52 @@ async function attachPlayer(playUrl: string) {
   const element = video.value
   if (!element) return
 
-  if (element.canPlayType('application/vnd.apple.mpegurl')) {
-    element.src = playUrl
-    try {
-      await element.play()
-    } catch {
-      // Autoplay is best-effort; native controls remain available.
-    }
+  if (!mpegts.isSupported()) {
+    playerError.value = '当前浏览器不支持 MSE/HTTP-FLV 播放。'
     return
   }
-  if (!Hls.isSupported()) {
-    playerError.value = '当前浏览器不支持 HLS 播放。'
-    return
+  // mpegts.js creates its own XHR loader.  Give it an absolute same-origin
+  // URL; unlike a native <video> element it does not consistently resolve
+  // the CMS relative path returned by the status API.
+  const absolutePlayUrl = new URL(playUrl, window.location.origin).toString()
+  flvPlayer = mpegts.createPlayer({
+    type: 'flv',
+    isLive: true,
+    url: absolutePlayUrl,
+    hasAudio: true,
+    hasVideo: true,
+  }, {
+    enableWorker: false,
+    enableStashBuffer: false,
+    stashInitialSize: 64,
+    lazyLoad: false,
+    deferLoadAfterSourceOpen: false,
+    // Do not seek inside MSE: it causes visible rebuffering if less than one
+    // GOP is available.  liveSync only uses a small playback-rate adjustment
+    // to recover sub-second drift after a transient network stall.
+    liveBufferLatencyChasing: false,
+    liveSync: true,
+    liveSyncMaxLatency: 1.0,
+    liveSyncTargetLatency: 0.45,
+    liveSyncPlaybackRate: 1.1,
+    autoCleanupSourceBuffer: true,
+    // Both cleanup bounds must be configured together. mpegts.js defaults
+    // autoCleanupMinBackwardDuration to 120 seconds; pairing that default
+    // with the old 5-second maximum made it call SourceBuffer.remove() with
+    // a negative end time as soon as playback reached roughly five seconds.
+    autoCleanupMaxBackwardDuration: 30,
+    autoCleanupMinBackwardDuration: 10,
+  })
+  flvPlayer.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
+    playerError.value = `播放失败：${errorType} (${errorDetail})`
+  })
+  flvPlayer.attachMediaElement(element)
+  flvPlayer.load()
+  try {
+    await element.play()
+  } catch {
+    // Autoplay is best-effort; native controls remain available.
   }
-  hls = new Hls({
-    liveSyncDurationCount: 3,
-    maxLiveSyncPlaybackRate: 1.5,
-  })
-  hls.on(Hls.Events.ERROR, (_event, data) => {
-    if (data.fatal) {
-      playerError.value = `播放失败：${data.type}`
-    }
-  })
-  hls.loadSource(playUrl)
-  hls.attachMedia(element)
 }
 
 async function refreshStatus(startPlayback = true) {
@@ -173,6 +218,38 @@ async function refreshStatus(startPlayback = true) {
 
 function refreshAndPlay() {
   void refreshStatus(true)
+}
+
+const targetCanStart = computed(() => {
+  const state = selectedTarget.value?.instance?.state
+  return !state || state === 'stopped' || state === 'failed'
+})
+
+async function startAndWatch() {
+  const target = selectedTarget.value
+  if (!target) return
+  if (!targetCanStart.value) {
+    await refreshStatus(true)
+    return
+  }
+  loading.value = true
+  try {
+    const result = await startNode(target.node.node_id)
+    if (!result.ok) {
+      notification.error({ message: '启动节点失败', description: result.message })
+      return
+    }
+    notification.success({ message: '节点已启动，正在等待主流上线' })
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await refreshCatalog(false)
+      await refreshStatus(true)
+      if (status.value?.online) return
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+    }
+    notification.warning({ message: '节点已启动，但主流尚未上线' })
+  } finally {
+    loading.value = false
+  }
 }
 
 async function refreshCatalog(chooseDefault = false) {
@@ -268,8 +345,8 @@ onUnmounted(() => {
           type="primary"
           :loading="loading"
           :disabled="!selectedTarget"
-          @click="refreshAndPlay"
-          >刷新并观看</a-button
+          @click="startAndWatch"
+          >{{ targetCanStart ? '启动并观看' : '刷新并观看' }}</a-button
         >
       </div>
       <a-alert
@@ -291,7 +368,7 @@ onUnmounted(() => {
       </div>
       <div class="mt-3 text-xs text-slate-500">
         选择节点后自动使用其设备 ID
-        与应用标识。主流命名：&lt;device_id&gt;__app__&lt;app_id&gt;；观看端仅拉取 HLS 主流，不建立
+        与应用标识。主流命名：&lt;device_id&gt;__app__&lt;app_id&gt;；观看端仅拉取 HTTP-FLV 主流，不建立
         WebRTC 会话。
       </div>
     </a-card>
@@ -331,7 +408,7 @@ onUnmounted(() => {
           v-if="status.online && !status.browser_playable"
           class="mt-3"
           type="info"
-          message="H.265 推流在媒体服务器侧可以工作，但通用浏览器通常不能解码 HEVC。切换回 H.264 后可直接在本页观看。"
+          message="H.265 推流在媒体服务器侧可以工作，但 Chrome 的通用 MSE 解码路径不保证 HEVC。切换回 H.264 后可直接在本页低延迟观看。"
           show-icon
         />
       </div>

@@ -161,6 +161,12 @@ namespace px
             LOGE("NvEnc Reconfigure failed, e={} {}, fps: {}, size: {}x{} bps: {}", (int)e.getErrorCode(), e.what(),
                  fps, encoder_config_.width, encoder_config_.height, bps);
             return false;
+        } catch (const std::exception& e) {
+            LOGE("NvEnc Reconfigure exception: {}", e.what());
+            return false;
+        } catch (...) {
+            LOGE("NvEnc Reconfigure raised an unknown/SEH exception.");
+            return false;
         }
         applied_bps_ = bps;
         applied_fps_ = fps;
@@ -194,6 +200,12 @@ namespace px
             nv_encoder_->EncodeFrame(out_packet, &picParams);
         } catch(NVENCException& e) {
             LOGE("Encode frame failed, code: {}, err: {}", (int)e.getErrorCode(), e.what());
+            return false;
+        } catch (const std::exception& e) {
+            LOGE("NVENC EncodeFrame exception: {}", e.what());
+            return false;
+        } catch (...) {
+            LOGE("NVENC EncodeFrame raised an unknown/SEH exception.");
             return false;
         }
 

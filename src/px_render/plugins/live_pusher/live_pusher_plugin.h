@@ -78,6 +78,10 @@ private:
     std::string rtmp_url_;
     std::string stream_id_;
     std::string primary_monitor_;
+    // Game-hook encoded frames do not carry a monitor name.  Keep the
+    // selection state separate from the name so an empty-but-valid name is
+    // selected once instead of causing a log message for every frame.
+    bool primary_monitor_selected_ = false;
     int audio_bitrate_ = 96000;
 
     std::mutex mutex_;
@@ -92,6 +96,9 @@ private:
     AVFormatContext* fmt_ = nullptr;
     AVStream* video_stream_ = nullptr;
     AVStream* audio_stream_ = nullptr;
+    // av_write_trailer is valid only after avformat_write_header succeeds.
+    // Output setup may fail before the muxer has installed its private state.
+    bool header_written_ = false;
     AVCodecContext* aac_ = nullptr;
     AVAudioFifo* audio_fifo_ = nullptr;
     SwrContext* swr_ = nullptr;
@@ -102,6 +109,7 @@ private:
     int video_height_ = 0;
     int64_t session_start_ms_ = 0;
     int64_t last_video_dts_ = -1;
+    int64_t last_idr_request_ms_ = 0;
     int64_t pending_key_ts_ = 0;
     int64_t next_audio_pts_ = 0;
     std::vector<uint8_t> vps_;

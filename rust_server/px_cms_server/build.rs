@@ -121,6 +121,8 @@ fn main() {
     // make the folder
     let _ = builder::create_dir_if_not_exists(web_folder.to_str().unwrap());
 
-    // copy it
-    builder::copy_dir_all("../web", web_folder).unwrap();
+    // Copy the CMS Web production bundle. `rust_server/web` is a legacy
+    // CoDesk bundle and does not contain the current Vue CMS (including the
+    // live viewer); serving it made source changes appear to have no effect.
+    builder::copy_dir_all("../../web/px_cms/dist", web_folder).unwrap();
 }

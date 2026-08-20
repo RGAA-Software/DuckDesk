@@ -2,6 +2,7 @@ use crate::cms_api_error::CmsApiError;
 use crate::cms_context::CmsContext;
 use crate::cms_settings::CmsLiveSettings;
 use crate::gCmsSettings;
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -146,11 +147,44 @@ async fn make_online_status(media: Value, stream_id: String, app_id: String) -> 
     if h264 {
         let ticket = LIVE_TICKETS.issue(stream_id.clone()).await;
         status.play_url = format!(
-            "/api/v1/live/control/play/{}/hls.m3u8?ticket={}",
+            "/api/v1/live/control/play/{}/flv?ticket={}",
             stream_id, ticket
         );
     }
     status
+}
+
+/// Chrome's low-latency path.  Keep HTTP-FLV streaming through CMS so the
+/// browser never needs a direct route to the local ZLMediaKit HTTP port.
+pub async fn handle_live_flv(
+    State(_context): State<Arc<Mutex<CmsContext>>>,
+    Path(stream_id): Path<String>,
+    Query(query): Query<LivePlayQuery>,
+) -> Response {
+    if !is_safe_id(&stream_id) || !LIVE_TICKETS.validate(&query.ticket, &stream_id).await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let settings = gCmsSettings.lock().await.live.clone();
+    let url = format!(
+        "{}/{}/{}.live.flv",
+        settings.media_server_url.trim_end_matches('/'),
+        settings.app.trim(),
+        stream_id
+    );
+    let response = match reqwest::Client::new().get(url).send().await {
+        Ok(response) => response,
+        Err(err) => {
+            tracing::warn!("ZLMediaKit HTTP-FLV relay failed: {}", err);
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
+    };
+    if !response.status().is_success() {
+        return response.status().into_response();
+    }
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("video/x-flv"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    (headers, Body::from_stream(response.bytes_stream())).into_response()
 }
 
 async fn query_zlm(settings: &CmsLiveSettings, stream_id: &str) -> Result<Option<Value>, String> {
@@ -163,8 +197,8 @@ async fn query_zlm(settings: &CmsLiveSettings, stream_id: &str) -> Result<Option
         ("app", settings.app.clone()),
         ("stream", stream_id.to_string()),
     ];
-    if !settings.api_secret.is_empty() {
-        query.push(("secret", settings.api_secret.clone()));
+    if let Some(secret) = effective_api_secret(settings) {
+        query.push(("secret", secret));
     }
     let response = reqwest::Client::new()
         .get(format!("{}/index/api/getMediaList", base_url))
@@ -185,6 +219,48 @@ async fn query_zlm(settings: &CmsLiveSettings, stream_id: &str) -> Result<Option
         .and_then(Value::as_array)
         .and_then(|data| data.first())
         .cloned())
+}
+
+/// CMS keeps an explicitly configured secret authoritative.  For the bundled
+/// local sidecar we can also read the sidecar's own config so a fresh CMS
+/// deployment works without duplicating that secret in px_cms.toml.  Remote
+/// media servers must always be configured explicitly.
+fn effective_api_secret(settings: &CmsLiveSettings) -> Option<String> {
+    let configured = settings.api_secret.trim();
+    if !configured.is_empty() {
+        return Some(configured.to_string());
+    }
+    if !crate::media_sidecar::is_local_sidecar_url(&settings.media_server_url) {
+        return None;
+    }
+    let config_path = std::env::current_exe().ok()?.parent()?.join("config.ini");
+    let contents = std::fs::read_to_string(config_path).ok()?;
+    ini_value(&contents, "api", "secret")
+}
+
+fn ini_value(contents: &str, section: &str, key: &str) -> Option<String> {
+    let mut in_section = false;
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
+            continue;
+        }
+        if let Some(header) = line.strip_prefix('[').and_then(|value| value.strip_suffix(']')) {
+            in_section = header.trim().eq_ignore_ascii_case(section);
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+        let Some((candidate, value)) = line.split_once('=') else {
+            continue;
+        };
+        if candidate.trim().eq_ignore_ascii_case(key) {
+            let value = value.trim();
+            return (!value.is_empty()).then(|| value.to_string());
+        }
+    }
+    None
 }
 
 pub async fn handle_live_play(
@@ -271,7 +347,20 @@ fn content_type_for(asset: &str) -> HeaderValue {
 }
 
 fn json_u64(value: &Value, key: &str) -> u64 {
-    value.get(key).and_then(Value::as_u64).unwrap_or(0)
+    value
+        .get(key)
+        .and_then(|number| {
+            number.as_u64().or_else(|| {
+                // ZLMediaKit reports video FPS as a JSON floating point value
+                // (for example `60.0`), while dimensions and reader counts are
+                // integral. Accept both representations for the status API.
+                number
+                    .as_f64()
+                    .filter(|fps| fps.is_finite() && *fps >= 0.0)
+                    .map(|fps| fps.round() as u64)
+            })
+        })
+        .unwrap_or(0)
 }
 
 fn is_safe_id(value: &str) -> bool {
@@ -313,5 +402,12 @@ mod tests {
             "/api/v1/live/control/play/debug1__app__cargame_debug/hls-0.ts?ticket=ticket"
         ));
         assert!(rewritten.contains("#EXTINF:2,"));
+    }
+
+    #[test]
+    fn reads_only_the_api_secret_from_ini() {
+        let config = "[http]\nsecret=wrong\n[api]\n; comment\nsecret = local-secret\n";
+        assert_eq!(ini_value(config, "api", "secret").as_deref(), Some("local-secret"));
+        assert_eq!(ini_value(config, "api", "missing"), None);
     }
 }

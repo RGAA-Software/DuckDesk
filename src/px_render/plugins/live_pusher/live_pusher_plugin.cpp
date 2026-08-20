@@ -18,7 +18,7 @@ extern "C" {
 // Implemented by libavformat. The FLV enhanced-RTMP muxer needs hvcC
 // extradata before it can write an HEVC sequence-start packet.
 int ff_isom_write_hvcc(AVIOContext* pb, const uint8_t* data, int size,
-                       int ps_array_completeness);
+                       int ps_array_completeness, void* logctx);
 }
 
 #include <algorithm>
@@ -29,7 +29,10 @@ int ff_isom_write_hvcc(AVIOContext* pb, const uint8_t* data, int size,
 namespace px {
 namespace {
 
-constexpr size_t kMaxQueue = 320;
+// This is a live relay, not a recorder.  Keeping several seconds of encoded
+// frames here makes every downstream player permanently late when the muxer
+// is briefly slower than the encoder.
+constexpr size_t kMaxQueue = 48;
 
 struct Nal {
     const uint8_t* data = nullptr;
@@ -62,11 +65,64 @@ std::vector<Nal> SplitAnnexB(const uint8_t* data, size_t size) {
     return out;
 }
 
+std::vector<uint8_t> AnnexBToAvcc(const uint8_t* data, size_t size) {
+    const auto nals = SplitAnnexB(data, size);
+    if (nals.empty()) return {};
+    std::vector<uint8_t> out;
+    out.reserve(size);
+    for (const auto& nal : nals) {
+        if (nal.size == 0 || nal.size > UINT32_MAX) return {};
+        const auto nal_size = static_cast<uint32_t>(nal.size);
+        out.push_back(static_cast<uint8_t>(nal_size >> 24));
+        out.push_back(static_cast<uint8_t>(nal_size >> 16));
+        out.push_back(static_cast<uint8_t>(nal_size >> 8));
+        out.push_back(static_cast<uint8_t>(nal_size));
+        out.insert(out.end(), nal.data, nal.data + nal.size);
+    }
+    return out;
+}
+
 void AppendNal(std::vector<uint8_t>& out, const std::vector<uint8_t>& nal) {
     static constexpr uint8_t kStartCode[] = {0, 0, 0, 1};
     if (nal.empty()) return;
     out.insert(out.end(), std::begin(kStartCode), std::end(kStartCode));
     out.insert(out.end(), nal.begin(), nal.end());
+}
+
+bool SetAvcExtradata(AVCodecParameters* codecpar,
+                     const std::vector<uint8_t>& sps,
+                     const std::vector<uint8_t>& pps) {
+    // FLV carries H.264 decoder configuration as an AVCDecoderConfigurationRecord
+    // (avcC), not as Annex-B NAL units.  Without it an RTMP receiver can infer
+    // the codec from the first IDR, but ZLMediaKit cannot reliably initialise
+    // its HLS muxer and the hls.m3u8 request waits forever for a valid segment.
+    if (sps.size() < 4 || pps.empty() || sps.size() > UINT16_MAX || pps.size() > UINT16_MAX) {
+        return false;
+    }
+    std::vector<uint8_t> avcc;
+    avcc.reserve(11 + sps.size() + pps.size());
+    avcc.push_back(1);          // configurationVersion
+    avcc.push_back(sps[1]);     // AVCProfileIndication
+    avcc.push_back(sps[2]);     // profile_compatibility
+    avcc.push_back(sps[3]);     // AVCLevelIndication
+    avcc.push_back(0xff);       // reserved + 4-byte NAL length
+    avcc.push_back(0xe1);       // reserved + one SPS
+    avcc.push_back((uint8_t)(sps.size() >> 8));
+    avcc.push_back((uint8_t)sps.size());
+    avcc.insert(avcc.end(), sps.begin(), sps.end());
+    avcc.push_back(1);          // one PPS
+    avcc.push_back((uint8_t)(pps.size() >> 8));
+    avcc.push_back((uint8_t)pps.size());
+    avcc.insert(avcc.end(), pps.begin(), pps.end());
+
+    auto* padded = static_cast<uint8_t*>(av_malloc(avcc.size() + AV_INPUT_BUFFER_PADDING_SIZE));
+    if (!padded) return false;
+    std::memcpy(padded, avcc.data(), avcc.size());
+    std::memset(padded + avcc.size(), 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    codecpar->extradata = padded;
+    codecpar->extradata_size = (int)avcc.size();
+    LOGI("LivePusher H.264 avcC extradata prepared: {} bytes", avcc.size());
+    return true;
 }
 
 int64_t NowMs() {
@@ -86,7 +142,10 @@ bool SetHevcExtradata(AVCodecParameters* codecpar,
 
     AVIOContext* dyn = nullptr;
     if (avio_open_dyn_buf(&dyn) < 0 || !dyn) return false;
-    const int write_ret = ff_isom_write_hvcc(dyn, annexb.data(), (int)annexb.size(), 1);
+    // FFmpeg 8 added the final logging-context argument.  The project links
+    // against that ABI; omitting it passed an arbitrary register as logctx
+    // and made the HEVC configuration-record writer crash in av_log.
+    const int write_ret = ff_isom_write_hvcc(dyn, annexb.data(), (int)annexb.size(), 1, nullptr);
     uint8_t* hvcc = nullptr;
     const int hvcc_size = avio_close_dyn_buf(dyn, &hvcc);
     if (write_ret < 0 || !hvcc || hvcc_size <= 0) {
@@ -167,9 +226,11 @@ void LivePusherPlugin::On1Second() {
 }
 
 bool LivePusherPlugin::IsSelectedMonitor(const std::string& mon_name) {
-    if (primary_monitor_.empty()) {
+    if (!primary_monitor_selected_) {
         primary_monitor_ = mon_name;
-        LOGI("LivePusher selected first active monitor as primary: {}", primary_monitor_);
+        primary_monitor_selected_ = true;
+        LOGI("LivePusher selected first active monitor as primary: {}",
+             primary_monitor_.empty() ? "<game-hook>" : primary_monitor_);
     }
     return primary_monitor_ == mon_name;
 }
@@ -234,6 +295,7 @@ void LivePusherPlugin::ResetVideoState() {
     video_width_ = video_height_ = 0;
     session_start_ms_ = 0;
     last_video_dts_ = -1;
+    last_idr_request_ms_ = 0;
     vps_.clear(); sps_.clear(); pps_.clear(); pending_key_.clear();
     pending_key_ts_ = 0;
 }
@@ -263,27 +325,50 @@ void LivePusherPlugin::ProcessVideo(const Entry& entry) {
     }
 
     const bool params_ready = codec_ == PxPluginEncodedVideoType::kH264 ? (!sps_.empty() && !pps_.empty()) : (!vps_.empty() && !sps_.empty() && !pps_.empty());
+    // FLV carries AVC/HEVC access units as 4-byte-length-prefixed NALs. The
+    // renderer encoders emit Annex-B; passing it through directly produces a
+    // stream ZLMediaKit can inspect but cannot reliably transmux to HLS.
+    const auto mux_payload = AnnexBToAvcc(bytes, size);
+    if (mux_payload.empty()) {
+        LOGW("LivePusher ignored video frame without Annex-B NAL units");
+        return;
+    }
     if (!fmt_) {
         if (!entry.key || !params_ready) return;
         video_width_ = entry.width;
         video_height_ = entry.height;
-        pending_key_.clear();
-        if (codec_ == PxPluginEncodedVideoType::kH265) AppendNal(pending_key_, vps_);
-        AppendNal(pending_key_, sps_);
-        AppendNal(pending_key_, pps_);
-        pending_key_.insert(pending_key_.end(), bytes, bytes + size);
+        pending_key_ = mux_payload;
         have_key_ = true;
         pending_key_ts_ = entry.timestamp_ms;
         if (!OpenOutput()) return;
+        // HLS needs a following IDR boundary to close and register its first
+        // segment. Request it immediately instead of waiting for the encoder's
+        // much longer periodic GOP interval.
+        last_idr_request_ms_ = NowMs();
+        InsertIdr();
         return;
+    }
+
+    // Keep a short GOP for fast HTTP-FLV join/recovery.  This is the primary
+    // low-latency stream, so a one-second IDR cadence is intentional.
+    const auto now_ms = NowMs();
+    if (now_ms - last_idr_request_ms_ >= 1000) {
+        last_idr_request_ms_ = now_ms;
+        InsertIdr();
     }
 
     AVPacket* pkt = av_packet_alloc();
     if (!pkt) return;
     pkt->stream_index = video_stream_->index;
-    pkt->data = const_cast<uint8_t*>(bytes);
-    pkt->size = (int)size;
-    auto dts = (entry.timestamp_ms - session_start_ms_) * 90;
+    pkt->data = const_cast<uint8_t*>(mux_payload.data());
+    pkt->size = (int)mux_payload.size();
+    // The FLV muxer may replace the requested 90 kHz stream time base with
+    // milliseconds when its header is written.  Convert from our monotonic
+    // millisecond clock using the stream's final time base instead of assuming
+    // 90 kHz; otherwise every 16 ms frame is emitted roughly 1.44 seconds
+    // apart and browsers wait indefinitely for playable media.
+    auto dts = av_rescale_q(entry.timestamp_ms - session_start_ms_,
+                            AVRational{1, 1000}, video_stream_->time_base);
     if (dts <= last_video_dts_) dts = last_video_dts_ + 1;
     last_video_dts_ = dts;
     pkt->pts = pkt->dts = dts;
@@ -396,9 +481,16 @@ std::string LivePusherPlugin::BuildUrl() const {
 
 bool LivePusherPlugin::OpenOutput() {
     if (!have_key_ || !aac_ || pending_key_.empty()) return false;
+    header_written_ = false;
     const auto url = BuildUrl();
     if (url.empty()) return false;
     if (avformat_alloc_output_context2(&fmt_, nullptr, "flv", url.c_str()) < 0 || !fmt_) return false;
+    // FFmpeg otherwise permits roughly ten seconds of A/V skew before its
+    // interleaver releases video.  Process-loopback audio is intentionally
+    // bursty in game-hook mode, so constrain that queue and flush RTMP packets
+    // immediately without bypassing the FLV interleaver itself.
+    fmt_->max_interleave_delta = 100000; // microseconds
+    fmt_->flags |= AVFMT_FLAG_FLUSH_PACKETS;
     video_stream_ = avformat_new_stream(fmt_, nullptr);
     audio_stream_ = avformat_new_stream(fmt_, nullptr);
     if (!video_stream_ || !audio_stream_) { CloseOutput(); return false; }
@@ -408,6 +500,11 @@ bool LivePusherPlugin::OpenOutput() {
     vc->codec_id = codec_ == PxPluginEncodedVideoType::kH265 ? AV_CODEC_ID_HEVC : AV_CODEC_ID_H264;
     vc->width = video_width_;
     vc->height = video_height_;
+    if (vc->codec_id == AV_CODEC_ID_H264 && !SetAvcExtradata(vc, sps_, pps_)) {
+        LOGE("LivePusher cannot publish H.264 without a valid avcC configuration record");
+        CloseOutput();
+        return false;
+    }
     if (vc->codec_id == AV_CODEC_ID_HEVC && !SetHevcExtradata(vc, vps_, sps_, pps_)) {
         LOGE("LivePusher cannot publish HEVC without a valid hvcC configuration record");
         CloseOutput();
@@ -423,6 +520,7 @@ bool LivePusherPlugin::OpenOutput() {
     if (avcodec_parameters_from_context(audio_stream_->codecpar, aac_) < 0) { CloseOutput(); return false; }
     if (!(fmt_->oformat->flags & AVFMT_NOFILE) && avio_open(&fmt_->pb, url.c_str(), AVIO_FLAG_WRITE) < 0) { CloseOutput(); return false; }
     if (avformat_write_header(fmt_, nullptr) < 0) { CloseOutput(); return false; }
+    header_written_ = true;
     session_start_ms_ = pending_key_ts_;
     last_video_dts_ = 0;
     LOGI("LivePusher publishing {} ({})", url, codec_ == PxPluginEncodedVideoType::kH265 ? "h265+aac" : "h264+aac");
@@ -442,12 +540,16 @@ bool LivePusherPlugin::OpenOutput() {
 
 void LivePusherPlugin::CloseOutput() {
     if (!fmt_) return;
-    av_write_trailer(fmt_);
+    // OpenOutput can fail before avformat_write_header. Calling the muxer's
+    // trailer writer in that state can dereference uninitialized FLV state
+    // (observed while opening an HEVC/RTMP output), taking down px_render.
+    if (header_written_) av_write_trailer(fmt_);
     if (!(fmt_->oformat->flags & AVFMT_NOFILE) && fmt_->pb) avio_closep(&fmt_->pb);
     avformat_free_context(fmt_);
     fmt_ = nullptr;
     video_stream_ = nullptr;
     audio_stream_ = nullptr;
+    header_written_ = false;
 }
 
 void LivePusherPlugin::Shutdown() {

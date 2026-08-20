@@ -411,6 +411,20 @@ namespace px
         });
 
         msg_listener_->Listen<MsgClientConnected>([=, this](const MsgClientConnected& msg) {
+            // A reconnect during the grace window invalidates any shutdown
+            // scheduled by the previous "last client disconnected" event.
+            // Only connections with a stable id participate in game lifetime.
+            // The transport name is deliberately not filtered: current web
+            // clients may negotiate Direct, UDP or another registered net
+            // plugin while preserving the same connect/disconnect id.
+            const bool tracked_game_client = settings_->IsGameHookMode()
+                && !msg.conn_id_.empty();
+            if (tracked_game_client) {
+                game_hook_has_seen_client_ = true;
+                std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
+                game_hook_client_ids_.insert(msg.conn_id_);
+            }
+            ++client_disconnect_generation_;
             this->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
@@ -432,18 +446,48 @@ namespace px
         });
 
         msg_listener_->Listen<MsgClientDisconnected>([=, this](const MsgClientDisconnected& msg) {
+            if (!settings_->IsGameHookMode()) {
+                return;
+            }
+            bool removed_tracked_client = false;
+            if (!msg.conn_id_.empty()) {
+                std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
+                removed_tracked_client = game_hook_client_ids_.erase(msg.conn_id_) > 0;
+            }
+            // Still update the tracked set during startup so short-lived setup
+            // sockets cannot keep the process alive.  Only the stop decision
+            // is suppressed until the embedded web listener is ready.
+            if (!game_hook_startup_grace_complete_) {
+                LOGI("Ignore game-hook client-disconnect during startup grace period.");
+                return;
+            }
+            if (!removed_tracked_client) {
+                LOGI("Ignore untracked game-hook client-disconnect event.");
+                return;
+            }
             if (HasConnectedPeer()) {
                 LOGI("Still has connected clients");
                 return;
             }
-            // LOGW("Don't have connected clients, maybe restart render in 10S");
-            // // check UTC time
-            // this->context_->PostDelayTask([=, this]() {
-            //     if (!HasConnectedPeer()) {
-            //         LOGW("** Don't have connected clients, will restart render now.");
-            //         ProcessUtil::KillProcess(qApp->applicationPid());
-            //     }
-            // }, 10000);
+            if (!game_hook_has_seen_client_) {
+                LOGW("Ignore game-hook client-disconnect before the first confirmed client connection.");
+                return;
+            }
+
+            const auto generation = ++client_disconnect_generation_;
+            LOGI("Last game-hook client disconnected; stop render in 5 seconds unless a client reconnects.");
+            auto weak_self = weak_from_this();
+            context_->PostDelayTask([weak_self, generation]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
+                    return;
+                }
+                if (self->HasConnectedPeer()) {
+                    return;
+                }
+                LOGI("Game-hook grace period elapsed with no clients; stopping render.");
+                ProcessUtil::KillProcess(GetCurrentProcessId());
+            }, 5000);
         });
 
         msg_listener_->Listen<ClipboardMessage>([=, this](const ClipboardMessage& msg) {
@@ -543,8 +587,15 @@ namespace px
             });
         });
 
-        // Restart MySelf
+        // Legacy desktop render watchdog.  A game-hook render owns a launched
+        // game in a kill-on-close job, so using "no connected WebRTC client" as
+        // a reason to restart it also terminates the game.  Game instances are
+        // now lifecycle-managed by CMS; without viewers they simply stop
+        // capture/encode through the existing HasConnectedPeer gates.
         msg_listener_->Listen<MsgTimer1Minute>([=, this](const MsgTimer1Minute&) {
+            if (settings_->IsGameHookMode()) {
+                return;
+            }
             ++restart_counter_;
             if (restart_counter_ >= 60 * 6) {
                 restart_counter_ = 0;
@@ -730,6 +781,18 @@ namespace px
             LOGI("StartProcessWithHook skipped: application.mode is desktop");
             return;
         }
+        // Do not let a transient setup socket terminate the game before its
+        // embedded web client can connect. After this window the normal
+        // tracked-client disconnect path uses the requested five-second grace.
+        auto weak_self = weak_from_this();
+        context_->PostDelayTask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_ || !self->settings_->IsGameHookMode()) return;
+            self->game_hook_startup_grace_complete_ = true;
+            if (self->HasConnectedPeer()) return;
+            LOGI("Game-hook startup grace elapsed with no clients; stopping render.");
+            ProcessUtil::KillProcess(GetCurrentProcessId());
+        }, 15000);
         msg_listener_->Listen<CaptureVideoFrame>([=, this](const CaptureVideoFrame& msg) {
             if (!HasConnectedPeer()) {
                 return;
@@ -846,7 +909,14 @@ namespace px
     }
 
     bool RdApplication::HasConnectedPeer() const {
-        return plugin_manager_->GetTotalConnectedClientsCount();
+        if (plugin_manager_->GetTotalConnectedClientsCount()) {
+            return true;
+        }
+        if (!settings_->IsGameHookMode()) {
+            return false;
+        }
+        std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
+        return !game_hook_client_ids_.empty();
     }
 
     void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) {

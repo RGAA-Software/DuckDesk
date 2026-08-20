@@ -1061,6 +1061,14 @@ impl AppScheduleManager {
     ) -> Result<AppInstance, String> {
         let request_id = inst.request_id.clone();
         let instance_id = inst.instance_id.clone();
+        let live = crate::gCmsSettings.lock().await.live.clone();
+        let live_stream_id = format!("{}__app__{}", inst.device_id, app.app_id);
+        tracing::info!(
+            instance_id = %instance_id,
+            live_stream_id = %live_stream_id,
+            has_publish_url = !live.publish_rtmp_url.trim().is_empty(),
+            "dispatching application instance with passive live main stream"
+        );
         let start = CmsServiceStartAppInstance {
             request_id: request_id.clone(),
             instance_id: instance_id.clone(),
@@ -1074,6 +1082,8 @@ impl AppScheduleManager {
             encoder_format: app.encoder_format.clone(),
             webrtc_enabled: app.webrtc_enabled,
             websocket_enabled: app.websocket_enabled,
+            live_stream_id,
+            push_rtmp_url: live.publish_rtmp_url,
         };
 
         let (wait_tx, wait_rx) = oneshot::channel();

@@ -45,6 +45,8 @@ pub struct StartAppRequest {
     pub encoder_format: String,
     pub webrtc_enabled: bool,
     pub websocket_enabled: bool,
+    pub live_stream_id: String,
+    pub push_rtmp_url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,6 +163,12 @@ pub fn build_game_hook_launch_spec(
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
     ];
+    if !req.live_stream_id.trim().is_empty() {
+        args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
+    }
+    if !req.push_rtmp_url.trim().is_empty() {
+        args.push(format!("--push_rtmp_url={}", req.push_rtmp_url.trim()));
+    }
     if let Some(v) = view {
         args.push(format!(
             "--app_game_view_path={}",
@@ -526,6 +534,8 @@ mod tests {
             encoder_format: "h264".to_string(),
             webrtc_enabled: true,
             websocket_enabled: true,
+            live_stream_id: "device-a__app__app-car".to_string(),
+            push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
         }
     }
 
@@ -560,6 +570,10 @@ mod tests {
         let decoded = px_base::crypto_util::base64_decode(b64).unwrap();
         assert!(decoded.contains("VehicleGame"));
         assert!(spec.args.iter().any(|a| a == "--capture_video_type=inner"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|a| a == "--live_stream_id=device-a__app__app-car"));
     }
 
     #[test]

@@ -8,4 +8,8 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
+# See px_ft_engine: keep the plugin translation unit in lock-step with the
+# generated protobuf ABI even when Ninja cannot parse localized MSVC includes.
+set_property(SOURCE ft_plugin.cpp APPEND PROPERTY OBJECT_DEPENDS
+        "${PX_PROJECT_BINARY_PATH}/px_message_new/px_message.pb.h;${PX_PROJECT_BINARY_PATH}/px_message_new/px_file_transfer.pb.h")
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_plugin px_ft_engine)

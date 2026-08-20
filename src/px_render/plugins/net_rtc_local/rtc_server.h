@@ -139,7 +139,11 @@ namespace px
         // 网络/对端异常断开时 ICE 可能长期停在 Disconnected 而不进 Failed/Closed,
         // On100msTimeout 据此超时判死并请求退出,避免死连接拖垮媒体投递。
         std::atomic<int64_t> ice_disconnected_since_ms_{0};
-        static constexpr int64_t kIceDisconnectedTimeoutMs = 10000;
+        // ICE can briefly report Disconnected while the same data channel is
+        // still recoverable. Confirm it for one second before emitting the
+        // final client-disconnected event; RdApplication then applies the
+        // user-facing five-second no-client grace period.
+        static constexpr int64_t kIceDisconnectedTimeoutMs = 1000;
         // 断开事件去重:见 EmitClientDisconnectedEvent
         std::atomic_bool disconnect_event_sent_ = false;
 

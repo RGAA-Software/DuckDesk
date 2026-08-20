@@ -49,6 +49,12 @@ message CmsServiceStartAppInstance {
   string encoder_format = 10;
   bool webrtc_enabled = 11;
   bool websocket_enabled = 12;
+  // Deterministic CMS live stream name, normally <device_id>__app__<app_id>.
+  // Empty keeps backward compatibility and disables the passive RTMP pusher.
+  string live_stream_id = 13;
+  // RTMP publishing template, for example
+  // rtmp://127.0.0.1:1935/live/{live_stream_id}. Empty uses render settings.
+  string push_rtmp_url = 14;
 }
 
 message CmsServiceStopAppInstance {

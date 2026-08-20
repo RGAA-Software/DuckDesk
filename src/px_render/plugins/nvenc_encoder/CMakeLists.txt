@@ -25,5 +25,13 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${NVENCODER_SOURCES_LIST})
+# NVENC enters the graphics driver while opening a D3D11 encode session.  Some
+# driver/session combinations signal a structured exception rather than a C++
+# NVENCException.  /EHa lets the guarded catch (...) paths return failure so
+# EncoderThread can fall back instead of terminating px_render (and its game
+# job) outright.
+if (MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /EHa)
+endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_steam_manager_new px_message
         px_plugin winmm.lib SetupAPI.lib)

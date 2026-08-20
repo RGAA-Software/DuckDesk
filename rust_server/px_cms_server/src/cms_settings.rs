@@ -38,6 +38,10 @@ fn default_auto_start_media_server() -> bool {
     true
 }
 
+fn default_publish_rtmp_url() -> String {
+    "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string()
+}
+
 /// ZLMediaKit integration settings. `api_secret` is deliberately server-only:
 /// the CMS issues short-lived playback tickets instead of returning this value
 /// or a direct media-server URL to the browser.
@@ -48,6 +52,10 @@ pub struct CmsLiveSettings {
     pub api_secret: String,
     pub app: String,
     pub default_app_id: String,
+    /// Address used by render instances to publish the passive main stream.
+    /// `{live_stream_id}` is replaced by render before publishing.
+    #[serde(default = "default_publish_rtmp_url")]
+    pub publish_rtmp_url: String,
     /// Start the fixed px_media.exe sidecar when media_server_url is local.
     #[serde(default = "default_auto_start_media_server")]
     pub auto_start_media_server: bool,
@@ -60,6 +68,7 @@ impl Default for CmsLiveSettings {
             api_secret: String::new(),
             app: default_live_app(),
             default_app_id: default_live_app_id(),
+            publish_rtmp_url: default_publish_rtmp_url(),
             auto_start_media_server: default_auto_start_media_server(),
         }
     }
