@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { exchangeRenewalTicket } from './ticket_renewal'
 import CryptoJS from 'crypto-js'
 import { InputController } from './rtc/input'
 import { sendControlMessage } from './rtc/control'
@@ -70,6 +71,31 @@ const clientNonce = ref('')
 // never sent in an HTTP Referer or server access log. Keep them in memory only.
 const connectionTicket = ref('')
 const connectionInstanceId = ref('')
+const renewalToken = ref('')
+const renewalUrl = ref('')
+const grantedPermissions = ref<string[]>([])
+let ticketConsumed = false
+
+function hasGrantedPermission(permission: string) {
+  // Manual administrator/debug connections do not carry a CMS capability
+  // list and retain the legacy controls.
+  return grantedPermissions.value.length === 0 || grantedPermissions.value.includes(permission)
+}
+
+async function renewConnectionTicket() {
+  setConnectStep('signal', '正在向 CMS 申请新的重连票据')
+  const renewed = await exchangeRenewalTicket(
+    fetch,
+    renewalUrl.value,
+    renewalToken.value,
+    clientNonce.value,
+  )
+  connectionTicket.value = renewed.ticket
+  renewalToken.value = renewed.renewalToken
+  if (renewed.permissions.length > 0) grantedPermissions.value = renewed.permissions
+  ticketConsumed = false
+  addLog('[connect] 已轮换 CMS 重连票据')
+}
 
 function ensureClientNonce(urlNonce: string) {
   if (urlNonce) {
@@ -191,6 +217,10 @@ async function toggleMic() {
     micStream = null
     micOn.value = false
     addLog('麦克风已关闭')
+    return
+  }
+  if (!hasGrantedPermission('audio')) {
+    addLog('当前连接票据未授予音频权限')
     return
   }
   if (!pc || !micTransceiver) {
@@ -454,6 +484,10 @@ function handleDcBinary(buf: ArrayBuffer) {
 
 // 「发送到远端」:读本地剪贴板 -> kClipboardInfo -> px_user_proxy 写入远端系统剪贴板
 async function sendClipboardToRemote(): Promise<boolean> {
+  if (!hasGrantedPermission('clipboard')) {
+    addLog('当前连接票据未授予剪贴板权限')
+    return false
+  }
   let text = ''
   try {
     text = await navigator.clipboard.readText()
@@ -475,6 +509,7 @@ async function sendClipboardToRemote(): Promise<boolean> {
 
 // 「复制到本地」:把最近收到的远端剪贴板文本写入本地系统剪贴板
 async function copyRemoteToLocal(): Promise<boolean> {
+  if (!hasGrantedPermission('clipboard')) return false
   if (!remoteClipboard.value) return false
   try {
     await navigator.clipboard.writeText(remoteClipboard.value)
@@ -490,7 +525,8 @@ async function copyRemoteToLocal(): Promise<boolean> {
 function exposeClipboardPerfDebug() {
   const w = window as unknown as { __clipboard?: unknown; __perf?: unknown; __mic?: unknown }
   w.__clipboard = {
-    sendText: (text: string) => sendClipboardText(dc, form.deviceId, form.streamId, text),
+    sendText: (text: string) => hasGrantedPermission('clipboard')
+      && sendClipboardText(dc, form.deviceId, form.streamId, text),
     lastRemote: () => remoteClipboard.value,
   }
   w.__perf = () => ({ ...perf.value })
@@ -638,6 +674,10 @@ async function initInput() {
 }
 
 watch(viewOnly, (v) => {
+  if (!v && !hasGrantedPermission('input')) {
+    viewOnly.value = true
+    return
+  }
   if (input) input.viewOnly = v
 })
 
@@ -800,6 +840,15 @@ function loadQueryParams() {
   if (!form.password) form.password = q.get('password') ?? ''
   if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
   connectionTicket.value = fragment.get('ticket') ?? ''
+  renewalToken.value = fragment.get('renew') ?? ''
+  renewalUrl.value = fragment.get('renew_url') ?? ''
+  grantedPermissions.value = (fragment.get('perms') ?? '')
+    .split(',')
+    .map((permission) => permission.trim())
+    .filter(Boolean)
+  if (grantedPermissions.value.length > 0 && !grantedPermissions.value.includes('input')) {
+    viewOnly.value = true
+  }
   const instanceId = fragment.get('instance') ?? q.get('instanceId') ?? ''
   connectionInstanceId.value = instanceId
   if (instanceId) {
@@ -1061,6 +1110,11 @@ async function connect() {
     ftDc.binaryType = 'arraybuffer'
     ftDc.onopen = () => {
       addLog(`datachannel "${FT_DATA_CHANNEL_LABEL}" onopen`)
+      if (!hasGrantedPermission('file')) {
+        addLog('当前连接票据未授予文件传输权限,关闭文件通道')
+        ftDc?.close()
+        return
+      }
       ft.initFt(ftDc as RTCDataChannel, form.deviceId, form.streamId, addLog)
     }
     ftDc.onmessage = (ev: MessageEvent) => {
@@ -1083,6 +1137,11 @@ async function connect() {
     inputDc.binaryType = 'arraybuffer'
     inputDc.onopen = () => {
       addLog(`datachannel "${INPUT_DATA_CHANNEL_LABEL}" onopen (unreliable/unordered)`)
+      if (!hasGrantedPermission('input')) {
+        addLog('当前连接票据未授予输入权限,关闭输入通道')
+        inputDc?.close()
+        return
+      }
       void (async () => {
         // fetchMonitorName 依赖 media 通道回推配置,先等它就绪
         for (let i = 0; i < 50 && dc?.readyState !== 'open'; i++) {
@@ -1141,6 +1200,9 @@ async function connect() {
 
     // 发信令拿 answer;返回空字符串表示"连接被占用"(code 704),由调用方决定接管或放弃
     const postSignal = async (takeover: boolean): Promise<string> => {
+      if (connectionTicket.value && ticketConsumed) {
+        await renewConnectionTicket()
+      }
       const query = new URLSearchParams({
         device_id: form.deviceId,
         stream_id: form.streamId,
@@ -1154,6 +1216,9 @@ async function connect() {
         body.ticket = connectionTicket.value
         body.client_nonce = clientNonce.value
         body.instance_id = connectionInstanceId.value
+        // The Render may redeem the ticket even when the HTTP response is lost,
+        // so every subsequent signaling attempt must rotate it first.
+        ticketConsumed = true
       }
       const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {
         method: 'POST',
@@ -1343,10 +1408,10 @@ onBeforeUnmount(() => {
       :connected="status === 'connected'"
       :can-disconnect="status === 'connected' || status === 'connecting' || status === 'reconnecting'"
       :ft-ready="ftReady"
-      :ft-supported="ftSupported"
+      :ft-supported="ftSupported && hasGrantedPermission('file')"
       :perf="perf"
       :remote-fps="remoteFps"
-      :clipboard-available="clipboardAvailable"
+      :clipboard-available="clipboardAvailable && hasGrantedPermission('clipboard')"
       :remote-clipboard="remoteClipboard"
       :send="sendControl"
       :send-clipboard-to-remote="sendClipboardToRemote"
@@ -1454,7 +1519,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <FileTransferWindow v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
+    <FileTransferWindow v-if="hasGrantedPermission('file')" v-model:visible="ftVisible" :device-id="form.deviceId" :ft="ft" />
   </div>
 </template>
 

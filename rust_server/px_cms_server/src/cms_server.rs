@@ -8,7 +8,7 @@ use crate::filter::cms_ws_token_filter::{
 use crate::{gCmsContext, gCmsSettings};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::response::IntoResponse;
-use axum::routing::{any, get};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use px_base::{get_current_timestamp, RespMessage};
@@ -43,6 +43,11 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 pub struct CmsServer {
     pub host: String,
     pub port: u16,
+}
+
+fn allow_ticket_renewal_origin(origin: &str, path: &str) -> bool {
+    path == "/api/v1/connection-tickets/renew"
+        && (origin.starts_with("http://") || origin.starts_with("https://"))
 }
 
 impl CmsServer {
@@ -88,9 +93,17 @@ impl CmsServer {
         };
         let context = gCmsContext.clone();
 
-        // Default CORS policy: deny cross-origin requests. Browser clients must be served
-        // from the same origin; native clients do not use CORS.
-        let cors = CorsLayer::new().allow_origin(AllowOrigin::predicate(|_, _| false));
+        // Only the rotating bearer-capability renewal endpoint is callable by
+        // a Web Client hosted on a Render/device origin. It accepts no CMS
+        // cookies; every other API remains same-origin only.
+        let cors = CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(|origin, request| {
+                origin
+                    .to_str()
+                    .is_ok_and(|value| allow_ticket_renewal_origin(value, request.uri.path()))
+            }))
+            .allow_methods([axum::http::Method::POST])
+            .allow_headers([axum::http::header::CONTENT_TYPE]);
 
         let index_html_path = web_cms_dir.join("index.html");
 
@@ -120,6 +133,10 @@ impl CmsServer {
             .nest("/api/v1/cms/control", make_cms_router(context.clone()))
             // user
             .nest("/api/v1/session", make_session_router(context.clone()))
+            .route(
+                "/api/v1/connection-tickets/renew",
+                post(crate::connection_ticket::handler::renew_connection_ticket),
+            )
             .nest("/api/v1/user", make_user_self_router(context.clone()))
             .nest("/api/v1/admin", make_admin_identity_router(context.clone()))
             .nest(
@@ -239,5 +256,26 @@ impl CmsServer {
             timestamp: get_current_timestamp(),
             data: "Pong".to_string(),
         })
+    }
+}
+
+#[cfg(test)]
+mod cors_tests {
+    use super::allow_ticket_renewal_origin;
+
+    #[test]
+    fn cross_origin_is_limited_to_rotating_ticket_renewal() {
+        assert!(allow_ticket_renewal_origin(
+            "http://device.local:32004",
+            "/api/v1/connection-tickets/renew"
+        ));
+        assert!(!allow_ticket_renewal_origin(
+            "http://device.local:32004",
+            "/api/v1/user/apps"
+        ));
+        assert!(!allow_ticket_renewal_origin(
+            "null",
+            "/api/v1/connection-tickets/renew"
+        ));
     }
 }

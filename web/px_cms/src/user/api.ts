@@ -44,6 +44,19 @@ export interface ResourceSummary {
   active_instance_count: number
 }
 
+export interface ResourcePage<T> {
+  items: T[]
+  page: number
+  page_size: number
+  total: number
+}
+
+export interface TicketLaunch {
+  launch_url: string
+  renewal_token: string
+  permissions: string[]
+}
+
 function data<T>(response: { data: { data: T } }): T {
   return response.data.data
 }
@@ -101,12 +114,36 @@ export async function getDevices() {
   return data<DeviceSummary[]>(await userHttp.get('/api/v1/user/devices'))
 }
 
+export async function getDevicesPage(page = 1, pageSize = 12, keyword = '') {
+  return data<ResourcePage<DeviceSummary>>(
+    await userHttp.get('/api/v1/user/devices/page', {
+      params: { page, page_size: pageSize, keyword },
+    }),
+  )
+}
+
 export async function getApps() {
   return data<ApplicationCard[]>(await userHttp.get('/api/v1/user/apps'))
 }
 
+export async function getAppsPage(page = 1, pageSize = 12, keyword = '') {
+  return data<ResourcePage<ApplicationCard>>(
+    await userHttp.get('/api/v1/user/apps/page', {
+      params: { page, page_size: pageSize, keyword },
+    }),
+  )
+}
+
 export async function getInstances() {
   return data<InstanceView[]>(await userHttp.get('/api/v1/user/instances'))
+}
+
+export async function getInstancesPage(page = 1, pageSize = 10, keyword = '', state = '') {
+  return data<ResourcePage<InstanceView>>(
+    await userHttp.get('/api/v1/user/instances/page', {
+      params: { page, page_size: pageSize, keyword, state },
+    }),
+  )
 }
 
 export async function waitForInstance(instanceId: string, timeoutMs = 30000) {
@@ -133,14 +170,31 @@ function nonce(key: string) {
   return value
 }
 
-export async function openDevice(deviceId: string) {
-  const result = data<{ launch_url: string }>(
+export function prepareLaunchUrl(result: TicketLaunch) {
+  const launch = new URL(result.launch_url, window.location.href)
+  const fragment = new URLSearchParams(launch.hash.replace(/^#/, ''))
+  fragment.set(
+    'renew_url',
+    `${window.location.origin}/api/v1/connection-tickets/renew`,
+  )
+  if (result.renewal_token) fragment.set('renew', result.renewal_token)
+  if (result.permissions?.length) fragment.set('perms', result.permissions.join(','))
+  launch.hash = fragment.toString()
+  return launch.toString()
+}
+
+function requestedPermissions(viewOnly: boolean) {
+  return viewOnly ? ['view'] : ['view', 'input', 'clipboard', 'file', 'audio']
+}
+
+export async function openDevice(deviceId: string, viewOnly = false) {
+  const result = data<TicketLaunch>(
     await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/ticket`, {
       client_nonce: nonce(`device_${deviceId}`),
-      requested_permissions: ['view', 'input', 'clipboard', 'file', 'audio'],
+      requested_permissions: requestedPermissions(viewOnly),
     }),
   )
-  window.location.assign(result.launch_url)
+  window.location.assign(prepareLaunchUrl(result))
 }
 
 export async function startApp(appId: string) {
@@ -153,17 +207,17 @@ export async function startApp(appId: string) {
   return { instance, clientNonce }
 }
 
-export async function openInstance(instance: InstanceView, clientNonce?: string) {
-  const result = data<{ launch_url: string }>(
+export async function openInstance(instance: InstanceView, clientNonce?: string, viewOnly = false) {
+  const result = data<TicketLaunch>(
     await userHttp.post(
       `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
       {
         client_nonce: clientNonce || nonce(`instance_${instance.instance_id}`),
-        requested_permissions: ['view', 'input', 'clipboard', 'file', 'audio'],
+        requested_permissions: requestedPermissions(viewOnly),
       },
     ),
   )
-  window.location.assign(result.launch_url)
+  window.location.assign(prepareLaunchUrl(result))
 }
 
 export async function stopInstance(instanceId: string) {

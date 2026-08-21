@@ -73,15 +73,22 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
         : json(route, { code: 'AUTH_REQUIRED', message: 'authentication required', data: null, request_id: 'test-request' }, 401)
     }
     if (path === '/api/v1/user/devices') return json(route, ok([]))
+    if (path === '/api/v1/user/devices/page') return json(route, ok({ items: [], page: 1, page_size: 10, total: 0 }))
     if (path === '/api/v1/user/apps') return json(route, ok(state.apps))
+    if (path === '/api/v1/user/apps/page') return json(route, ok({ items: state.apps, page: 1, page_size: 9, total: state.apps.length }))
     if (/^\/api\/v1\/user\/instances\/[^/]+\/ticket$/.test(path)) {
       state.ticketCalls += 1
       state.ticketBody = request.postDataJSON()
       state.ticketCsrf = request.headers()['x-csrf-token'] || ''
       const origin = new URL(request.url()).origin
-      return json(route, ok({ launch_url: `${origin}/user/apps?opened=1` }))
+      return json(route, ok({
+        launch_url: `${origin}/user/apps?opened=1#ticket=ticket-1&renew=renew-1&nonce=nonce-1`,
+        renewal_token: 'renew-1',
+        permissions: state.ticketBody?.requested_permissions,
+      }))
     }
     if (path === '/api/v1/user/instances') return json(route, ok([]))
+    if (path === '/api/v1/user/instances/page') return json(route, ok({ items: [], page: 1, page_size: 10, total: 0 }))
     if (path === '/api/v1/user/resources/summary') {
       return json(route, ok({ device_count: 0, application_count: 0, active_instance_count: 0 }))
     }
@@ -173,4 +180,61 @@ test('a fresh authenticated tab recovers csrf and opens an authorized applicatio
     'audio',
   ])
   await expect(page).toHaveURL(/opened=1/)
+  const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
+  expect(fragment.get('renew')).toBe('renew-1')
+  expect(fragment.get('renew_url')).toContain('/api/v1/connection-tickets/renew')
+  expect(fragment.get('perms')).toBe('view,input,clipboard,file,audio')
+})
+
+test('view-only application entry requests a server-enforced view grant', async ({ page }) => {
+  const api = await installUserApi(page)
+  api.apps.push({
+    app_id: 'app-1',
+    name: 'Authorized App',
+    access_mode: 'acl',
+    cover_url: '',
+    version: 1,
+    running_instance: { instance_id: 'instance-1', state: 'running', reconnectable: true },
+  })
+
+  await page.goto('/user/apps')
+  await page.getByRole('button', { name: '仅观看' }).click()
+
+  await expect.poll(() => api.ticketCalls).toBe(1)
+  expect(api.ticketBody?.requested_permissions).toEqual(['view'])
+  await expect(page).toHaveURL(/opened=1/)
+  const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
+  expect(fragment.get('perms')).toBe('view')
+})
+
+test('public catalog is anonymous and recreates a stale guest session for owned instances', async ({ page }) => {
+  let guestCalls = 0
+  let instanceCalls = 0
+  let publicAuthorization = ''
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/public/apps') {
+      publicAuthorization = request.headers().authorization || ''
+      return json(route, ok([{ app_id: 'public-1', name: 'Public App', access_mode: 'public', cover_url: '', version: 1 }]))
+    }
+    if (path === '/api/v1/session/guest') {
+      guestCalls += 1
+      return json(route, ok({ csrf_token: `guest-csrf-${guestCalls}` }))
+    }
+    if (path === '/api/v1/public/instances') {
+      instanceCalls += 1
+      if (instanceCalls === 1) {
+        return json(route, { code: 'AUTH_REQUIRED', message: 'stale guest', data: null }, 401)
+      }
+      return json(route, ok([]))
+    }
+    return json(route, { code: 'RESOURCE_NOT_FOUND', message: 'not found', data: null }, 404)
+  })
+
+  await page.goto('/user/public-apps')
+  await expect(page.getByText('Public App')).toBeVisible()
+  await expect.poll(() => guestCalls).toBe(2)
+  await expect.poll(() => instanceCalls).toBe(2)
+  expect(publicAuthorization).toBe('')
 })

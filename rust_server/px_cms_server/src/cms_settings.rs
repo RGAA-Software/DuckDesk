@@ -141,6 +141,7 @@ pub struct CmsUserSettings {
     pub admin_absolute_hours: i64,
     pub guest_absolute_hours: i64,
     pub ticket_expire_seconds: i64,
+    pub ticket_renew_expire_seconds: i64,
     pub rate_limit: UserRateLimitSettings,
     pub quota: UserQuotaSettings,
 }
@@ -156,6 +157,7 @@ impl Default for CmsUserSettings {
             admin_absolute_hours: 8,
             guest_absolute_hours: 24,
             ticket_expire_seconds: 30,
+            ticket_renew_expire_seconds: 24 * 60 * 60,
             rate_limit: UserRateLimitSettings::default(),
             quota: UserQuotaSettings::default(),
         }
@@ -263,6 +265,11 @@ impl CmsSettings {
         }
         if !(5..=300).contains(&self.user.ticket_expire_seconds) {
             return Err("user.ticket_expire_seconds must be between 5 and 300".to_string());
+        }
+        if !(60..=7 * 24 * 60 * 60).contains(&self.user.ticket_renew_expire_seconds) {
+            return Err(
+                "user.ticket_renew_expire_seconds must be between 60 and 604800".to_string(),
+            );
         }
         Ok(())
     }
@@ -375,6 +382,9 @@ mod security_tests {
         settings.ssl_enable = false;
         assert!(settings.validate_for_server().is_ok());
         settings.user.ticket_expire_seconds = 301;
+        assert!(settings.validate_for_server().is_err());
+        settings.user.ticket_expire_seconds = 30;
+        settings.user.ticket_renew_expire_seconds = 59;
         assert!(settings.validate_for_server().is_err());
     }
 }

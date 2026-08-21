@@ -1,6 +1,6 @@
 # CMS 用户、用户组与资源访问控制设计
 
-> 状态：v6.3 已完成并通过本机 Panel 界面与应用生命周期验收（2026-08-21）；生产集群增强项单独标为“后续”。
+> 状态：v6.4 已完成用户 Web 分页、服务端仅观看权限和浏览器安全续票实现（2026-08-21）；生产集群增强项单独标为“后续”。
 > 适用范围：单个 CMS 部署（单租户）下的终端用户、CMS 管理者、设备和云端应用。
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 CMS 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
@@ -209,7 +209,7 @@ pub struct ConnectionTicket {
 
 - 原始 ticket 至少 256 bit，只在签发响应中出现一次；数据库保存 ticket_hash。
 - 默认有效期 30 秒，一次性消费。兑换时使用 `未消费 && 未过期 && 全部绑定字段匹配` 的原子条件更新。
-- 重连必须重新向 CMS 申请票据；不能复用旧票据。
+- 重连必须重新向 CMS 申请票据；不能复用旧票据。浏览器使用只存在于 URL fragment/内存中的轮换 renewal capability 换取新票据；renewal 每次成功使用后立即轮换，仍需重新校验 session、ACL、owner、实例状态和设备在线状态。
 - 票据只用于建立连接，不替代 user/admin session。
 
 ## 4. 授权计算
@@ -377,8 +377,8 @@ Panel/浏览器
 
 - 使用 admin cookie，不再把 appkey 或密码存入 localStorage。
 - 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、个人设备授权、会话撤销。
-- 用户组页：CRUD、成员、设备 grant、应用 grant、孤儿授权提示。
-- 应用页：public/acl 编辑、获授权组数量、无授权风险提示。
+- 用户组页：CRUD、成员、设备 grant，并只读显示专属应用数量。
+- 应用页：public/acl 编辑、授权用户组分配、获授权组数量、无授权风险提示；应用授权只在应用调度页操作。
 - 实例页：显示 owner 类型/名称、来源应用、节点、状态和管理员停止操作。
 
 ### 8.3 浏览器用户门户
@@ -462,7 +462,7 @@ public 应用允许匿名启动，但必须具备以下保护：
 ### 11.2 初始化顺序
 
 1. 启动新 CMS，创建新集合以及 group/member/grant/session/ticket 的唯一索引和 TTL 索引。
-2. 建立 license 管理者会话配置，将注册模式初始化为 `closed`。
+2. 建立 license 管理者会话配置；当前测试产品决策为开放直接注册，新用户默认无用户组和个人设备授权。
 3. 重新创建测试用户；密码只生成 Argon2id hash。
 4. 重新创建应用并显式写入 `access_mode`，再创建用户组、成员以及设备/应用授权。
 5. 重新登记个人设备授权，启动新的应用实例并签发新 ticket。
@@ -540,6 +540,14 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 - Panel Official/RelWithDebInfo 增量编译链接通过，二进制和三套语言资源已部署；实机截图确认“远程控制”页没有 `car`，“云端应用”页只显示 `car`，本地“安装的游戏”仍为独立入口。
 - 从“云端应用”页实际点击“启动应用”创建 guest 实例 `inst-7-a5d21880`，实例进入 running（存在 `started_at_ms`）并随后正常 stopped；验收结束后活动实例和测试 px_client 进程均为 0。
 
+### 12.5 v6.4 用户 Web 收尾结果（2026-08-21）
+
+- 用户设备、应用和实例新增服务端分页、搜索与状态过滤接口；旧数组接口仅保留给现有原生 Panel，避免协议突变。
+- 用户和访客应用页均支持启动、进入、仅观看、停止；停止操作需要明确确认，活动页展示创建、启动、停止和稳定错误信息。
+- 仅观看连接只申请 `view`，Render 最终能力来自票据 grant；Web Client 不能通过关闭本地“仅观看”开关扩大权限。
+- 浏览器首次票据附带独立 renewal capability；完整重连或接管再次信令前，由跨源受限端点轮换 renewal 并签发新的一次性 ticket。续票重新校验 session、owner、ACL、实例和设备状态。
+- CMS Rust 120/120、CMS Web Vitest 13/13、Chromium Playwright 常规用例 6/6 及现场 RTC 续票用例 1/1 通过；CMS Web 与 Web Client 生产构建通过。部署后真实 guest 实例完成 `view` 签票、renewal 轮换、旧 renewal 重放拒绝，并由浏览器主动关闭 PeerConnection 验证自动续票、RTC 重连、视频继续播放和实例清理。
+
 ## 13. 测试与验收
 
 ### 13.1 单元测试
@@ -600,7 +608,7 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 - 成功响应统一为 `{ "code": 200, "message": "ok", "data": ... }`。
 - 失败响应统一为 `{ "code": <业务码>, "message": <稳定错误文本>, "data": null, "request_id": <追踪号> }`，不得带数据库错误、路径、密钥或栈信息。
 - 时间字段统一为 UTC Unix 毫秒，字段名以 `_at` 结尾；ID 均为不透明字符串，客户端不得解析。
-- 列表请求统一接受 `page`（从 1 开始，默认 1，最大 100000）、`page_size`（默认 20，最大 100）、`keyword` 和 `sort`；响应为 `{ items, page, page_size, total }`。
+- 新分页列表接受 `page`（从 1 开始，默认 1，最大 100000）、`page_size`（默认 20，最大 100）、`keyword` 和可选状态条件；响应为 `{ items, page, page_size, total }`。用户资源使用 `/devices/page`、`/apps/page`、`/instances/page`；旧数组接口仅供现有原生 Panel 兼容。
 - 应用启动通过 `owner_session_id + app_id + client_nonce` 唯一约束实现幂等；ticket 保持一次性语义。通用 `Idempotency-Key` 存储属于后续多副本增强，不作为当前单机版本接口。
 - 修改和删除接受实体 `version`；Mongo 更新条件包含当前 version，冲突返回 409，成功后 version 递增。
 - 只允许显式 DTO 字段，未知字段返回 400；字符串先 trim，再校验长度和 Unicode 控制字符。
@@ -647,7 +655,7 @@ DeviceSummary     { device_id, name, online, capabilities, last_seen_at }
 ApplicationCard   { app_id, name, access_mode, cover_url, running_instance?, version }
 InstanceView      { instance_id, app_id, app_name, state, created_at, started_at?,
                     stopped_at?, error_code?, reconnectable }
-TicketResponse    { ticket, launch_url, expires_at, permissions }
+TicketResponse    { ticket, renewal_token, launch_url, expires_at, permissions }
 ```
 
 任何用户侧 DTO 均不得包含 `password_hash`、appkey、app_secret、node_id、device_id（应用场景）、端口、进程路径、静态连接密码或 `desktop_link`。
@@ -672,7 +680,7 @@ PATCH  /api/v1/admin/groups/{gid}           { version, name?, remark? }
 DELETE /api/v1/admin/groups/{gid}           { version }
 PUT    /api/v1/admin/groups/{gid}/members   { version, user_ids[] }
 PUT    /api/v1/admin/groups/{gid}/devices   { version, device_ids[] }
-PUT    /api/v1/admin/groups/{gid}/apps      { version, app_ids[] }
+PATCH  /api/v1/admin/apps/{app_id}/access   { version, access_mode, group_ids[] }
 ```
 
 - PUT 授权接口表达“期望的完整集合”，先校验全部目标和实体 version，再替换关系。当前测试/单机部署采用可重试的幂等全量替换；Mongo 多文档事务和 operation_id 恢复日志属于后续多副本增强。
@@ -683,17 +691,23 @@ PUT    /api/v1/admin/groups/{gid}/apps      { version, app_ids[] }
 
 ```text
 GET  /api/v1/user/devices
+GET  /api/v1/user/devices/page?page=&page_size=&keyword=
 POST /api/v1/user/devices/{device_id}/ticket
      { client_nonce, requested_permissions[] }
 
 GET  /api/v1/user/apps
+GET  /api/v1/user/apps/page?page=&page_size=&keyword=
 POST /api/v1/user/apps/{app_id}/start
      { client_nonce }
 GET  /api/v1/user/instances
+GET  /api/v1/user/instances/page?page=&page_size=&keyword=&state=
 POST /api/v1/user/instances/{instance_id}/ticket
      { client_nonce, requested_permissions[] }
 POST /api/v1/user/instances/{instance_id}/stop
      { reason? }
+
+POST /api/v1/connection-tickets/renew
+     { renewal_token, client_nonce }
 ```
 
 - `requested_permissions` 只能缩小服务端允许集合，不能扩大；未知权限返回 400。

@@ -290,6 +290,10 @@ impl CmsDatabase {
                         .options(IndexOptions::builder().unique(true).build())
                         .build(),
                     IndexModel::builder()
+                        .keys(doc! { "renewal_hash": 1 })
+                        .options(IndexOptions::builder().unique(true).sparse(true).build())
+                        .build(),
+                    IndexModel::builder()
                         .keys(doc! { "cleanup_at": 1 })
                         .options(
                             IndexOptions::builder()

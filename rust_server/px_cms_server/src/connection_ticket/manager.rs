@@ -31,7 +31,7 @@ impl ConnectionTicketManager {
         Ok(URL_SAFE_NO_PAD.encode(bytes))
     }
 
-    fn hash(token: &str) -> String {
+    pub(crate) fn hash(token: &str) -> String {
         compute_hash(HashAlgo::SHA256, token.as_bytes())
     }
 
@@ -46,7 +46,7 @@ impl ConnectionTicketManager {
         instance_id: Option<String>,
         permissions: Vec<String>,
         client_nonce: String,
-    ) -> Result<(String, ConnectionTicket), CmsApiError> {
+    ) -> Result<(String, String, ConnectionTicket), CmsApiError> {
         Self::validate_nonce(&client_nonce)?;
         if !matches!(kind, "device" | "app_instance")
             || !matches!(subject_type, "guest" | "user" | "admin")
@@ -56,6 +56,7 @@ impl ConnectionTicketManager {
             return Err(CmsApiError::InvalidParams);
         }
         let raw = Self::new_token()?;
+        let renewal_raw = Self::new_token()?;
         let now = px_base::get_current_timestamp();
         let ttl_seconds = crate::gCmsSettings
             .lock()
@@ -64,8 +65,18 @@ impl ConnectionTicketManager {
             .ticket_expire_seconds
             .clamp(5, 300);
         let expires_at = now + ttl_seconds * 1000;
+        // A renewal capability is rotated on every use and remains bounded by
+        // the server-side user session check and an absolute configured TTL.
+        let renewal_ttl_seconds = crate::gCmsSettings
+            .lock()
+            .await
+            .user
+            .ticket_renew_expire_seconds
+            .clamp(60, 7 * 24 * 60 * 60);
+        let renewal_expires_at = now + renewal_ttl_seconds * 1000;
         let ticket = ConnectionTicket {
             ticket_hash: Self::hash(&raw),
+            renewal_hash: Self::hash(&renewal_raw),
             kind: kind.to_string(),
             subject_type: subject_type.to_string(),
             subject_id: subject_id.to_string(),
@@ -77,7 +88,8 @@ impl ConnectionTicketManager {
             client_nonce,
             created_at: now,
             expires_at,
-            cleanup_at: DateTime::from_millis(expires_at),
+            renewal_expires_at,
+            cleanup_at: DateTime::from_millis(renewal_expires_at),
             consumed_at: None,
         };
         gCmsDatabase
@@ -89,7 +101,96 @@ impl ConnectionTicketManager {
             .insert_one(ticket.clone())
             .await
             .map_err(|_| CmsApiError::DatabaseError)?;
-        Ok((raw, ticket))
+        Ok((raw, renewal_raw, ticket))
+    }
+
+    /// Look up a renewal grant without consuming it. The following `renew`
+    /// call still uses an atomic hash match, so concurrent attempts cannot both
+    /// rotate the same capability successfully.
+    pub async fn lookup_renewal(
+        raw: &str,
+        client_nonce: &str,
+    ) -> Result<ConnectionTicket, CmsApiError> {
+        Self::validate_nonce(client_nonce)?;
+        let now = px_base::get_current_timestamp();
+        gCmsDatabase
+            .lock()
+            .await
+            .connection_ticket()
+            .lock()
+            .await
+            .find_one(doc! {
+                "renewal_hash": Self::hash(raw),
+                "client_nonce": client_nonce,
+                "renewal_expires_at": { "$gt": now },
+            })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .ok_or(CmsApiError::TicketExpiredOrUsed)
+    }
+
+    pub async fn renew(
+        raw: &str,
+        client_nonce: &str,
+    ) -> Result<(String, String, ConnectionTicket), CmsApiError> {
+        Self::validate_nonce(client_nonce)?;
+        let existing = Self::lookup_renewal(raw, client_nonce).await?;
+        let now = px_base::get_current_timestamp();
+        let session_active = gCmsDatabase
+            .lock()
+            .await
+            .user_session()
+            .lock()
+            .await
+            .find_one(doc! {
+                "sid": &existing.session_id,
+                "subject_type": &existing.subject_type,
+                "subject_id": &existing.subject_id,
+                "revoked_at": null,
+                "expires_at": { "$gt": now },
+                "absolute_expires_at": { "$gt": now },
+            })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .is_some();
+        if !session_active {
+            return Err(CmsApiError::TicketExpiredOrUsed);
+        }
+
+        let ticket_raw = Self::new_token()?;
+        let renewal_raw = Self::new_token()?;
+        let ttl_seconds = crate::gCmsSettings
+            .lock()
+            .await
+            .user
+            .ticket_expire_seconds
+            .clamp(5, 300);
+        let expires_at = now + ttl_seconds * 1000;
+        let renewed = gCmsDatabase
+            .lock()
+            .await
+            .connection_ticket()
+            .lock()
+            .await
+            .find_one_and_update(
+                doc! {
+                    "renewal_hash": Self::hash(raw),
+                    "client_nonce": client_nonce,
+                    "renewal_expires_at": { "$gt": now },
+                },
+                doc! { "$set": {
+                    "ticket_hash": Self::hash(&ticket_raw),
+                    "renewal_hash": Self::hash(&renewal_raw),
+                    "created_at": now,
+                    "expires_at": expires_at,
+                    "consumed_at": Bson::Null,
+                }},
+            )
+            .return_document(ReturnDocument::After)
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .ok_or(CmsApiError::TicketExpiredOrUsed)?;
+        Ok((ticket_raw, renewal_raw, renewed))
     }
 
     pub async fn redeem(

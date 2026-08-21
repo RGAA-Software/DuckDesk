@@ -2,15 +2,15 @@ use crate::app_schedule::gAppScheduleManager;
 use crate::app_schedule::manager::InstanceState;
 use crate::cms_api_error::CmsApiError;
 use crate::connection_ticket::manager::ConnectionTicketManager;
-use crate::connection_ticket::model::TicketResponse;
+use crate::connection_ticket::model::{ConnectionTicket, TicketRenewResponse, TicketResponse};
 use crate::event::audit;
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
 use crate::{gCmsUserDeviceMgr, gDeviceManager};
-use axum::extract::{Extension, Path};
+use axum::extract::{ConnectInfo, Extension, Path};
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
 use serde::Deserialize;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -18,6 +18,13 @@ pub struct TicketRequest {
     pub client_nonce: String,
     #[serde(default)]
     pub requested_permissions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TicketRenewRequest {
+    pub renewal_token: String,
+    pub client_nonce: String,
 }
 
 fn permissions(requested: Vec<String>, allowed: &[&str]) -> Result<Vec<String>, CmsApiError> {
@@ -48,6 +55,95 @@ fn host_for_url(host: &str) -> String {
     }
 }
 
+async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), CmsApiError> {
+    match (ticket.subject_type.as_str(), ticket.kind.as_str()) {
+        ("user", "device") => {
+            if !gCmsUserDeviceMgr
+                .user_has_device(&ticket.subject_id, &ticket.device_id)
+                .await?
+            {
+                return Err(CmsApiError::ResourceNotFound);
+            }
+            let device = gDeviceManager
+                .query_device_by_id(ticket.device_id.clone())
+                .await
+                .map_err(|_| CmsApiError::ResourceNotFound)?;
+            if !device.active {
+                return Err(CmsApiError::DeviceOffline);
+            }
+        }
+        ("user" | "guest", "app_instance") => {
+            let instance_id = ticket
+                .instance_id
+                .as_deref()
+                .ok_or(CmsApiError::ResourceNotFound)?;
+            let instance = gAppScheduleManager
+                .get_instance(instance_id)
+                .await
+                .filter(|instance| {
+                    instance.owner_type == ticket.subject_type
+                        && instance.owner_id == ticket.subject_id
+                        && instance.device_id == ticket.device_id
+                        && instance.state == InstanceState::Running
+                })
+                .ok_or(CmsApiError::ResourceNotFound)?;
+            let app = gAppScheduleManager
+                .get_application(&instance.app_id)
+                .await
+                .ok_or(CmsApiError::ResourceNotFound)?;
+            if ticket.subject_type == "guest" {
+                if app.access_mode != crate::app_schedule::manager::AppAccessMode::Public {
+                    return Err(CmsApiError::ResourceNotFound);
+                }
+            } else if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl
+                && !crate::identity::manager::IdentityManager::authorized_app_ids(
+                    &ticket.subject_id,
+                )
+                .await?
+                .contains(&instance.app_id)
+            {
+                return Err(CmsApiError::ResourceNotFound);
+            }
+        }
+        _ => return Err(CmsApiError::ResourceNotFound),
+    }
+    Ok(())
+}
+
+/// Cross-origin browser renewal endpoint. Authentication is the rotating,
+/// hashed renewal capability itself; no CMS cookie or CSRF secret is accepted.
+pub async fn renew_connection_ticket(
+    ConnectInfo(remote): ConnectInfo<SocketAddr>,
+    Json(request): Json<TicketRenewRequest>,
+) -> Result<Json<RespMessage<TicketRenewResponse>>, CmsApiError> {
+    crate::user::rate_limit::check(format!("ticket-renew-ip:{}", remote.ip()), 120, 60 * 1000)?;
+    if request.renewal_token.is_empty() || request.renewal_token.len() > 128 {
+        return Err(CmsApiError::InvalidParams);
+    }
+    let existing =
+        ConnectionTicketManager::lookup_renewal(&request.renewal_token, &request.client_nonce)
+            .await?;
+    validate_renewal_resource(&existing).await?;
+    let (ticket, renewal_token, renewed) =
+        ConnectionTicketManager::renew(&request.renewal_token, &request.client_nonce).await?;
+    audit::record(
+        &renewed.subject_type,
+        &renewed.subject_id,
+        "ticket_renew",
+        "success",
+        &renewed.kind,
+        renewed.instance_id.as_deref().unwrap_or(&renewed.device_id),
+        "",
+    )
+    .await;
+    Ok(Json(ok_resp(TicketRenewResponse {
+        ticket,
+        renewal_token,
+        expires_at: renewed.expires_at,
+        permissions: renewed.permissions,
+    })))
+}
+
 pub async fn issue_device_ticket(
     Path(device_id): Path<String>,
     Extension(subject): Extension<AuthenticatedUser>,
@@ -75,7 +171,7 @@ pub async fn issue_device_ticket(
         request.requested_permissions,
         &["view", "input", "clipboard", "file", "audio"],
     )?;
-    let (raw, ticket) = ConnectionTicketManager::issue(
+    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
         "device",
         "user",
         &subject.uid,
@@ -98,15 +194,18 @@ pub async fn issue_device_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&nonce={}",
+        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&perms={}",
         host_for_url(&host),
         port,
         device_id,
         raw,
-        request.client_nonce
+        renewal_token,
+        request.client_nonce,
+        granted.join(",")
     );
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
+        renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,
@@ -155,7 +254,7 @@ pub async fn issue_instance_ticket(
         request.requested_permissions,
         &["view", "input", "clipboard", "file", "audio"],
     )?;
-    let (raw, ticket) = ConnectionTicketManager::issue(
+    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "user",
         &subject.uid,
@@ -178,16 +277,19 @@ pub async fn issue_instance_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&nonce={}&instance={}",
+        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&instance={}&perms={}",
         host_for_url(&host),
         instance.listen_port,
         instance.device_id,
         raw,
+        renewal_token,
         request.client_nonce,
-        instance.instance_id
+        instance.instance_id,
+        granted.join(",")
     );
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
+        renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,
@@ -226,7 +328,7 @@ pub async fn issue_guest_instance_ticket(
     // Anonymous sessions receive view/input only. More sensitive capabilities
     // require an authenticated user and an explicit device policy.
     let granted = permissions(request.requested_permissions, &["view", "input"])?;
-    let (raw, ticket) = ConnectionTicketManager::issue(
+    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "guest",
         &subject.guest_id,
@@ -249,16 +351,19 @@ pub async fn issue_guest_instance_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&nonce={}&instance={}",
+        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&instance={}&perms={}",
         host_for_url(&host),
         instance.listen_port,
         instance.device_id,
         raw,
+        renewal_token,
         request.client_nonce,
-        instance.instance_id
+        instance.instance_id,
+        granted.join(",")
     );
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
+        renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,

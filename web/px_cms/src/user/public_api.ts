@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ApplicationCard, InstanceView } from './api'
+import { prepareLaunchUrl, type ApplicationCard, type InstanceView, type TicketLaunch } from './api'
 
 const CSRF_KEY = 'px_guest_csrf'
 const guestHttp = axios.create({ baseURL: '', timeout: 15000, withCredentials: true })
@@ -82,12 +82,32 @@ export async function waitForGuestInstance(instanceId: string, timeoutMs = 30000
   throw new Error('实例启动超时')
 }
 
-export async function openGuestInstance(instance: InstanceView, clientNonce: string) {
-  const result = unwrap<{ launch_url: string }>(
+export async function getGuestInstances() {
+  await ensureGuestSession()
+  try {
+    return unwrap<InstanceView[]>(await guestHttp.get('/api/v1/public/instances'))
+  } catch (error: any) {
+    if (error?.response?.status !== 401) throw error
+    await ensureGuestSession(true)
+    return unwrap<InstanceView[]>(await guestHttp.get('/api/v1/public/instances'))
+  }
+}
+
+export async function openGuestInstance(instance: InstanceView, clientNonce: string, viewOnly = false) {
+  const result = unwrap<TicketLaunch>(
     await guestHttp.post(
       `/api/v1/public/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
-      { client_nonce: clientNonce, requested_permissions: ['view', 'input'] },
+      { client_nonce: clientNonce, requested_permissions: viewOnly ? ['view'] : ['view', 'input'] },
     ),
   )
-  window.location.assign(result.launch_url)
+  window.location.assign(prepareLaunchUrl(result))
+}
+
+export async function stopGuestInstance(instanceId: string) {
+  return unwrap<InstanceView>(
+    await guestHttp.post(
+      `/api/v1/public/instances/${encodeURIComponent(instanceId)}/stop`,
+      { reason: 'guest_requested' },
+    ),
+  )
 }

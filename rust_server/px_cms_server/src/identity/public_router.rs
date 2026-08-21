@@ -13,10 +13,7 @@ pub fn make_public_resource_router(
     context: Arc<Mutex<CmsContext>>,
 ) -> Router<Arc<Mutex<CmsContext>>> {
     Router::new()
-        .route(
-            "/apps",
-            get(list_public_apps),
-        )
+        .route("/apps", get(list_public_apps))
         .route(
             "/apps/{app_id}/start",
             post(start_public_app).layer(middleware::from_fn(require_guest_write)),

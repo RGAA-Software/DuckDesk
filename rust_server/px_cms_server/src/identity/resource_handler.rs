@@ -4,8 +4,9 @@ use crate::cms_api_error::CmsApiError;
 use crate::event::audit;
 use crate::gCmsUserDeviceMgr;
 use crate::identity::manager::IdentityManager;
+use crate::identity::model::{page_items, ResourcePage, ResourcePageQuery};
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
-use axum::extract::{Extension, Path};
+use axum::extract::{Extension, Path, Query};
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
 use serde::{Deserialize, Serialize};
@@ -170,6 +171,23 @@ pub async fn list_user_apps(
     Ok(Json(ok_resp(authorized_apps(&subject.uid).await?)))
 }
 
+pub async fn list_user_apps_page(
+    Extension(subject): Extension<AuthenticatedUser>,
+    Query(query): Query<ResourcePageQuery>,
+) -> Result<Json<RespMessage<ResourcePage<ApplicationCard>>>, CmsApiError> {
+    let keyword = query.keyword.trim().to_lowercase();
+    let apps = authorized_apps(&subject.uid)
+        .await?
+        .into_iter()
+        .filter(|app| {
+            keyword.is_empty()
+                || app.name.to_lowercase().contains(&keyword)
+                || app.app_id.to_lowercase().contains(&keyword)
+        })
+        .collect();
+    Ok(Json(ok_resp(page_items(apps, &query))))
+}
+
 pub async fn start_user_app(
     Path(app_id): Path<String>,
     Extension(subject): Extension<AuthenticatedUser>,
@@ -272,6 +290,34 @@ pub async fn list_user_instances(
         views.push(instance_view(instance).await);
     }
     Ok(Json(ok_resp(views)))
+}
+
+pub async fn list_user_instances_page(
+    Extension(subject): Extension<AuthenticatedUser>,
+    Query(query): Query<ResourcePageQuery>,
+) -> Result<Json<RespMessage<ResourcePage<InstanceView>>>, CmsApiError> {
+    let keyword = query.keyword.trim().to_lowercase();
+    let state = query.state.trim().to_lowercase();
+    let mut views = Vec::new();
+    for instance in gAppScheduleManager
+        .list_instances_for_owner("user", &subject.uid)
+        .await
+    {
+        let view = instance_view(instance).await;
+        if !state.is_empty() && view.state != state {
+            continue;
+        }
+        if !keyword.is_empty()
+            && !view.app_name.to_lowercase().contains(&keyword)
+            && !view.app_id.to_lowercase().contains(&keyword)
+            && !view.instance_id.to_lowercase().contains(&keyword)
+        {
+            continue;
+        }
+        views.push(view);
+    }
+    views.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    Ok(Json(ok_resp(page_items(views, &query))))
 }
 
 pub async fn stop_user_instance(

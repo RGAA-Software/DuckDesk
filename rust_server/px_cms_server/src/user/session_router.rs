@@ -3,7 +3,8 @@ use crate::cms_context::CmsContext;
 use crate::connection_ticket::handler::{issue_device_ticket, issue_instance_ticket};
 use crate::gUserSessionManager;
 use crate::identity::resource_handler::{
-    list_user_apps, list_user_instances, start_user_app, stop_user_instance, user_resource_summary,
+    list_user_apps, list_user_apps_page, list_user_instances, list_user_instances_page,
+    start_user_app, stop_user_instance, user_resource_summary,
 };
 use crate::identity::user_handler::logout_all;
 use crate::user::session_handler::{
@@ -11,7 +12,9 @@ use crate::user::session_handler::{
     logout, me, refresh_user_csrf, register_user, update_avatar, update_profile,
     ADMIN_SESSION_COOKIE, GUEST_SESSION_COOKIE, USER_SESSION_COOKIE,
 };
-use crate::user_device::cms_user_device_handler::handle_query_my_devices;
+use crate::user_device::cms_user_device_handler::{
+    handle_query_my_devices, handle_query_my_devices_page,
+};
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{header, Request};
@@ -341,6 +344,10 @@ pub fn make_user_self_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mute
             get(handle_query_my_devices).layer(middleware::from_fn(require_active_user)),
         )
         .route(
+            "/devices/page",
+            get(handle_query_my_devices_page).layer(middleware::from_fn(require_active_user)),
+        )
+        .route(
             "/devices/{device_id}/ticket",
             post(issue_device_ticket).layer(middleware::from_fn(require_active_user_write)),
         )
@@ -353,12 +360,20 @@ pub fn make_user_self_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mute
             get(list_user_apps).layer(middleware::from_fn(require_active_user)),
         )
         .route(
+            "/apps/page",
+            get(list_user_apps_page).layer(middleware::from_fn(require_active_user)),
+        )
+        .route(
             "/apps/{app_id}/start",
             post(start_user_app).layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
             "/instances",
             get(list_user_instances).layer(middleware::from_fn(require_active_user)),
+        )
+        .route(
+            "/instances/page",
+            get(list_user_instances_page).layer(middleware::from_fn(require_active_user)),
         )
         .route(
             "/instances/{instance_id}/ticket",
