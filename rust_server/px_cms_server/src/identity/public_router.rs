@@ -15,7 +15,7 @@ pub fn make_public_resource_router(
     Router::new()
         .route(
             "/apps",
-            get(list_public_apps).layer(middleware::from_fn(require_guest)),
+            get(list_public_apps),
         )
         .route(
             "/apps/{app_id}/start",

@@ -333,35 +333,21 @@ pub async fn user_resource_summary(
     })))
 }
 
-async fn public_apps_for_guest(subject: &AuthenticatedGuest) -> Vec<ApplicationCard> {
-    let instances = gAppScheduleManager
-        .list_instances_for_owner("guest", &subject.guest_id)
-        .await;
+async fn public_app_catalog() -> Vec<ApplicationCard> {
     let mut cards = Vec::new();
     for app in gAppScheduleManager.list_applications().await {
         if app.access_mode != AppAccessMode::Public {
             continue;
         }
-        let running_instance = instances
-            .iter()
-            .find(|instance| {
-                instance.app_id == app.app_id
-                    && matches!(
-                        instance.state,
-                        InstanceState::Starting | InstanceState::Running
-                    )
-            })
-            .map(|instance| RunningInstanceSummary {
-                instance_id: instance.instance_id.clone(),
-                state: state_name(&instance.state),
-                reconnectable: instance.state == InstanceState::Running,
-            });
         cards.push(ApplicationCard {
             app_id: app.app_id,
             name: app.name,
             access_mode: app.access_mode,
             cover_url: String::new(),
-            running_instance,
+            // Anonymous catalog requests must not expose another guest's
+            // instance state. Instance ownership is established only after a
+            // guest session starts an application.
+            running_instance: None,
             version: app.version,
         });
     }
@@ -369,10 +355,8 @@ async fn public_apps_for_guest(subject: &AuthenticatedGuest) -> Vec<ApplicationC
     cards
 }
 
-pub async fn list_public_apps(
-    Extension(subject): Extension<AuthenticatedGuest>,
-) -> Result<Json<RespMessage<Vec<ApplicationCard>>>, CmsApiError> {
-    Ok(Json(ok_resp(public_apps_for_guest(&subject).await)))
+pub async fn list_public_apps() -> Result<Json<RespMessage<Vec<ApplicationCard>>>, CmsApiError> {
+    Ok(Json(ok_resp(public_app_catalog().await)))
 }
 
 pub async fn start_public_app(

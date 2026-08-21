@@ -25,6 +25,7 @@ const nonce = (key: string) => {
 
 export async function ensureGuestSession(force = false) {
   if (!force && sessionStorage.getItem(CSRF_KEY)) return
+  if (force) sessionStorage.removeItem(CSRF_KEY)
   const result = unwrap<{ csrf_token: string }>(
     await guestHttp.post('/api/v1/session/guest', { client_nonce: crypto.randomUUID() }),
   )
@@ -42,23 +43,27 @@ export async function registerUser(username: string, password: string) {
 }
 
 export async function getPublicApps() {
-  await ensureGuestSession()
-  try {
-    return unwrap<ApplicationCard[]>(await guestHttp.get('/api/v1/public/apps'))
-  } catch (error: any) {
-    if (error?.response?.status !== 401) throw error
-    await ensureGuestSession(true)
-    return unwrap<ApplicationCard[]>(await guestHttp.get('/api/v1/public/apps'))
-  }
+  return unwrap<ApplicationCard[]>(await guestHttp.get('/api/v1/public/apps'))
 }
 
 export async function startPublicApp(appId: string) {
+  await ensureGuestSession()
   const clientNonce = nonce(`app_${appId}`)
-  const instance = unwrap<InstanceView>(
-    await guestHttp.post(`/api/v1/public/apps/${encodeURIComponent(appId)}/start`, {
-      client_nonce: clientNonce,
-    }),
-  )
+  const request = () => guestHttp.post(`/api/v1/public/apps/${encodeURIComponent(appId)}/start`, {
+    client_nonce: clientNonce,
+  })
+  let response
+  try {
+    response = await request()
+  } catch (error: any) {
+    if (error?.response?.status !== 401) throw error
+    // sessionStorage can outlive the server-side guest session after CMS is
+    // restarted or its test database is reset. Recreate the HttpOnly cookie
+    // and CSRF pair once, then repeat the idempotent start request.
+    await ensureGuestSession(true)
+    response = await request()
+  }
+  const instance = unwrap<InstanceView>(response)
   return { instance, clientNonce }
 }
 

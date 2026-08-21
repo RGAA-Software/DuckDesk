@@ -39,7 +39,7 @@ const clipboardAvailable = canReadLocalClipboard()
 
 // ---------- 信令契约(对齐 render net_ws http_handler.cpp)----------
 // POST /alloc/local/rtc?device_id=X&stream_id=Y&safety_pwd_md5=md5(安全密码或临时密码)[&takeover=1]
-// 请求体: { "sdp": "<offer>" }
+// 请求体: { "sdp": "<offer>", "ticket"?, "client_nonce"?, "instance_id"? }
 // 响应: { "code":200, "message":"ok", "data": { "answer_sdp": "..." } }
 // code=704(kHandlerErrRtcLocalOccupied): 同 stream_id 已有活跃连接,需用户确认后带 takeover=1 重试
 const SIGNAL_URL = '/alloc/local/rtc'
@@ -66,6 +66,10 @@ const LS_LAST_CONN = 'px_web_client.last_conn'
 // 信令带给 render,同一浏览器(nonce 相同)的新连接自动接管旧连接,不弹确认
 const LS_CLIENT_NONCE = 'px_web_client.client_nonce'
 const clientNonce = ref('')
+// CMS launch parameters arrive in the URL fragment so the one-time ticket is
+// never sent in an HTTP Referer or server access log. Keep them in memory only.
+const connectionTicket = ref('')
+const connectionInstanceId = ref('')
 
 function ensureClientNonce(urlNonce: string) {
   if (urlNonce) {
@@ -777,6 +781,7 @@ const autoConnectFromUrl = ref(false)
 
 function loadQueryParams() {
   const q = new URLSearchParams(window.location.search)
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
   const token = q.get('c')
   if (token) {
     const decoded = decodeConnectToken(token)
@@ -794,11 +799,19 @@ function loadQueryParams() {
   if (!form.deviceId) form.deviceId = q.get('deviceId') ?? ''
   if (!form.password) form.password = q.get('password') ?? ''
   if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
-  const instanceId = q.get('instanceId') ?? ''
+  connectionTicket.value = fragment.get('ticket') ?? ''
+  const instanceId = fragment.get('instance') ?? q.get('instanceId') ?? ''
+  connectionInstanceId.value = instanceId
   if (instanceId) {
     addLog(`[connect] instanceId=${instanceId}`)
   }
-  ensureClientNonce(q.get('nonce') ?? '')
+  ensureClientNonce(fragment.get('nonce') ?? q.get('nonce') ?? '')
+  if (connectionTicket.value) {
+    addLog('[connect] 已加载 CMS 一次性连接票据')
+    // Remove secrets from the address bar/history after parsing. The in-memory
+    // copy remains available for the immediately following signaling request.
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  }
   if (q.get('deviceId') || q.get('c')) {
     autoConnectFromUrl.value = !!form.deviceId
   }
@@ -1136,10 +1149,16 @@ async function connect() {
       if (clientNonce.value) query.set('client_nonce', clientNonce.value)
       if (takeover) query.set('takeover', '1')
       setConnectStep('signal', takeover ? 'takeover=1 重新请求信令' : 'POST 信令中')
+      const body: Record<string, string> = { sdp: localDesc.sdp }
+      if (connectionTicket.value) {
+        body.ticket = connectionTicket.value
+        body.client_nonce = clientNonce.value
+        body.instance_id = connectionInstanceId.value
+      }
       const resp = await fetch(`${SIGNAL_URL}?${query.toString()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: localDesc.sdp }),
+        body: JSON.stringify(body),
       })
       if (!resp.ok) throw new Error(`信令请求失败: HTTP ${resp.status}`)
       const result = (await resp.json()) as {
