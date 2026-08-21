@@ -47,6 +47,8 @@ namespace px
         std::atomic_int queuing_message_count_ = 0;
         std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
         std::atomic_bool exiting_ = false;
+        // Stable across websocket auto-reconnects, changes when the render process restarts.
+        std::string instance_id_;
     };
 
 }

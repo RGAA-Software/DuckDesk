@@ -34,11 +34,11 @@ namespace px
                                                               const std::string& appkey,
                                                               const CmsEventPtr& event) {
         auto client = px_cms::MakeCmsHttpClient(host, port, kApiAddEvent, 2000);
+        client->SetHeader("x-px-appkey", appkey);
+        client->SetHeader("x-px-device-id", event->device_id_);
 
         const auto data = event->AsJson();
-        auto resp = client->Post({
-            {"appkey", appkey}
-        }, data);
+        auto resp = client->Post({}, data, "application/json");
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("AddCpuEvent failed: {}", resp.status);

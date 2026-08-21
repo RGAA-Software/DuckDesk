@@ -42,7 +42,9 @@ namespace px
         }
     }
 
-    void VisitRecordOperator::UpdateVisitRecord(const std::string& conn_id, int64_t end_timestamp, int64_t duration) {
+    void VisitRecordOperator::UpdateVisitRecord(const std::string& conn_id, int64_t end_timestamp, int64_t duration,
+                                                const std::string& status, const std::string& end_reason,
+                                                bool recovered) {
         if (!IsDbReady(db_)) {
             return;
         }
@@ -54,6 +56,9 @@ namespace px
         const auto& record = opt_record.value();
         record->end_ = end_timestamp;
         record->duration_ = duration;
+        record->status_ = status;
+        record->end_reason_ = end_reason;
+        record->recovered_ = recovered;
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
         auto streams = storage.get_all<VisitRecord>(where(c(&VisitRecord::conn_id_) == conn_id));

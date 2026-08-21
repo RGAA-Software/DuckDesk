@@ -42,7 +42,9 @@ namespace px
         }
     }
 
-    void FileTransferRecordOperator::UpdateFileTransferRecord(const std::string& the_file_id, int64_t end_timestamp, bool success) {
+    void FileTransferRecordOperator::UpdateFileTransferRecord(const std::string& the_file_id, int64_t end_timestamp, bool success,
+                                                              const std::string& status, const std::string& end_reason,
+                                                              bool recovered) {
         if (!IsDbReady(db_)) {
             return;
         }
@@ -57,6 +59,9 @@ namespace px
         record->duration_ = (record->begin_ > 0 && end_timestamp > record->begin_)
             ? end_timestamp - record->begin_
             : 0;
+        record->status_ = status.empty() ? (success ? "succeeded" : "failed") : status;
+        record->end_reason_ = end_reason.empty() ? (success ? "completed" : "transfer_failed") : end_reason;
+        record->recovered_ = recovered;
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
         auto streams = storage.get_all<FileTransferRecord>(where(c(&FileTransferRecord::the_file_id_) == the_file_id));

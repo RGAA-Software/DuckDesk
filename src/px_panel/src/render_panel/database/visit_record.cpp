@@ -30,6 +30,9 @@ namespace px
         obj["duration"] = TimeUtil::FormatSecondsToDHMS(duration_);
         obj["visitor_device"] = visitor_device_;
         obj["target_device"] = target_device_;
+        obj["status"] = status_;
+        obj["end_reason"] = end_reason_;
+        obj["recovered"] = recovered_;
         return obj.dump();
     }
 
@@ -39,10 +42,16 @@ namespace px
         obj["stream_id"] = stream_id_;
         obj["conn_type"] = conn_type_;
         obj["begin"] = begin_;
-        obj["end"] = end_;
-        obj["duration"] = duration_;
+        // The create endpoint represents the beginning of a lifecycle.  Keep
+        // this payload in the running state even when it is reconstructed
+        // from a locally finalized record during recovery.
+        obj["end"] = 0;
+        obj["duration"] = 0;
         obj["visitor_device"] = visitor_device_;
         obj["target_device"] = target_device_;
+        obj["status"] = "running";
+        obj["end_reason"] = "";
+        obj["recovered"] = false;
         return obj.dump();
     }
 
@@ -51,6 +60,9 @@ namespace px
         obj["conn_id"] = conn_id_;
         obj["end"] = end_;
         obj["duration"] = duration_;
+        obj["status"] = status_;
+        obj["end_reason"] = end_reason_;
+        obj["recovered"] = recovered_;
         return obj.dump();
     }
 }

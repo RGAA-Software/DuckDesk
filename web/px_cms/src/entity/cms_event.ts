@@ -24,5 +24,13 @@ export class CmsEvent {
     public gpu_usage: number = 0,
     public gpu_id: string = '',
     public gpu_name: string = '',
+    public actor_type: string = '',
+    public actor_id: string = '',
+    public action: string = '',
+    public result: string = '',
+    public target_type: string = '',
+    public target_id: string = '',
+    public reason: string = '',
+    public metadata: Record<string, string> = {},
   ) {}
 }

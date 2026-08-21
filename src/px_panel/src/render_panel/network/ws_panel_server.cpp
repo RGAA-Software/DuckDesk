@@ -98,6 +98,13 @@ namespace px
                         self->RpSyncPanelInfo();
                     }
                 });
+                if (!self->audit_flush_in_progress_.exchange(true)) {
+                    self->context_->PostDBTask([weak_self]() {
+                        if (auto self = weak_self.lock(); self && !self->exiting_) {
+                            self->FlushAuditOutbox();
+                        }
+                    });
+                }
             }
         });
 
@@ -129,11 +136,13 @@ namespace px
                 return;
             }
             auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
-            if (self->panel_sessions_.Remove(socket_fd).has_value()) {
+            if (auto removed = self->panel_sessions_.Remove(socket_fd); removed.has_value()) {
+                self->PanelSocketClosed(removed.value());
                 LOGI("Panel;client disconnected: {}", socket_fd);
                 LOGI("Panel;App server media close, media router size: {}", self->panel_sessions_.Size());
             }
-            if (self->renderer_sessions_.Remove(socket_fd).has_value()) {
+            if (auto removed = self->renderer_sessions_.Remove(socket_fd); removed.has_value()) {
+                self->RendererSocketClosed(removed.value());
                 LOGI("Renderer;client disconnected: {}", socket_fd);
                 LOGI("Renderer;App server media close, media router size: {}", self->panel_sessions_.Size());
             }
@@ -258,8 +267,10 @@ namespace px
         bool ret = server_->start("0.0.0.0", settings_->GetPanelServerPort());
         LOGI("App server start result: {}, port: {}", ret, settings_->GetPanelServerPort());
 
-        context_->PostTask([weak_self]() {
+        context_->PostDBTask([weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->visit_record_op_->FlushPendingRecords();
+                self->ft_record_op_->FlushPendingRecords();
                 self->ScanAndFixUnclosedRecords();
             }
         });
@@ -342,14 +353,22 @@ namespace px
                     ws_sess->socket_fd_ = socket_fd;
                     ws_sess->session_ = sess_ptr;
                     ws_sess->stream_id_ = stream_id;
+                    ws_sess->audit_registered_ = !stream_id.empty();
                     self->panel_sessions_.Insert(socket_fd, ws_sess);
+                    if (ws_sess->audit_registered_) {
+                        self->PanelSocketOpened(stream_id);
+                    }
                     LOGI("Panel;client connect : {}", socket_fd);
                 }
                 else if (path == kUrlPanelRenderer) {
                     auto ws_sess = std::make_shared<WSSession>();
                     ws_sess->socket_fd_ = socket_fd;
                     ws_sess->session_ = sess_ptr;
+                    ws_sess->stream_id_ = params.contains("instance_id")
+                        ? params["instance_id"]
+                        : std::format("legacy-{}", socket_fd);
                     self->renderer_sessions_.Insert(socket_fd, ws_sess);
+                    self->RendererSocketOpened(ws_sess->stream_id_);
                     LOGI("Renderer;client connect : {}", socket_fd);
 
                     sess_ptr->post_queued_event([weak_self]() {
@@ -372,10 +391,14 @@ namespace px
                 }
                 auto socket_fd = fn_get_socket_fd(sess_ptr);
                 if (path == kUrlPanel) {
-                    self->panel_sessions_.Remove(socket_fd);
+                    if (auto removed = self->panel_sessions_.Remove(socket_fd); removed.has_value()) {
+                        self->PanelSocketClosed(removed.value());
+                    }
                 }
                 else if (path == kUrlPanelRenderer) {
-                    self->renderer_sessions_.Remove(socket_fd);
+                    if (auto removed = self->renderer_sessions_.Remove(socket_fd); removed.has_value()) {
+                        self->RendererSocketClosed(removed.value());
+                    }
                 }
                 else if (path == kUrlSysInfo) {
                     if (self->sys_info_sess_) {
@@ -428,9 +451,14 @@ namespace px
         }
         if (proto_msg->type() == pxcp::CpMessageType::kCpHello) {
             auto hello = proto_msg->hello();
-            panel_sessions_.VisitAll([=](uint64_t k, std::shared_ptr<WSSession>& v) {
+            panel_sessions_.VisitAll([=, this](uint64_t k, std::shared_ptr<WSSession>& v) {
                 if (v->socket_fd_ == socket_fd) {
                     v->session_type_ = hello.type();
+                    if (!v->audit_registered_ && !proto_msg->stream_id().empty()) {
+                        v->stream_id_ = proto_msg->stream_id();
+                        v->audit_registered_ = true;
+                        PanelSocketOpened(v->stream_id_);
+                    }
                     LOGI("Update session type: {} for socket: {}", v->session_type_, socket_fd);
                 }
             });
@@ -455,7 +483,7 @@ namespace px
         }
         else if (proto_msg->type() == pxcp::kCpFileTransferBegin) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
@@ -478,18 +506,19 @@ namespace px
                 });
 
                 self->ft_record_op_->InsertFileTransferRecord(record);
-
+                self->TrackPanelTransfer(socket_fd, sub.the_file_id(), true);
                 self->NotifyInsertFileTransferRecordToCms(record);
             });
         }
         else if (proto_msg->type() == pxcp::kCpFileTransferEnd) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
                 }
                 auto sub = proto_msg->ft_transfer_end();
+                self->TrackPanelTransfer(socket_fd, sub.the_file_id(), false);
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
@@ -571,7 +600,7 @@ namespace px
         }
         else if (proto_msg->type() == pxrp::kRpClientConnected) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
@@ -596,32 +625,30 @@ namespace px
                     .target_device_ = self->settings_->GetDeviceId().empty() ? ip_address : self->settings_->GetDeviceId(),
                 });
                 self->visit_record_op_->InsertVisitRecord(record);
+                self->TrackRendererVisit(socket_fd, sub.conn_id(), true);
                 // notify cms
                 self->NotifyInsertVisitRecordToCms(record);
             });
         }
         else if (proto_msg->type() == pxrp::kRpClientDisConnected) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
                 }
                 auto sub = proto_msg->client_disconnected();
+                self->TrackRendererVisit(socket_fd, sub.conn_id(), false);
                 self->visit_record_op_->UpdateVisitRecord(sub.conn_id(), sub.end_timestamp(), sub.duration());
-
-                auto record = std::make_shared<VisitRecord>(VisitRecord{
-                    .conn_id_ = sub.conn_id(),
-                    .end_ = sub.end_timestamp(),
-                    .duration_ = sub.duration(),
-                });
-                self->NotifyUpdateVisitRecordToCms(record);
+                if (const auto record = self->visit_record_op_->GetVisitRecordConnId(sub.conn_id()); record.has_value()) {
+                    self->NotifyUpdateVisitRecordToCms(record.value());
+                }
             });
             context_->SendAppMessage(MsgOneClientDisconnect{});
         }
         else if (proto_msg->type() == pxrp::kRpFileTransferBegin) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
@@ -643,17 +670,19 @@ namespace px
                     .file_detail_ = sub.file_detail(),
                 });
                 self->ft_record_op_->InsertFileTransferRecord(record);
+                self->TrackRendererTransfer(socket_fd, sub.the_file_id(), true);
                 self->NotifyInsertFileTransferRecordToCms(record);
             });
         }
         else if (proto_msg->type() == pxrp::kRpFileTransferEnd) {
             auto weak_self = weak_from_this();
-            context_->PostDBTask([weak_self, proto_msg]() {
+            context_->PostDBTask([weak_self, proto_msg, socket_fd]() {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return;
                 }
                 auto sub = proto_msg->ft_end();
+                self->TrackRendererTransfer(socket_fd, sub.the_file_id(), false);
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
@@ -743,13 +772,19 @@ namespace px
         }
 
         const auto now = TimeUtil::GetCurrentTimestamp();
-        const auto cutoff = now - 60 * 1000; // only records older than 60s
+        // This runs before the new render process can create records, therefore every
+        // open row belongs to a previous process lifetime and must be finalized.
+        const auto cutoff = now + 1;
 
         auto visits = db->ScanUnclosedVisitRecords(cutoff);
         for (auto& r : visits) {
             r->end_ = now;
             r->duration_ = std::max<int64_t>(0, now - r->begin_);
+            r->status_ = "aborted";
+            r->end_reason_ = "panel_restart_recovery";
+            r->recovered_ = true;
             visit_record_op_->InsertVisitRecord(r);
+            NotifyInsertVisitRecordToCms(r);
             NotifyUpdateVisitRecordToCms(r);
         }
 
@@ -758,7 +793,11 @@ namespace px
             r->end_ = now;
             r->success_ = false;
             r->duration_ = std::max<int64_t>(0, now - r->begin_);
+            r->status_ = "aborted";
+            r->end_reason_ = "panel_restart_recovery";
+            r->recovered_ = true;
             ft_record_op_->InsertFileTransferRecord(r);
+            NotifyInsertFileTransferRecordToCms(r);
             NotifyUpdateFileTransferRecordToCms(r);
         }
 
@@ -766,71 +805,313 @@ namespace px
     }
 
     void WsPanelServer::NotifyInsertVisitRecordToCms(const std::shared_ptr<VisitRecord> record) {
-        if (!record) {
+        if (!record || record->conn_id_.empty()) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), kUrlVisitRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsJson2(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyInsertVisitRecordToCms failed: {}", resp.status);
+        auto db = context_->GetDatabase();
+        if (!db->EnqueueAuditOutbox("visit:" + record->conn_id_ + ":begin", kUrlVisitRecord,
+                                    record->AsJson2(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue insert visit audit failed: {}", record->conn_id_);
         }
     }
 
     void WsPanelServer::NotifyUpdateVisitRecordToCms(const std::shared_ptr<VisitRecord> record) {
-        if (!record) {
+        if (!record || record->conn_id_.empty()) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), kUrlUpdateVisitRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsUpdateJson(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyUpdateVisitRecordToCms failed: {}", resp.status);
+        auto db = context_->GetDatabase();
+        if (!db->EnqueueAuditOutbox("visit:" + record->conn_id_ + ":end", kUrlUpdateVisitRecord,
+                                    record->AsUpdateJson(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue update visit audit failed: {}", record->conn_id_);
         }
     }
 
     void WsPanelServer::NotifyInsertFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
-        if (!record) {
+        if (!record || record->the_file_id_.empty()) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsJson2(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyInsertFileTransferRecordToCms failed: {}", resp.status);
+        auto db = context_->GetDatabase();
+        if (!db->EnqueueAuditOutbox("file:" + record->the_file_id_ + ":begin",
+                                    FileTransferRecord::kUrlInsertFileTransferRecord,
+                                    record->AsJson2(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue insert file transfer audit failed: {}", record->the_file_id_);
         }
     }
 
     void WsPanelServer::NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
-        if (!record) {
+        if (!record || record->the_file_id_.empty()) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsUpdateJson(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyUpdateFileTransferRecordToCms failed: {}", resp.status);
+        auto db = context_->GetDatabase();
+        if (!db->EnqueueAuditOutbox("file:" + record->the_file_id_ + ":end",
+                                    FileTransferRecord::kUrlUpdateFileTransferRecord,
+                                    record->AsUpdateJson(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue update file transfer audit failed: {}", record->the_file_id_);
         }
+    }
+
+    void WsPanelServer::FlushAuditOutbox() {
+        auto db = context_->GetDatabase();
+        const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        auto pending = db->GetDueAuditOutbox(now);
+        if (!pending.has_value()) {
+            audit_flush_in_progress_ = false;
+            return;
+        }
+
+        auto weak_self = weak_from_this();
+        context_->PostNetworkTask([weak_self, item = std::move(pending.value())]() {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            auto settings = PxSettings::Instance();
+            std::string serv_host = settings->GetCmsServerHost();
+            auto client = PxSettings::MakeCmsHttpClient(
+                serv_host, settings->GetCmsServerPort(), item.endpoint_, 2000);
+            client->SetHeader("x-px-appkey", grApp->GetAppkey());
+            client->SetHeader("x-px-device-id", settings->GetDeviceId());
+            auto resp = client->Post({}, item.payload_, "application/json");
+            bool response_ok = false;
+            if (resp.status == 200 && !resp.body.empty()) {
+                try {
+                    const auto body = nlohmann::json::parse(resp.body);
+                    response_ok = body.value("code", -1) == 200;
+                } catch (const std::exception&) {
+                    response_ok = false;
+                }
+            }
+            const auto completed_at = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+
+            self->context_->PostDBTask([weak_self, item, resp_status = resp.status,
+                                        response_ok,
+                                        completed_at]() {
+                auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                auto db = self->context_->GetDatabase();
+                if (response_ok) {
+                    db->CompleteAuditOutbox(item.id_);
+                } else {
+                    const int attempts = item.attempts_ + 1;
+                    const int shift = std::min(attempts, 8);
+                    const int64_t delay_ms = std::min<int64_t>(300000, (1LL << shift) * 1000);
+                    db->RetryAuditOutbox(item.id_, attempts, completed_at + delay_ms,
+                                         std::format("http_status={}", resp_status));
+                    LOGE("Audit outbox delivery failed, key: {}, status: {}, retry in {} ms",
+                         item.event_key_, resp_status, delay_ms);
+                }
+                self->audit_flush_in_progress_ = false;
+            });
+        });
+    }
+
+    void WsPanelServer::PanelSocketOpened(const std::string& instance_id) {
+        if (instance_id.empty()) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(panel_audit_mtx_);
+        panel_instance_connections_[instance_id]++;
+    }
+
+    void WsPanelServer::PanelSocketClosed(const std::shared_ptr<WSSession>& session) {
+        if (!session || session->stream_id_.empty()) {
+            return;
+        }
+        const auto instance_id = session->stream_id_;
+        const auto disconnected_at = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        {
+            std::lock_guard<std::mutex> lock(panel_audit_mtx_);
+            auto it = panel_instance_connections_.find(instance_id);
+            if (it != panel_instance_connections_.end() && it->second > 0) {
+                it->second--;
+            }
+        }
+        auto weak_self = weak_from_this();
+        context_->PostDelayTask([weak_self, instance_id, disconnected_at]() {
+            if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->ClosePanelAuditRecordsIfOffline(instance_id, disconnected_at);
+            }
+        }, 5000);
+    }
+
+    void WsPanelServer::TrackPanelTransfer(uint64_t socket_fd, const std::string& file_id, bool connected) {
+        if (file_id.empty()) {
+            return;
+        }
+        auto session = panel_sessions_.TryGet(socket_fd);
+        if (!session.has_value() || !session.value() || session.value()->stream_id_.empty()) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(panel_audit_mtx_);
+        auto& ids = panel_transfer_ids_[session.value()->stream_id_];
+        if (connected) {
+            ids.insert(file_id);
+        } else {
+            ids.erase(file_id);
+        }
+    }
+
+    void WsPanelServer::ClosePanelAuditRecordsIfOffline(const std::string& instance_id, int64_t disconnected_at) {
+        std::unordered_set<std::string> transfer_ids;
+        {
+            std::lock_guard<std::mutex> lock(panel_audit_mtx_);
+            if (panel_instance_connections_[instance_id] > 0) {
+                return;
+            }
+            panel_instance_connections_.erase(instance_id);
+            if (auto it = panel_transfer_ids_.find(instance_id); it != panel_transfer_ids_.end()) {
+                transfer_ids = std::move(it->second);
+                panel_transfer_ids_.erase(it);
+            }
+        }
+        if (transfer_ids.empty()) {
+            return;
+        }
+
+        auto weak_self = weak_from_this();
+        context_->PostDBTask([weak_self, transfer_ids = std::move(transfer_ids), disconnected_at]() {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            for (const auto& file_id : transfer_ids) {
+                auto record = self->ft_record_op_->GetFileTransferRecordByFileId(file_id);
+                if (!record.has_value() || record.value()->end_ > 0) {
+                    continue;
+                }
+                self->ft_record_op_->UpdateFileTransferRecord(
+                    file_id, disconnected_at, false, "aborted", "client_disconnected", false);
+                if (auto updated = self->ft_record_op_->GetFileTransferRecordByFileId(file_id); updated.has_value()) {
+                    self->NotifyInsertFileTransferRecordToCms(updated.value());
+                    self->NotifyUpdateFileTransferRecordToCms(updated.value());
+                }
+            }
+        });
+    }
+
+    void WsPanelServer::RendererSocketOpened(const std::string& instance_id) {
+        if (instance_id.empty()) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(renderer_audit_mtx_);
+        renderer_instance_connections_[instance_id]++;
+    }
+
+    void WsPanelServer::RendererSocketClosed(const std::shared_ptr<WSSession>& session) {
+        if (!session || session->stream_id_.empty()) {
+            return;
+        }
+        const auto instance_id = session->stream_id_;
+        const auto disconnected_at = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        {
+            std::lock_guard<std::mutex> lock(renderer_audit_mtx_);
+            auto it = renderer_instance_connections_.find(instance_id);
+            if (it != renderer_instance_connections_.end() && it->second > 0) {
+                it->second--;
+            }
+        }
+        auto weak_self = weak_from_this();
+        context_->PostDelayTask([weak_self, instance_id, disconnected_at]() {
+            if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->CloseRendererAuditRecordsIfOffline(instance_id, disconnected_at);
+            }
+        }, 5000);
+    }
+
+    void WsPanelServer::TrackRendererVisit(uint64_t socket_fd, const std::string& conn_id, bool connected) {
+        if (conn_id.empty()) {
+            return;
+        }
+        auto session = renderer_sessions_.TryGet(socket_fd);
+        if (!session.has_value() || !session.value() || session.value()->stream_id_.empty()) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(renderer_audit_mtx_);
+        auto& ids = renderer_visit_ids_[session.value()->stream_id_];
+        if (connected) {
+            ids.insert(conn_id);
+        } else {
+            ids.erase(conn_id);
+        }
+    }
+
+    void WsPanelServer::TrackRendererTransfer(uint64_t socket_fd, const std::string& file_id, bool connected) {
+        if (file_id.empty()) {
+            return;
+        }
+        auto session = renderer_sessions_.TryGet(socket_fd);
+        if (!session.has_value() || !session.value() || session.value()->stream_id_.empty()) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(renderer_audit_mtx_);
+        auto& ids = renderer_transfer_ids_[session.value()->stream_id_];
+        if (connected) {
+            ids.insert(file_id);
+        } else {
+            ids.erase(file_id);
+        }
+    }
+
+    void WsPanelServer::CloseRendererAuditRecordsIfOffline(const std::string& instance_id, int64_t disconnected_at) {
+        std::unordered_set<std::string> visit_ids;
+        std::unordered_set<std::string> transfer_ids;
+        {
+            std::lock_guard<std::mutex> lock(renderer_audit_mtx_);
+            if (renderer_instance_connections_[instance_id] > 0) {
+                return;
+            }
+            renderer_instance_connections_.erase(instance_id);
+            if (auto it = renderer_visit_ids_.find(instance_id); it != renderer_visit_ids_.end()) {
+                visit_ids = std::move(it->second);
+                renderer_visit_ids_.erase(it);
+            }
+            if (auto it = renderer_transfer_ids_.find(instance_id); it != renderer_transfer_ids_.end()) {
+                transfer_ids = std::move(it->second);
+                renderer_transfer_ids_.erase(it);
+            }
+        }
+        if (visit_ids.empty() && transfer_ids.empty()) {
+            return;
+        }
+
+        auto weak_self = weak_from_this();
+        context_->PostDBTask([weak_self, visit_ids = std::move(visit_ids),
+                              transfer_ids = std::move(transfer_ids), disconnected_at]() {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            for (const auto& conn_id : visit_ids) {
+                auto record = self->visit_record_op_->GetVisitRecordConnId(conn_id);
+                if (!record.has_value() || record.value()->end_ > 0) {
+                    continue;
+                }
+                const auto duration = std::max<int64_t>(0, disconnected_at - record.value()->begin_);
+                self->visit_record_op_->UpdateVisitRecord(
+                    conn_id, disconnected_at, duration, "aborted", "renderer_disconnected", false);
+                if (auto updated = self->visit_record_op_->GetVisitRecordConnId(conn_id); updated.has_value()) {
+                    // Re-queue the begin as well: if the renderer died before
+                    // the original begin reached CMS, the terminal event can
+                    // still be applied in order after retry.
+                    self->NotifyInsertVisitRecordToCms(updated.value());
+                    self->NotifyUpdateVisitRecordToCms(updated.value());
+                }
+            }
+            for (const auto& file_id : transfer_ids) {
+                auto record = self->ft_record_op_->GetFileTransferRecordByFileId(file_id);
+                if (!record.has_value() || record.value()->end_ > 0) {
+                    continue;
+                }
+                self->ft_record_op_->UpdateFileTransferRecord(
+                    file_id, disconnected_at, false, "aborted", "renderer_disconnected", false);
+                if (auto updated = self->ft_record_op_->GetFileTransferRecordByFileId(file_id); updated.has_value()) {
+                    self->NotifyInsertFileTransferRecordToCms(updated.value());
+                    self->NotifyUpdateFileTransferRecordToCms(updated.value());
+                }
+            }
+        });
     }
 
     void WsPanelServer::NotifyEventIfNeeded(const std::shared_ptr<SysInfo>& sys_info) {

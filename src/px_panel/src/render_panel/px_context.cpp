@@ -164,6 +164,14 @@ namespace px
         task_rt_->Post(SimpleThreadTask::Make(std::move(task)));
     }
 
+    void PxContext::PostNetworkTask(std::function<void()>&& task) {
+        if (!task_rt_) {
+            LOGE("PostNetworkTask ignored because task runtime is not ready");
+            return;
+        }
+        task_rt_->GetFirstThread()->Post(SimpleThreadTask::Make(std::move(task)));
+    }
+
     void PxContext::PostTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
         if (!task_rt_) {
             LOGE("PostTask(exec/callback) ignored because task runtime is not ready");

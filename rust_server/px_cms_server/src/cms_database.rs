@@ -109,6 +109,12 @@ impl CmsDatabase {
                             "timestamp": -1,
                         })
                         .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "event_type": 1, "actor_id": 1, "timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "event_type": 1, "action": 1, "timestamp": -1 })
+                        .build(),
                 ] {
                     if let Err(e) = c_event.create_index(index).await {
                         tracing::error!("create c_event telemetry index failed: {}", e);
@@ -308,24 +314,56 @@ impl CmsDatabase {
 
                 // record: visit
                 let c_visit: Collection<CmsVisit> = database.collection("c_visit");
-                let visit_index = IndexModel::builder()
-                    .keys(doc! { "conn_id": 1 })
-                    .options(IndexOptions::builder().unique(true).build())
-                    .build();
-                if let Err(e) = c_visit.create_index(visit_index).await {
-                    tracing::warn!("create visit conn_id index failed: {}", e);
+                for visit_index in [
+                    IndexModel::builder()
+                        .keys(doc! { "conn_id": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "visitor_device": 1, "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "target_device": 1, "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "status": 1, "created_timestamp": -1 })
+                        .build(),
+                ] {
+                    if let Err(e) = c_visit.create_index(visit_index).await {
+                        tracing::error!("create visit audit index failed: {}", e);
+                        return false;
+                    }
                 }
                 self.c_visit = Some(Arc::new(Mutex::new(c_visit)));
 
                 // record: file transfer
                 let c_file_transfer: Collection<CmsFileTransfer> =
                     database.collection("c_file_transfer");
-                let ft_index = IndexModel::builder()
-                    .keys(doc! { "the_file_id": 1 })
-                    .options(IndexOptions::builder().unique(true).build())
-                    .build();
-                if let Err(e) = c_file_transfer.create_index(ft_index).await {
-                    tracing::warn!("create file_transfer the_file_id index failed: {}", e);
+                for ft_index in [
+                    IndexModel::builder()
+                        .keys(doc! { "the_file_id": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "visitor_device": 1, "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "target_device": 1, "created_timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "status": 1, "created_timestamp": -1 })
+                        .build(),
+                ] {
+                    if let Err(e) = c_file_transfer.create_index(ft_index).await {
+                        tracing::error!("create file transfer audit index failed: {}", e);
+                        return false;
+                    }
                 }
                 self.c_file_transfer = Some(Arc::new(Mutex::new(c_file_transfer)));
 

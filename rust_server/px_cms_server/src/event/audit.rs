@@ -1,6 +1,35 @@
 use std::collections::HashMap;
+use std::future::Future;
 
 use crate::event::cms_event::CmsEvent;
+
+#[derive(Clone)]
+struct AuditActor {
+    actor_type: String,
+    actor_id: String,
+}
+
+tokio::task_local! {
+    static CURRENT_ACTOR: AuditActor;
+}
+
+/// Keep the authenticated management actor available to nested handlers and
+/// manager code without forcing every internal function to carry request
+/// context parameters.
+pub async fn scope_actor<F, T>(actor_type: &str, actor_id: &str, future: F) -> T
+where
+    F: Future<Output = T>,
+{
+    CURRENT_ACTOR
+        .scope(
+            AuditActor {
+                actor_type: actor_type.to_string(),
+                actor_id: actor_id.to_string(),
+            },
+            future,
+        )
+        .await
+}
 
 /// Security audit is deliberately best-effort: an unavailable audit store must
 /// not turn a successful logout/revocation into a misleading HTTP failure.
@@ -14,6 +43,11 @@ pub async fn record(
     target_id: &str,
     reason: &str,
 ) {
+    let scoped_actor = CURRENT_ACTOR.try_with(Clone::clone).ok();
+    let (actor_type, actor_id) = scoped_actor
+        .as_ref()
+        .map(|actor| (actor.actor_type.as_str(), actor.actor_id.as_str()))
+        .unwrap_or((actor_type, actor_id));
     let event = CmsEvent::new_audit(
         actor_type,
         actor_id,

@@ -23,7 +23,10 @@ namespace px
         FileTransferRecordOperator(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<PxDatabase>& db);
 
         void InsertFileTransferRecord(const std::shared_ptr<FileTransferRecord>& record);
-        void UpdateFileTransferRecord(const std::string& the_file_id, int64_t end_timestamp, bool success);
+        void UpdateFileTransferRecord(const std::string& the_file_id, int64_t end_timestamp, bool success,
+                                      const std::string& status = "",
+                                      const std::string& end_reason = "",
+                                      bool recovered = false);
         std::optional<std::shared_ptr<FileTransferRecord>> GetFileTransferRecordByFileId(const std::string& the_file_id);
         std::vector<std::shared_ptr<FileTransferRecord>> QueryFileTransferRecords(int page, int page_size);
         std::vector<std::shared_ptr<FileTransferRecord>> ScanUnclosedRecords(int64_t before_timestamp);

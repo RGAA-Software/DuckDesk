@@ -3,7 +3,6 @@ use crate::gCmsDatabase;
 use crate::record::cms_file_transfer::{CmsFileTransfer, CmsUpdateFileTransfer};
 use futures_util::StreamExt;
 use mongodb::bson::{doc, Bson};
-use mongodb::options::ReturnDocument;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,25 +15,39 @@ impl CmsFileTransferManager {
 
     pub async fn insert_file_transfer_info(
         &self,
-        info: CmsFileTransfer,
+        mut info: CmsFileTransfer,
     ) -> Result<CmsFileTransfer, CmsApiError> {
+        validate_file_transfer_start(&info)?;
+        info.status = if info.end > 0 {
+            if info.success { "succeeded" } else { "failed" }.to_string()
+        } else {
+            "running".to_string()
+        };
         let c_file_transfer_info = gCmsDatabase.lock().await.file_transfer();
         let coll = c_file_transfer_info.lock().await;
 
         tracing::info!("insert new file_transfer {:?}", info);
-        // Use replace_one with upsert to make insert idempotent based on the_file_id.
         let filter = doc! { "the_file_id": &info.the_file_id };
-        let r = coll.replace_one(filter, info.clone()).upsert(true).await;
+        let insert_doc =
+            mongodb::bson::to_document(&info).map_err(|_| CmsApiError::InvalidParams)?;
+        let r = coll
+            .update_one(filter.clone(), doc! { "$setOnInsert": insert_doc })
+            .upsert(true)
+            .await;
         if let Err(e) = r {
             tracing::error!("insert/replace error: {}", e);
             return Err(CmsApiError::DatabaseError);
         }
-        Ok(info)
+        coll.find_one(filter)
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .ok_or(CmsApiError::FileTransferNotFound)
     }
 
     pub async fn update_file_transfer_info(
         &self,
         update: CmsUpdateFileTransfer,
+        reporter_device: Option<&str>,
     ) -> Result<CmsFileTransfer, CmsApiError> {
         if update.the_file_id.is_empty() {
             return Err(CmsApiError::InvalidParams);
@@ -43,27 +56,77 @@ impl CmsFileTransferManager {
         let c_file_trans_info = gCmsDatabase.lock().await.file_transfer();
         let coll = c_file_trans_info.lock().await;
 
-        let filter = doc! {
-            "the_file_id": &update.the_file_id
-        };
-
-        let mut set_doc = doc! {};
-        set_doc.insert("end", update.end);
-        set_doc.insert("success", update.success);
-        set_doc.insert("duration", update.duration);
-
-        if set_doc.is_empty() {
+        if update.end <= 0 || update.duration < 0 || update.end_reason.len() > 128 {
             return Err(CmsApiError::InvalidParams);
+        }
+        let status = normalize_file_terminal_status(&update.status, update.success)?;
+        let filter = doc! { "the_file_id": &update.the_file_id };
+        let existing = coll
+            .find_one(filter.clone())
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?
+            .ok_or(CmsApiError::FileTransferNotFound)?;
+        if let Some(device_id) = reporter_device {
+            if device_id != existing.visitor_device && device_id != existing.target_device {
+                return Err(CmsApiError::Forbidden);
+            }
+        }
+        let existing_status = if existing.status.is_empty() {
+            if existing.end > 0 {
+                if existing.success {
+                    "succeeded"
+                } else {
+                    "failed"
+                }
+            } else {
+                "running"
+            }
+        } else {
+            existing.status.as_str()
+        };
+        let duration = if existing.begin > 0 {
+            if update.end < existing.begin {
+                return Err(CmsApiError::InvalidParams);
+            }
+            update.end - existing.begin
+        } else {
+            update.duration
+        };
+        if existing_status != "running" {
+            if existing.end == update.end
+                && existing.duration == duration
+                && existing.success == update.success
+                && existing_status == status
+            {
+                return Ok(existing);
+            }
+            return Err(CmsApiError::VersionConflict);
         }
 
         let update_doc = doc! {
-            "$set": set_doc
+            "$set": {
+                "end": update.end,
+                "success": update.success,
+                "duration": duration,
+                "status": status,
+                "end_reason": update.end_reason,
+                "recovered": update.recovered,
+            }
         };
 
         match coll
-            .find_one_and_update(filter, update_doc)
-            .return_document(ReturnDocument::After)
-            .upsert(true)
+            .find_one_and_update(
+                doc! {
+                    "the_file_id": &update.the_file_id,
+                    "$or": [
+                        { "status": "running" },
+                        { "status": "" },
+                        { "status": { "$exists": false }, "end": 0_i64 },
+                    ]
+                },
+                update_doc,
+            )
+            .return_document(mongodb::options::ReturnDocument::After)
             .await
         {
             Ok(Some(doc)) => Ok(doc),
@@ -186,5 +249,87 @@ impl CmsFileTransferManager {
         }
 
         filter
+    }
+}
+
+fn validate_file_transfer_start(info: &CmsFileTransfer) -> Result<(), CmsApiError> {
+    if info.the_file_id.trim().is_empty()
+        || info.the_file_id.len() > 256
+        || info.visitor_device.trim().is_empty()
+        || info.visitor_device.len() > 256
+        || info.target_device.trim().is_empty()
+        || info.target_device.len() > 256
+        || !matches!(info.direction.as_str(), "In" | "Out")
+        || info.file_detail.len() > 4096
+        || info.begin <= 0
+        || info.duration < 0
+        || (info.end > 0 && info.end < info.begin)
+    {
+        return Err(CmsApiError::InvalidParams);
+    }
+    Ok(())
+}
+
+fn normalize_file_terminal_status(
+    status: &str,
+    success: bool,
+) -> Result<&'static str, CmsApiError> {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "" => Ok(if success { "succeeded" } else { "failed" }),
+        "succeeded" if success => Ok("succeeded"),
+        "failed" if !success => Ok("failed"),
+        "aborted" if !success => Ok("aborted"),
+        _ => Err(CmsApiError::InvalidParams),
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    fn valid_transfer() -> CmsFileTransfer {
+        CmsFileTransfer {
+            the_file_id: "f1".into(),
+            visitor_device: "visitor".into(),
+            target_device: "target".into(),
+            begin: 100,
+            end: 0,
+            direction: "In".into(),
+            file_detail: "file.bin".into(),
+            success: false,
+            duration: 0,
+            created_timestamp: 0,
+            total: 0,
+            status: String::new(),
+            end_reason: String::new(),
+            recovered: false,
+        }
+    }
+
+    #[test]
+    fn file_start_requires_valid_direction_and_time() {
+        let mut item = valid_transfer();
+        assert!(validate_file_transfer_start(&item).is_ok());
+        item.direction = "sideways".into();
+        assert_eq!(
+            validate_file_transfer_start(&item),
+            Err(CmsApiError::InvalidParams)
+        );
+    }
+
+    #[test]
+    fn file_terminal_status_must_match_success() {
+        assert_eq!(
+            normalize_file_terminal_status("succeeded", true),
+            Ok("succeeded")
+        );
+        assert_eq!(
+            normalize_file_terminal_status("aborted", false),
+            Ok("aborted")
+        );
+        assert_eq!(
+            normalize_file_terminal_status("failed", true),
+            Err(CmsApiError::InvalidParams)
+        );
     }
 }

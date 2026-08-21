@@ -62,12 +62,22 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         return next.run(req).await;
     }
 
-    let query = req.uri().query().unwrap_or("");
-    let parsed = serde_urlencoded::from_str::<AppkeyQueryParams>(query);
-    let req_appkey = parsed
-        .as_ref()
-        .map(|p| p.appkey.clone())
+    // Prefer a header so credentials are not copied into URLs, proxy logs or
+    // browser history. Query authentication remains as a compatibility path
+    // for older deployed native clients.
+    let header_appkey = req
+        .headers()
+        .get("x-px-appkey")
+        .and_then(|value| value.to_str().ok())
         .unwrap_or_default();
+    let req_appkey = if header_appkey.is_empty() {
+        let query = req.uri().query().unwrap_or("");
+        serde_urlencoded::from_str::<AppkeyQueryParams>(query)
+            .map(|params| params.appkey)
+            .unwrap_or_default()
+    } else {
+        header_appkey.to_string()
+    };
 
     if req_appkey.is_empty() {
         tracing::warn!("appkey filter: no appkey in query, path='{}'", path);
@@ -108,6 +118,7 @@ fn calculate_app_secret_helper(appkey: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::HeaderMap;
 
     #[test]
     fn whitelist_uses_exact_paths() {
@@ -127,5 +138,12 @@ mod tests {
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/servers/config/extra"));
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/prefix/servers/config"));
         assert!(!APPKEY_FILTER_WHITELIST.contains(&"/index.html/extra"));
+    }
+
+    #[test]
+    fn appkey_header_is_valid_http_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-px-appkey", "key-1".parse().unwrap());
+        assert_eq!(headers.get("x-px-appkey").unwrap(), "key-1");
     }
 }

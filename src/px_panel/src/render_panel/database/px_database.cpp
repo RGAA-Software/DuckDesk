@@ -123,4 +123,97 @@ namespace px
         }
         return {};
     }
+
+    bool PxDatabase::EnqueueAuditOutbox(const std::string& event_key, const std::string& endpoint,
+                                        const std::string& payload, int64_t now) {
+        if (!ready_ || event_key.empty() || endpoint.empty() || payload.empty()) {
+            return false;
+        }
+        using Storage = decltype(GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(GetDbStorage());
+        try {
+            auto rows = storage.get_all<AuditOutboxRecord>(
+                where(c(&AuditOutboxRecord::event_key_) == event_key), limit(1));
+            if (!rows.empty()) {
+                auto row = std::move(rows.front());
+                row.endpoint_ = endpoint;
+                row.payload_ = payload;
+                row.next_attempt_at_ = now;
+                row.last_error_.clear();
+                storage.update(row);
+            } else {
+                AuditOutboxRecord row;
+                row.event_key_ = event_key;
+                row.endpoint_ = endpoint;
+                row.payload_ = payload;
+                row.created_at_ = now;
+                row.next_attempt_at_ = now;
+                storage.insert(row);
+            }
+            return true;
+        } catch (const std::exception& e) {
+            LOGE("EnqueueAuditOutbox failed, key: {}, error: {}", event_key, e.what());
+            return false;
+        }
+    }
+
+    std::optional<AuditOutboxRecord> PxDatabase::GetDueAuditOutbox(int64_t now) {
+        if (!ready_) {
+            return std::nullopt;
+        }
+        using Storage = decltype(GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(GetDbStorage());
+        try {
+            auto rows = storage.get_all<AuditOutboxRecord>(
+                where(c(&AuditOutboxRecord::next_attempt_at_) <= now),
+                order_by(&AuditOutboxRecord::next_attempt_at_), limit(1));
+            if (rows.empty()) {
+                return std::nullopt;
+            }
+            return std::move(rows.front());
+        } catch (const std::exception& e) {
+            LOGE("GetDueAuditOutbox failed: {}", e.what());
+            return std::nullopt;
+        }
+    }
+
+    void PxDatabase::CompleteAuditOutbox(int64_t id) {
+        if (!ready_ || id <= 0) {
+            return;
+        }
+        using Storage = decltype(GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(GetDbStorage());
+        try {
+            storage.remove<AuditOutboxRecord>(id);
+        } catch (const std::exception& e) {
+            LOGE("CompleteAuditOutbox failed, id: {}, error: {}", id, e.what());
+        }
+    }
+
+    void PxDatabase::RetryAuditOutbox(int64_t id, int attempts, int64_t next_attempt_at,
+                                      const std::string& last_error) {
+        if (!ready_ || id <= 0) {
+            return;
+        }
+        using Storage = decltype(GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(GetDbStorage());
+        try {
+            storage.update_all(
+                set(c(&AuditOutboxRecord::attempts_) = attempts,
+                    c(&AuditOutboxRecord::next_attempt_at_) = next_attempt_at,
+                    c(&AuditOutboxRecord::last_error_) = last_error),
+                where(c(&AuditOutboxRecord::id_) == id));
+        } catch (const std::exception& e) {
+            LOGE("RetryAuditOutbox failed, id: {}, error: {}", id, e.what());
+        }
+    }
+
+    int PxDatabase::GetAuditOutboxCount() {
+        if (!ready_) {
+            return 0;
+        }
+        using Storage = decltype(GetStorageTypeValue());
+        auto storage = std::any_cast<Storage>(GetDbStorage());
+        return static_cast<int>(storage.count<AuditOutboxRecord>());
+    }
 }

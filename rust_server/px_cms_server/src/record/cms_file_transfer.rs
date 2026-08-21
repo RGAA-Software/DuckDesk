@@ -30,6 +30,15 @@ pub struct CmsFileTransfer {
     pub duration: i64,
 
     #[serde(default)]
+    pub status: String,
+
+    #[serde(default)]
+    pub end_reason: String,
+
+    #[serde(default)]
+    pub recovered: bool,
+
+    #[serde(default)]
     pub created_timestamp: i64,
 
     #[serde(default)]
@@ -51,6 +60,15 @@ pub struct CmsUpdateFileTransfer {
 
     #[serde(default)]
     pub duration: i64,
+
+    #[serde(default)]
+    pub status: String,
+
+    #[serde(default)]
+    pub end_reason: String,
+
+    #[serde(default)]
+    pub recovered: bool,
 }
 
 impl CmsUpdateFileTransfer {}

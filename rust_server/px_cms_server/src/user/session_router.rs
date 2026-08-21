@@ -193,8 +193,9 @@ pub async fn require_admin(mut request: Request<Body>, next: Next) -> Response {
     };
     match gUserSessionManager.authenticate_admin(&token).await {
         Ok(subject) => {
+            let actor_id = subject.auth_id.clone();
             request.extensions_mut().insert(subject);
-            next.run(request).await
+            crate::event::audit::scope_actor("admin", &actor_id, next.run(request)).await
         }
         Err(error) => error.into_response(),
     }
@@ -219,8 +220,9 @@ pub async fn require_admin_write(mut request: Request<Body>, next: Next) -> Resp
     if !crate::user::session::CmsUserSessionManager::verify_csrf(&subject, csrf) {
         return CmsApiError::Forbidden.into_response();
     }
+    let actor_id = subject.auth_id.clone();
     request.extensions_mut().insert(subject);
-    next.run(request).await
+    crate::event::audit::scope_actor("admin", &actor_id, next.run(request)).await
 }
 
 pub async fn require_guest(mut request: Request<Body>, next: Next) -> Response {

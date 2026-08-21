@@ -9,5 +9,9 @@ export class Visit {
     public end: number,
     public duration: number,
     public total: number,
+    public status: string = '',
+    public end_reason: string = '',
+    public recovered: boolean = false,
+    public created_timestamp: number = 0,
   ) {}
 }

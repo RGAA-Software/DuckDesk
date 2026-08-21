@@ -18,6 +18,9 @@
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
+#include "px_common_new/time_util.h"
+#include <Windows.h>
+#include <format>
 
 namespace px
 {
@@ -29,6 +32,7 @@ namespace px
         settings_ = RdSettings::Instance();
         context_ = ctx;
         plugin_mgr_ = context_->GetPluginManager();
+        instance_id_ = std::format("{}-{}", GetCurrentProcessId(), TimeUtil::GetCurrentTimestamp());
     }
 
     void WsPanelClient::Start() {
@@ -109,7 +113,8 @@ namespace px
         });
 
         LOGI("Will connect to panel : {}:{}", settings_->panel_server_host_, settings_->panel_server_port_);
-        if (!client_->async_start(settings_->panel_server_host_, settings_->panel_server_port_, "/panel/renderer")) {
+        const auto panel_path = std::format("/panel/renderer?instance_id={}", instance_id_);
+        if (!client_->async_start(settings_->panel_server_host_, settings_->panel_server_port_, panel_path)) {
             LOGE("WsPanelClient, connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }

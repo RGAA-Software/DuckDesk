@@ -30,6 +30,11 @@ namespace px
         obj["target_device"] = target_device_;
         obj["direction"] = direction_;
         obj["file_detail"] = file_detail_;
+        obj["success"] = success_;
+        obj["duration"] = duration_;
+        obj["status"] = status_;
+        obj["end_reason"] = end_reason_;
+        obj["recovered"] = recovered_;
         return obj.dump(2);
     }
 
@@ -37,12 +42,18 @@ namespace px
         nlohmann::json obj;
         obj["the_file_id"] = the_file_id_;
         obj["begin"] = begin_;
-        obj["end"] = end_;
+        // Always serialize a lifecycle-begin event.  Recovery may call this
+        // after the local row has already been finalized.
+        obj["end"] = 0;
         obj["visitor_device"] = visitor_device_;
         obj["target_device"] = target_device_;
         obj["direction"] = direction_;
         obj["file_detail"] = file_detail_;
-        obj["duration"] = duration_;
+        obj["duration"] = 0;
+        obj["success"] = false;
+        obj["status"] = "running";
+        obj["end_reason"] = "";
+        obj["recovered"] = false;
         return obj.dump(2);
     }
 
@@ -52,6 +63,9 @@ namespace px
         obj["end"] = end_;
         obj["success"] = success_;
         obj["duration"] = duration_;
+        obj["status"] = status_;
+        obj["end_reason"] = end_reason_;
+        obj["recovered"] = recovered_;
         return obj.dump(2);
     }
 }

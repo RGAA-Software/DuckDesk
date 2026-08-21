@@ -7,6 +7,7 @@
 
 #include <any>
 #include <memory>
+#include <optional>
 extern "C" {
 #include <sqlite3.h>
 }
@@ -20,6 +21,18 @@ using namespace sqlite_orm;
 
 namespace px
 {
+
+    class AuditOutboxRecord {
+    public:
+        int64_t id_{0};
+        std::string event_key_;
+        std::string endpoint_;
+        std::string payload_;
+        int attempts_{0};
+        int64_t created_at_{0};
+        int64_t next_attempt_at_{0};
+        std::string last_error_;
+    };
 
     class PxContext;
     class StreamDBOperator;
@@ -96,7 +109,10 @@ namespace px
                     make_column("end", &VisitRecord::end_),
                     make_column("duration", &VisitRecord::duration_),
                     make_column("visitor_device", &VisitRecord::visitor_device_),
-                    make_column("target_device", &VisitRecord::target_device_)
+                    make_column("target_device", &VisitRecord::target_device_),
+                    make_column("status", &VisitRecord::status_, default_value(std::string("running"))),
+                    make_column("end_reason", &VisitRecord::end_reason_, default_value(std::string())),
+                    make_column("recovered", &VisitRecord::recovered_, default_value(false))
                 ),
                 make_table("file_transfer_record",
                     make_column("id", &FileTransferRecord::id_, primary_key()),
@@ -108,7 +124,20 @@ namespace px
                     make_column("direction", &FileTransferRecord::direction_),
                     make_column("file_detail", &FileTransferRecord::file_detail_),
                     make_column("success", &FileTransferRecord::success_),
-                    make_column("duration", &FileTransferRecord::duration_)
+                    make_column("duration", &FileTransferRecord::duration_),
+                    make_column("status", &FileTransferRecord::status_, default_value(std::string("running"))),
+                    make_column("end_reason", &FileTransferRecord::end_reason_, default_value(std::string())),
+                    make_column("recovered", &FileTransferRecord::recovered_, default_value(false))
+                ),
+                make_table("audit_outbox",
+                    make_column("id", &AuditOutboxRecord::id_, primary_key().autoincrement()),
+                    make_column("event_key", &AuditOutboxRecord::event_key_, unique()),
+                    make_column("endpoint", &AuditOutboxRecord::endpoint_),
+                    make_column("payload", &AuditOutboxRecord::payload_),
+                    make_column("attempts", &AuditOutboxRecord::attempts_, default_value(0)),
+                    make_column("created_at", &AuditOutboxRecord::created_at_),
+                    make_column("next_attempt_at", &AuditOutboxRecord::next_attempt_at_),
+                    make_column("last_error", &AuditOutboxRecord::last_error_, default_value(std::string()))
                 )
             );
             return st;
@@ -127,6 +156,13 @@ namespace px
         std::shared_ptr<DBGameOperator> GetDBGameOperator();
         std::vector<std::shared_ptr<VisitRecord>> ScanUnclosedVisitRecords(int64_t before_timestamp);
         std::vector<std::shared_ptr<FileTransferRecord>> ScanUnclosedFileTransferRecords(int64_t before_timestamp);
+        bool EnqueueAuditOutbox(const std::string& event_key, const std::string& endpoint,
+                                const std::string& payload, int64_t now);
+        std::optional<AuditOutboxRecord> GetDueAuditOutbox(int64_t now);
+        void CompleteAuditOutbox(int64_t id);
+        void RetryAuditOutbox(int64_t id, int attempts, int64_t next_attempt_at,
+                              const std::string& last_error);
+        int GetAuditOutboxCount();
 
     private:
 

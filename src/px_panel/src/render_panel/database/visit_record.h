@@ -30,10 +30,14 @@ namespace px
         int64_t begin_{0};
         // unit: ms
         int64_t end_{0};
-        // unit: S
+        // unit: ms
         int64_t duration_{0};
         std::string visitor_device_;
         std::string target_device_;
+        // running / succeeded / aborted
+        std::string status_{"running"};
+        std::string end_reason_;
+        bool recovered_{false};
     };
 
 }

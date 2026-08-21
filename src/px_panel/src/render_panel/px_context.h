@@ -53,6 +53,9 @@ namespace px
         // Post task in runtime
         void PostTask(std::function<void()>&& task);
 
+        // Post potentially blocking network work away from the dedicated DB thread.
+        void PostNetworkTask(std::function<void()>&& task);
+
         // Post task in runtime and receive returned value
         // like:
         // auto ret = exec_task();

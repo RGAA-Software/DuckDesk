@@ -23,7 +23,10 @@ namespace px
         VisitRecordOperator(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<PxDatabase>& db);
 
         void InsertVisitRecord(const std::shared_ptr<VisitRecord>& record);
-        void UpdateVisitRecord(const std::string& conn_id, int64_t end_timestamp, int64_t duration);
+        void UpdateVisitRecord(const std::string& conn_id, int64_t end_timestamp, int64_t duration,
+                               const std::string& status = "succeeded",
+                               const std::string& end_reason = "client_disconnected",
+                               bool recovered = false);
         std::optional<std::shared_ptr<VisitRecord>> GetVisitRecordConnId(const std::string& conn_id);
         std::vector<std::shared_ptr<VisitRecord>> QueryVisitRecords(int page, int page_size);
         std::vector<std::shared_ptr<VisitRecord>> ScanUnclosedRecords(int64_t before_timestamp);

@@ -346,36 +346,26 @@ namespace px
     }
 
     void CpVirtualFile::NotifyFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
-        if (!record) {
+        if (!record || record->the_file_id_.empty() || !context_) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlInsertFileTransferRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsJson2(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyFileTransferRecordToCms failed: {}", resp.status);
+        if (!context_->GetDatabase()->EnqueueAuditOutbox(
+                "file:" + record->the_file_id_ + ":begin",
+                FileTransferRecord::kUrlInsertFileTransferRecord,
+                record->AsJson2(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue clipboard file transfer begin failed: {}", record->the_file_id_);
         }
     }
 
     void CpVirtualFile::NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
-        if (!record) {
+        if (!record || record->the_file_id_.empty() || !context_) {
             return;
         }
-        auto settings = PxSettings::Instance();
-        std::string serv_host = settings->GetCmsServerHost();
-        auto client = PxSettings::MakeCmsHttpClient(serv_host, settings->GetCmsServerPort(), FileTransferRecord::kUrlUpdateFileTransferRecord, 2000);
-        auto appkey = grApp->GetAppkey();
-        auto resp = client->Post({
-            {"appkey", appkey}
-            }, record->AsUpdateJson(), "application/json");
-
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("NotifyUpdateFileTransferRecordToCms failed: {}", resp.status);
+        if (!context_->GetDatabase()->EnqueueAuditOutbox(
+                "file:" + record->the_file_id_ + ":end",
+                FileTransferRecord::kUrlUpdateFileTransferRecord,
+                record->AsUpdateJson(), TimeUtil::GetCurrentTimestamp())) {
+            LOGE("Queue clipboard file transfer end failed: {}", record->the_file_id_);
         }
     }
 };

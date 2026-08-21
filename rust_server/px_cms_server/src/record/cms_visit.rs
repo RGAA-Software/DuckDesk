@@ -27,6 +27,15 @@ pub struct CmsVisit {
     pub duration: i64,
 
     #[serde(default)]
+    pub status: String,
+
+    #[serde(default)]
+    pub end_reason: String,
+
+    #[serde(default)]
+    pub recovered: bool,
+
+    #[serde(default)]
     pub created_timestamp: i64,
 
     #[serde(default)]
@@ -45,6 +54,15 @@ pub struct CmsUpdateVisit {
 
     #[serde(default)]
     pub duration: i64,
+
+    #[serde(default)]
+    pub status: String,
+
+    #[serde(default)]
+    pub end_reason: String,
+
+    #[serde(default)]
+    pub recovered: bool,
 }
 
 impl CmsUpdateVisit {}

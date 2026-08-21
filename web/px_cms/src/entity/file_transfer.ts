@@ -11,5 +11,8 @@ export class FileTransfer {
     public direction: string = '',
     public success?: boolean,
     public duration?: number,
+    public status: string = '',
+    public end_reason: string = '',
+    public recovered: boolean = false,
   ) {}
 }

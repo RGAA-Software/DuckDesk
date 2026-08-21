@@ -14,6 +14,7 @@ use crate::user::cms_user_keys::{KEY_FILE, KEY_PAGE, KEY_USER_ID, KEY_USER_NAME}
 use crate::{gCmsEventMgr, gCmsSettings, gDeviceManager, gUserManager};
 use axum::body::Body;
 use axum::extract::{Multipart, Query, State};
+use axum::http::HeaderMap;
 use axum::Json;
 use mongodb::bson::Bson;
 use px_base::{ok_resp, RespMessage};
@@ -25,6 +26,7 @@ use tokio::sync::Mutex;
 
 pub async fn handle_add_event(
     State(_context): State<Arc<Mutex<CmsContext>>>,
+    headers: HeaderMap,
     b: Body,
 ) -> Result<Json<RespMessage<CmsEvent>>, CmsApiError> {
     let body = get_body(b).await?;
@@ -47,6 +49,7 @@ pub async fn handle_add_event(
     if device_id.trim().is_empty() {
         return Err(CmsApiError::InvalidParams);
     }
+    validate_event_reporter(&headers, &device_id).await?;
 
     // cpu
     if event_type == EVENT_CPU {
@@ -97,6 +100,24 @@ pub async fn handle_add_event(
     Err(CmsApiError::InvalidParams)
 }
 
+async fn validate_event_reporter(
+    headers: &HeaderMap,
+    event_device_id: &str,
+) -> Result<(), CmsApiError> {
+    if crate::cms_settings::is_auth_bypassed().await {
+        return Ok(());
+    }
+    let reporter = headers
+        .get("x-px-device-id")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .trim();
+    if reporter.is_empty() || reporter.len() > 256 || reporter != event_device_id {
+        return Err(CmsApiError::Forbidden);
+    }
+    Ok(())
+}
+
 fn validate_usage(value: i64) -> Result<u32, CmsApiError> {
     if !(0..=100).contains(&value) {
         return Err(CmsApiError::InvalidParams);
@@ -134,6 +155,10 @@ pub async fn handle_query_events(
     let device_id = get_str_param_or(&query, KEY_DEVICE_ID, "")?;
     let device_name = get_str_param_or(&query, KEY_DEVICE_NAME, "")?;
     let device_ip = get_str_param_or(&query, KEY_DEVICE_IP, "")?;
+    let actor_id = get_str_param_or(&query, "actor_id", "")?;
+    let action = get_str_param_or(&query, "action", "")?;
+    let result = get_str_param_or(&query, "result", "")?;
+    let target_id = get_str_param_or(&query, "target_id", "")?;
 
     let mut filters: HashMap<String, Bson> = HashMap::new();
     if !event_type.is_empty() {
@@ -147,6 +172,16 @@ pub async fn handle_query_events(
     }
     if !device_ip.is_empty() {
         filters.insert(KEY_DEVICE_IP.to_string(), Bson::String(device_ip));
+    }
+    for (key, value) in [
+        ("actor_id", actor_id),
+        ("action", action),
+        ("result", result),
+        ("target_id", target_id),
+    ] {
+        if !value.is_empty() {
+            filters.insert(key.to_string(), Bson::String(value));
+        }
     }
     let r = gCmsEventMgr
         .query_events(
