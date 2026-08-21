@@ -491,6 +491,10 @@ pub async fn delete_user(
     Json(request): Json<VersionRequest>,
 ) -> Result<Json<RespMessage<UserAdminView>>, CmsApiError> {
     let user = gUserManager.admin_delete_user(uid, request.version).await?;
+    IdentityManager::remove_user_from_all_groups(&user.uid).await?;
+    gCmsUserDeviceMgr
+        .remove_personal_devices_for_user(&user.uid)
+        .await?;
     audit::record(
         "admin",
         "license_owner",

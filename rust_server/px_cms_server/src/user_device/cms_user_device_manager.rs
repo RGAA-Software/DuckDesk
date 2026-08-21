@@ -295,4 +295,17 @@ impl CmsUserDeviceManager {
         }
         Ok(desired.into_iter().collect())
     }
+
+    pub async fn remove_personal_devices_for_user(&self, uid: &str) -> Result<(), CmsApiError> {
+        gCmsDatabase
+            .lock()
+            .await
+            .user_device()
+            .lock()
+            .await
+            .delete_many(doc! { KEY_USER_ID: uid })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        Ok(())
+    }
 }

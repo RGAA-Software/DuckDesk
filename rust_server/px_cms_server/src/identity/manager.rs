@@ -67,14 +67,8 @@ impl IdentityManager {
     }
 
     async fn group_view(group: UserGroup) -> Result<GroupView, CmsApiError> {
+        let member_count = Self::active_group_member_ids(&group.gid).await?.len() as u64;
         let db = gCmsDatabase.lock().await;
-        let member_count = db
-            .user_group_member()
-            .lock()
-            .await
-            .count_documents(doc! { "gid": &group.gid })
-            .await
-            .map_err(|_| CmsApiError::DatabaseError)?;
         let device_count = db
             .group_device_grant()
             .lock()
@@ -480,6 +474,10 @@ impl IdentityManager {
 
     pub async fn group_member_ids(gid: &str) -> Result<Vec<String>, CmsApiError> {
         Self::get_group(gid).await?;
+        Self::active_group_member_ids(gid).await
+    }
+
+    async fn active_group_member_ids(gid: &str) -> Result<Vec<String>, CmsApiError> {
         let mut cursor = gCmsDatabase
             .lock()
             .await
@@ -490,11 +488,66 @@ impl IdentityManager {
             .sort(doc! { "uid": 1 })
             .await
             .map_err(|_| CmsApiError::DatabaseError)?;
-        let mut ids = Vec::new();
+        let mut relation_ids = BTreeSet::new();
         while let Some(row) = cursor.next().await {
-            ids.push(row.map_err(|_| CmsApiError::DatabaseError)?.uid);
+            relation_ids.insert(row.map_err(|_| CmsApiError::DatabaseError)?.uid);
+        }
+        if relation_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut users = gCmsDatabase
+            .lock()
+            .await
+            .user()
+            .lock()
+            .await
+            .find(doc! { "uid": { "$in": relation_ids.into_iter().collect::<Vec<_>>() }, "deleted": false })
+            .sort(doc! { "username_normalized": 1 })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        let mut ids = Vec::new();
+        while let Some(user) = users.next().await {
+            ids.push(user.map_err(|_| CmsApiError::DatabaseError)?.uid);
         }
         Ok(ids)
+    }
+
+    pub async fn remove_user_from_all_groups(uid: &str) -> Result<(), CmsApiError> {
+        let collection = gCmsDatabase.lock().await.user_group_member();
+        let mut cursor = collection
+            .lock()
+            .await
+            .find(doc! { "uid": uid })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        let mut affected = BTreeSet::new();
+        while let Some(row) = cursor.next().await {
+            affected.insert(row.map_err(|_| CmsApiError::DatabaseError)?.gid);
+        }
+        collection
+            .lock()
+            .await
+            .delete_many(doc! { "uid": uid })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if !affected.is_empty() {
+            gCmsDatabase
+                .lock()
+                .await
+                .user_group()
+                .lock()
+                .await
+                .update_many(
+                    doc! { "gid": { "$in": affected.into_iter().collect::<Vec<_>>() }, "deleted": false },
+                    doc! {
+                        "$set": { "updated_at": px_base::get_current_timestamp() },
+                        "$inc": { "version": 1_i64 }
+                    },
+                )
+                .await
+                .map_err(|_| CmsApiError::DatabaseError)?;
+        }
+        Ok(())
     }
 
     pub async fn group_device_ids(gid: &str) -> Result<Vec<String>, CmsApiError> {
