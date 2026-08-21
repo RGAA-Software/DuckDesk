@@ -21,6 +21,7 @@ async function json(route: Route, data: unknown, status = 200, headers: Record<s
 
 async function installUserApi(page: Page, initiallyAuthenticated = true) {
   let authenticated = initiallyAuthenticated
+  let appsPageFailures = 0
   const state = {
     loginCalls: 0,
     meCalls: 0,
@@ -32,6 +33,8 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
     apps: [] as Array<Record<string, unknown>>,
     registerBody: undefined as Record<string, unknown> | undefined,
     get authenticated() { return authenticated },
+    expire() { authenticated = false },
+    failNextAppsPage() { appsPageFailures += 1 },
   }
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -75,7 +78,15 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
     if (path === '/api/v1/user/devices') return json(route, ok([]))
     if (path === '/api/v1/user/devices/page') return json(route, ok({ items: [], page: 1, page_size: 10, total: 0 }))
     if (path === '/api/v1/user/apps') return json(route, ok(state.apps))
-    if (path === '/api/v1/user/apps/page') return json(route, ok({ items: state.apps, page: 1, page_size: 9, total: state.apps.length }))
+    if (path === '/api/v1/user/apps/page') {
+      if (appsPageFailures > 0) {
+        appsPageFailures -= 1
+        return json(route, { code: 'TEMPORARY_UNAVAILABLE', message: 'temporary failure', data: null }, 503)
+      }
+      return authenticated
+        ? json(route, ok({ items: state.apps, page: 1, page_size: 9, total: state.apps.length }))
+        : json(route, { code: 'AUTH_REQUIRED', message: 'authentication required', data: null }, 401)
+    }
     if (/^\/api\/v1\/user\/instances\/[^/]+\/ticket$/.test(path)) {
       state.ticketCalls += 1
       state.ticketBody = request.postDataJSON()
@@ -205,6 +216,48 @@ test('view-only application entry requests a server-enforced view grant', async 
   await expect(page).toHaveURL(/opened=1/)
   const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
   expect(fragment.get('perms')).toBe('view')
+})
+
+test('resource polling redirects immediately when the user session expires', async ({ page }) => {
+  const api = await installUserApi(page)
+  api.apps.push({
+    app_id: 'private-app',
+    name: 'Private App',
+    access_mode: 'acl',
+    cover_url: '',
+    version: 1,
+  })
+
+  await page.goto('/user/apps')
+  await expect(page.getByText('Private App')).toBeVisible()
+  api.expire()
+
+  await expect(page).toHaveURL(/\/user\/login\?redirect=(?:%2F|\/)user(?:%2F|\/)apps$/)
+  await expect(page.getByText('Private App')).toHaveCount(0)
+})
+
+test('transient refresh keeps the last resource projection and a later ACL refresh removes it', async ({ page }) => {
+  const api = await installUserApi(page)
+  api.apps.push({
+    app_id: 'acl-app',
+    name: 'ACL App',
+    access_mode: 'acl',
+    cover_url: '',
+    version: 1,
+  })
+
+  await page.goto('/user/apps')
+  await expect(page.getByText('ACL App')).toBeVisible()
+
+  api.failNextAppsPage()
+  await page.getByRole('button', { name: /刷\s*新/ }).click()
+  await expect(page.getByText('应用列表加载失败')).toBeVisible()
+  await expect(page.getByText('ACL App')).toBeVisible()
+
+  api.apps.splice(0)
+  await page.getByRole('button', { name: /刷\s*新/ }).click()
+  await expect(page.getByText('ACL App')).toHaveCount(0)
+  await expect(page.getByText('没有可用应用')).toBeVisible()
 })
 
 test('public catalog is anonymous and recreates a stale guest session for owned instances', async ({ page }) => {

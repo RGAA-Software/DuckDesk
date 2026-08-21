@@ -1,6 +1,6 @@
 # CMS 用户、用户组与资源访问控制设计
 
-> 状态：v6.4 已完成用户 Web 分页、服务端仅观看权限和浏览器安全续票实现（2026-08-21）；生产集群增强项单独标为“后续”。
+> 状态：v6.5 已完成用户 Web 分页、服务端仅观看权限、浏览器安全续票、资源对账与 CMS 重启恢复验收（2026-08-21）；生产集群增强项单独标为“后续”。
 > 适用范围：单个 CMS 部署（单租户）下的终端用户、CMS 管理者、设备和云端应用。
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 CMS 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
@@ -548,7 +548,18 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 - 浏览器首次票据附带独立 renewal capability；完整重连或接管再次信令前，由跨源受限端点轮换 renewal 并签发新的一次性 ticket。续票重新校验 session、owner、ACL、实例和设备状态。
 - CMS Rust 120/120、CMS Web Vitest 13/13、Chromium Playwright 常规用例 6/6 及现场 RTC 续票用例 1/1 通过；CMS Web 与 Web Client 生产构建通过。部署后真实 guest 实例完成 `view` 签票、renewal 轮换、旧 renewal 重放拒绝，并由浏览器主动关闭 PeerConnection 验证自动续票、RTC 重连、视频继续播放和实例清理。
 
+### 12.6 v6.5 权限对账与重启恢复结果（2026-08-21）
+
+- 应用目录、启动、票据签发和续票统一复用纯权限策略：用户始终可访问 public，ACL 应用必须命中授权集合；guest 只能访问 public；实例 owner 同时严格匹配主体类型和主体 ID。该矩阵由 Rust 单元测试固定，避免各入口后续出现策略漂移。
+- 用户门户轮询收到 401 时立即清除 CSRF 并返回登录页，不继续展示过期会话的私有资源；普通网络失败仍保留最后一次成功列表，恢复后的下一次刷新会按服务端事实移除已撤销 ACL 的应用。
+- CMS 重启恢复覆盖 Starting/Running/Stopping：Service 心跳可把已实际启动的 Starting 推进到 Running；连续缺失超过 15 秒时 Starting 稳定进入 Failed，Running/Stopping 稳定进入 Stopped，错误统一为 `PROCESS_LOST`。
+- 修复“启动回执丢失但心跳已确认 Running”竞态：HTTP 超时时以最新心跳状态为准，不再误报 `START_TIMEOUT` 或发送补偿停止；只有仍未确认的 Starting 才失败并清理。完成的启动请求会从内存关联表删除，避免长期泄漏和迟到回执重复修改。
+- 新增可重复执行的现场脚本 `scripts/test_cms_restart_recovery.ps1 -AllowRestart`：创建临时 public 实例、重启工作区 CMS、等待 Service 对账、验证实例仍为 Running 且可重新签发仅观看票据，最后停止实例并检查 game-hook Render 无残留。
+- 最终回归：CMS Rust 126/126、px_service 37/37、CMS Web Vitest 13/13、Chromium 常规 E2E 8/8、真实 RTC 续票 1/1、真实 CMS 重启恢复连续 2/2 通过；Release CMS 与 Web 已部署，CMS/px_media/px_service/桌面 Render 健康。
+
 ## 13. 测试与验收
+
+完整的分层测试、故障注入、远端双机部署、证据留存和发布门槛见 [CMS 用户、ACL 与实例恢复完整测试方案](cms_user_acl_recovery_test_plan.md)。
 
 ### 13.1 单元测试
 

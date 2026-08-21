@@ -25,6 +25,16 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+fn reported_active_state(value: &str) -> Option<InstanceState> {
+    match value.to_ascii_lowercase().as_str() {
+        // Legacy Service builds omitted the field for an active process.
+        "" | "running" => Some(InstanceState::Running),
+        "starting" => Some(InstanceState::Starting),
+        "stopping" => Some(InstanceState::Stopping),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Application {
     pub app_id: String,
@@ -1087,6 +1097,30 @@ impl AppScheduleManager {
         g.instances.get(instance_id).cloned()
     }
 
+    /// Resolve a missing start receipt using the latest state already learned
+    /// from Service heartbeat. Only a row that is still Starting is failed and
+    /// compensated; a heartbeat-confirmed Running process is a successful
+    /// recovery and must never be killed merely because the receipt was lost.
+    fn resolve_start_timeout_locked(
+        g: &mut Inner,
+        request_id: &str,
+        instance_id: &str,
+    ) -> (Option<AppInstance>, bool) {
+        g.start_waiters.remove(request_id);
+        g.request_index.remove(request_id);
+        let Some(instance) = g.instances.get_mut(instance_id) else {
+            return (None, false);
+        };
+        let should_compensate = instance.state == InstanceState::Starting;
+        if should_compensate {
+            instance.state = InstanceState::Failed;
+            instance.version += 1;
+            instance.stopped_at_ms = now_ms();
+            instance.error = "START_TIMEOUT".to_string();
+        }
+        (Some(instance.clone()), should_compensate)
+    }
+
     /// 锁内预占:创建并插入 Starting 实例(预占节点端口,并发互斥的关键)。
     /// 调用方必须已持有 inner 锁;持久化在锁外由调用方负责。
     fn pre_occupy_instance_locked(
@@ -1277,34 +1311,34 @@ impl AppScheduleManager {
             }
             Ok(Err(_)) => Err("启动结果通道已关闭".to_string()),
             Err(_) => {
-                let snapshot = {
+                let (snapshot, should_compensate) = {
                     let mut g = self.inner.lock().await;
-                    g.start_waiters.remove(&request_id);
-                    // Drop the request mapping so a late receipt cannot find
-                    // this instance and resurrect it after we report Failed.
-                    g.request_index.remove(&request_id);
-                    if let Some(i) = g.instances.get_mut(&instance_id) {
-                        if matches!(i.state, InstanceState::Starting) {
-                            i.state = InstanceState::Failed;
-                            i.version += 1;
-                            i.stopped_at_ms = now_ms();
-                            i.error = "START_TIMEOUT".to_string();
-                        }
-                        Some(i.clone())
-                    } else {
-                        None
-                    }
+                    Self::resolve_start_timeout_locked(&mut g, &request_id, &instance_id)
                 };
-                if let Some(failed) = snapshot {
-                    let _ = crate::app_schedule::store::upsert_instance(&failed).await;
+                if let Some(current) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&current).await;
+                    if current.state == InstanceState::Running {
+                        tracing::info!(
+                            "start receipt {} was lost, but heartbeat confirmed instance {} running",
+                            request_id,
+                            current.instance_id
+                        );
+                        return Ok(current);
+                    }
                     // A late successful launch must not become an orphan
                     // process after the caller has already observed failure.
-                    let compensation = CmsServiceStopAppInstance {
-                        request_id: self.next_id("compensate-stop"),
-                        instance_id: failed.instance_id.clone(),
-                    };
-                    let _ = conn.lock().await.send_stop_app_instance(compensation).await;
-                    return Err("START_TIMEOUT".to_string());
+                    if should_compensate {
+                        let compensation = CmsServiceStopAppInstance {
+                            request_id: self.next_id("compensate-stop"),
+                            instance_id: current.instance_id.clone(),
+                        };
+                        let _ = conn.lock().await.send_stop_app_instance(compensation).await;
+                    }
+                    return Err(if current.error.is_empty() {
+                        "START_INTERRUPTED".to_string()
+                    } else {
+                        current.error
+                    });
                 }
                 Err("START_TIMEOUT".to_string())
             }
@@ -1484,6 +1518,10 @@ impl AppScheduleManager {
                             touched_node = Some(node.clone());
                         }
                     }
+                    // request_index only correlates an in-flight command.
+                    // Keeping successful starts here leaks one entry per
+                    // launch and lets duplicate late receipts touch old rows.
+                    g.request_index.remove(&result.request_id);
                 } else {
                     inst.state = InstanceState::Failed;
                     inst.version += 1;
@@ -1608,7 +1646,7 @@ impl AppScheduleManager {
                 instance.device_id == device_id
                     && matches!(
                         instance.state,
-                        InstanceState::Running | InstanceState::Stopping
+                        InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
                     )
             })
             .map(|instance| instance.instance_id.clone())
@@ -1651,16 +1689,12 @@ impl AppScheduleManager {
                 }
             }
         };
-        // Empty state: legacy Service builds omitted the field — treat the row
-        // as present/active. Newer proto builds always carry an explicit state.
-        let is_active = |state: &str| {
-            let s = state.to_ascii_lowercase();
-            s.is_empty() || s == "running" || s == "starting" || s == "stopping"
-        };
-        let active: HashMap<String, &Reported> = reported
+        let active: HashMap<String, (&Reported, InstanceState)> = reported
             .iter()
-            .filter(|r| is_active(&r.state))
-            .map(|r| (r.instance_id.clone(), r))
+            .filter_map(|reported| {
+                reported_active_state(&reported.state)
+                    .map(|state| (reported.instance_id.clone(), (reported, state)))
+            })
             .collect();
 
         let now = now_ms();
@@ -1678,7 +1712,7 @@ impl AppScheduleManager {
                 if inst.device_id != device_id {
                     continue;
                 }
-                if let Some(rep) = active.get(&inst.instance_id) {
+                if let Some((rep, reported_state)) = active.get(&inst.instance_id) {
                     suspect_since.remove(&inst.instance_id);
                     let heartbeat_due = now.saturating_sub(inst.last_heartbeat_at_ms) >= 10_000;
                     inst.last_heartbeat_at_ms = now;
@@ -1692,9 +1726,9 @@ impl AppScheduleManager {
                                 rep.pid,
                                 rep.listen_port
                             );
-                            inst.state = InstanceState::Running;
+                            inst.state = reported_state.clone();
                             inst.version += 1;
-                            if inst.started_at_ms == 0 {
+                            if inst.state == InstanceState::Running && inst.started_at_ms == 0 {
                                 inst.started_at_ms = now;
                             }
                             inst.stopped_at_ms = 0;
@@ -1703,6 +1737,12 @@ impl AppScheduleManager {
                                 inst.listen_port = rep.listen_port;
                             }
                             inst.error.clear();
+                            if inst.state == InstanceState::Running {
+                                inst.web_client_hint = format!(
+                                    "/web_client/?deviceId={}&instanceId={}",
+                                    inst.device_id, inst.instance_id
+                                );
+                            }
                             out.push(inst.clone());
                         }
                         InstanceState::Running | InstanceState::Stopping => {
@@ -1712,27 +1752,71 @@ impl AppScheduleManager {
                             if rep.listen_port > 0 {
                                 inst.listen_port = rep.listen_port;
                             }
-                            if heartbeat_due {
+                            if inst.state == InstanceState::Running
+                                && *reported_state == InstanceState::Stopping
+                            {
+                                inst.state = InstanceState::Stopping;
+                                inst.version += 1;
+                                out.push(inst.clone());
+                            } else if heartbeat_due {
                                 out.push(inst.clone());
                             }
                         }
-                        InstanceState::Starting => {}
+                        InstanceState::Starting => {
+                            // A CMS restart loses the in-memory HTTP waiter, but
+                            // the Service may already have completed the launch.
+                            // Heartbeat is authoritative in that case and must
+                            // advance the persisted transitional row.
+                            if *reported_state == InstanceState::Running {
+                                inst.state = InstanceState::Running;
+                                inst.version += 1;
+                                if inst.started_at_ms == 0 {
+                                    inst.started_at_ms = now;
+                                }
+                                inst.stopped_at_ms = 0;
+                                inst.pid = rep.pid;
+                                if rep.listen_port > 0 {
+                                    inst.listen_port = rep.listen_port;
+                                }
+                                inst.error.clear();
+                                inst.web_client_hint = format!(
+                                    "/web_client/?deviceId={}&instanceId={}",
+                                    inst.device_id, inst.instance_id
+                                );
+                                out.push(inst.clone());
+                            } else if *reported_state == InstanceState::Stopping {
+                                inst.state = InstanceState::Stopping;
+                                inst.version += 1;
+                                if rep.pid != 0 {
+                                    inst.pid = rep.pid;
+                                }
+                                if rep.listen_port > 0 {
+                                    inst.listen_port = rep.listen_port;
+                                }
+                                out.push(inst.clone());
+                            }
+                        }
                     }
                     continue;
                 }
                 match inst.state {
-                    InstanceState::Running | InstanceState::Stopping => {
+                    InstanceState::Starting | InstanceState::Running | InstanceState::Stopping => {
                         let missing_since =
                             suspect_since.entry(inst.instance_id.clone()).or_insert(now);
                         if now.saturating_sub(*missing_since) >= PROCESS_LOST_GRACE_MS {
                             tracing::info!(
-                                "reconcile: device {} instance {} was {:?} and absent for {}ms — mark stopped",
+                                "reconcile: device {} instance {} was {:?} and absent for {}ms — finalize as process lost",
                                 device_id,
                                 inst.instance_id,
                                 inst.state,
                                 now.saturating_sub(*missing_since)
                             );
-                            inst.state = InstanceState::Stopped;
+                            let was_starting = inst.state == InstanceState::Starting;
+                            inst.state = if was_starting {
+                                InstanceState::Failed
+                            } else {
+                                InstanceState::Stopped
+                            };
                             inst.version += 1;
                             inst.stopped_at_ms = now;
                             inst.pid = 0;
@@ -1743,9 +1827,6 @@ impl AppScheduleManager {
                         }
                     }
                     InstanceState::Stopped | InstanceState::Failed => {}
-                    // Starting: still waiting for the start receipt; HB alone
-                    // must not flip it either way.
-                    InstanceState::Starting => {}
                 }
             }
             let known: std::collections::HashSet<String> = instances
@@ -1819,7 +1900,12 @@ impl AppScheduleManager {
                             g.request_index
                                 .insert(i.request_id.clone(), i.instance_id.clone());
                         }
-                        if matches!(i.state, InstanceState::Running | InstanceState::Stopping) {
+                        if matches!(
+                            i.state,
+                            InstanceState::Starting
+                                | InstanceState::Running
+                                | InstanceState::Stopping
+                        ) {
                             g.suspect_since.insert(i.instance_id.clone(), now_ms());
                             suspect_devices.insert(i.device_id.clone());
                         }
@@ -2109,6 +2195,10 @@ mod tests {
         assert_eq!(running[0].state, InstanceState::Running);
         assert_eq!(running[0].listen_port, 32055);
         assert!(running[0].web_client_hint.contains("instanceId=inst-1"));
+        assert!(
+            !mgr.inner.lock().await.request_index.contains_key("req-1"),
+            "completed start request must not leak in request_index"
+        );
 
         mgr.on_stop_result(
             "dev-1".into(),
@@ -2591,6 +2681,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reconcile_restores_the_state_reported_by_service() {
+        let mgr = AppScheduleManager::new();
+        let (app, placement, inst) = fixture(InstanceState::Stopped);
+        mgr.inject_for_test(app, placement, inst).await;
+        mgr.reconcile_from_service_hb(
+            "d".into(),
+            r#"[{"instance_id":"i","state":"starting","pid":7,"listen_port":32003}]"#,
+        )
+        .await;
+        let starting = &mgr.list_instances().await[0];
+        assert_eq!(starting.state, InstanceState::Starting);
+        assert_eq!(starting.pid, 7);
+        assert_eq!(starting.listen_port, 32003);
+
+        let mgr = AppScheduleManager::new();
+        let (app, placement, inst) = fixture(InstanceState::Failed);
+        mgr.inject_for_test(app, placement, inst).await;
+        mgr.reconcile_from_service_hb(
+            "d".into(),
+            r#"[{"instance_id":"i","state":"stopping","pid":8,"listen_port":32004}]"#,
+        )
+        .await;
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Stopping);
+    }
+
+    #[tokio::test]
     async fn late_start_result_does_not_revive_failed() {
         let mgr = AppScheduleManager::new();
         let (app, plc, mut inst) = fixture(InstanceState::Failed);
@@ -2650,6 +2766,102 @@ mod tests {
 
         assert!(!AppScheduleManager::heal_instance_after_restart(&mut inst));
         assert_eq!(inst.version, 1);
+    }
+
+    #[tokio::test]
+    async fn restored_starting_instance_advances_from_service_heartbeat() {
+        let mgr = AppScheduleManager::new();
+        let (app, placement, mut inst) = fixture(InstanceState::Starting);
+        inst.error = "stale start state".into();
+        mgr.inject_for_test(app, placement, inst).await;
+        mgr.mark_device_suspect("d").await;
+
+        // Service is still launching: preserve Starting, but clear the
+        // disconnect suspicion because the process is accounted for.
+        mgr.reconcile_from_service_hb(
+            "d".into(),
+            r#"[{"instance_id":"i","state":"starting","pid":41,"listen_port":32001}]"#,
+        )
+        .await;
+        assert_eq!(mgr.list_instances().await[0].state, InstanceState::Starting);
+        assert!(!mgr.inner.lock().await.suspect_since.contains_key("i"));
+
+        // The original HTTP waiter disappeared with CMS, so heartbeat must be
+        // able to finish the transition without waiting for the old receipt.
+        mgr.reconcile_from_service_hb(
+            "d".into(),
+            r#"[{"instance_id":"i","state":"running","pid":42,"listen_port":32002}]"#,
+        )
+        .await;
+        let restored = &mgr.list_instances().await[0];
+        assert_eq!(restored.state, InstanceState::Running);
+        assert_eq!(restored.pid, 42);
+        assert_eq!(restored.listen_port, 32002);
+        assert!(restored.started_at_ms > 0);
+        assert!(restored.error.is_empty());
+        assert!(restored.web_client_hint.contains("instanceId=i"));
+    }
+
+    #[tokio::test]
+    async fn restored_starting_instance_becomes_failed_after_absence_grace() {
+        let mgr = AppScheduleManager::new();
+        let (app, placement, inst) = fixture(InstanceState::Starting);
+        mgr.inject_for_test(app, placement, inst).await;
+        mgr.mark_device_suspect("d").await;
+        mgr.inner
+            .lock()
+            .await
+            .suspect_since
+            .insert("i".into(), now_ms() - PROCESS_LOST_GRACE_MS);
+
+        mgr.reconcile_from_service_hb("d".into(), "[]").await;
+
+        let failed = &mgr.list_instances().await[0];
+        assert_eq!(failed.state, InstanceState::Failed);
+        assert_eq!(failed.pid, 0);
+        assert_eq!(failed.error, "PROCESS_LOST");
+        assert!(failed.stopped_at_ms > 0);
+        assert!(!mgr.inner.lock().await.request_index.contains_key("r"));
+    }
+
+    #[test]
+    fn lost_start_receipt_uses_heartbeat_state_before_compensating() {
+        let mut running = Inner::default();
+        running.request_index.insert("r".into(), "i".into());
+        running.instances.insert(
+            "i".into(),
+            AppInstance {
+                instance_id: "i".into(),
+                request_id: "r".into(),
+                state: InstanceState::Running,
+                pid: 42,
+                ..Default::default()
+            },
+        );
+        let (snapshot, compensate) =
+            AppScheduleManager::resolve_start_timeout_locked(&mut running, "r", "i");
+        assert_eq!(snapshot.unwrap().state, InstanceState::Running);
+        assert!(!compensate, "heartbeat-confirmed process must be preserved");
+        assert!(!running.request_index.contains_key("r"));
+
+        let mut unresolved = Inner::default();
+        unresolved.request_index.insert("r".into(), "i".into());
+        unresolved.instances.insert(
+            "i".into(),
+            AppInstance {
+                instance_id: "i".into(),
+                request_id: "r".into(),
+                state: InstanceState::Starting,
+                ..Default::default()
+            },
+        );
+        let (snapshot, compensate) =
+            AppScheduleManager::resolve_start_timeout_locked(&mut unresolved, "r", "i");
+        let snapshot = snapshot.unwrap();
+        assert_eq!(snapshot.state, InstanceState::Failed);
+        assert_eq!(snapshot.error, "START_TIMEOUT");
+        assert!(compensate, "unconfirmed launch must be cleaned up");
+        assert!(!unresolved.request_index.contains_key("r"));
     }
 
     #[tokio::test]

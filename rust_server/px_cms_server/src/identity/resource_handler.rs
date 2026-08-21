@@ -3,6 +3,9 @@ use crate::app_schedule::manager::{AppAccessMode, AppInstance, InstanceState, St
 use crate::cms_api_error::CmsApiError;
 use crate::event::audit;
 use crate::gCmsUserDeviceMgr;
+use crate::identity::access_policy::{
+    guest_can_access_app, subject_owns_instance, user_can_access_app,
+};
 use crate::identity::manager::IdentityManager;
 use crate::identity::model::{page_items, ResourcePage, ResourcePageQuery};
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
@@ -135,7 +138,7 @@ async fn authorized_apps(uid: &str) -> Result<Vec<ApplicationCard>, CmsApiError>
         .await;
     let mut cards = Vec::new();
     for app in gAppScheduleManager.list_applications().await {
-        if app.access_mode == AppAccessMode::Acl && !acl_ids.contains(&app.app_id) {
+        if !user_can_access_app(&app.access_mode, &app.app_id, &acl_ids) {
             continue;
         }
         let running_instance = instances
@@ -203,11 +206,12 @@ pub async fn start_user_app(
         .get_application(&app_id)
         .await
         .ok_or(CmsApiError::ResourceNotFound)?;
-    let authorized = app.access_mode == AppAccessMode::Public
-        || IdentityManager::authorized_app_ids(&subject.uid)
-            .await?
-            .contains(&app_id);
-    if !authorized {
+    let acl_ids = if app.access_mode == AppAccessMode::Acl {
+        IdentityManager::authorized_app_ids(&subject.uid).await?
+    } else {
+        Default::default()
+    };
+    if !user_can_access_app(&app.access_mode, &app_id, &acl_ids) {
         return Err(CmsApiError::ResourceNotFound);
     }
     if let Some(existing) = gAppScheduleManager
@@ -335,7 +339,7 @@ pub async fn stop_user_instance(
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
-        .filter(|instance| instance.owner_type == "user" && instance.owner_id == subject.uid)
+        .filter(|instance| subject_owns_instance(instance, "user", &subject.uid))
         .ok_or(CmsApiError::ResourceNotFound)?;
     let stopped = gAppScheduleManager
         .stop_instance(&instance.instance_id)
@@ -382,7 +386,7 @@ pub async fn user_resource_summary(
 async fn public_app_catalog() -> Vec<ApplicationCard> {
     let mut cards = Vec::new();
     for app in gAppScheduleManager.list_applications().await {
-        if app.access_mode != AppAccessMode::Public {
+        if !guest_can_access_app(&app.access_mode) {
             continue;
         }
         cards.push(ApplicationCard {
@@ -419,7 +423,7 @@ pub async fn start_public_app(
     let app = gAppScheduleManager
         .get_application(&app_id)
         .await
-        .filter(|app| app.access_mode == AppAccessMode::Public)
+        .filter(|app| guest_can_access_app(&app.access_mode))
         .ok_or(CmsApiError::ResourceNotFound)?;
     if let Some(existing) = gAppScheduleManager
         .list_instances_for_owner("guest", &subject.guest_id)
@@ -452,7 +456,7 @@ pub async fn start_public_app(
     };
     if all
         .iter()
-        .filter(|instance| instance.owner_type == "guest" && instance.owner_id == subject.guest_id)
+        .filter(|instance| subject_owns_instance(instance, "guest", &subject.guest_id))
         .filter(active)
         .count()
         >= settings.quota.guest_concurrent_instances
@@ -462,7 +466,7 @@ pub async fn start_public_app(
     let now = px_base::get_current_timestamp();
     let guest_history: Vec<_> = all
         .iter()
-        .filter(|instance| instance.owner_type == "guest" && instance.owner_id == subject.guest_id)
+        .filter(|instance| subject_owns_instance(instance, "guest", &subject.guest_id))
         .cloned()
         .collect();
     let used_minutes = usage_ms_since(&guest_history, local_day_start_ms(), now) / 60_000;
@@ -545,7 +549,7 @@ pub async fn stop_guest_instance(
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
-        .filter(|instance| instance.owner_type == "guest" && instance.owner_id == subject.guest_id)
+        .filter(|instance| subject_owns_instance(instance, "guest", &subject.guest_id))
         .ok_or(CmsApiError::ResourceNotFound)?;
     let stopped = gAppScheduleManager
         .stop_instance(&instance.instance_id)

@@ -1,3 +1,4 @@
+pub mod access_policy;
 pub mod catalog_handler;
 pub mod handler;
 pub mod manager;

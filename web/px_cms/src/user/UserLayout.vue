@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { logoutUser } from './api'
+import { USER_SESSION_EXPIRED_EVENT } from './http'
 
 const route = useRoute()
 const router = useRouter()
 const selected = computed(() => [route.path])
+
+function sessionExpired() {
+  void router.replace({ path: '/user/login', query: { redirect: route.fullPath } })
+}
+
+onMounted(() => window.addEventListener(USER_SESSION_EXPIRED_EVENT, sessionExpired))
+onUnmounted(() => window.removeEventListener(USER_SESSION_EXPIRED_EVENT, sessionExpired))
 
 function onMenuClick({ key }: { key: string | number }) {
   void router.push(String(key))

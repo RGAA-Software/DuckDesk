@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const CSRF_KEY = 'px_user_csrf'
+export const USER_SESSION_EXPIRED_EVENT = 'px-user-session-expired'
 
 export const userHttp = axios.create({
   baseURL: '',
@@ -31,7 +32,13 @@ userHttp.interceptors.request.use((config) => {
 userHttp.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401) setUserCsrf('')
+    if (error?.response?.status === 401) {
+      setUserCsrf('')
+      // Polling can discover expiry while the router is idle. Notify the user
+      // layout so stale private resources disappear immediately; initial
+      // navigation remains the responsibility of the router guard.
+      window.dispatchEvent(new Event(USER_SESSION_EXPIRED_EVENT))
+    }
     return Promise.reject(error)
   },
 )

@@ -1,9 +1,11 @@
 use crate::app_schedule::gAppScheduleManager;
-use crate::app_schedule::manager::InstanceState;
 use crate::cms_api_error::CmsApiError;
 use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::connection_ticket::model::{ConnectionTicket, TicketRenewResponse, TicketResponse};
 use crate::event::audit;
+use crate::identity::access_policy::{
+    guest_can_access_app, subject_owns_running_instance, user_can_access_app,
+};
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
 use crate::{gCmsUserDeviceMgr, gDeviceManager};
 use axum::extract::{ConnectInfo, Extension, Path};
@@ -81,10 +83,11 @@ async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), CmsA
                 .get_instance(instance_id)
                 .await
                 .filter(|instance| {
-                    instance.owner_type == ticket.subject_type
-                        && instance.owner_id == ticket.subject_id
-                        && instance.device_id == ticket.device_id
-                        && instance.state == InstanceState::Running
+                    subject_owns_running_instance(
+                        instance,
+                        &ticket.subject_type,
+                        &ticket.subject_id,
+                    ) && instance.device_id == ticket.device_id
                 })
                 .ok_or(CmsApiError::ResourceNotFound)?;
             let app = gAppScheduleManager
@@ -92,17 +95,22 @@ async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), CmsA
                 .await
                 .ok_or(CmsApiError::ResourceNotFound)?;
             if ticket.subject_type == "guest" {
-                if app.access_mode != crate::app_schedule::manager::AppAccessMode::Public {
+                if !guest_can_access_app(&app.access_mode) {
                     return Err(CmsApiError::ResourceNotFound);
                 }
-            } else if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl
-                && !crate::identity::manager::IdentityManager::authorized_app_ids(
-                    &ticket.subject_id,
-                )
-                .await?
-                .contains(&instance.app_id)
-            {
-                return Err(CmsApiError::ResourceNotFound);
+            } else {
+                let acl_ids = if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl
+                {
+                    crate::identity::manager::IdentityManager::authorized_app_ids(
+                        &ticket.subject_id,
+                    )
+                    .await?
+                } else {
+                    Default::default()
+                };
+                if !user_can_access_app(&app.access_mode, &instance.app_id, &acl_ids) {
+                    return Err(CmsApiError::ResourceNotFound);
+                }
             }
         }
         _ => return Err(CmsApiError::ResourceNotFound),
@@ -220,11 +228,7 @@ pub async fn issue_instance_ticket(
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
-        .filter(|instance| {
-            instance.owner_type == "user"
-                && instance.owner_id == subject.uid
-                && instance.state == InstanceState::Running
-        })
+        .filter(|instance| subject_owns_running_instance(instance, "user", &subject.uid))
         .ok_or(CmsApiError::ResourceNotFound)?;
     // Authorization is evaluated again at ticket issue time. Removing an ACL
     // grant must prevent new connections immediately, even when an older
@@ -233,11 +237,12 @@ pub async fn issue_instance_ticket(
         .get_application(&instance.app_id)
         .await
         .ok_or(CmsApiError::ResourceNotFound)?;
-    if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl
-        && !crate::identity::manager::IdentityManager::authorized_app_ids(&subject.uid)
-            .await?
-            .contains(&instance.app_id)
-    {
+    let acl_ids = if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl {
+        crate::identity::manager::IdentityManager::authorized_app_ids(&subject.uid).await?
+    } else {
+        Default::default()
+    };
+    if !user_can_access_app(&app.access_mode, &instance.app_id, &acl_ids) {
         return Err(CmsApiError::ResourceNotFound);
     }
     let device = gDeviceManager
@@ -304,16 +309,12 @@ pub async fn issue_guest_instance_ticket(
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
-        .filter(|instance| {
-            instance.owner_type == "guest"
-                && instance.owner_id == subject.guest_id
-                && instance.state == InstanceState::Running
-        })
+        .filter(|instance| subject_owns_running_instance(instance, "guest", &subject.guest_id))
         .ok_or(CmsApiError::ResourceNotFound)?;
     let app = gAppScheduleManager
         .get_application(&instance.app_id)
         .await
-        .filter(|app| app.access_mode == crate::app_schedule::manager::AppAccessMode::Public)
+        .filter(|app| guest_can_access_app(&app.access_mode))
         .ok_or(CmsApiError::ResourceNotFound)?;
     let device = gDeviceManager
         .query_device_by_id(instance.device_id.clone())
