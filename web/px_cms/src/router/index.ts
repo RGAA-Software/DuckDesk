@@ -138,7 +138,7 @@ const router = createRouter({
           path: '/group-manager',
           name: 'group-manager',
           component: GroupManager,
-          meta: { title: '用户组与授权', requiresAuth: true },
+          meta: { title: '用户组管理', requiresAuth: true },
         },
         {
           path: '/profile-info',

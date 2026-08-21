@@ -125,7 +125,7 @@ const handleClickLogo = async () => {
 
       <a-menu-item key="/group-manager">
         <template #icon><TeamOutlined /></template>
-        <span class="">用户组与授权</span>
+        <span class="">用户组管理</span>
       </a-menu-item>
 
       <a-menu-item key="/profile-info">

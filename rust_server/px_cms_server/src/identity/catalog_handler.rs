@@ -3,6 +3,7 @@ use crate::app_schedule::manager::AppAccessMode;
 use crate::cms_api_error::CmsApiError;
 use crate::event::audit;
 use crate::gDeviceManager;
+use crate::identity::manager::IdentityManager;
 use axum::extract::Path;
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
@@ -20,6 +21,7 @@ pub struct AppCatalogItem {
     pub app_id: String,
     pub name: String,
     pub access_mode: AppAccessMode,
+    pub group_ids: Vec<String>,
     pub version: i64,
 }
 
@@ -28,6 +30,17 @@ pub struct AppCatalogItem {
 pub struct UpdateAppAccessRequest {
     pub version: i64,
     pub access_mode: AppAccessMode,
+    pub group_ids: Option<Vec<String>>,
+}
+
+fn validate_access_assignment(
+    access_mode: &AppAccessMode,
+    group_ids: &[String],
+) -> Result<(), CmsApiError> {
+    if access_mode == &AppAccessMode::Acl && group_ids.is_empty() {
+        return Err(CmsApiError::InvalidParams);
+    }
+    Ok(())
 }
 
 pub async fn list_device_catalog() -> Result<Json<RespMessage<Vec<DeviceCatalogItem>>>, CmsApiError>
@@ -47,17 +60,17 @@ pub async fn list_device_catalog() -> Result<Json<RespMessage<Vec<DeviceCatalogI
 }
 
 pub async fn list_app_catalog() -> Result<Json<RespMessage<Vec<AppCatalogItem>>>, CmsApiError> {
-    let mut items: Vec<_> = gAppScheduleManager
-        .list_applications()
-        .await
-        .into_iter()
-        .map(|app| AppCatalogItem {
+    let mut items = Vec::new();
+    for app in gAppScheduleManager.list_applications().await {
+        let group_ids = IdentityManager::app_group_ids(&app.app_id).await?;
+        items.push(AppCatalogItem {
             app_id: app.app_id,
             name: app.name,
             access_mode: app.access_mode,
+            group_ids,
             version: app.version,
-        })
-        .collect();
+        });
+    }
     items.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(Json(ok_resp(items)))
 }
@@ -66,6 +79,14 @@ pub async fn update_app_access(
     Path(app_id): Path<String>,
     Json(request): Json<UpdateAppAccessRequest>,
 ) -> Result<Json<RespMessage<AppCatalogItem>>, CmsApiError> {
+    let effective_group_ids = match &request.group_ids {
+        Some(group_ids) => {
+            IdentityManager::validate_group_ids(group_ids).await?;
+            group_ids.clone()
+        }
+        None => IdentityManager::app_group_ids(&app_id).await?,
+    };
+    validate_access_assignment(&request.access_mode, &effective_group_ids)?;
     let app = gAppScheduleManager
         .update_access_mode(&app_id, request.version, request.access_mode)
         .await
@@ -74,6 +95,10 @@ pub async fn update_app_access(
             "VERSION_CONFLICT" => CmsApiError::VersionConflict,
             _ => CmsApiError::DatabaseError,
         })?;
+    let group_ids = match request.group_ids {
+        Some(_) => IdentityManager::replace_groups_for_app(&app_id, effective_group_ids).await?,
+        None => effective_group_ids,
+    };
     audit::record(
         "admin",
         "license_owner",
@@ -88,6 +113,22 @@ pub async fn update_app_access(
         app_id: app.app_id,
         name: app.name,
         access_mode: app.access_mode,
+        group_ids,
         version: app.version,
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acl_access_requires_at_least_one_group() {
+        assert_eq!(
+            validate_access_assignment(&AppAccessMode::Acl, &[]),
+            Err(CmsApiError::InvalidParams)
+        );
+        assert!(validate_access_assignment(&AppAccessMode::Acl, &["group-1".to_string()]).is_ok());
+        assert!(validate_access_assignment(&AppAccessMode::Public, &[]).is_ok());
+    }
 }

@@ -328,6 +328,97 @@ impl IdentityManager {
         Self::group_view(Self::get_group(gid).await?).await
     }
 
+    pub async fn validate_group_ids(group_ids: &[String]) -> Result<(), CmsApiError> {
+        let ids: BTreeSet<_> = group_ids.iter().filter(|id| !id.is_empty()).collect();
+        for gid in ids {
+            Self::get_group(gid).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn app_group_ids(app_id: &str) -> Result<Vec<String>, CmsApiError> {
+        let mut cursor = gCmsDatabase
+            .lock()
+            .await
+            .group_app_grant()
+            .lock()
+            .await
+            .find(doc! { "app_id": app_id })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        let mut ids = Vec::new();
+        while let Some(row) = cursor.next().await {
+            let row = row.map_err(|_| CmsApiError::DatabaseError)?;
+            if Self::get_group(&row.gid).await.is_ok() {
+                ids.push(row.gid);
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        Ok(ids)
+    }
+
+    /// Replaces the groups authorized for one application. This is the
+    /// application-centric write path used by the scheduling page. Group
+    /// versions are bumped so an already-open group editor cannot silently
+    /// overwrite a concurrent authorization change.
+    pub async fn replace_groups_for_app(
+        app_id: &str,
+        group_ids: Vec<String>,
+    ) -> Result<Vec<String>, CmsApiError> {
+        let known_app = gAppScheduleManager
+            .list_applications()
+            .await
+            .into_iter()
+            .any(|app| app.app_id == app_id);
+        if !known_app {
+            return Err(CmsApiError::ResourceNotFound);
+        }
+        Self::validate_group_ids(&group_ids).await?;
+        let ids: BTreeSet<_> = group_ids.into_iter().filter(|id| !id.is_empty()).collect();
+        let previous: BTreeSet<_> = Self::app_group_ids(app_id).await?.into_iter().collect();
+        let collection = gCmsDatabase.lock().await.group_app_grant();
+        collection
+            .lock()
+            .await
+            .delete_many(doc! { "app_id": app_id })
+            .await
+            .map_err(|_| CmsApiError::DatabaseError)?;
+        if !ids.is_empty() {
+            let now = px_base::get_current_timestamp();
+            let rows = ids.iter().map(|gid| GroupAppGrant {
+                gid: gid.clone(),
+                app_id: app_id.to_string(),
+                created_at: now,
+            });
+            collection
+                .lock()
+                .await
+                .insert_many(rows)
+                .await
+                .map_err(|_| CmsApiError::DatabaseError)?;
+        }
+        let affected: Vec<_> = previous.union(&ids).cloned().collect();
+        if !affected.is_empty() {
+            gCmsDatabase
+                .lock()
+                .await
+                .user_group()
+                .lock()
+                .await
+                .update_many(
+                    doc! { "gid": { "$in": &affected }, "deleted": false },
+                    doc! {
+                        "$set": { "updated_at": px_base::get_current_timestamp() },
+                        "$inc": { "version": 1_i64 }
+                    },
+                )
+                .await
+                .map_err(|_| CmsApiError::DatabaseError)?;
+        }
+        Ok(ids.into_iter().collect())
+    }
+
     pub async fn groups_for_user(uid: &str) -> Result<Vec<GroupRef>, CmsApiError> {
         let mut memberships = gCmsDatabase
             .lock()

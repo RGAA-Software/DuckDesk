@@ -60,6 +60,8 @@ export interface AppRow {
   encoder_fps: number
   encoder_bitrate: number
   encoder_format: string
+  access_mode: 'public' | 'acl'
+  version: number
   nodes: AppNode[]
 }
 

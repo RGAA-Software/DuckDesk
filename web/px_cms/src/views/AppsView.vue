@@ -19,6 +19,13 @@ import { queryDevices } from '@/model/device_api.ts'
 import type { ServiceConn } from '@/entity/service_conn.ts'
 import type { Device } from '@/entity/device.ts'
 import { buildGameHookClientUrl } from '@/util/web_client_url.ts'
+import {
+  listAppOptions,
+  listGroups,
+  updateAppAccess,
+  type AppOption,
+  type GroupView,
+} from '@/model/identity_api.ts'
 
 interface ViewNode extends AppNode {
   instance?: AppInstance
@@ -34,10 +41,15 @@ const rowsRaw = ref<AppRow[]>([])
 const instances = ref<AppInstance[]>([])
 const services = ref<ServiceConn[]>([])
 const devices = ref<Device[]>([])
+const appOptions = ref<AppOption[]>([])
+const groups = ref<GroupView[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editing = ref(false)
+const accessDialogVisible = ref(false)
+const accessSaving = ref(false)
+const accessForm = ref({ app_id: '', app_name: '', access_mode: 'public' as 'public' | 'acl', group_ids: [] as string[] })
 
 const form = ref({
   app_id: '',
@@ -192,6 +204,67 @@ function onlineNodeCount(row: ViewRow): number {
   return row.nodes.filter((n) => n.online).length
 }
 
+function accessOptionOf(row: ViewRow): AppOption {
+  return appOptions.value.find((app) => app.app_id === row.app_id) || {
+    app_id: row.app_id,
+    name: row.name,
+    access_mode: row.access_mode || 'public',
+    group_ids: [],
+    version: row.version,
+  }
+}
+
+function accessModeOf(row: ViewRow): 'public' | 'acl' {
+  return accessOptionOf(row).access_mode
+}
+
+function authorizedGroupsOf(row: ViewRow): GroupView[] {
+  const ids = new Set(accessOptionOf(row).group_ids)
+  return groups.value.filter((group) => ids.has(group.gid))
+}
+
+function openAccess(row: ViewRow) {
+  const access = accessOptionOf(row)
+  accessForm.value = {
+    app_id: row.app_id,
+    app_name: row.name,
+    access_mode: access.access_mode,
+    group_ids: [...access.group_ids],
+  }
+  accessDialogVisible.value = true
+}
+
+async function saveAccess() {
+  const formValue = accessForm.value
+  if (formValue.access_mode === 'acl' && formValue.group_ids.length === 0) {
+    message.warning('用户组专属应用必须至少选择一个授权用户组')
+    return
+  }
+  const current = appOptions.value.find((app) => app.app_id === formValue.app_id)
+  if (!current) {
+    message.error('应用访问策略已发生变化，请刷新后重试')
+    return
+  }
+  accessSaving.value = true
+  try {
+    const groupIds = formValue.access_mode === 'public' ? [] : formValue.group_ids
+    const updated = await updateAppAccess(current, formValue.access_mode, groupIds)
+    appOptions.value = appOptions.value.map((app) => app.app_id === updated.app_id ? updated : app)
+    rowsRaw.value = rowsRaw.value.map((row) => row.app_id === updated.app_id
+      ? { ...row, access_mode: updated.access_mode, version: updated.version }
+      : row)
+    accessDialogVisible.value = false
+    message.success('应用访问策略已更新')
+  } catch (error: any) {
+    const code = error?.response?.data?.code
+    if (code === 635) message.error('应用已被其他操作修改，请刷新后重试')
+    else if (code === 634) message.error('所选用户组已不存在，请刷新后重试')
+    else message.error(error?.response?.data?.message || '更新应用访问策略失败')
+  } finally {
+    accessSaving.value = false
+  }
+}
+
 function resetFormForCreate() {
   editing.value = false
   form.value = {
@@ -258,16 +331,20 @@ async function onNodeDeviceChange(deviceId: string) {
 async function refresh() {
   loading.value = true
   try {
-    const [rowsResult, instancesResult, servicesResult, devicesResult] = await Promise.allSettled([
+    const [rowsResult, instancesResult, servicesResult, devicesResult, appOptionsResult, groupsResult] = await Promise.allSettled([
       listAppRows(),
       listInstances(),
       queryAllServiceConn(),
       queryDevices('', '', '', '', 1, 200),
+      listAppOptions(),
+      listGroups(),
     ])
     if (rowsResult.status === 'fulfilled' && rowsResult.value) rowsRaw.value = rowsResult.value
     if (instancesResult.status === 'fulfilled' && instancesResult.value) instances.value = instancesResult.value
     if (servicesResult.status === 'fulfilled' && servicesResult.value) services.value = servicesResult.value
     if (devicesResult.status === 'fulfilled' && devicesResult.value) devices.value = devicesResult.value
+    if (appOptionsResult.status === 'fulfilled') appOptions.value = appOptionsResult.value
+    if (groupsResult.status === 'fulfilled') groups.value = groupsResult.value
   } finally {
     loading.value = false
   }
@@ -516,6 +593,22 @@ onUnmounted(() => {
     >
       <template #emptyText>还没有应用，点右上角「新建应用」</template>
       <a-table-column data-index="name" title="名称" min-width="110" />
+      <a-table-column title="访问策略" width="130">
+        <template #default="{ record }">
+          <a-tag :color="accessModeOf(record) === 'public' ? 'success' : 'blue'">
+            {{ accessModeOf(record) === 'public' ? '公开' : '用户组专属' }}
+          </a-tag>
+        </template>
+      </a-table-column>
+      <a-table-column title="授权用户组" min-width="190">
+        <template #default="{ record }">
+          <span v-if="accessModeOf(record) === 'public'" class="text-gray-500">所有访客和用户</span>
+          <a-space v-else-if="authorizedGroupsOf(record).length" wrap :size="[4, 4]">
+            <a-tag v-for="group in authorizedGroupsOf(record)" :key="group.gid">{{ group.name }}</a-tag>
+          </a-space>
+          <a-tag v-else color="error">未分配用户组</a-tag>
+        </template>
+      </a-table-column>
       <a-table-column title="程序路径" min-width="260">
         <template #default="{ record }">
           <a-popover placement="top" trigger="hover" :overlay-style="{ width: '520px' }">
@@ -544,8 +637,9 @@ onUnmounted(() => {
           <span v-else class="text-gray-400">未配置节点</span>
         </template>
       </a-table-column>
-      <a-table-column title="操作" width="320" fixed="right">
+      <a-table-column title="操作" width="400" fixed="right">
         <template #default="{ record }">
+          <a-button type="link" @click="openAccess(record)">访问授权</a-button>
           <a-button type="link" @click="openEdit(record)">编辑</a-button>
           <a-button type="link" @click="openNodeCreate(record)">新建节点</a-button>
           <a-button
@@ -559,6 +653,48 @@ onUnmounted(() => {
         </template>
       </a-table-column>
     </a-table>
+
+    <a-modal
+      v-model:open="accessDialogVisible"
+      :title="`「${accessForm.app_name}」访问授权`"
+      :confirm-loading="accessSaving"
+      :ok-button-props="{ disabled: accessForm.access_mode === 'acl' && accessForm.group_ids.length === 0 }"
+      ok-text="保存"
+      cancel-text="取消"
+      width="620px"
+      @ok="saveAccess"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="访问策略">
+          <a-radio-group v-model:value="accessForm.access_mode">
+            <a-radio value="public">公开</a-radio>
+            <a-radio value="acl">用户组专属</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-alert
+          v-if="accessForm.access_mode === 'public'"
+          type="info"
+          show-icon
+          message="公开应用对访客和所有已登录用户可见、可启动。"
+          class="mb-4"
+        />
+        <a-form-item
+          v-else
+          label="授权用户组"
+          :validate-status="accessForm.group_ids.length === 0 ? 'error' : undefined"
+          :help="accessForm.group_ids.length === 0 ? '必须选择一个或多个用户组才能保存' : '只有这些组内的用户可以看到并启动该应用。'"
+          required
+        >
+          <a-select
+            v-model:value="accessForm.group_ids"
+            mode="multiple"
+            allow-clear
+            placeholder="选择一个或多个用户组"
+            :options="groups.map(group => ({ label: group.name, value: group.gid }))"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="nodeListVisible"

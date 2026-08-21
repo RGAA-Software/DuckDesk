@@ -11,7 +11,7 @@ export interface GroupView {
   app_count: number; created_at: number; updated_at: number; version: number
 }
 export interface DeviceOption { device_id: string; name: string; online: boolean }
-export interface AppOption { app_id: string; name: string; access_mode: 'public' | 'acl'; version: number }
+export interface AppOption { app_id: string; name: string; access_mode: 'public' | 'acl'; group_ids: string[]; version: number }
 export interface UserSessionView {
   sid: string; client_type: string; created_at: number; last_used_at: number
   expires_at: number; absolute_expires_at: number; revoked_at?: number
@@ -75,7 +75,7 @@ export async function replaceGroupIds(kind: 'members'|'devices'|'apps', group: G
 }
 export async function listDeviceOptions() { return unwrap<DeviceOption[]>(await axiosHttp.get('/api/v1/admin/catalog/devices')) }
 export async function listAppOptions() { return unwrap<AppOption[]>(await axiosHttp.get('/api/v1/admin/catalog/apps')) }
-export async function updateAppAccess(app: AppOption, access_mode: 'public'|'acl') { return unwrap<AppOption>(await axiosHttp.patch(`/api/v1/admin/apps/${app.app_id}/access`, { version: app.version, access_mode })) }
+export async function updateAppAccess(app: AppOption, access_mode: 'public'|'acl', group_ids: string[]) { return unwrap<AppOption>(await axiosHttp.patch(`/api/v1/admin/apps/${app.app_id}/access`, { version: app.version, access_mode, group_ids })) }
 export async function createInvite(group_ids: string[], lifetime_minutes = 1440) {
   return unwrap<{ invite_code: string; expires_at: number; group_ids: string[] }>(await axiosHttp.post('/api/v1/admin/invites', { group_ids, lifetime_minutes }))
 }
