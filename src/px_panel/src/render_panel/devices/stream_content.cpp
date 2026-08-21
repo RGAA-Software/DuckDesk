@@ -136,12 +136,18 @@ namespace px
                     return;
                 }
                 context_->PostTask([=, this]() {
-                    stream_list_->RequestBindDevices();
+                    stream_list_->RefreshResources();
                 });
             });
         }
 
-        auto stream_list = new AppStreamList(ctx, this);
+        auto stream_list = new AppStreamList(
+            ctx,
+            AppStreamListMode::kRemoteDevices,
+            [this](bool empty) {
+                if (empty) ShowEmptyTip(); else HideEmptyTip();
+            },
+            this);
         stream_list_ = stream_list;
         root_layout->addWidget(stream_list);
 

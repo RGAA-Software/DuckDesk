@@ -40,6 +40,7 @@ namespace px
         // WebRTC plugin, which uses WebRTC's bundled Abseil.
         std::optional<int> ExtractMessageType(const std::string& data) {
             size_t offset = 0;
+            bool has_hello_payload = false;
             while (offset < data.size()) {
                 const auto tag = ReadVarint(data, offset);
                 if (!tag || *tag == 0) {
@@ -50,6 +51,12 @@ namespace px
                 if (field == 10 && wire == 0) {
                     const auto value = ReadVarint(data, offset);
                     return value ? std::optional<int>(static_cast<int>(*value)) : std::nullopt;
+                }
+                // kHello is enum value 0. Protobuf omits a scalar field whose
+                // value is the default, so a valid Hello envelope has no field
+                // 10 and is identified by its field-40 payload instead.
+                if (field == 40 && wire == 2) {
+                    has_hello_payload = true;
                 }
                 switch (wire) {
                     case 0:
@@ -73,7 +80,7 @@ namespace px
                         return std::nullopt;
                 }
             }
-            return std::nullopt;
+            return has_hello_payload ? std::optional<int>(0) : std::nullopt;
         }
 
         bool IsClipboardMessage(const int type) {

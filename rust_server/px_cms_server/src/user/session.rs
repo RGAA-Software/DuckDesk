@@ -691,6 +691,38 @@ impl CmsUserSessionManager {
         csrf_token.len() >= 32 && Self::hash_token(csrf_token) == subject.csrf_hash
     }
 
+    /// Rotate the double-submit token for an already authenticated browser
+    /// session. The HttpOnly session cookie remains unchanged, so a fresh tab
+    /// can recover write access without asking the user to sign in again.
+    pub async fn refresh_user_csrf(&self, sid: &str) -> Result<String, CmsApiError> {
+        let csrf_token = Self::new_token()?;
+        let result = gCmsDatabase
+            .lock()
+            .await
+            .user_session()
+            .lock()
+            .await
+            .update_one(
+                doc! {
+                    "sid": sid,
+                    "subject_type": "user",
+                    "client_type": "user_web",
+                    "revoked_at": BSON_NULL,
+                    "expires_at": { "$gt": px_base::get_current_timestamp() },
+                },
+                doc! { "$set": { "csrf_hash": Self::hash_token(&csrf_token) } },
+            )
+            .await
+            .map_err(|error| {
+                tracing::error!("refresh browser user csrf failed: {}", error);
+                CmsApiError::DatabaseError
+            })?;
+        if result.matched_count != 1 {
+            return Err(CmsApiError::AuthenticationRequired);
+        }
+        Ok(csrf_token)
+    }
+
     pub async fn revoke(&self, sid: &str, uid: &str) -> Result<(), CmsApiError> {
         gCmsDatabase
             .lock()

@@ -13,6 +13,10 @@
   "id_settings_other_clients": "移動客戶端",
   "id_settings_aboutme": "關於",
   "id_tab_remote_control": "遠程控制",
+  "id_tab_cloud_applications": "雲端應用",
+  "id_start_application": "啟動應用",
+  "id_enter_application": "進入應用",
+  "id_stop_application": "停止應用",
   "id_tab_server_status": "服務狀態",
   "id_tab_games": "安裝的遊戲",
   "id_tab_security": "安全審計",
@@ -474,5 +478,12 @@
   "id_state_available": "可用",
   "id_state_unavailable": "不可用",
   "id_web_client_addr": "網頁客戶端",
-  "id_open": "打開"
+  "id_open": "打開",
+  "id_public_application": "公開應用",
+  "id_authorized_application": "授權應用",
+  "id_state_running": "運行中",
+  "id_state_starting": "啟動中",
+  "id_state_stopping": "停止中",
+  "id_state_stopped": "未運行",
+  "id_state_failed": "啟動失敗"
 }

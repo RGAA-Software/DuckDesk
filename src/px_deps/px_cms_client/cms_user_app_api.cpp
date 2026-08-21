@@ -20,14 +20,30 @@ CmsUserAppInstance ParseInstance(const json& data) {
     CmsUserAppInstance instance;
     instance.instance_id = data.value("instance_id", "");
     instance.state = data.value("state", "");
-    instance.error_code = data.value("error_code", "");
+    // A successful instance has no error code. CMS represents that state as
+    // JSON null, while nlohmann::json::value() only applies its default when
+    // the key is absent and throws when the key exists with a null value.
+    // Treat both a missing key and null as the expected empty error code.
+    if (const auto error_code = data.find("error_code");
+        error_code != data.end() && !error_code->is_null()) {
+        instance.error_code = error_code->get<std::string>();
+    }
     instance.reconnectable = data.value("reconnectable", false);
     return instance;
 }
 
 template <typename T>
-px::Result<T, CmsApiError> HttpError(const char* operation, int status) {
-    LOGE("{} failed: HTTP {}", operation, status);
+px::Result<T, CmsApiError> HttpError(const char* operation, int status, const std::string& body) {
+    std::string message;
+    try {
+        if (!body.empty()) {
+            message = json::parse(body).value("message", "");
+        }
+    } catch (...) {
+    }
+    SetCmsApiLastErrorMessage(message);
+    LOGE("{} failed: HTTP {}, message: {}", operation, status,
+         message.empty() ? "<empty>" : message);
     return TcErr(static_cast<CmsApiError>(status));
 }
 
@@ -40,7 +56,7 @@ CmsUserAppApi::CreateGuestSession(const std::string& host, int port,
     const auto response = client->Post({}, json{{"client_nonce", client_nonce},
         {"client_type", "panel"}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::string>("CreateGuestSession", response.status);
+        return HttpError<std::string>("CreateGuestSession", response.status, response.body);
     }
     try {
         const auto token = json::parse(response.body).at(kResponseData).value("access_token", "");
@@ -60,7 +76,7 @@ CmsUserAppApi::QueryApps(const std::string& host, int port, const std::string& a
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Request();
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::vector<CmsUserApplication>>("QueryApps", response.status);
+        return HttpError<std::vector<CmsUserApplication>>("QueryApps", response.status, response.body);
     }
     try {
         const auto data = json::parse(response.body).at(kResponseData);
@@ -70,6 +86,8 @@ CmsUserAppApi::QueryApps(const std::string& host, int port, const std::string& a
             app.app_id = item.value("app_id", "");
             app.name = item.value("name", "");
             app.access_mode = item.value("access_mode", "public");
+            app.cover_url = item.value("cover_url", "");
+            app.version = item.value("version", 0LL);
             if (item.contains("running_instance") && !item["running_instance"].is_null()) {
                 app.running_instance = std::make_shared<CmsUserAppInstance>(ParseInstance(item["running_instance"]));
             }
@@ -94,7 +112,7 @@ CmsUserAppApi::StartApp(const std::string& host, int port, const std::string& ac
     // CMS returns 200 when an idempotent start reuses an instance and 202
     // while a newly scheduled instance is starting. Both are successful.
     if ((response.status != 200 && response.status != 202) || response.body.empty()) {
-        return HttpError<CmsUserAppInstance>("StartApp", response.status);
+        return HttpError<CmsUserAppInstance>("StartApp", response.status, response.body);
     }
     try {
         return ParseInstance(json::parse(response.body).at(kResponseData));
@@ -119,7 +137,7 @@ CmsUserAppApi::IssueInstanceTicket(const std::string& host, int port,
     const auto response = client->Post({}, json{{"client_nonce", client_nonce},
         {"requested_permissions", requested_permissions}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<CmsConnectionTicket>("IssueInstanceTicket", response.status);
+        return HttpError<CmsConnectionTicket>("IssueInstanceTicket", response.status, response.body);
     }
     try {
         const auto data = json::parse(response.body).at(kResponseData);
@@ -148,7 +166,7 @@ CmsUserAppApi::StopInstance(const std::string& host, int port, const std::string
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Post({}, "{}", "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<CmsUserAppInstance>("StopInstance", response.status);
+        return HttpError<CmsUserAppInstance>("StopInstance", response.status, response.body);
     }
     try {
         return ParseInstance(json::parse(response.body).at(kResponseData));

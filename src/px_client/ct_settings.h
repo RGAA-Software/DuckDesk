@@ -90,6 +90,7 @@ namespace px
         std::string remote_device_safety_pwd_;
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string connection_instance_id_;
         // enable p2p
         bool enable_p2p_ = false;
         // show max window

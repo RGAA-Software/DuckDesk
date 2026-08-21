@@ -320,10 +320,7 @@ impl ServiceRuntime {
                 if let Some(orphan_pid) = find_game_hook_pid_by_port(&process_manager, port) {
                     warn!("killing orphaned render pid={orphan_pid} on port {port}");
                     kill_process_tree(&process_manager, orphan_pid);
-                    if wait_game_hook_pid_by_port(&process_manager, port, 10, 100)
-                        .await
-                        .is_some()
-                    {
+                    if !wait_game_hook_exit_by_port(&process_manager, port, 10, 100).await {
                         error!("orphan render on port {port} still alive after kill");
                     }
                 }
@@ -577,10 +574,7 @@ impl ServiceRuntime {
         }
         // kill 后按端口复查:进程仍在监听时不能 mark_stopped,否则端口被释放,
         // 下一个实例分配同端口直接撞车。此时返回 Err 让 CMS 标 failed。
-        if wait_game_hook_pid_by_port(&process_manager, rec.listen_port, 10, 100)
-            .await
-            .is_some()
-        {
+        if !wait_game_hook_exit_by_port(&process_manager, rec.listen_port, 10, 100).await {
             return Err(format!(
                 "instance {instance_id} render still alive on port {} after kill",
                 rec.listen_port
@@ -673,6 +667,25 @@ async fn wait_game_hook_pid_by_port(
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
     None
+}
+
+/// Wait for a game-hook render to disappear. WMI can keep a successfully
+/// terminated process visible briefly, so checking once immediately after
+/// `TerminateProcess` creates false stop failures and leaves CMS instances in
+/// `failed`. This is intentionally the inverse of `wait_game_hook_pid_by_port`.
+async fn wait_game_hook_exit_by_port(
+    process_manager: &Arc<dyn ProcessManager>,
+    port: u16,
+    attempts: u32,
+    sleep_ms: u64,
+) -> bool {
+    for _ in 0..attempts {
+        if find_game_hook_pid_by_port(process_manager, port).is_none() {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+    }
+    find_game_hook_pid_by_port(process_manager, port).is_none()
 }
 
 async fn wait_game_process(
@@ -842,6 +855,8 @@ mod tests {
         kills: StdMutex<Vec<u32>>,
         next_pid: StdMutex<u32>,
         fail_kills: StdMutex<bool>,
+        stale_lists_after_kill: StdMutex<u32>,
+        stale_snapshot: StdMutex<Option<Vec<ProcessSnapshot>>>,
     }
 
     impl MockProcessManager {
@@ -853,12 +868,21 @@ mod tests {
                 kills: StdMutex::new(Vec::new()),
                 next_pid: StdMutex::new(1000),
                 fail_kills: StdMutex::new(false),
+                stale_lists_after_kill: StdMutex::new(0),
+                stale_snapshot: StdMutex::new(None),
             }
         }
     }
 
     impl ProcessManager for MockProcessManager {
         fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+            let mut remaining = self.stale_lists_after_kill.lock().unwrap();
+            if *remaining > 0 {
+                *remaining -= 1;
+                if let Some(snapshot) = self.stale_snapshot.lock().unwrap().as_ref() {
+                    return Ok(snapshot.clone());
+                }
+            }
             Ok(self.processes.lock().unwrap().clone())
         }
 
@@ -867,10 +891,13 @@ mod tests {
                 return Err("mock kill denied".to_string());
             }
             self.kills.lock().unwrap().push(pid);
-            self.processes
-                .lock()
-                .unwrap()
-                .retain(|process| process.pid != pid);
+            let mut processes = self.processes.lock().unwrap();
+            let snapshot = processes.clone();
+            processes.retain(|process| process.pid != pid);
+            drop(processes);
+            if *self.stale_lists_after_kill.lock().unwrap() > 0 {
+                *self.stale_snapshot.lock().unwrap() = Some(snapshot);
+            }
             Ok(())
         }
 
@@ -1473,6 +1500,21 @@ mod tests {
                 .unwrap()
                 .state,
             service_core::AppInstanceState::Stopped
+        );
+    }
+
+    #[tokio::test]
+    async fn render_exit_wait_tolerates_stale_wmi_snapshots() {
+        let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
+            42,
+            "D:/px_render.exe",
+            "--app_mode=game-hook --network_listen_port=32222",
+        )]));
+        *manager.stale_lists_after_kill.lock().unwrap() = 2;
+        manager.kill_process(42).unwrap();
+
+        assert!(
+            wait_game_hook_exit_by_port(&(manager as Arc<dyn ProcessManager>), 32222, 5, 1,).await
         );
     }
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { Modal } from 'ant-design-vue'
-import { createGroup, deleteGroup, groupIds, listAdminUsers, listDeviceOptions, listGroups, patchGroup, replaceGroupIds, type DeviceOption, type GroupView, type UserAdminView } from '@/model/identity_api'
+import { createGroup, deleteGroup, groupIds, listAllAdminUsers, listDeviceOptions, listGroups, patchGroup, replaceGroupIds, type DeviceOption, type GroupView, type UserAdminView } from '@/model/identity_api'
 
 const groups = ref<GroupView[]>([]), users = ref<UserAdminView[]>([]), devices = ref<DeviceOption[]>([])
 const open = ref(false), editing = ref<GroupView>()
 const form = reactive({ name: '', remark: '', members: [] as string[], devices: [] as string[] })
-async function refresh() { const [g,u,d] = await Promise.all([listGroups(), listAdminUsers(1, '', 100), listDeviceOptions()]); groups.value=g; users.value=u.items; devices.value=d }
+async function refresh() { const [g,u,d] = await Promise.all([listGroups(), listAllAdminUsers(), listDeviceOptions()]); groups.value=g; users.value=u; devices.value=d }
 function create() { editing.value=undefined; Object.assign(form,{name:'',remark:'',members:[],devices:[]}); open.value=true }
 async function edit(group: GroupView) { editing.value=group; const [members,devs]=await Promise.all([groupIds('members',group.gid),groupIds('devices',group.gid)]); Object.assign(form,{name:group.name,remark:group.remark,members,devices:devs}); open.value=true }
 async function save() { let group = editing.value ? await patchGroup(editing.value,form.name,form.remark) : await createGroup(form.name,form.remark); group=await replaceGroupIds('members',group,form.members); await replaceGroupIds('devices',group,form.devices); open.value=false; await refresh() }
@@ -26,7 +26,7 @@ onMounted(refresh)
   </a-space>
   <a-modal v-model:open="open" :title="editing?'编辑用户组':'新建用户组'" width="680px" @ok="save">
     <a-form layout="vertical"><a-form-item label="名称"><a-input v-model:value="form.name"/></a-form-item><a-form-item label="备注"><a-textarea v-model:value="form.remark"/></a-form-item>
-      <a-form-item label="成员"><a-select v-model:value="form.members" mode="multiple" :options="users.map(u=>({label:u.username,value:u.uid}))"/></a-form-item>
+      <a-form-item label="成员"><a-select v-model:value="form.members" mode="multiple" show-search option-filter-prop="label" :max-tag-count="6" :options="users.map(u=>({label:u.username,value:u.uid}))"/></a-form-item>
       <a-form-item label="设备"><a-select v-model:value="form.devices" mode="multiple" :options="devices.map(d=>({label:`${d.name||d.device_id}（${d.online?'在线':'离线'}）`,value:d.device_id}))"/></a-form-item>
     </a-form>
   </a-modal>

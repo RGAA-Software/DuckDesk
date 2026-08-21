@@ -111,6 +111,9 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_connection_nonce("connection_nonce", "CMS connection nonce", "value", "");
     parser.addOption(opt_connection_nonce);
 
+    QCommandLineOption opt_connection_instance_id("connection_instance_id", "CMS application instance binding", "value", "");
+    parser.addOption(opt_connection_instance_id);
+
     QCommandLineOption opt_enable_p2p("enable_p2p", "enable p2p", "value", "0");
     parser.addOption(opt_enable_p2p);
 
@@ -269,6 +272,7 @@ void ParseCommandLine(QApplication& app) {
     }
     settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
     settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
+    settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
 
     settings->enable_p2p_ = parser.value(opt_enable_p2p).toInt() == 1;
     settings->auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
@@ -599,6 +603,7 @@ int main(int argc, char** argv) {
         .remote_device_safety_pwd_ = settings->remote_device_safety_pwd_,
         .connection_ticket_ = settings->connection_ticket_,
         .connection_nonce_ = settings->connection_nonce_,
+        .connection_instance_id_ = settings->connection_instance_id_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();

@@ -8,8 +8,8 @@ use crate::identity::resource_handler::{
 use crate::identity::user_handler::logout_all;
 use crate::user::session_handler::{
     admin_login, admin_logout, admin_me, change_password, cookie_value, guest_session, login,
-    logout, me, register_user, update_avatar, update_profile, ADMIN_SESSION_COOKIE,
-    GUEST_SESSION_COOKIE, USER_SESSION_COOKIE,
+    logout, me, refresh_user_csrf, register_user, update_avatar, update_profile,
+    ADMIN_SESSION_COOKIE, GUEST_SESSION_COOKIE, USER_SESSION_COOKIE,
 };
 use crate::user_device::cms_user_device_handler::handle_query_my_devices;
 use axum::body::Body;
@@ -290,6 +290,12 @@ pub fn make_session_router(context: Arc<Mutex<CmsContext>>) -> Router<Arc<Mutex<
         .route("/guest", post(guest_session))
         .route("/user/login", post(login))
         .route("/user/logout", post(logout))
+        .route(
+            "/user/csrf",
+            get(refresh_user_csrf)
+                .layer(middleware::from_fn(require_user))
+                .layer(middleware::from_fn(require_same_origin)),
+        )
         .route(
             "/user/logout-all",
             post(logout_all).layer(middleware::from_fn(require_user_write)),

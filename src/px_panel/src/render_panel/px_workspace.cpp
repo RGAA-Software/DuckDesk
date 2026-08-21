@@ -25,6 +25,7 @@
 #include "px_qt_widget/widget_helper.h"
 #include "render_panel/ui/tab_game.h"
 #include "render_panel/ui/tab_server.h"
+#include "render_panel/ui/tab_cloud_apps.h"
 #include "render_panel/ui/tab_settings.h"
 #include "render_panel/ui/tab_profile.h"
 #include "render_panel/ui/tab_security_internals.h"
@@ -270,6 +271,23 @@ namespace px
                 layout->addWidget(btn, 0, Qt::AlignHCenter);
             }
 
+            // CMS cloud applications are a first-class resource and must not be
+            // mixed into the remote desktop address book.
+            {
+                auto btn = new CustomTabBtn(AppColors::kTabBtnInActiveColor, AppColors::kTabBtnHoverColor, this);
+                btn->AddIcon(":/resources/image/ic_cloud_app_selected.svg", ":/resources/image/ic_cloud_app_normal.svg", 20, 20);
+                btn_tab_cloud_apps_ = btn;
+                btn->SetBorderRadius(btn_size.height()/2);
+                btn->SetTextId("id_tab_cloud_applications");
+                btn->SetSelectedFontColor(btn_font_color);
+                btn->setFixedSize(btn_size);
+                QObject::connect(btn, &QPushButton::clicked, this, [=, this]() {
+                    ChangeTab(TabName::kTabCloudApps);
+                });
+                layout->addSpacing(10);
+                layout->addWidget(btn, 0, Qt::AlignHCenter);
+            }
+
             // server status
             {
                 auto btn = new CustomTabBtn(AppColors::kTabBtnInActiveColor, AppColors::kTabBtnHoverColor, this);
@@ -491,6 +509,7 @@ namespace px
         {
             // tabs
             tabs_.insert({TabName::kTabServer, new TabServer(app_, this)});
+            tabs_.insert({TabName::kTabCloudApps, new TabCloudApps(app_, this)});
             tabs_.insert({TabName::kTabServerStatus, new TabServerStatus(app_, this)});
             if (skin_ && skin_->IsGameEnabled()) {
                 tabs_.insert({TabName::kTabGames, new TabGame(app_, this)});
@@ -504,6 +523,7 @@ namespace px
             tabs_.insert({TabName::kTabHWInfo, new TabHWInfo(app_, this)});
 
             tabs_[TabName::kTabServer]->SetAttach(btn_tab_server_);
+            tabs_[TabName::kTabCloudApps]->SetAttach(btn_tab_cloud_apps_);
             tabs_[TabName::kTabServerStatus]->SetAttach(btn_tab_server_status_);
             if (skin_ && skin_->IsGameEnabled()) {
                 tabs_[TabName::kTabGames]->SetAttach(btn_tab_games_);
@@ -520,6 +540,7 @@ namespace px
             WidgetHelper::ClearMargins(root_layout);
             auto stack_widget = new QStackedWidget(this);
             stack_widget->addWidget(tabs_[TabName::kTabServer]);
+            stack_widget->addWidget(tabs_[TabName::kTabCloudApps]);
             stack_widget->addWidget(tabs_[TabName::kTabServerStatus]);
             if (skin_ && skin_->IsGameEnabled()) {
                 stack_widget->addWidget(tabs_[TabName::kTabGames]);
@@ -575,7 +596,7 @@ namespace px
                 tabs_[tn]->OnTabShow();
                 ((CustomTabBtn*)tabs_[tn]->GetAttach())->ToActiveStatus();
             } else {
-                tabs_[name]->OnTabShow();
+                tabs_[name]->OnTabHide();
                 ((CustomTabBtn*)tabs_[name]->GetAttach())->ToInActiveStatus();
             }
         }

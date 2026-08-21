@@ -9,14 +9,20 @@ export const userHttp = axios.create({
 })
 
 export function setUserCsrf(token: string) {
-  if (token) sessionStorage.setItem(CSRF_KEY, token)
-  else sessionStorage.removeItem(CSRF_KEY)
+  if (token) localStorage.setItem(CSRF_KEY, token)
+  else localStorage.removeItem(CSRF_KEY)
+  // Remove values created by older builds so there is only one source of truth.
+  sessionStorage.removeItem(CSRF_KEY)
+}
+
+export function hasUserCsrf() {
+  return Boolean(localStorage.getItem(CSRF_KEY))
 }
 
 userHttp.interceptors.request.use((config) => {
   const method = (config.method || 'get').toLowerCase()
   if (!['get', 'head', 'options'].includes(method)) {
-    const csrf = sessionStorage.getItem(CSRF_KEY)
+    const csrf = localStorage.getItem(CSRF_KEY)
     if (csrf) config.headers.set('X-CSRF-Token', csrf)
   }
   return config

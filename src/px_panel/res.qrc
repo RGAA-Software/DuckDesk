@@ -23,6 +23,8 @@
         <file>resources/image/ic_settings_selected.svg</file>
         <file>resources/image/ic_stream_selected.svg</file>
         <file>resources/image/ic_stream_normal.svg</file>
+        <file>resources/image/ic_cloud_app_selected.svg</file>
+        <file>resources/image/ic_cloud_app_normal.svg</file>
         <file>resources/image/ic_game_normal.svg</file>
         <file>resources/image/ic_game_selected.svg</file>
         <file>resources/image/ic_statistics_normal.svg</file>

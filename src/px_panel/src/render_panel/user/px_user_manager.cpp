@@ -159,12 +159,13 @@ namespace px
         }
     }
 
-    std::vector<std::shared_ptr<px_cms::CmsUserDevice>> PxUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
+    px::Result<std::vector<std::shared_ptr<px_cms::CmsUserDevice>>, px_cms::CmsApiError>
+    PxUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
         auto host = settings_->GetCmsServerHost();
         auto port = settings_->GetCmsServerPort();
         auto access_token = GetAccessToken();
         if (access_token.empty()) {
-            return {};
+            return std::vector<std::shared_ptr<px_cms::CmsUserDevice>>{};
         }
         (void)page;
         (void)page_size;
@@ -179,7 +180,7 @@ namespace px
 
                 });
             }
-            return {};
+            return TcErr(err);
         }
         else {
             auto v = r.value();

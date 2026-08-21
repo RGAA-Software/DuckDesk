@@ -28,7 +28,8 @@ namespace px
         bool ModifyPassword(const std::string& current_password, const std::string& new_password);
         bool UpdateAvatar(const std::string& avatar_path);
         // user - device
-        std::vector<std::shared_ptr<px_cms::CmsUserDevice>> QueryBindDevices(int page, int page_size, bool show_dialog);
+        px::Result<std::vector<std::shared_ptr<px_cms::CmsUserDevice>>, px_cms::CmsApiError>
+        QueryBindDevices(int page, int page_size, bool show_dialog);
         px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> IssueDeviceTicket(
             const std::string& device_id,
             const std::string& client_nonce,

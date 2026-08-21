@@ -69,6 +69,11 @@ pub struct UserLoginResponse {
     pub absolute_expires_at: i64,
 }
 
+#[derive(Debug, Serialize, Default)]
+pub struct CsrfTokenResponse {
+    pub csrf_token: String,
+}
+
 async fn profile_for(user: crate::user::cms_user::CmsUser) -> Result<CmsUserView, CmsApiError> {
     let mut profile = CmsUserView::from(user);
     profile.groups = IdentityManager::groups_for_user(&profile.uid).await?;
@@ -666,6 +671,20 @@ pub async fn me(
 ) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
     let user = gUserManager.query_user_by_id(subject.uid).await?;
     Ok(Json(ok_resp(profile_for(user).await?)))
+}
+
+pub async fn refresh_user_csrf(
+    Extension(subject): Extension<AuthenticatedUser>,
+) -> Result<Response, CmsApiError> {
+    if subject.client_type != "user_web" {
+        return Err(CmsApiError::Forbidden);
+    }
+    let csrf_token = gUserSessionManager.refresh_user_csrf(&subject.sid).await?;
+    let mut response = Json(ok_resp(CsrfTokenResponse { csrf_token })).into_response();
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(response)
 }
 
 #[derive(Debug, Deserialize)]

@@ -222,6 +222,9 @@ namespace px
         if (!sdk_params_->connection_ticket_.empty()) {
             body["ticket"] = sdk_params_->connection_ticket_;
             body["client_nonce"] = sdk_params_->connection_nonce_;
+            if (!sdk_params_->connection_instance_id_.empty()) {
+                body["instance_id"] = sdk_params_->connection_instance_id_;
+            }
         }
 
         auto client = HttpClient::Make(sdk_params_->ip_, sdk_params_->port_, "/alloc/local/rtc", 15000);
@@ -263,6 +266,12 @@ namespace px
                     }
                     track_frame_indices_.assign(track_monitors_.size(), 0);
                     track_got_keyframe_.assign(track_monitors_.size(), false);
+                    track_frame_widths_.clear();
+                    track_frame_heights_.clear();
+                    for (const auto& monitor : track_monitors_) {
+                        track_frame_widths_.push_back(monitor.width_);
+                        track_frame_heights_.push_back(monitor.height_);
+                    }
                 }
             }
         }
@@ -315,6 +324,21 @@ namespace px
         uint64_t frame_index = 0;
         {
             std::lock_guard<std::mutex> guard(track_mtx_);
+            if (track_index < 0) {
+                track_index = 0;
+            }
+            if ((int)track_frame_indices_.size() <= track_index) {
+                track_frame_indices_.resize(track_index + 1, 0);
+                track_got_keyframe_.resize(track_index + 1, false);
+                track_frame_widths_.resize(track_index + 1, 0);
+                track_frame_heights_.resize(track_index + 1, 0);
+            }
+            if (w > 0) {
+                track_frame_widths_[track_index] = w;
+            }
+            if (h > 0) {
+                track_frame_heights_[track_index] = h;
+            }
             if (track_index >= 0 && track_index < (int)track_monitors_.size()) {
                 // multi-track render: track #i is monitors[i]
                 mon = track_monitors_[track_index];
@@ -325,17 +349,14 @@ namespace px
                 // arrives the name is empty and frames are dropped(a key frame is
                 // re-requested by the pipeline, so nothing is lost permanently)
                 mon.name_ = capturing_monitor_provider_ ? capturing_monitor_provider_() : "";
-                mon.width_ = w;
-                mon.height_ = h;
-                mon.right_ = w;
-                mon.bottom_ = h;
-                track_index = 0;
-                if ((int)track_frame_indices_.size() <= track_index) {
-                    track_frame_indices_.resize(track_index + 1, 0);
-                    track_got_keyframe_.resize(track_index + 1, false);
-                }
+                mon.width_ = track_frame_widths_[track_index];
+                mon.height_ = track_frame_heights_[track_index];
+                mon.right_ = mon.width_;
+                mon.bottom_ = mon.height_;
             }
-            if (mon.name_.empty()) {
+            if (mon.width_ <= 0) mon.width_ = track_frame_widths_[track_index];
+            if (mon.height_ <= 0) mon.height_ = track_frame_heights_[track_index];
+            if (mon.name_.empty() || mon.width_ <= 0 || mon.height_ <= 0) {
                 return;
             }
             // the sdk decode chain inits a decoder with the FIRST frame it sees for
@@ -362,8 +383,8 @@ namespace px
         frame->set_frame_index(frame_index);
         frame->set_key(key);
         // the encoded resolution may be 0x0(not always parsed), fall back to the monitor rect
-        frame->set_frame_width(w > 0 ? w : mon.width_);
-        frame->set_frame_height(h > 0 ? h : mon.height_);
+        frame->set_frame_width(mon.width_);
+        frame->set_frame_height(mon.height_);
         frame->set_mon_name(mon.name_);
         frame->set_mon_left(mon.left_);
         frame->set_mon_top(mon.top_);

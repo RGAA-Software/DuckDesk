@@ -21,6 +21,24 @@ using namespace nlohmann;
 namespace px_cms
 {
 
+    namespace {
+
+        template <typename T>
+        px::Result<T, CmsApiError> HttpError(const char* operation, int status,
+                                              const std::string& body) {
+            std::string message;
+            try {
+                if (!body.empty()) message = json::parse(body).value("message", "");
+            } catch (...) {
+            }
+            SetCmsApiLastErrorMessage(message);
+            LOGE("{} failed: HTTP {}, message: {}", operation, status,
+                 message.empty() ? "<empty>" : message);
+            return TcErr(static_cast<CmsApiError>(status));
+        }
+
+    }
+
     px::Result<std::vector<std::shared_ptr<CmsUserDevice>>, CmsApiError>
     CmsUserDeviceApi::QueryUserBindDevices(const std::string& host,
                                             int port,
@@ -30,8 +48,8 @@ namespace px_cms
         auto resp = client->Request();
 
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("QueryUserDevices failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return HttpError<std::vector<std::shared_ptr<CmsUserDevice>>>(
+                "QueryUserDevices", resp.status, resp.body);
         }
 
         try {
@@ -76,8 +94,7 @@ namespace px_cms
         auto resp = client->Post({}, obj.dump(), "application/json");
 
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("IssueDeviceTicket failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return HttpError<CmsConnectionTicket>("IssueDeviceTicket", resp.status, resp.body);
         }
 
         try {

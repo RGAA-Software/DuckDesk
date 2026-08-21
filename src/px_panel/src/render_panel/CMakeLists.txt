@@ -21,6 +21,7 @@ set(PANEL_SRCS
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_base.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_server.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_cloud_apps.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_game.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_server_status.cpp

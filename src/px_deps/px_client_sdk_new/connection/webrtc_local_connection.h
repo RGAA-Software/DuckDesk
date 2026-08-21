@@ -114,6 +114,8 @@ namespace px
         std::vector<RtcLocalTrackMonitor> track_monitors_;
         std::vector<uint64_t> track_frame_indices_;
         std::vector<bool> track_got_keyframe_;
+        std::vector<int> track_frame_widths_;
+        std::vector<int> track_frame_heights_;
 
         std::atomic_bool connected_ = false;
         std::atomic_bool stopped_ = false;

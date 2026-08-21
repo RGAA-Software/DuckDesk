@@ -26,6 +26,7 @@ namespace px
 
     enum class TabName {
         kTabServer,
+        kTabCloudApps,
         kTabServerStatus,
         kTabGames,
         kTabCoPhone,
@@ -81,6 +82,7 @@ namespace px
 
         std::map<TabName, TabBase*> tabs_;
         QPushButton* btn_tab_server_ = nullptr;
+        QPushButton* btn_tab_cloud_apps_ = nullptr;
         QPushButton* btn_tab_server_status_ = nullptr;
         QPushButton* btn_tab_games_ = nullptr;
         QPushButton* btn_security_ = nullptr;

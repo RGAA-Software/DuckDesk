@@ -71,7 +71,10 @@ pub async fn issue_device_ticket(
         .into_iter()
         .next()
         .ok_or(CmsApiError::DeviceOffline)?;
-    let granted = permissions(request.requested_permissions, &["view", "input"])?;
+    let granted = permissions(
+        request.requested_permissions,
+        &["view", "input", "clipboard", "file", "audio"],
+    )?;
     let (raw, ticket) = ConnectionTicketManager::issue(
         "device",
         "user",
@@ -148,7 +151,10 @@ pub async fn issue_instance_ticket(
         .next()
         .map(|(host, _)| host)
         .ok_or(CmsApiError::DeviceOffline)?;
-    let granted = permissions(request.requested_permissions, &["view", "input"])?;
+    let granted = permissions(
+        request.requested_permissions,
+        &["view", "input", "clipboard", "file", "audio"],
+    )?;
     let (raw, ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "user",
@@ -257,4 +263,31 @@ pub async fn issue_guest_instance_ticket(
         expires_at: ticket.expires_at,
         permissions: granted,
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::permissions;
+
+    #[test]
+    fn authenticated_permissions_are_deduplicated_and_validated() {
+        let allowed = ["view", "input", "clipboard", "file", "audio"];
+        let granted = permissions(
+            vec!["view".into(), "clipboard".into(), "clipboard".into()],
+            &allowed,
+        )
+        .unwrap();
+        assert_eq!(granted, vec!["view", "clipboard"]);
+        assert!(permissions(vec!["admin".into()], &allowed).is_err());
+    }
+
+    #[test]
+    fn guest_permissions_cannot_escalate_to_sensitive_capabilities() {
+        let allowed = ["view", "input"];
+        assert!(permissions(vec!["view".into(), "file".into()], &allowed).is_err());
+        assert_eq!(
+            permissions(Vec::new(), &allowed).unwrap(),
+            vec!["view", "input"]
+        );
+    }
 }

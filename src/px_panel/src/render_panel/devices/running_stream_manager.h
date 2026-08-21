@@ -27,7 +27,8 @@ namespace px
         ~RunningStreamManager();
         void InitMessageListeners();
         void StartStream(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type, bool direct);
-        void StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        // False means the user cancelled closing a running local client.
+        bool StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
 
     private:
         PxSettings* settings_ = nullptr;

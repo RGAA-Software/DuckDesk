@@ -24,7 +24,12 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
   const state = {
     loginCalls: 0,
     meCalls: 0,
+    csrfCalls: 0,
     registerCalls: 0,
+    ticketCalls: 0,
+    ticketBody: undefined as Record<string, unknown> | undefined,
+    ticketCsrf: '',
+    apps: [] as Array<Record<string, unknown>>,
     registerBody: undefined as Record<string, unknown> | undefined,
     get authenticated() { return authenticated },
   }
@@ -55,6 +60,12 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
         'set-cookie': 'px_user_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
       })
     }
+    if (path === '/api/v1/session/user/csrf') {
+      state.csrfCalls += 1
+      return authenticated
+        ? json(route, ok({ csrf_token: 'csrf-recovered' }))
+        : json(route, { code: 'AUTH_REQUIRED', message: 'authentication required', data: null }, 401)
+    }
     if (path === '/api/v1/user/me') {
       state.meCalls += 1
       return authenticated
@@ -62,7 +73,14 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
         : json(route, { code: 'AUTH_REQUIRED', message: 'authentication required', data: null, request_id: 'test-request' }, 401)
     }
     if (path === '/api/v1/user/devices') return json(route, ok([]))
-    if (path === '/api/v1/user/apps') return json(route, ok([]))
+    if (path === '/api/v1/user/apps') return json(route, ok(state.apps))
+    if (/^\/api\/v1\/user\/instances\/[^/]+\/ticket$/.test(path)) {
+      state.ticketCalls += 1
+      state.ticketBody = request.postDataJSON()
+      state.ticketCsrf = request.headers()['x-csrf-token'] || ''
+      const origin = new URL(request.url()).origin
+      return json(route, ok({ launch_url: `${origin}/user/apps?opened=1` }))
+    }
     if (path === '/api/v1/user/instances') return json(route, ok([]))
     if (path === '/api/v1/user/resources/summary') {
       return json(route, ok({ device_count: 0, application_count: 0, active_instance_count: 0 }))
@@ -126,4 +144,33 @@ test('login returns to the requested user page and logout invalidates it', async
 
   await page.goto('/user/apps')
   await expect(page).toHaveURL(/\/user\/login\?redirect=(?:%2F|\/)user(?:%2F|\/)apps$/)
+})
+
+test('a fresh authenticated tab recovers csrf and opens an authorized application', async ({ page }) => {
+  const api = await installUserApi(page)
+  api.apps.push({
+    app_id: 'app-1',
+    name: 'Authorized App',
+    access_mode: 'acl',
+    cover_url: '',
+    version: 1,
+    running_instance: { instance_id: 'instance-1', state: 'running', reconnectable: true },
+  })
+
+  await page.goto('/user/apps')
+  await expect(page.getByText('Authorized App')).toBeVisible()
+  await expect(page.getByText('用户组专属应用')).toBeVisible()
+  await expect.poll(() => api.csrfCalls).toBe(1)
+  await page.getByRole('button', { name: /进\s*入/ }).click()
+
+  await expect.poll(() => api.ticketCalls).toBe(1)
+  expect(api.ticketCsrf).toBe('csrf-recovered')
+  expect(api.ticketBody?.requested_permissions).toEqual([
+    'view',
+    'input',
+    'clipboard',
+    'file',
+    'audio',
+  ])
+  await expect(page).toHaveURL(/opened=1/)
 })

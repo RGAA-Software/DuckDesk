@@ -13,6 +13,10 @@
   "id_settings_other_clients": "Mobile Clients",
   "id_settings_aboutme": "AboutMe",
   "id_tab_remote_control": "Remote Control",
+  "id_tab_cloud_applications": "Cloud Applications",
+  "id_start_application": "Start Application",
+  "id_enter_application": "Enter Application",
+  "id_stop_application": "Stop Application",
   "id_tab_server_status": "Server Status",
   "id_tab_games": "Installed Games",
   "id_tab_security": "Security Internals",
@@ -501,5 +505,12 @@
   "id_state_available": "Available",
   "id_state_unavailable": "Unavailable",
   "id_web_client_addr": "Web Client",
-  "id_open": "Open"
+  "id_open": "Open",
+  "id_public_application": "Public application",
+  "id_authorized_application": "Authorized application",
+  "id_state_running": "Running",
+  "id_state_starting": "Starting",
+  "id_state_stopping": "Stopping",
+  "id_state_stopped": "Stopped",
+  "id_state_failed": "Start failed"
 }

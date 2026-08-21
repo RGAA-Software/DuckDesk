@@ -20,6 +20,8 @@
 #include <map>
 #include <QProcess>
 #include <mutex>
+#include <atomic>
+#include <functional>
 
 #include "px_cms_client/cms_stream.h"
 
@@ -29,20 +31,27 @@ namespace px
     class PxContext;
     class PxSettings;
     class StreamDBOperator;
-    class StreamContent;
     class MessageListener;
     class RunningStreamManager;
     class StreamStateChecker;
+
+    enum class AppStreamListMode {
+        kRemoteDevices,
+        kCloudApplications,
+    };
 
     using OnItemDoubleClickedCallback = std::function<void(const std::shared_ptr<px_cms::CmsStream>&)>;
 
     class AppStreamList : public QWidget {
     public:
-        explicit AppStreamList(const std::shared_ptr<PxContext>& ctx, QWidget* parent = nullptr);
+        explicit AppStreamList(const std::shared_ptr<PxContext>& ctx,
+                               AppStreamListMode mode,
+                               std::function<void(bool)> on_empty_changed,
+                               QWidget* parent = nullptr);
         ~AppStreamList() override;
 
         void LoadStreamItems();
-        void RequestBindDevices();
+        void RefreshResources();
 
     private:
         QListWidgetItem* AddItem(const std::shared_ptr<px_cms::CmsStream>& item, int index);
@@ -56,7 +65,7 @@ namespace px
         void DeleteStream(const std::shared_ptr<px_cms::CmsStream>& item);
         void StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
         void StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
-        void StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        bool StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
         void LockDevice(const std::shared_ptr<px_cms::CmsStream>& item);
         void RestartDevice(const std::shared_ptr<px_cms::CmsStream>& item);
         void ShutdownDevice(const std::shared_ptr<px_cms::CmsStream>& item);
@@ -64,6 +73,9 @@ namespace px
         void ShowSettings(const std::shared_ptr<px_cms::CmsStream>& item);
 
         std::vector<std::shared_ptr<px_cms::CmsStream>> CopyStreams();
+        void RefreshRemoteDevices();
+        void RefreshCloudApplications();
+        void ClearIdentityResources();
 
     private:
         PxSettings* settings_ = nullptr;
@@ -72,12 +84,14 @@ namespace px
         std::mutex streams_mtx_;
         std::vector<std::shared_ptr<px_cms::CmsStream>> streams_;
         std::vector<std::shared_ptr<px_cms::CmsStream>> cms_app_streams_;
+        AppStreamListMode mode_ = AppStreamListMode::kRemoteDevices;
+        std::function<void(bool)> on_empty_changed_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QListWidget* stream_list_ = nullptr;
-        StreamContent* stream_content_ = nullptr;
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         // online state checker
         std::shared_ptr<StreamStateChecker> state_checker_ = nullptr;
+        std::atomic_bool resource_refresh_inflight_ {false};
 
     };
 

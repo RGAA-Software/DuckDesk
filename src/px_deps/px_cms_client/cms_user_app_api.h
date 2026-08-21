@@ -23,6 +23,8 @@ struct CmsUserApplication {
     std::string app_id;
     std::string name;
     std::string access_mode;
+    std::string cover_url;
+    int64_t version = 0;
     std::shared_ptr<CmsUserAppInstance> running_instance;
 };
 

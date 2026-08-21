@@ -26,6 +26,17 @@ const unwrap = <T>(response: { data: { data: T } }) => response.data.data
 export async function listAdminUsers(page = 1, keyword = '', pageSize = 20) {
   return unwrap<{ items: UserAdminView[]; total: number }>(await axiosHttp.get('/api/v1/admin/users', { params: { page, page_size: pageSize, keyword } }))
 }
+export async function listAllAdminUsers(keyword = '') {
+  const pageSize = 100
+  const first = await listAdminUsers(1, keyword, pageSize)
+  const items = [...first.items]
+  const pageCount = Math.ceil(first.total / pageSize)
+  for (let page = 2; page <= pageCount; page += 1) {
+    const next = await listAdminUsers(page, keyword, pageSize)
+    items.push(...next.items)
+  }
+  return Array.from(new Map(items.map((user) => [user.uid, user])).values())
+}
 export async function createAdminUser(request: { username: string; initial_password?: string; group_ids: string[]; device_ids: string[] }) {
   return unwrap<{ user: UserAdminView; initial_password: string }>(await axiosHttp.post('/api/v1/admin/users', request))
 }

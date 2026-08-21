@@ -96,10 +96,15 @@ namespace px
             }
         };
 
+        const bool uses_cms_ticket = item->connect_type_ == "cms_ticket"
+                                  || item->connect_type_ == "cms_app_ticket";
         bool has_cms_info = !item->remote_device_id_.empty() && !settings_->GetCmsServerHost().empty() && settings_->GetCmsServerPort() > 0;
         // check the authorization
         // NOT force direct
-        if (has_cms_info && !item->force_direct_) {
+        // A CMS connection ticket has already passed identity, application
+        // access and quota checks. Do not reject guest/public-application
+        // launches with the legacy device-license checks below.
+        if (!uses_cms_ticket && has_cms_info && !item->force_direct_) {
             // check network firstly
             if (!context_->GetApplication()->CanConnectCmsServer()) {
                 func_hide_loading_dialog();
@@ -120,7 +125,7 @@ namespace px
         }
 
         // NOT in force connecting directly mode, check the Cms server.
-        if (!item->force_direct_) {
+        if (!uses_cms_ticket && !item->force_direct_) {
             if (grApp->GetSkinName() != "OpenSource" && !item->remote_device_id_.empty()/* && !direct*/) {
                 // 1. check available or not
                 auto ac = context_->GetCmsManager()->QueryNewConnection(false);
@@ -148,7 +153,7 @@ namespace px
             }
         }
 
-        if (has_cms_info && !item->force_direct_) {
+        if (!uses_cms_ticket && has_cms_info && !item->force_direct_) {
             // 2. check alive or not
             cat device_mgr = context_->GetApplication()->GetDeviceManager();
             if (auto r = device_mgr->QueryDevice(item->remote_device_id_); r.has_value()) {
@@ -251,7 +256,8 @@ namespace px
         if (!item->connection_ticket_.empty()) {
             arguments
                 << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
-                << std::format("--connection_nonce={}", item->connection_nonce_).c_str();
+                << std::format("--connection_nonce={}", item->connection_nonce_).c_str()
+                << std::format("--connection_instance_id={}", item->cms_instance_id_).c_str();
         }
         LOGI("Start client inner args:");
         for (auto& arg : arguments) {
@@ -275,20 +281,22 @@ namespace px
         LOGI("After start client: {}", client_inner_path.toStdString());
     }
 
-    void RunningStreamManager::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
-        context_->SendAppMessage(ClearWorkspace {
-            .item_ = item,
-        });
+    bool RunningStreamManager::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
         if (running_processes_.contains(item->stream_id_)) {
             auto process = running_processes_[item->stream_id_];
             if (process) {
                 TcDialog dialog(tcTr("id_warning"), tcTr("id_exit_client"), nullptr);
-                if (dialog.exec() == kDoneOk) {
-                    process->kill();
-                    running_processes_.erase(item->stream_id_);
+                if (dialog.exec() != kDoneOk) {
+                    return false;
                 }
+                process->kill();
+                running_processes_.erase(item->stream_id_);
             }
         }
+        context_->SendAppMessage(ClearWorkspace {
+            .item_ = item,
+        });
+        return true;
     }
 
 }

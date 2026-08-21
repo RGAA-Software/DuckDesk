@@ -1005,36 +1005,63 @@ namespace px
     }
 
     void RdApplication::SendConfigurationBack() {
+        PxMonitorCapturePlugin* capture_plugin = nullptr;
         {
             std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            if (!capture_plugin_) {
-                LOGE("SendConfigurationBack failed, working monitor capture plugin is null.");
-                return;
-            }
+            capture_plugin = capture_plugin_;
         }
 
-        std::vector<CaptureMonitorInfo> monitors = [this]() {
-            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            return capture_plugin_->GetCaptureMonitorInfo();
-        }();
+        std::vector<CaptureMonitorInfo> monitors;
+        std::string capturing_name;
+        if (capture_plugin) {
+            monitors = capture_plugin->GetCaptureMonitorInfo();
+            capturing_name = capture_plugin->GetCapturingMonitorName();
+            this->UpdateCapturingMonitorInfo();
+        }
+        else if (settings_->IsGameHookMode()) {
+            // Inner/game-hook capture has no desktop monitor plugin. It is a
+            // single application surface, so expose a synthetic monitor to the
+            // standard client configuration/decode pipeline.
+            int width = settings_->encoder_.encode_width_;
+            int height = settings_->encoder_.encode_height_;
+            if (app_manager_) {
+                const auto hwnd = static_cast<HWND>(app_manager_->GetWindowHandle());
+                RECT client_rect{};
+                if (hwnd && IsWindow(hwnd) && GetClientRect(hwnd, &client_rect)
+                    && client_rect.right > client_rect.left
+                    && client_rect.bottom > client_rect.top) {
+                    width = client_rect.right - client_rect.left;
+                    height = client_rect.bottom - client_rect.top;
+                }
+            }
+            capturing_name = "Application";
+            CaptureMonitorInfo monitor;
+            monitor.name_ = capturing_name;
+            monitor.primary_ = true;
+            monitor.attached_desktop_ = true;
+            monitor.right_ = width;
+            monitor.bottom_ = height;
+            monitor.supported_res_.push_back(SupportedResolution {
+                .width_ = static_cast<unsigned long>(width),
+                .height_ = static_cast<unsigned long>(height),
+            });
+            monitors.push_back(std::move(monitor));
+            LOGI("Use synthetic game-hook monitor configuration: {}x{}", width, height);
+        }
+        else {
+            LOGE("SendConfigurationBack failed, working monitor capture plugin is null.");
+            return;
+        }
         if (monitors.empty()) {
             LOGW("Ignore this sending configuration back, 'cause there's no monitors detected.");
             return;
         }
-
-        // update capturing monitor info
-        this->UpdateCapturingMonitorInfo();
 
         px::Message m;
         m.set_type(px::kServerConfiguration);
         auto config = m.mutable_config();
         // screen info
         auto monitors_info = config->mutable_monitors_info();
-        auto capturing_name = [this]() {
-            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            return capture_plugin_->GetCapturingMonitorName();
-        }();
-
         LOGI("Will send configuration back, monitor size: {}", monitors.size());
         for (int i = 0; i < monitors.size(); i++) {
             auto monitor = monitors[i];

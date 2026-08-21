@@ -133,7 +133,15 @@ namespace px
         sdk_ = ThunderSdk::Make(this->context_->GetMessageNotifier());
         sdk_->Init(this->params_, nullptr, DecoderRenderType::kFFmpegI420);
 
-        if (!settings_->device_id_.empty() && !settings_->cms_host_.empty() && settings_->cms_port_ > 0 && !settings_->appkey_.empty()) {
+        // A CMS ticket launch is already authenticated and lifecycle-managed
+        // by Panel. The legacy device WebSocket cannot authenticate a guest or
+        // user-session ticket and would otherwise retry a rejected handshake
+        // every second for the lifetime of the application session.
+        if (settings_->connection_ticket_.empty()
+            && !settings_->device_id_.empty()
+            && !settings_->cms_host_.empty()
+            && settings_->cms_port_ > 0
+            && !settings_->appkey_.empty()) {
             LOGI("Will start cms client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
             cms_client_ = CtCmsClient::Make(sdk_,
                                             context_,

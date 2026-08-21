@@ -50,6 +50,16 @@ namespace px
 
     void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items) {
         for (auto& item : items) {
+            // CMS application cards are catalog resources, not addressable
+            // devices before a ticket is issued. Their state comes from the
+            // application-instance API and must not be overwritten by an
+            // empty host/port ping or a device-online query.
+            if (item->connect_type_ == "cms_app_ticket") {
+                item->direct_online_ = item->cms_instance_state_ == "running";
+                item->relay_online_ = false;
+                item->cms_online_ = true;
+                continue;
+            }
             // host & port mode
             // /api/ping
             item->direct_online_ = false;

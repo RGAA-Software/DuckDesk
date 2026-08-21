@@ -90,6 +90,7 @@ namespace px
         // signaling request. It must never be persisted or logged.
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string connection_instance_id_;
     };
 
 }

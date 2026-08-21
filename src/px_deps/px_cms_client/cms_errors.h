@@ -20,6 +20,9 @@ namespace px_cms
         kForbidden = 403,
         kNotFound = 404,
         kConflict = 409,
+        kGone = 410,
+        kRateLimited = 429,
+        kServiceUnavailable = 503,
 
         kInvalidParams = 600,
         kDatabaseError = 601,
@@ -57,6 +60,9 @@ namespace px_cms
             case CmsApiError::kForbidden: return "Operation forbidden";
             case CmsApiError::kNotFound: return "Resource not found";
             case CmsApiError::kConflict: return "Resource state conflict";
+            case CmsApiError::kGone: return "Ticket expired or already used";
+            case CmsApiError::kRateLimited: return "Request rate or quota exceeded";
+            case CmsApiError::kServiceUnavailable: return "Device or scheduler unavailable";
             case CmsApiError::kInvalidParams: return "Invalid parameters";
             case CmsApiError::kDatabaseError: return "Database operation failed";
             case CmsApiError::kDeviceNotFound: return "Device not found";

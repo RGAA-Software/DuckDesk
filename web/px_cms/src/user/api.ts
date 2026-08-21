@@ -1,4 +1,4 @@
-import { setUserCsrf, userHttp } from './http'
+import { hasUserCsrf, setUserCsrf, userHttp } from './http'
 
 export interface UserProfile {
   uid: string
@@ -48,6 +48,23 @@ function data<T>(response: { data: { data: T } }): T {
   return response.data.data
 }
 
+let csrfRefreshPromise: Promise<void> | null = null
+
+async function ensureUserCsrf() {
+  if (hasUserCsrf()) return
+  if (!csrfRefreshPromise) {
+    csrfRefreshPromise = (async () => {
+      const result = data<{ csrf_token: string }>(
+        await userHttp.get('/api/v1/session/user/csrf'),
+      )
+      setUserCsrf(result.csrf_token)
+    })().finally(() => {
+      csrfRefreshPromise = null
+    })
+  }
+  await csrfRefreshPromise
+}
+
 export async function loginUser(username: string, password: string) {
   const result = data<{ profile: UserProfile; csrf_token: string }>(
     await userHttp.post('/api/v1/session/user/login', {
@@ -62,7 +79,9 @@ export async function loginUser(username: string, password: string) {
 
 export async function queryUser(): Promise<UserProfile | null> {
   try {
-    return data<UserProfile>(await userHttp.get('/api/v1/user/me'))
+    const profile = data<UserProfile>(await userHttp.get('/api/v1/user/me'))
+    await ensureUserCsrf()
+    return profile
   } catch (error: any) {
     if (error?.response?.status === 401) return null
     throw error
@@ -118,7 +137,7 @@ export async function openDevice(deviceId: string) {
   const result = data<{ launch_url: string }>(
     await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/ticket`, {
       client_nonce: nonce(`device_${deviceId}`),
-      requested_permissions: ['view', 'input'],
+      requested_permissions: ['view', 'input', 'clipboard', 'file', 'audio'],
     }),
   )
   window.location.assign(result.launch_url)
@@ -140,7 +159,7 @@ export async function openInstance(instance: InstanceView, clientNonce?: string)
       `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
       {
         client_nonce: clientNonce || nonce(`instance_${instance.instance_id}`),
-        requested_permissions: ['view', 'input'],
+        requested_permissions: ['view', 'input', 'clipboard', 'file', 'audio'],
       },
     ),
   )
@@ -155,6 +174,17 @@ export async function stopInstance(instanceId: string) {
 
 export async function updateUserName(username: string) {
   return data<UserProfile>(await userHttp.patch('/api/v1/user/me', { username }))
+}
+
+export async function uploadUserAvatar(file: File) {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  return data<UserProfile>(await userHttp.put('/api/v1/user/me/avatar', form))
+}
+
+export async function logoutAllUserSessions(current_password: string) {
+  await userHttp.post('/api/v1/session/user/logout-all', { current_password })
+  setUserCsrf('')
 }
 
 export async function changeUserPassword(current_password: string, new_password: string) {

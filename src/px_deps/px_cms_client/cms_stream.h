@@ -140,6 +140,9 @@ namespace px_cms
         std::string connection_nonce_;
         std::string cms_app_id_;
         std::string cms_instance_id_;
+        std::string cms_access_mode_;
+        std::string cms_instance_state_;
+        std::string cms_cover_url_;
     };
 
 }
