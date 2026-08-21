@@ -318,7 +318,7 @@ relay 两端本来就是明文，web 端已协议自适应，均不需要改。
 - 单测：`test_access_decrypt` 新增三组断言（旧串缺省 true / 显式 false / 显式 true)✓;`test_records_ticket` 12/12 ✓;rust `px_cms_server` access_info 3 例、`px_service` 33/33 ✓。
 - 部署：本机 CMS `ssl_enable=false` 重启，日志 `http.listening on 0.0.0.0:30500 (ssl_enable=false)`;90 侧重拷新 `px_service.exe`/`px_panel.exe` + `sp_put` 注入 `cms_ssl_enable=false`(`tests/_redeploy_service_90.bat` 新增、`_redeploy_panel_90.bat`、`_cfg3_90.bat` + `cfg_panel3_90.bat` 带杀 panel 重试）。
 - 90 重连：CMS 日志确认 relay 与 `/cms/panel` 明文 ws 握手来自 10.0.0.90 ✓。
-- E2E(HTTP，无 `--ignore-certificate-errors`/`--allow-running-insecure-content`):§9.3 拓扑 1 全项（列表/ticket/206/拖拽/控制台零报错）✓；离线提示（990405157)✓;CMS web 冒烟（`scripts/cdp_cms_smoke.mjs`：设备列表/多画面墙/资源总览渲染正常、控制台零报错）✓。
+- E2E(HTTP，无 `--ignore-certificate-errors`/`--allow-running-insecure-content`):§9.3 拓扑 1 全项（列表/ticket/206/拖拽/控制台零报错）✓；离线提示（990405157)✓;CMS web 冒烟（`scripts/cdp_cms_smoke.mjs`：设备列表/设备监控/资源总览渲染正常、控制台零报错）✓。
 
 ### 13.3 遗留
 

@@ -7,6 +7,7 @@
 
 #include <map>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <condition_variable>
 #include "px_render/plugin_interface/px_net_plugin.h"
@@ -115,6 +116,12 @@ namespace px
         std::map<std::string, uint64_t> encoded_seq_by_mon_;
         // 每屏缓存上限(编码快于消费时淘汰最旧帧,消费端会发现 gap 并 InsertIdr)
         static constexpr size_t kMaxCachedFramesPerMon = 8;
+        // All RTC peers share one physical encoder per monitor. Coalesce their
+        // PLI/chain-recovery requests globally instead of throttling only
+        // inside each peer-local RtcSharedVideoEncoder.
+        std::mutex idr_request_mtx_;
+        std::map<std::string, std::chrono::steady_clock::time_point> last_idr_request_by_mon_;
+        static constexpr int64_t kMinIdrRequestIntervalMs = 800;
         // 最近一次 shared-texture 采集帧时间戳:非 0 且很新说明 DDA 纹理路径在工作,
         // OnRawVideoFrameYuv 的裸帧喂 webrtc 要抑制(DDA+CPU 编码回退时两者都会到,
         // 重复喂会让 webrtc Encode 双倍消费 seq,断链)。纯 GDI/mock 时没有

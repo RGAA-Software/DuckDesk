@@ -5,6 +5,7 @@
 #include "px_common_new/time_util.h"
 #include "h264_sei_helper.h"
 #include "rtc_local_plugin.h"
+#include "rtc_server.h"
 #include "video_source_impl.h"
 #include "settings/rd_settings.h"
 #include "px_render/plugins/plugin_ids.h"
@@ -44,6 +45,20 @@ namespace px
 
     void RtcSharedVideoEncoder::SetRates(const RateControlParameters& parameters)
     {
+        mTargetBitrate = parameters.bitrate.get_sum_bps();
+
+        // A wall observer shares the already encoded stream with the single
+        // interactive RTC session. Its peer-local BWE may still tune that
+        // connection's pacer, but it must never reconfigure the shared
+        // physical encoder; otherwise two peers become last-writer-wins on
+        // bitrate/fps and can repeatedly reopen or reconfigure the encoder.
+        if (server_ && server_->IsWallObserver()) {
+            if (!observer_feedback_ignored_.exchange(true)) {
+                LOGI("Ignore encoder rate feedback from wall observer.");
+            }
+            return;
+        }
+
         std::stringstream ss;
         ss << "rtc update bitrate:" << parameters.bitrate.get_sum_kbps();
         ss << " kbps target bitrat:" << parameters.target_bitrate.get_sum_kbps();
@@ -51,7 +66,6 @@ namespace px
         ss << " kbps fps:" << parameters.framerate_fps;
         ss << " mon:" << last_mon_name_;
         LOGI("SetRates: {}", ss.str());
-        mTargetBitrate = parameters.bitrate.get_sum_bps();
 
         auto event = std::make_shared<PxPluginConfigEncoder>();
         // 按屏定向:多 track 时每条 track 的 BWE 只调整自己那块屏的编码器,

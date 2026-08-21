@@ -248,6 +248,7 @@ namespace px
         // network state
         peer_callback_->SetOnIceConnectedCallback([=, this]() {
             ice_connected_ = true;
+            ice_ever_connected_ = true;
             ice_disconnected_since_ms_ = 0;
         });
 
@@ -613,7 +614,7 @@ namespace px
     }
 
     void RtcServer::On100msTimeout() {
-        if (!exit_ && wall_observer_ && !ice_connected_) {
+        if (!exit_ && wall_observer_ && !ice_ever_connected_) {
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
             if (now - created_timestamp_ms_ >= kWallObserverConnectTimeoutMs) {
                 LOGW("Wall observer connect timeout, conn_id: {}, will be swept.", conn_id_);

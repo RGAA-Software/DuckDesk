@@ -151,6 +151,10 @@ namespace px
         bool capability_enforced_ = false;
         bool wall_observer_ = false;
         std::atomic_bool ice_connected_ = false;
+        // The initial observer timeout only applies before the first successful
+        // ICE connection. Once connected, transient disconnects use the normal
+        // reconnect grace period instead of being mistaken for offer timeout.
+        std::atomic_bool ice_ever_connected_ = false;
         int64_t created_timestamp_ms_ = 0;
         std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
         // ICE 进入 Disconnected 的起始时间(0 = 未处于 Disconnected)。

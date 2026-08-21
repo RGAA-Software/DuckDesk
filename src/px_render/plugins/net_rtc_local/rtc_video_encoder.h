@@ -56,6 +56,9 @@ namespace px
         bool mWaitIDRFrame = true;
         std::chrono::high_resolution_clock::time_point mLastInsertIDRTime;
         std::atomic_int mTargetBitrate = { 0 };
+        // Log the observer feedback boundary once per track without flooding
+        // the RTC encoder task queue log on every SetRates callback.
+        std::atomic_bool observer_feedback_ignored_ = { false };
         absl::optional<uint16_t> last_encoded_frame_seq_;
         int mWidth = 0;
         int mHeight = 0;

@@ -207,7 +207,7 @@ onUnmounted(closeCells)
   <div class="wall-page">
     <div class="wall-toolbar">
       <div>
-        <h2>多画面墙</h2>
+        <h2>设备监控</h2>
         <p>后台只读监看 · 无声音 · 不计入连接统计与审计</p>
       </div>
       <div class="toolbar-actions">

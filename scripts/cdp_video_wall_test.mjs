@@ -1,4 +1,4 @@
-// CDP 无头 Chrome 验证 px_cms 多画面墙页面
+// CDP 无头 Chrome 验证 px_cms 设备监控页面
 // 用法: node scripts/cdp_video_wall_test.mjs
 // 前提: px_cms_server 已在 https://127.0.0.1:30500 运行(部署了最新 dist)
 import { spawn } from 'node:child_process'
@@ -9,7 +9,7 @@ const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const BASE_URL = 'https://127.0.0.1:30500'
 const CDP_PORT = 9223
 const USERNAME = 'CmsAdmin'
-const PASSWORD = 'eb#6naIq'
+const PASSWORD = process.env.PX_CMS_TEST_PASSWORD || 'eb#6naIq'
 
 const results = []
 function report(name, ok, detail = '') {
@@ -64,23 +64,6 @@ async function evaluate(expression) {
   return r.result?.value
 }
 
-// 给 el-input 内部 input 赋值并触发 Vue 更新
-const SET_INPUT = (placeholder, value) => `(() => {
-  const el = [...document.querySelectorAll('input')].find((e) => e.placeholder === ${JSON.stringify(placeholder)})
-  if (!el) return 'NOT_FOUND'
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-  setter.call(el, ${JSON.stringify(value)})
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-  return 'OK'
-})()`
-
-const CLICK_BTN = (text) => `(() => {
-  const el = [...document.querySelectorAll('button')].find((e) => e.textContent.trim() === ${JSON.stringify(text)})
-  if (!el) return 'NOT_FOUND'
-  el.click()
-  return 'OK'
-})()`
-
 async function main() {
   await waitDevtools()
   const r = await fetch(`http://127.0.0.1:${CDP_PORT}/json/new?${encodeURIComponent(BASE_URL + '/')}`, { method: 'PUT' })
@@ -98,7 +81,8 @@ async function main() {
   await cmd('Runtime.enable')
   await cmd('Page.enable')
 
-  // 1. 登录页加载并登录
+  // 1. 登录页加载并通过同源 API 建立管理员会话。测试密码从环境变量注入，
+  // 避免本地管理员改密后把明文凭据固化进仓库。
   let loginReady = false
   for (let i = 0; i < 40; i++) {
     const ok = await evaluate(`[...document.querySelectorAll('input')].some((e) => e.placeholder === '请输入密码')`).catch(() => false)
@@ -107,89 +91,83 @@ async function main() {
   }
   report('登录页打开', loginReady)
 
-  await evaluate(SET_INPUT('请输入', USERNAME))
-  await evaluate(SET_INPUT('请输入密码', PASSWORD))
-  await evaluate(CLICK_BTN('登录'))
-  let loggedIn = false
-  for (let i = 0; i < 30; i++) {
-    const url = await evaluate('location.pathname').catch(() => '')
-    if (url && url !== '/') { loggedIn = true; break }
-    await sleep(500)
-  }
-  report('登录成功跳转', loggedIn, await evaluate('location.pathname').catch(() => ''))
+  const loginResult = await evaluate(`fetch('/api/v1/session/admin/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: ${JSON.stringify(USERNAME)}, password: ${JSON.stringify(PASSWORD)} }),
+  }).then(async (response) => {
+    const body = await response.json()
+    if (response.ok && body.code === 200 && body.data?.csrf_token) {
+      sessionStorage.setItem('px_admin_csrf', body.data.csrf_token)
+    }
+    return { status: response.status, code: body.code, message: body.message || '' }
+  })`)
+  const loggedIn = loginResult?.status === 200 && loginResult?.code === 200
+  report('管理员会话建立', loggedIn, JSON.stringify(loginResult))
+  if (!loggedIn) throw new Error('管理员会话建立失败')
 
-  // 2. 进多画面墙页面(侧栏菜单)
+  // 2. 进设备监控页面(侧栏菜单)
   await evaluate(`location.href = '${BASE_URL}/video-wall'`)
   let pageReady = false
   for (let i = 0; i < 40; i++) {
-    const ok = await evaluate(`!!document.querySelector('.el-select__wrapper') && [...document.querySelectorAll('span')].some((s) => s.textContent.includes('多画面墙'))`).catch(() => false)
+    const ok = await evaluate(`[...document.querySelectorAll('h2')].some((e) => e.textContent.trim() === '设备监控')`).catch(() => false)
     if (ok) { pageReady = true; break }
     await sleep(500)
   }
-  report('多画面墙页面打开', pageReady)
+  report('设备监控页面打开', pageReady)
 
-  const menuOk = await evaluate(`[...document.querySelectorAll('.el-menu-item')].some((e) => e.textContent.includes('多画面墙'))`)
-  report('侧栏菜单含「多画面墙」入口', menuOk)
+  const menuOk = await evaluate(`[...document.querySelectorAll('.ant-menu-item')].some((e) => e.textContent.includes('设备监控'))`)
+  report('侧栏菜单含「设备监控」入口', menuOk)
 
-  // 3. 打开设备下拉,等待设备列表加载
-  await evaluate(`document.querySelector('.el-select__wrapper').click()`)
-  let optionCount = 0
-  for (let i = 0; i < 30; i++) {
-    optionCount = await evaluate(`document.querySelectorAll('li.el-select-dropdown__item').length`).catch(() => 0)
-    if (optionCount > 0) break
+  // 3. 设备自动排序并直接建立只读 WebRTC 观察者连接，无人工选择、密码或 iframe。
+  let cellCount = 0
+  for (let i = 0; i < 40; i++) {
+    cellCount = await evaluate(`document.querySelectorAll('.wall-cell').length`).catch(() => 0)
+    if (cellCount > 0) break
     await sleep(500)
   }
-  report('设备列表加载', optionCount > 0, `可选设备 ${optionCount} 台`)
-  if (optionCount === 0) throw new Error('无设备可选,中止')
+  report('设备自动进入九宫格', cellCount > 0 && cellCount <= 9, `当前页 ${cellCount} 台`)
+  if (cellCount === 0) throw new Error('没有设备进入监控网格')
 
-  // 4. 勾选第 1 台可选(在线)设备 -> 出现格子 + iframe
-  const picked = await evaluate(`(() => {
-    const li = [...document.querySelectorAll('li.el-select-dropdown__item')].find((e) => !e.className.includes('is-disabled'))
-    if (!li) return ''
-    li.click()
-    return li.textContent.trim()
+  const mediaShape = await evaluate(`({
+    videos: document.querySelectorAll('.wall-cell video').length,
+    iframes: document.querySelectorAll('.wall-cell iframe').length,
+    muted: [...document.querySelectorAll('.wall-cell video')].every((v) => v.muted),
+  })`)
+  report('每格使用原生静音 video', mediaShape.videos === cellCount && mediaShape.iframes === 0 && mediaShape.muted, JSON.stringify(mediaShape))
+
+  let statusText = ''
+  for (let i = 0; i < 60; i++) {
+    statusText = await evaluate(`document.querySelector('.wall-cell .ant-tag')?.textContent?.trim() ?? ''`).catch(() => '')
+    if (statusText === '画面传输中' || statusText === '连接失败') break
+    await sleep(500)
+  }
+  report('观察者 WebRTC 收到画面', statusText === '画面传输中', statusText)
+
+  const playback = await evaluate(`(() => {
+    const video = document.querySelector('.wall-cell video')
+    const footer = document.querySelector('.wall-cell .cell-footer')?.textContent?.trim() || ''
+    return {
+      readyState: video?.readyState || 0,
+      width: video?.videoWidth || 0,
+      height: video?.videoHeight || 0,
+      frames: video?.getVideoPlaybackQuality?.().totalVideoFrames || 0,
+      footer,
+    }
   })()`)
-  report('有可勾选(在线)设备', !!picked, picked)
-  await sleep(1500)
-  const cellCount1 = await evaluate(`document.querySelectorAll('.wall-cell').length`)
-  report('勾选 1 台后出现格子', cellCount1 === 1, `格子数 ${cellCount1}`)
+  report('视频已解码且显示链路有统计', playback.readyState >= 2 && playback.width > 0 && playback.height > 0 && playback.frames > 0, JSON.stringify(playback))
 
-  const src1 = await evaluate(`document.querySelector('.wall-cell iframe')?.src ?? ''`)
-  const srcRe = /^http:\/\/[\d.]+:\d+\/web_client\/\?deviceId=[^&]+&streamId=wall-[^&]+$/
-  report('iframe src 拼接正确(无密码)', srcRe.test(src1), src1)
-
-  // streamId 与 deviceId 对应关系: streamId=wall-{did}
-  const pairOk = await evaluate(`(() => {
-    const u = new URL(document.querySelector('.wall-cell iframe').src)
-    return u.searchParams.get('streamId') === 'wall-' + u.searchParams.get('deviceId')
+  // 保持超过首次连接超时阈值，防止已连接观察者被误当作建连超时清理。
+  await sleep(20000)
+  const stablePlayback = await evaluate(`(() => {
+    const video = document.querySelector('.wall-cell video')
+    return {
+      status: document.querySelector('.wall-cell .ant-tag')?.textContent?.trim() || '',
+      frames: video?.getVideoPlaybackQuality?.().totalVideoFrames || 0,
+    }
   })()`)
-  report('streamId = wall-{deviceId}', pairOk === true)
-
-  // 5. 统一密码 -> 应用到全部 -> iframe src 带 password 参数
-  const TEST_PWD = 'Wall#Test123'
-  await evaluate(SET_INPUT('应用到所有格子', TEST_PWD))
-  await evaluate(CLICK_BTN('应用到全部'))
-  await sleep(1500)
-  const src2 = await evaluate(`document.querySelector('.wall-cell iframe')?.src ?? ''`)
-  report('统一密码填充进 iframe src', src2.includes(`password=${encodeURIComponent(TEST_PWD)}`), src2)
-
-  // 6. 格子内独立密码 + 连接按钮
-  const CELL_PWD = 'cell only'
-  await evaluate(SET_INPUT('安全密码', CELL_PWD))
-  await evaluate(`(() => {
-    const btn = [...document.querySelectorAll('.wall-cell button')].find((e) => e.textContent.trim() === '连接')
-    if (!btn) return 'NOT_FOUND'
-    btn.click()
-    return 'OK'
-  })()`)
-  await sleep(1500)
-  const src3 = await evaluate(`document.querySelector('.wall-cell iframe')?.src ?? ''`)
-  report('格子独立密码填充进 iframe src', src3.includes(`password=${encodeURIComponent(CELL_PWD)}`), src3)
-
-  // 7. 连接状态提示存在(已加载 或 10s 超时后无法到达 render)
-  await sleep(11000)
-  const statusText = await evaluate(`document.querySelector('.wall-cell .el-tag')?.textContent?.trim() ?? ''`)
-  report('格子状态提示有效', statusText === '页面已加载' || statusText === '无法到达 render', statusText)
+  report('观察者连接持续稳定', stablePlayback.status === '画面传输中' && stablePlayback.frames > playback.frames, JSON.stringify(stablePlayback))
 
   const failed = results.filter((x) => !x.ok)
   console.log(`\n==== ${results.length - failed.length}/${results.length} 项通过 ====`)

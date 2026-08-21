@@ -76,7 +76,7 @@ const router = createRouter({
           name: 'video-wall',
           component: VideoWall,
           meta: {
-            title: '多画面墙',
+            title: '设备监控',
             requiresAuth: true,
           },
         },

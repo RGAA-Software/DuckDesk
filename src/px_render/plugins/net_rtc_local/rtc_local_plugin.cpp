@@ -114,6 +114,10 @@ namespace px
             encoded_video_frames_.clear();
             encoded_seq_by_mon_.clear();
         }
+        {
+            std::lock_guard<std::mutex> lk(idr_request_mtx_);
+            last_idr_request_by_mon_.clear();
+        }
 
         if (ssl_initialized_) {
             rtc::CleanupSSL();
@@ -483,6 +487,17 @@ namespace px
             // 广播旧行为(新连接首帧 IDR 等需要所有屏的场景)
             PxPluginInterface::InsertIdr();
             return;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        {
+            std::lock_guard<std::mutex> lk(idr_request_mtx_);
+            auto last = last_idr_request_by_mon_.find(mon_name);
+            if (last != last_idr_request_by_mon_.end()
+                && std::chrono::duration_cast<std::chrono::milliseconds>(now - last->second).count()
+                    < kMinIdrRequestIntervalMs) {
+                return;
+            }
+            last_idr_request_by_mon_[mon_name] = now;
         }
         auto event = std::make_shared<PxPluginInsertIdrEvent>();
         event->mon_name_ = mon_name;

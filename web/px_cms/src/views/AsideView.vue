@@ -95,7 +95,7 @@ const handleClickLogo = async () => {
 
       <a-menu-item key="/video-wall">
         <template #icon><LayoutOutlined /></template>
-        <span class="">多画面墙</span>
+        <span class="">设备监控</span>
       </a-menu-item>
 
       <a-menu-item key="/live-viewer">
