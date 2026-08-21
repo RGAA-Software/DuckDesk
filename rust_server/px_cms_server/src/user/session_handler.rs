@@ -96,22 +96,6 @@ pub struct GuestSessionResponse {
 pub struct RegisterUserRequest {
     pub username: String,
     pub password: String,
-    pub invite_code: Option<String>,
-}
-
-#[derive(Debug, Serialize, Default)]
-pub struct RegistrationPolicyResponse {
-    pub mode: String,
-}
-
-pub async fn registration_policy() -> Json<RespMessage<RegistrationPolicyResponse>> {
-    let mode = crate::gCmsSettings
-        .lock()
-        .await
-        .user
-        .registration_mode
-        .clone();
-    Json(ok_resp(RegistrationPolicyResponse { mode }))
 }
 
 pub async fn register_user(
@@ -133,27 +117,12 @@ pub async fn register_user(
         15 * 60 * 1000,
     )?;
 
-    let reservation = match settings.registration_mode.as_str() {
-        "open" => None,
-        "invite" => {
-            Some(crate::user::invite::reserve(request.invite_code.as_deref().unwrap_or("")).await?)
-        }
-        "closed" => return Err(CmsApiError::Forbidden),
-        _ => {
-            tracing::error!(mode = %settings.registration_mode, "invalid user.registration_mode");
-            return Err(CmsApiError::InternalError);
-        }
-    };
-
     let user = match gUserManager
         .register_user(request.username, request.password)
         .await
     {
         Ok(user) => user,
         Err(error) => {
-            if let Some(reservation) = &reservation {
-                crate::user::invite::release(reservation).await;
-            }
             audit::record(
                 "guest",
                 &subject.guest_id,
@@ -167,36 +136,6 @@ pub async fn register_user(
             return Err(error);
         }
     };
-    if let Some(reservation) = &reservation {
-        if let Err(error) =
-            IdentityManager::replace_groups_for_user(&user.uid, reservation.group_ids.clone()).await
-        {
-            let _ = IdentityManager::replace_groups_for_user(&user.uid, Vec::new()).await;
-            let _ = gUserManager
-                .admin_delete_user(user.uid.clone(), user.version)
-                .await;
-            crate::user::invite::release(reservation).await;
-            audit::record(
-                "guest",
-                &subject.guest_id,
-                "user_register",
-                "failure",
-                "user",
-                &user.uid,
-                "group_assignment_failed",
-            )
-            .await;
-            return Err(error);
-        }
-        if let Err(error) = crate::user::invite::commit(reservation, &user.uid).await {
-            let _ = IdentityManager::replace_groups_for_user(&user.uid, Vec::new()).await;
-            let _ = gUserManager
-                .admin_delete_user(user.uid.clone(), user.version)
-                .await;
-            crate::user::invite::release(reservation).await;
-            return Err(error);
-        }
-    }
     audit::record(
         "guest",
         &subject.guest_id,

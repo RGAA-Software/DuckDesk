@@ -11,7 +11,6 @@ use crate::record::cms_visit::CmsVisit;
 use crate::stream::cms_stream::CmsStream;
 use crate::update::update_info::UpdateInfo;
 use crate::user::cms_user::CmsUser;
-use crate::user::invite::UserInvite;
 use crate::user::session::{CmsUserSession, GuestBlock};
 use crate::user_device::cms_user_device::CmsUserDevice;
 use mongodb::bson::doc;
@@ -31,7 +30,6 @@ pub struct CmsDatabase {
     pub c_user: Option<Arc<Mutex<Collection<CmsUser>>>>,
     pub c_user_session: Option<Arc<Mutex<Collection<CmsUserSession>>>>,
     pub c_guest_block: Option<Arc<Mutex<Collection<GuestBlock>>>>,
-    pub c_user_invite: Option<Arc<Mutex<Collection<UserInvite>>>>,
     pub c_user_group: Option<Arc<Mutex<Collection<UserGroup>>>>,
     pub c_user_group_member: Option<Arc<Mutex<Collection<UserGroupMember>>>>,
     pub c_group_device_grant: Option<Arc<Mutex<Collection<GroupDeviceGrant>>>>,
@@ -175,29 +173,6 @@ impl CmsDatabase {
                     return false;
                 }
                 self.c_guest_block = Some(Arc::new(Mutex::new(c_guest_block)));
-
-                let c_user_invite: Collection<UserInvite> = database.collection("c_user_invite");
-                for index in [
-                    IndexModel::builder()
-                        .keys(doc! { "invite_hash": 1 })
-                        .options(IndexOptions::builder().unique(true).build())
-                        .build(),
-                    IndexModel::builder()
-                        .keys(doc! { "cleanup_at": 1 })
-                        .options(
-                            IndexOptions::builder()
-                                .expire_after(std::time::Duration::from_secs(0))
-                                .build(),
-                        )
-                        .build(),
-                    IndexModel::builder().keys(doc! { "used_at": 1 }).build(),
-                ] {
-                    if let Err(e) = c_user_invite.create_index(index).await {
-                        tracing::error!("create c_user_invite index failed: {}", e);
-                        return false;
-                    }
-                }
-                self.c_user_invite = Some(Arc::new(Mutex::new(c_user_invite)));
 
                 let c_user_group: Collection<UserGroup> = database.collection("c_user_group");
                 // Older test builds used unique(name_normalized, deleted),
@@ -469,10 +444,6 @@ impl CmsDatabase {
 
     pub fn guest_block(&self) -> Arc<Mutex<Collection<GuestBlock>>> {
         self.c_guest_block.clone().unwrap()
-    }
-
-    pub fn user_invite(&self) -> Arc<Mutex<Collection<UserInvite>>> {
-        self.c_user_invite.clone().unwrap()
     }
 
     pub fn user_group(&self) -> Arc<Mutex<Collection<UserGroup>>> {

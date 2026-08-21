@@ -11,6 +11,7 @@ const IDENTITY_COLLECTIONS: &[&str] = &[
     "c_group_app_grant",
     "c_user_session",
     "c_guest_block",
+    // Removed invitation feature; keep deleting its legacy test collection.
     "c_user_invite",
     "c_connection_ticket",
     "c_app_instance",

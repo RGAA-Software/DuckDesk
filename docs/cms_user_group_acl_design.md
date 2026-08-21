@@ -249,16 +249,9 @@ pub struct ConnectionTicket {
 
 ### 5.1 注册策略
 
-新增 CMS 配置：
-
-```toml
-[user]
-registration_mode = "closed" # closed | invite | open
-```
-
-- 测试环境初始化默认 `closed`，用户由管理员创建或批量导入。
-- `invite` 使用一次性、短时邀请码，绑定可选初始组；邀请码只保存 hash。
-- 无论哪种模式，注册接口都要有账号/IP 速率限制；不能再依赖 appkey 判断是否允许注册。
+- 用户可直接注册，不设置邀请码或注册模式开关。
+- 注册接口必须通过 guest session 和 CSRF 校验，并实施账号/IP 速率限制；不能依赖 appkey 判断是否允许注册。
+- 自助注册用户初始不属于任何用户组，也不具备个人设备授权；后续由管理员分组和授权。
 
 ### 5.2 登录
 
@@ -290,7 +283,7 @@ POST /api/v1/session/user/logout
 POST /api/v1/session/user/logout-all
 POST /api/v1/session/admin/login
 POST /api/v1/session/admin/logout
-POST /api/v1/user/register             # 按 registration_mode
+POST /api/v1/user/register
 ```
 
 ### 6.2 用户门户/Panel 接口
@@ -381,7 +374,7 @@ Panel/浏览器
 ### 8.2 CMS 管理后台
 
 - 使用 admin cookie，不再把 appkey 或密码存入 localStorage。
-- 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、个人设备授权、会话撤销、邀请码。
+- 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、个人设备授权、会话撤销。
 - 用户组页：CRUD、成员、设备 grant、应用 grant、孤儿授权提示。
 - 应用页：public/acl 编辑、获授权组数量、无授权风险提示。
 - 实例页：显示 owner 类型/名称、来源应用、节点、状态和管理员停止操作。
@@ -458,7 +451,7 @@ public 应用允许匿名启动，但必须具备以下保护：
 
 - `c_user`、`c_user_device`；
 - 旧用户组、成员和授权数据（若测试分支已经创建）；
-- user/admin/guest session、邀请码和连接 ticket；
+- user/admin/guest session 和连接 ticket；
 - 归属于旧主体的应用实例、启动记录与临时调度状态；
 - 缺少 `access_mode` 或仍依赖旧授权字段的测试应用及其节点记录。
 
@@ -678,7 +671,6 @@ POST /api/v1/user/instances/{instance_id}/stop
 | `c_user_device` | unique(`uid`,`device_id`)，(`device_id`,`uid`) |
 | `c_user_session` | unique(`token_hash`)，unique(`sid`)，TTL(`cleanup_at`, expireAfterSeconds=0)，(`subject_type`,`subject_id`,`revoked_at`) |
 | `c_guest_block` | unique(`kind`,`value`)；kind 为 `guest_id` 或脱敏 `ip_hash` |
-| `c_user_invite` | unique(`invite_hash`)，TTL(`expires_at`, 0)，(`used_at`) |
 | `c_connection_ticket` | unique(`ticket_hash`)，TTL(`expires_at`, 0)，(`session_id`,`consumed_at`) |
 | `c_app` | unique(`app_id`)，(`access_mode`,`name`) |
 | `c_app_instance` | unique(`instance_id`)，unique(`owner_session_id`,`app_id`,`client_nonce`) partial active，(`owner_type`,`owner_id`,`state`) |
@@ -733,17 +725,16 @@ starting -> running -> stopping -> stopped
 - 当前版本不建立服务端启动队列：没有空闲节点或 public 全局并发达到上限时立即失败，避免浏览器退出后遗留无人认领的 queued 实例。
 - 同 owner_session + app_id + client_nonce 的活跃实例唯一；重复 start 返回原实例。guest 登录为 user 后不转移旧 guest 实例归属。
 
-## 19. 注册、邀请与密码生命周期
+## 19. 注册与密码生命周期
 
 - 用户名：trim 后 3–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
 - 密码：8–128 个字符；拒绝全空白；服务端 Argon2id 参数为 memory 64 MiB、iterations 3、parallelism 1、随机盐 16 bytes，hash 使用 PHC 字符串保存。
-- open 注册必须通过 guest session、CSRF 和限流；invite 注册额外提交一次性 invite。CMS 先原子保留邀请码，创建失败则释放，成功后提交 used_at；异常中断留下的短时保留可再次释放。
-- 邀请默认 24 小时有效、最多使用一次，可绑定初始组；创建响应只显示一次原始邀请码，数据库仅保存 SHA-256/HMAC hash。
+- 自助注册必须通过 guest session、CSRF 和限流；注册成功后创建无用户组、无个人设备授权的普通用户。
 - 管理员可生成随机初始密码或提供满足规则的密码。随机密码使用至少 96 bit CSPRNG，不包含易混淆字符。
 - 管理员重置后设置 `must_change_password=true`；该用户只能访问 `/me`、改密和 logout，首次改密成功才解除。
 - 用户改密必须提交当前明文密码，经 Argon2 验证后写入新 hash，递增 auth_version 并撤销除当前请求外的会话；当前会话随响应重新签发。
 - 当前对账号和 IP 分别使用固定窗口限流（默认每账号 15 分钟 20 次、每 IP 每分钟 10 次）；指数退避与管理员手动清除属于后续风控增强。
-- 不提供“找回密码邮件”流程；当前版本由管理员重置。任何初始密码、邀请码或 CSV 明文均禁止进入日志。
+- 不提供“找回密码邮件”流程；当前版本由管理员重置。任何初始密码或 CSV 明文均禁止进入日志。
 
 ## 20. 默认配置与保留策略
 
@@ -752,7 +743,6 @@ environment = "test"                        # test | production
 privacy_hash_salt = "replace-with-random"    # production 至少 16 bytes，仅服务端保存
 
 [user]
-registration_mode = "closed"        # closed | invite | open
 panel_sliding_days = 30
 panel_absolute_days = 90
 web_sliding_hours = 12

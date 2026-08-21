@@ -187,62 +187,6 @@ pub struct ReplacePersonalDevicesRequest {
     pub device_ids: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CreateInviteRequest {
-    #[serde(default)]
-    pub group_ids: Vec<String>,
-    #[serde(default = "default_invite_minutes")]
-    pub lifetime_minutes: i64,
-}
-
-fn default_invite_minutes() -> i64 {
-    24 * 60
-}
-
-#[derive(Debug, Serialize, Default)]
-pub struct CreateInviteResponse {
-    pub invite_code: String,
-    pub expires_at: i64,
-    pub group_ids: Vec<String>,
-}
-
-pub async fn create_invite(
-    Json(request): Json<CreateInviteRequest>,
-) -> Result<Response, CmsApiError> {
-    let known: std::collections::HashSet<_> = IdentityManager::list_groups()
-        .await?
-        .into_iter()
-        .map(|group| group.gid)
-        .collect();
-    if request.group_ids.iter().any(|gid| !known.contains(gid)) {
-        return Err(CmsApiError::GroupNotFound);
-    }
-    let (raw, invite) =
-        crate::user::invite::issue(request.group_ids, request.lifetime_minutes).await?;
-    audit::record(
-        "admin",
-        "license_owner",
-        "invite_create",
-        "success",
-        "user_invite",
-        "",
-        "",
-    )
-    .await;
-    let mut response = Json(ok_resp(CreateInviteResponse {
-        invite_code: raw,
-        expires_at: invite.expires_at,
-        group_ids: invite.group_ids,
-    }))
-    .into_response();
-    response.headers_mut().insert(
-        axum::http::header::CACHE_CONTROL,
-        axum::http::HeaderValue::from_static("no-store"),
-    );
-    Ok(response)
-}
-
 pub async fn list_users(
     Query(query): Query<UserListQuery>,
 ) -> Result<Json<RespMessage<UserPage>>, CmsApiError> {

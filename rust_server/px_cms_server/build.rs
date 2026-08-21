@@ -46,6 +46,7 @@ fn main() {
     println!("cargo:rerun-if-changed=media/px_turn.exe");
     println!("cargo:rerun-if-changed=media/COTURN_LICENSE");
     println!("cargo:rerun-if-changed=media");
+    println!("cargo:rerun-if-changed=../../web/px_cms/dist");
     #[cfg(windows)]
     {
         let mut res = winres::WindowsResource::new();

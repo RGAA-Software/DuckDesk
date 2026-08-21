@@ -3,7 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { Modal, message, type FormInstance } from 'ant-design-vue'
 import { copyText } from '@/util/clipboard'
 import { validateAdminUsername, validateInitialPassword } from '@/util/identity_validation'
-import { batchCreateAdminUsers, blockGuestSession, createAdminUser, createInvite, deleteAdminUser, listAdminUsers, listAdminUserSessions, listDeviceOptions, listGroups, listGuestSessions, listUserPersonalDevices, patchAdminUser, resetAdminUserPassword, revokeAdminUserSessions, type DeviceOption, type GuestSessionView, type GroupView, type UserAdminView, type UserSessionView } from '@/model/identity_api'
+import { batchCreateAdminUsers, blockGuestSession, createAdminUser, deleteAdminUser, listAdminUsers, listAdminUserSessions, listDeviceOptions, listGroups, listGuestSessions, listUserPersonalDevices, patchAdminUser, resetAdminUserPassword, revokeAdminUserSessions, type DeviceOption, type GuestSessionView, type GroupView, type UserAdminView, type UserSessionView } from '@/model/identity_api'
 
 const users = ref<UserAdminView[]>([]), groups = ref<GroupView[]>([])
 const devices = ref<DeviceOption[]>([])
@@ -27,8 +27,6 @@ const editorRules = {
     trigger: ['blur', 'change'],
   }],
 }
-const inviteOpen = ref(false)
-const inviteForm = reactive({ group_ids: [] as string[], lifetime_minutes: 1440 })
 const batchOpen = ref(false), batchLoading = ref(false)
 const sessionsOpen = ref(false), sessionsLoading = ref(false), sessionUser = ref<UserAdminView>()
 const sessions = ref<UserSessionView[]>([])
@@ -74,7 +72,6 @@ async function showGuests() { guestOpen.value = true; guestLoading.value = true;
 function blockGuest(guest: GuestSessionView, includeIp: boolean) { Modal.confirm({ title: includeIp ? '封禁该来源？' : '封禁该访客？', content: includeIp ? `将撤销来源 ${guest.ip_hash_prefix} 的全部访客会话，并拒绝该来源新建访客会话。` : '将立即撤销该访客的全部会话。', okType: 'danger', async onOk() { await blockGuestSession(guest.sid, true, includeIp); message.success('封禁已生效'); guests.value = await listGuestSessions() } }) }
 function remove(user: UserAdminView) { Modal.confirm({ title: `删除用户 ${user.username}？`, content: '账号将软删除且全部会话立即失效。', okType: 'danger', async onOk() { await deleteAdminUser(user); await refresh() } }) }
 function onTableChange(pagination: { current?: number }) { page.value = pagination.current || 1; void refresh() }
-async function generateInvite() { const invite = await createInvite(inviteForm.group_ids, inviteForm.lifetime_minutes); await copyText(invite.invite_code); inviteOpen.value = false; Modal.info({ title: '邀请码已复制（仅显示一次）', content: invite.invite_code, okText: '已安全保存' }) }
 async function generateBatch() {
   batchLoading.value = true
   try {
@@ -94,7 +91,7 @@ onMounted(refresh)
 </script>
 <template>
   <a-card title="用户管理">
-    <template #extra><a-space><a-input-search v-model:value="keyword" placeholder="用户名" @search="refresh" /><a-button @click="showGuests">访客会话</a-button><a-button @click="inviteOpen = true">生成邀请码</a-button><a-button @click="batchOpen = true">批量创建</a-button><a-button type="primary" @click="create">新建用户</a-button></a-space></template>
+    <template #extra><a-space><a-input-search v-model:value="keyword" placeholder="用户名" @search="refresh" /><a-button @click="showGuests">访客会话</a-button><a-button @click="batchOpen = true">批量创建</a-button><a-button type="primary" @click="create">新建用户</a-button></a-space></template>
     <a-table :data-source="users" row-key="uid" :loading="loading" :pagination="{ current: page, total, pageSize: 20 }" @change="onTableChange">
       <a-table-column title="用户名" data-index="username" />
       <a-table-column title="用户组"><template #default="{ record }"><a-tag v-for="g in record.groups" :key="g.gid">{{ g.name }}</a-tag></template></a-table-column>
@@ -104,9 +101,6 @@ onMounted(refresh)
   </a-card>
   <a-modal v-model:open="editorOpen" :title="editing ? '编辑用户' : '新建用户'" :confirm-loading="editorSaving" ok-text="保存" cancel-text="取消" @ok="save">
     <a-form ref="editorFormRef" :model="form" :rules="editorRules" layout="vertical"><a-form-item label="用户名" name="username"><a-input v-model:value="form.username" :maxlength="64" placeholder="3–64 个字符" /></a-form-item><a-form-item v-if="!editing" label="初始密码" name="password" extra="留空将自动生成安全密码；手动设置需输入 8–128 个字符"><a-input-password v-model:value="form.password" :maxlength="128" /></a-form-item><a-form-item label="用户组"><a-select v-model:value="form.group_ids" mode="multiple" :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item><a-form-item label="个人设备授权"><a-select v-model:value="form.device_ids" mode="multiple" :options="devices.map(d => ({ label: `${d.name || d.device_id}（${d.online ? '在线' : '离线'}）`, value: d.device_id }))" /></a-form-item></a-form>
-  </a-modal>
-  <a-modal v-model:open="inviteOpen" title="生成一次性邀请码" @ok="generateInvite">
-    <a-form layout="vertical"><a-form-item label="注册后加入用户组"><a-select v-model:value="inviteForm.group_ids" mode="multiple" :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item><a-form-item label="有效分钟数"><a-input-number v-model:value="inviteForm.lifetime_minutes" :min="1" :max="10080" /></a-form-item></a-form>
   </a-modal>
   <a-modal v-model:open="batchOpen" title="批量创建用户" :confirm-loading="batchLoading" @ok="generateBatch">
     <a-alert type="warning" show-icon message="初始密码只会在本次 CSV 下载中显示，请立即安全保存。" />

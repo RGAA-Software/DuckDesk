@@ -21,12 +21,23 @@ async function json(route: Route, data: unknown, status = 200, headers: Record<s
 
 async function installUserApi(page: Page, initiallyAuthenticated = true) {
   let authenticated = initiallyAuthenticated
-  const state = { loginCalls: 0, meCalls: 0, get authenticated() { return authenticated } }
+  const state = {
+    loginCalls: 0,
+    meCalls: 0,
+    registerCalls: 0,
+    registerBody: undefined as Record<string, unknown> | undefined,
+    get authenticated() { return authenticated },
+  }
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
-    if (path === '/api/v1/user/registration-policy') {
-      return json(route, ok({ mode: 'closed' }))
+    if (path === '/api/v1/session/guest') {
+      return json(route, ok({ csrf_token: 'csrf-guest', expires_at: 9_999_999 }))
+    }
+    if (path === '/api/v1/user/register') {
+      state.registerCalls += 1
+      state.registerBody = request.postDataJSON()
+      return json(route, ok({ uid: 'u-new', username: state.registerBody?.username }))
     }
     if (path === '/api/v1/session/user/login') {
       state.loginCalls += 1
@@ -60,6 +71,21 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
   })
   return state
 }
+
+test('registration is directly available without an invitation code', async ({ page }) => {
+  const api = await installUserApi(page, false)
+
+  await page.goto('/user/login')
+  await page.getByRole('button', { name: '注册账号' }).click()
+  const dialog = page.getByRole('dialog', { name: '注册 Pixels 用户' })
+  await expect(dialog.getByText('邀请码')).toHaveCount(0)
+  await dialog.locator('input[autocomplete="username"]').fill('new-user')
+  await dialog.locator('input[autocomplete="new-password"]').fill('safe-password-123')
+  await dialog.locator('.ant-btn-primary').click()
+
+  await expect.poll(() => api.registerCalls).toBe(1)
+  expect(api.registerBody).toEqual({ username: 'new-user', password: 'safe-password-123' })
+})
 
 test('user portal never creates the admin websocket', async ({ page }) => {
   const webSockets: string[] = []

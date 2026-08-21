@@ -31,19 +31,12 @@ export async function ensureGuestSession(force = false) {
   sessionStorage.setItem(CSRF_KEY, result.csrf_token)
 }
 
-export async function getRegistrationPolicy() {
-  return unwrap<{ mode: 'closed' | 'invite' | 'open' }>(
-    await guestHttp.get('/api/v1/user/registration-policy'),
-  )
-}
-
-export async function registerUser(username: string, password: string, inviteCode?: string) {
+export async function registerUser(username: string, password: string) {
   await ensureGuestSession()
   return unwrap<{ uid: string; username: string }>(
     await guestHttp.post('/api/v1/user/register', {
       username,
       password,
-      invite_code: inviteCode || undefined,
     }),
   )
 }

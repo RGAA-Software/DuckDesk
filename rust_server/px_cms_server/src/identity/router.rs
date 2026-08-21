@@ -5,9 +5,9 @@ use crate::identity::handler::{
     replace_apps, replace_devices, replace_members, update_group,
 };
 use crate::identity::user_handler::{
-    batch_create_users_csv, block_guest_session, create_invite, create_user, delete_user,
-    list_guest_sessions, list_personal_devices, list_user_sessions, list_users,
-    replace_personal_devices, reset_password, revoke_all_sessions, update_user,
+    batch_create_users_csv, block_guest_session, create_user, delete_user, list_guest_sessions,
+    list_personal_devices, list_user_sessions, list_users, replace_personal_devices,
+    reset_password, revoke_all_sessions, update_user,
 };
 use crate::user::session_router::{require_admin, require_admin_write};
 use axum::routing::{delete, get, patch, post, put};
@@ -62,10 +62,6 @@ pub fn make_admin_identity_router(
         .route(
             "/users",
             get(list_users).layer(middleware::from_fn(require_admin)),
-        )
-        .route(
-            "/invites",
-            post(create_invite).layer(middleware::from_fn(require_admin_write)),
         )
         .route(
             "/users",

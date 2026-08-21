@@ -133,7 +133,6 @@ impl Default for UserQuotaSettings {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct CmsUserSettings {
-    pub registration_mode: String,
     pub panel_sliding_days: i64,
     pub panel_absolute_days: i64,
     pub web_sliding_hours: i64,
@@ -149,7 +148,6 @@ pub struct CmsUserSettings {
 impl Default for CmsUserSettings {
     fn default() -> Self {
         Self {
-            registration_mode: "closed".to_string(),
             panel_sliding_days: 30,
             panel_absolute_days: 90,
             web_sliding_hours: 12,
@@ -212,8 +210,7 @@ pub struct CmsSettings {
     #[serde(default)]
     pub live: CmsLiveSettings,
 
-    /// End-user identity, throttling and quota policy. Registration defaults
-    /// to closed; legacy appkey registration is never enabled by this value.
+    /// End-user identity, throttling and quota policy.
     #[serde(default)]
     pub user: CmsUserSettings,
 
@@ -333,7 +330,6 @@ impl CmsSettings {
             ssl_enable = self.ssl_enable,
             force_authorize = self.force_authorize,
             media_server_url = %self.live.media_server_url,
-            registration_mode = %self.user.registration_mode,
             "CMS settings loaded (secrets redacted)"
         );
     }
