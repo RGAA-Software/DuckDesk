@@ -24,7 +24,7 @@ namespace px
             {"message", e.message_},
 
             {"uid", e.user_id_},
-            {"user_name", e.user_name_},
+            {"username", e.user_name_},
             {"log_path", e.log_path_},
             {"cpu_usage", e.cpu_usage_},
             {"memory_usage", e.mem_usage_},

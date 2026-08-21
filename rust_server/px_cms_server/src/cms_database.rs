@@ -96,6 +96,25 @@ impl CmsDatabase {
 
                 // event
                 let c_event: Collection<CmsEvent> = database.collection("c_event");
+                for index in [
+                    IndexModel::builder()
+                        .keys(doc! { "event_type": 1, "timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! {
+                            "event_type": 1,
+                            "device_id": 1,
+                            "disk_path": 1,
+                            "disk_usage": 1,
+                            "timestamp": -1,
+                        })
+                        .build(),
+                ] {
+                    if let Err(e) = c_event.create_index(index).await {
+                        tracing::error!("create c_event telemetry index failed: {}", e);
+                        return false;
+                    }
+                }
                 self.c_event = Some(Arc::new(Mutex::new(c_event)));
 
                 // user

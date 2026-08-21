@@ -28,55 +28,57 @@ pub async fn handle_add_event(
     b: Body,
 ) -> Result<Json<RespMessage<CmsEvent>>, CmsApiError> {
     let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let r: Value = serde_json::from_str(body.as_str()).map_err(|error| {
+        tracing::warn!("invalid event request body: {}", error);
+        CmsApiError::InvalidParams
+    })?;
     let event_type = get_body_str_or_empty(&r, EVENT_TYPE);
     let device_id = get_body_str_or_empty(&r, KEY_DEVICE_ID);
     let device_ip = get_body_str_or_empty(&r, KEY_DEVICE_IP);
     let device_name = get_body_str_or_empty(&r, KEY_DEVICE_NAME);
     let uid = get_body_str_or_empty(&r, KEY_USER_ID);
-    let username = get_body_str_or_empty(&r, KEY_USER_NAME);
+    let mut username = get_body_str_or_empty(&r, KEY_USER_NAME);
+    // Older panel clients used `user_name` while the CMS API uses `username`.
+    // Accept both so telemetry does not silently lose its reporting user.
+    if username.is_empty() {
+        username = get_body_str_or_empty(&r, "user_name");
+    }
+
+    if device_id.trim().is_empty() {
+        return Err(CmsApiError::InvalidParams);
+    }
 
     // cpu
     if event_type == EVENT_CPU {
-        let cpu_usage = get_body_int(&r, KEY_CPU_USAGE)?;
-        let event = CmsEvent::new_cpu(
-            device_id,
-            device_ip,
-            device_name,
-            uid,
-            username,
-            cpu_usage as u32,
-        );
-        gCmsEventMgr.add_event(event.clone()).await?;
+        let cpu_usage = validate_usage(get_body_int(&r, KEY_CPU_USAGE)?)?;
+        let event = CmsEvent::new_cpu(device_id, device_ip, device_name, uid, username, cpu_usage);
+        let event = gCmsEventMgr.add_or_refresh_telemetry_event(event).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_MEMORY {
-        let mem_usage = get_body_int(&r, KEY_MEMORY_USAGE)?;
-        let event = CmsEvent::new_memory(
-            device_id,
-            device_ip,
-            device_name,
-            uid,
-            username,
-            mem_usage as u32,
-        );
-        gCmsEventMgr.add_event(event.clone()).await?;
+        let mem_usage = validate_usage(get_body_int(&r, KEY_MEMORY_USAGE)?)?;
+        let event =
+            CmsEvent::new_memory(device_id, device_ip, device_name, uid, username, mem_usage);
+        let event = gCmsEventMgr.add_or_refresh_telemetry_event(event).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_DISK {
-        let disk_usage = get_body_int(&r, KEY_DISK_USAGE)?;
+        let disk_usage = validate_usage(get_body_int(&r, KEY_DISK_USAGE)?)?;
         let disk_path = get_body_str_or_empty(&r, KEY_DISK_PATH);
+        if disk_path.trim().is_empty() {
+            return Err(CmsApiError::InvalidParams);
+        }
         let event = CmsEvent::new_disk(
             device_id,
             device_ip,
             device_name,
             uid,
             username,
-            disk_usage as u32,
+            disk_usage,
             disk_path,
         );
-        gCmsEventMgr.add_event(event.clone()).await?;
+        let event = gCmsEventMgr.add_or_refresh_telemetry_event(event).await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_GPU {
-        let gpu_usage = get_body_int(&r, KEY_GPU_USAGE)?;
+        let gpu_usage = validate_usage(get_body_int(&r, KEY_GPU_USAGE)?)?;
         let gpu_id = get_body_str_or_empty(&r, KEY_GPU_ID);
         let gpu_name = get_body_str_or_empty(&r, KEY_GPU_NAME);
         let event = CmsEvent::new_gpu(
@@ -85,14 +87,34 @@ pub async fn handle_add_event(
             device_name,
             uid,
             username,
-            gpu_usage as u32,
+            gpu_usage,
             gpu_id,
             gpu_name,
         );
-        gCmsEventMgr.add_event(event.clone()).await?;
+        let event = gCmsEventMgr.add_or_refresh_telemetry_event(event).await?;
         return Ok(Json(ok_resp(event)));
     }
-    Ok(Json(ok_resp(CmsEvent::default())))
+    Err(CmsApiError::InvalidParams)
+}
+
+fn validate_usage(value: i64) -> Result<u32, CmsApiError> {
+    if !(0..=100).contains(&value) {
+        return Err(CmsApiError::InvalidParams);
+    }
+    Ok(value as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_usage;
+
+    #[test]
+    fn usage_must_be_a_percentage() {
+        assert_eq!(validate_usage(0).unwrap(), 0);
+        assert_eq!(validate_usage(100).unwrap(), 100);
+        assert!(validate_usage(-1).is_err());
+        assert!(validate_usage(101).is_err());
+    }
 }
 
 pub async fn handle_remove_event(

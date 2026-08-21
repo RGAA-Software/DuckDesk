@@ -24,6 +24,18 @@ pub struct CmsEvent {
     #[serde(default)]
     pub readable_timestamp: String,
 
+    /// First time this coalesced telemetry condition was reported. Legacy
+    /// documents leave it at zero and are repaired when next refreshed.
+    #[serde(default)]
+    pub first_timestamp: i64,
+
+    #[serde(default)]
+    pub first_readable_timestamp: String,
+
+    /// Number of identical reports represented by this document.
+    #[serde(default)]
+    pub occurrence_count: u64,
+
     #[serde(default)]
     pub event_type: String,
 
@@ -236,6 +248,9 @@ impl CmsEvent {
         event.event_type = EVENT_CPU.to_string();
         event.timestamp = px_base::get_current_timestamp();
         event.readable_timestamp = px_base::get_current_readable_timestamp();
+        event.first_timestamp = event.timestamp;
+        event.first_readable_timestamp = event.readable_timestamp.clone();
+        event.occurrence_count = 1;
         event.user_id = uid;
         event.user_name = username;
         event.device_id = device_id;
@@ -259,6 +274,9 @@ impl CmsEvent {
         event.event_type = EVENT_MEMORY.to_string();
         event.timestamp = px_base::get_current_timestamp();
         event.readable_timestamp = px_base::get_current_readable_timestamp();
+        event.first_timestamp = event.timestamp;
+        event.first_readable_timestamp = event.readable_timestamp.clone();
+        event.occurrence_count = 1;
         event.user_id = uid;
         event.user_name = username;
         event.device_id = device_id;
@@ -283,6 +301,9 @@ impl CmsEvent {
         event.event_type = EVENT_DISK.to_string();
         event.timestamp = px_base::get_current_timestamp();
         event.readable_timestamp = px_base::get_current_readable_timestamp();
+        event.first_timestamp = event.timestamp;
+        event.first_readable_timestamp = event.readable_timestamp.clone();
+        event.occurrence_count = 1;
         event.user_id = uid;
         event.user_name = username;
         event.device_id = device_id;
@@ -309,6 +330,9 @@ impl CmsEvent {
         event.event_type = EVENT_GPU.to_string();
         event.timestamp = px_base::get_current_timestamp();
         event.readable_timestamp = px_base::get_current_readable_timestamp();
+        event.first_timestamp = event.timestamp;
+        event.first_readable_timestamp = event.readable_timestamp.clone();
+        event.occurrence_count = 1;
         event.user_id = uid;
         event.user_name = username;
         event.device_id = device_id;
