@@ -25,6 +25,8 @@ import {
   MSG_TYPE_INSTANCE_STOPPED,
   MSG_TYPE_VIDEO_CODEC_CHANGED,
   MSG_TYPE_GAME_STATUS_CHANGED,
+  MSG_TYPE_VIRTUAL_DISPLAY_REQUEST,
+  MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
@@ -351,6 +353,50 @@ interface RemoteMonitor {
 const remoteMonitors = ref<RemoteMonitor[]>([])
 const capturingMonitor = ref('')
 const remoteFps = ref(0)
+const virtualDisplayEnabled = ref(false)
+const virtualDisplayOwnedCount = ref(0)
+const virtualDisplayMaxCount = ref(2)
+const virtualDisplayPending = ref(false)
+const virtualDisplayGeneration = ref('0')
+let virtualDisplayRequestSeq = 0
+
+function scheduleTopologyReconnect(generation: string) {
+  if (manualClose) return
+  cancelReconnectTimer()
+  status.value = 'reconnecting'
+  setConnectStep('reconnect', `虚拟显示拓扑 generation=${generation}, 正在重新协商视频轨道`)
+  addLog(`虚拟显示拓扑 generation=${generation} 已就绪，重新建立 WebRTC 会话`)
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    // Service 会重启 Render 让采集插件重新枚举显示器。第一次信令可能恰好
+    // 落在旧进程退出/新进程监听之间；把它标记为自动重连流程，让 connect()
+    // 的失败分支继续按统一退避策略重试，而不是一次 HTTP 502 后停住。
+    reconnectCount.value = Math.max(reconnectCount.value, 1)
+    void connect()
+  }, 1500)
+}
+
+function requestVirtualDisplay(operation: 'create' | 'remove'): boolean {
+  if (!virtualDisplayEnabled.value || virtualDisplayPending.value) return false
+  const requestId = `web-${Date.now()}-${++virtualDisplayRequestSeq}`
+  const sent = sendControl({
+    type: MSG_TYPE_VIRTUAL_DISPLAY_REQUEST,
+    virtualDisplayRequest: {
+      requestId,
+      operation: operation === 'create' ? 0 : 1,
+      width: 1920,
+      height: 1080,
+      refreshHz: 60,
+    },
+  })
+  if (!sent) {
+    ElMessage.warning(t('float.dcNotReady'))
+    return false
+  }
+  virtualDisplayPending.value = true
+  addLog(`虚拟显示器请求已发送: ${operation}, requestId=${requestId}`)
+  return true
+}
 
 // render 修复前(旧版本插件)会把每个编码视频帧也塞进 media_data_channel
 // (px.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
@@ -401,6 +447,10 @@ function handleDcBinary(buf: ArrayBuffer) {
       if (typeof cfg.fps === 'number' && cfg.fps > 0) {
         remoteFps.value = cfg.fps
       }
+      virtualDisplayEnabled.value = cfg.virtualDisplayEnabled ?? false
+      virtualDisplayOwnedCount.value = cfg.virtualDisplayOwnedCount ?? 0
+      virtualDisplayMaxCount.value = cfg.virtualDisplayMaxCount || 2
+      virtualDisplayGeneration.value = String(cfg.topologyGeneration ?? 0)
       addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}, fps=${remoteFps.value || '-'}`)
       // FT 协议版本门控:rustdesk 语义 = 2;旧版被控(缺省/0)不兼容,入口置灰
       ftProtocolVersion.value = cfg.ftProtocolVersion ?? 0
@@ -421,6 +471,21 @@ function handleDcBinary(buf: ArrayBuffer) {
         ElMessage.error(`分辨率切换失败 (${r.monitorName})`)
       }
       addLog(`分辨率切换结果: ${r.monitorName} -> ${r.result ? '成功' : '失败'}`)
+    } else if (msg.type === MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE && msg.virtualDisplayResponse) {
+      const r = msg.virtualDisplayResponse
+      virtualDisplayPending.value = false
+      virtualDisplayOwnedCount.value = r.ownedDisplayCount
+      virtualDisplayGeneration.value = String(r.topologyGeneration ?? 0)
+      if (!r.accepted || r.state === 2) {
+        const detail = `${r.errorCode || 'VIRTUAL_DISPLAY_FAILED'}: ${r.errorMessage || 'unknown error'}`
+        addLog(`虚拟显示器请求失败: ${detail}`)
+        ElMessage.error(detail)
+      } else {
+        addLog(`虚拟显示器请求完成: owned=${r.ownedDisplayCount}, state=${r.state}, generation=${virtualDisplayGeneration.value}`)
+        if (r.state === 1) {
+          scheduleTopologyReconnect(virtualDisplayGeneration.value)
+        }
+      }
     } else if (msg.type === MSG_TYPE_VIDEO_CODEC_CHANGED && msg.videoCodecChanged) {
       const c = msg.videoCodecChanged
       // VideoType: kNetH264=0, kNetHevc=1
@@ -915,6 +980,7 @@ function cleanup() {
   remoteMonitors.value = []
   capturingMonitor.value = ''
   remoteFps.value = 0
+  virtualDisplayPending.value = false
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
   micOn.value = false
@@ -1225,7 +1291,10 @@ async function connect() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!resp.ok) throw new Error(`信令请求失败: HTTP ${resp.status}`)
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '')
+        throw new Error(`信令请求失败: HTTP ${resp.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}`)
+      }
       const result = (await resp.json()) as {
         code?: number
         message?: string
@@ -1292,7 +1361,12 @@ function disconnect() {
 
 // 无头/CDP 调试用:window.__input / window.__conn / window.__gamepad
 function exposeInputConnDebug() {
-  const w = window as unknown as { __input?: unknown; __conn?: unknown; __gamepad?: unknown }
+  const w = window as unknown as {
+    __input?: unknown
+    __conn?: unknown
+    __gamepad?: unknown
+    __virtualDisplay?: unknown
+  }
   w.__input = {
     lastMouse: () => input?.lastMouse ?? null,
     relative: () => input?.relativeMode ?? false,
@@ -1305,6 +1379,27 @@ function exposeInputConnDebug() {
     status: () => status.value,
     reconnectCount: () => reconnectCount.value,
     pointerLocked: () => pointerLocked.value,
+  }
+  w.__virtualDisplay = {
+    state: () => ({
+      enabled: virtualDisplayEnabled.value,
+      owned: virtualDisplayOwnedCount.value,
+      maximum: virtualDisplayMaxCount.value,
+      generation: virtualDisplayGeneration.value,
+      pending: virtualDisplayPending.value,
+      monitors: remoteMonitors.value.map((m) => ({
+        name: m.name,
+        width: m.currentWidth,
+        height: m.currentHeight,
+        primary: m.primary,
+      })),
+      capturingMonitor: capturingMonitor.value,
+      connection: status.value,
+    }),
+    create: () => requestVirtualDisplay('create'),
+    remove: () => requestVirtualDisplay('remove'),
+    switchMonitor: (name: string) =>
+      sendControl({ type: 170, switchMonitor: { name } }),
   }
   // 手柄调试:enable/testSend 可在无头 Chrome(无物理手柄)下验证打包与 render 回放链路
   w.__gamepad = {
@@ -1424,6 +1519,11 @@ onBeforeUnmount(() => {
       :toggle-gamepad="toggleGamepad"
       :monitors="remoteMonitors"
       :capturing-monitor="capturingMonitor"
+      :virtual-display-enabled="virtualDisplayEnabled && hasGrantedPermission('input')"
+      :virtual-display-owned-count="virtualDisplayOwnedCount"
+      :virtual-display-max-count="virtualDisplayMaxCount"
+      :virtual-display-pending="virtualDisplayPending"
+      :request-virtual-display="requestVirtualDisplay"
       :disconnect="disconnect"
       :log="addLog"
     />

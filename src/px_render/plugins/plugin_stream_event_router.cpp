@@ -16,6 +16,7 @@
 #include "settings/rd_settings.h"
 #include "rd_statistics.h"
 #include "rd_app.h"
+#include "px_common_new/message_notifier.h"
 
 namespace px
 {
@@ -24,6 +25,10 @@ namespace px
         context_ = app->GetContext();
         plugin_manager_ = context_->GetPluginManager();
         statistics_ = RdStatistics::Instance();
+        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_->Listen<CaptureMonitorInfoMessage>([this](const CaptureMonitorInfoMessage&) {
+            awaiting_topology_first_frame_.store(true);
+        });
     }
 
     void PluginStreamEventRouter::ProcessEncodedVideoFrameEvent(const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event) {
@@ -67,6 +72,12 @@ namespace px
             .monitor_bottom_ = last_capture_video_frame_.bottom_,
             .frame_image_format_ = event->frame_format_,
         };
+
+        if (awaiting_topology_first_frame_.exchange(false)) {
+            context_->SendAppMessage(MsgCaptureTopologyFirstFrame {
+                .monitor_name_ = msg.monitor_name_,
+            });
+        }
 
         auto video_type = [=]() -> px::VideoType {
             return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? px::VideoType::kNetH264 : px::VideoType::kNetHevc;

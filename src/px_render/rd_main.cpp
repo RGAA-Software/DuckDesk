@@ -73,6 +73,7 @@ DEFINE_int32(service_server_port, 20375, "");
 DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
+DEFINE_bool(enable_virtual_display, true, "allow controlled virtual display management in desktop mode");
 // file transfer enabled
 DEFINE_bool(file_transfer_enabled, true, "");
 // audio enabled
@@ -165,6 +166,7 @@ void UpdateSettings(RdSettings* settings) {
 
     // can be operated
     settings->can_be_operated_ = FLAGS_can_be_operated;
+    settings->virtual_display_enabled_ = FLAGS_enable_virtual_display;
     // file transfer enabled
     settings->file_transfer_enabled_ = FLAGS_file_transfer_enabled;
     // audio enabled
@@ -239,6 +241,7 @@ void PrintInputArgs() {
     LOGI("relay host: {}", FLAGS_relay_server_host);
     LOGI("relay port: {}", FLAGS_relay_server_port);
     LOGI("can be operated: {}", FLAGS_can_be_operated);
+    LOGI("virtual display enabled: {}", settings->virtual_display_enabled_);
     LOGI("file transfer enabled: {}", settings->file_transfer_enabled_);
     LOGI("audio enabled: {}", settings->audio_enabled_);
     LOGI("relay enabled: {}", FLAGS_relay_enabled);

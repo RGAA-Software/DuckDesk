@@ -536,7 +536,12 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         const auto width = row_pitch_bytes / 4;
         if (raw_image_rgba_ == nullptr ||
             !raw_image_rgba_->GetData() ||
-            raw_image_rgba_->GetData()->Size() != total_size) {
+            raw_image_rgba_->GetData()->Size() != total_size ||
+            raw_image_rgba_.use_count() > 1) {
+            // ConvertToYuv* runs asynchronously and keeps a shared snapshot of
+            // the input. Never overwrite/reallocate a buffer while libyuv is
+            // still reading it (topology/capture switches make this race much
+            // easier to hit). Reuse remains available when no task owns it.
             raw_image_rgba_ = Image::Make(Data::Make(nullptr, total_size), width, height);
         }
         if (!raw_image_rgba_ || !raw_image_rgba_->GetData()) {
@@ -561,33 +566,45 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
     }
 
     void VideoFrameCarrier::ConvertToYuv420(std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
-        auto task = [=, this]() {
+        // The producer updates raw_image_rgba_ on every captured frame. Hold a
+        // per-task snapshot instead of dereferencing that mutable member from
+        // the converter thread.
+        auto rgba = raw_image_rgba_;
+        const auto rgba_format = raw_image_rgba_format_;
+        auto task = [this, rgba = std::move(rgba), rgba_format, yuv_cbk = std::move(yuv_cbk)]() mutable {
             auto beg = TimeUtil::GetCurrentTimestamp();
-            if (!raw_image_rgba_ || !raw_image_rgba_->GetData()) {
+            if (!rgba || !rgba->GetData()) {
                 return;
             }
             if (!raw_image_yuv_ ||
-                (raw_image_yuv_->GetWidth() != raw_image_rgba_->GetWidth() || raw_image_yuv_->GetHeight() != raw_image_yuv_->GetHeight()) ||
-                raw_image_yuv_->raw_img_type_ != RawImageType::kI420) 
+                raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
+                raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
+                raw_image_yuv_->raw_img_type_ != RawImageType::kI420 ||
+                raw_image_yuv_.use_count() > 1)
             {
-                raw_image_yuv_ = Image::Make(Data::Make(nullptr, raw_image_rgba_->GetWidth() * raw_image_rgba_->GetHeight() * 1.5),
-                                             raw_image_rgba_->GetWidth(), raw_image_rgba_->GetHeight(), RawImageType::kI420);
+                const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3 / 2;
+                raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                                             rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI420);
             }
-            int width = raw_image_rgba_->GetWidth();
-            int height = raw_image_rgba_->GetHeight();
+            auto yuv = raw_image_yuv_;
+            if (!yuv || !yuv->GetData()) {
+                return;
+            }
+            int width = rgba->GetWidth();
+            int height = rgba->GetHeight();
             size_t pixel_size = width * height;
 
             const int uv_stride = width >> 1;
-            uint8_t* y = (uint8_t*)raw_image_yuv_->GetData()->DataAddr();
+            uint8_t* y = (uint8_t*)yuv->GetData()->DataAddr();
             uint8_t* u = y + pixel_size;
             uint8_t* v = u + (pixel_size >> 2);
 
-            auto pitch = raw_image_rgba_->GetWidth() * 4;
-            auto data_buffer = (uint8_t*)raw_image_rgba_->GetData()->DataAddr();
-            if (DXGI_FORMAT_B8G8R8A8_UNORM == raw_image_rgba_format_) {
+            auto pitch = rgba->GetWidth() * 4;
+            auto data_buffer = (uint8_t*)rgba->GetData()->DataAddr();
+            if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {
                 libyuv::ARGBToI420(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
             }
-            else if (DXGI_FORMAT_R8G8B8A8_UNORM == raw_image_rgba_format_) {
+            else if (DXGI_FORMAT_R8G8B8A8_UNORM == rgba_format) {
                 libyuv::ABGRToI420(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
             }
             else {
@@ -603,42 +620,51 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             ++index;
 #endif
 
-            yuv_cbk(raw_image_yuv_);
+            yuv_cbk(yuv);
         };
         yuv_converter_thread_->Post(std::move(task));
 
     }
 
     void VideoFrameCarrier::ConvertToYuv444(std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
-        auto task = [=, this]() {
+        auto rgba = raw_image_rgba_;
+        const auto rgba_format = raw_image_rgba_format_;
+        auto task = [this, rgba = std::move(rgba), rgba_format, yuv_cbk = std::move(yuv_cbk)]() mutable {
             auto beg = TimeUtil::GetCurrentTimestamp();
 
-            if (!raw_image_rgba_ || !raw_image_rgba_->GetData()) {
+            if (!rgba || !rgba->GetData()) {
                 return;
             }
 
             if (!raw_image_yuv_ ||
-                (raw_image_yuv_->GetWidth() != raw_image_rgba_->GetWidth() || raw_image_yuv_->GetHeight() != raw_image_yuv_->GetHeight()) ||
-                raw_image_yuv_->raw_img_type_ != RawImageType::kI444)
+                raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
+                raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
+                raw_image_yuv_->raw_img_type_ != RawImageType::kI444 ||
+                raw_image_yuv_.use_count() > 1)
             {
-                raw_image_yuv_ = Image::Make(Data::Make(nullptr, raw_image_rgba_->GetWidth() * raw_image_rgba_->GetHeight() * 3),
-                    raw_image_rgba_->GetWidth(), raw_image_rgba_->GetHeight(), RawImageType::kI444);
+                const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3;
+                raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                    rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI444);
             }
-            int width = raw_image_rgba_->GetWidth();
-            int height = raw_image_rgba_->GetHeight();
+            auto yuv = raw_image_yuv_;
+            if (!yuv || !yuv->GetData()) {
+                return;
+            }
+            int width = rgba->GetWidth();
+            int height = rgba->GetHeight();
             size_t pixel_size = width * height;
 
             const int uv_stride = width;
-            uint8_t* y = (uint8_t*)raw_image_yuv_->GetData()->DataAddr();
+            uint8_t* y = (uint8_t*)yuv->GetData()->DataAddr();
             uint8_t* u = y + pixel_size;
             uint8_t* v = u + pixel_size;
 
-            auto pitch = raw_image_rgba_->GetWidth() * 4;
-            auto data_buffer = (uint8_t*)raw_image_rgba_->GetData()->DataAddr();
-            if (DXGI_FORMAT_B8G8R8A8_UNORM == raw_image_rgba_format_) {
+            auto pitch = rgba->GetWidth() * 4;
+            auto data_buffer = (uint8_t*)rgba->GetData()->DataAddr();
+            if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {
                 libyuv::ARGBToI444(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
             }
-            else if (DXGI_FORMAT_R8G8B8A8_UNORM == raw_image_rgba_format_) {
+            else if (DXGI_FORMAT_R8G8B8A8_UNORM == rgba_format) {
                 libyuv::ARGBToI444(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
             }
             else {
@@ -653,7 +679,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             }
             ++index;
 #endif
-            yuv_cbk(raw_image_yuv_);
+            yuv_cbk(yuv);
         };
         yuv_converter_thread_->Post(std::move(task));
 

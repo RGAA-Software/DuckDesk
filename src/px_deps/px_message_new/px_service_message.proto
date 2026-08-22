@@ -12,6 +12,15 @@ enum ServiceMessageType {
   kSrvAuthInfo = 6;
   kSrvRedeemConnectionTicket = 7;
   kSrvRedeemConnectionTicketResp = 8;
+  kSrvVirtualDisplayRequest = 9;
+  kSrvVirtualDisplayResult = 10;
+}
+
+enum VirtualDisplayOperation {
+  kVirtualDisplayCreate = 0;
+  kVirtualDisplayRemoveLast = 1;
+  kVirtualDisplayQuery = 2;
+  kVirtualDisplayResetOwned = 3;
 }
 
 message MsgStartServer {
@@ -94,6 +103,30 @@ message MsgRedeemConnectionTicketResp {
   MsgConnectionGrant grant = 4;
 }
 
+message MsgVirtualDisplayRequest {
+  string request_id = 1;
+  VirtualDisplayOperation operation = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  uint32 refresh_hz = 5;
+}
+
+message MsgVirtualDisplayResult {
+  string request_id = 1;
+  bool accepted = 2;
+  bool topology_changed = 3;
+  uint64 topology_generation = 4;
+  string logical_display_id = 5;
+  string error_code = 6;
+  string error_message = 7;
+  uint32 owned_display_count = 8;
+  uint32 actual_usbmmidd_count = 9;
+  bool driver_installed = 10;
+  bool package_valid = 11;
+  bool removal_safe = 12;
+  string phase = 13;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -106,4 +139,6 @@ message ServiceMessage {
   MsgAuthInfo auth_info = 8;
   MsgRedeemConnectionTicket redeem_connection_ticket = 9;
   MsgRedeemConnectionTicketResp redeem_connection_ticket_resp = 10;
+  MsgVirtualDisplayRequest virtual_display_request = 11;
+  MsgVirtualDisplayResult virtual_display_result = 12;
 }

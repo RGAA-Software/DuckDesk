@@ -87,6 +87,11 @@ const props = withDefaults(
   // 远端显示器列表(kServerConfiguration,含可用分辨率)与当前采集显示器名
   monitors: MonitorSpec[]
   capturingMonitor: string
+  virtualDisplayEnabled: boolean
+  virtualDisplayOwnedCount: number
+  virtualDisplayMaxCount: number
+  virtualDisplayPending: boolean
+  requestVirtualDisplay: (operation: 'create' | 'remove') => boolean
   remoteFps?: number
   clipboardAvailable?: boolean
   /** 是否可断开(连接中/已连接/重连中) */
@@ -728,6 +733,29 @@ onBeforeUnmount(() => {
         <span class="menu-text">{{ t('float.display') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
+      <div class="menu-item static virtual-display-row">
+        <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
+        <span class="menu-text">
+          {{ t('float.virtualDisplay') }}
+          ({{ virtualDisplayOwnedCount }}/{{ virtualDisplayMaxCount || 2 }})
+        </span>
+        <span class="virtual-display-actions">
+          <button
+            data-testid="virtual-display-remove"
+            type="button"
+            :title="t('float.virtualDisplayRemove')"
+            :disabled="!connected || !virtualDisplayEnabled || virtualDisplayPending || virtualDisplayOwnedCount <= 0"
+            @click.stop="requestVirtualDisplay('remove')"
+          >−</button>
+          <button
+            data-testid="virtual-display-add"
+            type="button"
+            :title="t('float.virtualDisplayAdd')"
+            :disabled="!connected || !virtualDisplayEnabled || virtualDisplayPending || virtualDisplayOwnedCount >= (virtualDisplayMaxCount || 2)"
+            @click.stop="requestVirtualDisplay('create')"
+          >+</button>
+        </span>
+      </div>
       <button
         class="menu-item"
         :disabled="!ftReady || !ftSupported"
@@ -1118,6 +1146,35 @@ onBeforeUnmount(() => {
 .menu-state {
   color: #909399;
   font-size: 12px;
+}
+.virtual-display-row .menu-text {
+  white-space: nowrap;
+}
+.virtual-display-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.virtual-display-actions button {
+  width: 27px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #303133;
+  font-size: 17px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.virtual-display-actions button:hover:not(:disabled) {
+  color: #409eff;
+  border-color: #79bbff;
+  background: #ecf5ff;
+}
+.virtual-display-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .check-icon {
   color: #409eff;

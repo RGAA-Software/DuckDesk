@@ -5,6 +5,7 @@
 #ifndef PX_DDA_CAPTURE_PLUGIN_H
 #define PX_DDA_CAPTURE_PLUGIN_H
 #include <optional>
+#include <mutex>
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_common_new/concurrent_hashmap.h"
 
@@ -64,6 +65,7 @@ namespace px
     private:
         std::map<std::string, CaptureMonitorInfo> monitors_;
         px::ConcurrentHashMap<std::string, std::shared_ptr<PluginDesktopCapture>> captures_;
+        std::recursive_mutex capture_control_mutex_;
         std::vector<CaptureMonitorInfo> sorted_monitors_;
         std::shared_ptr<CursorCapture> cursor_capture_ = nullptr;
         std::shared_ptr<Thread> cursor_capture_thread_ = nullptr;

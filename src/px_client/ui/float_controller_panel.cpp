@@ -20,13 +20,15 @@
 #include "px_client/ct_client_context.h"
 #include "px_client/plugins/ct_plugin_manager.h"
 #include "px_common_new/message_notifier.h"
+#include <QPushButton>
+#include <QTimer>
 
 namespace px
 {
 
     FloatControllerPanel::FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {
         this->setWindowFlags(Qt::FramelessWindowHint);
-        this->setFixedSize(kInitialWidth, 372);
+        this->setFixedSize(kInitialWidth, 412);
         this->setStyleSheet("background:#00000000;");
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
@@ -331,6 +333,82 @@ namespace px
             });
 
         }
+        // RustDesk-style virtual display shortcut. Keep creation/removal on the
+        // first-level floating panel so it is available without another submenu.
+        {
+            auto layout = new NoMarginHLayout();
+            auto widget = new BackgroundWidget(ctx, this);
+            widget->setFixedSize(this->width() - offset * 2, icon_size.height());
+            widget->setLayout(layout);
+
+            auto icon = new QLabel(this);
+            icon->setFixedSize(icon_size);
+            icon->setStyleSheet(R"( background-image: url(:resources/image/ic_desktop.svg);
+                                    background-repeat:no-repeat;
+                                    background-position: center center;)");
+            layout->addSpacing(item_left_spacing);
+            layout->addWidget(icon);
+
+            virtual_display_label_ = new QLabel(tr("Virtual display"), this);
+            virtual_display_label_->setStyleSheet(R"(font-weight:bold;)");
+            layout->addWidget(virtual_display_label_);
+            layout->addStretch();
+
+            virtual_display_remove_btn_ = new QPushButton("-", this);
+            virtual_display_add_btn_ = new QPushButton("+", this);
+            virtual_display_remove_btn_->setToolTip(tr("Remove virtual display"));
+            virtual_display_add_btn_->setToolTip(tr("Add virtual display"));
+            for (auto* button : {virtual_display_remove_btn_, virtual_display_add_btn_}) {
+                button->setFixedSize(28, 24);
+            }
+            layout->addWidget(virtual_display_remove_btn_);
+            layout->addSpacing(4);
+            layout->addWidget(virtual_display_add_btn_);
+            layout->addSpacing(border_spacing);
+            root_layout->addWidget(widget);
+
+            connect(virtual_display_add_btn_, &QPushButton::clicked, [this]() {
+                const auto request_seq = ++virtual_display_request_seq_;
+                virtual_display_request_pending_ = true;
+                UpdateVirtualDisplayUi(true, virtual_display_owned_count_, virtual_display_max_count_);
+                context_->SendAppMessage(MsgClientVirtualDisplayRequest {
+                    .operation_ = kRemoteVirtualDisplayCreate,
+                });
+                QTimer::singleShot(40000, this, [this, request_seq]() {
+                    if (request_seq != virtual_display_request_seq_) {
+                        return;
+                    }
+                    virtual_display_request_pending_ = false;
+                    const auto settings = Settings::Instance();
+                    UpdateVirtualDisplayUi(settings->render_virtual_display_enabled_,
+                                           settings->render_virtual_display_owned_count_,
+                                           settings->render_virtual_display_max_count_);
+                });
+            });
+            connect(virtual_display_remove_btn_, &QPushButton::clicked, [this]() {
+                const auto request_seq = ++virtual_display_request_seq_;
+                virtual_display_request_pending_ = true;
+                UpdateVirtualDisplayUi(true, virtual_display_owned_count_, virtual_display_max_count_);
+                context_->SendAppMessage(MsgClientVirtualDisplayRequest {
+                    .operation_ = kRemoteVirtualDisplayRemoveLast,
+                });
+                QTimer::singleShot(40000, this, [this, request_seq]() {
+                    if (request_seq != virtual_display_request_seq_) {
+                        return;
+                    }
+                    virtual_display_request_pending_ = false;
+                    const auto settings = Settings::Instance();
+                    UpdateVirtualDisplayUi(settings->render_virtual_display_enabled_,
+                                           settings->render_virtual_display_owned_count_,
+                                           settings->render_virtual_display_max_count_);
+                });
+            });
+
+            const auto settings = Settings::Instance();
+            UpdateVirtualDisplayUi(settings->render_virtual_display_enabled_,
+                                   settings->render_virtual_display_owned_count_,
+                                   settings->render_virtual_display_max_count_);
+        }
         // file transfer
         {
             auto layout = new NoMarginHLayout();
@@ -578,6 +656,18 @@ namespace px
                 full_screen_btn_->SwitchToNormalState();
             }
         });
+        msg_listener_->Listen<MsgClientVirtualDisplayStatus>([this](const MsgClientVirtualDisplayStatus& msg) {
+            UpdateVirtualDisplayUi(msg.enabled_, msg.owned_display_count_, msg.max_display_count_);
+        });
+        msg_listener_->Listen<MsgClientVirtualDisplayResult>([this](const MsgClientVirtualDisplayResult& msg) {
+            virtual_display_request_pending_ = false;
+            UpdateVirtualDisplayUi(msg.enabled_, msg.owned_display_count_, msg.max_display_count_);
+            if (!msg.accepted_) {
+                context_->NotifyAppErrMessage(
+                    tr("Virtual display"),
+                    QString::fromStdString(msg.error_code_ + ": " + msg.error_message_));
+            }
+        });
     }
 
     void FloatControllerPanel::paintEvent(QPaintEvent *event) {
@@ -712,6 +802,23 @@ namespace px
             else {
                 media_record_lab_->setText(tcTr("id_screen_recording"));
             }
+        }
+    }
+
+    void FloatControllerPanel::UpdateVirtualDisplayUi(bool enabled, uint32_t owned, uint32_t maximum) {
+        virtual_display_owned_count_ = owned;
+        virtual_display_max_count_ = maximum == 0 ? 2 : maximum;
+        if (virtual_display_label_) {
+            virtual_display_label_->setText(
+                tr("Virtual display") + QString(" (%1/%2)").arg(owned).arg(virtual_display_max_count_));
+        }
+        if (virtual_display_add_btn_) {
+            virtual_display_add_btn_->setEnabled(
+                enabled && !virtual_display_request_pending_ && owned < virtual_display_max_count_);
+        }
+        if (virtual_display_remove_btn_) {
+            virtual_display_remove_btn_->setEnabled(
+                enabled && !virtual_display_request_pending_ && owned > 0);
         }
     }
 

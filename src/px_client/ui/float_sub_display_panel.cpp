@@ -14,7 +14,7 @@
 #include "float_sub_fps_panel.h"
 #include "px_label.h"
 #include <QLabel>
-#include <qtimer.h>
+#include <QTimer>
 
 namespace px
 {

@@ -10,6 +10,9 @@ use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::service_host::ServiceRuntime;
+use crate::virtual_display_manager::{
+    VirtualDisplayError, VirtualDisplayOperationResult, VirtualDisplayPhase,
+};
 
 pub struct WebsocketService {
     runtime: Arc<Mutex<ServiceRuntime>>,
@@ -112,6 +115,77 @@ async fn handle_connection(
                 Err(_) => continue,
             };
             let response = match command {
+                service_core::command::Command::VirtualDisplay {
+                    request_id,
+                    operation,
+                    width,
+                    height,
+                    refresh_hz,
+                } => {
+                    let (manager, cached, init_error) = {
+                        let guard = runtime.lock().await;
+                        (
+                            guard.virtual_display_manager.clone(),
+                            guard.virtual_display_results.get(&request_id).cloned(),
+                            guard.virtual_display_init_error.clone(),
+                        )
+                    };
+                    if let Some(cached) = cached {
+                        Some(virtual_display_service_message(cached))
+                    } else if let Some(manager) = manager {
+                        let task_manager = manager.clone();
+                        let task = tokio::task::spawn_blocking(move || match operation {
+                            service_core::VirtualDisplayOperation::Create => {
+                                task_manager.create(width, height, refresh_hz)
+                            }
+                            service_core::VirtualDisplayOperation::RemoveLast => {
+                                task_manager.remove_last()
+                            }
+                            service_core::VirtualDisplayOperation::Query => task_manager.query(),
+                            service_core::VirtualDisplayOperation::ResetOwned => {
+                                task_manager.reset_owned()
+                            }
+                        });
+                        let result =
+                            match tokio::time::timeout(std::time::Duration::from_secs(35), task)
+                                .await
+                            {
+                                Ok(Ok(result)) => result,
+                                Ok(Err(err)) => Err(VirtualDisplayError {
+                                    code: "OPERATION_TASK_FAILED".to_string(),
+                                    message: err.to_string(),
+                                }),
+                                Err(_) => Err(VirtualDisplayError {
+                                    code: "OPERATION_TIMEOUT".to_string(),
+                                    message: "virtual display operation exceeded 35 seconds"
+                                        .to_string(),
+                                }),
+                            };
+                        let response = virtual_display_result(&request_id, &manager, result);
+                        {
+                            let mut guard = runtime.lock().await;
+                            if guard.virtual_display_results.len() >= 256 {
+                                guard.virtual_display_results.clear();
+                            }
+                            guard
+                                .virtual_display_results
+                                .insert(request_id, response.clone());
+                        }
+                        Some(virtual_display_service_message(response))
+                    } else {
+                        Some(virtual_display_service_message(
+                            service_core::MsgVirtualDisplayResult {
+                                request_id,
+                                accepted: false,
+                                error_code: "MANAGER_UNAVAILABLE".to_string(),
+                                error_message: init_error.unwrap_or_else(|| {
+                                    "virtual display manager is unavailable".to_string()
+                                }),
+                                ..Default::default()
+                            },
+                        ))
+                    }
+                }
                 service_core::command::Command::RedeemConnectionTicket {
                     request_id,
                     ticket,
@@ -209,6 +283,81 @@ fn ticket_response(
             }),
         }),
         ..Default::default()
+    }
+}
+
+fn virtual_display_service_message(
+    result: service_core::MsgVirtualDisplayResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::VirtualDisplayResult as i32,
+        virtual_display_result: Some(result),
+        ..Default::default()
+    }
+}
+
+fn virtual_display_result(
+    request_id: &str,
+    manager: &crate::virtual_display_manager::VirtualDisplayManager,
+    result: Result<VirtualDisplayOperationResult, VirtualDisplayError>,
+) -> service_core::MsgVirtualDisplayResult {
+    match result {
+        Ok(result) => service_core::MsgVirtualDisplayResult {
+            request_id: request_id.to_string(),
+            accepted: true,
+            topology_changed: result.topology_changed,
+            topology_generation: result.status.topology_generation,
+            logical_display_id: result.logical_display_id.unwrap_or_default(),
+            owned_display_count: result.status.owned_slots.len() as u32,
+            actual_usbmmidd_count: result.status.monitors.len() as u32,
+            driver_installed: result.status.driver_installed,
+            package_valid: result.status.package_valid,
+            removal_safe: result.status.removal_safe,
+            phase: phase_name(result.status.phase).to_string(),
+            ..Default::default()
+        },
+        Err(err) => {
+            let status = manager.query().ok().map(|result| result.status);
+            service_core::MsgVirtualDisplayResult {
+                request_id: request_id.to_string(),
+                accepted: false,
+                topology_generation: status
+                    .as_ref()
+                    .map(|status| status.topology_generation)
+                    .unwrap_or_default(),
+                owned_display_count: status
+                    .as_ref()
+                    .map(|status| status.owned_slots.len() as u32)
+                    .unwrap_or_default(),
+                actual_usbmmidd_count: status
+                    .as_ref()
+                    .map(|status| status.monitors.len() as u32)
+                    .unwrap_or_default(),
+                driver_installed: status
+                    .as_ref()
+                    .is_some_and(|status| status.driver_installed),
+                package_valid: status.as_ref().is_some_and(|status| status.package_valid),
+                removal_safe: status.as_ref().is_some_and(|status| status.removal_safe),
+                phase: status
+                    .as_ref()
+                    .map(|status| phase_name(status.phase).to_string())
+                    .unwrap_or_else(|| "Faulted".to_string()),
+                error_code: err.code,
+                error_message: err.message,
+                ..Default::default()
+            }
+        }
+    }
+}
+
+fn phase_name(phase: VirtualDisplayPhase) -> &'static str {
+    match phase {
+        VirtualDisplayPhase::NoDriver => "NoDriver",
+        VirtualDisplayPhase::Ready => "Ready",
+        VirtualDisplayPhase::Creating => "Creating",
+        VirtualDisplayPhase::Removing => "Removing",
+        VirtualDisplayPhase::Reconciling => "Reconciling",
+        VirtualDisplayPhase::Faulted => "Faulted",
     }
 }
 

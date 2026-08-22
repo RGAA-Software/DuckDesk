@@ -149,6 +149,44 @@ namespace px
             }
             callback(sub.ok(), sub.code(), permissions);
         }
+        else if (sm.type() == ServiceMessageType::kSrvVirtualDisplayResult) {
+            const auto& sub = sm.virtual_display_result();
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = sub.request_id();
+            result.accepted_ = sub.accepted();
+            result.topology_changed_ = sub.topology_changed();
+            result.topology_generation_ = sub.topology_generation();
+            result.logical_display_id_ = sub.logical_display_id();
+            result.error_code_ = sub.error_code();
+            result.error_message_ = sub.error_message();
+            result.owned_display_count_ = sub.owned_display_count();
+            result.actual_usbmmidd_count_ = sub.actual_usbmmidd_count();
+            result.driver_installed_ = sub.driver_installed();
+            result.package_valid_ = sub.package_valid();
+            result.removal_safe_ = sub.removal_safe();
+            result.phase_ = sub.phase();
+
+            std::function<void(const MsgVirtualDisplayServiceResult&)> callback;
+            {
+                std::scoped_lock lock(virtual_display_callbacks_mtx_);
+                const auto it = virtual_display_callbacks_.find(result.request_id_);
+                if (it != virtual_display_callbacks_.end()) {
+                    callback = std::move(it->second);
+                    virtual_display_callbacks_.erase(it);
+                }
+            }
+            if (callback) {
+                callback(result);
+            }
+            if (context_) {
+                context_->PostTask([weak_self = weak_from_this(), result]() {
+                    const auto self = weak_self.lock();
+                    if (self && self->context_) {
+                        self->context_->SendAppMessage(result);
+                    }
+                });
+            }
+        }
     }
 
     void RenderServiceClient::Exit() const {
@@ -213,6 +251,53 @@ namespace px
         request->set_ticket(ticket);
         request->set_client_nonce(client_nonce);
         request->set_instance_id(instance_id);
+        PostNetMessage(message.SerializeAsString());
+    }
+
+    void RenderServiceClient::RequestVirtualDisplay(
+        const std::string& request_id,
+        int operation,
+        uint32_t width,
+        uint32_t height,
+        uint32_t refresh_hz,
+        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
+        if (!IsAlive() || request_id.empty() || operation < kVirtualDisplayCreate ||
+            operation > kVirtualDisplayResetOwned) {
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = request_id;
+            result.error_code_ = "INVALID_ARGUMENT";
+            result.error_message_ = "service is unavailable or virtual display request is invalid";
+            callback(result);
+            return;
+        }
+        bool duplicate = false;
+        {
+            std::scoped_lock lock(virtual_display_callbacks_mtx_);
+            if (virtual_display_callbacks_.contains(request_id)) {
+                duplicate = true;
+            }
+            else {
+                virtual_display_callbacks_[request_id] = std::move(callback);
+            }
+        }
+        // Never invoke an external callback while holding the callback-map lock.
+        if (duplicate) {
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = request_id;
+            result.error_code_ = "REQUEST_IN_PROGRESS";
+            result.error_message_ = "the same virtual display request is already pending";
+            callback(result);
+            return;
+        }
+
+        px::ServiceMessage message;
+        message.set_type(ServiceMessageType::kSrvVirtualDisplayRequest);
+        auto* request = message.mutable_virtual_display_request();
+        request->set_request_id(request_id);
+        request->set_operation(static_cast<VirtualDisplayOperation>(operation));
+        request->set_width(width);
+        request->set_height(height);
+        request->set_refresh_hz(refresh_hz);
         PostNetMessage(message.SerializeAsString());
     }
 

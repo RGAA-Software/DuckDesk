@@ -9,6 +9,7 @@
 #include "px_client/ct_app_message.h"
 
 class QLabel;
+class QPushButton;
 
 namespace px
 {
@@ -42,6 +43,7 @@ namespace px
         void CaptureAllMonitor();
         void UpdateCapturingMonitor(const std::string& name, int cur_cap_mon_index);
         void UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) override;
+        void UpdateVirtualDisplayUi(bool enabled, uint32_t owned, uint32_t maximum);
     private:
         OnClickListener debug_listener_;
         OnClickListener file_trans_listener_;
@@ -65,6 +67,14 @@ namespace px
         std::string monitor_name_;
 
         QLabel* media_record_lab_ = nullptr;
+
+        QLabel* virtual_display_label_ = nullptr;
+        QPushButton* virtual_display_add_btn_ = nullptr;
+        QPushButton* virtual_display_remove_btn_ = nullptr;
+        bool virtual_display_request_pending_ = false;
+        uint64_t virtual_display_request_seq_ = 0;
+        uint32_t virtual_display_owned_count_ = 0;
+        uint32_t virtual_display_max_count_ = 2;
     };
 
 }

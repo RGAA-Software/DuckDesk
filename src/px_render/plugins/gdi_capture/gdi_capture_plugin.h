@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <memory>
+#include <mutex>
 
 namespace px
 {
@@ -57,11 +58,11 @@ namespace px
         std::map<std::string, std::shared_ptr<PluginDesktopCapture>> captures_;
         std::vector<CaptureMonitorInfo> sorted_monitors_;
         VirtualDesktopBoundRectangleInfo virtual_desktop_bound_rectangle_info_;
+        std::recursive_mutex capture_control_mutex_;
     };
 
 
 }
-
 
 
 

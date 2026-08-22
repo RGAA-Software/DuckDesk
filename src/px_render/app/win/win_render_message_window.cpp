@@ -10,6 +10,8 @@
 namespace px
 {
     constexpr char kWindowClassName[] = "PxRender_MessageWindowClass";
+    constexpr UINT_PTR kDisplayChangeDebounceTimer = 0x5044;
+    constexpr UINT kDisplayChangeDebounceMs = 500;
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;
     std::string WinMessageWindow::class_name_;
@@ -130,8 +132,18 @@ namespace px
         }
 
         case WM_DISPLAYCHANGE: {
-            LOGI("WM_DISPLAYCHANGE");
-            self->OnDisplayChange();
+            LOGI("WM_DISPLAYCHANGE, debounce {} ms", kDisplayChangeDebounceMs);
+            // Calling SetTimer again with the same id resets the countdown, so
+            // a burst of topology notifications produces one capture rebuild.
+            SetTimer(window, kDisplayChangeDebounceTimer, kDisplayChangeDebounceMs, nullptr);
+            break;
+        }
+
+        case WM_TIMER: {
+            if (wParam == kDisplayChangeDebounceTimer) {
+                KillTimer(window, kDisplayChangeDebounceTimer);
+                self->OnDisplayChange();
+            }
             break;
         }
 

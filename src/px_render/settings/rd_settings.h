@@ -162,6 +162,8 @@ namespace px
         std::string relay_port_;
         // can be operated
         bool can_be_operated_ = true;
+        // Virtual displays are privileged and only supported by desktop capture.
+        bool virtual_display_enabled_ = true;
         // relay enabled
         bool relay_enabled_ = true;
         // language

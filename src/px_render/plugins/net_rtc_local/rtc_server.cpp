@@ -106,6 +106,7 @@ namespace px
                 case 470: // start recording
                 case 471: // stop recording
                 case 480: // modify fps
+                case 570: // virtual display management
                     return true;
                 default:
                     return false;

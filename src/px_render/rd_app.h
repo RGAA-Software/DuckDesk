@@ -118,6 +118,14 @@ namespace px
 
         // update capturing monitor
         void UpdateCapturingMonitorInfo();
+        void RequestVirtualDisplay(
+            const std::string& request_id,
+            int operation,
+            uint32_t width,
+            uint32_t height,
+            uint32_t refresh_hz,
+            std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+        void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
 
     public:
         template<typename T>
@@ -218,6 +226,8 @@ namespace px
         std::unordered_set<std::string> game_hook_client_ids_;
 
         std::atomic_bool monitor_changed_ = false;
+        std::atomic_uint32_t virtual_display_owned_count_ = 0;
+        std::atomic_uint64_t virtual_display_topology_generation_ = 0;
         bool init_failed_ = false;
         std::string init_error_;
 

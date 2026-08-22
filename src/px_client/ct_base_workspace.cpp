@@ -369,6 +369,10 @@ namespace px
             this->SendChangeMonitorResolutionMessage(msg);
         });
 
+        msg_listener_->Listen<MsgClientVirtualDisplayRequest>([=, this](const MsgClientVirtualDisplayRequest& msg) {
+            this->SendVirtualDisplayRequest(msg);
+        });
+
         msg_listener_->Listen<MsgClientCtrlAltDelete>([=, this](const MsgClientCtrlAltDelete& msg) {
             if (auto buffer = ProtoMessageMaker::MakeCtrlAltDelete(settings_->device_id_, settings_->stream_id_); buffer) {
                 sdk_->PostMediaMessage(buffer);
@@ -527,6 +531,17 @@ namespace px
             settings_->is_render_audio_capture_enabled_ = config.audio_enabled();
             settings_->is_render_be_operated_by_mk_ = config.can_be_operated();
             settings_->render_ft_protocol_version_ = config.ft_protocol_version();
+            settings_->render_virtual_display_enabled_ = config.virtual_display_enabled();
+            settings_->render_virtual_display_owned_count_ = config.virtual_display_owned_count();
+            settings_->render_virtual_display_max_count_ = config.virtual_display_max_count();
+            settings_->render_virtual_display_topology_generation_ = config.topology_generation();
+
+            context_->SendAppMessage(MsgClientVirtualDisplayStatus {
+                .enabled_ = settings_->render_virtual_display_enabled_,
+                .owned_display_count_ = settings_->render_virtual_display_owned_count_,
+                .max_display_count_ = settings_->render_virtual_display_max_count_,
+                .topology_generation_ = settings_->render_virtual_display_topology_generation_,
+            });
 
             context_->SendAppMessage(msg);
 
@@ -1070,6 +1085,28 @@ namespace px
         }
     }
 
+    void BaseWorkspace::SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& request) {
+        if (!sdk_ || remote_force_closed_) {
+            return;
+        }
+        px::Message message;
+        message.set_type(px::kVirtualDisplayRequest);
+        message.set_device_id(settings_->device_id_);
+        message.set_stream_id(settings_->stream_id_);
+        auto* sub = message.mutable_virtual_display_request();
+        const auto request_id = request.request_id_.empty()
+            ? std::format("client-{}-{}", QApplication::applicationPid(), ++virtual_display_request_seq_)
+            : request.request_id_;
+        sub->set_request_id(request_id);
+        sub->set_operation(request.operation_);
+        sub->set_width(request.width_);
+        sub->set_height(request.height_);
+        sub->set_refresh_hz(request.refresh_hz_);
+        if (const auto buffer = px::ProtoAsData(&message); buffer) {
+            sdk_->PostMediaMessage(buffer);
+        }
+    }
+
     void BaseWorkspace::UpdateVideoWidgetSize() {
         context_->PostUITask([=, this]() {
             auto scale_mode = settings_->scale_mode_;
@@ -1225,6 +1262,38 @@ namespace px
                 });
                 //LOGI("SysInfo: {}", to_string(*sys_info.get()));
             });
+        }
+        else if (msg->type() == MessageType::kVirtualDisplayResponse) {
+            const auto& response = msg->virtual_display_response();
+            settings_->render_virtual_display_owned_count_ = response.owned_display_count();
+            settings_->render_virtual_display_topology_generation_ = response.topology_generation();
+            context_->SendAppMessage(MsgClientVirtualDisplayResult {
+                .enabled_ = settings_->render_virtual_display_enabled_,
+                .owned_display_count_ = response.owned_display_count(),
+                .max_display_count_ = settings_->render_virtual_display_max_count_,
+                .topology_generation_ = response.topology_generation(),
+                .request_id_ = response.request_id(),
+                .accepted_ = response.accepted(),
+                .state_ = response.state(),
+                .topology_changed_ = response.topology_changed(),
+                .logical_display_id_ = response.logical_display_id(),
+                .error_code_ = response.error_code(),
+                .error_message_ = response.error_message(),
+                .actual_usbmmidd_count_ = response.actual_usbmmidd_count(),
+                .driver_installed_ = response.driver_installed(),
+                .package_valid_ = response.package_valid(),
+                .removal_safe_ = response.removal_safe(),
+            });
+            if (response.accepted() && response.state() == kVirtualDisplayNeedReconnect &&
+                !remote_force_closed_) {
+                LOGI("Virtual display topology generation {} is ready; reconnecting media transports",
+                     response.topology_generation());
+                context_->PostDelayUITask([this]() {
+                    if (sdk_ && !remote_force_closed_) {
+                        sdk_->RetryConnection();
+                    }
+                }, 250);
+            }
         }
     }
 

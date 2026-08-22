@@ -130,6 +130,15 @@ def main():
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))
 
+    # px_service is built by Cargo rather than the CMake graph. Always take the
+    # current release artifact explicitly; the copy under build/src/px_deps can
+    # be left over from an earlier build and has caused ABI/feature skew in
+    # isolated deployments.
+    copy_file(
+        os.path.join(source_dir, "rust_client", "target", "release", "px_service.exe"),
+        os.path.join(dist_dir, "px_service.exe"),
+    )
+
     # ------------------------------------------------------------------
     # 3. Render plugins  →  dist/deps/rd_plugins/
     # ------------------------------------------------------------------
@@ -190,6 +199,32 @@ def main():
     joystick_src = os.path.join(build_dir, "..", "src", "px_deps", "px_controller", "vigem", "driver", "px_joystick.exe")
     if os.path.isfile(joystick_src):
         copy_file(joystick_src, os.path.join(dist_dir, "px_joystick.exe"))
+
+    # ------------------------------------------------------------------
+    # 8. USBMMIDD virtual display driver (source tree)
+    # ------------------------------------------------------------------
+    usbmmidd_src = os.path.join(source_dir, "third_party", "usbmmidd_v2")
+    usbmmidd_dst = os.path.join(dist_dir, "usbmmidd_v2")
+    usbmmidd_required = {
+        "deviceinstaller64.exe",
+        "License.txt",
+        "SHA256SUMS.txt",
+        "usbmmidd.cat",
+        "usbmmIdd.inf",
+        os.path.join("x64", "usbmmIdd.dll"),
+    }
+    missing_usbmmidd = sorted(
+        rel for rel in usbmmidd_required
+        if not os.path.isfile(os.path.join(usbmmidd_src, rel))
+    )
+    if missing_usbmmidd:
+        print(
+            "ERROR: usbmmidd_v2 package is incomplete: " + ", ".join(missing_usbmmidd),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    shutil.copytree(usbmmidd_src, usbmmidd_dst)
+    print("  + usbmmidd_v2/  (validated source package)")
 
     # ------------------------------------------------------------------
     # 9. Web frontends (vite build output) → dist/<name>/

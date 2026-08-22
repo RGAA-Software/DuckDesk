@@ -6,6 +6,7 @@
 #define PX_PLUGIN_STREAM_EVENT_ROUTER_H
 
 #include <memory>
+#include <atomic>
 #include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace px
@@ -15,6 +16,7 @@ namespace px
     class RdApplication;
     class PluginManager;
     class RdStatistics;
+    class MessageListener;
 
     class PluginStreamEventRouter {
     public:
@@ -27,6 +29,8 @@ namespace px
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
+        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::atomic_bool awaiting_topology_first_frame_ = false;
     };
 
 }

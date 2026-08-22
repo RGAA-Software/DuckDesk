@@ -1,7 +1,7 @@
 # USBMMIDD 虚拟显示器接入设计
 
-日期：2026-08-19  
-状态：方案确认，待实施  
+日期：2026-08-19（2026-08-22 完成首期实现与 WebClient 全链路验收）
+状态：P0-P4 已实现并通过 Windows Server 2022 实机 WebClient 验收；Win10/Win11 发布矩阵待发版验证
 范围：Windows 10 2004+/Windows 11，x64；首期最多两块 1920x1080@60Hz 虚拟扩展屏。
 
 ## 1. 决策与目标
@@ -106,6 +106,18 @@ Service 负责：
 5. 仅清理由本产品记录为 owned 的显示器；不依据内存计数盲删其他程序的虚拟屏。
 6. 维护拓扑 generation，每次实际改变递增并回传给 Render。
 
+> 实机确认：Windows Service 的 Session 0 无法可靠枚举交互桌面的
+> `EnumDisplayDevices/EnumDisplaySettings` 拓扑。因此正式实现由 Service 保持唯一业务所有权，
+> 再以随机 nonce 的一次性内部 worker 启动到活动控制台会话；worker 只执行驱动 IOCTL、
+> 拓扑枚举和模式设置，结果写入一次性文件，Service 校验 nonce 后才更新 owned 状态。
+> 驱动安装仍由 Session 0 内的 Service 完成。
+>
+> NVIDIA/USBMMIDD v2 实机还确认了一个枚举差异：拓扑稳定后
+> `EnumDisplayDevices(NULL, index)` 可能不再返回 USBMMIDD 顶层项，但
+> `EnumDisplayMonitors + GetMonitorInfo` 仍能得到活动 `DISPLAYn`，随后对该名称调用
+> `EnumDisplayDevices(DISPLAYn, 0)` 可稳定读取 `MONITOR\Default_Monitor` 子设备。
+> 实现按此路径枚举候选虚拟屏，并由首次对账的 foreign baseline 保证不会删除既有候选屏。
+
 ### 4.1 本机 Service 协议
 
 扩展 `src/px_deps/px_message_new/px_service_message.proto`，只追加枚举值和字段：
@@ -192,9 +204,12 @@ Render 不会在 Service 返回成功后立刻向 Client 宣告可用。它需�
 
 1. 将完整 `usbmmidd_v2` 驱动包加入 `third_party/usbmmidd_v2/`。
 2. 修改 `scripts/collect_dist.py`，复制为 `dist/usbmmidd_v2/`。
-3. NSIS 安装程序已有管理员权限；仅随包分发，不在安装 GammaRay 时自动安装或启用虚拟屏。
-4. Driver 更新前先拒绝新的 create 请求；待 owned 显示器移除后再更新。
-5. 产品卸载默认不自动执行 `remove usbmmidd`，以免影响其他使用该驱动的软件；提供显式“卸载 GammaRay 虚拟显示驱动”选项，且只允许在 owned 显示器已清空时执行。
+3. NSIS 安装程序已有管理员权限；安装时按 RustDesk 的方式在驱动目录调用
+   `deviceinstaller64.exe install usbmmidd.inf usbmmidd`，等待 PnP 设备节点出现后才报告成功；不在安装时启用虚拟屏。
+4. 覆盖安装先检查 `USB Mobile Monitor Virtual Display` 是否已存在，存在则跳过安装命令，避免重复创建 `ROOT\\DISPLAY` 设备。
+5. Driver 更新前先拒绝新的 create 请求；待 owned 显示器移除后再更新。
+6. 产品卸载先停止业务进程，调用 `stop/remove usbmmidd` 删除设备节点，再精确删除
+   Provider 为 Amyuni、原始 INF 为 `usbmmIdd.inf` 的 Driver Store 包；任一步验证失败均中止卸载并保留程序文件以便重试。
 
 ## 8. 实施阶段与验收
 

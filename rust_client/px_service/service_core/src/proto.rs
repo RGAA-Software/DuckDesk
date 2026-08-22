@@ -9,7 +9,8 @@ mod generated {
 pub use generated::{
     MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat, MsgHeartBeatResp, MsgRedeemConnectionTicket,
     MsgRedeemConnectionTicketResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer,
-    MsgStopServer, RenderStatus, ServiceMessage, ServiceMessageType,
+    MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage,
+    ServiceMessageType, VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -27,6 +28,16 @@ impl ServiceMessageType {
     pub const AuthInfo: Self = Self::KSrvAuthInfo;
     pub const RedeemConnectionTicket: Self = Self::KSrvRedeemConnectionTicket;
     pub const RedeemConnectionTicketResp: Self = Self::KSrvRedeemConnectionTicketResp;
+    pub const VirtualDisplayRequest: Self = Self::KSrvVirtualDisplayRequest;
+    pub const VirtualDisplayResult: Self = Self::KSrvVirtualDisplayResult;
+}
+
+#[allow(non_upper_case_globals)]
+impl VirtualDisplayOperation {
+    pub const Create: Self = Self::KVirtualDisplayCreate;
+    pub const RemoveLast: Self = Self::KVirtualDisplayRemoveLast;
+    pub const Query: Self = Self::KVirtualDisplayQuery;
+    pub const ResetOwned: Self = Self::KVirtualDisplayResetOwned;
 }
 
 #[allow(non_upper_case_globals)]
@@ -119,7 +130,8 @@ mod tests {
             stop_server: Some(MsgStopServer::default()),
             ..Default::default()
         });
-        bytes.extend_from_slice(&[0x50, 0x01]);
+        // Field 20 is intentionally outside the current ServiceMessage schema.
+        bytes.extend_from_slice(&[0xA0, 0x01, 0x01]);
         let decoded = decode_service_message(&bytes).unwrap();
         assert_eq!(decoded.message_type(), Some(ServiceMessageType::StopServer));
         assert!(decoded.stop_server.is_some());

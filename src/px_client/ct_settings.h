@@ -176,6 +176,10 @@ namespace px
 
         // 被控端文件传输协议版本(rustdesk 语义 = 2;0/缺省 = 旧版,不兼容,入口置灰)
         uint32_t render_ft_protocol_version_ = 0;
+        bool render_virtual_display_enabled_ = false;
+        uint32_t render_virtual_display_owned_count_ = 0;
+        uint32_t render_virtual_display_max_count_ = 2;
+        uint64_t render_virtual_display_topology_generation_ = 0;
 
         // max speed of remote ethernet
         uint64_t max_transmit_speed_ = 0;

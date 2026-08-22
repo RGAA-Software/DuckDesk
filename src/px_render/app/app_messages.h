@@ -181,6 +181,29 @@ namespace px
     public:
     };
 
+    class MsgVirtualDisplayServiceResult {
+    public:
+        std::string request_id_;
+        bool accepted_ = false;
+        bool topology_changed_ = false;
+        uint64_t topology_generation_ = 0;
+        std::string logical_display_id_;
+        std::string error_code_;
+        std::string error_message_;
+        uint32_t owned_display_count_ = 0;
+        uint32_t actual_usbmmidd_count_ = 0;
+        bool driver_installed_ = false;
+        bool package_valid_ = false;
+        bool removal_safe_ = false;
+        std::string phase_;
+    };
+
+    // Sent once after a display-topology refresh has produced an encoded frame.
+    class MsgCaptureTopologyFirstFrame {
+    public:
+        std::string monitor_name_;
+    };
+
     class MsgRefreshScreen {
     public:
     };

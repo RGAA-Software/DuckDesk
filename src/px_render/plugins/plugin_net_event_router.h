@@ -23,6 +23,7 @@ namespace px
     class Message;
     class RdContext;
     class PluginManager;
+    struct VirtualDisplayCoordinator;
 
     class PluginNetEventRouter {
     public :
@@ -59,6 +60,7 @@ namespace px
 
         // client -> render 修改帧率
         void ProcessModifyFps(std::shared_ptr<Message>&& msg);
+        void ProcessVirtualDisplayRequest(std::shared_ptr<Message>&& msg);
 
         // client -> render 窗口失焦
         //void ProcessFocusOutEvent();
@@ -84,6 +86,7 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
+        std::shared_ptr<VirtualDisplayCoordinator> virtual_display_ = nullptr;
 
         // hook 模式：跟踪按下的键/鼠标键，客户端断开时补发释放事件
         std::set<uint32_t> pressed_keys_;

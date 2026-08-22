@@ -115,6 +115,7 @@ namespace px
         virtual void CalculateAspectRatio();
         virtual void SwitchToFillWindow();
         void SendChangeMonitorResolutionMessage(const MsgClientChangeMonitorResolution& msg);
+        void SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& msg);
         void UpdateFloatButtonIndicatorPosition();
         void UpdateVideoWidgetSize();
         virtual void UpdateGameViewsStatus(bool force_layout_screens) {}
@@ -157,6 +158,7 @@ namespace px
         CtStatisticsPanel* st_panel_ = nullptr;
         FloatButtonStateIndicator* btn_indicator_ = nullptr;
         std::atomic_bool has_frame_arrived_ = false;
+        std::atomic_uint64_t virtual_display_request_seq_ = 0;
 
         // progress
         MainProgress* main_progress_ = nullptr;

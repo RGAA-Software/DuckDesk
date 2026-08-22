@@ -21,8 +21,9 @@ pub use process::{
 pub use proto::{
     decode_service_message, encode_service_message, MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat,
     MsgHeartBeatResp, MsgRedeemConnectionTicket, MsgRedeemConnectionTicketResp,
-    MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer, RenderStatus,
-    ServiceMessage, ServiceMessageType,
+    MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
+    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
+    VirtualDisplayOperation,
 };
 pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};
 pub use storage::{PersistedServiceState, ServiceStorage};

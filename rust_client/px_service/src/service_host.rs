@@ -16,6 +16,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tracing::{error, info, warn};
 
 use crate::user_proxy;
+use crate::virtual_display_manager::VirtualDisplayManager;
 use crate::websocket_server::WebsocketService;
 use crate::windows_actions::SystemActions;
 use crate::windows_process::ProcessManager;
@@ -31,6 +32,10 @@ pub struct ServiceRuntime {
     /// 用于 CMS 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
     pub ticket_redeem_tx: Option<mpsc::Sender<TicketRedeemRequest>>,
+    pub virtual_display_manager: Option<Arc<VirtualDisplayManager>>,
+    pub virtual_display_init_error: Option<String>,
+    pub virtual_display_results:
+        std::collections::HashMap<String, service_core::MsgVirtualDisplayResult>,
     /// Per-service-start credential required by the loopback Render IPC WS.
     /// It is never persisted and is only passed to child Render processes.
     pub ipc_token: String,
@@ -77,6 +82,25 @@ impl ServiceRuntime {
         windows_actions: Arc<dyn SystemActions>,
     ) -> Self {
         let storage = ServiceStorage::new(config.storage_file());
+        let driver_dir = std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(|parent| parent.join("usbmmidd_v2")))
+            .unwrap_or_else(|| std::path::PathBuf::from("usbmmidd_v2"));
+        #[cfg(not(test))]
+        let manager_result = VirtualDisplayManager::new_windows_session_aware(
+            config.data_root.clone(),
+            driver_dir,
+            process_manager.clone(),
+        );
+        // Unit-test process managers do not spawn an interactive helper. The
+        // manager/back-end behavior itself is covered by dedicated fakes.
+        #[cfg(test)]
+        let manager_result =
+            VirtualDisplayManager::new_windows(config.data_root.clone(), driver_dir);
+        let (virtual_display_manager, virtual_display_init_error) = match manager_result {
+            Ok(manager) => (Some(Arc::new(manager)), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
         let (stop_tx, _) = broadcast::channel(4);
         let mut ipc_bytes = [0_u8; 32];
         rand::rng().fill_bytes(&mut ipc_bytes);
@@ -89,6 +113,9 @@ impl ServiceRuntime {
             app_registry: AppInstanceRegistry::new(),
             render_senders: std::collections::HashMap::new(),
             ticket_redeem_tx: None,
+            virtual_display_manager,
+            virtual_display_init_error,
+            virtual_display_results: std::collections::HashMap::new(),
             ipc_token: URL_SAFE_NO_PAD.encode(ipc_bytes),
             stop_tx,
         }
@@ -184,6 +211,9 @@ impl ServiceRuntime {
             }
             Command::RedeemConnectionTicket { .. } => {
                 Err("ticket redemption must use the asynchronous service path".to_string())
+            }
+            Command::VirtualDisplay { .. } => {
+                Err("virtual display operations must use the asynchronous service path".to_string())
             }
         }
     }
@@ -722,6 +752,20 @@ pub async fn run_service(
         let mut guard = runtime.lock().await;
         guard.load_persisted_state()?;
         guard.sync_process_state()?;
+        if let Some(manager) = guard.virtual_display_manager.clone() {
+            match manager.query() {
+                Ok(result) => info!(
+                    "virtual display state reconciled, phase={:?}, owned={}, actual={}, generation={}",
+                    result.status.phase,
+                    result.status.owned_slots.len(),
+                    result.status.monitors.len(),
+                    result.status.topology_generation
+                ),
+                Err(err) => warn!("virtual display startup reconciliation failed: {err}"),
+            }
+        } else if let Some(err) = &guard.virtual_display_init_error {
+            warn!("virtual display manager unavailable: {err}");
+        }
         info!("service runtime initialized");
     }
 

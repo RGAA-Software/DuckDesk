@@ -137,6 +137,42 @@ namespace px
         int height_ = 0;
     };
 
+    class MsgClientVirtualDisplayRequest : public MsgClientBase {
+    public:
+        std::string request_id_;
+        RemoteVirtualDisplayOperation operation_ = kRemoteVirtualDisplayQuery;
+        uint32_t width_ = 1920;
+        uint32_t height_ = 1080;
+        uint32_t refresh_hz_ = 60;
+    };
+
+    class MsgClientVirtualDisplayStatus : public MsgClientBase {
+    public:
+        bool enabled_ = false;
+        uint32_t owned_display_count_ = 0;
+        uint32_t max_display_count_ = 2;
+        uint64_t topology_generation_ = 0;
+    };
+
+    class MsgClientVirtualDisplayResult : public MsgClientBase {
+    public:
+        bool enabled_ = false;
+        uint32_t owned_display_count_ = 0;
+        uint32_t max_display_count_ = 2;
+        uint64_t topology_generation_ = 0;
+        std::string request_id_;
+        bool accepted_ = false;
+        VirtualDisplayResponseState state_ = kVirtualDisplayFailed;
+        bool topology_changed_ = false;
+        std::string logical_display_id_;
+        std::string error_code_;
+        std::string error_message_;
+        uint32_t actual_usbmmidd_count_ = 0;
+        bool driver_installed_ = false;
+        bool package_valid_ = false;
+        bool removal_safe_ = false;
+    };
+
     // monitor changed from video frame callback
     class MsgClientMonitorChanged : public MsgClientBase {
     public:

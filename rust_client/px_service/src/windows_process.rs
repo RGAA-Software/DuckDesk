@@ -69,6 +69,8 @@ const SENSITIVE_ARG_NAMES: &[&str] = &[
     "--appkey",
     "--app_key",
     "--password",
+    "--virtual-display-worker-nonce",
+    "--virtual-display-worker-result",
 ];
 
 fn is_sensitive_arg_name(value: &str) -> bool {

@@ -124,6 +124,10 @@ enum MessageType {
   // 按手动断开处理,不再自动重连
   kInstanceStopped = 560;
 
+  // client -> render / render -> client
+  kVirtualDisplayRequest = 570;
+  kVirtualDisplayResponse = 571;
+
 }
 
 enum VideoType {
@@ -222,6 +226,10 @@ message ServerConfiguration {
   // 文件传输协议版本(rustdesk 语义 = 2;旧实现已删除,0/缺省视为不兼容旧版)
   // 主控与被控版本不一致时 FT 功能置灰并提示,而非静默失败
   uint32 ft_protocol_version = 7;
+  bool virtual_display_enabled = 8;
+  uint32 virtual_display_owned_count = 9;
+  uint32 virtual_display_max_count = 10;
+  uint64 topology_generation = 11;
 }
 
 message HeartBeat {
@@ -615,6 +623,43 @@ message InstanceStopped {
   string reason = 1;
 }
 
+enum RemoteVirtualDisplayOperation {
+  kRemoteVirtualDisplayCreate = 0;
+  kRemoteVirtualDisplayRemoveLast = 1;
+  kRemoteVirtualDisplayQuery = 2;
+  kRemoteVirtualDisplayResetOwned = 3;
+}
+
+enum VirtualDisplayResponseState {
+  kVirtualDisplayReady = 0;
+  kVirtualDisplayNeedReconnect = 1;
+  kVirtualDisplayFailed = 2;
+}
+
+message VirtualDisplayRequest {
+  string request_id = 1;
+  RemoteVirtualDisplayOperation operation = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  uint32 refresh_hz = 5;
+}
+
+message VirtualDisplayResponse {
+  string request_id = 1;
+  bool accepted = 2;
+  VirtualDisplayResponseState state = 3;
+  bool topology_changed = 4;
+  uint64 topology_generation = 5;
+  string logical_display_id = 6;
+  string error_code = 7;
+  string error_message = 8;
+  uint32 owned_display_count = 9;
+  uint32 actual_usbmmidd_count = 10;
+  bool driver_installed = 11;
+  bool package_valid = 12;
+  bool removal_safe = 13;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -673,4 +718,6 @@ message Message {
   GameStatusChanged game_status_changed = 530;
   ConnectionTakenOver connection_taken_over = 540;
   InstanceStopped instance_stopped = 550;
+  VirtualDisplayRequest virtual_display_request = 560;
+  VirtualDisplayResponse virtual_display_response = 561;
 }

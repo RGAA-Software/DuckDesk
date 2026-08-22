@@ -29,6 +29,8 @@ export const MSG_TYPE_CONNECTION_TAKEN_OVER = 550 // kConnectionTakenOver (rende
 export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
 export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render -> client)
 export const MSG_TYPE_INSTANCE_STOPPED = 560 // kInstanceStopped (render -> client)
+export const MSG_TYPE_VIRTUAL_DISPLAY_REQUEST = 570 // kVirtualDisplayRequest (client -> render)
+export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = 571 // kVirtualDisplayResponse (render -> client)
 
 // ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -73,6 +75,10 @@ export function decodeMessage(payload: Uint8Array) {
       fileTransferEnabled: boolean
       // 文件传输协议版本(rustdesk 语义 = 2;0/缺省为旧版,不兼容)
       ftProtocolVersion?: number
+      virtualDisplayEnabled?: boolean
+      virtualDisplayOwnedCount?: number
+      virtualDisplayMaxCount?: number
+      topologyGeneration?: number | { toString(): string }
     }
     // kMonitorSwitched(type=180):采集显示器已切换(切屏回包,含最新显示器列表)
     monitorSwitched?: { name: string; index: number }
@@ -84,6 +90,22 @@ export function decodeMessage(payload: Uint8Array) {
     gameStatusChanged?: { status: number; detail: string }
     // kInstanceStopped(type=560):实例被 CMS 停止,客户端应提示并断开
     instanceStopped?: { reason: string }
+    // kVirtualDisplayResponse(type=571):虚拟显示器拓扑操作结果
+    virtualDisplayResponse?: {
+      requestId: string
+      accepted: boolean
+      state: number
+      topologyChanged: boolean
+      topologyGeneration: number | { toString(): string }
+      logicalDisplayId: string
+      errorCode: string
+      errorMessage: string
+      ownedDisplayCount: number
+      actualUsbmmiddCount: number
+      driverInstalled: boolean
+      packageValid: boolean
+      removalSafe: boolean
+    }
     clipboardInfo?: { type: number; msg: Uint8Array }
   }
 }

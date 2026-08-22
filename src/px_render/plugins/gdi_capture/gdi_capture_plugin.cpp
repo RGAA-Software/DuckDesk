@@ -7,6 +7,8 @@
 #include "px_common_new/math_helper.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "gdi_capture.h"
+#include <chrono>
+#include <thread>
 
 PX_PLUGIN_EXPORT(px::GdiCapturePlugin)
 
@@ -65,6 +67,7 @@ namespace px
     }
 
     void GdiCapturePlugin::SetCaptureMonitor(const std::string& name) {
+        std::scoped_lock control_lock(capture_control_mutex_);
         bool use_default_monitor = false;
         if (name.empty()) {
             use_default_monitor = true;
@@ -210,6 +213,7 @@ namespace px
     }
 
     bool GdiCapturePlugin::StartCapturing() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         StopCapturing();
 
         CreateCaptures();
@@ -305,16 +309,27 @@ namespace px
     }
 
     void GdiCapturePlugin::RestartCapturing() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         if (!IsPluginEnabled()) {
             return;
         }
-        LOGI("GdiCapturePlugin RestartCapturing");
-        StopCapturing();
-        CreateCaptures();
-        StartCapturing();
+        const auto old_count = monitors_.size();
+        LOGI("GdiCapturePlugin RestartCapturing, old monitor count: {}", old_count);
+        constexpr int kMaxAttempts = 3;
+        for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+            if (StartCapturing()) {
+                LOGI("GDI topology rebuild succeeded on attempt {}, monitors: {} -> {}",
+                     attempt, old_count, monitors_.size());
+                return;
+            }
+            LOGW("GDI topology rebuild attempt {}/{} failed", attempt, kMaxAttempts);
+            std::this_thread::sleep_for(std::chrono::milliseconds(150 * attempt));
+        }
+        LOGE("GDI topology rebuild failed after {} attempts", kMaxAttempts);
     }
 
     void GdiCapturePlugin::StopCapturing() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         for(const auto&[dev_name, capture] : captures_) {
             capture->StopCapture();
         }

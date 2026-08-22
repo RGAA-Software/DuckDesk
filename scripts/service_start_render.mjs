@@ -5,6 +5,14 @@ import crypto from 'node:crypto'
 
 const HOST = process.argv[2] || '10.0.0.70'
 const PORT = Number(process.argv[3] || 20375)
+const WORK_DIR = process.env.RENDER_WORK_DIR || 'C:/Program Files/PixelsRender'
+const APP_PATH = process.env.RENDER_APP_PATH || `${WORK_DIR}/px_render.exe`
+const RENDER_ARGS = process.env.RENDER_ARGS_JSON
+  ? JSON.parse(process.env.RENDER_ARGS_JSON)
+  : ['--app_mode=desktop']
+if (!Array.isArray(RENDER_ARGS) || RENDER_ARGS.some((arg) => typeof arg !== 'string')) {
+  throw new Error('RENDER_ARGS_JSON must be a JSON string array')
+}
 
 // ---- protobuf hand-encoding ----
 // ServiceMessage { type=kSrvStartServer(0, omitted) ; MsgStartServer start_server = 2 }
@@ -20,9 +28,9 @@ function varint(n) {
   return Buffer.from(out)
 }
 const start = Buffer.concat([
-  fieldStr(1, 'C:/Program Files/PixelsRender'),
-  fieldStr(2, 'C:/Program Files/PixelsRender/px_render.exe'),
-  fieldStr(3, '--app_mode=desktop'),
+  fieldStr(1, WORK_DIR),
+  fieldStr(2, APP_PATH),
+  ...RENDER_ARGS.map((arg) => fieldStr(3, arg)),
 ])
 const msg = Buffer.concat([Buffer.from([(2 << 3) | 2]), varint(start.length), start])
 
@@ -30,9 +38,9 @@ const msg = Buffer.concat([Buffer.from([(2 << 3) | 2]), varint(start.length), st
 const key = crypto.randomBytes(16).toString('base64')
 const sock = net.connect(PORT, HOST, () => {
   sock.write(
-    `GET /service/message HTTP/1.1\r\nHost: ${HOST}:${PORT}\r\nUpgrade: websocket\r\n` +
+    `GET /service/message?from=panel HTTP/1.1\r\nHost: ${HOST}:${PORT}\r\nUpgrade: websocket\r\n` +
     `Connection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n` +
-    `Authorization: websocket-client-authorization\r\n\r\n`)
+    `\r\n`)
 })
 let upgraded = false
 let handshake = Buffer.alloc(0)
@@ -60,7 +68,7 @@ sock.on('data', (chunk) => {
       header.writeUInt16BE(msg.length, 2)
     }
     sock.write(Buffer.concat([header, mask, masked]))
-    console.log(`StartServer sent to ${HOST}:${PORT} (desktop render)`)
+    console.log(`StartServer sent to ${HOST}:${PORT} (${APP_PATH}, ${RENDER_ARGS.length} args)`)
     setTimeout(() => process.exit(0), 500)
   }
 })

@@ -32,13 +32,7 @@ namespace px
     }
 
     DDACapture::~DDACapture() {
-        stop_flag_ = true;
-        if (capture_thread_) {
-            capture_thread_->Exit();
-            if (capture_thread_->IsJoinable()) {
-                capture_thread_->Join();
-            }
-        }
+        StopCapture();
     }
 
     bool DDACapture::Init() {
@@ -441,7 +435,6 @@ namespace px
             else if (res == DXGI_ERROR_WAIT_TIMEOUT || res == S_NOT_CHANGED) {
                 if (res == DXGI_ERROR_WAIT_TIMEOUT) {
                     ++lat_acquire_timeout;
-                    ++continuous_timeout_times_;
                 }
                 else {
                     ++lat_acquire_nochange;
@@ -669,11 +662,15 @@ namespace px
         stop_flag_ = true;
         if (capture_thread_) {
             capture_thread_->Exit();
+            // Capture() can still be inside AcquireNextFrame/OnCaptureFrame here.
+            // Releasing the duplication or D3D objects before that thread exits
+            // races with topology rebuilds and can leave the replacement capture
+            // permanently timing out (or crash in the driver/runtime).
+            if (capture_thread_->IsJoinable()) {
+                capture_thread_->Join();
+            }
+            capture_thread_ = nullptr;
         }
-//        if (capture_thread_ && capture_thread_->IsJoinable()) {
-//            capture_thread_->Join();
-//            capture_thread_ = nullptr;
-//        }
         this->Exit();
     }
 

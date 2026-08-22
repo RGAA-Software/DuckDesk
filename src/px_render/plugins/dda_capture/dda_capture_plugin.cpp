@@ -8,6 +8,8 @@
 #include "dda_capture_plugin.h"
 
 #include <ranges>
+#include <chrono>
+#include <thread>
 
 #include "px_render/plugins/plugin_ids.h"
 #include "dda_capture.h"
@@ -22,8 +24,6 @@ PX_PLUGIN_EXPORT(px::DDACapturePlugin)
 
 namespace px
 {
-
-    static const int32_t kAllowedMaxContinuousTimeoutTimes = 1200;
 
     DDACapturePlugin::DDACapturePlugin() : PxMonitorCapturePlugin() {
 
@@ -217,6 +217,7 @@ namespace px
     }
 
     bool DDACapturePlugin::TryInitSpecificCapture() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         if (!captures_.Empty()) {
             StopCapturing();
         }
@@ -251,6 +252,7 @@ namespace px
     }
 
     bool DDACapturePlugin::StartCapturing() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         StopCapturing();
 
         auto res_init = InitVideoCaptures();
@@ -307,10 +309,11 @@ namespace px
 
         NotifyCaptureMonitorInfo();
 
-        return true;
+        return !captures_.Empty();
     }
 
     void DDACapturePlugin::StopCapturing() {
+        std::scoped_lock control_lock(capture_control_mutex_);
         auto captures = captures_.Clone();
         for (const auto& [k, v] : captures) {
             if (v) {
@@ -318,14 +321,34 @@ namespace px
             }
         }
         captures_.Clear();
+        monitors_.clear();
+        sorted_monitors_.clear();
     }
 
     void DDACapturePlugin::RestartCapturing() {
-        LOGI("DDACapturePlugin RestartCapturing");
-        StopCapturing();
-        captures_.Clear();
-        monitors_.clear();
-        StartCapturing();
+        std::scoped_lock control_lock(capture_control_mutex_);
+        const auto old_count = monitors_.size();
+        LOGI("DDACapturePlugin RestartCapturing, old monitor count: {}", old_count);
+        constexpr int kMaxAttempts = 3;
+        for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+            if (StartCapturing()) {
+                LOGI("DDA topology rebuild succeeded on attempt {}, monitors: {} -> {}",
+                     attempt, old_count, monitors_.size());
+                return;
+            }
+            LOGW("DDA topology rebuild attempt {}/{} failed", attempt, kMaxAttempts);
+            std::this_thread::sleep_for(std::chrono::milliseconds(150 * attempt));
+        }
+        LOGE("DDA topology rebuild failed after {} attempts", kMaxAttempts);
+        // A display add/remove can invalidate every Desktop Duplication
+        // object.  If recreating them also fails (for example because the
+        // graphics device cannot currently be allocated), notify the
+        // application so it can downgrade to GDI.  Without this callback the
+        // active plugin remains DDA with an empty capture/monitor set and
+        // connected Web clients stay black indefinitely.
+        if (capture_err_callback_) {
+            capture_err_callback_(MonitorCaptureError::kCantCapture);
+        }
     }
 
     std::vector<CaptureMonitorInfo> DDACapturePlugin::GetCaptureMonitorInfo() {
@@ -340,6 +363,7 @@ namespace px
     }
 
     void DDACapturePlugin::SetCaptureMonitor(const std::string& name) {
+        std::scoped_lock control_lock(capture_control_mutex_);
         bool use_default_monitor = false;
         if (name.empty()) {
             use_default_monitor = true;
@@ -424,26 +448,14 @@ namespace px
         if (captures_.Empty()) {
             return;
         }
-        int32_t continuous_timeout_times = 0;
-        captures_.ApplyAll([&continuous_timeout_times](const auto& k, const std::shared_ptr<PluginDesktopCapture>& capture) {
-            if (!capture) {
-                return;
-            }
-            if (auto dda_capture =  std::dynamic_pointer_cast<DDACapture>(capture)) {
-                auto value = dda_capture->GetContinuousTimeoutTimes();
-                if (value > continuous_timeout_times) {
-                    continuous_timeout_times = value;
-                }
-            }
-        });
 
-        if (continuous_timeout_times > kAllowedMaxContinuousTimeoutTimes) {
-            StopCapturing();
-            captures_.Clear();
-            if (capture_err_callback_) {
-                capture_err_callback_(MonitorCaptureError::kTimeoutSoManyTimes);
-            }
-        }
+        // DXGI_ERROR_WAIT_TIMEOUT means that the desktop had no new image or
+        // pointer update during the requested interval. It is a normal result
+        // for a static desktop, not evidence that Desktop Duplication is
+        // broken. Treating a run of timeouts as a capture failure caused a
+        // needless DDA -> GDI -> DDA loop every ~20 seconds and made topology
+        // reconnects race with capture-backend switching. Real duplication
+        // failures are handled in DDACapture::Capture by their HRESULTs.
 
 #if MEMORY_STST_ON
         plugin_context_->PostWorkTask([=, this]() {

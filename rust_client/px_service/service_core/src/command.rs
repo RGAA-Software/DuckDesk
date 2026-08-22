@@ -1,4 +1,6 @@
-use crate::proto::{decode_service_message, MsgAuthInfo, ServiceMessageType};
+use crate::proto::{
+    decode_service_message, MsgAuthInfo, ServiceMessageType, VirtualDisplayOperation,
+};
 use crate::state::RenderLaunchSpec;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +24,13 @@ pub enum Command {
         ticket: String,
         client_nonce: String,
         instance_id: String,
+    },
+    VirtualDisplay {
+        request_id: String,
+        operation: VirtualDisplayOperation,
+        width: u32,
+        height: u32,
+        refresh_hz: u32,
     },
 }
 
@@ -79,11 +88,31 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
                 instance_id: request.instance_id,
             }
         }
+        ServiceMessageType::VirtualDisplayRequest => {
+            let request = message
+                .virtual_display_request
+                .ok_or("missing virtual_display_request payload")?;
+            if request.request_id.trim().is_empty() {
+                return Err("virtual display request_id is empty".to_string());
+            }
+            let operation = VirtualDisplayOperation::try_from(request.operation)
+                .map_err(|_| "unknown virtual display operation")?;
+            Command::VirtualDisplay {
+                request_id: request.request_id,
+                operation,
+                width: request.width,
+                height: request.height,
+                refresh_hz: request.refresh_hz,
+            }
+        }
         ServiceMessageType::HeartBeatResp => {
             return Err("heart_beat_resp is outbound only".to_string())
         }
         ServiceMessageType::RedeemConnectionTicketResp => {
             return Err("redeem_connection_ticket_resp is outbound only".to_string())
+        }
+        ServiceMessageType::VirtualDisplayResult => {
+            return Err("virtual_display_result is outbound only".to_string())
         }
     };
     Ok(DispatchResult { command })
@@ -94,7 +123,7 @@ mod tests {
     use super::*;
     use crate::proto::{
         encode_service_message, MsgAuthInfo, MsgHeartBeat, MsgReqCtrlAltDelete, MsgRestartServer,
-        MsgStartServer, ServiceMessage,
+        MsgStartServer, MsgVirtualDisplayRequest, ServiceMessage,
     };
 
     #[test]
@@ -212,6 +241,32 @@ mod tests {
             Command::CtrlAltDelete {
                 req_device_id: "dev".to_string(),
                 req_stream_id: "stream".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn dispatch_virtual_display_request() {
+        let bytes = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::VirtualDisplayRequest as i32,
+            virtual_display_request: Some(MsgVirtualDisplayRequest {
+                request_id: "vd-1".to_string(),
+                operation: VirtualDisplayOperation::Create as i32,
+                width: 1920,
+                height: 1080,
+                refresh_hz: 60,
+            }),
+            ..Default::default()
+        });
+        let result = dispatch_message(&bytes).unwrap();
+        assert_eq!(
+            result.command,
+            Command::VirtualDisplay {
+                request_id: "vd-1".to_string(),
+                operation: VirtualDisplayOperation::Create,
+                width: 1920,
+                height: 1080,
+                refresh_hz: 60,
             }
         );
     }

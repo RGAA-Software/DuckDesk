@@ -6,6 +6,11 @@
 #include <memory>
 #include <iostream>
 #include <thread>
+#include <chrono>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
+#include <vector>
 #include <px_common_new/win32/win_helper.h>
 
 #include "rd_app.h"
@@ -25,6 +30,7 @@
 #include "app/win/win_desktop_manager.h"
 #include "px_encoder_new/encoder_messages.h"
 #include "px_message_new/rp_proto_converter.h"
+#include "px_message_new/proto_converter.h"
 #include "px_render/plugins/net_ws/ws_user_proxy_router.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugins/plugin_ids.h"
@@ -36,12 +42,162 @@
 
 namespace px {
 
+    struct PendingVirtualDisplayRequest {
+        std::string device_id;
+        std::string stream_id;
+        std::chrono::steady_clock::time_point deadline;
+        uint64_t required_capture_epoch = 0;
+        std::optional<MsgVirtualDisplayServiceResult> service_result;
+    };
+
+    struct CachedVirtualDisplayResponse {
+        std::string device_id;
+        std::string stream_id;
+        VirtualDisplayResponse response;
+    };
+
+    struct VirtualDisplayCoordinator {
+        std::mutex mutex;
+        uint64_t capture_epoch = 0;
+        uint64_t first_frame_epoch = 0;
+        std::unordered_map<std::string, PendingVirtualDisplayRequest> pending;
+        std::unordered_map<std::string, CachedVirtualDisplayResponse> completed;
+    };
+
+    namespace {
+        void SendVirtualDisplayResponse(
+            const std::shared_ptr<RdApplication>& app,
+            const std::string& device_id,
+            const std::string& stream_id,
+            const VirtualDisplayResponse& response) {
+            px::Message message;
+            message.set_type(kVirtualDisplayResponse);
+            message.set_device_id(device_id);
+            message.set_stream_id(stream_id);
+            *message.mutable_virtual_display_response() = response;
+            app->PostNetMessage(ProtoAsData(&message));
+        }
+
+        VirtualDisplayResponse BuildVirtualDisplayResponse(
+            const MsgVirtualDisplayServiceResult& result,
+            VirtualDisplayResponseState state) {
+            VirtualDisplayResponse response;
+            response.set_request_id(result.request_id_);
+            response.set_accepted(result.accepted_);
+            response.set_state(state);
+            response.set_topology_changed(result.topology_changed_);
+            response.set_topology_generation(result.topology_generation_);
+            response.set_logical_display_id(result.logical_display_id_);
+            response.set_error_code(result.error_code_);
+            response.set_error_message(result.error_message_);
+            response.set_owned_display_count(result.owned_display_count_);
+            response.set_actual_usbmmidd_count(result.actual_usbmmidd_count_);
+            response.set_driver_installed(result.driver_installed_);
+            response.set_package_valid(result.package_valid_);
+            response.set_removal_safe(result.removal_safe_);
+            return response;
+        }
+
+        VirtualDisplayResponse BuildVirtualDisplayFailure(
+            const std::string& request_id,
+            const std::string& code,
+            const std::string& message) {
+            VirtualDisplayResponse response;
+            response.set_request_id(request_id);
+            response.set_accepted(false);
+            response.set_state(kVirtualDisplayFailed);
+            response.set_error_code(code);
+            response.set_error_message(message);
+            return response;
+        }
+
+        void CacheResponseLocked(
+            VirtualDisplayCoordinator& coordinator,
+            const std::string& request_id,
+            CachedVirtualDisplayResponse&& cached) {
+            if (coordinator.completed.size() >= 256) {
+                coordinator.completed.clear();
+            }
+            coordinator.completed[request_id] = std::move(cached);
+        }
+
+        void CompleteVirtualDisplayRequests(
+            const std::shared_ptr<RdApplication>& app,
+            const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+            std::vector<CachedVirtualDisplayResponse> ready;
+            {
+                std::scoped_lock lock(coordinator->mutex);
+                for (auto it = coordinator->pending.begin(); it != coordinator->pending.end();) {
+                    if (!it->second.service_result) {
+                        ++it;
+                        continue;
+                    }
+                    const auto& result = *it->second.service_result;
+                    const bool capture_ready =
+                        coordinator->capture_epoch >= it->second.required_capture_epoch &&
+                        coordinator->first_frame_epoch >= it->second.required_capture_epoch;
+                    if (result.accepted_ && result.topology_changed_ && !capture_ready) {
+                        ++it;
+                        continue;
+                    }
+                    const auto state = !result.accepted_
+                        ? kVirtualDisplayFailed
+                        : (result.topology_changed_ ? kVirtualDisplayNeedReconnect : kVirtualDisplayReady);
+                    CachedVirtualDisplayResponse completed {
+                        .device_id = it->second.device_id,
+                        .stream_id = it->second.stream_id,
+                        .response = BuildVirtualDisplayResponse(result, state),
+                    };
+                    CacheResponseLocked(*coordinator, it->first, CachedVirtualDisplayResponse(completed));
+                    ready.push_back(std::move(completed));
+                    it = coordinator->pending.erase(it);
+                }
+            }
+            for (const auto& item : ready) {
+                SendVirtualDisplayResponse(app, item.device_id, item.stream_id, item.response);
+            }
+        }
+
+        void ExpireVirtualDisplayRequests(
+            const std::shared_ptr<RdApplication>& app,
+            const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+            std::vector<CachedVirtualDisplayResponse> expired;
+            const auto now = std::chrono::steady_clock::now();
+            {
+                std::scoped_lock lock(coordinator->mutex);
+                for (auto it = coordinator->pending.begin(); it != coordinator->pending.end();) {
+                    if (it->second.deadline > now) {
+                        ++it;
+                        continue;
+                    }
+                    const auto code = it->second.service_result
+                        ? "CAPTURE_REBUILD_TIMEOUT" : "SERVICE_TIMEOUT";
+                    const auto message = it->second.service_result
+                        ? "display topology changed but capture did not produce a frame in time"
+                        : "px_service did not answer the virtual display request in time";
+                    CachedVirtualDisplayResponse completed {
+                        .device_id = it->second.device_id,
+                        .stream_id = it->second.stream_id,
+                        .response = BuildVirtualDisplayFailure(it->first, code, message),
+                    };
+                    CacheResponseLocked(*coordinator, it->first, CachedVirtualDisplayResponse(completed));
+                    expired.push_back(std::move(completed));
+                    it = coordinator->pending.erase(it);
+                }
+            }
+            for (const auto& item : expired) {
+                SendVirtualDisplayResponse(app, item.device_id, item.stream_id, item.response);
+            }
+        }
+    }
+
     PluginNetEventRouter::PluginNetEventRouter(const std::shared_ptr<RdApplication>& app) {
         this->app_ = app;
         this->context_ = app->GetContext();
         this->plugin_manager_ = app->GetPluginManager();
         this->settings_ = RdSettings::Instance();
         this->statistics_ = RdStatistics::Instance();
+        virtual_display_ = std::make_shared<VirtualDisplayCoordinator>();
 
         msg_notifier_ = this->app_->GetContext()->GetMessageNotifier();
         msg_listener_ = this->app_->GetContext()->GetMessageNotifier()->CreateListener();
@@ -49,6 +205,21 @@ namespace px {
             if (auto plugin = plugin_manager_->GetEventsReplayerPlugin(); plugin) {
                 plugin->UpdateCaptureMonitorInfo(msg);
             }
+            {
+                std::scoped_lock lock(virtual_display_->mutex);
+                ++virtual_display_->capture_epoch;
+            }
+            CompleteVirtualDisplayRequests(app_, virtual_display_);
+        });
+        msg_listener_->Listen<MsgCaptureTopologyFirstFrame>([=, this](const MsgCaptureTopologyFirstFrame&) {
+            {
+                std::scoped_lock lock(virtual_display_->mutex);
+                virtual_display_->first_frame_epoch = virtual_display_->capture_epoch;
+            }
+            CompleteVirtualDisplayRequests(app_, virtual_display_);
+        });
+        msg_listener_->Listen<MsgTimer1000>([=, this](const MsgTimer1000&) {
+            ExpireVirtualDisplayRequests(app_, virtual_display_);
         });
     }
 
@@ -344,6 +515,10 @@ namespace px {
                 }
                 case kModifyFps: {
                     ProcessModifyFps(std::move(msg));
+                    break;
+                }
+                case kVirtualDisplayRequest: {
+                    ProcessVirtualDisplayRequest(std::move(msg));
                     break;
                 }
                 case MessageType::kMouseEvent: {
@@ -722,6 +897,89 @@ namespace px {
         if (context_) {
             context_->SendAppMessage(MsgModifyFps{.fps_ = fps});
         }
+    }
+
+    void PluginNetEventRouter::ProcessVirtualDisplayRequest(std::shared_ptr<Message>&& msg) {
+        const auto& request = msg->virtual_display_request();
+        const auto request_id = request.request_id();
+        const auto device_id = msg->device_id();
+        const auto stream_id = msg->stream_id();
+
+        const auto fail = [this, &device_id, &stream_id, &request_id](
+                              const std::string& code, const std::string& message) {
+            SendVirtualDisplayResponse(
+                app_, device_id, stream_id,
+                BuildVirtualDisplayFailure(request_id, code, message));
+        };
+        if (request_id.empty() || request.operation() < kRemoteVirtualDisplayCreate ||
+            request.operation() > kRemoteVirtualDisplayResetOwned) {
+            fail("INVALID_ARGUMENT", "invalid virtual display request");
+            return;
+        }
+        if (!settings_->can_be_operated_) {
+            fail("PERMISSION_DENIED", "the session is view-only");
+            return;
+        }
+        if (!settings_->virtual_display_enabled_) {
+            fail("FEATURE_DISABLED", "virtual display management is disabled on the controlled device");
+            return;
+        }
+        if (settings_->IsGameHookMode()) {
+            fail("UNSUPPORTED_CAPTURE_MODE", "virtual displays are only available in desktop capture mode");
+            return;
+        }
+
+        std::optional<VirtualDisplayResponse> cached;
+        bool already_pending = false;
+        {
+            std::scoped_lock lock(virtual_display_->mutex);
+            if (const auto it = virtual_display_->completed.find(request_id);
+                it != virtual_display_->completed.end()) {
+                cached = it->second.response;
+            }
+            else if (virtual_display_->pending.contains(request_id)) {
+                already_pending = true;
+            }
+            else {
+                virtual_display_->pending.emplace(request_id, PendingVirtualDisplayRequest {
+                    .device_id = device_id,
+                    .stream_id = stream_id,
+                    .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(35),
+                    .required_capture_epoch = virtual_display_->capture_epoch + 1,
+                });
+            }
+        }
+        if (cached) {
+            SendVirtualDisplayResponse(app_, device_id, stream_id, *cached);
+            return;
+        }
+        if (already_pending) {
+            fail("REQUEST_IN_PROGRESS", "the same virtual display request is already running");
+            return;
+        }
+
+        auto coordinator = virtual_display_;
+        auto app = app_;
+        auto context = context_;
+        app_->RequestVirtualDisplay(
+            request_id,
+            static_cast<int>(request.operation()),
+            request.width(),
+            request.height(),
+            request.refresh_hz(),
+            [coordinator, app, context](const MsgVirtualDisplayServiceResult& result) {
+                context->PostTask([coordinator, app, result]() {
+                    {
+                        std::scoped_lock lock(coordinator->mutex);
+                        const auto it = coordinator->pending.find(result.request_id_);
+                        if (it == coordinator->pending.end()) {
+                            return;
+                        }
+                        it->second.service_result = result;
+                    }
+                    CompleteVirtualDisplayRequests(app, coordinator);
+                });
+            });
     }
 
 //    void PluginNetEventRouter::ProcessFocusOutEvent() {

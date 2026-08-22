@@ -524,6 +524,24 @@ namespace px
             });
         });
 
+        msg_listener_->Listen<MsgVirtualDisplayServiceResult>([weak_self](const MsgVirtualDisplayServiceResult& msg) {
+            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                self->UpdateVirtualDisplayStatus(msg);
+            }
+        });
+
+        msg_listener_->Listen<MsgRenderConnected2Service>([weak_self](const MsgRenderConnected2Service&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_ || !self->settings_->virtual_display_enabled_ ||
+                self->settings_->IsGameHookMode()) {
+                return;
+            }
+            const auto request_id = std::format("render-startup-query-{}", GetCurrentProcessId());
+            self->RequestVirtualDisplay(
+                request_id, kVirtualDisplayQuery, 1920, 1080, 60,
+                [](const MsgVirtualDisplayServiceResult&) {});
+        });
+
         msg_listener_->Listen<MsgReCreateRefresher>([=, this](const MsgReCreateRefresher& msg) {
             // report to Panel
             // !! USELESS !! Just report it
@@ -1085,6 +1103,11 @@ namespace px
         config->set_ft_protocol_version(2);
         config->set_audio_enabled(settings_->audio_enabled_);
         config->set_can_be_operated(settings_->can_be_operated_);
+        config->set_virtual_display_enabled(
+            settings_->virtual_display_enabled_ && !settings_->IsGameHookMode());
+        config->set_virtual_display_owned_count(virtual_display_owned_count_.load());
+        config->set_virtual_display_max_count(2);
+        config->set_topology_generation(virtual_display_topology_generation_.load());
         //
         auto buffer = ProtoAsData(&m);
         PostNetMessage(buffer);
@@ -1337,6 +1360,33 @@ namespace px
             ticket, client_nonce, instance_id, std::move(callback));
     }
 
+    void RdApplication::RequestVirtualDisplay(
+        const std::string& request_id,
+        int operation,
+        uint32_t width,
+        uint32_t height,
+        uint32_t refresh_hz,
+        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
+        if (!service_client_ || !service_client_->IsAlive()) {
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = request_id;
+            result.error_code_ = "SERVICE_UNAVAILABLE";
+            result.error_message_ = "px_service is unavailable";
+            callback(result);
+            return;
+        }
+        service_client_->RequestVirtualDisplay(
+            request_id, operation, width, height, refresh_hz, std::move(callback));
+    }
+
+    void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
+        virtual_display_owned_count_.store(result.owned_display_count_);
+        virtual_display_topology_generation_.store(result.topology_generation_);
+        if (result.accepted_) {
+            SendConfigurationBack();
+        }
+    }
+
     void RdApplication::OnServiceRequestedStop() {
         LOGW("Service requested stop (CMS stop instance), notify clients then exit.");
         // broadcast kInstanceStopped to all RTC clients, then leave some time
@@ -1360,6 +1410,7 @@ namespace px
         std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
         if (capture_plugin_) {
             capture_plugin_->StopCapturing();
+            capture_plugin_->DisablePlugin();
         }
         if (!gdi_capture_plugin_) {
             LOGE("Don't have gdi plugin, ignore!");
@@ -1380,6 +1431,7 @@ namespace px
         std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
         if (capture_plugin_) {
             capture_plugin_->StopCapturing();
+            capture_plugin_->DisablePlugin();
         }
         if (!dda_capture_plugin_) {
             LOGE("Don't have gdi plugin, ignore!");

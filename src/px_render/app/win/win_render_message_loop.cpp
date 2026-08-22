@@ -55,27 +55,33 @@ namespace px
     }
 
     void WinMessageLoop::OnDisplayDeviceChange() {
-        if (auto plugin = plugin_mgr_->GetDDACapturePlugin(); plugin) {
-            if (plugin->IsPluginEnabled()) {
-                auto event = std::make_shared<MsgDisplayDeviceChange>();
-                LOGI("OnDisplayDeviceChange, DispatchAppEvent is MsgDisplayDeviceChange");
-                plugin->DispatchAppEvent(event);
+        const auto weak_self = weak_from_this();
+        // All topology-triggered Stop/Start work is queued on the same serial
+        // plugin-control thread. Capture plugins also guard their public
+        // control methods because other callers can request a switch.
+        context_->PostStreamPluginTask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->plugin_mgr_ || !self->context_) {
                 return;
             }
-        }
-        if (auto plugin = plugin_mgr_->GetGdiCapturePlugin(); plugin) {
-            if (plugin->IsPluginEnabled()) {
-                auto event = std::make_shared<MsgDisplayDeviceChange>();
-                LOGI("OnDisplayDeviceChange, DispatchAppEvent is MsgDisplayDeviceChange");
-                plugin->DispatchAppEvent(event);
-                return;
+            if (auto plugin = self->plugin_mgr_->GetDDACapturePlugin(); plugin) {
+                if (plugin->IsPluginEnabled()) {
+                    auto event = std::make_shared<MsgDisplayDeviceChange>();
+                    LOGI("Dispatch debounced display change to DDA capture");
+                    plugin->DispatchAppEvent(event);
+                    return;
+                }
             }
-        }
-
-        {
-            MsgReCreateRefresher msg;
-            context_->SendAppMessage(msg);
-        }
+            if (auto plugin = self->plugin_mgr_->GetGdiCapturePlugin(); plugin) {
+                if (plugin->IsPluginEnabled()) {
+                    auto event = std::make_shared<MsgDisplayDeviceChange>();
+                    LOGI("Dispatch debounced display change to GDI capture");
+                    plugin->DispatchAppEvent(event);
+                    return;
+                }
+            }
+            self->context_->SendAppMessage(MsgReCreateRefresher{});
+        });
     }
 
     void WinMessageLoop::Start() {
