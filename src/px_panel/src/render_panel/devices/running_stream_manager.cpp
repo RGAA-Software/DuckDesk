@@ -4,6 +4,7 @@
 
 #include "running_stream_manager.h"
 #include <QApplication>
+#include <QDateTime>
 #include <filesystem>
 
 #include "px_device_manager.h"
@@ -297,6 +298,33 @@ namespace px
             .item_ = item,
         });
         return true;
+    }
+
+    void RunningStreamManager::StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type) {
+        const auto session_id = "ft_" + item->stream_id_ + "_" + std::to_string(QDateTime::currentMSecsSinceEpoch());
+        auto process = std::make_shared<QProcess>();
+        QStringList args;
+        args << "--mode=file-transfer"
+             << std::format("--host={}", item->stream_host_).c_str()
+             << std::format("--port={}", item->stream_port_).c_str()
+             << std::format("--appkey={}", grApp->GetAppkey()).c_str()
+             << std::format("--cms_host={}", settings_->GetCmsServerHost()).c_str()
+             << std::format("--cms_port={}", settings_->GetCmsServerPort()).c_str()
+             << std::format("--cms_ssl={}", settings_->IsCmsSslEnabled()).c_str()
+             << std::format("--stream_id={}", session_id).c_str()
+             << std::format("--network_type={}", network_type).c_str()
+             << std::format("--device_id={}", settings_->GetDeviceId()).c_str()
+             << std::format("--remote_device_id={}", item->remote_device_id_).c_str()
+             << std::format("--stream_name={}", Base64::Base64Encode(item->stream_name_)).c_str()
+             << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
+             << std::format("--connection_nonce={}", item->connection_nonce_).c_str()
+             << std::format("--relay_host={}", item->relay_host_).c_str()
+             << std::format("--relay_port={}", item->relay_port_).c_str()
+             << std::format("--relay_appkey={}", grApp->GetAppkey()).c_str()
+             << std::format("--language={}", (int)tcTrMgr()->GetSelectedLanguage()).c_str();
+        const auto path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
+        process->start(path, args);
+        running_processes_.insert({session_id, process});
     }
 
 }

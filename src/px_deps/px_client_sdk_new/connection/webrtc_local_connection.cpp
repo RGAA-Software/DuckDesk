@@ -156,10 +156,14 @@ namespace px
             LOGI("Rtc local, ice state changed: {}", state);
             if (state == kIceStateConnected || state == kIceStateCompleted) {
                 RunInRtcThread([=, this]() {
-                    // ice connected doesn't mean the sctp data channels are open yet,
-                    // wait for the media channel before reporting connected(hello goes through it)
+                    // ICE connected doesn't mean SCTP is ready. A normal client
+                    // waits for its media channel; the standalone file manager
+                    // intentionally has no media permission and waits for FT.
                     for (int i = 0; i < 100 && !stopped_; ++i) {
-                        if (this->IsMediaChannelReady()) {
+                        const bool ready = sdk_params_->file_transfer_only_
+                            ? this->IsFtChannelReady()
+                            : this->IsMediaChannelReady();
+                        if (ready) {
                             break;
                         }
                         TimeUtil::DelayBySleep(50);

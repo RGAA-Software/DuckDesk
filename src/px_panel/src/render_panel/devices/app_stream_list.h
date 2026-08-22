@@ -64,6 +64,7 @@ namespace px
 
         void DeleteStream(const std::shared_ptr<px_cms::CmsStream>& item);
         void StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
+        void StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item);
         void StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing);
         bool StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
         void LockDevice(const std::shared_ptr<px_cms::CmsStream>& item);

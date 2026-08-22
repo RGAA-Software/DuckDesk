@@ -79,8 +79,11 @@ namespace px
             self->raise();
             self->activateWindow();
         });
-        pl_vulkan_ = PlVulkan::Make();
+        if (!Settings::Instance()->file_transfer_only_) {
+            pl_vulkan_ = PlVulkan::Make();
+        }
 
+        if (!Settings::Instance()->file_transfer_only_) {
         overlay_widget_ = new OverlayWidget(this);
         overlay_widget_->resize(this->size());
         overlay_widget_->SetOpacity(0.3);
@@ -97,6 +100,7 @@ namespace px
                 }
             }
         });
+        }
 
         //SetWindowDisplayAffinity((HWND)winId(), WDA_EXCLUDEFROMCAPTURE);
     }
@@ -115,19 +119,21 @@ namespace px
         InitTheme();
 
 #ifdef WIN32
-        if (!settings_->force_software_) {
-            gen_d3d11_device_ = GenerateD3DDevice();
-        }
-        if (gen_d3d11_device_) {
-            for (const auto &[adapter_uid, wrapper]: d3d11_devices_) {
-                // TODO: find the primary or using d3d11 device
-                this->params_->d3d11_wrapper_ = wrapper;
-                LOGI("Using the D3D11Device, ID: {}", wrapper->adapter_uid_);
-                break;
+        if (!settings_->file_transfer_only_) {
+            if (!settings_->force_software_) {
+                gen_d3d11_device_ = GenerateD3DDevice();
             }
-        }
-        else {
-            LOGW("!!Can't use D3D11 to render!!");
+            if (gen_d3d11_device_) {
+                for (const auto &[adapter_uid, wrapper]: d3d11_devices_) {
+                    // TODO: find the primary or using d3d11 device
+                    this->params_->d3d11_wrapper_ = wrapper;
+                    LOGI("Using the D3D11Device, ID: {}", wrapper->adapter_uid_);
+                    break;
+                }
+            }
+            else {
+                LOGW("!!Can't use D3D11 to render!!");
+            }
         }
 #endif
 
@@ -157,7 +163,8 @@ namespace px
         }
 
         // init game views
-        InitGameView(this->params_);
+        if (!settings_->file_transfer_only_) {
+            InitGameView(this->params_);
 
         // vulkan 
         if (this->params_->support_vulkan_) {
@@ -165,6 +172,7 @@ namespace px
         }
 
         InitSampleWidget();
+        }
 
         // message listener
         InitListener();

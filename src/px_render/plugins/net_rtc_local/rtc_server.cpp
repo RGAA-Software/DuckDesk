@@ -185,6 +185,11 @@ namespace px
                 return;
             }
             if (name == "media_data_channel") {
+                if (capability_enforced_ && !HasPermission("view")) {
+                    LOGW("Close media channel: ticket grants file-only access");
+                    ch->Close();
+                    return;
+                }
                 media_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
 
                 // data callback
@@ -386,6 +391,7 @@ namespace px
         }
         this->peer_conn_ = result.value();
 
+        const bool allow_video = HasPermission("view");
         // video sources/tracks
         // offer 里的 video m-line 数决定布局:
         // - 1 条(web/旧客户端): 单动态 track,接收所有屏的帧(旧行为,
@@ -401,9 +407,9 @@ namespace px
             }
         }
         auto monitors = plugin_->GetRtcTrackMonitors();
-        multi_track_mode_ = offer_video_mlines > 1 && !monitors.empty();
+        multi_track_mode_ = allow_video && offer_video_mlines > 1 && !monitors.empty();
         static constexpr const char* kMediaStreamId = "pixels_media";
-        if (multi_track_mode_) {
+        if (allow_video && multi_track_mode_) {
             int track_index = 0;
             for (const auto& m : monitors) {
                 MonitorVideoTrack mvt;
@@ -425,7 +431,7 @@ namespace px
             // 否则非当前屏的 track 永远等不到帧(采集端默认只采当前屏)
             plugin_->EnableAllMonitorCapture();
         }
-        else {
+        else if (allow_video) {
             MonitorVideoTrack mvt;  // mon_name_ 为空 = 接收所有屏的动态 track(旧行为)
             mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
             mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
@@ -498,7 +504,7 @@ namespace px
         LOGI("Will create answer sdp.");
         webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
         options.offer_to_receive_audio = !IsWallObserver() && HasPermission("audio");
-        options.offer_to_receive_video = true;
+        options.offer_to_receive_video = allow_video;
         peer_conn_->CreateAnswer(this->create_answer_callback_.get(), options);
 
     }

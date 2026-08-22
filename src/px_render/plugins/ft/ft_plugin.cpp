@@ -70,36 +70,6 @@ namespace px
             return false;
         }
 
-        engine_ = std::make_unique<px::ft::FtEngine>(
-            [this](const px::Message& msg) { return this->SendToChannel(msg); });
-        engine_->SetLogCallback([](const std::string& msg) {
-            LOGW("[ft_engine] {}", msg);
-        });
-        // 作业终结回调:在 worker 线程(引擎调用线程)触发,审计闭环。
-        engine_->SetJobDoneCallback([this](int32_t job_id, int32_t file_num,
-                                           const std::string& error_or_empty) {
-            (void)file_num;
-            this->TrackJobEnd(job_id, error_or_empty);
-        });
-        // render 无本地 UI。上传方向的覆盖冲突由引擎回发 is_upload=true digest 给主控,
-        // 主控 UI 决策后回 send_confirm(ui_cm_interface.rs:1116 CheckDigest 语义),
-        // 不会走到这里;本回调只是兜底(如 render 主动下载场景):延后到队列自动"跳过",
-        // 避免在 HandleDigest 内重入引擎。
-        engine_->SetOverwriteConfirmCallback(
-            [this](int32_t job_id, int32_t file_num, const std::string& path,
-                   bool is_upload, bool is_identical) {
-                LOGW("ft overwrite confirm fallback on headless render, auto skip: job {}, file #{}, path {}, upload {}, identical {}",
-                     job_id, file_num, path, is_upload, is_identical);
-                std::lock_guard<std::mutex> lk(task_mutex_);
-                tasks_.emplace_back([this, job_id, file_num]() {
-                    if (engine_) engine_->ConfirmFile(job_id, file_num, false, 0);
-                });
-                task_cv_.notify_one();
-            });
-
-        // 限速设置经 OnSyncPluginSettingsInfo 下发(基类不拷贝 max_transmit_speed_
-        // 到 sys_settings_,旧插件也是直接从 settings 参数取)。
-
         last_activity_ = std::chrono::steady_clock::now();
         accepting_ = true;
         worker_ = std::thread([this]() { this->WorkerMain(); });
@@ -117,7 +87,7 @@ namespace px
         accepting_ = false;
         // worker 必须先于基类 OnDestroy(清空 net_plugins_)join,见 SendToChannel 注释。
         StopWorker();
-        engine_.reset();
+        engines_.clear();
         return PxPluginInterface::OnDestroy();
     }
 
@@ -154,7 +124,10 @@ namespace px
             tasks_.emplace_back([this, stream_id]() {
                 // 断线清理:只清该连接的作业,保留 .download/.digest 供续传
                 // (区别于显式取消);迟到的断线事件不会误杀新会话作业。
-                if (engine_) engine_->DisconnectCleanup(stream_id);
+                if (auto it = engines_.find(stream_id); it != engines_.end()) {
+                    it->second->DisconnectCleanup(stream_id);
+                    engines_.erase(it);
+                }
                 CloseAudits(stream_id, false);
             });
         }
@@ -169,7 +142,7 @@ namespace px
         const uint64_t rate_bps = settings.max_transmit_speed_ / 8;
         std::lock_guard<std::mutex> lk(task_mutex_);
         tasks_.emplace_back([this, rate_bps]() {
-            if (engine_) engine_->SetRateLimitBytesPerSec(rate_bps);
+            for (auto& [stream_id, engine] : engines_) engine->SetRateLimitBytesPerSec(rate_bps);
         });
         task_cv_.notify_one();
     }
@@ -182,8 +155,13 @@ namespace px
             {
                 std::unique_lock<std::mutex> lk(task_mutex_);
                 // 引擎状态仅本线程持有,这里读安全。
-                const bool has_jobs = engine_ &&
-                    (!engine_->read_jobs().empty() || !engine_->write_jobs().empty());
+                bool has_jobs = false;
+                for (const auto& [stream_id, engine] : engines_) {
+                    if (!engine->read_jobs().empty() || !engine->write_jobs().empty()) {
+                        has_jobs = true;
+                        break;
+                    }
+                }
                 const bool recent_activity =
                     std::chrono::steady_clock::now() - last_activity_ < kActivityGrace;
                 const auto timeout = (has_jobs || recent_activity) ? kTickBusy : kTickIdle;
@@ -201,9 +179,7 @@ namespace px
             if (task) {
                 task();
             }
-            if (engine_) {
-                engine_->Tick();
-            }
+            for (auto& [stream_id, engine] : engines_) engine->Tick();
         }
         LOGI("ft plugin worker exited.");
     }
@@ -216,11 +192,11 @@ namespace px
             } else {
                 // 在途作业按取消语义处理(清 .download/.digest,并通知对端)。
                 tasks_.emplace_back([this]() {
-                    if (engine_) {
+                    for (auto& [stream_id, engine] : engines_) {
                         std::vector<int32_t> ids;
-                        for (const auto& job : engine_->read_jobs()) ids.push_back(job.id());
-                        for (const auto& job : engine_->write_jobs()) ids.push_back(job.id());
-                        for (int32_t id : ids) engine_->CancelJob(id);
+                        for (const auto& job : engine->read_jobs()) ids.push_back(job.id());
+                        for (const auto& job : engine->write_jobs()) ids.push_back(job.id());
+                        for (int32_t id : ids) engine->CancelJob(id);
                     }
                     CloseAudits("", false);
                 });
@@ -234,34 +210,30 @@ namespace px
     }
 
     void FtPlugin::ProcessMessage(const std::shared_ptr<Message>& msg) {
-        if (!engine_) {
-            return;
-        }
+        auto* engine = GetOrCreateEngine(msg->stream_id());
         if (msg->type() == MessageType::kFileAction) {
             const auto& action = msg->file_action();
             using U = px::FileAction::UnionCase;
-            if (!CheckReadPathExists(action) || !CheckFileCountLimit(action)) {
+            if (!CheckReadPathExists(action, msg->stream_id()) || !CheckFileCountLimit(action, msg->stream_id())) {
                 return;
             }
             // 审计:传输作业开始(目录操作不建作业,不入审计)。
             if (action.union_case() == U::kSend) {
                 // 对端请求下载:render -> 主控
-                TrackJobBegin(action.send().id(), "Out", action.send().path(), 0, msg);
+                TrackJobBegin(msg->stream_id(), action.send().id(), "Out", action.send().path(), 0, msg);
             } else if (action.union_case() == U::kReceive) {
                 // 对端上传:主控 -> render
-                TrackJobBegin(action.receive().id(), "In", action.receive().path(),
+                TrackJobBegin(msg->stream_id(), action.receive().id(), "In", action.receive().path(),
                               action.receive().total_size(), msg);
             }
-            current_stream_id_ = msg->stream_id();
-            engine_->HandleFileAction(action, msg->stream_id());
+            engine->HandleFileAction(action, msg->stream_id());
         } else {
-            current_stream_id_ = msg->stream_id();
-            engine_->HandleFileResponse(msg->file_response());
+            engine->HandleFileResponse(msg->file_response());
         }
         last_activity_ = std::chrono::steady_clock::now();
     }
 
-    bool FtPlugin::SendToChannel(const px::Message& msg) {
+    bool FtPlugin::SendToChannel(const px::Message& msg, const std::string& stream_id) {
         // 线程安全性:见头文件注释(可从 worker 直调,无需回程队列)。
         // 反压:通道忙时返回 false,引擎压入待发队列、本 tick 不再读盘。
         if (GetQueuingFtMsgCountInNetPlugins() > kFtQueueBusyThreshold) {
@@ -279,10 +251,39 @@ namespace px
         } else if (out.has_file_action()) {
             out.set_type(MessageType::kFileAction);
         }
-        out.set_stream_id(current_stream_id_);
+        out.set_stream_id(stream_id);
         out.set_device_id(sys_settings_.device_id_);
-        DispatchTargetFileTransferMessage(current_stream_id_, ProtoAsData(&out));
+        DispatchTargetFileTransferMessage(stream_id, ProtoAsData(&out));
         return true;
+    }
+
+    px::ft::FtEngine* FtPlugin::GetOrCreateEngine(const std::string& stream_id) {
+        if (auto it = engines_.find(stream_id); it != engines_.end()) return it->second.get();
+        auto engine = std::make_unique<px::ft::FtEngine>(
+            [this, stream_id](const px::Message& msg) { return SendToChannel(msg, stream_id); });
+        engine->SetLogCallback([stream_id](const std::string& msg) {
+            LOGW("[ft_engine:{}] {}", stream_id, msg);
+        });
+        engine->SetJobDoneCallback([this, stream_id](int32_t job_id, int32_t file_num,
+                                                       const std::string& error_or_empty) {
+            (void)file_num;
+            TrackJobEnd(stream_id, job_id, error_or_empty);
+        });
+        engine->SetOverwriteConfirmCallback([this, stream_id](int32_t job_id, int32_t file_num,
+                                                               const std::string& path, bool is_upload, bool is_identical) {
+            LOGW("ft overwrite fallback, stream {}, job {}, file #{}, path {}, upload {}, identical {}",
+                 stream_id, job_id, file_num, path, is_upload, is_identical);
+            std::lock_guard<std::mutex> lk(task_mutex_);
+            tasks_.emplace_back([this, stream_id, job_id, file_num]() {
+                if (auto it = engines_.find(stream_id); it != engines_.end()) {
+                    it->second->ConfirmFile(job_id, file_num, false, 0);
+                }
+            });
+            task_cv_.notify_one();
+        });
+        auto* result = engine.get();
+        engines_.emplace(stream_id, std::move(engine));
+        return result;
     }
 
     // ---------------- 权限 / 上限 ----------------
@@ -332,7 +333,7 @@ namespace px
         return count;
     }
 
-    bool FtPlugin::CheckFileCountLimit(const px::FileAction& action) {
+    bool FtPlugin::CheckFileCountLimit(const px::FileAction& action, const std::string& stream_id) {
         using U = px::FileAction::UnionCase;
         int32_t id = 0;
         int32_t file_num = -1;
@@ -363,11 +364,11 @@ namespace px
             return true;
         }
         LOGW("ft rejected: too many files ({} exceeds limit {})", count, kMaxTransferFileCount);
-        SendToChannel(px::ft::NewError(id, "Too many files", file_num));
+        SendToChannel(px::ft::NewError(id, "Too many files", file_num), stream_id);
         return false;
     }
 
-    bool FtPlugin::CheckReadPathExists(const px::FileAction& action) {
+    bool FtPlugin::CheckReadPathExists(const px::FileAction& action, const std::string& stream_id) {
         using U = px::FileAction::UnionCase;
         if (action.union_case() != U::kSend) {
             return true;
@@ -378,13 +379,13 @@ namespace px
         }
         LOGW("ft rejected: path not exists: {}", action.send().path());
         SendToChannel(px::ft::NewError(action.send().id(), "Path not exists",
-                                       action.send().file_num()));
+                                       action.send().file_num()), stream_id);
         return false;
     }
 
     // ---------------- 审计 ----------------
 
-    void FtPlugin::TrackJobBegin(int32_t job_id, const std::string& direction,
+    void FtPlugin::TrackJobBegin(const std::string& stream_id, int32_t job_id, const std::string& direction,
                                  const std::string& path, uint64_t total_size,
                                  const std::shared_ptr<Message>& msg) {
         const int64_t begin_ts = (int64_t)TimeUtil::GetCurrentTimestamp();
@@ -393,8 +394,8 @@ namespace px
         AuditRecord rec;
         rec.the_file_id_ = MD5::Hex(path + "#" + std::to_string(job_id) + "#" + std::to_string(begin_ts));
         rec.begin_timestamp_ = begin_ts;
-        rec.stream_id_ = msg->stream_id();
-        audits_[job_id] = rec;
+        rec.stream_id_ = stream_id;
+        audits_[stream_id + "#" + std::to_string(job_id)] = rec;
 
         auto event = std::make_shared<PxPluginFileTransferBegin>();
         event->the_file_id_ = rec.the_file_id_;
@@ -407,8 +408,8 @@ namespace px
         CallbackEvent(event);
     }
 
-    void FtPlugin::TrackJobEnd(int32_t job_id, const std::string& error_or_empty) {
-        auto it = audits_.find(job_id);
+    void FtPlugin::TrackJobEnd(const std::string& stream_id, int32_t job_id, const std::string& error_or_empty) {
+        auto it = audits_.find(stream_id + "#" + std::to_string(job_id));
         if (it == audits_.end()) {
             return;
         }
@@ -424,14 +425,15 @@ namespace px
     void FtPlugin::CloseAudits(const std::string& stream_id, bool success) {
         // 断线/停止时关闭悬挂记录,避免 panel 侧留下只有 Begin 的记录。
         // stream_id 非空时只关该连接的,不影响其他连接在途作业的记录。
-        std::vector<int32_t> ids;
-        for (const auto& [id, rec] : audits_) {
+        std::vector<std::pair<std::string, int32_t>> ids;
+        for (const auto& [key, rec] : audits_) {
             if (stream_id.empty() || rec.stream_id_ == stream_id) {
-                ids.push_back(id);
+                const auto pos = key.rfind('#');
+                if (pos != std::string::npos) ids.emplace_back(rec.stream_id_, std::stoi(key.substr(pos + 1)));
             }
         }
-        for (int32_t id : ids) {
-            TrackJobEnd(id, success ? "" : "interrupted");
+        for (const auto& [id_stream, id] : ids) {
+            TrackJobEnd(id_stream, id, success ? "" : "interrupted");
         }
     }
 

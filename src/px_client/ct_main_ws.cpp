@@ -14,6 +14,8 @@
 #include "thunder_sdk.h"
 #include "px_client/ct_client_context.h"
 #include "ct_base_workspace.h"
+#include "plugins/ct_plugin_manager.h"
+#include "plugin_interface/ct_plugin_interface.h"
 #include "px_client/ct_workspace.h"
 #include "px_client/ct_application.h"
 #include "px_common_new/md5.h"
@@ -192,6 +194,9 @@ void ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_skin("skin", "Skin plugin name (e.g. skin_official, skin_opensource).", "name", "");
     parser.addOption(opt_skin);
 
+    QCommandLineOption opt_mode("mode", "Client mode: remote-control or file-transfer", "value", "remote-control");
+    parser.addOption(opt_mode);
+
     parser.process(app);
 
     g_remote_host_ = parser.value(opt_host).toStdString();
@@ -200,6 +205,11 @@ void ParseCommandLine(QApplication& app) {
     auto settings = px::Settings::Instance();
     settings->host_ = g_remote_host_;
     settings->port_ = g_remote_port_;
+    const auto mode = parser.value(opt_mode);
+    settings->file_transfer_only_ = mode == "file-transfer";
+    if (mode != "remote-control" && !settings->file_transfer_only_) {
+        parser.showHelp(2);
+    }
 
     // TCP(ws 控制面)与 UDP(媒体面)共用同一端口
     settings->udp_port_ = settings->port_;
@@ -216,6 +226,11 @@ void ParseCommandLine(QApplication& app) {
 
     auto clipboard_on = parser.value(opt_clipboard).toInt();
     settings->clipboard_on_ = (clipboard_on == 1);
+    if (settings->file_transfer_only_) {
+        settings->audio_on_ = false;
+        settings->clipboard_on_ = false;
+        settings->only_viewing_ = true;
+    }
     settings->stream_id_ = parser.value(opt_stream_id).toStdString();
     g_nt_type_ = parser.value(opt_network_type).toStdString();
     settings->network_type_ = [=]() -> ClientNetworkType {
@@ -324,6 +339,11 @@ void ParseCommandLine(QApplication& app) {
         if (!value.isEmpty()) {
             settings->only_viewing_ = value.toInt() == 1;
         }
+    }
+    // The standalone file manager never grants a control surface, regardless
+    // of command-line defaults inherited from the normal client launcher.
+    if (settings->file_transfer_only_) {
+        settings->only_viewing_ = true;
     }
 
     // split windows
@@ -570,8 +590,9 @@ int main(int argc, char** argv) {
     auto params = std::make_shared<ThunderSdkParams>(ThunderSdkParams {
         .ssl_ = false,
         .enable_audio_ = settings->audio_on_,
-        .enable_video_ = true,
+        .enable_video_ = !settings->file_transfer_only_,
         .enable_controller_ = false,
+        .file_transfer_only_ = settings->file_transfer_only_,
         .ip_ = host,
         .port_ = port,
         .udp_port_ = settings->udp_port_,
@@ -608,7 +629,7 @@ int main(int argc, char** argv) {
 
     auto beg = TimeUtil::GetCurrentTimestamp();
 
-    if (!settings->force_software_ && !settings->disable_vulkan_) {
+    if (!settings->file_transfer_only_ && !settings->force_software_ && !settings->disable_vulkan_) {
         auto vulkan_checker = VulkanChecker::Make();
         bool support_vulkan = vulkan_checker->TestDecodeAndRenderHevcYuv444Frame();
         LOGI("support vulkan(hevc decode yuv444 and render): {}", support_vulkan);
@@ -616,7 +637,14 @@ int main(int argc, char** argv) {
     }
 
     static auto ws = Workspace::Make(ctx, params);
-    ws->show();
+    if (settings->file_transfer_only_) {
+        ws->hide();
+        if (auto plugin = ctx->GetPluginManager()->GetFileTransferPlugin(); plugin) {
+            plugin->ShowRootWidget();
+        }
+    } else {
+        ws->show();
+    }
     // ctx->PostDelayUITask([=]() {
     //     if (settings->auto_layout_screens_) {
     //         ws->showMaximized();
@@ -625,7 +653,7 @@ int main(int argc, char** argv) {
     auto end = TimeUtil::GetCurrentTimestamp();
     LOGI("Init used: {}ms", (end-beg));
 
-    HHOOK keyboardHook = SetWindowsHookExA(WH_KEYBOARD_LL, [](int code, WPARAM wParam, LPARAM lParam) -> LRESULT {
+    HHOOK keyboardHook = settings->file_transfer_only_ ? nullptr : SetWindowsHookExA(WH_KEYBOARD_LL, [](int code, WPARAM wParam, LPARAM lParam) -> LRESULT {
         if (Settings::Instance()->only_viewing_) {
             return CallNextHookEx(nullptr, code, wParam, lParam);
         }
@@ -648,6 +676,6 @@ int main(int argc, char** argv) {
     }, nullptr, 0);
 
     auto r = app.exec();
-    UnhookWindowsHookEx(keyboardHook);
+    if (keyboardHook) UnhookWindowsHookEx(keyboardHook);
     return r;
 }

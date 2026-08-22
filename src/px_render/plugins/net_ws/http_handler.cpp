@@ -201,8 +201,10 @@ namespace px
                 return;
             }
             ticket_permissions = wait_state->permissions_;
-            if (std::find(ticket_permissions.begin(), ticket_permissions.end(), "view") == ticket_permissions.end()) {
-                LOGW("Connection ticket rejected: missing view capability");
+            const bool may_view = std::find(ticket_permissions.begin(), ticket_permissions.end(), "view") != ticket_permissions.end();
+            const bool may_transfer_files = std::find(ticket_permissions.begin(), ticket_permissions.end(), "file") != ticket_permissions.end();
+            if (!may_view && !may_transfer_files) {
+                LOGW("Connection ticket rejected: missing view or file capability");
                 resp.fill_json(
                     WrapBasicInfo(
                         kHandlerErrConnectionTicketRejected,

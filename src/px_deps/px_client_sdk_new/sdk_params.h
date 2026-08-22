@@ -24,6 +24,9 @@ namespace px
         bool enable_audio_ = false;
         bool enable_video_ = false;
         bool enable_controller_ = false;
+        // Standalone file manager: open only the file-transfer transport where
+        // the network type has separate media and FT connections.
+        bool file_transfer_only_ = false;
         std::string ip_;
         int port_;
         // udp_direct(kUdpDirect)模式下 render 的 UDP 媒体端口,与 ws 控制面端口分开

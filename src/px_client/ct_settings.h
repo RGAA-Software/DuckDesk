@@ -162,6 +162,9 @@ namespace px
         // force direct
         bool force_direct_ = false;
 
+        // Standalone file manager: the process owns only the FT channel and UI.
+        bool file_transfer_only_ = false;
+
         // skin plugin name
         std::string skin_name_;
 

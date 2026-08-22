@@ -1,0 +1,57 @@
+@echo off
+setlocal
+
+rem Build the px_client executable and its file-transfer plugin with the
+rem project's existing build_official CMake/Ninja tree.
+rem Usage: scripts\build_px_client.bat [build_dir] [parallelism]
+rem Example: scripts\build_px_client.bat build_official 8
+
+cd /d "%~dp0\.."
+set "REPO_ROOT=%cd%"
+set "BUILD_DIR=%~1"
+if "%BUILD_DIR%"=="" set "BUILD_DIR=build_official"
+set "PARALLEL=%~2"
+if "%PARALLEL%"=="" set "PARALLEL=8"
+
+if not exist "%BUILD_DIR%\build.ninja" (
+    echo ERROR: CMake/Ninja build directory was not found: %REPO_ROOT%\%BUILD_DIR%
+    echo Run the project's configure/build_official script first.
+    exit /b 1
+)
+
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+set "VS_ROOT="
+if exist "%VSWHERE%" (
+    for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_ROOT=%%I"
+)
+
+if not defined VS_ROOT (
+    echo ERROR: No Visual Studio installation with MSVC x64 tools was found.
+    exit /b 1
+)
+
+call "%VS_ROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+if errorlevel 1 exit /b %errorlevel%
+
+echo Building px_client and ft_client in %BUILD_DIR% with %PARALLEL% jobs...
+cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client ft_client
+if errorlevel 1 exit /b %errorlevel%
+
+set "CLIENT_OUT=%BUILD_DIR%\src\px_client\px_client.exe"
+set "FT_OUT=%BUILD_DIR%\src\px_client\plugins\ft\ft_client.dll"
+set "DIST_DIR=%BUILD_DIR%\dist"
+set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
+if not exist "%CLIENT_OUT%" (
+    echo ERROR: px_client build completed but output was not found: %CLIENT_OUT%
+    exit /b 1
+)
+if not exist "%FT_OUT%" (
+    echo ERROR: ft_client build completed but output was not found: %FT_OUT%
+    exit /b 1
+)
+if not exist "%FT_DIST_DIR%" mkdir "%FT_DIST_DIR%"
+copy /Y "%CLIENT_OUT%" "%DIST_DIR%\px_client.exe" >nul || exit /b 1
+copy /Y "%FT_OUT%" "%FT_DIST_DIR%\ft_client.dll" >nul || exit /b 1
+
+echo DONE: published %DIST_DIR%\px_client.exe and file-transfer plugin
+endlocal

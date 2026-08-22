@@ -60,6 +60,10 @@ namespace px
                 auto plugin = (ClientPluginInterface*)func();
                 if (plugin) {
                     plugin_id = plugin->GetPluginId();
+                    if (Settings::Instance()->file_transfer_only_ && plugin_id != kClientFtPluginId) {
+                        library->unload();
+                        continue;
+                    }
                     if (plugins_.contains(plugin_id)) {
                         LOGE("Load client plugin failed, plugin_id: {}, dll path: {}, errorString: repeated loading",
                              plugin_id,

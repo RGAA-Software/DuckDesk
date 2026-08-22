@@ -358,6 +358,7 @@ namespace px
             tcTr("id_start_control"),
             tcTr("id_stop_control"),
             tcTr("id_only_viewing"),
+            tcTr("id_file_transfer"),
             tcTr("id_lock_device"),
             tcTr("id_restart_device"),
             tcTr("id_shutdown_device"),
@@ -399,28 +400,31 @@ namespace px
             StartStream(cur_item, item, true);
         }
         else if (index == 3) {
+            StartFileTransfer(item);
+        }
+        else if (index == 4) {
             // lock device
             LockDevice(item);
         }
-        else if (index == 4) {
+        else if (index == 5) {
             // restart device
             RestartDevice(item);
         }
-        else if (index == 5) {
+        else if (index == 6) {
             // shutdown device
             ShutdownDevice(item);
         }
-        // "" 6
-        else if (index == 7) {
+        // "" 7
+        else if (index == 8) {
             // edit
             EditStream(item);
         }
-        else if (index == 8) {
+        else if (index == 9) {
             // delete
             DeleteStream(item);
         }
-        // "" 9
-        else if (index == 10) {
+        // "" 10
+        else if (index == 11) {
             ShowSettings(item);
         }
     }
@@ -1033,6 +1037,28 @@ namespace px
                 self->state_checker_->UpdateCurrentStreamItems(streams);
             }
         });
+    }
+
+    void AppStreamList::StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item) {
+        if (!grApp->GetUserManager()->IsLoggedIn() || item->remote_device_id_.empty()) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), "File transfer requires a signed-in CMS user.");
+            return;
+        }
+        auto target = db_mgr_->GetStreamByStreamId(item->stream_id_);
+        if (!target.has_value()) return;
+        auto launch = target.value();
+        const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+        auto ticket = grApp->GetUserManager()->IssueDeviceTicket(launch->remote_device_id_, nonce, {"file"});
+        if (!ticket.has_value()) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), QString::fromStdString(px_cms::CmsApiLastErrorMessage()));
+            return;
+        }
+        const QUrl url(QString::fromStdString(ticket.value().launch_url));
+        if (!url.isValid() || url.host().isEmpty() || url.port() <= 0) return;
+        launch->stream_host_ = url.host().toStdString(); launch->stream_port_ = url.port();
+        launch->connection_ticket_ = ticket.value().ticket; launch->connection_nonce_ = nonce;
+        const bool direct = RenderApi::GetRenderConfiguration(launch->stream_host_, launch->stream_port_).has_value() && !launch->force_relay_;
+        running_stream_mgr_->StartFileTransfer(launch, direct ? kStreamItemNtTypeWebRTCDirect : kStreamItemNtTypeRelay);
     }
 
     void AppStreamList::RefreshResources() {

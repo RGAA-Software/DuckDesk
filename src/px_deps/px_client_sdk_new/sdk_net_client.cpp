@@ -68,11 +68,15 @@ namespace px
             LOGI("media: {}", media_path_);
             LOGI("file transfer: {}", ft_path_);
             if (sdk_params_->ssl_) {
-                media_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                if (!sdk_params_->file_transfer_only_) {
+                    media_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                }
                 ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
             }
             else {
-                media_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                if (!sdk_params_->file_transfer_only_) {
+                    media_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                }
                 ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
             }
         }
@@ -119,30 +123,36 @@ namespace px
             return;
         }
 
-        media_conn_->RegisterOnConnectedCallback([=, this]() {
+        auto primary_conn = media_conn_ ? media_conn_ : ft_conn_;
+        if (!primary_conn) {
+            LOGE("Start failed: no transport connection was created");
+            return;
+        }
+        primary_conn->RegisterOnConnectedCallback([=, this]() {
             if (conn_cbk_) {
                 conn_cbk_();
             }
         });
 
-        media_conn_->RegisterOnDisConnectedCallback([=, this]() {
+        primary_conn->RegisterOnDisConnectedCallback([=, this]() {
             if (dis_conn_cbk_) {
                 dis_conn_cbk_();
             }
         });
 
-        media_conn_->RegisterOnMessageCallback([=, this](std::shared_ptr<Data> data) {
-            // statistics
-            this->stat_->AppendRecvDataSize(data->Size());
-            // parse
-            if (auto m = this->ParseMessage(data); m) {
-                // ack
-                auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                media_conn_->PostBinaryMessage(ack);
-            }
-        });
-
-        media_conn_->Start();
+        if (media_conn_) {
+            media_conn_->RegisterOnMessageCallback([=, this](std::shared_ptr<Data> data) {
+                // statistics
+                this->stat_->AppendRecvDataSize(data->Size());
+                // parse
+                if (auto m = this->ParseMessage(data); m) {
+                    // ack
+                    auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
+                    media_conn_->PostBinaryMessage(ack);
+                }
+            });
+            media_conn_->Start();
+        }
         if (ft_conn_) {
             ft_conn_->RegisterOnMessageCallback([=, this](std::shared_ptr<Data> data) {
                 // statistics

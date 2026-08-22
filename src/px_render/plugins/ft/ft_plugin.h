@@ -65,7 +65,8 @@ namespace px
         //     net_ws 经 ConcurrentHashMap + asio 队列投递;
         //  3) 既有先例:ws_panel_client.cpp 在 panel WS 线程直调,clipboard 在 work 线程调用。
         //  唯一约束:worker 必须先于基类 OnDestroy(清空 net_plugins_)join,见 StopWorker。
-        bool SendToChannel(const px::Message& msg);
+        bool SendToChannel(const px::Message& msg, const std::string& stream_id);
+        px::ft::FtEngine* GetOrCreateEngine(const std::string& stream_id);
 
         // ---- 权限 / 上限 ----
         // file_transfer_enabled 关闭时在入口直接拒绝(dispatch 线程,小消息直发,
@@ -73,21 +74,24 @@ namespace px
         void ReplyNoPermission(const std::shared_ptr<Message>& in_msg);
         // 文件数上限预检(worker 线程),超限回 FileTransferError 且不喂引擎。
         // 返回 false 表示已拒绝。对齐 rustdesk check_file_count_limit(ui_cm_interface.rs:112)。
-        bool CheckFileCountLimit(const px::FileAction& action);
+        bool CheckFileCountLimit(const px::FileAction& action, const std::string& stream_id);
         // 引擎 NewRead 失败(多为路径不存在)时只回 error 不触发 job_done 回调,
         // 会产生只有 Begin 没有 End 的悬挂审计记录,这里提前拦掉。
-        bool CheckReadPathExists(const px::FileAction& action);
+        bool CheckReadPathExists(const px::FileAction& action, const std::string& stream_id);
 
         // ---- 审计(panel CMS 链路:kRpFileTransferBegin/End)----
-        void TrackJobBegin(int32_t job_id, const std::string& direction,
+        void TrackJobBegin(const std::string& stream_id, int32_t job_id, const std::string& direction,
                            const std::string& path, uint64_t total_size,
                            const std::shared_ptr<Message>& msg);
-        void TrackJobEnd(int32_t job_id, const std::string& error_or_empty);
+        void TrackJobEnd(const std::string& stream_id, int32_t job_id, const std::string& error_or_empty);
         // 关闭指定连接的悬挂审计;stream_id 为空 = 全部(插件停止时)
         void CloseAudits(const std::string& stream_id, bool success);
 
     private:
-        std::unique_ptr<px::ft::FtEngine> engine_;
+        // FtEngine emits replies through a callback with no stream id. Keep one
+        // engine per connection so replies, jobs and reconnect cleanup cannot
+        // be redirected when a control session and a file-only session overlap.
+        std::unordered_map<std::string, std::unique_ptr<px::ft::FtEngine>> engines_;
 
         // 任务队列:dispatch 线程只入队,worker 线程唯一消费者。
         // 跨线程共享只有该队列本身(引擎全部可变状态仅 worker 持有)。
@@ -99,7 +103,6 @@ namespace px
         std::atomic_bool accepting_ = false;
 
         // ---- 以下仅 worker 线程访问 ----
-        std::string current_stream_id_;
         // 最近活动时间:有作业或刚有活动时 1ms tick,空闲 30s(对齐 rustdesk MILLI1/SEC30)。
         // 引擎待发队列在通道忙时会积压握手消息,靠宽限期保证无作业时也能及时冲刷。
         std::chrono::steady_clock::time_point last_activity_;
@@ -109,7 +112,7 @@ namespace px
             int64_t begin_timestamp_ = 0;
             std::string stream_id_; // 归属连接,断线按连接闭环审计
         };
-        std::unordered_map<int32_t, AuditRecord> audits_;
+        std::unordered_map<std::string, AuditRecord> audits_;
     };
 
 }
