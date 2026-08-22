@@ -65,7 +65,12 @@ namespace px
     void NetClient::Start() {
         if (network_type_ == ClientNetworkType::kWebsocket) {
             LOGI("Will connect by Websocket, ssl : {}", sdk_params_->ssl_);
-            LOGI("media: {}", media_path_);
+            if (!sdk_params_->file_transfer_only_) {
+                LOGI("media: {}", media_path_);
+            }
+            else {
+                LOGI("file-transfer-only: media websocket disabled");
+            }
             LOGI("file transfer: {}", ft_path_);
             if (sdk_params_->ssl_) {
                 if (!sdk_params_->file_transfer_only_) {

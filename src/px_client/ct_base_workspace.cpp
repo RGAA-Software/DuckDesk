@@ -144,7 +144,8 @@ namespace px
         // by Panel. The legacy device WebSocket cannot authenticate a guest or
         // user-session ticket and would otherwise retry a rejected handshake
         // every second for the lifetime of the application session.
-        if (settings_->connection_ticket_.empty()
+        if (!settings_->file_transfer_only_
+            && settings_->connection_ticket_.empty()
             && !settings_->device_id_.empty()
             && !settings_->cms_host_.empty()
             && settings_->cms_port_ > 0
@@ -171,7 +172,14 @@ namespace px
             this->params_->vulkan_hw_device_ctx_ = pl_vulkan_->GetHwDeviceCtx();
         }
 
-        InitSampleWidget();
+            InitSampleWidget();
+        }
+        else {
+            // Several long-lived base listeners own lightweight UI helpers
+            // (progress/debug/indicator). Keep those helpers alive in the
+            // hidden plugin host; they do not create capture/decoder/audio
+            // resources, and avoid event-path null dereferences.
+            InitSampleWidget();
         }
 
         // message listener
@@ -834,7 +842,12 @@ namespace px
     }
 
     void BaseWorkspace::resizeEvent(QResizeEvent *event) {
-        main_progress_->setGeometry(0, title_bar_height_, event->size().width(), event->size().height());
+        // The standalone file manager deliberately does not construct the
+        // remote-desktop widgets. Qt can still deliver a resize event while
+        // its hidden host window is being created.
+        if (main_progress_) {
+            main_progress_->setGeometry(0, title_bar_height_, event->size().width(), event->size().height());
+        }
         UpdateDebugPanelPosition();
         UpdateVideoWidgetSize();
         UpdateFloatButtonIndicatorPosition();
@@ -844,7 +857,9 @@ namespace px
     }
 
     void BaseWorkspace::UpdateFloatButtonIndicatorPosition() {
-        btn_indicator_->setGeometry(0, 0, btn_indicator_->width(), btn_indicator_->height());
+        if (btn_indicator_) {
+            btn_indicator_->setGeometry(0, 0, btn_indicator_->width(), btn_indicator_->height());
+        }
     }
 
     Qt::CursorShape BaseWorkspace::ToQCursorShape(uint32_t cursor_type) {
@@ -1126,6 +1141,9 @@ namespace px
     }
 
     void BaseWorkspace::UpdateVideoWidgetSize() {
+        if (settings_->file_transfer_only_) {
+            return;
+        }
         context_->PostUITask([=, this]() {
             auto scale_mode = settings_->scale_mode_;
             LOGI("UpdateVideoWidgetSize scale_mode: {}", (int)scale_mode);
