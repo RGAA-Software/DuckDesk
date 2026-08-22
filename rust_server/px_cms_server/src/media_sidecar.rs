@@ -4,9 +4,6 @@ use std::process::Command;
 use std::time::Duration;
 
 const TURN_LISTENING_PORT: u16 = 20128;
-const TURN_MIN_RELAY_PORT: u16 = 20200;
-const TURN_MAX_RELAY_PORT: u16 = 20500;
-const TURN_REALM: &str = "px-turn.invalid";
 
 fn local_media_port(media_server_url: &str) -> Result<Option<u16>, String> {
     let authority = media_server_url
@@ -188,8 +185,8 @@ pub async fn ensure_started(settings: &CmsLiveSettings) {
     );
 }
 
-/// Starts the bundled Coturn sidecar without a turnserver.conf file. The
-/// server address is the CMS address selected in `server_w3c_ip`, which is
+/// Starts the bundled Coturn sidecar from the adjacent turnserver.conf. The
+/// server address is still supplied by CMS, because it is selected from `server_w3c_ip`, which is
 /// automatically resolved to a local IPv4 address when it is left empty.
 ///
 /// Long-term credentials are deliberately enabled even before CMS-issued
@@ -217,8 +214,13 @@ pub async fn ensure_turn_started(server_ip: &str) {
         return;
     };
     let turn_exe = directory.join("px_turn.exe");
-    if !turn_exe.is_file() {
-        tracing::error!(exe = %turn_exe.display(), "px_turn sidecar is not deployed beside px_cms.exe");
+    let turn_config = directory.join("turnserver.conf");
+    if !turn_exe.is_file() || !turn_config.is_file() {
+        tracing::error!(
+            exe = %turn_exe.display(),
+            config = %turn_config.display(),
+            "px_turn sidecar or its configuration is not deployed beside px_cms.exe"
+        );
         return;
     }
     if port_is_open(server_ip, TURN_LISTENING_PORT).await {
@@ -230,32 +232,14 @@ pub async fn ensure_turn_started(server_ip: &str) {
         return;
     }
 
-    let listening_port = TURN_LISTENING_PORT.to_string();
-    let min_relay_port = TURN_MIN_RELAY_PORT.to_string();
-    let max_relay_port = TURN_MAX_RELAY_PORT.to_string();
     let mut command = Command::new(&turn_exe);
     command.current_dir(directory).args([
-        "-n", // Do not load turnserver.conf.
-        "-p",
-        &listening_port,
+        "-c",
+        "./turnserver.conf",
         "-L",
         server_ip,
         "-E",
         server_ip,
-        "--min-port",
-        &min_relay_port,
-        "--max-port",
-        &max_relay_port,
-        "--fingerprint",
-        "--lt-cred-mech",
-        "--realm",
-        TURN_REALM,
-        "--stale-nonce",
-        "--no-multicast-peers",
-        "--no-tls",
-        "--log-file",
-        "./px_turn.log",
-        "--simple-log",
     ]);
     #[cfg(windows)]
     {

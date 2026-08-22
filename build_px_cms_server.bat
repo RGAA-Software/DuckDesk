@@ -172,6 +172,10 @@ if not exist "%MEDIA_SRC%\px_turn.exe" (
     echo ERROR: Fixed TURN runtime is missing: %MEDIA_SRC%\px_turn.exe
     exit /b 1
 )
+if not exist "%MEDIA_SRC%\turnserver.conf" (
+    echo ERROR: Fixed TURN config is missing: %MEDIA_SRC%\turnserver.conf
+    exit /b 1
+)
 robocopy "%MEDIA_SRC%" "%OUTPUT_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 (
     echo ERROR: Failed to deploy media runtime beside %EXE_NAME%.exe.

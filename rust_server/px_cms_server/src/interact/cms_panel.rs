@@ -264,10 +264,12 @@ impl CmsPanel {
         } else {
             "远端/未托管".to_string()
         };
+        let turn_status = status_label(self.process_state.turn_running());
 
         let running_count = [
             self.process_state.cms_running(),
             self.process_state.media_running(),
+            self.process_state.turn_running(),
             self.redis_ok && self.mongodb_ok,
         ]
         .into_iter()
@@ -281,7 +283,7 @@ impl CmsPanel {
             ]
             .spacing(5),
             Space::new().width(Length::Fill),
-            status_pill(format!("{running_count}/3 服务正常"), running_count == 3),
+            status_pill(format!("{running_count}/4 服务正常"), running_count == 4),
         ]
         .align_y(iced::Alignment::Center)
         .width(Length::Fill);
@@ -301,6 +303,12 @@ impl CmsPanel {
                     "px_media / ZLMediaKit",
                     media_status,
                     self.process_state.media_running()
+                ),
+                service_item(
+                    "TURN 中继服务",
+                    "px_turn / Coturn",
+                    turn_status,
+                    self.process_state.turn_running()
                 ),
                 service_item(
                     "Redis",
@@ -379,7 +387,7 @@ impl CmsPanel {
             );
         }
         if self.exiting {
-            page = page.push(text("正在停止 CMS 与本地 px_media…"));
+            page = page.push(text("正在停止 CMS、px_media 与 px_turn…"));
         }
 
         let base = container(scrollable(page).width(Length::Fill).height(Length::Fill))
@@ -461,7 +469,8 @@ fn exit_area(exiting: bool) -> Element<'static, Message> {
         row![
             column![
                 text("关闭本机服务").size(16),
-                text("退出面板时，将停止本机 CMS 与 px_media；远端 ZLMediaKit 不受影响。").size(13),
+                text("退出面板时，将停止本机 CMS、px_media 与 px_turn；远端 ZLMediaKit 不受影响。")
+                    .size(13),
             ]
             .spacing(3),
             Space::new().width(Length::Fill),
@@ -500,7 +509,7 @@ fn exit_confirmation() -> Element<'static, Message> {
         column![
             text("确认退出").size(25),
             text("是否停止本机 CMS 服务？").size(17),
-            text("这会一并停止由 CMS 托管的 px_media。远端 ZLMediaKit 不受影响。").size(14),
+            text("这会一并停止 px_media 与 px_turn；远端 ZLMediaKit 不受影响。").size(14),
             row![
                 Space::new().width(Length::Fill),
                 button("取消").on_press(Message::CancelExit),

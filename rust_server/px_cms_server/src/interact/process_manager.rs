@@ -13,6 +13,7 @@ const RESTARTING: u8 = 2;
 pub struct LocalProcessState {
     pub cms_pid: Option<u32>,
     pub media_pid: Option<u32>,
+    pub turn_pid: Option<u32>,
     pub media_managed: bool,
 }
 
@@ -23,6 +24,10 @@ impl LocalProcessState {
 
     pub fn media_running(self) -> bool {
         self.media_pid.is_some()
+    }
+
+    pub fn turn_running(self) -> bool {
+        self.turn_pid.is_some()
     }
 }
 
@@ -167,13 +172,14 @@ impl CmsProcessManager {
     }
 
     fn snapshot_from(&self, system: &System) -> LocalProcessState {
-        let (cms_pids, media_pids, _) = self.matching_pids_from(system);
+        let (cms_pids, media_pids, turn_pids) = self.matching_pids_from(system);
         let mut state = LocalProcessState {
             media_managed: self.media_managed,
             ..Default::default()
         };
         state.cms_pid = cms_pids.into_iter().next();
         state.media_pid = media_pids.into_iter().next();
+        state.turn_pid = turn_pids.into_iter().next();
         state
     }
 

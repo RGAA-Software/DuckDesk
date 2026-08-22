@@ -135,6 +135,10 @@ if not exist "%MEDIA_SRC%\px_turn.exe" (
     echo        Run scripts\build_px_turn.bat first.
     exit /b 1
 )
+if not exist "%MEDIA_SRC%\turnserver.conf" (
+    echo ERROR: Bundled Coturn config is missing: %MEDIA_SRC%\turnserver.conf
+    exit /b 1
+)
 if not exist "%MEDIA_SRC%\COTURN_LICENSE" (
     echo ERROR: Bundled Coturn license is missing: %MEDIA_SRC%\COTURN_LICENSE
     exit /b 1
@@ -154,6 +158,10 @@ if not exist "%OUTPUT_DIR%\config.ini" (
 )
 if not exist "%OUTPUT_DIR%\px_turn.exe" (
     echo ERROR: Failed to copy px_turn.exe.
+    exit /b 1
+)
+if not exist "%OUTPUT_DIR%\turnserver.conf" (
+    echo ERROR: Failed to copy turnserver.conf.
     exit /b 1
 )
 
