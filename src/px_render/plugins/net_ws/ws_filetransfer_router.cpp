@@ -3,6 +3,7 @@
 //
 
 #include "ws_filetransfer_router.h"
+#include <atomic>
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread_util.h"
@@ -24,9 +25,15 @@ namespace px
 
     void WsFileTransferRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view data) {
         WsRouter::OnMessage(sess_ptr, socket_fd, data);
+        static std::atomic<uint64_t> received_count{0};
+        const auto count = ++received_count;
+        if (count <= 5 || (count % 500) == 0) {
+            LOGI("FileTransfer receive: n={}, socket={}, bytes={}", count, socket_fd, data.size());
+        }
         auto plugin = Get<WsPlugin*>("plugin");
         auto msg = Data::Make(data.data(), data.size());
-        plugin->OnClientEventCame(true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_, msg);
+        plugin->OnClientEventCameDirectly(
+            true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_, std::move(msg));
     }
 
     void WsFileTransferRouter::OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) {

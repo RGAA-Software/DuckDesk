@@ -134,6 +134,15 @@ namespace px
                                const NetChannelType& ch_type,
                                std::shared_ptr<Data> msg);
 
+        // Use for lightweight reliable-channel messages whose consumer only
+        // validates and queues work. This avoids an extra transport work-queue
+        // hop while keeping protobuf parsing out of WebRTC transport binaries.
+        void OnClientEventCameDirectly(bool is_proto,
+                                       int64_t socket_fd,
+                                       const NetPluginType& nt_plugin_type,
+                                       const NetChannelType& ch_type,
+                                       std::shared_ptr<Data> msg);
+
         virtual bool IsOnlyAudioClients();
 
         virtual int GetConnectedClientsCount();

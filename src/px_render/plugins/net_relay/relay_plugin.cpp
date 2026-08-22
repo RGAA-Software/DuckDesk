@@ -321,7 +321,9 @@ namespace px
                                 }
                                 const auto &payload = sub.payload();
                                 auto payload_msg = Data::Make((char*)payload.data(), payload.size());
-                                this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kFileTransfer, payload_msg);
+                                this->OnClientEventCameDirectly(
+                                    true, 0, NetPluginType::kWebSocket,
+                                    NetChannelType::kFileTransfer, std::move(payload_msg));
                             }
                         });
 

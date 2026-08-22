@@ -92,6 +92,15 @@ namespace px
     }
 
     void FtPlugin::OnMessage(std::shared_ptr<Message> msg) {
+        static std::atomic<uint64_t> received_count{0};
+        if (msg && (msg->type() == MessageType::kFileAction
+                    || msg->type() == MessageType::kFileResponse)) {
+            const auto count = ++received_count;
+            if (count <= 5 || (count % 500) == 0) {
+                LOGI("ft plugin receive: n={}, type={}, stream={}",
+                     count, static_cast<int>(msg->type()), msg->stream_id());
+            }
+        }
         const auto type = msg->type();
         if (type != MessageType::kFileAction && type != MessageType::kFileResponse) {
             return;
@@ -214,6 +223,10 @@ namespace px
         if (msg->type() == MessageType::kFileAction) {
             const auto& action = msg->file_action();
             using U = px::FileAction::UnionCase;
+            if (action.union_case() == U::kReadDir) {
+                LOGI("ft remote directory request: stream {}, path {}",
+                     msg->stream_id(), action.read_dir().path());
+            }
             if (!CheckReadPathExists(action, msg->stream_id()) || !CheckFileCountLimit(action, msg->stream_id())) {
                 return;
             }

@@ -143,6 +143,7 @@ namespace px
             std::lock_guard<std::mutex> lk(task_mutex_);
             tasks_.emplace_back([this, p = NormalizeRemotePath(path)]() {
                 if (engine_) {
+                    LOGI("ft remote directory request: {}", p.toStdString());
                     engine_->ReadDir(p.toStdString(), false);
                     last_activity_ = std::chrono::steady_clock::now();
                 }
@@ -350,6 +351,8 @@ namespace px
                     // 作业语境的文件列表(ReadAllFiles/下载握手),引擎已消费,UI 不展示
                     return;
                 }
+                LOGI("ft remote directory response: path {}, entries {}",
+                     dir.path(), dir.entries_size());
                 emit SigRemoteDir(QString::fromStdString(dir.path()), ConvertEntries(dir));
                 break;
             }

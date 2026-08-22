@@ -56,6 +56,21 @@ namespace px
         CallbackEvent(event);
     }
 
+    void PxNetPlugin::OnClientEventCameDirectly(bool is_proto,
+                                                int64_t socket_fd,
+                                                const NetPluginType& nt_plugin_type,
+                                                const NetChannelType& ch_type,
+                                                std::shared_ptr<Data> msg) {
+        auto event = std::make_shared<PxPluginNetClientEvent>();
+        event->is_proto_ = is_proto;
+        event->socket_fd_ = socket_fd;
+        event->nt_plugin_type_ = nt_plugin_type;
+        event->nt_channel_type_ = ch_type;
+        event->message_ = std::move(msg);
+        event->from_plugin_ = this;
+        CallbackEventDirectly(event);
+    }
+
     bool PxNetPlugin::IsOnlyAudioClients() {
         return false;
     }

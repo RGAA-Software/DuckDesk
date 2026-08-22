@@ -98,7 +98,12 @@ namespace px
     }
 
     bool WsPlugin::PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (IsWorking() && HasConnectedClients() && msg) {
+        // A file-transfer-only client intentionally opens /file/transfer without
+        // a companion /stream connection.  HasConnectedClients() reports media
+        // stream routers, so using it here drops every response for a standalone
+        // file manager even though the target FT router is alive.  Let the FT
+        // router lookup below be the source of truth for this channel.
+        if (IsWorking() && msg) {
             return ws_server_->PostTargetFileTransferMessage(stream_id, msg);
         }
         return false;

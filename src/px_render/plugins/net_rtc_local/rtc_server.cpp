@@ -224,7 +224,9 @@ namespace px
                 // data callback
                 ft_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kFileTransfer, payload_msg);
+                    plugin_->OnClientEventCameDirectly(
+                        true, 0, NetPluginType::kWebRtc,
+                        NetChannelType::kFileTransfer, std::move(payload_msg));
                 });
             }
             else if (name == "input_data_channel") {
