@@ -509,7 +509,7 @@ impl CmsUserSessionManager {
         Ok(AuthenticatedUser {
             sid: session.sid,
             uid: session.subject_id,
-            must_change_password: user.must_change_password,
+            must_change_password: false,
             client_type: session.client_type,
             csrf_hash: session.csrf_hash,
         })
@@ -570,7 +570,7 @@ impl CmsUserSessionManager {
         Ok(AuthenticatedUser {
             sid: session.sid,
             uid: session.subject_id,
-            must_change_password: user.must_change_password,
+            must_change_password: false,
             client_type: session.client_type,
             csrf_hash: session.csrf_hash,
         })

@@ -38,7 +38,7 @@ namespace px
             ClearGuestSession();
             auto login = r.value();
             auto user = login.user;
-            if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_, user->must_change_password_)) {
+            if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_)) {
                 // Do not leave a live server-side session behind when the
                 // Windows credential vault cannot persist its token.
                 auto logout_result = px_cms::CmsUserApi::Logout(host, port, login.access_token);
@@ -124,7 +124,7 @@ namespace px
         if (r.has_value()) {
             auto login = r.value();
             auto user = login.user;
-            if (!SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_, user->must_change_password_)) {
+            if (!SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_)) {
                 Clear();
                 return false;
             }
@@ -201,6 +201,27 @@ namespace px
             HandleExpiredUserSession();
         }
         return result;
+    }
+
+    bool PxUserManager::Register(const std::string& username, const std::string& password) {
+        auto [guest_access_token, guest] = ResourceSession();
+        if (guest_access_token.empty() || !guest) {
+            return false;
+        }
+        const auto result = px_cms::CmsUserApi::Register(
+            settings_->GetCmsServerHost(), settings_->GetCmsServerPort(),
+            guest_access_token, username, password);
+        if (result.has_value()) {
+            ClearGuestSession();
+            context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_register_success"));
+            return true;
+        }
+        const auto error = result.error();
+        QString message = tcTr("id_op_error") + ":" + QString::number((int)error)
+            + " " + px_cms::CmsApiErrorAsString(error).c_str();
+        TcDialog dialog(tcTr("id_error"), message);
+        dialog.exec();
+        return false;
     }
 
     px::Result<std::vector<px_cms::CmsUserApplication>, px_cms::CmsApiError>
@@ -302,7 +323,7 @@ namespace px
         context_->SendAppMessage(MsgUserLoggedOut {});
     }
 
-    bool PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path, bool must_change_password) {
+    bool PxUserManager::SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path) {
         if (!SaveAccessToken(access_token)) {
             return false;
         }
@@ -315,7 +336,6 @@ namespace px
 
         // avatar path
         this->UpdateAvatarPath(avatar_path);
-        context_->SpPutInteger(KeyMustChangePassword(), must_change_password ? 1 : 0);
         return true;
     }
 
@@ -384,16 +404,11 @@ namespace px
         return context_->SpGetString(KeyAvatarPath());
     }
 
-    bool PxUserManager::IsPasswordChangeRequired() {
-        return context_->SpGetInteger(KeyMustChangePassword(), 0) != 0;
-    }
-
     void PxUserManager::Clear() {
         DeleteAccessToken();
         context_->SpPutString(KeyUid(), "");
         UpdateUsername("");
         UpdateAvatarPath("");
-        context_->SpPutInteger(KeyMustChangePassword(), 0);
     }
 
     std::string PxUserManager::KeyUid() {
@@ -410,10 +425,6 @@ namespace px
 
     std::string PxUserManager::KeyAvatarPath() {
         return std::format("{}{}", kUserPrefix, px_cms::kUserAvatarPath);
-    }
-
-    std::string PxUserManager::KeyMustChangePassword() {
-        return std::format("{}{}", kUserPrefix, px_cms::kUserMustChangePassword);
     }
 
 }

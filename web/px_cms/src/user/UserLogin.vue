@@ -19,8 +19,8 @@ async function submit() {
   if (loading.value || !username.value || !password.value) return
   loading.value = true
   try {
-    const profile = await loginUser(username.value, password.value)
-    const target = profile.must_change_password ? '/user/profile' : String(route.query.redirect || '/user/home')
+    await loginUser(username.value, password.value)
+    const target = String(route.query.redirect || '/user/home')
     await router.replace(target.startsWith('/user/') ? target : '/user/home')
   } catch {
     message.error('用户名或密码错误')

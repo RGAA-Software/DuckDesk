@@ -90,7 +90,6 @@ function confirmLogoutAll() {
 }
 </script>
 <template>
-  <a-alert v-if="profile?.must_change_password" class="mb-5" type="warning" show-icon message="首次登录必须修改密码后才能访问资源" />
   <a-row :gutter="20">
     <a-col :xs="24" :xl="12">
       <a-card title="个人资料" class="mb-5">
@@ -109,7 +108,7 @@ function confirmLogoutAll() {
               <span v-if="!profile?.groups?.length" class="text-gray-400">未加入用户组</span>
             </a-space>
           </a-form-item>
-          <a-button type="primary" :disabled="profile?.must_change_password" @click="saveName">保存</a-button>
+          <a-button type="primary" @click="saveName">保存</a-button>
         </a-form>
       </a-card>
     </a-col>

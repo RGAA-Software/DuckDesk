@@ -20,6 +20,14 @@ namespace px_cms
 
     class CmsUserApi {
     public:
+        static
+        px::Result<CmsUserPtr, CmsApiError>
+        Register(const std::string& host,
+                 int port,
+                 const std::string& guest_access_token,
+                 const std::string& username,
+                 const std::string& password);
+
         // login
         static
         px::Result<CmsUserLoginResult, CmsApiError>

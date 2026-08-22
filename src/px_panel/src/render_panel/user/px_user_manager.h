@@ -22,6 +22,7 @@ namespace px
     class PxUserManager {
     public:
         explicit PxUserManager(const std::shared_ptr<PxContext>& ctx);
+        bool Register(const std::string& username, const std::string& password);
         bool Login(const std::string& username, const std::string& password, bool show_dialog = true);
         bool Logout();
         bool ModifyUsername(const std::string& username);
@@ -48,11 +49,10 @@ namespace px
         std::string GetUsername();
         std::string GetAccessToken();
         std::string GetAvatarPath();
-        bool IsPasswordChangeRequired();
         void Clear();
 
     private:
-        bool SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path, bool must_change_password);
+        bool SaveUserInfo(const std::string& uid, const std::string& username, const std::string& access_token, const std::string& avatar_path);
         void UpdateUsername(const std::string& username);
         bool SaveAccessToken(const std::string& access_token);
         void DeleteAccessToken();
@@ -65,7 +65,6 @@ namespace px
         static std::string KeyUsername();
         std::wstring CredentialTarget() const;
         static std::string KeyAvatarPath();
-        static std::string KeyMustChangePassword();
 
     private:
         PxSettings* settings_ = nullptr;

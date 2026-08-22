@@ -37,7 +37,7 @@ impl UserAdminView {
             assigned: user.assigned,
             disabled: user.disabled,
             auth_version: user.auth_version,
-            must_change_password: user.must_change_password,
+            must_change_password: false,
             created_at: user.created_timestamp,
             updated_at: user.update_timestamp,
             version: user.version,
@@ -173,6 +173,13 @@ pub struct ResetPasswordRequest {
 pub struct ResetPasswordResponse {
     pub user: UserAdminView,
     pub initial_password: String,
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct PasswordViewResponse {
+    /// `None` is returned only for accounts created before recoverable
+    /// password storage was introduced. Resetting such an account populates it.
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -486,6 +493,33 @@ pub async fn reset_password(
         axum::http::header::CACHE_CONTROL,
         axum::http::HeaderValue::from_static("no-store"),
     );
+    Ok(response)
+}
+
+pub async fn view_password(Path(uid): Path<String>) -> Result<Response, CmsApiError> {
+    let password = gUserManager.admin_recover_password(uid.clone()).await?;
+    audit::record(
+        "admin",
+        "license_owner",
+        "password_view",
+        "success",
+        "user",
+        &uid,
+        if password.is_some() {
+            "password_recovered"
+        } else {
+            "legacy_password_unavailable"
+        },
+    )
+    .await;
+    let mut response = Json(ok_resp(PasswordViewResponse { password })).into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, private"),
+    );
+    response
+        .headers_mut()
+        .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
     Ok(response)
 }
 

@@ -756,22 +756,6 @@ namespace px
             if (!self->user_mgr_->IsLoggedIn()) {
                 return;
             }
-            if (self->user_mgr_->IsPasswordChangeRequired()) {
-                self->context_->PostUITask([self]() {
-                    if (!self || !self->user_mgr_->IsLoggedIn()) {
-                        return;
-                    }
-                    ModifyPasswordDialog dialog(self->context_, self);
-                    if (dialog.exec() != kDoneOk) {
-                        self->user_mgr_->Logout();
-                        self->ClearAvatar();
-                        self->ClearUserInfo();
-                        return;
-                    }
-                    self->UpdateUserInfo();
-                });
-                return;
-            }
             self->LoadAvatar();
         });
     }

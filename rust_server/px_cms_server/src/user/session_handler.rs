@@ -742,9 +742,6 @@ pub async fn update_profile(
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<UpdateProfileRequest>,
 ) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
-    if subject.must_change_password {
-        return Err(CmsApiError::Forbidden);
-    }
     let user = gUserManager
         .update_username(subject.uid, request.username)
         .await?;
@@ -756,9 +753,6 @@ pub async fn update_avatar(
     Extension(subject): Extension<AuthenticatedUser>,
     mut multipart: Multipart,
 ) -> Result<Json<RespMessage<CmsUserView>>, CmsApiError> {
-    if subject.must_change_password {
-        return Err(CmsApiError::Forbidden);
-    }
     let mut avatar: Option<(String, Vec<u8>)> = None;
     while let Some(mut field) = multipart
         .next_field()

@@ -250,7 +250,7 @@ pub struct ConnectionTicket {
 ### 5.1 注册策略
 
 - 用户可直接注册，不设置邀请码或注册模式开关。
-- 注册接口必须通过 guest session 和 CSRF 校验，并实施账号/IP 速率限制；不能依赖 appkey 判断是否允许注册。
+- 注册接口必须通过 guest session 并实施账号/IP 速率限制；Web 使用 HttpOnly guest cookie + CSRF，Panel 使用仅驻留内存的 guest bearer token，不能依赖 appkey 判断是否允许注册。
 - 自助注册用户初始不属于任何用户组，也不具备个人设备授权；后续由管理员分组和授权。
 
 ### 5.2 登录
@@ -263,11 +263,11 @@ pub struct ConnectionTicket {
 
 ### 5.3 批量用户 CSV
 
-批量生成初始密码是“不回传密码”规则的唯一受控例外：
+CMS 管理员可管理并查看用户密码：
 
-- 随机明文密码只存在于生成请求内存中，并通过一次下载响应输出。
-- 数据库只保存 Argon2id；不得将明文写入日志、事件、临时文件或普通用户 DTO。
-- CSV 下载响应使用 `Cache-Control: no-store`；生成完成后无法再次查看相同明文密码，只能重置。
+- 登录校验仍只使用 Argon2id；另保存一份以安装级服务端密钥进行 AES-GCM 加密的可恢复副本。
+- 可恢复密码只通过已认证管理员的专用接口按用户读取；不得进入日志、事件、列表接口或普通用户 DTO。
+- 密码查看和 CSV 下载响应使用 `Cache-Control: no-store`，查看行为写入管理员审计记录。
 - 管理后台每次可创建 1–500 个账号，可选择初始组；用户名使用指定前缀与随机后缀，避免并发批次冲突。
 
 ## 6. 接口设计
@@ -525,7 +525,7 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 - CMS 全量 Rust 测试 118/118 通过；px_service 测试 37/37 通过，其中包含 Windows WMI 终止后延迟消失的回归场景。
 - CMS Web 类型检查与生产构建通过；Vitest 10/10、Chromium Playwright 4/4 通过。
 - Panel `RelWithDebInfo/Official` 目标编译并链接通过，已部署到本机运行目录；CMS、Web 与 px_service Release 也已部署。
-- 临时登录用户真实完成：创建、首次改密、public 应用发现、应用启动、完整能力票据签发、浏览器观看端加载、实例停止和账号清理。
+- 临时登录用户真实完成：创建、直接登录、public 应用发现、应用启动、完整能力票据签发、浏览器观看端加载、实例停止和账号清理。
 - 临时 guest session 真实完成：只发现 public 应用、只获得 `view,input`、视频达到 `readyState=4` 且播放时间持续前进、实例成功停止。
 - ACL 动态收缩真实完成：G1 用户可见并启动专属应用；授权切换到 G2 后，G1 列表立即消失，已有实例的新 ticket 返回 404，但 owner 仍可停止实例；应用策略和临时数据均已恢复/清理。
 - Cookie 会话真实完成：新上下文仅凭 HttpOnly Cookie 查询 `/me`，从同源 CSRF 恢复接口取得新令牌，并成功执行资料写操作。
@@ -680,6 +680,7 @@ PATCH  /api/v1/admin/users/{uid}           { version, username?, disabled?, avat
 DELETE /api/v1/admin/users/{uid}           { version }
 POST   /api/v1/admin/users/{uid}/password/reset
                                                { version, generated | supplied_password }
+GET    /api/v1/admin/users/{uid}/password      # 管理员查看当前密码；no-store
 POST   /api/v1/admin/users/{uid}/sessions/revoke-all {}
 GET    /api/v1/admin/users/{uid}/sessions
 GET    /api/v1/admin/guest-sessions
@@ -695,8 +696,8 @@ PATCH  /api/v1/admin/apps/{app_id}/access   { version, access_mode, group_ids[] 
 ```
 
 - PUT 授权接口表达“期望的完整集合”，先校验全部目标和实体 version，再替换关系。当前测试/单机部署采用可重试的幂等全量替换；Mongo 多文档事务和 operation_id 恢复日志属于后续多副本增强。
-- 管理员重置密码使 `auth_version + 1` 并撤销全部用户会话。随机初始密码只在该响应显示一次。
-- 创建用户时组和个人设备 ID 会先完整校验，设置完成后才返回一次性初始密码，避免前端第二次请求失败后丢失密码。删除用户是软删除并撤销会话；删除记录保留用户名占位，当前版本不提供恢复或同名复用。
+- 管理员重置密码使 `auth_version + 1` 并撤销全部用户会话；新密码不要求用户首次登录后再次修改。
+- 创建用户时组和个人设备 ID 会先完整校验，设置完成后才返回初始密码；管理员以后仍可通过 `GET /api/v1/admin/users/{uid}/password` 查看。删除用户是软删除并撤销会话；删除记录保留用户名占位，当前版本不提供恢复或同名复用。
 
 ### 15.5 资源和实例请求
 
@@ -809,12 +810,12 @@ starting -> running -> stopping -> stopped
 
 - 用户名：trim 后 3–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
 - 密码：8–128 个字符；拒绝全空白；服务端 Argon2id 参数为 memory 64 MiB、iterations 3、parallelism 1、随机盐 16 bytes，hash 使用 PHC 字符串保存。
-- 自助注册必须通过 guest session、CSRF 和限流；注册成功后创建无用户组、无个人设备授权的普通用户。
+- 自助注册必须通过 guest session 和限流；Web 请求同时校验 CSRF，Panel 使用 guest bearer token；注册成功后创建无用户组、无个人设备授权的普通用户。
 - 管理员可生成随机初始密码或提供满足规则的密码。随机密码使用至少 96 bit CSPRNG，不包含易混淆字符。
-- 管理员重置后设置 `must_change_password=true`；该用户只能访问 `/me`、改密和 logout，首次改密成功才解除。
+- 管理员创建或重置的密码可直接登录并访问已授权资源，不设置首次登录强制改密状态。
 - 用户改密必须提交当前明文密码，经 Argon2 验证后写入新 hash，递增 auth_version 并撤销除当前请求外的会话；当前会话随响应重新签发。
 - 当前对账号和 IP 分别使用固定窗口限流（默认每账号 15 分钟 20 次、每 IP 每分钟 10 次）；指数退避与管理员手动清除属于后续风控增强。
-- 不提供“找回密码邮件”流程；当前版本由管理员重置。任何初始密码或 CSV 明文均禁止进入日志。
+- 不提供“找回密码邮件”流程；管理员可查看当前密码或直接重置。任何密码明文均禁止进入日志。
 
 ## 20. 默认配置与保留策略
 

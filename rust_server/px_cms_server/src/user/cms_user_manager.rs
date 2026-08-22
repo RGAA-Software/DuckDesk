@@ -41,6 +41,14 @@ fn regex_literal(value: &str) -> String {
     escaped
 }
 
+async fn encrypt_password_for_admin(plain_password: &str) -> Result<String, CmsApiError> {
+    let installation_secret = crate::gCmsSettings.lock().await.privacy_hash_salt.clone();
+    password::encrypt_recoverable(plain_password, &installation_secret).map_err(|error| {
+        tracing::error!("encrypt recoverable user password failed: {}", error);
+        CmsApiError::InternalError
+    })
+}
+
 impl CmsUserManager {
     pub fn new() -> Arc<Self> {
         Arc::new(CmsUserManager {})
@@ -64,11 +72,13 @@ impl CmsUserManager {
             tracing::warn!("invalid password while registering user: {}", e);
             CmsApiError::InvalidParams
         })?;
+        let password_ciphertext = encrypt_password_for_admin(&plain_password).await?;
         let user = CmsUser {
             uid,
             username: username.clone(),
             username_normalized,
             password_hash,
+            password_ciphertext,
             assigned: false,
             created_timestamp: px_base::get_current_timestamp(),
             update_timestamp: px_base::get_current_timestamp(),
@@ -90,35 +100,14 @@ impl CmsUserManager {
         self.query_user_by_username(username).await
     }
 
-    /// Creates an administrator-managed account.  The caller may show the
-    /// initial password once, but the persisted account always requires a
-    /// password change before resource access is allowed.
+    /// Creates an administrator-managed account without a forced first-login
+    /// password change. Administrators may retrieve the encrypted password.
     pub async fn create_managed_user(
         &self,
         username: String,
         plain_password: String,
     ) -> Result<CmsUser, CmsApiError> {
-        let user = self.register_user(username, plain_password).await?;
-        let collection = gCmsDatabase.lock().await.user();
-        let result = collection
-            .lock()
-            .await
-            .update_one(
-                doc! { "uid": &user.uid, "deleted": false },
-                doc! {
-                    "$set": {
-                        "must_change_password": true,
-                        "update_timestamp": px_base::get_current_timestamp(),
-                    },
-                    "$inc": { "version": 1_i64 }
-                },
-            )
-            .await
-            .map_err(|_| CmsApiError::DatabaseError)?;
-        if result.matched_count == 0 {
-            return Err(CmsApiError::UserNotFound);
-        }
-        self.query_user_by_id(user.uid).await
+        self.register_user(username, plain_password).await
     }
 
     pub async fn admin_update_user(
@@ -220,6 +209,7 @@ impl CmsUserManager {
     ) -> Result<CmsUser, CmsApiError> {
         let password_hash =
             password::hash(&plain_password).map_err(|_| CmsApiError::InvalidParams)?;
+        let password_ciphertext = encrypt_password_for_admin(&plain_password).await?;
         let collection = gCmsDatabase.lock().await.user();
         let result = collection
             .lock()
@@ -229,7 +219,8 @@ impl CmsUserManager {
                 doc! {
                     "$set": {
                         "password_hash": password_hash,
-                        "must_change_password": true,
+                        "password_ciphertext": password_ciphertext,
+                        "must_change_password": false,
                         "update_timestamp": px_base::get_current_timestamp(),
                     },
                     "$inc": { "version": 1_i64, "auth_version": 1_i64 }
@@ -245,6 +236,20 @@ impl CmsUserManager {
         }
         crate::gUserSessionManager.revoke_all(&uid).await?;
         self.query_user_by_id(uid).await
+    }
+
+    pub async fn admin_recover_password(&self, uid: String) -> Result<Option<String>, CmsApiError> {
+        let user = self.query_user_by_id(uid).await?;
+        if user.password_ciphertext.is_empty() {
+            return Ok(None);
+        }
+        let installation_secret = crate::gCmsSettings.lock().await.privacy_hash_salt.clone();
+        password::decrypt_recoverable(&user.password_ciphertext, &installation_secret)
+            .map(Some)
+            .map_err(|error| {
+                tracing::error!("decrypt recoverable user password failed: {}", error);
+                CmsApiError::InternalError
+            })
     }
 
     pub async fn revoke_all_sessions(&self, uid: String) -> Result<CmsUser, CmsApiError> {
@@ -275,10 +280,12 @@ impl CmsUserManager {
     ) -> Result<CmsUser, CmsApiError> {
         let password_hash =
             password::hash(&plain_password).map_err(|_| CmsApiError::InvalidParams)?;
+        let password_ciphertext = encrypt_password_for_admin(&plain_password).await?;
         let filter_doc = doc! {"uid": uid.clone()};
         let update_doc = doc! {
             "$set": {
                 "password_hash": password_hash,
+                "password_ciphertext": password_ciphertext,
                 "must_change_password": false,
                 "update_timestamp": px_base::get_current_timestamp(),
             },

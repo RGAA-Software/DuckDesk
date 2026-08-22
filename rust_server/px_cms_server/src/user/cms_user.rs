@@ -15,6 +15,11 @@ pub struct CmsUser {
     #[serde(default)]
     pub password_hash: String,
 
+    // AES-GCM encrypted copy used only by the authenticated administrator
+    // password-view endpoint. It is never included in a user DTO.
+    #[serde(default)]
+    pub password_ciphertext: String,
+
     #[serde(default)]
     pub username_normalized: String,
 
@@ -94,7 +99,9 @@ impl From<&CmsUser> for CmsUserView {
             disabled: user.disabled,
             avatar_path: user.avatar_path.clone(),
             auth_version: user.auth_version,
-            must_change_password: user.must_change_password,
+            // Retained in the wire model for compatibility with older clients.
+            // CMS no longer requires a first-login password change.
+            must_change_password: false,
             version: user.version,
             groups: Vec::new(),
             total: user.total,
@@ -118,11 +125,14 @@ mod tests {
             uid: "u1".to_string(),
             username: "alice".to_string(),
             password_hash: "secret-verifier".to_string(),
+            password_ciphertext: "encrypted-secret".to_string(),
             ..Default::default()
         };
 
         let json = serde_json::to_string(&CmsUserView::from(user)).unwrap();
         assert!(!json.contains("password_hash"));
         assert!(!json.contains("secret-verifier"));
+        assert!(!json.contains("password_ciphertext"));
+        assert!(!json.contains("encrypted-secret"));
     }
 }

@@ -3,6 +3,7 @@
 //
 
 #include "user_login_dialog.h"
+#include "user_register_dialog.h"
 #include <QValidator>
 #include <QButtonGroup>
 #include <QRadioButton>
@@ -16,7 +17,6 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
 #include "render_panel/user/px_user_manager.h"
-#include "modify_password_dialog.h"
 #include "px_common_new/log.h"
 
 namespace px
@@ -137,6 +137,19 @@ namespace px
                 lbl->setStyleSheet(style);
                 lbl->SetTextId("id_forget_password");
             }
+            layout->addSpacing(35);
+            {
+                auto lbl = new TcLabel(this);
+                lbl->SetOnClickListener([=, this](QWidget*) {
+                    UserRegisterDialog dialog(context_, this);
+                    if (dialog.exec() == 0 && grApp->GetUserManager()->IsLoggedIn()) {
+                        done(0);
+                    }
+                });
+                layout->addWidget(lbl);
+                lbl->setStyleSheet(style);
+                lbl->SetTextId("id_register");
+            }
             layout->addStretch();
 
             content_layout->addSpacing(20);
@@ -168,13 +181,6 @@ namespace px
         }
         bool r = user_mgr->Login(username, password);
         if (r) {
-            if (user_mgr->IsPasswordChangeRequired()) {
-                ModifyPasswordDialog dialog(context_, this);
-                if (dialog.exec() != kDoneOk) {
-                    user_mgr->Logout();
-                    return;
-                }
-            }
             done(0);
         }
         else {

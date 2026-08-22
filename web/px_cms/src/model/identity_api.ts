@@ -53,6 +53,9 @@ export async function deleteAdminUser(user: UserAdminView) {
 export async function resetAdminUserPassword(user: UserAdminView) {
   return unwrap<{ user: UserAdminView; initial_password: string }>(await axiosHttp.post(`/api/v1/admin/users/${encodeURIComponent(user.uid)}/password/reset`, { version: user.version, generated: true }))
 }
+export async function viewAdminUserPassword(uid: string) {
+  return unwrap<{ password?: string }>(await axiosHttp.get(`/api/v1/admin/users/${encodeURIComponent(uid)}/password`))
+}
 export async function revokeAdminUserSessions(uid: string) {
   return unwrap<UserAdminView>(await axiosHttp.post(`/api/v1/admin/users/${encodeURIComponent(uid)}/sessions/revoke-all`, {}))
 }

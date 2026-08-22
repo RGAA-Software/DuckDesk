@@ -65,7 +65,6 @@ pub async fn require_active_user(mut request: Request<Body>, next: Next) -> Resp
         return CmsApiError::AuthenticationRequired.into_response();
     };
     match authenticated {
-        Ok(subject) if subject.must_change_password => CmsApiError::Forbidden.into_response(),
         Ok(subject) => {
             request.extensions_mut().insert(subject);
             next.run(request).await
@@ -142,9 +141,6 @@ pub async fn require_active_user_write(mut request: Request<Body>, next: Next) -
     } else {
         return CmsApiError::AuthenticationRequired.into_response();
     };
-    if subject.must_change_password {
-        return CmsApiError::Forbidden.into_response();
-    }
     request.extensions_mut().insert(subject);
     next.run(request).await
 }

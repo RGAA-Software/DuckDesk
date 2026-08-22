@@ -19,6 +19,8 @@
 // login
 const std::string kLogin = "/api/v1/session/user/login";
 
+const std::string kRegister = "/api/v1/user/register";
+
 // logout
 const std::string kLogout = "/api/v1/session/user/logout";
 
@@ -35,6 +37,35 @@ using namespace nlohmann;
 
 namespace px_cms
 {
+
+    px::Result<CmsUserPtr, CmsApiError> CmsUserApi::Register(
+        const std::string& host,
+        int port,
+        const std::string& guest_access_token,
+        const std::string& username,
+        const std::string& password) {
+        auto client = MakeCmsHttpClient(host, port, kRegister);
+        client->SetHeader("Authorization", "Bearer " + guest_access_token);
+        const auto response = client->Post({}, json{
+            {kUserName, username},
+            {kUserPassword, password},
+        }.dump(), "application/json");
+        LOGI("Register, status:{}, address-> {}:{}, user-> {}",
+             response.status, host, port, username);
+        if (response.status != 200 || response.body.empty()) {
+            LOGE("Register failed: {}", response.status);
+            return TcErr(static_cast<CmsApiError>(response.status));
+        }
+        try {
+            auto user = CmsUser::FromObj(json::parse(response.body).at("data"));
+            if (!user) return TcErr(CmsApiError::kParseJsonFailed);
+            return user;
+        }
+        catch (const std::exception& error) {
+            LOGE("Register parse failed: {}", error.what());
+            return TcErr(CmsApiError::kParseJsonFailed);
+        }
+    }
 
     // login
     px::Result<CmsUserLoginResult, CmsApiError> CmsUserApi::Login(const std::string& host,
@@ -53,7 +84,7 @@ namespace px_cms
         LOGI("Login, status:{}, address-> {}:{}, user-> {}",
              resp.status, host, port, username);
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Register failed: {}", resp.status);
+            LOGE("Login failed: {}", resp.status);
             return TcErr((CmsApiError)resp.status);
         }
 

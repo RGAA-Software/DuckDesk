@@ -191,9 +191,6 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresUser) {
     const user = await queryUser()
     if (!user) return { path: '/user/login', query: { redirect: to.fullPath }, replace: true }
-    if (user.must_change_password && to.path !== '/user/profile') {
-      return { path: '/user/profile', replace: true }
-    }
     return true
   }
   if (!to.meta.requiresAuth) return true

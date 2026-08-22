@@ -6,6 +6,7 @@ use argon2::{
     Algorithm, Argon2, Params, Version,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use ring::digest::{digest, SHA256};
 
 const MIN_PASSWORD_CHARS: usize = 8;
 const MAX_PASSWORD_CHARS: usize = 128;
@@ -28,13 +29,39 @@ pub fn validate(password: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Generate a URL-safe 128-bit initial password. The raw password is returned
-/// only to the creating administrator and is never persisted alongside its
-/// Argon2 verifier.
+/// Generate a URL-safe 128-bit initial password.
 pub fn generate_random() -> String {
     let mut bytes = [0_u8; 16];
     OsRng.fill_bytes(&mut bytes);
     format!("Px{}", URL_SAFE_NO_PAD.encode(bytes))
+}
+
+fn recovery_key(installation_secret: &str) -> Result<[u8; 32], String> {
+    if installation_secret.is_empty() {
+        return Err("password recovery requires a configured installation secret".to_string());
+    }
+    let mut material = b"pixels-cms-password-recovery-v1\0".to_vec();
+    material.extend_from_slice(installation_secret.as_bytes());
+    let value = digest(&SHA256, &material);
+    value
+        .as_ref()
+        .try_into()
+        .map_err(|_| "failed to derive password recovery key".to_string())
+}
+
+/// Store a recoverable copy for authenticated CMS administrators. Login still
+/// uses the Argon2id verifier; this value is AES-GCM encrypted with a key
+/// derived from the installation-only privacy salt.
+pub fn encrypt_recoverable(password: &str, installation_secret: &str) -> Result<String, String> {
+    validate(password)?;
+    px_base::crypto_util::aes_encrypt(password, &recovery_key(installation_secret)?)
+}
+
+pub fn decrypt_recoverable(
+    encrypted_password: &str,
+    installation_secret: &str,
+) -> Result<String, String> {
+    px_base::crypto_util::aes_decrypt(encrypted_password, &recovery_key(installation_secret)?)
 }
 
 pub fn hash(password: &str) -> Result<String, String> {
@@ -89,5 +116,17 @@ mod tests {
         assert!(first.starts_with("Px"));
         assert_ne!(first, second);
         assert!(validate(&first).is_ok());
+    }
+
+    #[test]
+    fn administrator_password_copy_is_encrypted_and_recoverable() {
+        let password = "viewable-admin-password";
+        let encrypted = encrypt_recoverable(password, "installation-specific-secret").unwrap();
+        assert_ne!(encrypted, password);
+        assert_eq!(
+            decrypt_recoverable(&encrypted, "installation-specific-secret").unwrap(),
+            password
+        );
+        assert!(decrypt_recoverable(&encrypted, "different-installation-secret").is_err());
     }
 }
