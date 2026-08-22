@@ -24,6 +24,8 @@
 #include "render_panel/companion/panel_companion.h"
 #include "render_panel/cms/px_cms_manager.h"
 #include "px_cms_client/cms_device.h"
+#include "px_client_panel_message.pb.h"
+#include "render_panel/network/ws_panel_server.h"
 
 namespace px
 {
@@ -300,6 +302,27 @@ namespace px
         return true;
     }
 
+    bool RunningStreamManager::OpenFileTransferInRunningClient(
+        const std::shared_ptr<px_cms::CmsStream>& item) {
+        if (!item || !context_) {
+            return false;
+        }
+        const auto app = context_->GetApplication();
+        const auto panel_server = app ? app->GetWsPanelServer() : nullptr;
+        if (!panel_server) {
+            return false;
+        }
+        pxcp::CpMessage command;
+        command.set_type(pxcp::CpMessageType::kCpOpenFileTransfer);
+        command.set_stream_id(item->stream_id_);
+        const bool delivered = panel_server->PostPanelMessageToStream(
+            item->stream_id_, command.SerializeAsString());
+        if (delivered) {
+            LOGI("Open file transfer in running client: {}", item->stream_id_);
+        }
+        return delivered;
+    }
+
     void RunningStreamManager::StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type) {
         const auto session_id = "ft_" + item->stream_id_ + "_" + std::to_string(QDateTime::currentMSecsSinceEpoch());
         auto process = std::make_shared<QProcess>();
@@ -325,6 +348,12 @@ namespace px
         const auto path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
         process->start(path, args);
         running_processes_.insert({session_id, process});
+        QObject::connect(process.get(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+                         context_.get(), [weak_self = weak_from_this(), session_id](int, QProcess::ExitStatus) {
+            if (const auto self = weak_self.lock()) {
+                self->running_processes_.erase(session_id);
+            }
+        });
     }
 
 }

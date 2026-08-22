@@ -301,6 +301,17 @@ namespace px
 
             // dismiss dialog
             DismissConnectingDialog();
+
+            // The file manager can be shown before networking is ready. Its
+            // first ReadDir may then be dropped, so let the FT plugin refresh
+            // once the transport is established and after reconnects. The
+            // plugin does nothing while its window is hidden.
+            context_->PostUITask([=, this]() {
+                if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
+                    LOGI("File-transfer transport connected; notify plugin");
+                    plugin->OnTransportConnected();
+                }
+            });
         });
 
         // reconnection

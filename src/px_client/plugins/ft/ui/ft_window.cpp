@@ -125,6 +125,12 @@ namespace px
         }
     }
 
+    void FtWindow::OnTransportConnected() {
+        if (!first_show_ && remote_panel_) {
+            remote_panel_->Refresh();
+        }
+    }
+
     void FtWindow::ShowNextOverwriteConfirm() {
         if (confirm_showing_ || pending_confirms_.empty()) {
             return;

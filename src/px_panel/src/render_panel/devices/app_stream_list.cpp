@@ -465,13 +465,19 @@ namespace px
         if (uses_cms_ticket) {
             const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
             std::vector<std::string> permissions {"view"};
+            // File transfer is a separate authenticated capability, not an
+            // input-control capability. A signed-in user's view-only session
+            // must still be reusable by the Panel file-transfer entry.
+            if (grApp->GetUserManager()->IsLoggedIn()) {
+                permissions.push_back("file");
+            }
             if (!target_item->only_viewing_) {
                 permissions.push_back("input");
                 // Anonymous public-app sessions deliberately remain view/input
                 // only. Sensitive capabilities are granted only to an
                 // authenticated user and are still enforced by the render end.
                 if (grApp->GetUserManager()->IsLoggedIn()) {
-                    permissions.insert(permissions.end(), {"clipboard", "file", "audio"});
+                    permissions.insert(permissions.end(), {"clipboard", "audio"});
                 }
             }
             px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> ticket_result =
@@ -1044,6 +1050,12 @@ namespace px
             context_->NotifyAppErrMessage(tcTr("id_error"), "File transfer requires a signed-in CMS user.");
             return;
         }
+        // A normal remote-control client already has a file-capable transport
+        // (signed-in control tickets include the file permission). Reuse it and
+        // avoid a second process, ticket and competing RTC LAN connection.
+        if (running_stream_mgr_->OpenFileTransferInRunningClient(item)) {
+            return;
+        }
         auto target = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!target.has_value()) return;
         auto launch = target.value();
@@ -1064,13 +1076,12 @@ namespace px
         const bool direct_available = RenderApi::GetRenderConfiguration(
             launch->stream_host_, launch->stream_port_).has_value();
         if (!launch->force_relay_ && direct_available) {
-            // File-only sessions follow the same per-device transport choice as
-            // a normal connection. UDP has no standalone file channel, so its
-            // direct fallback is the reliable WebSocket file endpoint.
-            const auto& network_type = launch->use_webrtc_
-                ? kStreamItemNtTypeWebRTCDirect
-                : kStreamItemNtTypeWebSocket;
-            running_stream_mgr_->StartFileTransfer(launch, network_type);
+            // Standalone file transfer uses the reliable WS endpoint. RTC LAN
+            // on the Render side is single-session; trying to create another
+            // RTC client can take over an active control connection and consume
+            // the one-time ticket during its retry. When a normal RTC client is
+            // present, the branch above reuses that RTC transport instead.
+            running_stream_mgr_->StartFileTransfer(launch, kStreamItemNtTypeWebSocket);
             return;
         }
         if (!launch->HasRelayInfo()) {

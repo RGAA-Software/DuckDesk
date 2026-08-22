@@ -8,6 +8,9 @@ enum CpMessageType {
   kCpOnHeartBeat = 2;
   kCpFileTransferBegin = 10;
   kCpFileTransferEnd = 20;
+  // Panel -> an already connected desktop client. The client opens its
+  // in-process file manager and reuses the established transport.
+  kCpOpenFileTransfer = 30;
 }
 
 // UI server

@@ -134,7 +134,15 @@ namespace px
     }
 
     void CtPanelClient::ParseMessage(std::string_view data) {
-
+        pxcp::CpMessage cp_msg;
+        if (!cp_msg.ParseFromArray(data.data(), static_cast<int>(data.size()))) {
+            LOGW("Ignore invalid panel message");
+            return;
+        }
+        if (cp_msg.type() == pxcp::CpMessageType::kCpOpenFileTransfer) {
+            LOGI("Panel requested opening file transfer in the current client");
+            context_->SendAppMessage(MsgClientOpenFiletrans {});
+        }
     }
 
     void CtPanelClient::Hello() {

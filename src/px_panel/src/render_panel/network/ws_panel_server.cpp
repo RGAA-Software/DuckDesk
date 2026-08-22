@@ -444,6 +444,19 @@ namespace px
         });
     }
 
+    bool WsPanelServer::PostPanelMessageToStream(const std::string& stream_id, const std::string& msg) {
+        std::atomic_bool delivered {false};
+        panel_sessions_.VisitAll([&](uint64_t, std::shared_ptr<WSSession>& sess) {
+            if (!sess || sess->stream_id_ != stream_id || !sess->session_
+                || sess->session_type_ != pxcp::CpSessionType::kWindowsClient) {
+                return;
+            }
+            sess->session_->async_send(msg);
+            delivered.store(true);
+        });
+        return delivered.load();
+    }
+
     bool WsPanelServer::ParsePanelMessage(uint64_t socket_fd, std::string_view msg) {
         auto proto_msg = std::make_shared<pxcp::CpMessage>();
         if (!proto_msg->ParseFromArray(msg.data(), msg.size())) {

@@ -38,6 +38,7 @@ namespace px
         void OnMessage(std::shared_ptr<Message> msg) override;
         void ShowRootWidget() override;
         bool HasProcessingTasks() override;
+        void OnTransportConnected() override;
         void SyncClientPluginSettings(const px::ClientPluginSettings& st) override;
 
         // 引擎发送回调(ft core 的 worker 线程调用):

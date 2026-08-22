@@ -141,6 +141,10 @@ namespace px
         // something is running?
         virtual bool HasProcessingTasks();
 
+        // The transport is ready again. Kept at the end of the virtual
+        // interface so existing plugin ABI slots remain stable.
+        virtual void OnTransportConnected() {}
+
     protected:
         bool HasParam(const std::string& k) {
             return param_.cluster_.count(k) > 0;

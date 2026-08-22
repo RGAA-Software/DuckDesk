@@ -131,6 +131,16 @@ namespace px
         return core_ && core_->HasJobs();
     }
 
+    void FtClientPlugin::OnTransportConnected() {
+        // A file-only window is shown before networking starts, and a normal
+        // client's window may also be opened while that client is connecting.
+        // Retry the remote root only after the FT transport is actually ready.
+        // Do not raise a hidden/closed window during an unrelated reconnect.
+        if (window_ && root_widget_ && root_widget_->isVisible()) {
+            window_->OnTransportConnected();
+        }
+    }
+
     void FtClientPlugin::SyncClientPluginSettings(const px::ClientPluginSettings& st) {
         ClientPluginInterface::SyncClientPluginSettings(st);
         plugin_settings_.max_transmit_speed_ = st.max_transmit_speed_;

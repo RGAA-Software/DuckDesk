@@ -9,19 +9,28 @@
 
 设备卡片右侧菜单在“Only Viewing”后提供“File Transfer / 文件传输”。用户从这里启动时：
 
-1. Panel 向 CMS 申请一张仅含 `file` 权限、绑定目标设备和 nonce 的一次性 ticket。
-2. Panel 启动同一份 `px_client.exe --mode=file-transfer`，不是新增第二种客户端程序。
-3. 该进程只显示文件管理窗口，只加载 `ft_client` 插件；不显示远控画面，不接受键鼠、音频、剪贴板或媒体消息。
-4. 每次点击都建立独立文件会话，进程键为唯一 `ft_<stream>_<timestamp>`，不会覆盖正在运行的画面客户端。
+1. Panel 先检查该设备是否已有普通画面客户端连接到本机 Panel。
+2. 已有连接时，Panel 通过本机 WebSocket 按 `stream_id` 定向下发
+   `kCpOpenFileTransfer`，现有 `px_client` 打开内置文件窗口并复用当前 FT 通道；
+   不申请新 ticket，也不启动第二个进程。
+3. 没有连接时，Panel 才向 CMS 申请一张仅含 `file` 权限、绑定目标设备
+   和 nonce 的一次性 ticket，并启动同一份
+   `px_client.exe --mode=file-transfer`（不是新增第二种客户端程序）。
+4. 独立进程只显示文件管理窗口，只加载 `ft_client` 插件；不显示远控画面，
+   不接受键鼠、音频、剪贴板或媒体消息。其进程键为唯一
+   `ft_<stream>_<timestamp>`，不会覆盖普通画面客户端。
 
-如果用户已经进入画面远控，再从远控客户端内打开文件传输，则复用当前 `px_client` 进程及当前会话的 FT 通道，不额外启动进程。这两个入口的进程语义有意不同。
+独立窗口会先显示本地目录；FT 通道首次连接成功以及以后每次重连成功时，
+客户端会主动刷新远端根目录。这样启动阶段过早发出的第一次 `ReadDir("/")`
+即使尚未进入网络队列，也不会造成右侧永久空白。
 
 ## 2. 从哪里启动
 
 正式入口：
 
 1. 启动 CMS、Panel 和目标 Render。
-2. 在 Panel 登录 CMS 用户；目标设备必须已经绑定到该用户并在线。
+2. 在 Panel 登录 CMS 用户；个人设备不做额外授权/分组管控，账号登录正确且
+   目标设备在线即可看到并连接。
 3. 在设备卡片右侧点击更多菜单。
 4. 点击 `File Transfer / 文件传输`。
 
@@ -29,16 +38,20 @@
 
 ## 3. 三通道选择规则
 
-独立文件传输沿用设备 `Settings` 中已有的传输设置，因此无需增加隐藏命令或再做一个客户端：
+文件入口不增加隐藏命令，也不再做一个客户端。选路规则为：
 
 | 设备设置 | 直连探测 | 实际通道 | 文件模式行为 |
 | --- | --- | --- | --- |
-| `Force Relay / 强制使用中转服务` 开 | 任意 | Relay | 只创建 `ft_client_* -> ft_server_*` 文件房间 |
-| Force Relay 关、`Use WebRTC / 强制 RTC` 开 | 成功 | RTC LAN | 只协商 `ft_data_channel` |
-| Force Relay 关、Use WebRTC 关 | 成功 | WS | 只连接 `/file/transfer` |
-| 未强制 Relay | 失败 | Relay | 有 Relay 信息才启动，否则报错 |
+| 已有普通画面客户端 | 任意 | 复用当前 WS / Relay / RTC LAN | 现有进程内打开窗口，进程数不增加 |
+| 无普通客户端，`Force Relay / 强制使用中转服务` 开 | 任意 | Relay | 只创建 `ft_client_* -> ft_server_*` 文件房间 |
+| 无普通客户端，Force Relay 关 | 成功 | WS | 只连接 `/file/transfer` |
+| 无普通客户端，未强制 Relay | 失败 | Relay | 有 Relay 信息才启动，否则报错 |
 
-`Use UDP` 对独立文件模式没有独立文件数据面；直连时降为可靠 WS 文件通道。RTC LAN 不配置 STUN/TURN，只使用本机/LAN ICE candidate。
+独立文件进程统一使用可靠 WS，而不另占 RTC LAN：Render 的 RTC LAN 当前是
+单会话，第二个 RTC 进程会与画面连接竞争并可能触发接管。普通客户端本身走
+RTC LAN 时，文件窗口复用它已有的 `ft_data_channel`，因此 RTC LAN 文件传输
+仍然受支持。`Use UDP` 同样复用普通会话的 WS 文件通道；没有普通会话时使用
+独立 WS。RTC LAN 不配置 STUN/TURN，只使用本机/LAN ICE candidate。
 
 ## 4. 客户端进程与资源边界
 
@@ -52,11 +65,14 @@
 - WS 和 Relay 都不创建媒体连接；RTC offer 不声明音频/视频 m-line，也不创建 media/input data channel；
 - FT 窗口关闭后只终止该独立文件会话，不影响画面会话或 Render。
 
+最后一项只适用于 `--mode=file-transfer` 独立进程；复用普通客户端时关闭 FT
+窗口不会终止普通客户端。
+
 ## 5. 认证和会话隔离
 
 ### 5.1 Ticket
 
-Panel 调用：
+仅在没有可复用普通客户端时，Panel 调用：
 
 ```text
 IssueDeviceTicket(device_id, nonce, ["file"])
@@ -100,9 +116,12 @@ Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多
 
 | 层 | 文件 | 职责 |
 | --- | --- | --- |
-| Panel 菜单/选路 | `src/px_panel/src/render_panel/devices/app_stream_list.cpp` | ticket、WS/RTC/Relay 选择 |
-| Panel 进程启动 | `src/px_panel/src/render_panel/devices/running_stream_manager.cpp` | 生成唯一会话参数并启动同一 `px_client.exe` |
+| Panel 菜单/选路 | `src/px_panel/src/render_panel/devices/app_stream_list.cpp` | 复用判断、ticket、独立 WS/Relay 选择 |
+| Panel 命令与进程 | `src/px_panel/src/render_panel/devices/running_stream_manager.cpp` | 定向打开现有窗口；否则生成唯一会话并启动同一 `px_client.exe` |
+| Panel 本机通道 | `src/px_panel/src/render_panel/network/ws_panel_server.cpp` | 按 `stream_id` 定向发送命令 |
+| Panel/Client 协议 | `src/px_deps/px_message_new/px_client_panel_message.proto` | `kCpOpenFileTransfer` 命令 |
 | 客户端模式 | `src/px_client/ct_main_ws.cpp`、`ct_base_workspace.cpp` | 参数约束、轻量 UI/插件宿主 |
+| 客户端 Panel 接收 | `src/px_client/network/ct_panel_client.cpp` | 把定向命令转换成客户端打开 FT 事件 |
 | 通道创建 | `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | file-only 不创建媒体连接 |
 | RTC data-only | `src/px_deps/px_webrtc_client/rtc_connection.cpp` | 只协商 FT data channel |
 | WS 认证 | `src/px_render/plugins/net_ws/ws_server.cpp` | 兑换 file ticket、拒绝未授权连接 |
@@ -176,14 +195,19 @@ scripts\test_file_transfer_only_wss.bat <device_id> <host> <port> <ticket_b64> <
 
 ### 8.3 UI 最终验收清单
 
-按 WS、RTC LAN、Relay 三种设置各执行一次：
+按 WS、RTC LAN、Relay 三种普通连接设置以及无普通连接的独立模式执行：
 
-1. 从 Panel 设备菜单启动，确认新增一个 `px_client.exe --mode=file-transfer` 进程和文件窗口。
+1. 没有画面客户端时从 Panel 启动，确认新增一个
+   `px_client.exe --mode=file-transfer` 进程；远端根目录在连接完成后自动出现，
+   不需要手工刷新，且不触发重连。
 2. 新建目录；上传单文件和目录；下载回本机并做 SHA-256 比对。
 3. 验证同名覆盖、跳过、取消、断开后续传。
-4. 同时保持一个画面会话，确认画面会话不退出、两个文件窗口任务不串线。
-5. 从画面会话内部打开文件传输，确认 `px_client.exe` 数量不增加。
-6. 查看 Render 日志：WS 无 media socket；RTC 只有 FT data channel；Relay 只有 FT room。
+4. 保持一个画面会话，再从 Panel 设备菜单点击文件传输，确认在现有客户端内
+   打开窗口、`px_client.exe` 数量不增加、画面连接不重连或退出。
+5. 分别让普通画面客户端使用 WS、Relay、RTC LAN，确认 FT 均复用对应会话；
+   RTC 日志只保留原连接中的 FT data channel，不出现第二次 RTC alloc。
+6. 关闭画面客户端后再次从 Panel 点击，确认独立直连固定走 WS；强制 Relay
+   时只建立 FT room。
 
 ## 9. 后续扩展
 

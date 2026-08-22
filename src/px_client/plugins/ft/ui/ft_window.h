@@ -26,6 +26,8 @@ namespace px
 
         // 插件 ShowRootWidget 时调用:首显初始化两侧目录
         void OnShow();
+        // FT 通道首次连接/重连成功后刷新远端目录，不改变窗口前后台状态。
+        void OnTransportConnected();
         // 远程栏标题显示对端标识(设备 ID 或名称)
         void SetRemoteDeviceName(const QString& name);
 

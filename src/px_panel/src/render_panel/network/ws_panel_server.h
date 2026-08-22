@@ -36,8 +36,8 @@ namespace px
 
     class WSSession {
     public:
-        uint64_t socket_fd_;
-        int session_type_;
+        uint64_t socket_fd_ = 0;
+        int session_type_ = -1;
         std::shared_ptr<asio2::http_session> session_ = nullptr;
         std::string stream_id_;
         bool audit_registered_ = false;
@@ -55,6 +55,10 @@ namespace px
 
         // to /panel socket
         void PostPanelMessage(const std::string& msg, bool only_inner = false);
+        // Send to the desktop client that owns a specific stream. Returns false
+        // when there is no live matching client, so callers can launch a
+        // standalone file-transfer process instead.
+        bool PostPanelMessageToStream(const std::string& stream_id, const std::string& msg);
 
         // parse /panel socket
         bool ParsePanelMessage(uint64_t socket_fd, std::string_view msg);
