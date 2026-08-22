@@ -29,6 +29,9 @@ pub struct RelayConn {
     pub last_relay_msg_index: i64,
     pub device_name: String,
     pub stream_id: String,
+    /// A standalone file ticket may create a room only to this exact ft server.
+    /// Legacy (non-ticket) relay connections leave this unset.
+    pub authorized_remote_device_id: Option<String>,
 }
 
 impl RelayConn {
@@ -39,6 +42,7 @@ impl RelayConn {
         client_w3c_host: String,
         device_name: String,
         stream_id: String,
+        authorized_remote_device_id: Option<String>,
     ) -> Arc<Mutex<RelayConn>> {
         Arc::new(Mutex::new(RelayConn {
             context,
@@ -51,6 +55,7 @@ impl RelayConn {
             last_relay_msg_index: 0,
             device_name,
             stream_id,
+            authorized_remote_device_id,
         }))
     }
 

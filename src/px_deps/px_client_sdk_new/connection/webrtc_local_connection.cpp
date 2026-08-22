@@ -105,10 +105,12 @@ namespace px
         // local(direct) mode: no STUN server, non-trickle,
         // the final offer sdp is reported after ice gathering complete
         rtc_client_->SetLocalRtcMode(true);
+        rtc_client_->SetFileTransferOnly(sdk_params_->file_transfer_only_);
 
         // multi-track: ask for one video track per monitor(capped). an old render
         // just answers a single track, the extra m-lines stay inactive.
-        rtc_client_->SetVideoTrackCount(kMaxRtcLocalVideoTracks);
+        rtc_client_->SetVideoTrackCount(
+            sdk_params_->file_transfer_only_ ? 0 : kMaxRtcLocalVideoTracks);
 
         // encoded-sink mode: video tracks are consumed as pre-decode H264 and decoded
         // by the sdk's own FFmpegVulkanDecoder chain(zero-copy d3d11/pl_vulkan),

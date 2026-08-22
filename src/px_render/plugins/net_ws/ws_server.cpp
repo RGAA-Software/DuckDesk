@@ -658,15 +658,19 @@ namespace px
                 }
                 auto query = sess_ptr->get_request().get_query();
                 auto params = UrlHelper::ParseQueryString(std::string(query.data(), query.size()));
-                if (path == kUrlFileTransfer && params.contains("ticket") && !RedeemWsFileTicket(self->plugin_, params)) {
+                const bool standalone_file = path == kUrlFileTransfer
+                    && params.contains("file_only") && params["file_only"] == "1";
+                if (standalone_file && !RedeemWsFileTicket(self->plugin_, params)) {
                     LOGW("Reject file websocket: ticket is invalid or lacks file capability");
                     sess_ptr->stop();
                     return;
                 }
                 for (const auto& [k, v] : params) {
-                    LOGI("query param, k: {}, v: {}", k, v);
+                    const bool sensitive = k == "ticket" || k == "appkey"
+                        || k == "client_nonce" || k.find("pwd") != std::string::npos;
+                    LOGI("query param, k: {}, v: {}", k, sensitive ? "<redacted>" : v);
                 }
-                LOGI("App server {} open, query: {}", path, query);
+                LOGI("App server {} open", path);
                 bool only_audio = std::atoi(params["only_audio"].c_str()) == 1;
                 std::string server_device_id;
                 std::string visitor_device_id;

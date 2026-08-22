@@ -19,9 +19,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::cms_context::CmsContext;
-use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::cms_relay::relay_conn::RelayConn;
 use crate::cms_relay::{relay_device_handler, relay_room_handler};
+use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::filter::{cms_appkey_filter, cms_statistics_filter, cms_timer_filter};
 use crate::{gRelayConnMgr, gRelayRoomMgr};
 use protocol::px_relay::{RelayMessage, RelayMessageType};
@@ -117,22 +117,48 @@ impl RelayServer {
         };
         tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
         for (k, v) in query.iter() {
-            tracing::info!("ws query param {}:{}", k, v);
+            let sensitive =
+                matches!(k.as_str(), "ticket" | "appkey" | "client_nonce") || k.contains("pwd");
+            tracing::info!(
+                "ws query param {}:{}",
+                k,
+                if sensitive { "<redacted>" } else { v }
+            );
         }
         let params = query.0.clone();
         // File-only clients carry their CMS capability in the Relay handshake.
         // Redeem it before allocating any relay connection/room, so a ticket
         // cannot be used to create a media room and cannot be replayed.
-        if let (Some(ticket), Some(nonce), Some(remote)) = (
-            params.get("ticket"), params.get("client_nonce"), params.get("remote_device_id"),
-        ) {
-            let device_id = remote.strip_prefix("ft_server_").unwrap_or(remote);
-            let request_id = format!("relay:{}", params.get("stream_id").cloned().unwrap_or_default());
-            match ConnectionTicketManager::redeem(ticket, device_id, nonce, None, &request_id).await {
+        let standalone_file = params.get("file_only").is_some_and(|value| value == "1");
+        if standalone_file {
+            let (Some(ticket), Some(nonce), Some(remote), Some(client)) = (
+                params.get("ticket"),
+                params.get("client_nonce"),
+                params.get("remote_device_id"),
+                params.get("device_id"),
+            ) else {
+                return crate::cms_api_error::CmsApiError::InvalidParams.into_response();
+            };
+            let (Some(device_id), true) = (
+                remote.strip_prefix("ft_server_"),
+                client.starts_with("ft_client_"),
+            ) else {
+                return crate::cms_api_error::CmsApiError::InvalidParams.into_response();
+            };
+            let request_id = format!(
+                "relay:{}",
+                params.get("stream_id").cloned().unwrap_or_default()
+            );
+            match ConnectionTicketManager::redeem(ticket, device_id, nonce, None, &request_id).await
+            {
                 Ok(grant) if grant.permissions.iter().any(|p| p == "file") => {}
-                Ok(_) => return crate::cms_api_error::CmsApiError::TicketExpiredOrUsed.into_response(),
+                Ok(_) => return crate::cms_api_error::CmsApiError::Forbidden.into_response(),
                 Err(err) => return err.into_response(),
             }
+        } else if params.contains_key("ticket") || params.contains_key("client_nonce") {
+            // Capability material is accepted only on the explicitly scoped
+            // standalone file route.
+            return crate::cms_api_error::CmsApiError::InvalidParams.into_response();
         }
         ws.on_upgrade(move |socket| {
             RelayServer::handle_socket(context.clone(), params, socket, addr)
@@ -152,6 +178,11 @@ impl RelayServer {
             let device_id = params.get("device_id").unwrap_or(&"".to_string()).clone();
             let device_name = params.get("device_name").unwrap_or(&"".to_string()).clone();
             let stream_id = params.get("stream_id").unwrap_or(&"".to_string()).clone();
+            let authorized_remote_device_id = params
+                .get("file_only")
+                .filter(|value| value.as_str() == "1")
+                .and_then(|_| params.get("remote_device_id"))
+                .cloned();
             // socket sender
             let sender = Arc::new(Mutex::new(sender));
 
@@ -176,6 +207,7 @@ impl RelayServer {
                 client_w3c_host,
                 device_name,
                 stream_id,
+                authorized_remote_device_id,
             )
             .await;
 
@@ -285,6 +317,21 @@ impl RelayServer {
                 } else if m_type == RelayMessageType::KRelayTargetMessage {
                     gRelayRoomMgr.on_relay(m, data).await;
                 } else if m_type == RelayMessageType::KRelayCreateRoom {
+                    let allowed = {
+                        let conn = relay_conn.lock().await;
+                        match (&conn.authorized_remote_device_id, m.create_room.as_ref()) {
+                            (Some(expected), Some(room)) => {
+                                room.device_id == conn.device_id
+                                    && room.remote_device_id == *expected
+                            }
+                            (Some(_), None) => false,
+                            (None, _) => true,
+                        }
+                    };
+                    if !allowed {
+                        tracing::warn!("reject relay room outside standalone file ticket scope");
+                        return ControlFlow::Break(());
+                    }
                     gRelayRoomMgr.on_create_room(m, data).await;
                 } else if m_type == RelayMessageType::KRelayRequestControl {
                     gRelayRoomMgr.on_request_control(m, data).await;

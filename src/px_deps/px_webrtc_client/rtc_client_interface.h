@@ -87,6 +87,13 @@ namespace px
         // must be called before Init()
         virtual void SetLocalRtcMode(bool on) {}
 
+        // A standalone file manager negotiates only the reliable FT data
+        // channel: no media/input data channels and no audio/video m-lines.
+        // Must be called before Init().
+        virtual void SetFileTransferOnly(bool on) {
+            file_transfer_only_ = on;
+        }
+
         // how many video m-lines the offer declares(recvonly). must be called before Init().
         // >1 asks the render for one video track per monitor; an old render simply
         // answers a single track, the extra m-lines stay inactive.
@@ -127,6 +134,7 @@ namespace px
         OnIceStateCallback ice_state_cbk_;
 
         int video_track_count_ = 1;
+        bool file_transfer_only_ = false;
         OnEncodedVideoFrameCallback encoded_video_frame_cbk_;
         OnAudioDataCallback audio_data_cbk_;
     };

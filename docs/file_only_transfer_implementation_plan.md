@@ -1,74 +1,192 @@
-# 独立仅文件传输会话实施计划
+# 独立“仅文件传输”开发与验收说明
 
-> 状态：实施中（2026-08-22）
-> 范围：Panel 设备菜单启动独立 `px_client.exe --mode=file-transfer`；第一期仅支持 RTC LAN、直连 WSS 与 Relay，不依赖 TURN。
+> 状态：已完成（2026-08-22）
+>
+> 首期通道：直连 WS、RTC LAN、Relay
+> 不在本期：RTC TURN；Coturn 的 CMS 托管与状态展示是独立能力，不影响本功能验收。
 
-## 1. 产品行为
+## 1. 最终产品行为
 
-设备卡片的更多菜单在“Only Viewing”后增加“File Transfer”。点击后由 Panel 创建一条仅含 `file` 权限的 CMS 连接票据，并启动**另一个** `px_client.exe` 进程。它仅展示文件管理窗口。
+设备卡片右侧菜单在“Only Viewing”后提供“File Transfer / 文件传输”。用户从这里启动时：
 
-已有画面远控会话时，客户端控制栏的文件传输入口继续复用当前进程和既有 FT 通道；不创建第二个进程。
+1. Panel 向 CMS 申请一张仅含 `file` 权限、绑定目标设备和 nonce 的一次性 ticket。
+2. Panel 启动同一份 `px_client.exe --mode=file-transfer`，不是新增第二种客户端程序。
+3. 该进程只显示文件管理窗口，只加载 `ft_client` 插件；不显示远控画面，不接受键鼠、音频、剪贴板或媒体消息。
+4. 每次点击都建立独立文件会话，进程键为唯一 `ft_<stream>_<timestamp>`，不会覆盖正在运行的画面客户端。
 
-独立会话禁止视频、音频、输入与控制通道，Render 不得为其启动采集或编码。
+如果用户已经进入画面远控，再从远控客户端内打开文件传输，则复用当前 `px_client` 进程及当前会话的 FT 通道，不额外启动进程。这两个入口的进程语义有意不同。
 
-## 2. 启动与票据
+## 2. 从哪里启动
 
-Panel 的 `AppStreamList::StartFileTransfer`：
+正式入口：
 
-1. 仅面向 CMS 已登录的设备条目；匿名/旧式密码连接不提供该入口。
-2. 调用 `IssueDeviceTicket(device_id, nonce, {"file"})`，不启动应用实例。
-3. 从 ticket 的 launch URL 取得 Render endpoint。
-4. 选择 RTC LAN、WSS 或 Relay，并交给 `RunningStreamManager::StartFileTransfer`。
-5. 启动同一份 `px_client.exe`，新增 `--mode=file-transfer`；进程表以 `file_session_id` 键控。
+1. 启动 CMS、Panel 和目标 Render。
+2. 在 Panel 登录 CMS 用户；目标设备必须已经绑定到该用户并在线。
+3. 在设备卡片右侧点击更多菜单。
+4. 点击 `File Transfer / 文件传输`。
 
-票据在现有启动参数中已按敏感参数脱敏日志。后续安全加强应以本机受限 IPC 传递 launch handle，避免在命令行携带原始票据；本期保持既有受控启动链路一致。
+未登录、设备无 ID、目标离线、ticket 申请失败或没有可用 Relay 信息时，Panel 会停止启动并显示错误，不回退到静态密码模式。
 
-## 3. 通道选择
+## 3. 三通道选择规则
 
-| 顺序 | 通道 | 条件 | 客户端行为 |
+独立文件传输沿用设备 `Settings` 中已有的传输设置，因此无需增加隐藏命令或再做一个客户端：
+
+| 设备设置 | 直连探测 | 实际通道 | 文件模式行为 |
 | --- | --- | --- | --- |
-| 1 | RTC LAN | Panel 能直连 Render 且未强制 Relay | 只创建 `ft_data_channel`，无 media track |
-| 2 | WSS | RTC LAN 失败且 Render WebSocket 可达 | 连接 `/file/transfer`，完成 file-only 认证 |
-| 3 | Relay | 已有 Relay 信息且在线 | 走 `kFileTransfer` |
+| `Force Relay / 强制使用中转服务` 开 | 任意 | Relay | 只创建 `ft_client_* -> ft_server_*` 文件房间 |
+| Force Relay 关、`Use WebRTC / 强制 RTC` 开 | 成功 | RTC LAN | 只协商 `ft_data_channel` |
+| Force Relay 关、Use WebRTC 关 | 成功 | WS | 只连接 `/file/transfer` |
+| 未强制 Relay | 失败 | Relay | 有 Relay 信息才启动，否则报错 |
 
-第一期提供开发强制选路开关，验收不能只验证自动降级。TURN 后续作为 RTC 的独立扩展，不阻塞本期。
+`Use UDP` 对独立文件模式没有独立文件数据面；直连时降为可靠 WS 文件通道。RTC LAN 不配置 STUN/TURN，只使用本机/LAN ICE candidate。
 
-## 4. 实现分层
+## 4. 客户端进程与资源边界
 
-### 4.1 Panel
+`px_client --mode=file-transfer` 强制以下边界：
 
-- `AppStreamList` 添加 `File Transfer` 动作与 `StartFileTransfer`。
-- `RunningStreamManager` 增加轻量启动方法，仅传文件模式必要参数。
-- `StartStream` 保持原样，不能被文件模式调用。
+- ticket 和 nonce 都不能为空；只允许 `websocket`、`webrtc_direct`、`relay` 三种网络类型；
+- `enable_video=false`、audio/clipboard/input 关闭；不安装全局键盘 hook；
+- 跳过 Vulkan 能力探测、播放器、解码器、音频播放器和画面 UI；
+- 插件管理器只保留 `ft_client.dll`；
+- 保留一个隐藏的最小 Workspace 作为既有消息总线/插件宿主，避免异步监听器访问已销毁 UI；
+- WS 和 Relay 都不创建媒体连接；RTC offer 不声明音频/视频 m-line，也不创建 media/input data channel；
+- FT 窗口关闭后只终止该独立文件会话，不影响画面会话或 Render。
 
-### 4.2 px_client
+## 5. 认证和会话隔离
 
-- 解析 `--mode=file-transfer`。
-- 文件模式保留最小 `Workspace` 作为既有插件宿主，但跳过 Vulkan/D3D、播放器、音频、输入钩子、游戏视图和屏幕相关 UI；只加载 `ft_client`。
-- 从连接成功事件显示 FT 根窗口；连接失败可返回 Panel 可诊断错误。
+### 5.1 Ticket
 
-### 4.3 Render / FT
+Panel 调用：
 
-- file-only ticket 仅能打开 FT 通道，拒绝 media/input/clipboard 通道。
-- FT 状态按 `stream_id/session_id` 隔离。并发画面会话与独立文件会话不能共享“当前 stream”或同一个 engine 状态。
-- WS 与 Relay 在进入引擎前也必须验证 ticket；不能只依赖客户端隐藏 UI。
+```text
+IssueDeviceTicket(device_id, nonce, ["file"])
+```
 
-## 5. 本机验收
+客户端命令行中的 ticket 使用 Base64 包装；Panel 和客户端日志会对 ticket、nonce、appkey、token、密码参数脱敏。原始 ticket 是短时、一次性 capability，服务端校验目标设备、nonce、有效期、用户会话、未消费状态和 `file` 权限。
 
-每个 RTC LAN、WSS、Relay 用例均执行：上传、下载、目录、覆盖确认、取消、断线续传、SHA-256 比对。
+### 5.2 WS
 
-额外检查：
+独立客户端只连接：
 
-- Panel 菜单启动第二个 `px_client.exe --mode=file-transfer`；
-- 文件模式无播放器、音频与输入窗口；
-- Render 无 video track、编码器或 input channel，仅有 FT channel；
-- 画面会话内打开文件传输不增加进程；
-- 过期/重复/跨设备 ticket 以及非 FT 消息被拒绝；
-- 画面会话与独立会话并发时，任务、续传文件与审计记录互不串扰。
+```text
+/file/transfer?...&file_only=1&ticket=<ticket>&client_nonce=<nonce>
+```
 
-## 6. 分阶段完成定义
+Render 在创建 `WsFileTransferRouter` 前兑换 ticket。`file_only=1` 缺 ticket、ticket 无效或没有 `file` 权限时立即关闭连接；不会创建媒体 WebSocket。
 
-1. **Panel 启动骨架**：菜单、`file` ticket、独立客户端参数与可测试的启动选择。
-2. **RTC LAN**：data-only 建连和端到端文件传输。
-3. **WSS / Relay**：认证、精确路由、三通道本机 E2E。
-4. **隔离与安全**：Render 多会话 engine、拒绝非 FT 通道与完整审计。
+### 5.3 RTC LAN
+
+ticket 在 `/alloc/local/rtc` 信令阶段兑换。文件权限会传入 `RtcServer`：
+
+- 客户端 offer 仅含 SCTP/FT data channel；
+- 服务端只接受 `ft_data_channel`；
+- 无 `view` 权限时不建立媒体通道/视频 track；无 `input` 权限时不建立输入通道。
+
+### 5.4 Relay
+
+Relay 握手携带 `file_only=1`、ticket、nonce 和目标 `ft_server_<device>`。CMS 在 WebSocket upgrade 前兑换 ticket，并把授权目标写入连接状态。后续建房必须同时满足：
+
+- 发起端 ID 以 `ft_client_` 开头；
+- 目标端 ID 精确等于 ticket 握手绑定的 `ft_server_<device>`；
+- room 请求中的发起端等于当前连接 ID。
+
+因此文件 ticket 不能用来建立 media room，也不能在兑换后换目标设备。Relay file-only 进程只创建一条 FT Relay 连接。
+
+### 5.5 多会话
+
+Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多个独立文件会话的任务、回复、断线清理和审计记录不会再通过“最后一个活动 stream”互相串线。
+
+## 6. 主要实现位置
+
+| 层 | 文件 | 职责 |
+| --- | --- | --- |
+| Panel 菜单/选路 | `src/px_panel/src/render_panel/devices/app_stream_list.cpp` | ticket、WS/RTC/Relay 选择 |
+| Panel 进程启动 | `src/px_panel/src/render_panel/devices/running_stream_manager.cpp` | 生成唯一会话参数并启动同一 `px_client.exe` |
+| 客户端模式 | `src/px_client/ct_main_ws.cpp`、`ct_base_workspace.cpp` | 参数约束、轻量 UI/插件宿主 |
+| 通道创建 | `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | file-only 不创建媒体连接 |
+| RTC data-only | `src/px_deps/px_webrtc_client/rtc_connection.cpp` | 只协商 FT data channel |
+| WS 认证 | `src/px_render/plugins/net_ws/ws_server.cpp` | 兑换 file ticket、拒绝未授权连接 |
+| Relay 认证 | `rust_server/px_cms_server/src/cms_relay/relay_server.rs` | 握手兑换与建房目标绑定 |
+| FT 隔离 | `src/px_render/plugins/ft/ft_plugin.cpp` | 每 stream 独立引擎 |
+
+## 7. 编译与发布
+
+客户端专用脚本会自动发现 Visual Studio，构建并发布客户端、RTC DLL 和 FT 插件：
+
+```bat
+scripts\build_px_client.bat build_official 8
+```
+
+输出必须同时存在：
+
+```text
+build_official\dist\px_client.exe
+build_official\dist\px_client_rtc.dll
+build_official\dist\deps\ct_plugins\ft_client.dll
+```
+
+CMS：
+
+```bat
+cd rust_server
+cargo check -p px_cms_server
+cargo test -p px_cms_server --no-fail-fast
+cargo build -p px_cms_server --release
+```
+
+本机 VS 2026 环境如果覆盖了 vcpkg 路径，先进入 `VsDevCmd.bat`，并设置 `VCPKG_ROOT=C:\source\vcpkg`、`CMAKE_GENERATOR=Ninja`。
+
+## 8. 本机测试方法
+
+### 8.1 自动化基础测试
+
+构建并运行四个 FT 测试程序：
+
+```bat
+cmake --build build_official --config RelWithDebInfo --target ^
+  test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine
+
+build_official\src\px_deps\px_ft_engine\tests\test_ft_path_security.exe
+build_official\src\px_deps\px_ft_engine\tests\test_ft_compress.exe
+build_official\src\px_deps\px_ft_engine\tests\test_ft_transfer_job.exe
+build_official\src\px_deps\px_ft_engine\tests\test_ft_engine.exe
+```
+
+当前结果：51/51 通过，覆盖目录遍历防护、压缩、上传/下载、目录递归、覆盖三分支、取消清理、续传、摘要生命周期、限速/背压和按连接断线清理。CMS 当前 130/130 单元测试通过。
+
+### 8.2 三通道建连验收
+
+本机已对同一 Render 分别注入三张短时、一次性、仅 `file` ticket，启动发布目录中的真实 `px_client.exe`：
+
+| 通道 | ticket 被消费 | 客户端兑换后存活 | 关键运行证据 |
+| --- | --- | --- | --- |
+| WS | 是 | 是 | 仅 `/file/transfer`；日志明确 `media websocket disabled` |
+| RTC LAN | 是 | 是 | SDP 约 673 字节；只出现 `ft_data_channel`，无 media/input channel、无 video track |
+| Relay | 是 | 是 | 只建立 `ft_client_* -> ft_server_*` 房间 |
+
+测试产生的临时 Mongo session/ticket 已全部删除。无 ticket/无效 ticket 的 WS file-only 连接和 Relay 握手均已验证被拒绝。
+
+获得一张真实 CMS ticket 后，也可手动启动 WS smoke test：
+
+```bat
+scripts\test_file_transfer_only_wss.bat <device_id> <host> <port> <ticket_b64> <nonce>
+```
+
+脚本名称保留历史兼容；当前 C++ 原生直连实现使用明文 WS。
+
+### 8.3 UI 最终验收清单
+
+按 WS、RTC LAN、Relay 三种设置各执行一次：
+
+1. 从 Panel 设备菜单启动，确认新增一个 `px_client.exe --mode=file-transfer` 进程和文件窗口。
+2. 新建目录；上传单文件和目录；下载回本机并做 SHA-256 比对。
+3. 验证同名覆盖、跳过、取消、断开后续传。
+4. 同时保持一个画面会话，确认画面会话不退出、两个文件窗口任务不串线。
+5. 从画面会话内部打开文件传输，确认 `px_client.exe` 数量不增加。
+6. 查看 Render 日志：WS 无 media socket；RTC 只有 FT data channel；Relay 只有 FT room。
+
+## 9. 后续扩展
+
+TURN 不是这三条首期通道的阻塞项。后续若让 RTC 跨 NAT，应在现有 RTC 配置中加入 CMS 下发的 ICE server/临时 TURN credential，并把验收矩阵增加 `RTC TURN`；不要改变当前 Panel 入口或再生成一个客户端 EXE。
+
+命令行仍可看到当前进程自己的 ticket 参数。进一步加固可改为 Panel 与客户端之间的一次性本机 IPC launch handle；这不会改变服务端现有的一次性、设备绑定和权限校验。

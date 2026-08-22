@@ -1057,8 +1057,23 @@ namespace px
         if (!url.isValid() || url.host().isEmpty() || url.port() <= 0) return;
         launch->stream_host_ = url.host().toStdString(); launch->stream_port_ = url.port();
         launch->connection_ticket_ = ticket.value().ticket; launch->connection_nonce_ = nonce;
-        const bool direct = RenderApi::GetRenderConfiguration(launch->stream_host_, launch->stream_port_).has_value() && !launch->force_relay_;
-        running_stream_mgr_->StartFileTransfer(launch, direct ? kStreamItemNtTypeWebRTCDirect : kStreamItemNtTypeRelay);
+        const bool direct_available = RenderApi::GetRenderConfiguration(
+            launch->stream_host_, launch->stream_port_).has_value();
+        if (!launch->force_relay_ && direct_available) {
+            // File-only sessions follow the same per-device transport choice as
+            // a normal connection. UDP has no standalone file channel, so its
+            // direct fallback is the reliable WebSocket file endpoint.
+            const auto& network_type = launch->use_webrtc_
+                ? kStreamItemNtTypeWebRTCDirect
+                : kStreamItemNtTypeWebSocket;
+            running_stream_mgr_->StartFileTransfer(launch, network_type);
+            return;
+        }
+        if (!launch->HasRelayInfo()) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"));
+            return;
+        }
+        running_stream_mgr_->StartFileTransfer(launch, kStreamItemNtTypeRelay);
     }
 
     void AppStreamList::RefreshResources() {

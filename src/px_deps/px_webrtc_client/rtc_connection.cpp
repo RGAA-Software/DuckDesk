@@ -256,7 +256,7 @@ namespace px
         encoded_sinks_.clear();
         video_track_arrive_count_ = 0;
 
-        {
+        if (!file_transfer_only_) {
             webrtc::DataChannelInit config;
             config.ordered = true;
             config.reliable = true;
@@ -296,7 +296,7 @@ namespace px
                 });
             }
         }
-        {
+        if (!file_transfer_only_) {
             // dedicated input channel(keyboard/mouse), reliable + ordered:
             // losing a key-down/up or mouse click is unacceptable, so NOT unreliable.
             // the point of the separate channel is the render side fast path:
@@ -319,13 +319,13 @@ namespace px
         }
 
         auto options = webrtc::PeerConnectionInterface::RTCOfferAnswerOptions();
-        options.offer_to_receive_audio = true;
+        options.offer_to_receive_audio = !file_transfer_only_;
         // Unified Plan accepts only 0/1 here; >=1 means "at least one recv-capable
         // video m-line". Existing recvonly transceivers(added below) satisfy that,
         // no extra auto m-line is created. Setting it to 0 would clamp ALL video
         // m-lines to sendonly/inactive in the offer.
-        options.offer_to_receive_video = 1;
-        if (local_rtc_mode_ && video_track_count_ > 1) {
+        options.offer_to_receive_video = file_transfer_only_ ? 0 : 1;
+        if (!file_transfer_only_ && local_rtc_mode_ && video_track_count_ > 1) {
             // multi-track: one recvonly video m-line per monitor(track).
             // extra m-lines beyond offer_to_receive_video=1 must come from
             // explicit transceivers.

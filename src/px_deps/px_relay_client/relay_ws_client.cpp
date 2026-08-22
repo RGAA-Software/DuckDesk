@@ -95,9 +95,10 @@ namespace px
         auto ws_path = std::format("/relay?device_id={}&remote_device_id={}&device_name={}&stream_id={}&appkey={}",
                                    device_id_, remote_device_id_, device_name_, stream_id_, appkey_);
         if (!connection_ticket_.empty()) {
-            ws_path += std::format("&ticket={}&client_nonce={}", connection_ticket_, connection_nonce_);
+            ws_path += std::format("&file_only=1&ticket={}&client_nonce={}", connection_ticket_, connection_nonce_);
         }
-        LOGI("Will connect: {}:{}{}", host_, port_, ws_path);
+        LOGI("Will connect relay websocket: {}:{}, device: {}, remote: {}, authenticated file-only: {}",
+             host_, port_, device_id_, remote_device_id_, !connection_ticket_.empty());
         if (!client_->async_start(host_, port_, ws_path)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }

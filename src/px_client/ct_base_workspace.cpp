@@ -636,7 +636,7 @@ namespace px
         });
 
         media_record_plugin_ = plugin_manager_->GetMediaRecordPlugin();
-        if (!media_record_plugin_) {
+        if (!media_record_plugin_ && !settings_->file_transfer_only_) {
             LOGE("media_record_plugin_ is nullptr!!!");
         }
         

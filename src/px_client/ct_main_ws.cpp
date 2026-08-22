@@ -44,7 +44,7 @@ std::string g_remote_host_;
 int g_remote_port_ = 0;
 std::string g_nt_type_;
 
-void ParseCommandLine(QApplication& app) {
+bool ParseCommandLine(QApplication& app) {
     QCommandLineParser parser;
     parser.setApplicationDescription("Pixels Client");
     parser.addHelpOption();
@@ -288,6 +288,19 @@ void ParseCommandLine(QApplication& app) {
     settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
     settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
     settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
+    if (settings->file_transfer_only_) {
+        if (settings->connection_ticket_.empty() || settings->connection_nonce_.empty()) {
+            LOGE("Standalone file transfer requires a CMS ticket and nonce");
+            return false;
+        }
+        const bool supported_transport = settings->network_type_ == ClientNetworkType::kWebsocket
+            || settings->network_type_ == ClientNetworkType::kRelay
+            || settings->network_type_ == ClientNetworkType::kWebRtc;
+        if (!supported_transport) {
+            LOGE("Standalone file transfer does not support network type: {}", g_nt_type_);
+            return false;
+        }
+    }
 
     settings->enable_p2p_ = parser.value(opt_enable_p2p).toInt() == 1;
     settings->auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
@@ -421,6 +434,7 @@ void ParseCommandLine(QApplication& app) {
 
     // skin
     settings->skin_name_ = parser.value(opt_skin).toStdString();
+    return true;
 }
 
 bool PrepareDirs(const QString& base_path) {
@@ -472,7 +486,9 @@ int main(int argc, char** argv) {
     //QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
 
     QApplication app(argc, argv);
-    ParseCommandLine(app);
+    if (!ParseCommandLine(app)) {
+        return 3;
+    }
     auto settings = px::Settings::Instance();
 
     auto gl_backend = settings->gl_backend_;

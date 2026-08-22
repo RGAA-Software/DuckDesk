@@ -106,7 +106,15 @@ namespace px
         LOGI("Input params size : {}", param.cluster_.size());
         for (const auto& [key, value]: param.cluster_) {
             if (value.type() == typeid(std::string)) {
-                LOGI(" * {} => {}", key, std::any_cast<std::string>(value));
+                const auto lower_key = StringUtil::ToLowerCpy(key);
+                const bool sensitive = lower_key.find("appkey") != std::string::npos
+                    || lower_key.find("ticket") != std::string::npos
+                    || lower_key.find("token") != std::string::npos
+                    || lower_key.find("nonce") != std::string::npos
+                    || lower_key.find("password") != std::string::npos
+                    || lower_key.find("pwd") != std::string::npos;
+                LOGI(" * {} => {}", key,
+                     sensitive ? "<redacted>" : std::any_cast<std::string>(value));
             }
             else if (value.type() == typeid(int64_t)) {
                 LOGI(" * {} => {}", key, std::any_cast<int64_t>(value));

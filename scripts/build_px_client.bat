@@ -33,11 +33,12 @@ if not defined VS_ROOT (
 call "%VS_ROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-echo Building px_client and ft_client in %BUILD_DIR% with %PARALLEL% jobs...
-cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client ft_client
+echo Building px_client, RTC transport and ft_client in %BUILD_DIR% with %PARALLEL% jobs...
+cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client px_rtc_client ft_client
 if errorlevel 1 exit /b %errorlevel%
 
 set "CLIENT_OUT=%BUILD_DIR%\src\px_client\px_client.exe"
+set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_rtc_client.dll"
 set "FT_OUT=%BUILD_DIR%\src\px_client\plugins\ft\ft_client.dll"
 set "DIST_DIR=%BUILD_DIR%\dist"
 set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
@@ -49,9 +50,14 @@ if not exist "%FT_OUT%" (
     echo ERROR: ft_client build completed but output was not found: %FT_OUT%
     exit /b 1
 )
+if not exist "%RTC_OUT%" (
+    echo ERROR: RTC client build completed but output was not found: %RTC_OUT%
+    exit /b 1
+)
 if not exist "%FT_DIST_DIR%" mkdir "%FT_DIST_DIR%"
 copy /Y "%CLIENT_OUT%" "%DIST_DIR%\px_client.exe" >nul || exit /b 1
+copy /Y "%RTC_OUT%" "%DIST_DIR%\px_client_rtc.dll" >nul || exit /b 1
 copy /Y "%FT_OUT%" "%FT_DIST_DIR%\ft_client.dll" >nul || exit /b 1
 
-echo DONE: published %DIST_DIR%\px_client.exe and file-transfer plugin
+echo DONE: published px_client.exe, px_client_rtc.dll and file-transfer plugin to %DIST_DIR%
 endlocal

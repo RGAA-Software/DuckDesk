@@ -78,7 +78,7 @@ namespace px
                 }
                 auto ft_path = ft_path_;
                 if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
-                    ft_path += "&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                    ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
                 }
                 ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
@@ -88,7 +88,7 @@ namespace px
                 }
                 auto ft_path = ft_path_;
                 if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
-                    ft_path += "&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                    ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
                 }
                 ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
@@ -99,10 +99,12 @@ namespace px
         }
         else if (network_type_ == ClientNetworkType::kRelay) {
             auto auto_relay = !sdk_params_->enable_p2p_;
-            media_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, device_id_,remote_device_id_, auto_relay, kRoomTypeMedia);
+            if (!sdk_params_->file_transfer_only_) {
+                media_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, device_id_,remote_device_id_, auto_relay, kRoomTypeMedia);
+            }
             ft_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, ft_device_id_, ft_remote_device_id_, auto_relay, kRoomTypeFileTransfer);
 
-            if (sdk_params_->enable_p2p_) {
+            if (sdk_params_->enable_p2p_ && !sdk_params_->file_transfer_only_) {
                 auto relay_conn = std::dynamic_pointer_cast<RelayConnection>(media_conn_);
                 rtc_conn_ = std::make_shared<WebRtcConnection>(relay_conn, sdk_params_, msg_notifier_);
             }
