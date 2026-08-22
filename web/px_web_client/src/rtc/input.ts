@@ -460,7 +460,6 @@ export class InputController {
       this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, viewOnly`)
       return
     }
-    this.focusTextSink()
     const flag = DOWN_FLAGS[e.button]
     if (!flag) {
       this.opts.onLog?.(`[InputSend] drop mousedown unmapped button=${e.button}`)
@@ -472,12 +471,10 @@ export class InputController {
       return
     }
     e.preventDefault()
-    // 抢回键盘焦点,否则侧栏/参数 INPUT 仍吃 WASD
-    try {
-      this.opts.video.focus({ preventScroll: true })
-    } catch {
-      this.opts.video.focus()
-    }
+    // 隐藏 textarea 必须保持焦点，Chrome 才会产生 input/composition 事件。
+    // 之前先 focus textarea、随后又 focus video，导致文字与输入法通道始终失焦；
+    // 物理键仍由 window 的 keydown/keyup 监听器转发。
+    this.focusTextSink()
     this.flushPendingMoveNow()
     this.buttonsHeld.add(e.button)
     this.markSentPos(pos)

@@ -4572,7 +4572,7 @@ dependencies = [
 
 [[package]]
 name = "protocol"
-version = "3.3.51"
+version = "3.3.52"
 dependencies = [
  "prost",
  "prost-build",
@@ -4604,7 +4604,7 @@ dependencies = [
 
 [[package]]
 name = "px_auth_mgr"
-version = "3.3.51"
+version = "3.3.52"
 dependencies = [
  "base64 0.22.1",
  "mongodb",
@@ -4650,7 +4650,7 @@ dependencies = [
 
 [[package]]
 name = "px_base"
-version = "3.3.51"
+version = "3.3.52"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

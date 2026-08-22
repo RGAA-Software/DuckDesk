@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <cstring>
 #include <filesystem>
 #include <mutex>
 #include <unordered_set>
@@ -286,39 +287,72 @@ public:
         rect = CefRect(0, 0, config_.width, config_.height);
     }
 
-    void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
-                 const RectList&, const void* buffer, int width, int height) override {
+    bool GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& screen_info) override {
+        // Constrain native <select>/autocomplete popups to the captured view.
+        // Without a valid screen rectangle Chromium may place an OSR popup
+        // outside the texture even though the page itself is in bounds.
+        const CefRect view(0, 0, config_.width, config_.height);
+        screen_info.rect = view;
+        screen_info.available_rect = view;
+        screen_info.device_scale_factor = 1.0f;
+        return true;
+    }
+
+    void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override {
         CEF_REQUIRE_UI_THREAD();
-        if (type != PET_VIEW || !buffer || width <= 0 || height <= 0 || !active_) {
+        popup_visible_ = show;
+        if (!show) {
+            popup_original_rect_ = CefRect();
+            popup_rect_ = CefRect();
+            software_popup_.clear();
+            software_popup_width_ = software_popup_height_ = 0;
+            popup_texture_.Reset();
+            // Popup paint is a separate surface. Emit the cached main view now
+            // so a closed menu does not remain burned into the outgoing frame.
+            EmitSoftwareComposite();
+            EmitAcceleratedComposite();
+            if (browser) browser->GetHost()->Invalidate(PET_VIEW);
+        }
+    }
+
+    void OnPopupSize(CefRefPtr<CefBrowser>, const CefRect& rect) override {
+        CEF_REQUIRE_UI_THREAD();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        popup_original_rect_ = rect;
+        popup_rect_ = AdjustPopupRect(rect);
+        LOGI("WebView popup surface: original=({},{} {}x{}) composite=({},{} {}x{})",
+             rect.x, rect.y, rect.width, rect.height,
+             popup_rect_.x, popup_rect_.y, popup_rect_.width, popup_rect_.height);
+    }
+
+    void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
+                  const RectList&, const void* buffer, int width, int height) override {
+        CEF_REQUIRE_UI_THREAD();
+        if (!buffer || width <= 0 || height <= 0 || !active_) {
             return;
         }
-        const auto bytes = static_cast<int64_t>(width) * height * 4;
-        auto data = Data::Make(static_cast<const char*>(buffer), bytes);
-        auto image = Image::Make(data, width, height, 4);
-        image->raw_img_type_ = RawImageType::kBGRA;
-
-        CaptureVideoFrame frame{};
-        frame.capture_type_ = kCaptureVideoByBitmapData;
-        frame.frame_width_ = width;
-        frame.frame_height_ = height;
-        frame.frame_index_ = ++frame_index_;
-        frame.frame_format_ = DXGI_FORMAT_B8G8R8A8_UNORM;
-        frame.adapter_uid_ = -1;
-        frame.monitor_index_ = 0;
-        frame.right_ = width;
-        frame.bottom_ = height;
-        frame.raw_image_ = std::move(image);
-        strncpy_s(frame.display_name_, kWebViewDisplayName, _TRUNCATE);
-        if (callbacks_.on_video_frame) {
-            callbacks_.on_video_frame(frame);
+        const auto bytes = static_cast<size_t>(width) * height * 4;
+        if (type == PET_VIEW) {
+            software_view_.assign(static_cast<const uint8_t*>(buffer),
+                                  static_cast<const uint8_t*>(buffer) + bytes);
+            software_view_width_ = width;
+            software_view_height_ = height;
+        } else if (type == PET_POPUP) {
+            software_popup_.assign(static_cast<const uint8_t*>(buffer),
+                                   static_cast<const uint8_t*>(buffer) + bytes);
+            software_popup_width_ = width;
+            software_popup_height_ = height;
+        } else {
+            return;
         }
-        ObservePaintAndMaybeNotifyFirstFrame();
+        EmitSoftwareComposite();
+        if (type == PET_VIEW) ObservePaintAndMaybeNotifyFirstFrame();
     }
 
     void OnAcceleratedPaint(CefRefPtr<CefBrowser>, PaintElementType type,
                             const RectList&, const CefAcceleratedPaintInfo& info) override {
         CEF_REQUIRE_UI_THREAD();
-        if (type != PET_VIEW || !active_ || !info.shared_texture_handle) {
+        if (!active_ || !info.shared_texture_handle) {
             return;
         }
         ComPtr<ID3D11Texture2D> source;
@@ -330,35 +364,24 @@ public:
         }
         D3D11_TEXTURE2D_DESC source_desc{};
         source->GetDesc(&source_desc);
-        if (!EnsureBridgeTextures(source_desc)) {
+        if (type == PET_VIEW && !EnsureBridgeTextures(source_desc)) {
             if (++accelerated_failures_ == 1) {
                 LOGE("WebView accelerated paint could not create bridge textures");
             }
             return;
         }
-
-        const size_t index = bridge_write_index_;
-        d3d_context_->CopyResource(bridge_textures_[index].Get(), source.Get());
-        d3d_context_->Flush();
-        bridge_write_index_ = (bridge_write_index_ + 1) % bridge_textures_.size();
-        accelerated_failures_ = 0;
-
-        CaptureVideoFrame frame{};
-        frame.capture_type_ = kCaptureVideoByHandle;
-        frame.frame_width_ = static_cast<int>(source_desc.Width);
-        frame.frame_height_ = static_cast<int>(source_desc.Height);
-        frame.frame_index_ = ++frame_index_;
-        frame.frame_format_ = source_desc.Format;
-        frame.adapter_uid_ = adapter_uid_;
-        frame.monitor_index_ = 0;
-        frame.right_ = frame.frame_width_;
-        frame.bottom_ = frame.frame_height_;
-        frame.handle_ = reinterpret_cast<uint64_t>(bridge_handles_[index]);
-        strncpy_s(frame.display_name_, kWebViewDisplayName, _TRUNCATE);
-        if (callbacks_.on_video_frame) {
-            callbacks_.on_video_frame(frame);
+        if (type == PET_VIEW) {
+            if (!EnsureOwnedTexture(view_texture_, source_desc)) return;
+            d3d_context_->CopyResource(view_texture_.Get(), source.Get());
+        } else if (type == PET_POPUP) {
+            if (!EnsureOwnedTexture(popup_texture_, source_desc)) return;
+            d3d_context_->CopyResource(popup_texture_.Get(), source.Get());
+        } else {
+            return;
         }
-        ObservePaintAndMaybeNotifyFirstFrame();
+        accelerated_failures_ = 0;
+        EmitAcceleratedComposite();
+        if (type == PET_VIEW) ObservePaintAndMaybeNotifyFirstFrame();
     }
 
     bool GetAudioParameters(CefRefPtr<CefBrowser>, CefAudioParameters& params) override {
@@ -415,19 +438,39 @@ public:
         LOGI("WebView CEF browser created");
     }
 
-    bool OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int,
-                       const CefString&, const CefString&,
+    bool OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int,
+                       const CefString& target_url, const CefString&,
                        CefLifeSpanHandler::WindowOpenDisposition,
                        bool, const CefPopupFeatures&, CefWindowInfo&,
                        CefRefPtr<CefClient>&, CefBrowserSettings&,
                        CefRefPtr<CefDictionaryValue>&, bool*) override {
-        LOGW("WebView popup blocked by policy");
+        const auto url = target_url.ToString();
+        if (!browser || !IsAllowedNavigation(url, config_.entry_origin)) {
+            LOGW("WebView popup blocked by URL policy");
+            return true;
+        }
+
+        // The render process owns one off-screen browser. Creating a second
+        // CEF browser for target=_blank/window.open would have no surface or
+        // input route. Redirect same-origin popups into the existing browser
+        // after this callback has returned instead. Posting the navigation is
+        // also important: loading synchronously from OnBeforePopup can re-enter
+        // CEF's popup lifecycle (and has caused libcef access violations).
+        PostToCefUi([browser, url] {
+            if (auto frame = browser->GetMainFrame()) {
+                frame->LoadURL(url);
+            }
+        });
+        LOGI("WebView same-origin popup redirected into current view");
         return true;
     }
 
     void OnBeforeClose(CefRefPtr<CefBrowser>) override {
         CEF_REQUIRE_UI_THREAD();
-        ReleaseInputOnUi();
+        // CEF lifecycle callbacks can be entered synchronously from
+        // SendKeyEvent/SendMouseClickEvent. Never inject another input event
+        // while CEF is closing the browser; just discard our bookkeeping.
+        ClearInputStateOnUi();
         browser_ = nullptr;
         {
             std::lock_guard lock(close_mutex_);
@@ -458,7 +501,12 @@ public:
             main_load_failed_ = false;
             main_load_succeeded_ = false;
             paint_seen_for_load_ = false;
-            ReleaseInputOnUi();
+            // A keyboard event (for example Enter in a form) may synchronously
+            // start navigation before CefBrowserHost::SendKeyEvent returns.
+            // Calling SendKeyEvent again from this callback re-enters libcef.
+            // A new document cannot retain the old DOM input state, so clearing
+            // local tracking is sufficient here.
+            ClearInputStateOnUi();
         }
     }
 
@@ -596,6 +644,142 @@ public:
     }
 
 private:
+    CefRect AdjustPopupRect(const CefRect& original) const {
+        CefRect rect = original;
+        rect.x = std::max(rect.x, 0);
+        rect.y = std::max(rect.y, 0);
+        if (rect.x + rect.width > config_.width) {
+            rect.x = std::max(0, config_.width - rect.width);
+        }
+        if (rect.y + rect.height > config_.height) {
+            rect.y = std::max(0, config_.height - rect.height);
+        }
+        return rect;
+    }
+
+    void ApplyPopupMouseOffset(int& x, int& y) const {
+        if (!popup_visible_ || popup_rect_.width <= 0 || popup_rect_.height <= 0 ||
+            x < popup_rect_.x || y < popup_rect_.y ||
+            x >= popup_rect_.x + popup_rect_.width ||
+            y >= popup_rect_.y + popup_rect_.height) {
+            return;
+        }
+        x += popup_original_rect_.x - popup_rect_.x;
+        y += popup_original_rect_.y - popup_rect_.y;
+    }
+
+    void EmitSoftwareComposite() {
+        if (!active_ || software_view_.empty() || software_view_width_ <= 0 ||
+            software_view_height_ <= 0 || !callbacks_.on_video_frame) {
+            return;
+        }
+        auto composite = software_view_;
+        if (popup_visible_ && !software_popup_.empty() &&
+            software_popup_width_ > 0 && software_popup_height_ > 0) {
+            const int dst_x = std::clamp(popup_rect_.x, 0, software_view_width_);
+            const int dst_y = std::clamp(popup_rect_.y, 0, software_view_height_);
+            const int copy_width = std::max(0, std::min(
+                {software_popup_width_, popup_rect_.width, software_view_width_ - dst_x}));
+            const int copy_height = std::max(0, std::min(
+                {software_popup_height_, popup_rect_.height, software_view_height_ - dst_y}));
+            for (int row = 0; row < copy_height; ++row) {
+                const auto* src = software_popup_.data() +
+                    static_cast<size_t>(row) * software_popup_width_ * 4;
+                auto* dst = composite.data() +
+                    (static_cast<size_t>(dst_y + row) * software_view_width_ + dst_x) * 4;
+                std::memcpy(dst, src, static_cast<size_t>(copy_width) * 4);
+            }
+        }
+
+        auto data = Data::Make(reinterpret_cast<const char*>(composite.data()),
+                               static_cast<int64_t>(composite.size()));
+        auto image = Image::Make(data, software_view_width_, software_view_height_, 4);
+        image->raw_img_type_ = RawImageType::kBGRA;
+        CaptureVideoFrame frame{};
+        frame.capture_type_ = kCaptureVideoByBitmapData;
+        frame.frame_width_ = software_view_width_;
+        frame.frame_height_ = software_view_height_;
+        frame.frame_index_ = ++frame_index_;
+        frame.frame_format_ = DXGI_FORMAT_B8G8R8A8_UNORM;
+        frame.adapter_uid_ = -1;
+        frame.monitor_index_ = 0;
+        frame.right_ = frame.frame_width_;
+        frame.bottom_ = frame.frame_height_;
+        frame.raw_image_ = std::move(image);
+        strncpy_s(frame.display_name_, kWebViewDisplayName, _TRUNCATE);
+        callbacks_.on_video_frame(frame);
+    }
+
+    bool EnsureOwnedTexture(ComPtr<ID3D11Texture2D>& texture,
+                            const D3D11_TEXTURE2D_DESC& source_desc) {
+        if (!d3d_device_) return false;
+        if (texture) {
+            D3D11_TEXTURE2D_DESC current{};
+            texture->GetDesc(&current);
+            if (current.Width == source_desc.Width && current.Height == source_desc.Height &&
+                current.Format == source_desc.Format) {
+                return true;
+            }
+            texture.Reset();
+        }
+        auto desc = source_desc;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.CPUAccessFlags = 0;
+        desc.MiscFlags = 0;
+        desc.BindFlags = 0;
+        return SUCCEEDED(d3d_device_->CreateTexture2D(&desc, nullptr,
+                                                       texture.ReleaseAndGetAddressOf()));
+    }
+
+    void EmitAcceleratedComposite() {
+        if (!active_ || !d3d_context_ || !view_texture_ || !bridge_textures_[0] ||
+            !callbacks_.on_video_frame) {
+            return;
+        }
+        D3D11_TEXTURE2D_DESC view_desc{};
+        view_texture_->GetDesc(&view_desc);
+        const size_t index = bridge_write_index_;
+        auto output = bridge_textures_[index].Get();
+        d3d_context_->CopyResource(output, view_texture_.Get());
+
+        if (popup_visible_ && popup_texture_ && popup_rect_.width > 0 &&
+            popup_rect_.height > 0) {
+            D3D11_TEXTURE2D_DESC popup_desc{};
+            popup_texture_->GetDesc(&popup_desc);
+            const int dst_x = std::clamp(popup_rect_.x, 0, static_cast<int>(view_desc.Width));
+            const int dst_y = std::clamp(popup_rect_.y, 0, static_cast<int>(view_desc.Height));
+            const int copy_width = std::max(0, std::min(
+                {static_cast<int>(popup_desc.Width), popup_rect_.width,
+                 static_cast<int>(view_desc.Width) - dst_x}));
+            const int copy_height = std::max(0, std::min(
+                {static_cast<int>(popup_desc.Height), popup_rect_.height,
+                 static_cast<int>(view_desc.Height) - dst_y}));
+            if (copy_width > 0 && copy_height > 0 && popup_desc.Format == view_desc.Format) {
+                const D3D11_BOX source_box{
+                    0, 0, 0, static_cast<UINT>(copy_width),
+                    static_cast<UINT>(copy_height), 1};
+                d3d_context_->CopySubresourceRegion(output, 0, dst_x, dst_y, 0,
+                                                    popup_texture_.Get(), 0, &source_box);
+            }
+        }
+        d3d_context_->Flush();
+        bridge_write_index_ = (bridge_write_index_ + 1) % bridge_textures_.size();
+
+        CaptureVideoFrame frame{};
+        frame.capture_type_ = kCaptureVideoByHandle;
+        frame.frame_width_ = static_cast<int>(view_desc.Width);
+        frame.frame_height_ = static_cast<int>(view_desc.Height);
+        frame.frame_index_ = ++frame_index_;
+        frame.frame_format_ = view_desc.Format;
+        frame.adapter_uid_ = adapter_uid_;
+        frame.monitor_index_ = 0;
+        frame.right_ = frame.frame_width_;
+        frame.bottom_ = frame.frame_height_;
+        frame.handle_ = reinterpret_cast<uint64_t>(bridge_handles_[index]);
+        strncpy_s(frame.display_name_, kWebViewDisplayName, _TRUNCATE);
+        callbacks_.on_video_frame(frame);
+    }
+
     void ObservePaintAndMaybeNotifyFirstFrame() {
         paint_seen_for_load_ = true;
         TryNotifyFirstFrame();
@@ -709,6 +893,8 @@ private:
     }
 
     void ResetAcceleratedPaint() {
+        view_texture_.Reset();
+        popup_texture_.Reset();
         ResetBridgeTextures();
         d3d_context_.Reset();
         d3d_device_.Reset();
@@ -750,6 +936,7 @@ private:
         CefMouseEvent event{};
         event.x = std::clamp(static_cast<int>(value.x_ratio() * config_.width), 0, config_.width - 1);
         event.y = std::clamp(static_cast<int>(value.y_ratio() * config_.height), 0, config_.height - 1);
+        ApplyPopupMouseOffset(event.x, event.y);
         last_mouse_x_ = event.x;
         last_mouse_y_ = event.y;
         event.modifiers = KeyboardModifiers();
@@ -815,6 +1002,11 @@ private:
         for (const char16_t ch : chars) {
             CefKeyEvent event{};
             event.type = KEYEVENT_CHAR;
+            // Match the WM_CHAR shape used by CEF's own OSR client. Chromium
+            // reads windows_key_code for character insertion; setting only
+            // character/unmodified_character leaves text fields unchanged.
+            event.windows_key_code = static_cast<int>(ch);
+            event.native_key_code = 1; // WM_CHAR repeat count.
             event.character = ch;
             event.unmodified_character = ch;
             event.modifiers = KeyboardModifiers();
@@ -855,6 +1047,14 @@ private:
         control_down_ = shift_down_ = alt_down_ = false;
     }
 
+    void ClearInputStateOnUi() {
+        CEF_REQUIRE_UI_THREAD();
+        pressed_keys_.clear();
+        mouse_down_.fill(false);
+        active_click_count_.fill(0);
+        control_down_ = shift_down_ = alt_down_ = false;
+    }
+
     WebViewRuntimeConfig config_;
     WebViewRuntimeCallbacks callbacks_;
     CefRefPtr<CefBrowser> browser_;
@@ -871,9 +1071,20 @@ private:
     ComPtr<ID3D11DeviceContext> d3d_context_;
     std::array<ComPtr<ID3D11Texture2D>, 2> bridge_textures_{};
     std::array<HANDLE, 2> bridge_handles_{};
+    ComPtr<ID3D11Texture2D> view_texture_;
+    ComPtr<ID3D11Texture2D> popup_texture_;
     size_t bridge_write_index_ = 0;
     int64_t adapter_uid_ = -1;
     uint32_t accelerated_failures_ = 0;
+    bool popup_visible_ = false;
+    CefRect popup_original_rect_{};
+    CefRect popup_rect_{};
+    std::vector<uint8_t> software_view_;
+    std::vector<uint8_t> software_popup_;
+    int software_view_width_ = 0;
+    int software_view_height_ = 0;
+    int software_popup_width_ = 0;
+    int software_popup_height_ = 0;
     struct ClickState { int64_t timestamp = 0; int x = 0; int y = 0; int count = 0; };
     std::array<ClickState, 3> clicks_{};
     std::array<int, 3> active_click_count_{};

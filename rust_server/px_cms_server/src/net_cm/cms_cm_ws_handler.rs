@@ -41,10 +41,14 @@ async fn handle_ws_socket(
     let (sender, mut receiver) = socket.split();
 
     let mut recv_task = tokio::spawn(async move {
-        let appkey = params.get("appkey").unwrap();
+        // Browser administrators authenticate `/cms/website` with their
+        // HttpOnly session cookie, so that endpoint intentionally has no
+        // appkey query parameter. The value is retained only for legacy
+        // connections and is otherwise unused by CmsCmConn.
+        let appkey = connection_appkey(&params);
 
         let sender = Arc::new(Mutex::new(sender));
-        let panel_conn = CmsCmConn::new(context.clone(), sender, appkey.clone()).await;
+        let panel_conn = CmsCmConn::new(context.clone(), sender, appkey).await;
 
         let id = format!("{}-{}", who.ip(), who.port());
         tracing::info!("ws connect from {}, id: {}", who, id);
@@ -80,6 +84,10 @@ async fn handle_ws_socket(
             recv_task.abort();
         },
     }
+}
+
+fn connection_appkey(params: &HashMap<String, String>) -> String {
+    params.get("appkey").cloned().unwrap_or_default()
 }
 
 async fn process_cm_message(
@@ -121,4 +129,19 @@ async fn process_cm_message(
         Message::Ping(_v) => {}
     }
     ControlFlow::Continue(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::connection_appkey;
+    use std::collections::HashMap;
+
+    #[test]
+    fn website_session_does_not_require_appkey_query_parameter() {
+        assert_eq!(connection_appkey(&HashMap::new()), "");
+
+        let mut legacy = HashMap::new();
+        legacy.insert("appkey".to_string(), "legacy-key".to_string());
+        assert_eq!(connection_appkey(&legacy), "legacy-key");
+    }
 }

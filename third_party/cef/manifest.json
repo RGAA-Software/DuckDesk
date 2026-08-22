@@ -1,8 +1,8 @@
 {
-  "version": "151.3.17+gf059e67+chromium-151.0.7922.138",
+  "version": "151.3.23+gd211df0+chromium-151.0.7922.170",
   "platform": "windows64",
   "distribution": "standard",
-  "archive": "cef_binary_151.3.17+gf059e67+chromium-151.0.7922.138_windows64.tar.bz2",
-  "url": "https://cef-builds.spotifycdn.com/cef_binary_151.3.17%2Bgf059e67%2Bchromium-151.0.7922.138_windows64.tar.bz2",
-  "sha1": "f21afbaaeb82c02a9e13dbb012c6fd0b2f11f005"
+  "archive": "cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_windows64.tar.bz2",
+  "url": "https://cef-builds.spotifycdn.com/cef_binary_151.3.23%2Bgd211df0%2Bchromium-151.0.7922.170_windows64.tar.bz2",
+  "sha1": "883ab84793ee16cc152d7403b6e4aefadf61b28c"
 }

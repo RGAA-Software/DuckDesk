@@ -447,15 +447,21 @@ pub struct AdminLoginResponse {
 }
 
 pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+    cookie_values(headers, name).into_iter().next()
+}
+
+pub fn cookie_values(headers: &HeaderMap, name: &str) -> Vec<String> {
     headers
-        .get(header::COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookies| {
-            cookies.split(';').find_map(|cookie| {
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|cookies| {
+            cookies.split(';').filter_map(|cookie| {
                 let (key, value) = cookie.trim().split_once('=')?;
                 (key == name).then(|| value.to_string())
             })
         })
+        .collect()
 }
 
 pub fn admin_cookie_value(headers: &HeaderMap) -> Option<String> {
@@ -463,11 +469,11 @@ pub fn admin_cookie_value(headers: &HeaderMap) -> Option<String> {
 }
 
 pub fn admin_cookie_values(headers: &HeaderMap) -> Vec<String> {
-    let mut values = Vec::with_capacity(2);
-    if let Some(value) = cookie_value(headers, ADMIN_SESSION_COMPAT_COOKIE) {
-        values.push(value);
-    }
-    if let Some(value) = cookie_value(headers, ADMIN_SESSION_COOKIE) {
+    let mut values = Vec::with_capacity(4);
+    for value in cookie_values(headers, ADMIN_SESSION_COMPAT_COOKIE)
+        .into_iter()
+        .chain(cookie_values(headers, ADMIN_SESSION_COOKIE))
+    {
         if !values.iter().any(|existing| existing == &value) {
             values.push(value);
         }
@@ -822,7 +828,7 @@ pub async fn update_avatar(
 
 #[cfg(test)]
 mod tests {
-    use super::{admin_cookie_value, avatar_bytes_match_extension};
+    use super::{admin_cookie_value, admin_cookie_values, avatar_bytes_match_extension};
     use axum::http::{header, HeaderMap, HeaderValue};
 
     #[test]
@@ -856,5 +862,20 @@ mod tests {
             HeaderValue::from_static("__Host-px_admin_session=host-only"),
         );
         assert_eq!(admin_cookie_value(&headers).as_deref(), Some("host-only"));
+
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static(
+                "px_admin_session=stale-compatible; px_admin_session=current-compatible; __Host-px_admin_session=current-host",
+            ),
+        );
+        assert_eq!(
+            admin_cookie_values(&headers),
+            vec![
+                "stale-compatible".to_string(),
+                "current-compatible".to_string(),
+                "current-host".to_string(),
+            ]
+        );
     }
 }

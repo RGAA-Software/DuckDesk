@@ -3,6 +3,10 @@ import { defineStore } from 'pinia'
 import { WsBaseMsg } from '@/entity/ws_base_msg.ts'
 
 let ws: WebSocket | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempts = 0
+let activeUrl = ''
+let shouldReconnect = false
 
 export const useWsStore = defineStore('ws', {
   state: () => ({
@@ -12,9 +16,16 @@ export const useWsStore = defineStore('ws', {
 
   actions: {
     connect(url: string) {
-      if (ws) return
+      activeUrl = url
+      shouldReconnect = true
+      if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
 
-      ws = new WebSocket(url)
+      const socket = new WebSocket(url)
+      ws = socket
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null
       let heartbeatIndex: number = 0
 
@@ -22,7 +33,8 @@ export const useWsStore = defineStore('ws', {
         heartbeatTimer = setInterval(() => {
           heartbeatIndex++
           // heartbeat
-          ws?.send(
+          if (socket.readyState !== WebSocket.OPEN) return
+          socket.send(
             JSON.stringify({
               msg_type: 'heartbeat',
               index: heartbeatIndex,
@@ -31,11 +43,13 @@ export const useWsStore = defineStore('ws', {
         }, 2000)
       }
 
-      ws.onopen = () => {
+      socket.onopen = () => {
+        if (ws !== socket) return
+        reconnectAttempts = 0
         this.connected = true
         console.log('WebSocket connected')
         // ping
-        ws?.send(
+        socket.send(
           JSON.stringify({
             msg_type: 'ping',
           }),
@@ -44,21 +58,31 @@ export const useWsStore = defineStore('ws', {
         startHeartbeat()
       }
 
-      ws.onmessage = (e) => {
+      socket.onmessage = (e) => {
+        if (ws !== socket) return
         this.message = JSON.parse(e.data)
       }
 
-      ws.onclose = () => {
+      socket.onclose = () => {
+        const wasCurrent = ws === socket
+        if (wasCurrent) ws = null
         this.connected = false
-        ws = null
         console.log('WebSocket closed')
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
           heartbeatTimer = null
         }
+        if (wasCurrent && shouldReconnect && activeUrl && !reconnectTimer) {
+          const delay = Math.min(1000 * 2 ** reconnectAttempts, 10000)
+          reconnectAttempts++
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null
+            this.connect(activeUrl)
+          }, delay)
+        }
       }
 
-      ws.onerror = (e) => {
+      socket.onerror = (e) => {
         console.error('WebSocket error', e)
       }
     },
@@ -71,8 +95,17 @@ export const useWsStore = defineStore('ws', {
     },
 
     close() {
-      ws?.close()
+      shouldReconnect = false
+      activeUrl = ''
+      reconnectAttempts = 0
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      const socket = ws
       ws = null
+      socket?.close()
+      this.connected = false
     },
   },
 })

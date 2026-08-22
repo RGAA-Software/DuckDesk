@@ -162,8 +162,38 @@ async function main() {
     JSON.stringify(storedCookies),
   )
 
-  // 2. 进设备监控页面(侧栏菜单)
-  await evaluate(`location.href = '${BASE_URL}/video-wall'`)
+  // 2. 使用 CDP 的真实鼠标事件点击侧栏，验证页面没有透明遮罩或事件失效。
+  const monitorMenu = await evaluate(`(() => {
+    const item = [...document.querySelectorAll('.ant-menu-item')]
+      .find((element) => element.textContent.includes('设备监控'))
+    if (!item) return null
+    const rect = item.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    const hit = document.elementFromPoint(x, y)
+    return {
+      x,
+      y,
+      hitText: hit?.textContent?.trim() || '',
+      hitClass: hit?.className || '',
+      itemContainsHit: Boolean(hit && item.contains(hit)),
+    }
+  })()`)
+  report('设备监控菜单鼠标落点未被遮挡', Boolean(monitorMenu?.itemContainsHit), JSON.stringify(monitorMenu))
+  if (!monitorMenu?.itemContainsHit) throw new Error('设备监控菜单被其他元素遮挡')
+  await cmd('Input.dispatchMouseEvent', { type: 'mouseMoved', x: monitorMenu.x, y: monitorMenu.y })
+  await cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x: monitorMenu.x, y: monitorMenu.y, button: 'left', clickCount: 1 })
+  await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: monitorMenu.x, y: monitorMenu.y, button: 'left', clickCount: 1 })
+  let menuClickWorked = false
+  for (let i = 0; i < 20; i++) {
+    menuClickWorked = await evaluate(`location.pathname === '/video-wall'`).catch(() => false)
+    if (menuClickWorked) break
+    await sleep(250)
+  }
+  report('真实鼠标点击触发路由切换', menuClickWorked, await evaluate('location.pathname'))
+  if (!menuClickWorked) throw new Error('真实鼠标点击未触发路由切换')
+
+  // 3. 进设备监控页面(侧栏菜单)
   let pageReady = false
   for (let i = 0; i < 40; i++) {
     const ok = await evaluate(`[...document.querySelectorAll('h2')].some((e) => e.textContent.trim() === '设备监控')`).catch(() => false)
