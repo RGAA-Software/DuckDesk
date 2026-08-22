@@ -76,13 +76,21 @@ namespace px
                 if (!sdk_params_->file_transfer_only_) {
                     media_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
                 }
-                ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
+                auto ft_path = ft_path_;
+                if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
+                    ft_path += "&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                }
+                ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
             else {
                 if (!sdk_params_->file_transfer_only_) {
                     media_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
                 }
-                ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
+                auto ft_path = ft_path_;
+                if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
+                    ft_path += "&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                }
+                ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
         }
         else if (network_type_ == ClientNetworkType::kUdpKcp) {

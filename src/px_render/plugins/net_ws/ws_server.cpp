@@ -5,6 +5,8 @@
 #include "ws_server.h"
 
 #include <atomic>
+#include <algorithm>
+#include <condition_variable>
 #include <memory>
 #include <filesystem>
 #include "px_common_new/log.h"
@@ -54,6 +56,37 @@ static bool IsIpcProcessAlive(uint32_t pid) {
 
 namespace px
 {
+    struct WsTicketWaitState {
+        std::mutex mutex_;
+        std::condition_variable cv_;
+        bool completed_ = false;
+        bool ok_ = false;
+        std::vector<std::string> permissions_;
+    };
+
+    static bool RedeemWsFileTicket(WsPlugin* plugin,
+                                   const std::unordered_map<std::string, std::string>& params) {
+        const auto ticket_it = params.find("ticket");
+        if (ticket_it == params.end() || ticket_it->second.empty()) return false;
+        const auto nonce_it = params.find("client_nonce");
+        if (nonce_it == params.end() || nonce_it->second.empty()) return false;
+        auto state = std::make_shared<WsTicketWaitState>();
+        auto event = std::make_shared<PxPluginRedeemConnectionTicketEvent>();
+        event->ticket_ = ticket_it->second;
+        event->client_nonce_ = nonce_it->second;
+        event->callback_ = [state](bool ok, const std::string&, const std::vector<std::string>& permissions) {
+            std::scoped_lock lock(state->mutex_);
+            state->ok_ = ok;
+            state->permissions_ = permissions;
+            state->completed_ = true;
+            state->cv_.notify_all();
+        };
+        plugin->CallbackEvent(event);
+        std::unique_lock lock(state->mutex_);
+        state->cv_.wait_for(lock, std::chrono::seconds(3), [&] { return state->completed_; });
+        return state->completed_ && state->ok_
+            && std::find(state->permissions_.begin(), state->permissions_.end(), "file") != state->permissions_.end();
+    }
 
     struct aop_log {
         bool before(http::web_request &req, http::web_response &rep) {
@@ -625,6 +658,11 @@ namespace px
                 }
                 auto query = sess_ptr->get_request().get_query();
                 auto params = UrlHelper::ParseQueryString(std::string(query.data(), query.size()));
+                if (path == kUrlFileTransfer && params.contains("ticket") && !RedeemWsFileTicket(self->plugin_, params)) {
+                    LOGW("Reject file websocket: ticket is invalid or lacks file capability");
+                    sess_ptr->stop();
+                    return;
+                }
                 for (const auto& [k, v] : params) {
                     LOGI("query param, k: {}, v: {}", k, v);
                 }
