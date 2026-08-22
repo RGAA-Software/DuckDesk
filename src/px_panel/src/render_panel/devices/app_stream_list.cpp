@@ -1050,7 +1050,11 @@ namespace px
         const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
         auto ticket = grApp->GetUserManager()->IssueDeviceTicket(launch->remote_device_id_, nonce, {"file"});
         if (!ticket.has_value()) {
-            context_->NotifyAppErrMessage(tcTr("id_error"), QString::fromStdString(px_cms::CmsApiLastErrorMessage()));
+            const auto message = ticket.error() == px_cms::CmsApiError::kNotFound
+                ? tcTr("id_file_transfer_device_not_authorized")
+                : QString::fromStdString(px_cms::CmsApiLastErrorMessage());
+            context_->NotifyAppErrMessage(
+                tcTr("id_error"), message.isEmpty() ? tcTr("id_op_error") : message);
             return;
         }
         const QUrl url(QString::fromStdString(ticket.value().launch_url));
