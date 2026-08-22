@@ -704,6 +704,13 @@ namespace px
     void PxWorkspace::ForceStopAllPrograms(bool uninstall_service) {
         TcDialog dialog(tcTr("id_exit"), uninstall_service ? tcTr("id_uninstall_gammaray_msg") : tcTr("id_exit_gammaray_msg"), this);
         if (dialog.exec() == kDoneOk) {
+            // Exit Programs must close controller windows before taking down
+            // Render. Otherwise an active file-only client observes the server
+            // disconnect and briefly replaces its window with the reconnect
+            // warning while the remaining shutdown steps are still running.
+            LOGI("Force close all px_client processes before stopping desktop.");
+            px::ProcessHelper::CloseProcessesByName(px::kPxClientExeName);
+
             // 关键:通过 service WS 发 StopDesktop,清掉持久化的 last_desktop_launch。
             // 否则只杀 Render 进程时,仍在跑的 px_service 监控循环会马上把它拉起来
             // (日志: desktop render missing, restarting)。
@@ -724,10 +731,6 @@ namespace px
             std::thread([srv_mgr, uninstall_service, current_pid]() {
                 // 再等一会,确保 service 侧已杀 render + persist clear
                 std::this_thread::sleep_for(std::chrono::milliseconds(800));
-
-                // 先结束所有 ClientInner，避免它们还占着 Render/Service 的连接导致退出慢
-                LOGI("Force close all px_client processes first.");
-                px::ProcessHelper::CloseProcessesByName(px::kPxClientExeName);
 
                 if (srv_mgr) {
                     // stop(+optional uninstall) service, then kill leftovers including panel.
