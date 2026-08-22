@@ -1051,7 +1051,7 @@ namespace px
         auto ticket = grApp->GetUserManager()->IssueDeviceTicket(launch->remote_device_id_, nonce, {"file"});
         if (!ticket.has_value()) {
             const auto message = ticket.error() == px_cms::CmsApiError::kNotFound
-                ? tcTr("id_file_transfer_device_not_authorized")
+                ? tcTr("id_file_transfer_device_unavailable")
                 : QString::fromStdString(px_cms::CmsApiLastErrorMessage());
             context_->NotifyAppErrMessage(
                 tcTr("id_error"), message.isEmpty() ? tcTr("id_op_error") : message);
@@ -1122,22 +1122,21 @@ namespace px
         const auto user_devices_result = user_mgr->QueryBindDevices(1, 200, false);
         if (user_devices_result.has_value()) {
             const auto& user_devices = user_devices_result.value();
-            std::unordered_set<std::string> authorized_device_ids;
+            std::unordered_set<std::string> available_device_ids;
             for (const auto& ud : user_devices) {
                 if (!ud->device_id_.empty() && ud->device_) {
-                    authorized_device_ids.insert(ud->device_id_);
+                    available_device_ids.insert(ud->device_id_);
                 }
             }
 
             // CMS-sourced devices are a projection of the current identity, not a
             // permanent local address-book entry. Only reconcile after a successful
-            // response; a network error must not look like an empty ACL.
+            // response; a network error must not look like an empty CMS catalog.
             for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
                 if (stream->connect_type_ == "cms_ticket"
-                    && !authorized_device_ids.contains(stream->remote_device_id_)) {
-                    // Revocation blocks new tickets immediately, but an already
-                    // established media connection is allowed to finish. Remove
-                    // only the projected card; do not interrupt the local client.
+                    && !available_device_ids.contains(stream->remote_device_id_)) {
+                    // The device was removed from CMS. Remove only the projected
+                    // card; do not interrupt an already-established local client.
                     db_mgr_->DeleteStream(stream->_id);
                 }
             }

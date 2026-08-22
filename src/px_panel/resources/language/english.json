@@ -290,7 +290,7 @@
   "id_username_format_msg": "User name must be 2-64 characters, without leading/trailing spaces, slashes, or control characters.",
   "id_password_format_msg": "Password must be 8-128 characters and cannot contain only spaces.",
   "id_password_mismatch_msg": "The two passwords do not match.",
-  "id_file_transfer_device_not_authorized": "The current CMS user is not authorized to access this device. Assign the device in CMS User Management.",
+  "id_file_transfer_device_unavailable": "The device is no longer available in CMS. Refresh the device list and try again.",
   "id_login_success": "Login Success",
   "id_select_image": "Select Image",
   "id_update_success": "Update Success",

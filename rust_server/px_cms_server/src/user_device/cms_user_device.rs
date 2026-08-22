@@ -37,7 +37,10 @@ impl From<CmsDevice> for CmsUserDeviceSummary {
             device_id: device.device_id,
             name: device.device_name,
             online: device.active,
-            capabilities: vec!["view".to_string(), "input".to_string()],
+            capabilities: ["view", "input", "clipboard", "file", "audio"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
             last_seen_at: device.last_update_timestamp,
         }
     }
@@ -75,5 +78,9 @@ mod tests {
         assert!(!json.contains("desktop_link"));
         assert!(!json.contains("random-secret"));
         assert!(!json.contains("safety-secret"));
+        assert_eq!(
+            summary.capabilities,
+            ["view", "input", "clipboard", "file", "audio"]
+        );
     }
 }

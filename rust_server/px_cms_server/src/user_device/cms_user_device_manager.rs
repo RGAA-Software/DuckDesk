@@ -164,35 +164,23 @@ impl CmsUserDeviceManager {
         &self,
         uid: String,
     ) -> Result<Vec<CmsUserDeviceSummary>, CmsApiError> {
-        let mut authorized_ids =
-            crate::identity::manager::IdentityManager::authorized_device_ids(&uid).await?;
-        let c_user_device = gCmsDatabase.lock().await.user_device();
-        let mut cursor = c_user_device
-            .lock()
-            .await
-            .find(doc! { KEY_USER_ID: uid })
-            .sort(doc! { "created_ts": -1_i32, KEY_DEVICE_ID: 1_i32 })
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to query user device summaries: {}", e);
-                CmsApiError::DatabaseError
-            })?;
-
-        while let Some(user_device) = cursor.next().await {
-            let user_device = user_device.map_err(|e| {
-                tracing::error!("failed to read user device grant: {}", e);
-                CmsApiError::DatabaseError
-            })?;
-            authorized_ids.insert(user_device.device_id);
-        }
+        // A valid CMS account can use every registered device. Personal and
+        // group device grants are retained only for storage/API compatibility;
+        // they no longer participate in device visibility or ticket issuance.
+        gUserManager.query_user_by_id(uid).await?;
+        let c_device = gCmsDatabase.lock().await.device();
+        let mut cursor = c_device.lock().await.find(doc! {}).await.map_err(|e| {
+            tracing::error!("failed to query registered devices for user: {}", e);
+            CmsApiError::DatabaseError
+        })?;
 
         let mut devices = Vec::new();
-        for device_id in authorized_ids {
-            match gDeviceManager.query_device_by_id(device_id).await {
-                Ok(device) => devices.push(CmsUserDeviceSummary::from(device)),
-                Err(CmsApiError::DeviceNotFound) => continue,
-                Err(error) => return Err(error),
-            }
+        while let Some(device) = cursor.next().await {
+            let device = device.map_err(|e| {
+                tracing::error!("failed to read registered device for user: {}", e);
+                CmsApiError::DatabaseError
+            })?;
+            devices.push(CmsUserDeviceSummary::from(device));
         }
         devices.sort_by(|left, right| {
             left.name
@@ -200,41 +188,6 @@ impl CmsUserDeviceManager {
                 .then(left.device_id.cmp(&right.device_id))
         });
         Ok(devices)
-    }
-
-    pub async fn user_has_device(&self, uid: &str, device_id: &str) -> Result<bool, CmsApiError> {
-        let personal = gCmsDatabase
-            .lock()
-            .await
-            .user_device()
-            .lock()
-            .await
-            .find_one(doc! { KEY_USER_ID: uid, KEY_DEVICE_ID: device_id })
-            .await
-            .map_err(|_| CmsApiError::DatabaseError)?
-            .is_some();
-        if personal {
-            return Ok(true);
-        }
-        let group_ids: BTreeSet<_> =
-            crate::identity::manager::IdentityManager::groups_for_user(uid)
-                .await?
-                .into_iter()
-                .map(|group| group.gid)
-                .collect();
-        if group_ids.is_empty() {
-            return Ok(false);
-        }
-        Ok(gCmsDatabase
-            .lock()
-            .await
-            .group_device_grant()
-            .lock()
-            .await
-            .find_one(doc! { "gid": { "$in": group_ids.into_iter().collect::<Vec<_>>() }, KEY_DEVICE_ID: device_id })
-            .await
-            .map_err(|_| CmsApiError::DatabaseError)?
-            .is_some())
     }
 
     pub async fn personal_device_ids(&self, uid: &str) -> Result<Vec<String>, CmsApiError> {

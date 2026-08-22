@@ -1,6 +1,6 @@
 # CMS 用户、用户组与资源访问控制设计
 
-> 状态：v6.5 已完成用户 Web 分页、服务端仅观看权限、浏览器安全续票、资源对账与 CMS 重启恢复验收（2026-08-21）；生产集群增强项单独标为“后续”。
+> 状态：v6.6 已将个人设备改为登录用户共享资源：有效账号可连接全部 CMS 设备并使用文件传输；用户组继续只控制私有应用（2026-08-22）。
 > 适用范围：单个 CMS 部署（单租户）下的终端用户、CMS 管理者、设备和云端应用。
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 CMS 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
@@ -10,7 +10,7 @@
 ### 0.1 目标
 
 1. 将终端用户与 CMS 管理者彻底分离，避免 appkey、uid 或设备静态密码被当作登录态。
-2. 用用户组统一授予设备和私有应用权限，同时保留管理员授予的个人设备绑定。
+2. 有效终端用户账号可访问全部 CMS 设备；用户组只用于成员管理和私有应用权限。
 3. 公开应用允许游客发现和启动，但所有连接都必须经过短时票据。
 4. Panel、浏览器用户门户和 CMS 管理后台使用同一套服务端授权事实，但使用相互隔离的会话。
 5. 设备连接与应用实例连接都形成闭环：授权、启动、连接、控制、停止和审计属于同一主体。
@@ -31,7 +31,7 @@
 | 主体 | 身份来源 | 可进入的界面 | 权限边界 |
 |---|---|---|---|
 | 游客 `guest` | CMS 签发的匿名访客会话 | `/user/**` 公共区域、公开应用 | 只能查看/启动 public 应用，受限流和配额约束 |
-| 终端用户 `user` | `c_user` | Panel、`/user/**` 用户门户 | 使用自己获授权的设备、应用和实例；不能进入管理后台 |
+| 终端用户 `user` | `c_user` | Panel、`/user/**` 用户门户 | 使用全部 CMS 设备、获授权应用和自己的实例；不能进入管理后台 |
 | CMS 管理者 `admin` | license 管理账号 | `/` 登录、`/home/**` 管理后台 | 管理用户、组、设备、应用和全部实例 |
 | 内部服务 `service` | CMS 与 px_service 的服务凭据 | 无人工界面 | 设备上报、调度、票据兑换；不能伪装成 user/admin |
 
@@ -68,14 +68,14 @@
 2. 管理者可将应用改为 `acl`，但必须同时授权至少一个用户组；前端禁止保存空组列表，后端也拒绝 `acl + 空组列表`。
 3. `public` 的含义仍是“允许游客使用”，但不等于无身份：CMS 会创建 guest session，并执行 IP、会话和应用三级限流。
 4. 无权访问 `acl` 应用时，列表中不返回；直接猜测 app_id 启动统一返回 404，避免泄露资源存在性。
-5. 应用 ACL 不叠加设备远控 ACL。用户可运行某应用，不代表可以远控承载它的节点设备。
+5. 应用 ACL 与设备访问相互独立。所有有效登录用户均可访问 CMS 设备，应用仍按 public/ACL 策略控制。
 6. 若未来需要“所有已登录用户”，新增 `authenticated`，不能改变 `public` 语义。
 
 ### 2.1 管理端操作入口
 
 - 应用访问策略属于应用资源本身，只在“应用调度”列表中展示和编辑。
 - 每个应用行直接显示 `public` / `acl` 以及已授权用户组，并通过“访问授权”一次保存策略与组分配。
-- 用户管理只维护“用户属于哪些组”；用户组页面只维护组信息、成员和设备授权，不提供应用分配入口。
+- 用户管理只维护账号和“用户属于哪些组”；用户组页面只维护组信息与成员，不提供设备授权或应用分配入口。
 - 后端保留组到应用的关系查询能力，但管理端不提供双向写入口，避免两处修改同一授权关系造成冲突。
 
 ## 3. 数据模型
@@ -104,7 +104,7 @@ pub struct CmsUser {
 - username 建立大小写归一后的唯一索引；显示名称可保留原始大小写。
 - 密码只使用 Argon2id。旧 `password`/MD5 记录直接删除，不提供识别、登录或透明升级分支。
 - 禁用、软删除、重置密码、用户主动“退出全部设备”时递增 `auth_version` 并撤销全部会话；禁用可重新启用，删除记录不再出现在默认列表。
-- 软删除用户时同步删除其用户组成员关系和个人设备授权；用户组成员数量与成员编辑列表始终只包含未删除用户，历史残留关系不得影响授权或计数。
+- 软删除用户时同步删除其用户组成员关系；用户组成员数量与成员编辑列表始终只包含未删除用户。历史设备 grant 可清理，但不得再影响访问或计数。
 
 ### 3.2 用户组与授权关系
 
@@ -117,7 +117,7 @@ c_user_group
 c_user_group_member
   uid, gid, created_at             unique(uid, gid)
 
-c_group_device_grant
+c_group_device_grant               # 兼容旧数据，不参与设备访问决策
   gid, device_id, created_at       unique(gid, device_id)
 
 c_group_app_grant
@@ -125,8 +125,8 @@ c_group_app_grant
 ```
 
 - 删除组采用“先带 version 软删除，再幂等清理关系”的可恢复流程；清理中断时重复删除即可完成。
-- 个人设备授权继续使用 `c_user_device`，但只能由 admin 授予，或通过受控的一次性设备认领码建立。
-- 删除/禁用设备和应用时不必立即删除历史 grant，但授权查询必须剔除无效资源；后台任务可异步清理孤儿关系。
+- `c_user_device` 与 `c_group_device_grant` 只为旧接口/旧数据兼容保留，不参与设备列表、连接票据或续票决策；新管理界面不再提供写入口。
+- 删除设备后必须立即从用户设备列表剔除，并拒绝新票据；应用 grant 仍需剔除无效应用。后台任务可异步清理孤儿关系。
 
 ### 3.3 `c_user_session`
 
@@ -209,7 +209,7 @@ pub struct ConnectionTicket {
 
 - 原始 ticket 至少 256 bit，只在签发响应中出现一次；数据库保存 ticket_hash。
 - 默认有效期 30 秒，一次性消费。兑换时使用 `未消费 && 未过期 && 全部绑定字段匹配` 的原子条件更新。
-- 重连必须重新向 CMS 申请票据；不能复用旧票据。浏览器使用只存在于 URL fragment/内存中的轮换 renewal capability 换取新票据；renewal 每次成功使用后立即轮换，仍需重新校验 session、ACL、owner、实例状态和设备在线状态。
+- 重连必须重新向 CMS 申请票据；不能复用旧票据。浏览器使用只存在于 URL fragment/内存中的轮换 renewal capability 换取新票据；renewal 每次成功使用后立即轮换。设备票据重新校验用户 session、设备存在性和在线状态；应用票据继续校验 ACL、owner 和实例状态。
 - 票据只用于建立连接，不替代 user/admin session。
 
 ## 4. 授权计算
@@ -217,12 +217,11 @@ pub struct ConnectionTicket {
 ### 4.1 设备
 
 ```text
-用户可用设备 = 组设备授权并集 ∪ 个人 c_user_device 授权
-             - 已删除/禁用设备
+用户可用设备 = CMS 中全部已注册设备
 ```
 
-- 实时查库，不做长期 ACL 缓存。
-- 用户只能请求自己的设备，uid 必须从 session 提取，不能读取请求体中的 uid。
+- 登录成功且账号未禁用/删除即可访问全部设备，不计算个人或用户组设备 grant。
+- 用户身份必须从 session 提取，不能读取请求体中的 uid；设备被删除后列表和新票据立即失效。
 - 用户设备 DTO 只返回名称、在线状态、能力等展示字段，不返回 `desktop_link`、静态密码、内部节点地址。
 - 点击连接后 CMS 再签发 device ticket 和短时 `launch_url`。
 
@@ -241,7 +240,7 @@ pub struct ConnectionTicket {
 
 连接票据中的 `permissions` 是本次连接的最小权限快照：
 
-- 设备远控通常包含 `view,input`，剪贴板、文件和语音按设备策略叠加。
+- 设备远控能力包含 `view,input,clipboard,file,audio`；客户端仍可通过 `requested_permissions` 只申请本次需要的最小集合。
 - 后台监控等内部观察者使用独立 service/admin 流程，不伪装为 user，也不能继承输入权限。
 - Render 必须按票据权限创建通道；前端隐藏按钮不能作为权限控制。
 
@@ -251,7 +250,7 @@ pub struct ConnectionTicket {
 
 - 用户可直接注册，不设置邀请码或注册模式开关。
 - 注册接口必须通过 guest session 并实施账号/IP 速率限制；Web 使用 HttpOnly guest cookie + CSRF，Panel 使用仅驻留内存的 guest bearer token，不能依赖 appkey 判断是否允许注册。
-- 自助注册用户初始不属于任何用户组，也不具备个人设备授权；后续由管理员分组和授权。
+- 自助注册用户初始不属于任何用户组，但登录后立即可见并可连接全部 CMS 设备；管理员分组只影响私有应用。
 
 ### 5.2 登录
 
@@ -303,7 +302,7 @@ POST /api/v1/user/instances/{instance_id}/ticket
 POST /api/v1/user/instances/{instance_id}/stop
 ```
 
-`GET /api/v1/user/devices` 在服务端合并个人 `c_user_device` 与用户所属组的设备授权，去重并剔除无效设备，只返回 `DeviceSummary`；不得返回 `desktop_link`、静态密码或内部地址。
+`GET /api/v1/user/devices` 返回 CMS 中全部已注册设备的 `DeviceSummary`；不得返回 `desktop_link`、静态密码或内部地址。设备访问不读取个人或用户组 grant。
 
 - 所有 uid/owner_id 从 session 获取。
 - start 返回用户可见的实例状态；成功时可同时返回一次性 `launch_url`。
@@ -320,7 +319,7 @@ POST /api/v1/user/instances/{instance_id}/stop
 /api/v1/admin/audit/**
 ```
 
-- 用户 CRUD、组成员、设备/应用 grant、应用 access_mode、节点调度均要求 admin session。
+- 用户 CRUD、组成员、应用 grant、应用 access_mode、节点调度均要求 admin session。旧设备 grant 接口仅作兼容，不影响访问策略。
 - appkey 路由只允许明确列出的部署级内部服务功能，不能代理到 user/admin handler。
 
 ### 6.4 错误语义
@@ -365,7 +364,7 @@ Panel/浏览器
 ### 8.1 Panel
 
 1. 左侧导航保留“远程控制”，新增独立一级“云端应用”；两页使用独立列表实例和独立资源集合，严禁把应用卡片并入远程设备列表。
-2. “远程控制”只显示手工添加的远程设备和 CMS 授权设备；“云端应用”只显示 CMS 下发的 public/ACL 应用；已有“安装的游戏”仍表示 Panel 本地游戏库，三者不得混用。
+2. “远程控制”显示手工添加的远程设备和当前 CMS 的全部设备；“云端应用”只显示 CMS 下发的 public/ACL 应用；已有“安装的游戏”仍表示 Panel 本地游戏库，三者不得混用。
 3. 未登录首次进入 Panel 即自动建立仅存于内存的 `guest_panel` Bearer 会话；进入“云端应用”可看到 public 应用，不依赖登录事件或手工刷新。
 4. 登录后“云端应用”显示 public + 当前用户 ACL 应用；顶部/卡片显示该主体自己的运行实例。退出、会话过期、切换账号或 ACL 收缩后，一个刷新周期内独立对账应用集合。
 5. 应用卡片标识公开/专属及运行状态，只提供启动/进入/仅观看/停止，不展示节点、设备或端口；新实例的 HTTP 202 与幂等复用的 HTTP 200 都按成功处理。应用卡片不写入远程设备 SQLite。
@@ -376,8 +375,8 @@ Panel/浏览器
 ### 8.2 CMS 管理后台
 
 - 使用 admin cookie，不再把 appkey 或密码存入 localStorage。
-- 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、个人设备授权、会话撤销。
-- 用户组页：CRUD、成员、设备 grant，并只读显示专属应用数量。
+- 用户页：创建、批量 CSV、禁用、软删除、重置密码、组成员、会话撤销。
+- 用户组页：CRUD、成员，并只读显示专属应用数量；不显示设备 grant。
 - 应用页：public/acl 编辑、授权用户组分配、获授权组数量、无授权风险提示；应用授权只在应用调度页操作。
 - 实例页：显示 owner 类型/名称、来源应用、节点、状态和管理员停止操作。
 
@@ -462,10 +461,10 @@ public 应用允许匿名启动，但必须具备以下保护：
 ### 11.2 初始化顺序
 
 1. 启动新 CMS，创建新集合以及 group/member/grant/session/ticket 的唯一索引和 TTL 索引。
-2. 建立 license 管理者会话配置；当前测试产品决策为开放直接注册，新用户默认无用户组和个人设备授权。
+2. 建立 license 管理者会话配置；当前产品决策为开放直接注册，新用户默认无用户组但可访问全部 CMS 设备。
 3. 重新创建测试用户；密码只生成 Argon2id hash。
-4. 重新创建应用并显式写入 `access_mode`，再创建用户组、成员以及设备/应用授权。
-5. 重新登记个人设备授权，启动新的应用实例并签发新 ticket。
+4. 重新创建应用并显式写入 `access_mode`，再创建用户组、成员以及应用授权；不登记设备授权。
+5. 使用无个人/组设备 grant 的用户验证设备列表、控制票据和文件票据，再启动新的应用实例并签发应用 ticket。
 6. 完成权限矩阵和双机 E2E 后才允许继续使用该测试环境。
 
 ### 11.3 代码清理要求
@@ -565,7 +564,7 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 
 - password：仅接受 Argon2 新密码、拒绝旧 MD5/password、响应和日志脱敏。
 - session：签发、滑动/绝对过期、auth_version、当前退出、全部退出、主体隔离。
-- ACL：多组并集、个人设备授权、孤儿资源剔除、public/acl、实时撤权。
+- ACL：所有登录用户共享设备、无设备 grant 仍可签票、设备删除后剔除、应用多组并集、public/acl、实时撤权。
 - owner：guest/user/admin 实例查询、进入和停止边界。
 - ticket：一次性、过期、错 session/device/app/instance/nonce、并发兑换仅一次成功。
 - DTO：用户侧永不出现 password、desktop_link、静态密码、节点路径。
@@ -584,11 +583,11 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 
 ### 13.3 双机 E2E
 
-准备 U1∈G1（设备 D1、ACL 应用 A），U2∈G2（ACL 应用 B），另有 public 应用 P：
+准备无个人/组设备 grant 的 U1∈G1（ACL 应用 A）、U2∈G2（ACL 应用 B），另有设备 D1 和 public 应用 P：
 
 1. guest 只见 P，可在限额内启动，实例归 guest session。
-2. U1 见 D1、P、A，只能进入/停止自己的实例；猜测 B 返回 404。
-3. U2 见 P、B，不可见 A/D1。
+2. U1 见 D1、P、A，可连接 D1 并签发 file ticket，只能进入/停止自己的实例；猜测 B 返回 404。
+3. U2 同样可见并连接 D1，见 P、B，但不可见 A。
 4. admin 从 G1 移除 A 后，U1 刷新立即消失，新启动和新 ticket 均拒绝。
 5. 复制、修改、并发复用、过期、跨设备使用 ticket 全部失败。
 6. user cookie 访问 admin API、admin cookie 访问 user owner API、appkey 访问二者均失败。
@@ -674,9 +673,9 @@ TicketResponse    { ticket, renewal_token, launch_url, expires_at, permissions }
 ### 15.4 账号管理请求
 
 ```text
-POST   /api/v1/admin/users                 { username, initial_password?, group_ids[], device_ids[] }
+POST   /api/v1/admin/users                 { username, initial_password?, group_ids[] }
 POST   /api/v1/admin/users/batch.csv       { size, username_prefix, group_ids[] }
-PATCH  /api/v1/admin/users/{uid}           { version, username?, disabled?, avatar_url?, group_ids?, device_ids? }
+PATCH  /api/v1/admin/users/{uid}           { version, username?, disabled?, avatar_url?, group_ids? }
 DELETE /api/v1/admin/users/{uid}           { version }
 POST   /api/v1/admin/users/{uid}/password/reset
                                                { version, generated | supplied_password }
@@ -691,13 +690,13 @@ POST   /api/v1/admin/groups                { name, remark? }
 PATCH  /api/v1/admin/groups/{gid}           { version, name?, remark? }
 DELETE /api/v1/admin/groups/{gid}           { version }
 PUT    /api/v1/admin/groups/{gid}/members   { version, user_ids[] }
-PUT    /api/v1/admin/groups/{gid}/devices   { version, device_ids[] }
 PATCH  /api/v1/admin/apps/{app_id}/access   { version, access_mode, group_ids[] }
 ```
 
 - PUT 授权接口表达“期望的完整集合”，先校验全部目标和实体 version，再替换关系。当前测试/单机部署采用可重试的幂等全量替换；Mongo 多文档事务和 operation_id 恢复日志属于后续多副本增强。
 - 管理员重置密码使 `auth_version + 1` 并撤销全部用户会话；新密码不要求用户首次登录后再次修改。
-- 创建用户时组和个人设备 ID 会先完整校验，设置完成后才返回初始密码；管理员以后仍可通过 `GET /api/v1/admin/users/{uid}/password` 查看。删除用户是软删除并撤销会话；删除记录保留用户名占位，当前版本不提供恢复或同名复用。
+- 创建用户时组 ID 会先完整校验，设置完成后才返回初始密码；管理员以后仍可通过 `GET /api/v1/admin/users/{uid}/password` 查看。删除用户是软删除并撤销会话；删除记录保留用户名占位，当前版本不提供恢复或同名复用。
+- 旧版用户/用户组设备 grant 接口与集合暂时保留供兼容读取和清理，但不在管理界面展示，也不参与设备列表、ticket 或 renewal 判定。
 
 ### 15.5 资源和实例请求
 
@@ -747,9 +746,9 @@ POST /api/v1/connection-tickets/renew
 | `c_user` | unique(`username_normalized`)，unique(`uid`)，(`deleted`,`created_at`) |
 | `c_user_group` | unique partial(`name_normalized`, `deleted=false`)，unique(`gid`) |
 | `c_user_group_member` | unique(`uid`,`gid`)，(`gid`,`uid`) |
-| `c_group_device_grant` | unique(`gid`,`device_id`)，(`device_id`,`gid`) |
+| `c_group_device_grant` | 旧兼容集合；unique(`gid`,`device_id`)，(`device_id`,`gid`) |
 | `c_group_app_grant` | unique(`gid`,`app_id`)，(`app_id`,`gid`) |
-| `c_user_device` | unique(`uid`,`device_id`)，(`device_id`,`uid`) |
+| `c_user_device` | 旧兼容集合；unique(`uid`,`device_id`)，(`device_id`,`uid`) |
 | `c_user_session` | unique(`token_hash`)，unique(`sid`)，TTL(`cleanup_at`, expireAfterSeconds=0)，(`subject_type`,`subject_id`,`revoked_at`) |
 | `c_guest_block` | unique(`kind`,`value`)；kind 为 `guest_id` 或脱敏 `ip_hash` |
 | `c_connection_ticket` | unique(`ticket_hash`)，TTL(`expires_at`, 0)，(`session_id`,`consumed_at`) |
@@ -810,9 +809,9 @@ starting -> running -> stopping -> stopped
 
 - 用户名：trim 后 2–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
 - 密码：8–128 个字符；拒绝全空白；服务端 Argon2id 参数为 memory 64 MiB、iterations 3、parallelism 1、随机盐 16 bytes，hash 使用 PHC 字符串保存。
-- 自助注册必须通过 guest session 和限流；Web 请求同时校验 CSRF，Panel 使用 guest bearer token；注册成功后创建无用户组、无个人设备授权的普通用户。
+- 自助注册必须通过 guest session 和限流；Web 请求同时校验 CSRF，Panel 使用 guest bearer token；注册成功后创建无用户组的普通用户，并立即拥有全部 CMS 设备的连接和文件传输权限。
 - 管理员可生成随机初始密码或提供满足规则的密码。随机密码使用至少 96 bit CSPRNG，不包含易混淆字符。
-- 管理员创建或重置的密码可直接登录并访问已授权资源，不设置首次登录强制改密状态。
+- 管理员创建或重置的密码可直接登录，访问全部 CMS 设备及用户组授权的私有应用，不设置首次登录强制改密状态。
 - 用户改密必须提交当前明文密码，经 Argon2 验证后写入新 hash，递增 auth_version 并撤销除当前请求外的会话；当前会话随响应重新签发。
 - 当前对账号和 IP 分别使用固定窗口限流（默认每账号 15 分钟 20 次、每 IP 每分钟 10 次）；指数退避与管理员手动清除属于后续风控增强。
 - 不提供“找回密码邮件”流程；管理员可查看当前密码或直接重置。任何密码明文均禁止进入日志。

@@ -3,11 +3,11 @@ use crate::cms_api_error::CmsApiError;
 use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::connection_ticket::model::{ConnectionTicket, TicketRenewResponse, TicketResponse};
 use crate::event::audit;
+use crate::gDeviceManager;
 use crate::identity::access_policy::{
     guest_can_access_app, subject_owns_running_instance, user_can_access_app,
 };
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
-use crate::{gCmsUserDeviceMgr, gDeviceManager};
 use axum::extract::{ConnectInfo, Extension, Path};
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
@@ -60,12 +60,6 @@ fn host_for_url(host: &str) -> String {
 async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), CmsApiError> {
     match (ticket.subject_type.as_str(), ticket.kind.as_str()) {
         ("user", "device") => {
-            if !gCmsUserDeviceMgr
-                .user_has_device(&ticket.subject_id, &ticket.device_id)
-                .await?
-            {
-                return Err(CmsApiError::ResourceNotFound);
-            }
             let device = gDeviceManager
                 .query_device_by_id(ticket.device_id.clone())
                 .await
@@ -157,12 +151,6 @@ pub async fn issue_device_ticket(
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<TicketRequest>,
 ) -> Result<Json<RespMessage<TicketResponse>>, CmsApiError> {
-    if !gCmsUserDeviceMgr
-        .user_has_device(&subject.uid, &device_id)
-        .await?
-    {
-        return Err(CmsApiError::ResourceNotFound);
-    }
     let device = gDeviceManager
         .query_device_by_id(device_id.clone())
         .await

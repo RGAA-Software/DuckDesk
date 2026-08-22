@@ -588,28 +588,6 @@ impl IdentityManager {
         Ok(ids)
     }
 
-    pub async fn authorized_device_ids(uid: &str) -> Result<BTreeSet<String>, CmsApiError> {
-        let groups = Self::groups_for_user(uid).await?;
-        let gids: Vec<_> = groups.into_iter().map(|group| group.gid).collect();
-        let mut ids = BTreeSet::new();
-        if gids.is_empty() {
-            return Ok(ids);
-        }
-        let mut cursor = gCmsDatabase
-            .lock()
-            .await
-            .group_device_grant()
-            .lock()
-            .await
-            .find(doc! { "gid": { "$in": gids } })
-            .await
-            .map_err(|_| CmsApiError::DatabaseError)?;
-        while let Some(row) = cursor.next().await {
-            ids.insert(row.map_err(|_| CmsApiError::DatabaseError)?.device_id);
-        }
-        Ok(ids)
-    }
-
     pub async fn authorized_app_ids(uid: &str) -> Result<BTreeSet<String>, CmsApiError> {
         let gids: Vec<_> = Self::groups_for_user(uid)
             .await?

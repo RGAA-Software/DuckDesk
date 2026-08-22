@@ -3,14 +3,13 @@ import { onMounted, reactive, ref } from 'vue'
 import { Modal, message, type FormInstance } from 'ant-design-vue'
 import { copyText } from '@/util/clipboard'
 import { validateAdminUsername, validateInitialPassword } from '@/util/identity_validation'
-import { batchCreateAdminUsers, blockGuestSession, createAdminUser, deleteAdminUser, listAdminUsers, listAdminUserSessions, listDeviceOptions, listGroups, listGuestSessions, listUserPersonalDevices, patchAdminUser, resetAdminUserPassword, revokeAdminUserSessions, viewAdminUserPassword, type DeviceOption, type GuestSessionView, type GroupView, type UserAdminView, type UserSessionView } from '@/model/identity_api'
+import { batchCreateAdminUsers, blockGuestSession, createAdminUser, deleteAdminUser, listAdminUsers, listAdminUserSessions, listGroups, listGuestSessions, patchAdminUser, resetAdminUserPassword, revokeAdminUserSessions, viewAdminUserPassword, type GuestSessionView, type GroupView, type UserAdminView, type UserSessionView } from '@/model/identity_api'
 
 const users = ref<UserAdminView[]>([]), groups = ref<GroupView[]>([])
-const devices = ref<DeviceOption[]>([])
 const total = ref(0), page = ref(1), keyword = ref(''), loading = ref(false), editorOpen = ref(false)
 const editorFormRef = ref<FormInstance>(), editorSaving = ref(false)
 const editing = ref<UserAdminView>()
-const form = reactive({ username: '', password: '', group_ids: [] as string[], device_ids: [] as string[] })
+const form = reactive({ username: '', password: '', group_ids: [] as string[] })
 const editorRules = {
   username: [{
     validator: (_rule: unknown, value: string) => {
@@ -32,9 +31,9 @@ const sessionsOpen = ref(false), sessionsLoading = ref(false), sessionUser = ref
 const sessions = ref<UserSessionView[]>([])
 const guestOpen = ref(false), guestLoading = ref(false), guests = ref<GuestSessionView[]>([])
 const batchForm = reactive({ size: 10, username_prefix: 'user', group_ids: [] as string[] })
-async function refresh() { loading.value = true; try { const [r, gs, ds] = await Promise.all([listAdminUsers(page.value, keyword.value), listGroups(), listDeviceOptions()]); users.value = r.items; total.value = r.total; groups.value = gs; devices.value = ds } finally { loading.value = false } }
-function create() { editing.value = undefined; Object.assign(form, { username: '', password: '', group_ids: [], device_ids: [] }); editorFormRef.value?.clearValidate(); editorOpen.value = true }
-async function edit(user: UserAdminView) { editing.value = user; Object.assign(form, { username: user.username, password: '', group_ids: user.groups.map(g => g.gid), device_ids: await listUserPersonalDevices(user.uid) }); editorOpen.value = true }
+async function refresh() { loading.value = true; try { const [r, gs] = await Promise.all([listAdminUsers(page.value, keyword.value), listGroups()]); users.value = r.items; total.value = r.total; groups.value = gs } finally { loading.value = false } }
+function create() { editing.value = undefined; Object.assign(form, { username: '', password: '', group_ids: [] }); editorFormRef.value?.clearValidate(); editorOpen.value = true }
+function edit(user: UserAdminView) { editing.value = user; Object.assign(form, { username: user.username, password: '', group_ids: user.groups.map(g => g.gid) }); editorOpen.value = true }
 function userRequestError(error: any): string {
   const code = error?.response?.data?.code
   if (code === 608) return '用户名已存在，请更换用户名'
@@ -50,9 +49,9 @@ async function save() {
   editorSaving.value = true
   try {
     if (editing.value) {
-      await patchAdminUser(editing.value.uid, { version: editing.value.version, username: form.username, group_ids: form.group_ids, device_ids: form.device_ids })
+      await patchAdminUser(editing.value.uid, { version: editing.value.version, username: form.username, group_ids: form.group_ids })
     } else {
-      const r = await createAdminUser({ username: form.username, initial_password: form.password || undefined, group_ids: form.group_ids, device_ids: form.device_ids })
+      const r = await createAdminUser({ username: form.username, initial_password: form.password || undefined, group_ids: form.group_ids })
       Modal.info({ title: '用户密码', content: r.initial_password, okText: '关闭' })
     }
     editorOpen.value = false
@@ -112,7 +111,7 @@ onMounted(refresh)
     </a-table>
   </a-card>
   <a-modal v-model:open="editorOpen" :title="editing ? '编辑用户' : '新建用户'" :confirm-loading="editorSaving" ok-text="保存" cancel-text="取消" @ok="save">
-    <a-form ref="editorFormRef" :model="form" :rules="editorRules" layout="vertical"><a-form-item label="用户名" name="username"><a-input v-model:value="form.username" :maxlength="64" placeholder="2–64 个字符" /></a-form-item><a-form-item v-if="!editing" label="初始密码" name="password" extra="留空将自动生成安全密码；手动设置需输入 8–128 个字符"><a-input-password v-model:value="form.password" :maxlength="128" /></a-form-item><a-form-item label="用户组"><a-select v-model:value="form.group_ids" mode="multiple" :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item><a-form-item label="个人设备授权"><a-select v-model:value="form.device_ids" mode="multiple" :options="devices.map(d => ({ label: `${d.name || d.device_id}（${d.online ? '在线' : '离线'}）`, value: d.device_id }))" /></a-form-item></a-form>
+    <a-form ref="editorFormRef" :model="form" :rules="editorRules" layout="vertical"><a-form-item label="用户名" name="username"><a-input v-model:value="form.username" :maxlength="64" placeholder="2–64 个字符" /></a-form-item><a-form-item v-if="!editing" label="初始密码" name="password" extra="留空将自动生成安全密码；手动设置需输入 8–128 个字符"><a-input-password v-model:value="form.password" :maxlength="128" /></a-form-item><a-form-item label="用户组"><a-select v-model:value="form.group_ids" mode="multiple" :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item></a-form>
   </a-modal>
   <a-modal v-model:open="batchOpen" title="批量创建用户" :confirm-loading="batchLoading" @ok="generateBatch">
     <a-alert type="info" show-icon message="密码会写入本次 CSV，也可由 CMS 管理员随后逐个查看。" />

@@ -290,7 +290,7 @@
   "id_username_format_msg": "用户名必须为 2-64 个字符，不能有首尾空格、斜杠或控制字符。",
   "id_password_format_msg": "密码必须为 8-128 个字符，且不能全为空格。",
   "id_password_mismatch_msg": "两次输入的密码不一致。",
-  "id_file_transfer_device_not_authorized": "当前 CMS 用户未获得该设备授权，请在 CMS 用户管理中分配该设备。",
+  "id_file_transfer_device_unavailable": "该设备已不在 CMS 中，请刷新设备列表后重试。",
   "id_login_success": "登录成功",
   "id_select_image": "选择图片",
   "id_update_success": "更新成功",

@@ -11,7 +11,7 @@
 本方案用于确认以下能力可以作为一个完整链路交付，而不只是单个接口可用：
 
 1. 管理员、注册用户和游客的身份、会话、CSRF 与权限边界正确。
-2. 用户组、个人设备授权、应用 public/ACL 策略在应用目录、实例启动和连接票据三个入口保持一致。
+2. 任意有效登录用户无需个人/用户组设备授权即可连接全部 CMS 设备；应用 public/ACL 策略在目录、实例启动和连接票据入口保持一致。
 3. 启动、运行、停止以及 CMS 或 Service 异常后的实例状态能够收敛，不产生错误补偿停止或遗留进程。
 4. CMS Web 在会话过期、暂时断网和 ACL 动态收缩时给出正确结果，不泄露旧权限或凭据。
 5. Web Client 能以 view-only 权限连接、续票并从一次 RTC 连接失败中恢复。
@@ -344,7 +344,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test_cms_restart_recovery.ps1 `
 
 1. 停止本轮创建的全部实例，等待 API 与 Service 心跳均确认最终状态。
 2. 仅结束命令行含本轮 instance ID/test prefix 且路径属于测试部署目录的 Render/Client 进程。
-3. 按依赖顺序删除本轮 ACL 关系、应用、设备授权、组和用户。
+3. 按依赖顺序删除本轮应用 ACL 关系、应用、组和用户；旧设备 grant 若参与兼容性测试则单独清理。
 4. 验证活动实例、临时 ticket、renewal、guest session 和测试进程数量为 0。
 5. 清理终端环境变量和含秘密的临时文件；测试报告仅保留脱敏版本。
 6. 部署回滚使用上一版完整目录及其匹配配置，不能混用不同版本 DLL。
@@ -355,7 +355,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test_cms_restart_recovery.ps1 `
 
 - L0 Rust、TypeScript 与 Web 单元测试全部通过。
 - Chromium 普通 E2E 全部通过，真实 RTC 续票和 CMS 重启恢复各至少连续通过 3 次。
-- Guest/User/Group/App 的可见性、启动和签票矩阵无一处策略漂移。
+- Guest/User/Group/App 的可见性、启动和签票矩阵无一处策略漂移；无设备 grant 的有效用户可列出全部设备并签发控制/文件票据。
 - Starting/Running/Stopping 三种重启场景与启动回执竞态均收敛到正确状态。
 - 本机和远端 5 分钟播放无单调延迟增长；关键性能指标有记录。
 - 测试结束无活动测试实例、无测试 Render/Client 进程、无悬空组成员或 ACL。
