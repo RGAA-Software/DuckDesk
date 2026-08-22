@@ -47,6 +47,7 @@ set(SRCS_WS
     ct_client_context.cpp
     ct_workspace.cpp
     ct_base_workspace.cpp
+    ct_virtual_display_protocol.cpp
     front_render/ct_video_widget.cpp
     front_render/opengl/ct_director.cpp
     front_render/opengl/ct_opengl_video_widget.cpp
@@ -80,6 +81,7 @@ set(SRCS_WS
     ui/float_controller.cpp
     ui/base_widget.cpp
     ui/float_controller_panel.cpp
+    ui/virtual_display_ui_state.cpp
     ui/float_notification_handle.cpp
     ui/notification_panel.cpp
     ui/notification_item.cpp
@@ -133,6 +135,13 @@ target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
 )
+
+add_executable(test_client_virtual_display
+    tests/test_virtual_display_client.cpp
+    ct_virtual_display_protocol.cpp
+    ui/virtual_display_ui_state.cpp
+)
+target_link_libraries(test_client_virtual_display PRIVATE px_message GTest::gtest GTest::gtest_main)
 
 if (PX_PROTECTION_ENABLED)
     add_definitions(-DPX_PROTECTION_ENABLED=1)

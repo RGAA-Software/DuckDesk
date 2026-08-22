@@ -14,6 +14,8 @@ const static std::string kPosY = "float_button_pos_y";
 namespace px
 {
     FloatController::FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent){
+        setObjectName("remoteControlFloatingButton");
+        setAccessibleName(tr("Remote control menu"));
         auto image = new QImage(":resources/px_icon.png");
         pixmap_ = QPixmap::fromImage(*image);
         pixmap_ = pixmap_.scaled(25, 25, Qt::KeepAspectRatio, Qt::SmoothTransformation);

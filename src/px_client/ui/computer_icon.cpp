@@ -3,6 +3,7 @@
 //
 
 #include <QPainterPath>
+#include <QString>
 #include "computer_icon.h"
 
 namespace px
@@ -14,6 +15,7 @@ namespace px
         pixmap_ = QPixmap::fromImage(image);
         pixmap_ = pixmap_.scaled(icon_size_, icon_size_, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         monitor_index_ = idx;
+        setObjectName(QString("captureMonitorButton%1").arg(monitor_index_ + 1));
     }
 
     void ComputerIcon::paintEvent(QPaintEvent *event) {
@@ -86,11 +88,27 @@ namespace px
 
     void ComputerIcon::UpdateSelectedState(bool selected) {
         selected_ = selected;
+        UpdateAccessibility();
         repaint();
     }
 
     void ComputerIcon::SetMonitorName(const std::string& name) {
         monitor_name_ = name;
+        setToolTip(QString::fromStdString(name));
+        UpdateAccessibility();
+    }
+
+    void ComputerIcon::UpdateAccessibility() {
+        if (monitor_name_.empty()) {
+            setAccessibleName({});
+            return;
+        }
+        const auto action = selected_ ? tr("Selected monitor") : tr("Switch to monitor");
+        setAccessibleName(
+            tr("%1 %2: %3")
+                .arg(action)
+                .arg(monitor_index_ + 1)
+                .arg(QString::fromStdString(monitor_name_)));
     }
 
     std::string ComputerIcon::GetMonitorName() {

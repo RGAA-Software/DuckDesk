@@ -128,7 +128,36 @@ SHA-256：`6C16B6321C1327DC6334EC28F7BDBA1A9DD8E46703A98CED71F439136FAEFF0E`
 最终 90 状态：3.3.51 保持安装供人工复验；服务和五个模块正常，USBMMIDD 设备/驱动健康；
 用户原先保留的 `usbmmidd-slot-1`（`DISPLAY44`，1920x1080@60Hz）仍在，未被提交前测试删除。
 
-## 7. 尚需发布矩阵覆盖
+## 7. 原生客户端验收（2026-08-22）
+
+原生 Qt 客户端的悬浮一级菜单已补齐完整虚拟显示器交互：状态计数、加号、减号、
+处理中/重连中状态、超时和服务端错误提示。跨线程消息统一投递到 Qt UI 线程；请求 ID
+使用进程级原子序号，多个显示窗口不会复用同一 ID；收到拓扑响应后自动重连，连接恢复时
+解除按钮锁定。屏幕按钮增加了稳定的自动化 ID、屏幕名和选中语义。
+
+| 项目 | 90 实机结果 |
+| --- | --- |
+| 原生基线 | 菜单显示 `Virtual display (1/2)`；减号可用、加号可用；识别 `DISPLAY1` 和既有 `DISPLAY44` |
+| 原生新增 | 窗口 A 点击加号后远端 `desired_count=2`、generation 22；`DISPLAY45` 出现，加号按上限禁用 |
+| 自动重连 | 发起窗口显示 Processing/Reconnecting，RTC local 重连后 1 秒内恢复 `Virtual display (2/2)` 空闲态 |
+| 原生切屏/采集 | 原生屏幕按钮将采集从 `all` 切到 `DISPLAY45`；客户端日志确认 `capturing monitor name: \\.\DISPLAY45`，RTC 收到 1920x1080 首帧 |
+| 多窗口请求隔离 | 窗口 A 新增、重连后窗口 B 移除通过；修复了各窗口局部序号可能命中服务端幂等缓存的问题 |
+| 原生移除恢复 | 从 2 块移除测试屏后远端 generation 23，客户端 4 秒内恢复 `Virtual display (1/2)`，再次收到 1920x1080 首帧 |
+| 最终清理 | `desired_count=1`、owned=1，owned 屏仅保留用户原有 `DISPLAY44`，`removal_safe=true`、`last_error=null`；本地测试客户端均已退出 |
+
+新增原生专项测试目标 `test_client_virtual_display`，11/11 通过，覆盖状态边界、重复操作、
+错误恢复、拓扑状态确认、网络重连完成、多窗口结果隔离、功能禁用、请求 ID 唯一性以及
+protobuf 创建/移除消息序列化。运行方式：
+
+```powershell
+cmake --build build_official --target test_client_virtual_display
+.\build_official\src\px_client\test_client_virtual_display.exe
+```
+
+同时修复发行汇总脚本，使 `dist/resources/` 始终覆盖为本次 px_client 构建的语言资源；
+实机确认不再出现新增文案显示为 `not find` 的问题。
+
+## 8. 尚需发布矩阵覆盖
 
 90 是 Server 2022 冒烟机，不替代设计要求的正式发布矩阵。发版前仍应覆盖：
 

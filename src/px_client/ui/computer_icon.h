@@ -24,6 +24,8 @@ namespace px
         bool IsSelected();
 
     private:
+        void UpdateAccessibility();
+
         QPixmap pixmap_;
         int monitor_index_ = 0;
         std::string monitor_name_{};

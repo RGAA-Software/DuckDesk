@@ -43,6 +43,7 @@
 #include "px_client/plugins/ct_plugin_manager.h"
 #include "px_client/plugin_interface/ct_app_events.h"
 #include "px_client/plugin_interface/ct_plugin_interface.h"
+#include "ct_virtual_display_protocol.h"
 #include "px_client/plugin_interface/ct_media_record_plugin_interface.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_relay_client/relay_api.h"
@@ -1086,25 +1087,34 @@ namespace px
     }
 
     void BaseWorkspace::SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& request) {
-        if (!sdk_ || remote_force_closed_) {
-            return;
-        }
-        px::Message message;
-        message.set_type(px::kVirtualDisplayRequest);
-        message.set_device_id(settings_->device_id_);
-        message.set_stream_id(settings_->stream_id_);
-        auto* sub = message.mutable_virtual_display_request();
         const auto request_id = request.request_id_.empty()
             ? std::format("client-{}-{}", QApplication::applicationPid(), ++virtual_display_request_seq_)
             : request.request_id_;
-        sub->set_request_id(request_id);
-        sub->set_operation(request.operation_);
-        sub->set_width(request.width_);
-        sub->set_height(request.height_);
-        sub->set_refresh_hz(request.refresh_hz_);
+        const auto report_local_failure = [this, &request_id](std::string error_code, std::string error_message) {
+            context_->SendAppMessage(MsgClientVirtualDisplayResult {
+                .enabled_ = settings_->render_virtual_display_enabled_,
+                .owned_display_count_ = settings_->render_virtual_display_owned_count_,
+                .max_display_count_ = settings_->render_virtual_display_max_count_,
+                .topology_generation_ = settings_->render_virtual_display_topology_generation_,
+                .request_id_ = request_id,
+                .accepted_ = false,
+                .state_ = kVirtualDisplayFailed,
+                .error_code_ = std::move(error_code),
+                .error_message_ = std::move(error_message),
+            });
+        };
+        if (!sdk_ || remote_force_closed_) {
+            report_local_failure("CLIENT_NOT_CONNECTED", "The remote media connection is unavailable.");
+            return;
+        }
+        auto message = MakeVirtualDisplayRequestMessage(
+            settings_->device_id_, settings_->stream_id_, request_id, request.operation_,
+            request.width_, request.height_, request.refresh_hz_);
         if (const auto buffer = px::ProtoAsData(&message); buffer) {
             sdk_->PostMediaMessage(buffer);
+            return;
         }
+        report_local_failure("REQUEST_ENCODE_FAILED", "The virtual display request could not be encoded.");
     }
 
     void BaseWorkspace::UpdateVideoWidgetSize() {

@@ -130,6 +130,14 @@ def main():
                 if should_copy_file(entry):
                     shutil.copy2(src_path, dst_path)
 
+    # px_client owns the runtime language and Qt material resources used by
+    # its floating controller.  Overlay its post-build resource directory so
+    # newly added client strings cannot be shadowed by stale px_deps output.
+    client_resources_dir = os.path.join(build_dir, "src", "px_client", "resources")
+    if os.path.isdir(client_resources_dir):
+        copy_tree(client_resources_dir, os.path.join(dist_dir, "resources"))
+        print("  + resources/  (from px_client post-build output)")
+
     # ------------------------------------------------------------------
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
