@@ -7,10 +7,11 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat, MsgHeartBeatResp, MsgRedeemConnectionTicket,
-    MsgRedeemConnectionTicketResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer,
-    MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage,
-    ServiceMessageType, VirtualDisplayOperation,
+    MsgAppInstanceReady, MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat, MsgHeartBeatResp,
+    MsgRedeemConnectionTicket, MsgRedeemConnectionTicketResp, MsgReqCtrlAltDelete,
+    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
+    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
+    VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -30,6 +31,7 @@ impl ServiceMessageType {
     pub const RedeemConnectionTicketResp: Self = Self::KSrvRedeemConnectionTicketResp;
     pub const VirtualDisplayRequest: Self = Self::KSrvVirtualDisplayRequest;
     pub const VirtualDisplayResult: Self = Self::KSrvVirtualDisplayResult;
+    pub const AppInstanceReady: Self = Self::KSrvAppInstanceReady;
 }
 
 #[allow(non_upper_case_globals)]
@@ -130,8 +132,9 @@ mod tests {
             stop_server: Some(MsgStopServer::default()),
             ..Default::default()
         });
-        // Field 20 is intentionally outside the current ServiceMessage schema.
-        bytes.extend_from_slice(&[0xA0, 0x01, 0x01]);
+        // Unknown field 99, wire type varint, value 1. Keep this tag outside
+        // the live ServiceMessage range as new payloads are appended.
+        bytes.extend_from_slice(&[0x98, 0x06, 0x01]);
         let decoded = decode_service_message(&bytes).unwrap();
         assert_eq!(decoded.message_type(), Some(ServiceMessageType::StopServer));
         assert!(decoded.stop_server.is_some());

@@ -39,6 +39,7 @@ namespace px
         void ProcessHelloEvent(std::shared_ptr<Message>&& msg);
         void ProcessMouseEvent(std::shared_ptr<Message>&& msg);
         void ProcessKeyboardEvent(std::shared_ptr<Message>&& msg);
+        void ProcessTextInput(std::shared_ptr<Message>&& msg);
         void PostIpcMessage(const std::string& msg);
         void ProcessClientStatistics(std::shared_ptr<Message>&& msg);
         void ProcessHeartBeat(std::shared_ptr<Message>&& msg);

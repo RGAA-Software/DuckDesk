@@ -14,6 +14,7 @@ enum ServiceMessageType {
   kSrvRedeemConnectionTicketResp = 8;
   kSrvVirtualDisplayRequest = 9;
   kSrvVirtualDisplayResult = 10;
+  kSrvAppInstanceReady = 11;
 }
 
 enum VirtualDisplayOperation {
@@ -127,6 +128,13 @@ message MsgVirtualDisplayResult {
   string phase = 13;
 }
 
+message MsgAppInstanceReady {
+  string instance_id = 1;
+  int32 listen_port = 2;
+  bool ok = 3;
+  string error = 4;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -141,4 +149,5 @@ message ServiceMessage {
   MsgRedeemConnectionTicketResp redeem_connection_ticket_resp = 10;
   MsgVirtualDisplayRequest virtual_display_request = 11;
   MsgVirtualDisplayResult virtual_display_result = 12;
+  MsgAppInstanceReady app_instance_ready = 13;
 }

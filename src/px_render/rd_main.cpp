@@ -11,8 +11,10 @@
 #include "px_common_new/process_util.h"
 #include "gflags/gflags.h"
 #include "version_config.h"
+#include "webview/webview_runtime.h"
 
 #include <Windows.h>
+#include <algorithm>
 #include <filesystem>
 
 using namespace px;
@@ -85,6 +87,12 @@ DEFINE_bool(relay_enabled, true, "");
 DEFINE_int32(language, 0, "");
 
 DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
+DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
+DEFINE_string(webview_instance_id, "", "CMS WebView instance id");
+DEFINE_int32(webview_width, 1920, "WebView off-screen width");
+DEFINE_int32(webview_height, 1080, "WebView off-screen height");
+DEFINE_bool(webview_gpu, true, "Use CEF accelerated OSR shared textures");
+DEFINE_bool(webview_smoke_test, false, "Render WebView frames without a connected peer for diagnostics");
 // appkey
 DEFINE_string(appkey, "", "appkey");
 DEFINE_string(live_stream_id, "", "CMS-issued live stream id");
@@ -182,6 +190,16 @@ void UpdateSettings(RdSettings* settings) {
     else if (FLAGS_app_mode == "game-hook" || FLAGS_app_mode == "inner_capture") {
         settings->application_mode_ = ApplicationMode::kGameHook;
     }
+    else if (FLAGS_app_mode == "webview") {
+        settings->application_mode_ = ApplicationMode::kWebView;
+    }
+
+    settings->webview_url_b64_ = FLAGS_webview_url_b64;
+    settings->webview_instance_id_ = FLAGS_webview_instance_id;
+    settings->webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
+    settings->webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);
+    settings->webview_gpu_ = FLAGS_webview_gpu;
+    settings->webview_smoke_test_ = FLAGS_webview_smoke_test;
 
     // appkey
     settings->appkey_ = FLAGS_appkey;
@@ -247,6 +265,10 @@ void PrintInputArgs() {
     LOGI("relay enabled: {}", FLAGS_relay_enabled);
     LOGI("language: {}", FLAGS_language);
     LOGI("app mode: {} => {}", FLAGS_app_mode, (int)settings->app_mode_);
+    LOGI("webview url configured: {}", !settings->webview_url_b64_.empty());
+    LOGI("webview instance id: {}", settings->webview_instance_id_);
+    LOGI("webview viewport: {}x{}", settings->webview_width_, settings->webview_height_);
+    LOGI("webview accelerated paint: {}", settings->webview_gpu_);
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings->app_.event_replay_mode_);
     LOGI("appkey configured: {}", !FLAGS_appkey.empty());
     LOGI("live stream id: {}", settings->live_stream_id_);
@@ -269,6 +291,13 @@ bool CanWeRun(const std::wstring& lock_path) {
 }
 
 int main(int argc, char** argv) {
+    // CEF renderer/GPU/utility children re-enter px_render.exe. They must be
+    // dispatched before gflags, dump handlers, singleton locks or service links.
+    if (const int cef_exit_code = ExecuteCefSubprocess(GetModuleHandleW(nullptr));
+        cef_exit_code >= 0) {
+        return cef_exit_code;
+    }
+
     // hook 模式下 render 需要按游戏窗口真实物理像素换算鼠标坐标；
     // 不设 DPI aware 时 GetClientRect/ClientToScreen 会被系统虚拟化（如 4K@150% 下只有 2560x1440），
     // 导致游戏内光标位置整体偏向左上角

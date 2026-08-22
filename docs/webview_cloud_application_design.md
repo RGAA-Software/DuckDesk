@@ -1,6 +1,6 @@
 # WebView 云应用设计与验收
 
-> 状态：已完成架构讨论，尚未实施代码。  
+> 状态：核心链路已实现并通过本机 CEF/GPU/CPU 冒烟测试；生产环境端到端验收待部署后执行。
 > 目标：在现有 px_render 插件宿主中增加 CMS 可调度的 webview 云应用类型。
 
 ## 1. 已确认的产品边界
@@ -15,6 +15,37 @@
 - WebView 输入不经 Windows SendInput，也不经 Game Hook IPC。
 
 Base64URL 仅解决命令行传递中的 Unicode、空格、问号、与号等转义问题，不是加密。完整解码 URL 不得写入 Service、宿主或 CEF 日志。
+
+## 当前实现进度（2026-08-22）
+
+- CMS 数据模型、接口和管理页已支持 `game-hook` / `webview`，WebView 表单校验入口 URL。
+- CMS → Service 协议已使用 tag 15/16 下发模式和 Base64URL；Service 不再要求游戏目录或 EXE。
+- Service 按端口识别 Browser 根进程、排除带 `--type` 的 CEF 子进程，并等待 Render 的首帧 Ready 回执后才向 CMS 返回启动成功。
+- px_render 已接入固定版本的官方 CEF 151，使用自身承载 Browser、renderer、GPU 和 utility 进程。
+- 默认使用 D3D11 accelerated OSR，共享纹理在 CEF 回调内复制到宿主双缓冲后进入原硬编码链；`--webview_gpu=false` 保留 CPU BGRA 回退。
+- CEF 网页音频直接进入内部音频链；无观看者时首帧探测完成后降到非活动状态，不持续采集编码。
+- Windows 客户端和高版本 Chrome Web 客户端已支持独立 UTF-8 文本/IME 提交；WebView 键鼠只进入 CEF，不经过 SendInput 或 Game Hook IPC。
+- 已实现同源导航、内部 HTTP 边界、凭据 URL 拒绝、popup/下载/文件选择/摄像头/麦克风权限拒绝、光标回传、双击计数和断连输入释放。
+- CEF 二进制不入 Git；`third_party/cef/fetch_cef.ps1` 按 manifest 下载并校验，正式打包脚本会把完整 runtime 和 locales 放到 `px_render.exe` 同目录。
+- 当前核心交付不包含原生多点触控协议和会话内虚拟剪贴板；移动端触控仍沿用现有鼠标手势，宿主系统剪贴板不会作为 WebView 数据通道。二者列入增强阶段，不能以未实现的能力对外宣传。
+
+本地自动验收命令：
+
+~~~powershell
+# 默认 D3D11 accelerated OSR
+.\scripts\test_webview_smoke.ps1
+
+# CPU fallback
+.\scripts\test_webview_smoke.ps1 -CpuFallback -PagePort 43178 -RenderPort 32993
+
+# 验证已收集的正式发布目录
+.\scripts\test_webview_smoke.ps1 -RenderDir C:\path\to\dist -PagePort 43179 -RenderPort 32994
+
+# 验证主页面失败不会误报 Ready
+.\scripts\test_webview_smoke.ps1 -ExpectLoadFailure -PagePort 43180 -RenderPort 32995
+~~~
+
+测试会启动仓库内受控页面，验证首帧、页面事件、音频启动、CEF 子进程数量、URL 不进入日志/子进程命令行，以及停止后无 CEF 子进程残留。它不会杀掉已运行的桌面 px_render。
 
 ## 2. 组件和进程模型
 
@@ -54,11 +85,11 @@ CEF renderer、GPU、utility 等进程不是 CMS 调度的额外应用实例。S
 
 ### 3.2 CMS-Service 协议
 
-在 src/px_deps/px_server_protocol/cms_service.proto 的启动消息末尾追加字段，不能修改既有 tag：
+在 src/px_deps/px_server_protocol/cms_service.proto 的启动消息末尾追加字段，不能修改既有 tag。设计初稿中的 13/14 已被直播字段占用，实际使用 15/16：
 
 ~~~proto
-string app_mode = 13;          // "game-hook" | "webview"
-string webview_url_b64 = 14;  // UTF-8 Base64URL；webview 时必填
+string app_mode = 15;          // "game-hook" | "webview"
+string webview_url_b64 = 16;  // UTF-8 Base64URL；webview 时必填
 ~~~
 
 CMS Server 编码后下发；px_service 原样转交。启动参数为：
@@ -260,7 +291,7 @@ CEF OnCursorChange 映射到客户端光标消息。标准光标用显式枚举�
 | src/px_render/settings | ApplicationMode::WebView 与 InputTarget |
 | src/px_render/rd_app.cpp | WebView 模式选择插件，跳过游戏管理 |
 | plugin_net_event_router | WebView 独占输入路由、控制权和断连通知 |
-| plugins/webview_source | 新插件：CEF、视频、音频、输入、导航、光标、状态 |
+| src/px_render/webview | CEF runtime：视频、音频、输入、导航、光标、状态 |
 | 构建/安装脚本 | CEF headers/libs/runtime 锁定、复制与完整性校验 |
 
 ## 10. 测试和验收

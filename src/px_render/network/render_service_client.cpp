@@ -47,6 +47,7 @@ namespace px
             if (!self || !self->client_) {
                 return;
             }
+            self->websocket_upgraded_ = false;
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
             const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
@@ -69,7 +70,10 @@ namespace px
             }
             LOGI("RenderServiceClient, tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
         })
-        .bind_disconnect([]() {
+        .bind_disconnect([weak_self]() {
+            if (auto self = weak_self.lock()) {
+                self->websocket_upgraded_ = false;
+            }
             LOGE("RenderServiceClient disconnected");
         })
         .bind_upgrade([weak_self]() {
@@ -81,7 +85,9 @@ namespace px
                 LOGE("RenderServiceClient, upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
                 return;
             }
+            self->websocket_upgraded_ = true;
             LOGI("RenderServiceClient, websocket upgrade success");
+            self->SendPendingAppInstanceReady();
             self->context_->PostTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || !self->context_) {
@@ -189,10 +195,18 @@ namespace px
         }
     }
 
-    void RenderServiceClient::Exit() const {
-        if (client_) {
-            client_->stop();
-        }
+    void RenderServiceClient::Exit() {
+        auto client = std::move(client_);
+        if (!client) return;
+        // asio2::tcp_client::stop() is synchronous off its I/O thread and can
+        // wait forever when an auto-reconnect handshake is being torn down.
+        // Dispatch shutdown to the owning I/O thread; the captured shared_ptr
+        // keeps the client alive until stop has completed there.
+        client->post([client]() {
+            client->set_auto_reconnect(false);
+            client->stop_all_timers();
+            client->stop();
+        });
     }
 
     bool RenderServiceClient::IsAlive() const {
@@ -225,6 +239,36 @@ namespace px
                 --self->queuing_message_count_;
             });
         }
+    }
+
+    void RenderServiceClient::NotifyAppInstanceReady(
+        const std::string& instance_id, int listen_port, bool ok, const std::string& error) {
+        {
+            std::scoped_lock lock(ready_mtx_);
+            ready_instance_id_ = instance_id;
+            ready_listen_port_ = listen_port;
+            ready_ok_ = ok;
+            ready_error_ = error;
+            ready_pending_ = true;
+        }
+        SendPendingAppInstanceReady();
+    }
+
+    void RenderServiceClient::SendPendingAppInstanceReady() {
+        if (!websocket_upgraded_) return;
+        px::ServiceMessage message;
+        {
+            std::scoped_lock lock(ready_mtx_);
+            if (!ready_pending_) return;
+            message.set_type(ServiceMessageType::kSrvAppInstanceReady);
+            auto* ready = message.mutable_app_instance_ready();
+            ready->set_instance_id(ready_instance_id_);
+            ready->set_listen_port(ready_listen_port_);
+            ready->set_ok(ready_ok_);
+            ready->set_error(ready_error_);
+            ready_pending_ = false;
+        }
+        PostNetMessage(message.SerializeAsString());
     }
 
     void RenderServiceClient::RedeemConnectionTicket(

@@ -120,6 +120,13 @@ namespace px
     enum class ApplicationMode {
         kDesktop,
         kGameHook,
+        kWebView,
+    };
+
+    enum class InputTarget {
+        kSystemSendInput,
+        kGameHookIpc,
+        kCefBrowser,
     };
 
     class RdSettings {
@@ -137,6 +144,18 @@ namespace px
         void SetFullColorMode(bool enable);
         bool IsGameHookMode() const {
             return application_mode_ == ApplicationMode::kGameHook;
+        }
+        bool IsWebViewMode() const {
+            return application_mode_ == ApplicationMode::kWebView;
+        }
+        [[nodiscard]] InputTarget GetInputTarget() const {
+            if (application_mode_ == ApplicationMode::kWebView) {
+                return InputTarget::kCefBrowser;
+            }
+            if (application_mode_ == ApplicationMode::kGameHook) {
+                return InputTarget::kGameHookIpc;
+            }
+            return InputTarget::kSystemSendInput;
         }
         // Apply toml application.mode → capture_video_type_ / app_mode_.
         // Call after CLI UpdateSettings so mode stays toml-driven.
@@ -192,6 +211,16 @@ namespace px
         int push_audio_bitrate_ = 96000;
         std::string live_stream_id_;
         std::string push_primary_monitor_;
+        // WebView URL stays Base64URL encoded until the WebView source validates
+        // and decodes it. Never include the decoded value in logs or dumps.
+        std::string webview_url_b64_;
+        std::string webview_instance_id_;
+        int webview_width_ = 1920;
+        int webview_height_ = 1080;
+        bool webview_gpu_ = true;
+        // Diagnostic-only: render without an attached peer so the automated
+        // CEF smoke test can verify an actual OSR frame.
+        bool webview_smoke_test_ = false;
 
     private:
         const std::string kFullColorModeKey = "enable_full_color_mode";

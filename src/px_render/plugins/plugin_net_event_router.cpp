@@ -256,7 +256,7 @@ namespace px {
 
         // hook 模式：新客户端连接时让 DLL 丢弃积压事件并重置差分基准/修饰键，
         // 否则上一会话的残留会让游戏先看到一个巨大的位移跳变，且积压导致开始几秒无响应
-        if (!settings_->app_.IsGlobalReplayMode() && settings_->can_be_operated_) {
+        if (settings_->IsGameHookMode() && settings_->can_be_operated_) {
             auto reset_msg = CaptureResetInputMessage{};
             PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(reset_msg));
             pressed_keys_.clear();
@@ -300,7 +300,7 @@ namespace px {
 
         // hook 模式：客户端断开时补发所有按下的键/鼠标键的释放事件，
         // 否则游戏内按键会一直处于按住状态
-        if (!settings_->app_.IsGlobalReplayMode() && settings_->can_be_operated_
+        if (settings_->IsGameHookMode() && settings_->can_be_operated_
             && (!pressed_keys_.empty() || !pressed_mouse_buttons_.empty())) {
             if (auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
                 hwnd && IsWindow(static_cast<HWND>(hwnd))) {
@@ -350,9 +350,10 @@ namespace px {
             }
 
             // notify to all plugins (skip EventReplayer SendInput when hook-inner)
-            const bool hook_inner = !settings_->app_.IsGlobalReplayMode();
+            const bool hook_inner = settings_->GetInputTarget() != InputTarget::kSystemSendInput;
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
-                                  msg->type() == MessageType::kKeyEvent;
+                                  msg->type() == MessageType::kKeyEvent ||
+                                  msg->type() == MessageType::kTextInput;
             plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
                 if (hook_inner && is_input &&
                     plugin->GetPluginId() == kEventReplayerPluginId) {
@@ -533,6 +534,10 @@ namespace px {
                     }
                     break;
                 }
+                case MessageType::kTextInput: {
+                    ProcessTextInput(std::move(msg));
+                    break;
+                }
 //                case kFocusOutEvent: {
 //                    ProcessFocusOutEvent();
 //                    break;
@@ -549,8 +554,8 @@ namespace px {
                     // over its authenticated service channel instead.
                     LOGW("kStopRender received from client: device={}, stream={}",
                          msg->device_id(), msg->stream_id());
-                    if (settings_->IsGameHookMode()) {
-                        LOGW("Ignore client kStopRender for game-hook instance; use CMS stop action instead.");
+                    if (settings_->IsGameHookMode() || settings_->IsWebViewMode()) {
+                        LOGW("Ignore client kStopRender for CMS application instance; use CMS stop action instead.");
                         break;
                     }
                     ProcessUtil::KillProcess(GetCurrentProcessId());
@@ -595,6 +600,10 @@ namespace px {
             return;
         }
         const auto& mouse_event = msg->mouse_event();
+        if (settings_->IsWebViewMode()) {
+            app_->SendWebViewMouseEvent(mouse_event);
+            return;
+        }
         auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
         auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
         if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
@@ -652,6 +661,10 @@ namespace px {
             return;
         }
         const auto& key_event = msg->key_event();
+        if (settings_->IsWebViewMode()) {
+            app_->SendWebViewKeyEvent(key_event);
+            return;
+        }
         auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
         auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
         if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
@@ -681,6 +694,18 @@ namespace px {
             }
         }
         PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(keyboard_msg));
+    }
+
+    void PluginNetEventRouter::ProcessTextInput(std::shared_ptr<Message>&& msg) {
+        if (!settings_->can_be_operated_ ||
+            settings_->GetInputTarget() != InputTarget::kCefBrowser) {
+            return;
+        }
+        const auto& input = msg->text_input();
+        if (input.text().empty() || input.text().size() > 4096) {
+            return;
+        }
+        app_->SendWebViewTextInput(input);
     }
 
     void PluginNetEventRouter::PostIpcMessage(const std::string& msg) {

@@ -53,6 +53,14 @@ rem VsDevCmd points VCPKG_ROOT to the VS-bundled vcpkg (no protobuf tools).
 rem Pin protoc from the project vcpkg for rust_base/protocol build.rs.
 if not defined PROTOC set "PROTOC=C:\source\vcpkg\installed\x64-windows-static-release\tools\protobuf\protoc.exe"
 
+rem WebView mode requires the pinned official CEF runtime. The fetcher is a
+rem no-op when its checksum marker already exists and honors HTTPS/HTTP/Git proxy.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0third_party\cef\fetch_cef.ps1" >nul
+if errorlevel 1 (
+    echo Failed to prepare the pinned CEF dependency.
+    exit /b %errorlevel%
+)
+
 rem Auto-increment the product version on every build:
 rem patch += 1; when patch would reach 100, minor += 1 and patch resets to 0.
 python "%~dp0set_app_version.py" --bump

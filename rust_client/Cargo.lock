@@ -7571,6 +7571,7 @@ dependencies = [
 name = "service_core"
 version = "3.3.51"
 dependencies = [
+ "base64 0.22.1",
  "prost 0.13.5",
  "prost-build 0.13.5",
  "protoc-bin-vendored",
@@ -7579,6 +7580,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "url",
  "windows 0.62.2",
 ]
 

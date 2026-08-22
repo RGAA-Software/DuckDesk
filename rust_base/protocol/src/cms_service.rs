@@ -61,6 +61,12 @@ pub struct CmsServiceStartAppInstance {
     /// rtmp://127.0.0.1:1935/live/{live_stream_id}. Empty uses render settings.
     #[prost(string, tag = "14")]
     pub push_rtmp_url: ::prost::alloc::string::String,
+    /// Application launch mode. Empty means legacy game-hook.
+    #[prost(string, tag = "15")]
+    pub app_mode: ::prost::alloc::string::String,
+    /// UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
+    #[prost(string, tag = "16")]
+    pub webview_url_b64: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CmsServiceStopAppInstance {

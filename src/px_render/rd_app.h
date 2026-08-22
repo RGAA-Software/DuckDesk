@@ -64,6 +64,10 @@ namespace px
     class MonitorRefresher;
     class WinDesktopManager;
     class D3D11DeviceWrapper;
+    class WebViewRuntime;
+    class MouseEvent;
+    class KeyEvent;
+    class TextInput;
 
     class RdApplication : public std::enable_shared_from_this<RdApplication> {
     public:
@@ -126,6 +130,10 @@ namespace px
             uint32_t refresh_hz,
             std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
         void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
+        void SendWebViewMouseEvent(const MouseEvent& event);
+        void SendWebViewKeyEvent(const KeyEvent& event);
+        void SendWebViewTextInput(const TextInput& event);
+        void SendWebViewFocusEvent(bool focused);
 
     public:
         template<typename T>
@@ -141,6 +149,7 @@ namespace px
         void WriteBoostUpInfoForPid(uint32_t pid);
         void StartProcessWithHook();
         void StartProcessWithScreenCapture();
+        void StartWebView();
         bool HasConnectedPeer() const;
 
         // to panel
@@ -200,6 +209,7 @@ namespace px
         std::shared_ptr<px::RenderServiceClient> service_client_ = nullptr;
 
         std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;
+        std::unique_ptr<WebViewRuntime> webview_runtime_;
 
         // timer count
         int64_t timer_count_16ms_ = 0;

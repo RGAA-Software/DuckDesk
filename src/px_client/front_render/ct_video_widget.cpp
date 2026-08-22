@@ -265,6 +265,10 @@ namespace px
 	void VideoWidget::OnKeyPressEvent(QKeyEvent* e) {
 #ifdef WIN32
         SendKeyEvent(e->nativeVirtualKey(), true);
+        if (!e->text().isEmpty() &&
+            !(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+            SendTextInput(e->text());
+        }
 #endif
 	}
 
@@ -339,6 +343,27 @@ namespace px
                 LOGI("[InputSend] key posted vk=0x{:x} down={} bytes={}", vk, down, buffer->Size());
             } else {
                 LOGE("[InputSend] key encode/post failed vk=0x{:x} down={} sdk={}", vk, down, sdk_ != nullptr);
+            }
+        });
+    }
+
+    void VideoWidget::SendTextInput(const QString& text) {
+        if (settings_->only_viewing_ || text.isEmpty()) {
+            return;
+        }
+        const auto utf8 = text.toUtf8();
+        if (utf8.size() > 4096) {
+            LOGW("[InputSend] drop text input, payload too large: {}", utf8.size());
+            return;
+        }
+        auto msg = std::make_shared<Message>();
+        msg->set_type(px::kTextInput);
+        msg->set_device_id(settings_->device_id_);
+        msg->set_stream_id(settings_->stream_id_);
+        msg->mutable_text_input()->set_text(utf8.constData(), utf8.size());
+        this->evt_cache_thread_->Post([=, this]() {
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
+                sdk_->PostMediaMessage(buffer);
             }
         });
     }

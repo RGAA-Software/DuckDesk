@@ -53,7 +53,10 @@ const accessForm = ref({ app_id: '', app_name: '', access_mode: 'public' as 'pub
 
 const form = ref({
   app_id: '',
+  version: 0,
   name: '',
+  app_type: 'game-hook' as 'game-hook' | 'webview',
+  entry_url: '',
   game_path: '',
   default_game_args: '',
   encoder_fps: 60,
@@ -196,6 +199,10 @@ function collapsePath(path: string): string {
   return `${path.slice(0, 24)}...${path.slice(-18)}`
 }
 
+function appEntry(row: ViewRow): string {
+  return row.app_type === 'webview' ? row.entry_url : row.game_path
+}
+
 function runningCount(row: ViewRow): number {
   return row.nodes.filter((n) => n.instance?.state === 'running').length
 }
@@ -269,7 +276,10 @@ function resetFormForCreate() {
   editing.value = false
   form.value = {
     app_id: '',
+    version: 0,
     name: '',
+    app_type: 'game-hook',
+    entry_url: '',
     game_path: '',
     default_game_args: '',
     encoder_fps: 60,
@@ -287,7 +297,10 @@ function openEdit(row: ViewRow) {
   editing.value = true
   form.value = {
     app_id: row.app_id,
+    version: row.version,
     name: row.name,
+    app_type: row.app_type || 'game-hook',
+    entry_url: row.entry_url || '',
     game_path: row.game_path,
     default_game_args: row.default_game_args || '',
     encoder_fps: row.encoder_fps || 60,
@@ -356,17 +369,24 @@ async function submitSave() {
     message.warning('请填写应用名称')
     return
   }
-  if (!f.game_path.trim()) {
+  if (f.app_type === 'game-hook' && !f.game_path.trim()) {
     message.warning('请填写程序路径')
+    return
+  }
+  if (f.app_type === 'webview' && !f.entry_url.trim()) {
+    message.warning('请填写 WebView 入口 URL')
     return
   }
   saving.value = true
   try {
     const result = await saveApp({
       app_id: editing.value ? f.app_id : undefined,
+      version: editing.value ? f.version : undefined,
       name: f.name.trim(),
-      game_path: f.game_path.trim(),
-      default_game_args: f.default_game_args || undefined,
+      app_type: f.app_type,
+      entry_url: f.app_type === 'webview' ? f.entry_url.trim() : undefined,
+      game_path: f.app_type === 'game-hook' ? f.game_path.trim() : '',
+      default_game_args: f.app_type === 'game-hook' ? (f.default_game_args || undefined) : undefined,
       encoder_fps: f.encoder_fps,
       encoder_bitrate: f.encoder_bitrate,
       encoder_format: f.encoder_format,
@@ -609,13 +629,20 @@ onUnmounted(() => {
           <a-tag v-else color="error">未分配用户组</a-tag>
         </template>
       </a-table-column>
-      <a-table-column title="程序路径" min-width="260">
+      <a-table-column title="类型" width="110">
+        <template #default="{ record }">
+          <a-tag :color="record.app_type === 'webview' ? 'purple' : 'blue'">
+            {{ record.app_type === 'webview' ? 'WebView' : '游戏' }}
+          </a-tag>
+        </template>
+      </a-table-column>
+      <a-table-column title="入口" min-width="260">
         <template #default="{ record }">
           <a-popover placement="top" trigger="hover" :overlay-style="{ width: '520px' }">
             <template #content>
-              <div class="path-pop">{{ record.game_path }}</div>
+              <div class="path-pop">{{ appEntry(record) }}</div>
             </template>
-            <span class="path-collapse">{{ collapsePath(record.game_path) }}</span>
+            <span class="path-collapse">{{ collapsePath(appEntry(record)) }}</span>
           </a-popover>
         </template>
       </a-table-column>
@@ -803,7 +830,13 @@ onUnmounted(() => {
         <a-form-item label="应用名称" required>
           <a-input v-model:value="form.name" placeholder="例如 CarGame" />
         </a-form-item>
-        <a-form-item label="程序路径" required>
+        <a-form-item label="应用类型" required>
+          <a-radio-group v-model:value="form.app_type" :disabled="editing && rows.find(row => row.app_id === form.app_id)?.nodes.some(node => !!node.instance)">
+            <a-radio value="game-hook">游戏程序</a-radio>
+            <a-radio value="webview">WebView 网页</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item v-if="form.app_type === 'game-hook'" label="程序路径" required>
           <a-input
             v-model:value="form.game_path"
             class="path-input"
@@ -813,7 +846,16 @@ onUnmounted(() => {
             勿从网页表格复制路径（浏览器会把连续空格压成一个）。请从资源管理器地址栏粘贴。
           </div>
         </a-form-item>
-        <a-form-item label="启动参数">
+        <a-form-item v-else label="入口 URL" required>
+          <a-input
+            v-model:value="form.entry_url"
+            placeholder="https://example.com 或内网 http://192.168.x.x"
+          />
+          <div class="text-xs text-gray-400 mt-1">
+            允许 HTTPS；HTTP 仅允许 localhost、私有 IP 或 .local 内网页面。URL 不会写入进程日志。
+          </div>
+        </a-form-item>
+        <a-form-item v-if="form.app_type === 'game-hook'" label="启动参数">
           <a-input v-model:value="form.default_game_args" placeholder="可选" />
         </a-form-item>
         <a-form-item label="编码">

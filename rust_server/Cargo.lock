@@ -4723,6 +4723,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "url",
  "uuid",
  "webbrowser",
  "winres",

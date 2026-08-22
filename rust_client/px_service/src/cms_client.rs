@@ -417,6 +417,8 @@ pub fn parse_cms_inbound(bytes: &[u8]) -> Result<Option<CmsInboundCommand>, Stri
                 websocket_enabled: s.websocket_enabled,
                 live_stream_id: s.live_stream_id,
                 push_rtmp_url: s.push_rtmp_url,
+                app_mode: s.app_mode,
+                webview_url_b64: s.webview_url_b64,
             })))
         }
         Ok(CmsServiceMessageType::KCmsServiceStopAppInstance) => {
@@ -629,6 +631,8 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
             websocket_enabled: req.websocket_enabled,
             live_stream_id: req.live_stream_id.clone(),
             push_rtmp_url: req.push_rtmp_url.clone(),
+            app_mode: req.app_mode.clone(),
+            webview_url_b64: req.webview_url_b64.clone(),
         }),
         stop_app_instance: None,
         start_app_instance_result: None,
@@ -967,6 +971,8 @@ mod tests {
             request_id: "req-1".into(),
             instance_id: "inst-1".into(),
             app_id: "app-1".into(),
+            app_mode: "game-hook".into(),
+            webview_url_b64: String::new(),
             install_root: r"D:\apps\Car".into(),
             game_exe_rel: r"Binaries\game.exe".into(),
             game_arguments: "-dx11".into(),

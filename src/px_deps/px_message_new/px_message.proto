@@ -128,6 +128,10 @@ enum MessageType {
   kVirtualDisplayRequest = 570;
   kVirtualDisplayResponse = 571;
 
+  // client -> render: committed UTF-8 text for WebView. Physical key events
+  // remain in kKeyEvent; this message carries layout/IME output.
+  kTextInput = 580;
+
 }
 
 enum VideoType {
@@ -363,6 +367,10 @@ message MouseEvent {
   int32 delta_y = 8;
   bool pressed = 9;
   bool released = 10;
+}
+
+message TextInput {
+  string text = 1;
 }
 
 message CursorInfoSync {
@@ -720,4 +728,5 @@ message Message {
   InstanceStopped instance_stopped = 550;
   VirtualDisplayRequest virtual_display_request = 560;
   VirtualDisplayResponse virtual_display_response = 561;
+  TextInput text_input = 570;
 }

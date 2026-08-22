@@ -146,6 +146,55 @@ find_package(OpenCV REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 
+# WebView application mode embeds the pinned official CEF binary distribution.
+# Binary payloads are fetched locally by third_party/cef/fetch_cef.ps1 and are
+# intentionally not stored in Git. CEF_ROOT may point at a shared machine cache.
+if(WIN32)
+    if(NOT DEFINED CEF_ROOT OR CEF_ROOT STREQUAL "")
+        set(CEF_ROOT
+            "${CMAKE_SOURCE_DIR}/third_party/cef/cef_binary_151.3.17+gf059e67+chromium-151.0.7922.138_windows64"
+            CACHE PATH "Path to the CEF Windows x64 Standard Distribution")
+    endif()
+    if(NOT EXISTS "${CEF_ROOT}/cmake/FindCEF.cmake")
+        message(FATAL_ERROR
+            "CEF was not found at '${CEF_ROOT}'. Run: powershell -ExecutionPolicy Bypass "
+            "-File third_party/cef/fetch_cef.ps1")
+    endif()
+    set(PROJECT_ARCH "x86_64")
+    set(USE_SANDBOX OFF CACHE BOOL "CEF sandbox is disabled for the single-exe subprocess model" FORCE)
+    list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+
+    # FindCEF clears CMake's default compiler flags when the Ninja generator is
+    # used. That is appropriate for standalone CEF examples, but breaks this
+    # repository's non-CEF targets which rely on the MSVC defaults (/EHsc,
+    # WIN32 and _WINDOWS). Preserve the project flags while still using CEF's
+    # target-level compile options for libcef_dll_wrapper.
+    set(PX_CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    set(PX_CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    set(PX_CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+    set(PX_CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    set(PX_CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
+    set(PX_CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(PX_CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    set(PX_CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    set(PX_CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    set(PX_CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+    find_package(CEF REQUIRED)
+    set(CMAKE_C_FLAGS "${PX_CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS_DEBUG "${PX_CMAKE_C_FLAGS_DEBUG}")
+    set(CMAKE_C_FLAGS_RELEASE "${PX_CMAKE_C_FLAGS_RELEASE}")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${PX_CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    set(CMAKE_C_FLAGS_MINSIZEREL "${PX_CMAKE_C_FLAGS_MINSIZEREL}")
+    set(CMAKE_CXX_FLAGS "${PX_CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS_DEBUG "${PX_CMAKE_CXX_FLAGS_DEBUG}")
+    set(CMAKE_CXX_FLAGS_RELEASE "${PX_CMAKE_CXX_FLAGS_RELEASE}")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${PX_CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${PX_CMAKE_CXX_FLAGS_MINSIZEREL}")
+    ADD_LOGICAL_TARGET(libcef_lib "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+    add_subdirectory("${CEF_LIBCEF_DLL_WRAPPER_PATH}"
+                     "${CMAKE_BINARY_DIR}/third_party/cef/libcef_dll_wrapper")
+endif()
+
 set(WEBRTC_ROOT ${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc)
 
 set(PX_PROJECT_PATH ${CMAKE_SOURCE_DIR}/src/px_deps)

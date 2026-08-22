@@ -5,6 +5,7 @@ use crate::config::RENDER_EXE_NAME;
 use crate::process::ProcessSnapshot;
 use crate::state::RenderLaunchSpec;
 use crate::ue_bootstrap::UeViewInfo;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use px_base::crypto_util::base64_encode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -12,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 pub const APP_MODE_GAME_HOOK: &str = "game-hook";
+pub const APP_MODE_WEBVIEW: &str = "webview";
 pub const DEFAULT_ENCODER_FPS: i32 = 60;
 pub const DEFAULT_ENCODER_BITRATE: i32 = 20;
 pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
@@ -47,6 +49,8 @@ pub struct StartAppRequest {
     pub websocket_enabled: bool,
     pub live_stream_id: String,
     pub push_rtmp_url: String,
+    pub app_mode: String,
+    pub webview_url_b64: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +60,7 @@ pub struct AppInstanceRecord {
     pub app_id: String,
     pub install_root: String,
     pub game_exe_rel: String,
+    pub app_mode: String,
     pub listen_port: u16,
     pub pid: Option<u32>,
     pub state: AppInstanceState,
@@ -66,6 +71,49 @@ pub struct AppInstanceRecord {
     pub view_game_path: Option<PathBuf>,
     /// Set when the instance reaches stopped/failed; used by prune_finished.
     pub finished_at: Option<Instant>,
+}
+
+pub fn normalized_app_mode(value: &str) -> Result<&'static str, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "" | APP_MODE_GAME_HOOK => Ok(APP_MODE_GAME_HOOK),
+        APP_MODE_WEBVIEW => Ok(APP_MODE_WEBVIEW),
+        _ => Err("unsupported app_mode".to_string()),
+    }
+}
+
+pub fn decode_webview_url(value: &str) -> Result<String, String> {
+    if value.trim().is_empty() {
+        return Err("webview_url_b64 is empty".to_string());
+    }
+    let bytes = URL_SAFE_NO_PAD
+        .decode(value.trim())
+        .map_err(|_| "webview_url_b64 is invalid".to_string())?;
+    let decoded = String::from_utf8(bytes).map_err(|_| "webview URL is not UTF-8".to_string())?;
+    if decoded.len() > 8192 {
+        return Err("webview URL is too long".to_string());
+    }
+    let parsed = url::Url::parse(&decoded).map_err(|_| "webview URL is invalid".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {
+        return Err("webview URL scheme/host is not allowed".to_string());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("webview URL credentials are not allowed".to_string());
+    }
+    if parsed.scheme() == "http" {
+        let internal = match parsed.host() {
+            Some(url::Host::Ipv4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
+            Some(url::Host::Ipv6(ip)) => ip.is_loopback() || ip.is_unique_local(),
+            Some(url::Host::Domain(host)) => {
+                host.eq_ignore_ascii_case("localhost")
+                    || host.to_ascii_lowercase().ends_with(".local")
+            }
+            None => false,
+        };
+        if !internal {
+            return Err("webview HTTP URL must target localhost or a private host".to_string());
+        }
+    }
+    Ok(decoded)
 }
 
 impl AppInstanceRecord {
@@ -185,6 +233,60 @@ pub fn build_game_hook_launch_spec(
     }
 }
 
+pub fn build_webview_launch_spec(
+    work_dir: impl Into<String>,
+    req: &StartAppRequest,
+    listen_port: u16,
+) -> Result<RenderLaunchSpec, String> {
+    // Decode only to validate UTF-8 and URL structure. The original Base64URL
+    // is passed through so neither the URL nor its query is logged by Service.
+    let _ = decode_webview_url(&req.webview_url_b64)?;
+    let work_dir = work_dir.into();
+    let app_path = PathBuf::from(&work_dir).join(RENDER_EXE_NAME);
+    let fps = if req.encoder_fps > 0 {
+        req.encoder_fps
+    } else {
+        DEFAULT_ENCODER_FPS
+    };
+    let bitrate = if req.encoder_bitrate > 0 {
+        req.encoder_bitrate
+    } else {
+        DEFAULT_ENCODER_BITRATE
+    };
+    let format = if req.encoder_format.trim().is_empty() {
+        DEFAULT_ENCODER_FORMAT
+    } else {
+        req.encoder_format.trim()
+    };
+    let mut args = vec![
+        "--logfile".to_string(),
+        format!("--app_mode={APP_MODE_WEBVIEW}"),
+        format!("--webview_url_b64={}", req.webview_url_b64.trim()),
+        "--capture_video=true".to_string(),
+        "--capture_video_type=inner".to_string(),
+        "--capture_audio=true".to_string(),
+        "--capture_audio_type=inner".to_string(),
+        format!("--webrtc_enabled={}", req.webrtc_enabled),
+        format!("--websocket_enabled={}", req.websocket_enabled),
+        format!("--encoder_fps={fps}"),
+        format!("--encoder_bitrate={bitrate}"),
+        format!("--encoder_format={format}"),
+        format!("--network_listen_port={listen_port}"),
+        format!("--webview_instance_id={}", req.instance_id),
+    ];
+    if !req.live_stream_id.trim().is_empty() {
+        args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
+    }
+    if !req.push_rtmp_url.trim().is_empty() {
+        args.push(format!("--push_rtmp_url={}", req.push_rtmp_url.trim()));
+    }
+    Ok(RenderLaunchSpec {
+        work_dir,
+        app_path: app_path.to_string_lossy().to_string(),
+        args,
+    })
+}
+
 pub fn extract_listen_port(args: &[String]) -> Option<u16> {
     for arg in args {
         if let Some(v) = arg.strip_prefix("--network_listen_port=") {
@@ -204,7 +306,7 @@ pub fn cmdline_has_listen_port(cmdline: &str, port: u16) -> bool {
 }
 
 /// Identity check before killing: the pid must currently be this instance's
-/// game-hook render (exact listen-port match) or its game exe (path match).
+/// CMS app render (exact listen-port match) or its game exe (path match).
 /// Guards against Windows pid reuse killing an innocent process tree.
 pub fn pid_belongs_to_instance(
     processes: &[ProcessSnapshot],
@@ -215,7 +317,7 @@ pub fn pid_belongs_to_instance(
     let Some(p) = processes.iter().find(|p| p.pid == pid) else {
         return false;
     };
-    if p.is_game_hook_render_process() {
+    if p.is_app_instance_render_process() {
         return cmdline_has_listen_port(&p.cmdline, listen_port);
     }
     p.exe_path_eq(&game_path.to_string_lossy())
@@ -225,6 +327,10 @@ pub fn is_game_hook_launch(spec: &RenderLaunchSpec) -> bool {
     spec.args
         .iter()
         .any(|a| a == "--app_mode=game-hook" || a == &format!("--app_mode={APP_MODE_GAME_HOOK}"))
+}
+
+pub fn is_webview_launch(spec: &RenderLaunchSpec) -> bool {
+    spec.args.iter().any(|a| a == "--app_mode=webview")
 }
 
 #[derive(Debug, Default)]
@@ -368,13 +474,19 @@ impl AppInstanceRegistry {
                 ));
             }
         }
-        let game_path = resolve_game_path(&req.install_root, &req.game_exe_rel)?;
-        // UE bootstrap 外壳：解析真游戏(view)进程路径，render 注入它以代替外壳。
-        // 注意：boot 外壳自己也会读 201/202 并把命令行透传给 view 子进程，
-        // 所以 202 的 base_args 不并入我们传给 boot 的参数（避免项目名重复）。
-        let view = crate::ue_bootstrap::resolve_ue_bootstrap(&game_path);
+        let app_mode = normalized_app_mode(&req.app_mode)?;
         let port = self.allocate_port(req.listen_port)?;
-        let launch = build_game_hook_launch_spec(work_dir, &req, port, &game_path, view.as_ref());
+        let (launch, view) = if app_mode == APP_MODE_WEBVIEW {
+            (build_webview_launch_spec(work_dir, &req, port)?, None)
+        } else {
+            let game_path = resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+            // UE bootstrap 外壳：解析真游戏(view)进程路径，render 注入它以代替外壳。
+            let view = crate::ue_bootstrap::resolve_ue_bootstrap(&game_path);
+            (
+                build_game_hook_launch_spec(work_dir, &req, port, &game_path, view.as_ref()),
+                view,
+            )
+        };
         self.used_ports.insert(port, req.instance_id.clone());
         let record = AppInstanceRecord {
             request_id: req.request_id.clone(),
@@ -382,6 +494,7 @@ impl AppInstanceRegistry {
             app_id: req.app_id.clone(),
             install_root: req.install_root.clone(),
             game_exe_rel: req.game_exe_rel.clone(),
+            app_mode: app_mode.to_string(),
             listen_port: port,
             pid: None,
             state: AppInstanceState::Starting,
@@ -495,10 +608,13 @@ impl AppInstanceRegistry {
         }
     }
 
-    /// True if stop should kill this pid (game-hook instance), never desktop.
+    /// True if stop should kill this pid (CMS application instance), never desktop.
     pub fn should_kill_pid_for_instance(&self, instance_id: &str, pid: u32) -> bool {
         match self.instances.get(instance_id) {
-            Some(rec) => rec.pid == Some(pid) && is_game_hook_launch(&rec.launch),
+            Some(rec) => {
+                rec.pid == Some(pid)
+                    && (is_game_hook_launch(&rec.launch) || is_webview_launch(&rec.launch))
+            }
             None => false,
         }
     }
@@ -538,6 +654,8 @@ mod tests {
             request_id: format!("req-{instance_id}"),
             instance_id: instance_id.to_string(),
             app_id: "app-car".to_string(),
+            app_mode: APP_MODE_GAME_HOOK.to_string(),
+            webview_url_b64: String::new(),
             install_root: r"D:\apps\CarGame".to_string(),
             game_exe_rel: r"Binaries\Win64\VehicleGame-Win64-Shipping.exe".to_string(),
             game_arguments: "-dx11".to_string(),
@@ -619,6 +737,61 @@ mod tests {
             .args
             .iter()
             .any(|a| a.starts_with("--app_game_view_path=")));
+    }
+
+    #[test]
+    fn webview_launch_uses_base64url_without_exposing_plain_url() {
+        let mut req = sample_req("web-1", 32012);
+        let url = "https://example.com/dashboard?token=secret#view";
+        req.app_mode = APP_MODE_WEBVIEW.to_string();
+        req.webview_url_b64 = URL_SAFE_NO_PAD.encode(url.as_bytes());
+        req.install_root.clear();
+        req.game_exe_rel.clear();
+        req.game_arguments.clear();
+
+        let spec = build_webview_launch_spec(r"D:\Pixels", &req, 32012).unwrap();
+        assert!(is_webview_launch(&spec));
+        assert_eq!(extract_listen_port(&spec.args), Some(32012));
+        assert!(spec
+            .args
+            .iter()
+            .any(|arg| arg == "--capture_audio_type=inner"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|arg| arg == &format!("--webview_url_b64={}", req.webview_url_b64)));
+        assert!(!spec.args.join(" ").contains(url));
+
+        let mut registry = AppInstanceRegistry::new();
+        let record = registry.begin_start(r"D:\Pixels", req).unwrap();
+        assert_eq!(record.app_mode, APP_MODE_WEBVIEW);
+        assert!(record.view_game_path.is_none());
+    }
+
+    #[test]
+    fn webview_url_rejects_bad_encoding_credentials_and_non_http_schemes() {
+        assert!(decode_webview_url("not_base64!").is_err());
+        for url in [
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "https://user:password@example.com/",
+            "http://example.com/insecure",
+        ] {
+            let encoded = URL_SAFE_NO_PAD.encode(url.as_bytes());
+            assert!(
+                decode_webview_url(&encoded).is_err(),
+                "unexpectedly accepted {url}"
+            );
+        }
+        for url in [
+            "http://127.0.0.1:43177/",
+            "http://192.168.31.6/internal",
+            "http://service.local/app",
+            "https://example.com/app",
+        ] {
+            let encoded = URL_SAFE_NO_PAD.encode(url.as_bytes());
+            assert_eq!(decode_webview_url(&encoded).unwrap(), url);
+        }
     }
 
     #[test]

@@ -82,7 +82,12 @@ namespace px
     void RdStatistics::Exit() {
         if (monitor_thread_) {
             monitor_thread_->Exit();
+            monitor_thread_.reset();
         }
+        msg_listener_.reset();
+        plugin_mgr_.reset();
+        context_.reset();
+        app_.reset();
     }
 
     void RdStatistics::IncreaseRunningTime() {

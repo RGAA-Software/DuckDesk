@@ -31,6 +31,9 @@ pub struct ServiceRuntime {
     /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
     /// 用于 CMS 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
+    /// One-shot Browser/first-frame acknowledgements for WebView starts.
+    pub webview_ready_waiters:
+        std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
     pub ticket_redeem_tx: Option<mpsc::Sender<TicketRedeemRequest>>,
     pub virtual_display_manager: Option<Arc<VirtualDisplayManager>>,
     pub virtual_display_init_error: Option<String>,
@@ -112,6 +115,7 @@ impl ServiceRuntime {
             state: ServiceState::default(),
             app_registry: AppInstanceRegistry::new(),
             render_senders: std::collections::HashMap::new(),
+            webview_ready_waiters: std::collections::HashMap::new(),
             ticket_redeem_tx: None,
             virtual_display_manager,
             virtual_display_init_error,
@@ -119,6 +123,28 @@ impl ServiceRuntime {
             ipc_token: URL_SAFE_NO_PAD.encode(ipc_bytes),
             stop_tx,
         }
+    }
+
+    /// Complete the one-shot WebView readiness wait only when the instance and
+    /// port match the process that Service launched.
+    pub fn complete_webview_ready(
+        &mut self,
+        instance_id: &str,
+        listen_port: i32,
+        result: Result<(), String>,
+    ) -> bool {
+        let valid = u16::try_from(listen_port).ok().is_some_and(|port| {
+            self.app_registry
+                .get(instance_id)
+                .is_some_and(|record| record.listen_port == port)
+        });
+        if !valid {
+            return false;
+        }
+        let Some(waiter) = self.webview_ready_waiters.remove(instance_id) else {
+            return false;
+        };
+        waiter.send(result).is_ok()
     }
 
     pub fn subscribe_stop(&self) -> broadcast::Receiver<()> {
@@ -272,7 +298,7 @@ impl ServiceRuntime {
         let mut killed = 0usize;
         for process in processes {
             // Never kill CMS game-hook instances from desktop stop.
-            if process.is_game_hook_render_process() {
+            if process.is_app_instance_render_process() {
                 continue;
             }
             if process.is_managed_clipboard_process() {
@@ -289,7 +315,7 @@ impl ServiceRuntime {
         Ok(())
     }
 
-    /// CMS-scheduled game-hook instance start. Returns (listen_port, pid).
+    /// CMS-scheduled game-hook/WebView instance start. Returns (listen_port, pid).
     ///
     /// Async + narrow locking: the registry is only locked while reading or
     /// mutating it; the multi-second process waits run unlocked so heartbeats
@@ -298,21 +324,39 @@ impl ServiceRuntime {
         runtime: &Arc<Mutex<ServiceRuntime>>,
         req: StartAppRequest,
     ) -> Result<(u16, u32), String> {
-        let game_path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
-        if !game_path.is_file() {
-            return Err(format!(
-                "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
-                game_path.display()
-            ));
-        }
-        let (record, process_manager, ipc_token) = {
+        let app_mode = service_core::app_instance::normalized_app_mode(&req.app_mode)?;
+        let is_webview = app_mode == service_core::app_instance::APP_MODE_WEBVIEW;
+        let game_path = if is_webview {
+            service_core::app_instance::decode_webview_url(&req.webview_url_b64)?;
+            None
+        } else {
+            let path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+            if !path.is_file() {
+                return Err(format!(
+                    "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
+                    path.display()
+                ));
+            }
+            Some(path)
+        };
+        let (record, process_manager, ipc_token, webview_ready_rx) = {
             let mut guard = runtime.lock().await;
             let work_dir = guard.pick_app_work_dir()?;
             let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
+            let ready_rx = if is_webview {
+                let (ready_tx, ready_rx) = oneshot::channel();
+                guard
+                    .webview_ready_waiters
+                    .insert(record.instance_id.clone(), ready_tx);
+                Some(ready_rx)
+            } else {
+                None
+            };
             (
                 record,
                 guard.process_manager.clone(),
                 guard.ipc_token.clone(),
+                ready_rx,
             )
         };
         let instance_id = record.instance_id.clone();
@@ -323,9 +367,10 @@ impl ServiceRuntime {
             .retain(|arg| !arg.starts_with("--service_ipc_token="));
         launch.args.push(format!("--service_ipc_token={ipc_token}"));
         info!(
-            "start app instance {}, game={}, view={:?}, work_dir={}, port={}",
+            "start app instance {}, mode={}, has_game={}, view={:?}, work_dir={}, port={}",
             instance_id,
-            game_path.display(),
+            app_mode,
+            game_path.is_some(),
             record.view_game_path,
             launch.work_dir,
             port
@@ -336,45 +381,73 @@ impl ServiceRuntime {
             &launch.args,
         ) {
             let mut guard = runtime.lock().await;
+            guard.webview_ready_waiters.remove(&instance_id);
             let _ = guard.app_registry.mark_failed(&instance_id, err.clone());
             return Err(format!("启动 Render 失败: {err}"));
         }
-        // Resolve pid by matching game-hook cmdline listen_port (brief retry).
-        let pid = match wait_game_hook_pid_by_port(&process_manager, port, 40, 100).await {
+        // Resolve the Browser/root render only. CEF children carry --type and
+        // are deliberately excluded by find_app_render_pid_by_port.
+        let pid = match wait_app_render_pid_by_port(&process_manager, port, 40, 100).await {
             Some(pid) => pid,
             None => {
                 let msg = format!("Render 已启动但未找到监听端口 {port} 的进程");
                 warn!("app instance {instance_id}: {msg}");
                 // spawn 可能已成功但 WMI/参数匹配没跟上:再查一次并杀树兜底,
                 // 确认清干净再 mark_failed,避免孤儿进程占用端口。
-                if let Some(orphan_pid) = find_game_hook_pid_by_port(&process_manager, port) {
+                if let Some(orphan_pid) = find_app_render_pid_by_port(&process_manager, port) {
                     warn!("killing orphaned render pid={orphan_pid} on port {port}");
                     kill_process_tree(&process_manager, orphan_pid);
-                    if !wait_game_hook_exit_by_port(&process_manager, port, 10, 100).await {
+                    if !wait_app_render_exit_by_port(&process_manager, port, 10, 100).await {
                         error!("orphan render on port {port} still alive after kill");
                     }
                 }
                 let mut guard = runtime.lock().await;
+                guard.webview_ready_waiters.remove(&instance_id);
                 let _ = guard.app_registry.mark_failed(&instance_id, msg.clone());
                 return Err(msg);
             }
         };
 
-        // Game-hook must actually launch the game; otherwise report failure to CMS.
-        let game_path_str = game_path.to_string_lossy().to_string();
-        if !wait_game_process(&process_manager, &game_path_str, 50, 200).await {
-            let msg = format!(
-                "游戏进程未启动: {}（Render 已退出或启动游戏失败，请核对程序路径）",
-                game_path.display()
-            );
-            warn!("app instance {instance_id}: {msg}");
-            kill_process_tree(&process_manager, pid);
-            let mut guard = runtime.lock().await;
-            let _ = guard.app_registry.mark_failed(&instance_id, msg.clone());
-            return Err(msg);
+        // Game-hook must actually launch the game. WebView readiness is
+        // reported by its Render integration and does not have a game process.
+        let game_path_str = game_path
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if let Some(game_path) = game_path.as_ref() {
+            if !wait_game_process(&process_manager, &game_path_str, 50, 200).await {
+                let msg = format!(
+                    "游戏进程未启动: {}（Render 已退出或启动游戏失败，请核对程序路径）",
+                    game_path.display()
+                );
+                warn!("app instance {instance_id}: {msg}");
+                kill_process_tree(&process_manager, pid);
+                let mut guard = runtime.lock().await;
+                let _ = guard.app_registry.mark_failed(&instance_id, msg.clone());
+                return Err(msg);
+            }
+        }
+
+        if let Some(ready_rx) = webview_ready_rx {
+            let ready = tokio::time::timeout(Duration::from_secs(20), ready_rx).await;
+            let error = match ready {
+                Ok(Ok(Ok(()))) => None,
+                Ok(Ok(Err(error))) => Some(error),
+                Ok(Err(_)) => Some("WebView Ready 等待通道已关闭".to_string()),
+                Err(_) => Some("WebView 在 20 秒内未产生可编码首帧".to_string()),
+            };
+            if let Some(error) = error {
+                warn!("app instance {instance_id}: {error}");
+                kill_process_tree(&process_manager, pid);
+                let mut guard = runtime.lock().await;
+                guard.webview_ready_waiters.remove(&instance_id);
+                let _ = guard.app_registry.mark_failed(&instance_id, error.clone());
+                return Err(error);
+            }
         }
 
         let mut guard = runtime.lock().await;
+        guard.webview_ready_waiters.remove(&instance_id);
         if let Err(err) = guard.app_registry.mark_running(&instance_id, pid) {
             // 等待期间并发 Stop 已终结该实例:杀掉刚拉起的进程树,避免孤儿。
             warn!("start app instance {instance_id}: {err}; killing spawned tree");
@@ -385,10 +458,12 @@ impl ServiceRuntime {
             drop(guard);
             kill_process_tree(&process_manager, pid);
             let processes = process_manager.list_processes().unwrap_or_default();
-            for game_pid in
-                service_core::process::find_pids_for_game_exe(&processes, &game_path_str)
-            {
-                let _ = process_manager.kill_process(game_pid);
+            if !game_path_str.is_empty() {
+                for game_pid in
+                    service_core::process::find_pids_for_game_exe(&processes, &game_path_str)
+                {
+                    let _ = process_manager.kill_process(game_pid);
+                }
             }
             // UE view 进程同样兜底清理。
             if let Some(view_path) = view_path {
@@ -465,7 +540,7 @@ impl ServiceRuntime {
         }
         let process_manager = self.process_manager.clone();
         for (instance_id, listen_port, pid, state) in candidates {
-            match find_game_hook_pid_by_port(&process_manager, listen_port) {
+            match find_app_render_pid_by_port(&process_manager, listen_port) {
                 Some(live_pid) => {
                     if state == AppInstanceState::Failed {
                         warn!(
@@ -500,6 +575,10 @@ impl ServiceRuntime {
         let (rec, process_manager) = {
             let mut guard = runtime.lock().await;
             let rec = guard.app_registry.begin_stop(instance_id)?.clone();
+            // A concurrent stop must immediately cancel a WebView startup that
+            // is waiting for the first CEF frame instead of leaving it blocked
+            // until the full readiness timeout expires.
+            guard.webview_ready_waiters.remove(instance_id);
             (rec, guard.process_manager.clone())
         };
         info!(
@@ -538,9 +617,10 @@ impl ServiceRuntime {
         let mut identity_mismatch = false;
         // Kill 前校验 pid 当前身份:render 崩溃后 Windows 会复用 pid,只比数值
         // 会把占用该 pid 的无辜进程整棵树 TerminateProcess。
-        let recorded_render_pid = rec
-            .pid
-            .filter(|_| service_core::app_instance::is_game_hook_launch(&rec.launch));
+        let recorded_render_pid = rec.pid.filter(|_| {
+            service_core::app_instance::is_game_hook_launch(&rec.launch)
+                || service_core::app_instance::is_webview_launch(&rec.launch)
+        });
         let render_pid = recorded_render_pid
             .and_then(|pid| {
                 let belongs = game_path
@@ -560,7 +640,7 @@ impl ServiceRuntime {
                     None
                 }
             })
-            .or_else(|| find_game_hook_pid_by_port(&process_manager, rec.listen_port));
+            .or_else(|| find_app_render_pid_by_port(&process_manager, rec.listen_port));
 
         if let Some(pid) = render_pid {
             kill_pids.extend(service_core::process::collect_process_tree(&processes, pid));
@@ -604,7 +684,7 @@ impl ServiceRuntime {
         }
         // kill 后按端口复查:进程仍在监听时不能 mark_stopped,否则端口被释放,
         // 下一个实例分配同端口直接撞车。此时返回 Err 让 CMS 标 failed。
-        if !wait_game_hook_exit_by_port(&process_manager, rec.listen_port, 10, 100).await {
+        if !wait_app_render_exit_by_port(&process_manager, rec.listen_port, 10, 100).await {
             return Err(format!(
                 "instance {instance_id} render still alive on port {} after kill",
                 rec.listen_port
@@ -669,10 +749,13 @@ impl ServiceRuntime {
     }
 }
 
-fn find_game_hook_pid_by_port(process_manager: &Arc<dyn ProcessManager>, port: u16) -> Option<u32> {
+fn find_app_render_pid_by_port(
+    process_manager: &Arc<dyn ProcessManager>,
+    port: u16,
+) -> Option<u32> {
     let processes = process_manager.list_processes().ok()?;
     for p in processes {
-        if !p.is_game_hook_render_process() {
+        if !p.is_app_instance_render_process() {
             continue;
         }
         // Exact token match only: substring matching would hit port 3200 on
@@ -684,14 +767,14 @@ fn find_game_hook_pid_by_port(process_manager: &Arc<dyn ProcessManager>, port: u
     None
 }
 
-async fn wait_game_hook_pid_by_port(
+async fn wait_app_render_pid_by_port(
     process_manager: &Arc<dyn ProcessManager>,
     port: u16,
     attempts: u32,
     sleep_ms: u64,
 ) -> Option<u32> {
     for _ in 0..attempts {
-        if let Some(pid) = find_game_hook_pid_by_port(process_manager, port) {
+        if let Some(pid) = find_app_render_pid_by_port(process_manager, port) {
             return Some(pid);
         }
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
@@ -702,20 +785,20 @@ async fn wait_game_hook_pid_by_port(
 /// Wait for a game-hook render to disappear. WMI can keep a successfully
 /// terminated process visible briefly, so checking once immediately after
 /// `TerminateProcess` creates false stop failures and leaves CMS instances in
-/// `failed`. This is intentionally the inverse of `wait_game_hook_pid_by_port`.
-async fn wait_game_hook_exit_by_port(
+/// `failed`. This is intentionally the inverse of `wait_app_render_pid_by_port`.
+async fn wait_app_render_exit_by_port(
     process_manager: &Arc<dyn ProcessManager>,
     port: u16,
     attempts: u32,
     sleep_ms: u64,
 ) -> bool {
     for _ in 0..attempts {
-        if find_game_hook_pid_by_port(process_manager, port).is_none() {
+        if find_app_render_pid_by_port(process_manager, port).is_none() {
             return true;
         }
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
-    find_game_hook_pid_by_port(process_manager, port).is_none()
+    find_app_render_pid_by_port(process_manager, port).is_none()
 }
 
 async fn wait_game_process(
@@ -1327,6 +1410,8 @@ mod tests {
             request_id: format!("req-{id}"),
             instance_id: id.to_string(),
             app_id: "app-car".to_string(),
+            app_mode: "game-hook".to_string(),
+            webview_url_b64: String::new(),
             install_root: install_root.to_string(),
             game_exe_rel: r"Binaries\Win64\game.exe".to_string(),
             game_arguments: String::new(),
@@ -1339,6 +1424,16 @@ mod tests {
             live_stream_id: "test-device__app__test-app".to_string(),
             push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
         }
+    }
+
+    fn sample_webview_req(id: &str, port: i32) -> StartAppRequest {
+        let mut request = sample_start_req(id, port, "");
+        request.app_id = "app-webview".to_string();
+        request.app_mode = "webview".to_string();
+        request.webview_url_b64 = URL_SAFE_NO_PAD.encode(b"https://example.com/app");
+        request.install_root.clear();
+        request.game_exe_rel.clear();
+        request
     }
 
     /// Temp work_dir with a fake px_render.exe + temp game exe; start
@@ -1433,6 +1528,68 @@ mod tests {
         // desktop pid not killed
         assert!(!kills.contains(&1));
         assert!(manager.list_processes().unwrap().iter().any(|p| p.pid == 1));
+    }
+
+    #[tokio::test]
+    async fn webview_start_waits_for_matching_first_frame_ready() {
+        let dirs = make_app_test_dirs("webview_ready");
+        let config = ServiceConfig::new(
+            20375,
+            std::env::temp_dir().join("px_data_webview_ready"),
+            std::env::temp_dir().join("px_logs_webview_ready"),
+        );
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut service = ServiceRuntime::new(config, manager, Arc::new(MockActions::new()));
+        service.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: dirs.work_dir_s,
+            app_path: dirs.render_path.to_string_lossy().to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        });
+        let runtime = Arc::new(Mutex::new(service));
+        let task_runtime = runtime.clone();
+        let start = tokio::spawn(async move {
+            ServiceRuntime::start_app_instance(
+                &task_runtime,
+                sample_webview_req("web-ready", 32112),
+            )
+            .await
+        });
+
+        for _ in 0..20 {
+            if runtime
+                .lock()
+                .await
+                .webview_ready_waiters
+                .contains_key("web-ready")
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            !start.is_finished(),
+            "start must wait for the browser first frame"
+        );
+        assert!(!runtime
+            .lock()
+            .await
+            .complete_webview_ready("web-ready", 32113, Ok(())));
+        assert!(runtime
+            .lock()
+            .await
+            .complete_webview_ready("web-ready", 32112, Ok(())));
+        let (port, _) = start.await.unwrap().unwrap();
+        assert_eq!(port, 32112);
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("web-ready")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Running
+        );
     }
 
     #[tokio::test]
@@ -1558,7 +1715,7 @@ mod tests {
         manager.kill_process(42).unwrap();
 
         assert!(
-            wait_game_hook_exit_by_port(&(manager as Arc<dyn ProcessManager>), 32222, 5, 1,).await
+            wait_app_render_exit_by_port(&(manager as Arc<dyn ProcessManager>), 32222, 5, 1,).await
         );
     }
 

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GammaRay WebView E2E</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #10141c; color: #eef3ff; }
+    header { display: flex; justify-content: space-between; padding: 16px 20px; background: #172033; }
+    main { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 16px; }
+    section { min-width: 0; padding: 14px; border: 1px solid #33415d; border-radius: 10px; background: #1a2232; }
+    canvas { display: block; width: 100%; height: 280px; background: #070a0f; border-radius: 8px; }
+    input, textarea, button { width: 100%; margin-top: 8px; padding: 10px; font: inherit; }
+    .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .cursor { min-height: 72px; display: grid; place-items: center; border: 1px dashed #668; }
+    .scroll { height: 150px; overflow: auto; white-space: pre-wrap; background: #0c111b; padding: 10px; }
+    #events { height: 180px; overflow: auto; font: 12px/1.4 monospace; color: #a9efbd; }
+  </style>
+</head>
+<body>
+  <header><strong>GammaRay WebView E2E</strong><span id="clock">frame 0</span></header>
+  <main>
+    <section>
+      <canvas id="canvas" width="960" height="540"></canvas>
+      <label>中文 / Emoji / IME<input id="text" placeholder="输入：云应用 🚀"></label>
+      <label>多行与粘贴<textarea id="textarea" rows="3"></textarea></label>
+      <div class="row">
+        <button id="click">单击 / 双击</button>
+        <button id="media">请求摄像头（应拒绝）</button>
+        <button id="download">下载（应拒绝）</button>
+      </div>
+    </section>
+    <section>
+      <div class="row">
+        <div class="cursor" style="cursor:pointer">pointer</div>
+        <div class="cursor" style="cursor:text">text</div>
+        <div class="cursor" style="cursor:crosshair">crosshair</div>
+      </div>
+      <div class="scroll" id="scroll">滚轮测试区域\n\n向下滚动\n\n01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20</div>
+      <h3>DOM 事件</h3>
+      <div id="events"></div>
+    </section>
+  </main>
+  <script>
+    const canvas = document.querySelector('#canvas')
+    const ctx = canvas.getContext('2d')
+    const events = document.querySelector('#events')
+    let frame = 0
+    const report = (type, detail = {}) => {
+      const event = { at: Date.now(), type, ...detail }
+      const line = document.createElement('div')
+      line.textContent = JSON.stringify(event)
+      events.prepend(line)
+      fetch('/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(event) }).catch(() => {})
+    }
+    const draw = () => {
+      frame++
+      const t = performance.now() / 1000
+      const hue = (t * 55) % 360
+      ctx.fillStyle = `hsl(${hue} 55% 12%)`
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = `hsl(${(hue + 130) % 360} 85% 62%)`
+      ctx.beginPath()
+      ctx.arc(480 + Math.sin(t * 1.7) * 330, 270 + Math.cos(t * 1.3) * 170, 48, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.font = '42px system-ui'
+      ctx.fillText(`frame ${frame}`, 24, 58)
+      document.querySelector('#clock').textContent = `frame ${frame}`
+      requestAnimationFrame(draw)
+    }
+    draw()
+    for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup', 'input', 'compositionstart', 'compositionend']) {
+      document.addEventListener(name, e => {
+        if (name === 'mousemove' && frame % 15) return
+        report(name, { x: e.clientX, y: e.clientY, key: e.key, code: e.code, value: e.target?.value?.slice?.(-80) })
+      }, { passive: true })
+    }
+    document.querySelector('#media').onclick = async () => {
+      try { await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); report('media-unexpectedly-allowed') }
+      catch (error) { report('media-denied', { name: error.name }) }
+    }
+    document.querySelector('#download').onclick = () => {
+      const a = document.createElement('a'); a.href = 'data:text/plain,blocked'; a.download = 'blocked.txt'; a.click()
+    }
+    try {
+      const audio = new AudioContext({ sampleRate: 48000 })
+      const oscillator = audio.createOscillator()
+      const gain = audio.createGain(); gain.gain.value = 0.01
+      oscillator.frequency.value = 440; oscillator.connect(gain).connect(audio.destination); oscillator.start()
+      report('audio-started', { state: audio.state })
+    } catch (error) { report('audio-error', { name: error.name }) }
+    report('page-ready', { search: location.search })
+  </script>
+</body>
+</html>

@@ -71,6 +71,7 @@ const SENSITIVE_ARG_NAMES: &[&str] = &[
     "--password",
     "--virtual-display-worker-nonce",
     "--virtual-display-worker-result",
+    "--webview_url_b64",
 ];
 
 fn is_sensitive_arg_name(value: &str) -> bool {

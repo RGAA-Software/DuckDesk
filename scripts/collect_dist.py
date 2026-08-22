@@ -86,12 +86,25 @@ def copy_file(src: str, dst: str):
 def main():
     parser = argparse.ArgumentParser(description="Collect build artifacts to dist/")
     parser.add_argument("--build-dir", required=True, help="CMake binary dir")
+    parser.add_argument(
+        "--dist-dir",
+        help="Output directory (defaults to <build-dir>/dist)",
+    )
     args = parser.parse_args()
 
     global dist_dir
     build_dir = os.path.abspath(args.build_dir)
     source_dir = os.path.abspath(os.path.join(build_dir, ".."))
-    dist_dir = os.path.join(build_dir, "dist")
+    dist_dir = (
+        os.path.abspath(args.dist_dir)
+        if args.dist_dir
+        else os.path.join(build_dir, "dist")
+    )
+
+    # This directory is replaced on every collection. Refuse broad targets so
+    # a typo in --dist-dir cannot erase a drive, source tree, or build tree.
+    if os.path.dirname(dist_dir) == dist_dir or dist_dir in {source_dir, build_dir}:
+        parser.error(f"unsafe --dist-dir target: {dist_dir}")
 
     if os.path.isdir(dist_dir):
         shutil.rmtree(dist_dir)
@@ -138,6 +151,28 @@ def main():
         os.path.join(source_dir, "rust_client", "target", "release", "px_service.exe"),
         os.path.join(dist_dir, "px_service.exe"),
     )
+
+    # CEF runtime is staged beside px_render by its CMake target. Keep the same
+    # adjacency in dist so px_render can act as browser/GPU/renderer subprocess.
+    cef_runtime_dir = os.path.join(build_dir, "src", "px_render")
+    cef_runtime_files = [
+        "chrome_elf.dll", "d3dcompiler_47.dll", "dxcompiler.dll", "dxil.dll",
+        "libcef.dll", "libEGL.dll", "libGLESv2.dll", "v8_context_snapshot.bin",
+        "vk_swiftshader.dll", "vk_swiftshader_icd.json", "vulkan-1.dll",
+        "chrome_100_percent.pak", "chrome_200_percent.pak", "resources.pak", "icudtl.dat",
+    ]
+    missing_cef = [
+        name for name in cef_runtime_files
+        if not os.path.isfile(os.path.join(cef_runtime_dir, name))
+    ]
+    cef_locales = os.path.join(cef_runtime_dir, "locales")
+    if missing_cef or not os.path.isfile(os.path.join(cef_locales, "zh-CN.pak")):
+        details = ", ".join(missing_cef) if missing_cef else "locales/zh-CN.pak"
+        print(f"ERROR: incomplete CEF runtime beside px_render: {details}", file=sys.stderr)
+        sys.exit(1)
+    for name in cef_runtime_files:
+        copy_file(os.path.join(cef_runtime_dir, name), os.path.join(dist_dir, name))
+    copy_tree(cef_locales, os.path.join(dist_dir, "locales"))
 
     # ------------------------------------------------------------------
     # 3. Render plugins  →  dist/deps/rd_plugins/

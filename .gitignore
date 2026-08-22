@@ -68,4 +68,6 @@ rustdesk/
 
 # local test scripts/logs/screenshots and remote-admin credentials (never commit)
 # NOTE: anchored to repo root only — nested tests/ dirs (e.g. px_deps/*/tests) stay tracked
-/tests/
+/tests/*
+!/tests/webview_e2e/
+!/tests/webview_e2e/index.html

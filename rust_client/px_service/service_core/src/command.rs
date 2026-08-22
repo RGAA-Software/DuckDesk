@@ -114,6 +114,9 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         ServiceMessageType::VirtualDisplayResult => {
             return Err("virtual_display_result is outbound only".to_string())
         }
+        ServiceMessageType::AppInstanceReady => {
+            return Err("app_instance_ready is handled by the service runtime".to_string())
+        }
     };
     Ok(DispatchResult { command })
 }

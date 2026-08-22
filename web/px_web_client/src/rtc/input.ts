@@ -6,6 +6,7 @@ import {
   encodeMessage,
   MSG_TYPE_KEY_EVENT,
   MSG_TYPE_MOUSE_EVENT,
+  MSG_TYPE_TEXT_INPUT,
   LOCK_KEY_DONT_CARE,
   LOCK_KEY_CHECK_NUM_LOCK,
   LOCK_KEY_CHECK_CAPS_LOCK,
@@ -95,6 +96,8 @@ export class InputController {
   private cachedOffY = 0
   private geoValid = false
   private resizeObserver: ResizeObserver | null = null
+  private textSink: HTMLTextAreaElement | null = null
+  private composing = false
 
   // 切屏后更新回放坐标系(render 按 monitorName 定位屏幕几何)
   setMonitorName(name: string) {
@@ -126,6 +129,7 @@ export class InputController {
     window.addEventListener('keyup', this.onKeyUp)
     // 页面失焦时补发修饰键 release,防止远端按键卡死
     window.addEventListener('blur', this.onBlur)
+    this.createTextSink()
     v.addEventListener('resize', this.invalidateGeometry)
     window.addEventListener('resize', this.invalidateGeometry)
     if (typeof ResizeObserver !== 'undefined') {
@@ -155,6 +159,7 @@ export class InputController {
     window.removeEventListener('resize', this.invalidateGeometry)
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
+    this.destroyTextSink()
     this.pendingMove = null
     this.rafPending = false
     this.moveSentThisFrame = false
@@ -167,6 +172,62 @@ export class InputController {
 
   private invalidateGeometry = () => {
     this.geoValid = false
+  }
+
+  private createTextSink() {
+    if (this.textSink) return
+    const sink = document.createElement('textarea')
+    sink.setAttribute('aria-hidden', 'true')
+    sink.tabIndex = -1
+    Object.assign(sink.style, {
+      position: 'fixed',
+      left: '-10000px',
+      top: '0',
+      width: '1px',
+      height: '1px',
+      opacity: '0',
+      pointerEvents: 'none',
+    })
+    sink.addEventListener('input', this.onTextSinkInput)
+    sink.addEventListener('compositionstart', this.onCompositionStart)
+    sink.addEventListener('compositionend', this.onCompositionEnd)
+    document.body.appendChild(sink)
+    this.textSink = sink
+  }
+
+  private destroyTextSink() {
+    if (!this.textSink) return
+    this.textSink.removeEventListener('input', this.onTextSinkInput)
+    this.textSink.removeEventListener('compositionstart', this.onCompositionStart)
+    this.textSink.removeEventListener('compositionend', this.onCompositionEnd)
+    this.textSink.remove()
+    this.textSink = null
+    this.composing = false
+  }
+
+  private focusTextSink() {
+    if (!this.viewOnly && this.textSink) this.textSink.focus({ preventScroll: true })
+  }
+
+  private sendText(text: string) {
+    if (!text || this.viewOnly) return
+    const encodedBytes = new TextEncoder().encode(text).byteLength
+    if (encodedBytes > 4096) return
+    this.send({ type: MSG_TYPE_TEXT_INPUT, textInput: { text } })
+  }
+
+  private onCompositionStart = () => { this.composing = true }
+
+  private onCompositionEnd = () => {
+    this.composing = false
+    // Chrome emits the final `input` event after compositionend. Let the
+    // common input handler send it exactly once.
+  }
+
+  private onTextSinkInput = () => {
+    if (!this.textSink || this.composing) return
+    this.sendText(this.textSink.value)
+    this.textSink.value = ''
   }
 
   private refreshGeometry(): boolean {
@@ -399,6 +460,7 @@ export class InputController {
       this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, viewOnly`)
       return
     }
+    this.focusTextSink()
     const flag = DOWN_FLAGS[e.button]
     if (!flag) {
       this.opts.onLog?.(`[InputSend] drop mousedown unmapped button=${e.button}`)
@@ -683,7 +745,7 @@ export class InputController {
     // 用 activeElement: key 事件的 target 常是焦点元素;侧栏表单抢焦点时必须丢掉,避免误注入
     const t = (document.activeElement as HTMLElement | null) || (e.target as HTMLElement | null)
     if (!t) return false
-    if (t === this.opts.video || this.opts.video.contains(t)) return false
+    if (t === this.opts.video || this.opts.video.contains(t) || t === this.textSink) return false
     return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.tagName === 'SELECT'
   }
 
@@ -693,7 +755,9 @@ export class InputController {
       this.opts.onLog?.(`[InputSend] drop key ${e.code}: focus on form, click video first`)
       return
     }
-    e.preventDefault()
+    const textCommit = e.target === this.textSink &&
+      (e.isComposing || (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey))
+    if (!textCommit) e.preventDefault()
     this.sendKey(e, true)
   }
 

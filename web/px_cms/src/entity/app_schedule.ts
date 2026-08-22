@@ -1,6 +1,8 @@
 export interface Application {
   app_id: string
   name: string
+  app_type: 'game-hook' | 'webview'
+  entry_url: string
   game_path?: string
   game_exe_rel: string
   default_game_args: string
@@ -55,6 +57,8 @@ export interface AppInstance {
 export interface AppRow {
   app_id: string
   name: string
+  app_type: 'game-hook' | 'webview'
+  entry_url: string
   game_path: string
   default_game_args: string
   encoder_fps: number
@@ -68,11 +72,14 @@ export interface AppRow {
 export interface SaveAppReq {
   app_id?: string
   name: string
+  app_type?: 'game-hook' | 'webview'
+  entry_url?: string
   game_path: string
   default_game_args?: string
   encoder_fps?: number
   encoder_bitrate?: number
   encoder_format?: string
+  version?: number
 }
 
 export interface SaveNodeReq {

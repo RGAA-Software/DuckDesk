@@ -2,6 +2,7 @@
 //! Memory + Mongo (when DB ready); unit tests cover multi-machine scheduling.
 
 use crate::gCmsServiceConnMgr;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use protocol::cms_service::{
     CmsServiceStartAppInstance, CmsServiceStartAppInstanceResult, CmsServiceStopAppInstance,
     CmsServiceStopAppInstanceResult,
@@ -11,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
+use url::{Host, Url};
 use uuid::Uuid;
 
 /// How long HTTP start waits for Service StartAppInstanceResult before failing.
@@ -39,6 +41,11 @@ fn reported_active_state(value: &str) -> Option<InstanceState> {
 pub struct Application {
     pub app_id: String,
     pub name: String,
+    #[serde(default)]
+    pub app_type: ApplicationType,
+    /// Original WebView entry URL. Only populated for webview applications.
+    #[serde(default)]
+    pub entry_url: String,
     /// Absolute game exe path shown/edited in CMS Web.
     #[serde(default)]
     pub game_path: String,
@@ -58,6 +65,23 @@ pub struct Application {
     pub access_mode: AppAccessMode,
     #[serde(default)]
     pub version: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ApplicationType {
+    #[default]
+    GameHook,
+    Webview,
+}
+
+impl ApplicationType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::GameHook => "game-hook",
+            Self::Webview => "webview",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -93,6 +117,8 @@ pub struct AppNode {
 pub struct AppRowVo {
     pub app_id: String,
     pub name: String,
+    pub app_type: ApplicationType,
+    pub entry_url: String,
     pub game_path: String,
     pub default_game_args: String,
     pub encoder_fps: i32,
@@ -108,6 +134,10 @@ pub struct SaveAppReq {
     /// Empty/None = create; set = update.
     pub app_id: Option<String>,
     pub name: String,
+    #[serde(default)]
+    pub app_type: Option<ApplicationType>,
+    #[serde(default)]
+    pub entry_url: Option<String>,
     /// Absolute path to game exe.
     pub game_path: String,
     pub default_game_args: Option<String>,
@@ -116,6 +146,45 @@ pub struct SaveAppReq {
     pub encoder_format: Option<String>,
     pub access_mode: Option<AppAccessMode>,
     pub version: Option<i64>,
+}
+
+/// Validate and normalize a WebView entry URL without ever logging it. HTTPS
+/// is accepted universally; HTTP is intentionally limited to loopback/private
+/// hosts for local and intranet deployments.
+pub fn validate_webview_entry_url(raw: &str) -> Result<String, String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Err("请填写 WebView 入口 URL".to_string());
+    }
+    if value.len() > 8192 {
+        return Err("WebView 入口 URL 过长".to_string());
+    }
+    let parsed = Url::parse(value).map_err(|_| "WebView 入口 URL 无效".to_string())?;
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("WebView 入口 URL 不能包含用户名或密码".to_string());
+    }
+    match parsed.scheme() {
+        "https" => {}
+        "http" => {
+            let internal = match parsed.host() {
+                Some(Host::Ipv4(ip)) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
+                Some(Host::Ipv6(ip)) => ip.is_loopback() || ip.is_unique_local(),
+                Some(Host::Domain(host)) => {
+                    host.eq_ignore_ascii_case("localhost")
+                        || host.to_ascii_lowercase().ends_with(".local")
+                }
+                None => false,
+            };
+            if !internal {
+                return Err("HTTP 只允许 localhost、私有 IP 或 .local 内网页面".to_string());
+            }
+        }
+        _ => return Err("WebView 入口只允许 HTTPS 或受限的内网 HTTP".to_string()),
+    }
+    if parsed.host().is_none() {
+        return Err("WebView 入口 URL 缺少主机".to_string());
+    }
+    Ok(value.to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +259,17 @@ fn resolve_start_paths(
     Ok((root.to_string(), rel.to_string()))
 }
 
+fn resolve_start_launch_fields(
+    app: &Application,
+    node: &AppNode,
+) -> Result<(String, String), String> {
+    if app.app_type == ApplicationType::Webview {
+        validate_webview_entry_url(&app.entry_url)?;
+        return Ok((node.install_root.clone(), String::new()));
+    }
+    resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPlacement {
     pub placement_id: String,
@@ -260,6 +340,10 @@ fn default_instance_version() -> i64 {
 pub struct CreateApplicationReq {
     pub name: String,
     pub game_exe_rel: String,
+    #[serde(default)]
+    pub app_type: Option<ApplicationType>,
+    #[serde(default)]
+    pub entry_url: Option<String>,
     pub default_game_args: Option<String>,
     pub encoder_fps: Option<i32>,
     pub encoder_bitrate: Option<i32>,
@@ -342,16 +426,39 @@ impl AppScheduleManager {
         &self,
         req: CreateApplicationReq,
     ) -> Result<Application, String> {
-        if req.name.trim().is_empty() || req.game_exe_rel.trim().is_empty() {
-            return Err("name and game_exe_rel required".to_string());
+        if req.name.trim().is_empty() {
+            return Err("name required".to_string());
+        }
+        let app_type = req.app_type.unwrap_or_default();
+        let entry_url = if app_type == ApplicationType::Webview {
+            validate_webview_entry_url(req.entry_url.as_deref().unwrap_or_default())?
+        } else {
+            String::new()
+        };
+        if app_type == ApplicationType::GameHook && req.game_exe_rel.trim().is_empty() {
+            return Err("game_exe_rel required".to_string());
         }
         let game_path = req.game_path.unwrap_or_default().trim().to_string();
         let app = Application {
             app_id: self.next_id("app"),
             name: req.name.trim().to_string(),
-            game_path,
-            game_exe_rel: req.game_exe_rel.trim().to_string(),
-            default_game_args: req.default_game_args.unwrap_or_default(),
+            app_type: app_type.clone(),
+            entry_url,
+            game_path: if app_type == ApplicationType::GameHook {
+                game_path
+            } else {
+                String::new()
+            },
+            game_exe_rel: if app_type == ApplicationType::GameHook {
+                req.game_exe_rel.trim().to_string()
+            } else {
+                String::new()
+            },
+            default_game_args: if app_type == ApplicationType::GameHook {
+                req.default_game_args.unwrap_or_default()
+            } else {
+                String::new()
+            },
             encoder_fps: req.encoder_fps.unwrap_or(60),
             encoder_bitrate: req.encoder_bitrate.unwrap_or(20),
             encoder_format: req.encoder_format.unwrap_or_else(|| "h264".to_string()),
@@ -434,6 +541,8 @@ impl AppScheduleManager {
             rows.push(AppRowVo {
                 app_id: app.app_id.clone(),
                 name: app.name.clone(),
+                app_type: app.app_type.clone(),
+                entry_url: app.entry_url.clone(),
                 game_path,
                 default_game_args: app.default_game_args.clone(),
                 encoder_fps: app.encoder_fps,
@@ -542,8 +651,6 @@ impl AppScheduleManager {
         if req.name.trim().is_empty() {
             return Err("请填写应用名称".to_string());
         }
-        let (_, game_exe_rel) = split_game_path(&req.game_path)?;
-        let game_path = req.game_path.trim().to_string();
         let editing_id = req
             .app_id
             .as_ref()
@@ -567,17 +674,55 @@ impl AppScheduleManager {
                     return Err("VERSION_CONFLICT".to_string());
                 }
             }
+            let app_type = req
+                .app_type
+                .clone()
+                .or_else(|| existing.as_ref().map(|e| e.app_type.clone()))
+                .unwrap_or_default();
+            if let Some(existing) = existing.as_ref() {
+                let has_active_instance = g.instances.values().any(|instance| {
+                    instance.app_id == existing.app_id
+                        && matches!(
+                            instance.state,
+                            InstanceState::Starting
+                                | InstanceState::Running
+                                | InstanceState::Stopping
+                        )
+                });
+                if has_active_instance && existing.app_type != app_type {
+                    return Err("应用运行中，不能切换应用类型".to_string());
+                }
+            }
+            let (game_path, game_exe_rel, entry_url, default_game_args) =
+                if app_type == ApplicationType::Webview {
+                    (
+                        String::new(),
+                        String::new(),
+                        validate_webview_entry_url(req.entry_url.as_deref().unwrap_or_default())?,
+                        String::new(),
+                    )
+                } else {
+                    let (_, game_exe_rel) = split_game_path(&req.game_path)?;
+                    (
+                        req.game_path.trim().to_string(),
+                        game_exe_rel,
+                        String::new(),
+                        req.default_game_args.unwrap_or_else(|| {
+                            existing
+                                .as_ref()
+                                .map(|e| e.default_game_args.clone())
+                                .unwrap_or_default()
+                        }),
+                    )
+                };
             let app = Application {
                 app_id: app_id.clone(),
                 name: req.name.trim().to_string(),
+                app_type,
+                entry_url,
                 game_path,
                 game_exe_rel,
-                default_game_args: req.default_game_args.unwrap_or_else(|| {
-                    existing
-                        .as_ref()
-                        .map(|e| e.default_game_args.clone())
-                        .unwrap_or_default()
-                }),
+                default_game_args,
                 encoder_fps: req
                     .encoder_fps
                     .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_fps).unwrap_or(60)),
@@ -608,6 +753,8 @@ impl AppScheduleManager {
         let mut row = AppRowVo {
             app_id: app.app_id,
             name: app.name,
+            app_type: app.app_type,
+            entry_url: app.entry_url,
             game_path: app.game_path,
             default_game_args: app.default_game_args,
             encoder_fps: app.encoder_fps,
@@ -703,6 +850,7 @@ impl AppScheduleManager {
                     .map(|e| e.install_root.clone())
                     .filter(|s| !s.is_empty())
                     .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
+                    .or_else(|| (app.app_type == ApplicationType::Webview).then(String::new))
                     .ok_or_else(|| "install_root 为空且无法从应用路径推导".to_string())?,
             };
 
@@ -1011,28 +1159,22 @@ impl AppScheduleManager {
                 });
                 match candidate {
                     None => None,
-                    Some(node) => {
-                        match resolve_start_paths(
-                            &app.game_path,
-                            &node.install_root,
-                            &app.game_exe_rel,
-                        ) {
-                            Err(e) => return Err(e),
-                            Ok((install_root, game_exe_rel)) => {
-                                let inst = self.pre_occupy_instance_locked(
-                                    &mut g,
-                                    &node,
-                                    &app,
-                                    &client_key,
-                                    owner_type,
-                                    owner_id,
-                                    owner_session_id,
-                                    client_nonce,
-                                );
-                                Some((node, app, inst, install_root, game_exe_rel))
-                            }
+                    Some(node) => match resolve_start_launch_fields(&app, &node) {
+                        Err(e) => return Err(e),
+                        Ok((install_root, game_exe_rel)) => {
+                            let inst = self.pre_occupy_instance_locked(
+                                &mut g,
+                                &node,
+                                &app,
+                                &client_key,
+                                owner_type,
+                                owner_id,
+                                owner_session_id,
+                                client_nonce,
+                            );
+                            Some((node, app, inst, install_root, game_exe_rel))
                         }
-                    }
+                    },
                 }
             };
             let Some((node, app, inst, install_root, game_exe_rel)) = picked else {
@@ -1198,8 +1340,7 @@ impl AppScheduleManager {
                 .get(&node.app_id)
                 .cloned()
                 .ok_or_else(|| format!("unknown app_id {}", node.app_id))?;
-            let (install_root, game_exe_rel) =
-                resolve_start_paths(&app.game_path, &node.install_root, &app.game_exe_rel)?;
+            let (install_root, game_exe_rel) = resolve_start_launch_fields(&app, &node)?;
             let inst =
                 self.pre_occupy_instance_locked(&mut g, &node, &app, "", "admin", "", "", "");
             (node, app, inst, install_root, game_exe_rel)
@@ -1266,6 +1407,12 @@ impl AppScheduleManager {
             websocket_enabled: app.websocket_enabled,
             live_stream_id,
             push_rtmp_url: live.publish_rtmp_url,
+            app_mode: app.app_type.as_str().to_string(),
+            webview_url_b64: if app.app_type == ApplicationType::Webview {
+                URL_SAFE_NO_PAD.encode(app.entry_url.as_bytes())
+            } else {
+                String::new()
+            },
         };
 
         let (wait_tx, wait_rx) = oneshot::channel();
@@ -1968,7 +2115,9 @@ impl AppScheduleManager {
                 .as_ref()
                 .map(|p| p.device_id.clone())
                 .unwrap_or_default();
-            if device_id.is_empty() || install_root.is_empty() {
+            if device_id.is_empty()
+                || (app.app_type == ApplicationType::GameHook && install_root.is_empty())
+            {
                 tracing::warn!(
                     "migrate: skip node migration for app {} (no placement/game_path)",
                     app_id
@@ -2047,6 +2196,8 @@ mod tests {
             .create_application(CreateApplicationReq {
                 name: "CarGame".into(),
                 game_exe_rel: r"Binaries\Win64\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: Some("-dx11".into()),
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -2093,6 +2244,8 @@ mod tests {
             .create_application(CreateApplicationReq {
                 name: "X".into(),
                 game_exe_rel: "game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -2469,6 +2622,8 @@ mod tests {
                 app_id: None,
                 name: "A".into(),
                 game_path: r"D:\games\a\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -2872,6 +3027,8 @@ mod tests {
                 app_id: None,
                 name: "P".into(),
                 game_path: r"D:\games\p\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -2905,6 +3062,8 @@ mod tests {
                 app_id: None,
                 name: "D".into(),
                 game_path: r"D:\games\d\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3001,6 +3160,8 @@ mod tests {
                 app_id: None,
                 name: "S".into(),
                 game_path: r"D:\games\s\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3061,6 +3222,8 @@ mod tests {
                 app_id: None,
                 name: "L".into(),
                 game_path: r"D:\games\l\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3134,6 +3297,8 @@ mod tests {
                 app_id: None,
                 name: "C".into(),
                 game_path: r"D:\games\c\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3219,6 +3384,8 @@ mod tests {
                 app_id: None,
                 name: "D".into(),
                 game_path: r"D:\games\d\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3343,6 +3510,8 @@ mod tests {
                 app_id: None,
                 name: "E".into(),
                 game_path: r"D:\games\e\game.exe".into(),
+                app_type: None,
+                entry_url: None,
                 default_game_args: None,
                 encoder_fps: None,
                 encoder_bitrate: None,
@@ -3463,5 +3632,70 @@ mod tests {
         };
         assert!(again.is_empty());
         assert_eq!(mgr.list_nodes(None).await.len(), 1);
+    }
+
+    #[test]
+    fn webview_url_policy_accepts_https_and_internal_http_only() {
+        assert_eq!(
+            validate_webview_entry_url(" https://example.com/app?token=abc ").unwrap(),
+            "https://example.com/app?token=abc"
+        );
+        for url in [
+            "http://localhost:8080/test",
+            "http://127.0.0.1:8080/test",
+            "http://192.168.31.6:30500/test",
+            "http://console.local/test",
+        ] {
+            assert!(
+                validate_webview_entry_url(url).is_ok(),
+                "should accept {url}"
+            );
+        }
+        for url in [
+            "http://example.com/test",
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "https://user:password@example.com/",
+        ] {
+            assert!(
+                validate_webview_entry_url(url).is_err(),
+                "should reject {url}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn webview_app_and_node_do_not_require_a_game_path() {
+        let mgr = AppScheduleManager::new();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "Dashboard".into(),
+                app_type: Some(ApplicationType::Webview),
+                entry_url: Some("https://example.com/dashboard".into()),
+                game_path: String::new(),
+                default_game_args: None,
+                encoder_fps: Some(60),
+                encoder_bitrate: Some(20),
+                encoder_format: Some("h264".into()),
+                access_mode: None,
+                version: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(app.app_type, ApplicationType::Webview);
+        assert!(app.game_path.is_empty());
+        let node = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id,
+                name: Some("Web 节点".into()),
+                device_id: "device-web".into(),
+                install_root: None,
+                listen_port: Some(32990),
+            })
+            .await
+            .unwrap();
+        assert!(node.install_root.is_empty());
     }
 }

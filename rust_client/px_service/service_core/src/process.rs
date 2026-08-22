@@ -5,6 +5,7 @@ pub enum RenderMode {
     Desktop,
     Inner,
     GameHook,
+    Webview,
     Unknown,
 }
 
@@ -13,6 +14,7 @@ pub enum ProcessKind {
     DesktopRender,
     InnerRender,
     GameHookRender,
+    WebviewRender,
     Other,
 }
 
@@ -52,6 +54,8 @@ impl ProcessSnapshot {
             RenderMode::Desktop
         } else if self.cmdline.contains("--app_mode=game-hook") {
             RenderMode::GameHook
+        } else if self.cmdline.contains("--app_mode=webview") {
+            RenderMode::Webview
         } else if self.cmdline.contains("--app_mode=inner") {
             // Legacy alias; prefer game-hook for CMS-scheduled apps.
             RenderMode::Inner
@@ -88,6 +92,7 @@ impl ProcessSnapshot {
             RenderMode::Desktop => ProcessKind::DesktopRender,
             RenderMode::Inner => ProcessKind::InnerRender,
             RenderMode::GameHook => ProcessKind::GameHookRender,
+            RenderMode::Webview => ProcessKind::WebviewRender,
             RenderMode::Unknown => ProcessKind::Other,
         }
     }
@@ -95,6 +100,16 @@ impl ProcessSnapshot {
     /// Managed by CMS app-instance stop (never desktop).
     pub fn is_game_hook_render_process(&self) -> bool {
         self.kind() == ProcessKind::GameHookRender
+    }
+
+    /// CMS application root render. CEF children also use px_render.exe but
+    /// carry `--type=...`; never treat them as independently managed roots.
+    pub fn is_app_instance_render_process(&self) -> bool {
+        !self.cmdline.contains("--type=")
+            && matches!(
+                self.kind(),
+                ProcessKind::GameHookRender | ProcessKind::WebviewRender
+            )
     }
 
     pub fn exe_path_eq(&self, other: &str) -> bool {
@@ -166,6 +181,25 @@ mod tests {
             !ProcessSnapshot::new(2, "D:/px_render.exe", "--app_mode=desktop")
                 .is_game_hook_render_process()
         );
+    }
+
+    #[test]
+    fn webview_root_is_managed_but_cef_children_are_not_roots() {
+        let root = ProcessSnapshot::new(
+            10,
+            "D:/px_render.exe",
+            "--app_mode=webview --network_listen_port=32002",
+        );
+        let renderer = ProcessSnapshot::new(
+            11,
+            "D:/px_render.exe",
+            "--type=renderer --app_mode=webview --network_listen_port=32002",
+        )
+        .with_parent(10);
+        assert_eq!(root.kind(), ProcessKind::WebviewRender);
+        assert!(root.is_app_instance_render_process());
+        assert!(!renderer.is_app_instance_render_process());
+        assert_eq!(collect_process_tree(&[root, renderer], 10), vec![11, 10]);
     }
 
     #[test]

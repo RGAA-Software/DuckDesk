@@ -18,6 +18,7 @@ export const MSG_TYPE_HELLO = 0 // kHello
 export const MSG_TYPE_SERVER_CONFIGURATION = 2 // kServerConfiguration
 export const MSG_TYPE_KEY_EVENT = 50 // kKeyEvent
 export const MSG_TYPE_MOUSE_EVENT = 60 // kMouseEvent
+export const MSG_TYPE_TEXT_INPUT = 580 // kTextInput (UTF-8 layout/IME commit)
 export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
 export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution

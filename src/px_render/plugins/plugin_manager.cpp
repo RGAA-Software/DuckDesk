@@ -126,7 +126,9 @@ namespace px
                             {"appkey", settings_->appkey_},
                             // 插件 DLL 内的 RdSettings::Instance() 是独立副本(header 内 static),
                             // 模式必须由 exe 侧显式下发
-                            {"app_mode", std::string(settings_->IsGameHookMode() ? "game-hook" : "desktop")},
+                            {"app_mode", std::string(settings_->IsGameHookMode()
+                                ? "game-hook"
+                                : (settings_->IsWebViewMode() ? "webview" : "desktop"))},
                             // server-side screen recording 配置(同样需要 exe 侧显式下发)
                             {"record_auto_enabled", settings_->record_auto_},
                             {"record_dir", settings_->record_dir_},

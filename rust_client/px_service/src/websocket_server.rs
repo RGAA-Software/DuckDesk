@@ -99,6 +99,25 @@ async fn handle_connection(
         if let Message::Binary(bytes) = message {
             // render 心跳 from = "render_{port}": 据此注册该 render 的下发通道。
             if let Ok(sm) = service_core::decode_service_message(&bytes) {
+                if sm.message_type() == Some(service_core::ServiceMessageType::AppInstanceReady) {
+                    if let Some(ready) = sm.app_instance_ready {
+                        let result = if ready.ok {
+                            Ok(())
+                        } else {
+                            Err(if ready.error.is_empty() {
+                                "WebView Render 初始化失败".to_string()
+                            } else {
+                                ready.error
+                            })
+                        };
+                        runtime.lock().await.complete_webview_ready(
+                            &ready.instance_id,
+                            ready.listen_port,
+                            result,
+                        );
+                    }
+                    continue;
+                }
                 if let Some(hb) = sm.heart_beat.as_ref() {
                     if hb.from.starts_with("render_") && !registered_renders.contains(&hb.from) {
                         runtime

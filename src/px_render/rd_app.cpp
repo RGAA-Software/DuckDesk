@@ -57,6 +57,7 @@
 #include "px_message_new/rp_proto_converter.h"
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/folder_util.h"
+#include "webview/webview_runtime.h"
 
 namespace px
 {
@@ -190,6 +191,9 @@ namespace px
                 }
                 else {
                     LOGE("Don't have a valid capture plugin, will exit!");
+                    init_failed_ = true;
+                    init_error_ = "no valid capture plugin";
+                    Exit();
                     return -1;
                 }
 
@@ -235,7 +239,9 @@ namespace px
         if (settings_->capture_.enable_video_) {
             // application.mode in settings.toml decides path:
             // game-hook → start/inject game; desktop → screen capture (never launch game-path).
-            if (settings_->IsGameHookMode()) {
+            if (settings_->IsWebViewMode()) {
+                StartWebView();
+            } else if (settings_->IsGameHookMode()) {
                 StartProcessWithHook();
             } else {
                 StartProcessWithScreenCapture();
@@ -244,6 +250,7 @@ namespace px
 
         if (init_failed_) {
             LOGE("RdApplication abort after game-hook start failure: {}", init_error_);
+            Exit();
             return -1;
         }
 
@@ -280,6 +287,7 @@ namespace px
                 local.pop();
             }
         }
+        Exit();
         return 0;
     }
 
@@ -425,6 +433,10 @@ namespace px
                 game_hook_client_ids_.insert(msg.conn_id_);
             }
             ++client_disconnect_generation_;
+            if (settings_->IsWebViewMode() && webview_runtime_) {
+                webview_runtime_->SetActive(true);
+                webview_runtime_->SendFocusEvent(true);
+            }
             this->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
@@ -446,6 +458,21 @@ namespace px
         });
 
         msg_listener_->Listen<MsgClientDisconnected>([=, this](const MsgClientDisconnected& msg) {
+            if (settings_->IsWebViewMode()) {
+                const auto generation = ++client_disconnect_generation_;
+                auto weak_webview = weak_from_this();
+                context_->PostDelayTask([weak_webview, generation]() {
+                    const auto self = weak_webview.lock();
+                    if (!self || self->exit_app_
+                        || self->client_disconnect_generation_ != generation
+                        || self->HasConnectedPeer() || !self->webview_runtime_) {
+                        return;
+                    }
+                    self->webview_runtime_->SendFocusEvent(false);
+                    self->webview_runtime_->SetActive(false);
+                }, 100);
+                return;
+            }
             if (!settings_->IsGameHookMode()) {
                 return;
             }
@@ -629,14 +656,9 @@ namespace px
     }
 
     void RdApplication::InitAudioCapture() {
-        if (settings_->capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
-            return;
-        }
-
         auto weak_self = weak_from_this();
-        audio_capture_plugin_ = plugin_manager_->GetAudioCapturePlugin();
         audio_encoder_plugin_ = plugin_manager_->GetAudioEncoderPlugin();
-        if (!audio_capture_plugin_ || !audio_encoder_plugin_) {
+        if (!audio_encoder_plugin_) {
             return;
         }
 
@@ -733,6 +755,20 @@ namespace px
                 });
             }
         });
+
+        // WebView audio is delivered by CefAudioHandler, never by the OS
+        // default device or another process's loopback stream.
+        if (settings_->IsWebViewMode()) {
+            LOGI("WebView audio: use CEF stream callback");
+            return;
+        }
+        if (settings_->capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
+            return;
+        }
+        audio_capture_plugin_ = plugin_manager_->GetAudioCapturePlugin();
+        if (!audio_capture_plugin_) {
+            return;
+        }
 
         // Desktop: start default-device loopback immediately.
         // Game-hook: wait for MsgObsInjected → PID process-loopback (never device mix).
@@ -836,6 +872,99 @@ namespace px
         } else {
             LOGI("StartProcessWithHook requested OK, inject timer will attach px_gh.dll");
         }
+    }
+
+    void RdApplication::StartWebView() {
+        if (!settings_->IsWebViewMode()) {
+            return;
+        }
+        webview_runtime_ = std::make_unique<WebViewRuntime>();
+        auto weak_self = weak_from_this();
+        WebViewRuntimeConfig config{
+            .url_b64 = settings_->webview_url_b64_,
+            .instance_id = settings_->webview_instance_id_,
+            .width = settings_->webview_width_,
+            .height = settings_->webview_height_,
+            .frame_rate = settings_->encoder_.fps_,
+            .enable_audio = settings_->capture_.enable_audio_,
+            .accelerated_paint = settings_->webview_gpu_,
+        };
+        WebViewRuntimeCallbacks callbacks{
+            .on_video_frame = [weak_self](const CaptureVideoFrame& frame) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                self->encoder_thread_->Encode(frame);
+            },
+            .on_audio_frame = [weak_self](const CaptureAudioFrame& frame) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                self->context_->SendAppMessage(frame);
+            },
+            .on_cursor = [weak_self](const CaptureCursorBitmap& cursor) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(
+                    cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_,
+                    cursor.width_, cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
+            },
+            .on_failed = [weak_self](const std::string& error) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_) return;
+                LOGE("WebView runtime failure: {}", error);
+                if (self->service_client_) {
+                    self->service_client_->NotifyAppInstanceReady(
+                        self->settings_->webview_instance_id_,
+                        self->settings_->transmission_.listening_port_, false, error);
+                }
+            },
+            .on_first_frame = [weak_self]() {
+                LOGI("WebView first off-screen frame is ready");
+                if (const auto self = weak_self.lock(); self && self->service_client_) {
+                    self->service_client_->NotifyAppInstanceReady(
+                        self->settings_->webview_instance_id_,
+                        self->settings_->transmission_.listening_port_, true, "");
+                }
+                if (const auto self = weak_self.lock(); self && self->webview_runtime_ &&
+                    !self->HasConnectedPeer() && !self->settings_->webview_smoke_test_) {
+                    self->webview_runtime_->SetActive(false);
+                }
+            },
+        };
+        std::string error;
+        if (!webview_runtime_->Start(GetModuleHandleW(nullptr), config, std::move(callbacks), error)) {
+            init_failed_ = true;
+            init_error_ = error.empty() ? "WebView runtime start failed" : error;
+            LOGE("StartWebView failed: {}", init_error_);
+            if (service_client_) {
+                service_client_->NotifyAppInstanceReady(
+                    settings_->webview_instance_id_,
+                    settings_->transmission_.listening_port_, false, init_error_);
+            }
+            webview_runtime_.reset();
+            return;
+        }
+        // Keep CEF nearly idle until the first viewer. Frames and audio are
+        // additionally gated by HasConnectedPeer before encoding.
+        // Render one probe frame so Service can distinguish BrowserReady from
+        // merely finding the root process. The first-frame callback returns
+        // CEF to 1 fps/inactive when no viewer is attached.
+        webview_runtime_->SetActive(true);
+    }
+
+    void RdApplication::SendWebViewMouseEvent(const MouseEvent& event) {
+        if (webview_runtime_) webview_runtime_->SendMouseEvent(event);
+    }
+
+    void RdApplication::SendWebViewKeyEvent(const KeyEvent& event) {
+        if (webview_runtime_) webview_runtime_->SendKeyEvent(event);
+    }
+
+    void RdApplication::SendWebViewTextInput(const TextInput& event) {
+        if (webview_runtime_) webview_runtime_->SendTextInput(event);
+    }
+
+    void RdApplication::SendWebViewFocusEvent(bool focused) {
+        if (webview_runtime_) webview_runtime_->SendFocusEvent(focused);
     }
 
     void RdApplication::StartProcessWithScreenCapture() {
@@ -1522,14 +1651,35 @@ namespace px
     }
 
     void RdApplication::Exit() {
+        if (exit_app_) {
+            return;
+        }
+        // Flip the guard first so asynchronous callbacks stop touching the
+        // pipeline while its owners are being released.
+        exit_app_ = true;
         // stop the statistics reporting at first: it runs on the context task pool
         // and reads net plugins, so it must be silent before capturing stops
+        if (statistics_) {
+            LOGI("RdApplication shutdown: statistics");
+            statistics_->Exit();
+        }
         if (app_timer_) {
+            LOGI("RdApplication shutdown: timers");
             app_timer_->StopTimers();
         }
         if (ws_panel_client_) {
+            LOGI("RdApplication shutdown: panel client");
             ws_panel_client_->Exit();
             ws_panel_client_ = nullptr;
+        }
+        if (service_client_) {
+            LOGI("RdApplication shutdown: service client");
+            service_client_->Exit();
+            service_client_.reset();
+        }
+        if (webview_runtime_) {
+            webview_runtime_->Stop();
+            webview_runtime_.reset();
         }
         // stop capturing before tearing down other components.
         // NOTE: plugins are globally loaded and share the process lifetime;
@@ -1548,6 +1698,7 @@ namespace px
             }
         }
         if (app_shared_info_) {
+            LOGI("RdApplication shutdown: shared info");
             app_shared_info_->Exit();
         }
         // Stop audio capture before teardown: otherwise the capture thread keeps
@@ -1560,14 +1711,21 @@ namespace px
             audio_capture_thread_->Join();
         }
         if (app_manager_) {
+            LOGI("RdApplication shutdown: app manager");
             app_manager_->Exit();
         }
         if (encoder_thread_) {
+            LOGI("RdApplication shutdown: encoder");
             encoder_thread_->Exit();
         }
+        LOGI("RdApplication shutdown: owners released");
 
-        exit_app_ = true;
-        PostThreadMessage(main_thread_id_, WM_QUIT, 0, 0);
+        if (main_thread_id_ != 0) {
+            PostThreadMessage(main_thread_id_, WM_QUIT, 0, 0);
+        }
+        if (rdApp.get() == this) {
+            rdApp.reset();
+        }
     }
 
     // ------------------------------------------------------ //
@@ -1577,12 +1735,17 @@ namespace px
 
     }
 
-    WinApplication::~WinApplication() {
-        RdApplication::~RdApplication();
-    }
+    // The base destructor is invoked automatically after this destructor.
+    // Calling it explicitly here destroyed the RdApplication subobject twice
+    // and could terminate px_render with STATUS_HEAP_CORRUPTION on early exit.
+    WinApplication::~WinApplication() = default;
 
     int WinApplication::Run() {
-        LoadDxAddress();
+        // WebView never injects the graphics hook and must not depend on the
+        // auxiliary DXGI address probe executable being deployed.
+        if (!settings_->IsWebViewMode()) {
+            LoadDxAddress();
+        }
         return RdApplication::Run();
     }
 

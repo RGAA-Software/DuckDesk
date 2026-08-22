@@ -251,7 +251,13 @@ namespace px
                     target_encoder_plugin = nullptr;
                 }
                 px::EncoderConfig encoder_config;
-                bool is_gdi_capture = plugin_manager_->IsGDIMonitorCapturePlugin(app_->GetWorkingMonitorCapturePlugin());
+                // WebView OSR frames arrive as CPU BGRA images without a
+                // desktop-capture plugin. Route them through the CPU-input
+                // encoder chain just like GDI frames; texture-only encoders
+                // cannot consume this buffer.
+                const bool is_cpu_frame = cap_video_msg.raw_image_ != nullptr && cap_video_msg.handle_ == 0;
+                bool is_gdi_capture = is_cpu_frame ||
+                    plugin_manager_->IsGDIMonitorCapturePlugin(app_->GetWorkingMonitorCapturePlugin());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     encoder_config.width = cap_video_msg.frame_width_;
                     encoder_config.height = cap_video_msg.frame_height_;

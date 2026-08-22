@@ -32,9 +32,13 @@ namespace px
 
         // TargetApplication
         auto mode = result["application"]["mode"].value_or("desktop");
-        application_mode_ = (std::string(mode) == "game-hook")
-            ? ApplicationMode::kGameHook
-            : ApplicationMode::kDesktop;
+        if (std::string(mode) == "game-hook") {
+            application_mode_ = ApplicationMode::kGameHook;
+        } else if (std::string(mode) == "webview") {
+            application_mode_ = ApplicationMode::kWebView;
+        } else {
+            application_mode_ = ApplicationMode::kDesktop;
+        }
 
         app_.game_path_ = result["application"]["game-path"].value_or("");
         app_.game_arguments_ = result["application"]["game-arguments"].value_or("");
@@ -84,6 +88,12 @@ namespace px
             app_.event_replay_mode_ = TargetApplication::EventReplayMode::kHookInner;
             LOGI("application.mode=game-hook → inner capture + start/inject game "
                  "(force event-replay-mode=inner)");
+        } else if (application_mode_ == ApplicationMode::kWebView) {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
+            capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioInner;
+            app_mode_ = AppMode::kInnerCapture;
+            app_.event_replay_mode_ = TargetApplication::EventReplayMode::kHookInner;
+            LOGI("application.mode=webview -> CEF off-screen capture + direct CEF input");
         } else {
             capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
             app_mode_ = AppMode::kDesktop;
@@ -110,7 +120,10 @@ namespace px
         ss << "Transmission: \n";
         ss << "  - listening port: " << transmission_.listening_port_ << std::endl;
         ss << "RdApplication: \n";
-        ss << "  - application mode: " << (application_mode_ == ApplicationMode::kGameHook ? "game-hook" : "desktop") << std::endl;
+        const char* application_mode = application_mode_ == ApplicationMode::kGameHook
+            ? "game-hook"
+            : (application_mode_ == ApplicationMode::kWebView ? "webview" : "desktop");
+        ss << "  - application mode: " << application_mode << std::endl;
         ss << "  - game path: " << app_.game_path_ << std::endl;
         ss << "  - game arguments: " << app_.game_arguments_ << std::endl;
         ss << "  - steam app:" << std::endl;

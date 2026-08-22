@@ -52,6 +52,7 @@ namespace px
 		void OnKeyReleaseEvent(QKeyEvent* event);
         void RegisterMouseKeyboardEventCallback(const OnMouseKeyboardEventCallback& cbk);
         void SendKeyEvent(quint32 vk, bool down);
+        void SendTextInput(const QString& text);
         // 重连成功后调用(仅 UI 线程),补发所有按下中的键鼠 release,避免远端按键卡死
         void ReleaseAllPressedInputs();
         RawImageFormat GetDisplayImageFormat();

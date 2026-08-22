@@ -28,9 +28,11 @@ namespace px
 
         explicit RenderServiceClient(const std::shared_ptr<RdApplication>& app);
         void Start();
-        void Exit() const;
+        void Exit();
         bool IsAlive() const;
         void PostNetMessage(const std::string& msg);
+        void NotifyAppInstanceReady(const std::string& instance_id, int listen_port,
+                                    bool ok, const std::string& error);
         void RedeemConnectionTicket(
             const std::string& ticket,
             const std::string& client_nonce,
@@ -47,12 +49,14 @@ namespace px
     private:
         void HeartBeat();
         void ParseMessage(const std::string& msg);
+        void SendPendingAppInstanceReady();
 
     private:
         RdStatistics* statistics_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
+        std::atomic_bool websocket_upgraded_ = false;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
         std::mutex ticket_callbacks_mtx_;
@@ -64,6 +68,12 @@ namespace px
         std::unordered_map<std::string,
             std::function<void(const MsgVirtualDisplayServiceResult&)>>
             virtual_display_callbacks_;
+        std::mutex ready_mtx_;
+        std::string ready_instance_id_;
+        std::string ready_error_;
+        int ready_listen_port_ = 0;
+        bool ready_ok_ = false;
+        bool ready_pending_ = false;
     };
 
 }
