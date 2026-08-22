@@ -808,7 +808,7 @@ starting -> running -> stopping -> stopped
 
 ## 19. 注册与密码生命周期
 
-- 用户名：trim 后 3–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
+- 用户名：trim 后 2–64 个 Unicode 字符；大小写归一使用 Unicode lowercase，禁止控制字符、斜杠和前后空白。
 - 密码：8–128 个字符；拒绝全空白；服务端 Argon2id 参数为 memory 64 MiB、iterations 3、parallelism 1、随机盐 16 bytes，hash 使用 PHC 字符串保存。
 - 自助注册必须通过 guest session 和限流；Web 请求同时校验 CSRF，Panel 使用 guest bearer token；注册成功后创建无用户组、无个人设备授权的普通用户。
 - 管理员可生成随机初始密码或提供满足规则的密码。随机密码使用至少 96 bit CSPRNG，不包含易混淆字符。

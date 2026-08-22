@@ -3,6 +3,7 @@
 //
 
 #include "user_register_dialog.h"
+#include <algorithm>
 #include <QValidator>
 #include <QButtonGroup>
 #include <QRadioButton>
@@ -120,9 +121,24 @@ namespace px
                 auto username = edt_username_->text();
                 auto password = password_input_->GetPassword();
                 auto re_password = re_password_input_->GetPassword();
-                if (username.isEmpty() || password.isEmpty() || password != re_password) {
-                    // todo: show a dialog
-                    TcDialog dialog(tcTr("id_error"), tcTr("id_invalid_input"));
+                const auto username_invalid = username.size() < 2 || username.size() > 64
+                    || username.trimmed() != username || username.contains('/')
+                    || username.contains('\\')
+                    || std::any_of(username.cbegin(), username.cend(), [](const QChar ch) {
+                        return !ch.isPrint();
+                    });
+                if (username_invalid) {
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_username_format_msg"));
+                    dialog.exec();
+                    return;
+                }
+                if (password.size() < 8 || password.size() > 128 || password.trimmed().isEmpty()) {
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_password_format_msg"));
+                    dialog.exec();
+                    return;
+                }
+                if (password != re_password) {
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_password_mismatch_msg"));
                     dialog.exec();
                     return;
                 }

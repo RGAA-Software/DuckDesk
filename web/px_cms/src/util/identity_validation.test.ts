@@ -3,7 +3,8 @@ import { validateAdminUsername, validateInitialPassword } from './identity_valid
 
 describe('admin identity validation', () => {
   it('matches the server username policy', () => {
-    expect(validateAdminUsername('dd')).toBe('用户名需要 3–64 个字符')
+    expect(validateAdminUsername('d')).toBe('用户名需要 2–64 个字符')
+    expect(validateAdminUsername('dd')).toBeUndefined()
     expect(validateAdminUsername(' user')).toBe('用户名首尾不能包含空格')
     expect(validateAdminUsername('user/name')).toBe('用户名不能包含 / 或 \\')
     expect(validateAdminUsername('valid-user')).toBeUndefined()

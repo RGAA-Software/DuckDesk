@@ -14,7 +14,7 @@ fn validated_username(value: &str) -> Result<(String, String), CmsApiError> {
     // Do not silently canonicalize surrounding whitespace: accepting a value
     // different from what the caller submitted makes account names ambiguous.
     let username = value.to_string();
-    if username.chars().count() < 3
+    if username.chars().count() < 2
         || username.chars().count() > 64
         || username.chars().any(char::is_control)
         || username.trim() != username
@@ -511,7 +511,8 @@ mod tests {
             validated_username("Alice").unwrap(),
             ("Alice".to_string(), "alice".to_string())
         );
-        assert!(validated_username("ab").is_err());
+        assert!(validated_username("ab").is_ok());
+        assert!(validated_username("a").is_err());
         assert!(validated_username(" Alice ").is_err());
         assert!(validated_username("ali/ce").is_err());
         assert!(validated_username("ali\\ce").is_err());

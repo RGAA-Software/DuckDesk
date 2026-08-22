@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { loginUser } from './api'
 import { registerUser } from './public_api'
+import { validateAdminUsername, validateInitialPassword } from '@/util/identity_validation'
 
 const username = ref('')
 const password = ref('')
@@ -31,6 +32,12 @@ async function submit() {
 
 async function submitRegister() {
   if (!registerName.value || !registerPassword.value) return
+  const validationError = validateAdminUsername(registerName.value)
+    || validateInitialPassword(registerPassword.value)
+  if (validationError) {
+    message.error(validationError)
+    return
+  }
   registering.value = true
   try {
     await registerUser(registerName.value, registerPassword.value)
@@ -59,7 +66,7 @@ async function submitRegister() {
     </a-card>
     <a-modal v-model:open="registerOpen" title="注册 Pixels 用户" :confirm-loading="registering" @ok="submitRegister">
       <a-form layout="vertical">
-        <a-form-item label="用户名"><a-input v-model:value="registerName" autocomplete="username" /></a-form-item>
+        <a-form-item label="用户名（2–64 位）"><a-input v-model:value="registerName" :maxlength="64" autocomplete="username" /></a-form-item>
         <a-form-item label="密码（8–128 位）"><a-input-password v-model:value="registerPassword" autocomplete="new-password" /></a-form-item>
       </a-form>
     </a-modal>

@@ -37,6 +37,35 @@ using namespace nlohmann;
 
 namespace px_cms
 {
+    namespace
+    {
+        CmsApiError ToUserApiError(const px::HttpResponse& response) {
+            SetCmsApiLastErrorMessage("");
+            if (!response.body.empty()) {
+                try {
+                    const auto error = json::parse(response.body);
+                    const auto code = error.value("code", 0);
+                    SetCmsApiLastErrorMessage(error.value("message", ""));
+                    if (code >= static_cast<int>(CmsApiError::kInvalidParams)) {
+                        return static_cast<CmsApiError>(code);
+                    }
+                }
+                catch (const std::exception& error) {
+                    LOGE("Parse CMS user error response failed: {}", error.what());
+                }
+            }
+            switch (response.status) {
+                case 401: return CmsApiError::kAuthenticationRequired;
+                case 403: return CmsApiError::kForbidden;
+                case 404: return CmsApiError::kNotFound;
+                case 409: return CmsApiError::kConflict;
+                case 410: return CmsApiError::kGone;
+                case 429: return CmsApiError::kRateLimited;
+                case 503: return CmsApiError::kServiceUnavailable;
+                default: return CmsApiError::kInternalError;
+            }
+        }
+    }
 
     px::Result<CmsUserPtr, CmsApiError> CmsUserApi::Register(
         const std::string& host,
@@ -54,7 +83,7 @@ namespace px_cms
              response.status, host, port, username);
         if (response.status != 200 || response.body.empty()) {
             LOGE("Register failed: {}", response.status);
-            return TcErr(static_cast<CmsApiError>(response.status));
+            return TcErr(ToUserApiError(response));
         }
         try {
             auto user = CmsUser::FromObj(json::parse(response.body).at("data"));
@@ -85,7 +114,7 @@ namespace px_cms
              resp.status, host, port, username);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Login failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return TcErr(ToUserApiError(resp));
         }
 
         try {
@@ -116,7 +145,7 @@ namespace px_cms
         auto resp = client->Post({}, "{}", "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Logout failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return TcErr(ToUserApiError(resp));
         }
 
         try {
@@ -139,7 +168,7 @@ namespace px_cms
         auto resp = client->Patch({}, obj.dump(), "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return TcErr(ToUserApiError(resp));
         }
 
         try {
@@ -166,7 +195,7 @@ namespace px_cms
         auto resp = client->Post({}, obj.dump(), "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return TcErr(ToUserApiError(resp));
         }
 
         try {
@@ -202,7 +231,7 @@ namespace px_cms
         LOGI("Update Avatar, status:{}, address-> {}:{}", resp.status, host, port);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update Avatar failed: {}", resp.status);
-            return TcErr((CmsApiError)resp.status);
+            return TcErr(ToUserApiError(resp));
         }
 
         try {
