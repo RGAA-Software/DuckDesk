@@ -20,6 +20,11 @@ use tokio::sync::Mutex;
 
 const MAX_AVATAR_BYTES: usize = 2 * 1024 * 1024;
 pub const ADMIN_SESSION_COOKIE: &str = "__Host-px_admin_session";
+/// Compatibility cookie for browsers that reject `__Host-` cookies when the
+/// CMS is opened through an IP address backed by a locally trusted/self-signed
+/// certificate.  It keeps the same host-only, Secure, HttpOnly and SameSite
+/// attributes; no session token is exposed to JavaScript.
+pub const ADMIN_SESSION_COMPAT_COOKIE: &str = "px_admin_session";
 pub const USER_SESSION_COOKIE: &str = "__Host-px_user_session";
 pub const GUEST_SESSION_COOKIE: &str = "__Host-px_guest_session";
 
@@ -453,6 +458,23 @@ pub fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
         })
 }
 
+pub fn admin_cookie_value(headers: &HeaderMap) -> Option<String> {
+    admin_cookie_values(headers).into_iter().next()
+}
+
+pub fn admin_cookie_values(headers: &HeaderMap) -> Vec<String> {
+    let mut values = Vec::with_capacity(2);
+    if let Some(value) = cookie_value(headers, ADMIN_SESSION_COMPAT_COOKIE) {
+        values.push(value);
+    }
+    if let Some(value) = cookie_value(headers, ADMIN_SESSION_COOKIE) {
+        if !values.iter().any(|existing| existing == &value) {
+            values.push(value);
+        }
+    }
+    values
+}
+
 pub async fn admin_login(
     State(_context): State<Arc<Mutex<CmsContext>>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -528,7 +550,7 @@ pub async fn admin_login(
         absolute_expires_at: issued.session.absolute_expires_at,
     }));
     let mut response = body.into_response();
-    response.headers_mut().insert(
+    response.headers_mut().append(
         header::SET_COOKIE,
         HeaderValue::from_str(&format!(
             "{}={}; Path=/; Max-Age={}; Secure; HttpOnly; SameSite=Lax",
@@ -538,11 +560,21 @@ pub async fn admin_login(
         ))
         .map_err(|_| CmsApiError::InternalError)?,
     );
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&format!(
+            "{}={}; Path=/; Max-Age={}; Secure; HttpOnly; SameSite=Lax",
+            ADMIN_SESSION_COMPAT_COOKIE,
+            issued.session_token,
+            8 * 60 * 60
+        ))
+        .map_err(|_| CmsApiError::InternalError)?,
+    );
     Ok(response)
 }
 
 pub async fn admin_logout(headers: HeaderMap) -> Result<Response, CmsApiError> {
-    if let Some(token) = cookie_value(&headers, ADMIN_SESSION_COOKIE) {
+    if let Some(token) = admin_cookie_value(&headers) {
         let subject = gUserSessionManager.authenticate_admin(&token).await.ok();
         gUserSessionManager.revoke_token(&token).await?;
         if let Some(subject) = subject {
@@ -559,10 +591,16 @@ pub async fn admin_logout(headers: HeaderMap) -> Result<Response, CmsApiError> {
         }
     }
     let mut response = Json(ok_resp(true)).into_response();
-    response.headers_mut().insert(
+    response.headers_mut().append(
         header::SET_COOKIE,
         HeaderValue::from_static(
             "__Host-px_admin_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
+        ),
+    );
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        HeaderValue::from_static(
+            "px_admin_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax",
         ),
     );
     Ok(response)
@@ -784,7 +822,8 @@ pub async fn update_avatar(
 
 #[cfg(test)]
 mod tests {
-    use super::avatar_bytes_match_extension;
+    use super::{admin_cookie_value, avatar_bytes_match_extension};
+    use axum::http::{header, HeaderMap, HeaderValue};
 
     #[test]
     fn avatar_signature_must_match_the_allowed_extension() {
@@ -796,5 +835,26 @@ mod tests {
         assert!(avatar_bytes_match_extension("webp", b"RIFF0000WEBP"));
         assert!(!avatar_bytes_match_extension("png", b"<script>"));
         assert!(!avatar_bytes_match_extension("svg", b"<svg/>"));
+    }
+
+    #[test]
+    fn admin_cookie_prefers_compatible_name_and_falls_back_to_host_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static(
+                "__Host-px_admin_session=stale-host; px_admin_session=current-compatible",
+            ),
+        );
+        assert_eq!(
+            admin_cookie_value(&headers).as_deref(),
+            Some("current-compatible")
+        );
+
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("__Host-px_admin_session=host-only"),
+        );
+        assert_eq!(admin_cookie_value(&headers).as_deref(), Some("host-only"));
     }
 }

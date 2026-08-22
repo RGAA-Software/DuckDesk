@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::cms_api_error::CmsApiError;
 use crate::gAuthManager;
 use crate::gUserSessionManager;
-use crate::user::session_handler::{cookie_value, ADMIN_SESSION_COOKIE};
+use crate::user::session_handler::admin_cookie_value;
 use px_auth_mgr::auth_token::verify_connection_token;
 use px_base::get_current_timestamp;
 
@@ -107,7 +107,7 @@ pub async fn website_filter(req: Request<Body>, next: Next) -> Response {
     if crate::cms_settings::is_auth_bypassed().await {
         return next.run(req).await;
     }
-    if let Some(token) = cookie_value(req.headers(), ADMIN_SESSION_COOKIE) {
+    if let Some(token) = admin_cookie_value(req.headers()) {
         return match gUserSessionManager.authenticate_admin(&token).await {
             Ok(_) => next.run(req).await,
             Err(error) => error.into_response(),

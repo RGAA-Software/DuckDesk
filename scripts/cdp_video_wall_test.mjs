@@ -6,10 +6,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE_URL = 'https://127.0.0.1:30500'
+const BASE_URL = process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
 const CDP_PORT = 9223
 const USERNAME = 'CmsAdmin'
 const PASSWORD = process.env.PX_CMS_TEST_PASSWORD || 'eb#6naIq'
+const MANUAL_CERT_BYPASS = process.env.PX_CMS_TEST_MANUAL_CERT_BYPASS === '1'
 
 const results = []
 function report(name, ok, detail = '') {
@@ -24,7 +25,7 @@ const chrome = spawn(
   CHROME,
   [
     '--headless=new',
-    '--ignore-certificate-errors',
+    ...(MANUAL_CERT_BYPASS ? [] : ['--ignore-certificate-errors']),
     `--remote-debugging-port=${CDP_PORT}`,
     `--user-data-dir=${profile}`,
     '--no-first-run',
@@ -81,6 +82,20 @@ async function main() {
   await cmd('Runtime.enable')
   await cmd('Page.enable')
 
+  if (MANUAL_CERT_BYPASS) {
+    for (let i = 0; i < 20; i++) {
+      const bypassed = await evaluate(`(() => {
+        const details = document.querySelector('#details-button')
+        if (details) details.click()
+        const proceed = document.querySelector('#proceed-link')
+        if (proceed) { proceed.click(); return true }
+        return false
+      })()`).catch(() => false)
+      if (bypassed) break
+      await sleep(250)
+    }
+  }
+
   // 1. 登录页加载并通过同源 API 建立管理员会话。测试密码从环境变量注入，
   // 避免本地管理员改密后把明文凭据固化进仓库。
   let loginReady = false
@@ -91,21 +106,61 @@ async function main() {
   }
   report('登录页打开', loginReady)
 
-  const loginResult = await evaluate(`fetch('/api/v1/session/admin/login', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: ${JSON.stringify(USERNAME)}, password: ${JSON.stringify(PASSWORD)} }),
-  }).then(async (response) => {
-    const body = await response.json()
-    if (response.ok && body.code === 200 && body.data?.csrf_token) {
-      sessionStorage.setItem('px_admin_csrf', body.data.csrf_token)
+  const loginControls = await evaluate(`(() => {
+    const inputs = [...document.querySelectorAll('input')]
+    const usernameInput = inputs.find((input) => input.placeholder === '请输入')
+    const passwordInput = inputs.find((input) => input.placeholder === '请输入密码')
+    const loginButton = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent.replace(/\\s/g, '') === '登录')
+    return {
+      usernameInput: Boolean(usernameInput),
+      passwordInput: Boolean(passwordInput),
+      loginButton: Boolean(loginButton),
+      buttonTexts: [...document.querySelectorAll('button')].map((button) => button.textContent.trim()),
     }
-    return { status: response.status, code: body.code, message: body.message || '' }
-  })`)
-  const loggedIn = loginResult?.status === 200 && loginResult?.code === 200
-  report('管理员会话建立', loggedIn, JSON.stringify(loginResult))
+  })()`)
+  report('登录表单控件完整', loginControls.usernameInput && loginControls.passwordInput && loginControls.loginButton, JSON.stringify(loginControls))
+  if (!loginControls.usernameInput || !loginControls.passwordInput || !loginControls.loginButton) {
+    throw new Error('登录表单控件不完整')
+  }
+  await evaluate(`(() => {
+    const inputs = [...document.querySelectorAll('input')]
+    const usernameInput = inputs.find((input) => input.placeholder === '请输入')
+    const passwordInput = inputs.find((input) => input.placeholder === '请输入密码')
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    setValue.call(usernameInput, ${JSON.stringify(USERNAME)})
+    usernameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    setValue.call(passwordInput, ${JSON.stringify(PASSWORD)})
+    passwordInput.dispatchEvent(new Event('input', { bubbles: true }))
+    const loginButton = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent.replace(/\\s/g, '') === '登录')
+    loginButton.click()
+  })()`)
+  let loggedIn = false
+  for (let i = 0; i < 40; i++) {
+    loggedIn = await evaluate(`location.pathname !== '/'`).catch(() => false)
+    if (loggedIn) break
+    await sleep(250)
+  }
+  const loginResult = await evaluate(`fetch('/api/v1/session/admin/me', { credentials: 'same-origin' })
+    .then(async (response) => ({ status: response.status, body: await response.json() }))`)
+  loggedIn = loggedIn && loginResult?.status === 200 && loginResult?.body?.code === 200
+  report('表单登录与管理员会话建立', loggedIn, JSON.stringify({
+    path: await evaluate('location.pathname'),
+    meStatus: loginResult?.status,
+    meCode: loginResult?.body?.code,
+  }))
   if (!loggedIn) throw new Error('管理员会话建立失败')
+
+  const storedCookies = (await cmd('Storage.getCookies')).cookies
+    .filter((cookie) => cookie.domain === new URL(BASE_URL).hostname)
+    .map((cookie) => ({ name: cookie.name, secure: cookie.secure, path: cookie.path }))
+  const adminCookieNames = storedCookies.map((cookie) => cookie.name)
+  report(
+    '管理员 Cookie 写入 Chrome',
+    adminCookieNames.includes('__Host-px_admin_session') || adminCookieNames.includes('px_admin_session'),
+    JSON.stringify(storedCookies),
+  )
 
   // 2. 进设备监控页面(侧栏菜单)
   await evaluate(`location.href = '${BASE_URL}/video-wall'`)

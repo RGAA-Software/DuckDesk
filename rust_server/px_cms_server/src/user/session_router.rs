@@ -8,9 +8,9 @@ use crate::identity::resource_handler::{
 };
 use crate::identity::user_handler::logout_all;
 use crate::user::session_handler::{
-    admin_login, admin_logout, admin_me, change_password, cookie_value, guest_session, login,
-    logout, me, refresh_user_csrf, register_user, update_avatar, update_profile,
-    ADMIN_SESSION_COOKIE, GUEST_SESSION_COOKIE, USER_SESSION_COOKIE,
+    admin_cookie_values, admin_login, admin_logout, admin_me, change_password, cookie_value,
+    guest_session, login, logout, me, refresh_user_csrf, register_user, update_avatar,
+    update_profile, GUEST_SESSION_COOKIE, USER_SESSION_COOKIE,
 };
 use crate::user_device::cms_user_device_handler::{
     handle_query_my_devices, handle_query_my_devices_page,
@@ -191,29 +191,41 @@ pub async fn require_same_origin(request: Request<Body>, next: Next) -> Response
 }
 
 pub async fn require_admin(mut request: Request<Body>, next: Next) -> Response {
-    let Some(token) = cookie_value(request.headers(), ADMIN_SESSION_COOKIE) else {
+    let tokens = admin_cookie_values(request.headers());
+    if tokens.is_empty() {
+        log_admin_auth_failure(&request, "missing_cookie");
         return CmsApiError::AuthenticationRequired.into_response();
-    };
-    match gUserSessionManager.authenticate_admin(&token).await {
-        Ok(subject) => {
+    }
+    for token in tokens {
+        if let Ok(subject) = gUserSessionManager.authenticate_admin(&token).await {
             let actor_id = subject.auth_id.clone();
             request.extensions_mut().insert(subject);
-            crate::event::audit::scope_actor("admin", &actor_id, next.run(request)).await
+            return crate::event::audit::scope_actor("admin", &actor_id, next.run(request)).await;
         }
-        Err(error) => error.into_response(),
     }
+    log_admin_auth_failure(&request, "invalid_cookie");
+    CmsApiError::AuthenticationRequired.into_response()
 }
 
 pub async fn require_admin_write(mut request: Request<Body>, next: Next) -> Response {
     if !same_origin(request.headers()) {
         return CmsApiError::Forbidden.into_response();
     }
-    let Some(token) = cookie_value(request.headers(), ADMIN_SESSION_COOKIE) else {
+    let tokens = admin_cookie_values(request.headers());
+    if tokens.is_empty() {
+        log_admin_auth_failure(&request, "missing_cookie");
         return CmsApiError::AuthenticationRequired.into_response();
     };
-    let subject = match gUserSessionManager.authenticate_admin(&token).await {
-        Ok(subject) => subject,
-        Err(error) => return error.into_response(),
+    let mut subject = None;
+    for token in tokens {
+        if let Ok(authenticated) = gUserSessionManager.authenticate_admin(&token).await {
+            subject = Some(authenticated);
+            break;
+        }
+    }
+    let Some(subject) = subject else {
+        log_admin_auth_failure(&request, "invalid_cookie");
+        return CmsApiError::AuthenticationRequired.into_response();
     };
     let csrf = request
         .headers()
@@ -226,6 +238,33 @@ pub async fn require_admin_write(mut request: Request<Body>, next: Next) -> Resp
     let actor_id = subject.auth_id.clone();
     request.extensions_mut().insert(subject);
     crate::event::audit::scope_actor("admin", &actor_id, next.run(request)).await
+}
+
+fn log_admin_auth_failure(request: &Request<Body>, reason: &'static str) {
+    if request.uri().path() != "/admin/me" {
+        return;
+    }
+    let cookie_names = request
+        .headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(';'))
+        .filter_map(|part| part.trim().split_once('=').map(|(name, _)| name.trim()))
+        .collect::<Vec<_>>()
+        .join(",");
+    let user_agent = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    tracing::warn!(
+        reason,
+        path = %request.uri().path(),
+        cookie_names,
+        user_agent,
+        "admin session authentication failed"
+    );
 }
 
 pub async fn require_guest(mut request: Request<Body>, next: Next) -> Response {
