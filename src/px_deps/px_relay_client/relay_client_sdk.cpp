@@ -21,7 +21,10 @@ namespace px
                                                      sdk_param_.device_name_,
                                                      sdk_param_.stream_id_,
                                                      sdk_param_.appkey_,
-                                                     sdk_param_.force_gdi_);
+                                                     sdk_param_.force_gdi_,
+                                                     sdk_param_.remote_device_id_,
+                                                     sdk_param_.connection_ticket_,
+                                                     sdk_param_.connection_nonce_);
     }
 
     void RelayClientSdk::SetOnRelayServerConnectedCallback(OnRelayServerConnected&& cbk) {

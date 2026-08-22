@@ -19,6 +19,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::cms_context::CmsContext;
+use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::cms_relay::relay_conn::RelayConn;
 use crate::cms_relay::{relay_device_handler, relay_room_handler};
 use crate::filter::{cms_appkey_filter, cms_statistics_filter, cms_timer_filter};
@@ -119,6 +120,20 @@ impl RelayServer {
             tracing::info!("ws query param {}:{}", k, v);
         }
         let params = query.0.clone();
+        // File-only clients carry their CMS capability in the Relay handshake.
+        // Redeem it before allocating any relay connection/room, so a ticket
+        // cannot be used to create a media room and cannot be replayed.
+        if let (Some(ticket), Some(nonce), Some(remote)) = (
+            params.get("ticket"), params.get("client_nonce"), params.get("remote_device_id"),
+        ) {
+            let device_id = remote.strip_prefix("ft_server_").unwrap_or(remote);
+            let request_id = format!("relay:{}", params.get("stream_id").cloned().unwrap_or_default());
+            match ConnectionTicketManager::redeem(ticket, device_id, nonce, None, &request_id).await {
+                Ok(grant) if grant.permissions.iter().any(|p| p == "file") => {}
+                Ok(_) => return crate::cms_api_error::CmsApiError::TicketExpiredOrUsed.into_response(),
+                Err(err) => return err.into_response(),
+            }
+        }
         ws.on_upgrade(move |socket| {
             RelayServer::handle_socket(context.clone(), params, socket, addr)
         })

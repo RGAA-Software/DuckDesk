@@ -26,7 +26,8 @@ namespace px
     public:
         explicit RelayWsClient(const std::string& host, int port, const std::string& device_id,
                                const std::string& device_name, const std::string& stream_id,
-                               const std::string& appkey, bool force_gdi);
+                               const std::string& appkey, bool force_gdi, const std::string& remote_device_id,
+                               const std::string& connection_ticket = {}, const std::string& connection_nonce = {});
         ~RelayWsClient() override;
         void Start() override;
         void Stop() override;
@@ -48,6 +49,9 @@ namespace px
         std::string device_name_;
         std::string stream_id_;
         std::string appkey_;
+        std::string remote_device_id_;
+        std::string connection_ticket_;
+        std::string connection_nonce_;
         bool force_gdi_ = false;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::atomic<int64_t> queuing_msg_count_ = 0;

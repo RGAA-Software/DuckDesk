@@ -18,7 +18,8 @@ namespace px
 
     RelayWsClient::RelayWsClient(const std::string& host, int port, const std::string& device_id,
                                  const std::string& device_name, const std::string& stream_id,
-                                 const std::string& appkey, bool force_gdi)
+                                 const std::string& appkey, bool force_gdi, const std::string& remote_device_id,
+                                 const std::string& connection_ticket, const std::string& connection_nonce)
                                  : RelayNetClient() {
         this->host_ = host;
         this->port_ = port;
@@ -27,7 +28,10 @@ namespace px
         StringUtil::Replace(this->device_name_, " ", "");
         this->stream_id_ = stream_id;
         this->appkey_ = appkey;
+        this->remote_device_id_ = remote_device_id;
         this->force_gdi_ = force_gdi;
+        this->connection_ticket_ = connection_ticket;
+        this->connection_nonce_ = connection_nonce;
     }
 
     RelayWsClient::~RelayWsClient() {
@@ -88,8 +92,11 @@ namespace px
         });
 
         // the /ws is the websocket upgraged target
-        auto ws_path = std::format("/relay?device_id={}&device_name={}&stream_id={}&appkey={}",
-                                   device_id_, device_name_, stream_id_, appkey_);
+        auto ws_path = std::format("/relay?device_id={}&remote_device_id={}&device_name={}&stream_id={}&appkey={}",
+                                   device_id_, remote_device_id_, device_name_, stream_id_, appkey_);
+        if (!connection_ticket_.empty()) {
+            ws_path += std::format("&ticket={}&client_nonce={}", connection_ticket_, connection_nonce_);
+        }
         LOGI("Will connect: {}:{}{}", host_, port_, ws_path);
         if (!client_->async_start(host_, port_, ws_path)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());

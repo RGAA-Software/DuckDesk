@@ -38,6 +38,8 @@ namespace px
             .device_name_ = params->device_name_,
             .appkey_ = params->appkey_,
             .force_gdi_ = params->force_gdi_,
+            .connection_ticket_ = room_type == kRoomTypeFileTransfer ? params->connection_ticket_ : "",
+            .connection_nonce_ = room_type == kRoomTypeFileTransfer ? params->connection_nonce_ : "",
         });
 
         relay_sdk_->SetOnRelayProtoMessageCallback([=, this](const std::shared_ptr<RelayMessage>& rl_msg) {

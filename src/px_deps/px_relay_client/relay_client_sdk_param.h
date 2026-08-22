@@ -28,6 +28,8 @@ namespace px
         std::string appkey_;
         // force gdi
         bool force_gdi_ = false;
+        std::string connection_ticket_;
+        std::string connection_nonce_;
     };
 
 }

@@ -4,6 +4,8 @@ use std::process::Command;
 use std::time::Duration;
 
 const TURN_LISTENING_PORT: u16 = 20128;
+const TURN_MIN_RELAY_PORT: u16 = 20200;
+const TURN_MAX_RELAY_PORT: u16 = 20500;
 
 fn local_media_port(media_server_url: &str) -> Result<Option<u16>, String> {
     let authority = media_server_url
