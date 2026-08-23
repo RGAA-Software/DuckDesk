@@ -21,7 +21,7 @@ interface DeviceAuth {
   client_device_count: number
   client_reported_at_ms: number
   total: number
-  // CMS 的 web 登录凭据（license 携带，仅 Pixels_cms 使用）
+  // Console 的 web 登录凭据（license 携带，仅 pixels_console 使用）
   username: string
   password: string
 }
@@ -30,13 +30,13 @@ const categories = [
   { key: 'gopico', label: 'GoPico' },
   { key: 'clientbox', label: 'ClientBox' },
   { key: 'goagent', label: 'GoAgent' },
-  { key: 'Pixels_cms', label: 'Pixels CMS' },
+  { key: 'pixels_console', label: 'Pixels Console' },
 ]
 
 const activeTab = ref('gopico')
 
-// Pixels_cms 的 max_streams 语义是流路数(Max Streams),其它产品是设备数(Max Devices)
-const maxStreamsLabel = computed(() => (activeTab.value === 'Pixels_cms' ? '流路数' : '设备数'))
+// pixels_console 的 max_streams 语义是流路数(Max Streams),其它产品是设备数(Max Devices)
+const maxStreamsLabel = computed(() => (activeTab.value === 'pixels_console' ? '流路数' : '设备数'))
 const tableData = ref<DeviceAuth[]>([])
 const totalCount = ref(0)
 const pageSize = ref(20)
@@ -127,7 +127,7 @@ const openEdit = (row: DeviceAuth) => {
   editDialogVisible.value = true
 }
 
-// 复制 CMS web 登录账号（仅 Pixels_cms 有意义）
+// 复制 Console web 登录账号（仅 pixels_console 有意义）
 const copyLoginAccount = async () => {
   const text = `用户名: ${editForm.value.username}\n密码: ${editForm.value.password}`
   try {
@@ -348,7 +348,7 @@ onMounted(async () => {
       <el-form-item v-if="editForm.mode === 'trial'" label="">
         <span class="trial-tip">试用模式不限时间，仅受{{ maxStreamsLabel }}限制</span>
       </el-form-item>
-      <template v-if="activeTab === 'Pixels_cms'">
+      <template v-if="activeTab === 'pixels_console'">
         <el-form-item label="登录用户名">
           <el-input :model-value="editForm.username" disabled />
         </el-form-item>
@@ -357,7 +357,7 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label="">
           <el-button size="small" @click="copyLoginAccount">复制登录账号</el-button>
-          <span class="trial-tip" style="margin-left: 8px;">用于登录 CMS web 管理页</span>
+          <span class="trial-tip" style="margin-left: 8px;">用于登录 Console web 管理页</span>
         </el-form-item>
       </template>
     </el-form>

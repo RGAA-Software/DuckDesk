@@ -55,7 +55,7 @@ pub fn init_license_signer() -> Result<LicenseSigner, String> {
     LicenseSigner::from_pkcs8_bytes(&private_key)
 }
 
-/// Returns the base64-encoded public key for distribution to CMS instances.
+/// Returns the base64-encoded public key for distribution to Console instances.
 #[allow(dead_code)]
 pub fn get_license_public_key_b64(signer: &LicenseSigner) -> String {
     general_purpose::STANDARD.encode(signer.public_key_bytes())
@@ -98,7 +98,7 @@ pub fn sign_authorization(
 }
 
 /// Signs a full `Authorization` model, producing a `SignedLicense` containing
-/// the fields the CMS needs to enforce authorization, including credentials.
+/// the fields the Console needs to enforce authorization, including credentials.
 pub fn sign_authorization_model(
     signer: &LicenseSigner,
     auth: &Authorization,
@@ -144,7 +144,7 @@ mod tests {
             "secret".to_string(),
             "user".to_string(),
             "pass".to_string(),
-            "cms".to_string(),
+            "console".to_string(),
         )
         .unwrap();
         let verifier =
@@ -174,7 +174,7 @@ mod tests {
             "secret".to_string(),
             "user".to_string(),
             "pass".to_string(),
-            "cms".to_string(),
+            "console".to_string(),
         )
         .unwrap();
         assert!(signed.to_deploy_string().unwrap().contains('.'));

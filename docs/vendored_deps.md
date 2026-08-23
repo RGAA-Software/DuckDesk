@@ -32,7 +32,7 @@
 | `px_qt_widget` | `325a8fe1c37439df78676c9f8258571976095df8` |
 | `px_relay_client` | `6cffd28cc03932c9841cdad97265e404e2576e16` |
 | `px_server_protocol` | `a463ba51975e24b08fcaafe06c53281d6d93ae0c` |
-| `px_cms_client` | `6adc5019224744c664c09e6dd4a3aa7f9327385c` |
+| `px_console_client` | `6adc5019224744c664c09e6dd4a3aa7f9327385c` |
 | `px_steam_manager_new` | `9d2147b32bdbcc78f7bfb5b70445b6e2ff7e82b0` |
 | `px_webrtc_client` | `5a87b638bb83d2fc2b9d2c72f1196731e4964241` |
 

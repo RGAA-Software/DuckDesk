@@ -1,13 +1,13 @@
-use crate::cms_client::CmsClientMessageType;
-use crate::cms_panel::CmsPanelMessageType;
-use crate::cms_relay::CmsRelayMessageType;
-use crate::cms_service::CmsServiceMessageType;
+use crate::console_client::ConsoleClientMessageType;
+use crate::console_panel::ConsolePanelMessageType;
+use crate::console_relay::ConsoleRelayMessageType;
+use crate::console_service::ConsoleServiceMessageType;
 use crate::px_relay::RelayMessageType;
 
-pub mod cms_client;
-pub mod cms_panel;
-pub mod cms_relay;
-pub mod cms_service;
+pub mod console_client;
+pub mod console_panel;
+pub mod console_relay;
+pub mod console_service;
 pub mod grpc_relay;
 pub mod px_relay;
 
@@ -17,26 +17,26 @@ impl PartialEq<RelayMessageType> for i32 {
     }
 }
 
-impl PartialEq<CmsRelayMessageType> for i32 {
-    fn eq(&self, other: &CmsRelayMessageType) -> bool {
+impl PartialEq<ConsoleRelayMessageType> for i32 {
+    fn eq(&self, other: &ConsoleRelayMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<CmsPanelMessageType> for i32 {
-    fn eq(&self, other: &CmsPanelMessageType) -> bool {
+impl PartialEq<ConsolePanelMessageType> for i32 {
+    fn eq(&self, other: &ConsolePanelMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<CmsClientMessageType> for i32 {
-    fn eq(&self, other: &CmsClientMessageType) -> bool {
+impl PartialEq<ConsoleClientMessageType> for i32 {
+    fn eq(&self, other: &ConsoleClientMessageType) -> bool {
         *self == (*other as i32)
     }
 }
 
-impl PartialEq<CmsServiceMessageType> for i32 {
-    fn eq(&self, other: &CmsServiceMessageType) -> bool {
+impl PartialEq<ConsoleServiceMessageType> for i32 {
+    fn eq(&self, other: &ConsoleServiceMessageType) -> bool {
         *self == (*other as i32)
     }
 }

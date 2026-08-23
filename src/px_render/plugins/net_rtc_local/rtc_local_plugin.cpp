@@ -570,7 +570,7 @@ namespace px
         static constexpr size_t kMaxWallObservers = 16;
 
         // Observer sessions coexist with the single interactive connection.
-        // They use unique CMS-issued stream ids and never participate in the
+        // They use unique Console-issued stream ids and never participate in the
         // takeover flow.
         std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> old_servers;
         size_t observer_count = 0;

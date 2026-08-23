@@ -124,7 +124,7 @@ WsPluginServer(net_ws) /ipc → OnIpcVideoFrame   ※ 仅 loopback；帧为 152B
 
 ### Phase E — 后置（出画后再做）
 
-- Service 拉起 game-hook render → 见 [`cms_app_schedule_plan.md`](./cms_app_schedule_plan.md)（CMS 多机调度，P3 已落地）
+- Service 拉起 game-hook render → 见 [`console_app_schedule_plan.md`](./console_app_schedule_plan.md)（Console 多机调度，P3 已落地）
 - 多实例端口 / launch spec → 同上
 - EasyHook `prepare` 路径
 
@@ -251,7 +251,7 @@ UE 打包游戏顶层 exe 是 bootstrap 外壳（如 `VehicleGame.exe`），真�
 UE Bootstrap 约定：外壳 exe 的 `RT_RCDATA` 资源 **201 = 真 exe 相对路径、202 = 基础参数**（参考 `D:\dolit\streamer\src\common\ue_resource_parser.cc`）。资源给出精确 view 路径，无需 dolit 的窗口/后代启发式猜测。
 
 - **service 层解析**（`service_core/ue_bootstrap.rs`）：`LoadLibraryExW(LOAD_LIBRARY_AS_DATAFILE | DONT_RESOLVE_DLL_REFERENCES)` 读资源（不执行目标代码）；路径 canonicalize 后剥掉 Windows `\\?\` verbatim 前缀（否则与 `QueryFullProcessImageNameW` 比较必失败）；`is_file()` 校验，失败/非 UE 一律回退单路径现状。
-- **外壳照常启动**：CMS 配置不变（填外壳或内层 exe 均可）；service 的拉起/`wait_game_process`/监控都还在 boot 上。
+- **外壳照常启动**：Console 配置不变（填外壳或内层 exe 均可）；service 的拉起/`wait_game_process`/监控都还在 boot 上。
 - **下发 view 路径**：launch spec 追加 `--app_game_view_path=Base64(view 绝对路径)`；实例记录 `view_game_path`。
 - **render 注入 view**：`InjectCaptureDllForNormalApp` 在 view 路径非空时按完整路径精确匹配（UTF-8、忽略大小写与分隔符）发现 view 进程；未出现返回 `attempted=false` 走低频等待（外壳初始化完下一轮命中）；boot 文件本来就是每次注入前按目标 pid 写（`app_manager_win.cpp:542`），view pid 天然正确；`MsgObsInjected.pid_` = view pid → 音频 PID loopback 自动绑对。
 - **停止**：杀 boot 树 + 按 view 路径补杀（覆盖外壳拉起真游戏后先退出的孤儿场景）。
@@ -264,7 +264,7 @@ UE Bootstrap 约定：外壳 exe 的 `RT_RCDATA` 资源 **201 = 真 exe 相对�
 ### 10.4 验证
 
 - 单测：`service_core` 57/57（含 UE 资源解析、view 参数透传、`\\?\` 剥离）；`UE_BOOT_EXE=<外壳路径> cargo test -p service_core real_ue -- --ignored` 可对真实游戏做集成验证。
-- E2E（2026-08-09）：CMS 配外壳路径 `D:\1_test_games\CarGame  汽车\VehicleGame.exe` 启动 → render 日志 `UE view process found` + `Inject success`（pid 为 `VehicleGame-Win64-Shipping.exe`）→ 无头 `PASS mode=pid-loopback heard=true`（视频 62fps）→ CMS 停止后 boot/view/render 全部清理。
+- E2E（2026-08-09）：Console 配外壳路径 `D:\1_test_games\CarGame  汽车\VehicleGame.exe` 启动 → render 日志 `UE view process found` + `Inject success`（pid 为 `VehicleGame-Win64-Shipping.exe`）→ 无头 `PASS mode=pid-loopback heard=true`（视频 62fps）→ Console 停止后 boot/view/render 全部清理。
 
 ### 10.5 已知限制
 
@@ -301,7 +301,7 @@ Web 客户端 datachannel 鼠标/键盘事件（`x_ratio`/`y_ratio`）→ render
 ### 11.4 已知限制 / 待办
 
 - 纯移动合并只在 RawInput 路生效，WM 消息路仍逐条投递（游戏消息泵自身有合并）。
-- CMS reconcile 曾误判存活实例"心跳缺失"并回收（service 侧 `reap_dead_app_instances` 按端口单次探测，疑似瞬态失败），未复现未修；service 目前 `--console` 无文件日志，再发需先补日志。
+- Console reconcile 曾误判存活实例"心跳缺失"并回收（service 侧 `reap_dead_app_instances` 按端口单次探测，疑似瞬态失败），未复现未修；service 目前 `--console` 无文件日志，再发需先补日志。
 - 停止实例偶发报 `render still alive after kill`（实际进程已死），停止流程的存活检查逻辑有误。
 
 ## 12. UE5 / D3D12 出画（2026-08-11）
@@ -361,15 +361,15 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 - `OMSetBlendState(nullptr)` / `OMSetDepthStencilState(nullptr, 0)`
 - `HS/DS/GS` 置空(防止游戏留下的 hull/domain/geometry shader 参与本次 Draw)
 
-### 13.4 验证(.70,CMS 应用调度实例 + headless CDP 截图)
+### 13.4 验证(.70,Console 应用调度实例 + headless CDP 截图)
 
 - UE5-AAA `-dx11`(32001):完整画面 ✅
 - UE5-AAA 默认 D3D12(32001,临时去掉 -dx11 参数):完整画面,40s+ 无 TDR ✅
 - UE4 CarGame(32002):完整画面 ✅
 - 验证工具:`scripts/cdp_stream_screenshot.mjs`(WEB_URL 环境变量指向实例
   web_client,等待 video 起来后 Page.captureScreenshot)
-- 实例启停走 CMS API:`/api/v1/app/control/app/instance/start|stop`(appkey 见
-  CMS 日志 log_cms*.log 的 `stored_appkey`)
+- 实例启停走 Console API:`/api/v1/app/control/app/instance/start|stop`(appkey 见
+  Console 日志 log_console*.log 的 `stored_appkey`)
 
 
 ## 14. 调试方法论与踩坑记录(2026-08-11)
@@ -398,13 +398,13 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
    还会带动 px_render / px_service 重编)。
 2. **部署 .70**:`tests\_deploy_hookfix_70.bat`(杀 render+游戏进程 → 拷贝 dll →
    服务自动拉起 render)。
-3. **起实例**:CMS API `POST /api/v1/app/control/app/instance/start`
-   (appkey 从 `output/px_cms/logs/px_cms/log_cms*.log` 找最新
-   `stored_appkey`,会随 CMS 重启轮换)。
+3. **起实例**:Console API `POST /api/v1/app/control/app/instance/start`
+   (appkey 从 `output/px_console/logs/px_console/log_console*.log` 找最新
+   `stored_appkey`,会随 Console 重启轮换)。
 4. **无头截图验证**:`scripts/cdp_stream_screenshot.mjs`,用法:
    `WEB_URL="http://10.0.0.70:<port>/web_client/?deviceId=990405157&instanceId=<inst>" OUT=x.png node scripts/cdp_stream_screenshot.mjs`
    等 video 流起来后 Page.captureScreenshot,比远程桌面看画面快且可留档。
-5. **收尾**:停测试实例、恢复 CMS 里改过的启动参数、清理 .70 上的调试 dds/bat。
+5. **收尾**:停测试实例、恢复 Console 里改过的启动参数、清理 .70 上的调试 dds/bat。
 
 ### 14.3 踩过的坑(不要再踩)
 
@@ -416,15 +416,15 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
   一律写成 bat 文件再执行;bat 必须 CRLF 行尾,Write 之后
   `sed -i 's/$/\r/'` 补一下,否则 cmd 解析出错。
 - **部署 .70 前必须先杀 render 和游戏进程**,否则 dll 被占用 copy 静默失败,
-  会拿着旧 dll 白测一轮。CMS 实例的游戏进程被杀后实例可能标 failed,
+  会拿着旧 dll 白测一轮。Console 实例的游戏进程被杀后实例可能标 failed,
   重启实例即可,不是代码问题。
-- **CMS 应用配置是共享状态**:为测试改的启动参数(如临时去掉 `-dx11`)测完
+- **Console 应用配置是共享状态**:为测试改的启动参数(如临时去掉 `-dx11`)测完
   立刻恢复原值,否则下次别人/自己跑默认路径测的是错的东西。
 - **调试代码(`DebugOutDDS` 之类)验证完立刻删掉再编一版部署复验**,
   不要带着 dump 代码收尾——每帧写盘会拖垮采集性能。
-- **appkey 会过期**:CMS 重启后旧 appkey 失效,API 返回登录页 HTML
+- **appkey 会过期**:Console 重启后旧 appkey 失效,API 返回登录页 HTML
   (status 200 但 body 是 html),表现为前端"保存失败"/接口返回一堆
-  `<!DOCTYPE html>`。从 CMS 日志找最新 `stored_appkey` 即可。
+  `<!DOCTYPE html>`。从 Console 日志找最新 `stored_appkey` 即可。
 - **版本 bump 文件要随修复一起提交**(`rust_*/Cargo.toml`、`setup/proj_version.nsh`、
   `src/px_base/version.cmake` 等,构建脚本自动改);`tests/` 目录不要提交
   (含 `.remote_admin.md` 明文凭据)。
@@ -462,14 +462,14 @@ game-hook 模式下游戏进程死了（崩溃/被杀）后：
 - `MarkGameLaunched()`：每次成功拉起游戏后置 `game_ever_seen_` + 刷新节流计时；
   看门狗只在游戏拉起/存活过至少一次后才介入，不与首轮启动竞争。
 
-### 15.3 验证（.70，CMS 实例 + headless CDP）
+### 15.3 验证（.70，Console 实例 + headless CDP）
 
 - **Dyson（Unity，普通路径，32000）**：杀 `DSPGAME.exe` → 日志 `Game process
   gone, restarting game` + 115ms 后 `Inject success`（新 pid）→ 截图恢复主菜单 ✅
 - **CarGame（UE4 boot/view，32002）**：杀 `VehicleGame-Win64-Shipping.exe` →
   日志重启 boot 外壳 + `UE view process found`（新 pid）+ `Inject success` →
   截图恢复起跑线画面 ✅
-- CMS 停实例后 boot/view/render 全部清理 ✅
+- Console 停实例后 boot/view/render 全部清理 ✅
 - 部署 render exe 注意：service 会自动拉起桌面 render 锁住 exe，copy 必失败——
   `tests\_deploy_render_exe_70.bat` 先 `sc stop px_service` 再拷贝，拷完重启
   service。

@@ -8,9 +8,9 @@
 #include <memory>
 #include <QDialog>
 
-namespace px_cms
+namespace px_console
 {
-    class CmsStream;
+    class ConsoleStream;
 }
 
 namespace px
@@ -22,12 +22,12 @@ namespace px
 
     class StartStreamLoading : public QDialog {
     public:
-        StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type);
+        StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type);
         void resizeEvent(QResizeEvent *event) override;
         void paintEvent(QPaintEvent *event) override;
 
     private:
-        std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
+        std::shared_ptr<px_console::ConsoleStream> stream_item_ = nullptr;
         Win10HorizontalLoadingWidget* h_loading_widget_ = nullptr;
 
     };

@@ -10,8 +10,8 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "px_cms_client/cms_user_device_api.h"
-#include "px_cms_client/cms_user_app_api.h"
+#include "px_console_client/console_user_device_api.h"
+#include "px_console_client/console_user_app_api.h"
 
 namespace px
 {
@@ -29,19 +29,19 @@ namespace px
         bool ModifyPassword(const std::string& current_password, const std::string& new_password);
         bool UpdateAvatar(const std::string& avatar_path);
         // user - device
-        px::Result<std::vector<std::shared_ptr<px_cms::CmsUserDevice>>, px_cms::CmsApiError>
+        px::Result<std::vector<std::shared_ptr<px_console::ConsoleUserDevice>>, px_console::ConsoleApiError>
         QueryBindDevices(int page, int page_size, bool show_dialog);
-        px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> IssueDeviceTicket(
+        px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> IssueDeviceTicket(
             const std::string& device_id,
             const std::string& client_nonce,
             const std::vector<std::string>& requested_permissions);
-        px::Result<std::vector<px_cms::CmsUserApplication>, px_cms::CmsApiError> QueryApps();
-        px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError> StartApp(
+        px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError> QueryApps();
+        px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApp(
             const std::string& app_id, const std::string& client_nonce);
-        px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> IssueInstanceTicket(
+        px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> IssueInstanceTicket(
             const std::string& instance_id, const std::string& client_nonce,
             const std::vector<std::string>& requested_permissions);
-        px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError> StopInstance(
+        px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StopInstance(
             const std::string& instance_id);
 
         bool IsLoggedIn();

@@ -17,21 +17,21 @@ namespace px
     class PxContext;
     class PxApplication;
     class MessageListener;
-    class StNetworkCmsAccessInfo;
+    class StNetworkConsoleAccessInfo;
 
     class StNetworkSearch : public TcCustomTitleBarDialog {
     public:
         explicit StNetworkSearch(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
         ~StNetworkSearch() override;
         void closeEvent(QCloseEvent *) override;
-        void OnItemClicked(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
-        std::shared_ptr<StNetworkCmsAccessInfo> GetSelectedItem();
+        void OnItemClicked(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info);
+        std::shared_ptr<StNetworkConsoleAccessInfo> GetSelectedItem();
         void resizeEvent(QResizeEvent *) override;
 
     private:
         void CreateLayout();
         void UpdateItems();
-        QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info);
+        QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info);
 
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
@@ -39,7 +39,7 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         TcLabel* empty_lbl_ = nullptr;
         QListWidget* list_widget_ = nullptr;
-        std::shared_ptr<StNetworkCmsAccessInfo> selected_item_ = nullptr;
+        std::shared_ptr<StNetworkConsoleAccessInfo> selected_item_ = nullptr;
     };
 
 }

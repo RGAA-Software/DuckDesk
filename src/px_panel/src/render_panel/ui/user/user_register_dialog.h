@@ -19,7 +19,7 @@
 namespace px
 {
 
-    class CmsUser;
+    class ConsoleUser;
     class PxContext;
     class TcPasswordInput;
 

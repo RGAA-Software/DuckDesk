@@ -1,10 +1,10 @@
 /**
  * Inject MsgAuthInfo into px_service local WS (/service/message)
- * so cms_client_loop can connect to CMS.
+ * so console_client_loop can connect to Console.
  *
  * Usage:
  *   node scripts/inject_service_auth.mjs --host 127.0.0.1 --port 20375 \
- *     --device-id debug-svc-1 --appkey XXX --cms-host 127.0.0.1 --cms-port 30500
+ *     --device-id debug-svc-1 --appkey XXX --console-host 127.0.0.1 --console-port 30500
  */
 import net from 'node:net'
 import crypto from 'node:crypto'
@@ -15,9 +15,9 @@ function parseArgs(argv) {
     port: 20375,
     deviceId: 'debug-svc-1',
     appkey: '',
-    cmsHost: '127.0.0.1',
-    cmsPort: 30500,
-    cmsSsl: true,
+    consoleHost: '127.0.0.1',
+    consolePort: 30500,
+    consoleSsl: true,
   }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -26,9 +26,9 @@ function parseArgs(argv) {
     else if (a === '--port') out.port = Number(n)
     else if (a === '--device-id') out.deviceId = n
     else if (a === '--appkey') out.appkey = n
-    else if (a === '--cms-host') out.cmsHost = n
-    else if (a === '--cms-port') out.cmsPort = Number(n)
-    else if (a === '--cms-ssl') out.cmsSsl = n !== 'false'
+    else if (a === '--console-host') out.consoleHost = n
+    else if (a === '--console-port') out.consolePort = Number(n)
+    else if (a === '--console-ssl') out.consoleSsl = n !== 'false'
     else continue
     i++
   }
@@ -88,10 +88,10 @@ function encodeAuthInfo(opts) {
     encInt32(7, 365),
     encInt32(8, 16),
     encInt64(9, BigInt(Date.now()) + 86400000n * 30n),
-    encString(10, opts.cmsHost),
-    encInt32(11, opts.cmsPort),
-    // bool cms_ssl = 12 (proto3 default is false = plain ws, encode it explicitly)
-    encInt32(12, opts.cmsSsl ? 1 : 0),
+    encString(10, opts.consoleHost),
+    encInt32(11, opts.consolePort),
+    // bool console_ssl = 12 (proto3 default is false = plain ws, encode it explicitly)
+    encInt32(12, opts.consoleSsl ? 1 : 0),
   ])
 }
 
@@ -188,7 +188,7 @@ async function main() {
               ok: true,
               deviceId: opts.deviceId,
               appkey: opts.appkey,
-              cms: `${opts.cmsHost}:${opts.cmsPort}`,
+              console: `${opts.consoleHost}:${opts.consolePort}`,
               bytes: payload.length,
             }),
           )

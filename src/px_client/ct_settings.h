@@ -51,11 +51,11 @@ namespace px
         // udp_direct 模式下 render 的 UDP 媒体端口(与 ws 控制面端口分开)
         int udp_port_{20371};
 
-        // Cms
-        std::string cms_host_;
-        int cms_port_ = 0;
-        // whether the CMS connection uses wss(true, default) or plain ws(false)
-        bool cms_ssl_ = true;
+        // Console
+        std::string console_host_;
+        int console_port_ = 0;
+        // whether the Console connection uses wss(true, default) or plain ws(false)
+        bool console_ssl_ = true;
 
         std::string version_;
         bool audio_on_ = false;

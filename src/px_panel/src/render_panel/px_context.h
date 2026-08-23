@@ -35,7 +35,7 @@ namespace px
     class PxApplication;
     class NotifyManager;
     class PxDatabase;
-    class PxCmsManager;
+    class PxConsoleManager;
     class PxEventManager;
 
     // Device list
@@ -84,7 +84,7 @@ namespace px
         std::shared_ptr<DBGameOperator> GetDBGameManager();
         std::shared_ptr<ServiceManager> GetServiceManager();
         std::shared_ptr<PxApplication> GetApplication();
-        std::shared_ptr<PxCmsManager> GetCmsManager();
+        std::shared_ptr<PxConsoleManager> GetConsoleManager();
         std::shared_ptr<PxEventManager> GetEventManager();
 
         template<typename T>
@@ -112,7 +112,7 @@ namespace px
         void NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
         void NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
 
-        // cms
+        // console
         // will add prefix: server
         // id ==> server_111333444
         // relay_host: relay server host for the device
@@ -153,7 +153,7 @@ namespace px
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<NotifyManager> notify_mgr_ = nullptr;
         std::shared_ptr<PxDatabase> database_ = nullptr;
-        std::shared_ptr<PxCmsManager> cms_manager_ = nullptr;
+        std::shared_ptr<PxConsoleManager> console_manager_ = nullptr;
         std::shared_ptr<PxEventManager> event_manager_ = nullptr;
         bool db_ready_ = false;
         std::string db_error_;

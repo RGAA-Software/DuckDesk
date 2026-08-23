@@ -10,9 +10,9 @@
 #include <vector>
 #include <functional>
 
-namespace px_cms
+namespace px_console
 {
-    class CmsStream;
+    class ConsoleStream;
 }
 
 namespace px
@@ -22,7 +22,7 @@ namespace px
     class PxSettings;
     class MessageListener;
 
-    using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<px_cms::CmsStream>>)>;
+    using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<px_console::ConsoleStream>>)>;
 
     class StreamStateChecker : public std::enable_shared_from_this<StreamStateChecker> {
     public:
@@ -30,9 +30,9 @@ namespace px
         void Start();
         void Exit();
         void SetOnCheckedCallback(OnStreamStateCheckedCallback&&);
-        void UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items);
+        void UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items);
     private:
-        void CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items);
+        void CheckState(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items);
 
     private:
         PxSettings* settings_ = nullptr;

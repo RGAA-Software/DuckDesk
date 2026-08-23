@@ -6,9 +6,9 @@
 #include <format>
 #include <tuple>
 #include "px_common_new/log.h"
-#include "px_cms_client/cms_user.h"
-#include "px_cms_client/cms_user_api.h"
-#include "px_cms_client/cms_user_device_api.h"
+#include "px_console_client/console_user.h"
+#include "px_console_client/console_user_api.h"
+#include "px_console_client/console_user_device_api.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
@@ -20,7 +20,7 @@
 #include <QString>
 #include <QUuid>
 
-const std::string kUserPrefix = "cms_user:";
+const std::string kUserPrefix = "console_user:";
 
 namespace px
 {
@@ -31,9 +31,9 @@ namespace px
     }
 
     bool PxUserManager::Login(const std::string& username, const std::string& password, bool show_dialog) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto r = px_cms::CmsUserApi::Login(host, port, username, password);
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto r = px_console::ConsoleUserApi::Login(host, port, username, password);
         if (r.has_value()) {
             ClearGuestSession();
             auto login = r.value();
@@ -41,9 +41,9 @@ namespace px
             if (!this->SaveUserInfo(user->uid_, user->username_, login.access_token, user->avatar_path_)) {
                 // Do not leave a live server-side session behind when the
                 // Windows credential vault cannot persist its token.
-                auto logout_result = px_cms::CmsUserApi::Logout(host, port, login.access_token);
+                auto logout_result = px_console::ConsoleUserApi::Logout(host, port, login.access_token);
                 if (!logout_result.has_value()) {
-                    LOGW("Failed to revoke CMS session after credential vault error");
+                    LOGW("Failed to revoke Console session after credential vault error");
                 }
                 if (show_dialog) {
                     context_->PostUITask([this]() {
@@ -62,10 +62,10 @@ namespace px
         }
         else {
             auto err = r.error();
-            LOGE("Login failed, err: {}, msg: {}", (int)err, px_cms::CmsApiErrorAsString(err));
+            LOGE("Login failed, err: {}, msg: {}", (int)err, px_console::ConsoleApiErrorAsString(err));
             if (show_dialog) {
                 context_->PostUITask([=, this]() {
-                    QString msg = tcTr("id_op_error") + ":" + QString::number((int) err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
+                    QString msg = tcTr("id_op_error") + ":" + QString::number((int) err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
                     TcDialog dialog(tcTr("id_error"), msg);
                     dialog.exec();
                 });
@@ -75,11 +75,11 @@ namespace px
     }
 
     bool PxUserManager::Logout() {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto r = px_cms::CmsUserApi::Logout(host, port, GetAccessToken());
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto r = px_console::ConsoleUserApi::Logout(host, port, GetAccessToken());
         // Logging out is a local security boundary. Clear the credential even
-        // when CMS is temporarily unreachable; the remote session will expire
+        // when Console is temporarily unreachable; the remote session will expire
         // and must not keep the Panel appearing signed in.
         const auto username = GetUsername();
         const auto uid = GetUserId();
@@ -90,8 +90,8 @@ namespace px
         }
         else {
             auto err = r.error();
-            LOGE("Logout failed, err: {}, msg: {}", (int)err, px_cms::CmsApiErrorAsString(err));
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
+            LOGE("Logout failed, err: {}, msg: {}", (int)err, px_console::ConsoleApiErrorAsString(err));
+            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
         }
@@ -99,9 +99,9 @@ namespace px
     }
 
     bool PxUserManager::ModifyUsername(const std::string& username) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto r = px_cms::CmsUserApi::UpdateProfile(host, port, GetAccessToken(), username);
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto r = px_console::ConsoleUserApi::UpdateProfile(host, port, GetAccessToken(), username);
         if (r.has_value()) {
             auto user = r.value();
             this->UpdateUsername(user->username_);
@@ -110,7 +110,7 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
+            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
@@ -118,9 +118,9 @@ namespace px
     }
 
     bool PxUserManager::ModifyPassword(const std::string& current_password, const std::string& new_password) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto r = px_cms::CmsUserApi::UpdatePassword(host, port, GetAccessToken(), current_password, new_password);
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto r = px_console::ConsoleUserApi::UpdatePassword(host, port, GetAccessToken(), current_password, new_password);
         if (r.has_value()) {
             auto login = r.value();
             auto user = login.user;
@@ -133,7 +133,7 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
+            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
@@ -141,9 +141,9 @@ namespace px
     }
 
     bool PxUserManager::UpdateAvatar(const std::string& avatar_path) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto r = px_cms::CmsUserApi::UpdateAvatar(host, port, GetAccessToken(), avatar_path);
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto r = px_console::ConsoleUserApi::UpdateAvatar(host, port, GetAccessToken(), avatar_path);
         if (r.has_value()) {
             auto user = r.value();
             UpdateAvatarPath(user->avatar_path_);
@@ -152,27 +152,27 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_cms::CmsApiErrorAsString(err).c_str();
+            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
         }
     }
 
-    px::Result<std::vector<std::shared_ptr<px_cms::CmsUserDevice>>, px_cms::CmsApiError>
+    px::Result<std::vector<std::shared_ptr<px_console::ConsoleUserDevice>>, px_console::ConsoleApiError>
     PxUserManager::QueryBindDevices(int page, int page_size, bool show_dialog) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
         auto access_token = GetAccessToken();
         if (access_token.empty()) {
-            return std::vector<std::shared_ptr<px_cms::CmsUserDevice>>{};
+            return std::vector<std::shared_ptr<px_console::ConsoleUserDevice>>{};
         }
         (void)page;
         (void)page_size;
-        auto r = px_cms::CmsUserDeviceApi::QueryUserBindDevices(host, port, access_token);
+        auto r = px_console::ConsoleUserDeviceApi::QueryUserBindDevices(host, port, access_token);
         if (!r.has_value()) {
             auto err = r.error();
-            if (err == px_cms::CmsApiError::kAuthenticationRequired) {
+            if (err == px_console::ConsoleApiError::kAuthenticationRequired) {
                 HandleExpiredUserSession();
             }
             if (show_dialog) {
@@ -188,16 +188,16 @@ namespace px
         }
     }
 
-    px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> PxUserManager::IssueDeviceTicket(
+    px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> PxUserManager::IssueDeviceTicket(
         const std::string& device_id,
         const std::string& client_nonce,
         const std::vector<std::string>& requested_permissions) {
-        auto host = settings_->GetCmsServerHost();
-        auto port = settings_->GetCmsServerPort();
-        auto result = px_cms::CmsUserDeviceApi::IssueDeviceTicket(
+        auto host = settings_->GetConsoleServerHost();
+        auto port = settings_->GetConsoleServerPort();
+        auto result = px_console::ConsoleUserDeviceApi::IssueDeviceTicket(
             host, port, GetAccessToken(), device_id, client_nonce, requested_permissions);
         if (!result.has_value()
-            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             HandleExpiredUserSession();
         }
         return result;
@@ -208,8 +208,8 @@ namespace px
         if (guest_access_token.empty() || !guest) {
             return false;
         }
-        const auto result = px_cms::CmsUserApi::Register(
-            settings_->GetCmsServerHost(), settings_->GetCmsServerPort(),
+        const auto result = px_console::ConsoleUserApi::Register(
+            settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(),
             guest_access_token, username, password);
         if (result.has_value()) {
             ClearGuestSession();
@@ -218,80 +218,80 @@ namespace px
         }
         const auto error = result.error();
         QString message = tcTr("id_op_error") + ":" + QString::number((int)error)
-            + " " + px_cms::CmsApiErrorAsString(error).c_str();
+            + " " + px_console::ConsoleApiErrorAsString(error).c_str();
         TcDialog dialog(tcTr("id_error"), message);
         dialog.exec();
         return false;
     }
 
-    px::Result<std::vector<px_cms::CmsUserApplication>, px_cms::CmsApiError>
+    px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError>
     PxUserManager::QueryApps() {
         auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
-        auto result = px_cms::CmsUserAppApi::QueryApps(settings_->GetCmsServerHost(),
-            settings_->GetCmsServerPort(), token, guest);
+        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto result = px_console::ConsoleUserAppApi::QueryApps(settings_->GetConsoleServerHost(),
+            settings_->GetConsoleServerPort(), token, guest);
         if (!result.has_value()
-            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
             std::tie(token, guest) = ResourceSession();
-            if (!token.empty()) result = px_cms::CmsUserAppApi::QueryApps(
-                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token, guest);
+            if (!token.empty()) result = px_console::ConsoleUserAppApi::QueryApps(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token, guest);
         }
         return result;
     }
 
-    px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError>
+    px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError>
     PxUserManager::StartApp(const std::string& app_id, const std::string& client_nonce) {
         auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
-        auto result = px_cms::CmsUserAppApi::StartApp(settings_->GetCmsServerHost(),
-            settings_->GetCmsServerPort(), token, app_id, client_nonce, guest);
+        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto result = px_console::ConsoleUserAppApi::StartApp(settings_->GetConsoleServerHost(),
+            settings_->GetConsoleServerPort(), token, app_id, client_nonce, guest);
         if (!result.has_value()
-            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
             std::tie(token, guest) = ResourceSession();
-            if (!token.empty()) result = px_cms::CmsUserAppApi::StartApp(
-                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+            if (!token.empty()) result = px_console::ConsoleUserAppApi::StartApp(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 app_id, client_nonce, guest);
         }
         return result;
     }
 
-    px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError>
+    px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError>
     PxUserManager::IssueInstanceTicket(const std::string& instance_id,
         const std::string& client_nonce,
         const std::vector<std::string>& requested_permissions) {
         auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
-        auto result = px_cms::CmsUserAppApi::IssueInstanceTicket(settings_->GetCmsServerHost(),
-            settings_->GetCmsServerPort(), token, instance_id, client_nonce,
+        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto result = px_console::ConsoleUserAppApi::IssueInstanceTicket(settings_->GetConsoleServerHost(),
+            settings_->GetConsoleServerPort(), token, instance_id, client_nonce,
             requested_permissions, guest);
         if (!result.has_value()
-            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             // A new guest session does not own the old instance, so this retry
             // will intentionally fail with 404. The caller then refreshes the
             // catalog and starts a new instance under the new guest identity.
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
             std::tie(token, guest) = ResourceSession();
-            if (!token.empty()) result = px_cms::CmsUserAppApi::IssueInstanceTicket(
-                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+            if (!token.empty()) result = px_console::ConsoleUserAppApi::IssueInstanceTicket(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 instance_id, client_nonce, requested_permissions, guest);
         }
         return result;
     }
 
-    px::Result<px_cms::CmsUserAppInstance, px_cms::CmsApiError>
+    px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError>
     PxUserManager::StopInstance(const std::string& instance_id) {
         auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_cms::CmsApiError::kInternalError);
-        auto result = px_cms::CmsUserAppApi::StopInstance(settings_->GetCmsServerHost(),
-            settings_->GetCmsServerPort(), token, instance_id, guest);
+        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto result = px_console::ConsoleUserAppApi::StopInstance(settings_->GetConsoleServerHost(),
+            settings_->GetConsoleServerPort(), token, instance_id, guest);
         if (!result.has_value()
-            && result.error() == px_cms::CmsApiError::kAuthenticationRequired) {
+            && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
             std::tie(token, guest) = ResourceSession();
-            if (!token.empty()) result = px_cms::CmsUserAppApi::StopInstance(
-                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), token,
+            if (!token.empty()) result = px_console::ConsoleUserAppApi::StopInstance(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 instance_id, guest);
         }
         return result;
@@ -304,8 +304,8 @@ namespace px
         std::lock_guard<std::mutex> guard(guest_session_mutex_);
         if (guest_access_token_.empty()) {
             const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
-            const auto result = px_cms::CmsUserAppApi::CreateGuestSession(
-                settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), nonce);
+            const auto result = px_console::ConsoleUserAppApi::CreateGuestSession(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), nonce);
             if (!result.has_value()) return {{}, true};
             guest_access_token_ = result.value();
         }
@@ -370,9 +370,9 @@ namespace px
         credential.CredentialBlobSize = static_cast<DWORD>(access_token.size());
         credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char*>(access_token.data()));
         credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
-        credential.UserName = const_cast<wchar_t*>(L"Pixels CMS user session");
+        credential.UserName = const_cast<wchar_t*>(L"Pixels Console user session");
         if (!CredWriteW(&credential, 0)) {
-            LOGE("Save CMS user session failed, win32 error: {}", GetLastError());
+            LOGE("Save Console user session failed, win32 error: {}", GetLastError());
             return false;
         }
         return true;
@@ -392,7 +392,7 @@ namespace px
     void PxUserManager::DeleteAccessToken() {
         auto target = CredentialTarget();
         if (!CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0) && GetLastError() != ERROR_NOT_FOUND) {
-            LOGW("Delete CMS user session failed, win32 error: {}", GetLastError());
+            LOGW("Delete Console user session failed, win32 error: {}", GetLastError());
         }
     }
 
@@ -412,19 +412,19 @@ namespace px
     }
 
     std::string PxUserManager::KeyUid() {
-        return std::format("{}{}", kUserPrefix, px_cms::kUserId);
+        return std::format("{}{}", kUserPrefix, px_console::kUserId);
     }
 
     std::string PxUserManager::KeyUsername() {
-        return std::format("{}{}", kUserPrefix, px_cms::kUserName);
+        return std::format("{}{}", kUserPrefix, px_console::kUserName);
     }
 
     std::wstring PxUserManager::CredentialTarget() const {
-        return QString::fromStdString(std::format("Pixels.CMS.UserSession.{}:{}", settings_->GetCmsServerHost(), settings_->GetCmsServerPort())).toStdWString();
+        return QString::fromStdString(std::format("Pixels.Console.UserSession.{}:{}", settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort())).toStdWString();
     }
 
     std::string PxUserManager::KeyAvatarPath() {
-        return std::format("{}{}", kUserPrefix, px_cms::kUserAvatarPath);
+        return std::format("{}{}", kUserPrefix, px_console::kUserAvatarPath);
     }
 
 }

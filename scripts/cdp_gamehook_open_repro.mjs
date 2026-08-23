@@ -1,15 +1,15 @@
-// Reproduces the CMS “打开” operation in an isolated browser process and
+// Reproduces the Console “打开” operation in an isolated browser process and
 // reports whether the selected game-hook instance remains running.
 import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-const cms = process.env.CMS_URL || 'https://127.0.0.1:30500'
-const nodeId = process.env.CMS_NODE_ID || 'node-10-64be35f1'
+const consoleBase = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:30500'
+const nodeId = process.env.CONSOLE_NODE_ID || process.env.CMS_NODE_ID || 'node-10-64be35f1'
 const cdpPort = Number(process.env.CDP_PORT || 9500)
-const keepClientMs = Number(process.env.CMS_KEEP_CLIENT_MS || 0)
-// Test machine uses the CMS' development/self-signed certificate.
+const keepClientMs = Number(process.env.CONSOLE_KEEP_CLIENT_MS || process.env.CMS_KEEP_CLIENT_MS || 0)
+// Test machine uses the Console's development/self-signed certificate.
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
   '--headless=new', '--ignore-certificate-errors', '--disable-gpu',
@@ -70,7 +70,7 @@ try {
     try { if ((await fetch(`http://127.0.0.1:${cdpPort}/json/version`)).ok) break } catch {}
     await sleep(250)
   }
-  const target = await (await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(cms + '/')}`, { method: 'PUT' })).json()
+  const target = await (await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(consoleBase + '/')}`, { method: 'PUT' })).json()
   ws = new WebSocket(target.webSocketDebuggerUrl)
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
   ws.onmessage = ({ data }) => {
@@ -83,22 +83,22 @@ try {
   }
   await command('Runtime.enable')
   await command('Page.enable')
-  await command('Page.navigate', { url: cms + '/' })
+  await command('Page.navigate', { url: consoleBase + '/' })
   await sleep(600)
   const running = await evaluate(`(async () => {
-    const list = await (await fetch(${JSON.stringify(cms + '/api/v1/app/control/app/instance/list')})).json()
+    const list = await (await fetch(${JSON.stringify(consoleBase + '/api/v1/app/control/app/instance/list')})).json()
     return (list.data || []).find((item) => item.node_id === ${JSON.stringify(nodeId)} && item.state === 'running') || null
   })()`)
   if (!running) throw new Error('no running instance for node')
   const clientUrl = `http://127.0.0.1:${running.listen_port}/web_client/?deviceId=${encodeURIComponent(running.device_id)}&instanceId=${encodeURIComponent(running.instance_id)}`
   await command('Page.navigate', { url: clientUrl })
   const queryInstance = async () => {
-    const list = await (await fetch(cms + '/api/v1/app/control/app/instance/list')).json()
+    const list = await (await fetch(consoleBase + '/api/v1/app/control/app/instance/list')).json()
     const item = (list.data || []).find((value) => value.instance_id === running.instance_id)
     return item ? { state: item.state, pid: item.pid, hasError: Boolean(item.error) } : null
   }
   const queryLive = async () => {
-    const status = await (await fetch(cms + '/api/v1/live/control/status?device_id=' + encodeURIComponent(running.device_id) + '&app_id=' + encodeURIComponent(running.app_id))).json()
+    const status = await (await fetch(consoleBase + '/api/v1/live/control/status?device_id=' + encodeURIComponent(running.device_id) + '&app_id=' + encodeURIComponent(running.app_id))).json()
     return { online: status.data?.online === true, message: status.data?.message || '' }
   }
   const queryClient = () => evaluate(`({
@@ -106,16 +106,16 @@ try {
     reconnects: window.__conn?.reconnectCount?.() ?? -1,
     title: document.title
   })`)
-  const queryCmsFlv = async () => {
+  const queryConsoleFlv = async () => {
     try {
-      const status = await fetch(cms + '/api/v1/live/control/status?device_id=' + encodeURIComponent(running.device_id) + '&app_id=' + encodeURIComponent(running.app_id)).then((response) => response.json())
-      return await inspectFlv(new URL(status.data.play_url, cms))
+      const status = await fetch(consoleBase + '/api/v1/live/control/status?device_id=' + encodeURIComponent(running.device_id) + '&app_id=' + encodeURIComponent(running.app_id)).then((response) => response.json())
+      return await inspectFlv(new URL(status.data.play_url, consoleBase))
     } catch (error) {
       return { error: error instanceof Error ? error.name : 'request-failed' }
     }
   }
   const queryZlmTracks = async () => {
-    const config = await readFile('output/px_cms/config.ini', 'utf8')
+    const config = await readFile('output/px_console/config.ini', 'utf8')
     const section = config.match(/\[api\][\s\S]*?(?=\n\[|$)/i)?.[0] || ''
     const secret = section.match(/^secret\s*=\s*(.+)$/mi)?.[1]?.trim() || ''
     const stream = `${running.device_id}__app__${running.app_id}`
@@ -135,12 +135,12 @@ try {
   const liveAfter3s = await queryLive()
   const clientAfter3s = await queryClient()
   await sleep(12_000)
-  const cmsFlvAfter15s = await queryCmsFlv()
+  const consoleFlvAfter15s = await queryConsoleFlv()
   const zlmTracksAfter15s = await queryZlmTracks()
   const after15s = await queryInstance()
   const liveAfter15s = await queryLive()
   const clientAfter15s = await queryClient()
-  console.log(JSON.stringify({ before: 'running', after3s, liveAfter3s, clientAfter3s, cmsFlvAfter15s, zlmTracksAfter15s, after15s, liveAfter15s, clientAfter15s, clientOpened: true }))
+  console.log(JSON.stringify({ before: 'running', after3s, liveAfter3s, clientAfter3s, consoleFlvAfter15s, zlmTracksAfter15s, after15s, liveAfter15s, clientAfter15s, clientOpened: true }))
   if (keepClientMs > 0) await sleep(keepClientMs)
 } finally {
   try { ws?.close() } catch {}

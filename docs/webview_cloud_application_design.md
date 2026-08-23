@@ -1,12 +1,12 @@
 # WebView 云应用设计与验收
 
 > 状态：核心链路已实现并通过本机 CEF/GPU/CPU 冒烟测试；生产环境端到端验收待部署后执行。
-> 目标：在现有 px_render 插件宿主中增加 CMS 可调度的 webview 云应用类型。
+> 目标：在现有 px_render 插件宿主中增加 Console 可调度的 webview 云应用类型。
 
 ## 1. 已确认的产品边界
 
-- CMS 增加 webview，与 game-hook 并列。
-- CMS 保存网页入口 URL；启动实例时将 URL 以 UTF-8 Base64URL 传给宿主。
+- Console 增加 webview，与 game-hook 并列。
+- Console 保存网页入口 URL；启动实例时将 URL 以 UTF-8 Base64URL 传给宿主。
 - 不新增 WebView 配置文件。
 - px_render 是插件宿主；WebView 是新的采集源插件，复用既有编码、流化和客户端协议。
 - 首先使用官方 Windows x64 CEF 标准 binary distribution 调通。
@@ -18,9 +18,9 @@ Base64URL 仅解决命令行传递中的 Unicode、空格、问号、与号等�
 
 ## 当前实现进度（2026-08-22）
 
-- CMS 数据模型、接口和管理页已支持 `game-hook` / `webview`，WebView 表单校验入口 URL。
-- CMS → Service 协议已使用 tag 15/16 下发模式和 Base64URL；Service 不再要求游戏目录或 EXE。
-- Service 按端口识别 Browser 根进程、排除带 `--type` 的 CEF 子进程，并等待 Render 的首帧 Ready 回执后才向 CMS 返回启动成功。
+- Console 数据模型、接口和管理页已支持 `game-hook` / `webview`，WebView 表单校验入口 URL。
+- Console → Service 协议已使用 tag 15/16 下发模式和 Base64URL；Service 不再要求游戏目录或 EXE。
+- Service 按端口识别 Browser 根进程、排除带 `--type` 的 CEF 子进程，并等待 Render 的首帧 Ready 回执后才向 Console 返回启动成功。
 - px_render 已接入固定版本的官方 CEF 151，使用自身承载 Browser、renderer、GPU 和 utility 进程。
 - 默认使用 D3D11 accelerated OSR，共享纹理在 CEF 回调内复制到宿主双缓冲后进入原硬编码链；`--webview_gpu=false` 保留 CPU BGRA 回退。
 - CEF 网页音频直接进入内部音频链；无观看者时首帧探测完成后降到非活动状态，不持续采集编码。
@@ -50,7 +50,7 @@ Base64URL 仅解决命令行传递中的 Unicode、空格、问号、与号等�
 ## 2. 组件和进程模型
 
 ~~~text
-CMS Web / CMS Server
+Console Web / Console Server
   └─ Application { app_type=webview, entry_url }
        │ StartAppInstance(app_mode=webview, webview_url_b64=...)
        ▼
@@ -70,29 +70,29 @@ px_render（Browser/主进程，插件宿主）
        └─ px_render --type=utility / 其他 CEF 子进程
 ~~~
 
-CEF renderer、GPU、utility 等进程不是 CMS 调度的额外应用实例。Service 只管理 Browser/主进程及其 Job Object（或等价进程组），异常时回收整个后代进程树。
+CEF renderer、GPU、utility 等进程不是 Console 调度的额外应用实例。Service 只管理 Browser/主进程及其 Job Object（或等价进程组），异常时回收整个后代进程树。
 
-## 3. CMS、协议和 Service 流程
+## 3. Console、协议和 Service 流程
 
-### 3.1 CMS 数据模型
+### 3.1 Console 数据模型
 
 | 字段 | 含义 |
 |---|---|
 | app_type | game-hook 或 webview |
 | entry_url | WebView 原始入口 URL，仅 webview 必填 |
 
-选择 WebView 后，CMS 表单显示入口 URL，隐藏游戏路径、游戏 EXE 相对路径和游戏参数。URL 在数据库保存原文，便于编辑和审计。
+选择 WebView 后，Console 表单显示入口 URL，隐藏游戏路径、游戏 EXE 相对路径和游戏参数。URL 在数据库保存原文，便于编辑和审计。
 
-### 3.2 CMS-Service 协议
+### 3.2 Console-Service 协议
 
-在 src/px_deps/px_server_protocol/cms_service.proto 的启动消息末尾追加字段，不能修改既有 tag。设计初稿中的 13/14 已被直播字段占用，实际使用 15/16：
+在 src/px_deps/px_server_protocol/console_service.proto 的启动消息末尾追加字段，不能修改既有 tag。设计初稿中的 13/14 已被直播字段占用，实际使用 15/16：
 
 ~~~proto
 string app_mode = 15;          // "game-hook" | "webview"
 string webview_url_b64 = 16;  // UTF-8 Base64URL；webview 时必填
 ~~~
 
-CMS Server 编码后下发；px_service 原样转交。启动参数为：
+Console Server 编码后下发；px_service 原样转交。启动参数为：
 
 ~~~text
 px_render.exe --app_mode=webview --webview_url_b64=<Base64URL>
@@ -128,7 +128,7 @@ return PxRenderPluginHostMain(argc, argv);
 
 这段属于 px_render 核心，不属于插件。它必须早于 gflags、单实例锁、端口监听和 PluginManager。CEF 子进程不得进入业务宿主逻辑。
 
-若现有入口无法安全做到这一点，才增加极小 CEF subprocess helper。该 helper 不是 CMS 应用，不加载插件、不编码、不监听端口。
+若现有入口无法安全做到这一点，才增加极小 CEF subprocess helper。该 helper 不是 Console 应用，不加载插件、不编码、不监听端口。
 
 ### 4.2 官方 CEF runtime
 
@@ -154,7 +154,7 @@ return PxRenderPluginHostMain(argc, argv);
 
 插件负责 URL 解码和校验、CEF 初始化和关闭、OSR 画面、网页音频、CEF 输入、导航/权限/光标、状态回报。
 
-插件不负责编码、WebRTC/UDP/RTMP 协议、CMS 调度、Windows 全局输入注入或游戏进程管理。
+插件不负责编码、WebRTC/UDP/RTMP 协议、Console 调度、Windows 全局输入注入或游戏进程管理。
 
 ### 5.2 Browser 创建和线程
 
@@ -283,9 +283,9 @@ CEF OnCursorChange 映射到客户端光标消息。标准光标用显式枚举�
 
 | 模块 | 主要改动 |
 |---|---|
-| rust_server/px_cms_server | 应用类型、URL 存储、校验、启动下发 |
-| web/px_cms | WebView URL 表单和实例状态展示 |
-| cms_service.proto 与生成协议 | 追加 app_mode、webview_url_b64 |
+| rust_server/px_console_server | 应用类型、URL 存储、校验、启动下发 |
+| web/px_console | WebView URL 表单和实例状态展示 |
+| console_service.proto 与生成协议 | 追加 app_mode、webview_url_b64 |
 | rust_client/px_service | WebView launch spec、实例跟踪、Job Object、停止 |
 | src/px_render/rd_main.cpp | 最早的 CEF child dispatch |
 | src/px_render/settings | ApplicationMode::WebView 与 InputTarget |
@@ -309,7 +309,7 @@ CEF OnCursorChange 映射到客户端光标消息。标准光标用显式枚举�
 | 单元 | Base64URL、URL scheme、ratio 坐标、按键映射、click count、输入释放、队列背压 |
 | CEF 集成 | OSR Browser、测试页加载、GPU/CPU 画面、音频 callback、导航/权限、CEF UI 线程 |
 | Service 集成 | 不要求游戏 EXE、排除 --type、停止/异常回收、profile lock 释放 |
-| 端到端 | CMS 启动→客户端接流→输入→页面 DOM 回报→CMS 停止→进程和端口回收 |
+| 端到端 | Console 启动→客户端接流→输入→页面 DOM 回报→Console 停止→进程和端口回收 |
 
 ### 10.3 必须通过的端到端场景
 
@@ -321,7 +321,7 @@ CEF OnCursorChange 映射到客户端光标消息。标准光标用显式枚举�
 - 观察者输入被拒绝；控制权切换和异常断连后无残留按键、鼠标键或触点。
 - 文本、链接、等待、自定义光标正确回传。
 - reload、页面加载失败、CEF renderer/GPU 子进程异常后恢复或明确 Failed。
-- CMS 停止、Service 重启、根进程异常后三类 CEF 子进程和端口无残留。
+- Console 停止、Service 重启、根进程异常后三类 CEF 子进程和端口无残留。
 - 摄像头、麦克风、文件选择、文件下载均按范围明确拒绝。
 
 ### 10.4 性能和回归产物

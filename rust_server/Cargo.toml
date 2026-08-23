@@ -4,7 +4,7 @@ members = [
     "px_updater",
     "px_auth_server",
     "px_stat_server",
-    "px_cms_server",
+    "px_console_server",
     "builder",
 ]
 resolver = "2"

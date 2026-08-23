@@ -635,7 +635,7 @@ namespace px
         // Legacy desktop render watchdog.  A game-hook render owns a launched
         // game in a kill-on-close job, so using "no connected WebRTC client" as
         // a reason to restart it also terminates the game.  Game instances are
-        // now lifecycle-managed by CMS; without viewers they simply stop
+        // now lifecycle-managed by Console; without viewers they simply stop
         // capture/encode through the existing HasConnectedPeer gates.
         msg_listener_->Listen<MsgTimer1Minute>([=, this](const MsgTimer1Minute&) {
             if (settings_->IsGameHookMode()) {
@@ -866,7 +866,7 @@ namespace px
         bool ok = app_manager_->StartProcessWithHook();
         if (!ok) {
             LOGE("StartProcessWithHook failed for: {}", settings_->app_.game_path_);
-            // Fail fast so Service can report to CMS (no orphan Render without game).
+            // Fail fast so Service can report to Console (no orphan Render without game).
             init_failed_ = true;
             init_error_ = std::format("StartProcessWithHook failed: {}", settings_->app_.game_path_);
         } else {
@@ -1520,10 +1520,10 @@ namespace px
     }
 
     void RdApplication::OnServiceRequestedStop() {
-        LOGW("Service requested stop (CMS stop instance), notify clients then exit.");
+        LOGW("Service requested stop (Console stop instance), notify clients then exit.");
         // broadcast kInstanceStopped to all RTC clients, then leave some time
         // for the message to be flushed out before exiting by ourselves
-        PostNetMessage(NetMessageMaker::MakeInstanceStopped("stopped by CMS"));
+        PostNetMessage(NetMessageMaker::MakeInstanceStopped("stopped by Console"));
         std::thread([this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(400));
             Exit();

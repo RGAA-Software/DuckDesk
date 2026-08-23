@@ -32,8 +32,8 @@ namespace px
     class PxRenderMsgProcessor;
     class ClipboardManager;
     class PanelCompanion;
-    class PxCmsClient;
-    class CmsScanner;
+    class PxConsoleClient;
+    class ConsoleScanner;
     class SkinInterface;
     class PxUserManager;
     class PxDeviceManager;
@@ -86,18 +86,18 @@ namespace px
         // get appkey from companion
         std::string GetAppkey();
 
-        // refresh cms server host/port/appkey...
+        // refresh console server host/port/appkey...
         void RefreshClientManagerSettings();
 
-        // cms scanner
-        std::shared_ptr<CmsScanner> GetCmsScanner();
+        // console scanner
+        std::shared_ptr<ConsoleScanner> GetConsoleScanner();
 
         // skin
         SkinInterface* GetSkin();
         std::string GetSkinName();
 
-        // cms ws client alive or not
-        bool IsCmsClientAlive();
+        // console ws client alive or not
+        bool IsConsoleClientAlive();
 
         // user manager
         std::shared_ptr<PxUserManager> GetUserManager();
@@ -108,9 +108,9 @@ namespace px
         // device manager
         std::shared_ptr<PxDeviceManager> GetDeviceManager();
 
-        // can we connect the cms server
+        // can we connect the console server
         // Attention: Block to request a net request.
-        [[nodiscard]] bool CanConnectCmsServer();
+        [[nodiscard]] bool CanConnectConsoleServer();
 
     protected:
         explicit PxApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
@@ -129,8 +129,8 @@ namespace px
         // load panel companion
         void LoadPanelCompanion();
 
-        // start cms client if needed
-        void StartCmsClientIfNeeded();
+        // start console client if needed
+        void StartConsoleClientIfNeeded();
 
     private:
         QWidget* main_window_ = nullptr;
@@ -162,11 +162,11 @@ namespace px
         // panel companion
         std::shared_ptr<PanelCompanion> companion_ = nullptr;
 
-        // panel cms client
-        std::shared_ptr<PxCmsClient> cms_client_ = nullptr;
+        // panel console client
+        std::shared_ptr<PxConsoleClient> console_client_ = nullptr;
 
-        // cms scanner
-        std::shared_ptr<CmsScanner> cms_scanner_ = nullptr;
+        // console scanner
+        std::shared_ptr<ConsoleScanner> console_scanner_ = nullptr;
 
         // skin interface
         SkinInterface* skin_ = nullptr;
@@ -183,11 +183,11 @@ namespace px
         // requested skin name from command line
         std::string requested_skin_name_;
 
-        // last cms connection info used by PxCmsClient
+        // last console connection info used by PxConsoleClient
         std::string using_appkey_;
-        std::string using_cms_host_;
-        int using_cms_port_ = 0;
-        bool using_cms_ssl_ = true;
+        std::string using_console_host_;
+        int using_console_port_ = 0;
+        bool using_console_ssl_ = true;
         bool shutdown_prepared_ = false;
     };
 

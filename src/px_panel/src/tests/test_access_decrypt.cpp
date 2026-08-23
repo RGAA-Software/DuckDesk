@@ -1,4 +1,4 @@
-// Test: decrypt a cms://access## string and verify the contained appkey.
+// Test: decrypt a console://access## string and verify the contained appkey.
 // Self-contained: inlines the AES + base64 + JSON parsing logic so it only
 // depends on OpenSSL and nlohmann_json (both available via vcpkg).
 //
@@ -108,36 +108,41 @@ static std::string aes_decrypt(const std::string& encoded, const unsigned char k
     return std::string(reinterpret_cast<char*>(pt.data()), pt_len);
 }
 
-// ---- CmsAccessInfo (mirror of panel_companion.h structs) ----
-struct CmsSrvConfig {
+// ---- ConsoleAccessInfo (mirror of panel_companion.h structs) ----
+struct ConsoleSrvConfig {
     std::string srv_name;
     std::string srv_w3c_ip;
-    int srv_cms_port = 0;
+    int srv_console_port = 0;
     std::string srv_appkey;
     int srv_relay_port = 0;
     bool srv_ssl_enable = true;
     bool IsValid() const {
-        return !srv_w3c_ip.empty() && srv_cms_port > 0 && !srv_appkey.empty() && srv_relay_port > 0;
+        return !srv_w3c_ip.empty() && srv_console_port > 0 && !srv_appkey.empty() && srv_relay_port > 0;
     }
 };
 
-struct CmsAccessInfo {
-    CmsSrvConfig cms_config;
-    bool IsValid() const { return cms_config.IsValid(); }
+struct ConsoleAccessInfo {
+    ConsoleSrvConfig console_config;
+    bool IsValid() const { return console_config.IsValid(); }
 };
 
-static std::shared_ptr<CmsAccessInfo> parse_access_info(const std::string& info) {
+static std::shared_ptr<ConsoleAccessInfo> parse_access_info(const std::string& info) {
     try {
         auto obj = json::parse(info);
-        auto cms = obj["cms_srv_config"];
-        auto ac = std::make_shared<CmsAccessInfo>();
-        ac->cms_config.srv_name      = cms["srv_name"].get<std::string>();
-        ac->cms_config.srv_w3c_ip    = cms["srv_w3c_ip"].get<std::string>();
-        ac->cms_config.srv_cms_port = cms["srv_cms_port"].get<int>();
-        ac->cms_config.srv_relay_port= cms["srv_relay_port"].get<int>();
-        ac->cms_config.srv_appkey    = cms["srv_appkey"].get<std::string>();
+        const bool canonical = obj.contains("console_srv_config");
+        const auto& console_config = canonical
+            ? obj.at("console_srv_config")
+            : obj.at("cms_srv_config");
+        auto ac = std::make_shared<ConsoleAccessInfo>();
+        ac->console_config.srv_name      = console_config.at("srv_name").get<std::string>();
+        ac->console_config.srv_w3c_ip    = console_config.at("srv_w3c_ip").get<std::string>();
+        ac->console_config.srv_console_port = canonical
+            ? console_config.at("srv_console_port").get<int>()
+            : console_config.at("srv_cms_port").get<int>();
+        ac->console_config.srv_relay_port= console_config.at("srv_relay_port").get<int>();
+        ac->console_config.srv_appkey    = console_config.at("srv_appkey").get<std::string>();
         // default true, old deployments don't broadcast this field
-        ac->cms_config.srv_ssl_enable= cms.value("srv_ssl_enable", true);
+        ac->console_config.srv_ssl_enable= console_config.value("srv_ssl_enable", true);
         return ac;
     } catch (std::exception& e) {
         std::cerr << "parse error: " << e.what() << "\n  info: " << info << "\n";
@@ -148,14 +153,14 @@ static std::shared_ptr<CmsAccessInfo> parse_access_info(const std::string& info)
 int main() {
     // The user's access string.
     std::string access_str =
-        "cms://access##"
+        "console://access##"
         "j8bahrdRP33H3ADCPi8JMtBF2ZSU4n1tKc0ek3hDiOOJ3x8oMNjb38yAfU+zeJWNdo0pT4i5k0yp"
         "t2gs6qDuC7Z4uopvzEQqCXSAkAm0ktT8AateSSCC/bbqGS4IzDD3vqH7sge6Nd2MO687QNlEyAu/"
         "l1lr+CY7UKdDy0E9IMpJGyuKFa523DC0J+xP2G2oOgXgnLheTGXZmh/OeFvFHhH9RoNWpwh3M1wr"
         "WYk0F0mZxnH1Z097qZDnWFjv/MfWpCKDUvP/HQhQg3KmdewESsSSaBbz+pLJ";
 
     // 1. strip prefix
-    const std::string prefix = "cms://access##";
+    const std::string prefix = "console://access##";
     auto pos = access_str.find(prefix);
     if (pos == std::string::npos) {
         std::cerr << "ERROR: prefix not found\n";
@@ -185,32 +190,39 @@ int main() {
         return 1;
     }
 
-    std::cout << "=== CmsAccessInfo ===\n";
-    std::cout << "  srv_name       : " << info->cms_config.srv_name << "\n";
-    std::cout << "  srv_w3c_ip     : " << info->cms_config.srv_w3c_ip << "\n";
-    std::cout << "  srv_cms_port  : " << info->cms_config.srv_cms_port << "\n";
-    std::cout << "  srv_relay_port : " << info->cms_config.srv_relay_port << "\n";
-    std::cout << "  srv_appkey     : " << info->cms_config.srv_appkey << "\n";
-    std::cout << "  srv_ssl_enable : " << (info->cms_config.srv_ssl_enable ? "true" : "false") << "\n";
+    std::cout << "=== ConsoleAccessInfo ===\n";
+    std::cout << "  srv_name       : " << info->console_config.srv_name << "\n";
+    std::cout << "  srv_w3c_ip     : " << info->console_config.srv_w3c_ip << "\n";
+    std::cout << "  srv_console_port  : " << info->console_config.srv_console_port << "\n";
+    std::cout << "  srv_relay_port : " << info->console_config.srv_relay_port << "\n";
+    std::cout << "  srv_appkey     : " << info->console_config.srv_appkey << "\n";
+    std::cout << "  srv_ssl_enable : " << (info->console_config.srv_ssl_enable ? "true" : "false") << "\n";
     std::cout << "  valid          : " << (info->IsValid() ? "yes" : "no") << "\n";
 
     // 3.1 srv_ssl_enable: missing field defaults to true (old deployments)
-    if (!info->cms_config.srv_ssl_enable) {
+    if (!info->console_config.srv_ssl_enable) {
         std::cerr << "FAIL: srv_ssl_enable should default to true when missing\n";
         return 1;
     }
 
     // 3.2 srv_ssl_enable: honored when present
     auto no_ssl = parse_access_info(
-        R"({"cms_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_cms_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":false}})");
-    if (!no_ssl || !no_ssl->IsValid() || no_ssl->cms_config.srv_ssl_enable) {
+        R"({"console_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_console_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":false}})");
+    if (!no_ssl || !no_ssl->IsValid() || no_ssl->console_config.srv_ssl_enable) {
         std::cerr << "FAIL: srv_ssl_enable=false was not parsed\n";
         return 1;
     }
     auto with_ssl = parse_access_info(
-        R"({"cms_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_cms_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":true}})");
-    if (!with_ssl || !with_ssl->IsValid() || !with_ssl->cms_config.srv_ssl_enable) {
+        R"({"console_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_console_port":30500,"srv_relay_port":30502,"srv_appkey":"abc","srv_ssl_enable":true}})");
+    if (!with_ssl || !with_ssl->IsValid() || !with_ssl->console_config.srv_ssl_enable) {
         std::cerr << "FAIL: srv_ssl_enable=true was not parsed\n";
+        return 1;
+    }
+    auto legacy = parse_access_info(
+        R"({"cms_srv_config":{"srv_name":"Srv.01","srv_w3c_ip":"127.0.0.1","srv_cms_port":30500,"srv_relay_port":30502,"srv_appkey":"abc"}})");
+    if (!legacy || !legacy->IsValid() || legacy->console_config.srv_console_port != 30500
+        || !legacy->console_config.srv_ssl_enable) {
+        std::cerr << "FAIL: legacy cms_srv_config was not parsed\n";
         return 1;
     }
     std::cout << "srv_ssl_enable default/present cases: OK\n";

@@ -11,9 +11,9 @@
 #include <string>
 #include <optional>
 
-namespace px_cms
+namespace px_console
 {
-    class CmsStream;
+    class ConsoleStream;
 }
 
 namespace px
@@ -26,16 +26,16 @@ namespace px
         StreamDBOperator(const std::shared_ptr<PxDatabase>& db);
         ~StreamDBOperator();
         static std::string GenUUID();
-        void AddStream(const std::shared_ptr<px_cms::CmsStream>& stream);
-        bool UpdateStream(std::shared_ptr<px_cms::CmsStream> stream);
+        void AddStream(const std::shared_ptr<px_console::ConsoleStream>& stream);
+        bool UpdateStream(std::shared_ptr<px_console::ConsoleStream> stream);
         bool UpdateStreamRandomPwd(const std::string& stream_id, const std::string& random_pwd);
         bool UpdateStreamSafetyPwd(const std::string& stream_id, const std::string& safety_pwd);
-        //std::vector<px_cms::CmsStream> GetAllStreams();
-        std::vector<std::shared_ptr<px_cms::CmsStream>> GetAllStreamsSortByCreatedTime(bool increase = false);
-        std::vector<std::shared_ptr<px_cms::CmsStream>> GetStreamsSortByCreatedTime(int page, int page_size, bool increase = false);
-        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByStreamId(const std::string& stream_id);
-        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByHostPort(const std::string& host, int port);
-        std::optional<std::shared_ptr<px_cms::CmsStream>> GetStreamByRemoteDeviceId(const std::string& remote_device_id);
+        //std::vector<px_console::ConsoleStream> GetAllStreams();
+        std::vector<std::shared_ptr<px_console::ConsoleStream>> GetAllStreamsSortByCreatedTime(bool increase = false);
+        std::vector<std::shared_ptr<px_console::ConsoleStream>> GetStreamsSortByCreatedTime(int page, int page_size, bool increase = false);
+        std::optional<std::shared_ptr<px_console::ConsoleStream>> GetStreamByStreamId(const std::string& stream_id);
+        std::optional<std::shared_ptr<px_console::ConsoleStream>> GetStreamByHostPort(const std::string& host, int port);
+        std::optional<std::shared_ptr<px_console::ConsoleStream>> GetStreamByRemoteDeviceId(const std::string& remote_device_id);
         void DeleteStream(int id);
         int RandomColor();
         bool HasStream(const std::string& stream_id);

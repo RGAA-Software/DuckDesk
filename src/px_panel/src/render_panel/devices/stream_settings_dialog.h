@@ -17,7 +17,7 @@
 #include <QPainter>
 #include <QCheckBox>
 
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
 namespace px
@@ -28,7 +28,7 @@ namespace px
 
     class StreamSettingsDialog : public TcCustomTitleBarDialog {
     public:
-        StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
+        StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, QWidget* parent = nullptr);
         ~StreamSettingsDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -57,7 +57,7 @@ namespace px
         QComboBox* cb_fps_ = nullptr;
         QRadioButton* rb_ws_ = nullptr;
         QRadioButton* rb_relay_ = nullptr;
-        std::shared_ptr<px_cms::CmsStream> stream_item_;
+        std::shared_ptr<px_console::ConsoleStream> stream_item_;
 
     };
 

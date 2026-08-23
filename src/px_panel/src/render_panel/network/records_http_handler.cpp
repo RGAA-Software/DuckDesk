@@ -34,9 +34,9 @@ namespace px
         this->app_ = app;
     }
 
-    // The cms web page lives on the cms origin and reads these endpoints via
+    // The console web page lives on the console origin and reads these endpoints via
     // cross-origin fetch (probe/list). Without ACAO the browser blocks the
-    // response entirely and the page wrongly falls back to the cms tunnel.
+    // response entirely and the page wrongly falls back to the console tunnel.
     void RecordsHttpHandler::SetCorsHeaders(http::web_response& rep) {
         rep.set(http::field::access_control_allow_origin, "*");
     }
@@ -49,9 +49,9 @@ namespace px
                                          const std::string& filename_or_star) {
         auto settings = PxSettings::Instance();
         const std::string device_id = settings->GetDeviceId();
-        // the stored safety password is already the md5 hex that cms keeps as
+        // the stored safety password is already the md5 hex that console keeps as
         // safety_pwd_md5; it is used directly as the HMAC key (design 5.3).
-        // do NOT hash it again here, or cms-issued tickets will never match.
+        // do NOT hash it again here, or console-issued tickets will never match.
         const std::string ticket_key = settings->GetDeviceSecurityPwd();
 
         const auto query = req.query();

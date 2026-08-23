@@ -163,7 +163,7 @@ impl ProcessManager for WindowsProcessManager {
                     Err(wts_err) => {
                         // Console / non-SYSTEM runs lack SeTcbPrivilege / WTSQueryUserToken.
                         // Fall back to a normal CreateProcess in the current session so
-                        // CMS game-hook scheduling can still be exercised locally.
+                        // Console game-hook scheduling can still be exercised locally.
                         warn!(
                             "token launch paths failed ({service_err}; {wts_err}); trying direct CreateProcess"
                         );

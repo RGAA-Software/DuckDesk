@@ -39,7 +39,7 @@ namespace px
         kGameStream,
     };
 
-    // Local RTC session purpose. Wall observers are trusted, read-only CMS
+    // Local RTC session purpose. Wall observers are trusted, read-only Console
     // monitoring sessions: they consume video but are deliberately excluded
     // from the normal visitor lifecycle, controls, audio and audit statistics.
     enum class PxLocalRtcSessionRole {
@@ -61,7 +61,7 @@ namespace px
         // 浏览器 nonce(web client 经 launch 页带入)。与现存活跃连接的
         // nonce 相同 = 同一浏览器重复打开,信令视为自动接管,不报 kOccupied
         std::string client_nonce_;
-        // Server-issued capability snapshot from a consumed CMS ticket.
+        // Server-issued capability snapshot from a consumed Console ticket.
         // Empty permissions still mean no capabilities when this flag is true.
         bool capability_enforced_ = false;
         std::vector<std::string> permissions_;

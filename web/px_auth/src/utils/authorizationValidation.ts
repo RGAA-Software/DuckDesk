@@ -3,7 +3,7 @@ export const MAX_MACHINE_CODE_LEN = 256
 export const MAX_AUTH_DAYS = 365000
 export const MAX_AUTH_STREAMS = 10000
 
-export type AuthProduct = 'cms' | 'gopico' | 'Pixels_cms'
+export type AuthProduct = 'console' | 'gopico' | 'pixels_console'
 
 export interface CreateAuthorizationForm {
   name: string
@@ -51,7 +51,7 @@ const validateDays = (days: number): ValidationResult<number> => {
 
 const validateMaxStreams = (
   maxStreams: number,
-  product: AuthProduct = 'cms',
+  product: AuthProduct = 'console',
 ): ValidationResult<number> => {
   const label = product === 'gopico' ? 'Max Devices' : 'Max Streams'
   if (!Number.isInteger(maxStreams) || maxStreams < 1 || maxStreams > MAX_AUTH_STREAMS) {
@@ -61,7 +61,7 @@ const validateMaxStreams = (
 }
 
 export const normalizeProduct = (product?: string): AuthProduct =>
-  product === 'gopico' || product === 'Pixels_cms' ? product : 'cms'
+  product === 'gopico' || product === 'pixels_console' ? product : 'console'
 
 export const validateCreateAuthorization = (
   form: CreateAuthorizationForm,

@@ -337,7 +337,7 @@ add_dependencies(px_build_premium_all
     px_osinfo_stage
     net_ws enc_ffmpeg frame_debugger cap_dda
     cap_was_audio enc_opus px_sdk px_qt_widget mock_video_stream px_translator
-    px_cms_client px_account_sdk px_rp_message px_profile_client event_replayer
+    px_console_client px_account_sdk px_rp_message px_profile_client event_replayer
     px_server_message
 )
 
@@ -347,7 +347,7 @@ endif()
 
 ## Servers
 #add_custom_target(px_build_servers_all ALL COMMENT "Build all targets")
-#add_dependencies(px_build_servers_all px_svr_base px_relay_server px_cms_server px_auth_server px_profile_server)
+#add_dependencies(px_build_servers_all px_svr_base px_relay_server px_console_server px_auth_server px_profile_server)
 
 ## Copy proto files
 set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")

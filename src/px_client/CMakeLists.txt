@@ -24,6 +24,10 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+# px_panel/icon.ico is the canonical Windows executable icon for both apps.
+configure_file(${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.rc ${CMAKE_CURRENT_BINARY_DIR}/icon.rc COPYONLY)
+
 message("Client => CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Core OpenGL OpenGLWidgets Svg Charts)
@@ -69,7 +73,7 @@ set(SRCS_WS
     ct_main_progress.cpp
     ct_game_view.cpp
     ct_game_overlay.cpp
-    icon.rc ${RES}
+    ${CMAKE_CURRENT_BINARY_DIR}/icon.rc ${RES}
     ui/switch_button.cpp
     ui/float_icon.cpp
     ui/round_rect_widget.cpp
@@ -102,7 +106,7 @@ set(SRCS_WS
     ui/svg_lable.cpp
     ui/media_record_sign_lab.cpp
     ui/retry_conn_dialog.cpp
-    network/ct_cms_client.cpp
+    network/ct_console_client.cpp
     network/ct_auth_token.cpp
     network/ct_panel_client.cpp
     plugins/ct_plugin_manager.cpp

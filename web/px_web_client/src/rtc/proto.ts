@@ -89,7 +89,7 @@ export function decodeMessage(payload: Uint8Array) {
     videoCodecChanged?: { videoType: number; fullColor: boolean; reason: string }
     // kGameStatusChanged(type=540):game-hook 游戏状态(0=运行/恢复, 1=死亡, 2=重启中)
     gameStatusChanged?: { status: number; detail: string }
-    // kInstanceStopped(type=560):实例被 CMS 停止,客户端应提示并断开
+    // kInstanceStopped(type=560):实例被 Console 停止,客户端应提示并断开
     instanceStopped?: { reason: string }
     // kVirtualDisplayResponse(type=571):虚拟显示器拓扑操作结果
     virtualDisplayResponse?: {

@@ -148,9 +148,9 @@ namespace px
         }
         auto settings = PxSettings::Instance();
         auth_info->set_device_id(settings->GetDeviceId());
-        auth_info->set_cms_host(settings->GetCmsServerHost());
-        auth_info->set_cms_port(settings->GetCmsServerPort());
-        auth_info->set_cms_ssl(settings->IsCmsSslEnabled());
+        auth_info->set_console_host(settings->GetConsoleServerHost());
+        auth_info->set_console_port(settings->GetConsoleServerPort());
+        auth_info->set_console_ssl(settings->IsConsoleSslEnabled());
         auto companion = app_->GetCompanion();
         auto auth = companion ? companion->GetAuth() : nullptr;
         if (!auth) {

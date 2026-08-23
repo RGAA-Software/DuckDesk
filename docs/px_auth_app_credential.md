@@ -122,5 +122,5 @@ app_credential_gen --write --file /opt/px_auth_server/px_auth.toml \
 ## 6. 明确不做（范围外）
 
 - 每设备独立凭据 / provisioning（更强身份模型，另行立项）。
-- 从 deploy_str 签发内容中剔除 CMS `appkey/app_secret/username/password` 字段（影响旧 CMS 兼容，单独评估）。
+- 从 deploy_str 签发内容中剔除 Console `appkey/app_secret/username/password` 字段（影响旧 Console 兼容，单独评估）。
 - admin 网页接口鉴权调整（已有 token + RBAC）。

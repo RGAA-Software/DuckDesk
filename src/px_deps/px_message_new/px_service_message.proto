@@ -55,11 +55,11 @@ message MsgAuthInfo {
   int32 days = 7;
   int32 max_streams = 8;
   int64 end_timestamp_ms = 9;
-  // cms(CMS) server address, so the service can connect to CMS
-  string cms_host = 10;
-  int32 cms_port = 11;
-  // whether the CMS websocket connection uses TLS (wss) or plain ws
-  bool cms_ssl = 12;
+  // console(Console) server address, so the service can connect to Console
+  string console_host = 10;
+  int32 console_port = 11;
+  // whether the Console websocket connection uses TLS (wss) or plain ws
+  bool console_ssl = 12;
 }
 
 message MsgHeartBeat {

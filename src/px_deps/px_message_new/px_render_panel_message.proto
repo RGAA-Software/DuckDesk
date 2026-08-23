@@ -107,8 +107,8 @@ message RpSyncPanelInfo {
   string device_safety_pwd = 3;
   string relay_host = 4;
   string relay_port = 5;
-  string cms_host = 6;
-  string cms_port = 7;
+  string console_host = 6;
+  string console_port = 7;
   bool can_be_operated = 8;
   bool relay_enabled = 9;
   int32 language = 10;

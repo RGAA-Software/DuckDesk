@@ -418,7 +418,7 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 
 按需求「不要任何指数回退重试，一直重试即可」，统一为固定间隔无限重试：
 
-1. Service ↔ CMS 重连：固定 2s（原 2s→30s 指数退避）；心跳 5s→3s（`cms_client.rs`）。
+1. Service ↔ Console 重连：固定 2s（原 2s→30s 指数退避）；心跳 5s→3s（`console_client.rs`）。
 2. 桌面 render / user_proxy 重启冷却：固定 3s（原 3s 起步翻倍、封顶 5 分钟；`service_core/state.rs`，失败计数仅作日志）。
 3. px_sysinfo monitor_sender 重连：固定 1s（原 1s→30s 指数退避）。
 4. PID 音频采集致命错误自动重启：固定 2s、取消 5 次放弃上限（仅目标进程退出才放弃）。

@@ -3,7 +3,7 @@ setlocal
 
 rem Launch the standalone file manager against a LAN Render WebSocket endpoint.
 rem Usage: scripts\test_file_transfer_only_wss.bat remote_device_id host port ticket_b64 nonce
-rem Obtain the one-time file ticket from CMS immediately before running this script.
+rem Obtain the one-time file ticket from Console immediately before running this script.
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
@@ -46,8 +46,8 @@ echo Starting authenticated file-only WS test: %HOST%:%PORT% ^> %REMOTE_DEVICE_I
     --host=%HOST% ^
     --port=%PORT% ^
     --appkey=test_appkey ^
-    --cms_host=127.0.0.1 ^
-    --cms_port=30500 ^
+    --console_host=127.0.0.1 ^
+    --console_port=30500 ^
     --stream_id=%STREAM_ID% ^
     --network_type=websocket ^
     --stream_name=RmlsZSBUcmFuc2ZlciBXU1M= ^

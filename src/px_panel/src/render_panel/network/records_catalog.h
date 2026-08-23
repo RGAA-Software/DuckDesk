@@ -1,8 +1,8 @@
 //
 // Created by RGAA on 2026/08/17.
 //
-// Pure logic for the /records HTTP API (cms render records view, design doc
-// docs/cms_render_records_view_design.md section 5.1).
+// Pure logic for the /records HTTP API (console render records view, design doc
+// docs/console_render_records_view_design.md section 5.1).
 // No Qt / asio2 dependencies here so it can be unit tested standalone.
 //
 

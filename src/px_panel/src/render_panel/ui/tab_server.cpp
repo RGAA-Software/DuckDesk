@@ -49,8 +49,8 @@
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_password_input.h"
 #include "px_qt_widget/px_circle_indicator.h"
-#include "px_cms_client/cms_device_api.h"
-#include "px_cms_client/cms_device.h"
+#include "px_console_client/console_device_api.h"
+#include "px_console_client/console_device.h"
 #include "px_common_new/base64.h"
 #include "px_common_new/px_aes.h"
 #include <nlohmann/json.hpp>
@@ -208,8 +208,8 @@ namespace px
                             return;
                         }
                         context_->PostTask([=, this]() {
-                            auto opt_device = px_cms::CmsDeviceApi::UpdateRandomPwd(settings_->GetCmsServerHost(),
-                                                                             settings_->GetCmsServerPort(),
+                            auto opt_device = px_console::ConsoleDeviceApi::UpdateRandomPwd(settings_->GetConsoleServerHost(),
+                                                                             settings_->GetConsoleServerPort(),
                                                                              grApp->GetAppkey(),
                                                                              settings_->GetDeviceId());
                             if (!opt_device.has_value()) {
@@ -565,8 +565,8 @@ namespace px
                         }
 
                         // verify in profile server
-                        auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetCmsServerHost(),
-                                                                          settings_->GetCmsServerPort(),
+                        auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetConsoleServerHost(),
+                                                                          settings_->GetConsoleServerPort(),
                                                                           remote_device_id,
                                                                           MD5::Hex(random_password),
                                                                           MD5::Hex(safety_password),
@@ -584,7 +584,7 @@ namespace px
                             return;
                         }
 
-                        std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
+                        std::shared_ptr<px_console::ConsoleStream> item = std::make_shared<px_console::ConsoleStream>();
                         item->stream_id_ = "id_" + remote_device_id;
                         item->stream_name_ = remote_device_id;
                         item->stream_host_ = "";
@@ -626,7 +626,7 @@ namespace px
                 {
                     // indicator
                     auto indicator = new TcCircleIndicator(this);
-                    cms_indicator_ = indicator;
+                    console_indicator_ = indicator;
                     indicator->setFixedSize(indicator_size);
                     layout->addWidget(indicator);
 
@@ -838,8 +838,8 @@ namespace px
     }
 
     void TabServer::UpdateServerState() {
-        bool cms_client_alive = grApp->IsCmsClientAlive();
-        cms_indicator_->SetState(cms_client_alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
+        bool console_client_alive = grApp->IsConsoleClientAlive();
+        console_indicator_->SetState(console_client_alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
         auto device_id = settings_->GetDeviceId();
         if (!device_id.empty()) {
             auto current_ts = TimeUtil::GetCurrentTimestamp();

@@ -88,15 +88,15 @@ DEFINE_int32(language, 0, "");
 
 DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
 DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
-DEFINE_string(webview_instance_id, "", "CMS WebView instance id");
+DEFINE_string(webview_instance_id, "", "Console WebView instance id");
 DEFINE_int32(webview_width, 1920, "WebView off-screen width");
 DEFINE_int32(webview_height, 1080, "WebView off-screen height");
 DEFINE_bool(webview_gpu, true, "Use CEF accelerated OSR shared textures");
 DEFINE_bool(webview_smoke_test, false, "Render WebView frames without a connected peer for diagnostics");
 // appkey
 DEFINE_string(appkey, "", "appkey");
-DEFINE_string(live_stream_id, "", "CMS-issued live stream id");
-DEFINE_string(push_rtmp_url, "", "CMS-issued RTMP publish URL template");
+DEFINE_string(live_stream_id, "", "Console-issued live stream id");
+DEFINE_string(push_rtmp_url, "", "Console-issued RTMP publish URL template");
 DEFINE_string(push_primary_monitor, "", "primary monitor name for live push");
 
 void UpdateSettings(RdSettings* settings) {
@@ -209,7 +209,7 @@ void UpdateSettings(RdSettings* settings) {
     if (!FLAGS_push_rtmp_url.empty()) {
         settings->push_rtmp_url_ = FLAGS_push_rtmp_url;
     }
-    // A CMS-scheduled application supplies both values explicitly.  Treat that
+    // A Console-scheduled application supplies both values explicitly.  Treat that
     // pair as the live-push enable signal so a packaged settings.toml can keep
     // passive pushing disabled for ordinary desktop/standalone launches.
     if (!FLAGS_live_stream_id.empty() && !FLAGS_push_rtmp_url.empty()) {

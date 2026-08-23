@@ -36,7 +36,7 @@ fn main() {
     // changes automatically. Keep generated Rust in sync on incremental builds.
     println!(
         "cargo:rerun-if-changed={}",
-        proto_dir.join("cms_service.proto").display()
+        proto_dir.join("console_service.proto").display()
     );
 
     tonic_prost_build::configure()
@@ -54,10 +54,10 @@ fn main() {
         .compile_protos(
             &[
                 proto_dir.join("relay_message.proto").to_str().unwrap(),
-                proto_dir.join("cms_relay.proto").to_str().unwrap(),
-                proto_dir.join("cms_panel.proto").to_str().unwrap(),
-                proto_dir.join("cms_client.proto").to_str().unwrap(),
-                proto_dir.join("cms_service.proto").to_str().unwrap(),
+                proto_dir.join("console_relay.proto").to_str().unwrap(),
+                proto_dir.join("console_panel.proto").to_str().unwrap(),
+                proto_dir.join("console_client.proto").to_str().unwrap(),
+                proto_dir.join("console_service.proto").to_str().unwrap(),
             ],
             &[proto_dir.to_str().unwrap()],
         )

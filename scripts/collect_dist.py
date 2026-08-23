@@ -292,7 +292,7 @@ def main():
         print(f"  + {dst_name}/  (from {src})")
 
     collect_web_frontend(("web", "px_web_client", "dist"), "web_client")
-    collect_web_frontend(("web", "px_cms", "dist"), "px_cms")
+    collect_web_frontend(("web", "px_console", "dist"), "px_console")
 
     print(f"\nDone. Dist folder: {dist_dir}")
 

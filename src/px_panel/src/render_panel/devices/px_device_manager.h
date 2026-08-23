@@ -9,11 +9,11 @@
 #include <string>
 
 #include "px_common_new/expected.h"
-#include "px_cms_client/cms_errors.h"
+#include "px_console_client/console_errors.h"
 
-namespace px_cms
+namespace px_console
 {
-    class CmsDevice;
+    class ConsoleDevice;
 }
 
 namespace px
@@ -28,19 +28,19 @@ namespace px
         // request new device
         // def_device_name: D-{last segment of ip}
         // info: empty
-        Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> RequestNewDevice(const std::string& def_device_name, const std::string& info);
+        Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> RequestNewDevice(const std::string& def_device_name, const std::string& info);
 
         // query device
-        Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> QueryDevice(const std::string& device_id);
+        Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> QueryDevice(const std::string& device_id);
 
         // update desktop link to device
         bool UpdateDesktopLink(const std::string& desktop_link, const std::string& desktop_link_raw);
 
         // update device name
-        Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> UpdateDeviceName(const std::string& device_name);
+        Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> UpdateDeviceName(const std::string& device_name);
 
         // append used time
-        Result<std::shared_ptr<px_cms::CmsDevice>, px_cms::CmsApiError> UpdateUsedTime(int period);
+        Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> UpdateUsedTime(int period);
 
     private:
         PxSettings* settings_ = nullptr;

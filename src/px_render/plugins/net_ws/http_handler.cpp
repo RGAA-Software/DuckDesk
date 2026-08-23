@@ -257,7 +257,7 @@ namespace px
         rtc_req->capability_enforced_ = !ticket.empty();
         rtc_req->permissions_ = ticket_permissions;
         // wall_observer is accepted only after the safety password validation
-        // above. CMS keeps that credential server-side and proxies signaling;
+        // above. Console keeps that credential server-side and proxies signaling;
         // browsers never need to receive it.
         if (auto param = GetParam(params, "session_role");
             param.has_value() && param.value() == "wall_observer") {

@@ -34,7 +34,7 @@
 #include "render_panel/px_statistics.h"
 #include "render_panel/devices/px_device_manager.h"
 #include "skin/interface/skin_interface.h"
-#include "render_panel/cms/px_event_manager.h"
+#include "render_panel/console/px_event_manager.h"
 
 namespace px
 {
@@ -43,7 +43,7 @@ namespace px
     static std::string kUrlPanelRenderer = "/panel/renderer";
     static std::string kUrlSysInfo = "/sys/info";
 
-    // report visit info to cms
+    // report visit info to console
     static const std::string kUrlVisitRecord  = "/api/v1/record/upload_visit_info";
 
     static const std::string kUrlUpdateVisitRecord = "/api/v1/record/update_visit_info";
@@ -225,7 +225,7 @@ namespace px
             http_handler_->HandleResourcesFile(req, rep);
         });
 
-        // render records: file list (docs/cms_render_records_view_design.md 5.1)
+        // render records: file list (docs/console_render_records_view_design.md 5.1)
         AddHttpGetRouter("/records", [=, this](const auto& path, auto& req, auto& rep) {
             records_http_handler_->HandleRecordsList(req, rep);
         });
@@ -520,7 +520,7 @@ namespace px
 
                 self->ft_record_op_->InsertFileTransferRecord(record);
                 self->TrackPanelTransfer(socket_fd, sub.the_file_id(), true);
-                self->NotifyInsertFileTransferRecordToCms(record);
+                self->NotifyInsertFileTransferRecordToConsole(record);
             });
         }
         else if (proto_msg->type() == pxcp::kCpFileTransferEnd) {
@@ -535,7 +535,7 @@ namespace px
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
-                    self->NotifyUpdateFileTransferRecordToCms(opt.value());
+                    self->NotifyUpdateFileTransferRecordToConsole(opt.value());
                 }
             });
         }
@@ -639,8 +639,8 @@ namespace px
                 });
                 self->visit_record_op_->InsertVisitRecord(record);
                 self->TrackRendererVisit(socket_fd, sub.conn_id(), true);
-                // notify cms
-                self->NotifyInsertVisitRecordToCms(record);
+                // notify console
+                self->NotifyInsertVisitRecordToConsole(record);
             });
         }
         else if (proto_msg->type() == pxrp::kRpClientDisConnected) {
@@ -654,7 +654,7 @@ namespace px
                 self->TrackRendererVisit(socket_fd, sub.conn_id(), false);
                 self->visit_record_op_->UpdateVisitRecord(sub.conn_id(), sub.end_timestamp(), sub.duration());
                 if (const auto record = self->visit_record_op_->GetVisitRecordConnId(sub.conn_id()); record.has_value()) {
-                    self->NotifyUpdateVisitRecordToCms(record.value());
+                    self->NotifyUpdateVisitRecordToConsole(record.value());
                 }
             });
             context_->SendAppMessage(MsgOneClientDisconnect{});
@@ -684,7 +684,7 @@ namespace px
                 });
                 self->ft_record_op_->InsertFileTransferRecord(record);
                 self->TrackRendererTransfer(socket_fd, sub.the_file_id(), true);
-                self->NotifyInsertFileTransferRecordToCms(record);
+                self->NotifyInsertFileTransferRecordToConsole(record);
             });
         }
         else if (proto_msg->type() == pxrp::kRpFileTransferEnd) {
@@ -699,7 +699,7 @@ namespace px
                 self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
-                    self->NotifyUpdateFileTransferRecordToCms(opt.value());
+                    self->NotifyUpdateFileTransferRecordToConsole(opt.value());
                 }
             });
         }
@@ -797,8 +797,8 @@ namespace px
             r->end_reason_ = "panel_restart_recovery";
             r->recovered_ = true;
             visit_record_op_->InsertVisitRecord(r);
-            NotifyInsertVisitRecordToCms(r);
-            NotifyUpdateVisitRecordToCms(r);
+            NotifyInsertVisitRecordToConsole(r);
+            NotifyUpdateVisitRecordToConsole(r);
         }
 
         auto transfers = db->ScanUnclosedFileTransferRecords(cutoff);
@@ -810,14 +810,14 @@ namespace px
             r->end_reason_ = "panel_restart_recovery";
             r->recovered_ = true;
             ft_record_op_->InsertFileTransferRecord(r);
-            NotifyInsertFileTransferRecordToCms(r);
-            NotifyUpdateFileTransferRecordToCms(r);
+            NotifyInsertFileTransferRecordToConsole(r);
+            NotifyUpdateFileTransferRecordToConsole(r);
         }
 
         LOGI("ScanAndFixUnclosedRecords: fixed {} visit(s), {} file transfer(s)", visits.size(), transfers.size());
     }
 
-    void WsPanelServer::NotifyInsertVisitRecordToCms(const std::shared_ptr<VisitRecord> record) {
+    void WsPanelServer::NotifyInsertVisitRecordToConsole(const std::shared_ptr<VisitRecord> record) {
         if (!record || record->conn_id_.empty()) {
             return;
         }
@@ -828,7 +828,7 @@ namespace px
         }
     }
 
-    void WsPanelServer::NotifyUpdateVisitRecordToCms(const std::shared_ptr<VisitRecord> record) {
+    void WsPanelServer::NotifyUpdateVisitRecordToConsole(const std::shared_ptr<VisitRecord> record) {
         if (!record || record->conn_id_.empty()) {
             return;
         }
@@ -839,7 +839,7 @@ namespace px
         }
     }
 
-    void WsPanelServer::NotifyInsertFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
+    void WsPanelServer::NotifyInsertFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record) {
         if (!record || record->the_file_id_.empty()) {
             return;
         }
@@ -851,7 +851,7 @@ namespace px
         }
     }
 
-    void WsPanelServer::NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
+    void WsPanelServer::NotifyUpdateFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record) {
         if (!record || record->the_file_id_.empty()) {
             return;
         }
@@ -879,9 +879,9 @@ namespace px
                 return;
             }
             auto settings = PxSettings::Instance();
-            std::string serv_host = settings->GetCmsServerHost();
-            auto client = PxSettings::MakeCmsHttpClient(
-                serv_host, settings->GetCmsServerPort(), item.endpoint_, 2000);
+            std::string serv_host = settings->GetConsoleServerHost();
+            auto client = PxSettings::MakeConsoleHttpClient(
+                serv_host, settings->GetConsoleServerPort(), item.endpoint_, 2000);
             client->SetHeader("x-px-appkey", grApp->GetAppkey());
             client->SetHeader("x-px-device-id", settings->GetDeviceId());
             auto resp = client->Post({}, item.payload_, "application/json");
@@ -997,8 +997,8 @@ namespace px
                 self->ft_record_op_->UpdateFileTransferRecord(
                     file_id, disconnected_at, false, "aborted", "client_disconnected", false);
                 if (auto updated = self->ft_record_op_->GetFileTransferRecordByFileId(file_id); updated.has_value()) {
-                    self->NotifyInsertFileTransferRecordToCms(updated.value());
-                    self->NotifyUpdateFileTransferRecordToCms(updated.value());
+                    self->NotifyInsertFileTransferRecordToConsole(updated.value());
+                    self->NotifyUpdateFileTransferRecordToConsole(updated.value());
                 }
             }
         });
@@ -1106,10 +1106,10 @@ namespace px
                     conn_id, disconnected_at, duration, "aborted", "renderer_disconnected", false);
                 if (auto updated = self->visit_record_op_->GetVisitRecordConnId(conn_id); updated.has_value()) {
                     // Re-queue the begin as well: if the renderer died before
-                    // the original begin reached CMS, the terminal event can
+                    // the original begin reached Console, the terminal event can
                     // still be applied in order after retry.
-                    self->NotifyInsertVisitRecordToCms(updated.value());
-                    self->NotifyUpdateVisitRecordToCms(updated.value());
+                    self->NotifyInsertVisitRecordToConsole(updated.value());
+                    self->NotifyUpdateVisitRecordToConsole(updated.value());
                 }
             }
             for (const auto& file_id : transfer_ids) {
@@ -1120,8 +1120,8 @@ namespace px
                 self->ft_record_op_->UpdateFileTransferRecord(
                     file_id, disconnected_at, false, "aborted", "renderer_disconnected", false);
                 if (auto updated = self->ft_record_op_->GetFileTransferRecordByFileId(file_id); updated.has_value()) {
-                    self->NotifyInsertFileTransferRecordToCms(updated.value());
-                    self->NotifyUpdateFileTransferRecordToCms(updated.value());
+                    self->NotifyInsertFileTransferRecordToConsole(updated.value());
+                    self->NotifyUpdateFileTransferRecordToConsole(updated.value());
                 }
             }
         });

@@ -1,0 +1,29 @@
+//
+// Created by RGAA on 18/08/2026.
+//
+
+#include "console_http_client.h"
+#include <atomic>
+#include "px_common_new/http_client.h"
+
+namespace px_console
+{
+
+    static std::atomic_bool g_console_ssl_enabled = true;
+
+    void SetConsoleSslEnabled(bool enabled) {
+        g_console_ssl_enabled = enabled;
+    }
+
+    bool IsConsoleSslEnabled() {
+        return g_console_ssl_enabled;
+    }
+
+    std::shared_ptr<px::HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms) {
+        if (IsConsoleSslEnabled()) {
+            return px::HttpClient::MakeSSL(host, port, path, timeout_ms);
+        }
+        return px::HttpClient::Make(host, port, path, timeout_ms);
+    }
+
+}

@@ -17,8 +17,8 @@
 ├── certs/
 │   ├── cert.pem
 │   └── key.pem
-├── px_cms_server --> 生成管理设备ID
-├── px_cms.toml
+├── px_console_server --> 生成管理设备ID
+├── px_console.toml
 ├── px_relay_server --> 转发数据
 └── px_relay_settings.toml
 
@@ -27,7 +27,7 @@
 #### 4. 修改配置
 > 必须把这个字段 **server_w3c_ip** 改成自己服务器的外网地址 
 > 
-#### CMS Server
+#### Console Server
 ```toml
 # 如果mongodb装在本机，只需要改一下外网地址即可
 # If your mongodb installed in same machine, just to modify the [server_w3c_ip] to your External Ip.
@@ -67,15 +67,15 @@ server_w3c_ip = "192.168.1.111"
 # working server port
 server_working_port = 30600
 
-# CMS服务如果运行在同一台电脑，不需要修改
-####### CMS Server IP #######
-# cms server ip
-cms_server_ip = "127.0.0.1"
+# Console服务如果运行在同一台电脑，不需要修改
+####### Console Server IP #######
+# console server ip
+console_server_ip = "127.0.0.1"
 
-# CMS服务如果运行在同一台电脑，不需要修改
-####### CMS Server PORT #######
-# cms server port
-cms_server_port = 30500
+# Console服务如果运行在同一台电脑，不需要修改
+####### Console Server PORT #######
+# console server port
+console_server_port = 30500
 
 # redis装在本机，则不需要修改
 # redis url address

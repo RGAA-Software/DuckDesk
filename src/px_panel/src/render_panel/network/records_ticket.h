@@ -2,12 +2,12 @@
 // Created by RGAA on 2026/08/17.
 //
 // Ticket signing / verification for the /records HTTP API (design doc
-// docs/cms_render_records_view_design.md section 5.3).
+// docs/console_render_records_view_design.md section 5.3).
 //
-// cms signs a short-lived ticket with HMAC-SHA256:
+// console signs a short-lived ticket with HMAC-SHA256:
 //   list/info : HMAC(device_id + "|" + "*"       + "|" + exp, key)
 //   download  : HMAC(device_id + "|" + filename  + "|" + exp, key)
-// key = MD5 hex string of the device security password (the value cms stores
+// key = MD5 hex string of the device security password (the value console stores
 // as safety_pwd_md5). tk is the lowercase hex of the HMAC, exp is unix seconds.
 //
 // OpenSSL only, no Qt / asio2, so it can be unit tested standalone.

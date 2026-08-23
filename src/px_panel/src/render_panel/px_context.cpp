@@ -24,7 +24,7 @@
 #include "px_settings.h"
 #include "px_application.h"
 #include "database/stream_db_operator.h"
-#include "px_cms_client/cms_device_api.h"
+#include "px_console_client/console_device_api.h"
 #include "devices/running_stream_manager.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_dialog.h"
@@ -35,8 +35,8 @@
 #include "px_relay_client/relay_api.h"
 #include "relay_message.pb.h"
 #include "app_config.h"
-#include "cms/px_cms_manager.h"
-#include "cms/px_event_manager.h"
+#include "console/px_console_manager.h"
+#include "console/px_event_manager.h"
 #include <QApplication>
 
 using namespace nlohmann;
@@ -115,7 +115,7 @@ namespace px
         res_manager_->ExtractIconsIfNeeded();
 
         run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
-        cms_manager_ = std::make_shared<PxCmsManager>(shared_from_this());
+        console_manager_ = std::make_shared<PxConsoleManager>(shared_from_this());
         event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
         service_manager_ = ServiceManager::Make();
         std::string base_path = qApp->applicationDirPath().toStdString();
@@ -369,8 +369,8 @@ namespace px
         return app_;
     }
 
-    std::shared_ptr<PxCmsManager> PxContext::GetCmsManager() {
-        return cms_manager_;
+    std::shared_ptr<PxConsoleManager> PxContext::GetConsoleManager() {
+        return console_manager_;
     }
 
     std::shared_ptr<PxEventManager> PxContext::GetEventManager() {

@@ -838,7 +838,7 @@ mod tests {
             app_secret: "secret".to_string(),
             username: "user".to_string(),
             password: "pass".to_string(),
-            product: "cms".to_string(),
+            product: "console".to_string(),
         };
         let signed = gLicenseSigner
             .lock()
@@ -1066,7 +1066,7 @@ mod tests {
         // 1. Invalid product -> 400.
         let resp = post(
             "/api/v1/device/pull",
-            r#"{"product":"cms","device_code":"dev-x"}"#.to_string(),
+            r#"{"product":"console","device_code":"dev-x"}"#.to_string(),
             false,
         )
         .await;
@@ -1134,7 +1134,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/v1/product/query/authorizations?product=cms&page=1&page_size=20")
+                    .uri("/api/v1/product/query/authorizations?product=console&page=1&page_size=20")
                     .header("Authorization", token_for(AuthorRole::Admin))
                     .body(Body::empty())
                     .unwrap(),
@@ -1156,7 +1156,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn device_pull_registers_Pixels_cms_device() {
+    async fn device_pull_registers_pixels_console_device() {
         use crate::authorization_manager::clear_authorization_memory_store;
         let _guard = STORE_LOCK.lock().unwrap();
         clear_authorization_memory_store();
@@ -1184,8 +1184,8 @@ mod tests {
             }
         };
 
-        // product=Pixels_cms -> 200, auto-registered as a new trial device.
-        let resp = pull(r#"{"product":"Pixels_cms","device_code":"1234-5678"}"#).await;
+        // product=pixels_console -> 200, auto-registered as a new trial device.
+        let resp = pull(r#"{"product":"pixels_console","device_code":"1234-5678"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&bytes).unwrap();
@@ -1195,14 +1195,14 @@ mod tests {
         assert!(!json["data"]["deploy_str"].as_str().unwrap().is_empty());
 
         // Second pull for the same device: known device, not registered_new.
-        let resp = pull(r#"{"product":"Pixels_cms","device_code":"1234-5678"}"#).await;
+        let resp = pull(r#"{"product":"pixels_console","device_code":"1234-5678"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["data"]["registered_new"], false);
 
-        // Legacy product=cms is still rejected (kept from the old manual flow).
-        let resp = pull(r#"{"product":"cms","device_code":"1234-5678"}"#).await;
+        // Legacy product=console is still rejected (kept from the old manual flow).
+        let resp = pull(r#"{"product":"console","device_code":"1234-5678"}"#).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         clear_authorization_memory_store();

@@ -11,7 +11,7 @@
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_context.h"
@@ -193,7 +193,7 @@ namespace px
             }
 
             // this is good
-            std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
+            std::shared_ptr<px_console::ConsoleStream> item = std::make_shared<px_console::ConsoleStream>();
             item->remote_device_id_ = conn_info->device_id_;
             item->remote_device_random_pwd_ = conn_info->random_pwd_;
             item->stream_name_ = name.empty() ? conn_info->device_name_ : name;

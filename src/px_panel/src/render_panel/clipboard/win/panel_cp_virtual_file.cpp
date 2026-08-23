@@ -315,9 +315,9 @@ namespace px
         });
 
         ft_record_op->InsertFileTransferRecord(record);
-        // notify cms
-        LOGI("NotifyFileTransferRecordToCms========>");
-        NotifyFileTransferRecordToCms(record);
+        // notify console
+        LOGI("NotifyFileTransferRecordToConsole========>");
+        NotifyFileTransferRecordToConsole(record);
     }
 
     void CpVirtualFile::RecordFileTransferEnd(bool success) {
@@ -326,7 +326,7 @@ namespace px
         ft_record_op->UpdateFileTransferRecord(file_id, (int64_t)TimeUtil::GetCurrentTimestamp(), success);
 
         if (const auto opt = ft_record_op->GetFileTransferRecordByFileId(file_id); opt.has_value()) {
-            NotifyUpdateFileTransferRecordToCms(opt.value());
+            NotifyUpdateFileTransferRecordToConsole(opt.value());
         }
     }
 
@@ -345,7 +345,7 @@ namespace px
         return p;
     }
 
-    void CpVirtualFile::NotifyFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
+    void CpVirtualFile::NotifyFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record) {
         if (!record || record->the_file_id_.empty() || !context_) {
             return;
         }
@@ -357,7 +357,7 @@ namespace px
         }
     }
 
-    void CpVirtualFile::NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record) {
+    void CpVirtualFile::NotifyUpdateFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record) {
         if (!record || record->the_file_id_.empty() || !context_) {
             return;
         }

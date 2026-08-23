@@ -22,8 +22,8 @@
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "render_panel/companion/panel_companion.h"
-#include "render_panel/cms/px_cms_manager.h"
-#include "px_cms_client/cms_device.h"
+#include "render_panel/console/px_console_manager.h"
+#include "px_console_client/console_device.h"
 #include "px_client_panel_message.pb.h"
 #include "render_panel/network/ws_panel_server.h"
 
@@ -69,7 +69,7 @@ namespace px
 
     }
 
-    void RunningStreamManager::StartStream(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type, bool direct) {
+    void RunningStreamManager::StartStream(const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type, bool direct) {
         // loading dialog
         auto loading = std::make_shared<StartStreamLoading>(context_, item, network_type);
         loading->setWindowFlag(Qt::WindowStaysOnTopHint, true);
@@ -99,19 +99,19 @@ namespace px
             }
         };
 
-        const bool uses_cms_ticket = item->connect_type_ == "cms_ticket"
-                                  || item->connect_type_ == "cms_app_ticket";
-        bool has_cms_info = !item->remote_device_id_.empty() && !settings_->GetCmsServerHost().empty() && settings_->GetCmsServerPort() > 0;
+        const bool uses_console_ticket = item->connect_type_ == "console_ticket"
+                                  || item->connect_type_ == "console_app_ticket";
+        bool has_console_info = !item->remote_device_id_.empty() && !settings_->GetConsoleServerHost().empty() && settings_->GetConsoleServerPort() > 0;
         // check the authorization
         // NOT force direct
-        // A CMS connection ticket has already passed identity, application
+        // A Console connection ticket has already passed identity, application
         // access and quota checks. Do not reject guest/public-application
         // launches with the legacy device-license checks below.
-        if (!uses_cms_ticket && has_cms_info && !item->force_direct_) {
+        if (!uses_console_ticket && has_console_info && !item->force_direct_) {
             // check network firstly
-            if (!context_->GetApplication()->CanConnectCmsServer()) {
+            if (!context_->GetApplication()->CanConnectConsoleServer()) {
                 func_hide_loading_dialog();
-                TcDialog dialog(tcTr("id_error"), tcTr("id_net_error_no_cms_connection"), nullptr);
+                TcDialog dialog(tcTr("id_error"), tcTr("id_net_error_no_console_connection"), nullptr);
                 dialog.exec();
                 return;
             }
@@ -127,11 +127,11 @@ namespace px
             }
         }
 
-        // NOT in force connecting directly mode, check the Cms server.
-        if (!uses_cms_ticket && !item->force_direct_) {
+        // NOT in force connecting directly mode, check the Console server.
+        if (!uses_console_ticket && !item->force_direct_) {
             if (grApp->GetSkinName() != "OpenSource" && !item->remote_device_id_.empty()/* && !direct*/) {
                 // 1. check available or not
-                auto ac = context_->GetCmsManager()->QueryNewConnection(false);
+                auto ac = context_->GetConsoleManager()->QueryNewConnection(false);
                 if (ac == std::nullopt) {
                     func_hide_loading_dialog();
                     LOGE("Not available connection for : {}", item->remote_device_id_);
@@ -156,7 +156,7 @@ namespace px
             }
         }
 
-        if (!uses_cms_ticket && has_cms_info && !item->force_direct_) {
+        if (!uses_console_ticket && has_console_info && !item->force_direct_) {
             // 2. check alive or not
             cat device_mgr = context_->GetApplication()->GetDeviceManager();
             if (auto r = device_mgr->QueryDevice(item->remote_device_id_); r.has_value()) {
@@ -195,9 +195,9 @@ namespace px
             << std::format("--host={}", item->stream_host_).c_str()
             << std::format("--port={}", item->stream_port_).c_str()
             << std::format("--appkey={}", grApp->GetAppkey()).c_str()
-            << std::format("--cms_host={}", settings_->GetCmsServerHost()).c_str()
-            << std::format("--cms_port={}", settings_->GetCmsServerPort()).c_str()
-            << std::format("--cms_ssl={}", settings_->IsCmsSslEnabled()).c_str()
+            << std::format("--console_host={}", settings_->GetConsoleServerHost()).c_str()
+            << std::format("--console_port={}", settings_->GetConsoleServerPort()).c_str()
+            << std::format("--console_ssl={}", settings_->IsConsoleSslEnabled()).c_str()
             << std::format("--audio={}", item->audio_enabled_).c_str()
             << std::format("--clipboard={}", item->clipboard_enabled_).c_str()
             << std::format("--stream_id={}", item->stream_id_).c_str()
@@ -260,7 +260,7 @@ namespace px
             arguments
                 << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
                 << std::format("--connection_nonce={}", item->connection_nonce_).c_str()
-                << std::format("--connection_instance_id={}", item->cms_instance_id_).c_str();
+                << std::format("--connection_instance_id={}", item->console_instance_id_).c_str();
         }
         LOGI("Start client inner args:");
         for (auto& arg : arguments) {
@@ -284,7 +284,7 @@ namespace px
         LOGI("After start client: {}", client_inner_path.toStdString());
     }
 
-    bool RunningStreamManager::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
+    bool RunningStreamManager::StopStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (running_processes_.contains(item->stream_id_)) {
             auto process = running_processes_[item->stream_id_];
             if (process) {
@@ -303,7 +303,7 @@ namespace px
     }
 
     bool RunningStreamManager::OpenFileTransferInRunningClient(
-        const std::shared_ptr<px_cms::CmsStream>& item) {
+        const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!item || !context_) {
             return false;
         }
@@ -323,7 +323,7 @@ namespace px
         return delivered;
     }
 
-    void RunningStreamManager::StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type) {
+    void RunningStreamManager::StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type) {
         const auto session_id = "ft_" + item->stream_id_ + "_" + std::to_string(QDateTime::currentMSecsSinceEpoch());
         auto process = std::make_shared<QProcess>();
         QStringList args;
@@ -331,9 +331,9 @@ namespace px
              << std::format("--host={}", item->stream_host_).c_str()
              << std::format("--port={}", item->stream_port_).c_str()
              << std::format("--appkey={}", grApp->GetAppkey()).c_str()
-             << std::format("--cms_host={}", settings_->GetCmsServerHost()).c_str()
-             << std::format("--cms_port={}", settings_->GetCmsServerPort()).c_str()
-             << std::format("--cms_ssl={}", settings_->IsCmsSslEnabled()).c_str()
+             << std::format("--console_host={}", settings_->GetConsoleServerHost()).c_str()
+             << std::format("--console_port={}", settings_->GetConsoleServerPort()).c_str()
+             << std::format("--console_ssl={}", settings_->IsConsoleSslEnabled()).c_str()
              << std::format("--stream_id={}", session_id).c_str()
              << std::format("--network_type={}", network_type).c_str()
              << std::format("--device_id={}", settings_->GetDeviceId()).c_str()

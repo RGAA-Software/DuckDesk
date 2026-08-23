@@ -186,8 +186,8 @@ mod tests {
         let auth_info = MsgAuthInfo {
             device_id: "dev-1".to_string(),
             appkey: "ak-1".to_string(),
-            cms_host: "cms.example.com".to_string(),
-            cms_port: 443,
+            console_host: "console.example.com".to_string(),
+            console_port: 443,
             ..Default::default()
         };
         let bytes = encode_service_message(&ServiceMessage {
@@ -215,8 +215,8 @@ mod tests {
         let auth_info = MsgAuthInfo {
             device_id: "dev-1".to_string(),
             appkey: "ak-1".to_string(),
-            cms_host: "cms.example.com".to_string(),
-            cms_port: 8443,
+            console_host: "console.example.com".to_string(),
+            console_port: 8443,
             ..Default::default()
         };
         let bytes = encode_service_message(&ServiceMessage {

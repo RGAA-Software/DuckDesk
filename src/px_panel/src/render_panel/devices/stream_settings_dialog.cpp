@@ -22,7 +22,7 @@
 namespace px
 {
 
-    StreamSettingsDialog::StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    StreamSettingsDialog::StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         db_mgr_ = context_->GetStreamDBManager();
         stream_item_ = item;

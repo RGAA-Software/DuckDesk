@@ -1,4 +1,4 @@
-//! CMS-scheduled game-hook app instances (see docs/cms_app_schedule_plan.md).
+//! Console-scheduled game-hook app instances (see docs/console_app_schedule_plan.md).
 //! Desktop render remains a separate single-slot path in ServiceState.
 
 use crate::config::RENDER_EXE_NAME;
@@ -17,7 +17,7 @@ pub const APP_MODE_WEBVIEW: &str = "webview";
 pub const DEFAULT_ENCODER_FPS: i32 = 60;
 pub const DEFAULT_ENCODER_BITRATE: i32 = 20;
 pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
-/// Port pool when CMS sends listen_port=0.
+/// Port pool when Console sends listen_port=0.
 pub const DEFAULT_PORT_RANGE_START: u16 = 32000;
 pub const DEFAULT_PORT_RANGE_END: u16 = 32999;
 /// How long finished (stopped/failed) records are kept before prune removes them.
@@ -306,7 +306,7 @@ pub fn cmdline_has_listen_port(cmdline: &str, port: u16) -> bool {
 }
 
 /// Identity check before killing: the pid must currently be this instance's
-/// CMS app render (exact listen-port match) or its game exe (path match).
+/// Console app render (exact listen-port match) or its game exe (path match).
 /// Guards against Windows pid reuse killing an innocent process tree.
 pub fn pid_belongs_to_instance(
     processes: &[ProcessSnapshot],
@@ -367,7 +367,7 @@ impl AppInstanceRegistry {
     }
 
     /// Only active states (starting/running/stopping) are reported in the
-    /// heartbeat; CMS reconcile treats absence as stopped, and stop/start
+    /// heartbeat; Console reconcile treats absence as stopped, and stop/start
     /// failures are already delivered via explicit result messages.
     pub fn summaries(&self) -> Vec<AppInstanceSummary> {
         self.instances
@@ -608,7 +608,7 @@ impl AppInstanceRegistry {
         }
     }
 
-    /// True if stop should kill this pid (CMS application instance), never desktop.
+    /// True if stop should kill this pid (Console application instance), never desktop.
     pub fn should_kill_pid_for_instance(&self, instance_id: &str, pid: u32) -> bool {
         match self.instances.get(instance_id) {
             Some(rec) => {
@@ -635,7 +635,7 @@ pub fn port_bindable(port: u16) -> bool {
     }
 }
 
-/// Client URL helper for CMS / tests.
+/// Client URL helper for Console / tests.
 pub fn build_web_client_url(
     host: &str,
     listen_port: u16,

@@ -16,7 +16,7 @@
 #include <QComboBox>
 #include <QPainter>
 
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
 namespace px
@@ -27,7 +27,7 @@ namespace px
 
     class EditRelayStreamDialog : public TcCustomTitleBarDialog {
     public:
-        EditRelayStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent = nullptr);
+        EditRelayStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, QWidget* parent = nullptr);
         ~EditRelayStreamDialog() override;
 
         void paintEvent(QPaintEvent *event) override;
@@ -38,7 +38,7 @@ namespace px
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
         QLineEdit* edt_stream_name_ = nullptr;
-        std::shared_ptr<px_cms::CmsStream> stream_item_;
+        std::shared_ptr<px_console::ConsoleStream> stream_item_;
         TcPasswordInput* password_input_ = nullptr;
         QLineEdit* ed_host_ = nullptr;
         QLineEdit* ed_port_ = nullptr;

@@ -8,10 +8,10 @@
 #include <string>
 #include <memory>
 
-namespace px_cms
+namespace px_console
 {
     // stream
-    class CmsStream;
+    class ConsoleStream;
 }
 
 // send from panel -> remote render
@@ -34,7 +34,7 @@ namespace px
         virtual std::string AsJson() = 0;
     public:
         PxStreamMessageType type_;
-        std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
+        std::shared_ptr<px_console::ConsoleStream> stream_item_ = nullptr;
     };
 
     //

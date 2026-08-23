@@ -130,9 +130,9 @@ rem Always rebuild the web client frontend so collect_dist packages fresh assets
 call :build_npm_web "web\px_web_client" "web_client"
 if errorlevel 1 exit /b %errorlevel%
 
-rem collect_dist.py also packages web\px_cms\dist into dist\px_cms, so build it here
+rem collect_dist.py also packages web\px_console\dist into dist\px_console, so build it here
 rem (before cmake --build runs the POST_BUILD collect_dist step).
-call :build_npm_web "web\px_cms" "px_cms"
+call :build_npm_web "web\px_console" "px_console"
 if errorlevel 1 exit /b %errorlevel%
 
 cmake --build build_official -j18
@@ -143,7 +143,7 @@ rem Each script is self-contained and can also be run standalone.
 rem Skipped when PX_SKIP_SERVERS is set (see build_client.bat: installer only
 rem needs client-side artifacts, servers are built separately).
 if not defined PX_SKIP_SERVERS (
-    call "%~dp0build_px_cms_server.bat"
+    call "%~dp0build_px_console_server.bat"
     if errorlevel 1 exit /b %errorlevel%
     call "%~dp0build_px_auth_server.bat"
     if errorlevel 1 exit /b %errorlevel%

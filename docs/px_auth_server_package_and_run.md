@@ -33,8 +33,8 @@ scripts/package_px_auth_server.bat
 1. 检查 `cargo`、`npm`、`openssl` 是否可用。
 2. 在 `output/px_auth/certs/` 生成 **100 年有效期** 的自签名 HTTPS 证书（仅首次）。
 3. 在 `output/px_auth/certs/` 生成 Ed25519 授权签名密钥对（仅首次）：
-   - `auth_license_private.key`：授权服务器私钥（**必须保密，不可泄露给 CMS/客户端**）。
-   - `auth_license_public.key`：CMS 验证授权签名所需的公钥。
+   - `auth_license_private.key`：授权服务器私钥（**必须保密，不可泄露给 Console/客户端**）。
+   - `auth_license_public.key`：Console 验证授权签名所需的公钥。
 4. 编译前端 `web/px_auth`。
 5. 编译后端 `rust_server/px_auth_server`。
 6. 把所有产物整理到 `output/px_auth/`：
@@ -47,7 +47,7 @@ output/px_auth/
 │   ├── cert.pem                    # 自签名 HTTPS 证书
 │   ├── key.pem                     # HTTPS 私钥
 │   ├── auth_license_private.key    # 授权签名私钥（保密）
-│   └── auth_license_public.key     # 授权签名公钥（分发给 CMS）
+│   └── auth_license_public.key     # 授权签名公钥（分发给 Console）
 └── web_auth/                       # 前端静态资源
     ├── index.html
     └── assets/
@@ -153,23 +153,23 @@ cargo build -p px_auth_server --release
 
 修改 `px_auth.toml` 中的 `server_port`，重启服务即可。
 
-## 7. 分发公钥到 CMS
+## 7. 分发公钥到 Console
 
-`px_cms_server`（CMS）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
+`px_console_server`（Console）在启动时需要 Ed25519 公钥来验证新的签名授权。把打包生成的：
 
 ```text
 output/px_auth/certs/auth_license_public.key
 ```
 
-复制到 CMS 运行目录的：
+复制到 Console 运行目录的：
 
 ```text
 certs/auth_license_public.key
 ```
 
-即可。CMS 也支持通过环境变量 `PX_AUTH_LICENSE_PUBLIC_KEY` 直接传入 base64 公钥。
+即可。Console 也支持通过环境变量 `PX_AUTH_LICENSE_PUBLIC_KEY` 直接传入 base64 公钥。
 
-> 旧版 AES deploy string 仍可在 CMS 加载阶段被识别（只读兼容），但 `/update/authorization` 接口已拒绝接收新的 AES deploy string，必须使用签名格式。
+> 旧版 AES deploy string 仍可在 Console 加载阶段被识别（只读兼容），但 `/update/authorization` 接口已拒绝接收新的 AES deploy string，必须使用签名格式。
 
 ## 8. 生产环境建议
 

@@ -19,26 +19,26 @@
 #include "px_system_monitor.h"
 #include "px_connected_manager.h"
 #include "px_common_new/thread.h"
-#include "network/px_cms_client.h"
+#include "network/px_console_client.h"
 #include "px_common_new/time_util.h"
 #include "companion/panel_companion.h"
 #include "companion/panel_companion_impl.h"
-#include "cms_scanner/cms_scanner.h"
+#include "console_scanner/console_scanner.h"
 #include "ui/input_safety_pwd_dialog.h"
 #include "ui/monitor_refresher.h"
 #include <nlohmann/json.hpp>
 #include "px_relay_client/relay_api.h"
 #include "skin/interface/skin_interface.h"
-#include "px_cms_client/cms_device_api.h"
-#include "px_cms_client/cms_device.h"
+#include "px_console_client/console_device_api.h"
+#include "px_console_client/console_device.h"
 #include "px_steam_manager_new/steam_manager.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/win32/firewall_helper.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/message_notifier.h"
-#include "px_cms_client/cms_stream.h"
-#include "px_cms_client/cms_device_api.h"
+#include "px_console_client/console_stream.h"
+#include "px_console_client/console_device_api.h"
 #include "render_panel/px_render_msg_processor.h"
 #include "render_panel/network/ws_panel_server.h"
 #include "render_panel/network/udp_broadcaster.h"
@@ -94,7 +94,7 @@ namespace px
         // panel companion
         LoadPanelCompanion();
         if (companion_) {
-            companion_->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), settings_->IsCmsSslEnabled());
+            companion_->UpdateConsoleServerConfig(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), settings_->IsConsoleSslEnabled());
         }
 
         skin_ = SkinLoader::LoadSkin(requested_skin_name_);
@@ -161,8 +161,8 @@ namespace px
         RefreshClientManagerSettings();
         RegisterMessageListener();
         StartWindowsMessagesLooping();
-        cms_scanner_ = std::make_shared<CmsScanner>(shared_from_this());
-        cms_scanner_->StartUdpReceiver(30501);
+        console_scanner_ = std::make_shared<ConsoleScanner>(shared_from_this());
+        console_scanner_->StartUdpReceiver(30501);
 
         // update device id
         if (cat comp = grApp->GetCompanion(); comp) {
@@ -209,13 +209,13 @@ namespace px
             monitor_refresher_->Exit();
             monitor_refresher_ = nullptr;
         }
-        if (cms_client_) {
-            cms_client_->Stop();
-            cms_client_ = nullptr;
+        if (console_client_) {
+            console_client_->Stop();
+            console_client_ = nullptr;
         }
-        if (cms_scanner_) {
-            cms_scanner_->Exit();
-            cms_scanner_ = nullptr;
+        if (console_scanner_) {
+            console_scanner_->Exit();
+            console_scanner_ = nullptr;
         }
         if (ws_panel_server_) {
             ws_panel_server_->Exit();
@@ -307,14 +307,14 @@ namespace px
                 companion_->OnTimer1S();
             }
 
-            // cms client
-            this->StartCmsClientIfNeeded();
+            // console client
+            this->StartConsoleClientIfNeeded();
         });
 
-        // stop the cms connection
+        // stop the console connection
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            if (cms_client_) {
-                cms_client_->Stop();
+            if (console_client_) {
+                console_client_->Stop();
             }
         });
 
@@ -343,7 +343,7 @@ namespace px
             if (!self || !self->context_) {
                 return false;
             }
-            if (!self->settings_->HasCmsServerConfig()) {
+            if (!self->settings_->HasConsoleServerConfig()) {
                 return false;
             }
 
@@ -555,41 +555,41 @@ namespace px
         return "";
     }
 
-    void PxApplication::StartCmsClientIfNeeded() {
+    void PxApplication::StartConsoleClientIfNeeded() {
         auto appkey = GetAppkey();
-        auto cms_host = settings_->GetCmsServerHost();
-        auto cms_port = settings_->GetCmsServerPort();
+        auto console_host = settings_->GetConsoleServerHost();
+        auto console_port = settings_->GetConsoleServerPort();
         auto device_id = settings_->GetDeviceId();
-        if (appkey.empty() || cms_host.empty() || cms_port <= 0 || device_id.empty()) {
+        if (appkey.empty() || console_host.empty() || console_port <= 0 || device_id.empty()) {
             return;
         }
 
-        const bool host_changed = (cms_host != using_cms_host_);
-        const bool port_changed = (cms_port != using_cms_port_);
-        const bool ssl_changed = (settings_->IsCmsSslEnabled() != using_cms_ssl_);
+        const bool host_changed = (console_host != using_console_host_);
+        const bool port_changed = (console_port != using_console_port_);
+        const bool ssl_changed = (settings_->IsConsoleSslEnabled() != using_console_ssl_);
         if (appkey != using_appkey_ || host_changed || port_changed || ssl_changed) {
-            LOGW("Cms config changed, credential_changed: {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:CmsClient and recreate it.",
-                 appkey != using_appkey_, using_cms_host_, cms_host, using_cms_port_, cms_port, using_cms_ssl_, settings_->IsCmsSslEnabled());
-            if (cms_client_) {
-                cms_client_->Stop();
-                cms_client_ = nullptr;
+            LOGW("Console config changed, credential_changed: {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:ConsoleClient and recreate it.",
+                 appkey != using_appkey_, using_console_host_, console_host, using_console_port_, console_port, using_console_ssl_, settings_->IsConsoleSslEnabled());
+            if (console_client_) {
+                console_client_->Stop();
+                console_client_ = nullptr;
             }
         }
 
-        if (!cms_client_) {
-            cms_client_ = PxCmsClient::Make(context_, cms_host, cms_port, device_id);
+        if (!console_client_) {
+            console_client_ = PxConsoleClient::Make(context_, console_host, console_port, device_id);
         }
-        if (!cms_client_->IsStarted()) {
-            cms_client_->Start();
+        if (!console_client_->IsStarted()) {
+            console_client_->Start();
         }
         using_appkey_ = appkey;
-        using_cms_host_ = cms_host;
-        using_cms_port_ = cms_port;
-        using_cms_ssl_ = settings_->IsCmsSslEnabled();
+        using_console_host_ = console_host;
+        using_console_port_ = console_port;
+        using_console_ssl_ = settings_->IsConsoleSslEnabled();
     }
 
-    std::shared_ptr<CmsScanner> PxApplication::GetCmsScanner() {
-        return cms_scanner_;
+    std::shared_ptr<ConsoleScanner> PxApplication::GetConsoleScanner() {
+        return console_scanner_;
     }
 
     SkinInterface* PxApplication::GetSkin() {
@@ -600,8 +600,8 @@ namespace px
         return skin_ ? skin_->GetSkinName().toStdString() : "";
     }
 
-    bool PxApplication::IsCmsClientAlive() {
-        return cms_client_ && cms_client_->IsAlive();
+    bool PxApplication::IsConsoleClientAlive() {
+        return console_client_ && console_client_->IsAlive();
     }
 
     std::shared_ptr<PxUserManager> PxApplication::GetUserManager() {
@@ -624,8 +624,8 @@ namespace px
         return device_mgr_;
     }
 
-    bool PxApplication::CanConnectCmsServer() {
-        cat r = px_cms::CmsDeviceApi::Ping(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), this->GetAppkey());
+    bool PxApplication::CanConnectConsoleServer() {
+        cat r = px_console::ConsoleDeviceApi::Ping(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), this->GetAppkey());
         return r.has_value() ? r.value() : false;
     }
 

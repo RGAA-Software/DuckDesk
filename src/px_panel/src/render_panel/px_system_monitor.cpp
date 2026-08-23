@@ -23,8 +23,8 @@
 #include "render_panel/network/ws_panel_server.h"
 #include "px_settings.h"
 #include "service/service_manager.h"
-#include "px_cms_client/cms_device_api.h"
-#include "px_cms_client/cms_device.h"
+#include "px_console_client/console_device_api.h"
+#include "px_console_client/console_device.h"
 #include "px_common_new/http_base_op.h"
 #include "px_common_new/cpu_frequency.h"
 #include "px_profile_client/profile_api.h"
@@ -107,7 +107,7 @@ namespace px
                     break;
                 }
                 // check system servers
-                if (settings_->HasCmsServerConfig()) {
+                if (settings_->HasConsoleServerConfig()) {
                     context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
@@ -415,7 +415,7 @@ namespace px
     void PxSystemMonitor::CheckThisDeviceInfo() {
         //LOGI("CheckThisDeviceInfo...");
         // profile server
-        auto has_pr_server = HttpBaseOp::CanPingServer(settings_->IsCmsSslEnabled(), settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey());
+        auto has_pr_server = HttpBaseOp::CanPingServer(settings_->IsConsoleSslEnabled(), settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), grApp->GetAppkey());
         if (!has_pr_server) {
             return;
         }
@@ -427,12 +427,12 @@ namespace px
         }
 
         // has a device
-        auto opt_device = px_cms::CmsDeviceApi::QueryDevice(settings_->GetCmsServerHost(),
-                                                     settings_->GetCmsServerPort(),
+        auto opt_device = px_console::ConsoleDeviceApi::QueryDevice(settings_->GetConsoleServerHost(),
+                                                     settings_->GetConsoleServerPort(),
                                                      grApp->GetAppkey(),
                                                      settings_->GetDeviceId());
         if (!opt_device.has_value()) {
-            if (auto err = opt_device.error(); err == px_cms::CmsApiError::kDeviceNotFound) {
+            if (auto err = opt_device.error(); err == px_console::ConsoleApiError::kDeviceNotFound) {
                 LOGI("Don't have device in server, id: {}, will request a new one.", settings_->GetDeviceId());
                 context_->SendAppMessage(MsgForceRequestDeviceId{});
             }
@@ -447,8 +447,8 @@ namespace px
         auto local_random_pwd_md5 = MD5::Hex(settings_->GetDeviceRandomPwd());
         if (device->random_pwd_md5_ != local_random_pwd_md5) {
             LOGW("Remote random-password verifier changed; refreshing it");
-            auto opt_update_device = px_cms::CmsDeviceApi::UpdateRandomPwd(settings_->GetCmsServerHost(),
-                                                                    settings_->GetCmsServerPort(),
+            auto opt_update_device = px_console::ConsoleDeviceApi::UpdateRandomPwd(settings_->GetConsoleServerHost(),
+                                                                    settings_->GetConsoleServerPort(),
                                                                     grApp->GetAppkey(),
                                                                     settings_->GetDeviceId());
             if (opt_update_device.has_value()) {
@@ -468,8 +468,8 @@ namespace px
         if (device->safety_pwd_md5_ != settings_->GetDeviceSecurityPwd() && !current_device_security_pwd.empty()) {
             LOGW("Remote safety-password verifier changed; refreshing it");
             // update safety password
-            auto update_device = px_cms::CmsDeviceApi::UpdateSafetyPwd(settings_->GetCmsServerHost(),
-                                                                settings_->GetCmsServerPort(),
+            auto update_device = px_console::ConsoleDeviceApi::UpdateSafetyPwd(settings_->GetConsoleServerHost(),
+                                                                settings_->GetConsoleServerPort(),
                                                                 grApp->GetAppkey(),
                                                                 settings_->GetDeviceId(),
                                                                 current_device_security_pwd);

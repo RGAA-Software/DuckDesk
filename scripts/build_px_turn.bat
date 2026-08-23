@@ -9,7 +9,7 @@ set "REPO_ROOT=%cd%"
 if not defined COTURN_ROOT set "COTURN_ROOT=%REPO_ROOT%\..\coturn"
 if not defined VCPKG_ROOT set "VCPKG_ROOT=C:\source\vcpkg"
 set "BUILD_DIR=%COTURN_ROOT%\build_px_turn"
-set "MEDIA_DIR=%REPO_ROOT%\rust_server\px_cms_server\media"
+set "MEDIA_DIR=%REPO_ROOT%\rust_server\px_console_server\media"
 
 if not exist "%COTURN_ROOT%\CMakeLists.txt" (
     echo ERROR: Coturn source was not found at: %COTURN_ROOT%
@@ -52,7 +52,7 @@ if errorlevel 1 exit /b 1
 
 copy /Y "%BUILD_DIR%\bin\turnserver.exe" "%MEDIA_DIR%\px_turn.exe" >nul
 if errorlevel 1 (
-    echo ERROR: Failed to publish px_turn.exe to the CMS media directory.
+    echo ERROR: Failed to publish px_turn.exe to the Console media directory.
     exit /b 1
 )
 

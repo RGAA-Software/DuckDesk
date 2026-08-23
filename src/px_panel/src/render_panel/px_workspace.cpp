@@ -44,7 +44,7 @@
 #include "px_label.h"
 #include "no_margin_layout.h"
 #include "ui/user/user_login_dialog.h"
-#include "px_cms_client/cms_user_api.h"
+#include "px_console_client/console_user_api.h"
 #include "ui/tab_cophone.h"
 #include "skin/interface/skin_interface.h"
 #include "user/px_user_manager.h"
@@ -271,7 +271,7 @@ namespace px
                 layout->addWidget(btn, 0, Qt::AlignHCenter);
             }
 
-            // CMS cloud applications are a first-class resource and must not be
+            // Console cloud applications are a first-class resource and must not be
             // mixed into the remote desktop address book.
             {
                 auto btn = new CustomTabBtn(AppColors::kTabBtnInActiveColor, AppColors::kTabBtnHoverColor, this);
@@ -903,7 +903,7 @@ namespace px
             if (avatar_path.starts_with("./")) {
                 avatar_path = avatar_path.substr(1);
             }
-            auto avatar_url_path = std::format("{}://{}:{}{}?appkey={}", PxSettings::GetCmsHttpScheme(), self->settings_->GetCmsServerHost(), self->settings_->GetCmsServerPort(), avatar_path, grApp->GetAppkey());
+            auto avatar_url_path = std::format("{}://{}:{}{}?appkey={}", PxSettings::GetConsoleHttpScheme(), self->settings_->GetConsoleServerHost(), self->settings_->GetConsoleServerPort(), avatar_path, grApp->GetAppkey());
             auto target_avatar_path = self->settings_->GetGrDataCachePath() + "/" + self->user_mgr_->GetUserId() + + "." + FileUtil::GetFileSuffix(avatar_path);
             LOGI("Cached avatar path: {}", target_avatar_path);
             if (File::Exists(U8Path(target_avatar_path))) {

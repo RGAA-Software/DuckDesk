@@ -3,7 +3,10 @@ use crate::author_license_keys::sign_authorization_model;
 use crate::{gAuthorDatabase, gAuthorSettings, gLicenseSigner};
 use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{Bson, DateTime, Document, Regex, doc};
-use px_auth_mgr::authorization::{Authorization, AuthorizationVo};
+use px_auth_mgr::authorization::{
+    normalize_product, Authorization, AuthorizationVo, LEGACY_PRODUCT_CMS,
+    LEGACY_PRODUCT_PIXELS_CMS, PRODUCT_CONSOLE, PRODUCT_PIXELS_CONSOLE,
+};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -18,7 +21,7 @@ use mongodb::bson::to_document;
 /// require a live MongoDB. Production builds never compile this path.
 #[cfg(test)]
 mod memory_store {
-    use px_auth_mgr::authorization::Authorization;
+    use px_auth_mgr::authorization::{normalize_product, Authorization};
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -66,20 +69,24 @@ mod memory_store {
     }
 
     pub fn get_by_machine_code_product(machine_code: &str, product: &str) -> Option<Authorization> {
+        let product = normalize_product(product);
         STORE
             .lock()
             .unwrap()
             .values()
-            .find(|a| a.machine_code == machine_code && a.product == product)
+            .find(|a| {
+                a.machine_code == machine_code && normalize_product(&a.product) == product
+            })
             .cloned()
     }
 
     pub fn list_by_product(product: &str) -> Vec<Authorization> {
+        let product = normalize_product(product);
         let mut items: Vec<_> = STORE
             .lock()
             .unwrap()
             .values()
-            .filter(|a| a.product == product)
+            .filter(|a| normalize_product(&a.product) == product)
             .cloned()
             .collect();
         items.sort_by(|a, b| b.created_timestamp_ms.cmp(&a.created_timestamp_ms));
@@ -113,6 +120,20 @@ pub enum AuthorizationError {
     NotFound,
 }
 
+fn compatible_product_names(product: &str) -> Vec<String> {
+    match normalize_product(product) {
+        PRODUCT_CONSOLE => vec![
+            PRODUCT_CONSOLE.to_string(),
+            LEGACY_PRODUCT_CMS.to_string(),
+        ],
+        PRODUCT_PIXELS_CONSOLE => vec![
+            PRODUCT_PIXELS_CONSOLE.to_string(),
+            LEGACY_PRODUCT_PIXELS_CMS.to_string(),
+        ],
+        canonical => vec![canonical.to_string()],
+    }
+}
+
 pub struct AuthorizationManager {}
 
 impl AuthorizationManager {
@@ -138,7 +159,7 @@ impl AuthorizationManager {
             days,
             max_streams,
             role,
-            px_auth_mgr::authorization::PRODUCT_CMS.to_string(),
+            px_auth_mgr::authorization::PRODUCT_CONSOLE.to_string(),
         )
         .await
     }
@@ -180,7 +201,7 @@ impl AuthorizationManager {
             deploy_str: "".to_string(),
             role,
             used_time_ms: 0,
-            product,
+            product: normalize_product(&product).to_string(),
             revoked: false,
             revoked_at_ms: 0,
             ..Default::default()
@@ -255,9 +276,10 @@ impl AuthorizationManager {
         #[cfg(not(test))]
         {
             let c_authorization = gAuthorDatabase.lock().await.authorization();
+            let products = compatible_product_names(product);
             let filter = doc! {
                 "machine_code": machine_code,
-                "product": product,
+                "product": { "$in": products },
             };
             let r = c_authorization.lock().await.find_one(filter).await;
             r.unwrap_or(None)
@@ -328,7 +350,8 @@ impl AuthorizationManager {
         }
         #[cfg(not(test))]
         {
-            self.query_authorizations(doc! { "product": product }, page, page_size)
+            let products = compatible_product_names(&product);
+            self.query_authorizations(doc! { "product": { "$in": products } }, page, page_size)
                 .await
         }
     }

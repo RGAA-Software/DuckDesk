@@ -9,7 +9,7 @@
 #include "widget_helper.h"
 #include "no_margin_layout.h"
 #include "px_common_new/uid_spacer.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "render_panel/px_application.h"
 #include "skin/interface/skin_interface.h"
 #include "px_base/ct_stream_item_net_type.h"

@@ -20,7 +20,7 @@ namespace px
     /// md5(hex(sha256(appkey + salt)))
     std::string CalculateAppSecret(const std::string& appkey);
 
-    /// Generates a fresh connection token for /cms/client.
+    /// Generates a fresh connection token for /console/client.
     ConnectionToken GenerateConnectionToken(const std::string& appkey);
 
     /// Generates a connection token from explicit timestamp and nonce. Useful for

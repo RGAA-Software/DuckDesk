@@ -25,7 +25,7 @@
 #include "px_common_new/win32/audio_device_helper.h"
 #include "render_panel/px_app_messages.h"
 #include "px_common_new/ip_util.h"
-#include "px_cms_client/cms_device_api.h"
+#include "px_console_client/console_device_api.h"
 #include "input_safety_pwd_dialog.h"
 #include "render_panel/devices/infinite_loading.h"
 #include "px_qt_widget/px_dialog_util.h"

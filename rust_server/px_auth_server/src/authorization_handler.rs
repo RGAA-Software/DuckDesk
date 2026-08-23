@@ -18,7 +18,7 @@ use px_auth_mgr::app_secret_util::is_appkey_secret_paired;
 use px_auth_mgr::auth_license::{LicenseVerifier, SignedLicense};
 use px_auth_mgr::authorization::{
     Authorization, AuthorizationVo, MODE_LICENSED, MODE_TRIAL, PRODUCT_GOPICO, TRIAL_DAYS,
-    default_trial_max_devices, is_device_product,
+    default_trial_max_devices, is_device_product, normalize_product,
 };
 use px_base::{RespMessage, ok_resp};
 use serde::{Deserialize, Serialize};
@@ -783,7 +783,7 @@ pub async fn handle_device_pull(
 ) -> Result<Json<RespMessage<DevicePullResponse>>, AuthorApiError> {
     let body = get_body(body).await?;
     let value: Value = serde_json::from_str(&body).map_err(|_| AuthorApiError::InvalidParams)?;
-    let product = get_body_str(&value, "product")?;
+    let product = normalize_product(&get_body_str(&value, "product")?).to_string();
     let device_code = get_body_str(&value, "device_code")?;
     validate_machine_code(&device_code)?;
     if !is_device_product(&product) {
@@ -896,7 +896,7 @@ pub async fn handle_device_pull(
 pub async fn handle_product_query_authorizations(
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<Vec<AuthorizationVo>>>, AuthorApiError> {
-    let product = get_str_param(&query, "product")?;
+    let product = normalize_product(&get_str_param(&query, "product")?).to_string();
     if !is_device_product(&product) {
         return Err(AuthorApiError::InvalidParams);
     }

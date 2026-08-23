@@ -109,8 +109,8 @@ namespace px
         void RecordFileTransferBegin();
         void RecordFileTransferEnd(bool success);
 
-        void NotifyFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
-        void NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
+        void NotifyFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record);
+        void NotifyUpdateFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record);
     private:
         CLIPFORMAT clip_format_file_desc_ = 0;
         CLIPFORMAT clip_format_file_content_ = 0;

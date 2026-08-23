@@ -8,7 +8,7 @@
 #include <QWidget>
 #include <memory>
 #include <functional>
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 
 namespace px
 {
@@ -16,7 +16,7 @@ namespace px
     class PxContext;
     class AppStreamList;
 
-    using OnStartingStreamCallback = std::function<void(const px_cms::CmsStream&)>;
+    using OnStartingStreamCallback = std::function<void(const px_console::ConsoleStream&)>;
 
     class AddButton : public QLabel {
     public:

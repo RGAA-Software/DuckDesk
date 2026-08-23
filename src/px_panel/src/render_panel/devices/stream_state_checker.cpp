@@ -9,12 +9,12 @@
 #include "px_common_new/log.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "relay_message.pb.h"
 #include "px_relay_client/relay_api.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
-#include "px_cms_client/cms_device_api.h"
+#include "px_console_client/console_device_api.h"
 
 namespace px
 {
@@ -33,7 +33,7 @@ namespace px
 
     }
 
-    void StreamStateChecker::UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items) {
+    void StreamStateChecker::UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items) {
         const auto weak_self = weak_from_this();
         context_->PostTask([weak_self, items]() {
             const auto self = weak_self.lock();
@@ -48,16 +48,16 @@ namespace px
         on_checked_cbk_ = cbk;
     }
 
-    void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<px_cms::CmsStream>>& items) {
+    void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items) {
         for (auto& item : items) {
-            // CMS application cards are catalog resources, not addressable
+            // Console application cards are catalog resources, not addressable
             // devices before a ticket is issued. Their state comes from the
             // application-instance API and must not be overwritten by an
             // empty host/port ping or a device-online query.
-            if (item->connect_type_ == "cms_app_ticket") {
-                item->direct_online_ = item->cms_instance_state_ == "running";
+            if (item->connect_type_ == "console_app_ticket") {
+                item->direct_online_ = item->console_instance_state_ == "running";
                 item->relay_online_ = false;
-                item->cms_online_ = true;
+                item->console_online_ = true;
                 continue;
             }
             // host & port mode
@@ -79,13 +79,13 @@ namespace px
                 }
             }
 
-            // check cms
-            // online == the device holds a live panel connection to the cms server,
+            // check console
+            // online == the device holds a live panel connection to the console server,
             // NOT just a registered record in the database.
-            item->cms_online_ = false;
+            item->console_online_ = false;
             if (!item->remote_device_id_.empty()) {
-                item->cms_online_ = px_cms::CmsDeviceApi::IsDeviceOnline(settings_->GetCmsServerHost(),
-                                                                         settings_->GetCmsServerPort(),
+                item->console_online_ = px_console::ConsoleDeviceApi::IsDeviceOnline(settings_->GetConsoleServerHost(),
+                                                                         settings_->GetConsoleServerPort(),
                                                                          grApp->GetAppkey(),
                                                                          item->remote_device_id_);
             }

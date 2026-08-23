@@ -57,7 +57,7 @@ impl ProcessSnapshot {
         } else if self.cmdline.contains("--app_mode=webview") {
             RenderMode::Webview
         } else if self.cmdline.contains("--app_mode=inner") {
-            // Legacy alias; prefer game-hook for CMS-scheduled apps.
+            // Legacy alias; prefer game-hook for Console-scheduled apps.
             RenderMode::Inner
         } else {
             RenderMode::Unknown
@@ -97,12 +97,12 @@ impl ProcessSnapshot {
         }
     }
 
-    /// Managed by CMS app-instance stop (never desktop).
+    /// Managed by Console app-instance stop (never desktop).
     pub fn is_game_hook_render_process(&self) -> bool {
         self.kind() == ProcessKind::GameHookRender
     }
 
-    /// CMS application root render. CEF children also use px_render.exe but
+    /// Console application root render. CEF children also use px_render.exe but
     /// carry `--type=...`; never treat them as independently managed roots.
     pub fn is_app_instance_render_process(&self) -> bool {
         !self.cmdline.contains("--type=")

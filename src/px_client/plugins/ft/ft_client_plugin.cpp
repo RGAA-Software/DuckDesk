@@ -78,7 +78,7 @@ namespace px
         // 远程栏标题显示对端标识(远端: xxx)
         window_->SetRemoteDeviceName(remote_name);
 
-        // 审计:对接 CMS 传输记录链路(旧插件同款事件)
+        // 审计:对接 Console 传输记录链路(旧插件同款事件)
         connect(core_, &FtCore::SigJobAdded, this, [this](int id, const QString& name, bool is_download) {
             TrackJobBegin(id, name, is_download);
         });

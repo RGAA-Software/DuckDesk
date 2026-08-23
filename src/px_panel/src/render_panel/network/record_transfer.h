@@ -2,7 +2,7 @@
 // Created by RGAA on 2026/08/17.
 //
 // Pure logic for the panel side of the record-fetch tunnel
-// (docs/cms_render_records_view_design.md section 6.2 / 7.2):
+// (docs/console_render_records_view_design.md section 6.2 / 7.2):
 // per-device serial upload queue with dedupe and exponential backoff retry,
 // plus the upload-url parser. No Qt / asio2 / OpenSSL dependencies here so
 // it can be unit tested standalone (see src/px_panel/src/tests/test_record_transfer.cpp).
@@ -22,7 +22,7 @@
 namespace px
 {
 
-    // One fetch task pushed by the cms RecordFetchReq tunnel message.
+    // One fetch task pushed by the console RecordFetchReq tunnel message.
     struct RecordFetchTask {
         std::string device_id;
         std::string req_id;
@@ -32,7 +32,7 @@ namespace px
         int attempt = 0;    // completed (failed) attempts so far
     };
 
-    // Serial queue: cms may push many fetches, panel uploads them one by one
+    // Serial queue: console may push many fetches, panel uploads them one by one
     // (per panel == per device, panel is a singleton on the machine).
     class RecordFetchQueue {
     public:
@@ -44,7 +44,7 @@ namespace px
         static int64_t RetryDelayMs(int attempt);
 
         // Returns false when a task for the same filename is already queued
-        // or in-flight (dedupe; cms also dedupes, this is the second line).
+        // or in-flight (dedupe; console also dedupes, this is the second line).
         bool Push(const RecordFetchTask& task);
 
         // Blocks until a task is available. Returns false when stopped and drained.

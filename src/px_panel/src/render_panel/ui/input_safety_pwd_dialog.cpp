@@ -10,7 +10,7 @@
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_application.h"
@@ -21,8 +21,8 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/http_client.h"
 #include "px_qt_widget/px_password_input.h"
-#include "px_cms_client/cms_device_api.h"
-#include "px_cms_client/cms_device.h"
+#include "px_console_client/console_device_api.h"
+#include "px_console_client/console_device.h"
 
 namespace px
 {
@@ -140,8 +140,8 @@ namespace px
                 }
 
                 // update safety pwd
-                auto opt_device = px_cms::CmsDeviceApi::UpdateSafetyPwd(settings->GetCmsServerHost(),
-                                                                 settings->GetCmsServerPort(),
+                auto opt_device = px_console::ConsoleDeviceApi::UpdateSafetyPwd(settings->GetConsoleServerHost(),
+                                                                 settings->GetConsoleServerPort(),
                                                                  grApp->GetAppkey(),
                                                                  settings->GetDeviceId(),
                                                                  pwd_md5);

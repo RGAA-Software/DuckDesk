@@ -10,7 +10,7 @@
 #include <map>
 
 #include <QProcess>
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 
 namespace px
 {
@@ -26,11 +26,11 @@ namespace px
         explicit RunningStreamManager(const std::shared_ptr<PxContext>& ctx);
         ~RunningStreamManager();
         void InitMessageListeners();
-        void StartStream(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type, bool direct);
-        bool OpenFileTransferInRunningClient(const std::shared_ptr<px_cms::CmsStream>& item);
-        void StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item, const std::string& network_type);
+        void StartStream(const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type, bool direct);
+        bool OpenFileTransferInRunningClient(const std::shared_ptr<px_console::ConsoleStream>& item);
+        void StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type);
         // False means the user cancelled closing a running local client.
-        bool StopStream(const std::shared_ptr<px_cms::CmsStream>& item);
+        bool StopStream(const std::shared_ptr<px_console::ConsoleStream>& item);
 
     private:
         PxSettings* settings_ = nullptr;

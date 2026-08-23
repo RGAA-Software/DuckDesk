@@ -39,20 +39,20 @@ namespace px
         int64_t end_timestamp_ms_ = 0;
     };
 
-    // CmsSrvConfig
-    class CmsSrvConfig {
+    // ConsoleSrvConfig
+    class ConsoleSrvConfig {
     public:
         std::string srv_name_;
         std::string srv_w3c_ip_;
-        int srv_cms_port_ = 0;
+        int srv_console_port_ = 0;
         std::string srv_appkey_;
         int srv_relay_port_ = 0;
-        // whether the cms server requires ssl(https/wss), default true for old deployments
+        // whether the console server requires ssl(https/wss), default true for old deployments
         bool srv_ssl_enable_ = true;
 
     public:
         [[nodiscard]] bool IsValid() const {
-            return !srv_w3c_ip_.empty() && srv_cms_port_ > 0 && !srv_appkey_.empty() && srv_relay_port_ > 0;
+            return !srv_w3c_ip_.empty() && srv_console_port_ > 0 && !srv_appkey_.empty() && srv_relay_port_ > 0;
         }
     };
 
@@ -71,15 +71,15 @@ namespace px
         }
     };
 
-    // Cms Access
-    class CmsAccessInfo {
+    // Console Access
+    class ConsoleAccessInfo {
     public:
         [[nodiscard]] bool IsValid() const {
-            return cms_config_.IsValid();
+            return console_config_.IsValid();
         }
 
     public:
-        CmsSrvConfig cms_config_;
+        ConsoleSrvConfig console_config_;
     };
 
     //
@@ -94,8 +94,8 @@ namespace px
         virtual void OnTimer1S() = 0;
         virtual void OnTimer5S() = 0;
 
-        // Cms
-        virtual void UpdateCmsServerConfig(const std::string& host, int port, bool ssl_enable) = 0;
+        // Console
+        virtual void UpdateConsoleServerConfig(const std::string& host, int port, bool ssl_enable) = 0;
         virtual void UpdateAppkey(const std::string& appkey) = 0;
         virtual std::shared_ptr<Authorization> RequestAuth() = 0;
         virtual std::shared_ptr<Authorization> GetAuth() = 0;
@@ -112,8 +112,8 @@ namespace px
         virtual float GetCurrentCpuFrequency() = 0;
         virtual std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) = 0;
 
-        // cms access
-        virtual std::shared_ptr<CmsAccessInfo> ParseCmsAccessInfo(const std::string& info) = 0;
+        // console access
+        virtual std::shared_ptr<ConsoleAccessInfo> ParseConsoleAccessInfo(const std::string& info) = 0;
 
         // jump to github
         virtual void JumpToGithub() = 0;

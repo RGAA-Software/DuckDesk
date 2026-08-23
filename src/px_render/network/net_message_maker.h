@@ -41,7 +41,7 @@ namespace px
         // game-hook 游戏状态通知（死亡重启/恢复），见 px_message.proto GameStatusChanged
         static std::shared_ptr<Data> MakeGameStatusChanged(px::GameStatusChanged::GameStatus status, const std::string& detail);
 
-        // 实例被 CMS 停止（render 即将退出），见 px_message.proto InstanceStopped
+        // 实例被 Console 停止（render 即将退出），见 px_message.proto InstanceStopped
         static std::shared_ptr<Data> MakeInstanceStopped(const std::string& reason);
 
     };

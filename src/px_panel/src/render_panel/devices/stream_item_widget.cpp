@@ -18,7 +18,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_font_manager.h"
@@ -32,11 +32,11 @@ namespace px
 
     namespace {
 
-        bool IsCmsApplication(const std::shared_ptr<px_cms::CmsStream>& item) {
-            return item && item->connect_type_ == "cms_app_ticket";
+        bool IsConsoleApplication(const std::shared_ptr<px_console::ConsoleStream>& item) {
+            return item && item->connect_type_ == "console_app_ticket";
         }
 
-        const char* CmsApplicationStateTextId(const std::string& state) {
+        const char* ConsoleApplicationStateTextId(const std::string& state) {
             if (state == "running") return "id_state_running";
             if (state == "starting") return "id_state_starting";
             if (state == "stopping") return "id_state_stopping";
@@ -61,7 +61,7 @@ namespace px
         }
     };
 
-    StreamItemWidget::StreamItemWidget(const std::shared_ptr<px_cms::CmsStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
+    StreamItemWidget::StreamItemWidget(const std::shared_ptr<px_console::ConsoleStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
         this->item_ = item;
         this->bg_color_ = bg_color;
         this->setStyleSheet("background:#00000000;");
@@ -95,7 +95,7 @@ namespace px
         tooltip_layout->addWidget(state_tooltip_);
         state_tooltip_container_->hide();
         if (icon_.isNull()) {
-            if (IsCmsApplication(item)) {
+            if (IsConsoleApplication(item)) {
                 icon_ = QPixmap::fromImage(QImage(":/resources/image/ic_game_normal.svg"));
             } else if (item->HasRelayInfo()) {
                 icon_ = QPixmap::fromImage(QImage(":/resources/image/ic_windows_relay.svg"));
@@ -109,9 +109,9 @@ namespace px
             bg_pixmap_ = QPixmap::fromImage(QImage(":/resources/image/test_cover.png"));
             bg_pixmap_ = bg_pixmap_.scaled(230, bg_pixmap_.height()*0.65, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
-        if (IsCmsApplication(item) && !item->cms_cover_url_.empty()) {
+        if (IsConsoleApplication(item) && !item->console_cover_url_.empty()) {
             auto manager = new QNetworkAccessManager(this);
-            auto reply = manager->get(QNetworkRequest(QUrl(QString::fromStdString(item->cms_cover_url_))));
+            auto reply = manager->get(QNetworkRequest(QUrl(QString::fromStdString(item->console_cover_url_))));
             connect(reply, &QNetworkReply::finished, this, [this, reply]() {
                 QPixmap downloaded;
                 if (reply->error() == QNetworkReply::NoError
@@ -140,9 +140,9 @@ namespace px
                 background-color:#1549dd;
             }
         )");
-        btn_conn_->setFixedSize(IsCmsApplication(item) ? 115 : 70, 25);
-        btn_conn_->SetTextId(IsCmsApplication(item)
-                                 ? (item->cms_instance_state_ == "running"
+        btn_conn_->setFixedSize(IsConsoleApplication(item) ? 115 : 70, 25);
+        btn_conn_->SetTextId(IsConsoleApplication(item)
+                                 ? (item->console_instance_state_ == "running"
                                         ? "id_enter_application"
                                         : "id_start_application")
                                  : "id_connect");
@@ -195,7 +195,7 @@ namespace px
     }
 
     void StreamItemWidget::paintEvent(QPaintEvent *event) {
-        const bool is_cms_app = IsCmsApplication(item_);
+        const bool is_console_app = IsConsoleApplication(item_);
         QPainter painter(this);
         painter.setRenderHints(QPainter::Antialiasing, true);
         painter.setRenderHints(QPainter::TextAntialiasing, true);
@@ -238,7 +238,7 @@ namespace px
             //painter.setPen(QPen(QColor(0x555555)));
             painter.setPen(QPen(QColor(0x2979ff)));
             auto stream_name = item_->stream_name_;
-            if (is_cms_app) {
+            if (is_console_app) {
                 stream_name = item_->stream_name_;
             } else if (item_->HasRelayInfo()) {
                 stream_name = px::SpaceId(item_->remote_device_id_);
@@ -250,7 +250,7 @@ namespace px
         }
 
         int y_offset = 32;
-        if (is_cms_app) {
+        if (is_console_app) {
             QFont font(tcFontMgr()->font_name_);
             font.setBold(true);
             font.setStyleStrategy(QFont::PreferAntialias);
@@ -258,12 +258,12 @@ namespace px
             painter.setFont(font);
             painter.setPen(QPen(QColor(0x777777)));
             painter.drawText(QRect(15, y_offset, this->width(), 20), Qt::AlignVCenter,
-                             tcTr(item_->cms_access_mode_ == "public"
+                             tcTr(item_->console_access_mode_ == "public"
                                       ? "id_public_application"
                                       : "id_authorized_application"));
             y_offset += 20;
             painter.drawText(QRect(15, y_offset, this->width(), 20), Qt::AlignVCenter,
-                             tcTr(CmsApplicationStateTextId(item_->cms_instance_state_)));
+                             tcTr(ConsoleApplicationStateTextId(item_->console_instance_state_)));
             y_offset += 20;
         } else if (!item_->stream_name_.empty() && item_->stream_name_ != item_->stream_host_) {
             QFont font(tcFontMgr()->font_name_);
@@ -277,7 +277,7 @@ namespace px
         }
 
         // desktop name
-        if (!is_cms_app) {
+        if (!is_console_app) {
             QFont font(tcFontMgr()->font_name_);
             font.setBold(false);
             font.setStyleStrategy(QFont::PreferAntialias);
@@ -293,7 +293,7 @@ namespace px
         }
 
         // os version
-        if (!is_cms_app) {
+        if (!is_console_app) {
             QFont font(tcFontMgr()->font_name_);
             font.setBold(false);
             font.setStyleStrategy(QFont::PreferAntialias);
@@ -319,10 +319,10 @@ namespace px
         int margin_top = 30;
         painter.drawPixmap(QWidget::width() - icon_.width() - 20, margin_top, icon_);
 
-        if (is_cms_app) {
-            const bool running = item_->cms_instance_state_ == "running";
-            const bool transitioning = item_->cms_instance_state_ == "starting"
-                || item_->cms_instance_state_ == "stopping";
+        if (is_console_app) {
+            const bool running = item_->console_instance_state_ == "running";
+            const bool transitioning = item_->console_instance_state_ == "starting"
+                || item_->console_instance_state_ == "stopping";
             const QColor state_color = running ? QColor(0x20, 0xb2, 0x6b)
                                                : (transitioning ? QColor(0xf2, 0xa9, 0x00)
                                                                 : QColor(0x99, 0x99, 0x99));
@@ -343,7 +343,7 @@ namespace px
             else if (relay_connected_ && i == 1) {
                 painter.setBrush(QBrush(0x00ff00));
             }
-            else if (cms_connected_ && i == 2) {
+            else if (console_connected_ && i == 2) {
                 painter.setBrush(QBrush(0x00ff00));
             }
             else {
@@ -395,12 +395,12 @@ namespace px
     // 右上三个状态点的 hover 提示(几何与 paintEvent 保持一致)
     void StreamItemWidget::mouseMoveEvent(QMouseEvent *event) {
         QWidget::mouseMoveEvent(event);
-        if (IsCmsApplication(item_)) {
+        if (IsConsoleApplication(item_)) {
             state_tooltip_container_->hide();
             return;
         }
-        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_cms"};
-        const bool states[3] = {direct_connected_, relay_connected_, cms_connected_};
+        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_console"};
+        const bool states[3] = {direct_connected_, relay_connected_, console_connected_};
         const int margin_right = 50;
         const int indicator_width = 10;
         const int indicator_height = 8;
@@ -445,13 +445,13 @@ namespace px
         relay_connected_ = connected;
     }
 
-    void StreamItemWidget::SetCmsConnectedState(bool connected) {
-        cms_connected_ = connected;
+    void StreamItemWidget::SetConsoleConnectedState(bool connected) {
+        console_connected_ = connected;
     }
 
     void StreamItemWidget::Update() {
-        if (IsCmsApplication(item_)) {
-            btn_conn_->SetTextId(item_->cms_instance_state_ == "running"
+        if (IsConsoleApplication(item_)) {
+            btn_conn_->SetTextId(item_->console_instance_state_ == "running"
                                      ? "id_enter_application"
                                      : "id_start_application");
         }

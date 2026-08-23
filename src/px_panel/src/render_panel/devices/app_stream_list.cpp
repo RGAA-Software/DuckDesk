@@ -39,10 +39,10 @@
 #include "stream_state_checker.h"
 #include "px_profile_client/profile_api.h"
 #include "px_relay_client/relay_api.h"
-#include "px_cms_client/cms_user.h"
-#include "px_cms_client/cms_device.h"
-#include "px_cms_client/cms_user_device.h"
-#include "px_cms_client/cms_user_app_api.h"
+#include "px_console_client/console_user.h"
+#include "px_console_client/console_device.h"
+#include "px_console_client/console_user_device.h"
+#include "px_console_client/console_user_app_api.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_workspace.h"
 #include "render_panel/network/render_api.h"
@@ -85,7 +85,7 @@ namespace px
         QPointer<AppStreamList> self(this);
         if (mode_ == AppStreamListMode::kRemoteDevices) {
             state_checker_ = std::make_shared<StreamStateChecker>(context_);
-            state_checker_->SetOnCheckedCallback([=, this](const std::vector<std::shared_ptr<px_cms::CmsStream>>& stream_items) {
+            state_checker_->SetOnCheckedCallback([=, this](const std::vector<std::shared_ptr<px_console::ConsoleStream>>& stream_items) {
                 context_->PostUITask([self, stream_items]() {
                     if (!self) {
                         return;
@@ -99,7 +99,7 @@ namespace px
                             if (update_item->stream_id_ == stream_id_for_widget) {
                                 widget->SetDirectConnectedState(update_item->direct_online_);
                                 widget->SetRelayConnectedState(update_item->relay_online_);
-                                widget->SetCmsConnectedState(update_item->cms_online_);
+                                widget->SetConsoleConnectedState(update_item->console_online_);
                                 widget->Update();
                                 break;
                             }
@@ -122,7 +122,7 @@ namespace px
             }, 2200);
         }
 
-        // Load CMS resources for both signed-in users and anonymous Panel
+        // Load Console resources for both signed-in users and anonymous Panel
         // sessions. Public applications must be visible on the first screen;
         // requiring a login event or a manual refresh leaves guest access
         // unreachable.
@@ -198,7 +198,7 @@ namespace px
         if (mode_ == AppStreamListMode::kRemoteDevices) {
             msg_listener_->Listen<StreamItemAdded>([=, this](const StreamItemAdded& msg) {
             auto item = msg.item_;
-            std::shared_ptr<px_cms::CmsStream> exist_stream_item = nullptr;
+            std::shared_ptr<px_console::ConsoleStream> exist_stream_item = nullptr;
             // by stream id
             {
                 auto opt_stream = db_mgr_->GetStreamByStreamId(item->stream_id_);
@@ -336,10 +336,10 @@ namespace px
 
     void AppStreamList::RegisterActions(int index, QListWidgetItem* cur_item) {
         const auto stream = streams_.at(index);
-        if (stream->connect_type_ == "cms_app_ticket") {
+        if (stream->connect_type_ == "console_app_ticket") {
             auto menu = new QMenu();
             auto connect_action = menu->addAction(tcTr(
-                stream->cms_instance_state_ == "running"
+                stream->console_instance_state_ == "running"
                     ? "id_enter_application"
                     : "id_start_application"));
             auto view_action = menu->addAction(tcTr("id_only_viewing"));
@@ -386,7 +386,7 @@ namespace px
         delete menu;
     }
 
-    void AppStreamList::ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (index == 0) {
             // connect
             StartStream(cur_item, item, false);
@@ -429,7 +429,7 @@ namespace px
         }
     }
 
-    void AppStreamList::StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing) {
+    void AppStreamList::StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing) {
         if (cur_item) {
             if (const auto widget = static_cast<StreamItemWidget *>(stream_list_->itemWidget(cur_item))) {
                 widget->ShowConnecting();
@@ -444,10 +444,10 @@ namespace px
         }, 40);
     }
 
-    void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_cms::CmsStream>& item, bool force_only_viewing) {
-        std::shared_ptr<px_cms::CmsStream> target_item;
-        const bool uses_cms_app_ticket = item->connect_type_ == "cms_app_ticket";
-        if (uses_cms_app_ticket) {
+    void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing) {
+        std::shared_ptr<px_console::ConsoleStream> target_item;
+        const bool uses_console_app_ticket = item->connect_type_ == "console_app_ticket";
+        if (uses_console_app_ticket) {
             target_item = item;
         } else {
             auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
@@ -461,8 +461,8 @@ namespace px
         // connection permanently downgrade later normal connections.
         target_item->only_viewing_ = force_only_viewing;
 
-        const bool uses_cms_ticket = target_item->connect_type_ == "cms_ticket" || uses_cms_app_ticket;
-        if (uses_cms_ticket) {
+        const bool uses_console_ticket = target_item->connect_type_ == "console_ticket" || uses_console_app_ticket;
+        if (uses_console_ticket) {
             const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
             std::vector<std::string> permissions {"view"};
             // File transfer is a separate authenticated capability, not an
@@ -480,14 +480,14 @@ namespace px
                     permissions.insert(permissions.end(), {"clipboard", "audio"});
                 }
             }
-            px::Result<px_cms::CmsConnectionTicket, px_cms::CmsApiError> ticket_result =
-                TcErr(px_cms::CmsApiError::kInvalidParams);
-            if (uses_cms_app_ticket) {
-                if (target_item->cms_instance_id_.empty()) {
-                    auto start_result = grApp->GetUserManager()->StartApp(target_item->cms_app_id_, nonce);
+            px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> ticket_result =
+                TcErr(px_console::ConsoleApiError::kInvalidParams);
+            if (uses_console_app_ticket) {
+                if (target_item->console_instance_id_.empty()) {
+                    auto start_result = grApp->GetUserManager()->StartApp(target_item->console_app_id_, nonce);
                     if (!start_result.has_value()) {
-                        LOGE("CMS application start failed or did not reach running");
-                        auto error_message = px_cms::CmsApiLastErrorMessage();
+                        LOGE("Console application start failed or did not reach running");
+                        auto error_message = px_console::ConsoleApiLastErrorMessage();
                         TcDialog dialog(tcTr("id_connect_failed"),
                                         error_message.empty()
                                             ? tcTr("id_start_failed")
@@ -503,8 +503,8 @@ namespace px
                         const auto apps_result = grApp->GetUserManager()->QueryApps();
                         if (!apps_result.has_value()) continue;
                         const auto app_it = std::find_if(apps_result.value().begin(), apps_result.value().end(),
-                            [&target_item](const px_cms::CmsUserApplication& app) {
-                                return app.app_id == target_item->cms_app_id_;
+                            [&target_item](const px_console::ConsoleUserApplication& app) {
+                                return app.app_id == target_item->console_app_id_;
                             });
                         if (app_it != apps_result.value().end() && app_it->running_instance
                             && app_it->running_instance->instance_id == instance.instance_id) {
@@ -512,32 +512,32 @@ namespace px
                         }
                     }
                     if (instance.state != "running") {
-                        LOGE("CMS application instance did not reach running, state: {}", instance.state);
+                        LOGE("Console application instance did not reach running, state: {}", instance.state);
                         TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_start_failed"),
                                         grWorkspace.get());
                         dialog.exec();
                         return;
                     }
-                    target_item->cms_instance_id_ = instance.instance_id;
-                    target_item->cms_instance_state_ = instance.state;
-                    target_item->cms_online_ = true;
+                    target_item->console_instance_id_ = instance.instance_id;
+                    target_item->console_instance_state_ = instance.state;
+                    target_item->console_online_ = true;
                     target_item->direct_online_ = true;
                 }
                 ticket_result = grApp->GetUserManager()->IssueInstanceTicket(
-                    target_item->cms_instance_id_, nonce, permissions);
+                    target_item->console_instance_id_, nonce, permissions);
             } else {
                 ticket_result = grApp->GetUserManager()->IssueDeviceTicket(
                     target_item->remote_device_id_, nonce, permissions);
             }
             if (!ticket_result.has_value()) {
-                LOGE("CMS connection ticket request failed: {}", static_cast<int>(ticket_result.error()));
-                if (uses_cms_app_ticket) {
+                LOGE("Console connection ticket request failed: {}", static_cast<int>(ticket_result.error()));
+                if (uses_console_app_ticket) {
                     // The instance may have stopped or belonged to an expired
                     // guest session. A subsequent click should start a fresh
                     // owned instance instead of retrying the stale id.
-                    target_item->cms_instance_id_.clear();
+                    target_item->console_instance_id_.clear();
                 }
-                auto error_message = px_cms::CmsApiLastErrorMessage();
+                auto error_message = px_console::ConsoleApiLastErrorMessage();
                 TcDialog dialog(tcTr("id_connect_failed"),
                                 error_message.empty()
                                     ? tcTr("id_op_error")
@@ -549,15 +549,15 @@ namespace px
             const auto& ticket = ticket_result.value();
             const QUrl launch_url(QString::fromStdString(ticket.launch_url));
             if (!launch_url.isValid() || launch_url.host().isEmpty() || launch_url.port() <= 0) {
-                LOGE("CMS returned an invalid device launch endpoint");
+                LOGE("Console returned an invalid device launch endpoint");
                 TcDialog dialog(tcTr("id_connect_failed"),
-                                "The CMS returned an invalid device endpoint", grWorkspace.get());
+                                "The Console returned an invalid device endpoint", grWorkspace.get());
                 dialog.exec();
                 return;
             }
             target_item->stream_host_ = launch_url.host().toStdString();
             target_item->stream_port_ = launch_url.port();
-            if (uses_cms_app_ticket) {
+            if (uses_console_app_ticket) {
                 const QUrlQuery query(launch_url);
                 target_item->remote_device_id_ = query.queryItemValue("deviceId").toStdString();
             }
@@ -582,9 +582,9 @@ namespace px
                                      ? target_item->remote_device_safety_pwd_
                                      : (!target_item->remote_device_random_pwd_.empty()
                                         ? MD5::Hex(target_item->remote_device_random_pwd_) : std::string(""));
-            auto ok = uses_cms_ticket || RenderApi::VerifySecurityPassword(
+            auto ok = uses_console_ticket || RenderApi::VerifySecurityPassword(
                 target_item->stream_host_, target_item->stream_port_, candidate_pwd_md5).value_or(false);
-            for (; !uses_cms_ticket;) {
+            for (; !uses_console_ticket;) {
                 LOGI("VerifySecurityPassword result: {}", ok);
                 if (ok) {
                     break;
@@ -625,7 +625,7 @@ namespace px
             }
 
             // start via udp, webrtc or websocket, depends on the "use_udp"/"use_webrtc" options
-            if (uses_cms_ticket) {
+            if (uses_console_ticket) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
             }
             else if (target_item->use_udp_) {
@@ -639,16 +639,16 @@ namespace px
             }
         }
         else {
-            if (uses_cms_ticket) {
+            if (uses_console_ticket) {
                 // Ticket endpoints are instance-specific. Falling back to the
                 // legacy device relay path asks for an unrelated relay room
                 // and produces a misleading "remote device information"
                 // error after the application instance has already stopped.
-                LOGE("CMS ticket endpoint is unavailable: {}:{}",
+                LOGE("Console ticket endpoint is unavailable: {}:{}",
                      target_item->stream_host_, target_item->stream_port_);
-                if (uses_cms_app_ticket) {
-                    target_item->cms_instance_id_.clear();
-                    target_item->cms_instance_state_ = "stopped";
+                if (uses_console_app_ticket) {
+                    target_item->console_instance_id_.clear();
+                    target_item->console_instance_state_ = "stopped";
                 }
                 TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_device_offline"),
                                 grWorkspace.get());
@@ -711,8 +711,8 @@ namespace px
                 // verify remote
                 // password from inputting
                 // password from database
-                auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetCmsServerHost(),
-                                                                  settings_->GetCmsServerPort(),
+                auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetConsoleServerHost(),
+                                                                  settings_->GetConsoleServerPort(),
                                                                   target_item->remote_device_id_,
                                                                   MD5::Hex(remote_random_pwd),
                                                                   MD5::Hex(remote_safety_pwd),
@@ -773,23 +773,23 @@ namespace px
         }
     }
 
-    bool AppStreamList::StopStream(const std::shared_ptr<px_cms::CmsStream>& item) {
-        if (item->connect_type_ == "cms_app_ticket") {
+    bool AppStreamList::StopStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
+        if (item->connect_type_ == "console_app_ticket") {
             if (!running_stream_mgr_->StopStream(item)) {
                 return false;
             }
-            if (item->cms_instance_id_.empty()) return true;
-            const auto instance_id = item->cms_instance_id_;
+            if (item->console_instance_id_.empty()) return true;
+            const auto instance_id = item->console_instance_id_;
             QPointer<AppStreamList> self(this);
             context_->PostTask([self, item, instance_id]() {
                 if (!self) return;
                 const auto result = grApp->GetUserManager()->StopInstance(instance_id);
                 if (result.has_value()) {
-                    item->cms_instance_id_.clear();
-                    item->cms_instance_state_ = "stopped";
+                    item->console_instance_id_.clear();
+                    item->console_instance_state_ = "stopped";
                     self->RefreshResources();
                 } else {
-                    const auto error_message = px_cms::CmsApiLastErrorMessage();
+                    const auto error_message = px_console::ConsoleApiLastErrorMessage();
                     self->context_->NotifyAppErrMessage(
                         tcTr("id_error"),
                         error_message.empty() ? tcTr("id_op_error") : QString::fromStdString(error_message));
@@ -805,7 +805,7 @@ namespace px
         return running_stream_mgr_->StopStream(si.value());
     }
 
-    void AppStreamList::LockDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::LockDevice(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -819,7 +819,7 @@ namespace px
         }
     }
 
-    void AppStreamList::RestartDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::RestartDevice(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -833,7 +833,7 @@ namespace px
         }
     }
 
-    void AppStreamList::ShutdownDevice(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::ShutdownDevice(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!item->direct_online_ && !item->relay_online_) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
@@ -847,7 +847,7 @@ namespace px
         }
     }
 
-    void AppStreamList::EditStream(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::EditStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -867,7 +867,7 @@ namespace px
 //        }
     }
 
-    void AppStreamList::DeleteStream(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::DeleteStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
         TcDialog dialog(tcTr("id_warning"), tcTr("id_delete_remote_control"), grWorkspace.get());
         if (dialog.exec() == kDoneOk) {
             // stop it if running
@@ -882,7 +882,7 @@ namespace px
         }
     }
 
-    void AppStreamList::ShowSettings(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::ShowSettings(const std::shared_ptr<px_console::ConsoleStream>& item) {
         auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
         if (!si.has_value()) {
             LOGE("read stream item from db failed: {}", item->stream_id_);
@@ -892,7 +892,7 @@ namespace px
         dialog->exec();
     }
 
-    QListWidgetItem* AppStreamList::AddItem(const std::shared_ptr<px_cms::CmsStream>& stream, int index) {
+    QListWidgetItem* AppStreamList::AddItem(const std::shared_ptr<px_console::ConsoleStream>& stream, int index) {
         auto item = new QListWidgetItem(stream_list_);
         item->setSizeHint(QSize(230, 150));
         auto widget = new StreamItemWidget(stream, stream->bg_color_, stream_list_);
@@ -906,7 +906,7 @@ namespace px
         });
         widget->SetDirectConnectedState(stream->direct_online_);
         widget->SetRelayConnectedState(stream->relay_online_);
-        widget->SetCmsConnectedState(stream->cms_online_);
+        widget->SetConsoleConnectedState(stream->console_online_);
 
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
@@ -998,12 +998,12 @@ namespace px
             {
                 std::lock_guard<std::mutex> guard(self->streams_mtx_);
                 if (self->mode_ == AppStreamListMode::kCloudApplications) {
-                    self->streams_ = self->cms_app_streams_;
+                    self->streams_ = self->console_app_streams_;
                 } else {
                     auto db_mgr = self->context_->GetStreamDBManager();
                     self->streams_ = db_mgr->GetAllStreamsSortByCreatedTime();
                     std::erase_if(self->streams_, [](const auto& stream) {
-                        return stream && stream->connect_type_ == "cms_app_ticket";
+                        return stream && stream->connect_type_ == "console_app_ticket";
                     });
                 }
 
@@ -1013,7 +1013,7 @@ namespace px
                 //     return c;
                 // };
                 // for (int i = 0; i < 100; i++) {
-                //     auto st = std::make_shared<px_cms::CmsStream>();
+                //     auto st = std::make_shared<px_console::ConsoleStream>();
                 //     st->stream_name_ = std::format("Desktop: {}", i+1);
                 //     st->stream_host_ = std::format("192.168.1.{}", i+5);
                 //     st->desktop_name_ = StringUtil::ToUpperCpy(std::format("DESKTOP-{}{}{}{}{}", fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char(), fn_rand_a_upper_char()));
@@ -1045,9 +1045,9 @@ namespace px
         });
     }
 
-    void AppStreamList::StartFileTransfer(const std::shared_ptr<px_cms::CmsStream>& item) {
+    void AppStreamList::StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!grApp->GetUserManager()->IsLoggedIn() || item->remote_device_id_.empty()) {
-            context_->NotifyAppErrMessage(tcTr("id_error"), "File transfer requires a signed-in CMS user.");
+            context_->NotifyAppErrMessage(tcTr("id_error"), "File transfer requires a signed-in Console user.");
             return;
         }
         // A normal remote-control client already has a file-capable transport
@@ -1062,9 +1062,9 @@ namespace px
         const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
         auto ticket = grApp->GetUserManager()->IssueDeviceTicket(launch->remote_device_id_, nonce, {"file"});
         if (!ticket.has_value()) {
-            const auto message = ticket.error() == px_cms::CmsApiError::kNotFound
+            const auto message = ticket.error() == px_console::ConsoleApiError::kNotFound
                 ? tcTr("id_file_transfer_device_unavailable")
-                : QString::fromStdString(px_cms::CmsApiLastErrorMessage());
+                : QString::fromStdString(px_console::ConsoleApiLastErrorMessage());
             context_->NotifyAppErrMessage(
                 tcTr("id_error"), message.isEmpty() ? tcTr("id_op_error") : message);
             return;
@@ -1112,14 +1112,14 @@ namespace px
         if (mode_ == AppStreamListMode::kCloudApplications) {
             {
                 std::lock_guard<std::mutex> guard(streams_mtx_);
-                cms_app_streams_.clear();
+                console_app_streams_.clear();
             }
             LoadStreamItems();
             return;
         }
 
         for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-            if (stream && stream->connect_type_ == "cms_ticket") {
+            if (stream && stream->connect_type_ == "console_ticket") {
                 // Identity changes revoke future ticket creation but do not
                 // terminate an already-established client process.
                 db_mgr_->DeleteStream(stream->_id);
@@ -1140,13 +1140,13 @@ namespace px
                 }
             }
 
-            // CMS-sourced devices are a projection of the current identity, not a
+            // Console-sourced devices are a projection of the current identity, not a
             // permanent local address-book entry. Only reconcile after a successful
-            // response; a network error must not look like an empty CMS catalog.
+            // response; a network error must not look like an empty Console catalog.
             for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-                if (stream->connect_type_ == "cms_ticket"
+                if (stream->connect_type_ == "console_ticket"
                     && !available_device_ids.contains(stream->remote_device_id_)) {
-                    // The device was removed from CMS. Remove only the projected
+                    // The device was removed from Console. Remove only the projected
                     // card; do not interrupt an already-established local client.
                     db_mgr_->DeleteStream(stream->_id);
                 }
@@ -1168,25 +1168,25 @@ namespace px
                     stream->stream_port_ = 0;
                     stream->relay_host_.clear();
                     stream->relay_port_ = 0;
-                    stream->connect_type_ = "cms_ticket";
+                    stream->connect_type_ = "console_ticket";
                     stream->use_webrtc_ = true;
                     db_mgr->UpdateStream(stream);
                 }
                 else {
-                    auto item = std::make_shared<px_cms::CmsStream>();
+                    auto item = std::make_shared<px_console::ConsoleStream>();
                     item->remote_device_id_ = ud->device_id_;
                     item->stream_name_ = ud->device_->device_name_;
                     item->encode_bps_ = 0;
                     item->encode_fps_ = 0;
                     item->clipboard_enabled_ = false;
                     item->audio_enabled_ = false;
-                    item->connect_type_ = "cms_ticket";
+                    item->connect_type_ = "console_ticket";
                     item->use_webrtc_ = true;
                     db_mgr->AddStream(item);
                 }
             }
         } else {
-            LOGW("Keep current CMS device cards because resource refresh failed: {}",
+            LOGW("Keep current Console device cards because resource refresh failed: {}",
                  static_cast<int>(user_devices_result.error()));
         }
     }
@@ -1194,51 +1194,51 @@ namespace px
     void AppStreamList::RefreshCloudApplications() {
         auto user_mgr = grApp->GetUserManager();
         if (const auto apps_result = user_mgr->QueryApps(); apps_result.has_value()) {
-            std::vector<std::shared_ptr<px_cms::CmsStream>> app_streams;
+            std::vector<std::shared_ptr<px_console::ConsoleStream>> app_streams;
             for (const auto& app : apps_result.value()) {
-                auto stream = std::make_shared<px_cms::CmsStream>();
-                stream->stream_id_ = "cms-app-" + app.app_id;
+                auto stream = std::make_shared<px_console::ConsoleStream>();
+                stream->stream_id_ = "console-app-" + app.app_id;
                 stream->stream_name_ = app.name;
-                stream->connect_type_ = "cms_app_ticket";
-                stream->cms_app_id_ = app.app_id;
-                stream->cms_access_mode_ = app.access_mode;
-                stream->cms_instance_state_ = "stopped";
+                stream->connect_type_ = "console_app_ticket";
+                stream->console_app_id_ = app.app_id;
+                stream->console_access_mode_ = app.access_mode;
+                stream->console_instance_state_ = "stopped";
                 if (!app.cover_url.empty()) {
                     QUrl cover_url(QString::fromStdString(app.cover_url));
                     if (cover_url.isRelative()) {
-                        QUrl cms_base;
-                        cms_base.setScheme(settings_->IsCmsSslEnabled() ? "https" : "http");
-                        cms_base.setHost(QString::fromStdString(settings_->GetCmsServerHost()));
-                        cms_base.setPort(settings_->GetCmsServerPort());
-                        cms_base.setPath("/");
-                        cover_url = cms_base.resolved(cover_url);
+                        QUrl console_base;
+                        console_base.setScheme(settings_->IsConsoleSslEnabled() ? "https" : "http");
+                        console_base.setHost(QString::fromStdString(settings_->GetConsoleServerHost()));
+                        console_base.setPort(settings_->GetConsoleServerPort());
+                        console_base.setPath("/");
+                        cover_url = console_base.resolved(cover_url);
                     }
-                    stream->cms_cover_url_ = cover_url.toString().toStdString();
+                    stream->console_cover_url_ = cover_url.toString().toStdString();
                 }
                 stream->use_webrtc_ = true;
                 stream->audio_enabled_ = false;
                 stream->clipboard_enabled_ = false;
-                stream->cms_online_ = true;
+                stream->console_online_ = true;
                 if (app.running_instance) {
-                    stream->cms_instance_id_ = app.running_instance->instance_id;
-                    stream->cms_instance_state_ = app.running_instance->state;
+                    stream->console_instance_id_ = app.running_instance->instance_id;
+                    stream->console_instance_state_ = app.running_instance->state;
                     stream->direct_online_ = app.running_instance->state == "running";
                 }
                 app_streams.push_back(std::move(stream));
             }
             {
                 std::lock_guard<std::mutex> guard(streams_mtx_);
-                cms_app_streams_ = std::move(app_streams);
+                console_app_streams_ = std::move(app_streams);
             }
         } else {
-            LOGW("Keep current CMS application cards because catalog refresh failed: {}",
+            LOGW("Keep current Console application cards because catalog refresh failed: {}",
                  static_cast<int>(apps_result.error()));
         }
     }
 
-    std::vector<std::shared_ptr<px_cms::CmsStream>> AppStreamList::CopyStreams() {
+    std::vector<std::shared_ptr<px_console::ConsoleStream>> AppStreamList::CopyStreams() {
         std::lock_guard<std::mutex> guard(streams_mtx_);
-        std::vector<std::shared_ptr<px_cms::CmsStream>> items;
+        std::vector<std::shared_ptr<px_console::ConsoleStream>> items;
         items.insert(items.begin(), streams_.begin(), streams_.end());
         return items;
     }

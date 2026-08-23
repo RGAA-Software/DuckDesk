@@ -21,7 +21,7 @@
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/win32/dxgi_mon_detector.h"
-#include "px_cms_client/cms_http_client.h"
+#include "px_console_client/console_http_client.h"
 #include "px_profile_client/profile_api.h"
 namespace px
 {
@@ -60,9 +60,9 @@ namespace px
             file_transfer_folder_ = qApp->applicationDirPath().toStdString();
         }
 
-        // sync the cms ssl switch into the cms api libraries
-        px_cms::SetCmsSslEnabled(IsCmsSslEnabled());
-        ProfileApi::SetSslEnabled(IsCmsSslEnabled());
+        // sync the console ssl switch into the console api libraries
+        px_console::SetConsoleSslEnabled(IsConsoleSslEnabled());
+        ProfileApi::SetSslEnabled(IsConsoleSslEnabled());
     }
 
     void PxSettings::Dump() {
@@ -91,8 +91,8 @@ namespace px
         ss << "udp_listen_port_:" << udp_listen_port_ << std::endl;
         ss << "relay host: " << GetRelayServerHost() << std::endl;
         ss << "relay port: " << GetRelayServerPort() << std::endl;
-        ss << "cms server host: " << GetCmsServerHost() << std::endl;
-        ss << "cms server port: " << GetCmsServerPort() << std::endl;
+        ss << "console server host: " << GetConsoleServerHost() << std::endl;
+        ss << "console server port: " << GetConsoleServerPort() << std::endl;
         ss << "---------------------PxSettings End-----------------------" << std::endl;
         LOGI("\n {}", ss.str());
     }
@@ -105,11 +105,15 @@ namespace px
         this->SetDeviceName("");
         this->SetDeviceRandomPwd("");
         this->SetDeviceSecurityPwd("");
-        this->SetCmsServerHost("");
-        this->SetCmsServerPort("");
+        this->SetConsoleServerHost("");
+        this->SetConsoleServerPort("");
         this->SetRelayServerHost("");
         this->SetRelayServerPort("");
-        this->SetCmsAccessInfo("");
+        this->SetConsoleAccessInfo("");
+        sp_->Put(kLegacyStCmsServerHost, "");
+        sp_->Put(kLegacyStCmsServerPort, "");
+        sp_->Put(kLegacyStCmsAccessInfo, "");
+        sp_->Put(kLegacyStCmsSslEnable, "");
     }
 
     void PxSettings::SetEnableResResize(bool enabled) {
@@ -337,32 +341,46 @@ namespace px
         return !GetRelayServerHost().empty() && GetRelayServerPort() > 0;
     }
 
-    // Cms
+    // Console
     // Set Host
-    void PxSettings::SetCmsServerHost(const std::string& host) {
-        sp_->Put(kStCmsServerHost, host);
+    void PxSettings::SetConsoleServerHost(const std::string& host) {
+        sp_->Put(kStConsoleServerHost, host);
     }
 
-    // Cms
+    // Console
     // Get Host
-    std::string PxSettings::GetCmsServerHost() {
-        return sp_->Get(kStCmsServerHost, "");
+    std::string PxSettings::GetConsoleServerHost() {
+        auto value = sp_->Get(kStConsoleServerHost, "");
+        if (value.empty()) {
+            value = sp_->Get(kLegacyStCmsServerHost, "");
+            if (!value.empty()) {
+                sp_->Put(kStConsoleServerHost, value);
+            }
+        }
+        return value;
     }
 
-    // Cms
+    // Console
     // Set Port
-    void PxSettings::SetCmsServerPort(const std::string& port) {
-        sp_->Put(kStCmsServerPort, port);
+    void PxSettings::SetConsoleServerPort(const std::string& port) {
+        sp_->Put(kStConsoleServerPort, port);
     }
 
-    // Cms
+    // Console
     // Get Port
-    int PxSettings::GetCmsServerPort() {
-        return std::atoi(sp_->Get(kStCmsServerPort, "").c_str());
+    int PxSettings::GetConsoleServerPort() {
+        auto value = sp_->Get(kStConsoleServerPort, "");
+        if (value.empty()) {
+            value = sp_->Get(kLegacyStCmsServerPort, "");
+            if (!value.empty()) {
+                sp_->Put(kStConsoleServerPort, value);
+            }
+        }
+        return std::atoi(value.c_str());
     }
 
-    bool PxSettings::HasCmsServerConfig() {
-        return !GetCmsServerHost().empty() && GetCmsServerPort() > 0;
+    bool PxSettings::HasConsoleServerConfig() {
+        return !GetConsoleServerHost().empty() && GetConsoleServerPort() > 0;
     }
 
     void PxSettings::SetScreenRecordingPath(const std::string& path) {
@@ -506,35 +524,48 @@ namespace px
         return sp_->Get(kStPreferDecoder, "Auto");
     }
 
-    void PxSettings::SetCmsAccessInfo(const std::string& info) {
-        sp_->Put(kStCmsAccessInfo, info);
+    void PxSettings::SetConsoleAccessInfo(const std::string& info) {
+        sp_->Put(kStConsoleAccessInfo, info);
     }
 
-    std::string PxSettings::GetCmsAccessInfo() {
-        return sp_->Get(kStCmsAccessInfo, "");
+    std::string PxSettings::GetConsoleAccessInfo() {
+        auto value = sp_->Get(kStConsoleAccessInfo, "");
+        if (value.empty()) {
+            value = sp_->Get(kLegacyStCmsAccessInfo, "");
+            if (!value.empty()) {
+                sp_->Put(kStConsoleAccessInfo, value);
+            }
+        }
+        return value;
     }
 
-    void PxSettings::SetCmsSslEnabled(bool enabled) {
-        sp_->Put(kStCmsSslEnable, enabled ? kStTrue : kStFalse);
-        // sync the switch into the cms api libraries
-        px_cms::SetCmsSslEnabled(enabled);
+    void PxSettings::SetConsoleSslEnabled(bool enabled) {
+        sp_->Put(kStConsoleSslEnable, enabled ? kStTrue : kStFalse);
+        // sync the switch into the console api libraries
+        px_console::SetConsoleSslEnabled(enabled);
         ProfileApi::SetSslEnabled(enabled);
     }
 
-    bool PxSettings::IsCmsSslEnabled() {
-        auto value = sp_->Get(kStCmsSslEnable);
+    bool PxSettings::IsConsoleSslEnabled() {
+        auto value = sp_->Get(kStConsoleSslEnable);
+        if (value.empty()) {
+            value = sp_->Get(kLegacyStCmsSslEnable);
+            if (!value.empty()) {
+                sp_->Put(kStConsoleSslEnable, value);
+            }
+        }
         return value.empty() || value == kStTrue;
     }
 
-    std::shared_ptr<HttpClient> PxSettings::MakeCmsHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms) {
-        if (Instance()->IsCmsSslEnabled()) {
+    std::shared_ptr<HttpClient> PxSettings::MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms) {
+        if (Instance()->IsConsoleSslEnabled()) {
             return HttpClient::MakeSSL(host, port, path, timeout_ms);
         }
         return HttpClient::Make(host, port, path, timeout_ms);
     }
 
-    std::string PxSettings::GetCmsHttpScheme() {
-        return Instance()->IsCmsSslEnabled() ? "https" : "http";
+    std::string PxSettings::GetConsoleHttpScheme() {
+        return Instance()->IsConsoleSslEnabled() ? "https" : "http";
     }
 
     void PxSettings::SetSkinName(const std::string& name) {

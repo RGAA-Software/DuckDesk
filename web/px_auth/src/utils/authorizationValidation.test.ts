@@ -28,7 +28,7 @@ describe('authorization validation', () => {
         machine_code: 'machine-a',
         days: 30,
         max_streams: 4,
-        product: 'cms',
+        product: 'console',
       },
     })
   })
@@ -119,15 +119,15 @@ describe('authorization validation', () => {
     })).toMatchObject({ ok: false })
   })
 
-  it('recognizes Pixels_cms and labels its max_streams as Max Streams', () => {
-    expect(normalizeProduct('Pixels_cms')).toBe('Pixels_cms')
+  it('recognizes pixels_console and labels its max_streams as Max Streams', () => {
+    expect(normalizeProduct('pixels_console')).toBe('pixels_console')
     expect(normalizeProduct('gopico')).toBe('gopico')
-    expect(normalizeProduct('unknown')).toBe('cms')
+    expect(normalizeProduct('unknown')).toBe('console')
 
     expect(validateUpdateAuthorization({
       days: '30',
       max_streams: '0',
-      product: 'Pixels_cms',
+      product: 'pixels_console',
     })).toMatchObject({
       ok: false,
       message: `Max Streams 必须在 1 到 ${MAX_AUTH_STREAMS} 之间`,

@@ -65,11 +65,11 @@ let manualClose = false
 let reconnectTimer: number | null = null
 // localStorage 记忆上次连接的 deviceId/streamId(不存密码)
 const LS_LAST_CONN = 'px_web_client.last_conn'
-// 浏览器标识:CMS launch 页经 URL 带入(&nonce=),裸开页面时本地生成持久化。
+// 浏览器标识:Console launch 页经 URL 带入(&nonce=),裸开页面时本地生成持久化。
 // 信令带给 render,同一浏览器(nonce 相同)的新连接自动接管旧连接,不弹确认
 const LS_CLIENT_NONCE = 'px_web_client.client_nonce'
 const clientNonce = ref('')
-// CMS launch parameters arrive in the URL fragment so the one-time ticket is
+// Console launch parameters arrive in the URL fragment so the one-time ticket is
 // never sent in an HTTP Referer or server access log. Keep them in memory only.
 const connectionTicket = ref('')
 const connectionInstanceId = ref('')
@@ -79,13 +79,13 @@ const grantedPermissions = ref<string[]>([])
 let ticketConsumed = false
 
 function hasGrantedPermission(permission: string) {
-  // Manual administrator/debug connections do not carry a CMS capability
+  // Manual administrator/debug connections do not carry a Console capability
   // list and retain the legacy controls.
   return grantedPermissions.value.length === 0 || grantedPermissions.value.includes(permission)
 }
 
 async function renewConnectionTicket() {
-  setConnectStep('signal', '正在向 CMS 申请新的重连票据')
+  setConnectStep('signal', '正在向 Console 申请新的重连票据')
   const renewed = await exchangeRenewalTicket(
     fetch,
     renewalUrl.value,
@@ -96,7 +96,7 @@ async function renewConnectionTicket() {
   renewalToken.value = renewed.renewalToken
   if (renewed.permissions.length > 0) grantedPermissions.value = renewed.permissions
   ticketConsumed = false
-  addLog('[connect] 已轮换 CMS 重连票据')
+  addLog('[connect] 已轮换 Console 重连票据')
 }
 
 function ensureClientNonce(urlNonce: string) {
@@ -511,7 +511,7 @@ function handleDcBinary(buf: ArrayBuffer) {
         { confirmButtonText: '知道了', type: 'warning' },
       ).catch(() => {})
     } else if (msg.type === MSG_TYPE_INSTANCE_STOPPED && msg.instanceStopped) {
-      // 实例被 CMS 停止:render 退出前广播。按手动断开处理(置 manualClose,
+      // 实例被 Console 停止:render 退出前广播。按手动断开处理(置 manualClose,
       // 阻止自动重连),并明确提示
       addLog(`实例已被停止 (${msg.instanceStopped.reason || '-'})`)
       disconnect()
@@ -876,7 +876,7 @@ const showStepList = computed(
 )
 
 // 从 URL query 带入参数:
-//   推荐:?c=<URL-safe Base64 JSON{d,p?,m?}> (panel/CMS 生成,避免明文密码)
+//   推荐:?c=<URL-safe Base64 JSON{d,p?,m?}> (panel/Console 生成,避免明文密码)
 //   兼容:?deviceId=&password= 或 &pwd_md5=(预哈希),便于本地调试
 // deviceId 出现在 URL 时自动连接;密码可空(render 未设安全密码时放行)
 // 流 ID 由设备 ID 派生,不从 URL 带入
@@ -921,7 +921,7 @@ function loadQueryParams() {
   }
   ensureClientNonce(fragment.get('nonce') ?? q.get('nonce') ?? '')
   if (connectionTicket.value) {
-    addLog('[connect] 已加载 CMS 一次性连接票据')
+    addLog('[connect] 已加载 Console 一次性连接票据')
     // Remove secrets from the address bar/history after parsing. The in-memory
     // copy remains available for the immediately following signaling request.
     history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)

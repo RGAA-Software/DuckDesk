@@ -8,9 +8,9 @@
 #include <memory>
 #include <QDialog>
 
-namespace px_cms
+namespace px_console
 {
-    class CmsStream;
+    class ConsoleStream;
 }
 
 namespace px
@@ -28,7 +28,7 @@ namespace px
         void Close();
 
     private:
-        std::shared_ptr<px_cms::CmsStream> stream_item_ = nullptr;
+        std::shared_ptr<px_console::ConsoleStream> stream_item_ = nullptr;
         Win10HorizontalLoadingWidget* h_loading_widget_ = nullptr;
 
     };

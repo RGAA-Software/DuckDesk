@@ -58,7 +58,7 @@
 #include "hw_info/hw_info.h"
 #include "hw_info/hw_info_parser.h"
 #include "hw_info/hw_info_widget.h"
-#include "network/ct_cms_client.h"
+#include "network/ct_console_client.h"
 #include "skin/skin_loader.h"
 #include "skin/interface/skin_interface.h"
 #include "ct_game_overlay.h"
@@ -143,27 +143,27 @@ namespace px
         sdk_ = ThunderSdk::Make(this->context_->GetMessageNotifier());
         sdk_->Init(this->params_, nullptr, DecoderRenderType::kFFmpegI420);
 
-        // A CMS ticket launch is already authenticated and lifecycle-managed
+        // A Console ticket launch is already authenticated and lifecycle-managed
         // by Panel. The legacy device WebSocket cannot authenticate a guest or
         // user-session ticket and would otherwise retry a rejected handshake
         // every second for the lifetime of the application session.
         if (!settings_->file_transfer_only_
             && settings_->connection_ticket_.empty()
             && !settings_->device_id_.empty()
-            && !settings_->cms_host_.empty()
-            && settings_->cms_port_ > 0
+            && !settings_->console_host_.empty()
+            && settings_->console_port_ > 0
             && !settings_->appkey_.empty()) {
-            LOGI("Will start cms client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
-            cms_client_ = CtCmsClient::Make(sdk_,
+            LOGI("Will start console client, device_id: {}, remote device_id: {}", settings_->device_id_, settings_->remote_device_id_);
+            console_client_ = CtConsoleClient::Make(sdk_,
                                             context_,
-                                            settings_->cms_host_,
-                                            settings_->cms_port_,
+                                            settings_->console_host_,
+                                            settings_->console_port_,
                                             settings_->device_id_,
                                             settings_->remote_device_id_,
                                             settings_->host_,
                                             settings_->appkey_,
-                                            settings_->cms_ssl_);
-            cms_client_->Start();
+                                            settings_->console_ssl_);
+            console_client_->Start();
         }
 
         // init game views
@@ -1449,9 +1449,9 @@ namespace px
             panel_client_->Exit();
             panel_client_ = nullptr;
         }
-        if (cms_client_) {
-            cms_client_->Exit();
-            cms_client_ = nullptr;
+        if (console_client_) {
+            console_client_->Exit();
+            console_client_ = nullptr;
         }
         if (sdk_) {
             sdk_->Exit();

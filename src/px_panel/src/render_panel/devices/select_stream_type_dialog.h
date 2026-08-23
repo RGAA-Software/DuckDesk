@@ -16,7 +16,7 @@
 #include <QComboBox>
 #include <QPainter>
 
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
 namespace px

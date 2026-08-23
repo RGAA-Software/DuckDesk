@@ -27,7 +27,7 @@
     <el-table-column label="名称" prop="auth_name" :min-width="50"/>
     <el-table-column label="Product" prop="product" :min-width="70">
       <template #default="scope">
-        {{ scope.row.product || 'cms' }}
+        {{ scope.row.product || 'console' }}
       </template>
     </el-table-column>
     <el-table-column label="Machine Code" prop="machine_code" :min-width="120" />
@@ -54,7 +54,7 @@
           修改
         </el-button>
         <el-button
-          v-if="(scope.row.product || 'cms') === 'gopico' && !scope.row.revoked"
+          v-if="(scope.row.product || 'console') === 'gopico' && !scope.row.revoked"
           size="small"
           type="danger"
           @click="handleRevoke(scope.row)"
@@ -128,10 +128,10 @@
         </el-form-item>
 
         <el-form-item label="Product">
-          <el-input :model-value="selectedData.product || 'cms'" disabled></el-input>
+          <el-input :model-value="selectedData.product || 'console'" disabled></el-input>
         </el-form-item>
 
-        <el-form-item :label="(selectedData.product || 'cms') === 'gopico' ? 'Max Devices' : 'Max Streams'">
+        <el-form-item :label="(selectedData.product || 'console') === 'gopico' ? 'Max Devices' : 'Max Streams'">
           <el-input v-model="selectedData.max_streams" :disabled="selectedData.disable_modify"></el-input>
         </el-form-item>
 
@@ -344,7 +344,7 @@ const handleSave = async () => {
   if (isSaving.value) return
   if (!validateSelectedAuthorization()) return
 
-  const isGopico = (selectedData.value.product || 'cms') === 'gopico'
+  const isGopico = (selectedData.value.product || 'console') === 'gopico'
   const payload = isGopico
     ? {
         auth_id: selectedData.value.auth_id,

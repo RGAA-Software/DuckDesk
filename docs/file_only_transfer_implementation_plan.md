@@ -3,7 +3,7 @@
 > 状态：已完成（2026-08-22）
 >
 > 首期通道：直连 WS、RTC LAN、Relay
-> 不在本期：RTC TURN；Coturn 的 CMS 托管与状态展示是独立能力，不影响本功能验收。
+> 不在本期：RTC TURN；Coturn 的 Console 托管与状态展示是独立能力，不影响本功能验收。
 
 ## 1. 最终产品行为
 
@@ -13,7 +13,7 @@
 2. 已有连接时，Panel 通过本机 WebSocket 按 `stream_id` 定向下发
    `kCpOpenFileTransfer`，现有 `px_client` 打开内置文件窗口并复用当前 FT 通道；
    不申请新 ticket，也不启动第二个进程。
-3. 没有连接时，Panel 才向 CMS 申请一张仅含 `file` 权限、绑定目标设备
+3. 没有连接时，Panel 才向 Console 申请一张仅含 `file` 权限、绑定目标设备
    和 nonce 的一次性 ticket，并启动同一份
    `px_client.exe --mode=file-transfer`（不是新增第二种客户端程序）。
 4. 独立进程只显示文件管理窗口，只加载 `ft_client` 插件；不显示远控画面，
@@ -28,8 +28,8 @@
 
 正式入口：
 
-1. 启动 CMS、Panel 和目标 Render。
-2. 在 Panel 登录 CMS 用户；个人设备不做额外授权/分组管控，账号登录正确且
+1. 启动 Console、Panel 和目标 Render。
+2. 在 Panel 登录 Console 用户；个人设备不做额外授权/分组管控，账号登录正确且
    目标设备在线即可看到并连接。
 3. 在设备卡片右侧点击更多菜单。
 4. 点击 `File Transfer / 文件传输`。
@@ -100,7 +100,7 @@ ticket 在 `/alloc/local/rtc` 信令阶段兑换。文件权限会传入 `RtcSer
 
 ### 5.4 Relay
 
-Relay 握手携带 `file_only=1`、ticket、nonce 和目标 `ft_server_<device>`。CMS 在 WebSocket upgrade 前兑换 ticket，并把授权目标写入连接状态。后续建房必须同时满足：
+Relay 握手携带 `file_only=1`、ticket、nonce 和目标 `ft_server_<device>`。Console 在 WebSocket upgrade 前兑换 ticket，并把授权目标写入连接状态。后续建房必须同时满足：
 
 - 发起端 ID 以 `ft_client_` 开头；
 - 目标端 ID 精确等于 ticket 握手绑定的 `ft_server_<device>`；
@@ -125,7 +125,7 @@ Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多
 | 通道创建 | `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | file-only 不创建媒体连接 |
 | RTC data-only | `src/px_deps/px_webrtc_client/rtc_connection.cpp` | 只协商 FT data channel |
 | WS 认证 | `src/px_render/plugins/net_ws/ws_server.cpp` | 兑换 file ticket、拒绝未授权连接 |
-| Relay 认证 | `rust_server/px_cms_server/src/cms_relay/relay_server.rs` | 握手兑换与建房目标绑定 |
+| Relay 认证 | `rust_server/px_console_server/src/console_relay/relay_server.rs` | 握手兑换与建房目标绑定 |
 | FT 隔离 | `src/px_render/plugins/ft/ft_plugin.cpp` | 每 stream 独立引擎 |
 
 ## 7. 编译与发布
@@ -144,13 +144,13 @@ build_official\dist\px_client_rtc.dll
 build_official\dist\deps\ct_plugins\ft_client.dll
 ```
 
-CMS：
+Console：
 
 ```bat
 cd rust_server
-cargo check -p px_cms_server
-cargo test -p px_cms_server --no-fail-fast
-cargo build -p px_cms_server --release
+cargo check -p px_console_server
+cargo test -p px_console_server --no-fail-fast
+cargo build -p px_console_server --release
 ```
 
 本机 VS 2026 环境如果覆盖了 vcpkg 路径，先进入 `VsDevCmd.bat`，并设置 `VCPKG_ROOT=C:\source\vcpkg`、`CMAKE_GENERATOR=Ninja`。
@@ -171,7 +171,7 @@ build_official\src\px_deps\px_ft_engine\tests\test_ft_transfer_job.exe
 build_official\src\px_deps\px_ft_engine\tests\test_ft_engine.exe
 ```
 
-当前结果：51/51 通过，覆盖目录遍历防护、压缩、上传/下载、目录递归、覆盖三分支、取消清理、续传、摘要生命周期、限速/背压和按连接断线清理。CMS 当前 130/130 单元测试通过。
+当前结果：51/51 通过，覆盖目录遍历防护、压缩、上传/下载、目录递归、覆盖三分支、取消清理、续传、摘要生命周期、限速/背压和按连接断线清理。Console 当前 130/130 单元测试通过。
 
 ### 8.2 三通道建连验收
 
@@ -185,7 +185,7 @@ build_official\src\px_deps\px_ft_engine\tests\test_ft_engine.exe
 
 测试产生的临时 Mongo session/ticket 已全部删除。无 ticket/无效 ticket 的 WS file-only 连接和 Relay 握手均已验证被拒绝。
 
-获得一张真实 CMS ticket 后，也可手动启动 WS smoke test：
+获得一张真实 Console ticket 后，也可手动启动 WS smoke test：
 
 ```bat
 scripts\test_file_transfer_only_wss.bat <device_id> <host> <port> <ticket_b64> <nonce>
@@ -211,6 +211,6 @@ scripts\test_file_transfer_only_wss.bat <device_id> <host> <port> <ticket_b64> <
 
 ## 9. 后续扩展
 
-TURN 不是这三条首期通道的阻塞项。后续若让 RTC 跨 NAT，应在现有 RTC 配置中加入 CMS 下发的 ICE server/临时 TURN credential，并把验收矩阵增加 `RTC TURN`；不要改变当前 Panel 入口或再生成一个客户端 EXE。
+TURN 不是这三条首期通道的阻塞项。后续若让 RTC 跨 NAT，应在现有 RTC 配置中加入 Console 下发的 ICE server/临时 TURN credential，并把验收矩阵增加 `RTC TURN`；不要改变当前 Panel 入口或再生成一个客户端 EXE。
 
 命令行仍可看到当前进程自己的 ticket 参数。进一步加固可改为 Panel 与客户端之间的一次性本机 IPC launch handle；这不会改变服务端现有的一次性、设备绑定和权限校验。

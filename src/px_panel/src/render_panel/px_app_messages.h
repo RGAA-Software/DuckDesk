@@ -4,7 +4,7 @@
 #include <map>
 #include <QVariantMap>
 #include "notify/notify_defs.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 
 namespace pxrp
 {
@@ -133,19 +133,19 @@ namespace px
 
     class StreamItemAdded {
     public:
-        std::shared_ptr<px_cms::CmsStream> item_;
+        std::shared_ptr<px_console::ConsoleStream> item_;
         bool auto_start_ = false;
     };
 
     class StreamItemUpdated {
     public:
-        std::shared_ptr<px_cms::CmsStream> item_;
+        std::shared_ptr<px_console::ConsoleStream> item_;
     };
 
     // Close workspace
     class ClearWorkspace {
     public:
-        std::shared_ptr<px_cms::CmsStream> item_;
+        std::shared_ptr<px_console::ConsoleStream> item_;
     };
 
     // reported plugins info
@@ -230,11 +230,11 @@ namespace px
         std::shared_ptr<SysInfo> sys_info_ = nullptr;
     };
 
-    // cms access info
-    class StNetworkCmsAccessInfo;
-    class MsgCmsAccessInfo {
+    // console access info
+    class StNetworkConsoleAccessInfo;
+    class MsgConsoleAccessInfo {
     public:
-        std::map<std::string, std::shared_ptr<StNetworkCmsAccessInfo>> access_info_;
+        std::map<std::string, std::shared_ptr<StNetworkConsoleAccessInfo>> access_info_;
     };
 
     // user logged in

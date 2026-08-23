@@ -10,7 +10,7 @@ import path from 'node:path'
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const CMS = process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
+const consoleBase = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
 const APP_NAME = process.env.PX_WEBVIEW_TEST_APP || 'baidu'
 const OBSERVE_MS = Number(process.env.PX_WEBVIEW_TEST_OBSERVE_MS || 120_000)
 const INPUT_PHASE = process.env.PX_WEBVIEW_TEST_INPUT_PHASE || 'full'
@@ -117,7 +117,7 @@ async function captureRemoteFrame(filePath) {
 async function main() {
   await waitForCdp()
   const target = await (await fetch(
-    `http://127.0.0.1:${CDP_PORT}/json/new?${encodeURIComponent(CMS + '/')}`,
+    `http://127.0.0.1:${CDP_PORT}/json/new?${encodeURIComponent(consoleBase + '/')}`,
     { method: 'PUT' },
   )).json()
   ws = new WebSocket(target.webSocketDebuggerUrl)
@@ -135,12 +135,12 @@ async function main() {
 
   let originReady = false
   for (let retry = 0; retry < 60; retry += 1) {
-    originReady = await evaluate(`location.origin === ${JSON.stringify(new URL(CMS).origin)}`)
+    originReady = await evaluate(`location.origin === ${JSON.stringify(new URL(consoleBase).origin)}`)
       .catch(() => false)
     if (originReady) break
     await sleep(250)
   }
-  if (!originReady) throw new Error('CMS origin did not load')
+  if (!originReady) throw new Error('Console origin did not load')
 
   const launch = await evaluate(`(async () => {
     const nonce = crypto.randomUUID()
@@ -309,9 +309,9 @@ main()
   .finally(async () => {
     if (ws?.readyState === WebSocket.OPEN && launchedInstanceId && launchedCsrf) {
       try {
-        await command('Page.navigate', { url: CMS + '/' })
+        await command('Page.navigate', { url: consoleBase + '/' })
         for (let retry = 0; retry < 20; retry += 1) {
-          if (await evaluate(`location.origin === ${JSON.stringify(new URL(CMS).origin)}`).catch(() => false)) break
+          if (await evaluate(`location.origin === ${JSON.stringify(new URL(consoleBase).origin)}`).catch(() => false)) break
           await sleep(100)
         }
         const stopped = await evaluate(`fetch(

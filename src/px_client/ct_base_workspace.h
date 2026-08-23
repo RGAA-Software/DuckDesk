@@ -48,7 +48,7 @@ namespace px
     class RetryConnDialog;
     class D3D11DeviceWrapper;
     class HWInfoWidget;
-    class CtCmsClient;
+    class CtConsoleClient;
     class PlVulkan;
     class SkinInterface;
     class OverlayWidget;
@@ -213,8 +213,8 @@ namespace px
         // show remote hardware info
         HWInfoWidget* hw_info_widget_ = nullptr;
 
-        // cms client
-        std::shared_ptr<CtCmsClient> cms_client_ = nullptr;
+        // console client
+        std::shared_ptr<CtConsoleClient> console_client_ = nullptr;
 
         // can generate relative d3d11device & context
         bool gen_d3d11_device_ = false;

@@ -55,7 +55,7 @@ dir = ""
 #max_file_count = 24
 
 # Passive live push: only consumes media while an existing remote-control
-# client has caused render to capture and encode. CMS/Panel supplies
+# client has caused render to capture and encode. Console/Panel supplies
 # live_stream_id at launch; standalone can pass --live_stream_id.
 [push]
 enabled = false

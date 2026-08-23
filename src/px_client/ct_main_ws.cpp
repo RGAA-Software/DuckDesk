@@ -56,14 +56,14 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_port("port", "Port", "9999", "0");
     parser.addOption(opt_port);
 
-    QCommandLineOption opt_cms_host("cms_host", "Cms Host", "xx.xx.xx.xx", "");
-    parser.addOption(opt_cms_host);
+    QCommandLineOption opt_console_host(QStringList{"console_host", "cms_host"}, "Console Host", "xx.xx.xx.xx", "");
+    parser.addOption(opt_console_host);
 
-    QCommandLineOption opt_cms_port("cms_port", "Cms Port", "9999", "0");
-    parser.addOption(opt_cms_port);
+    QCommandLineOption opt_console_port(QStringList{"console_port", "cms_port"}, "Console Port", "9999", "0");
+    parser.addOption(opt_console_port);
 
-    QCommandLineOption opt_cms_ssl("cms_ssl", "Cms SSL(wss/ws)", "true/false", "true");
-    parser.addOption(opt_cms_ssl);
+    QCommandLineOption opt_console_ssl(QStringList{"console_ssl", "cms_ssl"}, "Console SSL(wss/ws)", "true/false", "true");
+    parser.addOption(opt_console_ssl);
 
     QCommandLineOption opt_appkey("appkey", "appkey", "x", "");
     parser.addOption(opt_appkey);
@@ -107,13 +107,13 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_remote_device_sp("remote_device_sp", "remote_device sp", "value", "");
     parser.addOption(opt_remote_device_sp);
 
-    QCommandLineOption opt_connection_ticket("connection_ticket", "CMS one-time connection ticket", "value", "");
+    QCommandLineOption opt_connection_ticket("connection_ticket", "Console one-time connection ticket", "value", "");
     parser.addOption(opt_connection_ticket);
 
-    QCommandLineOption opt_connection_nonce("connection_nonce", "CMS connection nonce", "value", "");
+    QCommandLineOption opt_connection_nonce("connection_nonce", "Console connection nonce", "value", "");
     parser.addOption(opt_connection_nonce);
 
-    QCommandLineOption opt_connection_instance_id("connection_instance_id", "CMS application instance binding", "value", "");
+    QCommandLineOption opt_connection_instance_id("connection_instance_id", "Console application instance binding", "value", "");
     parser.addOption(opt_connection_instance_id);
 
     QCommandLineOption opt_enable_p2p("enable_p2p", "enable p2p", "value", "0");
@@ -215,11 +215,11 @@ bool ParseCommandLine(QApplication& app) {
     settings->udp_port_ = settings->port_;
     settings->appkey_ = parser.value(opt_appkey).toStdString();
 
-    // cms
-    settings->cms_host_ = parser.value(opt_cms_host).toStdString();
-    settings->cms_port_ = parser.value(opt_cms_port).toInt();
-    // 缺省 true,保持旧的 wss 行为;显式传 --cms_ssl=false 时走明文 ws
-    settings->cms_ssl_ = parser.value(opt_cms_ssl) != "false";
+    // console
+    settings->console_host_ = parser.value(opt_console_host).toStdString();
+    settings->console_port_ = parser.value(opt_console_port).toInt();
+    // 缺省 true,保持旧的 wss 行为;显式传 --console_ssl=false 时走明文 ws
+    settings->console_ssl_ = parser.value(opt_console_ssl) != "false";
 
     auto audio_on = parser.value(opt_audio).toInt();
     settings->audio_on_ = (audio_on == 1);
@@ -290,7 +290,7 @@ bool ParseCommandLine(QApplication& app) {
     settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
     if (settings->file_transfer_only_) {
         if (settings->connection_ticket_.empty() || settings->connection_nonce_.empty()) {
-            LOGE("Standalone file transfer requires a CMS ticket and nonce");
+            LOGE("Standalone file transfer requires a Console ticket and nonce");
             return false;
         }
         const bool supported_transport = settings->network_type_ == ClientNetworkType::kWebsocket
@@ -550,9 +550,9 @@ int main(int argc, char** argv) {
     LOGI("port: {}", g_remote_port_);
     LOGI("udp port: {}", settings->udp_port_);
     LOGI("appkey configured: {}", !settings->appkey_.empty());
-    LOGI("cms host: {}", settings->cms_host_);
-    LOGI("cms port: {}", settings->cms_port_);
-    LOGI("cms ssl: {}", settings->cms_ssl_);
+    LOGI("console host: {}", settings->console_host_);
+    LOGI("console port: {}", settings->console_port_);
+    LOGI("console ssl: {}", settings->console_ssl_);
     LOGI("audio on: {}", settings->audio_on_);
     LOGI("clipboard on: {}", settings->clipboard_on_);
     LOGI("device id: {}", settings->device_id_);

@@ -110,7 +110,7 @@ namespace px
             const std::string& client_nonce,
             const std::string& instance_id,
             std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback) const;
-        // service 经 ws 下发 kSrvStopServer(CMS 停止实例):先广播 kInstanceStopped
+        // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播 kInstanceStopped
         // 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
         void OnServiceRequestedStop();
         std::shared_ptr<WinDesktopManager> GetDesktopManager();

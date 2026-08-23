@@ -23,8 +23,8 @@ impl StatServer {
     pub async fn start(&self, context: Arc<Mutex<StatContext>>, port: u16) {
         let current_dir = std::env::current_exe().unwrap();
         let current_dir = current_dir.parent().unwrap();
-        let web_cms_dir = current_dir.join("static");
-        tracing::info!("assets_dir: {:?}", &web_cms_dir);
+        let web_console_dir = current_dir.join("static");
+        tracing::info!("assets_dir: {:?}", &web_console_dir);
 
         // configure certificate and private key used by https
         let cp = current_dir.join("certs").join("cert.pem");
@@ -44,11 +44,11 @@ impl StatServer {
         }
         let config = config.unwrap();
 
-        let static_dir = ServeDir::new(web_cms_dir.clone())
-            .not_found_service(ServeFile::new(web_cms_dir.join("index.html")));
+        let static_dir = ServeDir::new(web_console_dir.clone())
+            .not_found_service(ServeFile::new(web_console_dir.join("index.html")));
 
         let router = Router::new()
-            //.fallback_service(ServeDir::new(web_cms_dir).append_index_html_on_directories(true))
+            //.fallback_service(ServeDir::new(web_console_dir).append_index_html_on_directories(true))
             .fallback_service(get_service(static_dir).handle_error(|_| async move {
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,

@@ -29,7 +29,7 @@ pub struct ServiceRuntime {
     pub state: ServiceState,
     pub app_registry: AppInstanceRegistry,
     /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
-    /// 用于 CMS 停止实例时主动给 render 推 kSrvStopServer。
+    /// 用于 Console 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
@@ -222,11 +222,11 @@ impl ServiceRuntime {
             }
             Command::AuthInfo(auth_info) => {
                 info!(
-                    "received auth info, device_id={}, appkey_configured={}, cms={}:{}",
+                    "received auth info, device_id={}, appkey_configured={}, console={}:{}",
                     auth_info.device_id,
                     !auth_info.appkey.is_empty(),
-                    auth_info.cms_host,
-                    auth_info.cms_port
+                    auth_info.console_host,
+                    auth_info.console_port
                 );
                 self.state.last_auth_info = Some(auth_info);
                 Ok(None)
@@ -297,7 +297,7 @@ impl ServiceRuntime {
         let processes = self.process_manager.list_processes()?;
         let mut killed = 0usize;
         for process in processes {
-            // Never kill CMS game-hook instances from desktop stop.
+            // Never kill Console game-hook instances from desktop stop.
             if process.is_app_instance_render_process() {
                 continue;
             }
@@ -315,7 +315,7 @@ impl ServiceRuntime {
         Ok(())
     }
 
-    /// CMS-scheduled game-hook/WebView instance start. Returns (listen_port, pid).
+    /// Console-scheduled game-hook/WebView instance start. Returns (listen_port, pid).
     ///
     /// Async + narrow locking: the registry is only locked while reading or
     /// mutating it; the multi-second process waits run unlocked so heartbeats
@@ -513,10 +513,10 @@ impl ServiceRuntime {
             })
     }
 
-    /// Drop registry entries whose Render process is gone (killed outside CMS stop).
+    /// Drop registry entries whose Render process is gone (killed outside Console stop).
     /// Also reaps Failed records: if the render is actually alive (e.g. the pid
     /// lookup timed out during start), kill the tree and remove the record so the
-    /// port is really freed. Called before CMS heartbeats so HB no longer claims
+    /// port is really freed. Called before Console heartbeats so HB no longer claims
     /// ghost "running" instances.
     pub fn reap_dead_app_instances(&mut self) {
         use service_core::AppInstanceState;
@@ -683,7 +683,7 @@ impl ServiceRuntime {
             }
         }
         // kill 后按端口复查:进程仍在监听时不能 mark_stopped,否则端口被释放,
-        // 下一个实例分配同端口直接撞车。此时返回 Err 让 CMS 标 failed。
+        // 下一个实例分配同端口直接撞车。此时返回 Err 让 Console 标 failed。
         if !wait_app_render_exit_by_port(&process_manager, rec.listen_port, 10, 100).await {
             return Err(format!(
                 "instance {instance_id} render still alive on port {} after kill",
@@ -784,7 +784,7 @@ async fn wait_app_render_pid_by_port(
 
 /// Wait for a game-hook render to disappear. WMI can keep a successfully
 /// terminated process visible briefly, so checking once immediately after
-/// `TerminateProcess` creates false stop failures and leaves CMS instances in
+/// `TerminateProcess` creates false stop failures and leaves Console instances in
 /// `failed`. This is intentionally the inverse of `wait_app_render_pid_by_port`.
 async fn wait_app_render_exit_by_port(
     process_manager: &Arc<dyn ProcessManager>,
@@ -856,7 +856,7 @@ pub async fn run_service(
     let service_task = tokio::spawn(async move { service.run_console().await });
     let monitor_task = tokio::spawn(monitor_loop(runtime.clone()));
     let control_task = tokio::spawn(control_loop(runtime.clone(), control_rx));
-    let cms_task = tokio::spawn(crate::cms_client::cms_client_loop(runtime.clone()));
+    let console_task = tokio::spawn(crate::console_client::console_client_loop(runtime.clone()));
 
     tokio::select! {
         result = service_task => {
@@ -877,7 +877,7 @@ pub async fn run_service(
                 Err(err) => Err(err.to_string()),
             }
         }
-        result = cms_task => {
+        result = console_task => {
             match result {
                 Ok(inner) => inner,
                 Err(err) => Err(err.to_string()),
@@ -1194,9 +1194,9 @@ mod tests {
             days: 365,
             max_streams: 4,
             end_timestamp_ms: 1_900_000_000_000,
-            cms_host: "cms.example.com".to_string(),
-            cms_port: 8443,
-            cms_ssl: true,
+            console_host: "console.example.com".to_string(),
+            console_port: 8443,
+            console_ssl: true,
         }
     }
 

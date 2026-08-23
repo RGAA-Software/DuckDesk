@@ -14,7 +14,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/time_util.h"
-#include "render_panel/cms_scanner/cms_scanner.h"
+#include "render_panel/console_scanner/console_scanner.h"
 #include "render_panel/companion/panel_companion.h"
 #include <QCheckBox>
 #include <QStyledItemDelegate>
@@ -40,7 +40,7 @@ namespace px
         QCheckBox* cb_ = nullptr;
 
     public:
-        NtSearchItem(StNetworkSearch* container, int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info, QWidget* parent) : QWidget(parent) {
+        NtSearchItem(StNetworkSearch* container, int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info, QWidget* parent) : QWidget(parent) {
             container_ = container;
             auto root_layout = new NoMarginVLayout();
             {
@@ -72,7 +72,7 @@ namespace px
                     auto lbl = new TcLabel(this);
                     lbl->setStyleSheet("font-weight: bold;");
                     lbl->setFixedWidth(180);
-                    auto text = std::format("Cms: {}:{}", item_info->cms_ip_, item_info->cms_port_);
+                    auto text = std::format("Console: {}:{}", item_info->console_ip_, item_info->console_port_);
                     lbl->setText(text.c_str());
                     layout->addWidget(lbl);
                 }
@@ -116,7 +116,7 @@ namespace px
         CenterDialog(this);
 
         msg_listener_ = context_->ObtainMessageListener();
-        // msg_listener_->Listen<MsgCmsAccessInfo>([=, this](const MsgCmsAccessInfo& msg) {
+        // msg_listener_->Listen<MsgConsoleAccessInfo>([=, this](const MsgConsoleAccessInfo& msg) {
         //     context_->PostUITask([=, this]() {
         //         this->UpdateItems();
         //     });
@@ -213,7 +213,7 @@ namespace px
         empty_lbl_->setGeometry((this->width() - lbl_size.width())/2,  (this->height() - lbl_size.height())/2, lbl_size.width(), lbl_size.height());
     }
 
-    QListWidgetItem* StNetworkSearch::AddItem(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info) {
+    QListWidgetItem* StNetworkSearch::AddItem(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info) {
         auto item = new QListWidgetItem(list_widget_);
         auto item_size = QSize(600, 40);
         item->setSizeHint(item_size);
@@ -230,8 +230,8 @@ namespace px
             delete item;
         }
 
-        auto scanner = app_->GetCmsScanner();
-        auto access_info = scanner->GetCmsAccessInfo();
+        auto scanner = app_->GetConsoleScanner();
+        auto access_info = scanner->GetConsoleAccessInfo();
         int index = 0;
         for (const auto& info : access_info) {
             this->AddItem(index++, info.second);
@@ -240,7 +240,7 @@ namespace px
         empty_lbl_->setHidden(!access_info.empty());
     }
 
-    void StNetworkSearch::OnItemClicked(int index, const std::shared_ptr<StNetworkCmsAccessInfo>& item_info) {
+    void StNetworkSearch::OnItemClicked(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info) {
         selected_item_ = item_info;
         int count = list_widget_->count();
         for (int i = 0; i < count; i++) {
@@ -253,7 +253,7 @@ namespace px
         }
     }
 
-    std::shared_ptr<StNetworkCmsAccessInfo> StNetworkSearch::GetSelectedItem() {
+    std::shared_ptr<StNetworkConsoleAccessInfo> StNetworkSearch::GetSelectedItem() {
         return selected_item_;
     }
 

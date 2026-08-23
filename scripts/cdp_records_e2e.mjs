@@ -1,4 +1,4 @@
-// E2E for CMS web device records page (topology 1 direct).
+// E2E for Console web device records page (topology 1 direct).
 // Usage: node scripts/cdp_records_e2e.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'
@@ -6,7 +6,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE = process.env.CMS_URL || 'http://10.0.0.16:30500'
+const BASE = process.env.CONSOLE_URL || process.env.CMS_URL || 'http://10.0.0.16:30500'
 const APPKEY = process.env.APPKEY || '49727717a74720a863f007dcdb13324e'
 const DEVICE = process.env.DEVICE_ID || '001190520'
 const PLAY_FILE = process.env.PLAY_FILE || '' // pick the row whose name contains this
@@ -127,12 +127,12 @@ await evaluate(`new Promise((res, rej) => { const v = document.querySelector('vi
 console.log('SEEK_OK to', seekTo)
 await sleep(1500)
 
-// 4. verify video data requests succeeded (direct: panel 206; cms topo: uploads 200/206)
+// 4. verify video data requests succeeded (direct: panel 206; console topo: uploads 200/206)
 const panelReqs = netDone.filter(r => r.url.includes('10.0.0.90:20369'))
-const cmsReqs = netDone.filter(r => r.url.includes('/uploads/records/'))
+const consoleReqs = netDone.filter(r => r.url.includes('/uploads/records/'))
 console.log('PANEL_REQS:', JSON.stringify(panelReqs))
-console.log('CMS_UPLOAD_REQS:', JSON.stringify(cmsReqs))
-const has206 = panelReqs.some(r => r.status === 206) || cmsReqs.some(r => r.status === 206 || r.status === 200)
+console.log('CONSOLE_UPLOAD_REQS:', JSON.stringify(consoleReqs))
+const has206 = panelReqs.some(r => r.status === 206) || consoleReqs.some(r => r.status === 206 || r.status === 200)
 console.log('HAS_206:', has206)
 
 // 5. screenshot

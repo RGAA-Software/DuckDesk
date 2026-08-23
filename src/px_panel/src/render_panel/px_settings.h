@@ -52,8 +52,10 @@ namespace px
     static const std::string kStDeviceSafetyPwd = "device_safety_pwd";
     static const std::string kStRelayServerHost = "relay_server_host";
     static const std::string kStRelayServerPort = "relay_server_port";
-    static const std::string kStCmsServerHost = "cms_server_host";
-    static const std::string kStCmsServerPort = "cms_server_port";
+    static const std::string kStConsoleServerHost = "console_server_host";
+    static const std::string kStConsoleServerPort = "console_server_port";
+    static const std::string kLegacyStCmsServerHost = "cms_server_host";
+    static const std::string kLegacyStCmsServerPort = "cms_server_port";
     static const std::string kStScreenRecordingPath = "screen_recording_path";
     static const std::string kStShowMaxWindow = "show_max_window";
     static const std::string kStMaxNumOfScreen = "max_num_of_screen";
@@ -69,8 +71,10 @@ namespace px
     static const std::string kStColorfulTitlebar = "colorful_titlebar";
     static const std::string kStDisplayRandomPwd = "display_random_pwd";
     static const std::string kStPreferDecoder = "prefer_decoder";
-    static const std::string kStCmsAccessInfo = "cms_access_info";
-    static const std::string kStCmsSslEnable = "cms_ssl_enable";
+    static const std::string kStConsoleAccessInfo = "console_access_info";
+    static const std::string kStConsoleSslEnable = "console_ssl_enable";
+    static const std::string kLegacyStCmsAccessInfo = "cms_access_info";
+    static const std::string kLegacyStCmsSslEnable = "cms_ssl_enable";
     static const std::string kStSkinName = "skin_name";
 
     static const std::string kStTrue = "true";
@@ -173,16 +177,16 @@ namespace px
         void SetRenderServerPort(int port);
         int GetRenderServerPort();
 
-        // Cms
+        // Console
         // Host
-        void SetCmsServerHost(const std::string& host);
-        std::string GetCmsServerHost();
+        void SetConsoleServerHost(const std::string& host);
+        std::string GetConsoleServerHost();
 
         // Port
-        void SetCmsServerPort(const std::string& port);
-        int GetCmsServerPort();
+        void SetConsoleServerPort(const std::string& port);
+        int GetConsoleServerPort();
 
-        bool HasCmsServerConfig();
+        bool HasConsoleServerConfig();
 
         // Relay
         // Host
@@ -264,18 +268,18 @@ namespace px
         void SetPreferDecoder(const std::string& decoder);
         std::string GetPreferDecoder();
 
-        // Cms access info
-        void SetCmsAccessInfo(const std::string& info);
-        std::string GetCmsAccessInfo();
+        // Console access info
+        void SetConsoleAccessInfo(const std::string& info);
+        std::string GetConsoleAccessInfo();
 
-        // Cms ssl enabled (from cms access broadcast, default true)
-        void SetCmsSslEnabled(bool enabled);
-        bool IsCmsSslEnabled();
+        // Console ssl enabled (from console access broadcast, default true)
+        void SetConsoleSslEnabled(bool enabled);
+        bool IsConsoleSslEnabled();
 
-        // make a http(s) client to CMS, scheme selected by IsCmsSslEnabled()
-        static std::shared_ptr<HttpClient> MakeCmsHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
-        // "https" / "http" selected by IsCmsSslEnabled()
-        static std::string GetCmsHttpScheme();
+        // make a http(s) client to Console, scheme selected by IsConsoleSslEnabled()
+        static std::shared_ptr<HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
+        // "https" / "http" selected by IsConsoleSslEnabled()
+        static std::string GetConsoleHttpScheme();
 
         // skin name
         void SetSkinName(const std::string& name);

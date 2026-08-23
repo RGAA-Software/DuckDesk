@@ -79,7 +79,7 @@ namespace px
         // 会产生只有 Begin 没有 End 的悬挂审计记录,这里提前拦掉。
         bool CheckReadPathExists(const px::FileAction& action, const std::string& stream_id);
 
-        // ---- 审计(panel CMS 链路:kRpFileTransferBegin/End)----
+        // ---- 审计(panel Console 链路:kRpFileTransferBegin/End)----
         void TrackJobBegin(const std::string& stream_id, int32_t job_id, const std::string& direction,
                            const std::string& path, uint64_t total_size,
                            const std::shared_ptr<Message>& msg);

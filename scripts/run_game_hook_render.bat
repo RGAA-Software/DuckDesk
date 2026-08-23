@@ -28,7 +28,7 @@ set "WEB_URL=http://127.0.0.1:%PORT%/web_client/?deviceId=%DEVICE_ID%"
 
 rem Optional: UE bootstrap launcher → real game exe. Set GAME_VIEW_B64 to the
 rem Base64(UTF-8) of the real renderer exe full path (service resolves this via
-rem ue_bootstrap in the CMS flow); render then injects the view process instead
+rem ue_bootstrap in the Console flow); render then injects the view process instead
 rem of the launcher shell.
 set "VIEW_ARG="
 if defined GAME_VIEW_B64 set "VIEW_ARG=--app_game_view_path=%GAME_VIEW_B64%"

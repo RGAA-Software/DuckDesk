@@ -16,7 +16,7 @@ namespace px
 
     class Thread;
     class AuthManager;
-    class CmsSettings;
+    class ConsoleSettings;
     class SharedPreference;
     class StatManager;
 
@@ -30,8 +30,8 @@ namespace px
         void OnTimer1S() override;
         void OnTimer5S() override;
 
-        // Cms
-        void UpdateCmsServerConfig(const std::string &host, int port, bool ssl_enable) override;
+        // Console
+        void UpdateConsoleServerConfig(const std::string &host, int port, bool ssl_enable) override;
         void UpdateAppkey(const std::string& appkey) override;
         std::shared_ptr<Authorization> RequestAuth() override;
         std::shared_ptr<Authorization> GetAuth() override;
@@ -47,8 +47,8 @@ namespace px
         float GetCurrentCpuFrequency() override;
         std::shared_ptr<SysInfo> ParseHardwareInfo(const std::string& info) override;
 
-        // cms access
-        std::shared_ptr<CmsAccessInfo> ParseCmsAccessInfo(const std::string& info) override;
+        // console access
+        std::shared_ptr<ConsoleAccessInfo> ParseConsoleAccessInfo(const std::string& info) override;
 
         // jump to github
         void JumpToGithub() override;
@@ -71,7 +71,7 @@ namespace px
         void ReportOpenUpIfNeeded();
 
     private:
-        CmsSettings* cms_settings_ = nullptr;
+        ConsoleSettings* console_settings_ = nullptr;
         std::shared_ptr<AuthManager> auth_mgr_ = nullptr;
         std::shared_ptr<Thread> net_thread_ = nullptr;
         std::shared_ptr<SharedPreference> sp_ = nullptr;

@@ -5,7 +5,7 @@
 //     收到 kFileAction/kFileResponse -> 入队喂引擎)
 //   - 线程隔离(core 单 worker 线程,见 ft_core.h)
 //   - ShowRootWidget()/HasProcessingTasks() 基类虚方法
-//   - 审计事件(kPluginFileTransBeginEvent/EndEvent,对齐旧插件的 CMS 记录链路)
+//   - 审计事件(kPluginFileTransBeginEvent/EndEvent,对齐旧插件的 Console 记录链路)
 //
 
 #ifndef PX_CLIENT_FT_CLIENT_PLUGIN_H

@@ -25,7 +25,7 @@ namespace px
         CreateLayout();
     }
 
-    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_cms::CmsStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
+    CreateStreamDialog::CreateStreamDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
         context_ = ctx;
         stream_item_ = item;
         setFixedSize(375, 475);
@@ -327,7 +327,7 @@ namespace px
             return false;
         }
 
-        auto func_update_stream = [&](std::shared_ptr<px_cms::CmsStream>& item) {
+        auto func_update_stream = [&](std::shared_ptr<px_console::ConsoleStream>& item) {
             item->stream_name_ = name.empty() ? host : name;
             item->stream_host_ = host;
             item->stream_port_ = port;
@@ -343,7 +343,7 @@ namespace px
             });
         }
         else {
-            std::shared_ptr<px_cms::CmsStream> item = std::make_shared<px_cms::CmsStream>();
+            std::shared_ptr<px_console::ConsoleStream> item = std::make_shared<px_console::ConsoleStream>();
             func_update_stream(item);
             context_->SendAppMessage(StreamItemAdded {
                 .item_ = item,

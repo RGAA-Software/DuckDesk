@@ -137,7 +137,7 @@ echo   1. Start MongoDB (default: mongodb://localhost:27017/)
 echo   2. Edit %OUTPUT_DIR%\px_auth.toml
 echo      - bootstrap.admin_password: set initial admin password
 echo      (jwt_secret is auto-generated on every startup)
-echo   3. Distribute %OUTPUT_DIR%\certs\auth_license_public.key to CMS servers.
+echo   3. Distribute %OUTPUT_DIR%\certs\auth_license_public.key to Console servers.
 echo.
 echo Run:
 echo   %OUTPUT_DIR%\px_auth.exe

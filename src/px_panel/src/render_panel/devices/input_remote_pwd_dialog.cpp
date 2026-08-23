@@ -10,7 +10,7 @@
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_cms_client/cms_stream.h"
+#include "px_console_client/console_stream.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_context.h"

@@ -19,12 +19,12 @@
 #include "px_label.h"
 #include "px_pushbutton.h"
 #include "st_network_search.h"
-#include "px_cms_client/cms_device_api.h"
-#include "px_cms_client/cms_device.h"
-#include "px_cms_client/cms_http_client.h"
+#include "px_console_client/console_device_api.h"
+#include "px_console_client/console_device.h"
+#include "px_console_client/console_http_client.h"
 #include "px_relay_client/relay_api.h"
 #include "px_common_new/message_notifier.h"
-#include "render_panel/cms_scanner/cms_scanner.h"
+#include "render_panel/console_scanner/console_scanner.h"
 #include "st_network_auto_join_dialog.h"
 #include <QPushButton>
 #include <QLineEdit>
@@ -61,18 +61,18 @@ namespace px
             {
                 // title
                 auto label = new TcLabel(this);
-                label->SetTextId("id_gr_cms_server");
+                label->SetTextId("id_gr_console_server");
                 label->setStyleSheet("font-size: 16px; font-weight: 700;");
                 segment_layout->addSpacing(0);
                 segment_layout->addWidget(label);
                 segment_layout->addSpacing(2);
             }
 
-            // Cms access info
+            // Console access info
             {
                 auto layout = new NoMarginHLayout();
                 auto label = new TcLabel(this);
-                label->SetTextId("id_cms_auth_access_info");
+                label->SetTextId("id_console_auth_access_info");
                 label->setFixedSize(tips_label_size);
                 label->setStyleSheet("font-size: 14px; font-weight: 500;");
                 layout->addWidget(label);
@@ -81,14 +81,14 @@ namespace px
                 edit->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
                 edit->setLineWrapMode(QTextEdit::WidgetWidth);
                 edit->setAcceptRichText(false);
-                edt_cms_access_ = edit;
+                edt_console_access_ = edit;
                 QObject::connect(edit, &QTextEdit::textChanged, this, [=, this]() {
                      auto text = edit->toPlainText();
-                     auto info = this->ParseCmsAccessInfo(text.toStdString());
-                     this->DisplayCmsAccessInfo(info);
+                     auto info = this->ParseConsoleAccessInfo(text.toStdString());
+                     this->DisplayConsoleAccessInfo(info);
                  });
                 edit->setFixedSize(input_size.width()*2, input_size.height()*2);
-                edit->setText(settings_->GetCmsAccessInfo().c_str());
+                edit->setText(settings_->GetConsoleAccessInfo().c_str());
                 layout->addWidget(edit);
                 layout->addSpacing(15);
 
@@ -134,9 +134,9 @@ namespace px
 
                 auto edit = new QLineEdit(this);
                 edit->setEnabled(false);
-                edt_cms_server_host_ = edit;
+                edt_console_server_host_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(settings_->GetCmsServerHost().c_str());
+                edit->setText(settings_->GetConsoleServerHost().c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -152,10 +152,10 @@ namespace px
 
                 auto edit = new QLineEdit(this);
                 edit->setEnabled(false);
-                edt_cms_server_port_ = edit;
+                edt_console_server_port_ = edit;
                 edit->setFixedSize(input_size);
                 edit->setValidator(new QIntValidator);
-                edit->setText(std::to_string(settings_->GetCmsServerPort()).c_str());
+                edit->setText(std::to_string(settings_->GetConsoleServerPort()).c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -410,9 +410,9 @@ namespace px
         msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
             // clear data
             app_->GetContext()->PostUITask([=, this]() {
-                edt_cms_access_->setText("");
-                edt_cms_server_host_->setText("");
-                edt_cms_server_port_->setText("");
+                edt_console_access_->setText("");
+                edt_console_server_host_->setText("");
+                edt_console_server_port_->setText("");
                 edt_relay_server_host_->setText("");
                 edt_relay_server_port_->setText("");
             });
@@ -432,21 +432,21 @@ namespace px
 
     }
 
-    std::shared_ptr<CmsAccessInfo> StNetwork::ParseCmsAccessInfo(const std::string& info) {
+    std::shared_ptr<ConsoleAccessInfo> StNetwork::ParseConsoleAccessInfo(const std::string& info) {
         auto companion = grApp->GetCompanion();
         if (!companion) {
             return nullptr;
         }
-        return companion->ParseCmsAccessInfo(info);
+        return companion->ParseConsoleAccessInfo(info);
     }
 
-    void StNetwork::DisplayCmsAccessInfo(const std::shared_ptr<CmsAccessInfo>& info) {
-        if (!info || !info->cms_config_.IsValid()) {
-            if (edt_cms_server_host_) {
-                edt_cms_server_host_->setText("");
+    void StNetwork::DisplayConsoleAccessInfo(const std::shared_ptr<ConsoleAccessInfo>& info) {
+        if (!info || !info->console_config_.IsValid()) {
+            if (edt_console_server_host_) {
+                edt_console_server_host_->setText("");
             }
-            if (edt_cms_server_port_) {
-                edt_cms_server_port_->setText("");
+            if (edt_console_server_port_) {
+                edt_console_server_port_->setText("");
             }
             if (edt_relay_server_host_) {
                 edt_relay_server_host_->setText("");
@@ -456,41 +456,41 @@ namespace px
             }
             return;
         }
-        if (edt_cms_server_host_) {
-            edt_cms_server_host_->setText(info->cms_config_.srv_w3c_ip_.c_str());
+        if (edt_console_server_host_) {
+            edt_console_server_host_->setText(info->console_config_.srv_w3c_ip_.c_str());
         }
-        if (edt_cms_server_port_) {
-            edt_cms_server_port_->setText(QString::number(info->cms_config_.srv_cms_port_));
+        if (edt_console_server_port_) {
+            edt_console_server_port_->setText(QString::number(info->console_config_.srv_console_port_));
         }
         if (edt_relay_server_host_) {
-            edt_relay_server_host_->setText(info->cms_config_.srv_w3c_ip_.c_str());
+            edt_relay_server_host_->setText(info->console_config_.srv_w3c_ip_.c_str());
         }
         if (edt_relay_server_port_) {
-            edt_relay_server_port_->setText(QString::number(info->cms_config_.srv_relay_port_));
+            edt_relay_server_port_->setText(QString::number(info->console_config_.srv_relay_port_));
         }
     }
 
-    void StNetwork::SaveCmsAccessInfo() {
-        auto info = edt_cms_access_->toPlainText().trimmed().toStdString();
-        settings_->SetCmsAccessInfo(info);
+    void StNetwork::SaveConsoleAccessInfo() {
+        auto info = edt_console_access_->toPlainText().trimmed().toStdString();
+        settings_->SetConsoleAccessInfo(info);
     }
 
     void StNetwork::SearchAccessInfo(bool auto_restart_render) {
-        auto ac_info = app_->GetCmsScanner()->GetCmsAccessInfo();
+        auto ac_info = app_->GetConsoleScanner()->GetConsoleAccessInfo();
         if (ac_info.empty()) {
             return;
         }
         if (ac_info.size() == 1) {
-            std::shared_ptr<StNetworkCmsAccessInfo> info = nullptr;
+            std::shared_ptr<StNetworkConsoleAccessInfo> info = nullptr;
             for (const auto& [k, v] : ac_info) {
                 info = v;
             }
             if (info) {
-                if (settings_->GetCmsServerHost() != info->cms_ip_ || settings_->GetCmsServerPort() != info->cms_port_
+                if (settings_->GetConsoleServerHost() != info->console_ip_ || settings_->GetConsoleServerPort() != info->console_port_
                     || settings_->GetRelayServerHost() != info->relay_ip_ || settings_->GetRelayServerPort() != info->relay_port_ || !auto_restart_render) {
                     StNetworkAutoJoinDialog dialog(app_, info);
                     if (dialog.exec() == 0) {
-                        edt_cms_access_->setText(info->origin_info_.c_str());
+                        edt_console_access_->setText(info->origin_info_.c_str());
                         if (auto_restart_render) {
                             this->Save(auto_restart_render);
                         }
@@ -503,35 +503,35 @@ namespace px
             if (nt_search.exec() == 0) {
                 auto selected_item = nt_search.GetSelectedItem();
                 if (!selected_item) {
-                    LOGE("Not a valid cms item !");
+                    LOGE("Not a valid console item !");
                     return;
                 }
-                if (selected_item->cms_ip_.empty() || selected_item->relay_ip_.empty()) {
-                    TcDialog dialog(tcTr("id_error"), tcTr("id_verify_cms_failed"));
+                if (selected_item->console_ip_.empty() || selected_item->relay_ip_.empty()) {
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_verify_console_failed"));
                     dialog.exec();
                     return;
                 }
-                edt_cms_access_->setText(selected_item->origin_info_.c_str());
+                edt_console_access_->setText(selected_item->origin_info_.c_str());
             }
         }
     }
 
     void StNetwork::VerifyAccessInfo() {
-        // 1. verify cms server
-        auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString());
+        // 1. verify console server
+        auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
         if (!ac_info) {
-            LOGE("Parse access info failed: {}", edt_cms_access_->toPlainText().toStdString());
+            LOGE("Parse access info failed: {}", edt_console_access_->toPlainText().toStdString());
             return;
         }
 
-        auto appkey = ac_info->cms_config_.srv_appkey_;
-        // the pasted access string carries the ssl switch, sync it into the cms api library
+        auto appkey = ac_info->console_config_.srv_appkey_;
+        // the pasted access string carries the ssl switch, sync it into the console api library
         // before pinging; Save()/settings Load() will persist & re-sync it later
-        px_cms::SetCmsSslEnabled(ac_info->cms_config_.srv_ssl_enable_);
+        px_console::SetConsoleSslEnabled(ac_info->console_config_.srv_ssl_enable_);
         {
-            auto r = px_cms::CmsDeviceApi::Ping(ac_info->cms_config_.srv_w3c_ip_, ac_info->cms_config_.srv_cms_port_, appkey);
+            auto r = px_console::ConsoleDeviceApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_console_port_, appkey);
             if (!r.has_value() || !r.value()) {
-                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_cms_failed"));
+                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_console_failed"));
                 dialog.exec();
                 return;
             }
@@ -539,7 +539,7 @@ namespace px
 
         // 2. verify relay server
         {
-            auto r = px_relay::RelayApi::Ping(ac_info->cms_config_.srv_w3c_ip_, ac_info->cms_config_.srv_relay_port_, appkey);
+            auto r = px_relay::RelayApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_relay_port_, appkey);
             if (!r.has_value() || !r.value()) {
                 TcDialog dialog(tcTr("id_error"), tcTr("id_verify_relay_failed"));
                 dialog.exec();
@@ -552,13 +552,13 @@ namespace px
     }
 
     void StNetwork::Save(bool auto_restart_render) {
-        auto cms_host = edt_cms_server_host_->text().toStdString();
-        auto cms_port = edt_cms_server_port_->text().toStdString();
+        auto console_host = edt_console_server_host_->text().toStdString();
+        auto console_port = edt_console_server_port_->text().toStdString();
         auto relay_host = edt_relay_server_host_->text().toStdString();
         auto relay_port = edt_relay_server_port_->text().toStdString();
         bool force_update_device_id = false;
-        if (!cms_host.empty()
-            && (settings_->GetCmsServerHost() != cms_host || settings_->GetCmsServerPort() != std::atoi(cms_port.c_str()))) {
+        if (!console_host.empty()
+            && (settings_->GetConsoleServerHost() != console_host || settings_->GetConsoleServerPort() != std::atoi(console_port.c_str()))) {
             force_update_device_id = true;
             settings_->SetDeviceId("");
             if (cat comp = grApp->GetCompanion(); comp) {
@@ -568,18 +568,18 @@ namespace px
             settings_->SetDeviceRandomPwd("");
             LOGW("Clear old device id, force updating device id.");
         }
-        settings_->SetCmsServerHost(cms_host);
-        settings_->SetCmsServerPort(cms_port);
+        settings_->SetConsoleServerHost(console_host);
+        settings_->SetConsoleServerPort(console_port);
         settings_->SetPanelServerPort(edt_panel_port_->text().toInt());
 
         settings_->SetRelayServerHost(relay_host);
         settings_->SetRelayServerPort(relay_port);
 
-        SaveCmsAccessInfo();
+        SaveConsoleAccessInfo();
 
         // sync the ssl switch from the pasted access string (default true, compatible with old deployments)
-        if (auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString()); ac_info) {
-            settings_->SetCmsSslEnabled(ac_info->cms_config_.srv_ssl_enable_);
+        if (auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString()); ac_info) {
+            settings_->SetConsoleSslEnabled(ac_info->console_config_.srv_ssl_enable_);
         }
 
         // Load again
@@ -588,13 +588,13 @@ namespace px
         // companion
         auto companion = grApp->GetCompanion();
         if (companion) {
-            companion->UpdateCmsServerConfig(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), settings_->IsCmsSslEnabled());
+            companion->UpdateConsoleServerConfig(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), settings_->IsConsoleSslEnabled());
 
             // Extract the appkey from the pasted access string so
             // RequestAuth uses the current appkey, not a stale cached one.
-            auto ac_info = ParseCmsAccessInfo(edt_cms_access_->toPlainText().trimmed().toStdString());
-            if (ac_info && !ac_info->cms_config_.srv_appkey_.empty()) {
-                companion->UpdateAppkey(ac_info->cms_config_.srv_appkey_);
+            auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
+            if (ac_info && !ac_info->console_config_.srv_appkey_.empty()) {
+                companion->UpdateAppkey(ac_info->console_config_.srv_appkey_);
             }
 
             auto auth = companion->RequestAuth();
@@ -633,7 +633,7 @@ namespace px
         }
         else {
             // check the device id is valid or not
-            auto r = px_cms::CmsDeviceApi::QueryDevice(settings_->GetCmsServerHost(), settings_->GetCmsServerPort(), grApp->GetAppkey(), device_id);
+            auto r = px_console::ConsoleDeviceApi::QueryDevice(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), grApp->GetAppkey(), device_id);
             if (!r.has_value() || r.value()->device_id_.empty()) {
                 // request a new one
                 LOGI("Can't query the device id : {} in server, will request a new one.", settings_->GetDeviceId());

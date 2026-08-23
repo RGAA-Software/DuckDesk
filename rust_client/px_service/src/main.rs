@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
 mod app;
-mod cms_client;
+mod console_client;
 mod service_host;
 mod service_windows;
 mod usbmmidd;

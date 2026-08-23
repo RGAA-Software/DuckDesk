@@ -102,8 +102,8 @@ pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
             Arc::new(WindowsProcessManager::new()),
             Arc::new(WindowsActions::new()),
         )));
-        info!("running service stack in console mode (ws + cms + monitor)");
-        // Same task set as the Windows service entry: WS for Panel, CMS client for scheduling.
+        info!("running service stack in console mode (ws + console + monitor)");
+        // Same task set as the Windows service entry: WS for Panel, Console client for scheduling.
         crate::service_host::run_service(runtime, None).await?;
         return Ok(());
     }

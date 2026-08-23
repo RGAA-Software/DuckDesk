@@ -1,7 +1,7 @@
 //! Stable machine code derived from real hardware identifiers.
 //!
 //! Ported from gopico-pc (`gopico-pc-core/src/license/machine_code.rs`) so the
-//! CMS server reports the same `xxxx-xxxx` machine code scheme.
+//! Console server reports the same `xxxx-xxxx` machine code scheme.
 //!
 //! Factors (best effort — every factor that can be collected is mixed in):
 //! 1. Physical NIC MAC addresses (WMI `Get-NetAdapter -Physical`; fallback: sysinfo NICs).

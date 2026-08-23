@@ -2,7 +2,7 @@
 // Created by RGAA on 2026/08/17.
 //
 // Unit tests for the record-fetch tunnel queue / retry / url parser
-// (docs/cms_render_records_view_design.md section 6.2 / 7.2).
+// (docs/console_render_records_view_design.md section 6.2 / 7.2).
 //
 
 #include <gtest/gtest.h>
@@ -138,9 +138,9 @@ TEST(RecordTransfer, ParseUploadUrlHttpsDefaultPort) {
     bool ssl = false;
     std::string host, path;
     int port = 0;
-    ASSERT_TRUE(ParseUploadUrl("https://cms.example.com/api/v1/record/upload", ssl, host, port, path));
+    ASSERT_TRUE(ParseUploadUrl("https://console.example.com/api/v1/record/upload", ssl, host, port, path));
     EXPECT_TRUE(ssl);
-    EXPECT_EQ(host, "cms.example.com");
+    EXPECT_EQ(host, "console.example.com");
     EXPECT_EQ(port, 443);
     EXPECT_EQ(path, "/api/v1/record/upload");
 }

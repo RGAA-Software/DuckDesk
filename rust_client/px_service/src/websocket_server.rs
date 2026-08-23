@@ -79,7 +79,7 @@ async fn handle_connection(
     .map_err(|err| err.to_string())?;
 
     let (mut sink, mut stream) = ws_stream.split();
-    // 除 request/response 外,service 还需主动给 render 推消息(如 CMS 停止
+    // 除 request/response 外,service 还需主动给 render 推消息(如 Console 停止
     // 实例时的 kSrvStopServer),sink 交给独立 writer task,发送方走 channel。
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let writer = tokio::spawn(async move {
@@ -232,7 +232,7 @@ async fn handle_connection(
                                 _ => Some(ticket_response(
                                     request_id,
                                     crate::service_host::TicketRedeemResult {
-                                        code: "CMS_TIMEOUT".to_string(),
+                                        code: "CONSOLE_TIMEOUT".to_string(),
                                         ..Default::default()
                                     },
                                 )),
@@ -240,7 +240,7 @@ async fn handle_connection(
                             Err(_) => Some(ticket_response(
                                 request_id,
                                 crate::service_host::TicketRedeemResult {
-                                    code: "CMS_UNAVAILABLE".to_string(),
+                                    code: "CONSOLE_UNAVAILABLE".to_string(),
                                     ..Default::default()
                                 },
                             )),
@@ -249,7 +249,7 @@ async fn handle_connection(
                         Some(ticket_response(
                             request_id,
                             crate::service_host::TicketRedeemResult {
-                                code: "CMS_UNAVAILABLE".to_string(),
+                                code: "CONSOLE_UNAVAILABLE".to_string(),
                                 ..Default::default()
                             },
                         ))

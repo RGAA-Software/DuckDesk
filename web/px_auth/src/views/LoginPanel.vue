@@ -92,7 +92,7 @@
       <ul class="brand-points">
         <li><span class="dot" />集中管理产品授权与设备配额</li>
         <li><span class="dot" />实时掌握授权状态与剩余时长</li>
-        <li><span class="dot" />支持 CMS / GoPico 多产品线</li>
+        <li><span class="dot" />支持 Console / GoPico 多产品线</li>
       </ul>
     </section>
 

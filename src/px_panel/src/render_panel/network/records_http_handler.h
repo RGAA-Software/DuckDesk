@@ -2,7 +2,7 @@
 // Created by RGAA on 2026/08/17.
 //
 // asio2 glue layer for the /records HTTP API
-// (docs/cms_render_records_view_design.md section 5.1 / 5.3).
+// (docs/console_render_records_view_design.md section 5.1 / 5.3).
 //
 
 #ifndef TC_APPLICATION_RECORDS_HTTP_HANDLER_H
@@ -18,7 +18,7 @@ namespace px
     class PxApplication;
 
     // C:\Users\Public\Pixels\px_render_records (same convention as media_recorder plugin).
-    // Shared by the /records http routes and the cms tunnel fetch worker.
+    // Shared by the /records http routes and the console tunnel fetch worker.
     std::string GetRenderRecordsDir();
 
     class RecordsHttpHandler {
@@ -34,7 +34,7 @@ namespace px
         void HandleRecordFile(http::web_request &req, http::web_response &rep);
 
     private:
-        // ACAO:* so the cms web page (different origin) can fetch these endpoints
+        // ACAO:* so the console web page (different origin) can fetch these endpoints
         static void SetCorsHeaders(http::web_response& rep);
         // verifies tk/exp query params, filename_or_star = "*" for list/info
         bool CheckTicket(http::web_request &req, http::web_response &rep, const std::string& filename_or_star);

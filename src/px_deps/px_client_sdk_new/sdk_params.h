@@ -89,7 +89,7 @@ namespace px
         std::string remote_device_random_pwd_;
         // safety password, already in md5 form, sent as safety_pwd_md5 directly
         std::string remote_device_safety_pwd_;
-        // One-time CMS capability grant used only by the direct WebRTC
+        // One-time Console capability grant used only by the direct WebRTC
         // signaling request. It must never be persisted or logged.
         std::string connection_ticket_;
         std::string connection_nonce_;

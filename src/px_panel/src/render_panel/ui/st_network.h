@@ -16,7 +16,7 @@ namespace px
 
     class PxApplication;
     class MessageListener;
-    class CmsAccessInfo;
+    class ConsoleAccessInfo;
 
     class StNetwork : public TabBase {
     public:
@@ -27,18 +27,18 @@ namespace px
         void OnTabHide() override;
 
     private:
-        std::shared_ptr<CmsAccessInfo> ParseCmsAccessInfo(const std::string& info);
-        void DisplayCmsAccessInfo(const std::shared_ptr<CmsAccessInfo>& info);
-        void SaveCmsAccessInfo();
+        std::shared_ptr<ConsoleAccessInfo> ParseConsoleAccessInfo(const std::string& info);
+        void DisplayConsoleAccessInfo(const std::shared_ptr<ConsoleAccessInfo>& info);
+        void SaveConsoleAccessInfo();
         void SearchAccessInfo(bool auto_restart_render);
         void VerifyAccessInfo();
         void Save(bool auto_restart_render);
 
     private:
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        QTextEdit* edt_cms_access_ = nullptr;
-        QLineEdit* edt_cms_server_host_ = nullptr;
-        QLineEdit* edt_cms_server_port_ = nullptr;
+        QTextEdit* edt_console_access_ = nullptr;
+        QLineEdit* edt_console_server_host_ = nullptr;
+        QLineEdit* edt_console_server_port_ = nullptr;
         QLineEdit* edt_relay_server_host_ = nullptr;
         QLineEdit* edt_relay_server_port_ = nullptr;
         QCheckBox* cb_websocket_ = nullptr;

@@ -448,7 +448,7 @@ namespace px
             video_tracks_.push_back(mvt);
         }
 
-        // CMS wall sessions are video-only by contract. Do not create an RTP
+        // Console wall sessions are video-only by contract. Do not create an RTP
         // audio sender at all; this saves capture/encode/network work and makes
         // the privacy boundary independent of browser mute state.
         if (!IsWallObserver() && HasPermission("audio")) {

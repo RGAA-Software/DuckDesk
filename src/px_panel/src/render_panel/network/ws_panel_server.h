@@ -83,13 +83,13 @@ namespace px
 
         void RpSyncPanelInfo();
 
-        void NotifyInsertVisitRecordToCms(const std::shared_ptr<VisitRecord> record);
+        void NotifyInsertVisitRecordToConsole(const std::shared_ptr<VisitRecord> record);
 
-        void NotifyUpdateVisitRecordToCms(const std::shared_ptr<VisitRecord> record);
+        void NotifyUpdateVisitRecordToConsole(const std::shared_ptr<VisitRecord> record);
 
-        void NotifyInsertFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
+        void NotifyInsertFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record);
 
-        void NotifyUpdateFileTransferRecordToCms(const std::shared_ptr<FileTransferRecord> record);
+        void NotifyUpdateFileTransferRecordToConsole(const std::shared_ptr<FileTransferRecord> record);
 
         // scan and close records left open by a previous crash
         void ScanAndFixUnclosedRecords();

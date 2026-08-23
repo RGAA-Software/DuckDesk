@@ -65,7 +65,7 @@ Web 主控端: 文件传输窗口全新重写
 
 **panel / 设置（改，不是删）**
 - `src/px_panel/src/render_panel/transfer/file_transfer.{h,cpp}` 已标 `@Deprecated`，删除 + `ws_panel_server.cpp` 的 `/file/transfer` 旧路由清理
-- 审计链路（`ws_panel_server.cpp:633-671` kRpFileTransferBegin/End → CMS）保留，事件源改由 render `ft` 插件发出（`plugin_event_router.cpp:252` 现成路径）
+- 审计链路（`ws_panel_server.cpp:633-671` kRpFileTransferBegin/End → Console）保留，事件源改由 render `ft` 插件发出（`plugin_event_router.cpp:252` 现成路径）
 - `file_transfer_enabled` 开关语义保留，执行点为新 `ft` 插件入口（SyncConfig 下发链路不动）
 
 **Web 端**
@@ -122,7 +122,7 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
    - **速度显示**：照搬 rustdesk 的 1s 差值法（`update_jobs_status`，io_loop.rs:1048）：每秒 `transferred` 差值 ÷ 间隔得速度，随进度回调给 UI，不影响传输本身。
 7. **权限与审计**：
    - `file_transfer_enabled` 关闭时插件入口直接拒绝并回错误（rustdesk 回 "No permission of file transfer"）
-   - 逐操作审计（列目录/上传/下载/删除/重命名/建目录）上报 kRpFileTransferBegin/End 等事件，对接 panel 现有 CMS 记录链路（`plugin_event_router.cpp:252` 现成路径）
+   - 逐操作审计（列目录/上传/下载/删除/重命名/建目录）上报 kRpFileTransferBegin/End 等事件，对接 panel 现有 Console 记录链路（`plugin_event_router.cpp:252` 现成路径）
    - 文件数上限（对齐 `check_file_count_limit`）入设置
 
 验收：引擎库单测全绿（含移植的 rustdesk 安全用例）；用脚本经 WS `/file/transfer` 路由直接发 FileAction，完成列目录/上传/下载/续传/取消全流程；sha256 一致性校验；大文件传输期间媒体画面不卡（验证 worker 线程隔离）。
@@ -166,10 +166,10 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 **测试环境**：实机被控端 `10.0.0.90`（账号 `administrator`，密码 `dolit@321`，仅用于内部联调）。部署最新 render 到该机，主控端从开发机（Qt）和浏览器（Web）分别连入测试。部署可复用 `tests/_deploy_*_70.bat` 系列脚本的模式新增 ft 部署脚本。
 
 **双机联调执行方式**：
-- 部署：`net use \\10.0.0.90`（administrator 凭据）→ 拷贝 render 产物 → 远程重启服务；CMS/relay 用现有测试环境。
+- 部署：`net use \\10.0.0.90`（administrator 凭据）→ 拷贝 render 产物 → 远程重启服务；Console/relay 用现有测试环境。
 - 被控机预置数据集（一次性脚本）：含空目录/嵌套/特殊字符的目录树；1GB 随机文件（附 sha256）；1GB 全零文件（压缩用例）；zip/jpg 批（跳过压缩用例）；同名同 mtime 不同内容的冲突陷阱文件。
 - 驱动：阶段 2 用 Python 脚本直连 render WS `/file/transfer` 发 FileAction（引擎独立验收）；Web 端用 CDP 自动化（改写 `ft_cdp_test.mjs`）；Qt 端手动操作 + 结果脚本化断言。
-- 断言：源/目标 sha256 比对、`.download`/`.digest` 残留检查、CMS 审计记录、render 日志（慢插件告警）。
+- 断言：源/目标 sha256 比对、`.download`/`.digest` 残留检查、Console 审计记录、render 日志（慢插件告警）。
 - 断线用例：1GB 传至 50% 时 taskkill render 或断网 → 恢复 → 重连续传 → hash 比对。
 
 **单元测试（引擎库 `px_ft_engine`，CI 可跑）**
@@ -198,7 +198,7 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 | 限速 | 设置 max_transmit_speed 后实测吞吐被限制在阈值附近；默认不限速不回归 |
 | Digest hash | hash 字段透传/预留可用；构造同 size+mtime 不同内容的文件验证不依赖 hash 时的回退行为 |
 | 剪贴板回归 | 替换后剪贴板文本/文件双向粘贴不受影响（共用 ft 通道的回归验证） |
-| 审计 | 10.0.0.90 上各操作后 CMS 传输记录完整（事件源切换到 ft 插件后不断档） |
+| 审计 | 10.0.0.90 上各操作后 Console 传输记录完整（事件源切换到 ft 插件后不断档） |
 | 版本门控 | 旧版主控连新被控/反向组合，FT 置灰提示而非静默失败 |
 
 ---
@@ -312,7 +312,7 @@ UI 在实机回归后整体翻新为卡片式三栏结构,主要改动与踩坑:
 ### 遗留事项
 
 - Qt 客户端真实 UI 手工回归未做（E2E 走 Web 协议级）。
-- 通道矩阵只实测了 RTC；WS/Relay/RTC P2P 大文件未实测。限速与 CMS 审计落库未实机核对。
+- 通道矩阵只实测了 RTC；WS/Relay/RTC P2P 大文件未实测。限速与 Console 审计落库未实机核对。
 - 文件数上限为常量 10000（代码内 TODO，待设置体系加字段）。
 - Digest `file_hash` 预留未启用。
 - 独立"仅文件传输"会话模式按计划另立项，未做。

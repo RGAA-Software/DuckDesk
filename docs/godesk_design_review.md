@@ -6,7 +6,7 @@
 
 ## 总体判断
 
-当前系统的信任模型是"**认证靠客户端自觉、保密靠网络可达性**":被控端(render)不验证任何凭证,中继链路明文,面板把设备密码通过无鉴权 HTTP 广播到局域网,CMS 的"密钥"可从公开算法推导。四项叠加后,"设备码+密码"的产品形态在实际攻击面下基本不成立。
+当前系统的信任模型是"**认证靠客户端自觉、保密靠网络可达性**":被控端(render)不验证任何凭证,中继链路明文,面板把设备密码通过无鉴权 HTTP 广播到局域网,Console 的"密钥"可从公开算法推导。四项叠加后,"设备码+密码"的产品形态在实际攻击面下基本不成立。
 
 稳定性方面,最突出的是三类确定性 bug:**断线/拥塞场景的无退出条件自旋死循环**(发送线程永久卡死)、**跨线程无保护共享状态**(编码器 map、Qt GUI 调用)、**守护进程逻辑缺陷**(停止无效、拉起风暴只修了一半)。
 
@@ -31,9 +31,9 @@
 - 叠加:持久化启动参数存 `C:\Users\Public\GoDesk\px_data\godesk_service.json`(`windows_util.rs:7-20`,任何用户可写),服务按它拉起 SYSTEM 进程。
 - 修复:绑定 127.0.0.1 + 校验 app_path 必须在安装目录内;数据/日志迁 ProgramData 并收紧 ACL。
 
-### S4【高】中继链路明文、无 E2E 加密;CMS app_secret 可从 appkey 确定性推导
+### S4【高】中继链路明文、无 E2E 加密;Console app_secret 可从 appkey 确定性推导
 - `relay_plugin.cpp:121,248` 均 `ssl_ = false`,屏幕/键盘(含用户键入的密码)/剪贴板/文件明文过中继;中继被攻陷即可主动控制任意在线设备。
-- `src/px_client/network/ct_auth_token.cpp:29-42`:`app_secret = MD5(SHA256(appkey + 硬编码盐))`,盐随客户端分发 → CMS 管理接口实际零鉴权,`/query/device/by/id` 返回设备明文随机密码,`/update/random/pwd` 可重置任意设备密码。
+- `src/px_client/network/ct_auth_token.cpp:29-42`:`app_secret = MD5(SHA256(appkey + 硬编码盐))`,盐随客户端分发 → Console 管理接口实际零鉴权,`/query/device/by/id` 返回设备明文随机密码,`/update/random/pwd` 可重置任意设备密码。
 - 修复:中继只做密文转发(E2E 密钥由设备密码派生);app_secret 改为授权服务器下发的真随机秘密;管理接口独立鉴权,响应删除明文密码。
 
 ### S5【中高】凭据处理全线薄弱
@@ -82,7 +82,7 @@
 - RtcServer 资源创建失败 `exit(EXIT_FAILURE)` 杀进程,空 factory 继续解引用(`rtc_server.cpp:177-198`)。
 - 文件传输接收端缺包无超时,缓存超 8192 静默 `clear()`(标注 TODO 未上报)→ 文件静默损坏(`rtc_data_channel.cpp:102-143`)。
 - 文件下载不校验回包:对端推送任意 `task_id` + `target_file_path` 即可在控制端任意路径写文件(`file_transmit_sdk.cc:356-388`)。
-- 全链路无协议版本协商,proto3 未知枚举静默落到 0(恰好是合法消息类型,如 `kCmsClientHello = 0`)→ 新旧版本混跑产生静默错误行为。
+- 全链路无协议版本协商,proto3 未知枚举静默落到 0(恰好是合法消息类型,如 `kConsoleClientHello = 0`)→ 新旧版本混跑产生静默错误行为。
 - WS 插件背压接口恒 `return true`(`ws_plugin.cpp:152-158`),节流在 WS 通道失效;`pending_data_count_` 指标恒 0,基于它的阈值全部失效。
 
 ### B7【中】NAT 打洞无降级路径
@@ -102,7 +102,7 @@
 
 - **无主机侧连接确认/通知**(被控人不知道谁在看)、无隐私屏、无水印(代码已注释,`ct_game_view.cpp:482-503`)、无双人授权;审计只覆盖连接/断开/文件传输,键鼠/剪贴板/锁屏/杀进程无审计。
 - 空安全密码不强制随机密码兜底,不符合"未设密码设备不可无人值守访问"的行业惯例。
-- 心跳每 1s 一次且每次回包 LOGI(`ct_cms_client.cpp:42,163-165`),日志无意义膨胀。
+- 心跳每 1s 一次且每次回包 LOGI(`ct_console_client.cpp:42,163-165`),日志无意义膨胀。
 - render 以 SYSTEM 跑用户会话(捕获 UAC 所需,行业常见),但放大了 S3 的后果——若不需要操作安全桌面,应改用 WTS 用户 token。
 
 ## 建议修复顺序

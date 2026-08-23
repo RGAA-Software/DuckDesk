@@ -1,18 +1,18 @@
-// CMS 上报事件页面的浏览器回归测试。
-// 用法: PX_CMS_TEST_SESSION=<admin session token> node scripts/cdp_event_page_test.mjs
+// Console 上报事件页面的浏览器回归测试。
+// 用法: PX_CONSOLE_TEST_SESSION=<admin session token> node scripts/cdp_event_page_test.mjs
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE_URL = process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
-const SESSION_TOKEN = process.env.PX_CMS_TEST_SESSION || ''
+const BASE_URL = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
+const SESSION_TOKEN = process.env.PX_CONSOLE_TEST_SESSION || process.env.PX_CMS_TEST_SESSION || ''
 const CDP_PORT = 9225
 const SCREENSHOT = path.resolve('output/event-page-regression.png')
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 
-if (!SESSION_TOKEN) throw new Error('PX_CMS_TEST_SESSION is required')
+if (!SESSION_TOKEN) throw new Error('PX_CONSOLE_TEST_SESSION is required')
 
 const chrome = spawn(
   CHROME,

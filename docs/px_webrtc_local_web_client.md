@@ -18,7 +18,7 @@ RTCPeerConnection(无 iceServers,局域网/公网直连)
   ├─ media_data_channel     ← 键鼠输入、控制消息(CAD/锁屏/刷新/切显示器/改帧率)
   └─ ft_data_channel        ← 文件传输(列目录/上传/下载)
 页面托管:render net_ws 的 /web_client/(与信令同源,无 CORS/混合内容问题)
-入口:CMS 设备列表 "Web桌面" 按钮按 desktop_link 拼 http://{ip}:{rdpt}/web_client/?deviceId=...
+入口:Console 设备列表 "Web桌面" 按钮按 desktop_link 拼 http://{ip}:{rdpt}/web_client/?deviceId=...
 ```
 
 ## datachannel 协议

@@ -12,7 +12,7 @@ rem   scripts\test_webrtc_local.bat [remote_device_id] [random_pwd] [host] [port
 rem
 rem   remote_device_id  device id of the render (default: 600378210, this PC)
 rem   random_pwd        the render's random password in PLAIN text (from the
-rem                     CMS device list / panel). Leave empty when the render
+rem                     Console device list / panel). Leave empty when the render
 rem                     has neither a safety password nor a random password.
 rem   host / port       render address (default: 127.0.0.1 / 20371)
 rem
@@ -75,8 +75,8 @@ echo ============================================
     --host=%HOST% ^
     --port=%PORT% ^
     --appkey=test_appkey ^
-    --cms_host=127.0.0.1 ^
-    --cms_port=30500 ^
+    --console_host=127.0.0.1 ^
+    --console_port=30500 ^
     --audio=1 ^
     --clipboard=1 ^
     --stream_id=%STREAM_ID% ^

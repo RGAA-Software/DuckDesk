@@ -4,7 +4,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/network/udp_broadcaster.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/px_service_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/render_api.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_cms_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_console_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/records_catalog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/records_ticket.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/records_http_handler.cpp
@@ -99,14 +99,14 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_file_stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_virtual_file.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/cms_scanner/cms_scanner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console_scanner/console_scanner.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/user/px_user_manager.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/upgrade/upgrade_helper.cpp
 
-    ${CMAKE_CURRENT_SOURCE_DIR}/cms/px_cms_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cms/px_event_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/px_console_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/px_event_manager.cpp
 
 )
 

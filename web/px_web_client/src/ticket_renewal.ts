@@ -17,7 +17,7 @@ export async function exchangeRenewalTicket(
   clientNonce: string,
 ): Promise<RenewedTicket> {
   if (!renewalUrl || !renewalToken || !clientNonce) {
-    throw new Error('一次性连接票据已使用，请从 CMS 重新进入')
+    throw new Error('一次性连接票据已使用，请从 Console 重新进入')
   }
   const response = await fetchImpl(renewalUrl, {
     method: 'POST',
