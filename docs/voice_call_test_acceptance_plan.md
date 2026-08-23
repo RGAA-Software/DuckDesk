@@ -1,6 +1,6 @@
 # 远控语音通话测试与验收计划
 
-> 版本：1.0，2026-08-23。
+> 版本：1.1，更新至 2026-08-24。
 >
 > 设计：[voice_call_design.md](voice_call_design.md)
 >
@@ -25,6 +25,10 @@
 - 只在 dummy 声卡通过，便声称真实麦克风、扬声器、AEC 或热插拔通过。
 - 只在90号机通过，便声称 Win10、Win11、不同声卡和浏览器矩阵通过。
 - 测试失败后无修复记录直接重跑，或只保留最终一次成功结果。
+
+### 1.1 2026-08-24 增量执行记录
+
+本机 Chrome 与90号机正式 Render/Panel 路径已新增一条可量化的 Web 语音闭环：浏览器 outbound RTP 从95字节增长到7506字节；90端确认首个48kHz/mono/16-bit/480-frame PCM，RTC累计153包/7506字节/0丢包，通话端点累计 `rx_pcm_samples=207840`。挂断后远控画面和输入继续运行120秒并保持 connected。该结果记为 WebClient Chrome 核心传输 PASS，不替代真实物理麦克风、生产 HTTPS、Edge或双物理机 AEC 门禁。完整证据见 [标准 RTC / TURN 双机验收报告](webrtc_rtc_acceptance_report_20260824.md)。
 
 ## 2. 优先级与发布门禁
 

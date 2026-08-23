@@ -28,6 +28,9 @@ namespace px
         bool Start(const std::string& stream_id, const std::string& offer_sdp,
                    const std::string& ice_config_json,
                    const std::vector<std::string>& permissions);
+        bool RestartWithOffer(const std::string& offer_sdp,
+                              const std::string& ice_config_json,
+                              const std::vector<std::string>& permissions);
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
@@ -53,6 +56,9 @@ namespace px
     private:
         void CreatePeerConnectionFactory();
         void CreatePeerConnection();
+        bool ApplyIceConfiguration(const std::string& ice_config_json,
+                                   bool update_peer_connection);
+        bool SetRemoteOffer(const std::string& offer_sdp);
 
         void SendSdpToRemote(const std::string& sdp);
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);

@@ -1385,6 +1385,12 @@ impl AppScheduleManager {
         let request_id = inst.request_id.clone();
         let instance_id = inst.instance_id.clone();
         let live = crate::gConsoleSettings.lock().await.live.clone();
+        let (relay_server_host, relay_server_port) = {
+            let settings = crate::gConsoleSettings.lock().await;
+            (settings.server_w3c_ip.clone(), settings.relay_port)
+        };
+        let relay_appkey = conn.lock().await.appkey.clone();
+        let relay_device_id = format!("{}__instance__{}", inst.device_id, instance_id);
         let live_stream_id = format!("{}__app__{}", inst.device_id, app.app_id);
         tracing::info!(
             instance_id = %instance_id,
@@ -1413,6 +1419,11 @@ impl AppScheduleManager {
             } else {
                 String::new()
             },
+            device_id: inst.device_id.clone(),
+            relay_device_id,
+            relay_server_host,
+            relay_server_port: i32::from(relay_server_port),
+            relay_appkey,
         };
 
         let (wait_tx, wait_rx) = oneshot::channel();

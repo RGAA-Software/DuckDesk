@@ -241,6 +241,15 @@ namespace px
     public:
     };
 
+    class MsgClientRtcIceRestart : public MsgClientBase {
+    public:
+        std::string connection_ticket_;
+        std::string client_nonce_;
+        std::string instance_id_;
+        std::string ice_config_json_;
+        uint64_t revision_ = 0;
+    };
+
     class MsgClientOpenDebugPanel : public MsgClientBase {
     public:
     };

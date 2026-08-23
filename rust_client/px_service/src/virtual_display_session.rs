@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 use crate::usbmmidd::{MonitorSnapshot, UsbMmIddBackend, UsbMmIddError, WindowsUsbMmIddBackend};
 use crate::windows_process::ProcessManager;
 
-const WORKER_TIMEOUT: Duration = Duration::from_secs(35);
+const QUERY_WORKER_TIMEOUT: Duration = Duration::from_secs(8);
+const MUTATION_WORKER_TIMEOUT: Duration = Duration::from_secs(35);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionWorkerOperation {
@@ -24,6 +25,13 @@ impl SessionWorkerOperation {
             Self::Query => "query",
             Self::Create => "create",
             Self::RemoveLast => "remove-last",
+        }
+    }
+
+    fn timeout(self) -> Duration {
+        match self {
+            Self::Query => QUERY_WORKER_TIMEOUT,
+            Self::Create | Self::RemoveLast => MUTATION_WORKER_TIMEOUT,
         }
     }
 }
@@ -183,7 +191,8 @@ impl SessionUsbMmIddBackend {
             .start_process_as_active_user(&work_dir, &executable, &args)
             .map_err(|err| UsbMmIddError::new("SESSION_WORKER_LAUNCH_FAILED", err))?;
 
-        let deadline = Instant::now() + WORKER_TIMEOUT;
+        let worker_timeout = operation.timeout();
+        let deadline = Instant::now() + worker_timeout;
         while Instant::now() < deadline {
             if result_file.exists() {
                 let payload = fs::read(&result_file).map_err(|err| {
@@ -211,7 +220,7 @@ impl SessionUsbMmIddBackend {
             "SESSION_WORKER_TIMEOUT",
             format!(
                 "interactive virtual display worker did not answer within {:?}",
-                WORKER_TIMEOUT
+                worker_timeout
             ),
         ))
     }
@@ -268,6 +277,22 @@ mod tests {
         assert_eq!(SessionWorkerOperation::Query.cli_name(), "query");
         assert_eq!(SessionWorkerOperation::Create.cli_name(), "create");
         assert_eq!(SessionWorkerOperation::RemoveLast.cli_name(), "remove-last");
+    }
+
+    #[test]
+    fn query_timeout_cannot_block_service_startup_as_long_as_mutations() {
+        assert_eq!(
+            SessionWorkerOperation::Query.timeout(),
+            Duration::from_secs(8)
+        );
+        assert_eq!(
+            SessionWorkerOperation::Create.timeout(),
+            Duration::from_secs(35)
+        );
+        assert_eq!(
+            SessionWorkerOperation::RemoveLast.timeout(),
+            Duration::from_secs(35)
+        );
     }
 
     #[test]

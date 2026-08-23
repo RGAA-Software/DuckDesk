@@ -29,6 +29,7 @@ namespace px
         void HeartBeat();
         void ReportFileTransferBegin(const MsgClientFileTransmissionBegin& msg);
         void ReportFileTransferEnd(const MsgClientFileTransmissionEnd& msg);
+        void RequestRtcIceRestart();
 
     private:
         std::shared_ptr<ClientContext> context_ = nullptr;

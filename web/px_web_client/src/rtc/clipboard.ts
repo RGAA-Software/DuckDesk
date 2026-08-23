@@ -7,7 +7,13 @@
 // 注意:ClipboardInfo.msg 是 bytes(protobufjs 对 string 会按 base64 处理),
 //   必须 TextEncoder/TextDecoder 显式转换
 import { packTlv } from './tlv'
-import { encodeMessage, decodeMessage, MSG_TYPE_CLIPBOARD_INFO, CLIPBOARD_TYPE_TEXT } from './proto'
+import {
+  encodeMessage,
+  decodeMessage,
+  MSG_TYPE_CLIPBOARD_INFO,
+  MSG_TYPE_CLIPBOARD_INFO_RESP,
+  CLIPBOARD_TYPE_TEXT,
+} from './proto'
 
 let pktIndex = 0n
 
@@ -51,6 +57,21 @@ export function parseClipboardText(payload: Uint8Array): string | null {
   }
   if (msg.type !== MSG_TYPE_CLIPBOARD_INFO) return null
   const info = msg.clipboardInfo
+  if (!info || info.type !== CLIPBOARD_TYPE_TEXT || !info.msg || info.msg.length === 0) return null
+  return new TextDecoder().decode(info.msg)
+}
+
+// 被控端系统剪贴板写入完成后回送 kClipboardInfoResp。它是发送确认，
+// 不能当成远端主动剪贴板变化再次写回本地，否则会形成同步回环。
+export function parseClipboardResponseText(payload: Uint8Array): string | null {
+  let msg: ReturnType<typeof decodeMessage>
+  try {
+    msg = decodeMessage(payload)
+  } catch {
+    return null
+  }
+  if (msg.type !== MSG_TYPE_CLIPBOARD_INFO_RESP) return null
+  const info = msg.clipboardInfoResp
   if (!info || info.type !== CLIPBOARD_TYPE_TEXT || !info.msg || info.msg.length === 0) return null
   return new TextDecoder().decode(info.msg)
 }

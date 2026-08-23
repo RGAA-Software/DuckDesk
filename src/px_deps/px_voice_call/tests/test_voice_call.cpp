@@ -324,6 +324,7 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
         stereo[frame * 2 + 1] = 3'000;
     }
     ASSERT_TRUE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 48'000, 2));
+    EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto played = raw_backend->PullPlayout(480);
     ASSERT_EQ(played.size(), 480u);
     EXPECT_TRUE(std::all_of(played.begin(), played.end(), [](int16_t value) {
@@ -337,11 +338,13 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
 
     endpoint.SetSpeakerMuted(true);
     EXPECT_TRUE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 48'000, 2));
+    EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto muted = raw_backend->PullPlayout(480);
     EXPECT_TRUE(std::all_of(muted.begin(), muted.end(), [](int16_t value) {
         return value == 0;
     }));
     EXPECT_FALSE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 44'100, 2));
+    EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     endpoint.Stop();
 }
 

@@ -118,6 +118,17 @@ namespace px
 
         // render type [opengl / vulkan / d3d11] 
         ConcurrentString render_type_;
+
+        // Full WebRTC transport diagnostics. These deliberately contain only
+        // candidate type/address/protocol and aggregate metrics, never ICE
+        // usernames, credentials or the Coturn REST secret.
+        ConcurrentString rtc_ice_state_;
+        ConcurrentString rtc_signaling_state_;
+        ConcurrentString rtc_local_candidate_;
+        ConcurrentString rtc_remote_candidate_;
+        ConcurrentString rtc_turn_node_;
+        std::atomic_int rtc_rtt_ms_ = 0;
+        std::atomic_int64_t rtc_available_outgoing_bitrate_ = 0;
     };
 
 }

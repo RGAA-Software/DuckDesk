@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { exchangeRenewalTicket } from './ticket_renewal'
+import type { RtcSessionIceConfig } from './ticket_renewal'
 import CryptoJS from 'crypto-js'
 import { InputController } from './rtc/input'
 import { sendControlMessage } from './rtc/control'
@@ -9,14 +10,21 @@ import { GamepadController } from './rtc/gamepad'
 import type { GamepadSnapshot } from './rtc/gamepad'
 import { PerfCollector, EMPTY_PERF, perfSummaryLine } from './rtc/stats'
 import type { PerfStats } from './rtc/stats'
-import { sendClipboardText, parseClipboardText, canReadLocalClipboard } from './rtc/clipboard'
+import {
+  sendClipboardText,
+  parseClipboardText,
+  parseClipboardResponseText,
+  canReadLocalClipboard,
+} from './rtc/clipboard'
 import { decodeConnectToken } from './rtc/connect_token'
 import { decodeMessage } from './rtc/proto'
+import { StandardRtcSignaling } from './rtc/standard_signaling'
 import { applyDocumentTitle } from './locales/i18n'
 import logoUrl from './assets/px_icon.png'
 import {
   MSG_TYPE_HELLO,
   MSG_TYPE_CLIPBOARD_INFO,
+  MSG_TYPE_CLIPBOARD_INFO_RESP,
   MSG_TYPE_SERVER_CONFIGURATION,
   MSG_TYPE_MONITOR_SWITCHED,
   MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT,
@@ -61,6 +69,7 @@ const FT_DATA_CHANNEL_LABEL = 'ft_data_channel' // 文件传输通道(rtc_server
 const INPUT_DATA_CHANNEL_LABEL = 'input_data_channel' // 输入专用不可靠通道(render 端按此名字识别)
 const PING_DATA_CHANNEL_LABEL = 'ping_data_channel' // 诊断通道:render 收到即回显,实测 datachannel RTT
 const ICE_GATHER_TIMEOUT_MS = 10000
+const STANDARD_RTC_CONFIG_POLL_MS = 60000
 
 type ConnStatus = 'idle' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
@@ -85,6 +94,11 @@ const connectionInstanceId = ref('')
 const renewalToken = ref('')
 const renewalUrl = ref('')
 const grantedPermissions = ref<string[]>([])
+const requestedConnectionType = ref<'rtc_direct' | 'rtc'>('rtc_direct')
+const relayHost = ref('')
+const relayPort = ref(0)
+let rtcIceConfig: RtcSessionIceConfig | null = null
+let forceStandardRtc = false
 let ticketConsumed = false
 
 function hasGrantedPermission(permission: string) {
@@ -93,8 +107,8 @@ function hasGrantedPermission(permission: string) {
   return grantedPermissions.value.length === 0 || grantedPermissions.value.includes(permission)
 }
 
-async function renewConnectionTicket() {
-  setConnectStep('signal', '正在向 Console 申请新的重连票据')
+async function renewConnectionTicket(updateProgress = true) {
+  if (updateProgress) setConnectStep('signal', '正在向 Console 申请新的重连票据')
   const renewed = await exchangeRenewalTicket(
     fetch,
     renewalUrl.value,
@@ -104,8 +118,10 @@ async function renewConnectionTicket() {
   connectionTicket.value = renewed.ticket
   renewalToken.value = renewed.renewalToken
   if (renewed.permissions.length > 0) grantedPermissions.value = renewed.permissions
+  if (renewed.rtcIceConfig) rtcIceConfig = renewed.rtcIceConfig
   ticketConsumed = false
   addLog('[connect] 已轮换 Console 重连票据')
+  return renewed
 }
 
 function ensureClientNonce(urlNonce: string) {
@@ -161,6 +177,10 @@ function cancelReconnectTimer() {
 
 function scheduleReconnect(reason: string) {
   if (manualClose || reconnectTimer !== null) return
+  if (!isStandardRtc() && rtcIceConfig && relayHost.value && relayPort.value > 0) {
+    forceStandardRtc = true
+    addLog(`[rtc-route] Direct 会话未连通(${reason})，自动换新票据并重开 RTC Standard`)
+  }
   if (reconnectCount.value >= MAX_AUTO_RECONNECT) {
     status.value = 'failed'
     errorMsg.value = `连接${reason},自动重连 ${MAX_AUTO_RECONNECT} 次后仍失败`
@@ -202,7 +222,7 @@ const form = reactive({
 watch(() => form.deviceId, (id) => {
   form.streamId = id ? `web_${id}` : ''
   applyDocumentTitle(id)
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
 
 const status = ref<ConnStatus>('idle')
 const errorMsg = ref('')
@@ -485,9 +505,40 @@ let pc: RTCPeerConnection | null = null
 let dc: RTCDataChannel | null = null
 let inputDc: RTCDataChannel | null = null
 let pingDc: RTCDataChannel | null = null
+let standardSignaling: StandardRtcSignaling | null = null
+let standardConfigTimer: number | null = null
+let directFallbackTimer: number | null = null
+let standardRestarting = false
+const pendingStandardRemoteIce: RTCIceCandidateInit[] = []
 let pingTimer: number | null = null
 const pingRttMs = ref(-1)
 let input: InputController | null = null
+
+function decodeRtcIceConfig(encoded: string): RtcSessionIceConfig | null {
+  if (!encoded) return null
+  try {
+    const padded = encoded.replace(/-/g, '+').replace(/_/g, '/')
+      + '='.repeat((4 - (encoded.length % 4)) % 4)
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    const value = JSON.parse(new TextDecoder().decode(bytes)) as RtcSessionIceConfig
+    return Number.isFinite(value.revision) && Array.isArray(value.ice_servers) ? value : null
+  } catch {
+    return null
+  }
+}
+
+function browserIceServers(config: RtcSessionIceConfig | null): RTCIceServer[] {
+  return (config?.ice_servers ?? []).map((server) => ({
+    urls: server.urls,
+    username: server.username,
+    credential: server.credential,
+  }))
+}
+
+function isStandardRtc(): boolean {
+  return forceStandardRtc || requestedConnectionType.value === 'rtc'
+}
 
 // ---------- 性能面板(pc.getStats 采样)----------
 const perf = ref<PerfStats>({ ...EMPTY_PERF })
@@ -538,6 +589,7 @@ const logVisible = ref(false)
 // ---------- 剪贴板文本同步(kClipboardInfo,双向)----------
 // 远端(render 机器)最近一次广播的剪贴板文本
 const remoteClipboard = ref('')
+const lastClipboardAck = ref('')
 // media_data_channel 接收侧 TLV 重组(>128KB 消息 render 会分片)
 const dcReassembler = new TlvReassembler()
 
@@ -633,6 +685,12 @@ function handleDcBinary(buf: ArrayBuffer) {
       if (text !== null) {
         remoteClipboard.value = text
         addLog(`收到远端剪贴板文本 (${text.length} 字符): ${text.slice(0, 80)}`)
+      }
+    } else if (msg.type === MSG_TYPE_CLIPBOARD_INFO_RESP) {
+      const text = parseClipboardResponseText(payload)
+      if (text !== null) {
+        lastClipboardAck.value = text
+        addLog(`远端剪贴板写入成功 (${text.length} 字符)`)
       }
     } else if (msg.type === MSG_TYPE_SERVER_CONFIGURATION && msg.config) {
       const cfg = msg.config
@@ -823,6 +881,7 @@ function exposeClipboardPerfDebug() {
     sendText: (text: string) => hasGrantedPermission('clipboard')
       && sendClipboardText(dc, form.deviceId, form.streamId, text),
     lastRemote: () => remoteClipboard.value,
+    lastAck: () => lastClipboardAck.value,
   }
   w.__perf = () => ({ ...perf.value })
   w.__mic = {
@@ -1141,6 +1200,7 @@ const showStepList = computed(
 const pwdMd5Override = ref('')
 /** true when URL/token explicitly supplied a device id (triggers auto-connect) */
 const autoConnectFromUrl = ref(false)
+const signalDeviceId = ref('')
 
 function loadQueryParams() {
   const q = new URLSearchParams(window.location.search)
@@ -1165,6 +1225,16 @@ function loadQueryParams() {
   connectionTicket.value = fragment.get('ticket') ?? ''
   renewalToken.value = fragment.get('renew') ?? ''
   renewalUrl.value = fragment.get('renew_url') ?? ''
+  requestedConnectionType.value = q.get('connType') === 'rtc' ? 'rtc' : 'rtc_direct'
+  relayHost.value = fragment.get('relay_host') ?? ''
+  relayPort.value = Number(fragment.get('relay_port') ?? 0)
+  signalDeviceId.value = fragment.get('signal_device_id') ?? form.deviceId
+  rtcIceConfig = decodeRtcIceConfig(fragment.get('ice') ?? '')
+  if (requestedConnectionType.value === 'rtc' && (!rtcIceConfig || !relayHost.value || relayPort.value <= 0)) {
+    addLog('[rtc-standard] Console 启动参数不完整，将在连接时明确报错')
+  } else if (rtcIceConfig) {
+    addLog(`[rtc-route] requested=${requestedConnectionType.value} ICE revision=${rtcIceConfig.revision}`)
+  }
   grantedPermissions.value = (fragment.get('perms') ?? '')
     .split(',')
     .map((permission) => permission.trim())
@@ -1226,6 +1296,18 @@ function waitIceGatheringComplete(peer: RTCPeerConnection): Promise<void> {
 
 function cleanup() {
   stopConnWatchdog()
+  if (directFallbackTimer !== null) {
+    window.clearTimeout(directFallbackTimer)
+    directFallbackTimer = null
+  }
+  if (standardConfigTimer !== null) {
+    window.clearInterval(standardConfigTimer)
+    standardConfigTimer = null
+  }
+  standardRestarting = false
+  pendingStandardRemoteIce.length = 0
+  standardSignaling?.stop()
+  standardSignaling = null
   input?.detach()
   input = null
   gamepad?.disable()
@@ -1235,6 +1317,7 @@ function cleanup() {
   stopLowLatencyKeepalive()
   perf.value = { ...EMPTY_PERF }
   remoteClipboard.value = ''
+  lastClipboardAck.value = ''
   remoteMonitors.value = []
   capturingMonitor.value = ''
   remoteFps.value = 0
@@ -1307,6 +1390,53 @@ function cleanup() {
   if (voiceAudioRef.value) voiceAudioRef.value.srcObject = null
 }
 
+async function restartStandardRtc(reason: string, force = false) {
+  if (!pc || !standardSignaling || standardRestarting || manualClose) return
+  standardRestarting = true
+  const previousRevision = rtcIceConfig?.revision ?? 0
+  try {
+    const renewed = await renewConnectionTicket(false)
+    const nextConfig = renewed.rtcIceConfig ?? rtcIceConfig
+    if (!nextConfig) throw new Error('Console 未返回新的 ICE 配置')
+    if (!force && nextConfig.revision <= previousRevision) return
+    rtcIceConfig = nextConfig
+    pc.setConfiguration({
+      iceServers: browserIceServers(nextConfig),
+      iceTransportPolicy: 'all',
+    })
+    pendingStandardRemoteIce.length = 0
+    const offer = await pc.createOffer({ iceRestart: true })
+    await pc.setLocalDescription(offer)
+    if (!offer.sdp) throw new Error('ICE restart Offer SDP 为空')
+    ticketConsumed = true
+    const answer = await standardSignaling.exchangeOffer(
+      offer.sdp,
+      connectionTicket.value,
+      clientNonce.value,
+      connectionInstanceId.value,
+    )
+    await pc.setRemoteDescription({ type: 'answer', sdp: answer })
+    for (const candidate of pendingStandardRemoteIce.splice(0)) {
+      await pc.addIceCandidate(candidate)
+    }
+    addLog(`[rtc-standard] SetConfiguration + ICE restart 完成: reason=${reason} revision=${nextConfig.revision}`)
+  } catch (error) {
+    addLog(`[rtc-standard] ICE restart 失败: ${String(error)}`)
+    scheduleReconnect('ICE restart failed')
+  } finally {
+    standardRestarting = false
+  }
+}
+
+function startStandardRtcConfigPolling() {
+  if (standardConfigTimer !== null) window.clearInterval(standardConfigTimer)
+  standardConfigTimer = window.setInterval(() => {
+    if (pc?.connectionState === 'connected' && standardSignaling && !standardRestarting) {
+      void restartStandardRtc('configuration poll', false)
+    }
+  }, STANDARD_RTC_CONFIG_POLL_MS)
+}
+
 async function connect() {
   if (!form.deviceId) {
     errorMsg.value = '请填写设备 ID'
@@ -1320,10 +1450,51 @@ async function connect() {
   setConnectStep('init', `deviceId=${form.deviceId} streamId=${form.streamId}`)
 
   try {
-    // 不配置任何 iceServers:render 端会把 candidate 改写为客户端可达地址
-    pc = new RTCPeerConnection()
+    const standardRtc = isStandardRtc()
+    if (standardRtc) {
+      if (!rtcIceConfig || !relayHost.value || relayPort.value <= 0 || !connectionTicket.value) {
+        throw new Error('RTC Standard 缺少 Console ICE/Relay/ticket 启动参数')
+      }
+      // A Direct attempt may already have consumed the one-time ticket at the
+      // Render. Rotate it before opening the authenticated signaling socket.
+      if (ticketConsumed) await renewConnectionTicket()
+      pc = new RTCPeerConnection({
+        iceServers: browserIceServers(rtcIceConfig),
+        iceTransportPolicy: 'all',
+      })
+      addLog(`[rtc-route] RTC Standard, ICE revision=${rtcIceConfig.revision}`)
+    } else {
+      // Direct RTC remains host-only; Render rewrites its candidate to the
+      // browser-reachable address for the specialized local endpoint.
+      pc = new RTCPeerConnection()
+      addLog('[rtc-route] RTC Direct')
+    }
     // 无头/CDP 调试用:getStats 等诊断入口
     ;(window as unknown as { __pc?: RTCPeerConnection | null }).__pc = pc
+
+    if (standardRtc) {
+      pc.onicecandidate = (event) => {
+        if (event.candidate) standardSignaling?.sendIce(event.candidate)
+      }
+      standardSignaling = new StandardRtcSignaling(
+        {
+          relayHost: relayHost.value,
+          relayPort: relayPort.value,
+          remoteDeviceId: signalDeviceId.value || form.deviceId,
+          ticketDeviceId: form.deviceId,
+          streamId: form.streamId,
+          ticket: connectionTicket.value,
+          clientNonce: clientNonce.value,
+          instanceId: connectionInstanceId.value,
+          secure: window.location.protocol === 'https:',
+        },
+        async (candidate) => {
+          if (pc?.remoteDescription) await pc.addIceCandidate(candidate)
+          else pendingStandardRemoteIce.push(candidate)
+        },
+        addLog,
+      )
+    }
 
     // 第一条音频 m-line 只接收桌面系统声；第二条是语音通话专用
     // sendrecv 轨。两流独立，语音挂断不会破坏系统声音。
@@ -1383,6 +1554,10 @@ async function connect() {
       if (state === 'connecting') {
         setConnectStep('peer', `connectionState=${state}`)
       } else if (state === 'connected') {
+        if (directFallbackTimer !== null) {
+          window.clearTimeout(directFallbackTimer)
+          directFallbackTimer = null
+        }
         // 连接(或重连)成功:取消挂起的重连、清零重试计数
         cancelReconnectTimer()
         reconnectCount.value = 0
@@ -1406,6 +1581,7 @@ async function connect() {
           perfCollector.start(pc)
         }
         startConnWatchdog()
+        if (standardRtc) startStandardRtcConfigPolling()
       } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         // 非手动断开(manualClose 时 cleanup 已摘掉本回调,closed 不会走到这里)自动重连
         scheduleReconnect(state)
@@ -1527,6 +1703,10 @@ async function connect() {
     pingDc.onerror = (ev: Event) => addLog(`ping datachannel onerror: ${String(ev)}`)
 
     setConnectStep('negotiate')
+    if (standardRtc) {
+      setConnectStep('signal', '正在连接 Console 标准 RTC 信令 Relay')
+      await standardSignaling?.connect()
+    }
     const offer = await pc.createOffer({
       offerToReceiveAudio: true,
       offerToReceiveVideo: true,
@@ -1538,6 +1718,27 @@ async function connect() {
       addLog(lines.length ? `${tag} 帧率相关: ${lines.map((l) => l.trim()).join(' | ')}` : `${tag} 无帧率上限行`)
     }
     scanFr('offer', offer.sdp ?? '')
+
+    if (standardRtc) {
+      const localSdp = pc.localDescription?.sdp
+      if (!localSdp || !standardSignaling) throw new Error('标准 RTC 本地 SDP 或信令对象为空')
+      setConnectStep('signal', '通过 Console Relay 交换 SDP/Trickle ICE')
+      ticketConsumed = true
+      const answerSdp = await standardSignaling.exchangeOffer(
+        localSdp,
+        connectionTicket.value,
+        clientNonce.value,
+        connectionInstanceId.value,
+      )
+      setConnectStep('answer', `standard answer_sdp length=${answerSdp.length}`)
+      scanFr('answer', answerSdp)
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      for (const candidate of pendingStandardRemoteIce.splice(0)) {
+        await pc.addIceCandidate(candidate)
+      }
+      setConnectStep('peer', `connectionState=${pc.connectionState} ice=${pc.iceConnectionState}`)
+      return
+    }
 
     // 等 ICE gathering complete 再发 offer,不做 trickle
     setConnectStep('ice', `iceGatheringState=${pc.iceGatheringState}`)
@@ -1606,6 +1807,16 @@ async function connect() {
     scanFr('answer', answerSdp)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     setConnectStep('peer', `connectionState=${pc.connectionState} ice=${pc.iceConnectionState}`)
+    // A successful HTTP probe/answer is not yet a connected Direct session.
+    // If ICE/data channels never become ready, rotate the ticket and reopen as
+    // RTC Standard instead of retrying the same local path forever.
+    directFallbackTimer = window.setTimeout(() => {
+      if (pc && pc.connectionState !== 'connected' && !manualClose) {
+        forceStandardRtc = true
+        addLog('[rtc-route] Direct SDP 成功但实际建连超时，自动重开 RTC Standard')
+        scheduleReconnect('direct connect timeout')
+      }
+    }, 10000)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     addLog(`连接失败: ${msg}`)
@@ -1625,6 +1836,7 @@ async function connect() {
 // 手动点「连接/重新连接」:清零重试计数
 function manualConnect() {
   manualClose = false
+  forceStandardRtc = false
   cancelReconnectTimer()
   reconnectCount.value = 0
   void connect()
@@ -1662,6 +1874,14 @@ function exposeInputConnDebug() {
     status: () => status.value,
     reconnectCount: () => reconnectCount.value,
     pointerLocked: () => pointerLocked.value,
+    rtcMode: () => isStandardRtc() ? 'standard' : 'direct',
+    iceRevision: () => rtcIceConfig?.revision ?? 0,
+    restartIce: () => restartStandardRtc('diagnostic request', true),
+    selectedPath: () => ({
+      local: perf.value.localCand,
+      remote: perf.value.remoteCand,
+      rttMs: perf.value.rttMs,
+    }),
   }
   w.__virtualDisplay = {
     state: () => ({

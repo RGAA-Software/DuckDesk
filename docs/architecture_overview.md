@@ -1,6 +1,6 @@
 # GammaRay/GoDesk 架构总览
 
-> 2026-08-23 更新。本文是项目的模块关系与整体理解的单一入口；各专题细节见文末链接的专题文档。
+> 2026-08-24 更新。本文是项目的模块关系与整体理解的单一入口；各专题细节见文末链接的专题文档。
 
 ## 1. 这是什么
 
@@ -83,7 +83,7 @@ Console Web「启动」→ Console manager 按 (app_id, device_id) 找 placement
 
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
-3. **标准 RTC 的生产网络验收尚未完成**：Console 已托管 Coturn，`net_rtc` 已支持多个动态 ICE Server 和 Relay 信令；仍需在对称 NAT、TURN TCP 和端口耗尽场景做双机/公网验收。测试期 `direct_probe_enabled=false` 固定进入标准 RTC。
+3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。本机与90号机已经通过强制 TURN UDP、受控 TURN TCP 回退、自动 Direct、全功能和重连验收；仍需两台不同公网/NAT 的真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。详见 `webrtc_rtc_acceptance_report_20260824.md`。
 4. **本机控制面 :20375 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 7. 专题文档索引

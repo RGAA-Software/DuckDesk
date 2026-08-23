@@ -15,6 +15,7 @@
 #include "px_common_new/concurrent_hashmap.h"
 #include "rtc_local_encoded_frame.h"
 #include "px_common_new/concurrent_type.h"
+#include "px_render/plugins/net_rtc/rtc_messages.h"
 
 namespace px
 {
@@ -29,6 +30,7 @@ namespace px
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
+        void OnMessageRaw(const std::any& msg) override;
         void On1Second() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
@@ -109,6 +111,8 @@ namespace px
         static constexpr int kMaxRtcVideoTracks = 4;
 
     private:
+        void OnRemoteSdp(const MsgRtcRemoteSdp& message);
+        void OnRemoteIce(const MsgRtcRemoteIce& message);
         void WaitForMediaChannelActive();
         // 定期清扫已终止的 RtcServer,防止死连接残留拖垮媒体投递
         void SweepDeadRtcServers();

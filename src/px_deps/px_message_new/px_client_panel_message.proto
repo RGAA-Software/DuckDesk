@@ -11,6 +11,10 @@ enum CpMessageType {
   // Panel -> an already connected desktop client. The client opens its
   // in-process file manager and reuses the established transport.
   kCpOpenFileTransfer = 30;
+  // Panel -> an already connected standard WebRTC client. Applies a fresh
+  // Console ICE snapshot and performs an in-place ICE restart.
+  kCpRtcIceRestart = 40;
+  kCpRtcIceRestartRequest = 41;
 }
 
 // UI server
@@ -48,6 +52,14 @@ message CpFileTransferEnd {
   bool success = 4;
 }
 
+message CpRtcIceRestart {
+  string connection_ticket = 1;
+  string client_nonce = 2;
+  string instance_id = 3;
+  string ice_config_json = 4;
+  uint64 revision = 5;
+}
+
 message CpMessage {
   CpMessageType type = 1;
   string stream_id = 2;
@@ -56,5 +68,5 @@ message CpMessage {
   CpPtMsgOnHeartBeat on_heartbeat = 20;
   CpFileTransferBegin ft_transfer_beg = 30;
   CpFileTransferEnd ft_transfer_end = 40;
+  CpRtcIceRestart rtc_ice_restart = 50;
 }
-

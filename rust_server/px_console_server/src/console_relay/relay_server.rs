@@ -156,23 +156,39 @@ impl RelayServer {
                 Err(err) => return err.into_response(),
             }
         } else if params.get("rtc_signal").is_some_and(|value| value == "1") {
-            let (Some(ticket), Some(nonce), Some(remote)) = (
+            let (Some(ticket), Some(nonce), Some(remote), Some(ticket_device_id)) = (
                 params.get("ticket"),
                 params.get("client_nonce"),
                 params.get("remote_device_id"),
+                params.get("ticket_device_id"),
             ) else {
                 return crate::console_api_error::ConsoleApiError::InvalidParams.into_response();
             };
-            if ConnectionTicketManager::lookup_active(
+            let active = ConnectionTicketManager::lookup_active(
                 ticket,
-                remote,
+                ticket_device_id,
                 nonce,
                 params.get("instance_id").map(String::as_str),
             )
-            .await
-            .is_err()
-            {
-                return crate::console_api_error::ConsoleApiError::TicketExpiredOrUsed.into_response();
+            .await;
+            let active = match active {
+                Ok(value) => value,
+                Err(error) => return error.into_response(),
+            };
+            let expected_remote = active
+                .instance_id
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .map(|instance_id| format!("server_{}__instance__{}", active.device_id, instance_id))
+                .unwrap_or_else(|| format!("server_{}", active.device_id));
+            if remote != &expected_remote {
+                tracing::warn!(
+                    ticket_device_id,
+                    remote_device_id = remote,
+                    expected_remote_device_id = expected_remote,
+                    "RTC signaling target does not match ticket binding"
+                );
+                return crate::console_api_error::ConsoleApiError::Forbidden.into_response();
             }
         } else if params.contains_key("ticket") || params.contains_key("client_nonce") {
             // Capability material is accepted only on the explicitly scoped

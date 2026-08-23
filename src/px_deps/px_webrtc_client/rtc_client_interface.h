@@ -30,6 +30,9 @@ namespace px
     using OnAudioDataCallback = std::function<void(std::shared_ptr<Data> pcm, int sample_rate, int channels)>;
     // webrtc::PeerConnectionInterface::IceConnectionState, passed as int to keep webrtc types out of this header
     using OnIceStateCallback = std::function<void(int state)>;
+    // Sanitized by the SDK before display/logging. The DLL only returns the
+    // libwebrtc stats report in-memory; TURN credentials are never part of it.
+    using OnStatsJsonCallback = std::function<void(const std::string& json)>;
 
     class RtcClientInterface {
     public:
@@ -91,6 +94,11 @@ namespace px
         // are consumed in-memory and never logged by the RTC DLL.
         virtual void SetIceServersJson(const std::string& json) {}
 
+        // Apply a fresh Console-issued ICE snapshot to the active
+        // PeerConnection and create an ICE-restart offer. The normal local SDP
+        // callback carries that offer over the existing signaling room.
+        virtual bool RestartIce(const std::string& json) { return false; }
+
         // A standalone file manager negotiates only the reliable FT data
         // channel: no media/input data channels and no audio/video m-lines.
         // Must be called before Init().
@@ -125,6 +133,10 @@ namespace px
             ice_state_cbk_ = cbk;
         }
 
+        virtual void SetOnStatsJsonCallback(OnStatsJsonCallback&& cbk) {
+            stats_json_cbk_ = cbk;
+        }
+
     protected:
         std::string remote_device_id_;
 
@@ -136,6 +148,7 @@ namespace px
 
         OnVideoFrameCallback video_frame_cbk_;
         OnIceStateCallback ice_state_cbk_;
+        OnStatsJsonCallback stats_json_cbk_;
 
         int video_track_count_ = 1;
         bool file_transfer_only_ = false;

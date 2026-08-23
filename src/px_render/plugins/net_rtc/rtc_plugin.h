@@ -25,7 +25,6 @@ namespace px
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
-        void OnMessage(std::shared_ptr<Message> msg) override;
         void OnMessageRaw(const std::any &msg) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;

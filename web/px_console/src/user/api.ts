@@ -63,6 +63,7 @@ export interface TicketLaunch {
   }
   relay_host?: string
   relay_port?: number
+  signal_device_id?: string
 }
 
 function data<T>(response: { data: { data: T } }): T {
@@ -195,6 +196,7 @@ export function prepareLaunchUrl(result: TicketLaunch) {
   if (result.permissions?.length) fragment.set('perms', result.permissions.join(','))
   if (result.relay_host) fragment.set('relay_host', result.relay_host)
   if (result.relay_port) fragment.set('relay_port', String(result.relay_port))
+  if (result.signal_device_id) fragment.set('signal_device_id', result.signal_device_id)
   if (result.rtc_ice_config) {
     const bytes = new TextEncoder().encode(JSON.stringify(result.rtc_ice_config))
     let binary = ''

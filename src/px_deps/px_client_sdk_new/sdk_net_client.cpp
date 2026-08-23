@@ -703,4 +703,12 @@ namespace px
             udp_direct_conn_->RetryConnection();
         }
     }
+
+    bool NetClient::RestartRtcIce(const std::string& ice_config_json,
+                                  const std::string& connection_ticket,
+                                  const std::string& client_nonce,
+                                  const std::string& instance_id) {
+        return rtc_conn_ && rtc_conn_->RestartIce(
+            ice_config_json, connection_ticket, client_nonce, instance_id);
+    }
 }

@@ -12,6 +12,10 @@
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_client_sdk_new/thunder_sdk.h"
 #include "px_client_sdk_new/connection/relay_connection.h"
+#include "px_client_sdk_new/sdk_statistics.h"
+#include <nlohmann/json.hpp>
+#include <format>
+#include <map>
 #ifdef WIN32
 #include <QApplication>
 #endif
@@ -110,16 +114,37 @@ namespace px
                 // failed=4, disconnected=5, closed=6. A disconnected state
                 // may recover, so only terminal states close the SDK session.
                 if (state == 2 || state == 3) {
+                    SdkStatistics::Instance()->rtc_ice_state_ = state == 2 ? "connected" : "completed";
                     ice_connected_ = true;
+                    ice_restart_requested_ = false;
+                    ice_restart_grace_ticks_ = 0;
                     NotifyConnectedWhenReady();
                 }
-                else if (state == 4 || state == 6) {
+                else if (state == 4) {
+                    SdkStatistics::Instance()->rtc_ice_state_ = "restarting";
+                    ice_connected_ = false;
+                    if (!ice_restart_requested_.exchange(true)) {
+                        ice_restart_grace_ticks_ = 900;
+                        msg_notifier_->SendAppMessage(SdkMsgRtcIceRestartNeeded {});
+                        LOGW("Full RTC ICE failed; requested one managed ICE restart");
+                    }
+                }
+                else if (state == 6) {
+                    SdkStatistics::Instance()->rtc_ice_state_ = "closed";
                     ice_connected_ = false;
                     NotifyDisconnectedOnce();
                 }
                 else if (state == 5) {
+                    SdkStatistics::Instance()->rtc_ice_state_ = "disconnected";
                     ice_connected_ = false;
                 }
+                else {
+                    SdkStatistics::Instance()->rtc_ice_state_ = std::to_string(state);
+                }
+            });
+
+            rtc_client_->SetOnStatsJsonCallback([=, this](const std::string& json) {
+                UpdateTransportStats(json);
             });
 
             rtc_client_->SetLocalRtcMode(false);
@@ -307,6 +332,93 @@ namespace px
             rtc_client_->On16msTimeout();
         }
         NotifyConnectedWhenReady();
+        if (ice_restart_requested_) {
+            const auto remaining = --ice_restart_grace_ticks_;
+            if (remaining <= 0) {
+                SdkStatistics::Instance()->rtc_ice_state_ = "failed";
+                ice_restart_requested_ = false;
+                LOGE("Managed ICE restart grace period expired");
+                NotifyDisconnectedOnce();
+            }
+        }
+    }
+
+    bool WebRtcConnection::RestartIce(const std::string& ice_config_json,
+                                      const std::string& connection_ticket,
+                                      const std::string& client_nonce,
+                                      const std::string& instance_id) {
+        if (stopped_ || !rtc_client_ || ice_config_json.empty() || connection_ticket.empty()
+            || client_nonce.empty()) {
+            return false;
+        }
+        sdk_params_->rtc_ice_config_json_ = ice_config_json;
+        sdk_params_->connection_ticket_ = connection_ticket;
+        sdk_params_->connection_nonce_ = client_nonce;
+        sdk_params_->connection_instance_id_ = instance_id;
+        ice_restart_grace_ticks_ = 900;
+        RunInRtcThread([=, this]() {
+            if (!rtc_client_->RestartIce(ice_config_json)) {
+                LOGE("Active full RTC SetConfiguration/RestartIce failed");
+            }
+        });
+        return true;
+    }
+
+    void WebRtcConnection::UpdateTransportStats(const std::string& json) {
+        try {
+            const auto report = nlohmann::json::parse(json);
+            const auto& entries = report.is_array() ? report : report.value("stats", nlohmann::json::array());
+            std::map<std::string, nlohmann::json> candidates;
+            nlohmann::json selected;
+            for (const auto& entry : entries) {
+                const auto type = entry.value("type", "");
+                if ((type == "local-candidate" || type == "remote-candidate")
+                    && entry.contains("id")) {
+                    candidates[entry.value("id", "")] = entry;
+                }
+                else if (type == "candidate-pair" && entry.value("nominated", false)
+                    && entry.value("state", "") == "succeeded") {
+                    selected = entry;
+                }
+            }
+            if (selected.empty()) {
+                return;
+            }
+            const auto format_candidate = [](const nlohmann::json& candidate) {
+                if (candidate.empty()) return std::string("-");
+                const auto type = candidate.value("candidateType", candidate.value("candidate_type", "?"));
+                const auto address = candidate.value("address", candidate.value("ip", "?"));
+                const auto port = candidate.value("port", 0);
+                const auto protocol = candidate.value("protocol", "?");
+                return std::format("{} {}:{}/{}", type, address, port, protocol);
+            };
+            const auto local_id = selected.value("localCandidateId", selected.value("local_candidate_id", ""));
+            const auto remote_id = selected.value("remoteCandidateId", selected.value("remote_candidate_id", ""));
+            const auto local = candidates.contains(local_id) ? candidates.at(local_id) : nlohmann::json();
+            const auto remote = candidates.contains(remote_id) ? candidates.at(remote_id) : nlohmann::json();
+            auto stats = SdkStatistics::Instance();
+            stats->rtc_local_candidate_ = format_candidate(local);
+            stats->rtc_remote_candidate_ = format_candidate(remote);
+            const auto local_type = local.value("candidateType", local.value("candidate_type", ""));
+            const auto remote_type = remote.value("candidateType", remote.value("candidate_type", ""));
+            if (local_type == "relay" || remote_type == "relay") {
+                const auto& relay = local_type == "relay" ? local : remote;
+                const auto url = relay.value("url", "");
+                stats->rtc_turn_node_ = url.empty() ? format_candidate(relay) : url;
+            }
+            else {
+                stats->rtc_turn_node_ = "-";
+            }
+            const auto rtt = selected.value("currentRoundTripTime",
+                                            selected.value("current_round_trip_time", 0.0));
+            const auto bitrate = selected.value("availableOutgoingBitrate",
+                                                selected.value("available_outgoing_bitrate", 0.0));
+            stats->rtc_rtt_ms_ = static_cast<int>(rtt * 1000.0 + 0.5);
+            stats->rtc_available_outgoing_bitrate_ = static_cast<int64_t>(bitrate);
+        }
+        catch (const std::exception& error) {
+            LOGW("Parse WebRTC stats failed: {}", error.what());
+        }
     }
 
     void WebRtcConnection::NotifyConnectedWhenReady() {

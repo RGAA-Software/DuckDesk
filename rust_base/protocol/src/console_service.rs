@@ -67,6 +67,19 @@ pub struct ConsoleServiceStartAppInstance {
     /// UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
     #[prost(string, tag = "16")]
     pub webview_url_b64: ::prost::alloc::string::String,
+    /// The physical device identity remains bound to connection tickets.
+    #[prost(string, tag = "17")]
+    pub device_id: ::prost::alloc::string::String,
+    /// Unique Relay identity for this child Render. It must not replace the
+    /// desktop Render connection which uses device_id.
+    #[prost(string, tag = "18")]
+    pub relay_device_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "19")]
+    pub relay_server_host: ::prost::alloc::string::String,
+    #[prost(int32, tag = "20")]
+    pub relay_server_port: i32,
+    #[prost(string, tag = "21")]
+    pub relay_appkey: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceStopAppInstance {

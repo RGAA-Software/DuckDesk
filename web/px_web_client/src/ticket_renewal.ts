@@ -2,12 +2,30 @@ export interface RenewedTicket {
   ticket: string
   renewalToken: string
   permissions: string[]
+  rtcIceConfig?: RtcSessionIceConfig
+}
+
+export interface RtcSessionIceConfig {
+  revision: number
+  direct_probe_enabled: boolean
+  expires_at: number
+  ice_servers: Array<{
+    id: string
+    urls: string[]
+    username?: string
+    credential?: string
+  }>
 }
 
 interface RenewalEnvelope {
   code?: number
   message?: string
-  data?: { ticket?: string; renewal_token?: string; permissions?: string[] }
+  data?: {
+    ticket?: string
+    renewal_token?: string
+    permissions?: string[]
+    rtc_ice_config?: RtcSessionIceConfig
+  }
 }
 
 export async function exchangeRenewalTicket(
@@ -36,5 +54,6 @@ export async function exchangeRenewalTicket(
     ticket: payload.data.ticket,
     renewalToken: payload.data.renewal_token,
     permissions: payload.data.permissions ?? [],
+    rtcIceConfig: payload.data.rtc_ice_config,
   }
 }

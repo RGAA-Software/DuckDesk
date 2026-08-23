@@ -1,26 +1,28 @@
 # WebRTC + Coturn 开发与验收文档
 
-> 状态：核心链路已实现并通过本机构建/自动化测试；等待双机与公网 TURN 实机验收
-> 更新日期：2026-08-23
+> 状态：核心链路、功能回归和单局域网双机故障注入验收已完成；仅剩不同公网/NAT 的物理网络门禁和容量门禁
+> 更新日期：2026-08-24
 > 范围：Pixels Console、Console Web、px_panel、px_client、px_client_rtc、px_render/net_rtc
-> 冻结范围：`src/px_render/plugins/net_rtc_local` 不做任何代码修改
+> 验收报告：[webrtc_rtc_acceptance_report_20260824.md](webrtc_rtc_acceptance_report_20260824.md)
 
 ## 0. 当前实现结论
 
-截至 2026-08-23，代码阶段已经完成：
+截至 2026-08-24，代码阶段和 10.0.0.90 实机回归已经完成：
 
 - Console Web 的“WebRTC / TURN”设置页、内置 Coturn 状态、配置校验、事务应用和失败回滚。
 - Console 内置 Coturn、最多 8 个附加 STUN/TURN Server、revision 持久化和短期 TURN REST 凭据。
 - 保存后向在线 Panel/Service 推送 revision；节点启动、重连、收到推送及周期任务拉取配置。
 - 连接 ticket 携带本会话的权威 ICE 快照、短期凭据、应用 Relay 地址和端口。
-- Panel 在 `direct_probe_enabled=false` 时固定选择 `webrtc`；开启后直达成功选择 `webrtc_direct`，否则选择 `webrtc`。
+- Panel 在 `direct_probe_enabled=false` 时固定选择 `webrtc`；开启后直达成功选择 `webrtc_direct`，否则选择 `webrtc`。Direct 探测成功但实际建连失败时会作废旧 ticket，并自动重开标准 RTC。
 - 同一份 `px_client.exe` 分离 `kWebRtcDirect` 和 `kWebRtc`，标准模式通过应用 Relay 完成 ticket 认证、SDP 和 Trickle ICE。
-- `net_rtc` 和 Windows/Web Client 均接受多个动态 ICE Server，由 libwebrtc 自动选择 host、srflx 或 relay。
+- `net_rtc` 和 Windows/Web Client 均接受多个动态 ICE Server，由 libwebrtc 自动选择 host、srflx 或 relay；活跃连接支持 `SetConfiguration` 和 ICE restart。
 - 标准 RTC 的画面协议消息、控制、剪贴板、音频协议消息和文件传输通过各自 DataChannel 传输；Render 按 ticket 权限拒绝越权通道和消息。
 - 浏览器标准 RTC 不接触全局 appkey，使用 ticket 绑定且不提前消费；ticket 最终仅由 Render 原子兑换。
 - `px_turn.exe`、默认配置和许可证随 Console 构建/打包；Console 启动时自动生成运行配置并启动相邻的 `px_turn.exe`。
+- WebClient 与原生客户端统计均展示 RTC 模式、配置 revision、选中候选对、TURN 节点/协议和 RTT。
+- 10.0.0.90 已通过强制 TURN/UDP、仅 TURN/TCP、自动 Direct、Direct 故障回退、ICE restart、全功能、多屏和连续重连；Service 重启后 Panel、Render、Console 控制链在 3.3 秒内恢复。
 
-当前未宣称完成的内容只有必须依赖实际网络拓扑的验收：双机画面/输入/文件回归、对称 NAT 下真实 relay candidate、TURN TCP 降级、连续连接稳定性和恢复 `direct_probe_enabled=true` 后的自动选路。它们不是通过单机编译能够替代的测试，执行步骤见第 18 节。
+当前未宣称完成的内容只剩无法由同一局域网故障注入等价替代的发布门禁：两台分别位于不同公网/NAT 的物理机器真实 relay 建连、对称 NAT/srflx 行为，以及并发 allocation、端口耗尽和长周期容量测试。执行步骤见第 18 节。
 
 本期保持现有产品媒体协议：编码帧和音频协议消息复用现有 protobuf 管线，经 WebRTC DataChannel 传输；不在本期把它们迁移成独立 H.264/Opus RTP Track。这样不修改现有编解码和多显示器业务，也符合“不替换现有音视频业务协议”的范围约束。
 
@@ -786,7 +788,7 @@ rtc_session_closed
 - 实现直达探测器。
 - 测试配置下固定返回 false。
 - 实现 Direct/Standard 启动参数选择。
-- Local 已探测选路；Local 建连后超时再自动重开标准 RTC 留作后续增强。
+- Local 已探测选路；Local 建连失败会旋转一次性 ticket 并自动重开标准 RTC，90号机故障注入回归通过。
 
 ### M4：Client 类型和信令分流（已完成）
 
@@ -800,8 +802,8 @@ rtc_session_closed
 - 删除硬编码 ICE Server。
 - 两端注入多个动态 ICE Server。
 - 实现短期凭据。
-- 本机验证 host/STUN；真实 srflx/relay 候选等待双机公网验收。
-- 配置更新用于新 ticket；活动会话热更新和 ICE restart 留作后续增强。
+- 本机和90号机验证 host、强制 relay、TURN UDP 与 TURN TCP；不同公网/NAT 的真实 srflx/relay 仍为外部环境门禁。
+- 配置更新用于新 ticket；活动会话 `SetConfiguration`、ICE restart 和短期凭据刷新已实现并通过75秒在途更新回归。
 
 ### M6：功能对齐（DataChannel 产品链路已完成）
 
@@ -810,14 +812,13 @@ rtc_session_closed
 - Client 解码、音频播放和完整统计。
 - Web 标准 RTC。
 
-### M7：稳定性和发布（等待实机环境）
+### M7：稳定性和发布（单LAN双机已验证，公网/容量门禁待执行）
 
-- 本机和双机回归。
-- 强制 TURN 验收。
-- 外网和复杂 NAT 验收。
-- 并发、带宽、端口耗尽和重启测试。
-- 恢复 `direct_probe_enabled=true`。
-- 更新部署文档和验收报告。
+- 本机与90号机双机全功能、断线、重连、退出和服务重启回归已通过。
+- 强制 TURN UDP、阻断 UDP 后 TURN TCP 回退已通过。
+- `direct_probe_enabled=true` 自动选路和 Direct 建连失败后标准 RTC 回退已通过。
+- 外网/复杂 NAT、并发 allocation、带宽和端口耗尽仍待发布环境执行。
+- 验收证据见 2026-08-24 报告。
 
 ## 14. 测试矩阵
 
@@ -983,32 +984,38 @@ Console 应用 Relay 端口  SDP/Trickle ICE WebSocket
 
 如果 Console 在 NAT 后，“监听 IP”填写本机网卡或 `0.0.0.0`，“对外公布地址”填写客户端可访问的公网 IP/域名。外部 TURN 可以在内置 Coturn 的基础上追加；首版外部 TURN 支持无凭据 STUN或固定用户名/密码 TURN，不支持把 Console 的临时密钥误用于第三方 TURN。
 
-### 18.4 本机自动化结果（2026-08-23）
+### 18.4 自动化结果（2026-08-24）
 
 ```text
-px_console_server Rust tests       139 passed
-px_service Rust tests               50 passed
+px_console_server Rust tests       140 passed
+px_service Rust tests               52 passed
 px_client 专用构建                  passed
 net_rtc + px_render + px_panel      passed
+test_voice_call                     31 passed, 2 conditional skipped
+WebClient voice state               19 assertions passed
+Console Web unit tests              15 passed
 Pixels Console Web production build passed
 px_web_client production build      passed
 build_px_console_server.bat release/package passed
 bundled px_turn.exe --version        4.17.2
 本机真实 STUN Binding 请求           passed（40-byte success response）
-net_rtc_local Git diff               clean
 git diff --check                     passed
 ```
+
+`net_rtc_local` 后续因 WebClient 双向语音、动态 RTC 配置、统计和恢复能力纳入了本期修改；早期“目录冻结”约束已经由后续明确需求替代，不再以 Git diff 为空作为验收条件。
 
 ### 18.5 双机/公网最终验收
 
 1. 在 Console Web 保存配置，revision 必须增加；在线 Panel/Service 日志应收到相同 revision，断开推送后周期拉取也能恢复。
 2. `direct_probe_enabled=false` 时连接，Client 统计必须显示 `RTC Standard`，Render 必须加载 `net_rtc`，不得加载 `net_rtc_local` 会话。
-3. 同 LAN 验证画面、键鼠、音频、剪贴板、文件传输、多显示器和主动退出；主动退出不得弹错误重连。
+3. 同 LAN 验证画面、键鼠、音频、剪贴板、文件传输、多显示器和主动退出；主动退出不得弹错误重连。（本机 + 90 已通过）
 4. 在不同 NAT 下连接，使用浏览器 `chrome://webrtc-internals` 或 libwebrtc 日志确认候选可为 srflx。
-5. 阻断端到端 UDP/直达路径但保留 Console TURN，确认 selected candidate pair 的 candidate type 为 `relay`；传输文件并保持画面运行。
-6. 仅阻断 TURN UDP，保留 TCP 20128，确认可通过 TURN TCP 建连。
+5. 阻断端到端 UDP/直达路径但保留 Console TURN，确认 selected candidate pair 的 candidate type 为 `relay`；传输文件并保持画面运行。（受控故障注入已通过，仍需不同公网复验）
+6. 仅阻断 TURN UDP，保留 TCP 20128，确认可通过 TURN TCP 建连。（受控故障注入已通过，仍需不同公网复验）
 7. 配置一个不可达的附加 TURN 和一个可达 TURN，确认 ICE 会选择可达节点。
-8. 恢复 `direct_probe_enabled=true`：LAN 可达目标应启动 `webrtc_direct`，不可达目标应启动 `webrtc`。
-9. 连续连接/退出并检查无残留 Client、RTC Session 或 Coturn allocation。
+8. 恢复 `direct_probe_enabled=true`：LAN 可达目标应启动 `webrtc_direct`，不可达目标应启动 `webrtc`。（本机 + 90 已通过）
+9. 连续连接/退出并检查无残留 Client、RTC Session 或 Coturn allocation。（本机 + 90 已通过）
 
 真实 relay candidate 和复杂 NAT 测试必须在至少两台处于不同网络的机器上执行；单机 STUN 响应成功只能证明 Coturn listener 与协议栈可运行，不能替代公网 relay 验收。
+
+本次每个实测项的环境、注入方式、判定和证据摘要见 [2026-08-24 RTC 验收报告](webrtc_rtc_acceptance_report_20260824.md)。

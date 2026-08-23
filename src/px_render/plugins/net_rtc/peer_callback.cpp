@@ -111,6 +111,12 @@ namespace px
 
     void PeerCallback::OnIceSelectedCandidatePairChanged(const cricket::CandidatePairChangeEvent &event) {
         PeerConnectionObserver::OnIceSelectedCandidatePairChanged(event);
+        const auto& local = event.selected_candidate_pair.local;
+        const auto& remote = event.selected_candidate_pair.remote;
+        LOGI("Selected ICE pair: local={}/{} {}/{}, remote={}/{} {}/{}, reason={}",
+             local.type(), local.protocol(), local.address().ToString(), local.relay_protocol(),
+             remote.type(), remote.protocol(), remote.address().ToString(), remote.relay_protocol(),
+             event.reason);
     }
 
     void PeerCallback::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver,

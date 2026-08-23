@@ -359,6 +359,37 @@ namespace px
 
                 } // end line 3
 
+                // Full WebRTC route diagnostics. Keep these visible in the
+                // regular statistics panel so relay/fallback acceptance does
+                // not depend on debug logs.
+                {
+                    auto layout = new NoMarginHLayout();
+                    auto label = new QLabel("ICE Path", this);
+                    label->setFixedSize(label_size);
+                    label->setStyleSheet("font-size: 13px;");
+                    layout->addWidget(label);
+                    lbl_rtc_path_ = new QLabel(this);
+                    lbl_rtc_path_->setFixedSize(QSize(520, 30));
+                    lbl_rtc_path_->setStyleSheet("font-size: 12px; font-weight:500; color: #2979ff;");
+                    layout->addWidget(lbl_rtc_path_);
+                    layout->addStretch();
+                    right_layout->addLayout(layout);
+                }
+
+                {
+                    auto layout = new NoMarginHLayout();
+                    auto label = new QLabel("TURN / RTT", this);
+                    label->setFixedSize(label_size);
+                    label->setStyleSheet("font-size: 13px;");
+                    layout->addWidget(label);
+                    lbl_rtc_transport_ = new QLabel(this);
+                    lbl_rtc_transport_->setFixedSize(QSize(520, 30));
+                    lbl_rtc_transport_->setStyleSheet("font-size: 12px; font-weight:500; color: #2979ff;");
+                    layout->addWidget(lbl_rtc_transport_);
+                    layout->addStretch();
+                    right_layout->addLayout(layout);
+                }
+
                  // line 4
                 {
                     auto layout = new NoMarginHLayout();
@@ -605,6 +636,21 @@ namespace px
             lbl_audio_capture_type_->setText(sdk_stat_->audio_capture_type_.Clone().c_str());
 
             lbl_audio_encode_type_->setText(sdk_stat_->audio_encode_type_.Clone().c_str());
+
+            if (lbl_rtc_path_ && lbl_rtc_transport_) {
+                const auto local = sdk_stat_->rtc_local_candidate_.Clone();
+                const auto remote = sdk_stat_->rtc_remote_candidate_.Clone();
+                const auto ice_state = sdk_stat_->rtc_ice_state_.Clone();
+                lbl_rtc_path_->setText(QString::fromStdString(std::format(
+                    "{} | {} -> {}", ice_state, local, remote)));
+                lbl_rtc_path_->setToolTip(lbl_rtc_path_->text());
+                const auto turn = sdk_stat_->rtc_turn_node_.Clone();
+                lbl_rtc_transport_->setText(QString::fromStdString(std::format(
+                    "{} | {} ms | {} bps", turn.empty() ? "direct" : turn,
+                    sdk_stat_->rtc_rtt_ms_.load(),
+                    sdk_stat_->rtc_available_outgoing_bitrate_.load())));
+                lbl_rtc_transport_->setToolTip(lbl_rtc_transport_->text());
+            }
 
             auto hardware = Hardware::Instance();
             std::stringstream ss;

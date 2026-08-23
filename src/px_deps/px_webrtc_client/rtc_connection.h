@@ -59,6 +59,7 @@ namespace px
 
         void SetLocalRtcMode(bool on) override;
         void SetIceServersJson(const std::string& json) override;
+        bool RestartIce(const std::string& json) override;
 
         // called by PeerCallback
         void OnIceGatheringComplete();
@@ -73,6 +74,8 @@ namespace px
         void CreatePeerConnectionFactory();
 
         void SendCachedIces();
+        bool ApplyIceServersJson(const std::string& json, bool active);
+        void RequestStats();
 
     private:
         std::shared_ptr<PeerCallback> peer_callback_ = nullptr;
@@ -111,6 +114,7 @@ namespace px
         // audio sink(local mode): taps decoded PCM from the remote audio track,
         // the sdk's own AudioPlayer plays it(the dll's ADM is a dummy)
         std::shared_ptr<RtcAudioSink> audio_sink_;
+        uint32_t stats_tick_ = 0;
 
     };
 

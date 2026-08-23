@@ -633,9 +633,10 @@ void VoiceCallPlugin::EndCall(
         const auto stats = endpoint->Stats();
         const auto transport_stats = packet_transport_.Stats();
         endpoint->Stop();
-        LOGI("[VoiceCall] ended reason={}, tx={}, rx={}, underrun={}, plc={}, "
+        LOGI("[VoiceCall] ended reason={}, tx_opus={}, rx_opus={}, rx_pcm_samples={}, underrun={}, plc={}, "
              "jitter_peak={}, jitter_late={}, jitter_drop={}, apm_fail={}/{}, device_rebuilds={}, transport_drop={}",
              reason, stats.encoded_packets, stats.decoded_packets,
+             stats.received_pcm_samples,
              stats.playout_underruns, stats.plc_packets, stats.jitter_peak_packets,
              stats.jitter_late, stats.jitter_overflow_drops,
              stats.apm_capture_failures, stats.apm_render_failures,

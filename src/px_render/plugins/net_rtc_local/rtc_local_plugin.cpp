@@ -127,6 +127,69 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
+    void RtcLocalPlugin::OnMessageRaw(const std::any& message) {
+        if (HoldsType<MsgRtcRemoteSdp>(message)) {
+            OnRemoteSdp(std::any_cast<MsgRtcRemoteSdp>(message));
+        }
+        else if (HoldsType<MsgRtcRemoteIce>(message)) {
+            OnRemoteIce(std::any_cast<MsgRtcRemoteIce>(message));
+        }
+    }
+
+    void RtcLocalPlugin::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
+        PostWorkTask([=, this]() {
+            const auto conn_id = message.device_id_ + ":" + message.stream_id_;
+            auto send_answer = [this, stream_id = message.stream_id_](const std::string& answer_sdp) {
+                if (answer_sdp.empty()) {
+                    LOGE("Standard RTC produced an empty answer, stream={}", stream_id);
+                    return;
+                }
+                auto event = std::make_shared<PxPluginRtcAnswerSdpEvent>();
+                event->stream_id_ = stream_id;
+                event->sdp_ = answer_sdp;
+                CallbackEvent(event);
+            };
+
+            if (auto existing = rtc_servers_.TryGet(conn_id); existing.has_value()) {
+                const auto& server = existing.value();
+                server->SetPermissions(true, message.permissions_);
+                server->SetOnAnswerCallback(send_answer);
+                if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
+                    LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
+                    return;
+                }
+                LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
+                rtc_servers_.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
+                    return current == server;
+                });
+                std::thread([server]() { server->Exit(); }).detach();
+            }
+
+            auto server = RtcServer::Make(this);
+            server->SetConnId(conn_id);
+            server->SetPermissions(true, message.permissions_);
+            server->SetOnAnswerCallback(send_answer);
+            if (!server->Start(message.stream_id_, message.sdp_,
+                               PxLocalRtcSessionRole::kInteractive,
+                               message.ice_config_json_)) {
+                LOGE("Failed to start standard RTC media peer: {}", conn_id);
+                return;
+            }
+            rtc_servers_.Insert(conn_id, server);
+            LOGI("Started standard RTC media peer: {}", conn_id);
+        });
+    }
+
+    void RtcLocalPlugin::OnRemoteIce(const MsgRtcRemoteIce& message) {
+        PostWorkTask([=, this]() {
+            const auto conn_id = message.device_id_ + ":" + message.stream_id_;
+            if (auto server = rtc_servers_.TryGet(conn_id); server.has_value()) {
+                server.value()->OnRemoteIce(
+                    message.ice_, message.mid_, message.sdp_mline_index_);
+            }
+        });
+    }
+
     // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
     // 这类 proto 消息。但 app 会把每个编码帧广播给所有 net 插件
     // (plugin_stream_event_router.cpp VisitNetPlugins→PostProtoMessage),

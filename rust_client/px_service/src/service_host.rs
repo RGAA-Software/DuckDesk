@@ -712,11 +712,18 @@ impl ServiceRuntime {
         match event {
             ControlEvent::Stop => {
                 warn!("received service stop control event");
-                self.request_stop();
                 // Keep the persisted launch spec so a later service start (e.g.
                 // after a reboot) resumes the desktop render headlessly. Only an
                 // explicit StopDesktop command (from the panel) clears it.
+                //
+                // Finish terminating the old Render before broadcasting stop.
+                // Broadcasting first lets another run_service task win the
+                // select and cancel this control future while it is yielding in
+                // process discovery. The orphan then retains the previous
+                // service's one-time IPC token and cannot reconnect after the
+                // service restart until the heartbeat watchdog replaces it.
                 let result = self.stop_managed_render();
+                self.request_stop();
                 if result.is_ok() {
                     info!("service stop control event handled successfully");
                 }
@@ -972,7 +979,10 @@ async fn control_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex as StdMutex;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex as StdMutex,
+    };
 
     use service_core::process::ProcessSnapshot;
 
@@ -1406,6 +1416,64 @@ mod tests {
             .all(|process| !process.is_managed_clipboard_process()));
     }
 
+    struct StopOrderingProcessManager {
+        processes: StdMutex<Vec<ProcessSnapshot>>,
+        stop_rx: StdMutex<broadcast::Receiver<()>>,
+        stop_was_broadcast_before_kill: AtomicBool,
+    }
+
+    impl ProcessManager for StopOrderingProcessManager {
+        fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+            Ok(self.processes.lock().unwrap().clone())
+        }
+
+        fn kill_process(&self, pid: u32) -> Result<(), String> {
+            if self.stop_rx.lock().unwrap().try_recv().is_ok() {
+                self.stop_was_broadcast_before_kill
+                    .store(true, Ordering::SeqCst);
+            }
+            self.processes
+                .lock()
+                .unwrap()
+                .retain(|process| process.pid != pid);
+            Ok(())
+        }
+
+        fn start_process_as_active_user(
+            &self,
+            _work_dir: &str,
+            _app_path: &str,
+            _args: &[String],
+        ) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn stop_control_broadcasts_only_after_managed_render_is_killed() {
+        let mut runtime = test_runtime(Vec::new());
+        let manager = Arc::new(StopOrderingProcessManager {
+            processes: StdMutex::new(vec![ProcessSnapshot::new(
+                1,
+                "D:/px_render.exe",
+                "--app_mode=desktop",
+            )]),
+            stop_rx: StdMutex::new(runtime.subscribe_stop()),
+            stop_was_broadcast_before_kill: AtomicBool::new(false),
+        });
+        runtime.process_manager = manager.clone();
+
+        runtime.handle_control_event(ControlEvent::Stop).unwrap();
+
+        assert!(manager.processes.lock().unwrap().is_empty());
+        assert!(
+            !manager
+                .stop_was_broadcast_before_kill
+                .load(Ordering::SeqCst),
+            "broadcasting stop before cleanup lets run_service cancel cleanup"
+        );
+    }
+
     fn sample_start_req(id: &str, port: i32, install_root: &str) -> StartAppRequest {
         StartAppRequest {
             request_id: format!("req-{id}"),
@@ -1424,6 +1492,11 @@ mod tests {
             websocket_enabled: true,
             live_stream_id: "test-device__app__test-app".to_string(),
             push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
+            device_id: "test-device".to_string(),
+            relay_device_id: format!("test-device__instance__{id}"),
+            relay_server_host: "console.test".to_string(),
+            relay_server_port: 30502,
+            relay_appkey: "app-key".to_string(),
         }
     }
 

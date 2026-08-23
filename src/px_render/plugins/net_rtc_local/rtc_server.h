@@ -38,7 +38,10 @@ namespace px
         RtcLocalPlugin* GetPlugin();
 
         bool Start(const std::string& stream_id, const std::string& offer_sdp,
-                   PxLocalRtcSessionRole session_role);
+                   PxLocalRtcSessionRole session_role,
+                   const std::string& ice_config_json = "");
+        bool RestartWithOffer(const std::string& offer_sdp,
+                              const std::string& ice_config_json);
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
@@ -109,6 +112,9 @@ namespace px
     private:
         void CreatePeerConnectionFactory();
         void CreatePeerConnection();
+        bool ApplyIceConfiguration(const std::string& ice_config_json,
+                                   bool update_peer_connection);
+        bool SetRemoteOffer(const std::string& offer_sdp);
         // 按屏路由 + 构造 NotifyFrameFrameBuffer 推给 video source(OnNewFrameCaptured/
         // OnNewRawFrameCaptured 的公共尾部)
         void DispatchCapturedFrameNotify(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format);
@@ -127,6 +133,8 @@ namespace px
         std::unique_ptr<rtc::Thread> sig_thread_;
         std::string stream_id_;
         std::string offer_sdp_;
+        std::string ice_config_json_;
+        bool standard_rtc_ = false;
         std::string answer_sdp_;
         std::shared_ptr<PeerCallback> peer_callback_ = nullptr;
         rtc::scoped_refptr<SetSessCallback> set_remote_offer_sdp_callback_ = nullptr;

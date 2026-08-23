@@ -120,7 +120,18 @@ impl RtcConfigManager {
         {
             return Err("RTC credential subject is invalid".to_string());
         }
-        let config = self.config.read().await.clone();
+        // Ticket issuance is latency-sensitive. Never let a stalled runtime
+        // configuration update keep the HTTP request (and therefore the whole
+        // WebClient launch page) pending forever. Clone both values inside
+        // short critical sections and release their guards before doing HMAC
+        // or building the public server list.
+        let config = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.config.read(),
+        )
+        .await
+        .map_err(|_| "RTC configuration read lock timed out".to_string())?
+        .clone();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "system clock is before UNIX epoch".to_string())?
@@ -128,7 +139,13 @@ impl RtcConfigManager {
         let expires_at_seconds = now
             .saturating_add(config.managed_console_server.credential_ttl_seconds);
         let username = format!("{expires_at_seconds}:{subject}");
-        let secret = self.secret.read().await;
+        let secret = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.secret.read(),
+        )
+        .await
+        .map_err(|_| "TURN REST secret read lock timed out".to_string())?
+        .clone();
         if secret.is_empty() {
             return Err("TURN REST secret is not initialized".to_string());
         }

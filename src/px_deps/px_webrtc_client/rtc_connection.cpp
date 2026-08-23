@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <nlohmann/json.hpp>
+#include "api/stats/rtc_stats_collector_callback.h"
 
 void* GetInstance() {
     static px::RtcConnection conn;
@@ -29,6 +30,22 @@ using namespace webrtc;
 
 namespace px
 {
+
+    class RtcStatsJsonCallback : public webrtc::RTCStatsCollectorCallback {
+    public:
+        explicit RtcStatsJsonCallback(OnStatsJsonCallback callback)
+            : callback_(std::move(callback)) {}
+
+        void OnStatsDelivered(
+            const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) override {
+            if (callback_ && report) {
+                callback_(report->ToJson());
+            }
+        }
+
+    private:
+        OnStatsJsonCallback callback_;
+    };
 
     // forwards libwebrtc internal logs into our logger, mainly to see decoder errors
     class WebrtcLogForwarder : public rtc::LogSink {
@@ -187,32 +204,7 @@ namespace px
         configuration_.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
         configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
 
-        configuration_.servers.clear();
-        // net_rtc_local remains host-candidate only. Full RTC requires a
-        // session configuration issued by Pixels Console; there is no
-        // hard-coded public STUN/TURN fallback.
-        if (!local_rtc_mode_) {
-            try {
-                const auto config = nlohmann::json::parse(ice_servers_json_);
-                for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
-                    const auto username = entry.value("username", "");
-                    const auto credential = entry.value("credential", "");
-                    for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
-                        auto server = webrtc::PeerConnectionInterface::IceServer();
-                        server.uri = url;
-                        server.username = username;
-                        server.password = credential;
-                        server.tls_cert_policy =
-                            webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
-                        configuration_.servers.push_back(std::move(server));
-                    }
-                }
-                LOGI("Configured {} ICE server URLs for full RTC", configuration_.servers.size());
-            }
-            catch (const std::exception& error) {
-                LOGE("Invalid RTC ICE configuration: {}", error.what());
-            }
-        }
+        ApplyIceServersJson(ice_servers_json_, false);
 
         network_thread_ = rtc::Thread::CreateWithSocketServer();
         network_thread_->Start();
@@ -457,6 +449,10 @@ namespace px
         if (media_data_channel_) {
             media_data_channel_->On16msTimeout();
         }
+        if (!local_rtc_mode_ && ++stats_tick_ >= 60) {
+            stats_tick_ = 0;
+            RequestStats();
+        }
     }
 
     void RtcConnection::PostWorkTask(std::function<void()>&& task) {
@@ -469,6 +465,72 @@ namespace px
 
     void RtcConnection::SetIceServersJson(const std::string& json) {
         ice_servers_json_ = json;
+    }
+
+    bool RtcConnection::ApplyIceServersJson(const std::string& json, bool active) {
+        configuration_.servers.clear();
+        if (local_rtc_mode_) {
+            return true;
+        }
+        try {
+            const auto config = nlohmann::json::parse(json);
+            for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
+                const auto username = entry.value("username", "");
+                const auto credential = entry.value("credential", "");
+                for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
+                    auto server = webrtc::PeerConnectionInterface::IceServer();
+                    server.uri = url;
+                    server.username = username;
+                    server.password = credential;
+                    server.tls_cert_policy =
+                        webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
+                    configuration_.servers.push_back(std::move(server));
+                }
+            }
+            LOGI("Configured {} ICE server URLs for full RTC{}", configuration_.servers.size(),
+                 active ? " restart" : "");
+        }
+        catch (const std::exception& error) {
+            LOGE("Invalid RTC ICE configuration: {}", error.what());
+            return false;
+        }
+        if (active && peer_conn_) {
+            const auto result = peer_conn_->SetConfiguration(configuration_);
+            if (!result.ok()) {
+                LOGE("SetConfiguration failed before ICE restart: {}", result.message());
+                return false;
+            }
+        }
+        ice_servers_json_ = json;
+        return true;
+    }
+
+    bool RtcConnection::RestartIce(const std::string& json) {
+        if (local_rtc_mode_ || !peer_conn_ || !ApplyIceServersJson(json, true)) {
+            return false;
+        }
+        already_set_answer_sdp_ = false;
+        {
+            std::lock_guard<std::mutex> guard(ice_mtx_);
+            cached_ices_.clear();
+        }
+        peer_conn_->RestartIce();
+        auto options = webrtc::PeerConnectionInterface::RTCOfferAnswerOptions();
+        options.offer_to_receive_audio = !file_transfer_only_;
+        options.offer_to_receive_video = file_transfer_only_ ? 0 : 1;
+        options.ice_restart = true;
+        peer_conn_->CreateOffer(create_sess_callback_.get(), options);
+        LOGI("SetConfiguration succeeded; ICE restart offer requested");
+        return true;
+    }
+
+    void RtcConnection::RequestStats() {
+        if (!peer_conn_ || !stats_json_cbk_) {
+            return;
+        }
+        rtc::scoped_refptr<webrtc::RTCStatsCollectorCallback> callback(
+            new rtc::RefCountedObject<RtcStatsJsonCallback>(stats_json_cbk_));
+        peer_conn_->GetStats(callback.get());
     }
 
     void RtcConnection::OnIceGatheringComplete() {

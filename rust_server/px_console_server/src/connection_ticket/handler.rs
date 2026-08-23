@@ -69,6 +69,14 @@ async fn issue_rtc_config(
         })
 }
 
+async fn relay_endpoint() -> (String, u16) {
+    // Read both fields under one guard. Two `gConsoleSettings.lock()` calls in
+    // the same struct literal can keep the first temporary guard alive until
+    // the statement ends and self-deadlock while acquiring the second one.
+    let settings = gConsoleSettings.lock().await;
+    (settings.server_w3c_ip.clone(), settings.relay_port)
+}
+
 async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), ConsoleApiError> {
     match (ticket.subject_type.as_str(), ticket.kind.as_str()) {
         ("user", "device") => {
@@ -212,6 +220,7 @@ pub async fn issue_device_ticket(
         request.client_nonce,
         granted.join(",")
     );
+    let (relay_host, relay_port) = relay_endpoint().await;
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
         renewal_token,
@@ -219,8 +228,9 @@ pub async fn issue_device_ticket(
         expires_at: ticket.expires_at,
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
-        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
-        relay_port: gConsoleSettings.lock().await.relay_port,
+        relay_host,
+        relay_port,
+        signal_device_id: format!("server_{device_id}"),
     })))
 }
 
@@ -296,6 +306,7 @@ pub async fn issue_instance_ticket(
         instance.instance_id,
         granted.join(",")
     );
+    let (relay_host, relay_port) = relay_endpoint().await;
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
         renewal_token,
@@ -303,8 +314,12 @@ pub async fn issue_instance_ticket(
         expires_at: ticket.expires_at,
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
-        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
-        relay_port: gConsoleSettings.lock().await.relay_port,
+        relay_host,
+        relay_port,
+        signal_device_id: format!(
+            "server_{}__instance__{}",
+            instance.device_id, instance.instance_id
+        ),
     })))
 }
 
@@ -369,6 +384,7 @@ pub async fn issue_guest_instance_ticket(
         instance.instance_id,
         granted.join(",")
     );
+    let (relay_host, relay_port) = relay_endpoint().await;
     Ok(Json(ok_resp(TicketResponse {
         ticket: raw,
         renewal_token,
@@ -376,8 +392,12 @@ pub async fn issue_guest_instance_ticket(
         expires_at: ticket.expires_at,
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
-        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
-        relay_port: gConsoleSettings.lock().await.relay_port,
+        relay_host,
+        relay_port,
+        signal_device_id: format!(
+            "server_{}__instance__{}",
+            instance.device_id, instance.instance_id
+        ),
     })))
 }
 

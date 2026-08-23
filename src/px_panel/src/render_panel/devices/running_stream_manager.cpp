@@ -6,7 +6,9 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QProcessEnvironment>
+#include <QUuid>
 #include <filesystem>
+#include <algorithm>
 
 #include "px_device_manager.h"
 #include "px_common_new/base64.h"
@@ -27,6 +29,7 @@
 #include "px_console_client/console_device.h"
 #include "px_client_panel_message.pb.h"
 #include "render_panel/network/ws_panel_server.h"
+#include "render_panel/user/px_user_manager.h"
 
 namespace px
 {
@@ -40,6 +43,10 @@ namespace px
     void RunningStreamManager::InitMessageListeners() {
         const auto weak_self = weak_from_this();
         msg_listener_->Listen<MsgClientConnectedPanel>([=, this](const MsgClientConnectedPanel& msg) {
+            {
+                std::scoped_lock lock(running_mutex_);
+                running_connected_[msg.stream_id_] = true;
+            }
             // clear loading dialog
             context_->PostUIDelayTask([weak_self, msg]() {
                 const auto self = weak_self.lock();
@@ -64,10 +71,147 @@ namespace px
                 }
             });
         });
+
+        msg_listener_->Listen<MsgRtcIceConfigUpdated>([weak_self](const MsgRtcIceConfigUpdated& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostTask([weak_self, revision = msg.revision_]() {
+                    if (const auto self = weak_self.lock()) {
+                        self->RestartActiveRtcSessions(revision);
+                    }
+                });
+            }
+        });
+        msg_listener_->Listen<MsgClientRtcIceRestartRequested>(
+            [weak_self](const MsgClientRtcIceRestartRequested& msg) {
+                if (const auto self = weak_self.lock()) {
+                    self->context_->PostTask([weak_self, stream_id = msg.stream_id_]() {
+                        if (const auto self = weak_self.lock()) {
+                            self->RestartRtcSession(stream_id, 0);
+                        }
+                    });
+                }
+            });
     }
 
     RunningStreamManager::~RunningStreamManager() {
 
+    }
+
+    bool RunningStreamManager::RefreshConsoleTicket(
+        const std::shared_ptr<px_console::ConsoleStream>& item) {
+        if (!item || (item->connect_type_ != "console_ticket"
+                      && item->connect_type_ != "console_app_ticket")) {
+            return false;
+        }
+        const auto user_manager = grApp->GetUserManager();
+        if (!user_manager) {
+            return false;
+        }
+        const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+        std::vector<std::string> permissions {"view"};
+        if (user_manager->IsLoggedIn()) {
+            permissions.push_back("file");
+        }
+        if (!item->only_viewing_) {
+            permissions.push_back("input");
+            if (user_manager->IsLoggedIn()) {
+                permissions.insert(permissions.end(), {"clipboard", "audio"});
+            }
+        }
+        auto result = item->connect_type_ == "console_app_ticket"
+            ? user_manager->IssueInstanceTicket(item->console_instance_id_, nonce, permissions)
+            : user_manager->IssueDeviceTicket(item->remote_device_id_, nonce, permissions);
+        if (!result.has_value()) {
+            LOGE("Refresh Console ticket failed for active RTC stream: {}", item->stream_id_);
+            return false;
+        }
+        const auto& ticket = result.value();
+        item->connection_ticket_ = ticket.ticket;
+        item->connection_nonce_ = nonce;
+        item->rtc_ice_config_json_ = ticket.rtc_ice_config_json;
+        if (!ticket.relay_host.empty()) {
+            item->relay_host_ = ticket.relay_host;
+        }
+        if (ticket.relay_port > 0) {
+            item->relay_port_ = ticket.relay_port;
+        }
+        return true;
+    }
+
+    void RunningStreamManager::RestartActiveRtcSessions(uint64_t revision) {
+        std::vector<std::string> streams;
+        {
+            std::scoped_lock lock(running_mutex_);
+            for (const auto& [stream_id, network_type] : running_network_types_) {
+                if (network_type == kStreamItemNtTypeWebRTC && running_items_.contains(stream_id)) {
+                    streams.push_back(stream_id);
+                }
+            }
+        }
+        for (const auto& stream_id : streams) {
+            RestartRtcSession(stream_id, revision);
+        }
+    }
+
+    void RunningStreamManager::RestartRtcSession(const std::string& stream_id,
+                                                  uint64_t revision) {
+        std::shared_ptr<px_console::ConsoleStream> item;
+        {
+            std::scoped_lock lock(running_mutex_);
+            if (!running_items_.contains(stream_id)
+                || !running_network_types_.contains(stream_id)
+                || running_network_types_.at(stream_id) != kStreamItemNtTypeWebRTC) {
+                return;
+            }
+            item = running_items_.at(stream_id);
+        }
+        const auto panel_server = context_->GetApplication()->GetWsPanelServer();
+        if (!RefreshConsoleTicket(item) || !panel_server) {
+            return;
+        }
+        pxcp::CpMessage command;
+        command.set_type(pxcp::CpMessageType::kCpRtcIceRestart);
+        command.set_stream_id(item->stream_id_);
+        auto* restart = command.mutable_rtc_ice_restart();
+        restart->set_connection_ticket(item->connection_ticket_);
+        restart->set_client_nonce(item->connection_nonce_);
+        restart->set_instance_id(item->console_instance_id_);
+        restart->set_ice_config_json(item->rtc_ice_config_json_);
+        restart->set_revision(revision);
+        if (!panel_server->PostPanelMessageToStream(
+                item->stream_id_, command.SerializeAsString())) {
+            LOGW("Active RTC ICE restart could not reach stream: {}", item->stream_id_);
+        }
+    }
+
+    void RunningStreamManager::FallbackDirectRtc(const std::string& stream_id,
+                                                  const char* reason) {
+        std::shared_ptr<px_console::ConsoleStream> item;
+        std::shared_ptr<QProcess> process;
+        {
+            std::scoped_lock lock(running_mutex_);
+            if (!running_network_types_.contains(stream_id)
+                || running_network_types_.at(stream_id) != kStreamItemNtTypeWebRTCDirect
+                || running_connected_[stream_id]) {
+                return;
+            }
+            running_network_types_[stream_id] = "rtc_fallback_pending";
+            item = running_items_[stream_id];
+            if (running_processes_.contains(stream_id)) {
+                process = running_processes_[stream_id];
+            }
+        }
+        LOGW("Direct RTC failed after probe ({}); reopening standard RTC: {}",
+             reason, stream_id);
+        if (!RefreshConsoleTicket(item)) {
+            LOGE("Direct RTC fallback could not obtain a fresh Console ticket: {}", stream_id);
+            return;
+        }
+        if (process && process->state() != QProcess::NotRunning) {
+            process->kill();
+            process->waitForFinished(2000);
+        }
+        StartStream(item, kStreamItemNtTypeWebRTC, false);
     }
 
     void RunningStreamManager::StartStream(const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type, bool direct) {
@@ -76,9 +220,15 @@ namespace px
         loading->setWindowFlag(Qt::WindowStaysOnTopHint, true);
         loading->show();
         auto stream_id = item->stream_id_;
+        {
+            std::scoped_lock lock(running_mutex_);
+            running_items_[stream_id] = item;
+            running_network_types_[stream_id] = network_type;
+            running_connected_[stream_id] = false;
+        }
         loading_dialogs_.insert({stream_id, loading});
         const auto weak_self = weak_from_this();
-        QTimer::singleShot(7000, context_.get(), [weak_self, stream_id]() {
+        QTimer::singleShot(10000, context_.get(), [weak_self, stream_id, network_type]() {
             const auto self = weak_self.lock();
             if (!self) {
                 return;
@@ -86,6 +236,9 @@ namespace px
             if (self->loading_dialogs_.contains(stream_id)) {
                 self->loading_dialogs_[stream_id]->hide();
                 self->loading_dialogs_.erase(stream_id);
+            }
+            if (network_type == kStreamItemNtTypeWebRTCDirect) {
+                self->FallbackDirectRtc(stream_id, "connect timeout");
             }
         });
 
@@ -286,8 +439,18 @@ namespace px
 
         auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
         process->start(client_inner_path, arguments);
-        running_processes_.erase(item->stream_id_);
-        running_processes_.insert({item->stream_id_, process});
+        {
+            std::scoped_lock lock(running_mutex_);
+            running_processes_[item->stream_id_] = process;
+        }
+        if (network_type == kStreamItemNtTypeWebRTCDirect) {
+            QObject::connect(process.get(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+                             context_.get(), [weak_self, stream_id](int, QProcess::ExitStatus) {
+                if (const auto self = weak_self.lock()) {
+                    self->FallbackDirectRtc(stream_id, "client exited before connect");
+                }
+            });
+        }
         LOGI("After start client: {}", client_inner_path.toStdString());
     }
 
@@ -301,6 +464,10 @@ namespace px
                 }
                 process->kill();
                 running_processes_.erase(item->stream_id_);
+                std::scoped_lock lock(running_mutex_);
+                running_items_.erase(item->stream_id_);
+                running_network_types_.erase(item->stream_id_);
+                running_connected_.erase(item->stream_id_);
             }
         }
         context_->SendAppMessage(ClearWorkspace {

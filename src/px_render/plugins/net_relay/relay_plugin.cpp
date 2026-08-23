@@ -83,6 +83,7 @@ namespace px
 
     bool RelayPlugin::OnCreate(const px::PxPluginParam &param) {
         PxNetPlugin::OnCreate(param);
+        relay_device_id_ = GetConfigParam<std::string>("relay_device_id");
 
         std::thread([=, this]() {
             int connect_count = 0;
@@ -96,7 +97,10 @@ namespace px
             }
 
             for (;;) {
-                auto srv_device_id = "server_" + sys_settings_.device_id_;
+                const auto& relay_identity = relay_device_id_.empty()
+                    ? sys_settings_.device_id_
+                    : relay_device_id_;
+                auto srv_device_id = "server_" + relay_identity;
                 auto relay_host = GetConfigParam<std::string>("relay_host");
                 auto relay_port = std::atoi(GetConfigParam<std::string>("relay_port").c_str());
 
@@ -283,7 +287,10 @@ namespace px
                     auto ft_sdk = GetFtSdk();
                     if (!ft_sdk || !ft_sdk->IsAlive()) {
                         LOGI("SDK Connected to server, connect file transfer channel");
-                        auto ft_device_id = "ft_server_" + sys_settings_.device_id_;
+                        const auto& relay_identity = relay_device_id_.empty()
+                            ? sys_settings_.device_id_
+                            : relay_device_id_;
+                        auto ft_device_id = "ft_server_" + relay_identity;
                         ft_sdk = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
                             .host_ = relay_host,
                             .port_ = relay_port,

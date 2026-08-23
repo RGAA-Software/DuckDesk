@@ -1,6 +1,6 @@
 # 远控语音通话设计（非 WebRTC 传输兼容）
 
-> 状态：Windows 原生客户端、正式 `px_panel` 授权闭环、M2 核心音频链和 WebClient 双向实现已完成；核心路径、真实 WASAPI 双工/2小时闭环以及 Chrome WebClient 双向 RTP 已在 10.0.0.90 验证（2026-08-23）。双物理机主观音质、设备/弱网矩阵、生产 HTTPS 入口和完整发布矩阵仍待验收。
+> 状态：Windows 原生客户端、正式 `px_panel` 授权闭环、M2 核心音频链和 WebClient 双向实现已完成；核心路径、真实 WASAPI 双工/2小时闭环以及 Chrome WebClient 双向 RTP 已在 10.0.0.90 验证。2026-08-24 又完成浏览器上行 RTP → Render 解码 PCM → 通话端点接收的量化闭环。双物理机主观音质、设备/弱网矩阵、生产 HTTPS 入口和完整发布矩阵仍待验收。
 > 目标：Windows 主控端与 Windows Render 之间的一对一、全双工语音通话；音频媒体可走 WebRTC、UDP、KCP、WebSocket 或 Relay。
 >
 > 配套执行文档：[工程实施计划](voice_call_implementation_plan.md)；[测试与验收计划](voice_call_test_acceptance_plan.md)。
@@ -13,7 +13,7 @@ GammaRay 不应照搬 RustDesk 的“将全局音频输入切换为麦克风”�
 
 AEC 与传输协议无关。非 WebRTC 媒体链路应复用 vendored libwebrtc 的 **Audio Processing Module（APM）**，但不需要创建 `PeerConnection`：APM 在本机完成回声消除、噪声抑制和自动增益，编码后的 Opus 仍可走 UDP/KCP/WS/Relay。
 
-## 已实现范围（2026-08-23）
+## 已实现范围（2026-08-24）
 
 - `px_message.proto` 已加入 590–593 四类独立语音消息，并同步 Web proto 镜像；没有复用桌面声音 `AudioFrame`。
 - `px_voice_call` 已实现一对一状态机、30 秒请求超时、严格 `call_id/request_id` 匹配、媒体序号去重、SDL2 全双工端点及独立 Opus VOIP 编解码。
@@ -201,6 +201,7 @@ Windows 原生 MVP、正式 Panel 来电 UI 的核心 Console 路径和 WebClien
 | 自动化入口 | 三个测试目标已注册到 CTest；`ctest --test-dir build_official -C RelWithDebInfo --output-on-failure` 为 3/3。远端 UI 探针位于 `src/px_deps/px_voice_call/tests/integration/`，脚本不含凭据。 |
 | M2真实声卡 | 90号机交互 Console 下 WASAPI 48 kHz mono 双工采集/播放回调通过；系统麦克风总开关为Deny时可复现并诊断为capture permission denied，临时Allow后通过，测试后恢复原值。详见 [M2测试报告](voice_call_m2_test_report_20260823.md)。 |
 | Web实现与90号机E2E | `npm run test:voice` 19项关联/格式/每次通话前提示/安全上下文断言通过；`vue-tsc --noEmit && vite build` 生产构建通过。90号机 Chrome 实际连接正式 Render/Panel，接受、拒绝、30秒超时、双向 RTP、麦克风静音、通话扬声器独立静音、挂断清理和再次提示均通过。为隔离服务器 HTTP 限制，媒体正向 E2E 使用 Chrome 的仅测试安全源开关；正常 `http://IP` 另测为明确禁用并提示 HTTPS/localhost，不能把测试开关视作生产 HTTPS 验收。 |
+| 2026-08-24 Web上行PCM闭环 | 浏览器麦克风 outbound bytes `95→7506`；90端收到48kHz/mono/16-bit/480-frame首个PCM，RTC统计153包/7506字节/0丢包，通话端点结束统计 `rx_pcm_samples=207840`。挂断后同一远控连接继续120秒并以1998帧/connected结束。详见 [RTC验收报告](webrtc_rtc_acceptance_report_20260824.md)。 |
 
 尚未完成的验收项是双物理机 AEC/扬声器主观回声、设备热插拔、Relay/UDP/KCP专项弱网、生产 HTTPS/Edge/真实浏览器麦克风异常矩阵以及Android；这些不能由当前自动化结果替代。
 

@@ -51,6 +51,11 @@ pub struct StartAppRequest {
     pub push_rtmp_url: String,
     pub app_mode: String,
     pub webview_url_b64: String,
+    pub device_id: String,
+    pub relay_device_id: String,
+    pub relay_server_host: String,
+    pub relay_server_port: i32,
+    pub relay_appkey: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,6 +278,11 @@ pub fn build_webview_launch_spec(
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--webview_instance_id={}", req.instance_id),
+        format!("--device_id={}", req.device_id.trim()),
+        format!("--relay_device_id={}", req.relay_device_id.trim()),
+        format!("--relay_server_host={}", req.relay_server_host.trim()),
+        format!("--relay_server_port={}", req.relay_server_port),
+        format!("--appkey={}", req.relay_appkey.trim()),
     ];
     if !req.live_stream_id.trim().is_empty() {
         args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
@@ -667,6 +677,11 @@ mod tests {
             websocket_enabled: true,
             live_stream_id: "device-a__app__app-car".to_string(),
             push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
+            device_id: "device-a".to_string(),
+            relay_device_id: format!("device-a__instance__{instance_id}"),
+            relay_server_host: "console.test".to_string(),
+            relay_server_port: 30502,
+            relay_appkey: "app-key".to_string(),
         }
     }
 

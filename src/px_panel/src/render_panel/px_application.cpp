@@ -141,13 +141,18 @@ namespace px
         ws_panel_server_ = WsPanelServer::Make(shared_from_this());
         ws_panel_server_->Start();
 
+        // Establish the Service control channel before system monitoring.
+        // Hardware/WMI probing can stall during display-driver transitions;
+        // delaying this connection also delays auth-info delivery, leaving a
+        // restarted Service unable to reconnect to Console or redeem RTC
+        // tickets even though Render itself is already running.
+        service_client_ = std::make_shared<PxServiceClient>(shared_from_this());
+        service_client_->Start();
+
         sys_monitor_ = PxSystemMonitor::Make(shared_from_this());
         sys_monitor_->Start();
 
         //udp_broadcaster_ = UdpBroadcaster::Make(context_);
-
-        service_client_ = std::make_shared<PxServiceClient>(shared_from_this());
-        service_client_->Start();
 
         QCoreApplication::instance()->installNativeEventFilter(px_connected_manager_.get());
 

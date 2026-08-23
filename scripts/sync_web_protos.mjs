@@ -29,6 +29,11 @@ fs.copyFileSync(
   path.join(repo, 'src', 'px_web_client', 'proto', 'relay_message.proto'),
 )
 console.log('synced src/px_web_client/proto/relay_message.proto')
+fs.copyFileSync(
+  path.join(repo, 'src', 'px_deps', 'px_server_protocol', 'relay_message.proto'),
+  path.join(repo, 'web', 'px_web_client', 'proto', 'relay_message.proto'),
+)
+console.log('synced web/px_web_client/proto/relay_message.proto')
 
 for (const { dir, files } of targets) {
   const out = path.join(repo, dir)

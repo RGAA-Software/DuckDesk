@@ -34,6 +34,7 @@
 #include "px_render/plugins/net_ws/ws_user_proxy_router.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugins/plugin_ids.h"
+#include "px_render/plugins/net_rtc/rtc_messages.h"
 #include "px_common_new/win32/process_helper.h"
 #include "px_capture_new/capture_message_maker.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
@@ -358,6 +359,56 @@ namespace px {
                 if (hook_inner && is_input &&
                     plugin->GetPluginId() == kEventReplayerPluginId) {
                     return;
+                }
+                // Standard RTC uses the same media engine as Direct RTC. The
+                // legacy net_rtc transport only had data channels and could
+                // report Connected while delivering no video/audio tracks.
+                if (plugin->GetPluginId() == kNetRtcLocalPluginId) {
+                    if (msg->type() == MessageType::kSigOfferSdpMessage) {
+                        const auto sub = msg->sig_offer_sdp();
+                        if (sub.connection_ticket().empty() || sub.client_nonce().empty()) {
+                            LOGW("Reject full RTC offer without Console ticket");
+                            return;
+                        }
+                        const auto stream_id = msg->stream_id();
+                        const auto device_id = msg->device_id();
+                        const auto sdp = sub.sdp();
+                        app_->RedeemConnectionTicket(
+                            sub.connection_ticket(), sub.client_nonce(), sub.instance_id(),
+                            [plugin, stream_id, device_id, sdp](
+                                bool ok, const std::string& code,
+                                const std::vector<std::string>& permissions,
+                                const std::string& ice_config_json) {
+                                const bool may_view = std::find(permissions.begin(), permissions.end(), "view")
+                                    != permissions.end();
+                                const bool may_file = std::find(permissions.begin(), permissions.end(), "file")
+                                    != permissions.end();
+                                if (!ok || (!may_view && !may_file) || ice_config_json.empty()) {
+                                    LOGW("Reject full RTC ticket: code={}, config_available={}", code,
+                                         !ice_config_json.empty());
+                                    return;
+                                }
+                                plugin->OnMessageRaw(MsgRtcRemoteSdp {
+                                    .stream_id_ = stream_id,
+                                    .device_id_ = device_id,
+                                    .sdp_ = sdp,
+                                    .ice_config_json_ = ice_config_json,
+                                    .permissions_ = permissions,
+                                });
+                            });
+                        return;
+                    }
+                    if (msg->type() == MessageType::kSigIceMessage) {
+                        const auto sub = msg->sig_ice();
+                        plugin->OnMessageRaw(MsgRtcRemoteIce {
+                            .stream_id_ = msg->stream_id(),
+                            .device_id_ = msg->device_id(),
+                            .ice_ = sub.ice(),
+                            .mid_ = sub.mid(),
+                            .sdp_mline_index_ = sub.sdp_mline_index(),
+                        });
+                        return;
+                    }
                 }
                 plugin->OnMessage(msg);
             });

@@ -50,6 +50,8 @@ namespace px
         QLabel* lbl_audio_encode_type_ = nullptr;
         QLabel* lbl_conn_type_ = nullptr;
         QLabel* lbl_render_type_ = nullptr;
+        QLabel* lbl_rtc_path_ = nullptr;
+        QLabel* lbl_rtc_transport_ = nullptr;
         QLabel* lbl_remote_computer_info_ = nullptr;
         QLabel* lbl_local_computer_info_ = nullptr;
         QLabel* lbl_network_ = nullptr;

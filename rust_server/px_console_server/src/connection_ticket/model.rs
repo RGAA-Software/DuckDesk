@@ -49,6 +49,9 @@ pub struct TicketResponse {
     pub rtc_ice_config: RtcSessionIceConfig,
     pub relay_host: String,
     pub relay_port: u16,
+    /// Relay routing target. Application child renders have an identity which
+    /// is independent from the physical device bound to the ticket.
+    pub signal_device_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

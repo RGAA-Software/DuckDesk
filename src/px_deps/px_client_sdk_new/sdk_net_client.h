@@ -94,6 +94,10 @@ namespace px
 
         // retry connection
         void RetryConnection();
+        bool RestartRtcIce(const std::string& ice_config_json,
+                           const std::string& connection_ticket,
+                           const std::string& client_nonce,
+                           const std::string& instance_id);
 
     private:
         std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);

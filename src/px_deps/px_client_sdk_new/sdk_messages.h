@@ -68,6 +68,9 @@ namespace px
     class SdkMsgRtcLocalAuthFailed {
     };
 
+    class SdkMsgRtcIceRestartNeeded {
+    };
+
     // progress connection begin
 
     // get remote device info

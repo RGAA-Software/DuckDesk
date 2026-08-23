@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <mutex>
 
 #include <QProcess>
 #include "px_console_client/console_stream.h"
@@ -33,11 +34,20 @@ namespace px
         bool StopStream(const std::shared_ptr<px_console::ConsoleStream>& item);
 
     private:
+        bool RefreshConsoleTicket(const std::shared_ptr<px_console::ConsoleStream>& item);
+        void RestartActiveRtcSessions(uint64_t revision);
+        void RestartRtcSession(const std::string& stream_id, uint64_t revision);
+        void FallbackDirectRtc(const std::string& stream_id, const char* reason);
+
         PxSettings* settings_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::map<std::string, std::shared_ptr<QProcess>> running_processes_;
         std::map<std::string, std::shared_ptr<StartStreamLoading>> loading_dialogs_;
+        std::map<std::string, std::shared_ptr<px_console::ConsoleStream>> running_items_;
+        std::map<std::string, std::string> running_network_types_;
+        std::map<std::string, bool> running_connected_;
+        std::mutex running_mutex_;
         std::shared_ptr<TcDialog> no_conn_dialog_ = nullptr;
     };
 

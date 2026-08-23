@@ -69,6 +69,14 @@ message ConsoleServiceStartAppInstance {
   string app_mode = 15;
   // UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
   string webview_url_b64 = 16;
+  // The physical device identity remains bound to connection tickets.
+  string device_id = 17;
+  // Unique Relay identity for this child Render. It must not replace the
+  // desktop Render connection which uses device_id.
+  string relay_device_id = 18;
+  string relay_server_host = 19;
+  int32 relay_server_port = 20;
+  string relay_appkey = 21;
 }
 
 message ConsoleServiceStopAppInstance {

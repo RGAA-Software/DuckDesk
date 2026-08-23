@@ -273,6 +273,19 @@ namespace px
             this->SendClipboardMessage(msg);
         });
 
+        msg_listener_->Listen<MsgClientRtcIceRestart>([=, this](const MsgClientRtcIceRestart& msg) {
+            if (settings_->network_type_ != ClientNetworkType::kWebRtc) {
+                LOGW("Ignore RTC ICE restart for non-standard RTC session");
+                return;
+            }
+            if (!sdk_->RestartRtcIce(msg.ice_config_json_, msg.connection_ticket_,
+                                     msg.client_nonce_, msg.instance_id_)) {
+                LOGE("RTC ICE restart request failed, revision={}", msg.revision_);
+                return;
+            }
+            LOGI("RTC ICE restart started, revision={}", msg.revision_);
+        });
+
         msg_listener_->Listen<MsgClientSwitchMonitor>([=, this](const MsgClientSwitchMonitor& msg) {
             this->SendSwitchMonitorMessage(msg.name_);
             this->SendUpdateDesktopMessage();

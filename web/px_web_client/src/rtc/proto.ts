@@ -5,13 +5,17 @@ import protobuf from 'protobufjs'
 import pxSignalingProto from '../../proto/px_signaling_message.proto?raw'
 import pxFileTransferProto from '../../proto/px_file_transfer.proto?raw'
 import pxMessageProto from '../../proto/px_message.proto?raw'
+import relayMessageProto from '../../proto/relay_message.proto?raw'
 
 const root = new protobuf.Root()
 protobuf.parse(pxSignalingProto, root)
 protobuf.parse(pxFileTransferProto, root)
 protobuf.parse(pxMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), root)
+protobuf.parse(relayMessageProto, root)
 
 export const PxMessage = root.lookupType('px.Message')
+export const RelayMessage = root.lookupType('px_relay.RelayMessage')
+export const RelayMessageType = root.lookupEnum('px_relay.RelayMessageType')
 
 // MessageType 枚举值(px_message.proto)
 export const MSG_TYPE_HELLO = 0 // kHello
@@ -20,6 +24,7 @@ export const MSG_TYPE_KEY_EVENT = 50 // kKeyEvent
 export const MSG_TYPE_MOUSE_EVENT = 60 // kMouseEvent
 export const MSG_TYPE_TEXT_INPUT = 580 // kTextInput (UTF-8 layout/IME commit)
 export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
+export const MSG_TYPE_CLIPBOARD_INFO_RESP = 161 // kClipboardInfoResp
 export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
 export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
@@ -35,6 +40,9 @@ export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = 571 // kVirtualDisplayResponse 
 export const MSG_TYPE_VOICE_CALL_REQUEST = 590
 export const MSG_TYPE_VOICE_CALL_RESPONSE = 591
 export const MSG_TYPE_VOICE_AUDIO_CONFIG = 592
+export const MSG_TYPE_SIG_OFFER_SDP = 370
+export const MSG_TYPE_SIG_ANSWER_SDP = 380
+export const MSG_TYPE_SIG_ICE = 390
 
 // ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -134,5 +142,6 @@ export function decodeMessage(payload: Uint8Array) {
       dtx: boolean
     }
     clipboardInfo?: { type: number; msg: Uint8Array }
+    clipboardInfoResp?: { type: number; msg: Uint8Array }
   }
 }

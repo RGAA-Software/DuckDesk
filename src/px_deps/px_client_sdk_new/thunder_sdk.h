@@ -76,6 +76,10 @@ namespace px
         int64_t GetQueuingFtMsgCount();
         // retry connection
         void RetryConnection();
+        bool RestartRtcIce(const std::string& ice_config_json,
+                           const std::string& connection_ticket,
+                           const std::string& client_nonce,
+                           const std::string& instance_id);
 
         // last update timestamp
         uint64_t GetLastHeartbeatTimestamp();

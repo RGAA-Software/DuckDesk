@@ -223,6 +223,10 @@ namespace px
         // Diagnostic-only: render without an attached peer so the automated
         // CEF smoke test can verify an actual OSR frame.
         bool webview_smoke_test_ = false;
+        // Optional independent Relay registration identity for a Console
+        // child instance. Appended for binary compatibility with plugins;
+        // ticket redemption still uses device_id_.
+        std::string relay_device_id_;
 
     private:
         const std::string kFullColorModeKey = "enable_full_color_mode";

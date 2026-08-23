@@ -28,8 +28,6 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
-add_library(net_rtc_signaling STATIC rtc_signaling.cpp)
-target_link_libraries(net_rtc_signaling PUBLIC px_common_new px_message px_net_plugin)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${WEBRTC_ROOT}/
@@ -45,7 +43,7 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 # webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
 # linked through px_common_new; /FORCE:MULTIPLE lets the linker pick one.
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new px_message px_net_plugin net_rtc_signaling
+target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new px_message px_net_plugin
         webrtc.lib
         Winmm
         ws2_32

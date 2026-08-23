@@ -15,6 +15,7 @@
 
 #include <Windows.h>
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 
 using namespace px;
@@ -62,6 +63,7 @@ DEFINE_bool(debug_block, false, "block the render process");
 DEFINE_bool(mock_video, false, "use mocking video plugin");
 
 DEFINE_string(device_id, "", "device id");
+DEFINE_string(relay_device_id, "", "independent relay identity for a child render");
 DEFINE_string(device_random_pwd, "", "device random pwd");
 DEFINE_string(device_safety_pwd, "", "device safety pwd");
 
@@ -105,7 +107,10 @@ void UpdateSettings(RdSettings* settings) {
         settings->app_.steam_app_.steam_url_ = std::format("steam://rungameid/{}", FLAGS_steam_app_id);
     }
 
-    if (FLAGS_encoder_format == "h264") {
+    auto encoder_format = FLAGS_encoder_format;
+    std::ranges::transform(encoder_format, encoder_format.begin(),
+                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (encoder_format == "h264" || encoder_format == "avc") {
         settings->encoder_.encoder_format_ = Encoder::EncoderFormat::kH264;
     }
     else {
@@ -160,6 +165,7 @@ void UpdateSettings(RdSettings* settings) {
     settings->capture_.mock_video_ = FLAGS_mock_video;
 
     settings->device_id_ = FLAGS_device_id;
+    settings->relay_device_id_ = FLAGS_relay_device_id;
     settings->device_random_pwd_ = FLAGS_device_random_pwd;
     settings->device_safety_pwd_ = FLAGS_device_safety_pwd;
 

@@ -65,6 +65,10 @@ namespace px
         bool IsFtChannelReady();
 
         void On16msTimeout() override;
+        bool RestartIce(const std::string& ice_config_json,
+                        const std::string& connection_ticket,
+                        const std::string& client_nonce,
+                        const std::string& instance_id);
 
     private:
         void Init();
@@ -76,6 +80,7 @@ namespace px
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);
         void NotifyConnectedWhenReady();
         void NotifyDisconnectedOnce();
+        void UpdateTransportStats(const std::string& json);
 
         void RunInRtcThread(std::function<void()>&&);
 
@@ -97,6 +102,8 @@ namespace px
         std::atomic_bool ice_connected_{false};
         std::atomic_bool connected_notified_{false};
         std::atomic_bool disconnected_notified_{false};
+        std::atomic_bool ice_restart_requested_{false};
+        std::atomic_int ice_restart_grace_ticks_{0};
         std::atomic_bool stopped_{false};
 
     };

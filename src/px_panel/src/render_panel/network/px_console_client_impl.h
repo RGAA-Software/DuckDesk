@@ -340,6 +340,9 @@ namespace px
                             }
                             self->rtc_config_revision_ = revision;
                             LOGI("Panel RTC ICE configuration updated, revision={}", revision);
+                            self->context_->SendAppMessage(MsgRtcIceConfigUpdated {
+                                .revision_ = revision,
+                            });
                         }
                     }
                     catch (const std::exception& error) {

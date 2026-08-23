@@ -155,6 +155,23 @@ namespace px
         return peer_conn_ != nullptr;
     }
 
+    bool RtcServer::RestartWithOffer(const std::string& offer_sdp,
+                                     const std::string& ice_config_json,
+                                     const std::vector<std::string>& permissions) {
+        if (exit_ || !peer_conn_) {
+            return false;
+        }
+        if (!ApplyIceConfiguration(ice_config_json, true)) {
+            return false;
+        }
+        offer_sdp_ = offer_sdp;
+        ice_config_json_ = ice_config_json;
+        permissions_ = permissions;
+        disconnect_event_sent_ = false;
+        LOGI("Apply in-place full RTC ICE restart, stream={}", stream_id_);
+        return SetRemoteOffer(offer_sdp_);
+    }
+
     static void CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
         media_deps.adm = AudioDeviceModule::CreateForTest(
                 AudioDeviceModule::kDummyAudio, media_deps.task_queue_factory.get());
@@ -178,27 +195,7 @@ namespace px
         configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
         //configuration_.enable_dtls_srtp = true;
 
-        configuration_.servers.clear();
-        try {
-            const auto config = nlohmann::json::parse(ice_config_json_);
-            for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
-                const auto username = entry.value("username", "");
-                const auto credential = entry.value("credential", "");
-                for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
-                    auto server = webrtc::PeerConnectionInterface::IceServer();
-                    server.uri = url;
-                    server.username = username;
-                    server.password = credential;
-                    server.tls_cert_policy =
-                        webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
-                    configuration_.servers.push_back(std::move(server));
-                }
-            }
-            LOGI("Configured {} ICE server URLs for full RTC render", configuration_.servers.size());
-        }
-        catch (const std::exception& error) {
-            LOGE("Invalid full RTC ICE configuration: {}", error.what());
-        }
+        ApplyIceConfiguration(ice_config_json_, false);
         network_thread_ = rtc::Thread::CreateWithSocketServer();
         network_thread_->Start();
         worker_thread_ = rtc::Thread::Create();
@@ -226,6 +223,42 @@ namespace px
         LOGI("CreatePeerConnectionFactory success.");
     }
 
+    bool RtcServer::ApplyIceConfiguration(const std::string& ice_config_json,
+                                           bool update_peer_connection) {
+        auto next_configuration = configuration_;
+        next_configuration.servers.clear();
+        try {
+            const auto config = nlohmann::json::parse(ice_config_json);
+            for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
+                const auto username = entry.value("username", "");
+                const auto credential = entry.value("credential", "");
+                for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
+                    auto server = webrtc::PeerConnectionInterface::IceServer();
+                    server.uri = url;
+                    server.username = username;
+                    server.password = credential;
+                    server.tls_cert_policy =
+                        webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
+                    next_configuration.servers.push_back(std::move(server));
+                }
+            }
+            LOGI("Configured {} ICE server URLs for full RTC render", next_configuration.servers.size());
+        }
+        catch (const std::exception& error) {
+            LOGE("Invalid full RTC ICE configuration: {}", error.what());
+            return false;
+        }
+        if (update_peer_connection && peer_conn_) {
+            const auto error = peer_conn_->SetConfiguration(next_configuration);
+            if (!error.ok()) {
+                LOGE("SetConfiguration for full RTC restart failed: {}", error.message());
+                return false;
+            }
+        }
+        configuration_ = std::move(next_configuration);
+        return true;
+    }
+
     void RtcServer::CreatePeerConnection() {
         if (!peer_conn_factory_) {
             LOGE("Cannot create full RTC PeerConnection without a factory");
@@ -248,16 +281,24 @@ namespace px
         }
         this->peer_conn_ = peer_conn;
 
-        // set remote sdp
+        SetRemoteOffer(offer_sdp_);
+
+    }
+
+    bool RtcServer::SetRemoteOffer(const std::string& offer_sdp) {
+        if (!peer_conn_) {
+            return false;
+        }
         LOGI("Will set remote offer sdp.");
         webrtc::SdpParseError error;
-        webrtc::SessionDescriptionInterface* session_description(webrtc::CreateSessionDescription("offer", offer_sdp_, &error));
+        webrtc::SessionDescriptionInterface* session_description(
+            webrtc::CreateSessionDescription("offer", offer_sdp, &error));
         if (!session_description || !error.line.empty()) {
             LOGE("OnOfferSdpCallback, SetRemoteDescription error: {}, {}", error.line, error.description);
-            return;
+            return false;
         }
         peer_conn_->SetRemoteDescription(this->set_remote_offer_sdp_callback_.get(), session_description);
-
+        return true;
     }
 
     void RtcServer::OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index) {

@@ -119,6 +119,7 @@ namespace px
                             // TCP/ws 与 UDP 媒体面共用同一端口(见 udp_gamestream_channel_state.md)
                             {"udp-listen-port", (int64_t)settings_->transmission_.listening_port_},
                             {"device_id", settings_->device_id_},
+                            {"relay_device_id", settings_->relay_device_id_},
                             {"relay_enabled", settings_->relay_enabled_},
                             {"relay_host", settings_->relay_host_},
                             {"relay_port", settings_->relay_port_},

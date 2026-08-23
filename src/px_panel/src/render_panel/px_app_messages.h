@@ -173,6 +173,16 @@ namespace px
         int sess_type_{-1};
     };
 
+    class MsgRtcIceConfigUpdated {
+    public:
+        uint64_t revision_ = 0;
+    };
+
+    class MsgClientRtcIceRestartRequested {
+    public:
+        std::string stream_id_;
+    };
+
     // translate
     class MsgLanguageChanged {
     public:

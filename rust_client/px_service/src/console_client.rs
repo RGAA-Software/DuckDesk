@@ -17,10 +17,11 @@ use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, warn};
 
 use protocol::console_service::{
-    ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult, ConsoleServiceHeartBeat,
-    ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceRedeemConnectionTicket,
-    ConsoleServiceRedeemConnectionTicketResult, ConsoleServiceStartAppInstance,
-    ConsoleServiceStartAppInstanceResult, ConsoleServiceStopAppInstance, ConsoleServiceStopAppInstanceResult,
+    ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult,
+    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
+    ConsoleServiceRedeemConnectionTicket, ConsoleServiceRedeemConnectionTicketResult,
+    ConsoleServiceStartAppInstance, ConsoleServiceStartAppInstanceResult,
+    ConsoleServiceStopAppInstance, ConsoleServiceStopAppInstanceResult,
 };
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
@@ -194,8 +195,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
             .fold(0_u64, |sum, byte| sum.wrapping_add(byte as u64))
             % 31;
         let poll_seconds = RTC_CONFIG_POLL_SECS + jitter - 15;
-        let mut rtc_config_interval =
-            tokio::time::interval(Duration::from_secs(poll_seconds));
+        let mut rtc_config_interval = tokio::time::interval(Duration::from_secs(poll_seconds));
         rtc_config_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // Initial pull was already scheduled above.
         rtc_config_interval.tick().await;
@@ -354,7 +354,11 @@ fn console_endpoint(host: &str, port: i32, ssl: bool) -> String {
 
 fn console_endpoint_for_route(host: &str, port: i32, ssl: bool, legacy_route: bool) -> String {
     let scheme = if ssl { "wss" } else { "ws" };
-    let path = if legacy_route { "/cms/service" } else { "/console/service" };
+    let path = if legacy_route {
+        "/cms/service"
+    } else {
+        "/console/service"
+    };
     format!("{scheme}://{host}:{port}{path}")
 }
 
@@ -380,7 +384,11 @@ fn build_console_url_for_route(
     legacy_route: bool,
 ) -> String {
     let scheme = if ssl { "wss" } else { "ws" };
-    let path = if legacy_route { "/cms/service" } else { "/console/service" };
+    let path = if legacy_route {
+        "/cms/service"
+    } else {
+        "/console/service"
+    };
     format!(
         "{scheme}://{host}:{port}{path}?appkey={appkey}&token={}&ts={}&nonce={}&device_id={device_id}",
         token.token, token.ts, token.nonce,
@@ -425,7 +433,11 @@ async fn refresh_rtc_config(
     auth_info: &MsgAuthInfo,
     expected_revision: u64,
 ) -> Result<(), String> {
-    let scheme = if auth_info.console_ssl { "https" } else { "http" };
+    let scheme = if auth_info.console_ssl {
+        "https"
+    } else {
+        "http"
+    };
     let url = format!(
         "{scheme}://{}:{}/api/v1/rtc/ice-config",
         auth_info.console_host, auth_info.console_port
@@ -447,7 +459,8 @@ async fn refresh_rtc_config(
     if !response.status().is_success() {
         return Err(format!("Console returned {}", response.status()));
     }
-    let envelope: RtcConfigApiResponse = response.json().await.map_err(|error| error.to_string())?;
+    let envelope: RtcConfigApiResponse =
+        response.json().await.map_err(|error| error.to_string())?;
     if envelope.code != 0 && envelope.code != 200 {
         return Err(format!("Console RTC API returned code {}", envelope.code));
     }
@@ -566,6 +579,11 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
                 push_rtmp_url: s.push_rtmp_url,
                 app_mode: s.app_mode,
                 webview_url_b64: s.webview_url_b64,
+                device_id: s.device_id,
+                relay_device_id: s.relay_device_id,
+                relay_server_host: s.relay_server_host,
+                relay_server_port: s.relay_server_port,
+                relay_appkey: s.relay_appkey,
             })))
         }
         Ok(ConsoleServiceMessageType::KConsoleServiceStopAppInstance) => {
@@ -587,13 +605,13 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
                     .ok_or("missing redeem_connection_ticket_result")?,
             )))
         }
-        Ok(ConsoleServiceMessageType::KRtcIceConfigChanged) => Ok(Some(
-            ConsoleInboundCommand::RtcIceConfigChanged(
+        Ok(ConsoleServiceMessageType::KRtcIceConfigChanged) => {
+            Ok(Some(ConsoleInboundCommand::RtcIceConfigChanged(
                 msg.rtc_ice_config_changed
                     .ok_or("missing rtc_ice_config_changed")?
                     .revision,
-            ),
-        )),
+            )))
+        }
         Ok(ConsoleServiceMessageType::KConsoleServiceHello)
         | Ok(ConsoleServiceMessageType::KConsoleServiceHeartBeat)
         | Ok(ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult)
@@ -787,6 +805,11 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
             push_rtmp_url: req.push_rtmp_url.clone(),
             app_mode: req.app_mode.clone(),
             webview_url_b64: req.webview_url_b64.clone(),
+            device_id: req.device_id.clone(),
+            relay_device_id: req.relay_device_id.clone(),
+            relay_server_host: req.relay_server_host.clone(),
+            relay_server_port: req.relay_server_port,
+            relay_appkey: req.relay_appkey.clone(),
         }),
         stop_app_instance: None,
         start_app_instance_result: None,
@@ -1090,7 +1113,10 @@ mod tests {
     #[test]
     fn hello_message_carries_device_appkey_version() {
         let message = hello_message("dev-1", "ak-1");
-        assert_eq!(message.msg_type, ConsoleServiceMessageType::KConsoleServiceHello);
+        assert_eq!(
+            message.msg_type,
+            ConsoleServiceMessageType::KConsoleServiceHello
+        );
         assert_eq!(message.device_id, "dev-1");
         let hello = message.hello.unwrap();
         assert_eq!(hello.device_id, "dev-1");
@@ -1120,7 +1146,10 @@ mod tests {
     fn encoded_hello_round_trips() {
         let bytes = encode_message(&hello_message("dev-1", "ak-1"));
         let decoded = ConsoleServiceMessage::decode(bytes.as_slice()).unwrap();
-        assert_eq!(decoded.msg_type, ConsoleServiceMessageType::KConsoleServiceHello);
+        assert_eq!(
+            decoded.msg_type,
+            ConsoleServiceMessageType::KConsoleServiceHello
+        );
         assert_eq!(decoded.hello.unwrap().appkey, "ak-1");
     }
 
@@ -1143,6 +1172,11 @@ mod tests {
             websocket_enabled: true,
             live_stream_id: "device-test__app__app-test".into(),
             push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".into(),
+            device_id: "device-test".into(),
+            relay_device_id: "device-test__instance__inst-1".into(),
+            relay_server_host: "console.test".into(),
+            relay_server_port: 30502,
+            relay_appkey: "app-key".into(),
         };
         let bytes = encode_start_app_command("dev-1", &req);
         match parse_console_inbound(&bytes).unwrap().unwrap() {

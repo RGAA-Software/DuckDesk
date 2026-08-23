@@ -65,6 +65,7 @@ namespace px
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
 
         std::string using_appkey_;
+        std::string relay_device_id_;
         std::atomic_bool need_reconnect_ = false;
     };
 

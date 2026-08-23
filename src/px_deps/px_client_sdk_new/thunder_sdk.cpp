@@ -720,6 +720,14 @@ namespace px
         }
     }
 
+    bool ThunderSdk::RestartRtcIce(const std::string& ice_config_json,
+                                   const std::string& connection_ticket,
+                                   const std::string& client_nonce,
+                                   const std::string& instance_id) {
+        return net_client_ && net_client_->RestartRtcIce(
+            ice_config_json, connection_ticket, client_nonce, instance_id);
+    }
+
     uint64_t ThunderSdk::GetLastHeartbeatTimestamp() {
         return last_heartbeat_callback_;
     }

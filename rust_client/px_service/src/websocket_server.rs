@@ -141,69 +141,29 @@ async fn handle_connection(
                     height,
                     refresh_hz,
                 } => {
-                    let (manager, cached, init_error) = {
-                        let guard = runtime.lock().await;
-                        (
-                            guard.virtual_display_manager.clone(),
-                            guard.virtual_display_results.get(&request_id).cloned(),
-                            guard.virtual_display_init_error.clone(),
+                    // Driver/session operations are independent of this
+                    // connection's read loop. Awaiting one here used to queue
+                    // Render heartbeats (including auth info) behind a missing
+                    // interactive worker and made every connection ticket time
+                    // out. The writer channel preserves response ordering per
+                    // completed operation without blocking incoming control.
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        if let Some(response) = process_virtual_display_operation(
+                            operation_runtime,
+                            request_id,
+                            operation,
+                            width,
+                            height,
+                            refresh_hz,
                         )
-                    };
-                    if let Some(cached) = cached {
-                        Some(virtual_display_service_message(cached))
-                    } else if let Some(manager) = manager {
-                        let task_manager = manager.clone();
-                        let task = tokio::task::spawn_blocking(move || match operation {
-                            service_core::VirtualDisplayOperation::Create => {
-                                task_manager.create(width, height, refresh_hz)
-                            }
-                            service_core::VirtualDisplayOperation::RemoveLast => {
-                                task_manager.remove_last()
-                            }
-                            service_core::VirtualDisplayOperation::Query => task_manager.query(),
-                            service_core::VirtualDisplayOperation::ResetOwned => {
-                                task_manager.reset_owned()
-                            }
-                        });
-                        let result =
-                            match tokio::time::timeout(std::time::Duration::from_secs(35), task)
-                                .await
-                            {
-                                Ok(Ok(result)) => result,
-                                Ok(Err(err)) => Err(VirtualDisplayError {
-                                    code: "OPERATION_TASK_FAILED".to_string(),
-                                    message: err.to_string(),
-                                }),
-                                Err(_) => Err(VirtualDisplayError {
-                                    code: "OPERATION_TIMEOUT".to_string(),
-                                    message: "virtual display operation exceeded 35 seconds"
-                                        .to_string(),
-                                }),
-                            };
-                        let response = virtual_display_result(&request_id, &manager, result);
+                        .await
                         {
-                            let mut guard = runtime.lock().await;
-                            if guard.virtual_display_results.len() >= 256 {
-                                guard.virtual_display_results.clear();
-                            }
-                            guard
-                                .virtual_display_results
-                                .insert(request_id, response.clone());
+                            let _ = operation_tx.send(encode_service_message(&response));
                         }
-                        Some(virtual_display_service_message(response))
-                    } else {
-                        Some(virtual_display_service_message(
-                            service_core::MsgVirtualDisplayResult {
-                                request_id,
-                                accepted: false,
-                                error_code: "MANAGER_UNAVAILABLE".to_string(),
-                                error_message: init_error.unwrap_or_else(|| {
-                                    "virtual display manager is unavailable".to_string()
-                                }),
-                                ..Default::default()
-                            },
-                        ))
-                    }
+                    });
+                    None
                 }
                 service_core::command::Command::RedeemConnectionTicket {
                     request_id,
@@ -316,9 +276,79 @@ fn virtual_display_service_message(
     }
 }
 
+async fn process_virtual_display_operation(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request_id: String,
+    operation: service_core::VirtualDisplayOperation,
+    width: u32,
+    height: u32,
+    refresh_hz: u32,
+) -> Option<service_core::ServiceMessage> {
+    let (manager, cached, init_error) = {
+        let guard = runtime.lock().await;
+        (
+            guard.virtual_display_manager.clone(),
+            guard.virtual_display_results.get(&request_id).cloned(),
+            guard.virtual_display_init_error.clone(),
+        )
+    };
+    if let Some(cached) = cached {
+        return Some(virtual_display_service_message(cached));
+    }
+    let Some(manager) = manager else {
+        return Some(virtual_display_service_message(
+            service_core::MsgVirtualDisplayResult {
+                request_id,
+                accepted: false,
+                error_code: "MANAGER_UNAVAILABLE".to_string(),
+                error_message: init_error
+                    .unwrap_or_else(|| "virtual display manager is unavailable".to_string()),
+                ..Default::default()
+            },
+        ));
+    };
+
+    // Query is advisory and must not hold resources as long as a requested
+    // create/remove. Mutations retain the longer driver-operation budget.
+    let operation_timeout = match operation {
+        service_core::VirtualDisplayOperation::Query => std::time::Duration::from_secs(10),
+        _ => std::time::Duration::from_secs(40),
+    };
+    let task_manager = manager.clone();
+    let task = tokio::task::spawn_blocking(move || match operation {
+        service_core::VirtualDisplayOperation::Create => {
+            task_manager.create(width, height, refresh_hz)
+        }
+        service_core::VirtualDisplayOperation::RemoveLast => task_manager.remove_last(),
+        service_core::VirtualDisplayOperation::Query => task_manager.query(),
+        service_core::VirtualDisplayOperation::ResetOwned => task_manager.reset_owned(),
+    });
+    let result = match tokio::time::timeout(operation_timeout, task).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(err)) => Err(VirtualDisplayError {
+            code: "OPERATION_TASK_FAILED".to_string(),
+            message: err.to_string(),
+        }),
+        Err(_) => Err(VirtualDisplayError {
+            code: "OPERATION_TIMEOUT".to_string(),
+            message: format!("virtual display operation exceeded {:?}", operation_timeout),
+        }),
+    };
+    let response = virtual_display_result(&request_id, result);
+    {
+        let mut guard = runtime.lock().await;
+        if guard.virtual_display_results.len() >= 256 {
+            guard.virtual_display_results.clear();
+        }
+        guard
+            .virtual_display_results
+            .insert(request_id, response.clone());
+    }
+    Some(virtual_display_service_message(response))
+}
+
 fn virtual_display_result(
     request_id: &str,
-    manager: &crate::virtual_display_manager::VirtualDisplayManager,
     result: Result<VirtualDisplayOperationResult, VirtualDisplayError>,
 ) -> service_core::MsgVirtualDisplayResult {
     match result {
@@ -336,37 +366,18 @@ fn virtual_display_result(
             phase: phase_name(result.status.phase).to_string(),
             ..Default::default()
         },
-        Err(err) => {
-            let status = manager.query().ok().map(|result| result.status);
-            service_core::MsgVirtualDisplayResult {
-                request_id: request_id.to_string(),
-                accepted: false,
-                topology_generation: status
-                    .as_ref()
-                    .map(|status| status.topology_generation)
-                    .unwrap_or_default(),
-                owned_display_count: status
-                    .as_ref()
-                    .map(|status| status.owned_slots.len() as u32)
-                    .unwrap_or_default(),
-                actual_usbmmidd_count: status
-                    .as_ref()
-                    .map(|status| status.monitors.len() as u32)
-                    .unwrap_or_default(),
-                driver_installed: status
-                    .as_ref()
-                    .is_some_and(|status| status.driver_installed),
-                package_valid: status.as_ref().is_some_and(|status| status.package_valid),
-                removal_safe: status.as_ref().is_some_and(|status| status.removal_safe),
-                phase: status
-                    .as_ref()
-                    .map(|status| phase_name(status.phase).to_string())
-                    .unwrap_or_else(|| "Faulted".to_string()),
-                error_code: err.code,
-                error_message: err.message,
-                ..Default::default()
-            }
-        }
+        // Do not synchronously query again here. The original operation may
+        // have failed specifically because its interactive worker timed out;
+        // retrying on the same IPC receive task used to double the outage and
+        // starve Render heartbeats, Console auth setup, and ticket redemption.
+        Err(err) => service_core::MsgVirtualDisplayResult {
+            request_id: request_id.to_string(),
+            accepted: false,
+            phase: "Faulted".to_string(),
+            error_code: err.code,
+            error_message: err.message,
+            ..Default::default()
+        },
     }
 }
 

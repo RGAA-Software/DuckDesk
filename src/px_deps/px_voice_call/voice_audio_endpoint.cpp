@@ -250,6 +250,7 @@ public:
             return true;
         }
         const size_t frame_count = sample_count / static_cast<size_t>(channels);
+        stats_received_pcm_samples_.fetch_add(frame_count, std::memory_order_relaxed);
         if (channels == 1) {
             stats_playout_dropped_.fetch_add(
                 playout_queue_.Write(samples, frame_count),
@@ -308,6 +309,7 @@ public:
             .captured_frames = stats_captured_frames_.load(std::memory_order_relaxed),
             .encoded_packets = stats_encoded_packets_.load(std::memory_order_relaxed),
             .decoded_packets = stats_decoded_packets_.load(std::memory_order_relaxed),
+            .received_pcm_samples = stats_received_pcm_samples_.load(std::memory_order_relaxed),
             .capture_samples_dropped = stats_capture_dropped_.load(std::memory_order_relaxed),
             .playout_samples_dropped = stats_playout_dropped_.load(std::memory_order_relaxed),
             .playout_underruns = stats_playout_underruns_.load(std::memory_order_relaxed),
@@ -511,6 +513,7 @@ private:
         stats_captured_frames_ = 0;
         stats_encoded_packets_ = 0;
         stats_decoded_packets_ = 0;
+        stats_received_pcm_samples_ = 0;
         stats_capture_dropped_ = 0;
         stats_playout_dropped_ = 0;
         stats_playout_underruns_ = 0;
@@ -551,6 +554,7 @@ private:
     std::atomic_uint64_t stats_captured_frames_ = 0;
     std::atomic_uint64_t stats_encoded_packets_ = 0;
     std::atomic_uint64_t stats_decoded_packets_ = 0;
+    std::atomic_uint64_t stats_received_pcm_samples_ = 0;
     std::atomic_uint64_t stats_capture_dropped_ = 0;
     std::atomic_uint64_t stats_playout_dropped_ = 0;
     std::atomic_uint64_t stats_playout_underruns_ = 0;

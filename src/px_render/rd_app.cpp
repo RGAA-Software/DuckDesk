@@ -892,17 +892,23 @@ namespace px
         WebViewRuntimeCallbacks callbacks{
             .on_video_frame = [weak_self](const CaptureVideoFrame& frame) {
                 const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                // WebViewRuntime::SetActive is the production gate. Do not
+                // re-check peer state here: room preparation and RTC data
+                // channel callbacks are asynchronous, and the first repaint
+                // used to be discarded in that short transition, leaving a
+                // static page with no later paint and therefore a black RTC
+                // track forever.
+                if (!self || self->exit_app_) return;
                 self->encoder_thread_->Encode(frame);
             },
             .on_audio_frame = [weak_self](const CaptureAudioFrame& frame) {
                 const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                if (!self || self->exit_app_) return;
                 self->context_->SendAppMessage(frame);
             },
             .on_cursor = [weak_self](const CaptureCursorBitmap& cursor) {
                 const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || !self->HasConnectedPeer()) return;
+                if (!self || self->exit_app_) return;
                 self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(
                     cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_,
                     cursor.width_, cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
@@ -1611,6 +1617,12 @@ namespace px
     }
 
     void RdApplication::HandleForceGdiEvent(bool force_gdi) {
+        // WebView frames come from CEF OSR and do not have a desktop capture
+        // plugin. Relay's legacy RequestControl hint must not try to switch a
+        // nonexistent DDA/GDI source.
+        if (settings_->IsWebViewMode()) {
+            return;
+        }
         force_gdi_ = force_gdi;
         auto weak_self = weak_from_this();
         context_->PostTask([weak_self, force_gdi]() {

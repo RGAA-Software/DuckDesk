@@ -533,6 +533,13 @@ namespace px
                 .os_version_ = hb.remote_os_name(),
             });
         }
+        else if (proto_msg->type() == pxcp::CpMessageType::kCpRtcIceRestartRequest
+                 && !proto_msg->stream_id().empty()) {
+            LOGW("Standard RTC client requested ICE restart: {}", proto_msg->stream_id());
+            context_->SendAppMessage(MsgClientRtcIceRestartRequested {
+                .stream_id_ = proto_msg->stream_id(),
+            });
+        }
         else if (proto_msg->type() == pxcp::kCpFileTransferBegin) {
             auto weak_self = weak_from_this();
             context_->PostDBTask([weak_self, proto_msg, socket_fd]() {

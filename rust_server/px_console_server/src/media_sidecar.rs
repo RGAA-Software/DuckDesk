@@ -286,10 +286,16 @@ pub async fn apply_turn_config(
     }
 
     let mut command = Command::new(&turn_exe);
+    // Coturn 4.17 on Windows accepts a relative `-c` path but silently falls
+    // back to its defaults for an absolute drive-letter path.  The child runs
+    // beside Console, so keep an adjacent storage config relative whenever
+    // possible.  Without this, the process looks healthy but listens on 3478
+    // instead of the configured managed port.
+    let config_argument = turn_config_argument(directory, &generated_config);
     command
         .current_dir(directory)
         .arg("-c")
-        .arg(&generated_config);
+        .arg(&config_argument);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -417,9 +423,19 @@ fn same_path(left: &Path, right: &Path) -> bool {
         .eq_ignore_ascii_case(&right.to_string_lossy())
 }
 
+fn turn_config_argument(console_dir: &Path, config_path: &Path) -> std::path::PathBuf {
+    config_path
+        .strip_prefix(console_dir)
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|_| config_path.to_path_buf())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{local_media_port, synchronize_http_port, write_turn_runtime_config};
+    use super::{
+        local_media_port, synchronize_http_port, turn_config_argument,
+        write_turn_runtime_config,
+    };
     use crate::rtc::model::ManagedTurnServerConfig;
 
     #[test]
@@ -466,5 +482,18 @@ mod tests {
         assert!(config.contains("external-ip=203.0.113.8/10.0.0.8"));
         assert!(!config.contains("user="));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn adjacent_turn_config_is_passed_as_relative_path() {
+        let console_dir = std::path::Path::new("C:/Pixels/Console");
+        let adjacent = console_dir.join("storage/turnserver.generated.conf");
+        assert_eq!(
+            turn_config_argument(console_dir, &adjacent),
+            std::path::PathBuf::from("storage/turnserver.generated.conf")
+        );
+
+        let external = std::path::Path::new("D:/runtime/turnserver.conf");
+        assert_eq!(turn_config_argument(console_dir, external), external);
     }
 }
