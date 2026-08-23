@@ -126,6 +126,15 @@ endif ()
 add_subdirectory(anti_hooking)
 add_subdirectory(plugins)
 add_executable(px_client WIN32 ${SRCS_WS} ${CLIPBOARD_SRCS} ${CLIPBOARD_WIN_SRCS} ${SRCS_WIN})
+
+# Keep targeted client builds from packaging plugins compiled against an older
+# ClientPluginInterface ABI. These targets deploy beside px_client at runtime.
+foreach(runtime_plugin IN ITEMS client_clipboard ft_client media_record_client multi_screens)
+    if(TARGET ${runtime_plugin})
+        add_dependencies(px_client ${runtime_plugin})
+    endif()
+endforeach()
+
 if (APPLE)
     set_target_properties(px_client PROPERTIES
             MACOSX_BUNDLE_GUI_IDENTIFIER com.px.client
@@ -156,6 +165,11 @@ add_executable(test_client_voice_call_protocol
 )
 target_link_libraries(test_client_voice_call_protocol PRIVATE
     px_message px_voice_call GTest::gtest GTest::gtest_main)
+
+if(BUILD_TESTING)
+    add_test(NAME client_voice_call_protocol COMMAND test_client_voice_call_protocol)
+    add_test(NAME client_virtual_display COMMAND test_client_virtual_display)
+endif()
 
 if (PX_PROTECTION_ENABLED)
     add_definitions(-DPX_PROTECTION_ENABLED=1)

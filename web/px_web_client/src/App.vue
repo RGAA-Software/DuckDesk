@@ -27,8 +27,17 @@ import {
   MSG_TYPE_GAME_STATUS_CHANGED,
   MSG_TYPE_VIRTUAL_DISPLAY_REQUEST,
   MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE,
+  MSG_TYPE_VOICE_CALL_REQUEST,
+  MSG_TYPE_VOICE_CALL_RESPONSE,
+  MSG_TYPE_VOICE_AUDIO_CONFIG,
 } from './rtc/proto'
 import { TlvReassembler } from './rtc/tlv'
+import {
+  isSupportedVoiceAudioConfig,
+  matchesActiveVoiceCall,
+  matchesPendingVoiceResponse,
+} from './rtc/voice_call_state'
+import type { VoiceCallPhase } from './rtc/voice_call_state'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import FloatBall from './FloatBall.vue'
 import FileTransferWindow from './FileTransferWindow.vue'
@@ -199,50 +208,241 @@ const status = ref<ConnStatus>('idle')
 const errorMsg = ref('')
 const logs = ref<string[]>([])
 const videoRef = ref<HTMLVideoElement | null>(null)
+const voiceAudioRef = ref<HTMLAudioElement | null>(null)
 const hasVideo = ref(false)
 // 仅观看:勾选后不回传鼠标键盘输入(开关在悬浮工具条内)
 const viewOnly = ref(false)
 // 声音:默认静音以保证自动播放,工具条内可开关
 const muted = ref(true)
-// 麦克风上行:建连时用 addTransceiver 占位(sendrecv),开/关 mic 只 replaceTrack,
-// 不触发重新协商(render 侧 RtcServer 只处理一次 offer/answer)
+const voiceBrowserMediaAvailable = window.isSecureContext
+  && typeof navigator.mediaDevices?.getUserMedia === 'function'
+const voiceCallSupported = ref(false)
+const voiceCallRequiresHeadset = ref(false)
+const voiceCallPhase = ref<VoiceCallPhase>('idle')
+const voiceCallReason = ref('')
+const voiceMicMuted = ref(false)
+const voiceSpeakerMuted = ref(false)
 const micOn = ref(false)
 let micTransceiver: RTCRtpTransceiver | null = null
 let micStream: MediaStream | null = null
+let voiceCallId = ''
+let voiceRequestId = ''
+let voiceTimeout: number | null = null
+let lastMicTrackStopState = 'none'
+let voiceStartGeneration = 0
+let voicePreflightShown = false
+let voicePreflightPending = false
 
-async function toggleMic() {
-  if (micOn.value) {
-    if (micTransceiver) {
-      try { await micTransceiver.sender.replaceTrack(null) } catch { /* ignore */ }
-    }
-    micStream?.getTracks().forEach((t) => t.stop())
-    micStream = null
-    micOn.value = false
-    addLog('麦克风已关闭')
+function currentVoiceIdentity() {
+  return { callId: voiceCallId, requestId: voiceRequestId }
+}
+
+function clearVoiceTimeout() {
+  if (voiceTimeout !== null) window.clearTimeout(voiceTimeout)
+  voiceTimeout = null
+}
+
+async function stopVoiceMedia() {
+  if (micTransceiver) {
+    try { await micTransceiver.sender.replaceTrack(null) } catch { /* ignore */ }
+  }
+  const tracks = micStream?.getTracks() ?? []
+  tracks.forEach((track) => track.stop())
+  if (tracks.length > 0) {
+    lastMicTrackStopState = tracks.map((track) => track.readyState).join(',')
+  }
+  micStream = null
+  micOn.value = false
+  voiceMicMuted.value = false
+}
+
+async function finishVoiceCall(reason = '', phase: VoiceCallPhase = 'idle') {
+  ++voiceStartGeneration
+  clearVoiceTimeout()
+  await stopVoiceMedia()
+  voicePreflightShown = false
+  voiceSpeakerMuted.value = false
+  if (voiceAudioRef.value) voiceAudioRef.value.muted = false
+  voiceCallId = ''
+  voiceRequestId = ''
+  voiceCallReason.value = reason
+  voiceCallPhase.value = phase
+}
+
+async function hangUpVoiceCall(notifyRemote = true) {
+  if (notifyRemote && voiceCallId && voiceRequestId) {
+    sendControl({
+      type: MSG_TYPE_VOICE_CALL_REQUEST,
+      voiceCallRequest: { callId: voiceCallId, requestId: voiceRequestId, connect: false },
+    })
+  }
+  await finishVoiceCall()
+  addLog('语音通话已结束')
+}
+
+async function startVoiceCall() {
+  if (!voiceCallSupported.value) {
+    ElMessage.warning(voiceCallReason.value || '被控端不支持语音通话')
     return
   }
   if (!hasGrantedPermission('audio')) {
     addLog('当前连接票据未授予音频权限')
+    ElMessage.warning('当前连接未授予音频权限')
     return
   }
   if (!pc || !micTransceiver) {
-    addLog('尚未连接,无法开启麦克风')
+    addLog('尚未连接,无法发起语音通话')
     return
   }
+  if (voiceCallPhase.value === 'outgoing' || voiceCallPhase.value === 'connected') return
+  if (voiceCallRequiresHeadset.value && !voicePreflightShown) {
+    if (voicePreflightPending) return
+    voicePreflightPending = true
+    try {
+      await ElMessageBox.confirm(
+        t('float.voicePreflightWarning'),
+        t('float.voicePreflightTitle'),
+        {
+          confirmButtonText: t('float.voicePreflightContinue'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+        },
+      )
+      voicePreflightShown = true
+    } catch {
+      return
+    } finally {
+      voicePreflightPending = false
+    }
+  }
+  const generation = ++voiceStartGeneration
+  voiceCallPhase.value = 'outgoing'
+  voiceCallReason.value = ''
+  let acquiredStream: MediaStream | null = null
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
+    // The click is a browser user gesture. Unlock the dedicated call playout
+    // element now so a later accepted track is not silently autoplay-blocked.
+    try { await voiceAudioRef.value?.play() } catch { /* track may not be attached yet */ }
+    acquiredStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     })
+    if (generation !== voiceStartGeneration || voiceCallPhase.value !== 'outgoing') {
+      acquiredStream.getTracks().forEach((mediaTrack) => mediaTrack.stop())
+      return
+    }
+    micStream = acquiredStream
     const track = micStream.getAudioTracks()[0]
     if (!track) throw new Error('未获取到音频轨')
-    await micTransceiver.sender.replaceTrack(track)
-    micOn.value = true
-    addLog(`麦克风已开启(上行到远端扬声器): ${track.label || 'audio'}`)
+    lastMicTrackStopState = 'none'
+    track.enabled = true
+    track.onended = () => {
+      if (voiceCallPhase.value !== 'idle') {
+        void hangUpVoiceCall(true)
+        ElMessage.error('麦克风设备已断开，语音通话已结束')
+      }
+    }
+    voiceCallId = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `web-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    voiceRequestId = String(Date.now())
+    if (!sendControl({
+      type: MSG_TYPE_VOICE_CALL_REQUEST,
+      voiceCallRequest: { callId: voiceCallId, requestId: voiceRequestId, connect: true },
+    })) {
+      throw new Error('控制通道未连接')
+    }
+    addLog('语音呼叫等待被控端授权')
+    voiceTimeout = window.setTimeout(() => {
+      if (voiceCallPhase.value === 'outgoing') {
+        void hangUpVoiceCall(true).then(() => {
+          voiceCallReason.value = 'timeout'
+          voiceCallPhase.value = 'error'
+          ElMessage.warning('语音呼叫等待授权超时')
+        })
+      }
+    }, 30_500)
   } catch (err) {
-    addLog(`开启麦克风失败: ${String(err)}`)
-    micStream?.getTracks().forEach((t) => t.stop())
-    micStream = null
-    micOn.value = false
+    acquiredStream?.getTracks().forEach((track) => track.stop())
+    if (generation !== voiceStartGeneration) return
+    addLog(`发起语音通话失败: ${String(err)}`)
+    await finishVoiceCall(String(err), 'error')
+    ElMessage.error('无法使用麦克风，请检查浏览器权限和输入设备')
+  }
+}
+
+async function toggleVoiceCall() {
+  if (voiceCallPhase.value === 'outgoing' || voiceCallPhase.value === 'connected') {
+    await hangUpVoiceCall(true)
+  } else {
+    await startVoiceCall()
+  }
+}
+
+function toggleVoiceMute() {
+  if (voiceCallPhase.value !== 'connected' || !micStream) return
+  voiceMicMuted.value = !voiceMicMuted.value
+  micStream.getAudioTracks().forEach((track) => { track.enabled = !voiceMicMuted.value })
+  micOn.value = !voiceMicMuted.value
+  addLog(voiceMicMuted.value ? '通话麦克风已静音' : '通话麦克风已恢复')
+}
+
+function toggleVoiceSpeakerMute() {
+  if (voiceCallPhase.value !== 'connected') return
+  voiceSpeakerMuted.value = !voiceSpeakerMuted.value
+  if (voiceAudioRef.value) voiceAudioRef.value.muted = voiceSpeakerMuted.value
+  addLog(voiceSpeakerMuted.value ? '通话扬声器已静音' : '通话扬声器已恢复')
+}
+
+async function handleVoiceCallResponse(response: {
+  callId: string
+  requestId: number | { toString(): string }
+  accepted: boolean
+  reason: string
+}) {
+  if (!matchesPendingVoiceResponse(
+    voiceCallPhase.value, currentVoiceIdentity(), response,
+  )) {
+    addLog('已丢弃不匹配或过期的语音响应')
+    return
+  }
+  clearVoiceTimeout()
+  if (!response.accepted) {
+    const reason = response.reason || 'rejected'
+    await finishVoiceCall(reason, 'error')
+    ElMessage.warning(`语音呼叫未接通：${reason}`)
+    return
+  }
+  const track = micStream?.getAudioTracks()[0]
+  if (!track || !micTransceiver) {
+    await hangUpVoiceCall(true)
+    voiceCallReason.value = 'no_mic'
+    voiceCallPhase.value = 'error'
+    ElMessage.error('麦克风轨道不可用，已取消语音通话')
+    return
+  }
+  const generation = voiceStartGeneration
+  try {
+    await micTransceiver.sender.replaceTrack(track)
+    if (generation !== voiceStartGeneration || voiceCallPhase.value !== 'outgoing') {
+      try { await micTransceiver.sender.replaceTrack(null) } catch { /* ignore */ }
+      track.stop()
+      return
+    }
+    voiceCallPhase.value = 'connected'
+    micOn.value = true
+    if (voiceAudioRef.value) {
+      voiceAudioRef.value.muted = voiceSpeakerMuted.value
+      try { await voiceAudioRef.value.play() } catch {
+        ElMessage.warning('请再次点击页面以允许播放通话声音')
+      }
+    }
+    addLog(`语音通话已连接: ${track.label || 'audio'}`)
+    ElMessage.success('语音通话已连接')
+  } catch (err) {
+    await hangUpVoiceCall(true)
+    voiceCallReason.value = 'media_attach_failed'
+    voiceCallPhase.value = 'error'
+    addLog(`语音轨道附加失败: ${String(err)}`)
   }
 }
 
@@ -451,11 +651,25 @@ function handleDcBinary(buf: ArrayBuffer) {
       virtualDisplayOwnedCount.value = cfg.virtualDisplayOwnedCount ?? 0
       virtualDisplayMaxCount.value = cfg.virtualDisplayMaxCount || 2
       virtualDisplayGeneration.value = String(cfg.topologyGeneration ?? 0)
+      const remoteVoiceSupported = (cfg.voiceCallEnabled ?? false)
+        && (cfg.voiceCallProtocolVersion ?? 0) >= 1
+        && hasGrantedPermission('audio')
+      voiceCallSupported.value = remoteVoiceSupported && voiceBrowserMediaAvailable
+      if (remoteVoiceSupported && !voiceBrowserMediaAvailable) {
+        voiceCallReason.value = t('float.voiceSecureContextRequired')
+        addLog('Web语音不可用：浏览器麦克风要求HTTPS或localhost安全上下文')
+      } else if (voiceCallPhase.value === 'idle') {
+        voiceCallReason.value = ''
+      }
+      voiceCallRequiresHeadset.value = cfg.voiceCallRequiresHeadset ?? false
       addLog(`收到远端显示器配置: ${remoteMonitors.value.length} 个显示器, 采集 ${capturingMonitor.value}, fps=${remoteFps.value || '-'}`)
       // FT 协议版本门控:rustdesk 语义 = 2;旧版被控(缺省/0)不兼容,入口置灰
       ftProtocolVersion.value = cfg.ftProtocolVersion ?? 0
       if (!ftSupported.value) {
         addLog(`对端文件传输协议版本不兼容(ftProtocolVersion=${ftProtocolVersion.value}),文件传输不可用`)
+      }
+      if (voiceCallSupported.value) {
+        addLog(`对端支持语音通话(v${cfg.voiceCallProtocolVersion ?? 0})`)
       }
     } else if (msg.type === MSG_TYPE_MONITOR_SWITCHED && msg.monitorSwitched) {
       // 切屏回包:更新当前采集显示器与输入回放坐标系(否则鼠标仍按旧屏几何映射)
@@ -485,6 +699,22 @@ function handleDcBinary(buf: ArrayBuffer) {
         if (r.state === 1) {
           scheduleTopologyReconnect(virtualDisplayGeneration.value)
         }
+      }
+    } else if (msg.type === MSG_TYPE_VOICE_CALL_RESPONSE && msg.voiceCallResponse) {
+      void handleVoiceCallResponse(msg.voiceCallResponse)
+    } else if (msg.type === MSG_TYPE_VOICE_CALL_REQUEST && msg.voiceCallRequest &&
+               !msg.voiceCallRequest.connect &&
+               matchesActiveVoiceCall(currentVoiceIdentity(), msg.voiceCallRequest.callId)) {
+      void finishVoiceCall('remote_hangup').then(() => {
+        ElMessage.info('被控端已结束语音通话')
+      })
+    } else if (msg.type === MSG_TYPE_VOICE_AUDIO_CONFIG && msg.voiceAudioConfig &&
+               matchesActiveVoiceCall(currentVoiceIdentity(), msg.voiceAudioConfig.callId)) {
+      const config = msg.voiceAudioConfig
+      if (!isSupportedVoiceAudioConfig(currentVoiceIdentity(), config)) {
+        addLog(`语音媒体参数不兼容: ${config.sampleRate}/${config.channels}/${config.frameMs}`)
+        void hangUpVoiceCall(true)
+        ElMessage.error('被控端语音媒体参数不兼容')
       }
     } else if (msg.type === MSG_TYPE_VIDEO_CODEC_CHANGED && msg.videoCodecChanged) {
       const c = msg.videoCodecChanged
@@ -596,8 +826,36 @@ function exposeClipboardPerfDebug() {
   }
   w.__perf = () => ({ ...perf.value })
   w.__mic = {
-    toggle: () => toggleMic(),
+    toggle: () => toggleVoiceCall(),
     on: () => micOn.value,
+    phase: () => voiceCallPhase.value,
+    supported: () => voiceCallSupported.value,
+    mute: () => toggleVoiceMute(),
+    speakerMute: () => toggleVoiceSpeakerMute(),
+    state: () => ({
+      phase: voiceCallPhase.value,
+      supported: voiceCallSupported.value,
+      reason: voiceCallReason.value,
+      browserMediaAvailable: voiceBrowserMediaAvailable,
+      requiresHeadset: voiceCallRequiresHeadset.value,
+      preflightShown: voicePreflightShown,
+      preflightPending: voicePreflightPending,
+      micMuted: voiceMicMuted.value,
+      speakerMuted: voiceSpeakerMuted.value,
+      senderTrack: micTransceiver?.sender.track?.readyState ?? 'none',
+      localTracks: micStream?.getTracks().map((track) => ({
+        kind: track.kind,
+        enabled: track.enabled,
+        readyState: track.readyState,
+      })) ?? [],
+      lastMicTrackStopState,
+      voiceOutputMuted: voiceAudioRef.value?.muted ?? null,
+      voiceOutputTracks: (voiceAudioRef.value?.srcObject as MediaStream | null)
+        ?.getTracks().map((track) => ({ kind: track.kind, readyState: track.readyState })) ?? [],
+      systemOutputMuted: videoRef.value?.muted ?? null,
+      systemAudioTrackCount: (videoRef.value?.srcObject as MediaStream | null)
+        ?.getAudioTracks().length ?? 0,
+    }),
   }
 }
 
@@ -981,9 +1239,20 @@ function cleanup() {
   capturingMonitor.value = ''
   remoteFps.value = 0
   virtualDisplayPending.value = false
+  clearVoiceTimeout()
   micStream?.getTracks().forEach((t) => t.stop())
   micStream = null
   micOn.value = false
+  voiceMicMuted.value = false
+  voiceSpeakerMuted.value = false
+  voiceCallPhase.value = 'idle'
+  voiceCallReason.value = ''
+  voicePreflightShown = false
+  voicePreflightPending = false
+  voiceCallId = ''
+  voiceRequestId = ''
+  ++voiceStartGeneration
+  voiceCallSupported.value = false
   micTransceiver = null
   const w = window as unknown as { __pc?: RTCPeerConnection | null }
   w.__pc = null
@@ -1035,6 +1304,7 @@ function cleanup() {
   }
   hasVideo.value = false
   if (videoRef.value) videoRef.value.srcObject = null
+  if (voiceAudioRef.value) voiceAudioRef.value.srcObject = null
 }
 
 async function connect() {
@@ -1055,12 +1325,25 @@ async function connect() {
     // 无头/CDP 调试用:getStats 等诊断入口
     ;(window as unknown as { __pc?: RTCPeerConnection | null }).__pc = pc
 
-    // 麦克风上行占位:建连即创建 sendrecv 音频 transceiver(此时无本地轨),
-    // 之后开/关 mic 仅 replaceTrack,避免重新协商(render 只处理一次 offer)
+    // 第一条音频 m-line 只接收桌面系统声；第二条是语音通话专用
+    // sendrecv 轨。两流独立，语音挂断不会破坏系统声音。
+    pc.addTransceiver('audio', { direction: 'recvonly' })
     micTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' })
 
     pc.ontrack = (ev: RTCTrackEvent) => {
       applyLowLatencyPlayout(ev.receiver, ev.track)
+      const isVoiceTrack = ev.track.kind === 'audio' && (
+        ev.track.id === 'voice_call_audio'
+        || ev.streams.some((stream) => stream.id === 'pixels_voice_call')
+      )
+      if (isVoiceTrack) {
+        if (voiceAudioRef.value) {
+          voiceAudioRef.value.srcObject = new MediaStream([ev.track])
+          voiceAudioRef.value.muted = voiceSpeakerMuted.value
+        }
+        addLog(`ontrack: independent voice call track ${ev.track.id}`)
+        return
+      }
       const el = videoRef.value
       if (!el) {
         addLog(`ontrack: kind=${ev.track.kind} (no video element yet)`)
@@ -1495,7 +1778,6 @@ onBeforeUnmount(() => {
 
     <FloatBall
       v-model:muted="muted"
-      v-model:mic-on="micOn"
       v-model:view-only="viewOnly"
       v-model:ft-visible="ftVisible"
       v-model:perf-visible="perfVisible"
@@ -1511,7 +1793,15 @@ onBeforeUnmount(() => {
       :send="sendControl"
       :send-clipboard-to-remote="sendClipboardToRemote"
       :copy-remote-to-local="copyRemoteToLocal"
-      :toggle-mic="toggleMic"
+      :voice-call-supported="voiceCallSupported"
+      :voice-call-phase="voiceCallPhase"
+      :voice-call-reason="voiceCallReason"
+      :voice-call-requires-headset="voiceCallRequiresHeadset"
+      :voice-mic-muted="voiceMicMuted"
+      :voice-speaker-muted="voiceSpeakerMuted"
+      :toggle-voice-call="toggleVoiceCall"
+      :toggle-voice-mute="toggleVoiceMute"
+      :toggle-voice-speaker-mute="toggleVoiceSpeakerMute"
       :get-video="() => videoRef"
       :pointer-locked="pointerLocked"
       :gamepad-on="gamepadOn"
@@ -1527,6 +1817,8 @@ onBeforeUnmount(() => {
       :disconnect="disconnect"
       :log="addLog"
     />
+
+    <audio ref="voiceAudioRef" autoplay playsinline></audio>
 
     <div v-if="pointerLocked" class="lock-hint">{{ t('app.pointerLocked') }}</div>
 

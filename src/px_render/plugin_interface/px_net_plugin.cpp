@@ -83,6 +83,16 @@ namespace px
         return GetConnectedClientsCount();
     }
 
+    bool PxNetPlugin::SetVoiceCallAuthorization(
+        const std::string&, const std::string&, bool) {
+        return false;
+    }
+
+    void PxNetPlugin::OnVoiceCallPcm(
+        const std::string&, const std::string&, const int16_t*, size_t,
+        int, int) {
+    }
+
     void PxNetPlugin::SyncInfo(const NetSyncInfo& info) {
         sync_info_ = info;
     }

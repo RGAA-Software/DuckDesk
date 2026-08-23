@@ -66,6 +66,11 @@ def run_7z(seven_zip_path, target_dir, output_7z):
     print(f"Running 7z compression: {seven_zip_path}")
 
     os.makedirs(os.path.dirname(output_7z), exist_ok=True)
+    # `7z a` updates an existing archive and retains entries that disappeared
+    # from dist/.  A release package must be an exact snapshot of dist, so
+    # recreate this specific output archive on every run.
+    if os.path.isfile(output_7z):
+        os.remove(output_7z)
 
     cmd = [
         seven_zip_path,

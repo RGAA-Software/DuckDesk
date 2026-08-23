@@ -28,6 +28,7 @@ namespace px
             kClientHello,
             kClientHeartbeat,
             kClientDisconnected,
+            kVoiceCallConsentDecision,
         };
         EType type_ = EType::kUnknown;
     public:
@@ -133,6 +134,21 @@ namespace px
         std::string stream_id_;
         int64_t end_timestamp_{0};
         int64_t duration_{0};
+    };
+
+    // px_panel -> Render. The voice plugin must correlate every field again
+    // before opening an audio endpoint; receipt of this event is not itself
+    // authorization.
+    class MsgVoiceCallConsentDecision : public AppBaseEvent {
+    public:
+        MsgVoiceCallConsentDecision() {
+            type_ = EType::kVoiceCallConsentDecision;
+        }
+        std::string stream_id_;
+        std::string call_id_;
+        uint64_t request_id_ = 0;
+        bool accepted_ = false;
+        std::string reason_;
     };
 
     // Hello message from clients

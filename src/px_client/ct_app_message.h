@@ -179,14 +179,23 @@ namespace px
         enum class Action {
             kStart,
             kHangUp,
+            kToggleMicrophoneMute,
+            kToggleSpeakerMute,
+            kSelectAudioDevices,
         };
         Action action_ = Action::kStart;
+        std::string capture_device_id_;
+        std::string playout_device_id_;
     };
 
     class MsgClientVoiceCallStatus : public MsgClientBase {
     public:
         bool supported_ = false;
         bool requires_headset_ = true;
+        bool microphone_muted_ = false;
+        bool speaker_muted_ = false;
+        std::string capture_device_id_;
+        std::string playout_device_id_;
         VoiceCallPhase phase_ = VoiceCallPhase::kIdle;
         std::string reason_;
     };

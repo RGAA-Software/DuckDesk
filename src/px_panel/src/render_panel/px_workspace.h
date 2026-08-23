@@ -46,6 +46,10 @@ namespace px
     class PxUserManager;
     class RoundImageDisplay;
     class UpgradeHelperWidget;
+    class VoiceCallConsentDialog;
+    class MsgPanelVoiceCallConsentRequest;
+    class MsgPanelVoiceCallConsentCancel;
+    struct VoiceCallConsentInfo;
 
     class PxWorkspace : public QMainWindow, public std::enable_shared_from_this<PxWorkspace> {
     public:
@@ -72,6 +76,11 @@ namespace px
         void InitUpdate();
         void CheckAppUpdate(bool from_user_clicked);
         void CheckOffSiteUpdate();
+        void ShowVoiceCallConsent(const MsgPanelVoiceCallConsentRequest& msg);
+        void CancelVoiceCallConsent(const MsgPanelVoiceCallConsentCancel& msg);
+        void SendVoiceCallConsentDecision(
+            const VoiceCallConsentInfo& info, bool accepted,
+            const std::string& reason);
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<PxApplication> app_ = nullptr;
@@ -109,6 +118,7 @@ namespace px
 
         // jump to github
         QWidget* jump_to_github_widget_ = nullptr;
+        QPointer<VoiceCallConsentDialog> voice_call_consent_dialog_;
     };
 
     extern std::shared_ptr<PxWorkspace> grWorkspace;

@@ -1,12 +1,18 @@
 #include "voice_call_state.h"
+#include "px_common_new/privacy_log.h"
 
 #include <utility>
 
 namespace px {
 
+std::string VoiceCallLogId(std::string_view value) {
+    return PrivacyLogId(value);
+}
+
 bool VoiceCallState::BeginOutgoing(
     std::string call_id, uint64_t request_id, uint64_t now_ms) {
-    if (phase_ != VoiceCallPhase::kIdle || call_id.empty() || request_id == 0) {
+    if (phase_ != VoiceCallPhase::kIdle || call_id.empty() ||
+        call_id.size() > kMaxCallIdBytes || request_id == 0) {
         return false;
     }
     phase_ = VoiceCallPhase::kOutgoingPending;
@@ -18,7 +24,7 @@ bool VoiceCallState::BeginOutgoing(
 
 IncomingVoiceCallResult VoiceCallState::BeginIncoming(
     std::string call_id, uint64_t request_id, uint64_t now_ms) {
-    if (call_id.empty() || request_id == 0) {
+    if (call_id.empty() || call_id.size() > kMaxCallIdBytes || request_id == 0) {
         return IncomingVoiceCallResult::kInvalid;
     }
     if (phase_ != VoiceCallPhase::kIdle) {
@@ -87,7 +93,8 @@ void VoiceCallState::Reset() {
     call_id_.clear();
     request_id_ = 0;
     deadline_ms_ = 0;
-    last_rx_sequence_ = 0;
+    highest_rx_sequence_ = 0;
+    rx_sequence_window_ = 0;
     has_rx_sequence_ = false;
 }
 
@@ -95,12 +102,32 @@ bool VoiceCallState::AcceptMedia(const std::string& call_id, uint32_t sequence) 
     if (!IsMediaAllowed(call_id)) {
         return false;
     }
-    // Signed subtraction is the conventional wrap-safe sequence comparison.
-    if (has_rx_sequence_ && static_cast<int32_t>(sequence - last_rx_sequence_) <= 0) {
+    if (!has_rx_sequence_) {
+        highest_rx_sequence_ = sequence;
+        rx_sequence_window_ = 1;
+        has_rx_sequence_ = true;
+        return true;
+    }
+
+    // A 64-packet replay window admits bounded reordering for the jitter
+    // buffer while rejecting duplicates and packets too old to be useful.
+    const int32_t delta = static_cast<int32_t>(sequence - highest_rx_sequence_);
+    if (delta > 0) {
+        rx_sequence_window_ = delta >= 64
+            ? 1
+            : (rx_sequence_window_ << delta) | 1;
+        highest_rx_sequence_ = sequence;
+        return true;
+    }
+    const uint32_t distance = static_cast<uint32_t>(-static_cast<int64_t>(delta));
+    if (distance >= 64) {
         return false;
     }
-    last_rx_sequence_ = sequence;
-    has_rx_sequence_ = true;
+    const uint64_t bit = uint64_t{1} << distance;
+    if ((rx_sequence_window_ & bit) != 0) {
+        return false;
+    }
+    rx_sequence_window_ |= bit;
     return true;
 }
 

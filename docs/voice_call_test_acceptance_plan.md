@@ -134,7 +134,12 @@ cmake --build build_official --config RelWithDebInfo --target test_voice_call te
 ./build_official/src/px_deps/px_voice_call/test_voice_call.exe
 ./build_official/src/px_client/test_client_voice_call_protocol.exe
 ./build_official/src/px_client/test_client_virtual_display.exe
+cd web/px_web_client
+npm run test:voice
+npm run build
 ```
+
+截至2026-08-23当前开发构建：`test_voice_call` 共33项（31通过，2项真实设备/长稳条件测试按设计跳过）；CTest登记的语音核心、客户端协议、虚拟显示器回归为3/3；Web关联状态、每次通话前提示和安全上下文测试19项通过且生产构建通过。条件测试必须在指定环境单独执行并保存结果，不能把跳过计为通过。
 
 实现阶段应把这些测试注册到 CTest，并新增独立目标：
 
@@ -146,6 +151,10 @@ cmake --build build_official --config RelWithDebInfo --target test_voice_call te
 - Web 单元/组件/E2E：状态 reducer、permission/mock track、真实浏览器授权和 track 生命周期。
 
 所有自动化测试必须支持非交互运行并返回非零失败码。真实设备测试必须与 dummy 设备测试分组，禁止因 CI 无声卡而静默跳过后仍显示全绿。
+
+Web真实浏览器脚本为 `scripts/cdp_voice_call_e2e.mjs`。它只从运行时 `WEB_URL` 取连接信息，证据会脱敏包括 `c` 在内的敏感查询参数，并在截图前遮盖受控桌面；`EXPECTED_DECISION=accept/reject/timeout` 分别覆盖正式Panel决定。accept路径还会验证两条audio m-line、接受前sender无track、双向RTP增长、双向独立静音和挂断后track ended。调用方必须用真实Panel操作或UI Automation执行决定，脚本自身不绕过授权。`ALLOW_INSECURE_MEDIA_TEST=1` 仅允许在自动化中把指定 HTTP 源临时视作安全源，结果必须标记该开关且不能替代生产 HTTPS 验收；正常 HTTP 必须另以 `EXPECT_INSECURE_BLOCK=1` 验证明确禁用和不采集麦克风。
+
+候选安装包部署后运行 `scripts/validate_voice_install.ps1`，验证 Service/Panel、语音 APM 与插件、WebClient、两端安全提示、卸载登记及 USBMMIDD 健康状态，并把文件哈希、驱动签名信息、进程和监听端口写入 JSON。该脚本只做安装健康检查，不替代真实呼叫媒体 E2E。
 
 ## 6. 单元与组件测试用例
 
@@ -278,6 +287,10 @@ cmake --build build_official --config RelWithDebInfo --target test_voice_call te
 | VC-WE-014 | P1 | 网络切换/ICE重启 | 恢复或明确结束，不重复audio track、不产生回声叠音 |
 | VC-WE-015 | P1 | 页面前后台/系统休眠 | 恢复策略明确，权限和开麦指示与真实状态一致 |
 | VC-WE-016 | P0 | 键盘导航和读屏属性 | 可聚焦、可操作，等待/连接/静音状态可读 |
+| VC-WE-017 | P0 | 当前候选要求耳机时发起语音（含第二次及以后） | 原生/Web每次均在打开麦克风或发送呼叫前提示暂停远控声音及被控机应用音频；取消不触发采集，确认后才继续；双物理机系统loopback AEC门禁通过前不得移除提示 |
+| VC-WE-018 | P0 | 使用 `http://IP` 非安全源打开 WebClient | 语音按钮禁用并明确提示需要 HTTPS/localhost；不得调用 `getUserMedia`、创建本地轨道或挂接 sender |
+
+2026-08-23 在90号机 Chrome 对正式 Render/Panel 执行的核心结果：正常 HTTP 安全上下文门禁通过；仅测试安全源模式下接受、拒绝、30秒超时均通过；接受后浏览器麦克风上行和第二条专用语音下行 RTP 均增长，麦克风静音/恢复、通话扬声器独立静音/恢复、挂断释放和下一次发起重新提示均通过。受控端麦克风隐私值仅在接受测试窗口临时从 `Deny` 改为 `Allow`，测试结束恢复并复核为 `Deny`。证据位于 `tests/artifacts/voice_call/3.3.53-20260823/web_e2e/`。这不覆盖 Edge、生产 HTTPS、浏览器真实麦克风硬件和双物理机主观听感。
 
 ## 10. 传输和弱网测试
 
@@ -427,7 +440,7 @@ cmake --build build_official --config RelWithDebInfo --target test_voice_call te
 3. 原生客户端连接，确认物理屏首帧和 capability；执行呼叫→真实Panel接受→双向语音→双方静音→挂断。
 4. 执行拒绝、30秒超时、等待中取消、错误call重放和第二客户端busy。
 5. 添加一块USBMMIDD屏，采集新增屏，切回物理屏；通话中切屏；移除测试屏并确认画面恢复。
-6. WebClient在Chrome通过真实鼠标操作悬浮按钮，完成浏览器授权、Panel接受、双向语音、静音、挂断、刷新清理。
+6. WebClient先在正常 `http://IP` 验证安全上下文禁用提示，再在生产 HTTPS 入口用Chrome通过真实鼠标操作悬浮按钮，完成浏览器授权、Panel接受、双向语音、静音、挂断、刷新清理；仅测试安全源开关的结果不得冒充生产 HTTPS。
 7. 分别验证当前默认直连与Relay；记录实际选中传输，禁止根据配置推测。
 8. 重启Panel、Render和Service，执行断网/恢复、锁屏/解锁；确认状态和设备释放。
 9. 执行30分钟并发冒烟；2小时和外放AEC可在双物理终端完成，但结果须关联同一候选版本。

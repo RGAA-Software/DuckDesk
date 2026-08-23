@@ -208,8 +208,10 @@ namespace px
         }
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-            srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+            }
         });
         return true;
     }
@@ -238,8 +240,10 @@ namespace px
             }
             return false;
         }
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-            srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+            }
         });
         return true;
     }
@@ -456,6 +460,42 @@ namespace px
             }
             srv->OnRawAudioData(data, samples, channels, bits);
         });
+    }
+
+    bool RtcLocalPlugin::SetVoiceCallAuthorization(
+        const std::string& stream_id, const std::string& call_id,
+        bool authorized) {
+        bool applied = false;
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                applied = srv->SetVoiceCallAuthorization(call_id, authorized) || applied;
+            }
+        });
+        return applied;
+    }
+
+    void RtcLocalPlugin::OnVoiceCallPcm(
+        const std::string& stream_id, const std::string& call_id,
+        const int16_t* samples, size_t sample_count,
+        int sample_rate, int channels) {
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                srv->OnVoiceCallPcm(call_id, samples, sample_count, sample_rate, channels);
+            }
+        });
+    }
+
+    void RtcLocalPlugin::OnRemoteVoiceCallPcm(
+        const std::string& stream_id, const std::string& call_id,
+        const int16_t* samples, size_t sample_count,
+        int sample_rate, int channels) {
+        if (auto* voice_plugin = GetPluginById(kVoiceCallPluginId); voice_plugin) {
+            if (auto* sink = dynamic_cast<PxWebRtcVoicePcmSink*>(voice_plugin); sink) {
+                sink->OnWebRtcVoicePcm(
+                    stream_id, call_id, samples, sample_count,
+                    sample_rate, channels);
+            }
+        }
     }
 
     std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {

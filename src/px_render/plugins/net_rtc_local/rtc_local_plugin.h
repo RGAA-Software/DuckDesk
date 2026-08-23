@@ -65,6 +65,17 @@ namespace px
         // Local loopback PCM → each RtcServer outbound audio track (RTP).
         // samples = sample rate (Hz).
         void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) override;
+        bool SetVoiceCallAuthorization(
+            const std::string& stream_id, const std::string& call_id,
+            bool authorized) override;
+        void OnVoiceCallPcm(
+            const std::string& stream_id, const std::string& call_id,
+            const int16_t* samples, size_t sample_count,
+            int sample_rate, int channels) override;
+        void OnRemoteVoiceCallPcm(
+            const std::string& stream_id, const std::string& call_id,
+            const int16_t* samples, size_t sample_count,
+            int sample_rate, int channels);
 
         // 按编码产出序号非破坏性读取:每个 WebRTC 编码器持有独立 cursor,多连接
         // 可读取同一帧。生产端有界缓存负责淘汰旧帧;out_gap 表示该消费者落后并

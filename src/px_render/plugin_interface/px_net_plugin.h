@@ -187,6 +187,16 @@ namespace px
         // Appended at the end to preserve the existing plugin ABI layout.
         virtual int GetMediaConsumersCount();
 
+        // Appended for the authorized WebRTC voice path. Non-WebRTC
+        // transports keep the default no-op implementation.
+        virtual bool SetVoiceCallAuthorization(
+            const std::string& stream_id, const std::string& call_id,
+            bool authorized);
+        virtual void OnVoiceCallPcm(
+            const std::string& stream_id, const std::string& call_id,
+            const int16_t* samples, size_t sample_count,
+            int sample_rate, int channels);
+
     protected:
         NetSyncInfo sync_info_{};
 

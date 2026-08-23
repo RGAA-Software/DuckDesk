@@ -25,7 +25,7 @@ namespace px
         explicit WsPanelClient(const std::shared_ptr<RdContext>& ctx);
         void Start();
         void Exit();
-        void PostNetMessage(std::shared_ptr<Data> msg);
+        bool PostNetMessage(std::shared_ptr<Data> msg);
         bool Alive() const;
 
         void ReportMonitorChanged();

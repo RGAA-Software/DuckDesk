@@ -163,7 +163,7 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 
 ## 3. 测试计划
 
-**测试环境**：实机被控端 `10.0.0.90`（账号 `administrator`，密码 `dolit@321`，仅用于内部联调）。部署最新 render 到该机，主控端从开发机（Qt）和浏览器（Web）分别连入测试。部署可复用 `tests/_deploy_*_70.bat` 系列脚本的模式新增 ft 部署脚本。
+**测试环境**：实机被控端 `10.0.0.90`（账号 `administrator`，密码由安全渠道提供，仅用于内部联调）。部署最新 render 到该机，主控端从开发机（Qt）和浏览器（Web）分别连入测试。部署可复用 `tests/_deploy_*_70.bat` 系列脚本的模式新增 ft 部署脚本。
 
 **双机联调执行方式**：
 - 部署：`net use \\10.0.0.90`（administrator 凭据）→ 拷贝 render 产物 → 远程重启服务；Console/relay 用现有测试环境。
@@ -244,7 +244,7 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 - `src/px_render/plugins/ft/`（新增，替代 `plugins/file_transfer/`）— render 插件壳：广播 OnMessage 接入 + worker 线程 + DispatchTargetFileTransferMessage 回包
 - `src/px_client/plugins/ft/`（新增，替代 `plugins/file_transfer_client/`）— Qt 插件：引擎薄适配 + 全新三栏 UI
 - `web/px_web_client/`（`rtc/file_transfer.ts` + `useFileTransfer.ts` + `FileTransferWindow.vue` 整套新作）— Web 重写目标
-- 测试环境：被控实机 `10.0.0.90`（administrator / dolit@321，仅内部联调）
+- 测试环境：被控实机 `10.0.0.90`（administrator / 凭据由安全渠道提供，仅内部联调）
 
 ---
 

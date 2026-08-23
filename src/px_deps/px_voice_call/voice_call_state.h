@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace px {
 
@@ -19,9 +21,14 @@ enum class IncomingVoiceCallResult {
     kInvalid,
 };
 
+// Stable, non-reversible short correlation token for logs. Protocol messages
+// continue to use the full identifier; diagnostics never need it.
+std::string VoiceCallLogId(std::string_view value);
+
 class VoiceCallState {
 public:
     static constexpr uint64_t kRequestTimeoutMs = 30'000;
+    static constexpr size_t kMaxCallIdBytes = 128;
 
     bool BeginOutgoing(std::string call_id, uint64_t request_id, uint64_t now_ms);
     IncomingVoiceCallResult BeginIncoming(
@@ -47,7 +54,8 @@ private:
     std::string call_id_;
     uint64_t request_id_ = 0;
     uint64_t deadline_ms_ = 0;
-    uint32_t last_rx_sequence_ = 0;
+    uint32_t highest_rx_sequence_ = 0;
+    uint64_t rx_sequence_window_ = 0;
     bool has_rx_sequence_ = false;
 };
 

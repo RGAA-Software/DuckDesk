@@ -101,6 +101,10 @@ namespace px
         // Local loopback PCM → outbound WebRTC audio track (RTP).
         // samples = sample rate (Hz), matching OnRawAudioData convention.
         void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits);
+        bool SetVoiceCallAuthorization(const std::string& call_id, bool authorized);
+        void OnVoiceCallPcm(
+            const std::string& call_id, const int16_t* samples,
+            size_t sample_count, int sample_rate, int channels);
 
     private:
         void CreatePeerConnectionFactory();
@@ -182,6 +186,9 @@ namespace px
         bool multi_track_mode_ = false;
         std::vector<MonitorVideoTrack> video_tracks_;
         rtc::scoped_refptr<AudioSourceImpl> audio_source_ = nullptr;
+        rtc::scoped_refptr<AudioSourceImpl> voice_audio_source_ = nullptr;
+        std::string authorized_voice_call_id_;
+        mutable std::mutex voice_mutex_;
 
         // 上行音频(浏览器麦克风):统计 sink(dummy ADM 下不做自动外放)
         rtc::scoped_refptr<webrtc::AudioTrackInterface> remote_audio_track_ = nullptr;

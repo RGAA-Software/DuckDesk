@@ -97,8 +97,10 @@ namespace px
     bool RtcPlugin::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-            srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
+            }
         });
         return true;
     }
@@ -121,8 +123,10 @@ namespace px
             LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
             return false;
         }
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-            srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (srv && srv->GetStreamId() == stream_id) {
+                srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+            }
         });
         return true;
     }

@@ -290,6 +290,17 @@ namespace px
         virtual void OnEncodedAudioFrame(const std::shared_ptr<Data>& data, int samples, int channels, int bits, int frame_size) = 0;
     };
 
+    // Optional consumer for authorization-gated browser microphone PCM.
+    // Kept outside PxPluginInterface to preserve the plugin ABI vtable.
+    class PxWebRtcVoicePcmSink {
+    public:
+        virtual ~PxWebRtcVoicePcmSink() = default;
+        virtual void OnWebRtcVoicePcm(
+            const std::string& stream_id, const std::string& call_id,
+            const int16_t* samples, size_t sample_count,
+            int sample_rate, int channels) = 0;
+    };
+
 }
 
 #endif //PX_PLUGIN_INTERFACE_H

@@ -74,8 +74,15 @@ const props = withDefaults(
   sendClipboardToRemote: () => Promise<boolean>
   // 「复制到本地」:把 remoteClipboard 写入本地系统剪贴板
   copyRemoteToLocal: () => Promise<boolean>
-  // 麦克风上行开关(getUserMedia + replaceTrack,App.vue 实现)
-  toggleMic: () => Promise<void>
+  voiceCallSupported: boolean
+  voiceCallPhase: 'idle' | 'outgoing' | 'connected' | 'error'
+  voiceCallReason: string
+  voiceCallRequiresHeadset: boolean
+  voiceMicMuted: boolean
+  voiceSpeakerMuted: boolean
+  toggleVoiceCall: () => Promise<void>
+  toggleVoiceMute: () => void
+  toggleVoiceSpeakerMute: () => void
   // 取远端画面 video 元素(PiP/录制/指针锁定用);用 getter 避免 DOM 元素被响应式代理
   getVideo: () => HTMLVideoElement | null
   // 指针锁定状态(App.vue 监听 pointerlockchange 维护)
@@ -111,11 +118,18 @@ const { t, locale } = useI18n()
 
 // 与 App 双向绑定的本地状态
 const muted = defineModel<boolean>('muted', { required: true })
-const micOn = defineModel<boolean>('micOn', { required: true })
 const viewOnly = defineModel<boolean>('viewOnly', { required: true })
 const ftVisible = defineModel<boolean>('ftVisible', { required: true })
 const perfVisible = defineModel<boolean>('perfVisible', { required: true })
 const logVisible = defineModel<boolean>('logVisible', { required: true })
+
+const voiceStateText = computed(() => {
+  if (!props.voiceCallSupported) return props.voiceCallReason || t('float.voiceUnsupported')
+  if (props.voiceCallPhase === 'outgoing') return t('float.voiceWaiting')
+  if (props.voiceCallPhase === 'connected') return t('float.voiceConnected')
+  if (props.voiceCallPhase === 'error') return props.voiceCallReason || t('float.voiceError')
+  return ''
+})
 
 // ---------- 悬浮球位置(比例持久化)----------
 const BALL_SIZE = 48
@@ -728,7 +742,7 @@ onBeforeUnmount(() => {
         <span class="menu-text">{{ t('float.control') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
       </button>
-      <button class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display', $event)">
+      <button data-testid="display-submenu-toggle" class="menu-item" :class="{ open: subPanel === 'display' }" @click="toggleSubPanel('display', $event)">
         <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
         <span class="menu-text">{{ t('float.display') }}</span>
         <span class="menu-arrow"><IconChevronRight :size="15" /></span>
@@ -756,6 +770,20 @@ onBeforeUnmount(() => {
           >+</button>
         </span>
       </div>
+      <button
+        data-testid="voice-call-toggle"
+        class="menu-item"
+        :class="{ danger: voiceCallPhase === 'connected' }"
+        :disabled="!connected || !voiceCallSupported"
+        :title="voiceCallReason || (voiceCallRequiresHeadset ? t('float.voiceHeadsetHint') : '')"
+        @click="props.toggleVoiceCall"
+      >
+        <span class="menu-icon"><IconMicrophone :size="17" /></span>
+        <span class="menu-text">
+          {{ voiceCallPhase === 'connected' ? t('float.voiceHangUp') : t('float.voiceCall') }}
+        </span>
+        <span class="menu-state">{{ voiceStateText }}</span>
+      </button>
       <button
         class="menu-item"
         :disabled="!ftReady || !ftSupported"
@@ -900,10 +928,28 @@ onBeforeUnmount(() => {
         <span class="menu-text">{{ t('float.lockMouse') }}</span>
         <span class="menu-state">{{ pointerLocked ? t('float.locked') : '' }}</span>
       </button>
-      <button class="menu-item" :disabled="!connected" @click="props.toggleMic">
+      <button
+        data-testid="voice-microphone-mute"
+        class="menu-item"
+        :disabled="voiceCallPhase !== 'connected'"
+        @click="props.toggleVoiceMute"
+      >
         <span class="menu-icon"><IconMicrophone :size="16" /></span>
-        <span class="menu-text">{{ t('float.mic') }}</span>
-        <span class="menu-state">{{ micOn ? t('float.on') : t('float.off') }}</span>
+        <span class="menu-text">{{ t('float.voiceMute') }}</span>
+        <span class="menu-state">{{ voiceMicMuted ? t('float.on') : t('float.off') }}</span>
+      </button>
+      <button
+        data-testid="voice-speaker-mute"
+        class="menu-item"
+        :disabled="voiceCallPhase !== 'connected'"
+        @click="props.toggleVoiceSpeakerMute"
+      >
+        <span class="menu-icon">
+          <IconVolumeOff v-if="voiceSpeakerMuted" :size="16" />
+          <IconVolume v-else :size="16" />
+        </span>
+        <span class="menu-text">{{ t('float.voiceSpeakerMute') }}</span>
+        <span class="menu-state">{{ voiceSpeakerMuted ? t('float.on') : t('float.off') }}</span>
       </button>
       <button class="menu-item" :disabled="!connected" @click="props.toggleGamepad">
         <span class="menu-icon"><IconDeviceGamepad2 :size="16" /></span>

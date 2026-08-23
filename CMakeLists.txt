@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.26)
 project(GammaRayPremium LANGUAGES CXX C)
 
+include(CTest)
+
 include(env_premium.cmake)
 include(config_premium.cmake)
 
@@ -340,6 +342,10 @@ add_dependencies(px_build_premium_all
     px_console_client px_account_sdk px_rp_message px_profile_client event_replayer
     px_server_message
 )
+
+if(TARGET px_voice_apm)
+    add_dependencies(px_build_premium_all px_voice_apm)
+endif()
 
 if(PLUGIN_NET_UDP_ENABLED)
     add_dependencies(px_build_premium_all net_udp)

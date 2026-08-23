@@ -11,6 +11,7 @@
 #include "rd_statistics.h"
 #include "plugin_manager.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/image.h"
 #include "plugin_net_event_router.h"
@@ -207,6 +208,49 @@ namespace px
                     target_event->client_nonce_,
                     target_event->instance_id_,
                     std::move(target_event->callback_));
+            }
+        }
+        else if (event->event_type_ == PxPluginEventType::kPluginVoiceCallConsent) {
+            auto target_event = std::dynamic_pointer_cast<PxPluginVoiceCallConsentEvent>(event);
+            if (!target_event) {
+                LOGE("[VoiceCall] consent event RTTI conversion failed");
+                return;
+            }
+            LOGI("[VoiceCall] routing consent {} to px_panel, call={}, stream={}, request={}",
+                 target_event->show_ ? "request" : "cancel",
+                 PrivacyLogId(target_event->call_id_), target_event->stream_id_, target_event->request_id_);
+            pxrp::RpMessage message;
+            if (target_event->show_) {
+                message.set_type(pxrp::kRpVoiceCallConsentRequest);
+                auto* request = message.mutable_voice_call_consent_request();
+                request->set_visitor_device_id(target_event->visitor_device_id_);
+                request->set_stream_id(target_event->stream_id_);
+                request->set_call_id(target_event->call_id_);
+                request->set_request_id(target_event->request_id_);
+                request->set_expires_at_unix_ms(target_event->expires_at_unix_ms_);
+                request->set_protocol_version(1);
+            }
+            else {
+                message.set_type(pxrp::kRpVoiceCallConsentCancel);
+                auto* cancel = message.mutable_voice_call_consent_cancel();
+                cancel->set_stream_id(target_event->stream_id_);
+                cancel->set_call_id(target_event->call_id_);
+                cancel->set_request_id(target_event->request_id_);
+                cancel->set_reason(target_event->reason_);
+            }
+            const bool delivered = app_->PostPanelMessage(RpProtoAsData(&message));
+            LOGI("[VoiceCall] consent {} delivery to px_panel: {}",
+                 target_event->show_ ? "request" : "cancel",
+                 delivered ? "queued" : "unavailable");
+            if (!delivered && target_event->show_) {
+                LOGW("[VoiceCall] px_panel unavailable; rejecting consent request");
+                auto decision = std::make_shared<MsgVoiceCallConsentDecision>();
+                decision->stream_id_ = target_event->stream_id_;
+                decision->call_id_ = target_event->call_id_;
+                decision->request_id_ = target_event->request_id_;
+                decision->accepted_ = false;
+                decision->reason_ = "panel_unavailable";
+                context_->DispatchAppEvent2Plugins(decision);
             }
         }
     }

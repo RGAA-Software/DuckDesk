@@ -38,6 +38,7 @@ namespace px
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
+        [[nodiscard]] const std::string& GetStreamId() const { return stream_id_; }
 
         uint32_t GetMediaPendingMessages();
         uint32_t GetFtPendingMessages();

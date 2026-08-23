@@ -169,14 +169,14 @@ namespace px
         PostNetMessage(buffer);
     }
 
-    void WsPanelClient::PostNetMessage(std::shared_ptr<Data> msg) {
+    bool WsPanelClient::PostNetMessage(std::shared_ptr<Data> msg) {
         if (!msg || exiting_) {
-            return;
+            return false;
         }
         auto client = client_;
         if (client && client->is_started()) {
-            if (queuing_message_count_ > kMaxClientQueuedMessage) {
-                return;
+            if (queuing_message_count_ >= kMaxClientQueuedMessage) {
+                return false;
             }
             ++queuing_message_count_;
             auto weak_self = weak_from_this();
@@ -185,7 +185,9 @@ namespace px
                     --self->queuing_message_count_;
                 }
             });
+            return true;
         }
+        return false;
     }
 
     void WsPanelClient::ParseNetMessage(std::string_view _msg) {
@@ -295,6 +297,16 @@ namespace px
                 plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
                     plugin->PostTargetStreamProtoMessage(sub.stream_id(), buffer, true);
                 });
+            }
+            else if (m.type() == pxrp::RpMessageType::kRpVoiceCallConsentDecision) {
+                const auto& sub = m.voice_call_consent_decision();
+                auto event = std::make_shared<MsgVoiceCallConsentDecision>();
+                event->stream_id_ = sub.stream_id();
+                event->call_id_ = sub.call_id();
+                event->request_id_ = sub.request_id();
+                event->accepted_ = sub.accepted();
+                event->reason_ = sub.reason();
+                context_->DispatchAppEvent2Plugins(event);
             }
             else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
                 plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {

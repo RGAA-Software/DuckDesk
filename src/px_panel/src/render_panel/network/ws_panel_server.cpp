@@ -13,6 +13,7 @@
 #include "px_common_new/http_client.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/file.h"
 #include "px_render_panel_message.pb.h"
@@ -42,6 +43,32 @@ namespace px
     static std::string kUrlPanel = "/panel";
     static std::string kUrlPanelRenderer = "/panel/renderer";
     static std::string kUrlSysInfo = "/sys/info";
+
+    namespace {
+
+    bool IsInternalWebsocketPath(const std::string& path) {
+        return path == kUrlPanelRenderer || path == kUrlSysInfo;
+    }
+
+    bool IsLoopbackPeer(const std::string& address) {
+        asio::error_code ec;
+        const auto parsed = asio::ip::make_address(address, ec);
+        if (ec) {
+            return false;
+        }
+        if (parsed.is_loopback()) {
+            return true;
+        }
+        if (parsed.is_v6()) {
+            const auto ipv6 = parsed.to_v6();
+            if (ipv6.is_v4_mapped()) {
+                return ipv6.to_v4().is_loopback();
+            }
+        }
+        return false;
+    }
+
+    }  // namespace
 
     // report visit info to console
     static const std::string kUrlVisitRecord  = "/api/v1/record/upload_visit_info";
@@ -313,6 +340,12 @@ namespace px
                 if (!self || self->exiting_) {
                     return;
                 }
+                if (IsInternalWebsocketPath(path) && !IsLoopbackPeer(sess_ptr->remote_address())) {
+                    LOGW("Rejecting non-loopback message on internal websocket path: {}, peer: {}",
+                         path, sess_ptr->remote_address());
+                    sess_ptr->stop();
+                    return;
+                }
                 auto socket_fd = fn_get_socket_fd(sess_ptr);
                 if (path == kUrlPanel) {
                     self->ParsePanelMessage(socket_fd, data);
@@ -329,6 +362,12 @@ namespace px
             .on("open", [weak_self, path, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
                 auto self = weak_self.lock();
                 if (!self || self->exiting_) {
+                    return;
+                }
+                if (IsInternalWebsocketPath(path) && !IsLoopbackPeer(sess_ptr->remote_address())) {
+                    LOGW("Rejecting non-loopback connection to internal websocket path: {}, peer: {}",
+                         path, sess_ptr->remote_address());
+                    sess_ptr->stop();
                     return;
                 }
                 LOGI("App server {} open", path);
@@ -724,6 +763,30 @@ namespace px
         }
         else if (proto_msg->type() == pxrp::kRpMonitorChanged) {
             context_->SendAppMessage(MsgMonitorChanged{});
+        }
+        else if (proto_msg->type() == pxrp::kRpVoiceCallConsentRequest) {
+            const auto& sub = proto_msg->voice_call_consent_request();
+            LOGI("[VoiceCall] px_panel received consent request, call={}, stream={}, request={}",
+                 PrivacyLogId(sub.call_id()), sub.stream_id(), sub.request_id());
+            context_->SendAppMessage(MsgPanelVoiceCallConsentRequest{
+                .visitor_device_id_ = sub.visitor_device_id(),
+                .stream_id_ = sub.stream_id(),
+                .call_id_ = sub.call_id(),
+                .request_id_ = sub.request_id(),
+                .expires_at_unix_ms_ = sub.expires_at_unix_ms(),
+                .protocol_version_ = sub.protocol_version(),
+            });
+        }
+        else if (proto_msg->type() == pxrp::kRpVoiceCallConsentCancel) {
+            const auto& sub = proto_msg->voice_call_consent_cancel();
+            LOGI("[VoiceCall] px_panel received consent cancel, call={}, stream={}, request={}, reason={}",
+                 PrivacyLogId(sub.call_id()), sub.stream_id(), sub.request_id(), sub.reason());
+            context_->SendAppMessage(MsgPanelVoiceCallConsentCancel{
+                .stream_id_ = sub.stream_id(),
+                .call_id_ = sub.call_id(),
+                .request_id_ = sub.request_id(),
+                .reason_ = sub.reason(),
+            });
         }
     }
 

@@ -38,6 +38,9 @@ namespace px
         void SetMainControl();
         void SetMonitorName(const std::string& mon_name);
         void ToggleVoiceCall();
+        void ToggleVoiceMicrophoneMute();
+        void ToggleVoiceSpeakerMute();
+        void SelectVoiceAudioDevices();
     private:
         BaseWidget* GetSubPanel(const SubPanelType& type);
         void ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor);
@@ -57,13 +60,16 @@ namespace px
         std::vector<ComputerIcon*> computer_icons_;
         MsgClientCaptureMonitor capture_monitor_;
 
-        static constexpr int kInitialWidth = 280;
+        static constexpr int kInitialWidth = 320;
 
         // 分屏显示按钮
         FloatIcon* split_screen_btn_ = nullptr;
 
         FloatIcon* audio_btn_ = nullptr;
         FloatIcon* voice_call_btn_ = nullptr;
+        FloatIcon* voice_audio_device_btn_ = nullptr;
+        FloatIcon* voice_microphone_mute_btn_ = nullptr;
+        FloatIcon* voice_speaker_mute_btn_ = nullptr;
 
         FloatIcon* full_screen_btn_ = nullptr;
 
@@ -83,6 +89,10 @@ namespace px
         bool voice_call_supported_ = false;
         bool voice_call_requires_headset_ = true;
         bool voice_call_warning_shown_ = false;
+        bool voice_microphone_muted_ = false;
+        bool voice_speaker_muted_ = false;
+        std::string voice_capture_device_id_;
+        std::string voice_playout_device_id_;
     };
 
 }

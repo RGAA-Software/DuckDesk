@@ -1173,6 +1173,49 @@ namespace px
              static_cast<int>(command.action_), static_cast<int>(core_phase),
              settings_->render_voice_call_enabled_,
              settings_->render_voice_call_protocol_version_);
+        if (command.action_ == MsgClientVoiceCallCommand::Action::kSelectAudioDevices) {
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                if (voice_call_state_.Phase() != VoiceCallPhase::kIdle) {
+                    return;
+                }
+                voice_capture_device_id_ = command.capture_device_id_;
+                voice_playout_device_id_ = command.playout_device_id_;
+            }
+            LOGI("[VoiceCall] audio device selection updated, capture={}, playout={}",
+                 command.capture_device_id_.empty() ? "default" : "explicit",
+                 command.playout_device_id_.empty() ? "default" : "explicit");
+            NotifyVoiceCallStatus();
+            return;
+        }
+        if (command.action_ == MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute ||
+            command.action_ == MsgClientVoiceCallCommand::Action::kToggleSpeakerMute) {
+            std::shared_ptr<VoiceAudioEndpoint> endpoint;
+            bool microphone_muted = false;
+            bool speaker_muted = false;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                if (voice_call_state_.Phase() != VoiceCallPhase::kConnected ||
+                    !voice_audio_endpoint_) {
+                    return;
+                }
+                endpoint = voice_audio_endpoint_;
+                if (command.action_ ==
+                    MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute) {
+                    voice_microphone_muted_ = !voice_microphone_muted_;
+                } else {
+                    voice_speaker_muted_ = !voice_speaker_muted_;
+                }
+                microphone_muted = voice_microphone_muted_;
+                speaker_muted = voice_speaker_muted_;
+            }
+            endpoint->SetMicrophoneMuted(microphone_muted);
+            endpoint->SetSpeakerMuted(speaker_muted);
+            LOGI("[VoiceCall] local controls microphone_muted={}, speaker_muted={}",
+                 microphone_muted, speaker_muted);
+            NotifyVoiceCallStatus();
+            return;
+        }
         if (command.action_ == MsgClientVoiceCallCommand::Action::kHangUp) {
             StopVoiceCall(true, "local_hangup");
             return;
@@ -1231,7 +1274,7 @@ namespace px
                         }
                     }
                     LOGI("[VoiceCall] outgoing request timed out, remote cancel sent, call={}",
-                         call_id);
+                         VoiceCallLogId(call_id));
                     NotifyVoiceCallStatus("timeout");
                 }
             });
@@ -1283,7 +1326,8 @@ namespace px
                     response.call_id(), response.request_id(), response.accepted());
             }
             if (!matched) {
-                LOGW("[VoiceCall] stale/replayed response dropped, call={}", response.call_id());
+                LOGW("[VoiceCall] stale/replayed response dropped, call={}",
+                     VoiceCallLogId(response.call_id()));
                 return;
             }
             if (!response.accepted()) {
@@ -1292,27 +1336,67 @@ namespace px
             }
 
             auto endpoint = std::make_shared<VoiceAudioEndpoint>();
+            const std::weak_ptr<VoiceAudioEndpoint> weak_endpoint = endpoint;
+            VoiceAudioBackendConfig backend_config;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                backend_config.capture_device_id = voice_capture_device_id_;
+                backend_config.playout_device_id = voice_playout_device_id_;
+            }
             std::string error;
+            if (!voice_packet_transport_.Start(
+                    [this, call_id = response.call_id()](const VoiceTransportPacket& packet) {
+                        DispatchVoiceAudioFrame(
+                            call_id, packet.sequence, packet.capture_time_ms, packet.opus);
+                    })) {
+                StopVoiceCall(true, "transport_unavailable");
+                return;
+            }
             if (!endpoint->Start(
                     [this, call_id = response.call_id()](
                         uint32_t sequence, uint64_t capture_time_ms,
                         const std::vector<uint8_t>& opus) {
-                        SendVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
-                    }, &error)) {
+                        QueueVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
+                    }, backend_config, &error,
+                    [this, call_id = response.call_id(), weak_endpoint](
+                        const std::string& reason) {
+                        QMetaObject::invokeMethod(this,
+                            [this, call_id, weak_endpoint, reason]() {
+                                const auto expected_endpoint = weak_endpoint.lock();
+                                bool still_active = false;
+                                {
+                                    std::scoped_lock lock(voice_call_mutex_);
+                                    still_active = expected_endpoint &&
+                                        voice_call_state_.IsMediaAllowed(call_id) &&
+                                        voice_audio_endpoint_ == expected_endpoint;
+                                }
+                                if (still_active) {
+                                    StopVoiceCall(true,
+                                        reason.empty() ? "device_lost" : reason);
+                                }
+                            }, Qt::QueuedConnection);
+                    })) {
                 LOGE("[VoiceCall] local audio endpoint failed: {}", error);
                 StopVoiceCall(true, "no_mic");
                 return;
             }
+            const auto backend_info = endpoint->BackendInfo();
+            LOGI("[VoiceCall] local audio backend={}, capture={}, playout={}, apm=aec+ns+agc",
+                 backend_info.backend, backend_info.capture_device,
+                 backend_info.playout_device);
             bool keep_endpoint = false;
             {
                 std::scoped_lock lock(voice_call_mutex_);
                 keep_endpoint = voice_call_state_.IsMediaAllowed(response.call_id());
                 if (keep_endpoint) {
                     voice_audio_endpoint_ = endpoint;
+                    voice_microphone_muted_ = false;
+                    voice_speaker_muted_ = false;
                 }
             }
             if (!keep_endpoint) {
                 endpoint->Stop();
+                voice_packet_transport_.Stop();
                 return;
             }
             auto config = MakeVoiceAudioConfigMessage(
@@ -1352,7 +1436,9 @@ namespace px
                 endpoint = voice_audio_endpoint_;
             }
             if (endpoint && !frame.opus().empty()) {
-                endpoint->ReceiveOpus(frame.opus().data(), frame.opus().size());
+                endpoint->ReceiveOpus(
+                    frame.sequence(), frame.capture_time_ms(),
+                    frame.opus().data(), frame.opus().size());
             }
         }
     }
@@ -1370,12 +1456,22 @@ namespace px
             request_id = voice_call_state_.RequestId();
             voice_call_state_.Reset();
             endpoint = std::move(voice_audio_endpoint_);
+            voice_microphone_muted_ = false;
+            voice_speaker_muted_ = false;
         }
+        voice_packet_transport_.Stop();
         if (endpoint) {
             const auto stats = endpoint->Stats();
+            const auto transport_stats = voice_packet_transport_.Stats();
             endpoint->Stop();
-            LOGI("[VoiceCall] local end reason={}, tx={}, rx={}, underrun={}", reason,
-                 stats.encoded_packets, stats.decoded_packets, stats.playout_underruns);
+            LOGI("[VoiceCall] local end reason={}, tx={}, rx={}, underrun={}, plc={}, "
+                 "jitter_peak={}, jitter_late={}, jitter_drop={}, apm_fail={}/{}, device_rebuilds={}, transport_drop={}",
+                 reason, stats.encoded_packets, stats.decoded_packets,
+                 stats.playout_underruns, stats.plc_packets,
+                 stats.jitter_peak_packets, stats.jitter_late,
+                 stats.jitter_overflow_drops, stats.apm_capture_failures,
+                 stats.apm_render_failures, stats.device_rebuilds,
+                 transport_stats.congestion_drops);
         }
         if (notify_remote && sdk_ && !remote_force_closed_ && !call_id.empty()) {
             auto request = MakeVoiceCallRequestMessage(
@@ -1394,21 +1490,49 @@ namespace px
         // serializes SDK/network-thread status changes onto the UI thread.
         QMetaObject::invokeMethod(this, [this, reason]() {
             VoiceCallPhase phase;
+            bool microphone_muted = false;
+            bool speaker_muted = false;
+            std::string capture_device_id;
+            std::string playout_device_id;
             {
                 std::scoped_lock lock(voice_call_mutex_);
                 phase = voice_call_state_.Phase();
+                microphone_muted = voice_microphone_muted_;
+                speaker_muted = voice_speaker_muted_;
+                capture_device_id = voice_capture_device_id_;
+                playout_device_id = voice_playout_device_id_;
             }
             context_->SendAppMessage(MsgClientVoiceCallStatus {
                 .supported_ = settings_->render_voice_call_enabled_ &&
                               settings_->render_voice_call_protocol_version_ == 1,
                 .requires_headset_ = settings_->render_voice_call_requires_headset_,
+                .microphone_muted_ = microphone_muted,
+                .speaker_muted_ = speaker_muted,
+                .capture_device_id_ = std::move(capture_device_id),
+                .playout_device_id_ = std::move(playout_device_id),
                 .phase_ = phase,
                 .reason_ = reason,
             });
         }, Qt::QueuedConnection);
     }
 
-    void BaseWorkspace::SendVoiceAudioFrame(
+    void BaseWorkspace::QueueVoiceAudioFrame(
+        const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
+        const std::vector<uint8_t>& opus) {
+        {
+            std::scoped_lock lock(voice_call_mutex_);
+            if (!voice_call_state_.IsMediaAllowed(call_id) || !sdk_ || remote_force_closed_) {
+                return;
+            }
+        }
+        voice_packet_transport_.Enqueue({
+            .sequence = sequence,
+            .capture_time_ms = capture_time_ms,
+            .opus = opus,
+        });
+    }
+
+    void BaseWorkspace::DispatchVoiceAudioFrame(
         const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
         const std::vector<uint8_t>& opus) {
         {

@@ -39,6 +39,12 @@ enum RpMessageType {
   kRpRelayAlive = 120;
   // render -> panel
   kRpMonitorChanged = 130;
+  // render -> panel: show a local, user-visible microphone consent prompt
+  kRpVoiceCallConsentRequest = 140;
+  // render -> panel: close a pending consent prompt without a user decision
+  kRpVoiceCallConsentCancel = 141;
+  // panel -> render: correlated local user decision
+  kRpVoiceCallConsentDecision = 142;
 }
 
 message RpHello {
@@ -278,6 +284,30 @@ message RpMonitorChanged {
 
 }
 
+message RpVoiceCallConsentRequest {
+  string visitor_device_id = 1;
+  string stream_id = 2;
+  string call_id = 3;
+  uint64 request_id = 4;
+  uint64 expires_at_unix_ms = 5;
+  uint32 protocol_version = 6;
+}
+
+message RpVoiceCallConsentCancel {
+  string stream_id = 1;
+  string call_id = 2;
+  uint64 request_id = 3;
+  string reason = 4;
+}
+
+message RpVoiceCallConsentDecision {
+  string stream_id = 1;
+  string call_id = 2;
+  uint64 request_id = 3;
+  bool accepted = 4;
+  string reason = 5;
+}
+
 message RpMessage {
   RpMessageType type = 5;
   // with ws port...
@@ -304,4 +334,7 @@ message RpMessage {
   RpHardwareInfoMessage hw_info = 200;
   RpRelayAliveMessage relay_alive = 210;
   RpMonitorChanged monitor_changed = 220;
+  RpVoiceCallConsentRequest voice_call_consent_request = 230;
+  RpVoiceCallConsentCancel voice_call_consent_cancel = 240;
+  RpVoiceCallConsentDecision voice_call_consent_decision = 250;
 }

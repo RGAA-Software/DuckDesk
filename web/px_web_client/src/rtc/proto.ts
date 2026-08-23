@@ -32,6 +32,9 @@ export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render ->
 export const MSG_TYPE_INSTANCE_STOPPED = 560 // kInstanceStopped (render -> client)
 export const MSG_TYPE_VIRTUAL_DISPLAY_REQUEST = 570 // kVirtualDisplayRequest (client -> render)
 export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = 571 // kVirtualDisplayResponse (render -> client)
+export const MSG_TYPE_VOICE_CALL_REQUEST = 590
+export const MSG_TYPE_VOICE_CALL_RESPONSE = 591
+export const MSG_TYPE_VOICE_AUDIO_CONFIG = 592
 
 // ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText
@@ -80,6 +83,9 @@ export function decodeMessage(payload: Uint8Array) {
       virtualDisplayOwnedCount?: number
       virtualDisplayMaxCount?: number
       topologyGeneration?: number | { toString(): string }
+      voiceCallEnabled?: boolean
+      voiceCallProtocolVersion?: number
+      voiceCallRequiresHeadset?: boolean
     }
     // kMonitorSwitched(type=180):采集显示器已切换(切屏回包,含最新显示器列表)
     monitorSwitched?: { name: string; index: number }
@@ -106,6 +112,26 @@ export function decodeMessage(payload: Uint8Array) {
       driverInstalled: boolean
       packageValid: boolean
       removalSafe: boolean
+    }
+    voiceCallRequest?: {
+      callId: string
+      requestId: number | { toString(): string }
+      connect: boolean
+    }
+    voiceCallResponse?: {
+      callId: string
+      requestId: number | { toString(): string }
+      accepted: boolean
+      reason: string
+    }
+    voiceAudioConfig?: {
+      callId: string
+      sampleRate: number
+      channels: number
+      frameMs: number
+      bitrateBps: number
+      fec: boolean
+      dtx: boolean
     }
     clipboardInfo?: { type: number; msg: Uint8Array }
   }

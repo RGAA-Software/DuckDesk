@@ -59,6 +59,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/user/modify_password_dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_cophone.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/monitor_refresher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/voice_call_consent_dialog.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/px_application.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_context.cpp

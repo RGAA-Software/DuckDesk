@@ -14,6 +14,7 @@
 #include "remote_audio_sink.h"
 #include "px_common_new/data.h"
 #include "px_common_new/time_util.h"
+#include "px_common_new/privacy_log.h"
 #include <atomic>
 #include <format>
 #include <optional>
@@ -401,10 +402,16 @@ namespace px
         // - >=2 条(新 Windows 客户端): 每台显示器一条静态 track,帧按 mon_name
         //   路由,根治单 track 混流(两屏帧交替 → 反复"切屏等 IDR"的风暴)。
         int offer_video_mlines = 0;
+        int offer_audio_mlines = 0;
         {
             size_t pos = 0;
             while ((pos = offer_sdp_.find("m=video", pos)) != std::string::npos) {
                 ++offer_video_mlines;
+                pos += 7;
+            }
+            pos = 0;
+            while ((pos = offer_sdp_.find("m=audio", pos)) != std::string::npos) {
+                ++offer_audio_mlines;
                 pos += 7;
             }
         }
@@ -461,6 +468,21 @@ namespace px
             }
             else {
                 peer_conn_->AddTrack(audio_track, { kMediaStreamId });
+            }
+
+            // The second audio m-line is dedicated to the authorized voice
+            // call. Desktop/system audio remains on the first track.
+            if (offer_audio_mlines >= 2) {
+                voice_audio_source_ = AudioSourceImpl::Create();
+                auto voice_track = peer_conn_factory_->CreateAudioTrack(
+                    "voice_call_audio", voice_audio_source_.get());
+                const auto voice_result = peer_conn_->AddTrack(
+                    voice_track, { "pixels_voice_call" });
+                if (!voice_result.ok()) {
+                    LOGE("peer connection add voice track failed: {}",
+                         voice_result.error().message());
+                    voice_audio_source_ = nullptr;
+                }
             }
         }
 
@@ -542,28 +564,90 @@ namespace px
         // 已有 sink(理论上一条连接只有一条上行音频轨),先清理
         OnRemoteAudioTrackRemoved(remote_audio_track_);
 
-        // Factory uses dummy ADM (no mic capture race). Remote track sink is
-        // stats-only for now; browser-mic playout needs a dedicated WASAPI path.
-        auto sink = RemoteAudioSink::Make();
+        // Factory uses dummy ADM so decoded browser audio is delivered only to
+        // this sink. The sink forwards PCM to the authorization-bound voice
+        // endpoint, which owns WASAPI playout and the AEC reverse reference.
+        const std::weak_ptr<RtcServer> weak_self = shared_from_this();
+        auto sink = RemoteAudioSink::Make(
+            [weak_self](const std::string& call_id, const int16_t* samples,
+                        size_t sample_count, int sample_rate, int channels) {
+                if (const auto self = weak_self.lock(); self && self->plugin_) {
+                    self->plugin_->OnRemoteVoiceCallPcm(
+                        self->stream_id_, call_id, samples, sample_count,
+                        sample_rate, channels);
+                }
+            });
         track->AddSink(sink.get());
-        remote_audio_track_ = std::move(track);
-        remote_audio_sink_ = sink;
-        LOGI("Remote audio sink attached (stats only; dummy ADM, no auto playout).");
+        std::string authorized_call;
+        {
+            std::scoped_lock lock(voice_mutex_);
+            remote_audio_track_ = std::move(track);
+            remote_audio_sink_ = sink;
+            authorized_call = authorized_voice_call_id_;
+        }
+        if (!authorized_call.empty()) {
+            sink->SetAuthorized(authorized_call, true);
+        }
+        LOGI("Remote audio sink attached (authorization-gated WASAPI playout).");
     }
 
     void RtcServer::OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
-        if (!remote_audio_sink_) {
-            return;
-        }
-        if (track && remote_audio_track_ && track->id() != remote_audio_track_->id()) {
-            return;
+        rtc::scoped_refptr<webrtc::AudioTrackInterface> removed_track;
+        std::shared_ptr<RemoteAudioSink> removed_sink;
+        {
+            std::scoped_lock lock(voice_mutex_);
+            if (!remote_audio_sink_) {
+                return;
+            }
+            if (track && remote_audio_track_ && track->id() != remote_audio_track_->id()) {
+                return;
+            }
+            removed_track = std::move(remote_audio_track_);
+            removed_sink = std::move(remote_audio_sink_);
         }
         LOGI("OnRemoteAudioTrackRemoved");
-        if (remote_audio_track_) {
-            remote_audio_track_->RemoveSink(remote_audio_sink_.get());
-            remote_audio_track_ = nullptr;
+        removed_sink->SetAuthorized({}, false);
+        if (removed_track) {
+            removed_track->RemoveSink(removed_sink.get());
         }
-        remote_audio_sink_ = nullptr;
+    }
+
+    bool RtcServer::SetVoiceCallAuthorization(
+        const std::string& call_id, bool authorized) {
+        std::shared_ptr<RemoteAudioSink> sink;
+        {
+            std::scoped_lock lock(voice_mutex_);
+            authorized_voice_call_id_ = authorized ? call_id : std::string{};
+            sink = remote_audio_sink_;
+        }
+        if (!authorized) {
+            if (sink) sink->SetAuthorized({}, false);
+            return true;
+        }
+        if (call_id.empty() || !voice_audio_source_ || !sink) {
+            LOGW("WebRTC voice authorization unavailable: call={}, source={}, sink={}",
+                 PrivacyLogId(call_id), voice_audio_source_ != nullptr, sink != nullptr);
+            return false;
+        }
+        sink->SetAuthorized(call_id, true);
+        return true;
+    }
+
+    void RtcServer::OnVoiceCallPcm(
+        const std::string& call_id, const int16_t* samples,
+        size_t sample_count, int sample_rate, int channels) {
+        rtc::scoped_refptr<AudioSourceImpl> source;
+        {
+            std::scoped_lock lock(voice_mutex_);
+            if (call_id.empty() || call_id != authorized_voice_call_id_) {
+                return;
+            }
+            source = voice_audio_source_;
+        }
+        if (source && samples && sample_count > 0) {
+            source->SendAudio(samples, sample_count * sizeof(int16_t),
+                              sample_rate, channels, 16);
+        }
     }
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
@@ -575,6 +659,9 @@ namespace px
     }
 
     bool RtcServer::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+        if (stream_id.empty() || stream_id != stream_id_) {
+            return false;
+        }
         if (network_thread_ && media_data_channel_ && !exit_) {
             network_thread_->PostTask([=, this]() {
                 media_data_channel_->SendData(msg);
@@ -584,6 +671,9 @@ namespace px
     }
 
     bool RtcServer::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+        if (stream_id.empty() || stream_id != stream_id_) {
+            return false;
+        }
         // 必须投递到 WebRTC 网络线程再 Send,否则 data_channel_->Send() 跨线程调用
         // 会被 libwebrtc 静默丢弃(剪切板文件取数 kClipboardReqBuffer/kClipboardRespBuffer
         // 偶发 60s 超时即源于此)。与 media 通道 PostTargetStreamProtoMessage 对齐。

@@ -13,6 +13,7 @@
 #include "thunder_sdk.h"
 #include "px_client/ct_app_message.h"
 #include "px_voice_call/voice_call_state.h"
+#include "px_voice_call/voice_packet_transport.h"
 #include "theme/QtAdvancedStylesheet.h"
 
 #ifdef WIN32
@@ -123,7 +124,10 @@ namespace px
         void ProcessVoiceCallMessage(const std::shared_ptr<px::Message>& msg);
         void StopVoiceCall(bool notify_remote, const std::string& reason);
         void NotifyVoiceCallStatus(const std::string& reason = {});
-        void SendVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
+        void QueueVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
+                                 uint64_t capture_time_ms,
+                                 const std::vector<uint8_t>& opus);
+        void DispatchVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
                                  uint64_t capture_time_ms,
                                  const std::vector<uint8_t>& opus);
         void UpdateFloatButtonIndicatorPosition();
@@ -172,6 +176,11 @@ namespace px
         std::mutex voice_call_mutex_;
         VoiceCallState voice_call_state_;
         std::shared_ptr<VoiceAudioEndpoint> voice_audio_endpoint_;
+        VoicePacketTransport voice_packet_transport_;
+        bool voice_microphone_muted_ = false;
+        bool voice_speaker_muted_ = false;
+        std::string voice_capture_device_id_;
+        std::string voice_playout_device_id_;
 
         // progress
         MainProgress* main_progress_ = nullptr;

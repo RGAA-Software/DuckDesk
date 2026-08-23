@@ -254,6 +254,9 @@ namespace px
     }
 
     bool RtcServer::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+        if (stream_id.empty() || stream_id != stream_id_) {
+            return false;
+        }
         if (network_thread_ && media_data_channel_ && !exit_) {
             network_thread_->PostTask([=, this]() {
                 media_data_channel_->SendData(msg);
@@ -263,6 +266,9 @@ namespace px
     }
 
     bool RtcServer::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+        if (stream_id.empty() || stream_id != stream_id_) {
+            return false;
+        }
         // 与 net_rtc_local 同理:必须投递到 WebRTC 网络线程再 Send,避免跨线程
         // 调用 data_channel_->Send() 被 libwebrtc 静默丢弃。
         if (network_thread_ && ft_data_channel_ && !exit_) {

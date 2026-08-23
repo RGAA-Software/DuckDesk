@@ -1593,10 +1593,11 @@ namespace px
         return dda_capture_plugin_->TryInitSpecificCapture();
     }
 
-    void RdApplication::PostPanelMessage(std::shared_ptr<Data> msg) {
+    bool RdApplication::PostPanelMessage(std::shared_ptr<Data> msg) {
         if (ws_panel_client_ && msg) {
-            ws_panel_client_->PostNetMessage(msg);
+            return ws_panel_client_->PostNetMessage(msg);
         }
+        return false;
     }
 
     void RdApplication::PostUserProxyMessage(std::shared_ptr<Data> msg) {

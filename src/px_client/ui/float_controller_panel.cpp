@@ -21,9 +21,11 @@
 #include "px_client/ct_client_context.h"
 #include "px_client/plugins/ct_plugin_manager.h"
 #include "px_client_sdk_new/sdk_messages.h"
+#include "px_voice_call/voice_audio_backend.h"
 #include "px_common_new/message_notifier.h"
 #include <QCoreApplication>
 #include <QIcon>
+#include <QInputDialog>
 #include <QPushButton>
 #include <QTimer>
 
@@ -141,6 +143,47 @@ namespace px
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
                 btn->SetOnClickListener([this](QWidget*) { ToggleVoiceCall(); });
+            }
+            {
+                auto btn = new FloatIcon(ctx, this);
+                voice_audio_device_btn_ = btn;
+                btn->setFixedSize(btn_size);
+                btn->setObjectName("voiceAudioDeviceButton");
+                btn->SetIcons(":resources/image/ic_settings.svg", "");
+                btn->setToolTip(tcTr("id_voice_call_audio_devices"));
+                btn->setAccessibleName(tcTr("id_voice_call_audio_devices"));
+                btn->setEnabled(false);
+                layout->addSpacing(border_spacing);
+                layout->addWidget(btn);
+                btn->SetOnClickListener([this](QWidget*) { SelectVoiceAudioDevices(); });
+            }
+            {
+                auto btn = new FloatIcon(ctx, this);
+                voice_microphone_mute_btn_ = btn;
+                btn->setFixedSize(btn_size);
+                btn->setObjectName("voiceMicrophoneMuteButton");
+                btn->SetIcons(":resources/image/ic_microphone_on.svg",
+                              ":resources/image/ic_microphone_off.svg");
+                btn->setToolTip(tcTr("id_voice_call_mute_microphone"));
+                btn->setAccessibleName(tcTr("id_voice_call_mute_microphone"));
+                btn->hide();
+                layout->addSpacing(border_spacing);
+                layout->addWidget(btn);
+                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceMicrophoneMute(); });
+            }
+            {
+                auto btn = new FloatIcon(ctx, this);
+                voice_speaker_mute_btn_ = btn;
+                btn->setFixedSize(btn_size);
+                btn->setObjectName("voiceSpeakerMuteButton");
+                btn->SetIcons(":resources/image/ic_volume_on.svg",
+                              ":resources/image/ic_volume_off.svg");
+                btn->setToolTip(tcTr("id_voice_call_mute_speaker"));
+                btn->setAccessibleName(tcTr("id_voice_call_mute_speaker"));
+                btn->hide();
+                layout->addSpacing(border_spacing);
+                layout->addWidget(btn);
+                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceSpeakerMute(); });
             }
             {
                 auto btn = new FloatIcon(ctx, this);
@@ -714,9 +757,50 @@ namespace px
             context_->PostUITask([this, msg]() {
                 voice_call_supported_ = msg.supported_;
                 voice_call_requires_headset_ = msg.requires_headset_;
+                if (voice_call_phase_ != VoiceCallPhase::kIdle &&
+                    msg.phase_ == VoiceCallPhase::kIdle) {
+                    voice_call_warning_shown_ = false;
+                }
                 voice_call_phase_ = msg.phase_;
+                voice_microphone_muted_ = msg.microphone_muted_;
+                voice_speaker_muted_ = msg.speaker_muted_;
+                voice_capture_device_id_ = msg.capture_device_id_;
+                voice_playout_device_id_ = msg.playout_device_id_;
                 if (!voice_call_btn_) {
                     return;
+                }
+                const bool controls_visible = msg.phase_ == VoiceCallPhase::kConnected;
+                if (voice_audio_device_btn_) {
+                    voice_audio_device_btn_->setEnabled(
+                        msg.supported_ && msg.phase_ == VoiceCallPhase::kIdle);
+                }
+                if (voice_microphone_mute_btn_) {
+                    voice_microphone_mute_btn_->setVisible(controls_visible);
+                    voice_microphone_mute_btn_->setEnabled(controls_visible);
+                    const auto text = tcTr(msg.microphone_muted_
+                        ? "id_voice_call_unmute_microphone"
+                        : "id_voice_call_mute_microphone");
+                    if (msg.microphone_muted_) {
+                        voice_microphone_mute_btn_->SwitchToSelectedState();
+                    } else {
+                        voice_microphone_mute_btn_->SwitchToNormalState();
+                    }
+                    voice_microphone_mute_btn_->setToolTip(text);
+                    voice_microphone_mute_btn_->setAccessibleName(text);
+                }
+                if (voice_speaker_mute_btn_) {
+                    voice_speaker_mute_btn_->setVisible(controls_visible);
+                    voice_speaker_mute_btn_->setEnabled(controls_visible);
+                    const auto text = tcTr(msg.speaker_muted_
+                        ? "id_voice_call_unmute_speaker"
+                        : "id_voice_call_mute_speaker");
+                    if (msg.speaker_muted_) {
+                        voice_speaker_mute_btn_->SwitchToSelectedState();
+                    } else {
+                        voice_speaker_mute_btn_->SwitchToNormalState();
+                    }
+                    voice_speaker_mute_btn_->setToolTip(text);
+                    voice_speaker_mute_btn_->setAccessibleName(text);
                 }
                 voice_call_btn_->setEnabled(msg.supported_);
                 if (msg.phase_ == VoiceCallPhase::kIdle) {
@@ -778,6 +862,84 @@ namespace px
             .action_ = voice_call_phase_ == VoiceCallPhase::kIdle
                 ? MsgClientVoiceCallCommand::Action::kStart
                 : MsgClientVoiceCallCommand::Action::kHangUp,
+        });
+    }
+
+    void FloatControllerPanel::ToggleVoiceMicrophoneMute() {
+        if (voice_call_phase_ != VoiceCallPhase::kConnected) {
+            return;
+        }
+        context_->SendAppMessage(MsgClientVoiceCallCommand {
+            .action_ = MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute,
+        });
+    }
+
+    void FloatControllerPanel::ToggleVoiceSpeakerMute() {
+        if (voice_call_phase_ != VoiceCallPhase::kConnected) {
+            return;
+        }
+        context_->SendAppMessage(MsgClientVoiceCallCommand {
+            .action_ = MsgClientVoiceCallCommand::Action::kToggleSpeakerMute,
+        });
+    }
+
+    void FloatControllerPanel::SelectVoiceAudioDevices() {
+        if (voice_call_phase_ != VoiceCallPhase::kIdle) {
+            return;
+        }
+        auto backend = CreateDefaultVoiceAudioBackend();
+        VoiceAudioDeviceInventory inventory;
+        std::string error;
+        if (!backend || !backend->EnumerateDevices(&inventory, &error) ||
+            inventory.capture_devices.empty() || inventory.playout_devices.empty()) {
+            context_->NotifyAppWarningMessage(
+                tcTr("id_voice_call"),
+                tcTr("id_voice_call_audio_devices_failed") +
+                    QString::fromStdString(error.empty() ? "unknown" : " (" + error + ")"));
+            return;
+        }
+
+        auto choose = [this](
+            const std::vector<VoiceAudioDeviceDescriptor>& devices,
+            const std::string& selected_id, const QString& label,
+            std::string* result) -> bool {
+            QStringList labels;
+            int selected_index = 0;
+            for (size_t i = 0; i < devices.size(); ++i) {
+                labels.push_back(QString("%1 [%2]")
+                    .arg(QString::fromStdString(devices[i].name))
+                    .arg(i + 1));
+                if (devices[i].id == selected_id) {
+                    selected_index = static_cast<int>(i);
+                }
+            }
+            bool accepted = false;
+            const auto value = QInputDialog::getItem(
+                this, tcTr("id_voice_call_audio_devices"), label,
+                labels, selected_index, false, &accepted);
+            if (!accepted) {
+                return false;
+            }
+            const int index = labels.indexOf(value);
+            if (index < 0 || static_cast<size_t>(index) >= devices.size()) {
+                return false;
+            }
+            *result = devices[static_cast<size_t>(index)].id;
+            return true;
+        };
+
+        std::string capture_id;
+        std::string playout_id;
+        if (!choose(inventory.capture_devices, voice_capture_device_id_,
+                    tcTr("id_voice_call_capture_device"), &capture_id) ||
+            !choose(inventory.playout_devices, voice_playout_device_id_,
+                    tcTr("id_voice_call_playout_device"), &playout_id)) {
+            return;
+        }
+        context_->SendAppMessage(MsgClientVoiceCallCommand {
+            .action_ = MsgClientVoiceCallCommand::Action::kSelectAudioDevices,
+            .capture_device_id_ = std::move(capture_id),
+            .playout_device_id_ = std::move(playout_id),
         });
     }
 

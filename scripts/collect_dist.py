@@ -138,6 +138,17 @@ def main():
         copy_tree(client_resources_dir, os.path.join(dist_dir, "resources"))
         print("  + resources/  (from px_client post-build output)")
 
+    # Language JSON is runtime data rather than a compiled Qt resource.  The
+    # post-build directory may be stale when only wording changes, so always
+    # overlay the authoritative source files for packaging.
+    source_language_dir = os.path.join(
+        source_dir, "src", "px_panel", "resources", "language")
+    if not os.path.isdir(source_language_dir):
+        print(f"ERROR: missing runtime language directory: {source_language_dir}", file=sys.stderr)
+        sys.exit(1)
+    copy_tree(source_language_dir, os.path.join(dist_dir, "resources", "language"))
+    print("  + resources/language/  (authoritative source files)")
+
     # ------------------------------------------------------------------
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
@@ -147,6 +158,7 @@ def main():
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/px_render.exe", "px_render.exe"),
         ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client_rtc.dll"),
+        ("src/px_deps/px_voice_call/px_voice_apm.dll", "px_voice_apm.dll"),
     ]
     for rel_src, rel_dst in supplements:
         copy_file(rel_src if os.path.isabs(rel_src) else os.path.join(build_dir, rel_src), os.path.join(dist_dir, rel_dst))

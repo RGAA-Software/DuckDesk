@@ -50,6 +50,7 @@ namespace px
         kPluginConfigEncoder,
         kPluginReqParamsBeginStreaming,
         kPluginRedeemConnectionTicket,
+        kPluginVoiceCallConsent,
     };
 
     class PxPluginBaseEvent {
@@ -74,6 +75,22 @@ namespace px
         std::string client_nonce_;
         std::string instance_id_;
         std::function<void(bool, const std::string&, const std::vector<std::string>&)> callback_;
+    };
+
+    // Voice plugin -> Render -> px_panel. show_=false closes only an exactly
+    // matching pending prompt and never constitutes a user decision.
+    class PxPluginVoiceCallConsentEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginVoiceCallConsentEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginVoiceCallConsent;
+        }
+        bool show_ = true;
+        std::string visitor_device_id_;
+        std::string stream_id_;
+        std::string call_id_;
+        uint64_t request_id_ = 0;
+        uint64_t expires_at_unix_ms_ = 0;
+        std::string reason_;
     };
 
     // kPluginNetClientEvent

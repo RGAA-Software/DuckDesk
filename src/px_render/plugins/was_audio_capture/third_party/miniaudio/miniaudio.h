@@ -21838,6 +21838,12 @@ typedef enum
     ma_eCommunications = 2
 } ma_ERole;
 
+/* Build-specific default role. Voice duplex builds select eCommunications;
+   existing desktop loopback builds retain eConsole. */
+#ifndef MA_WASAPI_DEFAULT_ROLE
+#define MA_WASAPI_DEFAULT_ROLE ma_eConsole
+#endif
+
 typedef enum
 {
     MA_AUDCLNT_SHAREMODE_SHARED,
@@ -22478,7 +22484,9 @@ static HRESULT STDMETHODCALLTYPE ma_IMMNotificationClient_OnDefaultDeviceChanged
     /*ma_log_postf(ma_device_get_log(pThis->pDevice), MA_LOG_LEVEL_DEBUG, "IMMNotificationClient_OnDefaultDeviceChanged(dataFlow=%d, role=%d, pDefaultDeviceID=%S)\n", dataFlow, role, (pDefaultDeviceID != NULL) ? pDefaultDeviceID : L"(NULL)");*/
 #endif
 
-    (void)role;
+    if (role != MA_WASAPI_DEFAULT_ROLE) {
+        return S_OK;
+    }
 
     /* We only care about devices with the same data flow as the current device. */
     if ((pThis->pDevice->type == ma_device_type_playback && dataFlow != ma_eRender)  ||
@@ -22995,8 +23003,7 @@ static WCHAR* ma_context_get_default_device_id_from_IMMDeviceEnumerator__wasapi(
     /* Grab the EDataFlow type from the device type. */
     dataFlow = ma_device_type_to_EDataFlow(deviceType);
 
-    /* The role is always eConsole, but we may make this configurable later. */
-    role = ma_eConsole;
+    role = MA_WASAPI_DEFAULT_ROLE;
 
     hr = ma_IMMDeviceEnumerator_GetDefaultAudioEndpoint(pDeviceEnumerator, dataFlow, role, &pMMDefaultDevice);
     if (FAILED(hr)) {
@@ -23070,7 +23077,7 @@ static ma_result ma_context_get_MMDevice__wasapi(ma_context* pContext, ma_device
     }
 
     if (pDeviceID == NULL) {
-        hr = ma_IMMDeviceEnumerator_GetDefaultAudioEndpoint(pDeviceEnumerator, (deviceType == ma_device_type_capture) ? ma_eCapture : ma_eRender, ma_eConsole, ppMMDevice);
+        hr = ma_IMMDeviceEnumerator_GetDefaultAudioEndpoint(pDeviceEnumerator, (deviceType == ma_device_type_capture) ? ma_eCapture : ma_eRender, MA_WASAPI_DEFAULT_ROLE, ppMMDevice);
     } else {
         hr = ma_IMMDeviceEnumerator_GetDevice(pDeviceEnumerator, pDeviceID->wasapi, ppMMDevice);
     }

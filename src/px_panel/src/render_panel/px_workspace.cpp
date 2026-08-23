@@ -5,6 +5,7 @@
 #include "px_workspace.h"
 #include "px_exe_names.h"
 #include "px_application.h"
+#include "px_common_new/privacy_log.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -18,6 +19,7 @@
 #include <QStandardPaths>
 #include <QPointer>
 #include <QEventLoop>
+#include <QDateTime>
 #include <thread>
 #include <chrono>
 
@@ -60,6 +62,10 @@
 #include "render_panel/ui/user/modify_password_dialog.h"
 #include "render_panel/companion/panel_companion.h"
 #include "render_panel/upgrade/upgrade_helper.h"
+#include "render_panel/ui/voice_call_consent_dialog.h"
+#include "render_panel/network/ws_panel_server.h"
+#include "px_render_panel_message.pb.h"
+#include "px_message_new/rp_proto_converter.h"
 
 namespace px
 {
@@ -699,6 +705,102 @@ namespace px
                 }
             }
         });
+
+        msg_listener_->Listen<MsgPanelVoiceCallConsentRequest>(
+            [self, context = context_](const MsgPanelVoiceCallConsentRequest& msg) {
+                context->PostUITask([self, msg]() {
+                    if (self) {
+                        self->ShowVoiceCallConsent(msg);
+                    }
+                });
+            });
+
+        msg_listener_->Listen<MsgPanelVoiceCallConsentCancel>(
+            [self, context = context_](const MsgPanelVoiceCallConsentCancel& msg) {
+                context->PostUITask([self, msg]() {
+                    if (self) {
+                        self->CancelVoiceCallConsent(msg);
+                    }
+                });
+            });
+    }
+
+    void PxWorkspace::ShowVoiceCallConsent(const MsgPanelVoiceCallConsentRequest& msg) {
+        LOGI("[VoiceCall] showing consent dialog, call={}, stream={}, request={}",
+             PrivacyLogId(msg.call_id_), msg.stream_id_, msg.request_id_);
+        VoiceCallConsentInfo info{
+            .visitor_device_id = msg.visitor_device_id_,
+            .stream_id = msg.stream_id_,
+            .call_id = msg.call_id_,
+            .request_id = msg.request_id_,
+            .expires_at_unix_ms = msg.expires_at_unix_ms_,
+        };
+        if (!info.IsValid() || msg.protocol_version_ != 1) {
+            SendVoiceCallConsentDecision(info, false, "unsupported");
+            return;
+        }
+        const auto now = static_cast<uint64_t>(QDateTime::currentMSecsSinceEpoch());
+        if (now >= info.expires_at_unix_ms) {
+            SendVoiceCallConsentDecision(info, false, "timeout");
+            return;
+        }
+        if (voice_call_consent_dialog_) {
+            if (voice_call_consent_dialog_->Matches(
+                    info.stream_id, info.call_id, info.request_id)) {
+                return;
+            }
+            SendVoiceCallConsentDecision(info, false, "busy");
+            return;
+        }
+
+        QPointer<PxWorkspace> self(this);
+        auto* dialog = new VoiceCallConsentDialog(
+            info,
+            [self, info](bool accepted, const std::string& reason) {
+                if (!self) {
+                    return;
+                }
+                self->voice_call_consent_dialog_ = nullptr;
+                self->SendVoiceCallConsentDecision(info, accepted, reason);
+            });
+        voice_call_consent_dialog_ = dialog;
+        dialog->ShowProminently();
+    }
+
+    void PxWorkspace::CancelVoiceCallConsent(const MsgPanelVoiceCallConsentCancel& msg) {
+        if (!voice_call_consent_dialog_ ||
+            !voice_call_consent_dialog_->Matches(
+                msg.stream_id_, msg.call_id_, msg.request_id_)) {
+            return;
+        }
+        auto* dialog = voice_call_consent_dialog_.data();
+        voice_call_consent_dialog_ = nullptr;
+        LOGI("[VoiceCall] closing consent dialog without decision, call={}, stream={}, request={}",
+             PrivacyLogId(msg.call_id_), msg.stream_id_, msg.request_id_);
+        dialog->CancelWithoutDecision();
+    }
+
+    void PxWorkspace::SendVoiceCallConsentDecision(
+        const VoiceCallConsentInfo& info, bool accepted,
+        const std::string& reason) {
+        if (!app_) {
+            return;
+        }
+        const auto server = app_->GetWsPanelServer();
+        if (!server) {
+            return;
+        }
+        pxrp::RpMessage message;
+        message.set_type(pxrp::kRpVoiceCallConsentDecision);
+        auto* decision = message.mutable_voice_call_consent_decision();
+        decision->set_stream_id(info.stream_id);
+        decision->set_call_id(info.call_id);
+        decision->set_request_id(info.request_id);
+        decision->set_accepted(accepted);
+        decision->set_reason(reason);
+        LOGI("[VoiceCall] px_panel sending consent decision, accepted={}, call={}, stream={}, request={}, reason={}",
+             accepted, PrivacyLogId(info.call_id), info.stream_id, info.request_id, reason);
+        server->PostRendererMessage(RpProtoAsData(&message));
     }
 
     void PxWorkspace::ForceStopAllPrograms(bool uninstall_service) {

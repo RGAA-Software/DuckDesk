@@ -1,7 +1,9 @@
 #ifndef APP_MESSAGES_H
 #define APP_MESSAGES_H
 
+#include <cstdint>
 #include <map>
+#include <string>
 #include <QVariantMap>
 #include "notify/notify_defs.h"
 #include "px_console_client/console_stream.h"
@@ -263,6 +265,24 @@ namespace px
 
     // monitor changed
     class MsgMonitorChanged {};
+
+    class MsgPanelVoiceCallConsentRequest {
+    public:
+        std::string visitor_device_id_;
+        std::string stream_id_;
+        std::string call_id_;
+        uint64_t request_id_ = 0;
+        uint64_t expires_at_unix_ms_ = 0;
+        uint32_t protocol_version_ = 0;
+    };
+
+    class MsgPanelVoiceCallConsentCancel {
+    public:
+        std::string stream_id_;
+        std::string call_id_;
+        uint64_t request_id_ = 0;
+        std::string reason_;
+    };
 
 }
 
