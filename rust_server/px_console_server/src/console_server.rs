@@ -33,6 +33,7 @@ use crate::net_panel::console_panel_ws_handler;
 use crate::net_service::console_service_router::make_service_router;
 use crate::net_service::console_service_ws_handler;
 use crate::record::console_record_router::make_record_router;
+use crate::rtc::router::{make_admin_rtc_router, make_node_rtc_router};
 use crate::stream::console_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::session_router::{make_session_router, make_user_self_router};
@@ -147,7 +148,12 @@ impl ConsoleServer {
                 post(crate::connection_ticket::handler::renew_connection_ticket),
             )
             .nest("/api/v1/user", make_user_self_router(context.clone()))
-            .nest("/api/v1/admin", make_admin_identity_router(context.clone()))
+            .nest(
+                "/api/v1/admin",
+                make_admin_identity_router(context.clone())
+                    .merge(make_admin_rtc_router(context.clone())),
+            )
+            .nest("/api/v1/rtc", make_node_rtc_router(context.clone()))
             .nest(
                 "/api/v1/public",
                 make_public_resource_router(context.clone()),

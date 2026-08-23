@@ -65,14 +65,21 @@ namespace px
     }
 
     void WebRtcConnection::Stop() {
+        stopped_ = true;
         if (rtc_client_) {
             rtc_client_->Exit();
         }
     }
 
     void WebRtcConnection::Init() {
+        bool expected = false;
+        if (!init_started_.compare_exchange_strong(expected, true)) {
+            return;
+        }
         RunInRtcThread([=, this]() {
             if (!rtc_client_) {
+                LOGE("RTC client library is unavailable");
+                NotifyDisconnectedOnce();
                 return;
             }
 
@@ -98,8 +105,30 @@ namespace px
                 }
             });
 
+            rtc_client_->SetOnIceStateCallback([=, this](int state) {
+                // libwebrtc IceConnectionState: connected=2, completed=3,
+                // failed=4, disconnected=5, closed=6. A disconnected state
+                // may recover, so only terminal states close the SDK session.
+                if (state == 2 || state == 3) {
+                    ice_connected_ = true;
+                    NotifyConnectedWhenReady();
+                }
+                else if (state == 4 || state == 6) {
+                    ice_connected_ = false;
+                    NotifyDisconnectedOnce();
+                }
+                else if (state == 5) {
+                    ice_connected_ = false;
+                }
+            });
+
+            rtc_client_->SetLocalRtcMode(false);
+            rtc_client_->SetFileTransferOnly(sdk_params_->file_transfer_only_);
+            rtc_client_->SetIceServersJson(sdk_params_->rtc_ice_config_json_);
+
             if (!rtc_client_->Init(sdk_params_->bare_remote_device_id_)) {
                 LOGE("RTC client init FAILED!");
+                NotifyDisconnectedOnce();
                 return;
             }
 
@@ -116,18 +145,21 @@ namespace px
             auto r = rtc_lib_->load();
             if (!r) {
                 LOGE("LOAD rtc conn FAILED");
+                NotifyDisconnectedOnce();
                 return;
             }
 
             auto fn_get_instance = (FnGetInstance)rtc_lib_->resolve("GetInstance");
             if (!fn_get_instance) {
                 LOGE("DON'T have GetInstance");
+                NotifyDisconnectedOnce();
                 return;
             }
 
             rtc_client_ = (RtcClientInterface*)fn_get_instance();
             if (!rtc_client_) {
                 LOGE("Can't get rtc client instance.");
+                NotifyDisconnectedOnce();
                 return;
             }
             LOGI("Load Rtc library success.");
@@ -140,6 +172,17 @@ namespace px
     }
 
     void WebRtcConnection::PostMediaMessage(std::shared_ptr<Data> msg) {
+        if (msg && rtc_client_ && rtc_client_->IsInputChannelReady()) {
+            px::Message proto_msg;
+            if (proto_msg.ParseFromArray(msg->DataAddr(), static_cast<int>(msg->Size()))) {
+                const auto type = proto_msg.type();
+                if (type == px::kKeyEvent || type == px::kMouseEvent
+                    || type == px::kGamepadState || type == px::kTextInput) {
+                    rtc_client_->PostInputMessage(msg);
+                    return;
+                }
+            }
+        }
         RunInRtcThread([=, this]() {
             if (rtc_client_) {
                 rtc_client_->PostMediaMessage(msg);
@@ -203,6 +246,9 @@ namespace px
         auto sub = pt_msg.mutable_sig_offer_sdp();
         sub->set_device_id(sdk_params_->device_id_);
         sub->set_sdp(sdp);
+        sub->set_connection_ticket(sdk_params_->connection_ticket_);
+        sub->set_client_nonce(sdk_params_->connection_nonce_);
+        sub->set_instance_id(sdk_params_->connection_instance_id_);
         auto buffer = Data::Make(nullptr, pt_msg.ByteSizeLong());
         pt_msg.SerializeToArray(buffer->DataAddr(), buffer->Size());
         relay_conn_->PostBinaryMessage(buffer);
@@ -259,6 +305,34 @@ namespace px
     void WebRtcConnection::On16msTimeout() {
         if (rtc_client_) {
             rtc_client_->On16msTimeout();
+        }
+        NotifyConnectedWhenReady();
+    }
+
+    void WebRtcConnection::NotifyConnectedWhenReady() {
+        if (stopped_ || !ice_connected_ || connected_notified_) {
+            return;
+        }
+        const bool channel_ready = sdk_params_->file_transfer_only_
+            ? IsFtChannelReady()
+            : IsMediaChannelReady();
+        if (!channel_ready) {
+            return;
+        }
+        bool expected = false;
+        if (connected_notified_.compare_exchange_strong(expected, true) && conn_cbk_) {
+            LOGI("Full WebRTC transport is ready");
+            conn_cbk_();
+        }
+    }
+
+    void WebRtcConnection::NotifyDisconnectedOnce() {
+        if (stopped_) {
+            return;
+        }
+        bool expected = false;
+        if (disconnected_notified_.compare_exchange_strong(expected, true) && dis_conn_cbk_) {
+            dis_conn_cbk_();
         }
     }
 

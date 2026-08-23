@@ -102,6 +102,7 @@ message MsgRedeemConnectionTicketResp {
   bool ok = 2;
   string code = 3;
   MsgConnectionGrant grant = 4;
+  string rtc_ice_config_json = 5;
 }
 
 message MsgVirtualDisplayRequest {

@@ -1,6 +1,6 @@
 # px_web_client
 
-浏览器端 WebRTC 直连远程桌面客户端(Vue 3 + TypeScript + Vite + Element Plus)。
+浏览器端 WebRTC 直连远程桌面客户端(Vue 3 + TypeScript + Vite + Element Plus)。本目录保留的是由 Render 同源托管的 Direct RTC 页面；Pixels Console ticket 启动的全功能标准 RTC 客户端位于 `src/px_web_client`，支持应用 Relay 信令和 Console 下发的多个 STUN/TURN Server。两者不要混为同一个构建产物。
 
 ## 功能
 

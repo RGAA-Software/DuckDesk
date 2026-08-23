@@ -1,4 +1,4 @@
-import { Root, Type } from 'protobufjs'
+import { Enum, Root, Type } from 'protobufjs'
 
 export const PxProtoMsg = {
   MsgRoot: Root,
@@ -12,6 +12,8 @@ export const PxProtoMsg = {
 
   Message: Type,
   MsgHello: Type,
+  RelayMessage: Type,
+  RelayMessageType: Enum,
 }
 
 export function loadMessageType(root: Root) {
@@ -25,5 +27,7 @@ export function loadMessageType(root: Root) {
 
   PxProtoMsg.Message = root.lookupType("px.Message");
   PxProtoMsg.MsgHello = root.lookupType('px.Hello');
+  PxProtoMsg.RelayMessage = root.lookupType('px_relay.RelayMessage');
+  PxProtoMsg.RelayMessageType = root.lookupEnum('px_relay.RelayMessageType');
 
 }

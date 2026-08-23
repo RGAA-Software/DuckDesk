@@ -13,6 +13,7 @@ import {
   MessageOutlined,
   TeamOutlined,
   UserOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons-vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -39,6 +40,7 @@ const activeMenu = computed(() => {
     '/events',
     '/user-manager',
     '/group-manager',
+    '/rtc-turn-settings',
     '/profile-info',
   ]
 
@@ -131,6 +133,11 @@ const handleClickLogo = async () => {
       <a-menu-item key="/profile-info">
         <template #icon><UserOutlined /></template>
         <span class="">个人中心</span>
+      </a-menu-item>
+
+      <a-menu-item key="/rtc-turn-settings">
+        <template #icon><CloudServerOutlined /></template>
+        <span class="">WebRTC / TURN</span>
       </a-menu-item>
     </a-menu>
   </div>

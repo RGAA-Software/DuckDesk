@@ -172,6 +172,16 @@ pub struct ConsoleServiceRedeemConnectionTicketResult {
     pub code: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "4")]
     pub grant: ::core::option::Option<ConsoleConnectionGrant>,
+    /// Serialized RtcSessionIceConfig, issued only after ticket redemption.
+    #[prost(string, tag = "5")]
+    pub rtc_ice_config_json: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RtcIceConfigChanged {
+    #[prost(uint64, tag = "1")]
+    pub revision: u64,
+    #[prost(int64, tag = "2")]
+    pub changed_at: i64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceMessage {
@@ -209,6 +219,8 @@ pub struct ConsoleServiceMessage {
     pub redeem_connection_ticket_result: ::core::option::Option<
         ConsoleServiceRedeemConnectionTicketResult,
     >,
+    #[prost(message, optional, tag = "120")]
+    pub rtc_ice_config_changed: ::core::option::Option<RtcIceConfigChanged>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -229,6 +241,8 @@ pub enum ConsoleServiceMessageType {
     /// Service -> Console, then Console -> Service.
     KConsoleServiceRedeemConnectionTicket = 8,
     KConsoleServiceRedeemConnectionTicketResult = 9,
+    /// Console -> Service. Invalidation only; Service pulls the new version.
+    KRtcIceConfigChanged = 10,
 }
 impl ConsoleServiceMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -257,6 +271,7 @@ impl ConsoleServiceMessageType {
             Self::KConsoleServiceRedeemConnectionTicketResult => {
                 "kConsoleServiceRedeemConnectionTicketResult"
             }
+            Self::KRtcIceConfigChanged => "kRtcIceConfigChanged",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -288,6 +303,7 @@ impl ConsoleServiceMessageType {
             "kConsoleServiceRedeemConnectionTicketResult" => {
                 Some(Self::KConsoleServiceRedeemConnectionTicketResult)
             }
+            "kRtcIceConfigChanged" => Some(Self::KRtcIceConfigChanged),
             _ => None,
         }
     }

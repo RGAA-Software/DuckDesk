@@ -563,6 +563,15 @@ namespace px
             }
             target_item->connection_ticket_ = ticket.ticket;
             target_item->connection_nonce_ = nonce;
+            target_item->rtc_ice_config_json_ = ticket.rtc_ice_config_json;
+            // Console tickets may be issued for newly scheduled instances
+            // that have no persisted stream row yet. Standard RTC still needs
+            // the Console Relay for SDP/ICE signaling, so fill it from the
+            // authenticated Console access configuration when absent.
+            target_item->relay_host_ = !ticket.relay_host.empty()
+                ? ticket.relay_host : settings_->GetRelayServerHost();
+            target_item->relay_port_ = ticket.relay_port > 0
+                ? ticket.relay_port : settings_->GetRelayServerPort();
             const auto has_permission = [&ticket](const char* permission) {
                 return std::find(ticket.permissions.begin(), ticket.permissions.end(), permission)
                     != ticket.permissions.end();
@@ -571,9 +580,44 @@ namespace px
             target_item->audio_enabled_ = has_permission("audio");
         }
 
-        // get render configuration; to check the render online or not
-        auto direct_render_result = RenderApi::GetRenderConfiguration(target_item->stream_host_, target_item->stream_port_);
-        if (direct_render_result.has_value() && !target_item->force_relay_) {
+        bool direct_probe_enabled = true;
+        if (uses_console_ticket) {
+            try {
+                if (!target_item->rtc_ice_config_json_.empty()) {
+                    direct_probe_enabled = nlohmann::json::parse(
+                        target_item->rtc_ice_config_json_).value("direct_probe_enabled", true);
+                }
+            }
+            catch (const std::exception& error) {
+                LOGW("Invalid RTC ICE config in ticket response: {}", error.what());
+                direct_probe_enabled = false;
+            }
+        }
+
+        // During the standard-RTC test phase the Console switch is off and no
+        // direct request is made. Once enabled, this lightweight Render HTTP
+        // request is the first-stage reachability probe for net_rtc_local.
+        bool direct_available = false;
+        if (!uses_console_ticket || direct_probe_enabled) {
+            direct_available = RenderApi::GetRenderConfiguration(
+                target_item->stream_host_, target_item->stream_port_).has_value();
+        }
+
+        if (uses_console_ticket && (!direct_available || target_item->force_relay_)) {
+            if (!target_item->HasRelayInfo()) {
+                LOGE("Standard RTC requires signaling Relay information");
+                TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_cant_get_remote_device_info"),
+                                grWorkspace.get());
+                dialog.exec();
+                return;
+            }
+            LOGI("RTC route selected: {}, direct_probe_enabled={}, direct_available={}",
+                 kStreamItemNtTypeWebRTC, direct_probe_enabled, direct_available);
+            running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTC, false);
+            return;
+        }
+
+        if (direct_available && !target_item->force_relay_) {
             LOGI("We can connect directly: {}:{}", target_item->stream_host_, target_item->stream_port_);
             // verify device password before launching the client(same idea as the relay flow):
             // safety pwd(md5) preferred, fall back to md5(random pwd); re-ask on failure.
@@ -626,7 +670,10 @@ namespace px
 
             // start via udp, webrtc or websocket, depends on the "use_udp"/"use_webrtc" options
             if (uses_console_ticket) {
-                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
+                LOGI("RTC route selected: {}, direct probe succeeded",
+                     kStreamItemNtTypeWebRTCDirect);
+                running_stream_mgr_->StartStream(
+                    target_item, kStreamItemNtTypeWebRTCDirect, true);
             }
             else if (target_item->use_udp_) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeUdpDirect, true);
@@ -639,22 +686,6 @@ namespace px
             }
         }
         else {
-            if (uses_console_ticket) {
-                // Ticket endpoints are instance-specific. Falling back to the
-                // legacy device relay path asks for an unrelated relay room
-                // and produces a misleading "remote device information"
-                // error after the application instance has already stopped.
-                LOGE("Console ticket endpoint is unavailable: {}:{}",
-                     target_item->stream_host_, target_item->stream_port_);
-                if (uses_console_app_ticket) {
-                    target_item->console_instance_id_.clear();
-                    target_item->console_instance_state_ = "stopped";
-                }
-                TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_device_offline"),
-                                grWorkspace.get());
-                dialog.exec();
-                return;
-            }
             // we can't connect directly
             LOGI("We can *NOT* connect directly: {}:{}, will try relay!", target_item->stream_host_, target_item->stream_port_);
             LOGI("Stream id: {}", target_item->stream_id_);

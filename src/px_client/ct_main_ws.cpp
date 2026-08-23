@@ -243,7 +243,10 @@ bool ParseCommandLine(QApplication& app) {
         else if (g_nt_type_ == kStreamItemNtTypeRelay) {
             return ClientNetworkType::kRelay;
         }
-        else if (g_nt_type_ == kStreamItemNtTypeWebRTCDirect || g_nt_type_ == kStreamItemNtTypeWebRTC) {
+        else if (g_nt_type_ == kStreamItemNtTypeWebRTCDirect) {
+            return ClientNetworkType::kWebRtcDirect;
+        }
+        else if (g_nt_type_ == kStreamItemNtTypeWebRTC) {
             return ClientNetworkType::kWebRtc;
         }
         else if (g_nt_type_ == kStreamItemNtTypeUdpDirect) {
@@ -286,6 +289,10 @@ bool ParseCommandLine(QApplication& app) {
         settings->remote_device_safety_pwd_ = Base64::Base64Decode(settings->remote_device_safety_pwd_);
     }
     settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
+    if (const auto rtc_config = qEnvironmentVariable("PX_RTC_ICE_CONFIG"); !rtc_config.isEmpty()) {
+        settings->rtc_ice_config_json_ = rtc_config.toStdString();
+        qunsetenv("PX_RTC_ICE_CONFIG");
+    }
     settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
     settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
     if (settings->file_transfer_only_) {
@@ -295,7 +302,8 @@ bool ParseCommandLine(QApplication& app) {
         }
         const bool supported_transport = settings->network_type_ == ClientNetworkType::kWebsocket
             || settings->network_type_ == ClientNetworkType::kRelay
-            || settings->network_type_ == ClientNetworkType::kWebRtc;
+            || settings->network_type_ == ClientNetworkType::kWebRtc
+            || settings->network_type_ == ClientNetworkType::kWebRtcDirect;
         if (!supported_transport) {
             LOGE("Standalone file transfer does not support network type: {}", g_nt_type_);
             return false;
@@ -641,6 +649,7 @@ int main(int argc, char** argv) {
         .connection_ticket_ = settings->connection_ticket_,
         .connection_nonce_ = settings->connection_nonce_,
         .connection_instance_id_ = settings->connection_instance_id_,
+        .rtc_ice_config_json_ = settings->rtc_ice_config_json_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();

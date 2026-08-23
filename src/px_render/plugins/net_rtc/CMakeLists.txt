@@ -15,12 +15,6 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 #        $<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>)
 
 message("RTC PLUGIN, WEBRTC_ROOT: ${WEBRTC_ROOT}")
-include_directories(${WEBRTC_ROOT}/)
-include_directories(${WEBRTC_ROOT}/include)
-include_directories(${WEBRTC_ROOT}/include/third_party/abseil-cpp)
-include_directories(${WEBRTC_ROOT}/include/third_party/jsoncpp/source/include/)
-include_directories(${WEBRTC_ROOT}/include/base)
-link_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc/x64)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_plugin.cpp
@@ -34,11 +28,24 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
+add_library(net_rtc_signaling STATIC rtc_signaling.cpp)
+target_link_libraries(net_rtc_signaling PUBLIC px_common_new px_message px_net_plugin)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+        ${WEBRTC_ROOT}/
+        ${WEBRTC_ROOT}/include
+        ${WEBRTC_ROOT}/include/third_party/abseil-cpp
+        ${WEBRTC_ROOT}/include/third_party/jsoncpp/source/include/
+        ${WEBRTC_ROOT}/include/base
+)
+target_link_directories(${PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc/x64
+)
 #add_library(${PROJECT_NAME} ${PLUGIN_SRCS})
 # webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
 # linked through px_common_new; /FORCE:MULTIPLE lets the linker pick one.
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new px_message px_net_plugin
+target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new px_message px_net_plugin net_rtc_signaling
         webrtc.lib
         Winmm
         ws2_32

@@ -6,6 +6,7 @@
 #define PX_RTC_MESSAGES_H
 
 #include <string>
+#include <vector>
 
 namespace px
 {
@@ -15,6 +16,8 @@ namespace px
         std::string stream_id_;
         std::string device_id_;
         std::string sdp_;
+        std::string ice_config_json_;
+        std::vector<std::string> permissions_;
     };
 
     class MsgRtcRemoteIce {
@@ -25,6 +28,9 @@ namespace px
         std::string mid_;
         int sdp_mline_index_ = 0;
     };
+
+    bool IsRtcPayloadAuthorized(const std::string& payload,
+                                const std::vector<std::string>& permissions);
 
 }
 

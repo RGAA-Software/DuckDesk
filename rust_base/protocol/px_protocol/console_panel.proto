@@ -11,6 +11,9 @@ enum ConsolePanelMessageType {
   kRecordListResp = 3;
   kRecordFetchReq = 4;
   kRecordFetchDone = 5;
+  // Console -> Panel. The payload is an invalidation only; Panel pulls the
+  // authenticated configuration from /api/v1/rtc/ice-config.
+  kRtcIceConfigChanged = 6;
 }
 
 message ConsolePanelHello {
@@ -85,6 +88,11 @@ message RecordFetchDone {
   string error = 5;
 }
 
+message RtcIceConfigChanged {
+  uint64 revision = 1;
+  int64 changed_at = 2;
+}
+
 message ConsolePanelMessage {
   ConsolePanelMessageType msg_type = 1;
   string device_id = 10;
@@ -95,4 +103,5 @@ message ConsolePanelMessage {
   RecordListResp record_list_resp = 51;
   RecordFetchReq record_fetch_req = 52;
   RecordFetchDone record_fetch_done = 53;
+  RtcIceConfigChanged rtc_ice_config_changed = 60;
 }

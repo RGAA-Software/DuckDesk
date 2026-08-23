@@ -4,7 +4,10 @@ use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
-use protocol::console_panel::{ConsolePanelHeartBeat, ConsolePanelHello, ConsolePanelMessage, ConsolePanelMessageType};
+use protocol::console_panel::{
+    ConsolePanelHeartBeat, ConsolePanelHello, ConsolePanelMessage, ConsolePanelMessageType,
+    RtcIceConfigChanged,
+};
 use px_base::sys_info::SysInfo;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -228,6 +231,18 @@ impl ConsolePanelConn {
 
     pub async fn send_bin_message_vec(&mut self, data: Vec<u8>) {
         self.send_bin_message_bytes(Bytes::from(data)).await;
+    }
+
+    pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
+        let mut message = ConsolePanelMessage::default();
+        message.set_msg_type(ConsolePanelMessageType::KRtcIceConfigChanged);
+        message.device_id = self.device_id.clone();
+        message.rtc_ice_config_changed = Some(RtcIceConfigChanged {
+            revision,
+            changed_at,
+        });
+        self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
+            .await
     }
 
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {

@@ -25,7 +25,9 @@ namespace px
         explicit RtcServer(RtcPlugin* plugin);
         RtcPlugin* GetPlugin();
 
-        bool Start(const std::string& stream_id, const std::string& offer_sdp);
+        bool Start(const std::string& stream_id, const std::string& offer_sdp,
+                   const std::string& ice_config_json,
+                   const std::vector<std::string>& permissions);
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
@@ -62,6 +64,8 @@ namespace px
         std::unique_ptr<rtc::Thread> sig_thread_;
         std::string stream_id_;
         std::string offer_sdp_;
+        std::string ice_config_json_;
+        std::vector<std::string> permissions_;
         std::string sdp_;
         std::shared_ptr<PeerCallback> peer_callback_ = nullptr;
         rtc::scoped_refptr<SetSessCallback> set_remote_offer_sdp_callback_ = nullptr;
@@ -74,6 +78,7 @@ namespace px
 
         std::shared_ptr<RtcDataChannel> media_data_channel_ = nullptr;
         std::shared_ptr<RtcDataChannel> ft_data_channel_ = nullptr;
+        std::shared_ptr<RtcDataChannel> input_data_channel_ = nullptr;
         std::atomic<bool> exit_ = false;
         // 断开事件去重:见 EmitClientDisconnectedEvent
         std::atomic_bool disconnect_event_sent_ = false;

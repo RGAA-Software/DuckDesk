@@ -22,6 +22,8 @@ enum ConsoleServiceMessageType {
   // Service -> Console, then Console -> Service.
   kConsoleServiceRedeemConnectionTicket = 8;
   kConsoleServiceRedeemConnectionTicketResult = 9;
+  // Console -> Service. Invalidation only; Service pulls the new version.
+  kRtcIceConfigChanged = 10;
 }
 
 message ConsoleServiceHello {
@@ -132,6 +134,13 @@ message ConsoleServiceRedeemConnectionTicketResult {
   bool ok = 2;
   string code = 3;
   ConsoleConnectionGrant grant = 4;
+  // Serialized RtcSessionIceConfig, issued only after ticket redemption.
+  string rtc_ice_config_json = 5;
+}
+
+message RtcIceConfigChanged {
+  uint64 revision = 1;
+  int64 changed_at = 2;
 }
 
 message ConsoleServiceMessage {
@@ -147,4 +156,5 @@ message ConsoleServiceMessage {
   ConsoleServiceCreateWallSessionResult create_wall_session_result = 90;
   ConsoleServiceRedeemConnectionTicket redeem_connection_ticket = 100;
   ConsoleServiceRedeemConnectionTicketResult redeem_connection_ticket_result = 110;
+  RtcIceConfigChanged rtc_ice_config_changed = 120;
 }

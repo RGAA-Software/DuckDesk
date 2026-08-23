@@ -3,7 +3,7 @@
 > 状态：已完成（2026-08-22）
 >
 > 首期通道：直连 WS、RTC LAN、Relay
-> 不在本期：RTC TURN；Coturn 的 Console 托管与状态展示是独立能力，不影响本功能验收。
+> 独立文件进程的首期通道仍为 WS/Relay；普通标准 RTC 控制会话可复用 `ft_data_channel` 经 ICE/TURN 传输。
 
 ## 1. 最终产品行为
 
@@ -209,8 +209,8 @@ scripts\test_file_transfer_only_wss.bat <device_id> <host> <port> <ticket_b64> <
 6. 关闭画面客户端后再次从 Panel 点击，确认独立直连固定走 WS；强制 Relay
    时只建立 FT room。
 
-## 9. 后续扩展
+## 9. 与标准 RTC/TURN 的关系（2026-08-23 更新）
 
-TURN 不是这三条首期通道的阻塞项。后续若让 RTC 跨 NAT，应在现有 RTC 配置中加入 Console 下发的 ICE server/临时 TURN credential，并把验收矩阵增加 `RTC TURN`；不要改变当前 Panel 入口或再生成一个客户端 EXE。
+标准 RTC 已接入 Console 下发的多个 ICE Server和短期 TURN credential。普通画面会话走 `webrtc` 时，文件窗口复用同一 PeerConnection 的 `ft_data_channel`，因此 ICE 选中 relay 时文件数据也经过 Coturn。没有普通画面会话时，独立 `--mode=file-transfer` 仍按本文件规则使用 WS 或应用 Relay，避免为文件窗口额外占用/竞争 RTC 会话。Panel 入口和客户端 EXE 均不变。
 
 命令行仍可看到当前进程自己的 ticket 参数。进一步加固可改为 Panel 与客户端之间的一次性本机 IPC launch handle；这不会改变服务端现有的一次性、设备绑定和权限校验。

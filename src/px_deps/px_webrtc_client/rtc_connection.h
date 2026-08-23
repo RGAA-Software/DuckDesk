@@ -58,6 +58,7 @@ namespace px
         void On16msTimeout() override;
 
         void SetLocalRtcMode(bool on) override;
+        void SetIceServersJson(const std::string& json) override;
 
         // called by PeerCallback
         void OnIceGatheringComplete();
@@ -99,6 +100,7 @@ namespace px
 
         // local(direct) mode: no STUN server, non-trickle signaling
         bool local_rtc_mode_ = false;
+        std::string ice_servers_json_;
         std::shared_ptr<RtcVideoSink> video_sink_ = nullptr;
 
         // encoded-sink mode(local multi-track): one sink per remote video track,

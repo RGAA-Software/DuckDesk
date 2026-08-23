@@ -3,6 +3,7 @@ import {PxConn} from "./px_conn.ts";
 import {PxRendererManager} from "../renderer/px_renderer_manager.ts";
 import {PxWsConn} from "./px_ws_conn.ts";
 import {PxRtcDirectConn} from "./px_rtc_direct_conn.ts";
+import {PxRtcConn} from "./px_rtc_conn.ts";
 
 export class PxSdk {
 
@@ -36,6 +37,9 @@ export class PxSdk {
         else if (this.sdkParams.sdkType == PxSdkConnType.kWebRtcDirect) {
             this.startWithRtcDirect(connParams);
         }
+        else if (this.sdkParams.sdkType == PxSdkConnType.kWebRtc) {
+            this.startWithRtc(connParams);
+        }
         else {
             console.log("unknown sdk type: ", this.sdkParams.sdkType);
         }
@@ -51,6 +55,12 @@ export class PxSdk {
         console.log("startWithRtcDirect")
         this.streamConn = new PxRtcDirectConn(this, connParams, this.rendererManager);
         this.streamConn.start();
+    }
+
+    private startWithRtc(connParams: PxConnParams) {
+        console.log("startWithRtcStandard")
+        this.streamConn = new PxRtcConn(this, connParams, this.rendererManager);
+        void this.streamConn.start();
     }
 
 

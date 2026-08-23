@@ -6,6 +6,9 @@ message SigOfferSdpMessage {
   string device_id = 1;
   string room_id = 2;
   string sdp = 3;
+  string connection_ticket = 4;
+  string client_nonce = 5;
+  string instance_id = 6;
 }
 
 message SigAnswerSdpMessage {

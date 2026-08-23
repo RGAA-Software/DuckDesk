@@ -175,7 +175,8 @@ namespace px
             event->callback_ = [wait_state](
                 bool ok,
                 const std::string& code,
-                const std::vector<std::string>& permissions) {
+                const std::vector<std::string>& permissions,
+                const std::string&) {
                 {
                     std::scoped_lock lock(wait_state->mutex_);
                     wait_state->ok_ = ok;

@@ -34,6 +34,7 @@ const CONNECT_TIMEOUT_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 2;
 const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
+const RTC_CONFIG_POLL_SECS: u64 = 60;
 
 /// WS/WSS client loop towards the Console (px_console_server) `/console/service` endpoint.
 ///
@@ -129,6 +130,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
             sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
             continue;
         }
+        spawn_rtc_config_refresh(runtime.clone(), auth_info.clone(), 0);
 
         // heartbeat task: reports render liveness + the latest auth info as JSON
         let hb_sender = sender.clone();
@@ -186,6 +188,17 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let mut should_stop = false;
         let mut pending_tickets: HashMap<String, tokio::sync::oneshot::Sender<TicketRedeemResult>> =
             HashMap::new();
+        let jitter = auth_info
+            .device_id
+            .bytes()
+            .fold(0_u64, |sum, byte| sum.wrapping_add(byte as u64))
+            % 31;
+        let poll_seconds = RTC_CONFIG_POLL_SECS + jitter - 15;
+        let mut rtc_config_interval =
+            tokio::time::interval(Duration::from_secs(poll_seconds));
+        rtc_config_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // Initial pull was already scheduled above.
+        rtc_config_interval.tick().await;
         loop {
             tokio::select! {
                 msg = receiver.next() => {
@@ -210,8 +223,12 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                             subject_id: grant.subject_id,
                                             permissions: grant.permissions,
                                             expires_at: grant.expires_at,
+                                            rtc_ice_config_json: result.rtc_ice_config_json,
                                         });
                                     }
+                                }
+                                Ok(Some(ConsoleInboundCommand::RtcIceConfigChanged(revision))) => {
+                                    spawn_rtc_config_refresh(runtime.clone(), auth_info.clone(), revision);
                                 }
                                 Ok(Some(cmd)) => {
                                     // Start/Stop 可能耗时数秒(等 render 监听端口、
@@ -262,6 +279,9 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                             ..Default::default()
                         });
                     }
+                }
+                _ = rtc_config_interval.tick() => {
+                    spawn_rtc_config_refresh(runtime.clone(), auth_info.clone(), 0);
                 }
                 _ = stop_rx.recv() => {
                     info!("console client loop received stop signal");
@@ -367,6 +387,102 @@ fn build_console_url_for_route(
     )
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RtcIceConfigView {
+    revision: u64,
+    direct_probe_enabled: bool,
+    servers: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct RtcConfigApiResponse {
+    code: i32,
+    data: RtcIceConfigView,
+}
+
+fn spawn_rtc_config_refresh(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    auth_info: MsgAuthInfo,
+    expected_revision: u64,
+) {
+    tokio::spawn(async move {
+        if expected_revision != 0 {
+            let delay_ms = auth_info
+                .device_id
+                .bytes()
+                .fold(expected_revision, |sum, byte| sum.wrapping_add(byte as u64))
+                % 3001;
+            sleep(Duration::from_millis(delay_ms)).await;
+        }
+        if let Err(error) = refresh_rtc_config(&runtime, &auth_info, expected_revision).await {
+            warn!("refresh RTC ICE configuration failed: {error}");
+        }
+    });
+}
+
+async fn refresh_rtc_config(
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    auth_info: &MsgAuthInfo,
+    expected_revision: u64,
+) -> Result<(), String> {
+    let scheme = if auth_info.console_ssl { "https" } else { "http" };
+    let url = format!(
+        "{scheme}://{}:{}/api/v1/rtc/ice-config",
+        auth_info.console_host, auth_info.console_port
+    );
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(5))
+        // Pixels deployments commonly use the bundled self-signed Console
+        // certificate. Authentication still uses the installation appkey.
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .get(url)
+        .header("x-px-appkey", &auth_info.appkey)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("Console returned {}", response.status()));
+    }
+    let envelope: RtcConfigApiResponse = response.json().await.map_err(|error| error.to_string())?;
+    if envelope.code != 0 && envelope.code != 200 {
+        return Err(format!("Console RTC API returned code {}", envelope.code));
+    }
+    if expected_revision != 0 && envelope.data.revision < expected_revision {
+        return Err(format!(
+            "received stale RTC revision {}, expected at least {}",
+            envelope.data.revision, expected_revision
+        ));
+    }
+    let (path, current_revision) = {
+        let guard = runtime.lock().await;
+        let path = guard.config.data_root.join("rtc_ice_config.json");
+        let current_revision = std::fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<RtcIceConfigView>(&bytes).ok())
+            .map(|config| config.revision)
+            .unwrap_or_default();
+        (path, current_revision)
+    };
+    if envelope.data.revision <= current_revision {
+        return Ok(());
+    }
+    let bytes = serde_json::to_vec_pretty(&envelope.data).map_err(|error| error.to_string())?;
+    tokio::fs::write(&path, bytes)
+        .await
+        .map_err(|error| format!("write {} failed: {error}", path.display()))?;
+    info!(
+        revision = envelope.data.revision,
+        direct_probe_enabled = envelope.data.direct_probe_enabled,
+        servers = envelope.data.servers.len(),
+        "RTC ICE configuration cache updated"
+    );
+    Ok(())
+}
+
 fn hello_message(device_id: &str, appkey: &str) -> ConsoleServiceMessage {
     ConsoleServiceMessage {
         msg_type: ConsoleServiceMessageType::KConsoleServiceHello as i32,
@@ -424,6 +540,7 @@ pub enum ConsoleInboundCommand {
     },
     CreateWallSession(ConsoleServiceCreateWallSession),
     RedeemTicketResult(ConsoleServiceRedeemConnectionTicketResult),
+    RtcIceConfigChanged(u64),
 }
 
 /// Parse a Console binary frame into an inbound command (if any).
@@ -470,6 +587,13 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
                     .ok_or("missing redeem_connection_ticket_result")?,
             )))
         }
+        Ok(ConsoleServiceMessageType::KRtcIceConfigChanged) => Ok(Some(
+            ConsoleInboundCommand::RtcIceConfigChanged(
+                msg.rtc_ice_config_changed
+                    .ok_or("missing rtc_ice_config_changed")?
+                    .revision,
+            ),
+        )),
         Ok(ConsoleServiceMessageType::KConsoleServiceHello)
         | Ok(ConsoleServiceMessageType::KConsoleServiceHeartBeat)
         | Ok(ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult)
@@ -791,6 +915,7 @@ fn spawn_console_command_handler(
                 )))
             }
             ConsoleInboundCommand::RedeemTicketResult(_) => None,
+            ConsoleInboundCommand::RtcIceConfigChanged(_) => None,
         };
         if let Some(frame) = reply {
             if !send_frame(&sender, frame).await {

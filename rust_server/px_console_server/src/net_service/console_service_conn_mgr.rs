@@ -106,6 +106,29 @@ impl ConsoleServiceConnManager {
         }
         Ok(false)
     }
+
+    pub async fn broadcast_rtc_ice_config_changed(&self, revision: u64, changed_at: i64) -> usize {
+        let connections: Vec<_> = self
+            .state
+            .lock()
+            .await
+            .connections
+            .values()
+            .cloned()
+            .collect();
+        let mut delivered = 0;
+        for connection in connections {
+            if connection
+                .lock()
+                .await
+                .send_rtc_ice_config_changed(revision, changed_at)
+                .await
+            {
+                delivered += 1;
+            }
+        }
+        delivered
+    }
 }
 
 #[cfg(test)]

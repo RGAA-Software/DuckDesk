@@ -9,6 +9,8 @@
 #include "rtc_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "rtc_data_channel.h"
+#include <nlohmann/json.hpp>
+#include <algorithm>
 
 using namespace webrtc;
 
@@ -27,9 +29,13 @@ namespace px
         return plugin_;
     }
 
-    bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp) {
+    bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp,
+                          const std::string& ice_config_json,
+                          const std::vector<std::string>& permissions) {
         this->stream_id_ = stream_id;
         this->offer_sdp_ = offer_sdp;
+        this->ice_config_json_ = ice_config_json;
+        this->permissions_ = permissions;
         webrtc::field_trial::InitFieldTrialsFromString("");
         rtc::LogMessage::LogToDebug(rtc::LS_ERROR);
         rtc::InitializeSSL();
@@ -42,6 +48,14 @@ namespace px
         // set remote offer sdp
         set_remote_offer_sdp_callback_->SetSdpSuccessCallback([=]() {
             LOGI("Set remote sdp success");
+            if (!peer_conn_) {
+                return;
+            }
+            LOGI("Will create answer sdp.");
+            webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
+            options.offer_to_receive_audio = true;
+            options.offer_to_receive_video = true;
+            peer_conn_->CreateAnswer(create_answer_callback_.get(), options);
         });
 
         set_remote_offer_sdp_callback_->SetSdpFailedCallback([=](const std::string& m) {
@@ -60,10 +74,10 @@ namespace px
         // create answer sdp callback
         create_answer_callback_->SetOnCreateSdpSuccessCallback([=, this](webrtc::SessionDescriptionInterface* desc) {
             LOGI("Create answer sdp success, will set local sdp.");
-            peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
             std::string sdp;
             desc->ToString(&sdp);
             this->sdp_ = sdp;
+            peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
             // send to remote
             this->SendSdpToRemote(sdp);
         });
@@ -79,22 +93,50 @@ namespace px
         });
 
         peer_callback_->SetOnDataChannelCallback([=, this](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
-            if (name == "media_data_channel") {
+            const bool may_view = std::find(permissions_.begin(), permissions_.end(), "view")
+                != permissions_.end();
+            const bool may_file = std::find(permissions_.begin(), permissions_.end(), "file")
+                != permissions_.end();
+            if (name == "media_data_channel" && may_view) {
                 media_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
 
                 // data callback
                 media_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                    if (!IsRtcPayloadAuthorized(data, permissions_)) {
+                        LOGW("Drop unauthorized or malformed full RTC media payload");
+                        return;
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kMedia, payload_msg);
                 });
             }
-            else if (name == "ft_data_channel") {
+            else if (name == "ft_data_channel" && may_file) {
                 ft_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
 
                 // data callback
                 ft_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                    if (!IsRtcPayloadAuthorized(data, permissions_)) {
+                        LOGW("Drop unauthorized or malformed full RTC file payload");
+                        return;
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kFileTransfer, payload_msg);
+                });
+            }
+            else if (name == "input_data_channel") {
+                const bool may_input = std::find(permissions_.begin(), permissions_.end(), "input")
+                    != permissions_.end();
+                if (!may_input) {
+                    LOGW("Close full RTC input channel: permission not granted");
+                    ch->Close();
+                    return;
+                }
+                input_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                input_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                    auto payload_msg = Data::Make(data.data(), data.size());
+                    plugin_->OnClientEventCameDirectly(
+                        true, 0, NetPluginType::kWebRtc,
+                        NetChannelType::kMedia, std::move(payload_msg));
                 });
             }
         });
@@ -110,7 +152,7 @@ namespace px
 
         CreatePeerConnectionFactory();
         CreatePeerConnection();
-        return true;
+        return peer_conn_ != nullptr;
     }
 
     static void CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
@@ -136,18 +178,26 @@ namespace px
         configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
         //configuration_.enable_dtls_srtp = true;
 
-        {
-            auto stun = webrtc::PeerConnectionInterface::IceServer();
-            stun.uri = "stun:39.91.109.105:60498";
-            configuration_.servers.push_back(stun);
+        configuration_.servers.clear();
+        try {
+            const auto config = nlohmann::json::parse(ice_config_json_);
+            for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
+                const auto username = entry.value("username", "");
+                const auto credential = entry.value("credential", "");
+                for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
+                    auto server = webrtc::PeerConnectionInterface::IceServer();
+                    server.uri = url;
+                    server.username = username;
+                    server.password = credential;
+                    server.tls_cert_policy =
+                        webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
+                    configuration_.servers.push_back(std::move(server));
+                }
+            }
+            LOGI("Configured {} ICE server URLs for full RTC render", configuration_.servers.size());
         }
-        if (0) {
-            auto turn = webrtc::PeerConnectionInterface::IceServer();
-            turn.tls_cert_policy = webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicyInsecureNoCheck;
-            turn.uri = "turn:syxmsg.xyz:3478";
-            turn.username = "test";
-            turn.password = "123456";
-            configuration_.servers.push_back(turn);
+        catch (const std::exception& error) {
+            LOGE("Invalid full RTC ICE configuration: {}", error.what());
         }
         network_thread_ = rtc::Thread::CreateWithSocketServer();
         network_thread_->Start();
@@ -177,6 +227,10 @@ namespace px
     }
 
     void RtcServer::CreatePeerConnection() {
+        if (!peer_conn_factory_) {
+            LOGE("Cannot create full RTC PeerConnection without a factory");
+            return;
+        }
         configuration_.port_allocator_config.min_port = 60430;
         configuration_.port_allocator_config.max_port = 60490;
         auto result = peer_conn_factory_->
@@ -198,17 +252,11 @@ namespace px
         LOGI("Will set remote offer sdp.");
         webrtc::SdpParseError error;
         webrtc::SessionDescriptionInterface* session_description(webrtc::CreateSessionDescription("offer", offer_sdp_, &error));
-        peer_conn_->SetRemoteDescription(this->set_remote_offer_sdp_callback_.get(), session_description);
-        if (!error.line.empty()) {
+        if (!session_description || !error.line.empty()) {
             LOGE("OnOfferSdpCallback, SetRemoteDescription error: {}, {}", error.line, error.description);
             return;
         }
-
-        LOGI("Will create answer sdp.");
-        webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
-        options.offer_to_receive_audio = true;
-        options.offer_to_receive_video = true;
-        peer_conn_->CreateAnswer(this->create_answer_callback_.get(), options);
+        peer_conn_->SetRemoteDescription(this->set_remote_offer_sdp_callback_.get(), session_description);
 
     }
 
@@ -332,6 +380,9 @@ namespace px
         }
         if (ft_data_channel_) {
             ft_data_channel_->Close();
+        }
+        if (input_data_channel_) {
+            input_data_channel_->Close();
         }
         if (peer_conn_) {
             peer_conn_->Close();

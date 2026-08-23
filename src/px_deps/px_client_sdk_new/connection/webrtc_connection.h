@@ -6,6 +6,7 @@
 #define PX_WEBRTC_CONNECTION_H
 
 #include <functional>
+#include <atomic>
 #include <string>
 #ifdef WIN32
 #include <QLibrary>
@@ -73,6 +74,8 @@ namespace px
 
         void SendSdpToRemote(const std::string& sdp);
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);
+        void NotifyConnectedWhenReady();
+        void NotifyDisconnectedOnce();
 
         void RunInRtcThread(std::function<void()>&&);
 
@@ -90,6 +93,11 @@ namespace px
 
         std::function<void(std::shared_ptr<Data>)> media_msg_cbk_;
         std::function<void(std::shared_ptr<Data>)> ft_msg_cbk_;
+        std::atomic_bool init_started_{false};
+        std::atomic_bool ice_connected_{false};
+        std::atomic_bool connected_notified_{false};
+        std::atomic_bool disconnected_notified_{false};
+        std::atomic_bool stopped_{false};
 
     };
 

@@ -24,6 +24,10 @@ namespace px_console
         std::string launch_url;
         int64_t expires_at = 0;
         std::vector<std::string> permissions;
+        // Serialized RtcSessionIceConfig. Kept in memory, never in a URL.
+        std::string rtc_ice_config_json;
+        std::string relay_host;
+        int relay_port = 0;
     };
 
     class ConsoleUserDeviceApi {

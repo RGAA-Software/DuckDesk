@@ -87,6 +87,10 @@ namespace px
         // must be called before Init()
         virtual void SetLocalRtcMode(bool on) {}
 
+        // Serialized RtcSessionIceConfig. Must be set before Init(); secrets
+        // are consumed in-memory and never logged by the RTC DLL.
+        virtual void SetIceServersJson(const std::string& json) {}
+
         // A standalone file manager negotiates only the reliable FT data
         // channel: no media/input data channels and no audio/video m-lines.
         // Must be called before Init().

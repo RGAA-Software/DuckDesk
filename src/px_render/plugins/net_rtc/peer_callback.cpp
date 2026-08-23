@@ -56,7 +56,6 @@ namespace px
             }
         }
         else if (new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionFailed
-            || new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionDisconnected
             || new_state == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionClosed) {
             LOGI("ICE -- Closed.");
             if (ice_disconn_cbk_) {

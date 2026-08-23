@@ -1,6 +1,6 @@
 # GammaRay/GoDesk 架构总览
 
-> 2026-08-09 整理。本文是项目的模块关系与整体理解的单一入口；各专题细节见文末链接的专题文档。
+> 2026-08-23 更新。本文是项目的模块关系与整体理解的单一入口；各专题细节见文末链接的专题文档。
 
 ## 1. 这是什么
 
@@ -33,6 +33,8 @@
    px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ Console 每小时拉自己的授权 (HMAC appkey 签名)
    px_console_server :30500 (HTTPS/WSS) + 托管 web/px_console 管理前端
+        ├─ 应用 Relay：标准 RTC 的 SDP / Trickle ICE 信令
+        └─ px_turn :20128 TCP/UDP；relay UDP :20200-20500
         ↑ WSS /console/service  ←—— px_service (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— Console 管理 Web (游戏/实例启停)
@@ -43,8 +45,8 @@
         ↑ /service/message ←—— 每一个 render (desktop + 每个 game-hook) 1s 心跳
         ↑ ←—— panel (推授权 AuthInfo、拉起桌面 render 的 StartServer)
 
-   数据面 (不过 Console):
-   观看端浏览器 → http://{被控IP}:{render端口}/web_client → WebRTC 直连 render
+   数据面:
+   观看端 → 可直达时 net_rtc_local；不可直达时 net_rtc + ICE(host/srflx/turn relay)
    Windows 观看端 → WS /media 直连 render
    注入的游戏 DLL → WS /ipc (仅 127.0.0.1) 推采集帧 → render
    桌面 render :20371；game render :32000-32999 (service 端口池)
@@ -81,7 +83,7 @@ Console Web「启动」→ Console manager 按 (app_id, device_id) 找 placement
 
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
-3. **观看端可达性假设直连**：WebRTC 无 STUN/TURN，跨 NAT 不通；console relay 存在但 game render 场景未走。
+3. **标准 RTC 的生产网络验收尚未完成**：Console 已托管 Coturn，`net_rtc` 已支持多个动态 ICE Server 和 Relay 信令；仍需在对称 NAT、TURN TCP 和端口耗尽场景做双机/公网验收。测试期 `direct_probe_enabled=false` 固定进入标准 RTC。
 4. **本机控制面 :20375 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 7. 专题文档索引
@@ -90,3 +92,4 @@ Console Web「启动」→ Console manager 按 (app_id, device_id) 找 placement
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
 - 构建/部署：`../build_doc.md`、`gammaray/How_to_*.md`
+- WebRTC/Coturn 配置、构建与验收：`webrtc_coturn_implementation_plan.md`

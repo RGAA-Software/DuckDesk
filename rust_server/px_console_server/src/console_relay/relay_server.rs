@@ -155,6 +155,25 @@ impl RelayServer {
                 Ok(_) => return crate::console_api_error::ConsoleApiError::Forbidden.into_response(),
                 Err(err) => return err.into_response(),
             }
+        } else if params.get("rtc_signal").is_some_and(|value| value == "1") {
+            let (Some(ticket), Some(nonce), Some(remote)) = (
+                params.get("ticket"),
+                params.get("client_nonce"),
+                params.get("remote_device_id"),
+            ) else {
+                return crate::console_api_error::ConsoleApiError::InvalidParams.into_response();
+            };
+            if ConnectionTicketManager::lookup_active(
+                ticket,
+                remote,
+                nonce,
+                params.get("instance_id").map(String::as_str),
+            )
+            .await
+            .is_err()
+            {
+                return crate::console_api_error::ConsoleApiError::TicketExpiredOrUsed.into_response();
+            }
         } else if params.contains_key("ticket") || params.contains_key("client_nonce") {
             // Capability material is accepted only on the explicitly scoped
             // standalone file route.
@@ -179,9 +198,11 @@ impl RelayServer {
             let device_name = params.get("device_name").unwrap_or(&"".to_string()).clone();
             let stream_id = params.get("stream_id").unwrap_or(&"".to_string()).clone();
             let authorized_remote_device_id = params
-                .get("file_only")
-                .filter(|value| value.as_str() == "1")
-                .and_then(|_| params.get("remote_device_id"))
+                .get("remote_device_id")
+                .filter(|_| {
+                    params.get("file_only").is_some_and(|value| value == "1")
+                        || params.get("rtc_signal").is_some_and(|value| value == "1")
+                })
                 .cloned();
             // socket sender
             let sender = Arc::new(Mutex::new(sender));

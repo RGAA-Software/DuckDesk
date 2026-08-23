@@ -104,6 +104,13 @@ pub struct RecordFetchDone {
     #[prost(string, tag = "5")]
     pub error: ::prost::alloc::string::String,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RtcIceConfigChanged {
+    #[prost(uint64, tag = "1")]
+    pub revision: u64,
+    #[prost(int64, tag = "2")]
+    pub changed_at: i64,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConsolePanelMessage {
     #[prost(enumeration = "ConsolePanelMessageType", tag = "1")]
@@ -124,6 +131,8 @@ pub struct ConsolePanelMessage {
     pub record_fetch_req: ::core::option::Option<RecordFetchReq>,
     #[prost(message, optional, tag = "53")]
     pub record_fetch_done: ::core::option::Option<RecordFetchDone>,
+    #[prost(message, optional, tag = "60")]
+    pub rtc_ice_config_changed: ::core::option::Option<RtcIceConfigChanged>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -134,6 +143,9 @@ pub enum ConsolePanelMessageType {
     KRecordListResp = 3,
     KRecordFetchReq = 4,
     KRecordFetchDone = 5,
+    /// Console -> Panel. The payload is an invalidation only; Panel pulls the
+    /// authenticated configuration from /api/v1/rtc/ice-config.
+    KRtcIceConfigChanged = 6,
 }
 impl ConsolePanelMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -148,6 +160,7 @@ impl ConsolePanelMessageType {
             Self::KRecordListResp => "kRecordListResp",
             Self::KRecordFetchReq => "kRecordFetchReq",
             Self::KRecordFetchDone => "kRecordFetchDone",
+            Self::KRtcIceConfigChanged => "kRtcIceConfigChanged",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -159,6 +172,7 @@ impl ConsolePanelMessageType {
             "kRecordListResp" => Some(Self::KRecordListResp),
             "kRecordFetchReq" => Some(Self::KRecordFetchReq),
             "kRecordFetchDone" => Some(Self::KRecordFetchDone),
+            "kRtcIceConfigChanged" => Some(Self::KRtcIceConfigChanged),
             _ => None,
         }
     }

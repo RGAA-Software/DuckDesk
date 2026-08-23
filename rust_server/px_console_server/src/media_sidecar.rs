@@ -1,11 +1,42 @@
 use crate::console_settings::ConsoleLiveSettings;
+use crate::rtc::model::ManagedTurnServerConfig;
+use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{LazyLock, RwLock};
 use std::time::Duration;
+use sysinfo::{ProcessesToUpdate, Signal, System};
 
-const TURN_LISTENING_PORT: u16 = 20128;
-const TURN_MIN_RELAY_PORT: u16 = 20200;
-const TURN_MAX_RELAY_PORT: u16 = 20500;
+static TURN_OPERATION_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+static TURN_STATUS: LazyLock<RwLock<TurnSidecarStatus>> =
+    LazyLock::new(|| RwLock::new(TurnSidecarStatus::default()));
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct TurnSidecarStatus {
+    pub enabled: bool,
+    pub running: bool,
+    pub pid: Option<u32>,
+    pub listen_ip: String,
+    pub public_host: String,
+    pub port: u16,
+    pub relay_min_port: u16,
+    pub relay_max_port: u16,
+    pub revision: u64,
+    pub last_error: String,
+}
+
+pub fn turn_status() -> TurnSidecarStatus {
+    TURN_STATUS
+        .read()
+        .expect("TURN sidecar status lock poisoned")
+        .clone()
+}
+
+fn set_turn_status(status: TurnSidecarStatus) {
+    *TURN_STATUS
+        .write()
+        .expect("TURN sidecar status lock poisoned") = status;
+}
 
 fn local_media_port(media_server_url: &str) -> Result<Option<u16>, String> {
     let authority = media_server_url
@@ -187,104 +218,209 @@ pub async fn ensure_started(settings: &ConsoleLiveSettings) {
     );
 }
 
-/// Starts the bundled Coturn sidecar from the adjacent turnserver.conf. The
-/// server address is still supplied by Console, because it is selected from `server_w3c_ip`, which is
-/// automatically resolved to a local IPv4 address when it is left empty.
-///
-/// Long-term credentials are deliberately enabled even before Console-issued
-/// TURN REST credentials are wired in, so this sidecar can never become an
-/// anonymous relay merely because it is bundled with Console.
-pub async fn ensure_turn_started(server_ip: &str) {
-    let server_ip = server_ip.trim();
-    if server_ip.parse::<std::net::IpAddr>().is_err() {
-        tracing::error!(
-            server_ip,
-            "px_turn startup skipped: Console address is not an IP address"
-        );
-        return;
-    }
-
+/// Applies the managed Coturn configuration and starts the adjacent
+/// `px_turn.exe`. The REST secret is written only to a generated file under
+/// storage; it is never placed on the command line or in a log field.
+pub async fn apply_turn_config(
+    settings: &ManagedTurnServerConfig,
+    revision: u64,
+    rest_secret_base64: &str,
+    storage_dir: &Path,
+    restart: bool,
+) -> Result<TurnSidecarStatus, String> {
+    let _operation = TURN_OPERATION_LOCK.lock().await;
     let exe_path = match std::env::current_exe() {
         Ok(path) => path,
-        Err(error) => {
-            tracing::error!("cannot determine Console executable path for px_turn: {error}");
-            return;
-        }
+        Err(error) => return Err(format!("cannot determine Console executable path for px_turn: {error}")),
     };
-    let Some(directory) = exe_path.parent() else {
-        tracing::error!("cannot determine Console executable directory for px_turn");
-        return;
-    };
+    let directory = exe_path
+        .parent()
+        .ok_or_else(|| "cannot determine Console executable directory for px_turn".to_string())?;
     let turn_exe = directory.join("px_turn.exe");
-    let turn_config = directory.join("turnserver.conf");
-    if !turn_exe.is_file() || !turn_config.is_file() {
-        tracing::error!(
-            exe = %turn_exe.display(),
-            config = %turn_config.display(),
-            "px_turn sidecar or its configuration is not deployed beside px_console.exe"
-        );
-        return;
+    if !turn_exe.is_file() {
+        return Err(format!(
+            "px_turn sidecar is not deployed beside px_console.exe: {}",
+            turn_exe.display()
+        ));
     }
-    if port_is_open(server_ip, TURN_LISTENING_PORT).await {
-        tracing::info!(
-            server_ip,
-            port = TURN_LISTENING_PORT,
-            "px_turn is already listening"
-        );
-        return;
+
+    let mut status = TurnSidecarStatus {
+        enabled: settings.enabled,
+        running: false,
+        pid: None,
+        listen_ip: settings.listen_ip.clone(),
+        public_host: settings.public_host.clone(),
+        port: settings.port,
+        relay_min_port: settings.relay_min_port,
+        relay_max_port: settings.relay_max_port,
+        revision,
+        last_error: String::new(),
+    };
+
+    if !settings.enabled {
+        stop_adjacent_turn_processes(&turn_exe).await;
+        set_turn_status(status.clone());
+        tracing::info!(revision, "managed px_turn sidecar is disabled");
+        return Ok(status);
+    }
+    if rest_secret_base64.trim().is_empty() {
+        return Err("TURN REST secret is empty".to_string());
+    }
+    std::fs::create_dir_all(storage_dir)
+        .map_err(|error| format!("create TURN runtime storage failed: {error}"))?;
+    let generated_config = storage_dir.join("turnserver.generated.conf");
+    write_turn_runtime_config(&generated_config, settings, rest_secret_base64, storage_dir)?;
+
+    let probe_host = if settings.listen_ip == "0.0.0.0" || settings.listen_ip == "::" {
+        "127.0.0.1"
+    } else {
+        settings.listen_ip.as_str()
+    };
+    if restart {
+        stop_adjacent_turn_processes(&turn_exe).await;
+    } else if port_is_open(probe_host, settings.port).await {
+        status.running = true;
+        set_turn_status(status.clone());
+        tracing::info!(port = settings.port, revision, "px_turn is already listening");
+        return Ok(status);
     }
 
     let mut command = Command::new(&turn_exe);
-    command.current_dir(directory).args([
-        "-c",
-        "./turnserver.conf",
-        "-L",
-        server_ip,
-        "-E",
-        server_ip,
-    ]);
+    command
+        .current_dir(directory)
+        .arg("-c")
+        .arg(&generated_config);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    match command.spawn() {
-        Ok(child) => tracing::info!(
+    let child = command.spawn().map_err(|error| {
+        format!(
+            "failed to start managed px_turn sidecar {}: {error}",
+            turn_exe.display()
+        )
+    })?;
+    status.pid = Some(child.id());
+    tracing::info!(
             pid = child.id(),
-            server_ip,
-            port = TURN_LISTENING_PORT,
-            min_relay_port = TURN_MIN_RELAY_PORT,
-            max_relay_port = TURN_MAX_RELAY_PORT,
+            listen_ip = %settings.listen_ip,
+            public_host = %settings.public_host,
+            port = settings.port,
+            min_relay_port = settings.relay_min_port,
+            max_relay_port = settings.relay_max_port,
+            revision,
             "started px_turn sidecar"
-        ),
-        Err(error) => {
-            tracing::error!(exe = %turn_exe.display(), "failed to start px_turn: {error}");
-            return;
-        }
-    }
+    );
 
     for _ in 0..20 {
-        if port_is_open(server_ip, TURN_LISTENING_PORT).await {
+        if port_is_open(probe_host, settings.port).await {
+            status.running = true;
+            set_turn_status(status.clone());
             tracing::info!(
-                server_ip,
-                port = TURN_LISTENING_PORT,
+                port = settings.port,
+                revision,
                 "px_turn sidecar is ready"
             );
-            return;
+            return Ok(status);
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
-    tracing::warn!(
-        server_ip,
-        port = TURN_LISTENING_PORT,
-        "px_turn was started but is not listening yet; inspect px_turn.log"
+    status.last_error = format!(
+        "px_turn was started but did not listen on {}:{} within 5 seconds",
+        probe_host, settings.port
     );
+    set_turn_status(status.clone());
+    Err(status.last_error)
+}
+
+fn write_turn_runtime_config(
+    path: &Path,
+    settings: &ManagedTurnServerConfig,
+    rest_secret_base64: &str,
+    storage_dir: &Path,
+) -> Result<(), String> {
+    let mut lines = vec![
+        format!("listening-port={}", settings.port),
+        format!("min-port={}", settings.relay_min_port),
+        format!("max-port={}", settings.relay_max_port),
+        "use-auth-secret".to_string(),
+        format!("static-auth-secret={}", rest_secret_base64.trim()),
+        format!("realm={}", settings.realm),
+        "stale-nonce".to_string(),
+        "fingerprint".to_string(),
+        "no-multicast-peers".to_string(),
+        // Coturn 4.17 keeps the CLI disabled unless `cli` is explicitly set.
+        // The legacy no-cli/no-dtls switches are deprecated and emit errors.
+        "no-tls".to_string(),
+        format!("log-file={}", storage_dir.join("px_turn.log").display()),
+        "simple-log".to_string(),
+    ];
+    if settings.listen_ip != "0.0.0.0" && settings.listen_ip != "::" {
+        lines.push(format!("listening-ip={}", settings.listen_ip));
+        lines.push(format!("relay-ip={}", settings.listen_ip));
+    }
+    if let Ok(public_ip) = settings.public_host.parse::<std::net::IpAddr>() {
+        if settings.listen_ip != "0.0.0.0"
+            && settings.listen_ip != "::"
+            && settings.listen_ip != settings.public_host
+        {
+            lines.push(format!("external-ip={public_ip}/{}", settings.listen_ip));
+        } else {
+            lines.push(format!("external-ip={public_ip}"));
+        }
+    }
+    if !settings.enable_udp {
+        lines.push("no-udp".to_string());
+    }
+    if !settings.enable_tcp {
+        lines.push("no-tcp".to_string());
+    }
+    std::fs::write(path, lines.join("\n"))
+        .map_err(|error| format!("write generated TURN configuration failed: {error}"))
+}
+
+async fn stop_adjacent_turn_processes(turn_exe: &Path) {
+    let mut system = System::new_all();
+    system.refresh_processes(ProcessesToUpdate::All, true);
+    let own_pid = std::process::id();
+    let mut killed = Vec::new();
+    for (pid, process) in system.processes() {
+        if pid.as_u32() == own_pid {
+            continue;
+        }
+        if process.exe().is_some_and(|exe| same_path(exe, turn_exe)) {
+            let _ = process.kill_with(Signal::Kill);
+            killed.push(pid.as_u32());
+        }
+    }
+    if killed.is_empty() {
+        return;
+    }
+    for _ in 0..20 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut refreshed = System::new_all();
+        refreshed.refresh_processes(ProcessesToUpdate::All, true);
+        if killed.iter().all(|pid| {
+            refreshed
+                .process(sysinfo::Pid::from_u32(*pid))
+                .is_none()
+        }) {
+            return;
+        }
+    }
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    left.to_string_lossy()
+        .eq_ignore_ascii_case(&right.to_string_lossy())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{local_media_port, synchronize_http_port};
+    use super::{local_media_port, synchronize_http_port, write_turn_runtime_config};
+    use crate::rtc::model::ManagedTurnServerConfig;
 
     #[test]
     fn resolves_only_local_media_urls() {
@@ -311,5 +447,24 @@ mod tests {
         );
         let _ = std::fs::remove_file(config);
         let _ = std::fs::remove_dir(dir);
+    }
+
+    #[test]
+    fn generated_turn_config_uses_rest_secret_without_cli_credentials() {
+        let dir = std::env::temp_dir().join(format!("px_turn_sidecar_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("turnserver.generated.conf");
+        let settings = ManagedTurnServerConfig {
+            listen_ip: "10.0.0.8".to_string(),
+            public_host: "203.0.113.8".to_string(),
+            ..Default::default()
+        };
+        write_turn_runtime_config(&path, &settings, "test-secret", &dir).unwrap();
+        let config = std::fs::read_to_string(&path).unwrap();
+        assert!(config.contains("use-auth-secret"));
+        assert!(config.contains("static-auth-secret=test-secret"));
+        assert!(config.contains("external-ip=203.0.113.8/10.0.0.8"));
+        assert!(!config.contains("user="));
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

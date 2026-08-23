@@ -74,7 +74,9 @@ namespace px
         auto event = std::make_shared<PxPluginRedeemConnectionTicketEvent>();
         event->ticket_ = ticket_it->second;
         event->client_nonce_ = nonce_it->second;
-        event->callback_ = [state](bool ok, const std::string&, const std::vector<std::string>& permissions) {
+        event->callback_ = [state](bool ok, const std::string&,
+                                   const std::vector<std::string>& permissions,
+                                   const std::string&) {
             std::scoped_lock lock(state->mutex_);
             state->ok_ = ok;
             state->permissions_ = permissions;

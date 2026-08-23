@@ -316,7 +316,10 @@ namespace px
                                 return "WS";
                             }
                             else if (settings_->network_type_ == ClientNetworkType::kWebRtc) {
-                                return "WebRTC Local";
+                                return "WebRTC";
+                            }
+                            else if (settings_->network_type_ == ClientNetworkType::kWebRtcDirect) {
+                                return "WebRTC Direct";
                             }
                             else if (settings_->network_type_ == ClientNetworkType::kUdpDirect) {
                                 return "UDP Direct";

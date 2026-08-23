@@ -189,6 +189,9 @@ enum ClientNetworkType {
   kRelay = 3;
   // GameStream 风格:ws 控制面 + 裸 UDP 媒体面,见 docs/udp_gamestream_channel_plan.md
   kUdpDirect = 4;
+  // Specialized LAN/direct implementation backed by net_rtc_local.
+  // kWebRtc remains the full ICE (host/srflx/relay) implementation.
+  kWebRtcDirect = 5;
 }
 
 enum ClientConnectType {

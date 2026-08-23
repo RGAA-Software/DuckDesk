@@ -37,7 +37,8 @@ namespace px
             const std::string& ticket,
             const std::string& client_nonce,
             const std::string& instance_id,
-            std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback);
+            std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                               const std::string&)>&& callback);
         void RequestVirtualDisplay(
             const std::string& request_id,
             int operation,
@@ -61,7 +62,8 @@ namespace px
         std::atomic_int queuing_message_count_ = 0;
         std::mutex ticket_callbacks_mtx_;
         std::unordered_map<std::string,
-            std::function<void(bool, const std::string&, const std::vector<std::string>&)>>
+            std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                               const std::string&)>>
             ticket_callbacks_;
         std::atomic_uint64_t ticket_request_seq_ = 0;
         std::mutex virtual_display_callbacks_mtx_;

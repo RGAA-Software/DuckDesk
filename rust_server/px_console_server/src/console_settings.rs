@@ -1,4 +1,5 @@
 use crate::config::console_server_config::ConsoleServerConfig;
+use crate::rtc::model::ConsoleRtcSettings;
 use crate::{gAuthManager, gConsoleSettings};
 use px_base::ip_util::get_clean_ipv4_addresses;
 use serde::Deserialize;
@@ -216,6 +217,12 @@ pub struct ConsoleSettings {
     /// End-user identity, throttling and quota policy.
     #[serde(default)]
     pub user: ConsoleUserSettings,
+
+    /// Standard WebRTC ICE discovery and managed Coturn settings. Runtime Web
+    /// administration is persisted separately under storage and overrides
+    /// these bootstrap defaults after the first successful save.
+    #[serde(default)]
+    pub rtc: ConsoleRtcSettings,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]

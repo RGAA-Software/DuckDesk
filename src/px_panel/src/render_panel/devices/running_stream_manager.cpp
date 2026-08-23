@@ -5,6 +5,7 @@
 #include "running_stream_manager.h"
 #include <QApplication>
 #include <QDateTime>
+#include <QProcessEnvironment>
 #include <filesystem>
 
 #include "px_device_manager.h"
@@ -190,6 +191,12 @@ namespace px
 
         // start it
         auto process = std::make_shared<QProcess>();
+        auto process_environment = QProcessEnvironment::systemEnvironment();
+        if (!item->rtc_ice_config_json_.empty()) {
+            process_environment.insert("PX_RTC_ICE_CONFIG",
+                                       QString::fromStdString(item->rtc_ice_config_json_));
+        }
+        process->setProcessEnvironment(process_environment);
         QStringList arguments;
         arguments
             << std::format("--host={}", item->stream_host_).c_str()

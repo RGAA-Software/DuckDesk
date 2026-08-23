@@ -110,9 +110,25 @@ namespace px
             }
         }
         else if (network_type_ == ClientNetworkType::kWebRtc) {
-            // webrtc local(direct): http signaling + rtp video track + data channels,
-            // one connection carries both media and ft messages
-            LOGI("Will connect by WebRTC local(direct), ip: {}, port: {}", sdk_params_->ip_, sdk_params_->port_);
+            // Full WebRTC: Relay is signaling/control bootstrap only. Once ICE
+            // succeeds, media/input/file data channels use host/srflx/relay
+            // candidates selected by libwebrtc.
+            LOGI("Will connect by full WebRTC, signaling relay: {}:{}",
+                 sdk_params_->relay_host_, sdk_params_->relay_port_);
+            sdk_params_->enable_p2p_ = true;
+            auto relay_conn = std::make_shared<RelayConnection>(
+                sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_,
+                device_id_, remote_device_id_, false, kRoomTypeMedia);
+            media_conn_ = relay_conn;
+            // File traffic uses the RTC FT data channel as well. Creating the
+            // legacy file Relay here would consume a standalone file ticket
+            // before the Render can redeem it for the RTC offer.
+            ft_conn_ = nullptr;
+            rtc_conn_ = std::make_shared<WebRtcConnection>(relay_conn, sdk_params_, msg_notifier_);
+        }
+        else if (network_type_ == ClientNetworkType::kWebRtcDirect) {
+            // Specialized direct-only path backed by net_rtc_local.
+            LOGI("Will connect by WebRTC direct, ip: {}, port: {}", sdk_params_->ip_, sdk_params_->port_);
             rtc_local_conn_ = std::make_shared<WebRtcLocalConnection>(sdk_params_, msg_notifier_);
             media_conn_ = rtc_local_conn_;
         }
@@ -138,7 +154,12 @@ namespace px
             return;
         }
 
-        auto primary_conn = media_conn_ ? media_conn_ : ft_conn_;
+        // In full WebRTC mode Relay is only the signaling/bootstrap path. The
+        // user-visible connection becomes ready after ICE plus the required
+        // RTC data channel, not when the Relay room is merely established.
+        std::shared_ptr<Connection> primary_conn = network_type_ == ClientNetworkType::kWebRtc
+            ? std::static_pointer_cast<Connection>(rtc_conn_)
+            : (media_conn_ ? media_conn_ : ft_conn_);
         if (!primary_conn) {
             LOGE("Start failed: no transport connection was created");
             return;

@@ -74,7 +74,8 @@ namespace px
         std::string ticket_;
         std::string client_nonce_;
         std::string instance_id_;
-        std::function<void(bool, const std::string&, const std::vector<std::string>&)> callback_;
+        std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                           const std::string&)> callback_;
     };
 
     // Voice plugin -> Render -> px_panel. show_=false closes only an exactly

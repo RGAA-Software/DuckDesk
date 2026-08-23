@@ -55,6 +55,14 @@ export interface TicketLaunch {
   launch_url: string
   renewal_token: string
   permissions: string[]
+  rtc_ice_config?: {
+    revision: number
+    direct_probe_enabled: boolean
+    expires_at: number
+    ice_servers: Array<{ id: string; urls: string[]; username?: string; credential?: string }>
+  }
+  relay_host?: string
+  relay_port?: number
 }
 
 function data<T>(response: { data: { data: T } }): T {
@@ -172,6 +180,12 @@ function nonce(key: string) {
 
 export function prepareLaunchUrl(result: TicketLaunch) {
   const launch = new URL(result.launch_url, window.location.href)
+  if (result.rtc_ice_config) {
+    launch.searchParams.set(
+      'connType',
+      result.rtc_ice_config.direct_probe_enabled ? 'rtc_direct' : 'rtc',
+    )
+  }
   const fragment = new URLSearchParams(launch.hash.replace(/^#/, ''))
   fragment.set(
     'renew_url',
@@ -179,6 +193,14 @@ export function prepareLaunchUrl(result: TicketLaunch) {
   )
   if (result.renewal_token) fragment.set('renew', result.renewal_token)
   if (result.permissions?.length) fragment.set('perms', result.permissions.join(','))
+  if (result.relay_host) fragment.set('relay_host', result.relay_host)
+  if (result.relay_port) fragment.set('relay_port', String(result.relay_port))
+  if (result.rtc_ice_config) {
+    const bytes = new TextEncoder().encode(JSON.stringify(result.rtc_ice_config))
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+    fragment.set('ice', btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''))
+  }
   launch.hash = fragment.toString()
   return launch.toString()
 }

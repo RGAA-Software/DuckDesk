@@ -139,7 +139,8 @@ namespace px
         }
         else if (sm.type() == ServiceMessageType::kSrvRedeemConnectionTicketResp) {
             const auto& sub = sm.redeem_connection_ticket_resp();
-            std::function<void(bool, const std::string&, const std::vector<std::string>&)> callback;
+            std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                               const std::string&)> callback;
             {
                 std::scoped_lock lock(ticket_callbacks_mtx_);
                 const auto it = ticket_callbacks_.find(sub.request_id());
@@ -153,7 +154,7 @@ namespace px
             if (sub.has_grant()) {
                 permissions.assign(sub.grant().permissions().begin(), sub.grant().permissions().end());
             }
-            callback(sub.ok(), sub.code(), permissions);
+            callback(sub.ok(), sub.code(), permissions, sub.rtc_ice_config_json());
         }
         else if (sm.type() == ServiceMessageType::kSrvVirtualDisplayResult) {
             const auto& sub = sm.virtual_display_result();
@@ -275,9 +276,10 @@ namespace px
         const std::string& ticket,
         const std::string& client_nonce,
         const std::string& instance_id,
-        std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback) {
+        std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                           const std::string&)>&& callback) {
         if (!IsAlive() || ticket.empty() || client_nonce.empty()) {
-            callback(false, "INVALID_ARGUMENT", {});
+            callback(false, "INVALID_ARGUMENT", {}, "");
             return;
         }
         const auto request_id = std::format(

@@ -65,6 +65,7 @@ pub struct TicketRedeemResult {
     pub subject_id: String,
     pub permissions: Vec<String>,
     pub expires_at: i64,
+    pub rtc_ice_config_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

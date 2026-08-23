@@ -300,6 +300,40 @@ impl ConnectionTicketManager {
             expires_at: ticket.expires_at,
         })
     }
+
+    /// Validate a short-lived ticket for a signaling transport without
+    /// consuming it. The Render remains the sole consumer during offer
+    /// handling, preserving the one-time capability boundary.
+    pub async fn lookup_active(
+        raw: &str,
+        bound_device_id: &str,
+        client_nonce: &str,
+        instance_id: Option<&str>,
+    ) -> Result<ConnectionTicket, ConsoleApiError> {
+        Self::validate_nonce(client_nonce)?;
+        let now = px_base::get_current_timestamp();
+        let mut filter = doc! {
+            "ticket_hash": Self::hash(raw),
+            "device_id": bound_device_id,
+            "client_nonce": client_nonce,
+            "consumed_at": null,
+            "expires_at": { "$gt": now },
+        };
+        match instance_id.filter(|value| !value.is_empty()) {
+            Some(value) => { filter.insert("instance_id", value); }
+            None => { filter.insert("instance_id", Bson::Null); }
+        }
+        gConsoleDatabase
+            .lock()
+            .await
+            .connection_ticket()
+            .lock()
+            .await
+            .find_one(filter)
+            .await
+            .map_err(|_| ConsoleApiError::DatabaseError)?
+            .ok_or(ConsoleApiError::TicketExpiredOrUsed)
+    }
 }
 
 #[cfg(test)]

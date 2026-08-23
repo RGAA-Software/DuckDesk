@@ -146,6 +146,10 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
         ticket.launch_url = data.value("launch_url", "");
         ticket.expires_at = data.value("expires_at", 0LL);
         ticket.permissions = data.value("permissions", std::vector<std::string>{});
+        ticket.rtc_ice_config_json = data.contains("rtc_ice_config")
+            ? data.at("rtc_ice_config").dump() : "";
+        ticket.relay_host = data.value("relay_host", "");
+        ticket.relay_port = data.value("relay_port", 0);
         if (ticket.ticket.empty() || ticket.launch_url.empty()) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }

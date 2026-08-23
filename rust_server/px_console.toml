@@ -96,3 +96,22 @@ guest_concurrent_instances = 1
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20
+
+# Standard WebRTC and the managed Coturn sidecar. During the initial TURN
+# integration test phase direct probing remains disabled so Panel always enters
+# net_rtc. Restore this to true only after the standard RTC acceptance gate.
+[rtc]
+direct_probe_enabled = false
+
+[rtc.managed_console_server]
+enabled = true
+listen_ip = "0.0.0.0"
+# Empty means use server_w3c_ip after Console resolves it.
+public_host = ""
+port = 20128
+relay_min_port = 20200
+relay_max_port = 20500
+realm = "pixels-console"
+enable_udp = true
+enable_tcp = true
+credential_ttl_seconds = 300

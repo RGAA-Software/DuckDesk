@@ -16,7 +16,7 @@ namespace px
 
     class RtcPlugin : public PxNetPlugin {
     public:
-        RtcPlugin() { plugin_enabled_ = false; }
+        RtcPlugin() = default;
 
         std::string GetPluginId() override;
         std::string GetPluginName() override;
@@ -24,6 +24,7 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam &param) override;
+        bool OnDestroy() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void OnMessageRaw(const std::any &msg) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;

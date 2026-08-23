@@ -7,6 +7,7 @@ use prost::Message as ProstMessage;
 use protocol::console_service::{
     ConsoleConnectionGrant, ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello,
     ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceRedeemConnectionTicketResult,
+    RtcIceConfigChanged,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -143,21 +144,40 @@ impl ConsoleServiceConn {
             )
             .await;
             let response = match result {
-                Ok(grant) => ConsoleServiceRedeemConnectionTicketResult {
-                    request_id,
-                    ok: true,
-                    code: "OK".to_string(),
-                    grant: Some(ConsoleConnectionGrant {
-                        kind: grant.kind,
-                        device_id: grant.device_id,
-                        app_id: grant.app_id.unwrap_or_default(),
-                        instance_id: grant.instance_id.unwrap_or_default(),
-                        subject_type: grant.subject_type,
-                        subject_id: grant.subject_id,
-                        permissions: grant.permissions,
-                        expires_at: grant.expires_at,
-                    }),
-                },
+                Ok(grant) => {
+                    let rtc_subject = format!("{}:{}", self.device_id, request_id);
+                    let rtc_ice_config_json = crate::gRtcConfigManager
+                        .issue_session_config(&rtc_subject)
+                        .await
+                        .and_then(|config| {
+                            serde_json::to_string(&config).map_err(|error| error.to_string())
+                        })
+                        .unwrap_or_else(|error| {
+                            tracing::error!(%error, "issue RTC ICE credentials after ticket redemption failed");
+                            String::new()
+                        });
+                    ConsoleServiceRedeemConnectionTicketResult {
+                        request_id,
+                        ok: !rtc_ice_config_json.is_empty(),
+                        code: if rtc_ice_config_json.is_empty() {
+                            "RTC_CONFIG_UNAVAILABLE"
+                        } else {
+                            "OK"
+                        }
+                        .to_string(),
+                        grant: Some(ConsoleConnectionGrant {
+                            kind: grant.kind,
+                            device_id: grant.device_id,
+                            app_id: grant.app_id.unwrap_or_default(),
+                            instance_id: grant.instance_id.unwrap_or_default(),
+                            subject_type: grant.subject_type,
+                            subject_id: grant.subject_id,
+                            permissions: grant.permissions,
+                            expires_at: grant.expires_at,
+                        }),
+                        rtc_ice_config_json,
+                    }
+                }
                 Err(error) => {
                     tracing::warn!(request_id = %request_id, "connection ticket redemption rejected");
                     ConsoleServiceRedeemConnectionTicketResult {
@@ -172,6 +192,7 @@ impl ConsoleServiceConn {
                         }
                         .to_string(),
                         grant: None,
+                        rtc_ice_config_json: String::new(),
                     }
                 }
             };
@@ -263,6 +284,18 @@ impl ConsoleServiceConn {
 
     pub async fn send_bin_message_vec(&mut self, data: Vec<u8>) {
         self.send_bin_message_bytes(Bytes::from(data)).await;
+    }
+
+    pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
+        let mut message = ConsoleServiceMessage::default();
+        message.set_msg_type(ConsoleServiceMessageType::KRtcIceConfigChanged);
+        message.device_id = self.device_id.clone();
+        message.rtc_ice_config_changed = Some(RtcIceConfigChanged {
+            revision,
+            changed_at,
+        });
+        self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
+            .await
     }
 
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {

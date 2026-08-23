@@ -1,10 +1,12 @@
 use crate::console_api_error::ConsoleApiError;
 use crate::gAuthManager;
+use crate::connection_ticket::manager::ConnectionTicketManager;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 struct AppkeyQueryParams {
@@ -60,6 +62,39 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     {
         tracing::info!("appkey filter: whitelisted path='{}'", path);
         return next.run(req).await;
+    }
+
+    // Browser standard WebRTC uses the application Relay only for signaling.
+    // It cannot receive the installation appkey, so accept a fully bound,
+    // short-lived ticket without consuming it. The Render atomically consumes
+    // the same ticket when it processes the SDP offer.
+    if path == "/relay" {
+        let query = req.uri().query().unwrap_or("");
+        let params = serde_urlencoded::from_str::<HashMap<String, String>>(query)
+            .unwrap_or_default();
+        if params.get("rtc_signal").is_some_and(|value| value == "1") {
+            let valid = match (
+                params.get("ticket"),
+                params.get("client_nonce"),
+                params.get("remote_device_id"),
+            ) {
+                (Some(ticket), Some(nonce), Some(device_id)) => {
+                    ConnectionTicketManager::lookup_active(
+                        ticket,
+                        device_id,
+                        nonce,
+                        params.get("instance_id").map(String::as_str),
+                    )
+                    .await
+                    .is_ok()
+                }
+                _ => false,
+            };
+            if valid {
+                return next.run(req).await;
+            }
+            return ConsoleApiError::TicketExpiredOrUsed.into_response();
+        }
     }
 
     // Prefer a header so credentials are not copied into URLs, proxy logs or

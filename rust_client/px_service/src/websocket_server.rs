@@ -300,6 +300,7 @@ fn ticket_response(
                 permissions: result.permissions,
                 expires_at: result.expires_at,
             }),
+            rtc_ice_config_json: result.rtc_ice_config_json,
         }),
         ..Default::default()
     }

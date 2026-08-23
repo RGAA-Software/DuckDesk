@@ -138,6 +138,7 @@ namespace px_console
         // Ephemeral Console capability grant. Never persisted by the stream DB.
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string rtc_ice_config_json_;
         std::string console_app_id_;
         std::string console_instance_id_;
         std::string console_access_mode_;

@@ -1,5 +1,6 @@
 use mongodb::bson::DateTime;
 use serde::{Deserialize, Serialize};
+use crate::rtc::model::RtcSessionIceConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionTicket {
@@ -45,6 +46,9 @@ pub struct TicketResponse {
     pub launch_url: String,
     pub expires_at: i64,
     pub permissions: Vec<String>,
+    pub rtc_ice_config: RtcSessionIceConfig,
+    pub relay_host: String,
+    pub relay_port: u16,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -53,4 +57,5 @@ pub struct TicketRenewResponse {
     pub renewal_token: String,
     pub expires_at: i64,
     pub permissions: Vec<String>,
+    pub rtc_ice_config: RtcSessionIceConfig,
 }

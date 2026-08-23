@@ -84,16 +84,18 @@ namespace px
         // force gdi
         bool force_gdi_ = false;
 
-        // remote device passwords, used by the webrtc local(direct) connection(kWebRtc)
+        // remote device passwords, used by the specialized local/direct
+        // WebRTC connection(kWebRtcDirect)
         // plain random password, will be md5-ed before sending as safety_pwd_md5
         std::string remote_device_random_pwd_;
         // safety password, already in md5 form, sent as safety_pwd_md5 directly
         std::string remote_device_safety_pwd_;
-        // One-time Console capability grant used only by the direct WebRTC
-        // signaling request. It must never be persisted or logged.
+        // One-time Console capability grant used by WebRTC signaling. It must
+        // never be persisted or logged.
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string connection_instance_id_;
+        std::string rtc_ice_config_json_;
     };
 
 }

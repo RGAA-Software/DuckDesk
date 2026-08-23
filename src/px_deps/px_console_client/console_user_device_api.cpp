@@ -104,6 +104,10 @@ namespace px_console
             result.launch_url = data.value("launch_url", "");
             result.expires_at = data.value("expires_at", 0LL);
             result.permissions = data.value("permissions", std::vector<std::string>{});
+            result.rtc_ice_config_json = data.contains("rtc_ice_config")
+                ? data.at("rtc_ice_config").dump() : "";
+            result.relay_host = data.value("relay_host", "");
+            result.relay_port = data.value("relay_port", 0);
             if (result.ticket.empty() || result.launch_url.empty()) {
                 return TcErr(ConsoleApiError::kParseJsonFailed);
             }

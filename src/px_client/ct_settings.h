@@ -91,6 +91,9 @@ namespace px
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string connection_instance_id_;
+        // Per-session ICE servers and short-lived TURN credentials, supplied
+        // through the child process environment rather than the command line.
+        std::string rtc_ice_config_json_;
         // enable p2p
         bool enable_p2p_ = false;
         // show max window

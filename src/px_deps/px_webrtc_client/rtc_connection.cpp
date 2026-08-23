@@ -18,6 +18,7 @@
 #include <px_common_new/string_util.h>
 #include <algorithm>
 #include <cstdlib>
+#include <nlohmann/json.hpp>
 
 void* GetInstance() {
     static px::RtcConnection conn;
@@ -186,21 +187,31 @@ namespace px
         configuration_.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
         configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
 
-        {
-            // local(direct) mode: no STUN server, host candidates are enough for a direct connection
-            if (!local_rtc_mode_) {
-                auto stun = webrtc::PeerConnectionInterface::IceServer();
-                stun.uri = "stun:39.91.109.105:60498";
-                configuration_.servers.push_back(stun);
+        configuration_.servers.clear();
+        // net_rtc_local remains host-candidate only. Full RTC requires a
+        // session configuration issued by Pixels Console; there is no
+        // hard-coded public STUN/TURN fallback.
+        if (!local_rtc_mode_) {
+            try {
+                const auto config = nlohmann::json::parse(ice_servers_json_);
+                for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
+                    const auto username = entry.value("username", "");
+                    const auto credential = entry.value("credential", "");
+                    for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
+                        auto server = webrtc::PeerConnectionInterface::IceServer();
+                        server.uri = url;
+                        server.username = username;
+                        server.password = credential;
+                        server.tls_cert_policy =
+                            webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
+                        configuration_.servers.push_back(std::move(server));
+                    }
+                }
+                LOGI("Configured {} ICE server URLs for full RTC", configuration_.servers.size());
             }
-        }
-        if (false) {
-            auto turn = webrtc::PeerConnectionInterface::IceServer();
-            turn.tls_cert_policy = webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicyInsecureNoCheck;
-            turn.uri = "turn:xxxx.xyz:3478";
-            turn.username = "test";
-            turn.password = "123456";
-            configuration_.servers.push_back(turn);
+            catch (const std::exception& error) {
+                LOGE("Invalid RTC ICE configuration: {}", error.what());
+            }
         }
 
         network_thread_ = rtc::Thread::CreateWithSocketServer();
@@ -454,6 +465,10 @@ namespace px
 
     void RtcConnection::SetLocalRtcMode(bool on) {
         local_rtc_mode_ = on;
+    }
+
+    void RtcConnection::SetIceServersJson(const std::string& json) {
+        ice_servers_json_ = json;
     }
 
     void RtcConnection::OnIceGatheringComplete() {

@@ -1483,9 +1483,10 @@ namespace px
         const std::string& ticket,
         const std::string& client_nonce,
         const std::string& instance_id,
-        std::function<void(bool, const std::string&, const std::vector<std::string>&)>&& callback) const {
+        std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                           const std::string&)>&& callback) const {
         if (!service_client_ || !service_client_->IsAlive()) {
-            callback(false, "SERVICE_UNAVAILABLE", {});
+            callback(false, "SERVICE_UNAVAILABLE", {}, "");
             return;
         }
         service_client_->RedeemConnectionTicket(

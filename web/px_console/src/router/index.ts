@@ -15,6 +15,7 @@ import LoginView from '@/views/LoginView.vue'
 import AppsView from '@/views/AppsView.vue'
 import DeviceRecords from '@/views/DeviceRecords.vue'
 import LiveViewer from '@/views/LiveViewer.vue'
+import RtcTurnSettings from '@/views/RtcTurnSettings.vue'
 import { queryAdminSession } from '@/model/admin_session_api.ts'
 import UserLayout from '@/user/UserLayout.vue'
 import UserLogin from '@/user/UserLogin.vue'
@@ -139,6 +140,15 @@ const router = createRouter({
           name: 'group-manager',
           component: GroupManager,
           meta: { title: '用户组管理', requiresAuth: true },
+        },
+        {
+          path: '/rtc-turn-settings',
+          name: 'rtc-turn-settings',
+          component: RtcTurnSettings,
+          meta: {
+            title: 'WebRTC / TURN',
+            requiresAuth: true,
+          },
         },
         {
           path: '/profile-info',

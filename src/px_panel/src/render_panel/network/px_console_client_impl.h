@@ -135,6 +135,7 @@ namespace px
                         return;
                     }
                     self->Hello();
+                    self->RefreshRtcConfigAsync(0);
                 });
 
             })
@@ -274,6 +275,9 @@ namespace px
             }
             sub->set_device_name(settings_->GetDeviceName());
             PostBinMessage(msg.SerializeAsString());
+            if ((hb_idx_.load() % 60) == 0) {
+                RefreshRtcConfigAsync(0);
+            }
         }
 
         void ParseMessage(const std::string& m) {
@@ -302,6 +306,51 @@ namespace px
                     HandleRecordFetchReq(pm->record_fetch_req());
                 }
             }
+            else if (type == ConsolePanelMessageType::kRtcIceConfigChanged) {
+                if (pm->has_rtc_ice_config_changed()) {
+                    RefreshRtcConfigAsync(pm->rtc_ice_config_changed().revision());
+                }
+            }
+        }
+
+        void RefreshRtcConfigAsync(uint64_t expected_revision) {
+            if (rtc_config_refreshing_.exchange(true)) {
+                return;
+            }
+            auto weak_self = this->weak_from_this();
+            std::thread([weak_self, expected_revision]() {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                auto client = self->settings_->IsConsoleSslEnabled()
+                    ? HttpClient::MakeSSL(self->host_, self->port_, "/api/v1/rtc/ice-config", 5000)
+                    : HttpClient::Make(self->host_, self->port_, "/api/v1/rtc/ice-config", 5000);
+                client->SetHeader("x-px-appkey", grApp->GetAppkey());
+                const auto response = client->Request();
+                if (response.status == 200) {
+                    try {
+                        const auto envelope = nlohmann::json::parse(response.body);
+                        const auto data = envelope.at("data");
+                        const auto revision = data.value("revision", 0ULL);
+                        if (envelope.value("code", -1) == 200
+                            && revision >= expected_revision
+                            && revision > self->rtc_config_revision_.load()) {
+                            {
+                                std::scoped_lock lock(self->rtc_config_mutex_);
+                                self->rtc_config_json_ = data.dump();
+                            }
+                            self->rtc_config_revision_ = revision;
+                            LOGI("Panel RTC ICE configuration updated, revision={}", revision);
+                        }
+                    }
+                    catch (const std::exception& error) {
+                        LOGE("Parse Panel RTC ICE configuration failed: {}", error.what());
+                    }
+                }
+                else {
+                    LOGW("Pull Panel RTC ICE configuration failed, status={}", response.status);
+                }
+                self->rtc_config_refreshing_ = false;
+            }).detach();
         }
 
         void HandleRecordListReq(const console_panel::RecordListReq& req) {
@@ -462,6 +511,10 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int64_t hb_idx_ = 0;
         std::atomic_bool use_legacy_cms_path_ = false;
+        std::atomic_bool rtc_config_refreshing_ = false;
+        std::atomic_uint64_t rtc_config_revision_ = 0;
+        std::mutex rtc_config_mutex_;
+        std::string rtc_config_json_;
         int64_t last_received_timestamp_ = 0;
         Mutex<std::shared_ptr<SysInfo>> sys_info_;
 

@@ -3,7 +3,7 @@ use crate::console_api_error::ConsoleApiError;
 use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::connection_ticket::model::{ConnectionTicket, TicketRenewResponse, TicketResponse};
 use crate::event::audit;
-use crate::gDeviceManager;
+use crate::{gConsoleSettings, gDeviceManager, gRtcConfigManager};
 use crate::identity::access_policy::{
     guest_can_access_app, subject_owns_running_instance, user_can_access_app,
 };
@@ -55,6 +55,18 @@ fn host_for_url(host: &str) -> String {
         Ok(IpAddr::V6(_)) => format!("[{host}]"),
         _ => host.to_string(),
     }
+}
+
+async fn issue_rtc_config(
+    ticket: &ConnectionTicket,
+) -> Result<crate::rtc::model::RtcSessionIceConfig, ConsoleApiError> {
+    gRtcConfigManager
+        .issue_session_config(&ticket.session_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "issue RTC ICE credentials failed");
+            ConsoleApiError::InternalError
+        })
 }
 
 async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), ConsoleApiError> {
@@ -142,6 +154,7 @@ pub async fn renew_connection_ticket(
         ticket,
         renewal_token,
         expires_at: renewed.expires_at,
+        rtc_ice_config: issue_rtc_config(&renewed).await?,
         permissions: renewed.permissions,
     })))
 }
@@ -205,6 +218,9 @@ pub async fn issue_device_ticket(
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,
+        rtc_ice_config: issue_rtc_config(&ticket).await?,
+        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
+        relay_port: gConsoleSettings.lock().await.relay_port,
     })))
 }
 
@@ -286,6 +302,9 @@ pub async fn issue_instance_ticket(
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,
+        rtc_ice_config: issue_rtc_config(&ticket).await?,
+        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
+        relay_port: gConsoleSettings.lock().await.relay_port,
     })))
 }
 
@@ -356,6 +375,9 @@ pub async fn issue_guest_instance_ticket(
         launch_url,
         expires_at: ticket.expires_at,
         permissions: granted,
+        rtc_ice_config: issue_rtc_config(&ticket).await?,
+        relay_host: gConsoleSettings.lock().await.server_w3c_ip.clone(),
+        relay_port: gConsoleSettings.lock().await.relay_port,
     })))
 }
 

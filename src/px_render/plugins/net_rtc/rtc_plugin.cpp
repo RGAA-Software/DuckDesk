@@ -10,7 +10,6 @@
 #include "rtc_server.h"
 #include "px_common_new/time_util.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
-//#include "px_message.pb.h"
 
 namespace px
 {
@@ -48,31 +47,12 @@ namespace px
         return true;
     }
 
-    void RtcPlugin::OnMessage(std::shared_ptr<Message> msg) {
-        //auto type = msg->type();
-        ////TODO
-//        switch (type) {
-//            // offer sdp / ice
-//            case MessageType::kSigOfferSdpMessage: {
-//                this->OnMessageRaw(MsgRtcRemoteSdp {
-//                    .stream_id_ = msg->stream_id(),
-//                    .device_id_ = msg->device_id(),
-//                    .sdp_ = msg->sig_offer_sdp().sdp(),
-//                });
-//                break;
-//            }
-//            case MessageType::kSigIceMessage: {
-//                auto sub = msg->sig_ice();
-//                this->OnMessageRaw(MsgRtcRemoteIce {
-//                    .stream_id_ = msg->stream_id(),
-//                    .device_id_ = msg->device_id(),
-//                    .ice_ = sub.ice(),
-//                    .mid_ = sub.mid(),
-//                    .sdp_mline_index_ = sub.sdp_mline_index(),
-//                });
-//                break;
-//            }
-//        }
+    bool RtcPlugin::OnDestroy() {
+        rtc_servers_.ApplyAll([](const auto&, const std::shared_ptr<RtcServer>& server) {
+            server->Exit();
+        });
+        rtc_servers_.Clear();
+        return PxNetPlugin::OnDestroy();
     }
 
     void RtcPlugin::OnMessageRaw(const std::any& msg) {
@@ -165,8 +145,13 @@ namespace px
             }
 
             auto rtc_server = RtcServer::Make(this);
-            rtc_server->Start(m.stream_id_, m.sdp_);
-            rtc_servers_.Insert(conn_id, rtc_server);
+            if (rtc_server->Start(
+                    m.stream_id_, m.sdp_, m.ice_config_json_, m.permissions_)) {
+                rtc_servers_.Insert(conn_id, rtc_server);
+            }
+            else {
+                LOGE("Failed to start full RTC server: {}", conn_id);
+            }
         });
     }
 
