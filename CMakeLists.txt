@@ -152,7 +152,7 @@ find_package(OpenCV REQUIRED)
 if(WIN32)
     if(NOT DEFINED CEF_ROOT OR CEF_ROOT STREQUAL "")
         set(CEF_ROOT
-            "${CMAKE_SOURCE_DIR}/third_party/cef/cef_binary_151.3.17+gf059e67+chromium-151.0.7922.138_windows64"
+            "${CMAKE_SOURCE_DIR}/third_party/cef/cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_windows64"
             CACHE PATH "Path to the CEF Windows x64 Standard Distribution")
     endif()
     if(NOT EXISTS "${CEF_ROOT}/cmake/FindCEF.cmake")

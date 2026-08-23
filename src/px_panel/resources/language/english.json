@@ -523,5 +523,13 @@
   "id_state_starting": "Starting",
   "id_state_stopping": "Stopping",
   "id_state_stopped": "Stopped",
-  "id_state_failed": "Start failed"
+  "id_state_failed": "Start failed",
+  "id_voice_call": "Voice call",
+  "id_voice_call_start": "Start voice call",
+  "id_voice_call_unavailable": "Voice call is unavailable on this controlled device",
+  "id_voice_call_headset_warning": "This version does not provide software echo cancellation yet. Wear headphones to avoid echo. Start the voice call?",
+  "id_voice_call_waiting": "Waiting for the controlled side to accept (click to cancel)",
+  "id_voice_call_incoming": "Incoming voice call",
+  "id_voice_call_connected": "Voice call connected (click to hang up)",
+  "id_voice_call_failed": "Voice call ended or could not be started"
 }

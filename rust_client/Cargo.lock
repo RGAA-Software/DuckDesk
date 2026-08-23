@@ -6249,7 +6249,7 @@ checksum = "95067976aca6421a523e491fce939a3e65249bac4b977adee0ee9771568e8aa3"
 
 [[package]]
 name = "protocol"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "prost 0.14.4",
  "prost-build 0.14.4",
@@ -6291,7 +6291,7 @@ dependencies = [
 
 [[package]]
 name = "px_auth_mgr"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "base64 0.22.1",
  "mongodb",
@@ -6305,7 +6305,7 @@ dependencies = [
 
 [[package]]
 name = "px_base"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -6336,7 +6336,7 @@ dependencies = [
 
 [[package]]
 name = "px_service"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -6362,7 +6362,7 @@ dependencies = [
 
 [[package]]
 name = "px_sysinfo"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "adlx",
  "anyhow",
@@ -6393,7 +6393,7 @@ dependencies = [
 
 [[package]]
 name = "px_uninstall"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "clap",
  "px_base",
@@ -6403,7 +6403,7 @@ dependencies = [
 
 [[package]]
 name = "px_user_proxy"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "anyhow",
  "clap",
@@ -7569,7 +7569,7 @@ dependencies = [
 
 [[package]]
 name = "service_core"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "base64 0.22.1",
  "prost 0.13.5",
@@ -7586,7 +7586,7 @@ dependencies = [
 
 [[package]]
 name = "service_manager"
-version = "3.3.52"
+version = "3.3.53"
 dependencies = [
  "clap",
  "service_core",

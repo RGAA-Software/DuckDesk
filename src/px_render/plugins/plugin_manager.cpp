@@ -134,6 +134,7 @@ namespace px
                             {"record_dir", settings_->record_dir_},
                             {"record_max_segment_bytes", settings_->record_max_segment_bytes_},
                             {"record_max_file_count", (int64_t)settings_->record_max_file_count_},
+                            {"voice_call_enabled", settings_->voice_call_enabled_},
                             {"push_enabled", settings_->push_enabled_},
                             {"push_rtmp_url", settings_->push_rtmp_url_},
                             {"push_audio_bitrate", (int64_t)settings_->push_audio_bitrate_},

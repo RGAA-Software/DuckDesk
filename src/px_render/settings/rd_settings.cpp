@@ -75,6 +75,9 @@ namespace px
         push_audio_bitrate_ = (int)result["push"]["audio_bitrate"].value_or(96000LL);
         push_primary_monitor_ = result["push"]["primary_monitor"].value_or("");
 
+        // Explicitly separate voice permission from desktop-audio capture.
+        voice_call_enabled_ = result["voice"]["enabled"].value_or(true);
+
         // Mode drives capture type; rd_main re-applies after CLI UpdateSettings.
         ApplyApplicationMode();
         return true;

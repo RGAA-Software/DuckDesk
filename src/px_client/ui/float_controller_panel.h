@@ -37,6 +37,7 @@ namespace px
         void Hide() override;
         void SetMainControl();
         void SetMonitorName(const std::string& mon_name);
+        void ToggleVoiceCall();
     private:
         BaseWidget* GetSubPanel(const SubPanelType& type);
         void ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor);
@@ -56,12 +57,13 @@ namespace px
         std::vector<ComputerIcon*> computer_icons_;
         MsgClientCaptureMonitor capture_monitor_;
 
-        static constexpr int kInitialWidth = 250;
+        static constexpr int kInitialWidth = 280;
 
         // 分屏显示按钮
         FloatIcon* split_screen_btn_ = nullptr;
 
         FloatIcon* audio_btn_ = nullptr;
+        FloatIcon* voice_call_btn_ = nullptr;
 
         FloatIcon* full_screen_btn_ = nullptr;
 
@@ -77,6 +79,10 @@ namespace px
         QPushButton* virtual_display_remove_btn_ = nullptr;
         QTimer* virtual_display_timeout_timer_ = nullptr;
         VirtualDisplayUiState virtual_display_ui_state_;
+        VoiceCallPhase voice_call_phase_ = VoiceCallPhase::kIdle;
+        bool voice_call_supported_ = false;
+        bool voice_call_requires_headset_ = true;
+        bool voice_call_warning_shown_ = false;
     };
 
 }

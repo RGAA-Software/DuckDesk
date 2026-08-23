@@ -7,10 +7,12 @@
 #include <QLibrary>
 #include <QMainWindow>
 #include <map>
+#include <mutex>
 #include <vector>
 #include <qlist.h>
 #include "thunder_sdk.h"
 #include "px_client/ct_app_message.h"
+#include "px_voice_call/voice_call_state.h"
 #include "theme/QtAdvancedStylesheet.h"
 
 #ifdef WIN32
@@ -50,6 +52,7 @@ namespace px
     class PlVulkan;
     class SkinInterface;
     class OverlayWidget;
+    class VoiceAudioEndpoint;
 
     class BaseWorkspace : public QMainWindow, public std::enable_shared_from_this<BaseWorkspace> {
     public:
@@ -116,6 +119,13 @@ namespace px
         virtual void SwitchToFillWindow();
         void SendChangeMonitorResolutionMessage(const MsgClientChangeMonitorResolution& msg);
         void SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& msg);
+        void SendVoiceCallCommand(const MsgClientVoiceCallCommand& msg);
+        void ProcessVoiceCallMessage(const std::shared_ptr<px::Message>& msg);
+        void StopVoiceCall(bool notify_remote, const std::string& reason);
+        void NotifyVoiceCallStatus(const std::string& reason = {});
+        void SendVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
+                                 uint64_t capture_time_ms,
+                                 const std::vector<uint8_t>& opus);
         void UpdateFloatButtonIndicatorPosition();
         void UpdateVideoWidgetSize();
         virtual void UpdateGameViewsStatus(bool force_layout_screens) {}
@@ -159,6 +169,9 @@ namespace px
         FloatButtonStateIndicator* btn_indicator_ = nullptr;
         std::atomic_bool has_frame_arrived_ = false;
         std::atomic_uint64_t virtual_display_request_seq_ = 0;
+        std::mutex voice_call_mutex_;
+        VoiceCallState voice_call_state_;
+        std::shared_ptr<VoiceAudioEndpoint> voice_audio_endpoint_;
 
         // progress
         MainProgress* main_progress_ = nullptr;

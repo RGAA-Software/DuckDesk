@@ -496,5 +496,13 @@
   "id_state_starting": "啟動中",
   "id_state_stopping": "停止中",
   "id_state_stopped": "未運行",
-  "id_state_failed": "啟動失敗"
+  "id_state_failed": "啟動失敗",
+  "id_voice_call": "語音通話",
+  "id_voice_call_start": "發起語音通話",
+  "id_voice_call_unavailable": "目前被控設備不支援語音通話",
+  "id_voice_call_headset_warning": "目前版本尚未提供軟體回聲消除，建議雙方佩戴耳機以避免回聲。是否發起語音通話？",
+  "id_voice_call_waiting": "等待被控端接受（點擊可取消）",
+  "id_voice_call_incoming": "收到語音通話請求",
+  "id_voice_call_connected": "語音通話中（點擊掛斷）",
+  "id_voice_call_failed": "語音通話已結束或無法啟動"
 }

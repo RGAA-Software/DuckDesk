@@ -14,6 +14,7 @@
 #include "px_client/ct_settings.h"
 #include "notify/notify_defs.h"
 #include "hw_info/hw_info.h"
+#include "px_voice_call/voice_call_state.h"
 
 namespace px
 {
@@ -171,6 +172,23 @@ namespace px
         bool driver_installed_ = false;
         bool package_valid_ = false;
         bool removal_safe_ = false;
+    };
+
+    class MsgClientVoiceCallCommand : public MsgClientBase {
+    public:
+        enum class Action {
+            kStart,
+            kHangUp,
+        };
+        Action action_ = Action::kStart;
+    };
+
+    class MsgClientVoiceCallStatus : public MsgClientBase {
+    public:
+        bool supported_ = false;
+        bool requires_headset_ = true;
+        VoiceCallPhase phase_ = VoiceCallPhase::kIdle;
+        std::string reason_;
     };
 
     // monitor changed from video frame callback

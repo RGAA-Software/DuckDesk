@@ -48,6 +48,7 @@ set(SRCS_WS
     ct_workspace.cpp
     ct_base_workspace.cpp
     ct_virtual_display_protocol.cpp
+    ct_voice_call_protocol.cpp
     front_render/ct_video_widget.cpp
     front_render/opengl/ct_director.cpp
     front_render/opengl/ct_opengl_video_widget.cpp
@@ -135,6 +136,7 @@ target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::
         px_common_new px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
+        px_voice_call
 )
 
 add_executable(test_client_virtual_display
@@ -143,6 +145,13 @@ add_executable(test_client_virtual_display
     ui/virtual_display_ui_state.cpp
 )
 target_link_libraries(test_client_virtual_display PRIVATE px_message GTest::gtest GTest::gtest_main)
+
+add_executable(test_client_voice_call_protocol
+    tests/test_voice_call_protocol.cpp
+    ct_voice_call_protocol.cpp
+)
+target_link_libraries(test_client_voice_call_protocol PRIVATE
+    px_message px_voice_call GTest::gtest GTest::gtest_main)
 
 if (PX_PROTECTION_ENABLED)
     add_definitions(-DPX_PROTECTION_ENABLED=1)

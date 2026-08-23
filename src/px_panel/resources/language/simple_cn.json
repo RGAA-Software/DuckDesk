@@ -523,5 +523,13 @@
   "id_state_starting": "启动中",
   "id_state_stopping": "停止中",
   "id_state_stopped": "未运行",
-  "id_state_failed": "启动失败"
+  "id_state_failed": "启动失败",
+  "id_voice_call": "语音通话",
+  "id_voice_call_start": "发起语音通话",
+  "id_voice_call_unavailable": "当前被控设备不支持语音通话",
+  "id_voice_call_headset_warning": "当前版本尚未提供软件回声消除，建议双方佩戴耳机以避免回声。是否发起语音通话？",
+  "id_voice_call_waiting": "等待被控端接受（点击可取消）",
+  "id_voice_call_incoming": "收到语音通话请求",
+  "id_voice_call_connected": "语音通话中（点击挂断）",
+  "id_voice_call_failed": "语音通话已结束或无法启动"
 }

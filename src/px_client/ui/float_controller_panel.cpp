@@ -130,6 +130,20 @@ namespace px
             }
             {
                 auto btn = new FloatIcon(ctx, this);
+                voice_call_btn_ = btn;
+                btn->setFixedSize(btn_size);
+                btn->setObjectName("voiceCallButton");
+                btn->setAccessibleName(tcTr("id_voice_call"));
+                btn->SetIcons(":resources/image/ic_voice_call.svg",
+                              ":resources/image/ic_voice_call_active.svg");
+                btn->setToolTip(tcTr("id_voice_call_unavailable"));
+                btn->setEnabled(false);
+                layout->addSpacing(border_spacing);
+                layout->addWidget(btn);
+                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceCall(); });
+            }
+            {
+                auto btn = new FloatIcon(ctx, this);
                 btn->setFixedSize(btn_size);
                 btn->SetIcons(":resources/image/ic_minimize.svg", "");
                 layout->addSpacing(border_spacing);
@@ -696,6 +710,46 @@ namespace px
                 }
             });
         });
+        msg_listener_->Listen<MsgClientVoiceCallStatus>([this](const MsgClientVoiceCallStatus& msg) {
+            context_->PostUITask([this, msg]() {
+                voice_call_supported_ = msg.supported_;
+                voice_call_requires_headset_ = msg.requires_headset_;
+                voice_call_phase_ = msg.phase_;
+                if (!voice_call_btn_) {
+                    return;
+                }
+                voice_call_btn_->setEnabled(msg.supported_);
+                if (msg.phase_ == VoiceCallPhase::kIdle) {
+                    voice_call_btn_->SwitchToNormalState();
+                } else {
+                    voice_call_btn_->SwitchToSelectedState();
+                }
+                QString tooltip;
+                switch (msg.phase_) {
+                    case VoiceCallPhase::kOutgoingPending:
+                        tooltip = tcTr("id_voice_call_waiting");
+                        break;
+                    case VoiceCallPhase::kIncomingPending:
+                        tooltip = tcTr("id_voice_call_incoming");
+                        break;
+                    case VoiceCallPhase::kConnected:
+                        tooltip = tcTr("id_voice_call_connected");
+                        break;
+                    default:
+                        tooltip = msg.supported_ ? tcTr("id_voice_call_start")
+                                                 : tcTr("id_voice_call_unavailable");
+                        break;
+                }
+                voice_call_btn_->setToolTip(tooltip);
+                voice_call_btn_->setAccessibleName(tooltip);
+                if (!msg.reason_.empty() && msg.reason_ != "local_hangup" &&
+                    msg.reason_ != "remote_hangup" && msg.reason_ != "disconnect") {
+                    context_->NotifyAppWarningMessage(
+                        tcTr("id_voice_call"),
+                        tcTr("id_voice_call_failed") + QString::fromStdString(" (" + msg.reason_ + ")"));
+                }
+            });
+        });
         msg_listener_->Listen<SdkMsgNetworkConnected>([this](const SdkMsgNetworkConnected&) {
             context_->PostUITask([this]() {
                 if (!virtual_display_ui_state_.CompleteReconnect()) {
@@ -704,6 +758,26 @@ namespace px
                 virtual_display_timeout_timer_->stop();
                 UpdateVirtualDisplayUi();
             });
+        });
+    }
+
+    void FloatControllerPanel::ToggleVoiceCall() {
+        LOGI("[VoiceCall] UI toggle, phase={}, supported={}",
+             static_cast<int>(voice_call_phase_), voice_call_supported_);
+        if (voice_call_phase_ == VoiceCallPhase::kIdle) {
+            if (voice_call_requires_headset_ && !voice_call_warning_shown_) {
+                auto box = SizedMessageBox::MakeOkCancelBox(
+                    tcTr("id_voice_call"), tcTr("id_voice_call_headset_warning"));
+                if (box->exec() != 0) {
+                    return;
+                }
+                voice_call_warning_shown_ = true;
+            }
+        }
+        context_->SendAppMessage(MsgClientVoiceCallCommand {
+            .action_ = voice_call_phase_ == VoiceCallPhase::kIdle
+                ? MsgClientVoiceCallCommand::Action::kStart
+                : MsgClientVoiceCallCommand::Action::kHangUp,
         });
     }
 

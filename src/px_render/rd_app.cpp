@@ -1237,6 +1237,9 @@ namespace px
         config->set_virtual_display_owned_count(virtual_display_owned_count_.load());
         config->set_virtual_display_max_count(2);
         config->set_topology_generation(virtual_display_topology_generation_.load());
+        config->set_voice_call_enabled(settings_->voice_call_enabled_);
+        config->set_voice_call_protocol_version(settings_->voice_call_enabled_ ? 1 : 0);
+        config->set_voice_call_requires_headset(true);
         //
         auto buffer = ProtoAsData(&m);
         PostNetMessage(buffer);

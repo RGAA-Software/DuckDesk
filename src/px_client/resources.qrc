@@ -8,6 +8,8 @@
         <file>resources/image/ic_expand.svg</file>
         <file>resources/image/ic_audio_off.svg</file>
         <file>resources/image/ic_audio_on.svg</file>
+        <file>resources/image/ic_voice_call.svg</file>
+        <file>resources/image/ic_voice_call_active.svg</file>
         <file>resources/image/ic_clipboard_off.svg</file>
         <file>resources/image/ic_clipboard_on.svg</file>
         <file>resources/image/ic_close.svg</file>

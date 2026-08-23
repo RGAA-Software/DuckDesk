@@ -288,6 +288,7 @@ namespace px
         if (window() && window() != this) {
             window()->installEventFilter(this);
         }
+        video_widget_->AsWidget()->installEventFilter(this);
 
         float_controller_->SetOnClickListener([=, this]() {
             if (controller_panel_->isHidden()) {
@@ -382,6 +383,18 @@ namespace px
                 break;
             default:
                 break;
+            }
+        }
+        if (watched == video_widget_->AsWidget() && event->type() == QEvent::KeyPress) {
+            auto* key_event = static_cast<QKeyEvent*>(event);
+            const auto modifiers = key_event->modifiers();
+            const bool ctrl_alt_v = key_event->key() == Qt::Key_V &&
+                modifiers.testFlag(Qt::ControlModifier) &&
+                modifiers.testFlag(Qt::AltModifier);
+            if (ctrl_alt_v || key_event->key() == Qt::Key_F10) {
+                controller_panel_->ToggleVoiceCall();
+                event->accept();
+                return true;
             }
         }
         if (watched == controller_panel_ || watched == float_controller_)

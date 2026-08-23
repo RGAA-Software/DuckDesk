@@ -191,6 +191,8 @@ namespace px
         bool file_transfer_enabled_ = true;
         // audio enabled
         bool audio_enabled_ = true;
+        // Independent microphone voice calls. This does not control desktop audio.
+        bool voice_call_enabled_ = true;
         // app mode
         AppMode app_mode_ = AppMode::kDesktop;
         // appkey

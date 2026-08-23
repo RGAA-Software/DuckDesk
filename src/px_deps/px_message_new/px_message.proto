@@ -132,6 +132,13 @@ enum MessageType {
   // remain in kKeyEvent; this message carries layout/IME output.
   kTextInput = 580;
 
+  // Bidirectional voice-call signaling and media. Keep this separate from
+  // kAudioFrame, which is reserved for render desktop audio.
+  kVoiceCallRequest = 590;
+  kVoiceCallResponse = 591;
+  kVoiceAudioConfig = 592;
+  kVoiceAudioFrame = 593;
+
 }
 
 enum VideoType {
@@ -234,6 +241,10 @@ message ServerConfiguration {
   uint32 virtual_display_owned_count = 9;
   uint32 virtual_display_max_count = 10;
   uint64 topology_generation = 11;
+  bool voice_call_enabled = 12;
+  uint32 voice_call_protocol_version = 13;
+  // Protocol v1 has no software AEC; clients show a headset recommendation.
+  bool voice_call_requires_headset = 14;
 }
 
 message HeartBeat {
@@ -668,6 +679,36 @@ message VirtualDisplayResponse {
   bool removal_safe = 13;
 }
 
+message VoiceCallRequest {
+  string call_id = 1;
+  uint64 request_id = 2;
+  bool connect = 3;
+}
+
+message VoiceCallResponse {
+  string call_id = 1;
+  uint64 request_id = 2;
+  bool accepted = 3;
+  string reason = 4;
+}
+
+message VoiceAudioConfig {
+  string call_id = 1;
+  uint32 sample_rate = 2;
+  uint32 channels = 3;
+  uint32 frame_ms = 4;
+  uint32 bitrate_bps = 5;
+  bool fec = 6;
+  bool dtx = 7;
+}
+
+message VoiceAudioFrame {
+  string call_id = 1;
+  uint32 sequence = 2;
+  uint64 capture_time_ms = 3;
+  bytes opus = 4;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -729,4 +770,8 @@ message Message {
   VirtualDisplayRequest virtual_display_request = 560;
   VirtualDisplayResponse virtual_display_response = 561;
   TextInput text_input = 570;
+  VoiceCallRequest voice_call_request = 580;
+  VoiceCallResponse voice_call_response = 581;
+  VoiceAudioConfig voice_audio_config = 582;
+  VoiceAudioFrame voice_audio_frame = 583;
 }

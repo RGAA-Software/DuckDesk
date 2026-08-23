@@ -63,3 +63,6 @@ rtmp_url = "rtmp://127.0.0.1:1935/live/{live_stream_id}"
 audio_bitrate = 96000
 #primary_monitor = "\\\\.\\DISPLAY1" # optional; empty locks the first active stream
 
+[voice]
+# Incoming calls still require an explicit local Yes/No confirmation.
+enabled = true

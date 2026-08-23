@@ -9,6 +9,7 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QTimer>
+#include <QUuid>
 #include <dwmapi.h>
 #include "thunder_sdk.h"
 #include "px_client/ct_client_context.h"
@@ -44,6 +45,8 @@
 #include "px_client/plugin_interface/ct_app_events.h"
 #include "px_client/plugin_interface/ct_plugin_interface.h"
 #include "ct_virtual_display_protocol.h"
+#include "ct_voice_call_protocol.h"
+#include "px_voice_call/voice_audio_endpoint.h"
 #include "px_client/plugin_interface/ct_media_record_plugin_interface.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_relay_client/relay_api.h"
@@ -323,6 +326,7 @@ namespace px
         });
 
         msg_listener_->Listen<SdkMsgNetworkDisConnected>([=, this](const SdkMsgNetworkDisConnected& msg) {
+            StopVoiceCall(false, "disconnect");
             if (remote_force_closed_) {
                 return;
             }
@@ -399,6 +403,10 @@ namespace px
 
         msg_listener_->Listen<MsgClientVirtualDisplayRequest>([=, this](const MsgClientVirtualDisplayRequest& msg) {
             this->SendVirtualDisplayRequest(msg);
+        });
+
+        msg_listener_->Listen<MsgClientVoiceCallCommand>([=, this](const MsgClientVoiceCallCommand& msg) {
+            this->SendVoiceCallCommand(msg);
         });
 
         msg_listener_->Listen<MsgClientCtrlAltDelete>([=, this](const MsgClientCtrlAltDelete& msg) {
@@ -563,6 +571,9 @@ namespace px
             settings_->render_virtual_display_owned_count_ = config.virtual_display_owned_count();
             settings_->render_virtual_display_max_count_ = config.virtual_display_max_count();
             settings_->render_virtual_display_topology_generation_ = config.topology_generation();
+            settings_->render_voice_call_enabled_ = config.voice_call_enabled();
+            settings_->render_voice_call_protocol_version_ = config.voice_call_protocol_version();
+            settings_->render_voice_call_requires_headset_ = config.voice_call_requires_headset();
 
             context_->SendAppMessage(MsgClientVirtualDisplayStatus {
                 .enabled_ = settings_->render_virtual_display_enabled_,
@@ -570,6 +581,7 @@ namespace px
                 .max_display_count_ = settings_->render_virtual_display_max_count_,
                 .topology_generation_ = settings_->render_virtual_display_topology_generation_,
             });
+            NotifyVoiceCallStatus();
 
             context_->SendAppMessage(msg);
 
@@ -1151,6 +1163,268 @@ namespace px
         report_local_failure("REQUEST_ENCODE_FAILED", "The virtual display request could not be encoded.");
     }
 
+    void BaseWorkspace::SendVoiceCallCommand(const MsgClientVoiceCallCommand& command) {
+        VoiceCallPhase core_phase;
+        {
+            std::scoped_lock lock(voice_call_mutex_);
+            core_phase = voice_call_state_.Phase();
+        }
+        LOGI("[VoiceCall] command action={}, core_phase={}, enabled={}, protocol={}",
+             static_cast<int>(command.action_), static_cast<int>(core_phase),
+             settings_->render_voice_call_enabled_,
+             settings_->render_voice_call_protocol_version_);
+        if (command.action_ == MsgClientVoiceCallCommand::Action::kHangUp) {
+            StopVoiceCall(true, "local_hangup");
+            return;
+        }
+        if (!settings_->render_voice_call_enabled_ ||
+            settings_->render_voice_call_protocol_version_ != 1) {
+            NotifyVoiceCallStatus("unsupported");
+            return;
+        }
+        if (!sdk_ || remote_force_closed_) {
+            NotifyVoiceCallStatus("not_connected");
+            return;
+        }
+
+        const auto call_id = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+        const auto request_id = NextNativeVoiceCallRequestId();
+        {
+            std::scoped_lock lock(voice_call_mutex_);
+            if (!voice_call_state_.BeginOutgoing(
+                    call_id, request_id,
+                    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count()))) {
+                return;
+            }
+        }
+        auto request = MakeVoiceCallRequestMessage(
+            settings_->device_id_, settings_->stream_id_, call_id, request_id, true);
+        if (const auto data = ProtoAsData(&request); data) {
+            sdk_->PostMediaMessage(data);
+            NotifyVoiceCallStatus();
+        } else {
+            StopVoiceCall(false, "request_encode_failed");
+            return;
+        }
+
+        QTimer::singleShot(static_cast<int>(VoiceCallState::kRequestTimeoutMs), this,
+            [this, call_id, request_id]() {
+                bool expired = false;
+                {
+                    std::scoped_lock lock(voice_call_mutex_);
+                    if (voice_call_state_.CallId() == call_id &&
+                        voice_call_state_.RequestId() == request_id) {
+                        const auto now = static_cast<uint64_t>(
+                            std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch()).count());
+                        expired = voice_call_state_.Expire(now);
+                    }
+                }
+                if (expired) {
+                    if (sdk_ && !remote_force_closed_) {
+                        auto cancel = MakeVoiceCallRequestMessage(
+                            settings_->device_id_, settings_->stream_id_,
+                            call_id, request_id, false);
+                        if (const auto data = ProtoAsData(&cancel); data) {
+                            sdk_->PostMediaMessage(data);
+                        }
+                    }
+                    LOGI("[VoiceCall] outgoing request timed out, remote cancel sent, call={}",
+                         call_id);
+                    NotifyVoiceCallStatus("timeout");
+                }
+            });
+    }
+
+    void BaseWorkspace::ProcessVoiceCallMessage(const std::shared_ptr<Message>& msg) {
+        if (!msg) {
+            return;
+        }
+        if (msg->device_id() != settings_->device_id_ ||
+            msg->stream_id() != settings_->stream_id_) {
+            LOGW("[VoiceCall] drop message for another session, stream={}", msg->stream_id());
+            return;
+        }
+        if (msg->type() == kVoiceCallRequest) {
+            const auto& request = msg->voice_call_request();
+            if (!request.connect()) {
+                bool matched = false;
+                {
+                    std::scoped_lock lock(voice_call_mutex_);
+                    matched = voice_call_state_.CallId() == request.call_id();
+                }
+                if (matched) {
+                    StopVoiceCall(false, "remote_hangup");
+                }
+                return;
+            }
+            // Native controller v1 does not expose an incoming-call surface.
+            Message response;
+            response.set_type(kVoiceCallResponse);
+            response.set_device_id(settings_->device_id_);
+            response.set_stream_id(settings_->stream_id_);
+            auto* sub = response.mutable_voice_call_response();
+            sub->set_call_id(request.call_id());
+            sub->set_request_id(request.request_id());
+            sub->set_accepted(false);
+            sub->set_reason("unsupported_direction");
+            if (const auto data = ProtoAsData(&response); data && sdk_) {
+                sdk_->PostMediaMessage(data);
+            }
+            return;
+        }
+        if (msg->type() == kVoiceCallResponse) {
+            const auto& response = msg->voice_call_response();
+            bool matched = false;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                matched = voice_call_state_.ApplyResponse(
+                    response.call_id(), response.request_id(), response.accepted());
+            }
+            if (!matched) {
+                LOGW("[VoiceCall] stale/replayed response dropped, call={}", response.call_id());
+                return;
+            }
+            if (!response.accepted()) {
+                NotifyVoiceCallStatus(response.reason().empty() ? "rejected" : response.reason());
+                return;
+            }
+
+            auto endpoint = std::make_shared<VoiceAudioEndpoint>();
+            std::string error;
+            if (!endpoint->Start(
+                    [this, call_id = response.call_id()](
+                        uint32_t sequence, uint64_t capture_time_ms,
+                        const std::vector<uint8_t>& opus) {
+                        SendVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
+                    }, &error)) {
+                LOGE("[VoiceCall] local audio endpoint failed: {}", error);
+                StopVoiceCall(true, "no_mic");
+                return;
+            }
+            bool keep_endpoint = false;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                keep_endpoint = voice_call_state_.IsMediaAllowed(response.call_id());
+                if (keep_endpoint) {
+                    voice_audio_endpoint_ = endpoint;
+                }
+            }
+            if (!keep_endpoint) {
+                endpoint->Stop();
+                return;
+            }
+            auto config = MakeVoiceAudioConfigMessage(
+                settings_->device_id_, settings_->stream_id_, response.call_id());
+            if (const auto data = ProtoAsData(&config); data && sdk_) {
+                sdk_->PostMediaMessage(data);
+            }
+            NotifyVoiceCallStatus();
+            return;
+        }
+        if (msg->type() == kVoiceAudioConfig) {
+            const auto& config = msg->voice_audio_config();
+            bool active_call = false;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                active_call = voice_call_state_.IsMediaAllowed(config.call_id());
+            }
+            if (!active_call) {
+                return;
+            }
+            if (config.sample_rate() != VoiceAudioEndpoint::kSampleRate ||
+                config.channels() != VoiceAudioEndpoint::kChannels ||
+                config.frame_ms() != VoiceAudioEndpoint::kFrameMs) {
+                StopVoiceCall(true, "incompatible_audio_config");
+                NotifyVoiceCallStatus("incompatible_audio_config");
+            }
+            return;
+        }
+        if (msg->type() == kVoiceAudioFrame) {
+            const auto& frame = msg->voice_audio_frame();
+            std::shared_ptr<VoiceAudioEndpoint> endpoint;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                if (!voice_call_state_.AcceptMedia(frame.call_id(), frame.sequence())) {
+                    return;
+                }
+                endpoint = voice_audio_endpoint_;
+            }
+            if (endpoint && !frame.opus().empty()) {
+                endpoint->ReceiveOpus(frame.opus().data(), frame.opus().size());
+            }
+        }
+    }
+
+    void BaseWorkspace::StopVoiceCall(bool notify_remote, const std::string& reason) {
+        std::shared_ptr<VoiceAudioEndpoint> endpoint;
+        std::string call_id;
+        uint64_t request_id = 0;
+        {
+            std::scoped_lock lock(voice_call_mutex_);
+            if (voice_call_state_.Phase() == VoiceCallPhase::kIdle) {
+                return;
+            }
+            call_id = voice_call_state_.CallId();
+            request_id = voice_call_state_.RequestId();
+            voice_call_state_.Reset();
+            endpoint = std::move(voice_audio_endpoint_);
+        }
+        if (endpoint) {
+            const auto stats = endpoint->Stats();
+            endpoint->Stop();
+            LOGI("[VoiceCall] local end reason={}, tx={}, rx={}, underrun={}", reason,
+                 stats.encoded_packets, stats.decoded_packets, stats.playout_underruns);
+        }
+        if (notify_remote && sdk_ && !remote_force_closed_ && !call_id.empty()) {
+            auto request = MakeVoiceCallRequestMessage(
+                settings_->device_id_, settings_->stream_id_, call_id, request_id, false);
+            if (const auto data = ProtoAsData(&request); data) {
+                sdk_->PostMediaMessage(data);
+            }
+        }
+        NotifyVoiceCallStatus(reason);
+    }
+
+    void BaseWorkspace::NotifyVoiceCallStatus(const std::string& reason) {
+        // Voice commands originate from MessageNotifier::process().  Dispatching
+        // a status synchronously from that callback recursively enters the same
+        // event bus and can spin the UI thread.  A queued Qt invocation also
+        // serializes SDK/network-thread status changes onto the UI thread.
+        QMetaObject::invokeMethod(this, [this, reason]() {
+            VoiceCallPhase phase;
+            {
+                std::scoped_lock lock(voice_call_mutex_);
+                phase = voice_call_state_.Phase();
+            }
+            context_->SendAppMessage(MsgClientVoiceCallStatus {
+                .supported_ = settings_->render_voice_call_enabled_ &&
+                              settings_->render_voice_call_protocol_version_ == 1,
+                .requires_headset_ = settings_->render_voice_call_requires_headset_,
+                .phase_ = phase,
+                .reason_ = reason,
+            });
+        }, Qt::QueuedConnection);
+    }
+
+    void BaseWorkspace::SendVoiceAudioFrame(
+        const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
+        const std::vector<uint8_t>& opus) {
+        {
+            std::scoped_lock lock(voice_call_mutex_);
+            if (!voice_call_state_.IsMediaAllowed(call_id) || !sdk_ || remote_force_closed_) {
+                return;
+            }
+        }
+        auto message = MakeVoiceAudioFrameMessage(
+            settings_->device_id_, settings_->stream_id_, call_id,
+            sequence, capture_time_ms, opus);
+        if (const auto data = ProtoAsData(&message); data) {
+            sdk_->PostMediaMessage(data);
+        }
+    }
+
     void BaseWorkspace::UpdateVideoWidgetSize() {
         if (settings_->file_transfer_only_) {
             return;
@@ -1342,6 +1616,12 @@ namespace px
                 }, 250);
             }
         }
+        else if (msg->type() == MessageType::kVoiceCallRequest ||
+                 msg->type() == MessageType::kVoiceCallResponse ||
+                 msg->type() == MessageType::kVoiceAudioConfig ||
+                 msg->type() == MessageType::kVoiceAudioFrame) {
+            ProcessVoiceCallMessage(msg);
+        }
     }
 
     bool BaseWorkspace::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
@@ -1493,6 +1773,7 @@ namespace px
     }
 
     void BaseWorkspace::ExitSdk() {
+        StopVoiceCall(false, "client_exit");
         if (sdk_) {
             sdk_->Exit();
             sdk_ = nullptr;

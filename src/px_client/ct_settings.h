@@ -183,6 +183,9 @@ namespace px
         uint32_t render_virtual_display_owned_count_ = 0;
         uint32_t render_virtual_display_max_count_ = 2;
         uint64_t render_virtual_display_topology_generation_ = 0;
+        bool render_voice_call_enabled_ = false;
+        uint32_t render_voice_call_protocol_version_ = 0;
+        bool render_voice_call_requires_headset_ = true;
 
         // max speed of remote ethernet
         uint64_t max_transmit_speed_ = 0;
