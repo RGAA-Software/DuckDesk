@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FLOAT_3RD_RESOLUTION_PANEL_H
 #define GAMMARAYPC_FLOAT_3RD_RESOLUTION_PANEL_H
 
-#include "base_widget.h"
+#include "float_overlay_window.h"
 #include <QPainter>
 #include "px_client/ct_app_message.h"
 
@@ -16,7 +16,7 @@ namespace px
     class SwitchButton;
     class SingleSelectedList;
 
-    class ThirdResolutionPanel : BaseWidget {
+    class ThirdResolutionPanel : public FloatOverlayWindow {
     public:
         explicit ThirdResolutionPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;

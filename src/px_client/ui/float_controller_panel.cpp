@@ -23,22 +23,22 @@
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_common_new/message_notifier.h"
 #include <QCoreApplication>
+#include <QIcon>
 #include <QPushButton>
 #include <QTimer>
 
 namespace px
 {
 
-    FloatControllerPanel::FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {
-        this->setWindowFlags(Qt::FramelessWindowHint);
-        this->setFixedSize(kInitialWidth, 412);
-        this->setStyleSheet("background:#00000000;");
+    FloatControllerPanel::FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
+        : FloatOverlayWindow(ctx, parent, QSize(kInitialWidth, 412)) {
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
         int border_spacing = 5;
         QSize btn_size = QSize(30, 30);
         int offset = 5;
-        root_layout->setContentsMargins(offset, offset, offset, offset);
+        root_layout->setContentsMargins(kShadowMargin + offset, kShadowMargin + offset,
+                                        kShadowMargin + offset, kShadowMargin + offset);
         root_layout->addSpacing(border_spacing);
         {
             auto layout = new QHBoxLayout();
@@ -57,9 +57,8 @@ namespace px
                     bool recording = context_->GetRecording();
                     if (recording) {
                         TcDialog dialog(tr("Tips"), tr("Currently, screen recording is in progress. Switching display is prohibited. If you want to switch displays, please stop the screen recording..."), nullptr);
-                        auto pos = mapToGlobal(this->parentWidget()->pos()); 
-                        pos.setX(pos.x() + this->parentWidget()->width() / 2 - dialog.width() / 2);
-                        pos.setY(pos.y() + this->parentWidget()->height() / 2 - dialog.height() / 2);
+                        const auto owner_rect = OwnerGlobalRect();
+                        auto pos = owner_rect.center() - QPoint(dialog.width() / 2, dialog.height() / 2);
                         dialog.move(pos);
                         dialog.exec();
                         return;
@@ -80,9 +79,8 @@ namespace px
                 split_screen_btn->SetOnClickListener([=, this](QWidget* w) {
                     if (!context_->full_functionality_) {
                         TcDialog dialog(tr("Tips"), tr("You need to upgrade to the Super Edition to use the multi-screen display feature."), nullptr);
-                        auto pos = mapToGlobal(this->parentWidget()->pos());
-                        pos.setX(pos.x() + this->parentWidget()->width() / 2 - dialog.width() / 2);
-                        pos.setY(pos.y() + this->parentWidget()->height() / 2 - dialog.height() / 2);
+                        const auto owner_rect = OwnerGlobalRect();
+                        auto pos = owner_rect.center() - QPoint(dialog.width() / 2, dialog.height() / 2);
                         dialog.move(pos);
                         dialog.exec();
                         return;
@@ -91,9 +89,8 @@ namespace px
                     bool recording = context_->GetRecording();
                     if (recording) {
                         TcDialog dialog(tr("Tips"), tr("Currently, screen recording is in progress. Switching display is prohibited. If you want to switch displays, please stop the screen recording.."), nullptr);
-                        auto pos = mapToGlobal(this->parentWidget()->pos());
-                        pos.setX(pos.x() + this->parentWidget()->width() / 2 - dialog.width() / 2);
-                        pos.setY(pos.y() + this->parentWidget()->height() / 2 - dialog.height() / 2);
+                        const auto owner_rect = OwnerGlobalRect();
+                        auto pos = owner_rect.center() - QPoint(dialog.width() / 2, dialog.height() / 2);
                         dialog.move(pos);
                         dialog.exec();
                         return;
@@ -138,7 +135,7 @@ namespace px
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
                 btn->SetOnClickListener([=, this](QWidget* w) {
-                    auto top_widget = this->window();
+                    auto top_widget = OverlayOwner() ? OverlayOwner()->window() : nullptr;
                     if (top_widget) {
                         top_widget->showMinimized();
                     }
@@ -152,7 +149,7 @@ namespace px
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
                 btn->SetOnClickListener([=, this](QWidget* w) {
-                    auto top_widget = this->window();
+                    auto top_widget = OverlayOwner() ? OverlayOwner()->window() : nullptr;
                     if (!top_widget) {
                         return;
                     }
@@ -228,14 +225,11 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubPanelType::kWorkMode);
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubModePanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new SubModePanel(ctx, OverlayOwner()));
                     sub_panels_[SubPanelType::kWorkMode] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
-                panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                panel->show();
+                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
             });
         }
 #endif
@@ -243,7 +237,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -277,21 +271,18 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubPanelType::kControl);
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubControlPanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new SubControlPanel(ctx, OverlayOwner()));
                     sub_panels_[SubPanelType::kControl] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
-                panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                panel->show();
+                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
             });
         }
         // Display
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -323,16 +314,13 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubPanelType::kDisplay);
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubDisplayPanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new SubDisplayPanel(ctx, OverlayOwner()));
                     sub_panels_[SubPanelType::kDisplay] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
                 ((SubDisplayPanel*)panel)->SetCaptureMonitorName(monitor_name_);
                 ((SubDisplayPanel*)panel)->UpdateMonitorInfo(this->capture_monitor_);
-                panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                panel->show();
+                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
             });
 
         }
@@ -341,7 +329,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset * 2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset * 2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -362,16 +350,40 @@ namespace px
             layout->addWidget(virtual_display_label_);
             layout->addStretch();
 
-            virtual_display_remove_btn_ = new QPushButton("-", this);
-            virtual_display_add_btn_ = new QPushButton("+", this);
+            virtual_display_remove_btn_ = new QPushButton(this);
+            virtual_display_add_btn_ = new QPushButton(this);
             virtual_display_remove_btn_->setObjectName("virtualDisplayRemoveButton");
             virtual_display_add_btn_->setObjectName("virtualDisplayAddButton");
             virtual_display_remove_btn_->setAccessibleName(tcTr("id_virtual_display_remove"));
             virtual_display_add_btn_->setAccessibleName(tcTr("id_virtual_display_add"));
             virtual_display_remove_btn_->setToolTip(tcTr("id_virtual_display_remove"));
             virtual_display_add_btn_->setToolTip(tcTr("id_virtual_display_add"));
+            virtual_display_remove_btn_->setIcon(QIcon(":resources/image/ic_minimize.svg"));
+            virtual_display_add_btn_->setIcon(QIcon(":resources/image/ic_add.svg"));
             for (auto* button : {virtual_display_remove_btn_, virtual_display_add_btn_}) {
-                button->setFixedSize(28, 24);
+                button->setFixedSize(28, 28);
+                button->setIconSize(QSize(16, 16));
+                button->setCursor(Qt::PointingHandCursor);
+                button->setStyleSheet(R"(
+                    QPushButton {
+                        background: #ffffff;
+                        border: 1px solid #d9dee7;
+                        border-radius: 6px;
+                        padding: 0;
+                    }
+                    QPushButton:hover {
+                        background: #f2f6ff;
+                        border-color: #8db5ff;
+                    }
+                    QPushButton:pressed {
+                        background: #e5edff;
+                        border-color: #5c96ff;
+                    }
+                    QPushButton:disabled {
+                        background: #f7f8fa;
+                        border-color: #e8ebf0;
+                    }
+                )");
             }
             layout->addWidget(virtual_display_remove_btn_);
             layout->addSpacing(4);
@@ -410,7 +422,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -445,7 +457,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -495,7 +507,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -525,7 +537,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -556,7 +568,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -587,7 +599,7 @@ namespace px
         {
             auto layout = new NoMarginHLayout();
             auto widget = new BackgroundWidget(ctx, this);
-            widget->setFixedSize(this->width() - offset*2, icon_size.height());
+            widget->setFixedSize(ContentWidth() - offset*2, icon_size.height());
             widget->setLayout(layout);
 
             auto icon = new QLabel(this);
@@ -626,9 +638,8 @@ namespace px
                 //继续向下层panel传递显示器信息
                 auto panel = GetSubPanel(SubPanelType::kDisplay);
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubDisplayPanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new SubDisplayPanel(ctx, OverlayOwner()));
                     sub_panels_[SubPanelType::kDisplay] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                     ((SubDisplayPanel*)panel)->Hide();
                 }
                 ((SubDisplayPanel*)panel)->SetCaptureMonitorName(monitor_name_);
@@ -697,20 +708,7 @@ namespace px
     }
 
     void FloatControllerPanel::paintEvent(QPaintEvent *event) {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        QPen pen(0xaaaaaa);
-        pen.setWidth(2);
-        pen.setStyle(Qt::PenStyle::DotLine);
-        painter.setPen(pen);
-
-        painter.setBrush(QColor(0xffffff));
-        int offset = 0;
-        int radius = 2;
-        //painter.drawRoundedRect(offset, offset, this->width()-offset*2, this->height()-offset*2, radius, radius);
-        painter.drawRoundedRect(offset, offset, this->width()-offset*2, this->height()-offset*2, radius, radius);
-        BaseWidget::paintEvent(event);
+        FloatOverlayWindow::paintEvent(event);
     }
 
     BaseWidget* FloatControllerPanel::GetSubPanel(const SubPanelType& type) {
@@ -718,6 +716,12 @@ namespace px
             return sub_panels_[type];
         }
         return nullptr;
+    }
+
+    void FloatControllerPanel::ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor) {
+        if (panel && anchor) {
+            panel->ShowFlyout(this, anchor, true);
+        }
     }
 
     void FloatControllerPanel::HideAllSubPanels() {
@@ -741,10 +745,11 @@ namespace px
 
         int default_appropriate_icons_count = 3;
         if (capture_monitor_.monitors_.size() <= default_appropriate_icons_count) {
-            setFixedWidth(kInitialWidth);
+            SetContentSize(QSize(kInitialWidth, ContentHeight()));
         }
         else {
-            setFixedWidth(kInitialWidth + (capture_monitor_.monitors_.size() - default_appropriate_icons_count) * 32);
+            SetContentSize(QSize(kInitialWidth + (capture_monitor_.monitors_.size() - default_appropriate_icons_count) * 32,
+                                 ContentHeight()));
         }
         int index = 0;
         for (const auto& mon : capture_monitor_.monitors_) {

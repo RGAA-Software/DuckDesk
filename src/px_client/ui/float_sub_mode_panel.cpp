@@ -15,16 +15,15 @@
 namespace px
 {
 
-    SubModePanel::SubModePanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {
-        this->setWindowFlags(Qt::FramelessWindowHint);
-        this->setStyleSheet("background:#00000000;");
+    SubModePanel::SubModePanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
+        : FloatOverlayWindow(ctx, parent, QSize(210, 138)) {
         int offset = 5;
-        setFixedSize(210, 138);
         auto item_height = 38;
         auto border_spacing = 10;
-        auto item_size = QSize(this->width() - 2*offset, item_height);
+        auto item_size = QSize(ContentWidth() - 2*offset, item_height);
         auto root_layout = new NoMarginVLayout();
-        root_layout->setContentsMargins(offset, offset, offset, offset);
+        root_layout->setContentsMargins(kShadowMargin + offset, kShadowMargin + offset,
+                                        kShadowMargin + offset, kShadowMargin + offset);
 
         settings_ = Settings::Instance();
 
@@ -104,19 +103,7 @@ namespace px
     }
 
     void SubModePanel::paintEvent(QPaintEvent *event) {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        QPen pen(0xaaaaaa);
-        pen.setWidth(2);
-        pen.setStyle(Qt::PenStyle::DotLine);
-        painter.setPen(pen);
-
-        painter.setBrush(QColor(0xffffff));
-        int offset = 0;
-        int radius = 2;
-        painter.drawRoundedRect(offset, offset, this->width()-offset*2, this->height()-offset*2, radius, radius);
-        BaseWidget::paintEvent(event);
+        FloatOverlayWindow::paintEvent(event);
     }
 
     void SubModePanel::UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) {

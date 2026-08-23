@@ -18,20 +18,19 @@
 namespace px
 {
 
-    ThirdResolutionPanel::ThirdResolutionPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {
-        this->setWindowFlags(Qt::FramelessWindowHint);
-        this->setStyleSheet("background:#00000000;");
+    ThirdResolutionPanel::ThirdResolutionPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
+        : FloatOverlayWindow(ctx, parent, QSize(210, 360)) {
         int offset = 5;
-        setFixedSize(210, 360);
         auto item_height = 35;
         auto border_spacing = 10;
         auto item_size = QSize(this->width(), item_height);
         auto root_layout = new NoMarginVLayout();
-        root_layout->setContentsMargins(offset, offset, offset, offset);
+        root_layout->setContentsMargins(kShadowMargin + offset, kShadowMargin + offset,
+                                        kShadowMargin + offset, kShadowMargin + offset);
         settings_ = Settings::Instance();
 
         listview_ = new SingleSelectedList(this);
-        listview_->setFixedSize(QSize(this->width() - 2*offset, this->height()-2*offset));
+        listview_->setFixedSize(QSize(ContentWidth() - 2*offset, ContentHeight()-2*offset));
 
         listview_->SetOnItemClickListener([=, this](int idx, QWidget*) {
             auto item = listview_->GetItems().at(idx);
@@ -70,19 +69,7 @@ namespace px
     }
 
     void ThirdResolutionPanel::paintEvent(QPaintEvent *event) {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        QPen pen(0xaaaaaa);
-        pen.setWidth(2);
-        pen.setStyle(Qt::PenStyle::DotLine);
-        painter.setPen(pen);
-
-        painter.setBrush(QColor(0xffffff));
-        int offset = 0;
-        int radius = 2;
-        painter.drawRoundedRect(offset, offset, this->width()-offset*2, this->height()-offset*2, radius, radius);
-        BaseWidget::paintEvent(event);
+        FloatOverlayWindow::paintEvent(event);
     }
 
     void ThirdResolutionPanel::Hide() {

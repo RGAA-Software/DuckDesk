@@ -5,14 +5,14 @@
 #ifndef GAMMARAYPC_FLOAT_CONTROLLER_H
 #define GAMMARAYPC_FLOAT_CONTROLLER_H
 
-#include "base_widget.h"
+#include "float_overlay_window.h"
 
 namespace px
 {
     class ClientContext;
 
     // Circle Controller
-    class FloatController : public BaseWidget {
+    class FloatController : public FloatOverlayWindow {
     public:
         explicit FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;
@@ -37,6 +37,7 @@ namespace px
         bool enter_ = false;
         bool pressed_ = false;
         QPoint drag_position_;
+        QPoint press_global_position_;
         std::function<void()> click_listener_;
         std::function<void()> move_listener_;
         bool has_moved_ = false;

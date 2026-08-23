@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FLOAT_CONTROLLER_PANEL_H
 #define GAMMARAYPC_FLOAT_CONTROLLER_PANEL_H
 #include <string>
-#include "base_widget.h"
+#include "float_overlay_window.h"
 #include "px_client/ct_app_message.h"
 #include "virtual_display_ui_state.h"
 
@@ -26,7 +26,7 @@ namespace px
     class ComputerIcon;
     class FloatIcon;
 
-    class FloatControllerPanel : public BaseWidget {
+    class FloatControllerPanel : public FloatOverlayWindow {
     public:
         explicit FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;
@@ -39,6 +39,7 @@ namespace px
         void SetMonitorName(const std::string& mon_name);
     private:
         BaseWidget* GetSubPanel(const SubPanelType& type);
+        void ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor);
         void HideAllSubPanels();
         void UpdateCaptureMonitorInfo();
         void SwitchMonitor(ComputerIcon* w);
@@ -55,7 +56,7 @@ namespace px
         std::vector<ComputerIcon*> computer_icons_;
         MsgClientCaptureMonitor capture_monitor_;
 
-        const int kInitialWidth = 250;
+        static constexpr int kInitialWidth = 250;
 
         // 分屏显示按钮
         FloatIcon* split_screen_btn_ = nullptr;

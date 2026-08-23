@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FLOAT_SUB_DISPLAY_PANEL_H
 #define GAMMARAYPC_FLOAT_SUB_DISPLAY_PANEL_H
 
-#include "base_widget.h"
+#include "float_overlay_window.h"
 #include <QPainter>
 #include <string>
 #include "px_client/ct_app_message.h"
@@ -22,7 +22,7 @@ namespace px
     class MessageListener;
     class SwitchButton;
 
-    class SubDisplayPanel : BaseWidget {
+    class SubDisplayPanel : public FloatOverlayWindow {
     public:
         explicit SubDisplayPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;
@@ -32,6 +32,7 @@ namespace px
         void SetCaptureMonitorName(const std::string& name);
     private:
         BaseWidget* GetSubPanel(const SubDisplayType& type);
+        void ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor);
         void HideAllSubPanels();
         void UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) override;
     private:

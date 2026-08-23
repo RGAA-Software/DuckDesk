@@ -165,6 +165,9 @@ namespace px
         if (float_controller_) {
             float_controller_->ReCalculatePosition();
         }
+        if (controller_panel_ && controller_panel_->isVisible()) {
+            controller_panel_->Hide();
+        }
         recording_sign_lab_->move(this->width() * 0.85, 20);
         if (overlay_widget_) {
             overlay_widget_->resize(this->size());
@@ -272,26 +275,24 @@ namespace px
 
     void GameView::InitFloatController()
     {
-        // float controller
-        int shadow_color = 0x999999;
         float_controller_ = new FloatController(ctx_, this);
         float_controller_->installEventFilter(this);
-        float_controller_->setFixedSize(40, 40);
-        WidgetHelper::AddShadow(float_controller_, shadow_color);
         controller_panel_ = new FloatControllerPanel(ctx_, this);
-        WidgetHelper::AddShadow(controller_panel_, shadow_color);
         RegisterControllerPanelListeners();
         controller_panel_->installEventFilter(this);
         controller_panel_->hide();
 
+        // The overlays are top-level native windows. Moving the outer client
+        // window does not generate a move event for this child GameView, so
+        // observe the host window as well and keep the overlays attached.
+        if (window() && window() != this) {
+            window()->installEventFilter(this);
+        }
+
         float_controller_->SetOnClickListener([=, this]() {
-            QPoint point = float_controller_->mapToGlobal(QPoint(0, 0));
-            point.setX(float_controller_->pos().x() + float_controller_->width() + 10);
-            point.setY(float_controller_->pos().y());
-            controller_panel_->move(point);
             if (controller_panel_->isHidden()) {
                 if (!float_controller_->HasMoved()) {
-                    controller_panel_->show();
+                    controller_panel_->ShowBeside(float_controller_->VisualRectGlobal(), true);
                 }
             }
             else {
@@ -356,6 +357,33 @@ namespace px
     }
 
     bool GameView::eventFilter(QObject* watched, QEvent* event) {
+        if (watched == window() && watched != this) {
+            switch (event->type()) {
+            case QEvent::Move:
+            case QEvent::Resize:
+            case QEvent::Show:
+            case QEvent::Hide:
+            case QEvent::WindowStateChange:
+                if (controller_panel_) {
+                    controller_panel_->Hide();
+                }
+                QTimer::singleShot(0, this, [self = QPointer<GameView>(this)]() {
+                    if (!self || !self->float_controller_) {
+                        return;
+                    }
+                    auto* host = self->window();
+                    if (!host || !host->isVisible() || host->isMinimized() || !self->isVisible()) {
+                        self->float_controller_->hide();
+                        return;
+                    }
+                    self->float_controller_->ReCalculatePosition();
+                    self->float_controller_->ShowWithoutActivating();
+                });
+                break;
+            default:
+                break;
+            }
+        }
         if (watched == controller_panel_ || watched == float_controller_)
         {
             switch (event->type())
@@ -460,12 +488,25 @@ namespace px
         if (overlay_widget_) {
             overlay_widget_->show();
         }
+        QTimer::singleShot(0, this, [self = QPointer<GameView>(this)]() {
+            if (!self || self->isHidden() || !self->float_controller_) {
+                return;
+            }
+            self->float_controller_->ReCalculatePosition();
+            self->float_controller_->ShowWithoutActivating();
+        });
     }
 
     void GameView::hideEvent(QHideEvent* event) {
         QWidget::hideEvent(event);
         if (overlay_widget_) {
             overlay_widget_->hide();
+        }
+        if (controller_panel_) {
+            controller_panel_->Hide();
+        }
+        if (float_controller_) {
+            float_controller_->hide();
         }
     }
 
@@ -480,6 +521,12 @@ namespace px
         if (overlay_widget_) {
             QPoint global_pos = mapToGlobal(QPoint(0, 0));
             overlay_widget_->move(global_pos);
+        }
+        if (controller_panel_) {
+            controller_panel_->Hide();
+        }
+        if (float_controller_) {
+            float_controller_->ReCalculatePosition();
         }
         QWidget::moveEvent(event);
     }

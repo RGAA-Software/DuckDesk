@@ -7,13 +7,15 @@
 #include "px_common_new/log.h"
 #include "px_client/ct_client_context.h"
 #include <QTimer>
+#include <algorithm>
 
 const static std::string kPosX = "float_button_pos_x";
 const static std::string kPosY = "float_button_pos_y";
 
 namespace px
 {
-    FloatController::FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent){
+    FloatController::FloatController(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
+        : FloatOverlayWindow(ctx, parent, QSize(48, 48), 24, 6, 0) {
         setObjectName("remoteControlFloatingButton");
         setAccessibleName(tr("Remote control menu"));
         auto image = new QImage(":resources/px_icon.png");
@@ -28,29 +30,28 @@ namespace px
 
     void FloatController::paintEvent(QPaintEvent *event) {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        QPen pen(0x999999);
-        pen.setWidth(2);
-        // pen.setStyle(Qt::PenStyle::DotLine);
-        painter.setPen(pen);
+        const QColor background = pressed_ ? QColor(0xdfdfdf)
+                                           : enter_ ? QColor(0xf5f5f5)
+                                                    : QColor(0xffffff);
+        PaintCard(painter, background, QColor(220, 224, 230));
+        painter.setPen(Qt::NoPen);
         if (pressed_) {
-            painter.setBrush(QBrush(QColor(0xdfdfdf)));
+            painter.setOpacity(0.88);
         } else if (enter_) {
-            painter.setBrush(QBrush(QColor(0xf5f5f5)));
-        } else {
-            painter.setBrush(QBrush(QColor(0xffffff)));
+            painter.setOpacity(0.95);
         }
-        // painter.drawRoundedRect(this->rect(), this->width()/2, this->height()/2);
-        painter.drawRoundedRect(this->rect(), 2, 2);
-
-        painter.drawPixmap((this->width()-pixmap_.width())/2, (this->height()-pixmap_.height())/2, pixmap_);
+        const QRect card = CardRect();
+        painter.drawPixmap(card.center().x() - pixmap_.width() / 2,
+                           card.center().y() - pixmap_.height() / 2,
+                           pixmap_);
         BaseWidget::paintEvent(event);
     }
 
     void FloatController::mousePressEvent(QMouseEvent *event) {
         pressed_ = true;
         drag_position_ = event->globalPos() - frameGeometry().topLeft();
+        press_global_position_ = event->globalPos();
+        has_moved_ = false;
         event->accept();
         repaint();
     }
@@ -60,13 +61,15 @@ namespace px
         event->accept();
         repaint();
 
-        QRect parent_rect = parentWidget()->geometry();
-        float x_pos_ratio = this->pos().x() * 1.0f / parent_rect.width();
-        float y_pos_ratio = this->pos().y() * 1.0f / parent_rect.height();
+        const QRect owner_rect = OwnerGlobalRect();
+        const int available_width = std::max(1, owner_rect.width() - width());
+        const int available_height = std::max(1, owner_rect.height() - height());
+        const float x_pos_ratio = (this->pos().x() - owner_rect.left()) * 1.0f / available_width;
+        const float y_pos_ratio = (this->pos().y() - owner_rect.top()) * 1.0f / available_height;
         context_->SaveKeyValue(kPosX, std::to_string(x_pos_ratio));
         context_->SaveKeyValue(kPosY, std::to_string(y_pos_ratio));
 
-        if (click_listener_) {
+        if (!has_moved_ && click_listener_) {
             click_listener_();
         }
 
@@ -75,12 +78,12 @@ namespace px
 
     void FloatController::mouseMoveEvent(QMouseEvent *event) {
         if (pressed_) {
-            has_moved_ = true;
-            QPoint new_top_left = event->globalPos() - drag_position_;
-            QRect parent_rect = parentWidget()->geometry();
-            new_top_left.setX(new_top_left.x() < 0 ? 0 : new_top_left.x() > (parent_rect.width()-this->width()) ? parent_rect.width()-this->width() : new_top_left.x());
-            new_top_left.setY(new_top_left.y() < 0 ? 0 : new_top_left.y() > (parent_rect.height()-this->height()) ? parent_rect.height()-this->height() : new_top_left.y());
-            move(new_top_left);
+            if ((event->globalPos() - press_global_position_).manhattanLength() >= 5) {
+                has_moved_ = true;
+            }
+            if (has_moved_) {
+                MoveClamped(event->globalPos() - drag_position_);
+            }
         }
         if (move_listener_ && pressed_) {
             move_listener_();
@@ -102,9 +105,22 @@ namespace px
     }
 
     void FloatController::ReCalculatePosition() {
-        QRect parent_rect = parentWidget()->geometry();
-        float xpos = parent_rect.width() * std::atof(context_->GetValueByKey(kPosX).c_str());
-        float ypos = parent_rect.height() * std::atof(context_->GetValueByKey(kPosY).c_str());
-        move(xpos, ypos);
+        const QRect owner_rect = OwnerGlobalRect();
+        if (!owner_rect.isValid()) {
+            return;
+        }
+        const auto saved_x = context_->GetValueByKey(kPosX);
+        const auto saved_y = context_->GetValueByKey(kPosY);
+        float x_ratio = std::atof(saved_x.c_str());
+        float y_ratio = std::atof(saved_y.c_str());
+        if (saved_x.empty() || saved_y.empty()) {
+            x_ratio = 0.02f;
+            y_ratio = 0.08f;
+        }
+        x_ratio = std::clamp(x_ratio, 0.0f, 1.0f);
+        y_ratio = std::clamp(y_ratio, 0.0f, 1.0f);
+        const int x = owner_rect.left() + static_cast<int>((owner_rect.width() - width()) * x_ratio);
+        const int y = owner_rect.top() + static_cast<int>((owner_rect.height() - height()) * y_ratio);
+        MoveClamped(QPoint(x, y));
     }
 }

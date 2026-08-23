@@ -5,13 +5,13 @@
 #ifndef GAMMARAYPC_FLOAT_SUB_CONTROL_PANEL_H
 #define GAMMARAYPC_FLOAT_SUB_CONTROL_PANEL_H
 
-#include "base_widget.h"
+#include "float_overlay_window.h"
 #include <QPainter>
 
 namespace px
 {
     class SwitchButton;
-    class SubControlPanel : BaseWidget {
+    class SubControlPanel : public FloatOverlayWindow {
     public:
         explicit SubControlPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent = nullptr);
         void paintEvent(QPaintEvent *event) override;

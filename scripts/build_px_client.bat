@@ -42,6 +42,8 @@ set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_rtc_client.dll"
 set "FT_OUT=%BUILD_DIR%\src\px_client\plugins\ft\ft_client.dll"
 set "DIST_DIR=%BUILD_DIR%\dist"
 set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
+set "LANG_SRC=%REPO_ROOT%\src\px_panel\resources\language"
+set "LANG_DIST=%DIST_DIR%\resources\language"
 if not exist "%CLIENT_OUT%" (
     echo ERROR: px_client build completed but output was not found: %CLIENT_OUT%
     exit /b 1
@@ -58,6 +60,7 @@ if not exist "%FT_DIST_DIR%" mkdir "%FT_DIST_DIR%"
 copy /Y "%CLIENT_OUT%" "%DIST_DIR%\px_client.exe" >nul || exit /b 1
 copy /Y "%RTC_OUT%" "%DIST_DIR%\px_client_rtc.dll" >nul || exit /b 1
 copy /Y "%FT_OUT%" "%FT_DIST_DIR%\ft_client.dll" >nul || exit /b 1
+cmake -E copy_directory "%LANG_SRC%" "%LANG_DIST%" || exit /b 1
 
-echo DONE: published px_client.exe, px_client_rtc.dll and file-transfer plugin to %DIST_DIR%
+echo DONE: published px_client.exe, px_client_rtc.dll, file-transfer plugin and language files to %DIST_DIR%
 endlocal

@@ -79,6 +79,7 @@ set(SRCS_WS
     ct_settings.cpp
     ${CMAKE_SOURCE_DIR}/src/px_panel/src/theme/QtAdvancedStylesheet.cpp
     ui/float_controller.cpp
+    ui/float_overlay_window.cpp
     ui/base_widget.cpp
     ui/float_controller_panel.cpp
     ui/virtual_display_ui_state.cpp

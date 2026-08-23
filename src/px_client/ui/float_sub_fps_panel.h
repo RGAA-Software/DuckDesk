@@ -5,7 +5,7 @@
 #ifndef GAMMARAYPC_FLOAT_SUB_MODE_PANEL_H
 #define GAMMARAYPC_FLOAT_SUB_MODE_PANEL_H
 
-#include "base_widget.h"
+#include "float_overlay_window.h"
 #include <QPainter>
 #include <map>
 
@@ -16,7 +16,7 @@ namespace px
     class SwitchButton;
     class SingleSelectedList;
 
-    class SubFpsPanel : BaseWidget {
+    class SubFpsPanel : public FloatOverlayWindow {
     public:
         enum class EFps {
             k15Fps ,

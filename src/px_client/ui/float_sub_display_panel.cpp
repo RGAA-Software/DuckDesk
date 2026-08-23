@@ -19,16 +19,15 @@
 namespace px
 {
 
-    SubDisplayPanel::SubDisplayPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : BaseWidget(ctx, parent) {
-        this->setWindowFlags(Qt::FramelessWindowHint);
-        this->setStyleSheet("background:#00000000;");
+    SubDisplayPanel::SubDisplayPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
+        : FloatOverlayWindow(ctx, parent, QSize(210, 183)) {
         int offset = 5;
-        setFixedSize(210, 183);
         auto item_height = 38;
         int border_spacing = 10;
-        auto item_size = QSize(this->width() - 2*offset, item_height);
+        auto item_size = QSize(ContentWidth() - 2*offset, item_height);
         auto root_layout = new NoMarginVLayout();
-        root_layout->setContentsMargins(offset, offset, offset, offset);
+        root_layout->setContentsMargins(kShadowMargin + offset, kShadowMargin + offset,
+                                        kShadowMargin + offset, kShadowMargin + offset);
         auto icon_size = QSize(40, 40);
         {
             auto layout = new NoMarginHLayout();
@@ -60,14 +59,11 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubDisplayType::kScale);
                 if (!panel) {
-                    panel = (BaseWidget*)(new ThirdScalePanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new ThirdScalePanel(ctx, OverlayOwner()));
                     sub_panels_[SubDisplayType::kScale] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
-                panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                panel->Show();
+                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
             });
         }
         {
@@ -100,11 +96,9 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubDisplayType::kResolution);
                 if (!panel) {
-                    panel = (BaseWidget*)(new ThirdResolutionPanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new ThirdResolutionPanel(ctx, OverlayOwner()));
                     sub_panels_[SubDisplayType::kResolution] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
                 if (cap_monitors_info_.monitors_.empty()) {
                     LOGE("Error monitor index, can not get MsgClientCaptureMonitor.");
@@ -117,8 +111,7 @@ namespace px
                 auto capture_monitor = cap_monitors_info_.GetCaptureMonitorByName(capture_monitor_name_);
                 if (capture_monitor.IsValid()) {
                     ((ThirdResolutionPanel *) panel)->UpdateMonitor(capture_monitor);
-                    panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                    panel->Show();
+                    ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
                 }
             });
 
@@ -198,14 +191,11 @@ namespace px
             widget->SetOnClickListener([=, this](auto w) {
                 auto panel = GetSubPanel(SubDisplayType::kFps);
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubFpsPanel(ctx, (QWidget*)this->parent()));
+                    panel = (BaseWidget*)(new SubFpsPanel(ctx, OverlayOwner()));
                     sub_panels_[SubDisplayType::kFps] = panel;
-                    WidgetHelper::AddShadow(panel, 0xbbbbbb);
                 }
-                auto item_pos = this->mapTo((QWidget*)this->parent(), w->pos());
                 HideAllSubPanels();
-                panel->setGeometry(this->pos().x() + this->width(), item_pos.y(), panel->width(), panel->height());
-                panel->Show();
+                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
             });
         }
 
@@ -219,19 +209,7 @@ namespace px
     }
 
     void SubDisplayPanel::paintEvent(QPaintEvent *event) {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        QPen pen(0xaaaaaa);
-        pen.setWidth(2);
-        pen.setStyle(Qt::PenStyle::DotLine);
-        painter.setPen(pen);
-
-        painter.setBrush(QColor(0xffffff));
-        int offset = 0;
-        int radius = 2;
-        painter.drawRoundedRect(offset, offset, this->width()-offset*2, this->height()-offset*2, radius, radius);
-        BaseWidget::paintEvent(event);
+        FloatOverlayWindow::paintEvent(event);
     }
 
     BaseWidget* SubDisplayPanel::GetSubPanel(const SubDisplayType& type) {
@@ -239,6 +217,12 @@ namespace px
             return sub_panels_[type];
         }
         return nullptr;
+    }
+
+    void SubDisplayPanel::ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor) {
+        if (panel && anchor) {
+            panel->ShowFlyout(this, anchor, true);
+        }
     }
 
     void SubDisplayPanel::HideAllSubPanels() {
@@ -268,9 +252,8 @@ namespace px
         //将当前分辨率同步给分辨率面板,这样才会更新显示出正确的当前分辨率
         auto panel = GetSubPanel(SubDisplayType::kResolution);
         if (!panel) {
-            panel = (BaseWidget*)(new ThirdResolutionPanel(context_, (QWidget*)this->parent()));
+            panel = (BaseWidget*)(new ThirdResolutionPanel(context_, OverlayOwner()));
             sub_panels_[SubDisplayType::kResolution] = panel;
-            WidgetHelper::AddShadow(panel, 0xbbbbbb);
             panel->Hide();
         }
         if (cap_monitors_info_.monitors_.empty()) {
