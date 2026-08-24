@@ -84,6 +84,7 @@ cmake --build build_official -j18 --target ^
     test_px_udp_protocol ^
     test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine ^
     px_media_record_new test_record_writer ^
+    test_voice_call test_client_voice_call_protocol test_client_virtual_display ^
     test_records_catalog test_records_ticket test_record_transfer ^
     test_common test_http test_cpu
 if errorlevel 1 exit /b %errorlevel%
@@ -92,7 +93,7 @@ echo ----------------------BUILD TESTS DONE-------------------------
 
 if "%RUN_TESTS%"=="1" (
     call "%~dp0scripts\run_tc_tests.bat"
-    if errorlevel 1 exit /b %errorlevel%
+    if errorlevel 1 exit /b !errorlevel!
 )
 
 endlocal

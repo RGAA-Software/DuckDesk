@@ -26,6 +26,7 @@ type PendingAnswer = {
 }
 
 const typeValue = (name: string): number => RelayMessageType.values[name]
+const MAX_PENDING_LOCAL_ICE = 256
 
 function relayClientId(): string {
   if (globalThis.crypto?.randomUUID) {
@@ -64,6 +65,7 @@ export class StandardRtcSignaling {
   ) {}
 
   async connect(): Promise<void> {
+    if (this.socket) this.stop()
     const scheme = this.params.secure ? 'wss' : 'ws'
     const query = new URLSearchParams({
       device_id: this.clientId,
@@ -79,7 +81,10 @@ export class StandardRtcSignaling {
     const url = `${scheme}://${this.params.relayHost}:${this.params.relayPort}/relay?${query}`
     this.closed = false
     await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error('标准 RTC 信令 Relay 连接超时')), 10000)
+      const timer = window.setTimeout(
+        () => this.fail(new Error('标准 RTC 信令 Relay 连接超时')),
+        10000,
+      )
       this.readyResolve = () => {
         window.clearTimeout(timer)
         resolve()
@@ -129,8 +134,7 @@ export class StandardRtcSignaling {
     if (this.pendingAnswer) throw new Error('已有 RTC SDP 协商正在进行')
     return new Promise<string>((resolve, reject) => {
       const timer = window.setTimeout(() => {
-        this.pendingAnswer = null
-        reject(new Error('标准 RTC Answer SDP 等待超时'))
+        this.fail(new Error('标准 RTC Answer SDP 等待超时'))
       }, 15000)
       this.pendingAnswer = { resolve, reject, timer }
       this.canSendIce = true
@@ -152,6 +156,10 @@ export class StandardRtcSignaling {
 
   sendIce(candidate: RTCIceCandidate) {
     if (!this.roomId || !this.canSendIce) {
+      if (this.pendingLocalIce.length >= MAX_PENDING_LOCAL_ICE) {
+        this.pendingLocalIce.shift()
+        this.onLog('[rtc-standard] pending local ICE queue full; dropped oldest candidate')
+      }
       this.pendingLocalIce.push(candidate)
       return
     }
@@ -169,19 +177,7 @@ export class StandardRtcSignaling {
   }
 
   stop() {
-    this.closed = true
-    if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer)
-    this.heartbeatTimer = null
-    if (this.pendingAnswer) {
-      window.clearTimeout(this.pendingAnswer.timer)
-      this.pendingAnswer.reject(new Error('标准 RTC 信令已停止'))
-      this.pendingAnswer = null
-    }
-    this.socket?.close()
-    this.socket = null
-    this.roomId = ''
-    this.pendingLocalIce.length = 0
-    this.canSendIce = false
+    this.teardown(new Error('标准 RTC 信令已停止'), false)
   }
 
   private sendRelay(value: Record<string, unknown>) {
@@ -200,6 +196,7 @@ export class StandardRtcSignaling {
   }
 
   private async onRelayMessage(raw: unknown) {
+    if (this.closed) return
     const bytes = raw instanceof ArrayBuffer
       ? new Uint8Array(raw)
       : raw instanceof Blob
@@ -253,15 +250,28 @@ export class StandardRtcSignaling {
   }
 
   private fail(error: Error) {
-    this.onLog(`[rtc-standard] ${error.message}`)
-    this.readyReject?.(error)
+    this.teardown(error, true)
+  }
+
+  private teardown(error: Error, report: boolean) {
+    if (this.closed) return
+    this.closed = true
+    if (report) this.onLog(`[rtc-standard] ${error.message}`)
+    const readyReject = this.readyReject
     this.readyResolve = null
     this.readyReject = null
-    if (this.pendingAnswer) {
-      const pending = this.pendingAnswer
-      this.pendingAnswer = null
-      window.clearTimeout(pending.timer)
-      pending.reject(error)
-    }
+    const pending = this.pendingAnswer
+    this.pendingAnswer = null
+    if (pending) window.clearTimeout(pending.timer)
+    if (this.heartbeatTimer !== null) window.clearInterval(this.heartbeatTimer)
+    this.heartbeatTimer = null
+    const socket = this.socket
+    this.socket = null
+    this.roomId = ''
+    this.pendingLocalIce.length = 0
+    this.canSendIce = false
+    socket?.close()
+    readyReject?.(error)
+    pending?.reject(error)
   }
 }

@@ -22,6 +22,8 @@ use tokio::sync::Mutex;
 #[derive(Default)]
 pub struct ConsoleDatabase {
     pub client: Option<Arc<Mutex<Client>>>,
+    #[cfg(test)]
+    test_database_name: Option<String>,
     // device
     pub c_device: Option<Arc<Mutex<Collection<ConsoleDevice>>>>,
     // event
@@ -61,6 +63,15 @@ impl ConsoleDatabase {
         Self::default()
     }
 
+    #[cfg(test)]
+    pub fn use_isolated_test_database(&mut self, name: &str) {
+        assert!(name.starts_with("db_gr_console_server_test_"));
+        assert!(name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'));
+        self.test_database_name = Some(name.to_string());
+    }
+
     pub async fn init(&mut self) -> bool {
         let uri = gConsoleSettings.lock().await.mongodb_url.clone();
         // The URI may contain credentials. Never write it to a log file.
@@ -88,7 +99,14 @@ impl ConsoleDatabase {
         match client.database("admin").run_command(doc! {"ping": 1}).await {
             Ok(_) => {
                 tracing::info!("connect to mongodb success!");
-                let database = client.database("db_gr_console_server");
+                #[cfg(test)]
+                let database_name = self
+                    .test_database_name
+                    .as_deref()
+                    .unwrap_or("db_gr_console_server");
+                #[cfg(not(test))]
+                let database_name = "db_gr_console_server";
+                let database = client.database(database_name);
 
                 // device
                 let c_device: Collection<ConsoleDevice> = database.collection("c_device");

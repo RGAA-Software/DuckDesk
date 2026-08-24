@@ -5,6 +5,8 @@ set REPO_ROOT=%~dp0..
 set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common_new\tests
 set FT_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_ft_engine\tests
 set RECORD_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_media_record_new\tests
+set VOICE_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_voice_call
+set CLIENT_TEST_DIR=%REPO_ROOT%\build_official\src\px_client
 set LOG=%REPO_ROOT%\build_official\run_tests.log
 set FAILED=0
 
@@ -75,6 +77,39 @@ for %%t in (
         )
     ) else (
         echo [ERROR] %%t.exe not found in %RECORD_TEST_DIR% >> "%LOG%" 2>&1
+        set FAILED=1
+    )
+)
+
+for %%t in (
+    test_voice_call
+) do (
+    echo ===== %%t ===== >> "%LOG%" 2>&1
+    if exist "%VOICE_TEST_DIR%\%%t.exe" (
+        "%VOICE_TEST_DIR%\%%t.exe" >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            echo [FAIL] %%t >> "%LOG%" 2>&1
+            set FAILED=1
+        )
+    ) else (
+        echo [ERROR] %%t.exe not found in %VOICE_TEST_DIR% >> "%LOG%" 2>&1
+        set FAILED=1
+    )
+)
+
+for %%t in (
+    test_client_voice_call_protocol
+    test_client_virtual_display
+) do (
+    echo ===== %%t ===== >> "%LOG%" 2>&1
+    if exist "%CLIENT_TEST_DIR%\%%t.exe" (
+        "%CLIENT_TEST_DIR%\%%t.exe" >> "%LOG%" 2>&1
+        if errorlevel 1 (
+            echo [FAIL] %%t >> "%LOG%" 2>&1
+            set FAILED=1
+        )
+    ) else (
+        echo [ERROR] %%t.exe not found in %CLIENT_TEST_DIR% >> "%LOG%" 2>&1
         set FAILED=1
     )
 )

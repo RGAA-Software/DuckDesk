@@ -23,13 +23,25 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const profile = path.join(os.tmpdir(), `cdp-virtual-display-${Date.now()}`)
 const chrome = spawn(CHROME, [
   '--headless=new',
+  '--disable-gpu',
+  '--disable-gpu-compositing',
+  '--disable-gpu-sandbox',
+  '--no-sandbox',
+  '--use-angle=swiftshader',
   `--remote-debugging-port=${CDP_PORT}`,
   `--user-data-dir=${profile}`,
   '--no-first-run',
   '--autoplay-policy=no-user-gesture-required',
   '--window-size=1600,900',
   'about:blank',
-], { stdio: 'ignore' })
+], { stdio: ['ignore', 'ignore', 'pipe'] })
+
+let chromeExit = null
+let chromeStderr = ''
+chrome.stderr?.on('data', (chunk) => {
+  if (chromeStderr.length < 4000) chromeStderr += String(chunk)
+})
+chrome.on('exit', (code, signal) => { chromeExit = { code, signal } })
 
 let ws
 let messageId = 0
@@ -48,8 +60,21 @@ process.on('exit', () => {
 function command(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = ++messageId
-    pending.set(id, { resolve, reject })
-    ws.send(JSON.stringify({ id, method, params }))
+    const timeout = setTimeout(() => {
+      pending.delete(id)
+      reject(new Error(`DevTools command timeout: ${method}`))
+    }, 10000)
+    pending.set(id, {
+      resolve: (value) => { clearTimeout(timeout); resolve(value) },
+      reject: (error) => { clearTimeout(timeout); reject(error) },
+    })
+    try {
+      ws.send(JSON.stringify({ id, method, params }))
+    } catch (error) {
+      clearTimeout(timeout)
+      pending.delete(id)
+      reject(error)
+    }
   })
 }
 
@@ -72,7 +97,7 @@ async function waitDevtools() {
     } catch { /* retry */ }
     await sleep(250)
   }
-  throw new Error('Chrome DevTools endpoint not ready')
+  throw new Error(`Chrome DevTools endpoint not ready; chrome=${JSON.stringify(chromeExit)} stderr=${chromeStderr.slice(-1000)}`)
 }
 
 const STATE_JS = `(() => {
@@ -293,6 +318,7 @@ main()
     evidence.finishedAt = new Date().toISOString()
     evidence.result = 'FAIL'
     evidence.error = error instanceof Error ? error.stack : String(error)
+    evidence.chrome = { exit: chromeExit, stderr: chromeStderr.slice(-1000) }
     fs.writeFileSync(path.join(OUT_DIR, 'result.json'), JSON.stringify(evidence, null, 2))
     console.error('[e2e] FAIL:', error)
     process.exitCode = 1

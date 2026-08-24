@@ -1,5 +1,5 @@
-use crate::console_api_error::ConsoleApiError;
 use crate::connection_ticket::model::{ConnectionTicket, TicketGrant};
+use crate::console_api_error::ConsoleApiError;
 use crate::event::audit;
 use crate::gConsoleDatabase;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -339,11 +339,191 @@ impl ConnectionTicketManager {
 #[cfg(test)]
 mod tests {
     use super::ConnectionTicketManager;
+    use crate::gConsoleDatabase;
+    use crate::user::session::ConsoleUserSession;
+    use mongodb::bson::DateTime;
 
     #[test]
     fn nonce_is_url_fragment_safe() {
         assert!(ConnectionTicketManager::validate_nonce("browser_1-abc.xyz").is_ok());
         assert!(ConnectionTicketManager::validate_nonce("bad&ticket=x").is_err());
         assert!(ConnectionTicketManager::validate_nonce("").is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires a local MongoDB; run explicitly as the L1 ticket gate"]
+    async fn mongodb_atomic_redeem_renew_and_binding_gate() {
+        let database_name = format!("db_gr_console_server_test_ticket_{}", std::process::id());
+        crate::gConsoleSettings.lock().await.mongodb_url =
+            "mongodb://127.0.0.1:27017/".to_string();
+        {
+            let mut database = gConsoleDatabase.lock().await;
+            database.use_isolated_test_database(&database_name);
+            assert!(
+                database.init().await,
+                "initialize isolated MongoDB test database"
+            );
+        }
+
+        let now = px_base::get_current_timestamp();
+        let session_id = format!("ticket-test-session-{}", std::process::id());
+        let session = ConsoleUserSession {
+            sid: session_id.clone(),
+            token_hash: "test-only-token-hash".to_string(),
+            subject_type: "user".to_string(),
+            subject_id: "ticket-test-user".to_string(),
+            auth_version: 1,
+            client_type: "test".to_string(),
+            created_at: now,
+            last_used_at: now,
+            expires_at: now + 3_600_000,
+            absolute_expires_at: now + 3_600_000,
+            cleanup_at: DateTime::from_millis(now + 3_600_000),
+            revoked_at: None,
+            csrf_hash: String::new(),
+            ip_hash: String::new(),
+            user_agent_hash: String::new(),
+        };
+        gConsoleDatabase
+            .lock()
+            .await
+            .user_session()
+            .lock()
+            .await
+            .insert_one(session)
+            .await
+            .expect("insert isolated test session");
+
+        let (redeem_raw, _, _) = ConnectionTicketManager::issue(
+            "device",
+            "user",
+            "ticket-test-user",
+            &session_id,
+            "device-90",
+            None,
+            None,
+            vec!["view".to_string()],
+            "concurrent-redeem".to_string(),
+        )
+        .await
+        .expect("issue concurrent redeem ticket");
+        let mut redeem_tasks = Vec::new();
+        for attempt in 0..20 {
+            let raw = redeem_raw.clone();
+            redeem_tasks.push(tokio::spawn(async move {
+                ConnectionTicketManager::redeem(
+                    &raw,
+                    "device-90",
+                    "concurrent-redeem",
+                    None,
+                    &format!("redeem-attempt-{attempt}"),
+                )
+                .await
+                .is_ok()
+            }));
+        }
+        let mut redeem_successes = 0;
+        for task in redeem_tasks {
+            redeem_successes += usize::from(task.await.expect("join redeem attempt"));
+        }
+
+        let (_, renewal_raw, _) = ConnectionTicketManager::issue(
+            "device",
+            "user",
+            "ticket-test-user",
+            &session_id,
+            "device-90",
+            None,
+            None,
+            vec!["view".to_string()],
+            "concurrent-renew".to_string(),
+        )
+        .await
+        .expect("issue concurrent renewal ticket");
+        let mut renewal_tasks = Vec::new();
+        for _ in 0..20 {
+            let raw = renewal_raw.clone();
+            renewal_tasks.push(tokio::spawn(async move {
+                ConnectionTicketManager::renew(&raw, "concurrent-renew")
+                    .await
+                    .is_ok()
+            }));
+        }
+        let mut renewal_successes = 0;
+        for task in renewal_tasks {
+            renewal_successes += usize::from(task.await.expect("join renewal attempt"));
+        }
+
+        let (bound_raw, _, _) = ConnectionTicketManager::issue(
+            "app_instance",
+            "user",
+            "ticket-test-user",
+            &session_id,
+            "device-90",
+            Some("app-1".to_string()),
+            Some("instance-1".to_string()),
+            vec!["view".to_string()],
+            "binding-nonce".to_string(),
+        )
+        .await
+        .expect("issue binding ticket");
+        let wrong_device = ConnectionTicketManager::redeem(
+            &bound_raw,
+            "other-device",
+            "binding-nonce",
+            Some("instance-1"),
+            "wrong-device",
+        )
+        .await;
+        let wrong_nonce = ConnectionTicketManager::redeem(
+            &bound_raw,
+            "device-90",
+            "other-nonce",
+            Some("instance-1"),
+            "wrong-nonce",
+        )
+        .await;
+        let wrong_instance = ConnectionTicketManager::redeem(
+            &bound_raw,
+            "device-90",
+            "binding-nonce",
+            Some("other-instance"),
+            "wrong-instance",
+        )
+        .await;
+        let correct_binding = ConnectionTicketManager::redeem(
+            &bound_raw,
+            "device-90",
+            "binding-nonce",
+            Some("instance-1"),
+            "correct-binding",
+        )
+        .await;
+
+        let mongodb_url = crate::gConsoleSettings.lock().await.mongodb_url.clone();
+        let client = mongodb::Client::with_uri_str(&mongodb_url)
+            .await
+            .expect("create cleanup MongoDB client");
+        client
+            .database(&database_name)
+            .drop()
+            .await
+            .expect("drop isolated ticket test database");
+
+        assert_eq!(
+            redeem_successes, 1,
+            "one-time ticket must redeem exactly once"
+        );
+        assert_eq!(
+            renewal_successes, 1,
+            "renewal capability must rotate exactly once"
+        );
+        assert!(wrong_device.is_err());
+        assert!(wrong_nonce.is_err());
+        assert!(wrong_instance.is_err());
+        assert!(
+            correct_binding.is_ok(),
+            "failed binding attempts must not consume the ticket"
+        );
     }
 }
