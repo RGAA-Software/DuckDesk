@@ -4,7 +4,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${PX_PROJECT_PATH}/px_message_new)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/)
-include_directories(${PX_PROJECT_PATH}/px_3rdparty/eventbus/src)
 
 set(OPUS_SRCS opus_codec.cpp)
 

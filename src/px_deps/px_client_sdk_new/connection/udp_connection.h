@@ -16,9 +16,11 @@ namespace asio2
 namespace px
 {
 
-    class UdpConnection : public Connection {
+    class UdpConnection : public Connection,
+                          public std::enable_shared_from_this<UdpConnection> {
     public:
         UdpConnection(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier, const std::string& host, int port);
+        ~UdpConnection() override;
         void Start() override;
         void Stop() override;
         void PostBinaryMessage(std::shared_ptr<Data> msg) override;

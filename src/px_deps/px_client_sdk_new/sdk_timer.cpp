@@ -19,13 +19,16 @@ namespace px
     }
 
     void SdkTimer::StartTimers() {
+        auto weak_self = weak_from_this();
         auto durations = std::vector<SdkTimerDuration>{
             kTimerDuration1000, kTimerDuration2000, kTimerDuration100, kTimerDuration16
         };
         for (const auto& duration : durations) {
             auto timer_id = std::format("tid:{}", (int)duration);
-            timer_->start_timer(timer_id, (int)duration, [=, this]() {
-                this->NotifyTimeout(duration);
+            timer_->start_timer(timer_id, (int)duration, [weak_self, duration]() {
+                if (auto self = weak_self.lock()) {
+                    self->NotifyTimeout(duration);
+                }
             });
         }
     }
@@ -40,16 +43,18 @@ namespace px
 
     void SdkTimer::NotifyTimeout(SdkTimerDuration duration) {
         if (duration == SdkTimerDuration::kTimerDuration1000) {
-            notifier_->SendAppMessage(SdkMsgTimer1000{});
+            (void)notifier_->PublishLatestAppMessage(SdkMsgTimer1000{});
         }
         else if (duration == SdkTimerDuration::kTimerDuration2000) {
-            notifier_->SendAppMessage(SdkMsgTimer2000{});
+            (void)notifier_->PublishLatestAppMessage(SdkMsgTimer2000{});
         }
         else if (duration == SdkTimerDuration::kTimerDuration100) {
-            notifier_->SendAppMessage(SdkMsgTimer100{});
+            (void)notifier_->PublishLatestAppMessage(SdkMsgTimer100{});
         }
         else if (duration == SdkTimerDuration::kTimerDuration16) {
-            notifier_->SendAppMessage(SdkMsgTimer16{});
+            // Timer ticks represent current time, not accumulated work. Keep at
+            // most one pending tick when a listener is temporarily busy.
+            (void)notifier_->PublishLatestAppMessage(SdkMsgTimer16{});
         }
     }
 

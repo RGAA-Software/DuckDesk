@@ -13,7 +13,7 @@ namespace px
         setFixedSize(42, 24);
         setAttribute(Qt::WA_StyledBackground, true);
         this->setStyleSheet("background:#FFFFFFFF;");
-        listener_ = context_->ObtainMessageListener();
+        listener_ = context_->ObtainUIMessageListener();
         listener_->Listen<SdkMsgTimer1000>([this](const SdkMsgTimer1000& m) {
             if (this->isHidden()) {
                 return;

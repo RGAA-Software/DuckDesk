@@ -42,74 +42,64 @@ namespace px
             .connection_nonce_ = room_type == kRoomTypeFileTransfer ? params->connection_nonce_ : "",
         });
 
-        relay_sdk_->SetOnRelayProtoMessageCallback([=, this](const std::shared_ptr<RelayMessage>& rl_msg) {
-            if (rl_msg->type() == RelayMessageType::kRelayTargetMessage) {
-                auto sub = rl_msg->relay();
-                auto relay_msg_index = sub.relay_msg_index();
-                if (msg_cbk_) {
-                    auto payload = Data::From(sub.payload());
-                    msg_cbk_(payload);
-                }
-            }
-        });
-
-        relay_sdk_->SetOnRelayServerConnectedCallback([=, this]() {
-            LOGI("Relay server connected.");
-            if (conn_cbk_) {
-                conn_cbk_();
-            }
-        });
-
-        relay_sdk_->SetOnRelayServerDisConnectedCallback([=, this]() {
-            LOGI("Relay server disconnected.");
-            if (dis_conn_cbk_) {
-                dis_conn_cbk_();
-            }
-        });
-
-        relay_sdk_->SetOnRelayRoomPreparedCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
-            LOGI("Auto relay: {}", auto_relay_);
-            if (auto_relay_) {
-                this->RequestResumeStream();
-            }
-
-            // notify
-            msg_notifier_->SendAppMessage(SdkMsgRoomPrepared{
-                .room_type_ = room_type,
-            });
-        });
-
-        relay_sdk_->SetOnRelayRoomDestroyedCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
-            // notify
-            msg_notifier_->SendAppMessage(SdkMsgRoomDestroyed{});
-        });
-
-        // error
-        relay_sdk_->SetOnRelayErrorCallback([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
-            auto re = msg->relay_error();
-            msg_notifier_->SendAppMessage(SdkMsgRelayError {
-                .code_ = re.code(),
-                .msg_ = re.message(),
-                .which_msg_ = re.which_message(),
-            });
-        });
-
-        // remote device offline
-        relay_sdk_->SetOnRelayRemoteDeviceOffline([=, this](const std::shared_ptr<px_relay::RelayMessage>& msg) {
-            auto sub = msg->remote_device_offline();
-            msg_notifier_->SendAppMessage(SdkMsgRelayRemoteDeviceOffline {
-                .device_id_ = sub.device_id(),
-                .remote_device_id_ = sub.remote_device_id(),
-                .room_id_ = sub.room_id(),
-            });
-        });
     }
 
     RelayConnection::~RelayConnection() {
-
+        Stop();
     }
 
     void RelayConnection::Start() {
+        const auto weak_self = weak_from_this();
+        relay_sdk_->SetOnRelayProtoMessageCallback([weak_self](const std::shared_ptr<RelayMessage>& rl_msg) {
+            const auto self = weak_self.lock();
+            if (!self || rl_msg->type() != RelayMessageType::kRelayTargetMessage) return;
+            if (self->msg_cbk_) {
+                self->msg_cbk_(Data::From(rl_msg->relay().payload()));
+            }
+        });
+        relay_sdk_->SetOnRelayServerConnectedCallback([weak_self]() {
+            LOGI("Relay server connected.");
+            if (const auto self = weak_self.lock(); self && self->conn_cbk_) self->conn_cbk_();
+        });
+        relay_sdk_->SetOnRelayServerDisConnectedCallback([weak_self]() {
+            LOGI("Relay server disconnected.");
+            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) self->dis_conn_cbk_();
+        });
+        relay_sdk_->SetOnRelayRoomPreparedCallback(
+            [weak_self](const std::shared_ptr<px_relay::RelayMessage>&) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                LOGI("Auto relay: {}", self->auto_relay_);
+                if (self->auto_relay_) self->RequestResumeStream();
+                self->msg_notifier_->SendAppMessage(SdkMsgRoomPrepared{.room_type_ = self->room_type_});
+            });
+        relay_sdk_->SetOnRelayRoomDestroyedCallback(
+            [weak_self](const std::shared_ptr<px_relay::RelayMessage>&) {
+                if (const auto self = weak_self.lock()) {
+                    self->msg_notifier_->SendAppMessage(SdkMsgRoomDestroyed{});
+                }
+            });
+        relay_sdk_->SetOnRelayErrorCallback(
+            [weak_self](const std::shared_ptr<px_relay::RelayMessage>& msg) {
+                if (const auto self = weak_self.lock()) {
+                    const auto& error = msg->relay_error();
+                    self->msg_notifier_->SendAppMessage(SdkMsgRelayError {
+                        .code_ = error.code(), .msg_ = error.message(),
+                        .which_msg_ = error.which_message(),
+                    });
+                }
+            });
+        relay_sdk_->SetOnRelayRemoteDeviceOffline(
+            [weak_self](const std::shared_ptr<px_relay::RelayMessage>& msg) {
+                if (const auto self = weak_self.lock()) {
+                    const auto& offline = msg->remote_device_offline();
+                    self->msg_notifier_->SendAppMessage(SdkMsgRelayRemoteDeviceOffline {
+                        .device_id_ = offline.device_id(),
+                        .remote_device_id_ = offline.remote_device_id(),
+                        .room_id_ = offline.room_id(),
+                    });
+                }
+            });
         relay_sdk_->Start();
     }
 

@@ -202,7 +202,7 @@ namespace px
         root_layout->addStretch();
         setLayout(root_layout);
 
-        msg_listener_ = context_->ObtainMessageListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         msg_listener_->Listen<MsgClientFullscreen>([=, this](const MsgClientFullscreen& msg) {
             HideAllSubPanels();
         });

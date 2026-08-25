@@ -52,9 +52,12 @@ namespace px
     }
 
     void WebRtcLocalConnection::Start() {
-        RunInRtcThread([=, this]() {
-            this->LoadRtcLibrary();
-            this->InitRtcClient();
+        const auto weak_self = weak_from_this();
+        RunInRtcThread([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->LoadRtcLibrary();
+                self->InitRtcClient();
+            }
         });
     }
 
@@ -67,6 +70,7 @@ namespace px
         }
         if (thread_) {
             thread_->Exit();
+            thread_.reset();
         }
     }
 
@@ -115,68 +119,77 @@ namespace px
         // encoded-sink mode: video tracks are consumed as pre-decode H264 and decoded
         // by the sdk's own FFmpegVulkanDecoder chain(zero-copy d3d11/pl_vulkan),
         // not by webrtc's built-in software decoder
-        rtc_client_->SetOnEncodedVideoFrameCallback([=, this](int track_index, bool key, int w, int h, std::shared_ptr<Data> encoded) {
-            this->OnEncodedVideoFrame(track_index, key, w, h, encoded);
+        const auto weak_self = weak_from_this();
+        rtc_client_->SetOnEncodedVideoFrameCallback([weak_self](int track_index, bool key, int w, int h, std::shared_ptr<Data> encoded) {
+            if (const auto self = weak_self.lock()) {
+                self->OnEncodedVideoFrame(track_index, key, w, h, std::move(encoded));
+            }
         });
 
-        rtc_client_->SetOnLocalSdpSetCallback([=, this](const std::string& sdp) {
+        rtc_client_->SetOnLocalSdpSetCallback([weak_self](const std::string& sdp) {
             // called on the webrtc signaling thread, hand off to our own thread
             // before doing the blocking http request
             LOGI("Got the final offer sdp, size: {}, will request the answer by http.", sdp.size());
-            RunInRtcThread([=, this]() {
-                this->RequestAnswerSdp(sdp, false);
-            });
-        });
-
-        rtc_client_->SetMediaMessageCallback([=, this](std::shared_ptr<Data> msg) {
-            if (msg_cbk_) {
-                msg_cbk_(msg);
+            if (const auto self = weak_self.lock()) {
+                self->RunInRtcThread([weak_self, sdp]() {
+                    if (const auto locked = weak_self.lock()) locked->RequestAnswerSdp(sdp, false);
+                });
             }
         });
 
-        rtc_client_->SetFtMessageCallback([=, this](std::shared_ptr<Data> msg) {
-            if (ft_msg_cbk_) {
-                ft_msg_cbk_(msg);
+        rtc_client_->SetMediaMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+            if (const auto self = weak_self.lock(); self && self->msg_cbk_) {
+                self->msg_cbk_(std::move(msg));
             }
         });
 
-        rtc_client_->SetOnVideoFrameCallback([=, this](int w, int h, std::shared_ptr<Data> i420) {
-            if (video_frame_cbk_) {
-                video_frame_cbk_(w, h, i420);
+        rtc_client_->SetFtMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+            if (const auto self = weak_self.lock(); self && self->ft_msg_cbk_) {
+                self->ft_msg_cbk_(std::move(msg));
+            }
+        });
+
+        rtc_client_->SetOnVideoFrameCallback([weak_self](int w, int h, std::shared_ptr<Data> i420) {
+            if (const auto self = weak_self.lock(); self && self->video_frame_cbk_) {
+                self->video_frame_cbk_(w, h, std::move(i420));
             }
         });
 
         // audio rtp track: decoded PCM via the dll's AudioSinkInterface(dummy ADM
         // would discard it otherwise), played by the sdk's own AudioPlayer
-        rtc_client_->SetOnAudioDataCallback([=, this](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
-            if (audio_data_cbk_) {
-                audio_data_cbk_(pcm, sample_rate, channels);
+        rtc_client_->SetOnAudioDataCallback([weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
+            if (const auto self = weak_self.lock(); self && self->audio_data_cbk_) {
+                self->audio_data_cbk_(std::move(pcm), sample_rate, channels);
             }
         });
 
-        rtc_client_->SetOnIceStateCallback([=, this](int state) {
+        rtc_client_->SetOnIceStateCallback([weak_self](int state) {
+            const auto self = weak_self.lock();
+            if (!self) return;
             LOGI("Rtc local, ice state changed: {}", state);
             if (state == kIceStateConnected || state == kIceStateCompleted) {
-                RunInRtcThread([=, this]() {
+                self->RunInRtcThread([weak_self]() {
+                    const auto locked = weak_self.lock();
+                    if (!locked) return;
                     // ICE connected doesn't mean SCTP is ready. A normal client
                     // waits for its media channel; the standalone file manager
                     // intentionally has no media permission and waits for FT.
-                    for (int i = 0; i < 100 && !stopped_; ++i) {
-                        const bool ready = sdk_params_->file_transfer_only_
-                            ? this->IsFtChannelReady()
-                            : this->IsMediaChannelReady();
+                    for (int i = 0; i < 100 && !locked->stopped_; ++i) {
+                        const bool ready = locked->sdk_params_->file_transfer_only_
+                            ? locked->IsFtChannelReady()
+                            : locked->IsMediaChannelReady();
                         if (ready) {
                             break;
                         }
                         TimeUtil::DelayBySleep(50);
                     }
-                    if (stopped_) {
+                    if (locked->stopped_) {
                         return;
                     }
-                    if (!connected_.exchange(true)) {
+                    if (!locked->connected_.exchange(true)) {
                         LOGI("Rtc local, connected.");
-                        if (conn_cbk_) {
-                            conn_cbk_();
+                        if (locked->conn_cbk_) {
+                            locked->conn_cbk_();
                         }
                     }
                 });
@@ -188,13 +201,13 @@ namespace px
                 LOGI("Rtc local ice transient disconnected, keep connection state.");
             }
             else if (state == kIceStateFailed || state == kIceStateClosed) {
-                if (stopped_) {
+                if (self->stopped_) {
                     return;
                 }
-                if (connected_.exchange(false)) {
+                if (self->connected_.exchange(false)) {
                     LOGW("Rtc local, disconnected, ice state: {}", state);
-                    if (dis_conn_cbk_) {
-                        dis_conn_cbk_();
+                    if (self->dis_conn_cbk_) {
+                        self->dis_conn_cbk_();
                     }
                 }
             }
@@ -505,7 +518,9 @@ namespace px
     }
 
     void WebRtcLocalConnection::RunInRtcThread(std::function<void()>&& task) {
-        thread_->Post(std::move(task));
+        if (thread_ && !stopped_) {
+            thread_->Post(std::move(task));
+        }
     }
 
 }

@@ -65,8 +65,13 @@ app_secret = ""
 # port; Console synchronizes the adjacent px_media/config.ini at startup.
 # When ZLM is remote, use its private/LAN address instead.
 media_server_url = "http://127.0.0.1:12888"
+# Host or IP reachable by remote Render publishers. Empty means use the
+# Console machine address resolved into server_w3c_ip. Set a public IP or DNS
+# name here when publishers connect from outside the Console LAN.
+publish_public_host = ""
 # Address render instances use to publish the passive main stream. For a
-# remote ZLMediaKit set this to its LAN/public RTMP address instead.
+# remote ZLMediaKit set publish_public_host to its reachable host. This URL
+# supplies the RTMP/RTMPS scheme, port and path template; its host is replaced.
 publish_rtmp_url = "rtmp://127.0.0.1:1935/live/{live_stream_id}"
 # Copy the [api] secret from px_media/config.ini for a non-loopback ZLM.
 # Keep this empty only for a local 127.0.0.1 test deployment.

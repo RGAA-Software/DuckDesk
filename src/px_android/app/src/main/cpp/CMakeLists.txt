@@ -39,7 +39,6 @@ endif ()
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${PX_PROJECT_PATH})
 include_directories(${PX_PROJECT_PATH}/px_3rdparty)
-include_directories(${PX_PROJECT_PATH}/px_3rdparty/eventbus/src)
 include_directories(${PX_PROJECT_PATH}/px_common_new)
 include_directories(${PX_PROJECT_PATH}/px_client_sdk_new)
 include_directories(${PX_PROJECT_PATH}/px_message_new)
@@ -64,7 +63,6 @@ find_package(Opus CONFIG REQUIRED)
 find_package(leveldb CONFIG REQUIRED)
 
 # Source-depend on the inlined px_* modules (out-of-tree subdirectories).
-# px_3rdparty defines Dexode::EventBus (via add_subdirectory(eventbus)).
 add_subdirectory(${PX_PROJECT_PATH}/px_3rdparty ${CMAKE_BINARY_DIR}/px_3rdparty)
 add_subdirectory(${PX_PROJECT_PATH}/px_common_new ${CMAKE_BINARY_DIR}/px_common_new)
 add_subdirectory(${PX_PROJECT_PATH}/px_message_new ${CMAKE_BINARY_DIR}/px_message_new)

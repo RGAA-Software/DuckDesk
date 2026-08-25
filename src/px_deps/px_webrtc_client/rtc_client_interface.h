@@ -123,8 +123,8 @@ namespace px
             video_frame_cbk_ = cbk;
         }
 
-        // when set(in local mode), the remote audio track is tapped for decoded
-        // PCM via an AudioSinkInterface, instead of webrtc's(dummy) playout
+        // When set, the remote audio track is tapped for decoded PCM via an
+        // AudioSinkInterface instead of WebRTC's dummy playout.
         virtual void SetOnAudioDataCallback(OnAudioDataCallback&& cbk) {
             audio_data_cbk_ = cbk;
         }

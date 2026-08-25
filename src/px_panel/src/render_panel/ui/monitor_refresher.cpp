@@ -51,7 +51,7 @@ namespace px
     }
 
     void MonitorRefresher::InitMessageListeners() {
-        msg_listener_ = context_->ObtainMessageListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         const auto weak_self = weak_from_this();
         msg_listener_->Listen<MsgGrTimer100>([weak_self](const MsgGrTimer100& msg) {
             if (const auto self = weak_self.lock(); self) {

@@ -5,6 +5,19 @@
 > 测试拓扑：开发机作为主控与 Console/Coturn 节点，10.0.0.90 作为被控 Windows 实机
 > 结论边界：本计划通过后可声明“功能、安全、生命周期、LAN TURN 和受控故障验收完成”，不得声明真实公网、对称 NAT 或跨运营商验收完成。
 
+### 稳定性测试轮次规范
+
+- 日常开发、自测和单项功能回归默认执行 10 轮连续连接/退出测试；门禁为
+  `10/10 PASS`，用于快速发现连接、画面、丢包和资源清理回归。
+- 整体集成测试、发布候选（RC）、最终验收以及稳定性相关修改完成后，执行
+  100 轮连续连接/退出测试；门禁为 `100/100 PASS`。
+- 10 轮测试不能替代整体 100 轮验收。任一轮失败都必须保留失败阶段和证据，
+  查明原因后重新取得对应级别的干净结果，不能只补跑失败轮次后累计为通过。
+- 每轮均使用新的一次性 ticket，并验证 RTC 连接终态、真实画面/分辨率、视频
+  推进或一致的静态帧、有效 selected candidate、RTT、零新增丢包和正常退出；
+  每 10 轮检查一次 Chrome/测试进程残留，整组结束后检查临时用户、session、
+  ticket 和远端会话均已清理。
+
 ### 本轮执行快照（2026-08-24）
 
 | 范围 | 实测结果 | 证据/备注 |
@@ -14,13 +27,13 @@
 | Ticket Mongo并发 | PASS | 20并发兑换仅1成功；20并发续票仅1成功；错误绑定均拒绝；临时库已删除 |
 | Console Web | PASS，15/15并完成生产构建 | 单元与构建门禁 |
 | WebClient语音状态机 | PASS，19 assertions | `npm test` |
-| WebClient Standard信令/统计 | PASS，9/9 | 超时清理、迟到消息、并发Offer、有界ICE、relay/TCP统计 |
+| WebClient Standard信令/统计 | PASS，9/9 | ticket/nonce 与游客设备密码双路径互斥、超时清理、迟到消息、并发Offer、有界ICE、relay/TCP统计 |
 | WebClient生产构建 | PASS | Vue类型检查和Vite生产构建 |
 | Standard RTC Host | PASS | R90真实Render；1920×1080；6秒解码+30帧；RTT 2 ms；0丢包/冻结 |
 | TURN/UDP | PASS | 强制relay；selected candidate为relay/UDP；真实画面持续采集 |
 | TURN/TCP回退 | PASS | API仍下发UDP+TCP，服务端关闭UDP listener；自动选中relay/TCP；6秒解码+30帧；RTT 1 ms；0丢包/冻结 |
 | 虚拟显示器WebClient | PASS | 1屏→2屏、采集新增屏、切回物理屏、删除后恢复1屏；五阶段均持续解码 |
-| STAB-01 连续连接/退出 | FAIL，97/100 | 复用同一用户，每轮独立ticket和Chrome profile，9秒媒体窗口；第45、90轮连接后解码帧增长0，第56轮30秒内未连接；其余97轮稳态0新增丢包/冻结；总耗时23.1分钟；最终用户/session/ticket均为0 |
+| STAB-01 连续连接/退出 | 本机修正脚本10/10；R90待复跑 | 历史97/100的静态桌面判据已修正；最新100轮全部通过连接、媒体和零新增丢包门禁，但旧脚本把标准ICE合法选中relay的19轮按“必须host”误判。稳定性现接受任意有效selected pair，host/TURN类型由独立用例断言；本机复测10/10且资源清理为0，R90恢复后复跑干净100/100 |
 | STAB-04/05/06 长稳、断网耐久、跨夜 | NOT-RUN | 按“某层失败即停止依赖项”规则，在STAB-01确定失败后停止；修复STAB-01并干净复测100/100后再执行 |
 | 自动Direct、Direct失败回退、ICE restart、音频/输入/剪贴板/文件、Service重启 | PASS（既有本轮报告证据） | 详见 `docs/webrtc_rtc_acceptance_report_20260824.md`，仍列入发布前复跑清单 |
 | 不同公网/NAT、对称NAT、公网443/TLS | BLOCKED-ENV | 当前没有公网环境，不以LAN仿真冒充通过 |

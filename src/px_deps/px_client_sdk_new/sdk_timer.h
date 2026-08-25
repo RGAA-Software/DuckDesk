@@ -23,7 +23,7 @@ namespace px
         kTimerDuration16 = 16,
     };
 
-    class SdkTimer {
+    class SdkTimer : public std::enable_shared_from_this<SdkTimer> {
     public:
 
         explicit SdkTimer(const std::shared_ptr<MessageNotifier>& notifier);

@@ -115,7 +115,7 @@ namespace px
         CreateLayout();
         CenterDialog(this);
 
-        msg_listener_ = context_->ObtainMessageListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         // msg_listener_->Listen<MsgConsoleAccessInfo>([=, this](const MsgConsoleAccessInfo& msg) {
         //     context_->PostUITask([=, this]() {
         //         this->UpdateItems();

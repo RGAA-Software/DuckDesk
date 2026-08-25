@@ -128,7 +128,7 @@ namespace px
         bg_pixmap_ = bg_pixmap_.scaled(640, 640);
 
         // listeners
-        msg_listener_ = ctx->ObtainMessageListener();
+        msg_listener_ = ctx->ObtainUIMessageListener();
 
         // begin to start
         msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {

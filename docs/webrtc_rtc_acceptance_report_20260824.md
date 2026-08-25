@@ -1,5 +1,44 @@
 # 标准 RTC / TURN 双机验收报告（2026-08-24）
 
+## 2026-08-25 增量复测
+
+> 执行规范：平时开发、自测和单项功能回归执行 10 轮连续连接/退出并要求
+> 10/10；整体集成、RC 和最终验收执行 100 轮并要求 100/100。10 轮不能替代
+> 整体验收，100 轮中的失败也不能通过单独补跑失败轮次来抵消。
+
+- 原生客户端四条认证/传输组合全部通过：登录账号 + Standard、登录账号 +
+  Direct、游客设备密码 + Standard、游客设备密码 + Direct。四项均确认 RTC
+  connected、真实 UI 画面、音频播放器初始化和文件通道建立。
+- 修复了 Standard RTC 的游客认证遗漏：无登录态不要求 ticket，使用设备随机
+  密码/安全密码摘要；登录态仍必须使用 Console ticket + nonce。错误游客密码实测
+  无法连接。凭据明文、ticket 和 TURN credential 均未写入报告或日志。
+- Standard RTC 原生音频已接入既有 PCM callback，账号和游客路径均实测完成
+  AudioPlayer 初始化。未改变 WebRTC 对象结构、插件 `GetInstance`、ABI、实例身份、
+  所有权或卸载时序。
+- WebClient host/UDP、强制 TURN/UDP、受控 UDP 不可用后的 TURN/TCP 均通过；
+  selected candidate、TURN transport、RTT 和 1920×1080 解码由 `getStats()` 自动
+  判定。由于 Console/TURN 与浏览器同机，Windows 防火墙不拦截回环 UDP，TCP 用例
+  通过为单次测试会话移除 UDP URL 来模拟 UDP 不可用；真实异机网络的先失败再回退
+  仍属于公网/跨网门禁。
+- WebClient 未登录入口不申请 ticket：Direct RTC 和 Standard RTC 都由 Render 校验
+  设备随机密码/安全密码摘要；登录入口仍只用 ticket + nonce。浏览器游客 Standard
+  RTC 本机真实闭环已通过，1920×1080、9 秒新增 108 解码帧、0 新增丢包；错误密码
+  被拒绝。Console Relay 对游客只允许 `web_` 客户端访问精确匹配的 `server_设备ID`，
+  不接收设备密码；最终认证仍在 Render。R90 双机复测因设备当前离线待补。
+- Web Standard RTC 连续连接/退出增量复测 10/10 通过，最终临时用户、session、
+  ticket 和 CDP Chrome 均为 0。后续 100 轮原始结果为 81 PASS/19 FAIL，但 19 轮
+  均已通过连接、画面、分辨率和零新增丢包门禁，仅因标准 ICE 合法选中 relay 而被
+  “必须 host”断言误判。脚本现把稳定性候选改为 `any`；host、TURN/UDP、TURN/TCP
+  继续由三个独立定向用例严格断言。修正脚本在本机真实 Console/Render 上复测
+  10/10，通过后临时用户、session、ticket、CDP Chrome 均为 0；R90 恢复后仍需
+  干净复跑 100/100。
+- Web 稳态门禁不再把 Chrome 面向连续相机设计的 `freezeCount` 单独作为桌面失败：
+  90 的静态桌面会内容自适应到约 0.7fps，期间新帧和 RTP 字节仍持续增长。当前门禁
+  要求连接终态、有效分辨率、解码进展或一致的静态帧保持以及零新增丢包；freeze
+  次数/时长继续记录为质量证据。动态画面永久停滞由单独的受控画面刺激用例判定。
+- 本机 CTest 7/7 通过；MessageNotifier 19 项用例连续 100 轮通过；C++ 所有权门禁
+  和 `git diff --check` 通过。
+
 ## 1. 结论
 
 本机 Windows 11 与被控机 R90（Windows Server 2022，设备 `001190520`）之间的标准 RTC 产品链路已经完成代码、自动化和真实 Render/Panel/Service/WebClient 验收。以下项目通过：
@@ -116,7 +155,7 @@ WebClient 使用浏览器 fake media device 产生可重复麦克风输入，通
 1. 两台分别位于不同运营商或不同公网出口的物理 Windows 机器，确认真实 relay candidate。
 2. 对称 NAT 下 srflx/relay 行为和真实公网 TURN/TCP 回退。
 3. 多并发 TURN allocation、relay 端口接近耗尽、长时间高码率视频与大文件并行。
-4. STAB-01 已执行但仅97/100：两次连接后视频不增长、一次未连接；修复后必须重新达到100/100。跨夜断网/恢复耐久尚未执行。
+4. STAB-01 历史 97/100 的媒体判据问题已修正；最新原始运行的 100 轮均连通并通过媒体/零新增丢包门禁，但其中 19 轮因标准 ICE 合法选中 relay 被旧的 host-only 断言标为失败。脚本已拆分稳定性和候选定向断言，R90 恢复后仍需用修正脚本取得干净的 100/100；跨夜断网/恢复耐久尚未执行。
 5. 双物理终端真实麦克风/扬声器的 AEC、双讲、热插拔和主观音质。
 
 执行上述门禁时应复用本报告的判定字段，并补充公网拓扑、NAT 类型、候选对、TURN 节点、持续时间和资源曲线；不得记录任何凭据。

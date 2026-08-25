@@ -16,6 +16,8 @@ export interface StandardRtcSignalParams {
   ticket: string
   clientNonce: string
   instanceId: string
+  /** Guest sessions authenticate at Render with the device password digest. */
+  safetyPwdMd5: string
   secure: boolean
 }
 
@@ -40,9 +42,11 @@ function relayClientId(): string {
 
 /** Console application-Relay signaling for standard WebRTC.
  *
- * The Relay authenticates the short-lived ticket at WebSocket upgrade time,
- * while the Render atomically redeems it when processing each SDP offer. Media,
- * input and file payloads never use this socket after the PeerConnection is up.
+ * Logged-in sessions authenticate the Relay with a short-lived ticket and the
+ * Render atomically redeems it with the SDP offer. Guest sessions carry no
+ * ticket: the Relay only scopes the signaling target and Render validates the
+ * device password digest in the SDP offer. Media, input and file payloads never
+ * use this socket after the PeerConnection is up.
  */
 export class StandardRtcSignaling {
   private socket: WebSocket | null = null
@@ -74,10 +78,14 @@ export class StandardRtcSignaling {
       device_name: 'WebClient',
       stream_id: this.params.streamId,
       rtc_signal: '1',
-      ticket: this.params.ticket,
-      client_nonce: this.params.clientNonce,
     })
-    if (this.params.instanceId) query.set('instance_id', this.params.instanceId)
+    if (this.params.ticket) {
+      query.set('ticket', this.params.ticket)
+      query.set('client_nonce', this.params.clientNonce)
+      if (this.params.instanceId) query.set('instance_id', this.params.instanceId)
+    } else {
+      query.set('guest_password', '1')
+    }
     const url = `${scheme}://${this.params.relayHost}:${this.params.relayPort}/relay?${query}`
     this.closed = false
     await new Promise<void>((resolve, reject) => {
@@ -129,6 +137,7 @@ export class StandardRtcSignaling {
     ticket: string,
     clientNonce: string,
     instanceId: string,
+    safetyPwdMd5 = '',
   ): Promise<string> {
     if (!this.roomId) throw new Error('标准 RTC 信令房间尚未准备完成')
     if (this.pendingAnswer) throw new Error('已有 RTC SDP 协商正在进行')
@@ -148,6 +157,7 @@ export class StandardRtcSignaling {
           connectionTicket: ticket,
           clientNonce,
           instanceId,
+          safetyPwdMd5: ticket ? '' : safetyPwdMd5,
         },
       })
       for (const candidate of this.pendingLocalIce.splice(0)) this.sendIce(candidate)

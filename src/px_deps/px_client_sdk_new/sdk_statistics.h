@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <string>
 #include <atomic>
+#include <memory>
 #include "px_message.pb.h"
 #include "px_common_new/fps_stat.h"
 #include "px_common_new/concurrent_type.h"
@@ -30,9 +31,9 @@ namespace px
     class SdkStatistics {
     public:
 
-        static SdkStatistics* Instance() {
-            static SdkStatistics instance;
-            return &instance;
+        static std::shared_ptr<SdkStatistics> Instance() {
+            static auto instance = std::make_shared<SdkStatistics>();
+            return instance;
         }
 
         SdkStatistics();

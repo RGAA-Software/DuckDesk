@@ -90,13 +90,13 @@ namespace px
     }
 
     ThunderSdk::~ThunderSdk() {
-
+        Exit();
     }
 
     bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt) {
         sdk_params_ = params;
         drt_ = drt;
-        render_surface_ = surface;
+        render_surface_handle_ = reinterpret_cast<std::uintptr_t>(surface);
         last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
 
         auto fn_process_target_platform = [&]() {
@@ -141,14 +141,17 @@ namespace px
     }
 
     void ThunderSdk::Start() {
+        const auto weak_self = weak_from_this();
         statistics_ = SdkStatistics::Instance();
         statistics_->render_type_.Update(sdk_params_->render_type_name_);
         // threads
         video_thread_ = Thread::Make("video", 64);
-        video_thread_->SetOnFrontTaskCallback([=, this](ThreadTaskPtr task_tr) ->void{
-            if (video_frame_thread_discarded_cbk_) {
-                video_frame_thread_discarded_cbk_();
-                need_clear_video_tasks_ = true;
+        video_thread_->SetOnFrontTaskCallback([weak_self](ThreadTaskPtr task_tr) ->void{
+            const auto self = weak_self.lock();
+            if (!self) return;
+            if (self->video_frame_thread_discarded_cbk_) {
+                self->video_frame_thread_discarded_cbk_();
+                self->need_clear_video_tasks_ = true;
             }
             if (!task_tr) {
                 return;
@@ -166,22 +169,36 @@ namespace px
         misc_thread_ = Thread::Make("misc", 32);
         misc_thread_->Poll();
 
-        net_client_->SetOnConnectCallback([=, this]() {
-            this->SendHelloMessage();
-            msg_notifier_->SendAppMessage(SdkMsgNetworkConnected{});
+        net_client_->SetOnConnectCallback([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->SendHelloMessage();
+                self->msg_notifier_->SendAppMessage(SdkMsgNetworkConnected{});
+            }
         });
 
-        net_client_->SetOnDisconnectedCallback([=, this]() {
-            msg_notifier_->SendAppMessage(SdkMsgNetworkDisConnected{});
-            this->ClearFirstFrameState();
+        net_client_->SetOnDisconnectedCallback([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->msg_notifier_->SendAppMessage(SdkMsgNetworkDisConnected{});
+                self->ClearFirstFrameState();
+            }
         });
 
-        net_client_->SetOnVideoFrameMsgCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (exit_) { return; }
+        net_client_->SetOnVideoFrameMsgCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exit_) { return; }
             
             px::VideoFrame frame = msg->video_frame();
 
-            auto video_task = [=, this]() ->void {
+            auto video_task = [weak_self, frame]() ->void {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_) return;
+                auto& video_decoders_ = self->video_decoders_;
+                auto& last_received_video_timestamps_ = self->last_received_video_timestamps_;
+                auto& last_frame_indices_ = self->last_frame_indices_;
+                auto& received_files_ = self->received_files_;
+                auto sdk_params_ = self->sdk_params_;
+                auto statistics_ = self->statistics_;
+                auto render_surface = reinterpret_cast<void*>(self->render_surface_handle_);
                 const auto& monitor_name = frame.mon_name();
                 std::shared_ptr<VideoDecoder> video_decoder = nullptr;
                 if (video_decoders_.contains(monitor_name)) {
@@ -212,20 +229,20 @@ namespace px
                     LOGI("We will try hardware decoder.");
 
                     if (sdk_params_->support_vulkan_) {
-                        video_decoder = std::make_shared<FFmpegVulkanDecoder>(shared_from_this());
+                        video_decoder = std::make_shared<FFmpegVulkanDecoder>(self);
                     }
                     else {
-                        video_decoder = std::make_shared<FFmpegDecoder>(shared_from_this());
+                        video_decoder = std::make_shared<FFmpegDecoder>(self);
                     }
-                    auto r = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(), frame.frame_height(), frame.data(), render_surface_, frame.image_format(),
-                        IsDisabledHardwareDecoder(frame.mon_name()));
+                    auto r = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(), frame.frame_height(), frame.data(), render_surface, frame.image_format(),
+                        self->IsDisabledHardwareDecoder(frame.mon_name()));
                     if (r != 0) {
                         LOGE("Init D3D11VA decoder failed, will try software decoder");
                         video_decoder->Release();
                         video_decoder.reset();
                     }
 
-                    if (!IsDisabledHardwareDecoder(frame.mon_name())) {
+                    if (!self->IsDisabledHardwareDecoder(frame.mon_name())) {
                     }
                     else {
                         LOGI("Hardware decoder for: {} is disabled, use software.", frame.mon_name());
@@ -236,18 +253,18 @@ namespace px
                         // Android
                         // Begin
 #ifdef ANDROID
-                        auto codec = (drt_ == DecoderRenderType::kMediaCodecSurface || drt_ == DecoderRenderType::kMediaCodecNv21) ? SupportedCodec::kMediaCodec : SupportedCodec::kFFmpeg;
-                        video_decoder = VideoDecoderFactory::Make(shared_from_this(), codec);
+                        auto codec = (self->drt_ == DecoderRenderType::kMediaCodecSurface || self->drt_ == DecoderRenderType::kMediaCodecNv21) ? SupportedCodec::kMediaCodec : SupportedCodec::kFFmpeg;
+                        video_decoder = VideoDecoderFactory::Make(self, codec);
                         LOGI("Create video decoder, codec: {}", (int)codec);
                         // Android
                         // End
 #else
-                        video_decoder = std::make_shared<FFmpegVideoDecoder>(shared_from_this());
+                        video_decoder = std::make_shared<FFmpegVideoDecoder>(self);
 #endif
                         bool ready = video_decoder->Ready();
                         if (!ready) {
                             auto result = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(),
-                                frame.frame_height(), frame.data(), render_surface_, frame.image_format(), false);
+                                frame.frame_height(), frame.data(), render_surface, frame.image_format(), false);
                             if (result != 0) {
                                 LOGE("Video decoder init failed, mon name: {}, frame type: {}, frame width: {}, frame height: {}, format: {}",
                                     frame.mon_name(), (int)frame.type(), frame.frame_width(), frame.frame_height(), (int)frame.image_format());
@@ -266,7 +283,7 @@ namespace px
                 auto diff = current_time - last_received_video_timestamps_[monitor_name];
                 last_received_video_timestamps_[monitor_name] = current_time;
 
-                this->PostMiscTask([=, this]() {
+                self->PostMiscTask([statistics_, frame, diff]() {
                     statistics_->AppendVideoRecvGap(frame.mon_name(), diff);
                     statistics_->TickVideoRecvFps(frame.mon_name());
                     statistics_->UpdateFrameSize(frame.mon_name(), frame.frame_width(), frame.frame_height());
@@ -315,17 +332,17 @@ namespace px
                 }
                 DumpDecodeLatencyIfDue();
                 if (!ret.has_value() && ret.error() != 0) {
-                    IncreaseDecodeFailedCount(frame.mon_name());
-                    if (GetDecodeFailedCount(frame.mon_name()) > 60) {
-                        ResetDecodeFailedCount(frame.mon_name());
-                        DisableHardwareDecoder(frame.mon_name());
+                    self->IncreaseDecodeFailedCount(frame.mon_name());
+                    if (self->GetDecodeFailedCount(frame.mon_name()) > 60) {
+                        self->ResetDecodeFailedCount(frame.mon_name());
+                        self->DisableHardwareDecoder(frame.mon_name());
                         LOGE("decode error: {}, will recreate the decoder", ret.error());
                         video_decoder->Release();
                         video_decoders_.erase(frame.mon_name());
                         LOGW("Video decoder for : {} is released.", frame.mon_name());
                     }
-                    else if (GetDecodeFailedCount(frame.mon_name()) > 30) {
-                        RequestIFrame();
+                    else if (self->GetDecodeFailedCount(frame.mon_name()) > 30) {
+                        self->RequestIFrame();
                         LOGE("decode error: {}, will request Key Frame", ret.error());
                     }
                 }
@@ -333,12 +350,12 @@ namespace px
                 // test
                 if (false) {
                     static bool recreate_destroy_decoder = false;
-                    IncreaseDecodeFailedCount(frame.mon_name());
+                    self->IncreaseDecodeFailedCount(frame.mon_name());
                     if (!recreate_destroy_decoder) {
-                        if (GetDecodeFailedCount(frame.mon_name()) > 150) {
+                        if (self->GetDecodeFailedCount(frame.mon_name()) > 150) {
                             recreate_destroy_decoder = true;
-                            ResetDecodeFailedCount(frame.mon_name());
-                            DisableHardwareDecoder(frame.mon_name());
+                            self->ResetDecodeFailedCount(frame.mon_name());
+                            self->DisableHardwareDecoder(frame.mon_name());
                             LOGE("decode error: {}, will recreate the decoder", ret.error());
                             video_decoder->Release();
                             video_decoders_.erase(frame.mon_name());
@@ -348,8 +365,8 @@ namespace px
                 }
                 // test
 
-                if (exit_ || !ret.has_value()) {
-                    LOGE("Don't have value, exit? {}", exit_);
+                if (self->exit_ || !ret.has_value()) {
+                    LOGE("Don't have value, exit? {}", self->exit_.load());
                     return;
                 }
                 auto raw_image = ret.value();
@@ -374,42 +391,45 @@ namespace px
                         }
                     }
                 }
-                if (video_frame_cbk_) {
-                    video_frame_cbk_(raw_image, cap_mon_info);
+                if (self->video_frame_cbk_) {
+                    self->video_frame_cbk_(raw_image, cap_mon_info);
                 }
 
-                if (!has_video_frame_msg_) {
-                    has_video_frame_msg_ = true;
-                    SendFirstFrameMessage(raw_image, cap_mon_info);
+                if (!self->has_video_frame_msg_) {
+                    self->has_video_frame_msg_ = true;
+                    self->SendFirstFrameMessage(raw_image, cap_mon_info);
                 }
             };
 
-            this->PostVideoTask(video_task, frame.frame_index(), frame.mon_name());
+            owner->PostVideoTask(std::move(video_task), frame.frame_index(), frame.mon_name());
         });
 
-        net_client_->SetOnAudioFrameMsgCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (exit_) { return; }
-            this->PostAudioTask([=, this]() {
+        net_client_->SetOnAudioFrameMsgCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exit_) { return; }
+            owner->PostAudioTask([weak_self, msg = std::move(msg)]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_) return;
                 auto frame = msg->audio_frame();
                 auto beg = TimeUtil::GetCurrentTimestamp();
-                if (!audio_decoder_) {
-                    audio_decoder_ = std::make_shared<OpusAudioDecoder>(frame.samples(), frame.channels());
+                if (!self->audio_decoder_) {
+                    self->audio_decoder_ = std::make_shared<OpusAudioDecoder>(frame.samples(), frame.channels());
                 }
                 std::vector<opus_int16> pcm_data;
                 if (frame.data().empty()) {
                     // UDP 丢帧信号(extra="udp_lost"):无码流可解,走 Opus PLC 补一帧 20ms
-                    pcm_data = audio_decoder_->DecodeDummy(frame.frame_size());
+                    pcm_data = self->audio_decoder_->DecodeDummy(frame.frame_size());
                 }
                 else {
                     std::vector<unsigned char> buffer(frame.data().begin(), frame.data().end());
-                    pcm_data = audio_decoder_->Decode(buffer, frame.frame_size(), false);
+                    pcm_data = self->audio_decoder_->Decode(buffer, frame.frame_size(), false);
                 }
-                if (audio_frame_cbk_) {
+                if (self->audio_frame_cbk_) {
                     auto data = Data::Make((char*)pcm_data.data(), pcm_data.size()*2);
-                    audio_frame_cbk_(data, frame.samples(), frame.channels(), frame.bits());
+                    self->audio_frame_cbk_(data, frame.samples(), frame.channels(), frame.bits());
                 }
                 //LOGI("opus data size: {}, frame size: {}, samples: {}, channel: {}, PCM data size in char : {}", frame.data().size(), frame.frame_size(), frame.samples(), frame.channels(), pcm_data.size()*2);
-                if (debug_audio_decoder_) {
+                if (self->debug_audio_decoder_) {
                     static FilePtr pcm_audio = File::OpenForWriteB(U8Path("1.test.pcm"));
                     pcm_audio->Append((char *) pcm_data.data(), pcm_data.size()*2);
                 }
@@ -418,27 +438,46 @@ namespace px
             });
         });
 
-        net_client_->SetOnAudioSpectrumCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (exit_) { return; }
-            this->PostMiscTask([=, this]() {
-                if (audio_spectrum_cbk_) {
-                    audio_spectrum_cbk_(msg);
+        net_client_->SetOnAudioSpectrumCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exit_) { return; }
+            owner->PostMiscTask([weak_self, msg = std::move(msg)]() {
+                if (const auto self = weak_self.lock(); self && !self->exit_ && self->audio_spectrum_cbk_) {
+                    self->audio_spectrum_cbk_(msg);
                 }
             });
         });
 
-        // decoded video frames from the webrtc local(direct) connection
-        net_client_->SetOnRtcLocalVideoFrameCallback([=, this](int w, int h, std::shared_ptr<Data> i420) {
-            this->OnRtcLocalVideoFrame(w, h, i420);
+        // Decoded I420 callbacks run on a libwebrtc decoder thread. Never do
+        // application event dispatch or UI handoff on that thread: a blocked
+        // EventBus/UI path would stop the decoder after its first frame and make
+        // the native client appear frozen. Reuse the bounded video worker used
+        // by the encoded-frame decode path.
+        net_client_->SetOnRtcLocalVideoFrameCallback([weak_self](int w, int h, std::shared_ptr<Data> i420) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exit_) return;
+            const auto frame_index = ++owner->rtc_video_frame_index_;
+            if (frame_index == 1) {
+                LOGI("WebRTC first decoded frame queued on SDK video worker: {}x{}", w, h);
+            }
+            owner->PostVideoTask([weak_self, w, h, i420 = std::move(i420), frame_index]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_) return;
+                if (frame_index == 1) {
+                    LOGI("WebRTC first decoded frame executing on SDK video worker");
+                }
+                self->OnRtcLocalVideoFrame(w, h, i420);
+            }, frame_index, "rtc");
         });
 
         // decoded audio(16-bit interleaved PCM) from the webrtc local(direct) connection:
         // already decoded by webrtc's built-in opus decoder, feed the player directly
-        net_client_->SetOnRtcLocalAudioCallback([=, this](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
-            if (exit_) { return; }
-            this->PostAudioTask([=, this]() {
-                if (audio_frame_cbk_) {
-                    audio_frame_cbk_(pcm, sample_rate, channels, 16);
+        net_client_->SetOnRtcLocalAudioCallback([weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exit_) { return; }
+            owner->PostAudioTask([weak_self, pcm = std::move(pcm), sample_rate, channels]() {
+                if (const auto self = weak_self.lock(); self && !self->exit_ && self->audio_frame_cbk_) {
+                    self->audio_frame_cbk_(pcm, sample_rate, channels, 16);
                 }
             });
         });
@@ -448,9 +487,12 @@ namespace px
         // rtc local encoded-sink mode, old-render compat: when the answer carries no
         // "monitors" array, the single dynamic track is mapped to the capturing
         // monitor reported via ServerConfiguration
-        net_client_->SetRtcLocalCapturingMonitorNameProvider([=, this]() {
-            std::lock_guard<std::mutex> lk(rtc_cap_mon_mtx_);
-            return rtc_capturing_monitor_name_;
+        net_client_->SetRtcLocalCapturingMonitorNameProvider([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                std::lock_guard<std::mutex> lk(self->rtc_cap_mon_mtx_);
+                return self->rtc_capturing_monitor_name_;
+            }
+            return std::string{};
         });
 
         // receiver
@@ -479,19 +521,33 @@ namespace px
             return;
         }
 
+        if (!has_video_frame_msg_) {
+            LOGI("WebRTC first decoded frame entered ThunderSdk processing: {}x{}", w, h);
+        }
+
         // statistics, keep the speed chart alive
         statistics_->AppendRecvDataSize(i420->Size());
+        const bool first_rtc_frame = !has_video_frame_msg_;
+        if (first_rtc_frame) {
+            LOGI("WebRTC first decoded frame statistics updated, bytes={}", i420->Size());
+        }
 
         auto raw_image = RawImage::MakeI420(i420->DataAddr(), (int)i420->Size(), w, h);
+        if (first_rtc_frame) {
+            LOGI("WebRTC first decoded frame copied into RawImage");
+        }
         // rtc mode carries a single video stream, report it as the capturing monitor.
         // use the REAL monitor name from ServerConfiguration: the render's event replayer
         // drops mouse events tagged with an unknown monitor name.
-        const auto mon_name = [=, this]() {
+        const auto mon_name = [&]() {
             std::lock_guard<std::mutex> lk(rtc_cap_mon_mtx_);
             return !rtc_capturing_monitor_name_.empty()
                    ? rtc_capturing_monitor_name_
                    : std::string("rtc_local");
         }();
+        if (first_rtc_frame) {
+            LOGI("WebRTC first decoded frame monitor resolved: {}", mon_name);
+        }
         SdkCaptureMonitorInfo cap_mon_info {
             .mon_name_ = mon_name,
             .mon_index_ = 0,
@@ -504,18 +560,30 @@ namespace px
             .update_time_ = TimeUtil::GetCurrentTimestamp(),
         };
 
-        this->PostMiscTask([=, this]() {
-            statistics_->TickVideoRecvFps(cap_mon_info.mon_name_);
-            statistics_->UpdateFrameSize(cap_mon_info.mon_name_, w, h);
+        auto statistics = statistics_;
+        PostMiscTask([statistics, cap_mon_info, w, h]() {
+            statistics->TickVideoRecvFps(cap_mon_info.mon_name_);
+            statistics->UpdateFrameSize(cap_mon_info.mon_name_, w, h);
         });
+        if (first_rtc_frame) {
+            LOGI("WebRTC first decoded frame statistics task queued");
+        }
 
         if (video_frame_cbk_) {
+            if (first_rtc_frame) {
+                LOGI("WebRTC first decoded frame dispatching to workspace");
+            }
             video_frame_cbk_(raw_image, cap_mon_info);
+            if (first_rtc_frame) {
+                LOGI("WebRTC first decoded frame workspace dispatch returned");
+            }
         }
 
         if (!has_video_frame_msg_) {
             has_video_frame_msg_ = true;
+            LOGI("WebRTC first decoded frame notifying application listeners");
             SendFirstFrameMessage(raw_image, cap_mon_info);
+            LOGI("WebRTC first decoded frame application notification returned");
         }
     }
 
@@ -532,32 +600,41 @@ namespace px
     }
 
     void ThunderSdk::RegisterEventListeners() {
+        const auto weak_self = weak_from_this();
         msg_listener_ = msg_notifier_->CreateListener();
 
         // notify to net client
-        msg_listener_->Listen<SdkMsgTimer16>([=, this](const auto& msg) {
-            net_client_->On16msTimeout();
+        msg_listener_->Listen<SdkMsgTimer16>([weak_self](const auto&) {
+            if (const auto self = weak_self.lock(); self && self->net_client_) {
+                self->net_client_->On16msTimeout();
+            }
         });
 
-        msg_listener_->Listen<SdkMsgTimer100>([=, this](const auto& msg) {
+        msg_listener_->Listen<SdkMsgTimer100>([](const auto&) {
 
         });
 
-        msg_listener_->Listen<SdkMsgTimer1000>([=, this](const auto& msg) {
-            PostMiscTask([this]() {
-                statistics_->CalculateDataSpeed();
-                statistics_->CalculateVideoFrameFps();
-                this->ReportStatistics();
-            });
+        msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
+            if (const auto owner = weak_self.lock()) {
+                owner->PostMiscTask([weak_self]() {
+                    if (const auto self = weak_self.lock(); self && !self->exit_) {
+                        self->statistics_->CalculateDataSpeed();
+                        self->statistics_->CalculateVideoFrameFps();
+                        self->ReportStatistics();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<SdkMsgTimer2000>([=, this](const auto& msg) {
+        msg_listener_->Listen<SdkMsgTimer2000>([](const auto&) {
 
         });
 
         // remote device offline
-        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>([=, this](const SdkMsgRelayRemoteDeviceOffline& msg) {
-            this->ClearFirstFrameState();
+        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>([weak_self](const SdkMsgRelayRemoteDeviceOffline&) {
+            if (const auto self = weak_self.lock()) {
+                self->ClearFirstFrameState();
+            }
         });
     }
 
@@ -596,6 +673,7 @@ namespace px
     }
 
     void ThunderSdk::PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name) {
+        if (!video_thread_ || exit_) return;
         auto video_task = VideoDecodeThreadTask::Make(std::move(task));
         video_task->frame_index_ = frame_index;
         video_task->monitor_name_ = monitor_name;
@@ -608,11 +686,15 @@ namespace px
     }
 
     void ThunderSdk::PostAudioTask(std::function<void()>&& task) {
-        audio_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        if (audio_thread_ && !exit_) {
+            audio_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        }
     }
 
     void ThunderSdk::PostMiscTask(std::function<void()>&& task) {
-        misc_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        if (misc_thread_ && !exit_) {
+            misc_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        }
     }
 
     void ThunderSdk::SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& cbk) {
@@ -627,9 +709,12 @@ namespace px
 
     void ThunderSdk::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& cbk) {
         if (net_client_) {
-            net_client_->SetOnHeartBeatCallback([this, callback = std::move(cbk)](auto m) {
-                last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
-                callback(m);
+            const auto weak_self = weak_from_this();
+            net_client_->SetOnHeartBeatCallback([weak_self, callback = std::move(cbk)](auto m) {
+                if (const auto self = weak_self.lock()) {
+                    self->last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
+                    callback(std::move(m));
+                }
             });
         }
     }
@@ -642,16 +727,20 @@ namespace px
 
     void ThunderSdk::SetOnServerConfigurationCallback(OnConfigCallback&& cbk) {
         if (net_client_) {
-            net_client_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<px::Message> msg) {
+            const auto weak_self = weak_from_this();
+            net_client_->SetOnServerConfigurationCallback(
+                [weak_self, callback = std::move(cbk)](std::shared_ptr<px::Message> msg) mutable {
+                const auto self = weak_self.lock();
+                if (!self) return;
                 if (msg && msg->has_config() && !msg->config().capturing_monitor_name().empty()) {
-                    std::lock_guard<std::mutex> lk(rtc_cap_mon_mtx_);
-                    rtc_capturing_monitor_name_ = msg->config().capturing_monitor_name();
+                    std::lock_guard<std::mutex> lk(self->rtc_cap_mon_mtx_);
+                    self->rtc_capturing_monitor_name_ = msg->config().capturing_monitor_name();
                 }
-                cbk(std::move(msg));
-                if (!has_config_msg_) {
-                    has_config_msg_ = true;
-                    msg_notifier_->SendAppMessage(SdkMsgFirstConfigInfoCallback {
-                        .msg_ = msg,
+                auto first_config_message = msg;
+                callback(std::move(msg));
+                if (!self->has_config_msg_.exchange(true)) {
+                    self->msg_notifier_->SendAppMessage(SdkMsgFirstConfigInfoCallback {
+                        .msg_ = std::move(first_config_message),
                     });
                 }
             });
@@ -769,8 +858,11 @@ namespace px
     }
 
     void ThunderSdk::Exit() {
+        if (exit_.exchange(true)) {
+            return;
+        }
         LOGI("ThunderSdk start exiting.");
-        exit_ = true;
+        msg_listener_.reset();
         if (cast_receiver_) {
             cast_receiver_->Exit();
         }

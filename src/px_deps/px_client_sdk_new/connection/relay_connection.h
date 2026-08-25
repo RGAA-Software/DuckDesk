@@ -19,7 +19,8 @@ namespace px
     class RelayClientSdk;
     class RelayNetClient;
 
-    class RelayConnection : public Connection {
+    class RelayConnection : public Connection,
+                            public std::enable_shared_from_this<RelayConnection> {
     public:
         RelayConnection(const std::shared_ptr<ThunderSdkParams>& params,
                         const std::shared_ptr<MessageNotifier>& notifier,

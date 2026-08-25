@@ -41,7 +41,7 @@ namespace px
     class UdpDirectConnection;
     class SdkStatistics;
 
-    class NetClient {
+    class NetClient : public std::enable_shared_from_this<NetClient> {
     public:
         explicit NetClient(const std::shared_ptr<ThunderSdkParams>& params,
                            const std::shared_ptr<MessageNotifier>& notifier,
@@ -75,11 +75,11 @@ namespace px
         void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& cbk);
         void SetOnRawMessageCallback(OnRawMessageCallback&& cbk);
 
-        // decoded video frames(packed I420) from the webrtc local(direct) connection
+        // decoded video frames(packed I420) from standard or local(direct) WebRTC
         using OnRtcLocalVideoFrameCallback = std::function<void(int w, int h, std::shared_ptr<Data> i420)>;
         void SetOnRtcLocalVideoFrameCallback(OnRtcLocalVideoFrameCallback&& cbk);
 
-        // decoded audio(16-bit interleaved PCM) from the webrtc local(direct) connection
+        // decoded audio (16-bit interleaved PCM) from standard or local/direct WebRTC
         using OnRtcLocalAudioCallback = std::function<void(std::shared_ptr<Data> pcm, int sample_rate, int channels)>;
         void SetOnRtcLocalAudioCallback(OnRtcLocalAudioCallback&& cbk);
 
@@ -135,12 +135,13 @@ namespace px
         std::string stream_id_;
 
         std::atomic_int queuing_message_count_ = 0;
+        std::atomic_bool exited_{false};
         uint64_t hb_idx_ = 0;
 
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
 
-        SdkStatistics* stat_ = nullptr;
+        std::shared_ptr<SdkStatistics> stat_;
     };
 
 }

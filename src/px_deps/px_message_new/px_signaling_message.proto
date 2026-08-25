@@ -9,6 +9,10 @@ message SigOfferSdpMessage {
   string connection_ticket = 4;
   string client_nonce = 5;
   string instance_id = 6;
+  // Guest-only device credential. The client sends an MD5 digest for
+  // compatibility with the existing Direct RTC password verifier; logged-in
+  // sessions leave this empty and authenticate with connection_ticket.
+  string safety_pwd_md5 = 7;
 }
 
 message SigAnswerSdpMessage {

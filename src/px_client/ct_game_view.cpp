@@ -42,7 +42,7 @@ namespace px
         : ctx_(ctx), sdk_(sdk), params_(params), QWidget(parent) {
         WidgetHelper::SetTitleBarColor(this, this->params_->titlebar_color_);
         settings_ = Settings::Instance();
-        msg_listener_ = ctx_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = ctx_->ObtainUIMessageListener();
         this->setAttribute(Qt::WA_StyledBackground, true);
         auto beg = TimeUtil::GetCurrentTimestamp();
 

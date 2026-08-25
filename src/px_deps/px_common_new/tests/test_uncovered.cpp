@@ -166,6 +166,7 @@ TEST(TestUncovered, MessageNotifierSendAndListen) {
         received = msg.value;
     });
     notifier.SendAppMessage(TestMessage{42});
+    ASSERT_TRUE(notifier.FlushForTest());
     EXPECT_EQ(received, 42);
 }
 
@@ -178,6 +179,7 @@ TEST(TestUncovered, MessageNotifierUnListenAll) {
     });
     listener->UnListenAll();
     notifier.SendAppMessage(TestMessage{99});
+    ASSERT_TRUE(notifier.FlushForTest());
     EXPECT_EQ(received, 0);
 }
 

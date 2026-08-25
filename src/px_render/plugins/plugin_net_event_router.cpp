@@ -22,6 +22,7 @@
 #include "app/app_messages.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
+#include "px_common_new/md5.h"
 #include "app_global_messages.h"
 #include "settings/rd_settings.h"
 #include "network/net_message_maker.h"
@@ -66,6 +67,22 @@ namespace px {
     };
 
     namespace {
+        bool VerifyGuestDeviceCredential(const RdSettings& settings,
+                                         const std::string& safety_pwd_md5) {
+            if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
+                return true;
+            }
+            if (safety_pwd_md5.empty()) {
+                return false;
+            }
+            if (!settings.device_safety_pwd_.empty() &&
+                settings.device_safety_pwd_ == safety_pwd_md5) {
+                return true;
+            }
+            return !settings.device_random_pwd_.empty() &&
+                   MD5::Hex(settings.device_random_pwd_) == safety_pwd_md5;
+        }
+
         void SendVirtualDisplayResponse(
             const std::shared_ptr<RdApplication>& app,
             const std::string& device_id,
@@ -366,13 +383,32 @@ namespace px {
                 if (plugin->GetPluginId() == kNetRtcLocalPluginId) {
                     if (msg->type() == MessageType::kSigOfferSdpMessage) {
                         const auto sub = msg->sig_offer_sdp();
-                        if (sub.connection_ticket().empty() || sub.client_nonce().empty()) {
-                            LOGW("Reject full RTC offer without Console ticket");
-                            return;
-                        }
                         const auto stream_id = msg->stream_id();
                         const auto device_id = msg->device_id();
                         const auto sdp = sub.sdp();
+                        if (sub.connection_ticket().empty()) {
+                            if (!settings_ ||
+                                !VerifyGuestDeviceCredential(*settings_, sub.safety_pwd_md5())) {
+                                LOGW("Reject guest full RTC offer: device password mismatch");
+                                return;
+                            }
+                            // A guest has no Console ticket from which to mint
+                            // temporary TURN credentials. An empty server list
+                            // still selects standard RTC and permits host ICE;
+                            // managed TURN remains available to ticketed users.
+                            plugin->OnMessageRaw(MsgRtcRemoteSdp {
+                                .stream_id_ = stream_id,
+                                .device_id_ = device_id,
+                                .sdp_ = sdp,
+                                .ice_config_json_ = R"({"ice_servers":[]})",
+                                .permissions_ = {"view", "input", "clipboard", "file", "audio"},
+                            });
+                            return;
+                        }
+                        if (sub.client_nonce().empty()) {
+                            LOGW("Reject ticketed full RTC offer without client nonce");
+                            return;
+                        }
                         app_->RedeemConnectionTicket(
                             sub.connection_ticket(), sub.client_nonce(), sub.instance_id(),
                             [plugin, stream_id, device_id, sdp](

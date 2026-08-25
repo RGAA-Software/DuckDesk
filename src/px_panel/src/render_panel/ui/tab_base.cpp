@@ -22,7 +22,7 @@ namespace px
         app_ = app;
         context_ = app->GetContext();
         settings_ = PxSettings::Instance();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         statistics_ = PxStatistics::Instance();
 
         msg_listener_->Listen<MsgLanguageChanged>([=, this](const MsgLanguageChanged& msg) {

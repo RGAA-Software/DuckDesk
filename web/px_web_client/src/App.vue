@@ -177,9 +177,13 @@ function cancelReconnectTimer() {
 
 function scheduleReconnect(reason: string) {
   if (manualClose || reconnectTimer !== null) return
-  if (!isStandardRtc() && rtcIceConfig && relayHost.value && relayPort.value > 0) {
+  const standardFallbackReady = relayHost.value && relayPort.value > 0
+    && (!connectionTicket.value || rtcIceConfig !== null)
+  if (!isStandardRtc() && standardFallbackReady) {
     forceStandardRtc = true
-    addLog(`[rtc-route] Direct 会话未连通(${reason})，自动换新票据并重开 RTC Standard`)
+    addLog(connectionTicket.value
+      ? `[rtc-route] Direct 会话未连通(${reason})，自动换新票据并重开 RTC Standard`
+      : `[rtc-route] Direct 会话未连通(${reason})，使用设备密码重开 RTC Standard`)
   }
   if (reconnectCount.value >= MAX_AUTO_RECONNECT) {
     status.value = 'failed'
@@ -534,6 +538,30 @@ function browserIceServers(config: RtcSessionIceConfig | null): RTCIceServer[] {
     username: server.username,
     credential: server.credential,
   }))
+}
+
+async function hydrateGuestRelayRoute(): Promise<void> {
+  if (connectionTicket.value || (relayHost.value && relayPort.value > 0)) return
+  try {
+    const resp = await fetch('/get/render/configuration')
+    const result = (await resp.json()) as {
+      code?: number
+      data?: { device_id?: string; relay_host?: string; relay_port?: number }
+    }
+    if (result.code !== 200 || !result.data) return
+    if (result.data.relay_host) relayHost.value = result.data.relay_host
+    if (Number(result.data.relay_port) > 0) relayPort.value = Number(result.data.relay_port)
+    const deviceId = result.data.device_id || form.deviceId
+    // A direct URL initially uses the public device id. Console Relay registers
+    // the Render under its server_ identity, so the guest standard path must
+    // replace (not merely fill) that initial value.
+    if (deviceId) signalDeviceId.value = `server_${deviceId}`
+    if (relayHost.value && relayPort.value > 0) {
+      addLog('[rtc-route] 已加载游客标准 RTC Relay，认证仍只使用设备密码')
+    }
+  } catch (error) {
+    addLog(`[rtc-route] 加载游客标准 RTC Relay 失败: ${String(error)}`)
+  }
 }
 
 function isStandardRtc(): boolean {
@@ -1395,11 +1423,17 @@ async function restartStandardRtc(reason: string, force = false) {
   standardRestarting = true
   const previousRevision = rtcIceConfig?.revision ?? 0
   try {
-    const renewed = await renewConnectionTicket(false)
-    const nextConfig = renewed.rtcIceConfig ?? rtcIceConfig
-    if (!nextConfig) throw new Error('Console 未返回新的 ICE 配置')
-    if (!force && nextConfig.revision <= previousRevision) return
-    rtcIceConfig = nextConfig
+    let nextConfig = rtcIceConfig
+    if (connectionTicket.value) {
+      const renewed = await renewConnectionTicket(false)
+      nextConfig = renewed.rtcIceConfig ?? rtcIceConfig
+      if (!nextConfig) throw new Error('Console 未返回新的 ICE 配置')
+      if (!force && nextConfig.revision <= previousRevision) return
+      rtcIceConfig = nextConfig
+    } else if (!force) {
+      // Guest sessions have no Console configuration revision to poll.
+      return
+    }
     pc.setConfiguration({
       iceServers: browserIceServers(nextConfig),
       iceTransportPolicy: 'all',
@@ -1408,18 +1442,19 @@ async function restartStandardRtc(reason: string, force = false) {
     const offer = await pc.createOffer({ iceRestart: true })
     await pc.setLocalDescription(offer)
     if (!offer.sdp) throw new Error('ICE restart Offer SDP 为空')
-    ticketConsumed = true
+    ticketConsumed = !!connectionTicket.value
     const answer = await standardSignaling.exchangeOffer(
       offer.sdp,
       connectionTicket.value,
       clientNonce.value,
       connectionInstanceId.value,
+      effectivePwdMd5(),
     )
     await pc.setRemoteDescription({ type: 'answer', sdp: answer })
     for (const candidate of pendingStandardRemoteIce.splice(0)) {
       await pc.addIceCandidate(candidate)
     }
-    addLog(`[rtc-standard] SetConfiguration + ICE restart 完成: reason=${reason} revision=${nextConfig.revision}`)
+    addLog(`[rtc-standard] SetConfiguration + ICE restart 完成: reason=${reason} revision=${nextConfig?.revision ?? 'guest'}`)
   } catch (error) {
     addLog(`[rtc-standard] ICE restart 失败: ${String(error)}`)
     scheduleReconnect('ICE restart failed')
@@ -1450,19 +1485,26 @@ async function connect() {
   setConnectStep('init', `deviceId=${form.deviceId} streamId=${form.streamId}`)
 
   try {
+    if (!connectionTicket.value
+      && (forceStandardRtc || requestedConnectionType.value === 'rtc')) {
+      await hydrateGuestRelayRoute()
+    }
     const standardRtc = isStandardRtc()
     if (standardRtc) {
-      if (!rtcIceConfig || !relayHost.value || relayPort.value <= 0 || !connectionTicket.value) {
-        throw new Error('RTC Standard 缺少 Console ICE/Relay/ticket 启动参数')
+      if (!relayHost.value || relayPort.value <= 0) {
+        throw new Error('RTC Standard 缺少 Relay 启动参数')
+      }
+      if (connectionTicket.value && !rtcIceConfig) {
+        throw new Error('已登录 RTC Standard 缺少 Console ICE 配置')
       }
       // A Direct attempt may already have consumed the one-time ticket at the
       // Render. Rotate it before opening the authenticated signaling socket.
-      if (ticketConsumed) await renewConnectionTicket()
+      if (connectionTicket.value && ticketConsumed) await renewConnectionTicket()
       pc = new RTCPeerConnection({
         iceServers: browserIceServers(rtcIceConfig),
         iceTransportPolicy: 'all',
       })
-      addLog(`[rtc-route] RTC Standard, ICE revision=${rtcIceConfig.revision}`)
+      addLog(`[rtc-route] RTC Standard, ICE revision=${rtcIceConfig?.revision ?? 'guest'}`)
     } else {
       // Direct RTC remains host-only; Render rewrites its candidate to the
       // browser-reachable address for the specialized local endpoint.
@@ -1486,6 +1528,7 @@ async function connect() {
           ticket: connectionTicket.value,
           clientNonce: clientNonce.value,
           instanceId: connectionInstanceId.value,
+          safetyPwdMd5: connectionTicket.value ? '' : effectivePwdMd5(),
           secure: window.location.protocol === 'https:',
         },
         async (candidate) => {
@@ -1581,7 +1624,7 @@ async function connect() {
           perfCollector.start(pc)
         }
         startConnWatchdog()
-        if (standardRtc) startStandardRtcConfigPolling()
+        if (standardRtc && connectionTicket.value) startStandardRtcConfigPolling()
       } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         // 非手动断开(manualClose 时 cleanup 已摘掉本回调,closed 不会走到这里)自动重连
         scheduleReconnect(state)
@@ -1723,12 +1766,13 @@ async function connect() {
       const localSdp = pc.localDescription?.sdp
       if (!localSdp || !standardSignaling) throw new Error('标准 RTC 本地 SDP 或信令对象为空')
       setConnectStep('signal', '通过 Console Relay 交换 SDP/Trickle ICE')
-      ticketConsumed = true
+      ticketConsumed = !!connectionTicket.value
       const answerSdp = await standardSignaling.exchangeOffer(
         localSdp,
         connectionTicket.value,
         clientNonce.value,
         connectionInstanceId.value,
+        effectivePwdMd5(),
       )
       setConnectStep('answer', `standard answer_sdp length=${answerSdp.length}`)
       scanFr('answer', answerSdp)
@@ -1933,6 +1977,9 @@ onMounted(() => {
   exposeInputConnDebug()
   exposeFtDebug()
   void fetchRenderVersion()
+  // A guest starts with Direct RTC and may need the same password-authenticated
+  // standard RTC path as a fallback. Relay discovery does not issue a ticket.
+  if (!connectionTicket.value) void hydrateGuestRelayRoute()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // URL 带了 deviceId/?c= 则自动连接(空密码也可,便于无头/本地调试)
   if (autoConnectFromUrl.value && form.deviceId) {

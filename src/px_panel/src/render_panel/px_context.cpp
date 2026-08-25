@@ -315,6 +315,19 @@ namespace px
         return msg_notifier_->CreateListener();
     }
 
+    std::shared_ptr<MessageListener> PxContext::ObtainUIMessageListener() {
+        if (!msg_notifier_) {
+            LOGE("ObtainUIMessageListener failed because notifier is not ready");
+            return nullptr;
+        }
+        auto weak_self = weak_from_this();
+        return msg_notifier_->CreateListener([weak_self](std::function<void()> task) {
+            if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->PostUITask(std::move(task));
+            }
+        });
+    }
+
     std::shared_ptr<PxRenderController> PxContext::GetRenderController() {
         return srv_manager_;
     }
@@ -324,31 +337,31 @@ namespace px
         auto weak_self = weak_from_this();
         timer_->start_timer(100, 100, [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->SendAppMessage(MsgGrTimer100{});
+                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer100{});
             }
         });
 
         timer_->start_timer(1, 1000, [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->SendAppMessage(MsgGrTimer1S{});
+                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer1S{});
             }
         });
 
         timer_->start_timer(2, 2000, [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->SendAppMessage(MsgGrTimer2S{});
+                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer2S{});
             }
         });
 
         timer_->start_timer(5, 5000, [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->SendAppMessage(MsgGrTimer5S{});
+                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer5S{});
             }
         });
 
         timer_->start_timer(6, 10 * 3600 * 1000, [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->SendAppMessage(MsgGrTimer10H{});
+                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer10H{});
             }
         });
     }

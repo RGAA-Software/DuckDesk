@@ -6,6 +6,8 @@ param(
     [string]$TargetHost = '10.0.0.90',
     [int]$TargetPort = 20371,
     [string]$DeviceId = '001190520',
+    [ValidateSet('webrtc_direct', 'webrtc')]
+    [string]$NetworkType = 'webrtc_direct',
     [string]$RemotePassword = $env:PX_TEST_REMOTE_PASSWORD,
     [string]$ClientExe = '',
     [ValidateRange(10, 90)]
@@ -56,9 +58,17 @@ $clientId = "acceptance_$suffix"
 $uid = $null
 $process = $null
 $exitCode = 1
-$logPath = "C:\Users\Public\Pixels\px_logs\app.$TargetHost.log"
+$logPath = if ($NetworkType -eq 'webrtc') {
+    "C:\Users\Public\Pixels\px_logs\app.$DeviceId.log"
+} else {
+    "C:\Users\Public\Pixels\px_logs\app.$TargetHost.log"
+}
+$rtcLogPath = "C:\Users\Public\Pixels\px_logs\app.rtc.$DeviceId.log"
 $initialLines = if (Test-Path -LiteralPath $logPath) {
     @(Get-Content -LiteralPath $logPath).Count
+} else { 0 }
+$initialRtcLines = if (Test-Path -LiteralPath $rtcLogPath) {
+    @(Get-Content -LiteralPath $rtcLogPath).Count
 } else { 0 }
 
 try {
@@ -93,9 +103,10 @@ try {
         "--console_host=$(([uri]$ConsoleBase).Host)", "--console_port=$(([uri]$ConsoleBase).Port)",
         '--console_ssl=true', '--audio=1', '--clipboard=1',
         "--stream_id=$streamId", "--conn_type=$(if ($Mode -eq 'account') {'console_ticket'} else {'direct'})",
-        '--network_type=webrtc_direct', "--device_id=$clientId",
+        "--network_type=$NetworkType", "--device_id=$clientId",
         "--remote_device_id=$DeviceId", '--enable_p2p=1', '--only_viewing=0',
-        '--force_direct=1', "--relay_host=$relayHost", "--relay_port=$relayPort"
+        "--force_direct=$(if ($NetworkType -eq 'webrtc_direct') {1} else {0})",
+        "--relay_host=$relayHost", "--relay_port=$relayPort"
     )
     if ($Mode -eq 'account') {
         $arguments += "--connection_ticket=$(ConvertTo-Base64 $connectionTicket)"
@@ -114,9 +125,21 @@ try {
         if ($process.HasExited) { break }
         if (Test-Path -LiteralPath $logPath) {
             $evidence = (@(Get-Content -LiteralPath $logPath) | Select-Object -Skip $initialLines) -join "`n"
-            if ($evidence -match 'Rtc local, connected\.' -and
-                $evidence -match 'first key frame' -and
-                $evidence -match 'File-transfer transport connected') {
+            if ($NetworkType -eq 'webrtc' -and (Test-Path -LiteralPath $rtcLogPath)) {
+                $rtcEvidence = (@(Get-Content -LiteralPath $rtcLogPath) | Select-Object -Skip $initialRtcLines) -join "`n"
+                $evidence += "`n$rtcEvidence"
+            }
+            $transportReady = if ($NetworkType -eq 'webrtc_direct') {
+                $evidence -match 'Rtc local, connected\.' -and
+                $evidence -match 'first key frame'
+            } else {
+                $evidence -match 'Full WebRTC transport is ready' -and
+                $evidence -match 'RtcVideoSink OnFrame #1'
+            }
+            if ($transportReady -and
+                $evidence -match 'First decoded video frame reached UI renderer' -and
+                $evidence -match 'File-transfer transport connected' -and
+                $evidence -match 'Init audio player') {
                 break
             }
         }
@@ -126,12 +149,20 @@ try {
     if ($evidence -match '(?i)authentication required|resource not found|ticket.+failed|connect failed') {
         throw 'native client log contains an authentication or connection failure'
     }
-    if ($evidence -notmatch 'Rtc local, connected\.') { throw 'native RTC did not connect' }
-    if ($evidence -notmatch 'first key frame') { throw 'native client did not decode the first video frame' }
+    if ($NetworkType -eq 'webrtc_direct') {
+        if ($evidence -notmatch 'Rtc local, connected\.') { throw 'native Direct RTC did not connect' }
+        if ($evidence -notmatch 'first key frame') { throw 'native Direct RTC did not decode the first key frame' }
+    } else {
+        if ($evidence -notmatch 'Full WebRTC transport is ready') { throw 'native standard RTC did not connect' }
+        if ($evidence -notmatch 'RtcVideoSink OnFrame #1') { throw 'native standard RTC sink did not receive the first frame' }
+    }
+    if ($evidence -notmatch 'First decoded video frame reached UI renderer') {
+        throw 'native client decoded video but did not deliver it to the UI renderer'
+    }
     if ($evidence -notmatch 'File-transfer transport connected') { throw 'native file transport did not connect' }
     if ($evidence -notmatch 'Init audio player') { throw 'native audio player did not initialize' }
 
-    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode target=$DeviceId rtc=connected video=first-frame audio=initialized file=connected"
+    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId rtc=connected video=ui-rendered audio=initialized file=connected"
     $exitCode = 0
 }
 finally {

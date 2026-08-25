@@ -13,7 +13,7 @@ namespace px
     }
 
     void BaseWidget::CreateMsgListener() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         msg_listener_->Listen<MsgClientFloatControllerPanelUpdate>([=, this](const MsgClientFloatControllerPanelUpdate& msg) {
             UpdateStatus(msg);
         });

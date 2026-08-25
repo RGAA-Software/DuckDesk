@@ -9,6 +9,7 @@
 #include <string>
 #include <mutex>
 #include <atomic>
+#include <cstdint>
 
 #include "px_message.pb.h"
 #include "sdk_params.h"
@@ -106,8 +107,9 @@ namespace px
         std::map<std::string, int> decode_failed_counts_;
         std::map<std::string, bool> hw_disabled_states_;
 
-        // for android
-        void* render_surface_ = nullptr;
+        // Borrowed native surface/handle accepted at the public ABI boundary.
+        // Keep the opaque value rather than retaining a raw pointer in object state.
+        std::uintptr_t render_surface_handle_ = 0;
 
         // callbacks
         OnVideoFrameDecodedCallback video_frame_cbk_ = nullptr;
@@ -116,7 +118,7 @@ namespace px
         OnVideoFrameDecodeThreadDiscardedCallback  video_frame_thread_discarded_cbk_ = nullptr;
 
         DecoderRenderType drt_;
-        bool exit_ = false;
+        std::atomic_bool exit_{false};
 
         std::shared_ptr<OpusAudioDecoder> audio_decoder_ = nullptr;
         bool debug_audio_decoder_ = false;
@@ -125,7 +127,7 @@ namespace px
         std::shared_ptr<CastReceiver> cast_receiver_ = nullptr;
         std::shared_ptr<SdkTimer> sdk_timer_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        SdkStatistics* statistics_ = nullptr;
+        std::shared_ptr<SdkStatistics> statistics_;
         std::shared_ptr<Thread> video_thread_ = nullptr;
         std::shared_ptr<Thread> audio_thread_ = nullptr;
         std::shared_ptr<Thread> misc_thread_ = nullptr;
@@ -134,6 +136,7 @@ namespace px
 
         std::atomic_bool has_config_msg_ = false;
         std::atomic_bool has_video_frame_msg_ = false;
+        std::atomic_int64_t rtc_video_frame_index_{0};
 
         bool need_clear_video_tasks_ = false;
 

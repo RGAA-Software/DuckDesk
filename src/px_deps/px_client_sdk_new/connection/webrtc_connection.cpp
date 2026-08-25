@@ -6,6 +6,7 @@
 #include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
+#include "px_common_new/md5.h"
 #include "px_common_new/thread.h"
 #include "px_webrtc_client/rtc_client_interface.h"
 #include "px_common_new/message_notifier.h"
@@ -25,6 +26,15 @@ typedef void *(*FnGetInstance)();
 namespace px
 {
 
+    std::shared_ptr<WebRtcConnection> WebRtcConnection::Make(
+        const std::shared_ptr<RelayConnection>& relay_conn,
+        const std::shared_ptr<ThunderSdkParams>& params,
+        const std::shared_ptr<MessageNotifier>& notifier) {
+        auto connection = std::make_shared<WebRtcConnection>(relay_conn, params, notifier);
+        connection->Prepare();
+        return connection;
+    }
+
     WebRtcConnection::WebRtcConnection(const std::shared_ptr<RelayConnection>& relay_conn,
                                        const std::shared_ptr<ThunderSdkParams>& params,
                                        const std::shared_ptr<MessageNotifier>& notifier)
@@ -34,30 +44,38 @@ namespace px
         relay_conn_ = relay_conn;
         sdk_params_ = params;
         msg_notifier_ = notifier;
-        msg_listener_ = notifier->CreateListener();
         thread_ = Thread::Make("rtc_client_thread", 1024 * 8);
         thread_->Poll();
+    }
 
-        msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {
+    void WebRtcConnection::Prepare() {
+        auto weak_self = weak_from_this();
+        msg_listener_ = msg_notifier_->CreateListener();
+        msg_listener_->Listen<SdkMsgNetworkConnected>([](const SdkMsgNetworkConnected&) {
             LOGI("Sdk msg, network connected.");
         });
 
-        msg_listener_->Listen<SdkMsgRoomPrepared>([=, this](const SdkMsgRoomPrepared& msg) {
-            if (sdk_params_->enable_p2p_ && msg.room_type_ == kRoomTypeMedia) {
+        msg_listener_->Listen<SdkMsgRoomPrepared>([weak_self](const SdkMsgRoomPrepared& msg) {
+            auto self = weak_self.lock();
+            if (self && self->sdk_params_->enable_p2p_ && msg.room_type_ == kRoomTypeMedia) {
                 LOGI("Sdk msg, room prepared, will init webrtc!");
-                this->Init();
+                self->Init();
             }
         });
 
-        msg_listener_->Listen<SdkMsgRemoteAnswerSdp>([=, this](const SdkMsgRemoteAnswerSdp& msg) {
-            this->OnRemoteSdp(msg);
+        msg_listener_->Listen<SdkMsgRemoteAnswerSdp>([weak_self](const SdkMsgRemoteAnswerSdp& msg) {
+            if (auto self = weak_self.lock()) {
+                self->OnRemoteSdp(msg);
+            }
         });
 
-        msg_listener_->Listen<SdkMsgRemoteIce>([=, this](const SdkMsgRemoteIce& msg) {
-            this->OnRemoteIce(msg);
+        msg_listener_->Listen<SdkMsgRemoteIce>([weak_self](const SdkMsgRemoteIce& msg) {
+            if (auto self = weak_self.lock()) {
+                self->OnRemoteIce(msg);
+            }
         });
 
-        this->LoadRtcLibrary();
+        LoadRtcLibrary();
     }
 
     WebRtcConnection::~WebRtcConnection() {
@@ -69,7 +87,9 @@ namespace px
     }
 
     void WebRtcConnection::Stop() {
-        stopped_ = true;
+        if (stopped_.exchange(true)) {
+            return;
+        }
         if (rtc_client_) {
             rtc_client_->Exit();
         }
@@ -80,80 +100,118 @@ namespace px
         if (!init_started_.compare_exchange_strong(expected, true)) {
             return;
         }
-        RunInRtcThread([=, this]() {
-            if (!rtc_client_) {
+        auto weak_self = weak_from_this();
+        RunInRtcThread([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            if (!self->rtc_client_) {
                 LOGE("RTC client library is unavailable");
-                NotifyDisconnectedOnce();
+                self->NotifyDisconnectedOnce();
                 return;
             }
 
-            rtc_client_->SetOnLocalSdpSetCallback([=, this](const std::string& sdp) {
-                LOGI("Will send sdp to remote, sdp size: {}", sdp.size());
-                this->SendSdpToRemote(sdp);
-            });
-
-            rtc_client_->SetOnLocalIceCallback([=, this](const std::string& ice, const std::string& mid, int sdp_mline_index) {
-                LOGI("Will send ice to remote: {}", ice);
-                this->SendIceToRemote(ice, mid, sdp_mline_index);
-            });
-
-            rtc_client_->SetMediaMessageCallback([=, this](std::shared_ptr<Data> msg) {
-                if (media_msg_cbk_) {
-                    media_msg_cbk_(msg);
+            self->rtc_client_->SetOnLocalSdpSetCallback([weak_self](const std::string& sdp) {
+                if (auto locked = weak_self.lock()) {
+                    LOGI("Will send sdp to remote, sdp size: {}", sdp.size());
+                    locked->SendSdpToRemote(sdp);
                 }
             });
 
-            rtc_client_->SetFtMessageCallback([=, this](std::shared_ptr<Data> msg) {
-                if (ft_msg_cbk_) {
-                    ft_msg_cbk_(msg);
+            self->rtc_client_->SetOnLocalIceCallback(
+                [weak_self](const std::string& ice, const std::string& mid, int sdp_mline_index) {
+                    if (auto locked = weak_self.lock()) {
+                        LOGI("Will send ice to remote: {}", ice);
+                        locked->SendIceToRemote(ice, mid, sdp_mline_index);
+                    }
+            });
+
+            self->rtc_client_->SetMediaMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+                if (auto locked = weak_self.lock(); locked && locked->media_msg_cbk_) {
+                    locked->media_msg_cbk_(std::move(msg));
                 }
             });
 
-            rtc_client_->SetOnIceStateCallback([=, this](int state) {
+            self->rtc_client_->SetFtMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+                if (auto locked = weak_self.lock(); locked && locked->ft_msg_cbk_) {
+                    locked->ft_msg_cbk_(std::move(msg));
+                }
+            });
+
+            // Standard RTC video is decoded inside libwebrtc. Forward its
+            // packed I420 frames into the same SDK/UI path used by Direct RTC;
+            // without this callback RtcVideoSink receives frames indefinitely
+            // but px_client never renders one.
+            self->rtc_client_->SetOnVideoFrameCallback(
+                [weak_self](int w, int h, std::shared_ptr<Data> i420) {
+                    auto locked = weak_self.lock();
+                    if (locked && locked->video_frame_cbk_) {
+                        if (!locked->first_video_frame_forwarded_.exchange(true)) {
+                            LOGI("Standard RTC first decoded frame entering SDK: {}x{}", w, h);
+                        }
+                        locked->video_frame_cbk_(w, h, std::move(i420));
+                    }
+                });
+
+            self->rtc_client_->SetOnAudioDataCallback(
+                [weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
+                    if (auto locked = weak_self.lock(); locked && locked->audio_data_cbk_) {
+                        locked->audio_data_cbk_(std::move(pcm), sample_rate, channels);
+                    }
+                });
+
+            self->rtc_client_->SetOnIceStateCallback([weak_self](int state) {
+                auto locked = weak_self.lock();
+                if (!locked) {
+                    return;
+                }
                 // libwebrtc IceConnectionState: connected=2, completed=3,
                 // failed=4, disconnected=5, closed=6. A disconnected state
                 // may recover, so only terminal states close the SDK session.
                 if (state == 2 || state == 3) {
                     SdkStatistics::Instance()->rtc_ice_state_ = state == 2 ? "connected" : "completed";
-                    ice_connected_ = true;
-                    ice_restart_requested_ = false;
-                    ice_restart_grace_ticks_ = 0;
-                    NotifyConnectedWhenReady();
+                    locked->ice_connected_ = true;
+                    locked->ice_restart_requested_ = false;
+                    locked->ice_restart_grace_ticks_ = 0;
+                    locked->NotifyConnectedWhenReady();
                 }
                 else if (state == 4) {
                     SdkStatistics::Instance()->rtc_ice_state_ = "restarting";
-                    ice_connected_ = false;
-                    if (!ice_restart_requested_.exchange(true)) {
-                        ice_restart_grace_ticks_ = 900;
-                        msg_notifier_->SendAppMessage(SdkMsgRtcIceRestartNeeded {});
+                    locked->ice_connected_ = false;
+                    if (!locked->ice_restart_requested_.exchange(true)) {
+                        locked->ice_restart_grace_ticks_ = 900;
+                        locked->msg_notifier_->SendAppMessage(SdkMsgRtcIceRestartNeeded {});
                         LOGW("Full RTC ICE failed; requested one managed ICE restart");
                     }
                 }
                 else if (state == 6) {
                     SdkStatistics::Instance()->rtc_ice_state_ = "closed";
-                    ice_connected_ = false;
-                    NotifyDisconnectedOnce();
+                    locked->ice_connected_ = false;
+                    locked->NotifyDisconnectedOnce();
                 }
                 else if (state == 5) {
                     SdkStatistics::Instance()->rtc_ice_state_ = "disconnected";
-                    ice_connected_ = false;
+                    locked->ice_connected_ = false;
                 }
                 else {
                     SdkStatistics::Instance()->rtc_ice_state_ = std::to_string(state);
                 }
             });
 
-            rtc_client_->SetOnStatsJsonCallback([=, this](const std::string& json) {
-                UpdateTransportStats(json);
+            self->rtc_client_->SetOnStatsJsonCallback([weak_self](const std::string& json) {
+                if (auto locked = weak_self.lock()) {
+                    locked->UpdateTransportStats(json);
+                }
             });
 
-            rtc_client_->SetLocalRtcMode(false);
-            rtc_client_->SetFileTransferOnly(sdk_params_->file_transfer_only_);
-            rtc_client_->SetIceServersJson(sdk_params_->rtc_ice_config_json_);
+            self->rtc_client_->SetLocalRtcMode(false);
+            self->rtc_client_->SetFileTransferOnly(self->sdk_params_->file_transfer_only_);
+            self->rtc_client_->SetIceServersJson(self->sdk_params_->rtc_ice_config_json_);
 
-            if (!rtc_client_->Init(sdk_params_->bare_remote_device_id_)) {
+            if (!self->rtc_client_->Init(self->sdk_params_->bare_remote_device_id_)) {
                 LOGE("RTC client init FAILED!");
-                NotifyDisconnectedOnce();
+                self->NotifyDisconnectedOnce();
                 return;
             }
 
@@ -208,9 +266,10 @@ namespace px
                 }
             }
         }
-        RunInRtcThread([=, this]() {
-            if (rtc_client_) {
-                rtc_client_->PostMediaMessage(msg);
+        auto weak_self = weak_from_this();
+        RunInRtcThread([weak_self, msg = std::move(msg)]() {
+            if (auto self = weak_self.lock(); self && self->rtc_client_) {
+                self->rtc_client_->PostMediaMessage(msg);
             }
         });
     }
@@ -239,25 +298,38 @@ namespace px
         ft_msg_cbk_ = cbk;
     }
 
+    void WebRtcConnection::SetOnVideoFrameCallback(
+        const std::function<void(int w, int h, std::shared_ptr<Data> i420)>& cbk) {
+        video_frame_cbk_ = cbk;
+    }
+
+    void WebRtcConnection::SetOnAudioDataCallback(
+        const std::function<void(std::shared_ptr<Data> pcm, int sample_rate, int channels)>& cbk) {
+        audio_data_cbk_ = cbk;
+    }
+
     void WebRtcConnection::OnRemoteSdp(const SdkMsgRemoteAnswerSdp& m) {
-        RunInRtcThread([=, this]() {
-            if (rtc_client_) {
-                rtc_client_->OnRemoteSdp(m.answer_sdp_.sdp());
+        auto weak_self = weak_from_this();
+        auto sdp = m.answer_sdp_.sdp();
+        RunInRtcThread([weak_self, sdp = std::move(sdp)]() {
+            if (auto self = weak_self.lock(); self && self->rtc_client_) {
+                self->rtc_client_->OnRemoteSdp(sdp);
             }
         });
     }
 
     void WebRtcConnection::OnRemoteIce(const SdkMsgRemoteIce& m) {
-        RunInRtcThread([=, this]() {
-            if (rtc_client_) {
-                auto sub = m.ice_;
-                rtc_client_->OnRemoteIce(sub.ice(), sub.mid(), sub.sdp_mline_index());
+        auto weak_self = weak_from_this();
+        auto sub = m.ice_;
+        RunInRtcThread([weak_self, sub = std::move(sub)]() {
+            if (auto self = weak_self.lock(); self && self->rtc_client_) {
+                self->rtc_client_->OnRemoteIce(sub.ice(), sub.mid(), sub.sdp_mline_index());
             }
         });
     }
 
     void WebRtcConnection::RunInRtcThread(std::function<void()>&& task) {
-        thread_->Post([=]() {
+        thread_->Post([task = std::move(task)]() {
             task();
         });
     }
@@ -274,6 +346,14 @@ namespace px
         sub->set_connection_ticket(sdk_params_->connection_ticket_);
         sub->set_client_nonce(sdk_params_->connection_nonce_);
         sub->set_instance_id(sdk_params_->connection_instance_id_);
+        if (sdk_params_->connection_ticket_.empty()) {
+            if (!sdk_params_->remote_device_safety_pwd_.empty()) {
+                sub->set_safety_pwd_md5(sdk_params_->remote_device_safety_pwd_);
+            }
+            else if (!sdk_params_->remote_device_random_pwd_.empty()) {
+                sub->set_safety_pwd_md5(MD5::Hex(sdk_params_->remote_device_random_pwd_));
+            }
+        }
         auto buffer = Data::Make(nullptr, pt_msg.ByteSizeLong());
         pt_msg.SerializeToArray(buffer->DataAddr(), buffer->Size());
         relay_conn_->PostBinaryMessage(buffer);
@@ -356,8 +436,10 @@ namespace px
         sdk_params_->connection_nonce_ = client_nonce;
         sdk_params_->connection_instance_id_ = instance_id;
         ice_restart_grace_ticks_ = 900;
-        RunInRtcThread([=, this]() {
-            if (!rtc_client_->RestartIce(ice_config_json)) {
+        auto weak_self = weak_from_this();
+        RunInRtcThread([weak_self, ice_config_json]() {
+            auto self = weak_self.lock();
+            if (self && self->rtc_client_ && !self->rtc_client_->RestartIce(ice_config_json)) {
                 LOGE("Active full RTC SetConfiguration/RestartIce failed");
             }
         });

@@ -68,7 +68,9 @@ namespace px
         LOGI("Client params for: {}", this->name_);
         settings->Dump();
 
-        PostTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        PostTask([weak_self]() {
+            if (weak_self.expired()) return;
             auto hardware = Hardware::Instance();
             hardware->Detect(false, true, false);
             hardware->Dump();
@@ -109,6 +111,15 @@ namespace px
 
     std::shared_ptr<MessageListener> ClientContext::ObtainMessageListener() {
         return msg_notifier_->CreateListener();
+    }
+
+    std::shared_ptr<MessageListener> ClientContext::ObtainUIMessageListener() {
+        auto weak_self = weak_from_this();
+        return msg_notifier_->CreateListener([weak_self](std::function<void()> task) {
+            if (auto self = weak_self.lock(); self && !self->exiting_) {
+                self->PostUITask(std::move(task));
+            }
+        });
     }
 
     void ClientContext::Exit() {

@@ -9,6 +9,7 @@
 #include "rd_context.h"
 #include "rd_statistics.h"
 #include "px_common_new/log.h"
+#include "px_common_new/md5.h"
 #include "px_common_new/message_notifier.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
@@ -282,10 +283,17 @@ namespace px
             callback(false, "INVALID_ARGUMENT", {}, "");
             return;
         }
+        // The Direct RTC signaling flow may legitimately redeem the same ticket
+        // twice: the first allocation reports kOccupied and the second retries
+        // with takeover=1.  Keep the redemption id stable for that logical
+        // connection so Console can treat only that exact retry as idempotent.
+        // The ticket itself is never put in logs or on the wire as an id.
+        const auto redemption_fingerprint = MD5::Hex(
+            ticket + "\n" + client_nonce + "\n" + instance_id);
         const auto request_id = std::format(
             "render-{}-{}",
             RdSettings::Instance()->transmission_.listening_port_,
-            ++ticket_request_seq_);
+            redemption_fingerprint);
         {
             std::scoped_lock lock(ticket_callbacks_mtx_);
             ticket_callbacks_[request_id] = std::move(callback);

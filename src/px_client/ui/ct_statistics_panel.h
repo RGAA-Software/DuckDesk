@@ -38,7 +38,7 @@ namespace px
         FloatIcon* close_btn_ = nullptr;
         CtStatChart* data_speed_stat_chart_ = nullptr;
         CtStatChart* durations_stat_chart_ = nullptr;
-        SdkStatistics* sdk_stat_ = nullptr;
+        std::shared_ptr<SdkStatistics> sdk_stat_;
         Settings* settings_ = nullptr;
         QLabel* lbl_data_speed_ = nullptr;
         QLabel* lbl_received_data_ = nullptr;

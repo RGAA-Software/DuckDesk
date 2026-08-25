@@ -34,6 +34,31 @@ pub struct RelayServer {
     pub context: Arc<Mutex<ConsoleContext>>,
 }
 
+/// A browser guest has no Console capability. Its Relay connection is limited
+/// to the explicitly named device; Render remains the authentication authority
+/// and validates the password digest carried by the SDP offer.
+pub(crate) fn is_scoped_guest_rtc_signal(params: &HashMap<String, String>) -> bool {
+    if !params
+        .get("guest_password")
+        .is_some_and(|value| value == "1")
+        || params.contains_key("ticket")
+    {
+        return false;
+    }
+    let (Some(client), Some(remote), Some(device_id), Some(stream_id)) = (
+        params.get("device_id"),
+        params.get("remote_device_id"),
+        params.get("ticket_device_id"),
+        params.get("stream_id"),
+    ) else {
+        return false;
+    };
+    client.starts_with("web_")
+        && !stream_id.is_empty()
+        && !device_id.is_empty()
+        && remote == &format!("server_{device_id}")
+}
+
 impl RelayServer {
     pub fn new(host: String, port: u16, context: Arc<Mutex<ConsoleContext>>) -> RelayServer {
         RelayServer {
@@ -158,41 +183,52 @@ impl RelayServer {
                 Err(err) => return err.into_response(),
             }
         } else if params.get("rtc_signal").is_some_and(|value| value == "1") {
-            let (Some(ticket), Some(nonce), Some(remote), Some(ticket_device_id)) = (
-                params.get("ticket"),
-                params.get("client_nonce"),
-                params.get("remote_device_id"),
-                params.get("ticket_device_id"),
-            ) else {
-                return crate::console_api_error::ConsoleApiError::InvalidParams.into_response();
-            };
-            let active = ConnectionTicketManager::lookup_active(
-                ticket,
-                ticket_device_id,
-                nonce,
-                params.get("instance_id").map(String::as_str),
-            )
-            .await;
-            let active = match active {
-                Ok(value) => value,
-                Err(error) => return error.into_response(),
-            };
-            let expected_remote = active
-                .instance_id
-                .as_deref()
-                .filter(|value| !value.is_empty())
-                .map(|instance_id| {
-                    format!("server_{}__instance__{}", active.device_id, instance_id)
-                })
-                .unwrap_or_else(|| format!("server_{}", active.device_id));
-            if remote != &expected_remote {
-                tracing::warn!(
-                    ticket_device_id,
-                    remote_device_id = remote,
-                    expected_remote_device_id = expected_remote,
-                    "RTC signaling target does not match ticket binding"
+            if is_scoped_guest_rtc_signal(&params) {
+                tracing::info!(
+                    remote_device_id = params
+                        .get("remote_device_id")
+                        .map(String::as_str)
+                        .unwrap_or(""),
+                    "accepted password-authenticated guest RTC signaling socket"
                 );
-                return crate::console_api_error::ConsoleApiError::Forbidden.into_response();
+            } else {
+                let (Some(ticket), Some(nonce), Some(remote), Some(ticket_device_id)) = (
+                    params.get("ticket"),
+                    params.get("client_nonce"),
+                    params.get("remote_device_id"),
+                    params.get("ticket_device_id"),
+                ) else {
+                    return crate::console_api_error::ConsoleApiError::InvalidParams
+                        .into_response();
+                };
+                let active = ConnectionTicketManager::lookup_active(
+                    ticket,
+                    ticket_device_id,
+                    nonce,
+                    params.get("instance_id").map(String::as_str),
+                )
+                .await;
+                let active = match active {
+                    Ok(value) => value,
+                    Err(error) => return error.into_response(),
+                };
+                let expected_remote = active
+                    .instance_id
+                    .as_deref()
+                    .filter(|value| !value.is_empty())
+                    .map(|instance_id| {
+                        format!("server_{}__instance__{}", active.device_id, instance_id)
+                    })
+                    .unwrap_or_else(|| format!("server_{}", active.device_id));
+                if remote != &expected_remote {
+                    tracing::warn!(
+                        ticket_device_id,
+                        remote_device_id = remote,
+                        expected_remote_device_id = expected_remote,
+                        "RTC signaling target does not match ticket binding"
+                    );
+                    return crate::console_api_error::ConsoleApiError::Forbidden.into_response();
+                }
             }
         } else if params.contains_key("ticket") || params.contains_key("client_nonce") {
             // Capability material is accepted only on the explicitly scoped
@@ -406,5 +442,38 @@ impl RelayServer {
             }
         }
         ControlFlow::Continue(())
+    }
+}
+
+#[cfg(test)]
+mod guest_rtc_tests {
+    use super::is_scoped_guest_rtc_signal;
+    use std::collections::HashMap;
+
+    fn valid_params() -> HashMap<String, String> {
+        HashMap::from([
+            ("guest_password".into(), "1".into()),
+            ("device_id".into(), "web_123".into()),
+            ("remote_device_id".into(), "server_001190520".into()),
+            ("ticket_device_id".into(), "001190520".into()),
+            ("stream_id".into(), "desktop".into()),
+        ])
+    }
+
+    #[test]
+    fn accepts_only_a_scoped_password_guest() {
+        assert!(is_scoped_guest_rtc_signal(&valid_params()));
+
+        let mut wrong_target = valid_params();
+        wrong_target.insert("remote_device_id".into(), "server_other".into());
+        assert!(!is_scoped_guest_rtc_signal(&wrong_target));
+
+        let mut ticket_mixed_in = valid_params();
+        ticket_mixed_in.insert("ticket".into(), "must-not-mix".into());
+        assert!(!is_scoped_guest_rtc_signal(&ticket_mixed_in));
+
+        let mut native_client = valid_params();
+        native_client.insert("device_id".into(), "native_123".into());
+        assert!(!is_scoped_guest_rtc_signal(&native_client));
     }
 }

@@ -615,7 +615,7 @@ namespace px
     }
 
     void TabServer::RegisterMessageListener() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
 
         // new device created
         msg_listener_->Listen<MsgRequestedNewDevice>([=, this](const MsgRequestedNewDevice& msg) {

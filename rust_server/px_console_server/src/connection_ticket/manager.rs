@@ -91,6 +91,7 @@ impl ConnectionTicketManager {
             renewal_expires_at,
             cleanup_at: DateTime::from_millis(renewal_expires_at),
             consumed_at: None,
+            consumed_request_id: None,
         };
         gConsoleDatabase
             .lock()
@@ -184,6 +185,7 @@ impl ConnectionTicketManager {
                     "created_at": now,
                     "expires_at": expires_at,
                     "consumed_at": Bson::Null,
+                    "consumed_request_id": Bson::Null,
                 }},
             )
             .return_document(ReturnDocument::After)
@@ -225,16 +227,52 @@ impl ConnectionTicketManager {
                 filter.insert("instance_id", Bson::Null);
             }
         }
-        let ticket = gConsoleDatabase
+        let ticket_collection = gConsoleDatabase.lock().await.connection_ticket().clone();
+        let ticket = ticket_collection
             .lock()
             .await
-            .connection_ticket()
-            .lock()
-            .await
-            .find_one_and_update(filter, doc! { "$set": { "consumed_at": now } })
+            .find_one_and_update(
+                filter,
+                doc! { "$set": {
+                    "consumed_at": now,
+                    "consumed_request_id": request_id,
+                }},
+            )
             .return_document(ReturnDocument::After)
             .await
             .map_err(|_| ConsoleApiError::DatabaseError)?;
+        // A Direct RTC offer can be authorized successfully and then return
+        // "occupied". Its immediate takeover retry is the same logical
+        // redemption, not a second bearer use. Permit only an exact binding +
+        // request-id replay, and only for a small window. A different request
+        // id still observes strict one-time ticket semantics.
+        let ticket = match ticket {
+            Some(ticket) => Some(ticket),
+            None => {
+                let mut retry_filter = doc! {
+                    "ticket_hash": &ticket_hash,
+                    "device_id": bound_device_id,
+                    "client_nonce": client_nonce,
+                    "consumed_request_id": request_id,
+                    "consumed_at": { "$gt": now - 30_000_i64 },
+                    "expires_at": { "$gt": now },
+                };
+                match instance_id {
+                    Some(value) => {
+                        retry_filter.insert("instance_id", value);
+                    }
+                    None => {
+                        retry_filter.insert("instance_id", Bson::Null);
+                    }
+                }
+                ticket_collection
+                    .lock()
+                    .await
+                    .find_one(retry_filter)
+                    .await
+                    .map_err(|_| ConsoleApiError::DatabaseError)?
+            }
+        };
         let Some(ticket) = ticket else {
             audit::record(
                 "unknown",
@@ -503,6 +541,44 @@ mod tests {
         )
         .await;
 
+        let (idempotent_raw, _, _) = ConnectionTicketManager::issue(
+            "device",
+            "user",
+            "ticket-test-user",
+            &session_id,
+            "device-90",
+            None,
+            None,
+            vec!["view".to_string()],
+            "takeover-nonce".to_string(),
+        )
+        .await
+        .expect("issue idempotent takeover ticket");
+        let first_takeover_attempt = ConnectionTicketManager::redeem(
+            &idempotent_raw,
+            "device-90",
+            "takeover-nonce",
+            None,
+            "stable-takeover-redemption",
+        )
+        .await;
+        let same_takeover_retry = ConnectionTicketManager::redeem(
+            &idempotent_raw,
+            "device-90",
+            "takeover-nonce",
+            None,
+            "stable-takeover-redemption",
+        )
+        .await;
+        let unrelated_replay = ConnectionTicketManager::redeem(
+            &idempotent_raw,
+            "device-90",
+            "takeover-nonce",
+            None,
+            "different-redemption",
+        )
+        .await;
+
         let mongodb_url = crate::gConsoleSettings.lock().await.mongodb_url.clone();
         let client = mongodb::Client::with_uri_str(&mongodb_url)
             .await
@@ -527,6 +603,15 @@ mod tests {
         assert!(
             correct_binding.is_ok(),
             "failed binding attempts must not consume the ticket"
+        );
+        assert!(first_takeover_attempt.is_ok());
+        assert!(
+            same_takeover_retry.is_ok(),
+            "an occupied Direct RTC allocation must be able to retry takeover idempotently"
+        );
+        assert!(
+            unrelated_replay.is_err(),
+            "a different redemption id must not replay a consumed ticket"
         );
     }
 }

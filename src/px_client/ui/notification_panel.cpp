@@ -54,7 +54,7 @@ namespace px
         root_layout->addWidget(list_);
         setLayout(root_layout);
 
-        msg_listener_ = context_->ObtainMessageListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
     }
 
     void NotificationPanel::paintEvent(QPaintEvent *event) {

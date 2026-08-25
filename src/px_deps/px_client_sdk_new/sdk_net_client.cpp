@@ -54,15 +54,22 @@ namespace px
         this->ft_remote_device_id_ = ft_remote_device_id;
         this->stream_id_ = stream_id;
 
-        msg_listener_ = msg_notifier_->CreateListener();
-        msg_listener_->Listen<SdkMsgTimer1000>([=, this](const auto& msg) {
-            this->HeartBeat();
-        });
     }
 
-    NetClient::~NetClient() = default;
+    NetClient::~NetClient() {
+        Exit();
+    }
 
     void NetClient::Start() {
+        const auto weak_self = weak_from_this();
+        if (!msg_listener_) {
+            msg_listener_ = msg_notifier_->CreateListener();
+            msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
+                if (const auto self = weak_self.lock()) {
+                    self->HeartBeat();
+                }
+            });
+        }
         if (network_type_ == ClientNetworkType::kWebsocket) {
             LOGI("Will connect by Websocket, ssl : {}", sdk_params_->ssl_);
             if (!sdk_params_->file_transfer_only_) {
@@ -106,7 +113,7 @@ namespace px
 
             if (sdk_params_->enable_p2p_ && !sdk_params_->file_transfer_only_) {
                 auto relay_conn = std::dynamic_pointer_cast<RelayConnection>(media_conn_);
-                rtc_conn_ = std::make_shared<WebRtcConnection>(relay_conn, sdk_params_, msg_notifier_);
+                rtc_conn_ = WebRtcConnection::Make(relay_conn, sdk_params_, msg_notifier_);
             }
         }
         else if (network_type_ == ClientNetworkType::kWebRtc) {
@@ -124,7 +131,7 @@ namespace px
             // legacy file Relay here would consume a standalone file ticket
             // before the Render can redeem it for the RTC offer.
             ft_conn_ = nullptr;
-            rtc_conn_ = std::make_shared<WebRtcConnection>(relay_conn, sdk_params_, msg_notifier_);
+            rtc_conn_ = WebRtcConnection::Make(relay_conn, sdk_params_, msg_notifier_);
         }
         else if (network_type_ == ClientNetworkType::kWebRtcDirect) {
             // Specialized direct-only path backed by net_rtc_local.
@@ -154,6 +161,24 @@ namespace px
             return;
         }
 
+        // Install the decoded-frame handoff before starting signaling. A very
+        // fast Relay room preparation must not be able to create tracks before
+        // the SDK callback chain exists.
+        if (rtc_conn_) {
+            rtc_conn_->SetOnVideoFrameCallback(
+                [weak_self](int w, int h, std::shared_ptr<Data> i420) {
+                    if (const auto self = weak_self.lock(); self && self->rtc_local_video_frame_cbk_) {
+                        self->rtc_local_video_frame_cbk_(w, h, std::move(i420));
+                    }
+                });
+            rtc_conn_->SetOnAudioDataCallback(
+                [weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
+                    if (const auto self = weak_self.lock(); self && self->rtc_local_audio_cbk_) {
+                        self->rtc_local_audio_cbk_(std::move(pcm), sample_rate, channels);
+                    }
+                });
+        }
+
         // In full WebRTC mode Relay is only the signaling/bootstrap path. The
         // user-visible connection becomes ready after ICE plus the required
         // RTC data channel, not when the Relay room is merely established.
@@ -164,98 +189,110 @@ namespace px
             LOGE("Start failed: no transport connection was created");
             return;
         }
-        primary_conn->RegisterOnConnectedCallback([=, this]() {
-            if (conn_cbk_) {
-                conn_cbk_();
+        primary_conn->RegisterOnConnectedCallback([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->conn_cbk_) {
+                self->conn_cbk_();
             }
         });
 
-        primary_conn->RegisterOnDisConnectedCallback([=, this]() {
-            if (dis_conn_cbk_) {
-                dis_conn_cbk_();
+        primary_conn->RegisterOnDisConnectedCallback([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
+                self->dis_conn_cbk_();
             }
         });
 
         if (media_conn_) {
-            media_conn_->RegisterOnMessageCallback([=, this](std::shared_ptr<Data> data) {
+            media_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
+                const auto self = weak_self.lock();
+                if (!self) return;
                 // statistics
-                this->stat_->AppendRecvDataSize(data->Size());
+                self->stat_->AppendRecvDataSize(data->Size());
                 // parse
-                if (auto m = this->ParseMessage(data); m) {
+                if (auto m = self->ParseMessage(data); m) {
                     // ack
                     auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    media_conn_->PostBinaryMessage(ack);
+                    if (self->media_conn_) self->media_conn_->PostBinaryMessage(ack);
                 }
             });
             media_conn_->Start();
         }
         if (ft_conn_) {
-            ft_conn_->RegisterOnMessageCallback([=, this](std::shared_ptr<Data> data) {
+            ft_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
+                const auto self = weak_self.lock();
+                if (!self) return;
                 // statistics
-                this->stat_->AppendRecvDataSize(data->Size());
+                self->stat_->AppendRecvDataSize(data->Size());
                 // parse
-                if (auto m = this->ParseMessage(data); m) {
+                if (auto m = self->ParseMessage(data); m) {
                     // ack
                     auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    ft_conn_->PostBinaryMessage(ack);
+                    if (self->ft_conn_) self->ft_conn_->PostBinaryMessage(ack);
                 }
             });
             ft_conn_->Start();
         }
 
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
-            rtc_conn_->SetOnMediaMessageCallback([=, this](std::shared_ptr<Data> msg) {
+            rtc_conn_->SetOnMediaMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+                const auto self = weak_self.lock();
+                if (!self) return;
                 //LOGI("OnMediaMessageCallback, : {}", msg.size());
-                if (auto m = this->ParseMessage(msg); m) {
+                if (auto m = self->ParseMessage(msg); m) {
                     auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    rtc_conn_->PostMediaMessage(ack);
+                    if (self->rtc_conn_) self->rtc_conn_->PostMediaMessage(ack);
                 }
 
                 // statistics
-                this->stat_->AppendRecvDataSize(msg->Size());
+                self->stat_->AppendRecvDataSize(msg->Size());
             });
-            rtc_conn_->SetOnFtMessageCallback([=, this](std::shared_ptr<Data> msg) {
-                if (auto m = this->ParseMessage(msg); m) {
+            rtc_conn_->SetOnFtMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                if (auto m = self->ParseMessage(msg); m) {
                     auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    rtc_conn_->PostFtMessage(ack);
+                    if (self->rtc_conn_) self->rtc_conn_->PostFtMessage(ack);
                 }
 
-                this->stat_->AppendRecvDataSize(msg->Size());
+                self->stat_->AppendRecvDataSize(msg->Size());
             });
             rtc_conn_->Start();
         }
 
         if (rtc_local_conn_) {
             // media messages are handled by the generic media_conn_ callback above
-            rtc_local_conn_->SetOnFtMessageCallback([=, this](std::shared_ptr<Data> msg) {
-                if (auto m = this->ParseMessage(msg); m) {
+            rtc_local_conn_->SetOnFtMessageCallback([weak_self](std::shared_ptr<Data> msg) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                if (auto m = self->ParseMessage(msg); m) {
                     auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    rtc_local_conn_->PostFtMessage(ack);
+                    if (self->rtc_local_conn_) self->rtc_local_conn_->PostFtMessage(ack);
                 }
 
-                this->stat_->AppendRecvDataSize(msg->Size());
+                self->stat_->AppendRecvDataSize(msg->Size());
             });
-            rtc_local_conn_->SetOnRtcVideoFrameCallback([=, this](int w, int h, std::shared_ptr<Data> i420) {
-                if (rtc_local_video_frame_cbk_) {
-                    rtc_local_video_frame_cbk_(w, h, i420);
+            rtc_local_conn_->SetOnRtcVideoFrameCallback([weak_self](int w, int h, std::shared_ptr<Data> i420) {
+                if (const auto self = weak_self.lock(); self && self->rtc_local_video_frame_cbk_) {
+                    self->rtc_local_video_frame_cbk_(w, h, std::move(i420));
                 }
             });
-            rtc_local_conn_->SetOnAudioDataCallback([=, this](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
-                if (rtc_local_audio_cbk_) {
-                    rtc_local_audio_cbk_(pcm, sample_rate, channels);
+            rtc_local_conn_->SetOnAudioDataCallback([weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
+                if (const auto self = weak_self.lock(); self && self->rtc_local_audio_cbk_) {
+                    self->rtc_local_audio_cbk_(std::move(pcm), sample_rate, channels);
                 }
             });
-            rtc_local_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<px::Message> m) {
+            rtc_local_conn_->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
+                const auto self = weak_self.lock();
+                if (!self) return;
                 // synthesized kVideoFrame from the encoded rtp tracks: dispatch exactly
                 // like ParseMessage would, but WITHOUT an app-level ack - rtp carries
                 // its own reliability(nack/pli), acking every frame would just flood
                 // the media data channel
-                this->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
-                if (raw_msg_cbk_) {
-                    raw_msg_cbk_(m);
+                self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
+                if (self->raw_msg_cbk_) {
+                    self->raw_msg_cbk_(m);
                 }
-                if (video_frame_cbk_) {
-                    video_frame_cbk_(m);
+                if (self->video_frame_cbk_) {
+                    self->video_frame_cbk_(m);
                 }
             });
         }
@@ -263,33 +300,39 @@ namespace px
         if (udp_direct_conn_) {
             // UDP 媒体面:组帧后合成的 kVideoFrame,与上面 rtc_local 相同的上送路径,
             // 同样不回 Ack(裸 UDP 无应用层确认,丢帧走 IDR 请求恢复)
-            udp_direct_conn_->SetOnVideoMessageCallback([=, this](std::shared_ptr<px::Message> m) {
-                this->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
-                if (raw_msg_cbk_) {
-                    raw_msg_cbk_(m);
+            udp_direct_conn_->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
+                if (self->raw_msg_cbk_) {
+                    self->raw_msg_cbk_(m);
                 }
-                if (video_frame_cbk_) {
-                    video_frame_cbk_(m);
+                if (self->video_frame_cbk_) {
+                    self->video_frame_cbk_(m);
                 }
             });
             // UDP 音频:jitter buffer 按序交付/丢帧信号(空 data)都从这里上送,
             // 与 ws 路径一样直接进 audio_frame_cbk_(音频本就不走 raw_msg_cbk_)
-            udp_direct_conn_->SetOnAudioMessageCallback([=, this](std::shared_ptr<px::Message> m) {
-                this->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
-                if (audio_frame_cbk_) {
-                    audio_frame_cbk_(m);
+            udp_direct_conn_->SetOnAudioMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
+                if (self->audio_frame_cbk_) {
+                    self->audio_frame_cbk_(m);
                 }
             });
             // UDP 控制包踢人(kCtrlKick):复用"被接管"逻辑,与 kConnectionTakenOver 一致
-            udp_direct_conn_->SetOnKickCallback([=, this](const std::string& reason) {
+            udp_direct_conn_->SetOnKickCallback([weak_self](const std::string& reason) {
                 LOGW("Udp direct connection kicked, reason: {}", reason);
-                msg_notifier_->SendAppMessage(SdkMsgConnectionTakenOver{});
+                if (const auto self = weak_self.lock()) {
+                    self->msg_notifier_->SendAppMessage(SdkMsgConnectionTakenOver{});
+                }
             });
             // UDP watchdog 断线:走与媒体连接相同的断线回调路径
-            udp_direct_conn_->RegisterOnDisConnectedCallback([=, this]() {
+            udp_direct_conn_->RegisterOnDisConnectedCallback([weak_self]() {
                 LOGW("Udp direct media channel lost.");
-                if (dis_conn_cbk_) {
-                    dis_conn_cbk_();
+                if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
+                    self->dis_conn_cbk_();
                 }
             });
             udp_direct_conn_->Start(sdk_params_->ip_, sdk_params_->udp_port_, device_id_, stream_id_);
@@ -297,6 +340,10 @@ namespace px
     }
 
     void NetClient::Exit() {
+        if (exited_.exchange(true)) {
+            return;
+        }
+        msg_listener_.reset();
         if (media_conn_) {
             LOGI("Queued message count: {}", queuing_message_count_.load());
             media_conn_->Stop();
@@ -310,6 +357,11 @@ namespace px
         if (udp_direct_conn_) {
             udp_direct_conn_->Stop();
         }
+        rtc_local_conn_.reset();
+        rtc_conn_.reset();
+        udp_direct_conn_.reset();
+        media_conn_.reset();
+        ft_conn_.reset();
         LOGI("WS has exited...");
     }
 

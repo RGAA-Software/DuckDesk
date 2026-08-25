@@ -605,10 +605,10 @@ namespace px
         if (!track) {
             return;
         }
-        // local mode with an audio data callback: tap the decoded PCM and hand
-        // it to the sdk's own AudioPlayer. without the callback keep the old
-        // behavior(webrtc playout, a dummy ADM in the dll = discard).
-        if (local_rtc_mode_ && audio_data_cbk_) {
+        // When the existing ABI callback is installed, tap decoded PCM and hand
+        // it to the SDK AudioPlayer in both standard and local RTC modes. The
+        // plug-in keeps its original object and pointer lifetime model.
+        if (audio_data_cbk_) {
             LOGI("OnAudioTrack(audio sink), id: {}", track->id());
             if (audio_sink_) {
                 track->RemoveSink(audio_sink_.get());

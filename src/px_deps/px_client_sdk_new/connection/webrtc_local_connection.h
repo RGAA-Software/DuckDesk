@@ -43,7 +43,8 @@ namespace px
     // - signaling: HTTP POST http://{ip}:{port}/alloc/local/rtc, non-trickle(candidates embedded in sdp)
     // - video: RTP track decoded by the built-in webrtc decoder, delivered as packed I420
     // - media/ft messages: webrtc data channels(media_data_channel / ft_data_channel)
-    class WebRtcLocalConnection : public Connection {
+    class WebRtcLocalConnection : public Connection,
+                                  public std::enable_shared_from_this<WebRtcLocalConnection> {
     public:
         explicit WebRtcLocalConnection(const std::shared_ptr<ThunderSdkParams>& params,
                                        const std::shared_ptr<MessageNotifier>& notifier);

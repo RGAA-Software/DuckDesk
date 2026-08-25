@@ -20,7 +20,6 @@ endif()
 include_directories(${PX_PROJECT_PATH}/)
 include_directories(${PX_PROJECT_PATH}/px_message_new)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/)
-include_directories(${PX_PROJECT_PATH}/px_3rdparty/eventbus/src)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/include)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
 

@@ -31,11 +31,12 @@ namespace px
     //   音频包经 PxUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
     //   缺口合成空 data proto 通知解码层走 Opus PLC
     // - watchdog:10s 收不到任何 UDP 包视为媒体面断开,走正常断线回调
-    class UdpDirectConnection : public Connection {
+    class UdpDirectConnection : public Connection,
+                                public std::enable_shared_from_this<UdpDirectConnection> {
     public:
         UdpDirectConnection(const std::shared_ptr<ThunderSdkParams>& params,
                             const std::shared_ptr<MessageNotifier>& notifier);
-        ~UdpDirectConnection() override = default;
+        ~UdpDirectConnection() override;
 
         // host/port 为 render 的 UDP 媒体端口;device_id/stream_id 用于 hello 会话绑定
         void Start(const std::string& host, int udp_port,
@@ -59,6 +60,7 @@ namespace px
         bool IsAlive() override;
 
     private:
+        void InstallCallbacks();
         void OnUdpPacket(const char* data, size_t size);
         void OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame);
         void RequestIdr(const std::string& mon_name);

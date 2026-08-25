@@ -95,6 +95,7 @@ namespace px
         }
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
         std::shared_ptr<MessageListener> ObtainMessageListener();
+        std::shared_ptr<MessageListener> ObtainUIMessageListener();
         std::shared_ptr<PxRenderController> GetRenderController();
         std::shared_ptr<PxRunGameManager> GetRunGameManager();
         static std::string GetCurrentExeFolder();

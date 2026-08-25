@@ -33,6 +33,7 @@ namespace px
         void PostDelayUITask(std::function<void()>&& task, int ms);
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
         std::shared_ptr<MessageListener> ObtainMessageListener();
+        std::shared_ptr<MessageListener> ObtainUIMessageListener();
         void SaveKeyValue(const std::string& k, const std::string& v);
         std::string GetValueByKey(const std::string& k);
         void UpdateCapturingMonitorInfo(const SdkCaptureMonitorInfo& info);

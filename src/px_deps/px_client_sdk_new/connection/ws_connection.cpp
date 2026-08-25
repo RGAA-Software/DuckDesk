@@ -22,50 +22,55 @@ namespace px
     }
 
     WsConnection::~WsConnection() {
-
+        Stop();
     }
 
     void WsConnection::Start() {
+        const auto weak_self = weak_from_this();
         client_ = std::make_shared<asio2::ws_client>();
         client_->set_auto_reconnect(true);
         client_->set_timeout(std::chrono::milliseconds(2000));
 
-        client_->bind_init([=, this]() {
-            client_->set_no_delay(true);
-            client_->ws_stream().set_option(
+        client_->bind_init([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->client_) return;
+            self->client_->set_no_delay(true);
+            self->client_->ws_stream().set_option(
                     websocket::stream_base::decorator([](websocket::request_type &req) {
                         req.set(http::field::authorization, "websocket-client-authorization");}
                     )
             );
 
-        }).bind_connect([=, this]() {
+        }).bind_connect([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->client_) return;
             if (asio2::get_last_error()) {
                 LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
             } else {
-                LOGI("connect success : {} {} ", client_->local_address().c_str(), client_->local_port());
-                client_->post_queued_event([=, this]() {
-                    if (conn_cbk_) {
-                        conn_cbk_();
+                LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+                self->client_->post_queued_event([weak_self]() {
+                    if (const auto locked = weak_self.lock(); locked && locked->conn_cbk_) {
+                        locked->conn_cbk_();
                     }
                 });
             }
-        }).bind_disconnect([this]() {
-            if (dis_conn_cbk_) {
-                dis_conn_cbk_();
+        }).bind_disconnect([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
+                self->dis_conn_cbk_();
             }
         }).bind_upgrade([]() {
             if (asio2::get_last_error()) {
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
             }
-        }).bind_recv([=, this](std::string_view data) {
-            if (msg_cbk_) {
+        }).bind_recv([weak_self](std::string_view data) {
+            if (const auto self = weak_self.lock(); self && self->msg_cbk_) {
                 auto cpy_data = Data::Make(data.data(), data.size());
-                msg_cbk_(cpy_data);
+                self->msg_cbk_(cpy_data);
             }
         });
 
         // the /ws is the websocket upgraged target
-        if (!client_->async_start(this->host_, this->port_, this->path_)) {
+        if (!client_->async_start(host_, port_, path_)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }
@@ -81,8 +86,9 @@ namespace px
         if (client_ && client_->is_started()) {
             client_->ws_stream().binary(true);
             ++queuing_message_count_;
-            client_->async_send(msg->DataAddr(), msg->Size(), [this]() {
-                --queuing_message_count_;
+            const auto weak_self = weak_from_this();
+            client_->async_send(msg->DataAddr(), msg->Size(), [weak_self]() {
+                if (const auto self = weak_self.lock()) --self->queuing_message_count_;
             });
         }
     }
@@ -91,8 +97,9 @@ namespace px
         if (client_ && client_->is_started()) {
             client_->ws_stream().text(true);
             ++queuing_message_count_;
-            client_->async_send(msg, [this]() {
-                --queuing_message_count_;
+            const auto weak_self = weak_from_this();
+            client_->async_send(msg, [weak_self]() {
+                if (const auto self = weak_self.lock()) --self->queuing_message_count_;
             });
         }
     }

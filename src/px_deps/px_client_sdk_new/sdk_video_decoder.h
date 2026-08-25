@@ -41,7 +41,7 @@ namespace px
         bool stop_ = false;
         std::mutex decode_mtx_;
         std::string monitor_name_;
-        SdkStatistics* sdk_stat_ = nullptr;
+        std::shared_ptr<SdkStatistics> sdk_stat_;
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
         bool ignore_hw_decoder_ = false;
     };

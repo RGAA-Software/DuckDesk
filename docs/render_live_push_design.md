@@ -234,7 +234,7 @@ HLS 切片建议 1 秒，预期端到端延迟约 3–6 秒；HTTP-FLV 预期约
 | GET | `/api/v1/live/control/status?device_id=&app_id=&appkey=` | 使用 Console 既有 appkey 鉴权，服务端查询 ZLM 的 `getMediaList`，返回编码、尺寸、观看者数、H264 可播放状态和短期播放 URL |
 | GET | `/api/v1/live/control/play/{stream_id}/{asset}?ticket=` | 验证短期、单流、滑动过期的播放票据后，由 Console 代理 ZLM HLS 清单和切片；清单内切片 URL 会重写为同一 Console 端点 |
 
-`[live]` 配置位于 `px_console.toml`：`media_server_url` 仅供 Console 到 ZLM 的内网访问，`api_secret` 仅留在 Console 配置文件。流 ID 固定按 `<device_id>__app__<app_id>` 生成并作严格字符校验。H264 在线时才签发播放票据；H265 在线时返回状态和编码提示，但不会给浏览器一个必然黑屏的播放 URL。
+`[live]` 配置位于 `px_console.toml`：`media_server_url` 仅供 Console 到 ZLM 的内网访问，`api_secret` 仅留在 Console 配置文件。`publish_public_host` 是远程 Render 能访问的 RTMP 主机/IP；为空时使用 Console 自动解析后的 `server_w3c_ip`，配置后可覆盖为公网 IP、内网 IP 或 DNS 名称。`publish_rtmp_url` 提供协议、端口和路径模板，Console 下发前会用上述发布主机替换其中的 host，避免把 `127.0.0.1` 错发给远程采集节点。流 ID 固定按 `<device_id>__app__<app_id>` 生成并作严格字符校验。H264 在线时才签发播放票据；H265 在线时返回状态和编码提示，但不会给浏览器一个必然黑屏的播放 URL。
 
 以下 hook 型接口仍是公网多租户部署的后续增强，不是当前 v1 的依赖：
 

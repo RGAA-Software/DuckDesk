@@ -419,7 +419,7 @@ namespace px
         rn_stack_->setCurrentIndex(0);
 
         // messages
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         msg_listener_->Listen<MsgViGEmState>([=, this](const MsgViGEmState& state) {
             context_->PostUITask([=, this]() {
                 this->RefreshVigemState(state.ok_);

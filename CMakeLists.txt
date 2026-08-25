@@ -3,6 +3,15 @@ project(GammaRayPremium LANGUAGES CXX C)
 
 include(CTest)
 
+if(WIN32)
+    add_custom_target(check_cpp_ownership
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_SOURCE_DIR}/scripts/check_cpp_ownership.ps1"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Checking new C++ ownership and asynchronous lifetime violations"
+        VERBATIM)
+endif()
+
 include(env_premium.cmake)
 include(config_premium.cmake)
 
@@ -58,7 +67,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_base)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/eventbus/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_server_protocol)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/include)

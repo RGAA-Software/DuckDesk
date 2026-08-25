@@ -49,7 +49,7 @@ else()
     #
 endif()
 
-target_link_libraries(main app_manager protobuf::libprotobuf px_message Dexode::EventBus)
+target_link_libraries(main app_manager protobuf::libprotobuf px_message)
 
 if(WIN32)
     add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)

@@ -16,41 +16,54 @@ namespace px
     UdpDirectConnection::UdpDirectConnection(const std::shared_ptr<ThunderSdkParams>& params,
                                              const std::shared_ptr<MessageNotifier>& notifier)
                                              : Connection(params, notifier) {
+    }
+
+    UdpDirectConnection::~UdpDirectConnection() {
+        Stop();
+    }
+
+    void UdpDirectConnection::InstallCallbacks() {
+        const auto weak_self = weak_from_this();
         // 组帧完成:合成标准 kVideoFrame proto 上送(走与 webrtc_local 相同的回调通道,不回 Ack)
-        reassembler_.on_frame_ = [this](const PxUdpFrameReassembler::CompleteFrame& frame) {
-            this->OnCompleteFrame(frame);
+        reassembler_.on_frame_ = [weak_self](const PxUdpFrameReassembler::CompleteFrame& frame) {
+            if (const auto self = weak_self.lock()) self->OnCompleteFrame(frame);
         };
         // 判丢:请 render 重发 IDR(空 mon_name = 所有屏)。
         // IDR 节流(moonlight 同款):网络差时狂要 IDR 只会加重拥塞——巨型 IDR 帧
         // (可能 150+ shard)本身最易丢,丢了又要,无限 GOP 下永远花屏;按 mon_slot 1s 去重
-        reassembler_.on_frame_lost_ = [this](uint8_t mon_slot, uint32_t lost_frame_index) {
+        reassembler_.on_frame_lost_ = [weak_self](uint8_t mon_slot, uint32_t lost_frame_index) {
+            const auto self = weak_self.lock();
+            if (!self) return;
             auto now = std::chrono::steady_clock::now();
-            auto& last = last_rfi_time_[mon_slot];
+            auto& last = self->last_rfi_time_[mon_slot];
             if (last.time_since_epoch().count() != 0 &&
-                now - last < std::chrono::milliseconds(kRfiThrottleMs)) {
+                now - last < std::chrono::milliseconds(UdpDirectConnection::kRfiThrottleMs)) {
                 return;
             }
             last = now;
             LOGW("Udp direct frame lost, mon slot: {}, frame: {}, request RFI.", mon_slot, lost_frame_index);
-            this->RequestRfi(lost_frame_index, "");
-            last_rfi_request_ms_ = TimeUtil::GetCurrentTimestamp();
+            self->RequestRfi(lost_frame_index, "");
+            self->last_rfi_request_ms_ = TimeUtil::GetCurrentTimestamp();
         };
         // 帧状态反馈:每帧一条(完成/判丢都报),驱动 render 端动态调 FEC 百分比;
         // PostBinaryMessage 走 asio2 async_send 非阻塞,不会拖慢接收线程
-        reassembler_.on_frame_status_ = [this](uint8_t mon_slot, uint32_t frame_index,
+        reassembler_.on_frame_status_ = [weak_self](uint8_t mon_slot, uint32_t frame_index,
                                                uint16_t received, uint16_t lost) {
             (void)mon_slot;
-            this->PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(frame_index, received, lost));
+            if (const auto self = weak_self.lock()) {
+                self->PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(frame_index, received, lost));
+            }
         };
         // 音频按序交付:合成标准 kAudioFrame proto 上送(参数与 render opus_encoder 一致:
         // 48k/2ch/16bit,20ms 一帧 960 samples)
-        audio_jitter_.on_frame_ = [this](uint32_t seq, uint32_t timestamp_ms, const char* payload, size_t len) {
+        audio_jitter_.on_frame_ = [weak_self](uint32_t seq, uint32_t timestamp_ms, const char* payload, size_t len) {
             (void)seq;
             (void)timestamp_ms;
-            if (stopped_ || !audio_msg_cbk_) {
+            const auto self = weak_self.lock();
+            if (!self || self->stopped_ || !self->audio_msg_cbk_) {
                 return;
             }
-            audio_lost_log_count_ = 0; // 恢复正常交付,下一次判丢重新计数
+            self->audio_lost_log_count_ = 0; // 恢复正常交付,下一次判丢重新计数
             auto msg = std::make_shared<px::Message>();
             msg->set_type(px::kAudioFrame);
             auto* audio = msg->mutable_audio_frame();
@@ -61,16 +74,17 @@ namespace px
             audio->set_data(payload, len);
             // debug 标记:区分 UDP 合成帧与其它 kAudioFrame 来源(参照视频的 udp_synth)
             audio->set_extra("udp_synth");
-            audio_msg_cbk_(msg);
+            self->audio_msg_cbk_(msg);
         };
         // 丢帧信号:空 data 的 kAudioFrame proto,thunder_sdk 收到后调 DecodeDummy 走 PLC 补 20ms
-        audio_jitter_.on_lost_ = [this](uint32_t seq) {
-            if (stopped_ || !audio_msg_cbk_) {
+        audio_jitter_.on_lost_ = [weak_self](uint32_t seq) {
+            const auto self = weak_self.lock();
+            if (!self || self->stopped_ || !self->audio_msg_cbk_) {
                 return;
             }
             // 丢包风暴时逐条打日志会刷爆磁盘并拖垮 UDP 接收线程(真机踩过),每 50 条汇总一次
-            if (++audio_lost_log_count_ == 1 || audio_lost_log_count_ % 50 == 0) {
-                LOGW("Udp direct audio frame lost, seq: {}, PLC conceal. (burst: {})", seq, audio_lost_log_count_);
+            if (++self->audio_lost_log_count_ == 1 || self->audio_lost_log_count_ % 50 == 0) {
+                LOGW("Udp direct audio frame lost, seq: {}, PLC conceal. (burst: {})", seq, self->audio_lost_log_count_);
             }
             auto msg = std::make_shared<px::Message>();
             msg->set_type(px::kAudioFrame);
@@ -80,12 +94,14 @@ namespace px
             audio->set_bits(16);
             audio->set_frame_size(960);
             audio->set_extra("udp_lost");
-            audio_msg_cbk_(msg);
+            self->audio_msg_cbk_(msg);
         };
     }
 
     void UdpDirectConnection::Start(const std::string& host, int udp_port,
                                     const std::string& device_id, const std::string& stream_id) {
+        const auto weak_self = weak_from_this();
+        InstallCallbacks();
         host_ = host;
         udp_port_ = udp_port;
         device_id_ = device_id;
@@ -113,20 +129,22 @@ namespace px
         udp_client_ = std::make_shared<asio2::udp_client>();
         // 注意:裸 UDP,不传 asio2::use_kcp(可靠重传对视频是负优化,见 udp_gamestream_channel_plan.md)
 
-        udp_client_->bind_connect([this]() {
+        udp_client_->bind_connect([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->udp_client_) return;
             if (asio2::get_last_error()) {
                 LOGE("udp direct connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
             }
             else {
-                LOGI("udp direct connect success : {} {}, remote: {}:{}", udp_client_->local_address().c_str(),
-                     udp_client_->local_port(), host_, udp_port_);
-                connected_ = true;
-                last_recv_ms_ = TimeUtil::GetCurrentTimestamp();
+                LOGI("udp direct connect success : {} {}, remote: {}:{}", self->udp_client_->local_address().c_str(),
+                     self->udp_client_->local_port(), self->host_, self->udp_port_);
+                self->connected_ = true;
+                self->last_recv_ms_ = TimeUtil::GetCurrentTimestamp();
                 // 高动态画面一帧 ~89 个 UDP 包(~125KB)毫秒内突发,默认接收缓冲(~64KB)必然溢出丢包,
                 // 接收缓冲调 8MB、发送 1MB;Windows 上读回值可能与设置值不同,打出来即可
                 {
                     asio::error_code ec;
-                    auto& sock = udp_client_->socket();
+                    auto& sock = self->udp_client_->socket();
                     sock.set_option(asio::socket_base::receive_buffer_size(8 * 1024 * 1024), ec);
                     if (ec) LOGW("udp set rcvbuf 8MB failed: {}", ec.message());
                     sock.set_option(asio::socket_base::send_buffer_size(1 * 1024 * 1024), ec);
@@ -138,45 +156,49 @@ namespace px
                     LOGI("udp direct socket buffer: rcv = {}, snd = {}", rcv.value(), snd.value());
                 }
                 // 立即发 hello,render 按源地址绑定媒体会话并触发该屏 IDR
-                this->PostBinaryMessage(PxUdpProtocol::BuildHello(device_id_, stream_id_));
+                self->PostBinaryMessage(PxUdpProtocol::BuildHello(self->device_id_, self->stream_id_));
                 // 显式补一发 IDR 请求。正常路径 render 收到连接事件会自己插 IDR,
                 // 但 render 重启/断线重建时容易出现“hello 已发、关键帧没来”,客户端会
                 // 一直停在“已收到配置信息,等待视频帧”。这里不依赖事件链路,再要一次。
-                last_idr_request_ms_ = TimeUtil::GetCurrentTimestamp();
-                this->RequestIdrKeepalive("");
+                self->last_idr_request_ms_ = TimeUtil::GetCurrentTimestamp();
+                self->RequestIdrKeepalive("");
                 // 1s 心跳:保持 NAT 映射,让 render 感知会话在线
-                udp_client_->start_timer(kTimerHeartbeat, 1000, [this]() {
-                    this->PostBinaryMessage(PxUdpProtocol::BuildHeartbeat(stream_id_));
+                self->udp_client_->start_timer(kTimerHeartbeat, 1000, [weak_self]() {
+                    if (const auto locked = weak_self.lock()) {
+                        locked->PostBinaryMessage(PxUdpProtocol::BuildHeartbeat(locked->stream_id_));
+                    }
                 });
                 // 无完整视频帧兜底:2s 内没组出帧再请 IDR(节流 1s)。
                 // 丢帧恢复走 RFI 重试,不走这里。
-                udp_client_->start_timer(kTimerIdrRetry, 1000, [this]() {
-                    this->CheckNeedIdr();
+                self->udp_client_->start_timer(kTimerIdrRetry, 1000, [weak_self]() {
+                    if (const auto locked = weak_self.lock()) locked->CheckNeedIdr();
                 });
                 // watchdog:长时间收不到任何 UDP 包视为媒体面断开
-                udp_client_->start_timer(kTimerWatchdog, 1000, [this]() {
-                    this->CheckWatchdog();
+                self->udp_client_->start_timer(kTimerWatchdog, 1000, [weak_self]() {
+                    if (const auto locked = weak_self.lock()) locked->CheckWatchdog();
                 });
-                udp_client_->post_queued_event([this]() {
-                    if (conn_cbk_) {
-                        conn_cbk_();
+                self->udp_client_->post_queued_event([weak_self]() {
+                    if (const auto locked = weak_self.lock(); locked && locked->conn_cbk_) {
+                        locked->conn_cbk_();
                     }
                 });
             }
 
-        }).bind_disconnect([this]() {
-            if (stopped_) {
-                connected_ = false;
+        }).bind_disconnect([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) return;
+            if (self->stopped_) {
+                self->connected_ = false;
                 return;
             }
             LOGI("udp direct disconnect : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
-            connected_ = false;
-            if (!disconn_reported_.exchange(true) && dis_conn_cbk_) {
-                dis_conn_cbk_();
+            self->connected_ = false;
+            if (!self->disconn_reported_.exchange(true) && self->dis_conn_cbk_) {
+                self->dis_conn_cbk_();
             }
 
-        }).bind_recv([this](std::string_view data) {
-            this->OnUdpPacket(data.data(), data.size());
+        }).bind_recv([weak_self](std::string_view data) {
+            if (const auto self = weak_self.lock()) self->OnUdpPacket(data.data(), data.size());
         });
 
         udp_client_->async_start(host_, udp_port_);
@@ -195,8 +217,9 @@ namespace px
     void UdpDirectConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
         if (!stopped_ && udp_client_ && udp_client_->is_started()) {
             queuing_message_count_++;
-            udp_client_->async_send(msg->CStr(), msg->Size(), [this]() {
-                queuing_message_count_--;
+            const auto weak_self = weak_from_this();
+            udp_client_->async_send(msg->CStr(), msg->Size(), [weak_self]() {
+                if (const auto self = weak_self.lock()) self->queuing_message_count_--;
             });
         }
     }

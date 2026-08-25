@@ -62,6 +62,7 @@ const params: StandardRtcSignalParams = {
   ticket: 'one-time-ticket',
   clientNonce: 'nonce-1',
   instanceId: 'instance-1',
+  safetyPwdMd5: '',
   secure: false,
 }
 
@@ -135,6 +136,28 @@ describe('StandardRtcSignaling lifecycle', () => {
     signaling.stop()
   })
 
+  it('opens a password-authenticated guest Relay without ticket material', () => {
+    const signaling = new StandardRtcSignaling(
+      {
+        ...params,
+        ticket: '',
+        clientNonce: '',
+        instanceId: '',
+        safetyPwdMd5: 'device-password-md5',
+      },
+      async () => {},
+      () => {},
+    )
+    void signaling.connect().catch(() => {})
+    const socket = FakeWebSocket.instances[0]
+    const url = new URL(socket.url)
+    expect(url.searchParams.get('guest_password')).toBe('1')
+    expect(url.searchParams.get('ticket')).toBeNull()
+    expect(url.searchParams.get('client_nonce')).toBeNull()
+    expect(url.searchParams.get('instance_id')).toBeNull()
+    signaling.stop()
+  })
+
   it('closes the socket and clears timers on connection timeout', async () => {
     const { signaling, logs } = createSignaling()
     const connected = signaling.connect()
@@ -194,6 +217,22 @@ describe('StandardRtcSignaling negotiation', () => {
     expect(ice[0].sigIce.ice).toBe('candidate-44')
     expect(ice.at(-1).sigIce.ice).toBe('candidate-299')
     expect(logs.filter((line) => line.includes('queue full'))).toHaveLength(44)
+    signaling.stop()
+    await expect(answer).rejects.toThrow('已停止')
+  })
+
+  it('puts only the device password digest in a guest SDP offer', async () => {
+    const signaling = new StandardRtcSignaling(
+      { ...params, ticket: '', clientNonce: '', instanceId: '', safetyPwdMd5: 'guest-md5' },
+      async () => {},
+      () => {},
+    )
+    const socket = await connectReady(signaling)
+    const answer = signaling.exchangeOffer('guest-offer', '', '', '', 'guest-md5')
+    const offer = targetPayloads(socket).find((message) => message.type === MSG_TYPE_SIG_OFFER_SDP)
+    expect(offer.sigOfferSdp.connectionTicket).toBe('')
+    expect(offer.sigOfferSdp.clientNonce).toBe('')
+    expect(offer.sigOfferSdp.safetyPwdMd5).toBe('guest-md5')
     signaling.stop()
     await expect(answer).rejects.toThrow('已停止')
   })

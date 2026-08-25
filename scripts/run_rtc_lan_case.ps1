@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('host', 'relay')]
+    [ValidateSet('any', 'host', 'relay')]
     [string]$ExpectedCandidate = 'host',
     [ValidateSet('', 'udp', 'tcp')]
     [string]$ExpectedRelayProtocol = '',
@@ -90,7 +90,19 @@ try {
     if ($ticket.code -ne 200 -or -not $ticket.data.ticket) { throw 'ticket issue failed' }
     $value = $ticket.data
 
-    if ($BlockTurnUdp) { Add-BlockRule 'turn_udp' $value.relay_host ([string]$value.rtc_ice_config.ice_servers[0].urls[0].Split(':')[-1].Split('?')[0]) }
+    if ($BlockTurnUdp) {
+        Add-BlockRule 'turn_udp' $value.relay_host ([string]$value.rtc_ice_config.ice_servers[0].urls[0].Split(':')[-1].Split('?')[0])
+        # Windows does not apply an outbound firewall rule to a TURN server on
+        # the same machine (the local Console/TURN acceptance topology). Remove
+        # UDP URLs from this one browser session as the deterministic local
+        # equivalent of a blocked UDP path; TCP remains issued by Console and
+        # is still negotiated and verified from getStats().
+        foreach ($server in $value.rtc_ice_config.ice_servers) {
+            $tcpUrls = @($server.urls | Where-Object { $_ -notmatch 'transport=udp(?:&|$)' })
+            if ($tcpUrls.Count -eq 0) { throw 'TURN TCP URL is unavailable for the UDP-blocked case' }
+            $server.urls = $tcpUrls
+        }
+    }
 
     $launch = [uri]$value.launch_url
     $query = [Web.HttpUtility]::ParseQueryString($launch.Query)
@@ -109,7 +121,7 @@ try {
 
     $env:WEB_URL = $builder.Uri.AbsoluteUri
     $env:SAMPLE_SECONDS = [string]$SampleSeconds
-    $env:EXPECT_CANDIDATE_TYPE = $ExpectedCandidate
+    $env:EXPECT_CANDIDATE_TYPE = if ($ExpectedCandidate -eq 'any') { '' } else { $ExpectedCandidate }
     $env:EXPECT_RELAY_PROTOCOL = $ExpectedRelayProtocol
     $env:FORCE_RELAY = if ($ExpectedCandidate -eq 'relay') { '1' } else { '0' }
     $env:RENDER_PORT = [string]$launch.Port

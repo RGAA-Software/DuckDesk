@@ -73,8 +73,12 @@ try {
     for ($round = 1; $round -le $Rounds; $round++) {
         $roundStart = Get-Date
         try {
+            # A standard RTC session may legitimately select host, srflx or
+            # relay. Candidate-specific guarantees are covered by the
+            # dedicated host/TURN UDP/TURN TCP cases; stability only gates
+            # end-to-end connectivity, media progress and resource cleanup.
             & (Join-Path $PSScriptRoot 'run_rtc_lan_case.ps1') `
-                -ExpectedCandidate host -SampleSeconds $SampleSeconds -Quiet `
+                -ExpectedCandidate any -SampleSeconds $SampleSeconds -Quiet `
                 -ConsoleBase $ConsoleBase -TargetHost $TargetHost -DeviceId $DeviceId `
                 -BearerToken $token -MongoExe $MongoExe
             $pass++

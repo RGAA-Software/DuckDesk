@@ -65,7 +65,6 @@ namespace px
             std::function<void(bool, const std::string&, const std::vector<std::string>&,
                                const std::string&)>>
             ticket_callbacks_;
-        std::atomic_uint64_t ticket_request_seq_ = 0;
         std::mutex virtual_display_callbacks_mtx_;
         std::unordered_map<std::string,
             std::function<void(const MsgVirtualDisplayServiceResult&)>>

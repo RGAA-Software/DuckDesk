@@ -25,6 +25,11 @@ pub struct ConnectionTicket {
     pub renewal_expires_at: i64,
     pub cleanup_at: DateTime,
     pub consumed_at: Option<i64>,
+    /// Stable id of the logical redemption operation. An exact, short-lived
+    /// replay is permitted so Direct RTC can retry an occupied allocation with
+    /// takeover=1 without turning a successfully consumed ticket into a 403.
+    #[serde(default)]
+    pub consumed_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

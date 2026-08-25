@@ -303,7 +303,7 @@ namespace px
         frame_info_items_[0]->Select();
         stat_chat_stack_->setCurrentIndex(0);
 
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& msg) {
             this->UpdateUI();
         });

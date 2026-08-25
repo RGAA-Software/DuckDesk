@@ -26,7 +26,7 @@ namespace px
         kTimerDuration16 = 16,
     };
 
-    class AppTimer {
+    class AppTimer : public std::enable_shared_from_this<AppTimer> {
     public:
         explicit AppTimer(const std::shared_ptr<RdContext>& ctx);
         void StartTimers();
@@ -36,7 +36,7 @@ namespace px
         void NotifyTimeout(AppTimerDuration duration) const;
 
     private:
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::weak_ptr<RdContext> context_;
         std::shared_ptr<asio2::timer> timer_ = nullptr;
     };
 

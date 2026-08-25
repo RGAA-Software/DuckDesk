@@ -251,7 +251,7 @@ namespace px
     }
 
     void BaseWorkspace::InitListener() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         RegisterSdkMsgCallbacks();
         sdk_->Start();
         RegisterBaseListeners();

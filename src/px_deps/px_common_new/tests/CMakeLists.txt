@@ -23,6 +23,8 @@ add_tc_test(test_clipboard_echo test_clipboard_echo.cpp)
 add_tc_test(test_clipboard_file_builder test_clipboard_file_builder.cpp)
 add_tc_test(test_clipboard_platform test_clipboard_platform.cpp)
 add_tc_test(test_px_udp_protocol test_px_udp_protocol.cpp)
+add_tc_test(test_thread_exit test_thread_exit.cpp)
+add_tc_test(test_message_notifier test_message_notifier.cpp)
 
 add_executable(test_common test.cpp)
 target_link_libraries(test_common PRIVATE px_common_new ${Boost_LIBRARIES} GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)

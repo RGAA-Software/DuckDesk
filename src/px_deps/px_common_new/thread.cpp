@@ -177,6 +177,15 @@ namespace px
         exit_ = true;
         take_var_.notify_one();
         if (thread_ && thread_->joinable()) {
+            // A task is allowed to request that its own loop stop. Joining the
+            // current std::thread throws std::system_error and, when it escapes
+            // an RTC callback, terminates px_client via fail-fast. Leave the
+            // joinable handle for the owning thread/destructor to reap after
+            // TaskLoop observes exit_.
+            if (thread_->get_id() == std::this_thread::get_id()) {
+                LOGW("Thread {} requested Exit from itself; defer join to owner.", name_);
+                return;
+            }
             thread_->join();
             thread_ = nullptr;
         }

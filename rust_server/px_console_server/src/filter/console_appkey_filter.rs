@@ -65,14 +65,17 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     }
 
     // Browser standard WebRTC uses the application Relay only for signaling.
-    // It cannot receive the installation appkey, so accept a fully bound,
-    // short-lived ticket without consuming it. The Render atomically consumes
-    // the same ticket when it processes the SDP offer.
+    // It cannot receive the installation appkey. A logged-in browser presents a
+    // fully bound short-lived ticket; a guest is restricted to one named device
+    // here and the Render authenticates its password digest in the SDP offer.
     if path == "/relay" {
         let query = req.uri().query().unwrap_or("");
         let params =
             serde_urlencoded::from_str::<HashMap<String, String>>(query).unwrap_or_default();
         if params.get("rtc_signal").is_some_and(|value| value == "1") {
+            if crate::console_relay::relay_server::is_scoped_guest_rtc_signal(&params) {
+                return next.run(req).await;
+            }
             let valid = match (
                 params.get("ticket"),
                 params.get("client_nonce"),

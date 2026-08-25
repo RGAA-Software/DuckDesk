@@ -10,7 +10,6 @@
 #include <queue>
 #include <mutex>
 
-#include "dexode/EventBus.hpp"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/task_runtime.h"
@@ -38,11 +37,9 @@ namespace px
 
         template<typename T>
         void SendAppMessage(const T& m) {
-            task_rt_->Post(SimpleThreadTask::Make([=, this]() {
-                if (msg_notifier_) {
-                    msg_notifier_->SendAppMessage(m);
-                }
-            }));
+            if (msg_notifier_) {
+                (void)msg_notifier_->PublishAppMessage(m);
+            }
         }
 
         void PostTask(std::function<void()>&& task);
@@ -56,7 +53,6 @@ namespace px
 
     private:
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        std::shared_ptr<Thread> msg_thread_ = nullptr;
         std::shared_ptr<TaskRuntime> task_rt_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
         std::shared_ptr<Thread> stream_plugin_thread_ = nullptr;

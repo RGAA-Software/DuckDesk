@@ -219,7 +219,7 @@ namespace px
     }
 
     void AppStreamList::Init() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         QPointer<AppStreamList> self(this);
         if (mode_ == AppStreamListMode::kRemoteDevices) {
             msg_listener_->Listen<StreamItemAdded>([=, this](const StreamItemAdded& msg) {

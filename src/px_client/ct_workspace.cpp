@@ -158,6 +158,8 @@ namespace px
         }
         if (!has_frame_arrived_) {
             has_frame_arrived_ = true;
+            LOGI("First decoded video frame reached UI renderer: monitor={}, {}x{}",
+                 info.mon_name_, image->img_width, image->img_height);
             UpdateVideoWidgetSize();
         }
         //LOGI("SdkCaptureMonitorInfo mon_index_: {}, w: {}, h: {}", info.mon_index_, image->img_width, image->img_height);
