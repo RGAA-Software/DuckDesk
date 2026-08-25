@@ -77,8 +77,13 @@ namespace px
         db_mgr_ = context_->GetStreamDBManager();
         running_stream_mgr_ = context_->GetRunningStreamManager();
         if (mode_ == AppStreamListMode::kRemoteDevices) {
+            constexpr auto kExclusiveConnectionModeMigration =
+                "exclusive_connection_mode_migration_v1";
+            const bool reset_legacy_connection_modes =
+                context_->SpGetInteger(kExclusiveConnectionModeMigration, 0) < 1;
             int removed_legacy_managed = 0;
             int normalized_direct = 0;
+            int normalized_connection_mode = 0;
             for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
                 if (!stream) {
                     continue;
@@ -87,19 +92,42 @@ namespace px
                         stream->connect_type_, stream->remote_device_id_)) {
                     db_mgr_->DeleteStream(stream->_id);
                     ++removed_legacy_managed;
+                    continue;
                 }
-                else if (connection_policy::IsUnclassifiedDirectConnection(
-                             stream->connect_type_, stream->remote_device_id_,
-                             stream->stream_host_, stream->stream_port_)) {
+                bool stream_changed = false;
+                if (connection_policy::IsUnclassifiedDirectConnection(
+                        stream->connect_type_, stream->remote_device_id_,
+                        stream->stream_host_, stream->stream_port_)) {
                     stream->connect_type_ = connection_policy::kExplicitDirect;
-                    stream->force_direct_ = true;
-                    db_mgr_->UpdateStream(stream);
+                    stream_changed = true;
                     ++normalized_direct;
                 }
+                const bool had_selected_mode = stream->force_relay_
+                    || stream->force_direct_ || stream->use_webrtc_ || stream->use_udp_;
+                if (reset_legacy_connection_modes && had_selected_mode) {
+                    stream->force_relay_ = false;
+                    stream->force_direct_ = false;
+                    stream->use_webrtc_ = false;
+                    stream->use_udp_ = false;
+                    stream_changed = true;
+                    ++normalized_connection_mode;
+                }
+                else if (!reset_legacy_connection_modes
+                    && connection_policy::NormalizeConnectionMode(
+                        stream->force_relay_, stream->force_direct_,
+                        stream->use_webrtc_, stream->use_udp_)) {
+                    stream_changed = true;
+                    ++normalized_connection_mode;
+                }
+                if (stream_changed) db_mgr_->UpdateStream(stream);
             }
-            if (removed_legacy_managed > 0 || normalized_direct > 0) {
-                LOGI("Connection policy cleanup: removed legacy managed={}, normalized direct={}",
-                     removed_legacy_managed, normalized_direct);
+            if (reset_legacy_connection_modes) {
+                context_->SpPutInteger(kExclusiveConnectionModeMigration, 1);
+            }
+            if (removed_legacy_managed > 0 || normalized_direct > 0
+                || normalized_connection_mode > 0) {
+                LOGI("Connection policy cleanup: removed legacy managed={}, normalized direct={}, connection mode reset={}",
+                     removed_legacy_managed, normalized_direct, normalized_connection_mode);
             }
         }
         CreateLayout();
@@ -263,8 +291,10 @@ namespace px
                 }
                 if (!item->connect_type_.empty()) {
                     exist_stream_item->connect_type_ = item->connect_type_;
+                    exist_stream_item->force_relay_ = item->force_relay_;
                     exist_stream_item->force_direct_ = item->force_direct_;
                     exist_stream_item->use_webrtc_ = item->use_webrtc_;
+                    exist_stream_item->use_udp_ = item->use_udp_;
                     if (connection_policy::IsConsoleTicket(item->connect_type_)) {
                         exist_stream_item->stream_host_.clear();
                         exist_stream_item->stream_port_ = 0;
@@ -640,6 +670,17 @@ namespace px
             target_item->audio_enabled_ = has_permission("audio");
         }
 
+        if (connection_policy::NormalizeConnectionMode(
+                target_item->force_relay_, target_item->force_direct_,
+                target_item->use_webrtc_, target_item->use_udp_)) {
+            LOGW("Ambiguous persisted connection mode reset to automatic: {}",
+                 target_item->stream_id_);
+            if (target_item->_id > 0) db_mgr_->UpdateStream(target_item);
+        }
+        const auto connection_mode = connection_policy::ResolveConnectionMode(
+            target_item->force_relay_, target_item->force_direct_,
+            target_item->use_webrtc_, target_item->use_udp_);
+
         bool direct_probe_enabled = true;
         if (uses_console_ticket) {
             try {
@@ -654,30 +695,54 @@ namespace px
             }
         }
 
-        // During the standard-RTC test phase the Console switch is off and no
-        // direct request is made. Once enabled, this lightweight Render HTTP
-        // request is the first-stage reachability probe for net_rtc_local.
+        // Automatic Console routing obeys direct_probe_enabled. An explicitly
+        // forced direct/RTC/UDP mode must still probe its requested endpoint;
+        // Force Relay never probes or silently switches to a direct transport.
         bool direct_available = false;
-        if (!uses_console_ticket || direct_probe_enabled) {
+        const bool force_direct_transport =
+            connection_mode == connection_policy::ConnectionMode::kDirect
+            || connection_mode == connection_policy::ConnectionMode::kRtc
+            || connection_mode == connection_policy::ConnectionMode::kUdpDirect;
+        const bool should_probe_direct =
+            connection_mode != connection_policy::ConnectionMode::kRelay
+            && (force_direct_transport || !uses_console_ticket || direct_probe_enabled);
+        if (should_probe_direct) {
             direct_available = RenderApi::GetRenderConfiguration(
                 target_item->stream_host_, target_item->stream_port_).has_value();
         }
 
-        if (uses_console_ticket && (!direct_available || target_item->force_relay_)) {
-            if (!target_item->HasRelayInfo()) {
-                LOGE("Standard RTC requires signaling Relay information");
-                TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_cant_get_remote_device_info"),
-                                grWorkspace.get());
-                dialog.exec();
-                return;
-            }
+        const bool relay_available = target_item->HasRelayInfo()
+            && !target_item->remote_device_id_.empty();
+        const auto selected_transport = connection_policy::SelectTransport(
+            connection_mode, uses_console_ticket, direct_available, relay_available);
+
+        if (selected_transport == connection_policy::SelectedTransport::kRelay) {
+            LOGI("Forced connection route selected: {}", kStreamItemNtTypeRelay);
+            running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeRelay, false);
+            return;
+        }
+        if (selected_transport == connection_policy::SelectedTransport::kWebRtcStandard) {
             LOGI("RTC route selected: {}, direct_probe_enabled={}, direct_available={}",
                  kStreamItemNtTypeWebRTC, direct_probe_enabled, direct_available);
             running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTC, false);
             return;
         }
+        if (selected_transport == connection_policy::SelectedTransport::kUnavailable) {
+            const bool requires_relay =
+                connection_mode == connection_policy::ConnectionMode::kRelay
+                || connection_mode == connection_policy::ConnectionMode::kRtc
+                || connection_mode == connection_policy::ConnectionMode::kAuto;
+            LOGW("Selected connection mode is unavailable: mode={}, direct={}, relay={}",
+                 static_cast<int>(connection_mode), direct_available, relay_available);
+            TcDialog dialog(tcTr("id_connect_failed"),
+                            requires_relay ? tcTr("id_cant_get_remote_device_info")
+                                           : tcTr("id_device_offline"),
+                            grWorkspace.get());
+            dialog.exec();
+            return;
+        }
 
-        if (direct_available && !target_item->force_relay_) {
+        if (direct_available) {
             LOGI("We can connect directly: {}:{}", target_item->stream_host_, target_item->stream_port_);
             // verify device password before launching the client(same idea as the relay flow):
             // safety pwd(md5) preferred, fall back to md5(random pwd); re-ask on failure.
@@ -728,17 +793,10 @@ namespace px
                 }
             }
 
-            // start via udp, webrtc or websocket, depends on the "use_udp"/"use_webrtc" options
-            if (uses_console_ticket) {
-                LOGI("RTC route selected: {}, direct probe succeeded",
-                     kStreamItemNtTypeWebRTCDirect);
-                running_stream_mgr_->StartStream(
-                    target_item, kStreamItemNtTypeWebRTCDirect, true);
-            }
-            else if (target_item->use_udp_) {
+            if (selected_transport == connection_policy::SelectedTransport::kUdpDirect) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeUdpDirect, true);
             }
-            else if (target_item->use_webrtc_) {
+            else if (selected_transport == connection_policy::SelectedTransport::kWebRtcDirect) {
                 running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
             }
             else {
@@ -746,10 +804,7 @@ namespace px
             }
         }
         else {
-            // Explicit IP:port connections never fall back to the Console Relay.
-            // Console-managed connections returned earlier through the standard
-            // RTC route, so reaching here means the direct endpoint is offline.
-            LOGW("Explicit direct endpoint is unavailable: {}:{}",
+            LOGW("Selected direct endpoint is unavailable: {}:{}",
                  target_item->stream_host_, target_item->stream_port_);
             TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_device_offline"),
                             grWorkspace.get());
@@ -1166,7 +1221,6 @@ namespace px
                     stream->relay_host_.clear();
                     stream->relay_port_ = 0;
                     stream->connect_type_ = connection_policy::kConsoleDeviceTicket;
-                    stream->use_webrtc_ = true;
                     stream->console_online_ = ud->device_->active_;
                     db_mgr->UpdateStream(stream);
                 }
@@ -1179,7 +1233,6 @@ namespace px
                     item->clipboard_enabled_ = false;
                     item->audio_enabled_ = false;
                     item->connect_type_ = connection_policy::kConsoleDeviceTicket;
-                    item->use_webrtc_ = true;
                     item->console_online_ = ud->device_->active_;
                     db_mgr->AddStream(item);
                 }
@@ -1214,7 +1267,6 @@ namespace px
                     }
                     stream->console_cover_url_ = cover_url.toString().toStdString();
                 }
-                stream->use_webrtc_ = true;
                 stream->audio_enabled_ = false;
                 stream->clipboard_enabled_ = false;
                 stream->console_online_ = true;

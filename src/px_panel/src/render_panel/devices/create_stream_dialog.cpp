@@ -334,7 +334,6 @@ namespace px
             item->stream_port_ = port;
             item->remote_device_id_.clear();
             item->connect_type_ = connection_policy::kExplicitDirect;
-            item->force_direct_ = true;
             item->encode_bps_ = bitrate;
             item->encode_fps_ = cb_fps_ ? std::atoi(cb_fps_->currentText().toStdString().c_str()) : 0;
             item->clipboard_enabled_ = true;

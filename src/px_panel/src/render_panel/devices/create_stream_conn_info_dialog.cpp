@@ -185,8 +185,6 @@ namespace px
             item->encode_bps_ = 0;
             item->encode_fps_ = 0;
             item->clipboard_enabled_ = true;
-            item->use_webrtc_ = true;
-            item->force_direct_ = true;
             item->direct_online_ = direct_online;
             if (has_device_id) {
                 // A link:// share is a self-contained password-authenticated

@@ -509,7 +509,6 @@ namespace px
                         item->encode_fps_ = 0;
                         item->remote_device_id_ = remote_device_id;
                         item->connect_type_ = connection_policy::kConsoleDeviceTicket;
-                        item->use_webrtc_ = true;
                         item->bg_color_ = 0xffffff;
                         context_->SendAppMessage(StreamItemAdded {
                             .item_ = item,

@@ -3,6 +3,15 @@
 #include "../render_panel/devices/stream_item_display.h"
 #include "../render_panel/devices/console_device_state.h"
 
+TEST(StreamItemDisplay, ConnectionModeDefaultsToAutomatic) {
+    px_console::ConsoleStream item;
+
+    EXPECT_FALSE(item.force_relay_);
+    EXPECT_FALSE(item.force_direct_);
+    EXPECT_FALSE(item.use_webrtc_);
+    EXPECT_FALSE(item.use_udp_);
+}
+
 TEST(StreamItemDisplay, ShowsManagedDeviceIdWithoutPersistedRelayEndpoint) {
     px_console::ConsoleStream item;
     item.connect_type_ = "console_device_ticket";

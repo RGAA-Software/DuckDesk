@@ -119,10 +119,10 @@ namespace px_console
         // disable vulkan render
         bool disable_vulkan_render_ = false;
 
-        // use WebRTC in direct connection, enabled by default
-        bool use_webrtc_ = true;
+        // Force RTC. False means automatic connection selection.
+        bool use_webrtc_ = false;
 
-        // use UDP(GameStream style) in direct connection, disabled by default
+        // Force UDP(GameStream style). False means automatic selection.
         bool use_udp_ = false;
 
         // Extra

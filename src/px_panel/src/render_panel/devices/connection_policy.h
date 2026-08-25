@@ -16,6 +16,84 @@ namespace px::connection_policy
         kReject,
     };
 
+    enum class ConnectionMode {
+        kAuto,
+        kRelay,
+        kDirect,
+        kRtc,
+        kUdpDirect,
+        kInvalid,
+    };
+
+    enum class SelectedTransport {
+        kUnavailable,
+        kRelay,
+        kWebSocket,
+        kWebRtcStandard,
+        kWebRtcDirect,
+        kUdpDirect,
+    };
+
+    [[nodiscard]] inline ConnectionMode ResolveConnectionMode(
+        bool force_relay, bool force_direct, bool force_rtc, bool force_udp) {
+        const int selected_count = static_cast<int>(force_relay)
+            + static_cast<int>(force_direct)
+            + static_cast<int>(force_rtc)
+            + static_cast<int>(force_udp);
+        if (selected_count == 0) return ConnectionMode::kAuto;
+        if (selected_count > 1) return ConnectionMode::kInvalid;
+        if (force_relay) return ConnectionMode::kRelay;
+        if (force_direct) return ConnectionMode::kDirect;
+        if (force_rtc) return ConnectionMode::kRtc;
+        return ConnectionMode::kUdpDirect;
+    }
+
+    inline bool NormalizeConnectionMode(
+        bool& force_relay, bool& force_direct, bool& force_rtc, bool& force_udp) {
+        if (ResolveConnectionMode(force_relay, force_direct, force_rtc, force_udp)
+            != ConnectionMode::kInvalid) {
+            return false;
+        }
+        // Old versions allowed RTC and UDP to remain checked together. There
+        // is no reliable way to know which was selected last, so return the
+        // ambiguous row to automatic selection instead of guessing.
+        force_relay = false;
+        force_direct = false;
+        force_rtc = false;
+        force_udp = false;
+        return true;
+    }
+
+    [[nodiscard]] inline SelectedTransport SelectTransport(
+        ConnectionMode mode, bool uses_console_ticket,
+        bool direct_available, bool relay_available) {
+        switch (mode) {
+        case ConnectionMode::kRelay:
+            return relay_available ? SelectedTransport::kRelay
+                                   : SelectedTransport::kUnavailable;
+        case ConnectionMode::kDirect:
+            return direct_available ? SelectedTransport::kWebSocket
+                                    : SelectedTransport::kUnavailable;
+        case ConnectionMode::kRtc:
+            if (direct_available) return SelectedTransport::kWebRtcDirect;
+            return relay_available ? SelectedTransport::kWebRtcStandard
+                                   : SelectedTransport::kUnavailable;
+        case ConnectionMode::kUdpDirect:
+            return direct_available ? SelectedTransport::kUdpDirect
+                                    : SelectedTransport::kUnavailable;
+        case ConnectionMode::kAuto:
+            if (direct_available) {
+                return uses_console_ticket ? SelectedTransport::kWebRtcDirect
+                                           : SelectedTransport::kWebSocket;
+            }
+            return relay_available ? SelectedTransport::kWebRtcStandard
+                                   : SelectedTransport::kUnavailable;
+        case ConnectionMode::kInvalid:
+            return SelectedTransport::kUnavailable;
+        }
+        return SelectedTransport::kUnavailable;
+    }
+
     [[nodiscard]] inline bool IsConsoleTicket(std::string_view connect_type) {
         return connect_type == kConsoleDeviceTicket || connect_type == kConsoleAppTicket;
     }

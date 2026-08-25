@@ -51,3 +51,71 @@ TEST(ConnectionPolicy, ExistingHostPortRowsCanBeNormalizedToExplicitDirect) {
     EXPECT_FALSE(policy::IsUnclassifiedDirectConnection("", "123456789", "127.0.0.1", 20371));
     EXPECT_FALSE(policy::IsUnclassifiedDirectConnection("direct", "", "127.0.0.1", 20371));
 }
+
+TEST(ConnectionPolicy, FourConnectionModesAreMutuallyExclusive) {
+    EXPECT_EQ(policy::ResolveConnectionMode(false, false, false, false),
+              policy::ConnectionMode::kAuto);
+    EXPECT_EQ(policy::ResolveConnectionMode(true, false, false, false),
+              policy::ConnectionMode::kRelay);
+    EXPECT_EQ(policy::ResolveConnectionMode(false, true, false, false),
+              policy::ConnectionMode::kDirect);
+    EXPECT_EQ(policy::ResolveConnectionMode(false, false, true, false),
+              policy::ConnectionMode::kRtc);
+    EXPECT_EQ(policy::ResolveConnectionMode(false, false, false, true),
+              policy::ConnectionMode::kUdpDirect);
+    EXPECT_EQ(policy::ResolveConnectionMode(false, false, true, true),
+              policy::ConnectionMode::kInvalid);
+}
+
+TEST(ConnectionPolicy, AmbiguousLegacyModeReturnsToAutomatic) {
+    bool relay = false;
+    bool direct = false;
+    bool rtc = true;
+    bool udp = true;
+
+    EXPECT_TRUE(policy::NormalizeConnectionMode(relay, direct, rtc, udp));
+    EXPECT_FALSE(relay);
+    EXPECT_FALSE(direct);
+    EXPECT_FALSE(rtc);
+    EXPECT_FALSE(udp);
+    EXPECT_EQ(policy::ResolveConnectionMode(relay, direct, rtc, udp),
+              policy::ConnectionMode::kAuto);
+}
+
+TEST(ConnectionPolicy, ForcedModeNeverChangesTransportFamily) {
+    using Mode = policy::ConnectionMode;
+    using Transport = policy::SelectedTransport;
+
+    EXPECT_EQ(policy::SelectTransport(Mode::kRelay, true, true, true),
+              Transport::kRelay);
+    EXPECT_EQ(policy::SelectTransport(Mode::kRelay, true, true, false),
+              Transport::kUnavailable);
+    EXPECT_EQ(policy::SelectTransport(Mode::kDirect, true, true, true),
+              Transport::kWebSocket);
+    EXPECT_EQ(policy::SelectTransport(Mode::kDirect, true, false, true),
+              Transport::kUnavailable);
+    EXPECT_EQ(policy::SelectTransport(Mode::kRtc, true, true, true),
+              Transport::kWebRtcDirect);
+    EXPECT_EQ(policy::SelectTransport(Mode::kRtc, true, false, true),
+              Transport::kWebRtcStandard);
+    EXPECT_EQ(policy::SelectTransport(Mode::kUdpDirect, true, true, true),
+              Transport::kUdpDirect);
+    EXPECT_EQ(policy::SelectTransport(Mode::kUdpDirect, true, false, true),
+              Transport::kUnavailable);
+}
+
+TEST(ConnectionPolicy, AutomaticModeUsesAvailabilityAndLoginState) {
+    using Mode = policy::ConnectionMode;
+    using Transport = policy::SelectedTransport;
+
+    EXPECT_EQ(policy::SelectTransport(Mode::kAuto, true, true, true),
+              Transport::kWebRtcDirect);
+    EXPECT_EQ(policy::SelectTransport(Mode::kAuto, true, false, true),
+              Transport::kWebRtcStandard);
+    EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, true, true),
+              Transport::kWebSocket);
+    EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, false, true),
+              Transport::kWebRtcStandard);
+    EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, false, false),
+              Transport::kUnavailable);
+}

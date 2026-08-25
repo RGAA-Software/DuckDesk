@@ -15,6 +15,7 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/database/stream_db_operator.h"
+#include "render_panel/devices/connection_policy.h"
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_tooltip.h"
 #include "px_base/ct_stream_item_net_type.h"
@@ -34,6 +35,9 @@ namespace px
     StreamSettingsDialog::~StreamSettingsDialog() = default;
 
     void StreamSettingsDialog::CreateLayout() {
+        connection_policy::NormalizeConnectionMode(
+            stream_item_->force_relay_, stream_item_->force_direct_,
+            stream_item_->use_webrtc_, stream_item_->use_udp_);
         setWindowTitle(tcTr("id_device_settings"));
 
         auto item_width = 170;
@@ -400,6 +404,7 @@ namespace px
                 if (state == Qt::Checked) {
                     cb_force_relay_->setChecked(false);
                     cb_force_direct_->setChecked(false);
+                    cb_use_udp_->setChecked(false);
                 }
             });
             layout->addWidget(cb);
@@ -412,7 +417,7 @@ namespace px
             //tooltip
             auto tooltip = new TcToolTip(this);
             tooltip->setFixedSize(275, 70);
-            tooltip->SetText("Prefer WebRTC when connecting directly.");
+            tooltip->SetText("Force RTC. No other connection mode will be used.");
             tooltip->hide();
             btn_tips->SetOnImageButtonHovering([=](QWidget* w) {
                 auto w_pos = w->mapToGlobal(QPoint(0,0));
@@ -450,6 +455,7 @@ namespace px
                 if (state == Qt::Checked) {
                     cb_force_relay_->setChecked(false);
                     cb_force_direct_->setChecked(false);
+                    cb_use_webrtc_->setChecked(false);
                 }
             });
             layout->addWidget(cb);
@@ -462,7 +468,7 @@ namespace px
             //tooltip
             auto tooltip = new TcToolTip(this);
             tooltip->setFixedSize(275, 70);
-            tooltip->SetText("Prefer UDP(GameStream style) when connecting directly.");
+            tooltip->SetText("Force UDP Direct. No other connection mode will be used.");
             tooltip->hide();
             btn_tips->SetOnImageButtonHovering([=](QWidget* w) {
                 auto w_pos = w->mapToGlobal(QPoint(0,0));
