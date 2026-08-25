@@ -79,7 +79,9 @@ pub struct CsrfTokenResponse {
     pub csrf_token: String,
 }
 
-async fn profile_for(user: crate::user::console_user::ConsoleUser) -> Result<ConsoleUserView, ConsoleApiError> {
+async fn profile_for(
+    user: crate::user::console_user::ConsoleUser,
+) -> Result<ConsoleUserView, ConsoleApiError> {
     let mut profile = ConsoleUserView::from(user);
     profile.groups = IdentityManager::groups_for_user(&profile.uid).await?;
     Ok(profile)
@@ -168,7 +170,9 @@ pub async fn guest_session(
         .get("x-forwarded-proto")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.eq_ignore_ascii_case("https"));
-    if !addr.ip().is_loopback() && !crate::gConsoleSettings.lock().await.ssl_enable && !forwarded_https
+    if !addr.ip().is_loopback()
+        && !crate::gConsoleSettings.lock().await.ssl_enable
+        && !forwarded_https
     {
         return Err(ConsoleApiError::Forbidden);
     }
@@ -252,7 +256,9 @@ pub async fn login(
         .get("x-forwarded-proto")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.eq_ignore_ascii_case("https"));
-    if !addr.ip().is_loopback() && !crate::gConsoleSettings.lock().await.ssl_enable && !forwarded_https
+    if !addr.ip().is_loopback()
+        && !crate::gConsoleSettings.lock().await.ssl_enable
+        && !forwarded_https
     {
         return Err(ConsoleApiError::Forbidden);
     }
@@ -491,7 +497,9 @@ pub async fn admin_login(
         .get("x-forwarded-proto")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.eq_ignore_ascii_case("https"));
-    if !addr.ip().is_loopback() && !crate::gConsoleSettings.lock().await.ssl_enable && !forwarded_https
+    if !addr.ip().is_loopback()
+        && !crate::gConsoleSettings.lock().await.ssl_enable
+        && !forwarded_https
     {
         return Err(ConsoleApiError::Forbidden);
     }

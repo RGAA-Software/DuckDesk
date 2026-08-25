@@ -206,6 +206,14 @@ namespace px
     bool PxUserManager::Register(const std::string& username, const std::string& password) {
         auto [guest_access_token, guest] = ResourceSession();
         if (guest_access_token.empty() || !guest) {
+            auto detail = px_console::ConsoleApiLastErrorMessage();
+            QString message = tcTr("id_console_network_unavailable");
+            if (!detail.empty()) {
+                message += "\n";
+                message += QString::fromStdString(detail);
+            }
+            TcDialog dialog(tcTr("id_error"), message);
+            dialog.exec();
             return false;
         }
         const auto result = px_console::ConsoleUserApi::Register(

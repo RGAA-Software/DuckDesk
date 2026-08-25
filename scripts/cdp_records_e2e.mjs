@@ -6,7 +6,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE = process.env.CONSOLE_URL || process.env.CMS_URL || 'http://10.0.0.16:30500'
+const BASE = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://10.0.0.16:30500'
 const APPKEY = process.env.APPKEY || '49727717a74720a863f007dcdb13324e'
 const DEVICE = process.env.DEVICE_ID || '001190520'
 const PLAY_FILE = process.env.PLAY_FILE || '' // pick the row whose name contains this
@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const profile = path.join(os.tmpdir(), `cdp-rec-${Date.now()}`)
 const chrome = spawn(CHROME, [
   '--headless=new', `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${profile}`,
-  '--no-first-run', '--window-size=1600,900',
+  '--no-first-run', '--ignore-certificate-errors', '--window-size=1600,900',
   'about:blank',
 ], { stdio: 'ignore' })
 process.on('exit', () => { try { chrome.kill() } catch { /* ignore */ } })

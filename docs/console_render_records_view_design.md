@@ -4,6 +4,8 @@
 > 范围：Console Web 页查看 render 端录屏文件（`C:\Users\Public\Pixels\px_render_records`）
 > 核心决策：**不做全量上传归档**，panel 作为录像的稳定出口；同网段直连，上层网段按需代理。
 
+> **2026-08-24 传输策略更新：**本文后文保留的 Console HTTP/WS 方案仅作为历史决策记录，已经废弃，不再用于实现或部署。当前唯一受支持的边界是 Console 30500 使用 HTTPS/WSS（允许自签名证书），Render 20371、Panel 本地服务和进程间通信继续使用 HTTP/WS，详见 `docs/console_https_transport.md`。
+
 ---
 
 ## 1. 背景与目标

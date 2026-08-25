@@ -1,6 +1,6 @@
 use crate::rtc::model::{
-    ConsoleRtcSettings, RtcCredentialMode, RtcIceConfig, RtcIceConfigView,
-    RtcSessionIceConfig, RtcSessionIceServer,
+    ConsoleRtcSettings, RtcCredentialMode, RtcIceConfig, RtcIceConfigView, RtcSessionIceConfig,
+    RtcSessionIceServer,
 };
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
@@ -116,7 +116,9 @@ impl RtcConfigManager {
     pub async fn issue_session_config(&self, subject: &str) -> Result<RtcSessionIceConfig, String> {
         if subject.is_empty()
             || subject.len() > 128
-            || subject.chars().any(|ch| ch.is_control() || ch.is_whitespace())
+            || subject
+                .chars()
+                .any(|ch| ch.is_control() || ch.is_whitespace())
         {
             return Err("RTC credential subject is invalid".to_string());
         }
@@ -125,27 +127,21 @@ impl RtcConfigManager {
         // WebClient launch page) pending forever. Clone both values inside
         // short critical sections and release their guards before doing HMAC
         // or building the public server list.
-        let config = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            self.config.read(),
-        )
-        .await
-        .map_err(|_| "RTC configuration read lock timed out".to_string())?
-        .clone();
+        let config = tokio::time::timeout(std::time::Duration::from_secs(2), self.config.read())
+            .await
+            .map_err(|_| "RTC configuration read lock timed out".to_string())?
+            .clone();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "system clock is before UNIX epoch".to_string())?
             .as_secs();
-        let expires_at_seconds = now
-            .saturating_add(config.managed_console_server.credential_ttl_seconds);
+        let expires_at_seconds =
+            now.saturating_add(config.managed_console_server.credential_ttl_seconds);
         let username = format!("{expires_at_seconds}:{subject}");
-        let secret = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            self.secret.read(),
-        )
-        .await
-        .map_err(|_| "TURN REST secret read lock timed out".to_string())?
-        .clone();
+        let secret = tokio::time::timeout(std::time::Duration::from_secs(2), self.secret.read())
+            .await
+            .map_err(|_| "TURN REST secret read lock timed out".to_string())?
+            .clone();
         if secret.is_empty() {
             return Err("TURN REST secret is not initialized".to_string());
         }
@@ -174,8 +170,13 @@ impl RtcConfigManager {
                     .additional_servers
                     .iter()
                     .find(|candidate| candidate.id == server.id)
-                    .ok_or_else(|| "ICE server disappeared while issuing credentials".to_string())?;
-                (Some(source.username.clone()), Some(source.credential.clone()))
+                    .ok_or_else(|| {
+                        "ICE server disappeared while issuing credentials".to_string()
+                    })?;
+                (
+                    Some(source.username.clone()),
+                    Some(source.credential.clone()),
+                )
             } else {
                 (None, None)
             };
@@ -277,10 +278,17 @@ mod tests {
         let updated = manager.update(config).await.unwrap();
         assert_eq!(updated.revision, 2);
 
-        let session = manager.issue_session_config("device-1:stream-1").await.unwrap();
+        let session = manager
+            .issue_session_config("device-1:stream-1")
+            .await
+            .unwrap();
         assert_eq!(session.revision, 2);
         assert_eq!(session.ice_servers.len(), 2);
-        assert!(session.ice_servers[0].username.as_ref().unwrap().contains(':'));
+        assert!(session.ice_servers[0]
+            .username
+            .as_ref()
+            .unwrap()
+            .contains(':'));
         let username = session.ice_servers[0].username.as_deref().unwrap();
         let coturn_secret = manager.turn_rest_secret_base64().await.unwrap();
         let expected = BASE64_STANDARD.encode(

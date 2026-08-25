@@ -54,14 +54,19 @@ pub async fn handle_add_event(
     // cpu
     if event_type == EVENT_CPU {
         let cpu_usage = validate_usage(get_body_int(&r, KEY_CPU_USAGE)?)?;
-        let event = ConsoleEvent::new_cpu(device_id, device_ip, device_name, uid, username, cpu_usage);
-        let event = gConsoleEventMgr.add_or_refresh_telemetry_event(event).await?;
+        let event =
+            ConsoleEvent::new_cpu(device_id, device_ip, device_name, uid, username, cpu_usage);
+        let event = gConsoleEventMgr
+            .add_or_refresh_telemetry_event(event)
+            .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_MEMORY {
         let mem_usage = validate_usage(get_body_int(&r, KEY_MEMORY_USAGE)?)?;
         let event =
             ConsoleEvent::new_memory(device_id, device_ip, device_name, uid, username, mem_usage);
-        let event = gConsoleEventMgr.add_or_refresh_telemetry_event(event).await?;
+        let event = gConsoleEventMgr
+            .add_or_refresh_telemetry_event(event)
+            .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_DISK {
         let disk_usage = validate_usage(get_body_int(&r, KEY_DISK_USAGE)?)?;
@@ -78,7 +83,9 @@ pub async fn handle_add_event(
             disk_usage,
             disk_path,
         );
-        let event = gConsoleEventMgr.add_or_refresh_telemetry_event(event).await?;
+        let event = gConsoleEventMgr
+            .add_or_refresh_telemetry_event(event)
+            .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_GPU {
         let gpu_usage = validate_usage(get_body_int(&r, KEY_GPU_USAGE)?)?;
@@ -94,7 +101,9 @@ pub async fn handle_add_event(
             gpu_id,
             gpu_name,
         );
-        let event = gConsoleEventMgr.add_or_refresh_telemetry_event(event).await?;
+        let event = gConsoleEventMgr
+            .add_or_refresh_telemetry_event(event)
+            .await?;
         return Ok(Json(ok_resp(event)));
     }
     Err(ConsoleApiError::InvalidParams)

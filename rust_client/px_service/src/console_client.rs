@@ -37,12 +37,12 @@ const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 const RTC_CONFIG_POLL_SECS: u64 = 60;
 
-/// WS/WSS client loop towards the Console (px_console_server) `/console/service` endpoint.
+/// WSS client loop towards the Console (px_console_server) `/console/service` endpoint.
 ///
-/// The Console address (console_host/console_port) and whether TLS is used (console_ssl),
-/// appkey and device_id all come from the authorization info the panel pushes
-/// to this service, so the loop first waits until `state.last_auth_info` is
-/// present. A fresh connection token is generated on every reconnect.
+/// The Console address, appkey and device_id come from the authorization info
+/// the panel pushes to this service. The legacy console_ssl field is normalized
+/// and cannot downgrade the transport. A fresh connection token is generated
+/// on every reconnect.
 pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
     let mut stop_rx = {
         let guard = runtime.lock().await;
@@ -59,6 +59,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
             info!("console client loop stopped before auth info arrived");
             return Ok(());
         };
+        let auth_info = require_console_tls(auth_info);
         info!(
             "console auth info ready, console={}:{} device_id={}",
             auth_info.console_host, auth_info.console_port, auth_info.device_id
@@ -85,22 +86,12 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 auth_info.console_ssl,
                 legacy_route,
             );
-            // The WSS branch keeps the existing development TLS behavior. Both
-            // futures yield the same stream type, so one loop can try the
-            // canonical route and then the pre-Console compatibility route.
-            let connect = async {
-                if auth_info.console_ssl {
-                    tokio_tungstenite::connect_async_tls_with_config(
-                        url.clone(),
-                        None,
-                        false,
-                        Some(tls_connector()),
-                    )
-                    .await
-                } else {
-                    tokio_tungstenite::connect_async(url.clone()).await
-                }
-            };
+            let connect = tokio_tungstenite::connect_async_tls_with_config(
+                url.clone(),
+                None,
+                false,
+                Some(tls_connector()),
+            );
             match timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS), connect).await {
                 Ok(Ok((stream, _response))) => {
                     info!("connected to console {endpoint}");
@@ -310,6 +301,14 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
     }
 }
 
+fn require_console_tls(mut auth_info: MsgAuthInfo) -> MsgAuthInfo {
+    if !auth_info.console_ssl {
+        warn!("ignoring legacy console_ssl=false; Console requires HTTPS/WSS");
+        auth_info.console_ssl = true;
+    }
+    auth_info
+}
+
 /// Poll the shared state until the panel-delivered auth info shows up.
 /// Returns `None` when the service is stopping.
 async fn wait_auth_info(
@@ -352,8 +351,8 @@ fn console_endpoint(host: &str, port: i32, ssl: bool) -> String {
     console_endpoint_for_route(host, port, ssl, false)
 }
 
-fn console_endpoint_for_route(host: &str, port: i32, ssl: bool, legacy_route: bool) -> String {
-    let scheme = if ssl { "wss" } else { "ws" };
+fn console_endpoint_for_route(host: &str, port: i32, _ssl: bool, legacy_route: bool) -> String {
+    let scheme = "wss";
     let path = if legacy_route {
         "/cms/service"
     } else {
@@ -366,24 +365,24 @@ fn console_endpoint_for_route(host: &str, port: i32, ssl: bool, legacy_route: bo
 fn build_console_url(
     host: &str,
     port: i32,
-    ssl: bool,
+    _ssl: bool,
     appkey: &str,
     token: &ConnectionToken,
     device_id: &str,
 ) -> String {
-    build_console_url_for_route(host, port, ssl, appkey, token, device_id, false)
+    build_console_url_for_route(host, port, _ssl, appkey, token, device_id, false)
 }
 
 fn build_console_url_for_route(
     host: &str,
     port: i32,
-    ssl: bool,
+    _ssl: bool,
     appkey: &str,
     token: &ConnectionToken,
     device_id: &str,
     legacy_route: bool,
 ) -> String {
-    let scheme = if ssl { "wss" } else { "ws" };
+    let scheme = "wss";
     let path = if legacy_route {
         "/cms/service"
     } else {
@@ -433,11 +432,7 @@ async fn refresh_rtc_config(
     auth_info: &MsgAuthInfo,
     expected_revision: u64,
 ) -> Result<(), String> {
-    let scheme = if auth_info.console_ssl {
-        "https"
-    } else {
-        "http"
-    };
+    let scheme = "https";
     let url = format!(
         "{scheme}://{}:{}/api/v1/rtc/ice-config",
         auth_info.console_host, auth_info.console_port
@@ -1055,6 +1050,13 @@ mod tests {
     }
 
     #[test]
+    fn legacy_auth_info_cannot_disable_console_tls() {
+        let mut info = sample_auth_info();
+        info.console_ssl = false;
+        assert!(require_console_tls(info).console_ssl);
+    }
+
+    #[test]
     fn url_contains_all_query_params() {
         let token = ConnectionToken {
             token: "deadbeef".to_string(),
@@ -1069,15 +1071,14 @@ mod tests {
     }
 
     #[test]
-    fn url_uses_ws_scheme_when_ssl_off() {
+    fn legacy_ssl_off_cannot_downgrade_url() {
         let token = ConnectionToken {
             token: "deadbeef".to_string(),
             ts: 1234567890,
             nonce: "cafe".to_string(),
         };
         let url = build_console_url("console.example.com", 8080, false, "ak-1", &token, "dev-1");
-        assert!(url.starts_with("ws://console.example.com:8080/console/service?"));
-        assert!(!url.contains("wss://"));
+        assert!(url.starts_with("wss://console.example.com:8080/console/service?"));
     }
 
     #[test]
@@ -1088,7 +1089,7 @@ mod tests {
         assert!(!endpoint.contains("token"));
         assert_eq!(
             console_endpoint("console.example.com", 8080, false),
-            "ws://console.example.com:8080/console/service"
+            "wss://console.example.com:8080/console/service"
         );
     }
 

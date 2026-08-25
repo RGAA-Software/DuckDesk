@@ -232,7 +232,9 @@ pub async fn list_users(
     })))
 }
 
-pub async fn create_user(Json(request): Json<CreateUserRequest>) -> Result<Response, ConsoleApiError> {
+pub async fn create_user(
+    Json(request): Json<CreateUserRequest>,
+) -> Result<Response, ConsoleApiError> {
     validate_group_ids(&request.group_ids).await?;
     validate_device_ids(&request.device_ids).await?;
     let initial_password = request

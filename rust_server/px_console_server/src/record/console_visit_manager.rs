@@ -14,7 +14,10 @@ impl ConsoleVisitManager {
         Arc::new(Self {})
     }
 
-    pub async fn insert_visit_info(&self, mut info: ConsoleVisit) -> Result<ConsoleVisit, ConsoleApiError> {
+    pub async fn insert_visit_info(
+        &self,
+        mut info: ConsoleVisit,
+    ) -> Result<ConsoleVisit, ConsoleApiError> {
         validate_visit_start(&info)?;
         info.status = if info.end > 0 {
             "succeeded".to_string()

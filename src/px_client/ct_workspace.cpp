@@ -9,6 +9,7 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QTimer>
+#include <QThread>
 #include <dwmapi.h>
 #include "px_client/ct_workspace.h"
 #include "thunder_sdk.h"
@@ -66,7 +67,7 @@ namespace px
     }
 
     Workspace::~Workspace() {
-
+        video_frame_dispatch_queue_->Stop();
     }
 
     void Workspace::RegisterBaseListeners() {
@@ -76,8 +77,8 @@ namespace px
 
     void Workspace::ListenMultiMonDisplayModeMessage() {
         msg_listener_->Listen<MsgClientMultiMonDisplayMode>([=, this](const MsgClientMultiMonDisplayMode& msg) {
-            multi_display_mode_ = msg.mode_;
             context_->PostUITask([=, this]() {
+                multi_display_mode_ = msg.mode_;
                 if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
                     if (monitors_count_ > 1) {
                         setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(1)));
@@ -100,8 +101,8 @@ namespace px
                         game_views_[kMainGameViewIndex]->SetMonitorName(monitor_index_map_name_[msg.current_cap_mon_index_]);
                     }
                 }
+                this->SendUpdateDesktopMessage();
             });
-            this->SendUpdateDesktopMessage();
         });
     }
 
@@ -112,51 +113,89 @@ namespace px
     void Workspace::RegisterSdkMsgCallbacks() {
         BaseWorkspace::RegisterSdkMsgCallbacks();
 
-        sdk_->SetOnVideoFrameDecodedCallback([=, this](std::shared_ptr<RawImage> image, const SdkCaptureMonitorInfo& info) {
-            if (remote_force_closed_) {
-                return;
-            }
-            if (!has_frame_arrived_) {
-                has_frame_arrived_ = true;
-                UpdateVideoWidgetSize();
-            }
-            //LOGI("SdkCaptureMonitorInfo mon_index_: {}, w: {}, h: {}", info.mon_index_, image->img_width, image->img_height);
-            if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
-                if (!game_views_.empty()) {
-                    if (game_views_[kMainGameViewIndex]) {
-                        game_views_[kMainGameViewIndex]->RefreshCapturedMonitorInfo(info);
-                        // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
-                        if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
-                            uintptr_t obj = reinterpret_cast<uintptr_t>(game_views_[kMainGameViewIndex]);
-                            pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
-                            game_views_[kMainGameViewIndex]->UpdateFullColorState(image->full_color_);
-                        }
-                        else {
-                            game_views_[kMainGameViewIndex]->RefreshImage(image);
-                        }
+        auto weak_workspace = weak_from_this();
+        std::weak_ptr<ClientContext> weak_context = context_;
+        auto dispatch_queue = video_frame_dispatch_queue_;
+        sdk_->SetOnVideoFrameDecodedCallback(
+            [weak_workspace, weak_context, dispatch_queue](std::shared_ptr<RawImage> image,
+                                                           const SdkCaptureMonitorInfo& info) {
+                if (!image) {
+                    return;
+                }
+
+                if (!dispatch_queue->Push(info.mon_index_, PendingDecodedVideoFrame{
+                        .image_ = std::move(image),
+                        .info_ = info,
+                    })) {
+                    return;
+                }
+
+                auto context = weak_context.lock();
+                if (!context) {
+                    dispatch_queue->Stop();
+                    return;
+                }
+
+                context->PostUITask([weak_workspace, dispatch_queue]() {
+                    auto workspace = std::dynamic_pointer_cast<Workspace>(weak_workspace.lock());
+                    if (!workspace) {
+                        dispatch_queue->Stop();
+                        return;
+                    }
+
+                    for (auto& frame : dispatch_queue->TakePending()) {
+                        workspace->RenderDecodedVideoFrame(frame.image_, frame.info_);
+                    }
+                });
+            });
+    }
+
+    void Workspace::RenderDecodedVideoFrame(const std::shared_ptr<RawImage>& image,
+                                            const SdkCaptureMonitorInfo& info) {
+        Q_ASSERT(QThread::currentThread() == thread());
+        if (!image || remote_force_closed_) {
+            return;
+        }
+        if (!has_frame_arrived_) {
+            has_frame_arrived_ = true;
+            UpdateVideoWidgetSize();
+        }
+        //LOGI("SdkCaptureMonitorInfo mon_index_: {}, w: {}, h: {}", info.mon_index_, image->img_width, image->img_height);
+        if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
+            if (!game_views_.empty()) {
+                if (game_views_[kMainGameViewIndex]) {
+                    game_views_[kMainGameViewIndex]->RefreshCapturedMonitorInfo(info);
+                    // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                    if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
+                        uintptr_t obj = reinterpret_cast<uintptr_t>(game_views_[kMainGameViewIndex]);
+                        pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
+                        game_views_[kMainGameViewIndex]->UpdateFullColorState(image->full_color_);
+                    }
+                    else {
+                        game_views_[kMainGameViewIndex]->RefreshImage(image);
                     }
                 }
             }
-            else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
-                if (game_views_.size() > info.mon_index_) {
-                    if (game_views_[info.mon_index_]) {
-                        game_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
-                        // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
-                        if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
-                            pl_vulkan_->RenderFrame(reinterpret_cast<uintptr_t>(game_views_[info.mon_index_]), image->vulkan_av_frame_);
-                        }
-                        else {
-                            game_views_[info.mon_index_]->RefreshImage(image);
-                        }
-                        if (!game_views_[info.mon_index_]->GetActiveStatus()) {
-                            game_views_[info.mon_index_]->SetActiveStatus(true);
-                            UpdateGameViewsStatus(false);
-                        }
+        }
+        else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
+            if (game_views_.size() > info.mon_index_) {
+                if (game_views_[info.mon_index_]) {
+                    game_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
+                    // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                    if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
+                        pl_vulkan_->RenderFrame(reinterpret_cast<uintptr_t>(game_views_[info.mon_index_]), image->vulkan_av_frame_);
+                    }
+                    else {
+                        game_views_[info.mon_index_]->RefreshImage(image);
+                    }
+                    if (!game_views_[info.mon_index_]->GetActiveStatus()) {
+                        game_views_[info.mon_index_]->SetActiveStatus(true);
+                        UpdateGameViewsStatus(false);
                     }
                 }
             }
-            context_->UpdateCapturingMonitorInfo(info);
-        });
+        }
+        context_->UpdateCapturingMonitorInfo(info);
     }
 
     void Workspace::SendWindowsKey(unsigned long vk, bool down) {

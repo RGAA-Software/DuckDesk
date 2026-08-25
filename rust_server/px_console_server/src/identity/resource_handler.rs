@@ -405,7 +405,8 @@ async fn public_app_catalog() -> Vec<ApplicationCard> {
     cards
 }
 
-pub async fn list_public_apps() -> Result<Json<RespMessage<Vec<ApplicationCard>>>, ConsoleApiError> {
+pub async fn list_public_apps() -> Result<Json<RespMessage<Vec<ApplicationCard>>>, ConsoleApiError>
+{
     Ok(Json(ok_resp(public_app_catalog().await)))
 }
 

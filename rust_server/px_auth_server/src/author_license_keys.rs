@@ -30,6 +30,7 @@ pub fn init_license_signer() -> Result<LicenseSigner, String> {
             .decode(encoded.trim())
             .map_err(|e| format!("failed to decode {}: {}", PRIVATE_KEY_FILE, e))?;
         let signer = LicenseSigner::from_pkcs8_bytes(&bytes)?;
+        sync_public_key_file(&signer, Path::new(PUBLIC_KEY_FILE))?;
         tracing::info!("loaded license private key from {}", PRIVATE_KEY_FILE);
         return Ok(signer);
     }
@@ -40,19 +41,38 @@ pub fn init_license_signer() -> Result<LicenseSigner, String> {
         PRIVATE_KEY_FILE,
         PRIVATE_KEY_ENV
     );
-    let (private_key, public_key) = LicenseSigner::generate_keypair()?;
+    let (private_key, _) = LicenseSigner::generate_keypair()?;
     let private_b64 = general_purpose::STANDARD.encode(&private_key);
-    let public_b64 = general_purpose::STANDARD.encode(&public_key);
 
     if let Some(parent) = Path::new(PRIVATE_KEY_FILE).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
     std::fs::write(PRIVATE_KEY_FILE, private_b64)
         .map_err(|e| format!("failed to write {}: {}", PRIVATE_KEY_FILE, e))?;
-    std::fs::write(PUBLIC_KEY_FILE, public_b64)
-        .map_err(|e| format!("failed to write {}: {}", PUBLIC_KEY_FILE, e))?;
+    let signer = LicenseSigner::from_pkcs8_bytes(&private_key)?;
+    sync_public_key_file(&signer, Path::new(PUBLIC_KEY_FILE))?;
+    Ok(signer)
+}
 
-    LicenseSigner::from_pkcs8_bytes(&private_key)
+fn sync_public_key_file(signer: &LicenseSigner, path: &Path) -> Result<(), String> {
+    let expected = general_purpose::STANDARD.encode(signer.public_key_bytes());
+    let already_current = std::fs::read_to_string(path)
+        .ok()
+        .is_some_and(|current| current.trim() == expected);
+    if already_current {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create license key directory: {e}"))?;
+    }
+    std::fs::write(path, expected)
+        .map_err(|e| format!("failed to synchronize {}: {}", path.display(), e))?;
+    tracing::warn!(
+        "synchronized license public key from the configured private key: {}",
+        path.display()
+    );
+    Ok(())
 }
 
 /// Returns the base64-encoded public key for distribution to Console instances.
@@ -181,5 +201,23 @@ mod tests {
         unsafe {
             env::remove_var(PRIVATE_KEY_ENV);
         }
+    }
+
+    #[test]
+    fn public_key_file_is_repaired_from_private_signer() {
+        let (private_key, public_key) = LicenseSigner::generate_keypair().unwrap();
+        let signer = LicenseSigner::from_pkcs8_bytes(&private_key).unwrap();
+        let test_dir =
+            env::temp_dir().join(format!("px-auth-public-key-sync-{}", std::process::id()));
+        let public_path = test_dir.join("auth_license_public.key");
+        let _ = std::fs::remove_dir_all(&test_dir);
+        std::fs::create_dir_all(&test_dir).unwrap();
+        std::fs::write(&public_path, "stale-public-key").unwrap();
+
+        sync_public_key_file(&signer, &public_path).unwrap();
+
+        let written = std::fs::read_to_string(&public_path).unwrap();
+        assert_eq!(written, general_purpose::STANDARD.encode(public_key));
+        std::fs::remove_dir_all(test_dir).unwrap();
     }
 }

@@ -3,6 +3,7 @@
 //
 
 #include "create_stream_conn_info_dialog.h"
+#include "connection_policy.h"
 #include <QPointer>
 #include <QValidator>
 #include <QButtonGroup>
@@ -156,6 +157,8 @@ namespace px
             bool direct_online = false;
             //
             if (!conn_info->hosts_.empty()) {
+                direct_host = conn_info->hosts_.front().ip_;
+                direct_port = conn_info->render_srv_port_;
                 for (const auto &host: conn_info->hosts_) {
                     LOGI("Check connecting directly => http://{}:{}/api/ping", host.ip_, conn_info->render_srv_port_);
                     auto client = HttpClient::Make(host.ip_, conn_info->render_srv_port_, "/api/ping", 2000);
@@ -168,44 +171,32 @@ namespace px
                         break;
                     }
                     else {
-                        LOGI("Test connection for adding stream, can't connect: {}:{}", direct_host, direct_port);
+                        LOGI("Test connection for adding stream, can't connect: {}:{}", host.ip_, conn_info->render_srv_port_);
                     }
                 }
             }
 
-            std::string relay_host;
-            int relay_port = 0;
-            std::string relay_appkey;
-
-            if (has_device_id) {
-                relay_host = conn_info->relay_host_;
-                relay_port = conn_info->relay_port_;
-                relay_appkey = conn_info->relay_appkey_;
-                if (relay_host.empty() || relay_port <= 0 || relay_appkey.empty()) {
-                    context_->PostUITask([self]() {
-                        if (!self) {
-                            return;
-                        }
-                        TcDialog dialog(tcTr("id_error"), tcTr("id_dont_have_server_config"), self);
-                        dialog.exec();
-                    });
-                }
-            }
-
-            // this is good
             std::shared_ptr<px_console::ConsoleStream> item = std::make_shared<px_console::ConsoleStream>();
             item->remote_device_id_ = conn_info->device_id_;
             item->remote_device_random_pwd_ = conn_info->random_pwd_;
             item->stream_name_ = name.empty() ? conn_info->device_name_ : name;
             item->stream_host_ = direct_host;
             item->stream_port_ = direct_port;
-            item->relay_host_ = relay_host;
-            item->relay_port_ = relay_port;
-            //item->relay_appkey_ = relay_appkey;
             item->encode_bps_ = 0;
             item->encode_fps_ = 0;
             item->clipboard_enabled_ = true;
+            item->use_webrtc_ = true;
+            item->force_direct_ = true;
             item->direct_online_ = direct_online;
+            if (has_device_id) {
+                // A link:// share is a self-contained password-authenticated
+                // endpoint. It stays usable for a signed-out Panel and never
+                // falls back to the embedded legacy Relay credentials.
+                item->connect_type_ = connection_policy::kSharedLinkDirect;
+            }
+            else {
+                item->connect_type_ = connection_policy::kExplicitDirect;
+            }
             context_->SendAppMessage(StreamItemAdded {
                 .item_ = item,
                 .auto_start_ = true,

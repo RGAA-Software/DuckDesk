@@ -10,7 +10,8 @@ set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 
 if exist "%VSWHERE%" (
-    for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+    for %%V in ("%VSWHERE%") do set "VSWHERE_CMD=%%~sV"
+    for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
         set "VS_INSTALL_DIR=%%i"
     )
 )
@@ -24,7 +25,8 @@ if "%VS_INSTALL_DIR%"=="" (
 
 if "%VS_INSTALL_DIR%"=="" (
     if exist "%VSWHERE%" (
-        for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+        for %%V in ("%VSWHERE%") do set "VSWHERE_CMD=%%~sV"
+        for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[17.0,18.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set "VS_INSTALL_DIR=%%i"
         )
     )
@@ -85,7 +87,9 @@ cmake --build build_official -j18 --target ^
     test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine ^
     px_media_record_new test_record_writer ^
     test_voice_call test_client_voice_call_protocol test_client_virtual_display ^
-    test_records_catalog test_records_ticket test_record_transfer ^
+    test_client_latest_frame_dispatch_queue ^
+    test_records_catalog test_records_ticket test_record_transfer test_console_api_error ^
+    test_stream_item_display ^
     test_common test_http test_cpu
 if errorlevel 1 exit /b %errorlevel%
 

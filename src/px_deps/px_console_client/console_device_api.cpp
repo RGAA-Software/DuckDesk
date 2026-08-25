@@ -3,6 +3,7 @@
 //
 
 #include "console_device_api.h"
+#include "console_api.h"
 #include "console_http_client.h"
 #include "console_server_info.h"
 #include "console_errors.h"
@@ -212,8 +213,10 @@ namespace px_console
         });
 
         if (resp.status != 200 || resp.body.empty()) {
-            LOGE("GetDevice failed: {}, code: {}", device_id, resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            const auto error = ToConsoleApiError(resp);
+            LOGE("GetDevice failed: {}, HTTP status: {}, Console code: {}",
+                 device_id, resp.status, static_cast<int>(error));
+            return TcErr(error);
         }
 
         try {

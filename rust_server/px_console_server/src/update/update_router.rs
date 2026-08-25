@@ -9,12 +9,15 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_update_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_update_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route("/hello", get(handle_hello_world))
         .route(
             "/upload_update_info",
-            post(handle_upload_update_info).layer(middleware::from_fn(console_appkey_filter::filter)),
+            post(handle_upload_update_info)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/query_update_info",

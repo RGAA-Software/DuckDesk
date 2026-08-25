@@ -7,10 +7,10 @@ param(
     [switch]$BlockTurnUdp,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 15,
-    [string]$ConsoleBase = 'http://127.0.0.1:30500',
+    [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
-    [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs')]
+    [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs', 'cdp_game_hook_input.mjs')]
     [string]$DiagnosticScript = 'cdp_webrtc_diag.mjs',
     [string]$EvidenceDir = '',
     [switch]$Quiet,
@@ -26,12 +26,30 @@ $uid = $null
 $rules = [Collections.Generic.List[string]]::new()
 $exitCode = 1
 
+if ($ConsoleBase.StartsWith('https://') -and
+    -not (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
+    # Windows PowerShell 5.1 has no per-request switch. This callback is scoped
+    # to this short-lived acceptance-test process and permits the bundled cert.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+}
+
 function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '') {
     $headers = @{}
     if ($Bearer) { $headers.Authorization = "Bearer $Bearer" }
-    Invoke-RestMethod -Method Post -Uri $Uri -Headers $headers `
-        -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Compress -Depth 12) `
-        -TimeoutSec 30
+    $request = @{
+        Method      = 'Post'
+        Uri         = $Uri
+        Headers     = $headers
+        ContentType = 'application/json'
+        Body        = ($Body | ConvertTo-Json -Compress -Depth 12)
+        TimeoutSec  = 30
+    }
+    if ($Uri.StartsWith('https://') -and
+        (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
+        $request.SkipCertificateCheck = $true
+    }
+    Invoke-RestMethod @request
 }
 
 function ConvertTo-Base64Url([string]$Value) {
@@ -94,6 +112,7 @@ try {
     $env:EXPECT_CANDIDATE_TYPE = $ExpectedCandidate
     $env:EXPECT_RELAY_PROTOCOL = $ExpectedRelayProtocol
     $env:FORCE_RELAY = if ($ExpectedCandidate -eq 'relay') { '1' } else { '0' }
+    $env:RENDER_PORT = [string]$launch.Port
     # A fresh port prevents a detached Chrome from a previous interrupted run
     # from accepting CDP HTTP requests while no longer servicing commands.
     $env:CDP_PORT = [string](Get-Random -Minimum 22000 -Maximum 45000)
@@ -104,7 +123,8 @@ try {
     & node (Join-Path $PSScriptRoot $DiagnosticScript)
     $nodeExitCode = $LASTEXITCODE
     if ($nodeExitCode -ne 0) { throw "RTC diagnostic exited with $nodeExitCode" }
-    if (((Get-Date) - $nodeStarted).TotalSeconds -lt $SampleSeconds) {
+    if ($DiagnosticScript -eq 'cdp_webrtc_diag.mjs' -and
+        ((Get-Date) - $nodeStarted).TotalSeconds -lt $SampleSeconds) {
         throw 'RTC diagnostic exited before completing the requested sample duration'
     }
     $exitCode = 0
@@ -113,7 +133,7 @@ finally {
     foreach ($name in $rules) {
         Remove-NetFirewallRule -Name $name -ErrorAction SilentlyContinue
     }
-    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
+    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
         Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
     }
     if ($uid -and $uid -match '^[A-Za-z0-9_-]+$' -and (Test-Path -LiteralPath $MongoExe)) {

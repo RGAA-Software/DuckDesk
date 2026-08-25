@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 use crate::console_api_error::ConsoleApiError;
 use crate::gAuthManager;
+use crate::gConsoleClientConnMgr;
 use crate::gUserSessionManager;
 use crate::user::session_handler::admin_cookie_values;
 use px_auth_mgr::auth_token::verify_connection_token;
@@ -28,6 +29,15 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
     // force_authorize=false: skip all token checks (local/test deployments).
     if crate::console_settings::is_auth_bypassed().await {
         tracing::info!("ws filter: BYPASS (force_authorize=false) path='{}'", path);
+        if check_max_streams {
+            // The client handler always extracts a StreamReservation. Bypass
+            // authentication, not the handler's connection-slot contract.
+            // Test/local deployments intentionally have no licensed limit.
+            let reservation = gConsoleClientConnMgr
+                .try_reserve_stream(i32::MAX)
+                .expect("unlimited bypass stream reservation");
+            req.extensions_mut().insert(reservation);
+        }
         return next.run(req).await;
     }
     let query = req.uri().query().unwrap_or("");
@@ -119,7 +129,9 @@ pub async fn website_filter(req: Request<Body>, next: Next) -> Response {
 mod tests {
     use super::*;
     use crate::gAuthManager;
+    use crate::net_client::console_client_conn_mgr::StreamReservation;
     use axum::body::Body;
+    use axum::extract::Extension;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;
     use axum::Router;
@@ -145,7 +157,8 @@ mod tests {
     fn client_router() -> Router {
         Router::new().route(
             "/console/client",
-            get(|| async { "ok" }).layer(axum::middleware::from_fn(client_filter)),
+            get(|Extension(_reservation): Extension<StreamReservation>| async { "ok" })
+                .layer(axum::middleware::from_fn(client_filter)),
         )
     }
 

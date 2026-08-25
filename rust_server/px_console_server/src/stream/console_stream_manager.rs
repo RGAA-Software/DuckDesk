@@ -16,7 +16,10 @@ impl ConsoleStreamManager {
         Arc::new(Self {})
     }
 
-    pub async fn insert_stream(&self, stream: ConsoleStream) -> Result<ConsoleStream, ConsoleApiError> {
+    pub async fn insert_stream(
+        &self,
+        stream: ConsoleStream,
+    ) -> Result<ConsoleStream, ConsoleApiError> {
         let stream_id = stream.stream_id.clone();
         let c_stream = gConsoleDatabase.lock().await.stream().clone();
         let r = c_stream.lock().await.insert_one(stream).await;
@@ -47,7 +50,10 @@ impl ConsoleStreamManager {
         }
     }
 
-    pub async fn update_stream(&self, in_stream: ConsoleStream) -> Result<ConsoleStream, ConsoleApiError> {
+    pub async fn update_stream(
+        &self,
+        in_stream: ConsoleStream,
+    ) -> Result<ConsoleStream, ConsoleApiError> {
         let c_stream = gConsoleDatabase.lock().await.stream().clone();
 
         let r = c_stream
@@ -102,7 +108,10 @@ impl ConsoleStreamManager {
         Ok(s)
     }
 
-    pub async fn query_stream_by_id(&self, stream_id: String) -> Result<ConsoleStream, ConsoleApiError> {
+    pub async fn query_stream_by_id(
+        &self,
+        stream_id: String,
+    ) -> Result<ConsoleStream, ConsoleApiError> {
         let c_stream = gConsoleDatabase.lock().await.stream().clone();
         let r = c_stream
             .lock()

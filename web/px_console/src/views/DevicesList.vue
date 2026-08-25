@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notification } from 'ant-design-vue'
+import { useWsStore } from '@/stores/ws.ts'
+import {
+  applyDeviceOnlineStateChanged,
+  parseDeviceOnlineStateChanged,
+} from '@/model/device_online_state.ts'
 
 const router = useRouter()
+const wsStore = useWsStore()
 
 const hardwareDialogVisible = ref(false)
 const currentSelectedDevice = ref<Device>()
@@ -155,6 +161,22 @@ const handleSearchDevices = async () => {
     pageSize.value,
   )
 }
+
+watch(
+  () => wsStore.message,
+  async (message) => {
+    const event = parseDeviceOnlineStateChanged(message)
+    if (!event) return
+
+    // A filtered table may need to add or remove the row entirely. Requery in
+    // that case; the unfiltered table can update the visible row immediately.
+    if (searchOnlineState.value === 'online' || searchOnlineState.value === 'offline') {
+      await handleSearchDevices()
+      return
+    }
+    applyDeviceOnlineStateChanged(devices.value, event)
+  },
+)
 </script>
 
 <template>

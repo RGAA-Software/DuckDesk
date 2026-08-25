@@ -1,15 +1,15 @@
-// Console web smoke (HTTP mode): login bypass via localStorage, visit key pages,
+// Console web smoke (HTTPS/WSS with a self-signed certificate): visit key pages,
 // verify rendering + zero console errors. Usage: node scripts/cdp_console_smoke.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE = 'http://10.0.0.16:30500'
+const BASE = process.env.CONSOLE_URL || 'https://10.0.0.16:30500'
 const APPKEY = '49727717a74720a863f007dcdb13324e'
 const CDP_PORT = 9495
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 const profile = path.join(os.tmpdir(), `cdp-smoke-${Date.now()}`)
-const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--window-size=1600,900', 'about:blank'], { stdio: 'ignore' })
+const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--ignore-certificate-errors', '--window-size=1600,900', 'about:blank'], { stdio: 'ignore' })
 process.on('exit', () => { try { chrome.kill() } catch {} })
 let msgId = 0; const pending = new Map(); let ws
 function cmd(m, p = {}) { return new Promise((res, rej) => { const id = ++msgId; pending.set(id, { res, rej }); ws.send(JSON.stringify({ id, method: m, params: p })) }) }

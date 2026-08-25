@@ -124,7 +124,8 @@ pub async fn handle_update_auth_password(
     b: Body,
 ) -> Result<Json<RespMessage<SanitizedAuthorization>>, ConsoleApiError> {
     let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).map_err(|_| ConsoleApiError::InvalidParams)?;
+    let r: Value =
+        serde_json::from_str(body.as_str()).map_err(|_| ConsoleApiError::InvalidParams)?;
     let password = get_body_str(&r, KEY_PASSWORD)?;
     let current_password = get_body_str(&r, KEY_CURRENT_PASSWORD)?;
     if password.is_empty() {

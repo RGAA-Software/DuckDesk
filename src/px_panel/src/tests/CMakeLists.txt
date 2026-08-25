@@ -40,3 +40,17 @@ target_link_libraries(test_records_ticket PRIVATE GTest::gtest GTest::gtest_main
 add_executable(test_record_transfer test_record_transfer.cpp
         ../render_panel/network/record_transfer.cpp)
 target_link_libraries(test_record_transfer PRIVATE GTest::gtest GTest::gtest_main)
+
+add_executable(test_connection_policy test_connection_policy.cpp)
+target_link_libraries(test_connection_policy PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME panel_connection_policy COMMAND test_connection_policy)
+
+add_executable(test_console_api_error test_console_api_error.cpp)
+target_link_libraries(test_console_api_error PRIVATE
+        GTest::gtest GTest::gtest_main px_console_client px_common_new)
+add_test(NAME panel_console_api_error COMMAND test_console_api_error)
+
+add_executable(test_stream_item_display test_stream_item_display.cpp)
+target_link_libraries(test_stream_item_display PRIVATE
+        GTest::gtest GTest::gtest_main px_console_client px_common_new)
+add_test(NAME panel_stream_item_display COMMAND test_stream_item_display)

@@ -6,6 +6,7 @@ No intermediate CMake copy steps required.
 """
 
 import argparse
+import filecmp
 import os
 import shutil
 import sys
@@ -77,7 +78,20 @@ def copy_tree(src: str, dst: str):
 def copy_file(src: str, dst: str):
     if os.path.isfile(src):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy2(src, dst)
+        if os.path.isfile(dst) and filecmp.cmp(src, dst, shallow=False):
+            print(f"  = {os.path.relpath(dst, dist_dir)} (already current)")
+            return
+        try:
+            shutil.copy2(src, dst)
+        except PermissionError:
+            # Python 3.14 uses Windows CopyFile2 for copy2(). CopyFile2 can
+            # reject a stopped service's registered executable path even when
+            # no process has an open handle; a normal streamed overwrite is
+            # accepted by Windows in that case. A real sharing violation still
+            # fails when either file is opened below and remains visible.
+            with open(src, "rb") as source, open(dst, "wb") as destination:
+                shutil.copyfileobj(source, destination, length=1024 * 1024)
+            shutil.copystat(src, dst)
         print(f"  + {os.path.relpath(dst, dist_dir)}")
     else:
         print(f"  - missing: {src}")

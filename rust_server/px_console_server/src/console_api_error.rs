@@ -158,7 +158,10 @@ impl IntoResponse for ConsoleApiError {
         if let Ok(value) = HeaderValue::from_str(&request_id) {
             response.headers_mut().insert("x-request-id", value);
         }
-        if matches!(self, ConsoleApiError::RateLimited | ConsoleApiError::QuotaExceeded) {
+        if matches!(
+            self,
+            ConsoleApiError::RateLimited | ConsoleApiError::QuotaExceeded
+        ) {
             response
                 .headers_mut()
                 .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
@@ -239,11 +242,17 @@ impl ConsoleApiError {
             | ConsoleApiError::TokenInvalid
             | ConsoleApiError::AuthenticationRequired
             | ConsoleApiError::InvalidCredentials => StatusCode::UNAUTHORIZED,
-            ConsoleApiError::MaxStreamsReached | ConsoleApiError::Forbidden => StatusCode::FORBIDDEN,
+            ConsoleApiError::MaxStreamsReached | ConsoleApiError::Forbidden => {
+                StatusCode::FORBIDDEN
+            }
             ConsoleApiError::VersionConflict => StatusCode::CONFLICT,
-            ConsoleApiError::GroupNotFound | ConsoleApiError::ResourceNotFound => StatusCode::NOT_FOUND,
+            ConsoleApiError::GroupNotFound | ConsoleApiError::ResourceNotFound => {
+                StatusCode::NOT_FOUND
+            }
             ConsoleApiError::TicketExpiredOrUsed => StatusCode::GONE,
-            ConsoleApiError::RateLimited | ConsoleApiError::QuotaExceeded => StatusCode::TOO_MANY_REQUESTS,
+            ConsoleApiError::RateLimited | ConsoleApiError::QuotaExceeded => {
+                StatusCode::TOO_MANY_REQUESTS
+            }
             ConsoleApiError::DeviceOffline => StatusCode::SERVICE_UNAVAILABLE,
             ConsoleApiError::RequestTimeout => StatusCode::GATEWAY_TIMEOUT,
             ConsoleApiError::InvalidAuthorization

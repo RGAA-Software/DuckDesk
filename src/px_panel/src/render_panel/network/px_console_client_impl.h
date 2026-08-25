@@ -321,9 +321,8 @@ namespace px
             std::thread([weak_self, expected_revision]() {
                 const auto self = weak_self.lock();
                 if (!self) return;
-                auto client = self->settings_->IsConsoleSslEnabled()
-                    ? HttpClient::MakeSSL(self->host_, self->port_, "/api/v1/rtc/ice-config", 5000)
-                    : HttpClient::Make(self->host_, self->port_, "/api/v1/rtc/ice-config", 5000);
+                auto client = HttpClient::MakeSSL(
+                    self->host_, self->port_, "/api/v1/rtc/ice-config", 5000);
                 client->SetHeader("x-px-appkey", grApp->GetAppkey());
                 const auto response = client->Request();
                 if (response.status == 200) {

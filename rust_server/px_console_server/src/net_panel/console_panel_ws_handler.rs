@@ -1,5 +1,7 @@
 use crate::console_context::ConsoleContext;
+use crate::gConsoleCMMgr;
 use crate::gConsolePanelConnMgr;
+use crate::net_cm::DeviceOnlineStateChanged;
 use crate::net_panel::console_panel_conn::ConsolePanelConn;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, Query, State, WebSocketUpgrade};
@@ -62,6 +64,7 @@ async fn handle_socket(
         gConsolePanelConnMgr
             .add_conn(device_id.clone(), console_conn.clone())
             .await;
+        notify_device_online_state(&device_id, true).await;
 
         while let Some(Ok(msg)) = receiver.next().await {
             // print message and break if instructed to do so
@@ -74,7 +77,17 @@ async fn handle_socket(
         }
 
         // remove
-        gConsolePanelConnMgr.remove_conn(device_id).await;
+        if gConsolePanelConnMgr
+            .remove_conn(device_id.clone(), &console_conn)
+            .await
+        {
+            notify_device_online_state(&device_id, false).await;
+        } else {
+            tracing::debug!(
+                device_id = %device_id,
+                "stale panel connection closed after a newer connection replaced it"
+            );
+        }
     });
 
     tokio::select! {
@@ -87,6 +100,21 @@ async fn handle_socket(
             }
             recv_task.abort();
         },
+    }
+}
+
+async fn notify_device_online_state(device_id: &str, online: bool) {
+    match serde_json::to_string(&DeviceOnlineStateChanged::new(
+        device_id.to_string(),
+        online,
+    )) {
+        Ok(message) => gConsoleCMMgr.notify_data(message).await,
+        Err(error) => tracing::error!(
+            device_id,
+            online,
+            %error,
+            "failed to serialize device online state event"
+        ),
     }
 }
 

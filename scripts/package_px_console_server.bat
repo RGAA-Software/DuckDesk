@@ -71,14 +71,11 @@ call "%~dp0\ensure_tls_cert.bat" "%CERT_DIR%"
 if errorlevel 1 exit /b 1
 echo.
 
-:: --- 2. Copy Ed25519 license public key from packaged px_auth_server ---
-if exist "%CERT_DIR%\auth_license_public.key" (
-    echo [2/5] License public key already exists, skipping copy.
-    goto :license_key_done
-)
-
+:: --- 2. Always refresh the Ed25519 public key from the packaged auth server.
+:: The auth private key is the authority; retaining a stale Console public key
+:: makes newly issued licenses fail signature verification.
 if exist "%AUTH_SERVER_OUTPUT%\certs\auth_license_public.key" (
-    echo [2/5] Copying license public key from packaged px_auth_server...
+    echo [2/5] Refreshing license public key from packaged px_auth_server...
     copy /Y "%AUTH_SERVER_OUTPUT%\certs\auth_license_public.key" "%CERT_DIR%\auth_license_public.key" >nul
     if errorlevel 1 (
         echo ERROR: Failed to copy auth_license_public.key.
@@ -94,7 +91,6 @@ if exist "%AUTH_SERVER_OUTPUT%\certs\auth_license_public.key" (
     echo        Alternatively set the PX_AUTH_LICENSE_PUBLIC_KEY env var.
 )
 
-:license_key_done
 echo.
 
 :: --- 3. Build Console frontend ---

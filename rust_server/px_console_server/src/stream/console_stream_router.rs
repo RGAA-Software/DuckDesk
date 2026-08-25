@@ -9,7 +9,9 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_stream_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_stream_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route(
             "/insert",
@@ -25,11 +27,13 @@ pub fn make_stream_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mut
         )
         .route(
             "/query/by/id",
-            get(handle_query_stream_by_id).layer(middleware::from_fn(console_appkey_filter::filter)),
+            get(handle_query_stream_by_id)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/query/by/name",
-            get(handle_query_stream_by_name).layer(middleware::from_fn(console_appkey_filter::filter)),
+            get(handle_query_stream_by_name)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/query/streams",

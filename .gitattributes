@@ -1,1 +1,3 @@
+build_px_auth_server.bat text eol=crlf
 build_px_console_server.bat text eol=crlf
+build_px_desk_server.bat text eol=crlf

@@ -19,7 +19,6 @@ namespace px
 {
 
     class PxContext;
-    class PxSettings;
     class MessageListener;
 
     using OnStreamStateCheckedCallback = std::function<void(std::vector<std::shared_ptr<px_console::ConsoleStream>>)>;
@@ -35,7 +34,6 @@ namespace px
         void CheckState(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items);
 
     private:
-        PxSettings* settings_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         OnStreamStateCheckedCallback on_checked_cbk_;

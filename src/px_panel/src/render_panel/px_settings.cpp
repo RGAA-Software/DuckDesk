@@ -60,9 +60,9 @@ namespace px
             file_transfer_folder_ = qApp->applicationDirPath().toStdString();
         }
 
-        // sync the console ssl switch into the console api libraries
-        px_console::SetConsoleSslEnabled(IsConsoleSslEnabled());
-        ProfileApi::SetSslEnabled(IsConsoleSslEnabled());
+        // Console is TLS-only. Normalize stale pre-migration settings before
+        // any API or WebSocket client is created.
+        SetConsoleSslEnabled(true);
     }
 
     void PxSettings::Dump() {
@@ -540,32 +540,29 @@ namespace px
     }
 
     void PxSettings::SetConsoleSslEnabled(bool enabled) {
-        sp_->Put(kStConsoleSslEnable, enabled ? kStTrue : kStFalse);
-        // sync the switch into the console api libraries
-        px_console::SetConsoleSslEnabled(enabled);
-        ProfileApi::SetSslEnabled(enabled);
+        if (!enabled) {
+            LOGW("Ignoring legacy request to disable Console TLS");
+        }
+        sp_->Put(kStConsoleSslEnable, kStTrue);
+        // Native clients intentionally accept the deployment's self-signed
+        // certificate, but the transport to Console is always HTTPS/WSS.
+        px_console::SetConsoleSslEnabled(true);
+        ProfileApi::SetSslEnabled(true);
     }
 
     bool PxSettings::IsConsoleSslEnabled() {
-        auto value = sp_->Get(kStConsoleSslEnable);
-        if (value.empty()) {
-            value = sp_->Get(kLegacyStCmsSslEnable);
-            if (!value.empty()) {
-                sp_->Put(kStConsoleSslEnable, value);
-            }
+        if (sp_->Get(kStConsoleSslEnable) != kStTrue) {
+            sp_->Put(kStConsoleSslEnable, kStTrue);
         }
-        return value.empty() || value == kStTrue;
+        return true;
     }
 
     std::shared_ptr<HttpClient> PxSettings::MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms) {
-        if (Instance()->IsConsoleSslEnabled()) {
-            return HttpClient::MakeSSL(host, port, path, timeout_ms);
-        }
-        return HttpClient::Make(host, port, path, timeout_ms);
+        return HttpClient::MakeSSL(host, port, path, timeout_ms);
     }
 
     std::string PxSettings::GetConsoleHttpScheme() {
-        return Instance()->IsConsoleSslEnabled() ? "https" : "http";
+        return "https";
     }
 
     void PxSettings::SetSkinName(const std::string& name) {

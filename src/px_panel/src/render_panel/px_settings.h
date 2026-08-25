@@ -276,9 +276,9 @@ namespace px
         void SetConsoleSslEnabled(bool enabled);
         bool IsConsoleSslEnabled();
 
-        // make a http(s) client to Console, scheme selected by IsConsoleSslEnabled()
+        // Make an HTTPS client to Console.
         static std::shared_ptr<HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
-        // "https" / "http" selected by IsConsoleSslEnabled()
+        // Always returns "https" for Console.
         static std::string GetConsoleHttpScheme();
 
         // skin name

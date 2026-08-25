@@ -3,7 +3,8 @@
 use crate::console_api_error::ConsoleApiError;
 use crate::gConsoleDatabase;
 use crate::record::console_render_record::{
-    make_record_id, ConsoleRenderRecord, RECORD_STATE_ERROR, RECORD_STATE_FETCHING, RECORD_STATE_READY,
+    make_record_id, ConsoleRenderRecord, RECORD_STATE_ERROR, RECORD_STATE_FETCHING,
+    RECORD_STATE_READY,
 };
 use futures_util::StreamExt;
 use mongodb::bson::doc;
@@ -63,7 +64,9 @@ impl ConsoleRenderRecordManager {
     }
 
     /// all records, oldest updated first (cleanup scans)
-    pub async fn query_all_oldest_first(&self) -> Result<Vec<ConsoleRenderRecord>, ConsoleApiError> {
+    pub async fn query_all_oldest_first(
+        &self,
+    ) -> Result<Vec<ConsoleRenderRecord>, ConsoleApiError> {
         let coll = gConsoleDatabase.lock().await.records();
         let cursor = coll
             .lock()

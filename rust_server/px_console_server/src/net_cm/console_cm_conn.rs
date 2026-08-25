@@ -1,6 +1,8 @@
 use crate::console_context::ConsoleContext;
 use crate::gConsolePanelConnMgr;
-use crate::net_cm::console_cm_message::{CmMessage, StreamHardwareInfoResp, StreamHardwarePieceResp};
+use crate::net_cm::console_cm_message::{
+    CmMessage, StreamHardwareInfoResp, StreamHardwarePieceResp,
+};
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
@@ -50,7 +52,9 @@ impl ConsoleCmConn {
                     continue;
                 }
 
-                let r = gConsolePanelConnMgr.get_conn(target_device_id.clone()).await;
+                let r = gConsolePanelConnMgr
+                    .get_conn(target_device_id.clone())
+                    .await;
                 if let Err(_err) = r {
                     //tracing::error!("error getting conn: {}", err);
                     fn_delay_1s.await;

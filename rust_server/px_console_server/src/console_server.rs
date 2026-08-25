@@ -13,6 +13,7 @@ use axum::{Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use px_base::{get_current_timestamp, RespMessage};
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
@@ -54,6 +55,15 @@ pub struct ConsoleServer {
     pub port: u16,
 }
 
+fn resolve_runtime_path(runtime_dir: &Path, configured_path: &str) -> PathBuf {
+    let path = Path::new(configured_path);
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        runtime_dir.join(path)
+    }
+}
+
 fn allow_ticket_renewal_origin(origin: &str, path: &str) -> bool {
     path == "/api/v1/connection-tickets/renew"
         && (origin.starts_with("http://") || origin.starts_with("https://"))
@@ -71,34 +81,24 @@ impl ConsoleServer {
         let web_console_dir = current_dir.join("web");
         tracing::info!("assets_dir: {:?}", &web_console_dir);
 
-        let ssl_enable = gConsoleSettings.lock().await.ssl_enable;
-        tracing::info!("ssl_enable: {}", ssl_enable);
+        let (ssl_cert, ssl_key) = {
+            let settings = gConsoleSettings.lock().await;
+            (settings.ssl_cert.clone(), settings.ssl_key.clone())
+        };
+        let cert_path = resolve_runtime_path(current_dir, &ssl_cert);
+        let key_path = resolve_runtime_path(current_dir, &ssl_key);
+        tracing::info!(path = %cert_path.display(), "loading Console TLS certificate");
 
-        // configure certificate and private key used by https (ssl_enable=false 时跳过,
-        // 局域网纯 HTTP 部署允许不部署证书)
-        let tls_config = if ssl_enable {
-            let cp = current_dir.to_string_lossy().to_string()
-                + "/"
-                + gConsoleSettings.lock().await.ssl_cert.as_str(); //.join("certs").join("cert.pem");
-            let kp = current_dir.to_string_lossy().to_string()
-                + "/"
-                + gConsoleSettings.lock().await.ssl_key.as_str(); //.join("certs").join("key.pem");
-            tracing::info!("cp: {:?}", &cp);
-            tracing::info!("cp: {:?}", &kp);
-
-            let config = RustlsConfig::from_pem_file(
-                current_dir.join("certs").join("cert.pem"),
-                current_dir.join("certs").join("key.pem"),
-            )
-            .await;
-
-            if let Err(e) = config {
-                tracing::error!("==> {}", e);
+        let tls_config = match RustlsConfig::from_pem_file(&cert_path, &key_path).await {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::error!(
+                    cert = %cert_path.display(),
+                    key = %key_path.display(),
+                    "failed to load Console TLS certificate: {error}"
+                );
                 return;
             }
-            Some(config.unwrap())
-        } else {
-            None
         };
         let context = gConsoleContext.clone();
 
@@ -139,8 +139,14 @@ impl ConsoleServer {
             // authorization
             .nest("/api/v1/auth/control", make_auth_router(context.clone()))
             // console
-            .nest("/api/v1/console/control", make_console_router(context.clone()))
-            .nest(LEGACY_CMS_CONTROL_PATH, make_console_router(context.clone()))
+            .nest(
+                "/api/v1/console/control",
+                make_console_router(context.clone()),
+            )
+            .nest(
+                LEGACY_CMS_CONTROL_PATH,
+                make_console_router(context.clone()),
+            )
             // user
             .nest("/api/v1/session", make_session_router(context.clone()))
             .route(
@@ -263,27 +269,11 @@ impl ConsoleServer {
             .with_state(context.clone());
 
         let addr = SocketAddr::from(([0, 0, 0, 0], self.port));
-        match tls_config {
-            Some(config) => {
-                tracing::info!("https.listening on {}", addr);
-                axum_server::bind_rustls(addr, config)
-                    .serve(router.into_make_service_with_connect_info::<SocketAddr>())
-                    .await
-                    .unwrap();
-            }
-            None => {
-                // 局域网纯 HTTP 部署(ssl_enable=false):页面内嵌 http:// 设备内容
-                // (panel 录像、render 托管的 web client)不被混合内容拦截
-                tracing::info!("http.listening on {} (ssl_enable=false)", addr);
-                let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-                axum::serve(
-                    listener,
-                    router.into_make_service_with_connect_info::<SocketAddr>(),
-                )
-                .await
-                .unwrap();
-            }
-        }
+        tracing::info!("https.listening on {}", addr);
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .unwrap();
     }
 
     pub async fn ping(State(_ctx): State<Arc<Mutex<ConsoleContext>>>) -> Json<RespMessage<String>> {
@@ -298,7 +288,8 @@ impl ConsoleServer {
 
 #[cfg(test)]
 mod cors_tests {
-    use super::allow_ticket_renewal_origin;
+    use super::{allow_ticket_renewal_origin, resolve_runtime_path};
+    use std::path::Path;
 
     #[test]
     fn cross_origin_is_limited_to_rotating_ticket_renewal() {
@@ -314,5 +305,18 @@ mod cors_tests {
             "null",
             "/api/v1/connection-tickets/renew"
         ));
+    }
+
+    #[test]
+    fn tls_paths_are_resolved_relative_to_the_console_runtime() {
+        let runtime = Path::new("C:/Pixels/Console");
+        assert_eq!(
+            resolve_runtime_path(runtime, "certs/cert.pem"),
+            runtime.join("certs/cert.pem")
+        );
+        assert_eq!(
+            resolve_runtime_path(runtime, "D:/certificates/console.pem"),
+            Path::new("D:/certificates/console.pem")
+        );
     }
 }

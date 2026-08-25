@@ -15,7 +15,10 @@ impl UpdateInfoManager {
         Arc::new(Self {})
     }
 
-    pub async fn insert_update_info(&self, info: UpdateInfo) -> Result<UpdateInfo, ConsoleApiError> {
+    pub async fn insert_update_info(
+        &self,
+        info: UpdateInfo,
+    ) -> Result<UpdateInfo, ConsoleApiError> {
         let version = info.version.clone();
 
         let c_update_info = gConsoleDatabase.lock().await.update_info();

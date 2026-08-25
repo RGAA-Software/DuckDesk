@@ -13,7 +13,7 @@ namespace px
     class PxContext;
 
     // Between Panel <-> Console
-    // Created by Make(), which picks a ws/wss client by PxSettings::IsConsoleSslEnabled().
+    // Created by Make(); Console transport is always WSS.
     class PxConsoleClient {
     public:
         virtual ~PxConsoleClient() = default;

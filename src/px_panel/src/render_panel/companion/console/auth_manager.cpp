@@ -97,8 +97,7 @@ namespace px
         }
 
         const auto path = std::format("/api/v1/auth/control/get/authorization?appkey={}", cached_auth->appkey_);
-        auto client = settings->ssl_enable_ ? HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000)
-                                            : HttpClient::Make(settings->host_, settings->port_, path, 2000);
+        auto client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
         auto resp = client->Request();
         if (resp.status != 200) {
             return nullptr;
@@ -173,8 +172,7 @@ namespace px
         }
 
         cat path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth->appkey_);
-        cat client = settings->ssl_enable_ ? HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000)
-                                           : HttpClient::Make(settings->host_, settings->port_, path, 2000);
+        cat client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
         cat resp = client->Request();
         if (resp.status != 200) {
             return false;

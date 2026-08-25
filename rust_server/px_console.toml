@@ -33,6 +33,11 @@ ssl_cert = "certs/cert.pem"
 
 ## key.pem
 ssl_key = "certs/key.pem"
+
+# Console is the only public TLS endpoint. Panel, Windows clients and the
+# Windows service connect to this port with HTTPS/WSS. Render and local IPC
+# keep their existing HTTP/WS transports.
+ssl_enable = true
 privacy_hash_salt = "local-test-only-privacy-salt"
 
 # 授权服务器地址（px_auth_server）

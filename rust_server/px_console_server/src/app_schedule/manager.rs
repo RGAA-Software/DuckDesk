@@ -4,8 +4,8 @@
 use crate::gConsoleServiceConnMgr;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use protocol::console_service::{
-    ConsoleServiceStartAppInstance, ConsoleServiceStartAppInstanceResult, ConsoleServiceStopAppInstance,
-    ConsoleServiceStopAppInstanceResult,
+    ConsoleServiceStartAppInstance, ConsoleServiceStartAppInstanceResult,
+    ConsoleServiceStopAppInstance, ConsoleServiceStopAppInstanceResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1184,7 +1184,10 @@ impl AppScheduleManager {
                     Err(format!("节点的机器均不在线: {}", offline.join(", ")))
                 };
             };
-            match gConsoleServiceConnMgr.get_conn(node.device_id.clone()).await {
+            match gConsoleServiceConnMgr
+                .get_conn(node.device_id.clone())
+                .await
+            {
                 Ok(conn) => {
                     if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
                         tracing::warn!("persist instance failed: {e}");
@@ -1348,7 +1351,10 @@ impl AppScheduleManager {
         if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
             tracing::warn!("persist instance failed: {e}");
         }
-        let conn = match gConsoleServiceConnMgr.get_conn(node.device_id.clone()).await {
+        let conn = match gConsoleServiceConnMgr
+            .get_conn(node.device_id.clone())
+            .await
+        {
             Ok(c) => c,
             Err(_) => {
                 let snapshot = {
@@ -1705,7 +1711,11 @@ impl AppScheduleManager {
         }
     }
 
-    pub async fn on_stop_result(&self, device_id: String, result: ConsoleServiceStopAppInstanceResult) {
+    pub async fn on_stop_result(
+        &self,
+        device_id: String,
+        result: ConsoleServiceStopAppInstanceResult,
+    ) {
         let already_gone = !result.ok
             && (result.error.contains("unknown instance_id")
                 || result.error.contains("unknown instance"));

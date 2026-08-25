@@ -10,7 +10,9 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_console_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_console_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route("/servers/config", get(get_servers_config))
         .route("/gen/access/info", get(gen_access_info))

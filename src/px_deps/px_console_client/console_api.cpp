@@ -26,7 +26,7 @@ namespace px_console
     // Otherwise map the http status explicitly instead of casting it to a business code:
     //   401 -> authorization invalid/expired (appkey or license check failed)
     //   403 -> max streams reached, no available connection
-    static ConsoleApiError ToConsoleApiError(const px::HttpResponse& resp) {
+    ConsoleApiError ToConsoleApiError(const px::HttpResponse& resp) {
         SetConsoleApiLastErrorMessage("");
         if (!resp.body.empty()) {
             try {

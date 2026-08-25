@@ -87,7 +87,10 @@ pub fn get_str_param_allow_empty(
     query: &Query<HashMap<String, String>>,
     key: &str,
 ) -> Result<String, ConsoleApiError> {
-    query.get(key).cloned().ok_or(ConsoleApiError::InvalidParams)
+    query
+        .get(key)
+        .cloned()
+        .ok_or(ConsoleApiError::InvalidParams)
 }
 
 pub fn get_int_param(query: &HashMap<String, String>, key: &str) -> Result<i32, ConsoleApiError> {

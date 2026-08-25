@@ -100,6 +100,7 @@ for %%t in (
 for %%t in (
     test_client_voice_call_protocol
     test_client_virtual_display
+    test_client_latest_frame_dispatch_queue
 ) do (
     echo ===== %%t ===== >> "%LOG%" 2>&1
     if exist "%CLIENT_TEST_DIR%\%%t.exe" (

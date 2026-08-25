@@ -13,7 +13,8 @@ namespace px
     class ClientContext;
     class ThunderSdk;
 
-    // Console connection client, the transport(ws/wss) is selected by the ssl flag in Make().
+    // Console connection client. The legacy ssl argument remains ABI-compatible,
+    // but Console transport is always WSS.
     class CtConsoleClient {
     public:
         virtual ~CtConsoleClient() = default;

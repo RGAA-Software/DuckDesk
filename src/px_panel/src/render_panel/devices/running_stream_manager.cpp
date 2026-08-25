@@ -3,6 +3,7 @@
 //
 
 #include "running_stream_manager.h"
+#include "connection_policy.h"
 #include <QApplication>
 #include <QDateTime>
 #include <QProcessEnvironment>
@@ -10,23 +11,17 @@
 #include <filesystem>
 #include <algorithm>
 
-#include "px_device_manager.h"
 #include "px_common_new/base64.h"
 #include "px_common_new/folder_util.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_context.h"
 #include "px_common_new/log.h"
-#include "px_common_new/const_auto.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
-#include "px_profile_client/profile_api.h"
 #include "px_qt_widget/px_dialog.h"
 #include "start_stream_loading.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
-#include "render_panel/companion/panel_companion.h"
-#include "render_panel/console/px_console_manager.h"
-#include "px_console_client/console_device.h"
 #include "px_client_panel_message.pb.h"
 #include "render_panel/network/ws_panel_server.h"
 #include "render_panel/user/px_user_manager.h"
@@ -99,8 +94,7 @@ namespace px
 
     bool RunningStreamManager::RefreshConsoleTicket(
         const std::shared_ptr<px_console::ConsoleStream>& item) {
-        if (!item || (item->connect_type_ != "console_ticket"
-                      && item->connect_type_ != "console_app_ticket")) {
+        if (!item || !connection_policy::IsConsoleTicket(item->connect_type_)) {
             return false;
         }
         const auto user_manager = grApp->GetUserManager();
@@ -118,7 +112,7 @@ namespace px
                 permissions.insert(permissions.end(), {"clipboard", "audio"});
             }
         }
-        auto result = item->connect_type_ == "console_app_ticket"
+        auto result = item->connect_type_ == connection_policy::kConsoleAppTicket
             ? user_manager->IssueInstanceTicket(item->console_instance_id_, nonce, permissions)
             : user_manager->IssueDeviceTicket(item->remote_device_id_, nonce, permissions);
         if (!result.has_value()) {
@@ -228,7 +222,9 @@ namespace px
         }
         loading_dialogs_.insert({stream_id, loading});
         const auto weak_self = weak_from_this();
-        QTimer::singleShot(10000, context_.get(), [weak_self, stream_id, network_type]() {
+        const bool allow_standard_fallback = connection_policy::IsConsoleTicket(item->connect_type_);
+        QTimer::singleShot(10000, context_.get(),
+                          [weak_self, stream_id, network_type, allow_standard_fallback]() {
             const auto self = weak_self.lock();
             if (!self) {
                 return;
@@ -238,7 +234,13 @@ namespace px
                 self->loading_dialogs_.erase(stream_id);
             }
             if (network_type == kStreamItemNtTypeWebRTCDirect) {
-                self->FallbackDirectRtc(stream_id, "connect timeout");
+                if (allow_standard_fallback) {
+                    self->FallbackDirectRtc(stream_id, "connect timeout");
+                }
+                else {
+                    LOGW("Explicit direct RTC connection timed out; Console fallback is disabled: {}",
+                         stream_id);
+                }
             }
         });
 
@@ -253,81 +255,24 @@ namespace px
             }
         };
 
-        const bool uses_console_ticket = item->connect_type_ == "console_ticket"
-                                  || item->connect_type_ == "console_app_ticket";
-        bool has_console_info = !item->remote_device_id_.empty() && !settings_->GetConsoleServerHost().empty() && settings_->GetConsoleServerPort() > 0;
-        // check the authorization
-        // NOT force direct
-        // A Console connection ticket has already passed identity, application
-        // access and quota checks. Do not reject guest/public-application
-        // launches with the legacy device-license checks below.
-        if (!uses_console_ticket && has_console_info && !item->force_direct_) {
-            // check network firstly
-            if (!context_->GetApplication()->CanConnectConsoleServer()) {
-                func_hide_loading_dialog();
-                TcDialog dialog(tcTr("id_error"), tcTr("id_net_error_no_console_connection"), nullptr);
-                dialog.exec();
-                return;
-            }
-
-            // check authorization secondly
-            if (cat companion = context_->GetApplication()->GetCompanion(); companion) {
-                if (!companion->IsAuthValid()) {
-                    func_hide_loading_dialog();
-                    TcDialog dialog(tcTr("id_error"), tcTr("id_auth_invalid"), nullptr);
-                    dialog.exec();
-                    return;
-                }
-            }
+        const auto launch_policy = connection_policy::Classify(
+            item->connect_type_, item->remote_device_id_, item->stream_host_, item->stream_port_);
+        if (launch_policy == connection_policy::LaunchPolicy::kReject) {
+            func_hide_loading_dialog();
+            LOGE("Reject unsupported stream launch policy: type={}, remote_device_id={}, endpoint={}:{}",
+                 item->connect_type_, item->remote_device_id_, item->stream_host_, item->stream_port_);
+            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"), nullptr);
+            dialog.exec();
+            return;
         }
-
-        // NOT in force connecting directly mode, check the Console server.
-        if (!uses_console_ticket && !item->force_direct_) {
-            if (grApp->GetSkinName() != "OpenSource" && !item->remote_device_id_.empty()/* && !direct*/) {
-                // 1. check available or not
-                auto ac = context_->GetConsoleManager()->QueryNewConnection(false);
-                if (ac == std::nullopt) {
-                    func_hide_loading_dialog();
-                    LOGE("Not available connection for : {}", item->remote_device_id_);
-                    return;
-                }
-                auto c = ac.value();
-                if (!c.available_) {
-                    context_->PostTask([ctx = context_, stream_id]() {
-                        ctx->SendAppMessage(MsgNoAvailableConnection {
-                            .stream_id_ = stream_id,
-                        });
-                    });
-
-                    func_hide_loading_dialog();
-
-                    const QString msg = tcTr("id_no_available_connection");
-                    no_conn_dialog_ = std::make_shared<TcDialog>(tcTr("id_error"), msg);
-                    no_conn_dialog_->show();
-
-                    return;
-                }
-            }
-        }
-
-        if (!uses_console_ticket && has_console_info && !item->force_direct_) {
-            // 2. check alive or not
-            cat device_mgr = context_->GetApplication()->GetDeviceManager();
-            if (auto r = device_mgr->QueryDevice(item->remote_device_id_); r.has_value()) {
-                cat remote_device = r.value();
-                if (!remote_device->active_) {
-                    func_hide_loading_dialog();
-                    TcDialog dialog(tcTr("id_warning"), tcTr("id_device_inactive"), nullptr);
-                    dialog.exec();
-                    return;
-                }
-            }
-            else {
-                func_hide_loading_dialog();
-                TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_get_remote_device_info"), nullptr);
-                dialog.exec();
-                return;
-            }
+        const bool uses_console_ticket = launch_policy == connection_policy::LaunchPolicy::kConsoleTicket;
+        if (uses_console_ticket
+            && (item->connection_ticket_.empty() || item->connection_nonce_.empty())) {
+            func_hide_loading_dialog();
+            LOGE("Reject Console stream without ticket or nonce: {}", item->stream_id_);
+            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"), nullptr);
+            dialog.exec();
+            return;
         }
 
         std::string screen_recording_path = settings_->GetScreenRecordingPath();

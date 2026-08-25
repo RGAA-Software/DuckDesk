@@ -34,3 +34,38 @@ pub struct StreamHardwarePieceResp {
     pub device_id: String,
     pub sys_info: SysInfo,
 }
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DeviceOnlineStateChanged {
+    pub msg_type: String,
+    pub device_id: String,
+    pub online: bool,
+}
+
+impl DeviceOnlineStateChanged {
+    pub fn new(device_id: String, online: bool) -> Self {
+        Self {
+            msg_type: "device_online_state_changed".to_string(),
+            device_id,
+            online,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeviceOnlineStateChanged;
+
+    #[test]
+    fn device_online_event_has_stable_websocket_shape() {
+        let event = DeviceOnlineStateChanged::new("device-1".to_string(), true);
+        assert_eq!(
+            serde_json::to_value(event).unwrap(),
+            serde_json::json!({
+                "msg_type": "device_online_state_changed",
+                "device_id": "device-1",
+                "online": true
+            })
+        );
+    }
+}

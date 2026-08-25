@@ -14,12 +14,12 @@ mod console_settings;
 
 mod app_schedule;
 mod auth;
+mod config;
+mod connection_ticket;
 mod console_database;
 mod console_http_util;
 mod console_relay;
 mod console_router;
-mod config;
-mod connection_ticket;
 mod event;
 mod identity;
 mod interact;
@@ -178,7 +178,10 @@ fn run_as_system_service(_machine_code: String) {}
 
 fn run_as_panel(machine_code: String) {
     // log
-    let _guard = log_util::init_log("logs/px_console/".to_string(), "log_console_panel".to_string());
+    let _guard = log_util::init_log(
+        "logs/px_console/".to_string(),
+        "log_console_panel".to_string(),
+    );
     let previous_panic_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         tracing::error!("Console panel panicked: {panic_info}");
@@ -382,7 +385,11 @@ async fn run_as_server(machine_code: String) {
     crate::auth::console_auth_pull::start_pull_loop().await;
 
     let port = gConsoleSettings.lock().await.udp_broadcast_port;
-    gConsoleContext.lock().await.broadcast_access_info(port).await;
+    gConsoleContext
+        .lock()
+        .await
+        .broadcast_access_info(port)
+        .await;
     tracing::info!("broadcast port at: {}", port);
 
     // gConsoleContext

@@ -1,6 +1,6 @@
+use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::console_api_error::ConsoleApiError;
 use crate::gAuthManager;
-use crate::connection_ticket::manager::ConnectionTicketManager;
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
@@ -70,8 +70,8 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     // the same ticket when it processes the SDP offer.
     if path == "/relay" {
         let query = req.uri().query().unwrap_or("");
-        let params = serde_urlencoded::from_str::<HashMap<String, String>>(query)
-            .unwrap_or_default();
+        let params =
+            serde_urlencoded::from_str::<HashMap<String, String>>(query).unwrap_or_default();
         if params.get("rtc_signal").is_some_and(|value| value == "1") {
             let valid = match (
                 params.get("ticket"),

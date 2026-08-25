@@ -31,7 +31,6 @@
 #include "rn_app.h"
 #include "rn_empty.h"
 #include "px_common_new/message_notifier.h"
-#include "px_common_new/md5.h"
 #include "px_common_new/log.h"
 #include "qt_circle.h"
 #include "px_dialog.h"
@@ -47,22 +46,19 @@
 #include "px_qt_widget/px_label.h"
 #include "px_qt_widget/px_pushbutton.h"
 #include "px_qt_widget/px_image_button.h"
-#include "px_qt_widget/px_password_input.h"
 #include "px_qt_widget/px_circle_indicator.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_device.h"
 #include "px_common_new/base64.h"
 #include "px_common_new/px_aes.h"
 #include <nlohmann/json.hpp>
-#include "render_panel/devices/running_stream_manager.h"
 #include "render_panel/database/stream_db_operator.h"
 #include "render_panel/px_workspace.h"
 #include "relay_message.pb.h"
-#include "px_profile_client/profile_api.h"
 #include "render_panel/companion/panel_companion.h"
-#include "px_base/ct_stream_item_net_type.h"
 #include "render_panel/px_statistics.h"
 #include "render_panel/devices/px_device_manager.h"
+#include "render_panel/devices/connection_policy.h"
 #include "px_common_new/const_auto.h"
 
 namespace px
@@ -71,7 +67,6 @@ namespace px
     TabServer::TabServer(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
         settings_ = PxSettings::Instance();
         stat_ = PxStatistics::Instance();
-        running_stream_mgr_ = context_->GetRunningStreamManager();
         stream_db_mgr_ = context_->GetStreamDBManager();
 
         UpdateQRCode();
@@ -469,52 +464,17 @@ namespace px
                     remote_codes->setStyleSheet(R"(font-size: 16px; font-weight: 700; color: #2979ff;)");
                     remote_codes->setEditable(true);
 
-                    recent_streams_ = stream_db_mgr_->GetStreamsSortByCreatedTime(1, 5, false);
+                    recent_streams_ = stream_db_mgr_->GetStreamsSortByCreatedTime(1, 20, false);
                     for (auto& stream : recent_streams_) {
-                        remote_codes->addItem(stream->remote_device_id_.c_str());
-                    }
-
-                    connect(remote_codes, &QComboBox::currentTextChanged, this, [this](const QString& text) {
-                        std::string password = "";
-                        for (auto& item : recent_streams_) {
-                            if (item->remote_device_id_ == text.toStdString()) {
-                                if (!item->remote_device_safety_pwd_.empty()) {
-                                    password = item->remote_device_safety_pwd_;
-                                }
-                                else if (!item->remote_device_random_pwd_.empty()) {
-                                    password = item->remote_device_random_pwd_;
-                                }
-                            }
+                        if (connection_policy::IsConsoleTicket(stream->connect_type_)
+                            && !stream->remote_device_id_.empty()
+                            && remote_codes->findText(stream->remote_device_id_.c_str()) < 0) {
+                            remote_codes->addItem(stream->remote_device_id_.c_str());
                         }
-                        password_input_->SetPassword(password.c_str());
-                    });
+                    }
 
                     input_layout->addSpacing(5);
                     input_layout->addWidget(remote_codes, 0, Qt::AlignLeft);
-                    remote_input_layout->addLayout(input_layout);
-                }
-
-                // Temporary Password
-                {
-                    remote_input_layout->addSpacing(8);
-                    auto input_layout = new NoMarginVLayout();
-
-                    auto title = new TcLabel(this);
-                    title->setFixedWidth(remote_input_width);
-                    title->SetTextId("id_remote_device_password");
-                    title->setAlignment(Qt::AlignLeft);
-                    title->setStyleSheet(R"(font-size: 12px; font-weight:500;)");
-                    input_layout->addWidget(title, 0, Qt::AlignLeft);
-
-                    password_input_ = new TcPasswordInput(this);
-                    password_input_->setFixedSize(remote_input_width, 35);
-                    if (!recent_streams_.empty()) {
-                        auto first_item = recent_streams_.at(0);
-                        auto item_pwd = first_item->remote_device_random_pwd_;
-                        password_input_->SetPassword(item_pwd.c_str());
-                    }
-                    input_layout->addSpacing(5);
-                    input_layout->addWidget(password_input_, 0, Qt::AlignLeft);
                     remote_input_layout->addLayout(input_layout);
                 }
 
@@ -537,79 +497,24 @@ namespace px
                     remote_input_layout->addLayout(input_layout);
 
                     connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
-                        // verify my self
-                        if (!grApp->CheckLocalDeviceInfoWithPopup()) {
-                            return;
-                        }
-
                         auto remote_device_id = remote_devices_->currentText().replace(" ", "").trimmed().toStdString();
-                        auto input_password = password_input_->GetPassword().toStdString();
-                        std::string random_password;
-                        std::string safety_password;
-
-                        random_password = input_password;
-                        safety_password = input_password;
-
                         if (remote_device_id.empty()) {
                             return;
                         }
 
-                        // assume the device in the same relay server, so we use the settings' relay server info
-                        // get device's relay server info
-                        auto relay_host = settings_->GetRelayServerHost();
-                        auto relay_port = settings_->GetRelayServerPort();
-                        auto relay_appkey = grApp->GetAppkey();
-                        auto relay_device_info = context_->GetRelayServerSideDeviceInfo(relay_host, relay_port, relay_appkey, remote_device_id);
-                        if (relay_device_info == nullptr) {
-                            return;
-                        }
-
-                        // verify in profile server
-                        auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetConsoleServerHost(),
-                                                                          settings_->GetConsoleServerPort(),
-                                                                          remote_device_id,
-                                                                          MD5::Hex(random_password),
-                                                                          MD5::Hex(safety_password),
-                                                                          grApp->GetAppkey());
-                        if (verify_result == ProfileVerifyResult::kVfNetworkFailed) {
-                            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_profile_network_unavailable"), grWorkspace.get());
-                            dialog.exec();
-                            return;
-                        }
-                        if (verify_result != ProfileVerifyResult::kVfSuccessRandomPwd
-                            && verify_result != ProfileVerifyResult::kVfSuccessSafetyPwd
-                            && verify_result != ProfileVerifyResult::kVfSuccessAllPwd) {
-                            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_password_invalid_msg"), grWorkspace.get());
-                            dialog.exec();
-                            return;
-                        }
-
                         std::shared_ptr<px_console::ConsoleStream> item = std::make_shared<px_console::ConsoleStream>();
-                        item->stream_id_ = "id_" + remote_device_id;
+                        item->stream_id_ = "console-device-" + remote_device_id;
                         item->stream_name_ = remote_device_id;
-                        item->stream_host_ = "";
-                        item->stream_port_ = 0;
-                        item->relay_host_ = relay_device_info->relay_server_ip();
-                        item->relay_port_ = relay_device_info->relay_server_port();
-                        //item->relay_appkey_ = grApp->GetAppkey();
                         item->encode_bps_ = 0;
                         item->encode_fps_ = 0;
                         item->remote_device_id_ = remote_device_id;
-                        item->clipboard_enabled_ = true;
+                        item->connect_type_ = connection_policy::kConsoleDeviceTicket;
+                        item->use_webrtc_ = true;
                         item->bg_color_ = 0xffffff;
-                        if (verify_result == ProfileVerifyResult::kVfSuccessRandomPwd
-                            || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
-                            item->remote_device_random_pwd_ = random_password;
-                        }
-                        else if (verify_result == ProfileVerifyResult::kVfSuccessSafetyPwd
-                            || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
-                            item->remote_device_safety_pwd_ = safety_password;
-                        }
                         context_->SendAppMessage(StreamItemAdded {
                             .item_ = item,
+                            .auto_start_ = true,
                         });
-
-                        running_stream_mgr_->StartStream(item, kStreamItemNtTypeRelay, false);
                     });
                 }
 

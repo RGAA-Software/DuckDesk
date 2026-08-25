@@ -400,7 +400,8 @@ impl ConsoleDatabase {
                 }
                 self.c_records = Some(Arc::new(Mutex::new(c_records)));
 
-                let c_user_device: Collection<ConsoleUserDevice> = database.collection("c_user_device");
+                let c_user_device: Collection<ConsoleUserDevice> =
+                    database.collection("c_user_device");
                 for index in [
                     IndexModel::builder()
                         .keys(doc! { "uid": 1, "device_id": 1 })

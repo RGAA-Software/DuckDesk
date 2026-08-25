@@ -33,10 +33,16 @@ pub struct ConsoleUserDeviceSummary {
 
 impl From<ConsoleDevice> for ConsoleUserDeviceSummary {
     fn from(device: ConsoleDevice) -> Self {
+        Self::from_device_with_online(device, false)
+    }
+}
+
+impl ConsoleUserDeviceSummary {
+    pub fn from_device_with_online(device: ConsoleDevice, online: bool) -> Self {
         Self {
             device_id: device.device_id,
             name: device.device_name,
-            online: device.active,
+            online,
             capabilities: ["view", "input", "clipboard", "file", "audio"]
                 .into_iter()
                 .map(str::to_string)
@@ -82,5 +88,16 @@ mod tests {
             summary.capabilities,
             ["view", "input", "clipboard", "file", "audio"]
         );
+    }
+
+    #[test]
+    fn device_summary_uses_live_connection_state_not_active_flag() {
+        let active_but_offline = ConsoleDevice {
+            device_id: "dev-1".to_string(),
+            active: true,
+            ..Default::default()
+        };
+        let summary = ConsoleUserDeviceSummary::from_device_with_online(active_but_offline, false);
+        assert!(!summary.online);
     }
 }

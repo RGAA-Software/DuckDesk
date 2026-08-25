@@ -18,10 +18,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::console_context::ConsoleContext;
 use crate::console_relay::relay_conn::RelayConn;
 use crate::console_relay::{relay_device_handler, relay_room_handler};
-use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::filter::{console_appkey_filter, console_statistics_filter, console_timer_filter};
 use crate::{gRelayConnMgr, gRelayRoomMgr};
 use protocol::px_relay::{RelayMessage, RelayMessageType};
@@ -152,7 +152,9 @@ impl RelayServer {
             match ConnectionTicketManager::redeem(ticket, device_id, nonce, None, &request_id).await
             {
                 Ok(grant) if grant.permissions.iter().any(|p| p == "file") => {}
-                Ok(_) => return crate::console_api_error::ConsoleApiError::Forbidden.into_response(),
+                Ok(_) => {
+                    return crate::console_api_error::ConsoleApiError::Forbidden.into_response()
+                }
                 Err(err) => return err.into_response(),
             }
         } else if params.get("rtc_signal").is_some_and(|value| value == "1") {
@@ -179,7 +181,9 @@ impl RelayServer {
                 .instance_id
                 .as_deref()
                 .filter(|value| !value.is_empty())
-                .map(|instance_id| format!("server_{}__instance__{}", active.device_id, instance_id))
+                .map(|instance_id| {
+                    format!("server_{}__instance__{}", active.device_id, instance_id)
+                })
                 .unwrap_or_else(|| format!("server_{}", active.device_id));
             if remote != &expected_remote {
                 tracing::warn!(

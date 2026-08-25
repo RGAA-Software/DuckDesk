@@ -6,7 +6,11 @@ pub struct ConsoleAccessInfo {
     pub console_srv_config: ConsoleServerConfig,
     /// Serialized alongside the canonical key for one-release compatibility
     /// with already deployed Panels.
-    #[serde(rename = "cms_srv_config", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "cms_srv_config",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub legacy_cms_srv_config: Option<LegacyCmsServerConfig>,
     //pub relay_srv_config: Vec<ConsoleServerConfig>,
 }

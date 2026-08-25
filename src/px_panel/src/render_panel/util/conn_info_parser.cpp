@@ -22,7 +22,6 @@ namespace px
         target_info = Base64::Base64Decode(target_info);
 
         try {
-            LOGI("Origin ConnInfo: {}", target_info);
             auto conn_info = std::make_shared<PxConnectionInfo>();
             auto obj = json::parse(target_info);
 
@@ -67,10 +66,12 @@ namespace px
                 conn_info->relay_appkey_ = obj["rlak"].get<std::string>();
             }
 
+            LOGI("Parsed link connection metadata: device_id={}, endpoints={}, render_port={}",
+                 conn_info->device_id_, conn_info->hosts_.size(), conn_info->render_srv_port_);
             return conn_info;
         }
         catch(std::exception& e) {
-            LOGE("Parse link:// failed: {}, err: {}", target_info, e.what());
+            LOGE("Parse link:// failed: {}", e.what());
             return nullptr;
         }
     }

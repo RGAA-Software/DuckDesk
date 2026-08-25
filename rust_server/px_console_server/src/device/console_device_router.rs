@@ -12,11 +12,14 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_device_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_device_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route(
             "/create/new/device",
-            post(handle_create_new_device).layer(middleware::from_fn(console_appkey_filter::filter)),
+            post(handle_create_new_device)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/verify/device/info",

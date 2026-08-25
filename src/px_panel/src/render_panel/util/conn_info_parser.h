@@ -42,8 +42,9 @@ namespace px
         std::string Dump() {
             std::stringstream ss;
             ss << "Connection info: " << std::endl;
-            ss << "Device Info: " << device_id_ << ", " << device_name_ << ", " << random_pwd_ << ", relay: " << relay_host_ << "," << relay_port_ << std::endl;
-            ss << "Relay appkey : " << relay_appkey_ << std::endl;
+            ss << "Device Info: " << device_id_ << ", " << device_name_
+               << ", password: <redacted>, relay: " << relay_host_ << "," << relay_port_ << std::endl;
+            ss << "Relay appkey : <redacted>" << std::endl;
             ss << "Device IP:" << std::endl;
             for (const auto& ch : hosts_) {
                 ss << ch.ip_ << "" << std::endl;

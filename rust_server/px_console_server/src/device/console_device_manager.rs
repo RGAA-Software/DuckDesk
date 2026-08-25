@@ -125,7 +125,10 @@ impl ConsoleDeviceManager {
         }
     }
 
-    pub async fn query_device_by_id(&self, device_id: String) -> Result<ConsoleDevice, ConsoleApiError> {
+    pub async fn query_device_by_id(
+        &self,
+        device_id: String,
+    ) -> Result<ConsoleDevice, ConsoleApiError> {
         let c_device = gConsoleDatabase.lock().await.device();
         let filter = doc! {
             "device_id": device_id,

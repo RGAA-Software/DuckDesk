@@ -1,5 +1,5 @@
-use crate::console_context::ConsoleContext;
 use crate::connection_ticket::handler::issue_guest_instance_ticket;
+use crate::console_context::ConsoleContext;
 use crate::identity::resource_handler::{
     list_guest_instances, list_public_apps, start_public_app, stop_guest_instance,
 };

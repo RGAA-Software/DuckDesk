@@ -14,8 +14,18 @@
 #include "px_common_new/expected.h"
 #include "console_errors.h"
 
+namespace px
+{
+    class HttpResponse;
+}
+
 namespace px_console
 {
+
+    // Console error responses carry a business code in their JSON body.  The
+    // HTTP status alone is not sufficient (for example DeviceNotFound is sent
+    // as HTTP 400 with business code 602).
+    ConsoleApiError ToConsoleApiError(const px::HttpResponse& response);
 
     // Alive Connections
     class AliveConnections {

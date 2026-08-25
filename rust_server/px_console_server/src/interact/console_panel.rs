@@ -585,7 +585,10 @@ fn copy_to_clipboard(value: &str, language: &ConsoleLanguage) -> Option<String> 
 }
 
 async fn refresh_authorization(machine_code: String) -> Result<(Authorization, i64), String> {
-    gConsoleContext.lock().await.update_machine_code(machine_code);
+    gConsoleContext
+        .lock()
+        .await
+        .update_machine_code(machine_code);
     console_auth_pull::pull_once()
         .await
         .map_err(|error| error.to_string())?;

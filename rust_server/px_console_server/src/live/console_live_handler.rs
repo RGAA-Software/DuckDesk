@@ -190,7 +190,10 @@ pub async fn handle_live_flv(
     (headers, Body::from_stream(response.bytes_stream())).into_response()
 }
 
-async fn query_zlm(settings: &ConsoleLiveSettings, stream_id: &str) -> Result<Option<Value>, String> {
+async fn query_zlm(
+    settings: &ConsoleLiveSettings,
+    stream_id: &str,
+) -> Result<Option<Value>, String> {
     let base_url = settings.media_server_url.trim_end_matches('/');
     if base_url.is_empty() || !is_safe_id(settings.app.trim()) {
         return Err("invalid [live] Console configuration".to_string());

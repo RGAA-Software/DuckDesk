@@ -525,9 +525,8 @@ namespace px
         }
 
         auto appkey = ac_info->console_config_.srv_appkey_;
-        // the pasted access string carries the ssl switch, sync it into the console api library
-        // before pinging; Save()/settings Load() will persist & re-sync it later
-        px_console::SetConsoleSslEnabled(ac_info->console_config_.srv_ssl_enable_);
+        // Console is TLS-only. Ignore a stale pre-migration access-info flag.
+        px_console::SetConsoleSslEnabled(true);
         {
             auto r = px_console::ConsoleDeviceApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_console_port_, appkey);
             if (!r.has_value() || !r.value()) {
@@ -577,10 +576,7 @@ namespace px
 
         SaveConsoleAccessInfo();
 
-        // sync the ssl switch from the pasted access string (default true, compatible with old deployments)
-        if (auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString()); ac_info) {
-            settings_->SetConsoleSslEnabled(ac_info->console_config_.srv_ssl_enable_);
-        }
+        settings_->SetConsoleSslEnabled(true);
 
         // Load again
         settings_->Load();

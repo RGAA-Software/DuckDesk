@@ -8,7 +8,9 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_service_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_service_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route(
             "/query/all/service/conn",

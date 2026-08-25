@@ -5,8 +5,7 @@ use crate::{gConsolePanelConnMgr, gConsoleServiceConnMgr, gRtcConfigManager};
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
 
-pub async fn get_admin_config(
-) -> Result<Json<RespMessage<RtcIceConfig>>, ConsoleApiError> {
+pub async fn get_admin_config() -> Result<Json<RespMessage<RtcIceConfig>>, ConsoleApiError> {
     Ok(Json(ok_resp(gRtcConfigManager.config().await)))
 }
 
@@ -14,14 +13,17 @@ pub async fn update_admin_config(
     Json(config): Json<RtcIceConfig>,
 ) -> Result<Json<RespMessage<RtcIceConfig>>, ConsoleApiError> {
     let previous = gRtcConfigManager.config().await;
-    let updated = gRtcConfigManager.prepare_update(config).await.map_err(|error| {
-        tracing::warn!(%error, "reject RTC ICE configuration update");
-        if error.contains("revision conflict") {
-            ConsoleApiError::VersionConflict
-        } else {
-            ConsoleApiError::InvalidParams
-        }
-    })?;
+    let updated = gRtcConfigManager
+        .prepare_update(config)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, "reject RTC ICE configuration update");
+            if error.contains("revision conflict") {
+                ConsoleApiError::VersionConflict
+            } else {
+                ConsoleApiError::InvalidParams
+            }
+        })?;
     let secret = gRtcConfigManager
         .turn_rest_secret_base64()
         .await
@@ -73,7 +75,12 @@ pub async fn update_admin_config(
         gConsolePanelConnMgr.broadcast_rtc_ice_config_changed(updated.revision, changed_at),
         gConsoleServiceConnMgr.broadcast_rtc_ice_config_changed(updated.revision, changed_at),
     );
-    tracing::info!(revision = updated.revision, panels, services, "RTC ICE configuration invalidation delivered");
+    tracing::info!(
+        revision = updated.revision,
+        panels,
+        services,
+        "RTC ICE configuration invalidation delivered"
+    );
     Ok(Json(ok_resp(updated)))
 }
 
@@ -87,12 +94,10 @@ pub async fn validate_admin_config(
     Ok(Json(ok_resp(true)))
 }
 
-pub async fn get_node_config(
-) -> Result<Json<RespMessage<RtcIceConfigView>>, ConsoleApiError> {
+pub async fn get_node_config() -> Result<Json<RespMessage<RtcIceConfigView>>, ConsoleApiError> {
     Ok(Json(ok_resp(gRtcConfigManager.public_config().await)))
 }
 
-pub async fn get_turn_status(
-) -> Result<Json<RespMessage<TurnSidecarStatus>>, ConsoleApiError> {
+pub async fn get_turn_status() -> Result<Json<RespMessage<TurnSidecarStatus>>, ConsoleApiError> {
     Ok(Json(ok_resp(turn_status())))
 }

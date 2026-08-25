@@ -231,7 +231,11 @@ pub async fn apply_turn_config(
     let _operation = TURN_OPERATION_LOCK.lock().await;
     let exe_path = match std::env::current_exe() {
         Ok(path) => path,
-        Err(error) => return Err(format!("cannot determine Console executable path for px_turn: {error}")),
+        Err(error) => {
+            return Err(format!(
+                "cannot determine Console executable path for px_turn: {error}"
+            ))
+        }
     };
     let directory = exe_path
         .parent()
@@ -281,7 +285,11 @@ pub async fn apply_turn_config(
     } else if port_is_open(probe_host, settings.port).await {
         status.running = true;
         set_turn_status(status.clone());
-        tracing::info!(port = settings.port, revision, "px_turn is already listening");
+        tracing::info!(
+            port = settings.port,
+            revision,
+            "px_turn is already listening"
+        );
         return Ok(status);
     }
 
@@ -324,11 +332,7 @@ pub async fn apply_turn_config(
         if port_is_open(probe_host, settings.port).await {
             status.running = true;
             set_turn_status(status.clone());
-            tracing::info!(
-                port = settings.port,
-                revision,
-                "px_turn sidecar is ready"
-            );
+            tracing::info!(port = settings.port, revision, "px_turn sidecar is ready");
             return Ok(status);
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -408,11 +412,10 @@ async fn stop_adjacent_turn_processes(turn_exe: &Path) {
         tokio::time::sleep(Duration::from_millis(100)).await;
         let mut refreshed = System::new_all();
         refreshed.refresh_processes(ProcessesToUpdate::All, true);
-        if killed.iter().all(|pid| {
-            refreshed
-                .process(sysinfo::Pid::from_u32(*pid))
-                .is_none()
-        }) {
+        if killed
+            .iter()
+            .all(|pid| refreshed.process(sysinfo::Pid::from_u32(*pid)).is_none())
+        {
             return;
         }
     }
@@ -433,8 +436,7 @@ fn turn_config_argument(console_dir: &Path, config_path: &Path) -> std::path::Pa
 #[cfg(test)]
 mod tests {
     use super::{
-        local_media_port, synchronize_http_port, turn_config_argument,
-        write_turn_runtime_config,
+        local_media_port, synchronize_http_port, turn_config_argument, write_turn_runtime_config,
     };
     use crate::rtc::model::ManagedTurnServerConfig;
 

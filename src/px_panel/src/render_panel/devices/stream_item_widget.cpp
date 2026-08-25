@@ -26,6 +26,7 @@
 #include "px_qt_widget/px_label.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
+#include "stream_item_display.h"
 
 namespace px
 {
@@ -237,15 +238,7 @@ namespace px
             painter.setFont(font);
             //painter.setPen(QPen(QColor(0x555555)));
             painter.setPen(QPen(QColor(0x2979ff)));
-            auto stream_name = item_->stream_name_;
-            if (is_console_app) {
-                stream_name = item_->stream_name_;
-            } else if (item_->HasRelayInfo()) {
-                stream_name = px::SpaceId(item_->remote_device_id_);
-            }
-            else {
-                stream_name = item_->stream_host_;
-            }
+            const auto stream_name = StreamItemPrimaryText(*item_);
             painter.drawText(QRect(15, 0, this->width(), 40), Qt::AlignVCenter, stream_name.c_str());
         }
 
@@ -332,42 +325,14 @@ namespace px
             return;
         }
 
-        int indicator_width = 10;
-        int indicator_height = 8;
-        int indicator_radius = 4;
-        int margin_right = 50;
-        for (int i = 0; i < 3; i++) {
-            if (direct_connected_ && i == 0) {
-                painter.setBrush(QBrush(0x00ff00));
-            }
-            else if (relay_connected_ && i == 1) {
-                painter.setBrush(QBrush(0x00ff00));
-            }
-            else if (console_connected_ && i == 2) {
-                painter.setBrush(QBrush(0x00ff00));
-            }
-            else {
-                painter.setBrush(QBrush(0xbbbbbb));
-            }
-            painter.setPen(Qt::NoPen);
-            auto x = this->width() - margin_right + indicator_width * i;
-            auto y = 10;
-            painter.drawRoundedRect(x, y, indicator_width, indicator_height, 0, 0);
-            if (i == 1 || i == 2) {
-                QPen pen(QColor(0x555555));
-                pen.setWidth(1);
-                painter.setPen(pen);
-                painter.drawLine(x, y+2 , x, y + indicator_height - 2);
-            }
-        }
-
-        {
-            QPen pen(QColor(0x555555));
-            pen.setWidth(1);
-            painter.setPen(pen);
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(this->width() - margin_right, 10, indicator_width * 3, indicator_height, indicator_radius, indicator_radius);
-        }
+        const bool online = StreamItemIsOnline(*item_);
+        constexpr int indicator_size = 10;
+        constexpr int margin_right = 25;
+        constexpr int indicator_y = 10;
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(online ? QColor(0x20, 0xb2, 0x6b) : QColor(0x99, 0x99, 0x99));
+        painter.drawEllipse(this->width() - margin_right, indicator_y,
+                            indicator_size, indicator_size);
     }
 
     void StreamItemWidget::enterEvent(QEnterEvent *event) {
@@ -392,31 +357,22 @@ namespace px
         work_mode_->setGeometry(15 + btn_conn_->width() + 15, y, btn_conn_->width(), btn_conn_->height());
     }
 
-    // 右上三个状态点的 hover 提示(几何与 paintEvent 保持一致)
+    // 右上在线状态点的 hover 提示(几何与 paintEvent 保持一致)
     void StreamItemWidget::mouseMoveEvent(QMouseEvent *event) {
         QWidget::mouseMoveEvent(event);
         if (IsConsoleApplication(item_)) {
             state_tooltip_container_->hide();
             return;
         }
-        static const char* name_ids[3] = {"id_state_direct", "id_state_relay", "id_state_console"};
-        const bool states[3] = {direct_connected_, relay_connected_, console_connected_};
-        const int margin_right = 50;
-        const int indicator_width = 10;
-        const int indicator_height = 8;
-        const int y = 10;
-        // 整个三点区域统一 hover:三行显示全部状态
-        QRect area(this->width() - margin_right, y, indicator_width * 3, indicator_height);
+        const bool online = StreamItemIsOnline(*item_);
+        constexpr int margin_right = 25;
+        constexpr int indicator_size = 10;
+        constexpr int y = 10;
+        QRect area(this->width() - margin_right, y, indicator_size, indicator_size);
         area.adjust(-3, -4, 3, 4);
         const auto pos = event->position().toPoint();
         if (area.contains(pos)) {
-            QStringList lines;
-            for (int i = 0; i < 3; i++) {
-                lines << QString("%1: %2")
-                        .arg(tcTr(name_ids[i]))
-                        .arg(tcTr(states[i] ? "id_state_available" : "id_state_unavailable"));
-            }
-            state_tooltip_->setText(lines.join("\n"));
+            state_tooltip_->setText(tcTr(online ? "id_state_online" : "id_state_offline"));
             state_tooltip_->adjustSize();
             state_tooltip_container_->adjustSize();
             state_tooltip_container_->move(event->globalPosition().toPoint() + QPoint(4, 4));

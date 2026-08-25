@@ -576,7 +576,10 @@ impl ConsoleUserSessionManager {
         })
     }
 
-    pub async fn authenticate_admin(&self, token: &str) -> Result<AuthenticatedAdmin, ConsoleApiError> {
+    pub async fn authenticate_admin(
+        &self,
+        token: &str,
+    ) -> Result<AuthenticatedAdmin, ConsoleApiError> {
         if token.len() < 32 {
             return Err(ConsoleApiError::AuthenticationRequired);
         }
@@ -603,7 +606,11 @@ impl ConsoleUserSessionManager {
         if auth.auth_id.is_empty() || auth.auth_id != session.subject_id {
             return Err(ConsoleApiError::AuthenticationRequired);
         }
-        let sliding_hours = crate::gConsoleSettings.lock().await.user.admin_sliding_hours;
+        let sliding_hours = crate::gConsoleSettings
+            .lock()
+            .await
+            .user
+            .admin_sliding_hours;
         let extended_expires_at =
             (now + positive_duration(sliding_hours, HOUR_MS)).min(session.absolute_expires_at);
         collection
@@ -629,7 +636,10 @@ impl ConsoleUserSessionManager {
         })
     }
 
-    pub async fn authenticate_guest(&self, token: &str) -> Result<AuthenticatedGuest, ConsoleApiError> {
+    pub async fn authenticate_guest(
+        &self,
+        token: &str,
+    ) -> Result<AuthenticatedGuest, ConsoleApiError> {
         self.authenticate_guest_client(token, "guest_web").await
     }
 

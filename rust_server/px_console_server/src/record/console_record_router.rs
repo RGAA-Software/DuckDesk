@@ -15,7 +15,9 @@ use axum::{middleware, Router};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub fn make_record_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_record_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route(
             "/hello",
@@ -23,11 +25,13 @@ pub fn make_record_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mut
         )
         .route(
             "/upload_visit_info",
-            post(handle_upload_visit_info).layer(middleware::from_fn(console_appkey_filter::filter)),
+            post(handle_upload_visit_info)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/update_visit_info",
-            post(handle_update_visit_info).layer(middleware::from_fn(console_appkey_filter::filter)),
+            post(handle_update_visit_info)
+                .layer(middleware::from_fn(console_appkey_filter::filter)),
         )
         .route(
             "/query_visit_info",

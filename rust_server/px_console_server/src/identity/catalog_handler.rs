@@ -2,8 +2,8 @@ use crate::app_schedule::gAppScheduleManager;
 use crate::app_schedule::manager::AppAccessMode;
 use crate::console_api_error::ConsoleApiError;
 use crate::event::audit;
-use crate::gDeviceManager;
 use crate::identity::manager::IdentityManager;
+use crate::{gConsolePanelConnMgr, gDeviceManager};
 use axum::extract::Path;
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
@@ -43,18 +43,22 @@ fn validate_access_assignment(
     Ok(())
 }
 
-pub async fn list_device_catalog() -> Result<Json<RespMessage<Vec<DeviceCatalogItem>>>, ConsoleApiError>
-{
-    let mut items: Vec<_> = gDeviceManager
+pub async fn list_device_catalog(
+) -> Result<Json<RespMessage<Vec<DeviceCatalogItem>>>, ConsoleApiError> {
+    let devices = gDeviceManager
         .query_devices(String::new(), String::new(), String::new(), 1, 10_000)
-        .await?
-        .into_iter()
-        .map(|device| DeviceCatalogItem {
+        .await?;
+    let mut items = Vec::with_capacity(devices.len());
+    for device in devices {
+        let online = gConsolePanelConnMgr
+            .is_panel_online(device.device_id.clone())
+            .await?;
+        items.push(DeviceCatalogItem {
             device_id: device.device_id,
             name: device.device_name,
-            online: device.active,
-        })
-        .collect();
+            online,
+        });
+    }
     items.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(Json(ok_resp(items)))
 }

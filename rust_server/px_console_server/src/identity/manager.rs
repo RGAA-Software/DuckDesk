@@ -109,7 +109,8 @@ impl IdentityManager {
             .map_err(|_| ConsoleApiError::DatabaseError)?;
         let mut result = Vec::new();
         while let Some(group) = cursor.next().await {
-            result.push(Self::group_view(group.map_err(|_| ConsoleApiError::DatabaseError)?).await?);
+            result
+                .push(Self::group_view(group.map_err(|_| ConsoleApiError::DatabaseError)?).await?);
         }
         Ok(result)
     }

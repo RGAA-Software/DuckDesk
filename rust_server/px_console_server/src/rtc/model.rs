@@ -169,9 +169,10 @@ impl RtcIceConfig {
         for server in &self.additional_servers {
             if server.id.trim().is_empty()
                 || server.id.len() > 64
-                || server.id.chars().any(|ch| {
-                    !(ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-                })
+                || server
+                    .id
+                    .chars()
+                    .any(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.')))
             {
                 return Err("additional ICE server id is invalid".to_string());
             }
@@ -222,9 +223,8 @@ impl RtcIceConfig {
     pub fn normalize(&mut self) -> Result<(), String> {
         self.managed_console_server.listen_ip =
             self.managed_console_server.listen_ip.trim().to_string();
-        self.managed_console_server.public_host = normalize_host(
-            self.managed_console_server.public_host.trim(),
-        );
+        self.managed_console_server.public_host =
+            normalize_host(self.managed_console_server.public_host.trim());
         self.managed_console_server.realm = self.managed_console_server.realm.trim().to_string();
         for server in &mut self.additional_servers {
             server.id = server.id.trim().to_string();

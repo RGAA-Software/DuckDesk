@@ -57,7 +57,9 @@ async fn handle_ws_socket(
         // start hardware info back streamer
         ConsoleCmConn::start_hardware_info_streamer(console_conn.clone()).await;
 
-        gConsoleCMMgr.add_cm_conn(id.clone(), console_conn.clone()).await;
+        gConsoleCMMgr
+            .add_cm_conn(id.clone(), console_conn.clone())
+            .await;
 
         while let Some(Ok(msg)) = receiver.next().await {
             // print message and break if instructed to do so

@@ -204,11 +204,8 @@ namespace px
                                                    const std::string& remote_device_id,
                                                    const std::string& remote_device_ip,
                                                    const std::string& appkey,
-                                                   bool ssl) {
-        if (ssl) {
-            return std::make_shared<CtConsoleClientImpl<asio2::wss_client>>(sdk, ctx, host, port, device_id, remote_device_id, remote_device_ip, appkey);
-        }
-        return std::make_shared<CtConsoleClientImpl<asio2::ws_client>>(sdk, ctx, host, port, device_id, remote_device_id, remote_device_ip, appkey);
+                                                   bool /*ssl*/) {
+        return std::make_shared<CtConsoleClientImpl<asio2::wss_client>>(sdk, ctx, host, port, device_id, remote_device_id, remote_device_ip, appkey);
     }
 
 }

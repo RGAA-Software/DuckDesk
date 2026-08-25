@@ -4,8 +4,8 @@ use crate::{gAuthorDatabase, gAuthorSettings, gLicenseSigner};
 use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{Bson, DateTime, Document, Regex, doc};
 use px_auth_mgr::authorization::{
-    normalize_product, Authorization, AuthorizationVo, LEGACY_PRODUCT_CMS,
-    LEGACY_PRODUCT_PIXELS_CMS, PRODUCT_CONSOLE, PRODUCT_PIXELS_CONSOLE,
+    Authorization, AuthorizationVo, LEGACY_PRODUCT_CMS, LEGACY_PRODUCT_PIXELS_CMS, PRODUCT_CONSOLE,
+    PRODUCT_PIXELS_CONSOLE, normalize_product,
 };
 use std::collections::HashMap;
 use thiserror::Error;
@@ -21,7 +21,7 @@ use mongodb::bson::to_document;
 /// require a live MongoDB. Production builds never compile this path.
 #[cfg(test)]
 mod memory_store {
-    use px_auth_mgr::authorization::{normalize_product, Authorization};
+    use px_auth_mgr::authorization::{Authorization, normalize_product};
     use std::collections::HashMap;
     use std::sync::Mutex;
 
@@ -74,9 +74,7 @@ mod memory_store {
             .lock()
             .unwrap()
             .values()
-            .find(|a| {
-                a.machine_code == machine_code && normalize_product(&a.product) == product
-            })
+            .find(|a| a.machine_code == machine_code && normalize_product(&a.product) == product)
             .cloned()
     }
 
@@ -122,10 +120,7 @@ pub enum AuthorizationError {
 
 fn compatible_product_names(product: &str) -> Vec<String> {
     match normalize_product(product) {
-        PRODUCT_CONSOLE => vec![
-            PRODUCT_CONSOLE.to_string(),
-            LEGACY_PRODUCT_CMS.to_string(),
-        ],
+        PRODUCT_CONSOLE => vec![PRODUCT_CONSOLE.to_string(), LEGACY_PRODUCT_CMS.to_string()],
         PRODUCT_PIXELS_CONSOLE => vec![
             PRODUCT_PIXELS_CONSOLE.to_string(),
             LEGACY_PRODUCT_PIXELS_CMS.to_string(),

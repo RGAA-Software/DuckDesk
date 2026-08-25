@@ -10,6 +10,7 @@
 #include <QMimeData>
 #include <QTimer>
 #include <QUuid>
+#include <d3d10.h>
 #include <dwmapi.h>
 #include "thunder_sdk.h"
 #include "px_client/ct_client_context.h"
@@ -1858,6 +1859,17 @@ namespace px
                 LOGE("D3D11CreateDevice failed: {}", res);
                 return !d3d11_devices_.empty();
             } else {
+                // Decoding runs on the SDK video thread, while QWidget/D3D output
+                // must be driven by the GUI thread. Protect the shared immediate
+                // context before handing this device to FFmpeg and the renderer.
+                ComPtr<ID3D10Multithread> multithread;
+                if (SUCCEEDED(new_device_wrapper->d3d11_device_.As(&multithread))) {
+                    multithread->SetMultithreadProtected(TRUE);
+                }
+                else {
+                    LOGW("D3D11 device does not expose ID3D10Multithread");
+                }
+
                 if (featureLevel < D3D_FEATURE_LEVEL_11_0) {
                     LOGE("Skip, Feature level < 11 {}");
                     ++adapter_index;

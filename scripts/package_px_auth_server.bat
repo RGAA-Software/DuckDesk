@@ -39,33 +39,55 @@ call "%~dp0\ensure_tls_cert.bat" "%CERT_DIR%"
 if errorlevel 1 exit /b 1
 echo.
 
-:: --- 1b. Generate Ed25519 license signing key pair if missing ---
-if exist "%CERT_DIR%\auth_license_private.key" (
-    if exist "%CERT_DIR%\auth_license_public.key" (
-        echo [1b/4] License signing key pair already exists, skipping generation.
-        goto :license_keys_done
+:: --- 1b. Generate the private key when missing, then ALWAYS derive the public
+:: key from it. Merely checking that both files exist can preserve a mismatched
+:: pair and make every license issued by px_auth unverifiable by Console.
+if not exist "%CERT_DIR%\auth_license_private.key" (
+    echo [1b/4] Generating Ed25519 license private key ^(PKCS#8 v1^)...
+    %OPENSSL_EXE% genpkey -algorithm ED25519 -outform DER -out "%CERT_DIR%\auth_license_private.der"
+    if errorlevel 1 (
+        echo ERROR: Failed to generate license private key.
+        exit /b 1
     )
+    %OPENSSL_EXE% base64 -A -in "%CERT_DIR%\auth_license_private.der" -out "%CERT_DIR%\auth_license_private.key"
+    if errorlevel 1 (
+        echo ERROR: Failed to encode license private key.
+        exit /b 1
+    )
+    del "%CERT_DIR%\auth_license_private.der" >nul 2>nul
+) else (
+    echo [1b/4] Existing license private key found.
 )
 
-echo [1b/4] Generating Ed25519 license signing key pair (PKCS#8 v1)...
-%OPENSSL_EXE% genpkey -algorithm ED25519 -outform DER -out "%CERT_DIR%\auth_license_private.der"
+echo       Deriving matching public key from the private key...
+%OPENSSL_EXE% base64 -d -A -in "%CERT_DIR%\auth_license_private.key" -out "%CERT_DIR%\auth_license_private.check.der"
 if errorlevel 1 (
-    echo ERROR: Failed to generate license private key.
+    echo ERROR: Failed to decode license private key.
     exit /b 1
 )
-%OPENSSL_EXE% pkey -in "%CERT_DIR%\auth_license_private.der" -inform DER -pubout -outform DER -out "%CERT_DIR%\auth_license_public.der"
+%OPENSSL_EXE% pkey -in "%CERT_DIR%\auth_license_private.check.der" -inform DER -pubout -outform DER -out "%CERT_DIR%\auth_license_public.der"
 if errorlevel 1 (
+    del "%CERT_DIR%\auth_license_private.check.der" >nul 2>nul
     echo ERROR: Failed to derive license public key.
     exit /b 1
 )
-%OPENSSL_EXE% base64 -in "%CERT_DIR%\auth_license_private.der" -out "%CERT_DIR%\auth_license_private.key"
-%OPENSSL_EXE% base64 -in "%CERT_DIR%\auth_license_public.der" -out "%CERT_DIR%\auth_license_public.key"
-del "%CERT_DIR%\auth_license_private.der" >nul 2>nul
+%OPENSSL_EXE% base64 -A -in "%CERT_DIR%\auth_license_public.der" -out "%CERT_DIR%\auth_license_public.key.tmp"
+if errorlevel 1 (
+    del "%CERT_DIR%\auth_license_private.check.der" >nul 2>nul
+    del "%CERT_DIR%\auth_license_public.der" >nul 2>nul
+    echo ERROR: Failed to encode license public key.
+    exit /b 1
+)
+move /Y "%CERT_DIR%\auth_license_public.key.tmp" "%CERT_DIR%\auth_license_public.key" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to publish derived license public key.
+    exit /b 1
+)
+del "%CERT_DIR%\auth_license_private.check.der" >nul 2>nul
 del "%CERT_DIR%\auth_license_public.der" >nul 2>nul
 echo       Private key: %CERT_DIR%\auth_license_private.key
-echo       Public key : %CERT_DIR%\auth_license_public.key
+echo       Public key : %CERT_DIR%\auth_license_public.key ^(derived and verified^)
 
-:license_keys_done
 echo.
 
 :: --- 2. Build auth frontend ---

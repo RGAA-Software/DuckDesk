@@ -8,10 +8,10 @@
 
 | 端口 | 协议 | 功能 |
 |------|------|------|
-| **30500**（`console_port`） | HTTPS 或 HTTP（由 `px_console.toml` 的 `ssl_enable` 决定，缺省 true） | 完整服务：所有 `/api/v1/*`、WebSocket（`/console/*`）、静态资源（`/assets` `/uploads` 等）、`/ping` 健康检查、SPA fallback |
+| **30500**（`console_port`） | HTTPS + WSS | 完整服务：所有 `/api/v1/*`、WebSocket（`/console/*`）、静态资源（`/assets` `/uploads` 等）、`/ping` 健康检查、SPA fallback |
 
-- 浏览器访问后台走 `https://<ip>:30500`（`ssl_enable=false` 时为 `http://<ip>:30500`）。
-- 存活探针：`curl http://localhost:30500/ping`。
+- 浏览器访问后台走 `https://<ip>:30500`。随包证书是自签名证书，首次访问允许浏览器继续即可。
+- 存活探针：`curl -k https://localhost:30500/ping`。
 - 后端 CORS 策略是「拒绝所有跨域」，因此浏览器跨端口直连 API 会被拦截，开发模式必须走 Vite 代理。
 
 ## 2. 日常开发（`npm run dev` + HMR，推荐）

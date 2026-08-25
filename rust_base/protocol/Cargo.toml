@@ -1,6 +1,6 @@
 [package]
 name = "protocol"
-version = "3.3.53"
+version = "3.3.56"
 edition = "2024"
 
 [dependencies]

@@ -3,7 +3,7 @@ param(
     [int]$Rounds = 100,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 9,
-    [string]$ConsoleBase = 'http://127.0.0.1:30500',
+    [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
     [string]$MongoExe = 'D:\software\mongodb_3.6\mongodb\bin\mongo.exe'
@@ -19,14 +19,32 @@ $fail = 0
 $failRounds = [Collections.Generic.List[int]]::new()
 $started = Get-Date
 
+if ($ConsoleBase.StartsWith('https://') -and
+    -not (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
+    # Windows PowerShell 5.1 has no per-request switch. This callback is scoped
+    # to this short-lived acceptance-test process and permits the bundled cert.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+}
+
 function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int]$Attempts = 1) {
     $headers = @{}
     if ($Bearer) { $headers.Authorization = "Bearer $Bearer" }
+    $request = @{
+        Method      = 'Post'
+        Uri         = $Uri
+        Headers     = $headers
+        ContentType = 'application/json'
+        Body        = ($Body | ConvertTo-Json -Compress -Depth 12)
+        TimeoutSec  = 30
+    }
+    if ($Uri.StartsWith('https://') -and
+        (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
+        $request.SkipCertificateCheck = $true
+    }
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         try {
-            return Invoke-RestMethod -Method Post -Uri $Uri -Headers $headers `
-                -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Compress -Depth 12) `
-                -TimeoutSec 30
+            return Invoke-RestMethod @request
         }
         catch {
             $status = [int]$_.Exception.Response.StatusCode

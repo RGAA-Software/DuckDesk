@@ -5,9 +5,9 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
 use protocol::console_service::{
-    ConsoleConnectionGrant, ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello,
-    ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceRedeemConnectionTicketResult,
-    RtcIceConfigChanged,
+    ConsoleConnectionGrant, ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat,
+    ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
+    ConsoleServiceRedeemConnectionTicketResult, RtcIceConfigChanged,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -187,7 +187,9 @@ impl ConsoleServiceConn {
                             crate::console_api_error::ConsoleApiError::TicketExpiredOrUsed => {
                                 "TICKET_EXPIRED_OR_USED"
                             }
-                            crate::console_api_error::ConsoleApiError::InvalidParams => "INVALID_ARGUMENT",
+                            crate::console_api_error::ConsoleApiError::InvalidParams => {
+                                "INVALID_ARGUMENT"
+                            }
                             _ => "TICKET_REJECTED",
                         }
                         .to_string(),
@@ -261,7 +263,10 @@ impl ConsoleServiceConn {
             .await
     }
 
-    pub async fn send_create_wall_session(&mut self, request: ConsoleServiceCreateWallSession) -> bool {
+    pub async fn send_create_wall_session(
+        &mut self,
+        request: ConsoleServiceCreateWallSession,
+    ) -> bool {
         let mut sv_msg = ConsoleServiceMessage::default();
         sv_msg.set_msg_type(ConsoleServiceMessageType::KConsoleServiceCreateWallSession);
         sv_msg.device_id = self.device_id.clone();
@@ -275,7 +280,8 @@ impl ConsoleServiceConn {
         response: ConsoleServiceRedeemConnectionTicketResult,
     ) -> bool {
         let mut message = ConsoleServiceMessage::default();
-        message.set_msg_type(ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicketResult);
+        message
+            .set_msg_type(ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicketResult);
         message.device_id = self.device_id.clone();
         message.redeem_connection_ticket_result = Some(response);
         self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))

@@ -22,7 +22,7 @@ namespace px
     public:
         std::string host_;
         int port_ = 0;
-        // whether the console server requires ssl(https/wss), default true for old deployments
+        // Console is HTTPS/WSS-only. Retained as a field for existing callers.
         bool ssl_enable_ = true;
     };
 

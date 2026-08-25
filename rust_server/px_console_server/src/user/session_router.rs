@@ -1,6 +1,6 @@
+use crate::connection_ticket::handler::{issue_device_ticket, issue_instance_ticket};
 use crate::console_api_error::ConsoleApiError;
 use crate::console_context::ConsoleContext;
-use crate::connection_ticket::handler::{issue_device_ticket, issue_instance_ticket};
 use crate::gUserSessionManager;
 use crate::identity::resource_handler::{
     list_user_apps, list_user_apps_page, list_user_instances, list_user_instances_page,
@@ -323,7 +323,9 @@ pub async fn require_guest_write(mut request: Request<Body>, next: Next) -> Resp
     next.run(request).await
 }
 
-pub fn make_session_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_session_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route("/guest", post(guest_session))
         .route("/user/login", post(login))
@@ -353,7 +355,9 @@ pub fn make_session_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mu
         .with_state(context)
 }
 
-pub fn make_user_self_router(context: Arc<Mutex<ConsoleContext>>) -> Router<Arc<Mutex<ConsoleContext>>> {
+pub fn make_user_self_router(
+    context: Arc<Mutex<ConsoleContext>>,
+) -> Router<Arc<Mutex<ConsoleContext>>> {
     Router::new()
         .route(
             "/register",
@@ -429,7 +433,10 @@ mod tests {
     #[test]
     fn origin_must_match_forwarded_or_direct_host() {
         let mut headers = HeaderMap::new();
-        headers.insert(header::HOST, HeaderValue::from_static("console.local:30500"));
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_static("console.local:30500"),
+        );
         headers.insert(
             header::ORIGIN,
             HeaderValue::from_static("https://console.local:30500"),

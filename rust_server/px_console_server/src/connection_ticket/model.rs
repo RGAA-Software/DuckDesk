@@ -1,6 +1,6 @@
+use crate::rtc::model::RtcSessionIceConfig;
 use mongodb::bson::DateTime;
 use serde::{Deserialize, Serialize};
-use crate::rtc::model::RtcSessionIceConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionTicket {

@@ -98,7 +98,9 @@ pub async fn handle_delete_stream(
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let stream_id = r[KEY_STREAM_ID].as_str().unwrap();
-    let s = gConsoleStreamMgr.delete_stream(stream_id.to_string()).await?;
+    let s = gConsoleStreamMgr
+        .delete_stream(stream_id.to_string())
+        .await?;
     Ok(Json(ok_resp(s)))
 }
 
@@ -109,7 +111,9 @@ pub async fn handle_update_stream(
     let body = get_body(b).await?;
     let r: Value = serde_json::from_str(body.as_str()).unwrap();
     let stream_id = r[KEY_STREAM_ID].as_str().unwrap().to_string();
-    let _stream = gConsoleStreamMgr.query_stream_by_id(stream_id.clone()).await?;
+    let _stream = gConsoleStreamMgr
+        .query_stream_by_id(stream_id.clone())
+        .await?;
     tracing::info!("found stream {:?} to update.", stream_id);
 
     let mut update_success = false;
@@ -144,7 +148,9 @@ pub async fn handle_update_stream(
     }
 
     if update_success {
-        let stream = gConsoleStreamMgr.query_stream_by_id(stream_id.clone()).await?;
+        let stream = gConsoleStreamMgr
+            .query_stream_by_id(stream_id.clone())
+            .await?;
         Ok(Json(ok_resp(stream)))
     } else {
         Err(ConsoleApiError::UserUpdateFailed)

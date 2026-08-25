@@ -320,8 +320,12 @@ impl ConnectionTicketManager {
             "expires_at": { "$gt": now },
         };
         match instance_id.filter(|value| !value.is_empty()) {
-            Some(value) => { filter.insert("instance_id", value); }
-            None => { filter.insert("instance_id", Bson::Null); }
+            Some(value) => {
+                filter.insert("instance_id", value);
+            }
+            None => {
+                filter.insert("instance_id", Bson::Null);
+            }
         }
         gConsoleDatabase
             .lock()
@@ -354,8 +358,7 @@ mod tests {
     #[ignore = "requires a local MongoDB; run explicitly as the L1 ticket gate"]
     async fn mongodb_atomic_redeem_renew_and_binding_gate() {
         let database_name = format!("db_gr_console_server_test_ticket_{}", std::process::id());
-        crate::gConsoleSettings.lock().await.mongodb_url =
-            "mongodb://127.0.0.1:27017/".to_string();
+        crate::gConsoleSettings.lock().await.mongodb_url = "mongodb://127.0.0.1:27017/".to_string();
         {
             let mut database = gConsoleDatabase.lock().await;
             database.use_isolated_test_database(&database_name);

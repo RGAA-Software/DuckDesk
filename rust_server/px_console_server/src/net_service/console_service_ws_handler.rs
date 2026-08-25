@@ -62,7 +62,8 @@ async fn handle_socket(
 
         let sender = Arc::new(Mutex::new(sender));
         let service_conn =
-            ConsoleServiceConn::new(context.clone(), sender, device_id.clone(), appkey.clone()).await;
+            ConsoleServiceConn::new(context.clone(), sender, device_id.clone(), appkey.clone())
+                .await;
         let console_conn = Arc::new(Mutex::new(service_conn));
         let epoch = gConsoleServiceConnMgr
             .add_conn(device_id.clone(), console_conn.clone())

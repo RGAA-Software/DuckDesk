@@ -20,7 +20,6 @@ namespace px
     class PxSettings;
     class StartStreamLoading;
     class MessageListener;
-    class TcDialog;
 
     class RunningStreamManager : public std::enable_shared_from_this<RunningStreamManager> {
     public:
@@ -48,7 +47,6 @@ namespace px
         std::map<std::string, std::string> running_network_types_;
         std::map<std::string, bool> running_connected_;
         std::mutex running_mutex_;
-        std::shared_ptr<TcDialog> no_conn_dialog_ = nullptr;
     };
 
 }

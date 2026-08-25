@@ -90,7 +90,8 @@ function encodeAuthInfo(opts) {
     encInt64(9, BigInt(Date.now()) + 86400000n * 30n),
     encString(10, opts.consoleHost),
     encInt32(11, opts.consolePort),
-    // bool console_ssl = 12 (proto3 default is false = plain ws, encode it explicitly)
+    // bool console_ssl = 12. Console is TLS-only; keep the field explicit for
+    // compatibility with older protobuf readers (the service also forces true).
     encInt32(12, opts.consoleSsl ? 1 : 0),
   ])
 }

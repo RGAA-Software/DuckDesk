@@ -62,7 +62,7 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_console_port(QStringList{"console_port", "cms_port"}, "Console Port", "9999", "0");
     parser.addOption(opt_console_port);
 
-    QCommandLineOption opt_console_ssl(QStringList{"console_ssl", "cms_ssl"}, "Console SSL(wss/ws)", "true/false", "true");
+    QCommandLineOption opt_console_ssl(QStringList{"console_ssl", "cms_ssl"}, "Legacy Console TLS option (ignored; WSS is required)", "true/false", "true");
     parser.addOption(opt_console_ssl);
 
     QCommandLineOption opt_appkey("appkey", "appkey", "x", "");
@@ -218,8 +218,9 @@ bool ParseCommandLine(QApplication& app) {
     // console
     settings->console_host_ = parser.value(opt_console_host).toStdString();
     settings->console_port_ = parser.value(opt_console_port).toInt();
-    // 缺省 true,保持旧的 wss 行为;显式传 --console_ssl=false 时走明文 ws
-    settings->console_ssl_ = parser.value(opt_console_ssl) != "false";
+    // Console is HTTPS/WSS-only. Keep accepting the legacy CLI option so old
+    // launchers do not fail argument parsing, but never downgrade to plain WS.
+    settings->console_ssl_ = true;
 
     auto audio_on = parser.value(opt_audio).toInt();
     settings->audio_on_ = (audio_on == 1);

@@ -1,8 +1,7 @@
 use crate::console_context::ConsoleContext;
 use crate::filter::console_appkey_filter;
 use crate::rtc::handler::{
-    get_admin_config, get_node_config, get_turn_status, update_admin_config,
-    validate_admin_config,
+    get_admin_config, get_node_config, get_turn_status, update_admin_config, validate_admin_config,
 };
 use crate::user::session_router::{require_admin, require_admin_write};
 use axum::routing::{get, post, put};

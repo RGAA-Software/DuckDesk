@@ -13,7 +13,9 @@ pub fn check(key: String, limit: usize, window_ms: i64) -> Result<(), ConsoleApi
         return Err(ConsoleApiError::RateLimited);
     }
     let now = px_base::get_current_timestamp();
-    let mut all = ATTEMPTS.lock().map_err(|_| ConsoleApiError::InternalError)?;
+    let mut all = ATTEMPTS
+        .lock()
+        .map_err(|_| ConsoleApiError::InternalError)?;
     let entries = all.entry(key).or_default();
     while entries.front().is_some_and(|at| now - *at >= window_ms) {
         entries.pop_front();

@@ -18,6 +18,7 @@
 #include <QString>
 #include <QPaintEvent>
 #include <map>
+#include <unordered_map>
 #include <QProcess>
 #include <mutex>
 #include <atomic>
@@ -85,6 +86,7 @@ namespace px
         std::mutex streams_mtx_;
         std::vector<std::shared_ptr<px_console::ConsoleStream>> streams_;
         std::vector<std::shared_ptr<px_console::ConsoleStream>> console_app_streams_;
+        std::unordered_map<std::string, bool> console_device_online_states_;
         AppStreamListMode mode_ = AppStreamListMode::kRemoteDevices;
         std::function<void(bool)> on_empty_changed_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;

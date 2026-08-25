@@ -21,7 +21,7 @@ namespace px_console
     void SetConsoleSslEnabled(bool enabled);
     bool IsConsoleSslEnabled();
 
-    // make a http(s) client to Console, scheme selected by IsConsoleSslEnabled()
+    // Make an HTTPS client to Console. The legacy setting cannot downgrade it.
     std::shared_ptr<px::HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
 
 }

@@ -42,7 +42,11 @@ fn regex_literal(value: &str) -> String {
 }
 
 async fn encrypt_password_for_admin(plain_password: &str) -> Result<String, ConsoleApiError> {
-    let installation_secret = crate::gConsoleSettings.lock().await.privacy_hash_salt.clone();
+    let installation_secret = crate::gConsoleSettings
+        .lock()
+        .await
+        .privacy_hash_salt
+        .clone();
     password::encrypt_recoverable(plain_password, &installation_secret).map_err(|error| {
         tracing::error!("encrypt recoverable user password failed: {}", error);
         ConsoleApiError::InternalError
@@ -238,12 +242,19 @@ impl ConsoleUserManager {
         self.query_user_by_id(uid).await
     }
 
-    pub async fn admin_recover_password(&self, uid: String) -> Result<Option<String>, ConsoleApiError> {
+    pub async fn admin_recover_password(
+        &self,
+        uid: String,
+    ) -> Result<Option<String>, ConsoleApiError> {
         let user = self.query_user_by_id(uid).await?;
         if user.password_ciphertext.is_empty() {
             return Ok(None);
         }
-        let installation_secret = crate::gConsoleSettings.lock().await.privacy_hash_salt.clone();
+        let installation_secret = crate::gConsoleSettings
+            .lock()
+            .await
+            .privacy_hash_salt
+            .clone();
         password::decrypt_recoverable(&user.password_ciphertext, &installation_secret)
             .map(Some)
             .map_err(|error| {
@@ -383,7 +394,10 @@ impl ConsoleUserManager {
         Ok(r.unwrap())
     }
 
-    pub async fn query_user_by_username(&self, username: String) -> Result<ConsoleUser, ConsoleApiError> {
+    pub async fn query_user_by_username(
+        &self,
+        username: String,
+    ) -> Result<ConsoleUser, ConsoleApiError> {
         let c_user = gConsoleDatabase.lock().await.user();
         let filter = doc! {
             "username_normalized": username.trim().to_lowercase(),

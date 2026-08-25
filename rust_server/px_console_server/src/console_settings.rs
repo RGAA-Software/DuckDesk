@@ -204,9 +204,8 @@ pub struct ConsoleSettings {
     #[serde(default = "default_force_authorize")]
     pub force_authorize: bool,
 
-    /// true = 主服务走 HTTPS（rustls，需要 ssl_cert/ssl_key，缺证书拒绝启动）；
-    /// false = 主服务绑纯 HTTP（局域网部署，避免页面内嵌 http:// 设备内容
-    /// 被浏览器混合内容拦截）。缺省 true。
+    /// Console's public control plane is HTTPS/WSS only. The field remains in
+    /// the file format so older deployments can be migrated at load time.
     #[serde(default = "default_ssl_enable")]
     pub ssl_enable: bool,
 
@@ -248,22 +247,22 @@ impl ConsoleSettings {
         ConsoleSettings::default()
     }
 
-    /// Reject insecure production combinations before any listener or managed
-    /// sidecar is started. Test deployments remain explicit through
-    /// `environment = "test"`; production never silently downgrades auth/TLS.
+    /// Reject insecure combinations before any listener or managed sidecar is
+    /// started. Test deployments may bypass authorization, but Console itself
+    /// still serves HTTPS/WSS so every client exercises the production transport.
     pub fn validate_for_server(&self) -> Result<(), String> {
         if !matches!(self.environment.as_str(), "test" | "production") {
             return Err("environment must be either 'test' or 'production'".to_string());
         }
+        if !self.ssl_enable {
+            return Err("Console requires ssl_enable=true".to_string());
+        }
+        if self.ssl_cert.trim().is_empty() || self.ssl_key.trim().is_empty() {
+            return Err("Console TLS certificate and key must be configured".to_string());
+        }
         if self.environment == "production" {
             if !self.force_authorize {
                 return Err("production requires force_authorize=true".to_string());
-            }
-            if !self.ssl_enable {
-                return Err("production external login requires ssl_enable=true".to_string());
-            }
-            if self.ssl_cert.trim().is_empty() || self.ssl_key.trim().is_empty() {
-                return Err("production TLS certificate and key must be configured".to_string());
             }
             if self.privacy_hash_salt.as_bytes().len() < 16 {
                 return Err(
@@ -301,6 +300,13 @@ impl ConsoleSettings {
         };
         let mut ns: ConsoleSettings = toml::from_str(&toml_content).expect("parse toml failed");
         tracing::info!(config_file, "Console configuration loaded");
+        if !ns.ssl_enable {
+            tracing::warn!(
+                config_file,
+                "migrating legacy ssl_enable=false; Console now requires HTTPS/WSS"
+            );
+            ns.ssl_enable = true;
+        }
         //tracing::info!("Load Settings:\n{:#?}", ns);
         tracing::info!("the w3c ip: {}", ns.server_w3c_ip);
 
@@ -404,6 +410,8 @@ mod security_tests {
         settings.environment = "test".to_string();
         settings.force_authorize = false;
         settings.ssl_enable = false;
+        assert!(settings.validate_for_server().is_err());
+        settings.ssl_enable = true;
         assert!(settings.validate_for_server().is_ok());
         settings.user.ticket_expire_seconds = 301;
         assert!(settings.validate_for_server().is_err());

@@ -30,6 +30,8 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/px_app_messages.h"
 #include "running_stream_manager.h"
+#include "connection_policy.h"
+#include "console_device_state.h"
 #include "px_common_new/uid_spacer.h"
 #include "px_common_new/hardware.h"
 #include "edit_relay_stream_dialog.h"
@@ -37,8 +39,6 @@
 #include "start_stream_loading.h"
 #include "input_remote_pwd_dialog.h"
 #include "stream_state_checker.h"
-#include "px_profile_client/profile_api.h"
-#include "px_relay_client/relay_api.h"
 #include "px_console_client/console_user.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_user_device.h"
@@ -76,6 +76,32 @@ namespace px
         settings_ = PxSettings::Instance();
         db_mgr_ = context_->GetStreamDBManager();
         running_stream_mgr_ = context_->GetRunningStreamManager();
+        if (mode_ == AppStreamListMode::kRemoteDevices) {
+            int removed_legacy_managed = 0;
+            int normalized_direct = 0;
+            for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
+                if (!stream) {
+                    continue;
+                }
+                if (connection_policy::IsLegacyManagedConnection(
+                        stream->connect_type_, stream->remote_device_id_)) {
+                    db_mgr_->DeleteStream(stream->_id);
+                    ++removed_legacy_managed;
+                }
+                else if (connection_policy::IsUnclassifiedDirectConnection(
+                             stream->connect_type_, stream->remote_device_id_,
+                             stream->stream_host_, stream->stream_port_)) {
+                    stream->connect_type_ = connection_policy::kExplicitDirect;
+                    stream->force_direct_ = true;
+                    db_mgr_->UpdateStream(stream);
+                    ++normalized_direct;
+                }
+            }
+            if (removed_legacy_managed > 0 || normalized_direct > 0) {
+                LOGI("Connection policy cleanup: removed legacy managed={}, normalized direct={}",
+                     removed_legacy_managed, normalized_direct);
+            }
+        }
         CreateLayout();
         Init();
 
@@ -235,6 +261,19 @@ namespace px
                 if (!item->remote_device_id_.empty()) {
                     exist_stream_item->remote_device_id_ = item->remote_device_id_;
                 }
+                if (!item->connect_type_.empty()) {
+                    exist_stream_item->connect_type_ = item->connect_type_;
+                    exist_stream_item->force_direct_ = item->force_direct_;
+                    exist_stream_item->use_webrtc_ = item->use_webrtc_;
+                    if (connection_policy::IsConsoleTicket(item->connect_type_)) {
+                        exist_stream_item->stream_host_.clear();
+                        exist_stream_item->stream_port_ = 0;
+                        exist_stream_item->relay_host_.clear();
+                        exist_stream_item->relay_port_ = 0;
+                        exist_stream_item->remote_device_random_pwd_.clear();
+                        exist_stream_item->remote_device_safety_pwd_.clear();
+                    }
+                }
                 if (!item->stream_host_.empty()) {
                     exist_stream_item->stream_host_ = item->stream_host_;
                 }
@@ -336,7 +375,7 @@ namespace px
 
     void AppStreamList::RegisterActions(int index, QListWidgetItem* cur_item) {
         const auto stream = streams_.at(index);
-        if (stream->connect_type_ == "console_app_ticket") {
+        if (stream->connect_type_ == connection_policy::kConsoleAppTicket) {
             auto menu = new QMenu();
             auto connect_action = menu->addAction(tcTr(
                 stream->console_instance_state_ == "running"
@@ -446,7 +485,7 @@ namespace px
 
     void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing) {
         std::shared_ptr<px_console::ConsoleStream> target_item;
-        const bool uses_console_app_ticket = item->connect_type_ == "console_app_ticket";
+        const bool uses_console_app_ticket = item->connect_type_ == connection_policy::kConsoleAppTicket;
         if (uses_console_app_ticket) {
             target_item = item;
         } else {
@@ -461,7 +500,28 @@ namespace px
         // connection permanently downgrade later normal connections.
         target_item->only_viewing_ = force_only_viewing;
 
-        const bool uses_console_ticket = target_item->connect_type_ == "console_ticket" || uses_console_app_ticket;
+        // A saved link:// share remains a password-bearing direct entry while
+        // signed out. When a Console user is signed in, upgrade only this launch
+        // to a device ticket without overwriting the saved share credentials.
+        if (connection_policy::SharedLinkUsesConsoleTicket(
+                target_item->connect_type_, grApp->GetUserManager()->IsLoggedIn())) {
+            target_item = std::make_shared<px_console::ConsoleStream>(*target_item);
+            target_item->connect_type_ = connection_policy::kConsoleDeviceTicket;
+        }
+
+        const auto launch_policy = connection_policy::Classify(
+            target_item->connect_type_, target_item->remote_device_id_,
+            target_item->stream_host_, target_item->stream_port_);
+        if (launch_policy == connection_policy::LaunchPolicy::kReject) {
+            LOGE("Reject stream with unsupported connection policy: type={}, remote_device_id={}, endpoint={}:{}",
+                 target_item->connect_type_, target_item->remote_device_id_,
+                 target_item->stream_host_, target_item->stream_port_);
+            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"),
+                            grWorkspace.get());
+            dialog.exec();
+            return;
+        }
+        const bool uses_console_ticket = launch_policy == connection_policy::LaunchPolicy::kConsoleTicket;
         if (uses_console_ticket) {
             const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
             std::vector<std::string> permissions {"view"};
@@ -686,126 +746,19 @@ namespace px
             }
         }
         else {
-            // we can't connect directly
-            LOGI("We can *NOT* connect directly: {}:{}, will try relay!", target_item->stream_host_, target_item->stream_port_);
-            LOGI("Stream id: {}", target_item->stream_id_);
-            LOGI("Remote connection credentials copied from the selected device");
-            LOGI("stream host: {}, remote device id: {}", target_item->stream_host_, target_item->remote_device_id_);
-            if (target_item->HasRelayInfo()) {
-                LOGI("Yes, we have relay info: {} {}", target_item->relay_host_, target_item->relay_port_);
-                // verify my self
-                if (!grApp->CheckLocalDeviceInfoWithPopup()) {
-                    return;
-                }
-
-                // check the remote device in relay server
-                auto appkey = grApp->GetAppkey();
-                auto srv_remote_device_id = "server_" + item->remote_device_id_;
-                LOGI("Will check remote device: {} on relay server: {}:{}", srv_remote_device_id, item->relay_host_, item->relay_port_);
-                auto relay_device_info = px_relay::RelayApi::GetRelayDeviceInfo(item->relay_host_, item->relay_port_, srv_remote_device_id, appkey);
-                if (!relay_device_info.has_value()) {
-                    if (relay_device_info.error() == px_relay::kRelayRequestFailed) {
-                        // network failed
-                        TcDialog dialog(tcTr("id_error"), tcTr("id_relay_network_unavailable_recreate"));
-                        dialog.exec();
-                    }
-                    else {
-                        //
-                        TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"));
-                        dialog.exec();
-                    }
-                    return;
-                }
-
-                // NO password, just input one
-                LOGI("Connecting to device: {}; credentials configured: {}", target_item->device_id_,
-                     !target_item->remote_device_random_pwd_.empty() || !target_item->remote_device_safety_pwd_.empty());
-                QString input_password;
-                if (target_item->remote_device_random_pwd_.empty() && target_item->remote_device_safety_pwd_.empty()) {
-                    InputRemotePwdDialog dlg_input_pwd(context_);
-                    if (dlg_input_pwd.exec() == 1) {
-                        return;
-                    }
-                    input_password = dlg_input_pwd.GetInputPassword();
-                    if (input_password.isEmpty()) {
-                        return;
-                    }
-                }
-
-                auto remote_random_pwd = target_item->remote_device_random_pwd_;
-                auto remote_safety_pwd = target_item->remote_device_safety_pwd_;
-                if (!input_password.isEmpty() && remote_random_pwd.empty() && remote_safety_pwd.empty()) {
-                    remote_random_pwd = input_password.toStdString();
-                    remote_safety_pwd = input_password.toStdString();
-                }
-
-                // verify remote
-                // password from inputting
-                // password from database
-                auto verify_result = ProfileApi::VerifyDeviceInfo(settings_->GetConsoleServerHost(),
-                                                                  settings_->GetConsoleServerPort(),
-                                                                  target_item->remote_device_id_,
-                                                                  MD5::Hex(remote_random_pwd),
-                                                                  MD5::Hex(remote_safety_pwd),
-                                                                  grApp->GetAppkey());
-                if (verify_result == ProfileVerifyResult::kVfNetworkFailed) {
-                    TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_profile_network_unavailable"), grWorkspace.get());
-                    dialog.exec();
-                    return;
-                }
-
-                if (verify_result != ProfileVerifyResult::kVfSuccessRandomPwd &&
-                    verify_result != ProfileVerifyResult::kVfSuccessSafetyPwd &&
-                    verify_result != ProfileVerifyResult::kVfSuccessAllPwd) {
-                    // tell user, password is invalid
-                    TcDialog dialog(tcTr("id_password_invalid"), tcTr("id_password_invalid_msg"), grWorkspace.get());
-                    dialog.exec();
-
-                    // clear the password and restart stream, then you need to input a password
-                    // clear the memory
-                    item->remote_device_random_pwd_ = "";
-                    item->remote_device_safety_pwd_ = "";
-                    // clear the database
-                    db_mgr_->UpdateStreamRandomPwd(target_item->stream_id_, "");
-                    db_mgr_->UpdateStreamSafetyPwd(target_item->stream_id_, "");
-                    QPointer<AppStreamList> self(this);
-                    context_->PostUIDelayTask([self, cur_item, item]() {
-                        if (!self) {
-                            return;
-                        }
-                        self->StartStream(cur_item, item, false);
-                    }, 100);
-                    return;
-                }
-
-                LOGI("Verify result, the password type: {}", (int)verify_result);
-                // update to database
-                if (verify_result == ProfileVerifyResult::kVfSuccessRandomPwd || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
-                    db_mgr_->UpdateStreamRandomPwd(target_item->stream_id_, remote_random_pwd);
-                    target_item->remote_device_random_pwd_ = remote_random_pwd;
-                    LOGI("Updated the saved random-password credential");
-                }
-                else if (verify_result == ProfileVerifyResult::kVfSuccessSafetyPwd || verify_result == ProfileVerifyResult::kVfSuccessAllPwd) {
-                    db_mgr_->UpdateStreamSafetyPwd(target_item->stream_id_, remote_safety_pwd);
-                    target_item->remote_device_safety_pwd_ = remote_safety_pwd;
-                    LOGI("Updated the saved safety-password credential");
-                }
-
-                // start via websocket
-                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeRelay, false);
-            }
-            else {
-                LOGI("Yes, we DONT have relay info, force relay? {}, relay_host: {}, relay_port: {}",
-                     target_item->force_relay_, target_item->relay_host_, target_item->relay_port_);
-                 TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
-                 dialog.exec();
-                 return;
-            }
+            // Explicit IP:port connections never fall back to the Console Relay.
+            // Console-managed connections returned earlier through the standard
+            // RTC route, so reaching here means the direct endpoint is offline.
+            LOGW("Explicit direct endpoint is unavailable: {}:{}",
+                 target_item->stream_host_, target_item->stream_port_);
+            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_device_offline"),
+                            grWorkspace.get());
+            dialog.exec();
         }
     }
 
     bool AppStreamList::StopStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
-        if (item->connect_type_ == "console_app_ticket") {
+        if (item->connect_type_ == connection_policy::kConsoleAppTicket) {
             if (!running_stream_mgr_->StopStream(item)) {
                 return false;
             }
@@ -1034,8 +987,10 @@ namespace px
                     auto db_mgr = self->context_->GetStreamDBManager();
                     self->streams_ = db_mgr->GetAllStreamsSortByCreatedTime();
                     std::erase_if(self->streams_, [](const auto& stream) {
-                        return stream && stream->connect_type_ == "console_app_ticket";
+                        return stream && stream->connect_type_ == connection_policy::kConsoleAppTicket;
                     });
+                    ApplyConsoleDeviceOnlineStates(
+                        self->streams_, self->console_device_online_states_);
                 }
 
                 // bench test
@@ -1149,8 +1104,13 @@ namespace px
             return;
         }
 
+        {
+            std::lock_guard<std::mutex> guard(streams_mtx_);
+            console_device_online_states_.clear();
+        }
+
         for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-            if (stream && stream->connect_type_ == "console_ticket") {
+            if (stream && stream->connect_type_ == connection_policy::kConsoleDeviceTicket) {
                 // Identity changes revoke future ticket creation but do not
                 // terminate an already-established client process.
                 db_mgr_->DeleteStream(stream->_id);
@@ -1165,17 +1125,23 @@ namespace px
         if (user_devices_result.has_value()) {
             const auto& user_devices = user_devices_result.value();
             std::unordered_set<std::string> available_device_ids;
+            ConsoleDeviceOnlineStates online_states;
             for (const auto& ud : user_devices) {
                 if (!ud->device_id_.empty() && ud->device_) {
                     available_device_ids.insert(ud->device_id_);
+                    online_states[ud->device_id_] = ud->device_->active_;
                 }
+            }
+            {
+                std::lock_guard<std::mutex> guard(streams_mtx_);
+                console_device_online_states_ = std::move(online_states);
             }
 
             // Console-sourced devices are a projection of the current identity, not a
             // permanent local address-book entry. Only reconcile after a successful
             // response; a network error must not look like an empty Console catalog.
             for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-                if (stream->connect_type_ == "console_ticket"
+                if (stream->connect_type_ == connection_policy::kConsoleDeviceTicket
                     && !available_device_ids.contains(stream->remote_device_id_)) {
                     // The device was removed from Console. Remove only the projected
                     // card; do not interrupt an already-established local client.
@@ -1199,8 +1165,9 @@ namespace px
                     stream->stream_port_ = 0;
                     stream->relay_host_.clear();
                     stream->relay_port_ = 0;
-                    stream->connect_type_ = "console_ticket";
+                    stream->connect_type_ = connection_policy::kConsoleDeviceTicket;
                     stream->use_webrtc_ = true;
+                    stream->console_online_ = ud->device_->active_;
                     db_mgr->UpdateStream(stream);
                 }
                 else {
@@ -1211,8 +1178,9 @@ namespace px
                     item->encode_fps_ = 0;
                     item->clipboard_enabled_ = false;
                     item->audio_enabled_ = false;
-                    item->connect_type_ = "console_ticket";
+                    item->connect_type_ = connection_policy::kConsoleDeviceTicket;
                     item->use_webrtc_ = true;
+                    item->console_online_ = ud->device_->active_;
                     db_mgr->AddStream(item);
                 }
             }
@@ -1230,7 +1198,7 @@ namespace px
                 auto stream = std::make_shared<px_console::ConsoleStream>();
                 stream->stream_id_ = "console-app-" + app.app_id;
                 stream->stream_name_ = app.name;
-                stream->connect_type_ = "console_app_ticket";
+                stream->connect_type_ = connection_policy::kConsoleAppTicket;
                 stream->console_app_id_ = app.app_id;
                 stream->console_access_mode_ = app.access_mode;
                 stream->console_instance_state_ = "stopped";
@@ -1238,7 +1206,7 @@ namespace px
                     QUrl cover_url(QString::fromStdString(app.cover_url));
                     if (cover_url.isRelative()) {
                         QUrl console_base;
-                        console_base.setScheme(settings_->IsConsoleSslEnabled() ? "https" : "http");
+                        console_base.setScheme("https");
                         console_base.setHost(QString::fromStdString(settings_->GetConsoleServerHost()));
                         console_base.setPort(settings_->GetConsoleServerPort());
                         console_base.setPath("/");

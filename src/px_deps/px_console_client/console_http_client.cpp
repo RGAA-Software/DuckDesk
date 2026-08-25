@@ -11,8 +11,10 @@ namespace px_console
 
     static std::atomic_bool g_console_ssl_enabled = true;
 
-    void SetConsoleSslEnabled(bool enabled) {
-        g_console_ssl_enabled = enabled;
+    void SetConsoleSslEnabled(bool /*enabled*/) {
+        // Console is HTTPS/WSS-only. Keep the setter for source compatibility
+        // with access-info parsers from older deployments, but never downgrade.
+        g_console_ssl_enabled = true;
     }
 
     bool IsConsoleSslEnabled() {

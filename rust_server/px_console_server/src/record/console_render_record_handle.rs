@@ -19,7 +19,9 @@ use axum::extract::{Multipart, Path, Query, State};
 use axum::Json;
 use futures_util::StreamExt;
 use prost::Message as ProstMessage;
-use protocol::console_panel::{ConsolePanelMessage, ConsolePanelMessageType, RecordFetchReq, RecordListReq};
+use protocol::console_panel::{
+    ConsolePanelMessage, ConsolePanelMessageType, RecordFetchReq, RecordListReq,
+};
 use px_base::{ok_resp, RespMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -404,7 +406,8 @@ pub async fn handle_record_upload(
 
     let dir = format!("./uploads/records/{}", device_id);
     if !skip_write {
-        px_base::create_dir_all_if_not_exists(&dir).map_err(|_| ConsoleApiError::UploadFileFailed)?;
+        px_base::create_dir_all_if_not_exists(&dir)
+            .map_err(|_| ConsoleApiError::UploadFileFailed)?;
     }
     let target_path = record_file_path(&device_id, &filename);
 

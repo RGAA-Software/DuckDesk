@@ -6,7 +6,7 @@ use crate::user::console_user_keys::KEY_USER_ID;
 use crate::user_device::console_user_device::{
     ConsoleUserDevice, ConsoleUserDeviceAdapter, ConsoleUserDeviceSummary,
 };
-use crate::{gConsoleDatabase, gDeviceManager, gUserManager};
+use crate::{gConsoleDatabase, gConsolePanelConnMgr, gDeviceManager, gUserManager};
 use futures_util::StreamExt;
 use mongodb::bson::doc;
 use px_base::get_current_readable_timestamp;
@@ -180,7 +180,12 @@ impl ConsoleUserDeviceManager {
                 tracing::error!("failed to read registered device for user: {}", e);
                 ConsoleApiError::DatabaseError
             })?;
-            devices.push(ConsoleUserDeviceSummary::from(device));
+            let online = gConsolePanelConnMgr
+                .is_panel_online(device.device_id.clone())
+                .await?;
+            devices.push(ConsoleUserDeviceSummary::from_device_with_online(
+                device, online,
+            ));
         }
         devices.sort_by(|left, right| {
             left.name

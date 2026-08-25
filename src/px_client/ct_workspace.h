@@ -15,6 +15,7 @@
 #include "theme/QtAdvancedStylesheet.h"
 #include "px_client/ct_app_message.h"
 #include "ct_base_workspace.h"
+#include "latest_frame_dispatch_queue.h"
 
 namespace px
 {
@@ -33,8 +34,15 @@ namespace px
         void InitGameView(const std::shared_ptr<ThunderSdkParams>& params) override;
         void RegisterBaseListeners() override;
     private:
+        struct PendingDecodedVideoFrame {
+            std::shared_ptr<RawImage> image_;
+            SdkCaptureMonitorInfo info_;
+        };
+
         void Init() override;
         void RegisterSdkMsgCallbacks() override;
+        void RenderDecodedVideoFrame(const std::shared_ptr<RawImage>& image,
+                                     const SdkCaptureMonitorInfo& info);
         void CalculateAspectRatio() override;
         void SwitchToFillWindow() override;
         void UpdateGameViewsStatus(bool force_layout_screens) override;
@@ -42,6 +50,8 @@ namespace px
         void OnGetCaptureMonitorName(std::string monitor_name) override;
     private:
         std::vector<GameView*> game_views_;  
+        std::shared_ptr<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>> video_frame_dispatch_queue_
+            = std::make_shared<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>>();
   
         EMultiMonDisplayMode multi_display_mode_ = EMultiMonDisplayMode::kTab;     
     private:

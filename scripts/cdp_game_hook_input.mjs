@@ -21,6 +21,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const profile = path.join(os.tmpdir(), `cdp-game-input-${Date.now()}`)
 
 const pageForLog = new URL(PAGE_URL)
+for (const key of ['password', 'pwd_md5', 'ticket', 'renew', 'nonce', 'ice']) {
+  if (pageForLog.searchParams.has(key)) pageForLog.searchParams.set(key, '<redacted>')
+}
 if (pageForLog.hash) pageForLog.hash = '#<redacted>'
 console.log('[cdp] page:', pageForLog.toString())
 

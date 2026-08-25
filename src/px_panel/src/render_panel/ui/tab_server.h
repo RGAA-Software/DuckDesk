@@ -26,9 +26,7 @@ namespace px
     class TcQRWidget;
     class StreamContent;
     class TcImageButton;
-    class RunningStreamManager;
     class StreamDBOperator;
-    class TcPasswordInput;
     class RoundImageDisplay;
     class TcCircleIndicator;
     class PxStatistics;
@@ -61,10 +59,8 @@ namespace px
         TcQRWidget* lbl_qr_code_ = nullptr;
         RoundImageDisplay* qr_avatar_ = nullptr;
         StreamContent* stream_content_ = nullptr;
-        TcPasswordInput* password_input_ = nullptr;
         QComboBox* remote_devices_ = nullptr;
         TcImageButton* btn_hide_random_pwd_ = nullptr;
-        std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<StreamDBOperator> stream_db_mgr_ = nullptr;
         std::vector<std::shared_ptr<px_console::ConsoleStream>> recent_streams_;
         TcCircleIndicator* console_indicator_ = nullptr;

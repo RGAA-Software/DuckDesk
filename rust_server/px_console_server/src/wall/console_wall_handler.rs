@@ -3,7 +3,9 @@ use crate::console_context::ConsoleContext;
 use crate::{gConsoleServiceConnMgr, gDeviceManager};
 use axum::extract::State;
 use axum::Json;
-use protocol::console_service::{ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult};
+use protocol::console_service::{
+    ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult,
+};
 use px_base::{ok_resp, RespMessage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

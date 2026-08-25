@@ -11,7 +11,9 @@
 use crate::auth::console_auth_license_keys::{init_license_verifier, license_to_authorization};
 use crate::auth::console_auth_manager::KEY_AUTHORIZATION;
 use crate::console_settings::DEFAULT_AUTH_PULL_INTERVAL_SECS;
-use crate::{gAuthManager, gConsoleContext, gConsoleDatabase, gConsoleSettings, gKvStorage, gLicenseVerifier};
+use crate::{
+    gAuthManager, gConsoleContext, gConsoleDatabase, gConsoleSettings, gKvStorage, gLicenseVerifier,
+};
 use mongodb::bson::doc;
 use px_auth_mgr::app_credential as cred;
 use px_auth_mgr::app_secret_util::calculate_app_secret;

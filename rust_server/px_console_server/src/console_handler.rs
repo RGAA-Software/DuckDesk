@@ -1,8 +1,10 @@
-use crate::console_api_error::ConsoleApiError;
-use crate::console_context::ConsoleContext;
 use crate::config::console_access_info::ConsoleAccessInfo;
 use crate::config::console_server_config::ConsoleServerConfig;
-use crate::{gAuthManager, gConsoleClientConnMgr, gConsoleContext, gConsoleSettings, gConsoleSystemMgr};
+use crate::console_api_error::ConsoleApiError;
+use crate::console_context::ConsoleContext;
+use crate::{
+    gAuthManager, gConsoleClientConnMgr, gConsoleContext, gConsoleSettings, gConsoleSystemMgr,
+};
 use axum::extract::State;
 use axum::Json;
 use px_base::RespMessage;

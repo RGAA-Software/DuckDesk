@@ -1,5 +1,7 @@
 use crate::console_api_error::ConsoleApiError;
-use crate::net_service::console_service_conn::{ConsoleServiceConn, ConsoleServiceConnPtr, ConsoleServiceConnVo};
+use crate::net_service::console_service_conn::{
+    ConsoleServiceConn, ConsoleServiceConnPtr, ConsoleServiceConnVo,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -59,7 +61,10 @@ impl ConsoleServiceConnManager {
         }
     }
 
-    pub async fn get_conn(&self, device_id: String) -> Result<ConsoleServiceConnPtr, ConsoleApiError> {
+    pub async fn get_conn(
+        &self,
+        device_id: String,
+    ) -> Result<ConsoleServiceConnPtr, ConsoleApiError> {
         let conn = self.state.lock().await.connections.get(&device_id).cloned();
         if let Some(conn) = conn {
             Ok(conn)
@@ -68,7 +73,10 @@ impl ConsoleServiceConnManager {
         }
     }
 
-    pub async fn get_conn_info(&self, device_id: String) -> Result<ConsoleServiceConnVo, ConsoleApiError> {
+    pub async fn get_conn_info(
+        &self,
+        device_id: String,
+    ) -> Result<ConsoleServiceConnVo, ConsoleApiError> {
         let conn = self.get_conn(device_id).await?;
         let conn = conn.lock().await.clone();
         Ok(conn.as_info())
@@ -244,7 +252,9 @@ mod tests {
             let mut c = conn.lock().await;
 
             let mut hello = protocol::console_service::ConsoleServiceMessage::default();
-            hello.set_msg_type(protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHello);
+            hello.set_msg_type(
+                protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHello,
+            );
             hello.hello = Some(protocol::console_service::ConsoleServiceHello {
                 device_id: "d1".to_string(),
                 appkey: "appkey-1".to_string(),
@@ -262,7 +272,9 @@ mod tests {
             assert_eq!(c.last_update_timestamp, c.hello_timestamp);
 
             let mut hb = protocol::console_service::ConsoleServiceMessage::default();
-            hb.set_msg_type(protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat);
+            hb.set_msg_type(
+                protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat,
+            );
             hb.heartbeat = Some(protocol::console_service::ConsoleServiceHeartBeat {
                 hb_index: 42,
                 device_id: "d1".to_string(),
