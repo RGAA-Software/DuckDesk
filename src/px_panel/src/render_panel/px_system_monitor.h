@@ -11,6 +11,7 @@
 #include <mutex>
 #include <functional>
 #include <atomic>
+#include <condition_variable>
 #include "px_common_new/response.h"
 
 namespace px
@@ -30,6 +31,7 @@ namespace px
         static std::shared_ptr<PxSystemMonitor> Make(const std::shared_ptr<PxApplication>& app);
 
         explicit PxSystemMonitor(const std::shared_ptr<PxApplication>& app);
+        ~PxSystemMonitor();
         void Start();
         void Exit();
         std::vector<double> GetCurrentCpuFrequency();
@@ -53,12 +55,15 @@ namespace px
         std::shared_ptr<PxApplication> app_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<Thread> monitor_thread_ = nullptr;
-        bool exit_ = false;
+        std::atomic_bool exit_ = false;
+        std::mutex exit_mutex_;
+        std::condition_variable exit_cv_;
 
         std::shared_ptr<VigemDriverManager> vigem_driver_manager_ = nullptr;
         bool connect_vigem_success_ = false;
 
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<ServiceManager> service_manager_ = nullptr;
         std::mutex cpu_frequency_mtx_;
         std::deque<double> current_cpu_frequency_;

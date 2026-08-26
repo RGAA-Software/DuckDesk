@@ -3,6 +3,7 @@
 //
 
 #include "ct_statistics_panel.h"
+#include <QPointer>
 #include "key_state_panel.h"
 #include "px_client/ct_client_context.h"
 #include "no_margin_layout.h"
@@ -554,10 +555,15 @@ namespace px
         stat_chat_stack_->setCurrentIndex(0);
 
         // messages
-        msg_listener_->Listen<SdkMsgTimer1000>([=, this](const SdkMsgTimer1000& msg) {
-            context_->PostUITask([=, this]() {
-                this->UpdateDataSpeedChart();
-            });
+        const QPointer<CtStatisticsPanel> guarded_self(this);
+        msg_listener_->Listen<SdkMsgTimer1000>([guarded_self](const SdkMsgTimer1000&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->UpdateDataSpeedChart();
+                    }
+                });
+            }
         });
     }
 
@@ -581,16 +587,20 @@ namespace px
     }
 
     void CtStatisticsPanel::UpdateOnHeartBeat(std::shared_ptr<px::Message> msg) {
-        context_->PostUITask([=, this]() {
+        const QPointer<CtStatisticsPanel> guarded_self(this);
+        context_->PostUITask([guarded_self, msg = std::move(msg)]() {
+            if (!guarded_self || !msg) {
+                return;
+            }
             auto hb = msg->on_heartbeat();
-            key_state_panel_->alt_item_->UpdateState(hb.alt_pressed());
-            key_state_panel_->shift_item_->UpdateState(hb.shift_pressed());
-            key_state_panel_->control_item_->UpdateState(hb.control_pressed());
-            key_state_panel_->win_item_->UpdateState(hb.win_pressed());
-            key_state_panel_->caps_lock_item_->UpdateState(hb.caps_lock_pressed());
-            key_state_panel_->num_lock_item_->UpdateState(hb.num_lock_pressed());
-            key_state_panel_->caps_lock_item_->UpdateIndicator(hb.caps_lock_state()==1);
-            key_state_panel_->num_lock_item_->UpdateIndicator(hb.num_lock_state()==1);
+            guarded_self->key_state_panel_->alt_item_->UpdateState(hb.alt_pressed());
+            guarded_self->key_state_panel_->shift_item_->UpdateState(hb.shift_pressed());
+            guarded_self->key_state_panel_->control_item_->UpdateState(hb.control_pressed());
+            guarded_self->key_state_panel_->win_item_->UpdateState(hb.win_pressed());
+            guarded_self->key_state_panel_->caps_lock_item_->UpdateState(hb.caps_lock_pressed());
+            guarded_self->key_state_panel_->num_lock_item_->UpdateState(hb.num_lock_pressed());
+            guarded_self->key_state_panel_->caps_lock_item_->UpdateIndicator(hb.caps_lock_state()==1);
+            guarded_self->key_state_panel_->num_lock_item_->UpdateIndicator(hb.num_lock_state()==1);
         });
     }
 

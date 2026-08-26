@@ -63,7 +63,7 @@ namespace px
     void NetClient::Start() {
         const auto weak_self = weak_from_this();
         if (!msg_listener_) {
-            msg_listener_ = msg_notifier_->CreateListener();
+            msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
             msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
                 if (const auto self = weak_self.lock()) {
                     self->HeartBeat();
@@ -454,6 +454,9 @@ namespace px
             }
         }
         else if (net_msg->type() == px::kServerConfiguration) {
+            if (rtc_local_conn_ && net_msg->has_config()) {
+                rtc_local_conn_->UpdateTrackMonitors(net_msg->config());
+            }
             if (config_cbk_) {
                 config_cbk_(net_msg);
             }

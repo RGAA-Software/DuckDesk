@@ -26,6 +26,7 @@
 #include <QCoreApplication>
 #include <QIcon>
 #include <QInputDialog>
+#include <QPointer>
 #include <QPushButton>
 #include <QTimer>
 
@@ -34,6 +35,7 @@ namespace px
 
     FloatControllerPanel::FloatControllerPanel(const std::shared_ptr<ClientContext>& ctx, QWidget* parent)
         : FloatOverlayWindow(ctx, parent, QSize(kInitialWidth, 412)) {
+        const QPointer<FloatControllerPanel> guarded_self(this);
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
         int border_spacing = 5;
@@ -142,7 +144,11 @@ namespace px
                 btn->setEnabled(false);
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
-                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceCall(); });
+                btn->SetOnClickListener([guarded_self](auto) {
+                    if (guarded_self) {
+                        guarded_self->ToggleVoiceCall();
+                    }
+                });
             }
             {
                 auto btn = new FloatIcon(ctx, this);
@@ -155,7 +161,11 @@ namespace px
                 btn->setEnabled(false);
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
-                btn->SetOnClickListener([this](QWidget*) { SelectVoiceAudioDevices(); });
+                btn->SetOnClickListener([guarded_self](auto) {
+                    if (guarded_self) {
+                        guarded_self->SelectVoiceAudioDevices();
+                    }
+                });
             }
             {
                 auto btn = new FloatIcon(ctx, this);
@@ -169,7 +179,11 @@ namespace px
                 btn->hide();
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
-                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceMicrophoneMute(); });
+                btn->SetOnClickListener([guarded_self](auto) {
+                    if (guarded_self) {
+                        guarded_self->ToggleVoiceMicrophoneMute();
+                    }
+                });
             }
             {
                 auto btn = new FloatIcon(ctx, this);
@@ -183,7 +197,11 @@ namespace px
                 btn->hide();
                 layout->addSpacing(border_spacing);
                 layout->addWidget(btn);
-                btn->SetOnClickListener([this](QWidget*) { ToggleVoiceSpeakerMute(); });
+                btn->SetOnClickListener([guarded_self](auto) {
+                    if (guarded_self) {
+                        guarded_self->ToggleVoiceSpeakerMute();
+                    }
+                });
             }
             {
                 auto btn = new FloatIcon(ctx, this);
@@ -450,21 +468,28 @@ namespace px
 
             virtual_display_timeout_timer_ = new QTimer(this);
             virtual_display_timeout_timer_->setSingleShot(true);
-            connect(virtual_display_timeout_timer_, &QTimer::timeout, [this]() {
-                const auto request_id = virtual_display_ui_state_.PendingRequestId();
-                if (!virtual_display_ui_state_.Timeout(request_id)) {
+            connect(virtual_display_timeout_timer_, &QTimer::timeout, this, [guarded_self]() {
+                if (!guarded_self) {
                     return;
                 }
-                UpdateVirtualDisplayUi();
-                context_->NotifyAppWarningMessage(
+                const auto request_id = guarded_self->virtual_display_ui_state_.PendingRequestId();
+                if (!guarded_self->virtual_display_ui_state_.Timeout(request_id)) {
+                    return;
+                }
+                guarded_self->UpdateVirtualDisplayUi();
+                guarded_self->context_->NotifyAppWarningMessage(
                     tcTr("id_warning"), tcTr("id_virtual_display_request_timeout"));
             });
 
-            connect(virtual_display_add_btn_, &QPushButton::clicked, [this]() {
-                StartVirtualDisplayRequest(VirtualDisplayUiOperation::kCreate);
+            connect(virtual_display_add_btn_, &QPushButton::clicked, this, [guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->StartVirtualDisplayRequest(VirtualDisplayUiOperation::kCreate);
+                }
             });
-            connect(virtual_display_remove_btn_, &QPushButton::clicked, [this]() {
-                StartVirtualDisplayRequest(VirtualDisplayUiOperation::kRemoveLast);
+            connect(virtual_display_remove_btn_, &QPushButton::clicked, this, [guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->StartVirtualDisplayRequest(VirtualDisplayUiOperation::kRemoveLast);
+                }
             });
 
             const auto settings = Settings::Instance();
@@ -554,8 +579,9 @@ namespace px
 
                 context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{ .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kMediaRecordStatus });
                 context_->SendAppMessage(MsgClientMediaRecord{});
-                context_->PostTask([=, this]() {
-                    context_->SendAppMessage(MsgClientHidePanel{});
+                const auto task_context = context_;
+                context_->PostTask([task_context]() {
+                    task_context->SendAppMessage(MsgClientHidePanel{});
                 });
             });
         }
@@ -684,129 +710,173 @@ namespace px
         setLayout(root_layout);
 
      
-        msg_listener_->Listen<MsgClientMousePressed>([=, this](const MsgClientMousePressed& msg) {
-            this->Hide();
+        msg_listener_->Listen<MsgClientMousePressed>([guarded_self](const MsgClientMousePressed&) {
+            if (guarded_self) {
+                guarded_self->Hide();
+            }
         });
 
-        msg_listener_->Listen<MsgClientCaptureMonitor>([=, this](const MsgClientCaptureMonitor& msg) {
-            this->capture_monitor_ = msg;
-            context_->PostUITask([=, this]() {
-                UpdateCaptureMonitorInfo();
+        msg_listener_->Listen<MsgClientCaptureMonitor>([guarded_self, ctx](const MsgClientCaptureMonitor& msg) {
+            if (!guarded_self) {
+                return;
+            }
+            guarded_self->capture_monitor_ = msg;
+            guarded_self->context_->PostUITask([guarded_self, ctx]() {
+                if (!guarded_self) {
+                    return;
+                }
+                guarded_self->UpdateCaptureMonitorInfo();
                 //继续向下层panel传递显示器信息
-                auto panel = GetSubPanel(SubPanelType::kDisplay);
+                QPointer<BaseWidget> panel(
+                    guarded_self->GetSubPanel(SubPanelType::kDisplay));
                 if (!panel) {
-                    panel = (BaseWidget*)(new SubDisplayPanel(ctx, OverlayOwner()));
-                    sub_panels_[SubPanelType::kDisplay] = panel;
-                    ((SubDisplayPanel*)panel)->Hide();
+                    const QPointer<QWidget> owner(guarded_self->OverlayOwner());
+                    if (!owner) {
+                        return;
+                    }
+                    auto owned_panel = std::make_unique<SubDisplayPanel>(ctx, owner.data());
+                    const QPointer<SubDisplayPanel> display_panel(owned_panel.get());
+                    guarded_self->sub_panels_[SubPanelType::kDisplay] = display_panel;
+                    // QWidget parent ownership takes over at this boundary.
+                    (void)owned_panel.release();
+                    display_panel->Hide();
+                    panel = display_panel;
                 }
-                ((SubDisplayPanel*)panel)->SetCaptureMonitorName(monitor_name_);
-                ((SubDisplayPanel*)panel)->UpdateMonitorInfo(this->capture_monitor_);
+                const QPointer<SubDisplayPanel> display_panel(
+                    static_cast<SubDisplayPanel*>(panel.data()));
+                if (!display_panel) {
+                    return;
+                }
+                display_panel->SetCaptureMonitorName(guarded_self->monitor_name_);
+                display_panel->UpdateMonitorInfo(guarded_self->capture_monitor_);
             });
         });
 
-        msg_listener_->Listen<MsgClientMonitorSwitched>([=, this](const MsgClientMonitorSwitched& msg) {
-            context_->PostUITask([=, this]() {
-                UpdateCapturingMonitor(msg.name_, msg.index_);
-            });
-        });
-
-        msg_listener_->Listen<MsgClientFullscreen>([=, this](const MsgClientFullscreen& msg) {
-            if (full_screen_btn_) {
-                full_screen_btn_->SwitchToSelectedState();
+        msg_listener_->Listen<MsgClientMonitorSwitched>([guarded_self](const MsgClientMonitorSwitched& msg) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self, msg]() {
+                    if (guarded_self) {
+                        guarded_self->UpdateCapturingMonitor(msg.name_, msg.index_);
+                    }
+                });
             }
         });
 
-        msg_listener_->Listen<MsgClientExitFullscreen>([=, this](const MsgClientExitFullscreen& msg) {
-            if (full_screen_btn_) {
-                full_screen_btn_->SwitchToNormalState();
+        msg_listener_->Listen<MsgClientFullscreen>([guarded_self](const MsgClientFullscreen&) {
+            if (guarded_self && guarded_self->full_screen_btn_) {
+                guarded_self->full_screen_btn_->SwitchToSelectedState();
             }
         });
-        msg_listener_->Listen<MsgClientVirtualDisplayStatus>([this](const MsgClientVirtualDisplayStatus& msg) {
-            context_->PostUITask([this, msg]() {
-                virtual_display_ui_state_.ApplyStatus(
+
+        msg_listener_->Listen<MsgClientExitFullscreen>([guarded_self](const MsgClientExitFullscreen&) {
+            if (guarded_self && guarded_self->full_screen_btn_) {
+                guarded_self->full_screen_btn_->SwitchToNormalState();
+            }
+        });
+        msg_listener_->Listen<MsgClientVirtualDisplayStatus>(
+            [guarded_self](const MsgClientVirtualDisplayStatus& msg) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self, msg]() {
+                if (!guarded_self) {
+                    return;
+                }
+                guarded_self->virtual_display_ui_state_.ApplyStatus(
                     msg.enabled_, msg.owned_display_count_, msg.max_display_count_, msg.topology_generation_);
-                if (!virtual_display_ui_state_.IsBusy() && virtual_display_timeout_timer_) {
-                    virtual_display_timeout_timer_->stop();
+                if (!guarded_self->virtual_display_ui_state_.IsBusy() &&
+                    guarded_self->virtual_display_timeout_timer_) {
+                    guarded_self->virtual_display_timeout_timer_->stop();
                 }
-                UpdateVirtualDisplayUi();
-            });
+                guarded_self->UpdateVirtualDisplayUi();
+                });
+            }
         });
-        msg_listener_->Listen<MsgClientVirtualDisplayResult>([this](const MsgClientVirtualDisplayResult& msg) {
-            context_->PostUITask([this, msg]() {
-                const auto effect = virtual_display_ui_state_.ApplyResult(
+        msg_listener_->Listen<MsgClientVirtualDisplayResult>(
+            [guarded_self](const MsgClientVirtualDisplayResult& msg) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self, msg]() {
+                if (!guarded_self) {
+                    return;
+                }
+                const auto effect = guarded_self->virtual_display_ui_state_.ApplyResult(
                     msg.request_id_, msg.accepted_, msg.state_ == kVirtualDisplayNeedReconnect,
                     msg.owned_display_count_, msg.max_display_count_, msg.topology_generation_);
-                UpdateVirtualDisplayUi();
+                guarded_self->UpdateVirtualDisplayUi();
                 if (effect == VirtualDisplayUiResultEffect::kIgnored) {
                     return;
                 }
                 if (effect == VirtualDisplayUiResultEffect::kAwaitingReconnect) {
-                    virtual_display_timeout_timer_->start(60000);
+                    guarded_self->virtual_display_timeout_timer_->start(60000);
                     return;
                 }
-                virtual_display_timeout_timer_->stop();
+                guarded_self->virtual_display_timeout_timer_->stop();
                 if (effect == VirtualDisplayUiResultEffect::kFailed) {
-                    context_->NotifyAppErrMessage(
+                    guarded_self->context_->NotifyAppErrMessage(
                         tcTr("id_virtual_display"),
                         tcTr("id_virtual_display_operation_failed") + QString("\n") +
                             QString::fromStdString(msg.error_code_ + ": " + msg.error_message_));
                 }
-            });
+                });
+            }
         });
-        msg_listener_->Listen<MsgClientVoiceCallStatus>([this](const MsgClientVoiceCallStatus& msg) {
-            context_->PostUITask([this, msg]() {
-                voice_call_supported_ = msg.supported_;
-                voice_call_requires_headset_ = msg.requires_headset_;
-                if (voice_call_phase_ != VoiceCallPhase::kIdle &&
-                    msg.phase_ == VoiceCallPhase::kIdle) {
-                    voice_call_warning_shown_ = false;
+        msg_listener_->Listen<MsgClientVoiceCallStatus>(
+            [guarded_self](const MsgClientVoiceCallStatus& msg) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self, msg]() {
+                if (!guarded_self) {
+                    return;
                 }
-                voice_call_phase_ = msg.phase_;
-                voice_microphone_muted_ = msg.microphone_muted_;
-                voice_speaker_muted_ = msg.speaker_muted_;
-                voice_capture_device_id_ = msg.capture_device_id_;
-                voice_playout_device_id_ = msg.playout_device_id_;
-                if (!voice_call_btn_) {
+                guarded_self->voice_call_supported_ = msg.supported_;
+                guarded_self->voice_call_requires_headset_ = msg.requires_headset_;
+                if (guarded_self->voice_call_phase_ != VoiceCallPhase::kIdle &&
+                    msg.phase_ == VoiceCallPhase::kIdle) {
+                    guarded_self->voice_call_warning_shown_ = false;
+                }
+                guarded_self->voice_call_phase_ = msg.phase_;
+                guarded_self->voice_microphone_muted_ = msg.microphone_muted_;
+                guarded_self->voice_speaker_muted_ = msg.speaker_muted_;
+                guarded_self->voice_capture_device_id_ = msg.capture_device_id_;
+                guarded_self->voice_playout_device_id_ = msg.playout_device_id_;
+                if (!guarded_self->voice_call_btn_) {
                     return;
                 }
                 const bool controls_visible = msg.phase_ == VoiceCallPhase::kConnected;
-                if (voice_audio_device_btn_) {
-                    voice_audio_device_btn_->setEnabled(
+                if (guarded_self->voice_audio_device_btn_) {
+                    guarded_self->voice_audio_device_btn_->setEnabled(
                         msg.supported_ && msg.phase_ == VoiceCallPhase::kIdle);
                 }
-                if (voice_microphone_mute_btn_) {
-                    voice_microphone_mute_btn_->setVisible(controls_visible);
-                    voice_microphone_mute_btn_->setEnabled(controls_visible);
+                if (guarded_self->voice_microphone_mute_btn_) {
+                    guarded_self->voice_microphone_mute_btn_->setVisible(controls_visible);
+                    guarded_self->voice_microphone_mute_btn_->setEnabled(controls_visible);
                     const auto text = tcTr(msg.microphone_muted_
                         ? "id_voice_call_unmute_microphone"
                         : "id_voice_call_mute_microphone");
                     if (msg.microphone_muted_) {
-                        voice_microphone_mute_btn_->SwitchToSelectedState();
+                        guarded_self->voice_microphone_mute_btn_->SwitchToSelectedState();
                     } else {
-                        voice_microphone_mute_btn_->SwitchToNormalState();
+                        guarded_self->voice_microphone_mute_btn_->SwitchToNormalState();
                     }
-                    voice_microphone_mute_btn_->setToolTip(text);
-                    voice_microphone_mute_btn_->setAccessibleName(text);
+                    guarded_self->voice_microphone_mute_btn_->setToolTip(text);
+                    guarded_self->voice_microphone_mute_btn_->setAccessibleName(text);
                 }
-                if (voice_speaker_mute_btn_) {
-                    voice_speaker_mute_btn_->setVisible(controls_visible);
-                    voice_speaker_mute_btn_->setEnabled(controls_visible);
+                if (guarded_self->voice_speaker_mute_btn_) {
+                    guarded_self->voice_speaker_mute_btn_->setVisible(controls_visible);
+                    guarded_self->voice_speaker_mute_btn_->setEnabled(controls_visible);
                     const auto text = tcTr(msg.speaker_muted_
                         ? "id_voice_call_unmute_speaker"
                         : "id_voice_call_mute_speaker");
                     if (msg.speaker_muted_) {
-                        voice_speaker_mute_btn_->SwitchToSelectedState();
+                        guarded_self->voice_speaker_mute_btn_->SwitchToSelectedState();
                     } else {
-                        voice_speaker_mute_btn_->SwitchToNormalState();
+                        guarded_self->voice_speaker_mute_btn_->SwitchToNormalState();
                     }
-                    voice_speaker_mute_btn_->setToolTip(text);
-                    voice_speaker_mute_btn_->setAccessibleName(text);
+                    guarded_self->voice_speaker_mute_btn_->setToolTip(text);
+                    guarded_self->voice_speaker_mute_btn_->setAccessibleName(text);
                 }
-                voice_call_btn_->setEnabled(msg.supported_);
+                guarded_self->voice_call_btn_->setEnabled(msg.supported_);
                 if (msg.phase_ == VoiceCallPhase::kIdle) {
-                    voice_call_btn_->SwitchToNormalState();
+                    guarded_self->voice_call_btn_->SwitchToNormalState();
                 } else {
-                    voice_call_btn_->SwitchToSelectedState();
+                    guarded_self->voice_call_btn_->SwitchToSelectedState();
                 }
                 QString tooltip;
                 switch (msg.phase_) {
@@ -824,24 +894,28 @@ namespace px
                                                  : tcTr("id_voice_call_unavailable");
                         break;
                 }
-                voice_call_btn_->setToolTip(tooltip);
-                voice_call_btn_->setAccessibleName(tooltip);
+                guarded_self->voice_call_btn_->setToolTip(tooltip);
+                guarded_self->voice_call_btn_->setAccessibleName(tooltip);
                 if (!msg.reason_.empty() && msg.reason_ != "local_hangup" &&
                     msg.reason_ != "remote_hangup" && msg.reason_ != "disconnect") {
-                    context_->NotifyAppWarningMessage(
+                    guarded_self->context_->NotifyAppWarningMessage(
                         tcTr("id_voice_call"),
                         tcTr("id_voice_call_failed") + QString::fromStdString(" (" + msg.reason_ + ")"));
                 }
-            });
+                });
+            }
         });
-        msg_listener_->Listen<SdkMsgNetworkConnected>([this](const SdkMsgNetworkConnected&) {
-            context_->PostUITask([this]() {
-                if (!virtual_display_ui_state_.CompleteReconnect()) {
+        msg_listener_->Listen<SdkMsgNetworkConnected>([guarded_self](const SdkMsgNetworkConnected&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                if (!guarded_self ||
+                    !guarded_self->virtual_display_ui_state_.CompleteReconnect()) {
                     return;
                 }
-                virtual_display_timeout_timer_->stop();
-                UpdateVirtualDisplayUi();
-            });
+                guarded_self->virtual_display_timeout_timer_->stop();
+                guarded_self->UpdateVirtualDisplayUi();
+                });
+            }
         });
     }
 
@@ -949,7 +1023,7 @@ namespace px
 
     BaseWidget* FloatControllerPanel::GetSubPanel(const SubPanelType& type) {
         if (sub_panels_.count(type) > 0) {
-            return sub_panels_[type];
+            return sub_panels_[type].data();
         }
         return nullptr;
     }

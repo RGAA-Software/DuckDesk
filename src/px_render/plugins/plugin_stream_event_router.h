@@ -18,14 +18,17 @@ namespace px
     class RdStatistics;
     class MessageListener;
 
-    class PluginStreamEventRouter {
+    class PluginStreamEventRouter : public std::enable_shared_from_this<PluginStreamEventRouter> {
     public:
+        static std::shared_ptr<PluginStreamEventRouter> Make(
+            const std::shared_ptr<RdApplication>& app);
         explicit PluginStreamEventRouter(const std::shared_ptr<RdApplication>& app);
 
         void ProcessEncodedVideoFrameEvent(const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event);
 
     private:
-        RdStatistics* statistics_ = nullptr;
+        void InitListener();
+        std::shared_ptr<RdStatistics> statistics_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;

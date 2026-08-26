@@ -12,6 +12,7 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/companion/panel_companion.h"
 #include "asio2/3rd/asio.hpp"
+#include <array>
 using asio::ip::udp;
 
 namespace px
@@ -19,31 +20,57 @@ namespace px
 
     ConsoleScanner::ConsoleScanner(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
-        msg_listener_ = app_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgGrTimer2S>([=, this](const MsgGrTimer2S& msg) {
-            this->ClearInactiveServer();
-        });
+    }
+
+    ConsoleScanner::~ConsoleScanner() {
+        Exit();
     }
 
     void ConsoleScanner::StartUdpReceiver(int port) {
-        udp_receiver_thread_ = Thread::MakeOnceTask([=, this]() {
-            while (!exit_udp_receiver_) {
+        if (exit_udp_receiver_ || udp_receiver_thread_) {
+            return;
+        }
+        const auto app = app_.lock();
+        if (!app) {
+            return;
+        }
+        msg_listener_ = app->GetContext()->ObtainMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgGrTimer2S>([weak_self](const MsgGrTimer2S&) {
+            if (const auto self = weak_self.lock(); self && !self->exit_udp_receiver_) {
+                self->ClearInactiveServer();
+            }
+        });
+        udp_receiver_thread_ = Thread::MakeOnceTask([weak_self, port]() {
+            for (;;) {
+                {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exit_udp_receiver_) {
+                        return;
+                    }
+                }
                 try {
                     asio::io_context io;
                     udp::socket socket(io, udp::endpoint(udp::v4(), port));
+                    socket.non_blocking(true);
                     LOGI("Listening on UDP port :{}", port);
-                    char data[4096];
+                    std::array<char, 4096> data{};
                     udp::endpoint sender_endpoint;
 
-                    while (!exit_udp_receiver_) {
+                    for (;;) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exit_udp_receiver_) {
+                            return;
+                        }
                         asio::error_code ec;
                         size_t len = socket.receive_from(asio::buffer(data), sender_endpoint, 0, ec);
 
                         if (!ec && len > 0) {
-                            std::string msg(data, len);
+                            std::string msg(data.data(), len);
                             if (msg.starts_with("console://access") || msg.starts_with("cms://access")) {
                                 //LOGI("*Received: {}", msg);
-                                if (auto cp = grApp->GetCompanion(); cp != nullptr) {
+                                const auto app = self->app_.lock();
+                                if (auto cp = app ? app->GetCompanion() : nullptr; cp != nullptr) {
                                     auto ac = cp->ParseConsoleAccessInfo(msg);
                                     if (!ac) {
                                         LOGE("Parse console access failed!");
@@ -60,12 +87,15 @@ namespace px
                                     });
                                     //LOGI("*Received console: {}, {}", info->console_ip_, TimeUtil::FormatTimestamp(info->update_timestamp_));
                                     {
-                                        std::lock_guard<std::mutex> guard(ac_mtx_);
-                                        access_info_.erase(info->console_ip_);
-                                        access_info_.insert({info->console_ip_, info});
+                                        std::lock_guard<std::mutex> guard(self->ac_mtx_);
+                                        self->access_info_.insert_or_assign(info->console_ip_, info);
                                     }
                                 }
                             }
+                        }
+                        else if (ec == asio::error::would_block || ec == asio::error::try_again) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                            continue;
                         }
                         else if (ec) {
                             LOGE("*Receive error: {}", ec.message());
@@ -75,9 +105,11 @@ namespace px
 
                         {
                             auto msg = MsgConsoleAccessInfo {
-                                .access_info_ = this->GetConsoleAccessInfo(),
+                                .access_info_ = self->GetConsoleAccessInfo(),
                             };
-                            app_->GetContext()->SendAppMessage(msg);
+                            if (const auto app = self->app_.lock()) {
+                                app->GetContext()->SendAppMessage(msg);
+                            }
                         }
                     }
                 }
@@ -90,10 +122,18 @@ namespace px
     }
 
     void ConsoleScanner::Exit() {
-        exit_udp_receiver_ = true;
-        if (udp_receiver_thread_) {
-            udp_receiver_thread_->Join();
+        if (exit_udp_receiver_.exchange(true)) {
+            return;
         }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (udp_receiver_thread_) {
+            udp_receiver_thread_->Exit();
+            udp_receiver_thread_.reset();
+        }
+        app_.reset();
     }
 
     std::map<std::string, std::shared_ptr<StNetworkConsoleAccessInfo>> ConsoleScanner::GetConsoleAccessInfo() {

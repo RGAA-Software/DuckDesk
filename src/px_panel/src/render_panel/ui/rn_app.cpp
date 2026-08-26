@@ -3,6 +3,7 @@
 //
 
 #include "rn_app.h"
+#include <QPointer>
 #include <QTimer>
 #include "px_qt_widget/no_margin_layout.h"
 #include "stat_chart.h"
@@ -304,8 +305,11 @@ namespace px
         stat_chat_stack_->setCurrentIndex(0);
 
         msg_listener_ = context_->ObtainUIMessageListener();
-        msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& msg) {
-            this->UpdateUI();
+        QPointer<RnApp> self(this);
+        msg_listener_->Listen<MsgGrTimer1S>([self](const MsgGrTimer1S&) {
+            if (self) {
+                self->UpdateUI();
+            }
         });
     }
 

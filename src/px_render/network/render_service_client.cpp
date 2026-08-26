@@ -27,12 +27,17 @@ namespace px
         context_ = app_->GetContext();
     }
 
+    RenderServiceClient::~RenderServiceClient() {
+        Exit();
+    }
+
     void RenderServiceClient::Start() {
         auto weak_self = weak_from_this();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000& msg) {
+        exiting_ = false;
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
+        msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000&) {
             auto self = weak_self.lock();
-            if (!self) {
+            if (!self || self->exiting_) {
                 return;
             }
             self->HeartBeat();
@@ -198,8 +203,33 @@ namespace px
     }
 
     void RenderServiceClient::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        std::unordered_map<std::string,
+            std::function<void(bool, const std::string&, const std::vector<std::string>&,
+                               const std::string&)>> ticket_callbacks;
+        {
+            std::scoped_lock lock(ticket_callbacks_mtx_);
+            ticket_callbacks.swap(ticket_callbacks_);
+        }
+        for (auto& [request_id, callback] : ticket_callbacks) {
+            if (callback) {
+                callback(false, "SERVICE_STOPPED", {}, {});
+            }
+        }
+        {
+            std::scoped_lock lock(virtual_display_callbacks_mtx_);
+            virtual_display_callbacks_.clear();
+        }
         auto client = std::move(client_);
-        if (!client) return;
+        if (!client) {
+            return;
+        }
         // asio2::tcp_client::stop() is synchronous off its I/O thread and can
         // wait forever when an auto-reconnect handshake is being torn down.
         // Dispatch shutdown to the owning I/O thread; the captured shared_ptr

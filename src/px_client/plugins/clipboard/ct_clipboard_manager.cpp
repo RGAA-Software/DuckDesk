@@ -132,20 +132,26 @@ namespace px
             // data object can be marshaled cross-process (Explorer queries it when
             // deciding whether to enable "Paste"). Run the whole clipboard write on
             // the clipboard message-loop thread.
-            msg_loop_->PostTask([this, target_files]() {
-                clipboard::SuppressOutboundGuard suppress_guard(echo_filter_);
-
-                if (!virtual_file_) {
-                    virtual_file_ = px::CreateVirtualFile(IID_IDataObject, (void **) &data_object_, plugin_);
+            const auto weak_self = weak_from_this();
+            msg_loop_->PostTask([weak_self, target_files]() {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
                 }
-                if (!data_object_) {
+                clipboard::SuppressOutboundGuard suppress_guard(self->echo_filter_);
+
+                if (!self->virtual_file_) {
+                    self->virtual_file_ = px::CreateVirtualFile(
+                        IID_IDataObject, (void **) &self->data_object_, self->plugin_);
+                }
+                if (!self->data_object_) {
                     LOGE("DataObject is null!");
                     return;
                 }
 
                 bool cleared_clipboard = false;
                 for (int i = 0; i < 20; i++) {
-                    if (clipboard_platform_->Clear()) {
+                    if (self->clipboard_platform_->Clear()) {
                         cleared_clipboard = true;
                         break;
                     }
@@ -160,7 +166,7 @@ namespace px
 
                 bool set_clipboard = false;
                 for (int i = 0; i < 20; i++) {
-                    auto hr = ::OleSetClipboard(data_object_);
+                    auto hr = ::OleSetClipboard(self->data_object_);
                     if (hr == S_OK) {
                         set_clipboard = true;
                         break;
@@ -172,7 +178,7 @@ namespace px
                     return;
                 }
 
-                virtual_file_->OnClipboardFilesInfo(target_files);
+                self->virtual_file_->OnClipboardFilesInfo(target_files);
             });
         }
     }

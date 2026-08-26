@@ -64,10 +64,17 @@ namespace px
             device_id_ = device_id;
         }
 
+        ~PxConsoleClientImpl() override {
+            Stop();
+        }
+
         void Start() override {
+            if (stopping_ || client_) {
+                return;
+            }
             auto weak_self = this->weak_from_this();
 
-            msg_listener_ = context_->ObtainMessageListener();
+            msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
             msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S& m) {
                 auto self = weak_self.lock();
                 if (!self || !self->context_) {
@@ -179,14 +186,23 @@ namespace px
         }
 
         void Stop() override {
+            if (stopping_.exchange(true)) {
+                return;
+            }
             if (msg_listener_) {
                 msg_listener_->UnListenAll();
+                msg_listener_.reset();
             }
             if (fetch_queue_) {
                 fetch_queue_->Stop();
             }
             if (fetch_thread_.joinable()) {
-                fetch_thread_.join();
+                if (fetch_thread_.get_id() == std::this_thread::get_id()) {
+                    fetch_thread_.detach();
+                }
+                else {
+                    fetch_thread_.join();
+                }
             }
             if (client_) {
                 client_->stop_all_timers();
@@ -513,6 +529,7 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int64_t hb_idx_ = 0;
         std::atomic_bool use_legacy_cms_path_ = false;
+        std::atomic_bool stopping_ = false;
         std::atomic_bool rtc_config_refreshing_ = false;
         std::atomic_uint64_t rtc_config_revision_ = 0;
         std::mutex rtc_config_mutex_;

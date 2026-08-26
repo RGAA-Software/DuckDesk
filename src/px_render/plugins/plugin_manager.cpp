@@ -178,7 +178,7 @@ namespace px
         VisitAllPlugins([&](PxPluginInterface* plugin) {
             plugins.push_back(plugin);
             if (plugin->GetPluginType() != PxPluginType::kNet) {
-                VisitNetPlugins([=, this](PxNetPlugin* np) {
+                VisitNetPlugins([plugin](PxNetPlugin* np) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                     plugin->AttachNetPlugin(np->GetPluginId(), np);
                 });
             }
@@ -196,17 +196,41 @@ namespace px
     }
 
     void PluginManager::RegisterPluginEventsCallback() {
-        this->evt_router_ = std::make_shared<PluginEventRouter>(app_);
+        {
+            std::lock_guard lock(routing_mtx_);
+            evt_router_ = std::make_shared<PluginEventRouter>(app_);
+        }
         auto weak_self = weak_from_this();
         VisitAllPlugins([&](PxPluginInterface* plugin) {
             plugin->RegisterEventCallback([weak_self](const std::shared_ptr<PxPluginBaseEvent>& event) {
                 auto self = weak_self.lock();
-                if (!self || self->exiting_ || !self->evt_router_) {
+                if (!self || self->exiting_) {
                     return;
                 }
-                self->evt_router_->ProcessPluginEvent(event);
+                std::shared_ptr<PluginEventRouter> router;
+                {
+                    std::lock_guard lock(self->routing_mtx_);
+                    router = self->evt_router_;
+                }
+                if (router) {
+                    router->ProcessPluginEvent(event);
+                }
             });
         });
+    }
+
+    void PluginManager::StopRouting() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        VisitAllPlugins([](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+            plugin->RegisterEventCallback({});
+        });
+        {
+            std::lock_guard lock(routing_mtx_);
+            evt_router_.reset();
+        }
+        app_.reset();
     }
 
     void PluginManager::ReleaseAllPlugins() {

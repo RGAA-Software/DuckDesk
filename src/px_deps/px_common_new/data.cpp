@@ -9,17 +9,18 @@ namespace px
 {
 
     Data::Data(const char* src, int64_t size) {
-        this->data_ = static_cast<char *>(malloc(size));
-        if (src) {
-            memcpy(this->data_, src, size);
+        if (size > 0) {
+            data_.resize(static_cast<std::size_t>(size));
         }
-        this->size_ = size;
+        if (src && !data_.empty()) {
+            memcpy(data_.data(), src, data_.size());
+        }
 
 #if MEMORY_STST_ON
         id_ = SnowflakeId::generate().implode();
         MemoryStat::Instance()->AddMemInfo(id_, std::make_shared<MemoryInfo>(MemoryInfo {
             .id_ = id_,
-            .size_ = (uint64_t)size,
+            .size_ = static_cast<uint64_t>(data_.size()),
             .module_ = "",
             .name_ = "data"
         }));
@@ -31,30 +32,25 @@ namespace px
     }
 
     Data::~Data() {
-        if (this->data_) {
-            free(this->data_);
 #if MEMORY_STST_ON
-      MemoryStat::Instance()->RemoveMemInfo(id_);
+        MemoryStat::Instance()->RemoveMemInfo(id_);
 #endif
-
-        }
     }
 
     const char *Data::CStr() const {
-        return this->data_;
+        return data_.data();
     }
 
     std::string Data::AsString() const {
-        return std::string(data_, size_);
+        return std::string(data_.begin(), data_.end());
     }
 
     void Data::ConvertToStr(std::string& out) const {
-        out.resize(size_);
-        memcpy((char*)out.data(), this->data_, size_);
+        out.assign(data_.begin(), data_.end());
     }
 
     int64_t Data::Size() const {
-        return this->size_;
+        return static_cast<int64_t>(data_.size());
     }
 
     std::shared_ptr<Data> Data::Make(const char *data_, int64_t size) {
@@ -62,25 +58,25 @@ namespace px
     }
 
     char Data::At(int64_t offset) const {
-        if (!this->data_ || offset < 0 || offset >= this->size_) {
+        if (offset < 0 || offset >= Size()) {
             return 0;
         }
-        return *(this->data_ + offset);
+        return data_[static_cast<std::size_t>(offset)];
     }
 
     char* Data::DataAddr() const {
-        return this->data_;
+        return const_cast<char*>(data_.data());
     }
 
     std::shared_ptr<Data> Data::Dup() const {
-        return Data::Make(this->data_, this->size_);
+        return Data::Make(data_.data(), Size());
     }
 
     bool Data::Append(char* data, int64_t size) {
-        if (offset_ + size > size_) {
+        if (!data || size < 0 || offset_ < 0 || offset_ + size > Size()) {
             return false;
         }
-        memcpy(data_ + offset_, data, size);
+        memcpy(data_.data() + offset_, data, static_cast<std::size_t>(size));
         offset_ += size;
         return true;
     }
@@ -96,13 +92,13 @@ namespace px
     void Data::Save(const U8Path& path) {
         auto file = File::OpenForWriteB(path);
         if (file) {
-            file->Write(0, data_, size_);
+            file->Write(0, data_.data(), data_.size());
             file->Close();
         }
     }
 
     std::shared_ptr<Data> Data::Clone() const {
-        if (this->data_ && this->size_ > 0) {
+        if (!data_.empty()) {
             return Data::Make(this->CStr(), this->Size());
         }
         return nullptr;

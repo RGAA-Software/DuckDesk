@@ -597,7 +597,7 @@ public:
 
     bool WaitUntilClosed(std::chrono::milliseconds timeout) {
         std::unique_lock lock(close_mutex_);
-        return close_cv_.wait_for(lock, timeout, [this] { return closed_; });
+        return close_cv_.wait_for(lock, timeout, [&closed = closed_] { return closed; });
     }
 
     void SetActive(bool active) {

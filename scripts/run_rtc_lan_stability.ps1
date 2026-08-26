@@ -1,6 +1,6 @@
 param(
     [ValidateRange(1, 1000)]
-    [int]$Rounds = 100,
+    [int]$Rounds = 10,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 9,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',

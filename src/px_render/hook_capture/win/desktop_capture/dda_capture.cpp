@@ -24,6 +24,7 @@ namespace px
     }
 
     DDACapture::~DDACapture() {
+        StopCapture();
     }
 
     bool DDACapture::Init() {
@@ -237,8 +238,33 @@ namespace px
     }
 
     void DDACapture::Start() {
-        capture_thread_ = std::thread([this] {
-            Capture();
+        std::lock_guard lock(capture_lifecycle_mutex_);
+        if (capture_thread_.joinable()) {
+            if (!stop_flag_ || capture_thread_.get_id() == std::this_thread::get_id()) {
+                return;
+            }
+            capture_thread_.join();
+        }
+
+        stop_flag_ = false;
+        const auto self = std::static_pointer_cast<DDACapture>(shared_from_this());
+        const std::weak_ptr<DDACapture> weak_self = self;
+        capture_thread_ = std::thread([weak_self]() {
+            for (;;) {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
+                if (self->stop_flag_) {
+                    self->Exit();
+                    return;
+                }
+                self->Capture();
+                if (self->stop_flag_) {
+                    self->Exit();
+                    return;
+                }
+            }
         });
     }
 
@@ -270,7 +296,9 @@ namespace px
     }
 
     void DDACapture::Capture() {
-        while (!stop_flag_) {
+        if (stop_flag_) {
+            return;
+        }
             // 向上取整,避免 1000/60 截断成 16ms 导致 AcquireNextFrame 提前超时
             auto target_duration = (1000 + capture_fps_ - 1) / capture_fps_;
             auto beg = (int64_t)TimeUtil::GetCurrentTimestamp();
@@ -322,10 +350,9 @@ namespace px
             //if (diff > 5) {
                 //std::this_thread::sleep_for(std::chrono::milliseconds(diff));
             //}
-        }
     }
 
-    void DDACapture::OnCaptureFrame(ID3D11Texture2D *texture, uint8_t monitor_index) {
+    void DDACapture::OnCaptureFrame(const CComPtr<ID3D11Texture2D>& texture, uint8_t monitor_index) {
         HRESULT result;
         // input texture info
         D3D11_TEXTURE2D_DESC input_desc;
@@ -353,7 +380,6 @@ namespace px
 
         if (texture_changed) {
             if (shared_texture) {
-                shared_texture->Release();
                 last_list_texture_[monitor_index].texture2d_ = nullptr;
             }
             D3D11_TEXTURE2D_DESC create_desc;
@@ -465,9 +491,16 @@ namespace px
     }
 
     void DDACapture::StopCapture() {
+        std::lock_guard lock(capture_lifecycle_mutex_);
         stop_flag_ = true;
         if (capture_thread_.joinable()) {
-            capture_thread_.join();
+            if (capture_thread_.get_id() == std::this_thread::get_id()) {
+                capture_thread_.detach();
+                return;
+            }
+            else {
+                capture_thread_.join();
+            }
         }
         this->Exit();
     }

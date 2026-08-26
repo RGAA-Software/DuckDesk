@@ -64,9 +64,9 @@ namespace px
         this->file_path_ = path;
 #ifdef WIN32
         auto wmode = StringUtil::ToWString(mode);
-        fp_ = _wfopen(this->file_path_.wstring().c_str(), wmode.c_str());
+        fp_.reset(_wfopen(this->file_path_.wstring().c_str(), wmode.c_str()));
 #else
-        fp_ = fopen(path.string().c_str(), mode.c_str());
+        fp_.reset(fopen(path.string().c_str(), mode.c_str()));
 #endif
         if (!fp_) {
             LOGE("Open file failed, mode: {}, file: {}", mode, StringUtil::ToUTF8(path.wstring()));
@@ -89,7 +89,7 @@ namespace px
     }
     
     bool File::IsOpen() {
-        return fp_ != nullptr;
+        return static_cast<bool>(fp_);
     }
 
     std::string File::FileName() {
@@ -100,12 +100,12 @@ namespace px
         if (!IsOpen()) {
             return nullptr;
         }
-        if (fseek(fp_, static_cast<long>(offset), SEEK_SET) != 0) {
+        if (fseek(fp_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
             LOGE("file seek failed, offset: {}, file: {}", offset, StringUtil::ToUTF8(this->file_path_.wstring()));
             return nullptr;
         }
         auto read_data = std::make_unique<char[]>(size);
-        read_size = fread(read_data.get(), 1, size, fp_);
+        read_size = fread(read_data.get(), 1, size, fp_.get());
         if (read_size <= 0) {
             return nullptr;
         }
@@ -145,10 +145,10 @@ namespace px
         if (!IsOpen()) {
             return 0;
         }
-        auto current = ftell(fp_);
-        fseek(fp_, 0, SEEK_END);
-        auto size = ftell(fp_);
-        fseek(fp_, current, SEEK_SET);
+        auto current = ftell(fp_.get());
+        fseek(fp_.get(), 0, SEEK_END);
+        auto size = ftell(fp_.get());
+        fseek(fp_.get(), current, SEEK_SET);
         return static_cast<uint64_t>(size);
     }
     
@@ -170,11 +170,11 @@ namespace px
         if (!IsOpen()) {
             return -1;
         }
-        if (fseek(fp_, static_cast<long>(offset), SEEK_SET) != 0) {
+        if (fseek(fp_.get(), static_cast<long>(offset), SEEK_SET) != 0) {
             LOGE("seek failed for writing data, offset: {}, file: {}", offset, StringUtil::ToUTF8(file_path_.wstring()));
             return -1;
         }
-        return static_cast<int64_t>(fwrite(data, 1, size, fp_));
+        return static_cast<int64_t>(fwrite(data, 1, size, fp_.get()));
     }
 
     int64_t File::Append(const DataPtr& data) {
@@ -189,14 +189,13 @@ namespace px
         if (!IsOpen()) {
             return -1;
         }
-        return static_cast<int64_t>(fwrite(data, 1, size, fp_));
+        return static_cast<int64_t>(fwrite(data, 1, size, fp_.get()));
     }
 
     void File::Close() {
         if (fp_) {
-            fflush(fp_);
-            fclose(fp_);
-            fp_ = nullptr;
+            fflush(fp_.get());
+            fp_.reset();
         }
     }
 }

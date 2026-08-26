@@ -337,12 +337,14 @@ namespace px
         }
 
         // 与鼠标事件走同一个 FIFO 队列投递,保证键鼠事件有序
-        this->evt_cache_thread_->Post([=, this]() {
-            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
-                sdk_->PostMediaMessage(buffer);
+        const auto sdk = sdk_;
+        evt_cache_thread_->Post([msg, sdk, vk, down]() {
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk) {
+                sdk->PostMediaMessage(buffer);
                 LOGI("[InputSend] key posted vk=0x{:x} down={} bytes={}", vk, down, buffer->Size());
             } else {
-                LOGE("[InputSend] key encode/post failed vk=0x{:x} down={} sdk={}", vk, down, sdk_ != nullptr);
+                LOGE("[InputSend] key encode/post failed vk=0x{:x} down={} sdk={}",
+                     vk, down, sdk != nullptr);
             }
         });
     }
@@ -361,9 +363,10 @@ namespace px
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
         msg->mutable_text_input()->set_text(utf8.constData(), utf8.size());
-        this->evt_cache_thread_->Post([=, this]() {
-            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
-                sdk_->PostMediaMessage(buffer);
+        const auto sdk = sdk_;
+        evt_cache_thread_->Post([msg, sdk]() {
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk) {
+                sdk->PostMediaMessage(buffer);
             }
         });
     }
@@ -431,8 +434,12 @@ namespace px
 
         // [LAT-input] 记录入队时间戳,在工作线程里算排队耗时
         const uint64_t ts_enqueue_us = TimeUtil::GetCurrentTimePointUS();
+        const auto sdk = sdk_;
+        const auto event_thread = evt_cache_thread_;
 
-        this->evt_cache_thread_->Post([=, this]() {
+        evt_cache_thread_->Post(
+            [msg, sdk, event_thread, mouse_event_desc, keep_move_when_busy,
+             significant, ts_enqueue_us]() {
             // [LAT-input] 入队 -> 实际发送前的排队耗时(含下方忙等背压)
             const uint64_t queue_us = TimeUtil::GetCurrentTimePointUS() - ts_enqueue_us;
             ++g_input_queued;
@@ -440,13 +447,13 @@ namespace px
             auto prev_max = g_input_queue_us_max.load();
             while (queue_us > prev_max && !g_input_queue_us_max.compare_exchange_weak(prev_max, queue_us)) {}
 
-            auto queuing_count = this->sdk_->GetQueuingMediaMsgCount();
+            auto queuing_count = sdk->GetQueuingMediaMsgCount();
             int wait_rounds = 0;
             while (queuing_count > 16 && wait_rounds < 50) {
                 LOGI("[InputSend] queuing too many mouse event: {}, cache thread tasks: {}",
-                     queuing_count, evt_cache_thread_->TaskSize());
+                     queuing_count, event_thread->TaskSize());
                 TimeUtil::DelayBySleep(1);
-                queuing_count = this->sdk_->GetQueuingMediaMsgCount();
+                queuing_count = sdk->GetQueuingMediaMsgCount();
                 ++wait_rounds;
             }
             g_input_wait_rounds_sum += wait_rounds;
@@ -456,15 +463,15 @@ namespace px
                 LOGW("[InputSend] drop pure mouse move, queuing media messages: {}", queuing_count);
                 return;
             }
-            if (auto buffer = px::ProtoAsData(msg); buffer && sdk_) {
-                sdk_->PostMediaMessage(buffer);
+            if (auto buffer = px::ProtoAsData(msg); buffer && sdk) {
+                sdk->PostMediaMessage(buffer);
                 if (significant) {
                     LOGI("[InputSend] mouse posted {} bytes={} queue={}",
                          DescribeButtonFlags(mouse_event_desc.buttons), buffer->Size(), queuing_count);
                 }
             } else if (significant) {
                 LOGE("[InputSend] mouse encode/post failed {} sdk={}",
-                     DescribeButtonFlags(mouse_event_desc.buttons), sdk_ != nullptr);
+                     DescribeButtonFlags(mouse_event_desc.buttons), sdk != nullptr);
             }
         });
     }

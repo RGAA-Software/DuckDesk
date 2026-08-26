@@ -3,6 +3,7 @@
 //
 
 #include "tab_hw_info.h"
+#include <QPointer>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -26,8 +27,11 @@ namespace px
         hw_widget_ = new HWInfoWidget(false, this);
         root_layout->addWidget(hw_widget_);
 
-        msg_listener_->Listen<MsgHWInfo>([=, this](const MsgHWInfo& msg) {
-            hw_widget_->OnSysInfoCallback(msg.sys_info_);
+        QPointer<TabHWInfo> self(this);
+        msg_listener_->Listen<MsgHWInfo>([self](const MsgHWInfo& msg) {
+            if (self) {
+                self->hw_widget_->OnSysInfoCallback(msg.sys_info_);
+            }
         });
     }
 

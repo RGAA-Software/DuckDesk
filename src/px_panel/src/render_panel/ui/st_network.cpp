@@ -3,6 +3,7 @@
 //
 
 #include "st_network.h"
+#include <QPointer>
 #include "px_qt_widget/no_margin_layout.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
@@ -406,21 +407,24 @@ namespace px
         setLayout(root_layout);
 
         // messages
-        msg_listener_ = app->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            // clear data
-            app_->GetContext()->PostUITask([=, this]() {
-                edt_console_access_->setText("");
-                edt_console_server_host_->setText("");
-                edt_console_server_port_->setText("");
-                edt_relay_server_host_->setText("");
-                edt_relay_server_port_->setText("");
-            });
+        msg_listener_ = context_->ObtainUIMessageListener();
+        QPointer<StNetwork> self(this);
+        msg_listener_->Listen<MsgForceClearProgramData>([self](const MsgForceClearProgramData&) {
+            if (!self) {
+                return;
+            }
+            self->edt_console_access_->setText("");
+            self->edt_console_server_host_->setText("");
+            self->edt_console_server_port_->setText("");
+            self->edt_relay_server_host_->setText("");
+            self->edt_relay_server_port_->setText("");
         });
 
         //
-        context_->PostUIDelayTask([=, this]() {
-            this->SearchAccessInfo(true);
+        context_->PostUIDelayTask([self]() {
+            if (self) {
+                self->SearchAccessInfo(true);
+            }
         }, 5000);
     }
 

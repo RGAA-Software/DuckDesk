@@ -3,6 +3,7 @@
 //
 
 #include "task_runtime.h"
+#include <vector>
 #include "log.h"
 
 namespace px
@@ -24,13 +25,23 @@ namespace px
     }
 
     TaskRuntime::~TaskRuntime() {
-
+        Exit();
     }
 
     // Return: task id
     uint64_t TaskRuntime::Post(const ThreadTaskPtr& task) {
+        if (!task || exiting_) {
+            return 0;
+        }
+        std::lock_guard lock(threads_mutex_);
+        if (exiting_) {
+            return 0;
+        }
         task->task_id_ = SnowflakeId::generate().implode();
         auto t = FindMostIdleThread();
+        if (!t.second) {
+            return 0;
+        }
         t.second->Post(task);
         LOGI("Post.1 task: {} in thread: {}", task->task_id_, t.first);
         return task->task_id_;
@@ -38,8 +49,18 @@ namespace px
 
     // Return: task id
     uint64_t TaskRuntime::Post(ThreadTaskPtr&& task) {
+        if (!task || exiting_) {
+            return 0;
+        }
+        std::lock_guard lock(threads_mutex_);
+        if (exiting_) {
+            return 0;
+        }
         task->task_id_ = SnowflakeId::generate().implode();
         auto t = FindMostIdleThread();
+        if (!t.second) {
+            return 0;
+        }
         t.second->Post(task);
         //LOGI("Post.2 task: {} in thread: {}", task->task_id_, t.first);
         return task->task_id_;
@@ -47,7 +68,14 @@ namespace px
 
     // Remove task
     bool TaskRuntime::RemoveTask(uint64_t task_id) {
-        for(const auto& [tid, t] : threads_) {
+        std::vector<std::shared_ptr<Thread>> threads;
+        {
+            std::lock_guard lock(threads_mutex_);
+            for (const auto& [tid, thread] : threads_) {
+                threads.push_back(thread);
+            }
+        }
+        for (const auto& t : threads) {
             t->RemoveTask(task_id);
         }
         return true;
@@ -66,17 +94,30 @@ namespace px
     }
 
     void TaskRuntime::Exit() {
-        for (const auto& t : threads_) {
-            t.second->Exit();
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        std::unordered_map<int, std::shared_ptr<Thread>> threads;
+        {
+            std::lock_guard lock(threads_mutex_);
+            threads.swap(threads_);
+        }
+        for (const auto& [id, thread] : threads) {
+            thread->Exit();
         }
     }
 
     std::string TaskRuntime::Dump() {
+        std::unordered_map<int, std::shared_ptr<Thread>> threads;
+        {
+            std::lock_guard lock(threads_mutex_);
+            threads = threads_;
+        }
         std::stringstream ss;
         ss << "TaskRuntime: \n";
         ss << "  - Threads Number: " << num_threads_ << std::endl;
         ss << "  - Threads Tasks: " << std::endl;
-        for (const auto& [k, v] : threads_) {
+        for (const auto& [k, v] : threads) {
             ss << "    - Thread idx: " << k << ", tasks: " << v->TaskSize() << std::endl;
             auto tasks = v->GetTasks();
             for (auto& t : tasks) {
@@ -87,11 +128,18 @@ namespace px
     }
 
     std::shared_ptr<Thread> TaskRuntime::GetFirstThread() {
-        return threads_.at(0);
+        std::lock_guard lock(threads_mutex_);
+        const auto found = threads_.find(0);
+        return found == threads_.end() ? nullptr : found->second;
     }
 
     std::shared_ptr<Thread> TaskRuntime::GetLastThread() {
-        return threads_.at(threads_.size()-1);
+        std::lock_guard lock(threads_mutex_);
+        if (threads_.empty()) {
+            return nullptr;
+        }
+        const auto found = threads_.find(num_threads_ - 1);
+        return found == threads_.end() ? nullptr : found->second;
     }
 
 }

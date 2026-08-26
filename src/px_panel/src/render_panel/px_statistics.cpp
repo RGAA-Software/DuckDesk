@@ -12,19 +12,42 @@
 namespace px
 {
 
+    PxStatistics::~PxStatistics() {
+        Exit();
+    }
+
     void PxStatistics::RegisterEventListeners() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgCaptureStatistics>([=, this](const MsgCaptureStatistics& msg) {
-            ProcessCaptureStatistics(msg);
+        const auto context = context_.lock();
+        if (!context) {
+            return;
+        }
+        msg_listener_ = context->ObtainMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgCaptureStatistics>([weak_self](const MsgCaptureStatistics& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->ProcessCaptureStatistics(msg);
+            }
         });
 
-        msg_listener_->Listen<MsgServerAudioSpectrum>([=, this](const MsgServerAudioSpectrum& msg) {
-            ProcessAudioSpectrum(msg);
+        msg_listener_->Listen<MsgServerAudioSpectrum>([weak_self](const MsgServerAudioSpectrum& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->ProcessAudioSpectrum(msg);
+            }
         });
 
-        msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& msg) {
-            Process1SCalculation();
+        msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S&) {
+            if (const auto self = weak_self.lock()) {
+                self->Process1SCalculation();
+            }
         });
+    }
+
+    void PxStatistics::Exit() {
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        context_.reset();
     }
 
     void PxStatistics::ProcessCaptureStatistics(const MsgCaptureStatistics& msg) {
@@ -94,17 +117,20 @@ namespace px
             info->CopyFrom(item);
             connected_clients_info_.PushBack(info);
         }
-        context_->PostTask([=, this]() {
-            context_->SendAppMessage(MsgUpdateConnectedClientsInfo {
-                .clients_info_ = GetConnectedClientsInfo(),
+        const auto context = context_.lock();
+        const auto weak_self = weak_from_this();
+        if (context) {
+            context->PostTask([weak_self]() {
+                const auto self = weak_self.lock();
+                const auto context = self ? self->context_.lock() : nullptr;
+                if (!self || !context) {
+                    return;
+                }
+                context->SendAppMessage(MsgUpdateConnectedClientsInfo {
+                    .clients_info_ = self->GetConnectedClientsInfo(),
+                });
             });
-            // test beg //
-            //LOGI("*** Connected client count: {}", connected_clients_info_.size());
-            //for (const auto& item : connected_clients_info_) {
-            //    LOGI("connected, device id: {}, device name: {}", ExtractClientId(item->device_id()), item->device_name());
-            //}
-            // test end //
-        });
+        }
 
         relay_connected_ = msg.statistics_->relay_connected();
         audio_capture_type_ = msg.statistics_->audio_capture_type();

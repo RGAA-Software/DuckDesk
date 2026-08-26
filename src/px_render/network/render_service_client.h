@@ -27,6 +27,7 @@ namespace px
     public:
 
         explicit RenderServiceClient(const std::shared_ptr<RdApplication>& app);
+        ~RenderServiceClient();
         void Start();
         void Exit();
         bool IsAlive() const;
@@ -53,12 +54,13 @@ namespace px
         void SendPendingAppInstanceReady();
 
     private:
-        RdStatistics* statistics_ = nullptr;
+        std::shared_ptr<RdStatistics> statistics_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::atomic_bool websocket_upgraded_ = false;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::atomic_bool exiting_ = false;
         std::atomic_int queuing_message_count_ = 0;
         std::mutex ticket_callbacks_mtx_;
         std::unordered_map<std::string,

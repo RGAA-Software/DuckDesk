@@ -155,6 +155,7 @@ int main(int argc, char** argv) {
         LOGI("arg 1: {}", listening_port);
     }
     g_context_ = std::make_shared<ServiceContext>(listening_port);
+    g_context_->Start();
     g_service_ = std::make_shared<PxService>(g_context_);
     SERVICE_TABLE_ENTRY ServiceTable[] = {
             {(wchar_t*)kGrServiceName.c_str(), (LPSERVICE_MAIN_FUNCTION)ServiceMain},

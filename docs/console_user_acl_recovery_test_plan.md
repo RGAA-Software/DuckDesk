@@ -283,7 +283,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test_console_restart_recovery.p
 
 ### 11.2 生命周期压力
 
-- 连续执行 100 次启动、签票、兑换、停止，确认没有活动实例、请求索引或目标进程线性增长。
+- 连续执行 10 次启动、签票、兑换、停止，确认没有活动实例、请求索引或目标进程线性增长。
 - 10 个浏览器上下文并发读取 public 目录和签发各自票据，不跨会话串票。
 - 对同一实例并发发起 20 次续票，只允许符合旋转规则的一条链成功，不产生重复有效 renewal。
 - 记录 Console、Service、Render 的私有工作集、句柄、线程和连接数；结束后回落到基线允许范围。

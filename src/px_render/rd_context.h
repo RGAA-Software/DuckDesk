@@ -14,6 +14,10 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/task_runtime.h"
 
+namespace asio2 {
+    class timer;
+}
+
 namespace px
 {
 
@@ -32,7 +36,8 @@ namespace px
         void SetPluginManager(const std::shared_ptr<PluginManager>& pm);
 
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
-        std::shared_ptr<MessageListener> CreateMessageListener();
+        std::shared_ptr<MessageListener> CreateMessageListener(
+            MessageExecutionLane lane = MessageExecutionLane::kControl);
         std::shared_ptr<PluginManager> GetPluginManager();
 
         template<typename T>
@@ -54,8 +59,10 @@ namespace px
     private:
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<TaskRuntime> task_rt_ = nullptr;
-        std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
+        std::weak_ptr<PluginManager> plugin_manager_;
         std::shared_ptr<Thread> stream_plugin_thread_ = nullptr;
+        std::shared_ptr<asio2::timer> delay_timer_ = nullptr;
+        std::atomic_uint64_t delay_task_id_ = 0;
         std::atomic_bool exiting_ = false;
 
         std::mutex ui_task_mutex_;

@@ -12,6 +12,15 @@ namespace px {
             sequence.fetch_add(1, std::memory_order_relaxed) + 1);
     }
 
+    VirtualDisplayResponseState NormalizeNativeVirtualDisplayResponseState(
+        bool accepted,
+        VirtualDisplayResponseState state) {
+        if (accepted && state == kVirtualDisplayNeedReconnect) {
+            return kVirtualDisplayReady;
+        }
+        return state;
+    }
+
     Message MakeVirtualDisplayRequestMessage(
         const std::string& device_id,
         const std::string& stream_id,

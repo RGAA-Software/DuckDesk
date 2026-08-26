@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <filesystem>
+#include <vector>
 #include "string_util.h"
 
 namespace px
@@ -16,6 +17,11 @@ namespace px
 
         Data(const char *data, int64_t size);
         ~Data();
+
+        Data(const Data&) = default;
+        Data& operator=(const Data&) = default;
+        Data(Data&&) noexcept = default;
+        Data& operator=(Data&&) noexcept = default;
 
         [[nodiscard]] const char* CStr() const;
         [[nodiscard]] char* DataAddr() const;
@@ -31,8 +37,7 @@ namespace px
         [[nodiscard]] std::shared_ptr<Data> Clone() const;
 
     private:
-        char* data_{nullptr};
-        int64_t size_ = 0;
+        std::vector<char> data_;
         int64_t offset_ = 0;
         uint64_t id_ = 0;
 };

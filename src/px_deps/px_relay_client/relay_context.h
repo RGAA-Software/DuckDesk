@@ -14,7 +14,8 @@ namespace px
     public:
         explicit RelayContext(const std::shared_ptr<MessageNotifier>& notifier);
 
-        std::shared_ptr<MessageListener> CreateMessageListener();
+        std::shared_ptr<MessageListener> CreateMessageListener(
+            MessageExecutionLane lane = MessageExecutionLane::kControl);
 
         template<typename T>
         void SendAppMessage(const T& m) {

@@ -6,8 +6,10 @@
 #define TEST_WEBRTC_RTCSERVER_H
 
 #include "px_common_new/webrtc_helper.h"
+#include "px_common_new/rtc_monitor_track_slots.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
 #include <algorithm>
+#include <mutex>
 
 namespace px
 {
@@ -189,9 +191,10 @@ namespace px
         std::atomic_bool disconnect_event_sent_ = false;
 
         // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,
-        // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true,
-        // 每台显示器一条静态 track,帧按 mon_name 路由
+        // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true。
+        // 多轨模式按 offer 预留固定槽位,显示器热插拔只改变槽位映射,无需 SDP 重协商。
         bool multi_track_mode_ = false;
+        mutable std::mutex video_tracks_mutex_;
         std::vector<MonitorVideoTrack> video_tracks_;
         rtc::scoped_refptr<AudioSourceImpl> audio_source_ = nullptr;
         rtc::scoped_refptr<AudioSourceImpl> voice_audio_source_ = nullptr;

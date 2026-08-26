@@ -31,6 +31,7 @@ namespace px
         bool StartProcessWithHook() override;
         bool StartProcess() override;
         void Exit() override;
+        void OnCapturedVideoFrame() override;
         void* GetWindowHandle() override;
         void CloseCurrentApp() override;
 
@@ -101,6 +102,7 @@ namespace px
         std::atomic<bool> waiting_first_frame_ = false;
         std::atomic<int64_t> last_game_restart_ms_ = 0;
         std::atomic<int64_t> last_watchdog_check_ms_ = 0;
+        std::atomic_bool exiting_ = false;
 
     };
 

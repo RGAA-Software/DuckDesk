@@ -78,7 +78,9 @@ namespace px
     }
 
     void ClientContext::PostTask(std::function<void()>&& task) {
-        task_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        if (!exiting_.load(std::memory_order_acquire) && task_thread_) {
+            task_thread_->Post(SimpleThreadTask::Make(std::move(task)));
+        }
     }
 
     void ClientContext::PostUITask(std::function<void()>&& task) {
@@ -110,12 +112,13 @@ namespace px
     }
 
     std::shared_ptr<MessageListener> ClientContext::ObtainMessageListener() {
-        return msg_notifier_->CreateListener();
+        return msg_notifier_->CreateListener(MessageExecutionLane::kControl);
     }
 
     std::shared_ptr<MessageListener> ClientContext::ObtainUIMessageListener() {
         auto weak_self = weak_from_this();
-        return msg_notifier_->CreateListener([weak_self](std::function<void()> task) {
+        return msg_notifier_->CreateListener(
+            MessageExecutionLane::kUi, [weak_self](std::function<void()> task) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->PostUITask(std::move(task));
             }
@@ -123,7 +126,13 @@ namespace px
     }
 
     void ClientContext::Exit() {
-        exiting_ = true;
+        bool expected = false;
+        if (!exiting_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+            return;
+        }
+        if (msg_notifier_) {
+            msg_notifier_->Stop(MessageBusStopMode::kCancel);
+        }
         if (task_thread_ && task_thread_->IsJoinable()) {
             task_thread_->Exit();
         }
@@ -165,12 +174,20 @@ namespace px
 
     void ClientContext::InitNotifyManager(QWidget* parent) {
         notify_manager_ = std::make_shared<NotifyManager>(parent);
-        connect(notify_manager_.get(), &NotifyManager::notifyDetail, this, [=, this](const NotifyItem& data) {
-            this->PostTask([=, this]() {
-                this->SendAppMessage(MsgClientNotificationClicked {
+        const auto weak_self = weak_from_this();
+        connect(notify_manager_.get(), &NotifyManager::notifyDetail, this,
+                [weak_self](const NotifyItem& data) {
+            if (auto self = weak_self.lock()) {
+                self->PostTask([weak_self, data]() {
+                    auto task_self = weak_self.lock();
+                    if (!task_self) {
+                        return;
+                    }
+                    task_self->SendAppMessage(MsgClientNotificationClicked {
                     .data_ = data,
+                    });
                 });
-            });
+            }
         });
     }
 

@@ -7,6 +7,7 @@
 #include <QMimeData>
 #include <QApplication>
 #include <QFile>
+#include <QPointer>
 #include <thread>
 #include "ct_shader_program.h"
 #include "ct_opengl_video_widget.h"
@@ -325,8 +326,11 @@ namespace px
 	}
 
     void OpenGLVideoWidget::OnUpdate() {
-        QMetaObject::invokeMethod(this, [this]() {
-            this->repaint();
+        const QPointer<OpenGLVideoWidget> guarded_self(this);
+        QMetaObject::invokeMethod(this, [guarded_self]() {
+            if (guarded_self) {
+                guarded_self->repaint();
+            }
         });
     }
 

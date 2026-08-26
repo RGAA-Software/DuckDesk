@@ -50,7 +50,7 @@ namespace px
 
     void WebRtcConnection::Prepare() {
         auto weak_self = weak_from_this();
-        msg_listener_ = msg_notifier_->CreateListener();
+        msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
         msg_listener_->Listen<SdkMsgNetworkConnected>([](const SdkMsgNetworkConnected&) {
             LOGI("Sdk msg, network connected.");
         });
@@ -220,29 +220,36 @@ namespace px
     }
 
     void WebRtcConnection::LoadRtcLibrary() {
-        RunInRtcThread([=, this]() {
+        const std::weak_ptr<WebRtcConnection> weak_self = weak_from_this();
+        RunInRtcThread([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || self->stopped_) {
+                return;
+            }
 #ifdef WIN32
             LOGI("Begin to load library!");
             auto lib_name = QApplication::applicationDirPath() + "/px_client_rtc.dll";
-            rtc_lib_ = new QLibrary(lib_name);
-            auto r = rtc_lib_->load();
+            // Existing plug-in loader ownership is an explicit compatibility
+            // boundary; the module intentionally remains loaded for process life.
+            self->rtc_lib_ = new QLibrary(lib_name); // NOLINT(gammaray-raw-pointer-boundary): plug-in loader ABI/lifetime
+            auto r = self->rtc_lib_->load();
             if (!r) {
                 LOGE("LOAD rtc conn FAILED");
-                NotifyDisconnectedOnce();
+                self->NotifyDisconnectedOnce();
                 return;
             }
 
-            auto fn_get_instance = (FnGetInstance)rtc_lib_->resolve("GetInstance");
+            auto fn_get_instance = (FnGetInstance)self->rtc_lib_->resolve("GetInstance");
             if (!fn_get_instance) {
                 LOGE("DON'T have GetInstance");
-                NotifyDisconnectedOnce();
+                self->NotifyDisconnectedOnce();
                 return;
             }
 
-            rtc_client_ = (RtcClientInterface*)fn_get_instance();
-            if (!rtc_client_) {
+            self->rtc_client_ = (RtcClientInterface*)fn_get_instance();
+            if (!self->rtc_client_) {
                 LOGE("Can't get rtc client instance.");
-                NotifyDisconnectedOnce();
+                self->NotifyDisconnectedOnce();
                 return;
             }
             LOGI("Load Rtc library success.");

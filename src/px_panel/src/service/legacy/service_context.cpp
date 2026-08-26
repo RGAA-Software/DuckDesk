@@ -32,25 +32,58 @@ namespace px
             LOGE("Init gammaray_service.data failed!");
         }
 
+    }
+
+    ServiceContext::~ServiceContext() {
+        Exit();
+    }
+
+    void ServiceContext::Start() {
+        if (started_.exchange(true) || exiting_) {
+            return;
+        }
         // timers
         timer_ = std::make_shared<asio2::timer>();
         std::vector<int> time_durations = {
             1000, 3000,
         };
+        const std::weak_ptr<ServiceContext> weak_self = weak_from_this();
         for (auto& duration : time_durations) {
-            timer_->start_timer(std::format("tid:{}", duration), duration, [=, this]() {
+            timer_->start_timer(std::format("tid:{}", duration), duration, [weak_self, duration]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
                 if (duration == 1000) {
-                    this->SendAppMessage(MsgTimer1S{});
+                    self->SendAppMessage(MsgTimer1S{});
                 }
                 else if (duration == 3000) {
-                    this->SendAppMessage(MsgTimer3S{});
+                    self->SendAppMessage(MsgTimer3S{});
                 }
             });
         }
     }
 
+    void ServiceContext::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (timer_) {
+            timer_->stop_all_timers();
+            timer_->stop();
+        }
+        if (iopool_) {
+            iopool_->stop();
+        }
+        if (msg_notifier_) {
+            msg_notifier_->Stop(MessageBusStopMode::kCancel);
+        }
+    }
+
     void ServiceContext::PostBgTask(std::function<void()>&& task) {
-        iopool_->post(std::move(task));
+        if (!exiting_ && iopool_) {
+            iopool_->post(std::move(task));
+        }
     }
 
     std::shared_ptr<MessageListener> ServiceContext::CreateMessageListener() {

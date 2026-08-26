@@ -30,16 +30,18 @@ namespace px
         int64_t last_update_ts_ = 0;
     };
 
-    class PxStatistics {
+    class PxStatistics : public std::enable_shared_from_this<PxStatistics> {
     public:
 
-        static PxStatistics* Instance() {
-            static PxStatistics instance;
-            return &instance;
+        static std::shared_ptr<PxStatistics> Instance() {
+            static auto instance = std::make_shared<PxStatistics>();
+            return instance;
         }
 
-        void SetContext(const std::shared_ptr<PxContext>& ctx) { context_ = ctx;}
+        ~PxStatistics();
+        void SetContext(const std::shared_ptr<PxContext>& ctx) { context_ = ctx; }
         void RegisterEventListeners();
+        void Exit();
 
         std::map<std::string, std::vector<int32_t>> GetEncodeDurations();
         std::map<std::string, std::vector<int32_t>> GetVideoCaptureGaps();
@@ -71,7 +73,7 @@ namespace px
         ConcurrentHashMap<std::string, std::shared_ptr<PxStatRelayAlive>> relays_alive_;
 
     public:
-        std::shared_ptr<PxContext> context_ = nullptr;
+        std::weak_ptr<PxContext> context_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         // from inner server
         std::atomic_int32_t app_running_time = 0;

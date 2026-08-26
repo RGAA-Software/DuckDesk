@@ -6,6 +6,7 @@
 #define TC_SERVER_STEAM_GR_APPLICATION_H
 
 #include <memory>
+#include <atomic>
 #include <QTimer>
 #include <QObject>
 #include <QAbstractNativeEventFilter>
@@ -142,6 +143,7 @@ namespace px
         QTimer* timer_ = nullptr;
         PxSettings* settings_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         // window messages looping
         std::shared_ptr<Thread> win_msg_thread_ = nullptr;
@@ -188,7 +190,8 @@ namespace px
         std::string using_console_host_;
         int using_console_port_ = 0;
         bool using_console_ssl_ = true;
-        bool shutdown_prepared_ = false;
+        std::atomic_bool shutdown_prepared_ = false;
+        std::atomic_bool exiting_ = false;
     };
 
     extern std::shared_ptr<PxApplication> grApp;

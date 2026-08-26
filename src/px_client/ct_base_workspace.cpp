@@ -93,14 +93,16 @@ namespace px
         overlay_widget_->SetOpacity(0.3);
         overlay_widget_->SetWatermarkCount(0);
         overlay_widget_->hide();
-        QTimer::singleShot(1000, this, [=, this]() {
-            if (overlay_widget_) {
-                UpdateOverlayWidgetPos();
-                if (this->isHidden()) {
-                    overlay_widget_->hide();
+        const QPointer<BaseWorkspace> overlay_owner(this);
+        QTimer::singleShot(1000, this, [overlay_owner]() {
+            const auto self = overlay_owner;
+            if (self && self->overlay_widget_) {
+                self->UpdateOverlayWidgetPos();
+                if (self->isHidden()) {
+                    self->overlay_widget_->hide();
                 }
                 else {
-                    overlay_widget_->show();
+                    self->overlay_widget_->show();
                 }
             }
         });
@@ -264,67 +266,94 @@ namespace px
     }
 
     void BaseWorkspace::RegisterBaseListeners() {
-        msg_listener_->Listen<MsgClientExitApp>([=, this](const MsgClientExitApp& msg) {
-            context_->PostDelayUITask([=, this]() {
-                this->ExitClientWithDialog();
-            }, 10);
+        const auto weak_self = weak_from_this();
+
+        msg_listener_->Listen<MsgClientExitApp>([weak_self](const MsgClientExitApp&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostDelayUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->ExitClientWithDialog();
+                    }
+                }, 10);
+            }
         });
 
-        msg_listener_->Listen<MsgClientClipboard>([=, this](const MsgClientClipboard& msg) {
-            this->SendClipboardMessage(msg);
+        msg_listener_->Listen<MsgClientClipboard>([weak_self](const MsgClientClipboard& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SendClipboardMessage(msg);
+            }
         });
 
-        msg_listener_->Listen<MsgClientRtcIceRestart>([=, this](const MsgClientRtcIceRestart& msg) {
-            if (settings_->network_type_ != ClientNetworkType::kWebRtc) {
+        msg_listener_->Listen<MsgClientRtcIceRestart>([weak_self](const MsgClientRtcIceRestart& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            if (self->settings_->network_type_ != ClientNetworkType::kWebRtc) {
                 LOGW("Ignore RTC ICE restart for non-standard RTC session");
                 return;
             }
-            if (!sdk_->RestartRtcIce(msg.ice_config_json_, msg.connection_ticket_,
-                                     msg.client_nonce_, msg.instance_id_)) {
+            if (!self->sdk_->RestartRtcIce(msg.ice_config_json_, msg.connection_ticket_,
+                                           msg.client_nonce_, msg.instance_id_)) {
                 LOGE("RTC ICE restart request failed, revision={}", msg.revision_);
                 return;
             }
             LOGI("RTC ICE restart started, revision={}", msg.revision_);
         });
 
-        msg_listener_->Listen<MsgClientSwitchMonitor>([=, this](const MsgClientSwitchMonitor& msg) {
-            this->SendSwitchMonitorMessage(msg.name_);
-            this->SendUpdateDesktopMessage();
-            context_->PostTask([=, this]() {
+        msg_listener_->Listen<MsgClientSwitchMonitor>([weak_self](const MsgClientSwitchMonitor& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->SendSwitchMonitorMessage(msg.name_);
+            self->SendUpdateDesktopMessage();
+            self->context_->PostTask([weak_self]() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
-                this->SendUpdateDesktopMessage();
+                if (const auto task_self = weak_self.lock()) {
+                    task_self->SendUpdateDesktopMessage();
+                }
             });
         });
 
-        msg_listener_->Listen<MsgClientSwitchWorkMode>([=, this](const MsgClientSwitchWorkMode& msg) {
-            //this->SendSwitchWorkModeMessage(msg.mode_);
+        msg_listener_->Listen<MsgClientSwitchWorkMode>([](const MsgClientSwitchWorkMode&) {
         });
 
-        msg_listener_->Listen<MsgClientSwitchScaleMode>([=, this](const MsgClientSwitchScaleMode& msg) {
-            this->SwitchScaleMode(msg.mode_);
+        msg_listener_->Listen<MsgClientSwitchScaleMode>([weak_self](const MsgClientSwitchScaleMode& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SwitchScaleMode(msg.mode_);
+            }
         });
 
-        msg_listener_->Listen<MsgClientSwitchFullColor>([=, this](const MsgClientSwitchFullColor& msg) {
-            this->SendSwitchFullColorMessage(msg.enable_);
+        msg_listener_->Listen<MsgClientSwitchFullColor>([weak_self](const MsgClientSwitchFullColor& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SendSwitchFullColorMessage(msg.enable_);
+            }
         });
 
         // step 1t
-        msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {
-            //this->SendSwitchWorkModeMessage(settings_->work_mode_);
-            this->SendUpdateDesktopMessage();
-            main_progress_->ResetProgress();
-            main_progress_->StepForward();
-            LOGI("Step: MsgNetworkConnected, at: {}", main_progress_->GetCurrentProgress());
+        msg_listener_->Listen<SdkMsgNetworkConnected>([weak_self](const SdkMsgNetworkConnected&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->SendUpdateDesktopMessage();
+            self->main_progress_->ResetProgress();
+            self->main_progress_->StepForward();
+            LOGI("Step: MsgNetworkConnected, at: {}", self->main_progress_->GetCurrentProgress());
 
-            // dismiss dialog
-            DismissConnectingDialog();
+            self->DismissConnectingDialog();
 
             // The file manager can be shown before networking is ready. Its
             // first ReadDir may then be dropped, so let the FT plugin refresh
             // once the transport is established and after reconnects. The
             // plugin does nothing while its window is hidden.
-            context_->PostUITask([=, this]() {
-                if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
+            self->context_->PostUITask([weak_self]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
+                if (auto plugin = task_self->plugin_manager_->GetFileTransferPlugin(); plugin) {
                     LOGI("File-transfer transport connected; notify plugin");
                     plugin->OnTransportConnected();
                 }
@@ -333,44 +362,62 @@ namespace px
 
         // reconnection
         // relay mode now, already connected
-        msg_listener_->Listen<SdkMsgReconnect>([=, this](const SdkMsgReconnect& msg) {
-            main_progress_->ResetProgress();
-            main_progress_->StepForward();
-            LOGI("Step: SdkMsgReconnect, at: {}", main_progress_->GetCurrentProgress());
+        msg_listener_->Listen<SdkMsgReconnect>([weak_self](const SdkMsgReconnect&) {
+            if (const auto self = weak_self.lock()) {
+                self->main_progress_->ResetProgress();
+                self->main_progress_->StepForward();
+                LOGI("Step: SdkMsgReconnect, at: {}", self->main_progress_->GetCurrentProgress());
+            }
         });
 
-        msg_listener_->Listen<SdkMsgNetworkDisConnected>([=, this](const SdkMsgNetworkDisConnected& msg) {
-            StopVoiceCall(false, "disconnect");
-            if (remote_force_closed_) {
+        msg_listener_->Listen<SdkMsgNetworkDisConnected>([weak_self](const SdkMsgNetworkDisConnected&) {
+            const auto self = weak_self.lock();
+            if (!self) {
                 return;
             }
-            context_->PostUITask([=, this]() {
-                if (retry_conn_dialog_->isHidden()) {
-                    WidgetHelper::SetTitleBarColor((QWidget*)(retry_conn_dialog_.get()));
-                    if (retry_conn_dialog_->Exec() == -1) {
-                        ProcessUtil::KillProcess(QApplication::applicationPid());
-                    }
+            self->StopVoiceCall(false, "disconnect");
+            if (self->remote_force_closed_) {
+                return;
+            }
+            self->context_->PostUITask([weak_self]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self || !task_self->retry_conn_dialog_->isHidden()) {
+                    return;
+                }
+                WidgetHelper::SetTitleBarColor(task_self->retry_conn_dialog_.get());
+                if (task_self->retry_conn_dialog_->Exec() == -1) {
+                    ProcessUtil::KillProcess(QApplication::applicationPid());
                 }
             });
         });
 
         // webrtc local: render rejected the device password(HTTP 403), tell the user and quit
-        msg_listener_->Listen<SdkMsgRtcLocalAuthFailed>([=, this](const SdkMsgRtcLocalAuthFailed& msg) {
-            context_->PostUITask([=, this]() {
-                auto box = SizedMessageBox::MakeErrorOkBox(tcTr("id_warning"), tcTr("id_rtc_local_pwd_error"));
-                box->exec();
-                ProcessUtil::KillProcess(QApplication::applicationPid());
-            });
+        msg_listener_->Listen<SdkMsgRtcLocalAuthFailed>([weak_self](const SdkMsgRtcLocalAuthFailed&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (!weak_self.lock()) {
+                        return;
+                    }
+                    auto box = SizedMessageBox::MakeErrorOkBox(
+                        tcTr("id_warning"), tcTr("id_rtc_local_pwd_error"));
+                    box->exec();
+                    ProcessUtil::KillProcess(QApplication::applicationPid());
+                });
+            }
         });
 
         // render 主动断开本连接:被其它客户端接管。通知在通道关闭前到达,
         // 先置 remote_force_closed_ 抑制随后的断线重连弹窗
-        msg_listener_->Listen<SdkMsgConnectionTakenOver>([=, this](const SdkMsgConnectionTakenOver& msg) {
-            if (remote_force_closed_) {
+        msg_listener_->Listen<SdkMsgConnectionTakenOver>([weak_self](const SdkMsgConnectionTakenOver&) {
+            const auto self = weak_self.lock();
+            if (!self || self->remote_force_closed_) {
                 return;
             }
-            remote_force_closed_ = true;
-            context_->PostUITask([=, this]() {
+            self->remote_force_closed_ = true;
+            self->context_->PostUITask([weak_self]() {
+                if (!weak_self.lock()) {
+                    return;
+                }
                 auto box = SizedMessageBox::MakeErrorOkBox(tcTr("id_warning"), tcTr("id_connection_taken_over"));
                 box->exec();
                 ProcessUtil::KillProcess(QApplication::applicationPid());
@@ -378,9 +425,13 @@ namespace px
         });
 
         // step 2
-        msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>([=, this](const SdkMsgFirstConfigInfoCallback& msg) {
-            main_progress_->StepForward();
-            LOGI("Step: MsgFirstConfigInfoCallback, at: {}", main_progress_->GetCurrentProgress());
+        msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>([weak_self](const SdkMsgFirstConfigInfoCallback& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->main_progress_->StepForward();
+            LOGI("Step: MsgFirstConfigInfoCallback, at: {}", self->main_progress_->GetCurrentProgress());
             if (msg.msg_ && msg.msg_->type() == px::kServerConfiguration) {
                 const auto config = msg.msg_->config();
 
@@ -388,9 +439,13 @@ namespace px
         });
 
         // step 3
-        msg_listener_->Listen<SdkMsgFirstVideoFrameDecoded>([=, this](const SdkMsgFirstVideoFrameDecoded& msg) {
-            main_progress_->CompleteProgress();
-            LOGI("Step: MsgFirstVideoFrameDecoded, at: {}", main_progress_->GetCurrentProgress());
+        msg_listener_->Listen<SdkMsgFirstVideoFrameDecoded>([weak_self](const SdkMsgFirstVideoFrameDecoded&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->main_progress_->CompleteProgress();
+            LOGI("Step: MsgFirstVideoFrameDecoded, at: {}", self->main_progress_->GetCurrentProgress());
 
             // process watermark
             // context_->PostUITask([=, this]() {
@@ -408,47 +463,74 @@ namespace px
             //     }
             // });
 
-            DismissConnectingDialog();
+            self->DismissConnectingDialog();
         });
 
-        msg_listener_->Listen<MsgClientChangeMonitorResolution>([=, this](const MsgClientChangeMonitorResolution& msg) {
-            this->SendChangeMonitorResolutionMessage(msg);
-        });
-
-        msg_listener_->Listen<MsgClientVirtualDisplayRequest>([=, this](const MsgClientVirtualDisplayRequest& msg) {
-            this->SendVirtualDisplayRequest(msg);
-        });
-
-        msg_listener_->Listen<MsgClientVoiceCallCommand>([=, this](const MsgClientVoiceCallCommand& msg) {
-            this->SendVoiceCallCommand(msg);
-        });
-
-        msg_listener_->Listen<MsgClientCtrlAltDelete>([=, this](const MsgClientCtrlAltDelete& msg) {
-            if (auto buffer = ProtoMessageMaker::MakeCtrlAltDelete(settings_->device_id_, settings_->stream_id_); buffer) {
-                sdk_->PostMediaMessage(buffer);
+        msg_listener_->Listen<MsgClientChangeMonitorResolution>([weak_self](const MsgClientChangeMonitorResolution& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SendChangeMonitorResolutionMessage(msg);
             }
         });
 
-        msg_listener_->Listen<MsgClientHardUpdateDesktop>([=, this](const MsgClientHardUpdateDesktop& msg) {
-            this->SendHardUpdateDesktopMessage();
+        msg_listener_->Listen<MsgClientVirtualDisplayRequest>([weak_self](const MsgClientVirtualDisplayRequest& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SendVirtualDisplayRequest(msg);
+            }
         });
 
-        msg_listener_->Listen<MsgExitControlledEndExe>([=, this](const MsgExitControlledEndExe& msg) {
-            this->SendExitControlledEndMessage();
+        msg_listener_->Listen<MsgClientVoiceCallCommand>([weak_self](const MsgClientVoiceCallCommand& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->SendVoiceCallCommand(msg);
+            }
         });
 
-        msg_listener_->Listen<MsgSetHWInfoPanelVisibility>([=, this](const MsgSetHWInfoPanelVisibility& msg) {
-            context_->PostUITask([=, this]() {
-                hw_info_widget_->show();
-            });
+        msg_listener_->Listen<MsgClientCtrlAltDelete>([weak_self](const MsgClientCtrlAltDelete&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            if (auto buffer = ProtoMessageMaker::MakeCtrlAltDelete(
+                    self->settings_->device_id_, self->settings_->stream_id_); buffer) {
+                self->sdk_->PostMediaMessage(buffer);
+            }
         });
 
-        msg_listener_->Listen<MsgHWInfo>([=, this](const MsgHWInfo& msg) {
+        msg_listener_->Listen<MsgClientHardUpdateDesktop>([weak_self](const MsgClientHardUpdateDesktop&) {
+            if (const auto self = weak_self.lock()) {
+                self->SendHardUpdateDesktopMessage();
+            }
+        });
+
+        msg_listener_->Listen<MsgExitControlledEndExe>([weak_self](const MsgExitControlledEndExe&) {
+            if (const auto self = weak_self.lock()) {
+                self->SendExitControlledEndMessage();
+            }
+        });
+
+        msg_listener_->Listen<MsgSetHWInfoPanelVisibility>([weak_self](const MsgSetHWInfoPanelVisibility&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->hw_info_widget_->show();
+                    }
+                });
+            }
+        });
+
+        msg_listener_->Listen<MsgHWInfo>([weak_self](const MsgHWInfo& msg) {
             if (!msg.info_) {
                 return;
             }
-            context_->PostUITask([=, this]() {
-                hw_info_widget_->OnSysInfoCallback(msg.info_);
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->context_->PostUITask([weak_self, msg]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
+                task_self->hw_info_widget_->OnSysInfoCallback(msg.info_);
                 if (!msg.info_->networks_.empty()) {
                     for (const auto& nt : msg.info_->networks_) {
                         auto name = StringUtil::ToLowerCpy(nt.name_);
@@ -457,15 +539,23 @@ namespace px
                             || name.find("virtualbox") != std::string::npos) {
                             continue;
                         }
-                        settings_->max_transmit_speed_ = nt.max_transmit_speed_;
-                        settings_->max_receive_speed_ = nt.max_receive_speed_;
+                        task_self->settings_->max_transmit_speed_ = nt.max_transmit_speed_;
+                        task_self->settings_->max_receive_speed_ = nt.max_receive_speed_;
                     }
                 }
             });
         });
 
-        msg_listener_->Listen<SdkMsgVideoDecodeInit>([=, this](const SdkMsgVideoDecodeInit& msg) {
-            context_->PostUITask([=, this]() {
+        msg_listener_->Listen<SdkMsgVideoDecodeInit>([weak_self](const SdkMsgVideoDecodeInit& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->context_->PostUITask([weak_self, msg]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
                 bool notify_user = false;
                 QString video_info;
                 if (msg.hard_ware_) {
@@ -482,73 +572,100 @@ namespace px
                     return;
                 }
                 video_info = " (" + video_info + ") ";
-                context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_cpu_decode_warning") + video_info);
+                task_self->context_->NotifyAppWarningMessage(
+                    tcTr("id_warning"), tcTr("id_cpu_decode_warning") + video_info);
             });
         });
     }
 
     BaseWorkspace::~BaseWorkspace() {
-
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
     }
 
     void BaseWorkspace::RegisterSdkMsgCallbacks() {
+        const auto weak_self = weak_from_this();
+
         // save pcm file , use ffplay.exe -ar 48000 -ac 2 -f s16le -i .\audio_48000_2.pcm
-        sdk_->SetOnAudioFrameDecodedCallback([=, this](std::shared_ptr<Data> data, int samples, int channels, int bits) {
-            if (!settings_->IsAudioEnabled() || remote_force_closed_) {
+        sdk_->SetOnAudioFrameDecodedCallback(
+            [weak_self](std::shared_ptr<Data> data, int samples, int channels, int bits) {
+            const auto self = weak_self.lock();
+            if (!self || !self->settings_->IsAudioEnabled() || self->remote_force_closed_) {
                 return;
             }
-            if (!audio_player_) {
+            if (!self->audio_player_) {
                 LOGI("Init audio player, freq: {}, channels: {}, bits: {}", samples, channels, bits);
-                audio_player_ = std::make_shared<AudioPlayer>();
-                context_->PostUITask([=, this]() {
-                    audio_player_->Init(samples, channels);
+                self->audio_player_ = std::make_shared<AudioPlayer>();
+                self->context_->PostUITask([weak_self, samples, channels]() {
+                    if (const auto task_self = weak_self.lock(); task_self && task_self->audio_player_) {
+                        task_self->audio_player_->Init(samples, channels);
+                    }
                 });
                 return;
             }
-            audio_player_->Write(data);
+            self->audio_player_->Write(data);
         });
 
-        sdk_->SetOnAudioSpectrumCallback([=](std::shared_ptr<px::Message> msg) {
-
+        sdk_->SetOnAudioSpectrumCallback([](std::shared_ptr<px::Message>) {
         });
 
-        sdk_->SetOnCursorInfoCallback([=, this](std::shared_ptr<px::Message> msg) {
-            const auto& cursor_info = msg->cursor_info_sync();
-            // remote cursor's bitmap
-            std::string bitmap_data = cursor_info.bitmap();
-            bool change = false;
-            if (!bitmap_data.empty()) {
-                cursor_bitmap_data_ = bitmap_data;
-                if (last_cursor_bitmap_data_ != bitmap_data) {
-                    last_cursor_bitmap_data_ = bitmap_data;
-                    change = true;
-                }
+        sdk_->SetOnCursorInfoCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
             }
-
-            if (change) {
-                const QImage image((uchar*)cursor_bitmap_data_.data(), cursor_info.width(), cursor_info.height(), QImage::Format_RGBA8888);
+            self->context_->PostUITask([weak_self, msg = std::move(msg)]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self || !msg) {
+                    return;
+                }
+                const auto& cursor_info = msg->cursor_info_sync();
+                const std::string bitmap_data = cursor_info.bitmap();
+                if (bitmap_data.empty() || task_self->last_cursor_bitmap_data_ == bitmap_data) {
+                    return;
+                }
+                task_self->cursor_bitmap_data_ = bitmap_data;
+                task_self->last_cursor_bitmap_data_ = bitmap_data;
+                const QImage image(
+                    reinterpret_cast<const uchar*>(task_self->cursor_bitmap_data_.data()),
+                    cursor_info.width(), cursor_info.height(), QImage::Format_RGBA8888);
                 const QPixmap pixmap = QPixmap::fromImage(image);
                 QCursor cursor(pixmap, cursor_info.hotspot_x(), cursor_info.hotspot_y());
-                cursor_ = cursor;
-                this->UpdateLocalCursor();
-            }
+                task_self->cursor_ = cursor;
+                task_self->UpdateLocalCursor();
+            });
         });
 
-        sdk_->SetOnHeartBeatCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (st_panel_) {
-                st_panel_->UpdateOnHeartBeat(msg);
+        sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
             }
-            if (btn_indicator_ && settings_->develop_mode_) {
-                btn_indicator_->UpdateOnHeartBeat(msg);
-            }
+            self->context_->PostUITask([weak_self, msg = std::move(msg)]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
+                if (task_self->st_panel_) {
+                    task_self->st_panel_->UpdateOnHeartBeat(msg);
+                }
+                if (task_self->btn_indicator_ && task_self->settings_->develop_mode_) {
+                    task_self->btn_indicator_->UpdateOnHeartBeat(msg);
+                }
+            });
         });
 
-        sdk_->SetOnClipboardCallback([=, this](std::shared_ptr<px::Message> msg) {
+        sdk_->SetOnClipboardCallback([](std::shared_ptr<px::Message>) {
             // See: RawMessageCallback
         });
 
-        sdk_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<px::Message> in_msg) {
-            monitor_index_map_name_.clear();
+        sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> in_msg) {
+            const auto self = weak_self.lock();
+            if (!self || !in_msg) {
+                return;
+            }
+            self->monitor_index_map_name_.clear();
             const auto& config = in_msg->config();
 
             MsgClientCaptureMonitor msg;
@@ -558,7 +675,7 @@ namespace px
             for (const auto& item : config.monitors_info()) {
                 const std::string& monitor_name = item.name();
                 LOGI("monitor name: {}, width: {}, height: {}", item.name(), item.current_width(), item.current_height());
-                monitor_index_map_name_[monitor_index] = monitor_name;
+                self->monitor_index_map_name_[monitor_index] = monitor_name;
                 std::vector<MsgClientCaptureMonitor::Resolution> resolutions;
                 for (auto& res : item.resolutions()) {
                     resolutions.push_back(MsgClientCaptureMonitor::Resolution {
@@ -578,78 +695,91 @@ namespace px
             LOGI("capturing monitors count: {}", monitor_index);
 
             //
-            settings_->is_render_audio_capture_enabled_ = config.audio_enabled();
-            settings_->is_render_be_operated_by_mk_ = config.can_be_operated();
-            settings_->render_ft_protocol_version_ = config.ft_protocol_version();
-            settings_->render_virtual_display_enabled_ = config.virtual_display_enabled();
-            settings_->render_virtual_display_owned_count_ = config.virtual_display_owned_count();
-            settings_->render_virtual_display_max_count_ = config.virtual_display_max_count();
-            settings_->render_virtual_display_topology_generation_ = config.topology_generation();
-            settings_->render_voice_call_enabled_ = config.voice_call_enabled();
-            settings_->render_voice_call_protocol_version_ = config.voice_call_protocol_version();
-            settings_->render_voice_call_requires_headset_ = config.voice_call_requires_headset();
+            self->settings_->is_render_audio_capture_enabled_ = config.audio_enabled();
+            self->settings_->is_render_be_operated_by_mk_ = config.can_be_operated();
+            self->settings_->render_ft_protocol_version_ = config.ft_protocol_version();
+            self->settings_->render_virtual_display_enabled_ = config.virtual_display_enabled();
+            self->settings_->render_virtual_display_owned_count_ = config.virtual_display_owned_count();
+            self->settings_->render_virtual_display_max_count_ = config.virtual_display_max_count();
+            self->settings_->render_virtual_display_topology_generation_ = config.topology_generation();
+            self->settings_->render_voice_call_enabled_ = config.voice_call_enabled();
+            self->settings_->render_voice_call_protocol_version_ = config.voice_call_protocol_version();
+            self->settings_->render_voice_call_requires_headset_ = config.voice_call_requires_headset();
 
-            context_->SendAppMessage(MsgClientVirtualDisplayStatus {
-                .enabled_ = settings_->render_virtual_display_enabled_,
-                .owned_display_count_ = settings_->render_virtual_display_owned_count_,
-                .max_display_count_ = settings_->render_virtual_display_max_count_,
-                .topology_generation_ = settings_->render_virtual_display_topology_generation_,
+            self->context_->SendAppMessage(MsgClientVirtualDisplayStatus {
+                .enabled_ = self->settings_->render_virtual_display_enabled_,
+                .owned_display_count_ = self->settings_->render_virtual_display_owned_count_,
+                .max_display_count_ = self->settings_->render_virtual_display_max_count_,
+                .topology_generation_ = self->settings_->render_virtual_display_topology_generation_,
             });
-            NotifyVoiceCallStatus();
+            self->NotifyVoiceCallStatus();
 
-            context_->SendAppMessage(msg);
+            self->context_->SendAppMessage(msg);
 
             int fps = config.fps();
-            settings_->SetFps(fps);
+            self->settings_->SetFps(fps);
             LOGI("capturing fps: {}", fps);
-            context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{
+            self->context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{
                 .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kFps
             });
 
             int monitors_count = config.monitors_info().size();
-            context_->PostUITask([=, this]() {
-                OnGetCaptureMonitorName(config.capturing_monitor_name());
-                OnGetCaptureMonitorsCount(monitors_count);
+            const auto monitor_name = config.capturing_monitor_name();
+            self->context_->PostUITask([weak_self, monitor_name, monitors_count]() {
+                if (const auto task_self = weak_self.lock()) {
+                    task_self->OnGetCaptureMonitorName(monitor_name);
+                    task_self->OnGetCaptureMonitorsCount(monitors_count);
+                }
             });
         });
 
-        sdk_->SetOnMonitorSwitchedCallback([=, this](std::shared_ptr<px::Message> msg) {
+        sdk_->SetOnMonitorSwitchedCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto self = weak_self.lock();
+            if (!self || !msg) {
+                return;
+            }
             const auto& ms = msg->monitor_switched();
-            context_->SendAppMessage(MsgClientMonitorSwitched {
+            self->context_->SendAppMessage(MsgClientMonitorSwitched {
                 .name_ = ms.name(),
                 .index_ = ms.index()
             });
         });
 
-        sdk_->SetOnRawMessageCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (remote_force_closed_) {
+        sdk_->SetOnRawMessageCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->remote_force_closed_) {
                 return;
             }
-            plugin_manager_->VisitAllPlugins([=, this](ClientPluginInterface* plugin) {
+            self->plugin_manager_->VisitAllPlugins(
+                [msg](ClientPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary) Plug-in callback ABI.
                 plugin->OnMessage(msg);
             });
 
             // parse it
-            this->ProcessNetworkMessage(msg);
+            self->ProcessNetworkMessage(msg);
         });
 
-        sdk_->SetOnVideoFrameDecodeThreadDiscardedCallback([=]() ->void {
+        sdk_->SetOnVideoFrameDecodeThreadDiscardedCallback([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             bool need_handle = true;
             auto cur_time = TimeUtil::GetCurrentTimestamp();
-            if (cur_time - last_reduce_fps_time_ < 3000) {
+            if (cur_time - self->last_reduce_fps_time_ < 3000) {
                 need_handle = false;
             }
-            last_reduce_fps_time_ = cur_time;
+            self->last_reduce_fps_time_ = cur_time;
             if (!need_handle) {
                 return;
             }
-            if (!settings_) {
+            if (!self->settings_) {
                 return;
             }
-            int cur_fps = settings_->GetFps();
+            int cur_fps = self->settings_->GetFps();
             bool find = false;
             int index = 0;
-            for (auto fps : fps_array_) {
+            for (auto fps : self->fps_array_) {
                 if (cur_fps == fps) {
                     find = true;
                     break;
@@ -659,17 +789,22 @@ namespace px
             if (!find || index == 0) {
                 return;
             }
-            int new_fps = fps_array_[index - 1];
+            int new_fps = self->fps_array_[index - 1];
             LOGI("new fps is {}", new_fps);
-            settings_->SetFps(new_fps);
-            context_->SendAppMessage(MsgClientModifyFps{
+            self->settings_->SetFps(new_fps);
+            self->context_->SendAppMessage(MsgClientModifyFps{
                 .fps_ = new_fps,
             });
-            context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{ .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kFps });
-            context_->PostUITask([=, this]() {
-                context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_auto_reduce_fps_warning") + QString(" (")
-                    +  QString::number(cur_fps) + " => " + QString::number(new_fps) + QString(" )"));
-            }); 
+            self->context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{
+                .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kFps
+            });
+            self->context_->PostUITask([weak_self, cur_fps, new_fps]() {
+                if (const auto task_self = weak_self.lock()) {
+                    task_self->context_->NotifyAppWarningMessage(
+                        tcTr("id_warning"), tcTr("id_auto_reduce_fps_warning") + QString(" (")
+                        + QString::number(cur_fps) + " => " + QString::number(new_fps) + QString(" )"));
+                }
+            });
         });
 
         media_record_plugin_ = plugin_manager_->GetMediaRecordPlugin();
@@ -677,113 +812,145 @@ namespace px
             LOGE("media_record_plugin_ is nullptr!!!");
         }
         
-        msg_listener_->Listen<SdkMsgChangeMonitorResolutionResult>([=, this](const SdkMsgChangeMonitorResolutionResult& msg) {
-            context_->PostUITask([=, this]() {
+        msg_listener_->Listen<SdkMsgChangeMonitorResolutionResult>(
+            [weak_self](const SdkMsgChangeMonitorResolutionResult& msg) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self, msg]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
                 // to trigger re-layout
                 if (msg.result) {
-                    this->move(pos().x()+1, pos().y());
+                    task_self->move(task_self->pos().x() + 1, task_self->pos().y());
 
-                    TcDialog dialog(tcTr("id_tips"), tcTr("id_change_resolution_success"), this);
+                    TcDialog dialog(tcTr("id_tips"), tcTr("id_change_resolution_success"), task_self.get());
                     dialog.exec();
 
                 } else {
-                    TcDialog dialog(tcTr("id_tips"), tcTr("id_change_resolution_failed"), this);
+                    TcDialog dialog(tcTr("id_tips"), tcTr("id_change_resolution_failed"), task_self.get());
                     dialog.exec();
                 }
-            });
-
+                });
+            }
         });
 
-        msg_listener_->Listen<SdkMsgTimer1000>([=, this](const SdkMsgTimer1000& msg) {
-            force_update_cursor_ = true;
+        msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const SdkMsgTimer1000&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->force_update_cursor_ = true;
 
-            plugin_manager_->VisitAllPlugins([=, this](ClientPluginInterface* plugin) {
+            const ClientPluginSettings plugin_settings {
+                .clipboard_enabled_ = self->settings_->clipboard_on_,
+                .max_transmit_speed_ = self->settings_->max_transmit_speed_,
+                .max_receive_speed_ = self->settings_->max_receive_speed_,
+            };
+            self->plugin_manager_->VisitAllPlugins(
+                [plugin_settings](ClientPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary) Plug-in callback ABI.
                 // callback
                 plugin->On1Second();
 
                 // sync settings
-                plugin->SyncClientPluginSettings(ClientPluginSettings {
-                    .clipboard_enabled_ = settings_->clipboard_on_,
-                    .max_transmit_speed_ = settings_->max_transmit_speed_,
-                    .max_receive_speed_ = settings_->max_receive_speed_,
+                plugin->SyncClientPluginSettings(plugin_settings);
+            });
+        });
+
+        msg_listener_->Listen<MsgClientFullscreen>([weak_self](const MsgClientFullscreen&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->full_screen_ = true;
+                        task_self->UpdateGameViewsStatus(false);
+                    }
                 });
-            });
-        });
-
-        msg_listener_->Listen<MsgClientFullscreen>([=, this](const MsgClientFullscreen& msg) {
-            context_->PostUITask([=, this]() {
-                full_screen_ = true;
-                this->UpdateGameViewsStatus(false);
-            });
-        });
-
-        msg_listener_->Listen<MsgClientExitFullscreen>([=, this](const MsgClientExitFullscreen& msg) {
-            context_->PostUITask([=, this]() {
-                full_screen_ = false;
-                this->UpdateGameViewsStatus(false);
-            });
-        });
-
-        msg_listener_->Listen<MsgClientMediaRecord>([=, this](const MsgClientMediaRecord& msg) {
-            if (!sdk_) {
-                return;
             }
-            if (!media_record_plugin_) {
+        });
+
+        msg_listener_->Listen<MsgClientExitFullscreen>([weak_self](const MsgClientExitFullscreen&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->full_screen_ = false;
+                        task_self->UpdateGameViewsStatus(false);
+                    }
+                });
+            }
+        });
+
+        msg_listener_->Listen<MsgClientMediaRecord>([weak_self](const MsgClientMediaRecord&) {
+            const auto self = weak_self.lock();
+            if (!self || !self->sdk_ || !self->media_record_plugin_) {
                 return;
             }
             px::Message m;
-            m.set_device_id(settings_->device_id_);
-            m.set_stream_id(settings_->stream_id_);
-            bool res = context_->GetRecording();
+            m.set_device_id(self->settings_->device_id_);
+            m.set_stream_id(self->settings_->stream_id_);
+            bool res = self->context_->GetRecording();
             if (res) {
                 LOGI("StartRecord");
                 m.set_type(px::kStartMediaRecordClientSide);
-                media_record_plugin_->StartRecord();
+                self->media_record_plugin_->StartRecord();
             }
             else {
                 LOGI("EndRecord");
                 m.set_type(px::kStopMediaRecordClientSide);
-                media_record_plugin_->EndRecord();
+                self->media_record_plugin_->EndRecord();
             }
             if (auto buffer = px::ProtoAsData(&m); buffer) {
-                sdk_->PostMediaMessage(buffer);
+                self->sdk_->PostMediaMessage(buffer);
             }
         });
 
-        msg_listener_->Listen<MsgClientModifyFps>([=, this](const MsgClientModifyFps& msg) {
-            context_->PostUITask([=, this]() {
-                this->SendModifyFpsMessage();
-            });
+        msg_listener_->Listen<MsgClientModifyFps>([weak_self](const MsgClientModifyFps&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->SendModifyFpsMessage();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<MsgClientMouseEnterView>([=, this](const MsgClientMouseEnterView& msg) {
-            context_->PostUITask([=, this]() {
-                this->UpdateLocalCursor();
-            });
+        msg_listener_->Listen<MsgClientMouseEnterView>([weak_self](const MsgClientMouseEnterView&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->UpdateLocalCursor();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<MsgClientMouseLeaveView>([=, this](const MsgClientMouseLeaveView& msg) {
-            context_->PostUITask([=, this]() {
-                this->UpdateLocalCursor();
-            });
+        msg_listener_->Listen<MsgClientMouseLeaveView>([weak_self](const MsgClientMouseLeaveView&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->UpdateLocalCursor();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<MsgClientFocusOutEvent>([=, this](const MsgClientFocusOutEvent& msg) {
-            if (!sdk_ || remote_force_closed_) {
+        msg_listener_->Listen<MsgClientFocusOutEvent>([weak_self](const MsgClientFocusOutEvent&) {
+            const auto self = weak_self.lock();
+            if (!self || !self->sdk_ || self->remote_force_closed_) {
                 return;
             }
             px::Message m;
             m.set_type(px::kFocusOutEvent);
-            m.set_device_id(settings_->device_id_);
-            m.set_stream_id(settings_->stream_id_);
+            m.set_device_id(self->settings_->device_id_);
+            m.set_stream_id(self->settings_->stream_id_);
             if (auto buffer = px::ProtoAsData(&m); buffer) {
-                sdk_->PostMediaMessage(buffer);
+                self->sdk_->PostMediaMessage(buffer);
             }
         });
 
         // relay error callback
-        msg_listener_->Listen<SdkMsgRelayError>([=, this](const SdkMsgRelayError& msg) {
-            if (remote_force_closed_) {
+        msg_listener_->Listen<SdkMsgRelayError>([weak_self](const SdkMsgRelayError&) {
+            const auto self = weak_self.lock();
+            if (!self || self->remote_force_closed_) {
                 return;
             }
             //TODO: record it in event center
@@ -794,15 +961,23 @@ namespace px
         });
 
         // remote device offline
-        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>([=, this](const SdkMsgRelayRemoteDeviceOffline& msg) {
-            if (remote_force_closed_) {
+        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>(
+            [weak_self](const SdkMsgRelayRemoteDeviceOffline&) {
+            const auto self = weak_self.lock();
+            if (!self || self->remote_force_closed_) {
                 return;
             }
-            context_->PostDelayUITask([=, this]() {
+            self->context_->PostDelayUITask([weak_self]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
+                    return;
+                }
                 TcDialog dialog(tcTr("id_error"), tcTr("id_remote_device_offline"));
                 if (dialog.exec() == kDoneOk) {
-                    context_->PostTask([=, this]() {
-                        ReconnectInRelayMode();
+                    task_self->context_->PostTask([weak_self]() {
+                        if (const auto reconnect_self = weak_self.lock()) {
+                            reconnect_self->ReconnectInRelayMode();
+                        }
                     });
                 }
                 else {
@@ -951,13 +1126,18 @@ namespace px
     }
 
     void BaseWorkspace::UpdateLocalCursor() {
-        context_->PostUITask([=, this]() {
+        const auto weak_self = weak_from_this();
+        context_->PostUITask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             if (GameView::s_mouse_in_) {
                 if (QApplication::overrideCursor()) {
-                    QApplication::changeOverrideCursor(cursor_);
+                    QApplication::changeOverrideCursor(self->cursor_);
                 }
                 else {
-                    QApplication::setOverrideCursor(cursor_);
+                    QApplication::setOverrideCursor(self->cursor_);
                 }
             }
             else {
@@ -967,23 +1147,37 @@ namespace px
     }
 
     void BaseWorkspace::RegisterControllerPanelListeners() {
-        msg_listener_->Listen<MsgClientOpenFiletrans>([=, this](const MsgClientOpenFiletrans& msg) {
-            context_->PostUITask([=, this]() {
-                // FT 协议版本门控:rustdesk 语义 = 2;旧被控(0/缺省)不兼容,提示而非静默失败
-                if (settings_->render_ft_protocol_version_ != 2) {
-                    context_->NotifyAppMessage("Warning", "Controlled side file transfer version incompatible.");
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgClientOpenFiletrans>([weak_self](const MsgClientOpenFiletrans&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->context_->PostUITask([weak_self]() {
+                const auto task_self = weak_self.lock();
+                if (!task_self) {
                     return;
                 }
-                if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
+                // FT 协议版本门控:rustdesk 语义 = 2;旧被控(0/缺省)不兼容,提示而非静默失败
+                if (task_self->settings_->render_ft_protocol_version_ != 2) {
+                    task_self->context_->NotifyAppMessage(
+                        "Warning", "Controlled side file transfer version incompatible.");
+                    return;
+                }
+                if (auto plugin = task_self->plugin_manager_->GetFileTransferPlugin(); plugin) {
                     plugin->ShowRootWidget();
                 }
             });
         });
 
-        msg_listener_->Listen<MsgClientOpenDebugPanel>([=, this](const MsgClientOpenDebugPanel& msg) {
-            context_->PostUITask([=, this]() {
-                st_panel_->setHidden(false);
-            });
+        msg_listener_->Listen<MsgClientOpenDebugPanel>([weak_self](const MsgClientOpenDebugPanel&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock(); task_self && task_self->st_panel_) {
+                        task_self->st_panel_->setHidden(false);
+                    }
+                });
+            }
         });
     }
 
@@ -1150,12 +1344,14 @@ namespace px
         const auto request_id = request.request_id_.empty()
             ? std::format("client-{}-{}", QApplication::applicationPid(), ++virtual_display_request_seq_)
             : request.request_id_;
-        const auto report_local_failure = [this, &request_id](std::string error_code, std::string error_message) {
-            context_->SendAppMessage(MsgClientVirtualDisplayResult {
-                .enabled_ = settings_->render_virtual_display_enabled_,
-                .owned_display_count_ = settings_->render_virtual_display_owned_count_,
-                .max_display_count_ = settings_->render_virtual_display_max_count_,
-                .topology_generation_ = settings_->render_virtual_display_topology_generation_,
+        const auto self = shared_from_this();
+        const auto report_local_failure = [self, request_id](
+            std::string error_code, std::string error_message) {
+            self->context_->SendAppMessage(MsgClientVirtualDisplayResult {
+                .enabled_ = self->settings_->render_virtual_display_enabled_,
+                .owned_display_count_ = self->settings_->render_virtual_display_owned_count_,
+                .max_display_count_ = self->settings_->render_virtual_display_max_count_,
+                .topology_generation_ = self->settings_->render_virtual_display_topology_generation_,
                 .request_id_ = request_id,
                 .accepted_ = false,
                 .state_ = kVirtualDisplayFailed,
@@ -1265,31 +1461,36 @@ namespace px
             return;
         }
 
+        const auto weak_self = weak_from_this();
         QTimer::singleShot(static_cast<int>(VoiceCallState::kRequestTimeoutMs), this,
-            [this, call_id, request_id]() {
+            [weak_self, call_id, request_id]() {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
                 bool expired = false;
                 {
-                    std::scoped_lock lock(voice_call_mutex_);
-                    if (voice_call_state_.CallId() == call_id &&
-                        voice_call_state_.RequestId() == request_id) {
+                    std::scoped_lock lock(self->voice_call_mutex_);
+                    if (self->voice_call_state_.CallId() == call_id &&
+                        self->voice_call_state_.RequestId() == request_id) {
                         const auto now = static_cast<uint64_t>(
                             std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now().time_since_epoch()).count());
-                        expired = voice_call_state_.Expire(now);
+                        expired = self->voice_call_state_.Expire(now);
                     }
                 }
                 if (expired) {
-                    if (sdk_ && !remote_force_closed_) {
+                    if (self->sdk_ && !self->remote_force_closed_) {
                         auto cancel = MakeVoiceCallRequestMessage(
-                            settings_->device_id_, settings_->stream_id_,
+                            self->settings_->device_id_, self->settings_->stream_id_,
                             call_id, request_id, false);
                         if (const auto data = ProtoAsData(&cancel); data) {
-                            sdk_->PostMediaMessage(data);
+                            self->sdk_->PostMediaMessage(data);
                         }
                     }
                     LOGI("[VoiceCall] outgoing request timed out, remote cancel sent, call={}",
                          VoiceCallLogId(call_id));
-                    NotifyVoiceCallStatus("timeout");
+                    self->NotifyVoiceCallStatus("timeout");
                 }
             });
     }
@@ -1358,37 +1559,50 @@ namespace px
                 backend_config.playout_device_id = voice_playout_device_id_;
             }
             std::string error;
+            const auto weak_self = weak_from_this();
             if (!voice_packet_transport_.Start(
-                    [this, call_id = response.call_id()](const VoiceTransportPacket& packet) {
-                        DispatchVoiceAudioFrame(
-                            call_id, packet.sequence, packet.capture_time_ms, packet.opus);
+                    [weak_self, call_id = response.call_id()](const VoiceTransportPacket& packet) {
+                        if (const auto self = weak_self.lock()) {
+                            self->DispatchVoiceAudioFrame(
+                                call_id, packet.sequence, packet.capture_time_ms, packet.opus);
+                        }
                     })) {
                 StopVoiceCall(true, "transport_unavailable");
                 return;
             }
             if (!endpoint->Start(
-                    [this, call_id = response.call_id()](
+                    [weak_self, call_id = response.call_id()](
                         uint32_t sequence, uint64_t capture_time_ms,
                         const std::vector<uint8_t>& opus) {
-                        QueueVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
+                        if (const auto self = weak_self.lock()) {
+                            self->QueueVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
+                        }
                     }, backend_config, &error,
-                    [this, call_id = response.call_id(), weak_endpoint](
+                    [weak_self, call_id = response.call_id(), weak_endpoint](
                         const std::string& reason) {
-                        QMetaObject::invokeMethod(this,
-                            [this, call_id, weak_endpoint, reason]() {
+                        const auto self = weak_self.lock();
+                        if (!self) {
+                            return;
+                        }
+                        self->context_->PostUITask(
+                            [weak_self, call_id, weak_endpoint, reason]() {
+                                const auto task_self = weak_self.lock();
+                                if (!task_self) {
+                                    return;
+                                }
                                 const auto expected_endpoint = weak_endpoint.lock();
                                 bool still_active = false;
                                 {
-                                    std::scoped_lock lock(voice_call_mutex_);
+                                    std::scoped_lock lock(task_self->voice_call_mutex_);
                                     still_active = expected_endpoint &&
-                                        voice_call_state_.IsMediaAllowed(call_id) &&
-                                        voice_audio_endpoint_ == expected_endpoint;
+                                        task_self->voice_call_state_.IsMediaAllowed(call_id) &&
+                                        task_self->voice_audio_endpoint_ == expected_endpoint;
                                 }
                                 if (still_active) {
-                                    StopVoiceCall(true,
+                                    task_self->StopVoiceCall(true,
                                         reason.empty() ? "device_lost" : reason);
                                 }
-                            }, Qt::QueuedConnection);
+                            });
                     })) {
                 LOGE("[VoiceCall] local audio endpoint failed: {}", error);
                 StopVoiceCall(true, "no_mic");
@@ -1502,24 +1716,29 @@ namespace px
         // a status synchronously from that callback recursively enters the same
         // event bus and can spin the UI thread.  A queued Qt invocation also
         // serializes SDK/network-thread status changes onto the UI thread.
-        QMetaObject::invokeMethod(this, [this, reason]() {
+        const auto weak_self = weak_from_this();
+        context_->PostUITask([weak_self, reason]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             VoiceCallPhase phase;
             bool microphone_muted = false;
             bool speaker_muted = false;
             std::string capture_device_id;
             std::string playout_device_id;
             {
-                std::scoped_lock lock(voice_call_mutex_);
-                phase = voice_call_state_.Phase();
-                microphone_muted = voice_microphone_muted_;
-                speaker_muted = voice_speaker_muted_;
-                capture_device_id = voice_capture_device_id_;
-                playout_device_id = voice_playout_device_id_;
+                std::scoped_lock lock(self->voice_call_mutex_);
+                phase = self->voice_call_state_.Phase();
+                microphone_muted = self->voice_microphone_muted_;
+                speaker_muted = self->voice_speaker_muted_;
+                capture_device_id = self->voice_capture_device_id_;
+                playout_device_id = self->voice_playout_device_id_;
             }
-            context_->SendAppMessage(MsgClientVoiceCallStatus {
-                .supported_ = settings_->render_voice_call_enabled_ &&
-                              settings_->render_voice_call_protocol_version_ == 1,
-                .requires_headset_ = settings_->render_voice_call_requires_headset_,
+            self->context_->SendAppMessage(MsgClientVoiceCallStatus {
+                .supported_ = self->settings_->render_voice_call_enabled_ &&
+                              self->settings_->render_voice_call_protocol_version_ == 1,
+                .requires_headset_ = self->settings_->render_voice_call_requires_headset_,
                 .microphone_muted_ = microphone_muted,
                 .speaker_muted_ = speaker_muted,
                 .capture_device_id_ = std::move(capture_device_id),
@@ -1527,7 +1746,7 @@ namespace px
                 .phase_ = phase,
                 .reason_ = reason,
             });
-        }, Qt::QueuedConnection);
+        });
     }
 
     void BaseWorkspace::QueueVoiceAudioFrame(
@@ -1567,10 +1786,15 @@ namespace px
         if (settings_->file_transfer_only_) {
             return;
         }
-        context_->PostUITask([=, this]() {
-            auto scale_mode = settings_->scale_mode_;
+        const auto weak_self = weak_from_this();
+        context_->PostUITask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            auto scale_mode = self->settings_->scale_mode_;
             LOGI("UpdateVideoWidgetSize scale_mode: {}", (int)scale_mode);
-            SwitchScaleMode(scale_mode);
+            self->SwitchScaleMode(scale_mode);
         });
     }
 
@@ -1653,9 +1877,13 @@ namespace px
             LOGI("will get device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_);
             auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_, settings_->relay_appkey_);
             if (!r.has_value()) {
-                context_->PostUITask([=, this]() {
-                    TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_get_local_device_info"), this);
-                    dialog.exec();
+                const auto weak_self = weak_from_this();
+                context_->PostUITask([weak_self]() {
+                    if (const auto self = weak_self.lock()) {
+                        TcDialog dialog(tcTr("id_warning"),
+                                        tcTr("id_cant_get_local_device_info"), self.get());
+                        dialog.exec();
+                    }
                 });
                 return;
             }
@@ -1666,9 +1894,13 @@ namespace px
             LOGI("will get remote device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_);
             auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_, settings_->relay_appkey_);
             if (!r.has_value()) {
-                context_->PostUITask([=, this]() {
-                    TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_get_remote_device_info"), this);
-                    dialog.exec();
+                const auto weak_self = weak_from_this();
+                context_->PostUITask([weak_self]() {
+                    if (const auto self = weak_self.lock()) {
+                        TcDialog dialog(tcTr("id_warning"),
+                                        tcTr("id_cant_get_remote_device_info"), self.get());
+                        dialog.exec();
+                    }
                 });
                 return;
             }
@@ -1678,19 +1910,26 @@ namespace px
         sdk_->RetryConnection();
 
         // show dialog
-        context_->PostUITask([=, this]() {
-            if (retry_conn_dialog_->isHidden()) {
-                WidgetHelper::SetTitleBarColor((QWidget*)(retry_conn_dialog_.get()));
-                retry_conn_dialog_->Exec();
+        const auto weak_self = weak_from_this();
+        context_->PostUITask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (self && self->retry_conn_dialog_->isHidden()) {
+                WidgetHelper::SetTitleBarColor(self->retry_conn_dialog_.get());
+                self->retry_conn_dialog_->Exec();
             }
         });
     }
 
-    void BaseWorkspace::DismissConnectingDialog() const {
-        context_->PostUITask([=, this]() {
+    void BaseWorkspace::DismissConnectingDialog() {
+        const auto weak_self = weak_from_this();
+        context_->PostUITask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             // dismiss dialog
-            if (retry_conn_dialog_ && !retry_conn_dialog_->isHidden()) {
-                retry_conn_dialog_->Done(0);
+            if (self->retry_conn_dialog_ && !self->retry_conn_dialog_->isHidden()) {
+                self->retry_conn_dialog_->Done(0);
             }
         });
     }
@@ -1700,23 +1939,31 @@ namespace px
             const auto& sub = msg->disconnect_connection();
             LOGI("DISCONNECT, device id: {}, stream id: {}", sub.device_id(), sub.stream_id());
             remote_force_closed_ = true;
-            context_->PostUITask([=, this]() {
-                TcDialog dialog(tcTr("id_warning"), tcTr("id_remote_disconnected"), this);
-                dialog.exec();
-                Exit();
+            const auto weak_self = weak_from_this();
+            context_->PostUITask([weak_self]() {
+                if (const auto self = weak_self.lock()) {
+                    TcDialog dialog(tcTr("id_warning"), tcTr("id_remote_disconnected"), self.get());
+                    dialog.exec();
+                    self->Exit();
+                }
             });
             context_->SendAppMessage(MsgStopTheWorld{});
             ExitSdk();
         }
         else if (msg->type() == MessageType::kHardwareInfo) {
-            context_->PostTask([=, this]() {
+            const auto weak_self = weak_from_this();
+            context_->PostTask([weak_self, msg]() {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
                 const auto& hw_info = msg->hw_info().hw_info();
                 const auto freq = msg->hw_info().current_cpu_freq();
                 auto sys_info = HWInfoParser::ParseHWInfo(msg->hw_info().hw_info(), freq);
                 if (!sys_info) {
                     return;
                 }
-                context_->SendAppMessage(MsgHWInfo {
+                self->context_->SendAppMessage(MsgHWInfo {
                     .info_ = sys_info,
                 });
                 //LOGI("SysInfo: {}", to_string(*sys_info.get()));
@@ -1724,6 +1971,8 @@ namespace px
         }
         else if (msg->type() == MessageType::kVirtualDisplayResponse) {
             const auto& response = msg->virtual_display_response();
+            const auto native_state = NormalizeNativeVirtualDisplayResponseState(
+                response.accepted(), response.state());
             settings_->render_virtual_display_owned_count_ = response.owned_display_count();
             settings_->render_virtual_display_topology_generation_ = response.topology_generation();
             context_->SendAppMessage(MsgClientVirtualDisplayResult {
@@ -1733,7 +1982,7 @@ namespace px
                 .topology_generation_ = response.topology_generation(),
                 .request_id_ = response.request_id(),
                 .accepted_ = response.accepted(),
-                .state_ = response.state(),
+                .state_ = native_state,
                 .topology_changed_ = response.topology_changed(),
                 .logical_display_id_ = response.logical_display_id(),
                 .error_code_ = response.error_code(),
@@ -1743,15 +1992,9 @@ namespace px
                 .package_valid_ = response.package_valid(),
                 .removal_safe_ = response.removal_safe(),
             });
-            if (response.accepted() && response.state() == kVirtualDisplayNeedReconnect &&
-                !remote_force_closed_) {
-                LOGI("Virtual display topology generation {} is ready; reconnecting media transports",
+            if (response.accepted() && response.state() == kVirtualDisplayNeedReconnect) {
+                LOGI("Virtual display topology generation {} applied in-place for native transport",
                      response.topology_generation());
-                context_->PostDelayUITask([this]() {
-                    if (sdk_ && !remote_force_closed_) {
-                        sdk_->RetryConnection();
-                    }
-                }, 250);
             }
         }
         else if (msg->type() == MessageType::kVoiceCallRequest ||
@@ -1768,8 +2011,11 @@ namespace px
         if (msg->message == WM_ACTIVATE) {
             if (LOWORD(msg->wParam) == WA_INACTIVE) {
                 qDebug() << "Window lost focus!";
-                context_->PostTask([this]() {
-                    context_->SendAppMessage(MsgClientFocusOutEvent{});
+                const auto weak_self = weak_from_this();
+                context_->PostTask([weak_self]() {
+                    if (const auto self = weak_self.lock()) {
+                        self->context_->SendAppMessage(MsgClientFocusOutEvent{});
+                    }
                 });
             }
             else {

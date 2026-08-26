@@ -81,3 +81,17 @@ TEST(StringUtilTest, ToWStringToUTF8RoundTrip) {
     auto back = StringUtil::ToUTF8(wstr);
     EXPECT_EQ(back, original);
 }
+
+TEST(StringUtilTest, UnicodeToWStringToUTF8RoundTrip) {
+    const std::string original = "GammaRay 中文 \xF0\x9F\x9A\x80";
+    const auto wstr = StringUtil::ToWString(original);
+    ASSERT_FALSE(wstr.empty());
+    EXPECT_EQ(StringUtil::ToUTF8(wstr), original);
+}
+
+TEST(StringUtilTest, InvalidUtf8IsRejected) {
+    const std::string truncated = "\xE4\xB8";
+    const std::string overlong = "\xC0\xAF";
+    EXPECT_TRUE(StringUtil::ToWString(truncated).empty());
+    EXPECT_TRUE(StringUtil::ToWString(overlong).empty());
+}

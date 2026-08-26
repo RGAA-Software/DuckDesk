@@ -23,6 +23,7 @@ namespace px
     class WsPanelClient : public std::enable_shared_from_this<WsPanelClient> {
     public:
         explicit WsPanelClient(const std::shared_ptr<RdContext>& ctx);
+        ~WsPanelClient();
         void Start();
         void Exit();
         bool PostNetMessage(std::shared_ptr<Data> msg);
@@ -39,11 +40,12 @@ namespace px
         void ProcessCommandDisablePlugin(const std::string& plugin_id);
 
     private:
-        RdStatistics* statistics_ = nullptr;
+        std::shared_ptr<RdStatistics> statistics_ = nullptr;
         RdSettings* settings_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
         std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
         std::atomic_bool exiting_ = false;

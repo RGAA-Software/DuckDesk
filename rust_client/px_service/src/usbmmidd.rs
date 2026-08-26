@@ -37,10 +37,10 @@ const REQUIRED_FILES: &[(&str, &str)] = &[
     ),
 ];
 
-fn is_usbmmidd_monitor_child_id(device_id: &str) -> bool {
-    device_id
-        .to_ascii_uppercase()
-        .starts_with(r"MONITOR\DEFAULT_MONITOR\")
+fn is_usbmmidd_display_device(device_description: &str) -> bool {
+    device_description
+        .trim_end_matches('\0')
+        .eq_ignore_ascii_case("USB Mobile Monitor Virtual Display")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -264,6 +264,17 @@ impl UsbMmIddBackend for WindowsUsbMmIddBackend {
         #[cfg(windows)]
         unsafe {
             send_monitor_ioctl(true)?;
+            // USBMMIDD exposes a new output, but Windows Server can keep it
+            // disconnected until the interactive desktop is explicitly put
+            // into extend mode. This worker runs with the logged-on user's WTS
+            // token, so the display-mode change reaches the correct desktop.
+            if let Err(error) = activate_extended_desktop() {
+                let rollback = send_monitor_ioctl(false);
+                return Err(UsbMmIddError::new(
+                    error.code,
+                    format!("{}; add rollback result: {rollback:?}", error.message),
+                ));
+            }
         }
         #[cfg(not(windows))]
         return Err(UsbMmIddError::new(
@@ -549,78 +560,70 @@ unsafe fn send_monitor_ioctl(add: bool) -> Result<(), UsbMmIddError> {
 }
 
 #[cfg(windows)]
+fn activate_extended_desktop() -> Result<(), UsbMmIddError> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let system_root = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
+    let display_switch = PathBuf::from(system_root)
+        .join("System32")
+        .join("DisplaySwitch.exe");
+    let status = std::process::Command::new(&display_switch)
+        .arg("/extend")
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|error| {
+            UsbMmIddError::new(
+                "DISPLAY_EXTEND_LAUNCH_FAILED",
+                format!("failed to launch {}: {error}", display_switch.display()),
+            )
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(UsbMmIddError::new(
+            "DISPLAY_EXTEND_FAILED",
+            format!(
+                "{} /extend exited with {:?}",
+                display_switch.display(),
+                status.code()
+            ),
+        ))
+    }
+}
+
+#[cfg(windows)]
 unsafe fn enumerate_usbmmidd_monitors() -> Result<Vec<MonitorSnapshot>, UsbMmIddError> {
     use std::ptr::null_mut;
-    use winapi::shared::minwindef::{BOOL, FALSE, LPARAM, TRUE};
-    use winapi::shared::windef::{HDC, HMONITOR, LPRECT};
+    use winapi::shared::minwindef::FALSE;
     use winapi::um::wingdi::{
         DEVMODEW, DISPLAY_DEVICEW, DISPLAY_DEVICE_ACTIVE, DISPLAY_DEVICE_MIRRORING_DRIVER,
     };
-    use winapi::um::winuser::{
-        EnumDisplayDevicesW, EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW,
-        ENUM_CURRENT_SETTINGS, MONITORINFO, MONITORINFOEXW,
-    };
-
-    unsafe extern "system" fn collect_monitor_name(
-        monitor: HMONITOR,
-        _dc: HDC,
-        _rect: LPRECT,
-        data: LPARAM,
-    ) -> BOOL {
-        let names = &mut *(data as *mut Vec<Vec<u16>>);
-        let mut info: MONITORINFOEXW = std::mem::zeroed();
-        info.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
-        if GetMonitorInfoW(
-            monitor,
-            &mut info as *mut MONITORINFOEXW as *mut MONITORINFO,
-        ) == FALSE
-        {
-            return TRUE;
-        }
-        names.push(info.szDevice.to_vec());
-        TRUE
-    }
-
+    use winapi::um::winuser::{EnumDisplayDevicesW, EnumDisplaySettingsExW, ENUM_CURRENT_SETTINGS};
     let mut result = Vec::new();
-    let mut active_names: Vec<Vec<u16>> = Vec::new();
-    if EnumDisplayMonitors(
-        null_mut(),
-        null_mut(),
-        Some(collect_monitor_name),
-        &mut active_names as *mut Vec<Vec<u16>> as LPARAM,
-    ) == FALSE
-    {
-        return Err(UsbMmIddError::new(
-            "MONITOR_ENUMERATION_FAILED",
-            std::io::Error::last_os_error().to_string(),
-        ));
-    }
-
-    for device_name_wide in active_names {
-        let mut child: DISPLAY_DEVICEW = std::mem::zeroed();
-        child.cb = std::mem::size_of::<DISPLAY_DEVICEW>() as u32;
-        if EnumDisplayDevicesW(device_name_wide.as_ptr(), 0, &mut child, 0) == FALSE {
-            continue;
+    let mut index = 0_u32;
+    loop {
+        let mut device: DISPLAY_DEVICEW = std::mem::zeroed();
+        device.cb = std::mem::size_of::<DISPLAY_DEVICEW>() as u32;
+        if EnumDisplayDevicesW(null_mut(), index, &mut device, 0) == FALSE {
+            break;
         }
-        if child.StateFlags & DISPLAY_DEVICE_ACTIVE == 0
-            || child.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER != 0
+        index += 1;
+        if device.StateFlags & DISPLAY_DEVICE_ACTIVE == 0
+            || device.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER != 0
         {
             continue;
         }
-        let child_id = wide_array_to_string(&child.DeviceID);
-        // USBMMIDD v2 outputs are exposed to the desktop as active Generic
-        // Non-PnP monitors. On some NVIDIA systems the top-level adapter
-        // enumeration is empty after the topology settles, while querying the
-        // active DISPLAYn child remains stable. Existing matching displays are
-        // accounted for as the foreign baseline by VirtualDisplayManager.
-        if !is_usbmmidd_monitor_child_id(&child_id) {
+        // RustDesk identifies Amyuni/USBMMIDD through the active display
+        // adapter description. EnumDisplayMonitors can omit a newly plugged
+        // output during the first topology transition, which caused us to roll
+        // back a successful driver IOCTL on clean installs.
+        if !is_usbmmidd_display_device(&wide_array_to_string(&device.DeviceString)) {
             continue;
         }
-        let device_name = wide_array_to_string(&device_name_wide);
         let mut mode: DEVMODEW = std::mem::zeroed();
         mode.dmSize = std::mem::size_of::<DEVMODEW>() as u16;
         if EnumDisplaySettingsExW(
-            device_name_wide.as_ptr(),
+            device.DeviceName.as_ptr(),
             ENUM_CURRENT_SETTINGS,
             &mut mode,
             0,
@@ -629,7 +632,7 @@ unsafe fn enumerate_usbmmidd_monitors() -> Result<Vec<MonitorSnapshot>, UsbMmIdd
             continue;
         }
         result.push(MonitorSnapshot {
-            device_name,
+            device_name: wide_array_to_string(&device.DeviceName),
             width: mode.dmPelsWidth,
             height: mode.dmPelsHeight,
             refresh_hz: mode.dmDisplayFrequency,
@@ -693,13 +696,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recognizes_usbmmidd_default_monitor_child_id_case_insensitively() {
-        assert!(is_usbmmidd_monitor_child_id(
-            r"MONITOR\Default_Monitor\{4d36e96e-e325-11ce-bfc1-08002be10318}\0042"
+    fn recognizes_usbmmidd_display_adapter_description_case_insensitively() {
+        assert!(is_usbmmidd_display_device(
+            "USB Mobile Monitor Virtual Display\0"
         ));
-        assert!(!is_usbmmidd_monitor_child_id(
-            r"MONITOR\XMD009A\{4d36e96e-e325-11ce-bfc1-08002be10318}\0034"
-        ));
+        assert!(!is_usbmmidd_display_device("NVIDIA GeForce RTX 4090"));
     }
 
     #[test]

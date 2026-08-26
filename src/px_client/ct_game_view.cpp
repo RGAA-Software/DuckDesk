@@ -88,6 +88,7 @@ namespace px
         recording_sign_lab_ = new MediaRecordSignLab(ctx, this);
         recording_sign_lab_->move(this->width() * 0.85, 20);
         recording_sign_lab_->hide();
+        const QPointer<GameView> guarded_self(this);
 
 #if 0
         // 创建透明度效果
@@ -102,55 +103,68 @@ namespace px
         animation->setEndValue(1.0); // 结束时不透明
         animation->setLoopCount(-1); // 无限循环
 #endif
-        msg_listener_->Listen<MsgClientMediaRecord>([=, this](const MsgClientMediaRecord& msg) {
-            bool res = ctx_->GetRecording();
+        msg_listener_->Listen<MsgClientMediaRecord>([guarded_self](const MsgClientMediaRecord&) {
+            if (!guarded_self) {
+                return;
+            }
+            bool res = guarded_self->ctx_->GetRecording();
             if(res) {
-                recording_sign_lab_->show();
+                guarded_self->recording_sign_lab_->show();
                 //animation->start(); // 开始动画
             }
             else {
-                recording_sign_lab_->hide();
+                guarded_self->recording_sign_lab_->hide();
                 //animation->stop();
             }
         });
 
-        msg_listener_->Listen<MsgClientSwitchMonitor>([=, this](const MsgClientSwitchMonitor& msg) {
-            if (ScaleMode::kKeepAspectRatio == settings_->scale_mode_ && !isHidden()) {
-                need_recalculate_aspect_ = true;
+        msg_listener_->Listen<MsgClientSwitchMonitor>([guarded_self](const MsgClientSwitchMonitor&) {
+            if (guarded_self &&
+                ScaleMode::kKeepAspectRatio == guarded_self->settings_->scale_mode_ &&
+                !guarded_self->isHidden()) {
+                guarded_self->need_recalculate_aspect_ = true;
             }
         });
 
 
-        msg_listener_->Listen<MsgClientHidePanel>([=, this](const MsgClientHidePanel& msg) {
-            ctx_->PostUITask([=, this]() {
-                controller_panel_->Hide();
-            });
+        msg_listener_->Listen<MsgClientHidePanel>([guarded_self](const MsgClientHidePanel&) {
+            if (guarded_self) {
+                guarded_self->ctx_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->controller_panel_->Hide();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<SdkMsgTimer1000>([=, this](const SdkMsgTimer1000& msg) {
-            if (video_widget_) {
-                video_widget_->OnTimer1S();
+        msg_listener_->Listen<SdkMsgTimer1000>([guarded_self](const SdkMsgTimer1000&) {
+            if (guarded_self && guarded_self->video_widget_) {
+                guarded_self->video_widget_->OnTimer1S();
             }
         });
 
         // 连接/重连成功后,补发按下中的键鼠 release,避免远端按键卡死、鼠标粘连
-        msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {
-            ctx_->PostUITask([=, this]() {
-                if (video_widget_) {
-                    video_widget_->ReleaseAllPressedInputs();
-                }
-            });
+        msg_listener_->Listen<SdkMsgNetworkConnected>([guarded_self](const SdkMsgNetworkConnected&) {
+            if (guarded_self) {
+                guarded_self->ctx_->PostUITask([guarded_self]() {
+                    if (guarded_self && guarded_self->video_widget_) {
+                        guarded_self->video_widget_->ReleaseAllPressedInputs();
+                    }
+                });
+            }
         });
 
-        msg_listener_->Listen<MsgStreamShot>([=, this](const MsgStreamShot& msg) {
-            ctx_->PostTask([=, this]() {
-                this->SnapshotStream();
-            });
+        msg_listener_->Listen<MsgStreamShot>([guarded_self](const MsgStreamShot&) {
+            if (guarded_self) {
+                guarded_self->SnapshotStream();
+            }
         });
     }
 
     GameView::~GameView() {
-
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
     }
 
     void GameView::resizeEvent(QResizeEvent* event) {
@@ -201,9 +215,10 @@ namespace px
         video_widget_->RefreshImage(image);
 
     #if TEST_SDL
-        ctx_->PostUITask([=, this]() {
-            if (sdl_video_widget_) {
-                sdl_video_widget_->RefreshI420Image(image);
+        const QPointer<GameView> guarded_self(this);
+        ctx_->PostUITask([guarded_self, image]() {
+            if (guarded_self && guarded_self->sdl_video_widget_) {
+                guarded_self->sdl_video_widget_->RefreshI420Image(image);
             }
         });
     #endif
@@ -221,8 +236,11 @@ namespace px
         if (need_recalculate_aspect_ && ScaleMode::kKeepAspectRatio == settings_->scale_mode_) {
             const auto& exist_mon_info = video_widget_->GetCaptureMonitorInfo();
             if (mon_info.mon_name_ != exist_mon_info.mon_name_ && !exist_mon_info.mon_name_.empty()) {
-                ctx_->PostDelayUITask([=, this]() {
-                    this->CalculateAspectRatio();
+                const QPointer<GameView> guarded_self(this);
+                ctx_->PostDelayUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->CalculateAspectRatio();
+                    }
                 }, 100);
                 need_recalculate_aspect_ = false;
             }
@@ -290,44 +308,64 @@ namespace px
         }
         video_widget_->AsWidget()->installEventFilter(this);
 
-        float_controller_->SetOnClickListener([=, this]() {
-            if (controller_panel_->isHidden()) {
-                if (!float_controller_->HasMoved()) {
-                    controller_panel_->ShowBeside(float_controller_->VisualRectGlobal(), true);
+        const QPointer<GameView> guarded_self(this);
+        float_controller_->SetOnClickListener([guarded_self]() {
+            if (!guarded_self) {
+                return;
+            }
+            if (guarded_self->controller_panel_->isHidden()) {
+                if (!guarded_self->float_controller_->HasMoved()) {
+                    guarded_self->controller_panel_->ShowBeside(
+                        guarded_self->float_controller_->VisualRectGlobal(), true);
                 }
             }
             else {
-                controller_panel_->Hide();
+                guarded_self->controller_panel_->Hide();
             }
         });
 
-        float_controller_->SetOnMoveListener([=, this]() {
-            if (!controller_panel_) {
+        float_controller_->SetOnMoveListener([guarded_self]() {
+            if (!guarded_self || !guarded_self->controller_panel_) {
                 return;
             }
-            controller_panel_->Hide();
+            guarded_self->controller_panel_->Hide();
         });
     }
 
     void GameView::RegisterControllerPanelListeners() {
-        controller_panel_->SetOnDebugListener([=, this](QWidget* w) {
-            ctx_->PostUITask([=]() {
-                controller_panel_->Hide();
+        const QPointer<GameView> guarded_self(this);
+        controller_panel_->SetOnDebugListener([guarded_self](auto) {
+            if (!guarded_self) {
+                return;
+            }
+            guarded_self->ctx_->PostUITask([guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->controller_panel_->Hide();
+                }
             });
-            this->ctx_->SendAppMessage(MsgClientOpenDebugPanel{});
+            guarded_self->ctx_->SendAppMessage(MsgClientOpenDebugPanel{});
         });
 
-        controller_panel_->SetOnFileTransListener([=, this](QWidget* w) {
-            ctx_->PostUITask([=]() {
-                controller_panel_->Hide();
+        controller_panel_->SetOnFileTransListener([guarded_self](auto) {
+            if (!guarded_self) {
+                return;
+            }
+            guarded_self->ctx_->PostUITask([guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->controller_panel_->Hide();
+                }
             });
-            this->ctx_->SendAppMessage(MsgClientOpenFiletrans{});
+            guarded_self->ctx_->SendAppMessage(MsgClientOpenFiletrans{});
         });
 
-        controller_panel_->SetOnMediaRecordListener([=, this](QWidget* w) {
-            ctx_->PostUITask([=]() {
-                controller_panel_->Hide();
-            });
+        controller_panel_->SetOnMediaRecordListener([guarded_self](auto) {
+            if (guarded_self) {
+                guarded_self->ctx_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->controller_panel_->Hide();
+                    }
+                });
+            }
         });
     }
 
@@ -422,8 +460,9 @@ namespace px
             if (msg->message == WM_ACTIVATE) {
                 if (LOWORD(msg->wParam) == WA_INACTIVE) {
                     qDebug() << "Window lost focus!";
-                    ctx_->PostTask([this]() {
-                        ctx_->SendAppMessage(MsgClientFocusOutEvent{});
+                    const auto context = ctx_;
+                    ctx_->PostTask([context]() {
+                        context->SendAppMessage(MsgClientFocusOutEvent{});
                     });
                 }
                 else {
@@ -458,17 +497,16 @@ namespace px
             return;
         }
 
-        auto name = [=, this]() {
-            if (!this->windowTitle().isEmpty()) {
-                return this->windowTitle();
+        QString name = windowTitle();
+        if (name.isEmpty()) {
+            if (const QPointer<QMainWindow> parent_window(
+                    qobject_cast<QMainWindow*>(parentWidget())); parent_window) {
+                name = parent_window->windowTitle();
             }
-            if (this->parent()) {
-                if (auto pw = ((QMainWindow*)this->parent()); pw) {
-                    return pw->windowTitle();
-                }
-            }
-            return QString::fromStdString("Default");
-        } ();
+        }
+        if (name.isEmpty()) {
+            name = QString::fromStdString("Default");
+        }
         name = name.replace("(", "").replace(")", "").replace(":", "_");
         QString png_name = name + "_" + QString::number(QDateTime::currentSecsSinceEpoch()) + ".png";
         QString pic_path = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
@@ -550,14 +588,15 @@ namespace px
         overlay_widget_->SetOpacity(0.5);
         // overlay_widget_->SetWatermarkCount(10);
         overlay_widget_->hide();
-        QTimer::singleShot(1000, this, [=, this]() {
-            if (overlay_widget_) {
-                UpdateOverlayWidgetPos();
-                if (this->isHidden()) {
-                    overlay_widget_->hide();
+        const QPointer<GameView> guarded_self(this);
+        QTimer::singleShot(1000, this, [guarded_self]() {
+            if (guarded_self && guarded_self->overlay_widget_) {
+                guarded_self->UpdateOverlayWidgetPos();
+                if (guarded_self->isHidden()) {
+                    guarded_self->overlay_widget_->hide();
                 }
                 else {
-                    overlay_widget_->show();
+                    guarded_self->overlay_widget_->show();
                 }
                 // if (settings_->force_direct_) {
                 //     overlay_widget_->SetWatermarkText("Force Direct");

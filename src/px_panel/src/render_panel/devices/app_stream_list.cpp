@@ -139,8 +139,8 @@ namespace px
         QPointer<AppStreamList> self(this);
         if (mode_ == AppStreamListMode::kRemoteDevices) {
             state_checker_ = std::make_shared<StreamStateChecker>(context_);
-            state_checker_->SetOnCheckedCallback([=, this](const std::vector<std::shared_ptr<px_console::ConsoleStream>>& stream_items) {
-                context_->PostUITask([self, stream_items]() {
+            state_checker_->SetOnCheckedCallback([self, ctx = context_](const std::vector<std::shared_ptr<px_console::ConsoleStream>>& stream_items) {
+                ctx->PostUITask([self, stream_items]() {
                     if (!self) {
                         return;
                     }
@@ -192,7 +192,11 @@ namespace px
         }, 300);
     }
 
-    AppStreamList::~AppStreamList() = default;
+    AppStreamList::~AppStreamList() {
+        if (state_checker_) {
+            state_checker_->Exit();
+        }
+    }
 
     void AppStreamList::CreateLayout() {
         auto root_layout = new QHBoxLayout();
@@ -250,12 +254,15 @@ namespace px
         msg_listener_ = context_->ObtainUIMessageListener();
         QPointer<AppStreamList> self(this);
         if (mode_ == AppStreamListMode::kRemoteDevices) {
-            msg_listener_->Listen<StreamItemAdded>([=, this](const StreamItemAdded& msg) {
+            msg_listener_->Listen<StreamItemAdded>([self](const StreamItemAdded& msg) {
+            if (!self) {
+                return;
+            }
             auto item = msg.item_;
             std::shared_ptr<px_console::ConsoleStream> exist_stream_item = nullptr;
             // by stream id
             {
-                auto opt_stream = db_mgr_->GetStreamByStreamId(item->stream_id_);
+                auto opt_stream = self->db_mgr_->GetStreamByStreamId(item->stream_id_);
                 if (opt_stream.has_value()) {
                     exist_stream_item = opt_stream.value();
                 }
@@ -263,20 +270,20 @@ namespace px
 
             if (!item->remote_device_id_.empty()) {
                 // by remote device id
-                auto opt_stream = db_mgr_->GetStreamByRemoteDeviceId(item->remote_device_id_);
+                auto opt_stream = self->db_mgr_->GetStreamByRemoteDeviceId(item->remote_device_id_);
                 if (opt_stream.has_value()) {
                     exist_stream_item = opt_stream.value();
                 }
             }
             else {
                 // by host & port
-                auto opt_stream = db_mgr_->GetStreamByHostPort(item->stream_host_, item->stream_port_);
+                auto opt_stream = self->db_mgr_->GetStreamByHostPort(item->stream_host_, item->stream_port_);
                 if (opt_stream.has_value()) {
                     exist_stream_item = opt_stream.value();
                 }
             }
             if (!exist_stream_item) {
-                db_mgr_->AddStream(item);
+                self->db_mgr_->AddStream(item);
                 exist_stream_item = item;
             }
             else {
@@ -325,12 +332,12 @@ namespace px
                 if (exist_stream_item->remote_device_safety_pwd_ != item->remote_device_safety_pwd_ && !item->remote_device_safety_pwd_.empty()) {
                     exist_stream_item->remote_device_safety_pwd_ = item->remote_device_safety_pwd_;
                 }
-                db_mgr_->UpdateStream(exist_stream_item);
+                self->db_mgr_->UpdateStream(exist_stream_item);
             }
-            LoadStreamItems();
+            self->LoadStreamItems();
 
             LOGI("Auto start stream: {}", msg.auto_start_);
-            context_->PostUIDelayTask([self, auto_start = msg.auto_start_, exist_stream_item]() {
+            self->context_->PostUIDelayTask([self, auto_start = msg.auto_start_, exist_stream_item]() {
                 if (!self) {
                     return;
                 }
@@ -340,37 +347,48 @@ namespace px
             }, 70);
             });
 
-            msg_listener_->Listen<StreamItemUpdated>([=, this](const StreamItemUpdated& msg) {
-                db_mgr_->UpdateStream(msg.item_);
-                LoadStreamItems();
+            msg_listener_->Listen<StreamItemUpdated>([self](const StreamItemUpdated& msg) {
+                if (!self) {
+                    return;
+                }
+                self->db_mgr_->UpdateStream(msg.item_);
+                self->LoadStreamItems();
                 LOGI("Update stream : {}", msg.item_->stream_id_);
             });
 
-            msg_listener_->Listen<MsgRemotePeerInfo>([=, this](const MsgRemotePeerInfo& msg) {
-                std::lock_guard<std::mutex> guard(streams_mtx_);
-                for (const auto& stream : streams_) {
+            msg_listener_->Listen<MsgRemotePeerInfo>([self](const MsgRemotePeerInfo& msg) {
+                if (!self) {
+                    return;
+                }
+                std::lock_guard<std::mutex> guard(self->streams_mtx_);
+                for (const auto& stream : self->streams_) {
                     if (stream->stream_id_ == msg.stream_id_) {
                         if (stream->desktop_name_ != msg.desktop_name_ || stream->os_version_ != msg.os_version_) {
                             stream->desktop_name_ = msg.desktop_name_;
                             stream->os_version_ = msg.os_version_;
-                            db_mgr_->UpdateStream(stream);
+                            self->db_mgr_->UpdateStream(stream);
                         }
                         break;
                     }
                 }
             });
 
-            msg_listener_->Listen<MsgClientConnectedPanel>([=, this](const MsgClientConnectedPanel& msg) {
+            msg_listener_->Listen<MsgClientConnectedPanel>([](const MsgClientConnectedPanel&) {
 
             });
 
-            msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-                this->LoadStreamItems();
+            msg_listener_->Listen<MsgForceClearProgramData>([self](const MsgForceClearProgramData&) {
+                if (self) {
+                    self->LoadStreamItems();
+                }
             });
         }
 
-        msg_listener_->Listen<MsgGrTimer5S>([=, this](const MsgGrTimer5S& msg) {
-            context_->PostTask([self]() {
+        msg_listener_->Listen<MsgGrTimer5S>([self](const MsgGrTimer5S&) {
+            if (!self) {
+                return;
+            }
+            self->context_->PostTask([self]() {
                 if (!self) {
                     return;
                 }

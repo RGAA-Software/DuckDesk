@@ -9,6 +9,7 @@
 #include <sstream>
 #include <any>
 #include <atomic>
+#include <memory>
 
 namespace px
 {
@@ -133,40 +134,16 @@ namespace px
         // Thread name
         std::string GetThreadName();
 
-        void SetOnFrontTaskCallback(std::function<void(ThreadTaskPtr task_ptr)> callback) {
-            on_front_task_callback_ = callback;
-        }
+        void SetOnFrontTaskCallback(std::function<void(ThreadTaskPtr task_ptr)> callback);
     protected:
         explicit Thread(const std::string& name, int max_task = -1);
         Thread(OnceTask&& task, const std::string& name, bool join = true);
     private:
-        void TaskLoop();
+        void StartOnceTask(bool join);
 
     private:
-
-        std::mutex init_mtx_;
-        bool init_{false};
-
-        std::mutex task_mtx_;
-        std::list<ThreadTaskPtr> tasks_;
-
-        std::shared_ptr<std::thread>  thread_;
-
-        std::condition_variable take_var_;
-
-        std::atomic_bool exit_{false};
-        std::atomic_bool exit_loop_{false};
-
-        int max_tasks_ = -1;
-        std::atomic_bool last_task_returned_{false};
-        std::atomic_ulong task_exec_count_{0};
-
-        std::string name_;
-        uint32_t tid_ = 0;
-
-        std::function<void(ThreadTaskPtr task_ptr)> on_front_task_callback_;
-
-        uint32_t thread_id_ = 0;
+        class State;
+        std::shared_ptr<State> state_;
     };
 
 

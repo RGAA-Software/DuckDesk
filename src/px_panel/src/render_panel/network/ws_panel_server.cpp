@@ -105,9 +105,12 @@ namespace px
     }
 
     void WsPanelServer::Start() {
-        exiting_ = false;
+        if (exiting_ || server_) {
+            return;
+        }
         auto weak_self = weak_from_this();
-        msg_listener_ = context_->ObtainMessageListener();
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
         msg_listener_->Listen<MsgSecurityPasswordUpdated>([weak_self](const MsgSecurityPasswordUpdated& msg) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
@@ -118,7 +121,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S& msg) {
+        state_msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S&) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_) {
@@ -135,7 +138,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgGrTimer5S>([weak_self](const MsgGrTimer5S& msg) {
+        state_msg_listener_->Listen<MsgGrTimer5S>([weak_self](const MsgGrTimer5S&) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_ && self->panel_sessions_.Size() > 0) {
@@ -145,7 +148,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgHWInfo>([weak_self](const MsgHWInfo& msg) {
+        state_msg_listener_->Listen<MsgHWInfo>([weak_self](const MsgHWInfo& msg) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 if (msg.sys_info_->networks_.empty()) {
                     return;
@@ -304,8 +307,17 @@ namespace px
     }
 
     void WsPanelServer::Exit() {
-        exiting_ = true;
-        msg_listener_ = nullptr;
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+            state_msg_listener_.reset();
+        }
         if (server_) {
             server_->stop_all_timers();
             server_->stop();
@@ -314,18 +326,17 @@ namespace px
         panel_sessions_.Clear();
         renderer_sessions_.Clear();
         sys_info_sess_.reset();
+        records_http_handler_.reset();
+        http_handler_.reset();
+        ft_record_op_.reset();
+        visit_record_op_.reset();
+        stat_.reset();
+        context_.reset();
+        app_.reset();
     }
 
     WsPanelServer::~WsPanelServer() {
-        exiting_ = true;
-        msg_listener_ = nullptr;
-        if (server_) {
-            server_->stop_all_timers();
-            server_->stop();
-        }
-        panel_sessions_.Clear();
-        renderer_sessions_.Clear();
-        sys_info_sess_.reset();
+        Exit();
     }
 
     void WsPanelServer::AddWebsocketRouter(const std::string &path) {

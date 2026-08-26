@@ -209,6 +209,13 @@ namespace px {
         }
     }
 
+    std::shared_ptr<PluginNetEventRouter> PluginNetEventRouter::Make(
+        const std::shared_ptr<RdApplication>& app) {
+        auto router = std::make_shared<PluginNetEventRouter>(app);
+        router->InitListeners();
+        return router;
+    }
+
     PluginNetEventRouter::PluginNetEventRouter(const std::shared_ptr<RdApplication>& app) {
         this->app_ = app;
         this->context_ = app->GetContext();
@@ -218,26 +225,40 @@ namespace px {
         virtual_display_ = std::make_shared<VirtualDisplayCoordinator>();
 
         msg_notifier_ = this->app_->GetContext()->GetMessageNotifier();
-        msg_listener_ = this->app_->GetContext()->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<CaptureMonitorInfoMessage>([=, this](const CaptureMonitorInfoMessage& msg) {
-            if (auto plugin = plugin_manager_->GetEventsReplayerPlugin(); plugin) {
+    }
+
+    void PluginNetEventRouter::InitListeners() {
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            if (auto plugin = self->plugin_manager_->GetEventsReplayerPlugin(); plugin) {
                 plugin->UpdateCaptureMonitorInfo(msg);
             }
             {
-                std::scoped_lock lock(virtual_display_->mutex);
-                ++virtual_display_->capture_epoch;
+                std::scoped_lock lock(self->virtual_display_->mutex);
+                ++self->virtual_display_->capture_epoch;
             }
-            CompleteVirtualDisplayRequests(app_, virtual_display_);
+            CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
         });
-        msg_listener_->Listen<MsgCaptureTopologyFirstFrame>([=, this](const MsgCaptureTopologyFirstFrame&) {
+        msg_listener_->Listen<MsgCaptureTopologyFirstFrame>([weak_self](const MsgCaptureTopologyFirstFrame&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             {
-                std::scoped_lock lock(virtual_display_->mutex);
-                virtual_display_->first_frame_epoch = virtual_display_->capture_epoch;
+                std::scoped_lock lock(self->virtual_display_->mutex);
+                self->virtual_display_->first_frame_epoch = self->virtual_display_->capture_epoch;
             }
-            CompleteVirtualDisplayRequests(app_, virtual_display_);
+            CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
         });
-        msg_listener_->Listen<MsgTimer1000>([=, this](const MsgTimer1000&) {
-            ExpireVirtualDisplayRequests(app_, virtual_display_);
+        msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000&) {
+            if (const auto self = weak_self.lock()) {
+                ExpireVirtualDisplayRequests(self->app_, self->virtual_display_);
+            }
         });
     }
 
@@ -253,7 +274,7 @@ namespace px {
         });
 
         // tell encoder plugins to insert an I Frame
-        plugin_manager_->VisitEncoderPlugins([=, this](PxVideoEncoderPlugin* plugin) {
+        plugin_manager_->VisitEncoderPlugins([](PxVideoEncoderPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
             plugin->InsertIdr();
         });
 
@@ -372,7 +393,12 @@ namespace px {
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
                                   msg->type() == MessageType::kKeyEvent ||
                                   msg->type() == MessageType::kTextInput;
-            plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+            const auto weak_self = weak_from_this();
+            plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
                 if (hook_inner && is_input &&
                     plugin->GetPluginId() == kEventReplayerPluginId) {
                     return;
@@ -387,8 +413,8 @@ namespace px {
                         const auto device_id = msg->device_id();
                         const auto sdp = sub.sdp();
                         if (sub.connection_ticket().empty()) {
-                            if (!settings_ ||
-                                !VerifyGuestDeviceCredential(*settings_, sub.safety_pwd_md5())) {
+                            if (!self->settings_ ||
+                                !VerifyGuestDeviceCredential(*self->settings_, sub.safety_pwd_md5())) {
                                 LOGW("Reject guest full RTC offer: device password mismatch");
                                 return;
                             }
@@ -409,12 +435,16 @@ namespace px {
                             LOGW("Reject ticketed full RTC offer without client nonce");
                             return;
                         }
-                        app_->RedeemConnectionTicket(
+                        self->app_->RedeemConnectionTicket(
                             sub.connection_ticket(), sub.client_nonce(), sub.instance_id(),
-                            [plugin, stream_id, device_id, sdp](
+                            [weak_self, stream_id, device_id, sdp](
                                 bool ok, const std::string& code,
                                 const std::vector<std::string>& permissions,
                                 const std::string& ice_config_json) {
+                                const auto self = weak_self.lock();
+                                if (!self) {
+                                    return;
+                                }
                                 const bool may_view = std::find(permissions.begin(), permissions.end(), "view")
                                     != permissions.end();
                                 const bool may_file = std::find(permissions.begin(), permissions.end(), "file")
@@ -422,6 +452,10 @@ namespace px {
                                 if (!ok || (!may_view && !may_file) || ice_config_json.empty()) {
                                     LOGW("Reject full RTC ticket: code={}, config_available={}", code,
                                          !ice_config_json.empty());
+                                    return;
+                                }
+                                const auto plugin = self->plugin_manager_->GetRtcLocalPlugin();
+                                if (!plugin) {
                                     return;
                                 }
                                 plugin->OnMessageRaw(MsgRtcRemoteSdp {
@@ -452,9 +486,13 @@ namespace px {
 #if PX_USER_PROXY_ENABLED
             if (msg->type() == MessageType::kClipboardInfo) {
                 LOGI("[LAT-clip] render recv kClipboardInfo, type: {}, files: {}, len: {}", (int)msg->clipboard_info().type(), msg->clipboard_info().files_size(), event->message_->Size());
-                context_->PostTask([=, this]() {
+                context_->PostTask([weak_self, msg, event]() {
+                    const auto self = weak_self.lock();
+                    if (!self) {
+                        return;
+                    }
                     bool user_proxy_connected = false;
-                    plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
+                    self->plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                         if (plugin->IsUserProxyConnected()) {
                             user_proxy_connected = true;
                         }
@@ -473,15 +511,19 @@ namespace px {
                     sub->set_device_id(msg->device_id());
                     LOGI("PostUserProxyMessage client clipboard, type={}, len={}",
                          (int)msg->clipboard_info().type(), event->message_->Size());
-                    app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
+                    self->app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
             } else if (msg->type() == MessageType::kClipboardReqBuffer ||
                        msg->type() == MessageType::kClipboardRespBuffer) {
                 LOGI("[LAT-clip] render recv clipboard buffer msg, type: {}, len: {}",
                      (int)msg->type(), event->message_->Size());
-                context_->PostTask([=, this]() {
+                context_->PostTask([weak_self, msg, event]() {
+                    const auto self = weak_self.lock();
+                    if (!self) {
+                        return;
+                    }
                     bool user_proxy_connected = false;
-                    plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
+                    self->plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                         if (plugin->IsUserProxyConnected()) {
                             user_proxy_connected = true;
                         }
@@ -500,19 +542,23 @@ namespace px {
                     sub->set_device_id(msg->device_id());
                     LOGI("PostUserProxyMessage clipboard buffer msg, type={}, len={}",
                          (int)msg->type(), event->message_->Size());
-                    app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
+                    self->app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
                 });
             }
 #else
             // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
             // notify to panel
-            context_->PostTask([=, this]() {
+            context_->PostTask([weak_self, event]() {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
                 pxrp::RpMessage msg;
                 msg.set_type(pxrp::kRpRawRenderMessage);
                 auto sub = msg.mutable_raw_render_msg();
                 sub->set_msg(event->message_->AsString());
                 auto buffer = RpProtoAsData(&msg);
-                app_->PostPanelMessage(buffer);
+                self->app_->PostPanelMessage(buffer);
             });
 #endif
 
@@ -673,7 +719,7 @@ namespace px {
         app_->GetContext()->SendAppMessage(event);
 
         auto e = std::make_shared<MsgClientHello>(event);
-        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([e](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
             plugin->DispatchAppEvent(e);
         });
     }
@@ -796,8 +842,11 @@ namespace px {
     }
 
     void PluginNetEventRouter::PostIpcMessage(const std::string& msg) {
-        auto task_msg = AppMessageMaker::MakeTaskMessage([=, this]() mutable {
-            this->app_->PostIpcMessage(msg);
+        const auto weak_self = weak_from_this();
+        auto task_msg = AppMessageMaker::MakeTaskMessage([weak_self, msg]() {
+            if (const auto self = weak_self.lock()) {
+                self->app_->PostIpcMessage(msg);
+            }
         });
         app_->PostGlobalAppMessage(std::move(task_msg));
     }
@@ -814,10 +863,15 @@ namespace px {
     }
 
     void PluginNetEventRouter::ProcessHeartBeat(std::shared_ptr<Message>&& msg) {
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, msg]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             auto& hb = msg->heartbeat();
-            auto proto_msg = NetMessageMaker::MakeOnHeartBeatMsg(app_, hb.index(), hb.timestamp());
-            app_->PostNetMessage(proto_msg);
+            auto proto_msg = NetMessageMaker::MakeOnHeartBeatMsg(self->app_, hb.index(), hb.timestamp());
+            self->app_->PostNetMessage(proto_msg);
         });
 
         auto event = std::make_shared<MsgClientHeartbeat>();
@@ -825,7 +879,7 @@ namespace px {
         event->stream_id_ = msg->stream_id();
         event->hb_index_ = msg->heartbeat().index();
         event->timestamp_ = msg->heartbeat().timestamp();
-        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+        plugin_manager_->VisitAllPlugins([event](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
             plugin->DispatchAppEvent(event);
         });
     }
@@ -838,16 +892,21 @@ namespace px {
 
     void PluginNetEventRouter::ProcessSwitchMonitor(std::shared_ptr<Message>&& msg) {
         LOGI("ProcessSwitchMonitor, name: {}", msg->switch_monitor().name());
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, msg]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             auto sm = msg->switch_monitor();
-            auto capture_plugin = app_->GetWorkingMonitorCapturePlugin();
+            auto capture_plugin = self->app_->GetWorkingMonitorCapturePlugin();
             if (!capture_plugin) {
                 return;
             }
             capture_plugin->SetCaptureMonitor(sm.name());
             //plugin->SendCapturingMonitorMessage();
 
-            auto encoder_plugins = app_->GetWorkingVideoEncoderPlugins();
+            auto encoder_plugins = self->app_->GetWorkingVideoEncoderPlugins();
             for (const auto& [k, encoder_plugin] : encoder_plugins) {
                 if (encoder_plugin) {
                     encoder_plugin->InsertIdr();
@@ -855,7 +914,7 @@ namespace px {
             }
 
             // capturing monitor info
-            app_->UpdateCapturingMonitorInfo();
+            self->app_->UpdateCapturingMonitorInfo();
 
             int mon_index = 0;
             auto mon_index_res = capture_plugin->GetMonIndexByName(sm.name());
@@ -863,14 +922,19 @@ namespace px {
                 mon_index = mon_index_res.value();
             }
             auto proto_msg = NetMessageMaker::MakeMonitorSwitched(sm.name(), mon_index);
-            app_->PostNetMessage(proto_msg);
+            self->app_->PostNetMessage(proto_msg);
         });
     }
 
     void PluginNetEventRouter::ProcessSwitchWorkMode(std::shared_ptr<Message>&& msg) {
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, msg]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             auto wm = msg->work_mode();
-            auto plugin = app_->GetWorkingMonitorCapturePlugin();
+            auto plugin = self->app_->GetWorkingMonitorCapturePlugin();
             if (!plugin) {
                 LOGE("Working monitor capture is empty!");
                 return;
@@ -908,15 +972,23 @@ namespace px {
     }
 
     void PluginNetEventRouter::ProcessChangeMonitorResolution(std::shared_ptr<Message>&& msg) {
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, msg]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             auto cmr = msg->change_monitor_resolution();
-            app_->ResetMonitorResolution(cmr.monitor_name(), cmr.target_width(), cmr.target_height());
+            self->app_->ResetMonitorResolution(cmr.monitor_name(), cmr.target_width(), cmr.target_height());
         });
     }
 
-    void PluginNetEventRouter::ProcessInsertKeyFrame(std::shared_ptr<Message>&& msg) {
-        app_->PostGlobalTask([=, this]() {
-            app_->SendAppMessage(MsgInsertKeyFrame{});
+    void PluginNetEventRouter::ProcessInsertKeyFrame(std::shared_ptr<Message>&&) {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->app_->SendAppMessage(MsgInsertKeyFrame{});
+            }
         });
     }
 
@@ -973,7 +1045,12 @@ namespace px {
     }
 
     void PluginNetEventRouter::ReportClientConnected(const std::shared_ptr<PxPluginClientConnectedEvent>& event) {
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, event]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpClientConnected);
             auto sub = msg.mutable_client_connected();
@@ -983,12 +1060,17 @@ namespace px {
             sub->set_visitor_device_id(event->visitor_device_id_);
             sub->set_begin_timestamp(event->begin_timestamp_);
             auto buffer = RpProtoAsData(&msg);
-            app_->PostPanelMessage(buffer);
+            self->app_->PostPanelMessage(buffer);
         });
     }
 
     void PluginNetEventRouter::ReportClientDisConnected(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event) {
-        app_->PostGlobalTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        app_->PostGlobalTask([weak_self, event]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpClientDisConnected);
             auto sub = msg.mutable_client_disconnected();
@@ -998,7 +1080,7 @@ namespace px {
             sub->set_end_timestamp(event->end_timestamp_);
             sub->set_duration(event->duration_);
             auto buffer = RpProtoAsData(&msg);
-            app_->PostPanelMessage(buffer);
+            self->app_->PostPanelMessage(buffer);
         });
     }
 
@@ -1017,10 +1099,11 @@ namespace px {
         const auto device_id = msg->device_id();
         const auto stream_id = msg->stream_id();
 
-        const auto fail = [this, &device_id, &stream_id, &request_id](
+        const auto app = app_;
+        const auto fail = [app, &device_id, &stream_id, &request_id](
                               const std::string& code, const std::string& message) {
             SendVirtualDisplayResponse(
-                app_, device_id, stream_id,
+                app, device_id, stream_id,
                 BuildVirtualDisplayFailure(request_id, code, message));
         };
         if (request_id.empty() || request.operation() < kRemoteVirtualDisplayCreate ||
@@ -1071,7 +1154,6 @@ namespace px {
         }
 
         auto coordinator = virtual_display_;
-        auto app = app_;
         auto context = context_;
         app_->RequestVirtualDisplay(
             request_id,

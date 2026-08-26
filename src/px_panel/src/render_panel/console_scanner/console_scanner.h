@@ -28,9 +28,10 @@ namespace px
         bool console_ssl_enable_ = true;
     };
 
-    class ConsoleScanner {
+    class ConsoleScanner : public std::enable_shared_from_this<ConsoleScanner> {
     public:
         explicit ConsoleScanner(const std::shared_ptr<PxApplication>& app);
+        ~ConsoleScanner();
         //
         void StartUdpReceiver(int port);
         void Exit();
@@ -40,7 +41,7 @@ namespace px
         void ClearInactiveServer();
 
     private:
-        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::weak_ptr<PxApplication> app_;
         // udp receiver thread
         std::shared_ptr<Thread> udp_receiver_thread_ = nullptr;
         std::atomic_bool exit_udp_receiver_ = false;

@@ -3,6 +3,7 @@
 //
 
 #include "switch_button.h"
+#include <QPointer>
 #include <QVariant>
 #include <QTimer>
 #include <QPropertyAnimation>
@@ -52,8 +53,12 @@ namespace px
 
         if (left_point_ > 0 && right_point_ > 0 && need_repair_) {
             need_repair_ = false;
-            QMetaObject::invokeMethod(this, [=, this]() {
-                ExecAnimation(selected);
+            const QPointer<SwitchButton> guarded_self(this);
+            const bool selected_state = selected;
+            QMetaObject::invokeMethod(this, [guarded_self, selected_state]() {
+                if (guarded_self) {
+                    guarded_self->ExecAnimation(selected_state);
+                }
             });
         }
     }

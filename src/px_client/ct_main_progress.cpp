@@ -7,6 +7,7 @@
 #include <QProgressBar>
 #include <QLabel>
 #include <QPushButton>
+#include <QPointer>
 #include <QTimer>
 #include "px_label.h"
 #include "ct_settings.h"
@@ -22,6 +23,7 @@ namespace px
 {
 
     MainProgress::MainProgress(const std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ClientContext>& ctx, QWidget* parent) : QLabel(parent) {
+        const QPointer<MainProgress> guarded_self(this);
         sdk_ = sdk;
         context_ = ctx;
         settings_ = Settings::Instance();
@@ -98,8 +100,10 @@ namespace px
                 root_layout->addSpacing(20);
                 root_layout->addLayout(layout);
                 retry_btn_->hide();
-                connect(retry_btn_, &QPushButton::clicked, this, [=, this]() {
-                    context_->SendAppMessage(MsgExitControlledEndExe{});
+                connect(retry_btn_, &QPushButton::clicked, this, [guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->context_->SendAppMessage(MsgExitControlledEndExe{});
+                    }
                 });
             }
 
@@ -113,8 +117,10 @@ namespace px
                 layout->addStretch();
                 root_layout->addSpacing(30);
                 root_layout->addLayout(layout);
-                connect(lbl, &QPushButton::clicked, this, [=, this]() {
-                    context_->SendAppMessage(MsgClientExitApp{});
+                connect(lbl, &QPushButton::clicked, this, [guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->context_->SendAppMessage(MsgClientExitApp{});
+                    }
                 });
             }
         }
@@ -131,34 +137,55 @@ namespace px
         msg_listener_ = ctx->ObtainUIMessageListener();
 
         // begin to start
-        msg_listener_->Listen<SdkMsgNetworkConnected>([=, this](const SdkMsgNetworkConnected& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_sub_message_->SetTextId("id_start_connection");
-            });
+        msg_listener_->Listen<SdkMsgNetworkConnected>([guarded_self](const SdkMsgNetworkConnected&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->lbl_sub_message_->SetTextId("id_start_connection");
+                    }
+                });
+            }
         });
 
         // reconnection
-        msg_listener_->Listen<SdkMsgReconnect>([=, this](const SdkMsgReconnect& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_sub_message_->SetTextId("id_start_connection");
-            });
+        msg_listener_->Listen<SdkMsgReconnect>([guarded_self](const SdkMsgReconnect&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->lbl_sub_message_->SetTextId("id_start_connection");
+                    }
+                });
+            }
         });
 
         // configuration from remote device
-        msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>([=, this](const SdkMsgFirstConfigInfoCallback& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_sub_message_->SetTextId("id_has_connection");
-                QTimer::singleShot(3000, [this]() {
-                    retry_btn_->show();
+        msg_listener_->Listen<SdkMsgFirstConfigInfoCallback>(
+            [guarded_self](const SdkMsgFirstConfigInfoCallback&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (!guarded_self) {
+                        return;
+                    }
+                    guarded_self->lbl_sub_message_->SetTextId("id_has_connection");
+                    QTimer::singleShot(3000, [guarded_self]() {
+                        if (guarded_self) {
+                            guarded_self->retry_btn_->show();
+                        }
+                    });
                 });
-            });
+            }
         });
 
         // first video frame
-        msg_listener_->Listen<SdkMsgFirstVideoFrameDecoded>([=, this](const SdkMsgFirstVideoFrameDecoded& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_sub_message_->SetTextId("id_has_video_frame");
-            });
+        msg_listener_->Listen<SdkMsgFirstVideoFrameDecoded>(
+            [guarded_self](const SdkMsgFirstVideoFrameDecoded&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->lbl_sub_message_->SetTextId("id_has_video_frame");
+                    }
+                });
+            }
         });
     }
 
@@ -167,27 +194,39 @@ namespace px
         if (retry_btn_) {
             retry_btn_->hide();
         }
-        context_->PostUITask([this]() {
-            auto parent = (QWidget*)this->parent();
-            this->resize(parent->size());
-            this->show();
-            progress_bar_->setValue(progress_steps_);
+        const QPointer<MainProgress> guarded_self(this);
+        context_->PostUITask([guarded_self]() {
+            if (!guarded_self || !guarded_self->parentWidget()) {
+                return;
+            }
+            guarded_self->resize(guarded_self->parentWidget()->size());
+            guarded_self->show();
+            guarded_self->progress_bar_->setValue(guarded_self->progress_steps_);
         });
     }
 
     void MainProgress::StepForward() {
         progress_steps_++;
-        context_->PostUITask([this]() {
-            progress_bar_->setValue(progress_steps_);
+        const QPointer<MainProgress> guarded_self(this);
+        context_->PostUITask([guarded_self]() {
+            if (guarded_self) {
+                guarded_self->progress_bar_->setValue(guarded_self->progress_steps_);
+            }
         });
     }
 
     void MainProgress::CompleteProgress() {
         progress_steps_ = progress_bar_->maximum();
-        context_->PostUITask([this]() {
-            progress_bar_->setValue(progress_steps_);
-            QTimer::singleShot(150, [this]() {
-                this->hide();
+        const QPointer<MainProgress> guarded_self(this);
+        context_->PostUITask([guarded_self]() {
+            if (!guarded_self) {
+                return;
+            }
+            guarded_self->progress_bar_->setValue(guarded_self->progress_steps_);
+            QTimer::singleShot(150, [guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->hide();
+                }
             });
 
         });

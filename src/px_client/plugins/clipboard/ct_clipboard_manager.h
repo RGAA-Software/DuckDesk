@@ -21,7 +21,8 @@ namespace px
     class ClientPluginContext;
     class ClientClipboardPlugin;
 
-    class ClipboardManager : public QObject {
+    class ClipboardManager : public QObject,
+                             public std::enable_shared_from_this<ClipboardManager> {
     public:
         explicit ClipboardManager(ClientClipboardPlugin* plugin);
         void Start();

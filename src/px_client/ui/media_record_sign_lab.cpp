@@ -1,4 +1,5 @@
 #include "media_record_sign_lab.h"
+#include <QPointer>
 #include <QTimer>
 #include <qfont.h>
 #include "ct_client_context.h"
@@ -14,13 +15,16 @@ namespace px
         setAttribute(Qt::WA_StyledBackground, true);
         this->setStyleSheet("background:#FFFFFFFF;");
         listener_ = context_->ObtainUIMessageListener();
-        listener_->Listen<SdkMsgTimer1000>([this](const SdkMsgTimer1000& m) {
-            if (this->isHidden()) {
+        const QPointer<MediaRecordSignLab> guarded_self(this);
+        listener_->Listen<SdkMsgTimer1000>([guarded_self](const SdkMsgTimer1000&) {
+            if (!guarded_self || guarded_self->isHidden()) {
                 return;
             }
-            context_->PostUITask([this]() {
-                update();
-                toggle_++;
+            guarded_self->context_->PostUITask([guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->update();
+                    guarded_self->toggle_++;
+                }
             });
         });
     }

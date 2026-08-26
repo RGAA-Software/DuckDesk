@@ -293,7 +293,7 @@ namespace px
 
     public:
         std::shared_ptr<MessageNotifier> notifier_ = nullptr;
-        SharedPreference* sp_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_;
         std::string version_;
         // @deprecated
         int udp_listen_port_{0};

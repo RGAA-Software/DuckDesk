@@ -5,6 +5,7 @@
 #ifndef TC_SERVER_STEAM_TC_APP_MANAGER_H
 #define TC_SERVER_STEAM_TC_APP_MANAGER_H
 
+#include <atomic>
 #include <memory>
 #include <map>
 #include <mutex>
@@ -26,8 +27,9 @@ namespace px
     class MessageListener;
     class ProcessInfo;
 
-    class RenderManager {
+    class RenderManager : public std::enable_shared_from_this<RenderManager> {
     public:
+        static std::shared_ptr<RenderManager> Make(const std::shared_ptr<ServiceContext>& ctx);
         explicit RenderManager(const std::shared_ptr<ServiceContext>& ctx);
         ~RenderManager();
 
@@ -45,6 +47,7 @@ namespace px
         void Exit();
 
     private:
+        void RegisterListeners();
         void CheckAliveRenders(const std::vector<std::shared_ptr<ProcessInfo>>& processes);
         // desktop
         bool StartDesktopRenderInternal(const std::string& work_dir, const std::string& app_path, const std::string& args);
@@ -64,6 +67,7 @@ namespace px
 
         // others
         px::ConcurrentHashMap<RenderProcessId, std::shared_ptr<RenderProcess>> render_processes_;
+        std::atomic_bool exiting_{false};
     };
 
 }

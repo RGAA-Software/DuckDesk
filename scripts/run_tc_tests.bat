@@ -29,6 +29,10 @@ for %%t in (
     test_clipboard_file_builder
     test_clipboard_platform
     test_px_udp_protocol
+    test_thread_exit
+    test_task_runtime_exit
+    test_asio_event_dispatcher_concurrency
+    test_message_notifier
     test_common
     test_http
     test_cpu

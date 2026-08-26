@@ -23,6 +23,10 @@ namespace px
         vm_ = const_cast<JavaVM*>(vm);
     }
 
+    Application::~Application() {
+        Exit();
+    }
+
     std::shared_ptr<EnvWrapper> Application::ObtainEnvWrapper() {
         return EnvWrapper::Make(vm_);
     }
@@ -52,51 +56,68 @@ namespace px
 
         thunder_sdk_ = ThunderSdk::Make(app_context_->GetMessageNotifier());
         thunder_sdk_->Init(params, (use_oes && frame_render_) ? frame_render_->GetNativeWindow() : nullptr, drt);
-        thunder_sdk_->SetOnVideoFrameDecodedCallback([=, this](const std::shared_ptr<RawImage>& image, const SdkCaptureMonitorInfo& cap_mon_info) {
-            if (drt != DecoderRenderType::kMediaCodecSurface && image->img_buf && frame_render_) {
-                frame_render_->UpdateYUVImage(image);
+        const std::weak_ptr<Application> weak_self = weak_from_this();
+        thunder_sdk_->SetOnVideoFrameDecodedCallback([weak_self, drt](const std::shared_ptr<RawImage>& image, const SdkCaptureMonitorInfo& cap_mon_info) {
+            const auto self = weak_self.lock();
+            if (!self || self->exited_) {
+                return;
+            }
+            if (drt != DecoderRenderType::kMediaCodecSurface && image->img_buf && self->frame_render_) {
+                self->frame_render_->UpdateYUVImage(image);
             }
 
-            if (frame_width_ != image->img_width || frame_height_ != image->img_height || this->cap_mon_info_.mon_name_ != cap_mon_info.mon_name_) {
+            if (self->frame_width_ != image->img_width || self->frame_height_ != image->img_height || self->cap_mon_info_.mon_name_ != cap_mon_info.mon_name_) {
                 {
-                    std::lock_guard<std::mutex> guard(native_msg_cbk_mtx_);
+                    std::lock_guard<std::mutex> guard(self->native_msg_cbk_mtx_);
                     auto frame_change_msg = NativeMsgMaker::MakeFrameInfoMessage(
                             image->img_width, image->img_height, image->img_format,
                             cap_mon_info.mon_name_, cap_mon_info.mon_left_,
                             cap_mon_info.mon_top_, cap_mon_info.mon_right_, cap_mon_info.mon_bottom_);
-                    native_msg_cbk_(frame_change_msg);
+                    if (self->native_msg_cbk_) {
+                        self->native_msg_cbk_(frame_change_msg);
+                    }
                     LOGI("frame_change_msg: {}", frame_change_msg);
                 }
-                frame_width_ = image->img_width;
-                frame_height_ = image->img_height;
-                this->cap_mon_info_ = cap_mon_info;
+                self->frame_width_ = image->img_width;
+                self->frame_height_ = image->img_height;
+                self->cap_mon_info_ = cap_mon_info;
             }
         });
 
-        thunder_sdk_->SetOnAudioFrameDecodedCallback([=, this](const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
-            if (!audio_player_) {
-                audio_player_ = AudioPlayer::Make();
-                audio_player_->Init(samples, channels);
+        thunder_sdk_->SetOnAudioFrameDecodedCallback([weak_self](const std::shared_ptr<Data>& data, int samples, int channels, int bits) {
+            const auto self = weak_self.lock();
+            if (!self || self->exited_) {
+                return;
             }
-            audio_player_->Write(data);
+            if (!self->audio_player_) {
+                self->audio_player_ = AudioPlayer::Make();
+                self->audio_player_->Init(samples, channels);
+            }
+            self->audio_player_->Write(data);
         });
 
-        thunder_sdk_->SetOnCursorInfoCallback([=, this](std::shared_ptr<px::Message> msg) {
-            if (cursor_info_cbk_) {
-                cursor_info_cbk_(msg);
+        thunder_sdk_->SetOnCursorInfoCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            if (const auto self = weak_self.lock(); self && !self->exited_ && self->cursor_info_cbk_) {
+                self->cursor_info_cbk_(std::move(msg));
             }
         });
 
-        thunder_sdk_->SetOnAudioSpectrumCallback([=, this](std::shared_ptr<px::Message> msg) {
-            {
-                std::lock_guard<std::mutex> guard(native_msg_cbk_mtx_);
+        thunder_sdk_->SetOnAudioSpectrumCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            if (const auto self = weak_self.lock(); self && !self->exited_) {
+                std::lock_guard<std::mutex> guard(self->native_msg_cbk_mtx_);
                 auto buffer = NativeMsgMaker::MakeSpectrumMessage(msg->renderer_audio_spectrum());
-                native_msg_cbk_(buffer);
+                if (self->native_msg_cbk_) {
+                    self->native_msg_cbk_(buffer);
+                }
             }
         });
 
         // server config
-        thunder_sdk_->SetOnServerConfigurationCallback([=, this](std::shared_ptr<px::Message> msg) {
+        thunder_sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exited_) {
+                return;
+            }
             const px::ServerConfiguration& config = msg->config();
             LOGI("===> ServerConfiguration: {}", config.monitors_info_size());
             for (int i = 0; i < config.monitors_info_size(); i++) {
@@ -105,7 +126,10 @@ namespace px
             }
 
             auto buffer = NativeMsgMaker::MakeServerConfigurationMessage(config);
-            native_msg_cbk_(buffer);
+            std::lock_guard<std::mutex> guard(self->native_msg_cbk_mtx_);
+            if (self->native_msg_cbk_) {
+                self->native_msg_cbk_(buffer);
+            }
         });
 
         LOGI("hw codec:{}, use oes: {}, oes tex id: {}", hw_codec, use_oes, oes_tex_id);
@@ -116,13 +140,18 @@ namespace px
     }
 
     void Application::Exit() {
+        if (exited_.exchange(true)) {
+            return;
+        }
         if (frame_render_) {
             frame_render_->OnDestroy();
         }
         if (audio_player_) {
             audio_player_->Exit();
         }
-        thunder_sdk_->Exit();
+        if (thunder_sdk_) {
+            thunder_sdk_->Exit();
+        }
     }
 
     std::shared_ptr<FrameRender> Application::GetFrameRender() {
@@ -157,12 +186,7 @@ namespace px
     }
 
     void Application::OnDestroy() {
-        if (thunder_sdk_) {
-            thunder_sdk_->Exit();
-        }
-        if (frame_render_) {
-            frame_render_->OnDestroy();
-        }
+        Exit();
     }
 
     void Application::SendGamepadState(int32_t buttons, int32_t left_trigger,int32_t right_trigger,

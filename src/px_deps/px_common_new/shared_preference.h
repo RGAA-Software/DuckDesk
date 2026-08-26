@@ -4,6 +4,7 @@
 #include <string>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <leveldb/db.h>
 
@@ -16,15 +17,15 @@ namespace px
     class SharedPreference {
     public:
 
-        static SharedPreference* Instance() {
-            static SharedPreference instance;
-            return &instance;
+        static std::shared_ptr<SharedPreference> Instance() {
+            static auto instance = std::make_shared<SharedPreference>();
+            return instance;
         }
 
         SharedPreference() = default;
 
         bool Init(const std::wstring& path, const std::string& name);
-        void Release() const;
+        void Release();
         bool IsReady() const;
         bool IsReadOnly() const;
         std::string GetLastError() const;
@@ -42,7 +43,7 @@ namespace px
 
     private:
 
-        leveldb::DB* db_ = nullptr;
+        std::unique_ptr<leveldb::DB> db_;
         bool initialized_ = false;
         bool read_only_ = false;
         std::string last_error_;

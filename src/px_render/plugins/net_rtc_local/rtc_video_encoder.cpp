@@ -188,6 +188,11 @@ namespace px
         // 浏览器拿到 delta 解码失败,只能等下一轮 PLI,首帧被拖慢十几秒。
         if (mWaitIDRFrame && !encoded_video_frame->key_) {
             ++win_pre_idr_drops_;
+            // A monitor switch can skip an IDR that was produced just before
+            // this peer reset its per-monitor cursor. Do not rely solely on a
+            // later browser PLI: keep requesting a throttled IDR while delta
+            // frames prove that the new capture path is alive but undecodable.
+            RequestIdrThrottled();
             static std::atomic_uint64_t pre_idr_drops = 0;
             if (++pre_idr_drops % 60 == 1) {
                 LOGW("waiting first IDR, drop delta frame seq={} (total {})", encoded_video_frame->seq_, pre_idr_drops.load());

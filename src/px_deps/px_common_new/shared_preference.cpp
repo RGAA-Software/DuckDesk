@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <iostream>
+#include <memory>
+#include <vector>
 
 #include "log.h"
 #include "string_util.h"
@@ -11,10 +13,7 @@ namespace px
 
     bool SharedPreference::Init(const std::wstring& path, const std::string& name) {
         std::lock_guard<std::mutex> lock(mtx_);
-        if (db_) {
-            delete db_;
-            db_ = nullptr;
-        }
+        db_.reset();
         initialized_ = false;
         read_only_ = false;
         last_error_.clear();
@@ -35,28 +34,26 @@ namespace px
             u8.size()
         );
         LOGI("SharedPreference: {}", str);
-        auto status = leveldb::DB::Open(options, str, &db_);
+        leveldb::DB* opened_db = nullptr; // NOLINT(gammaray-raw-pointer-boundary) LevelDB transfers ownership through DB**.
+        auto status = leveldb::DB::Open(options, str, &opened_db);
         if (!status.ok()) {
-            db_ = nullptr;
             read_only_ = true;
             last_error_ = status.ToString();
             LOGE("SharedPreference::Init failed, path: {}, error: {}", str, last_error_);
             return false;
         }
 
+        db_.reset(opened_db);
         initialized_ = true;
         return true;
     }
     
-    void SharedPreference::Release() const {
+    void SharedPreference::Release() {
         std::lock_guard<std::mutex> lock(mtx_);
-        if (db_) {
-            delete db_;
-            const_cast<SharedPreference*>(this)->db_ = nullptr;
-        }
-        const_cast<SharedPreference*>(this)->initialized_ = false;
-        const_cast<SharedPreference*>(this)->read_only_ = false;
-        const_cast<SharedPreference*>(this)->last_error_.clear();
+        db_.reset();
+        initialized_ = false;
+        read_only_ = false;
+        last_error_.clear();
     }
 
     bool SharedPreference::IsReady() const {
@@ -166,15 +163,23 @@ namespace px
         if (!listener) {
             return;
         }
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (!db_) {
-            return;
+        std::vector<std::pair<std::string, std::string>> entries;
+        {
+            std::lock_guard<std::mutex> lock(mtx_);
+            if (!db_) {
+                return;
+            }
+            auto iterator = std::unique_ptr<leveldb::Iterator>(
+                db_->NewIterator(leveldb::ReadOptions()));
+            for (iterator->SeekToFirst(); iterator->Valid(); iterator->Next()) {
+                entries.emplace_back(
+                    iterator->key().ToString(), iterator->value().ToString());
+            }
         }
-        leveldb::Iterator* it = db_->NewIterator(leveldb::ReadOptions());
-        for (it->SeekToFirst(); it->Valid(); it->Next()) {
-            listener(it->key().ToString(), it->value().ToString());
+
+        for (const auto& [key, value] : entries) {
+            listener(key, value);
         }
-        delete it;
     }
 
 }

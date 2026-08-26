@@ -77,7 +77,9 @@ namespace px
         requested_skin_name_ = skin_name;
     }
 
-    PxApplication::~PxApplication() = default;
+    PxApplication::~PxApplication() {
+        Exit();
+    }
 
     void PxApplication::Init() {
         TimeDuration td("PxApplication::Init");
@@ -187,10 +189,9 @@ namespace px
     }
 
     void PxApplication::PrepareForShutdown() {
-        if (shutdown_prepared_) {
+        if (shutdown_prepared_.exchange(true)) {
             return;
         }
-        shutdown_prepared_ = true;
 
         if (service_client_) {
             service_client_->Exit();
@@ -203,6 +204,18 @@ namespace px
     }
 
     void PxApplication::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+            state_msg_listener_.reset();
+        }
+        PxStatistics::Instance()->Exit();
         PrepareForShutdown();
         if (win_msg_loop_) {
             win_msg_loop_->Stop();
@@ -226,7 +239,24 @@ namespace px
             ws_panel_server_->Exit();
             ws_panel_server_ = nullptr;
         }
-        context_->Exit();
+        if (px_connected_manager_) {
+            QCoreApplication::instance()->removeNativeEventFilter(px_connected_manager_.get());
+            px_connected_manager_.reset();
+        }
+        clipboard_mgr_.reset();
+        rd_msg_processor_.reset();
+        user_mgr_.reset();
+        device_mgr_.reset();
+        win_msg_loop_.reset();
+        win_msg_thread_.reset();
+        if (context_) {
+            context_->Exit();
+        }
+        if (msg_notifier_) {
+            msg_notifier_->Stop(MessageBusStopMode::kCancel);
+        }
+        context_.reset();
+        msg_notifier_.reset();
     }
 
     bool PxApplication::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
@@ -293,47 +323,66 @@ namespace px
     }
 
     void PxApplication::RegisterMessageListener() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgSettingsChanged>([=, this](const MsgSettingsChanged& msg) {
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgSettingsChanged>([weak_self](const MsgSettingsChanged&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
             LOGI("Settings changed...");
-            RefreshClientManagerSettings();
-            bool force_update = settings_->GetDeviceId().empty();
-            RequestNewClientId(force_update);
+            self->RefreshClientManagerSettings();
+            const bool force_update = self->settings_->GetDeviceId().empty();
+            self->RequestNewClientId(force_update);
         });
 
-        msg_listener_->Listen<MsgGrTimer100>([=, this](const MsgGrTimer100& msg) {
-            if (companion_) {
-                companion_->OnTimer100ms();
+        state_msg_listener_->Listen<MsgGrTimer100>([weak_self](const MsgGrTimer100&) {
+            const auto self = weak_self.lock();
+            if (self && !self->exiting_ && self->companion_) {
+                self->companion_->OnTimer100ms();
             }
         });
 
-        msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& msg) {
-            if (companion_) {
-                companion_->OnTimer1S();
+        state_msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            if (self->companion_) {
+                self->companion_->OnTimer1S();
             }
 
             // console client
-            this->StartConsoleClientIfNeeded();
+            self->StartConsoleClientIfNeeded();
         });
 
         // stop the console connection
-        msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            if (console_client_) {
-                console_client_->Stop();
+        msg_listener_->Listen<MsgForceClearProgramData>([weak_self](const MsgForceClearProgramData&) {
+            const auto self = weak_self.lock();
+            if (self && !self->exiting_ && self->console_client_) {
+                self->console_client_->Stop();
             }
         });
 
-        msg_listener_->Listen<MsgGrTimer5S>([=, this](const MsgGrTimer5S& msg) {
-            if (settings_->GetDeviceId().empty()) {
-                RequestNewClientId(true);
+        state_msg_listener_->Listen<MsgGrTimer5S>([weak_self](const MsgGrTimer5S&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
             }
-            if (companion_) {
-                companion_->OnTimer5S();
+            if (self->settings_->GetDeviceId().empty()) {
+                self->RequestNewClientId(true);
+            }
+            if (self->companion_) {
+                self->companion_->OnTimer5S();
             }
         });
 
-        msg_listener_->Listen<MsgForceRequestDeviceId>([=, this](const MsgForceRequestDeviceId& msg) {
-            RequestNewClientId(true);
+        msg_listener_->Listen<MsgForceRequestDeviceId>([weak_self](const MsgForceRequestDeviceId&) {
+            const auto self = weak_self.lock();
+            if (self && !self->exiting_) {
+                self->RequestNewClientId(true);
+            }
         });
     }
 

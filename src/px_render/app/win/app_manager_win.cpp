@@ -51,11 +51,7 @@ namespace px
     }
 
     AppManagerWinImpl::~AppManagerWinImpl() {
-        inject_worker_exit_ = true;
-        inject_cv_.notify_all();
-        if (inject_worker_ && inject_worker_->joinable()) {
-            inject_worker_->join();
-        }
+        Exit();
         if (game_job_) {
             // 关闭即触发 KILL_ON_JOB_CLOSE,游戏进程树由 OS 一并结束
             CloseHandle(game_job_);
@@ -87,32 +83,43 @@ namespace px
         steam_game_ = std::make_shared<SteamGame>(context_);
         //steam_game_->RequestSteamGames();
 
-        // 重启后第一帧到达 → 通知客户端"游戏已恢复"（waiting_first_frame_ 由看门狗置位）
-        msg_listener_->Listen<CaptureVideoFrame>([=, this](const auto& msg) {
-            if (waiting_first_frame_.exchange(false)) {
-                NotifyGameStatus(px::GameStatusChanged::kGameRunning, "");
+        // 注入流程跑在独立 worker 线程（内部自带固定间隔重试/存活检查），消息线程只投递请求
+        const auto self = std::static_pointer_cast<AppManagerWinImpl>(shared_from_this());
+        const std::weak_ptr<AppManagerWinImpl> weak_self = self;
+        inject_worker_ = std::make_shared<std::thread>([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->InjectWorkerLoop();
             }
         });
 
-        // 注入流程跑在独立 worker 线程（内部自带固定间隔重试/存活检查），消息线程只投递请求
-        inject_worker_ = std::make_shared<std::thread>([=, this]() {
-            this->InjectWorkerLoop();
-        });
-
         if (settings_->capture_.IsVideoInnerCapture()) {
-            msg_listener_->Listen<MsgTimer100>([=, this](const auto &msg) {
-                context_->PostTask([=, this]() {
-                    this->InjectCaptureDllIfNeeded();
-                    if (target_pid_ > 0) {
-                        auto infos = px::AppManagerWinImpl::SearchWindowByPid(target_pid_);
-                        target_window_info_ = GetTargetWindowInfo(infos);
+            state_msg_listener_->Listen<MsgTimer100>([weak_self](const MsgTimer100&) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                self->context_->PostTask([weak_self]() {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_) {
+                        return;
+                    }
+                    self->InjectCaptureDllIfNeeded();
+                    if (self->target_pid_ > 0) {
+                        auto infos = px::AppManagerWinImpl::SearchWindowByPid(self->target_pid_);
+                        self->target_window_info_ = GetTargetWindowInfo(infos);
                     }
                 });
             });
         } else {
-            msg_listener_->Listen<MsgTimer2000>([=, this](const auto &msg) {
-                context_->PostTask([=, this]() {
-                    this->InjectCaptureDllIfNeeded();
+            state_msg_listener_->Listen<MsgTimer2000>([weak_self](const MsgTimer2000&) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                self->context_->PostTask([weak_self]() {
+                    if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                        self->InjectCaptureDllIfNeeded();
+                    }
                 });
             });
         }
@@ -906,7 +913,23 @@ namespace px
     }
 
     void AppManagerWinImpl::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        AppManager::Exit();
+        inject_worker_exit_ = true;
+        inject_cv_.notify_all();
+        if (inject_worker_ && inject_worker_->joinable()) {
+            inject_worker_->join();
+        }
+        inject_worker_.reset();
         CloseCurrentApp();
+    }
+
+    void AppManagerWinImpl::OnCapturedVideoFrame() {
+        if (waiting_first_frame_.exchange(false)) {
+            NotifyGameStatus(px::GameStatusChanged::kGameRunning, "");
+        }
     }
 
     void* AppManagerWinImpl::GetWindowHandle() {

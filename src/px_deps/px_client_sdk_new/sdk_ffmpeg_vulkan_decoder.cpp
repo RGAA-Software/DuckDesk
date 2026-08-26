@@ -251,9 +251,13 @@ namespace px
 #endif
 
             auto end = TimeUtil::GetCurrentTimestamp();
-            sdk_->PostMiscTask([=, this]() {
-                sdk_stat_->video_color_.Update(img_format_ ? "4:4:4" : "4:2:0" );
-                sdk_stat_->AppendDecodeDuration(monitor_name_, end - beg);
+            const auto sdk_stat = sdk_stat_;
+            const auto monitor_name = monitor_name_;
+            const auto image_format = img_format_;
+            const auto decode_duration = end - beg;
+            sdk_->PostMiscTask([sdk_stat, monitor_name, image_format, decode_duration]() {
+                sdk_stat->video_color_.Update(image_format ? "4:4:4" : "4:2:0" );
+                sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
             });
             decoded_image = RawImage::MakeVulkanAVFrame(av_frame_);
             decoded_image->full_color_ = img_format_ == EImageFormat::kI444;

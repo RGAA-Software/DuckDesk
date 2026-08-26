@@ -774,13 +774,16 @@ function handleDcBinary(buf: ArrayBuffer) {
     } else if (msg.type === MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE && msg.virtualDisplayResponse) {
       const r = msg.virtualDisplayResponse
       virtualDisplayPending.value = false
-      virtualDisplayOwnedCount.value = r.ownedDisplayCount
-      virtualDisplayGeneration.value = String(r.topologyGeneration ?? 0)
       if (!r.accepted || r.state === 2) {
         const detail = `${r.errorCode || 'VIRTUAL_DISPLAY_FAILED'}: ${r.errorMessage || 'unknown error'}`
         addLog(`虚拟显示器请求失败: ${detail}`)
         ElMessage.error(detail)
       } else {
+        // A failed response carries protobuf defaults for count/generation.
+        // Preserve the last confirmed topology so the UI and E2E gate cannot
+        // mistake a partial driver failure for a successful removal.
+        virtualDisplayOwnedCount.value = r.ownedDisplayCount
+        virtualDisplayGeneration.value = String(r.topologyGeneration ?? 0)
         addLog(`虚拟显示器请求完成: owned=${r.ownedDisplayCount}, state=${r.state}, generation=${virtualDisplayGeneration.value}`)
         if (r.state === 1) {
           scheduleTopologyReconnect(virtualDisplayGeneration.value)

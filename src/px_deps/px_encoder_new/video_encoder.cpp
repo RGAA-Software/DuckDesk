@@ -69,12 +69,14 @@ namespace px
             LOGI("D3D11CreateDevice mDevice = {}", (void *) d3d11_device_.Get());
         }
 
-        ListenMessages();
     }
 
-    VideoEncoder::~VideoEncoder() = default;
+    VideoEncoder::~VideoEncoder() {
+        Exit();
+    }
 
     bool VideoEncoder::Initialize(const px::EncoderConfig &config) {
+        ListenMessages();
         encoder_config_ = config;
         input_frame_width_ = config.width;
         input_frame_height_ = config.height;
@@ -99,6 +101,8 @@ namespace px
     }
 
     void VideoEncoder::Exit() {
+        msg_listener_.reset();
+        listener_registered_ = false;
     }
 
 //    bool VideoEncoder::D3D11Texture2DLockMutex(ComPtr<ID3D11Texture2D> texture2d) {
@@ -204,10 +208,14 @@ namespace px
 //    }
 
     void VideoEncoder::ListenMessages() {
-        if (msg_notifier_) {
-            msg_listener_ = msg_notifier_->CreateListener();
-            msg_listener_->Listen<MsgInsertIDR>([=](const auto &msg) {
-                this->InsertIDR();
+        bool expected = false;
+        if (msg_notifier_ && listener_registered_.compare_exchange_strong(expected, true)) {
+            msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
+            const std::weak_ptr<VideoEncoder> weak_self = weak_from_this();
+            msg_listener_->Listen<MsgInsertIDR>([weak_self](const auto&) {
+                if (const auto self = weak_self.lock()) {
+                    self->InsertIDR();
+                }
             });
         }
     }

@@ -28,25 +28,14 @@ static const std::string kKeyAppArgs = "render_app_args";
 namespace px
 {
 
+    std::shared_ptr<RenderManager> RenderManager::Make(const std::shared_ptr<ServiceContext>& ctx) {
+        auto manager = std::make_shared<RenderManager>(ctx);
+        manager->RegisterListeners();
+        return manager;
+    }
+
     RenderManager::RenderManager(const std::shared_ptr<ServiceContext>& ctx) {
         context_ = ctx;
-        msg_listener_ = context_->CreateMessageListener();
-        msg_listener_->Listen<MsgTimer3S>([=, this](const MsgTimer3S& msg) {
-            context_->PostBgTask([=, this]() {
-                auto processes = ProcessHelper::GetProcessList(false);
-                if (processes.size() < 10) {
-                    LOGE("To little processes, check your TaskManager.");
-                    return;
-                }
-                this->CheckAliveRenders(processes);
-                if (!IsDesktopRenderAlive() && !this->desktop_work_dir_.empty() && !this->desktop_app_path_.empty() && !this->desktop_app_args_.empty()) {
-                    LOGI("px_render.exe not exist! Will start!");
-                    StartDesktopRenderInternal(this->desktop_work_dir_, this->desktop_app_path_, this->desktop_app_args_);
-                }
-
-            });
-        });
-
         auto sp = context_->GetSp();
         this->desktop_work_dir_ = sp->Get(kKeyWorkDir);
         this->desktop_app_path_ = sp->Get(kKeyAppPath);
@@ -57,8 +46,36 @@ namespace px
         LOGI("App args: {}", desktop_app_args_);
     }
 
-    RenderManager::~RenderManager() {
+    void RenderManager::RegisterListeners() {
+        msg_listener_ = context_->CreateMessageListener();
+        const std::weak_ptr<RenderManager> weak_self = weak_from_this();
+        msg_listener_->Listen<MsgTimer3S>([weak_self](const MsgTimer3S&) {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->exiting_) {
+                return;
+            }
+            owner->context_->PostBgTask([weak_self]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return;
+                }
+                auto processes = ProcessHelper::GetProcessList(false);
+                if (processes.size() < 10) {
+                    LOGE("To little processes, check your TaskManager.");
+                    return;
+                }
+                self->CheckAliveRenders(processes);
+                if (!self->IsDesktopRenderAlive() && !self->desktop_work_dir_.empty() && !self->desktop_app_path_.empty() && !self->desktop_app_args_.empty()) {
+                    LOGI("px_render.exe not exist! Will start!");
+                    self->StartDesktopRenderInternal(self->desktop_work_dir_, self->desktop_app_path_, self->desktop_app_args_);
+                }
 
+            });
+        });
+    }
+
+    RenderManager::~RenderManager() {
+        Exit();
     }
 
     bool RenderManager::StartDesktopRender(const std::string& _work_dir, const std::string& _app_path, const std::vector<std::string>& _args) {
@@ -135,6 +152,10 @@ namespace px
     }
 
     void RenderManager::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        msg_listener_.reset();
         StopDesktopRender();
     }
 

@@ -3,6 +3,7 @@
 //
 
 #include "tab_server.h"
+#include <QPointer>
 #include <QScrollBar>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -34,7 +35,6 @@
 #include "px_common_new/log.h"
 #include "qt_circle.h"
 #include "px_dialog.h"
-#include "render_panel/px_statistics.h"
 #include "render_panel/px_application.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "render_panel/px_render_controller.h"
@@ -56,7 +56,6 @@
 #include "render_panel/px_workspace.h"
 #include "relay_message.pb.h"
 #include "render_panel/companion/panel_companion.h"
-#include "render_panel/px_statistics.h"
 #include "render_panel/devices/px_device_manager.h"
 #include "render_panel/devices/connection_policy.h"
 #include "px_common_new/const_auto.h"
@@ -66,7 +65,6 @@ namespace px
 
     TabServer::TabServer(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
         settings_ = PxSettings::Instance();
-        stat_ = PxStatistics::Instance();
         stream_db_mgr_ = context_->GetStreamDBManager();
 
         UpdateQRCode();
@@ -543,37 +541,6 @@ namespace px
                     layout->addWidget(text);
                 }
 
-                {
-                    auto indicator = new TcCircleIndicator(this);
-                    relay_indicator_ = indicator;
-                    indicator->setFixedSize(indicator_size);
-                    layout->addWidget(indicator);
-
-                    layout->addSpacing(5);
-
-                    // text
-                    auto text = new TcLabel(this);
-                    text->setFixedSize(label_size);
-                    text->SetTextId("id_relay_server");
-                    layout->addWidget(text);
-                }
-
-                {
-                    auto indicator = new TcCircleIndicator(this);
-                    relay_ft_indicator_ = indicator;
-                    indicator->setFixedSize(indicator_size);
-                    layout->addWidget(indicator);
-
-                    layout->addSpacing(5);
-
-                    // text
-                    auto text = new TcLabel(this);
-                    text->setFixedSize(label_size);
-                    text->SetTextId("id_relay_ft_server");
-                    layout->addWidget(text);
-                }
-
-
                 layout->addStretch();
 
                 left_root->addLayout(layout);
@@ -615,42 +582,44 @@ namespace px
 
     void TabServer::RegisterMessageListener() {
         msg_listener_ = context_->ObtainUIMessageListener();
+        QPointer<TabServer> self(this);
 
         // new device created
-        msg_listener_->Listen<MsgRequestedNewDevice>([=, this](const MsgRequestedNewDevice& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
-                edt_machine_name_->setText(settings_->GetDeviceName().c_str());
-                //lbl_machine_random_pwd_->setText(msg.device_random_pwd_.c_str());
-                SetDeviceRandomPwdVisibility();
-                this->UpdateQRCode();
-            });
+        msg_listener_->Listen<MsgRequestedNewDevice>([self](const MsgRequestedNewDevice& msg) {
+            if (!self) {
+                return;
+            }
+            self->lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
+            self->edt_machine_name_->setText(self->settings_->GetDeviceName().c_str());
+            self->SetDeviceRandomPwdVisibility();
+            self->UpdateQRCode();
         });
 
         // random password updated
-        msg_listener_->Listen<MsgRandomPasswordUpdated>([=, this](const MsgRandomPasswordUpdated& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
-                //lbl_machine_random_pwd_->setText(msg.device_random_pwd_.c_str());
-                SetDeviceRandomPwdVisibility();
-                this->UpdateQRCode();
-            });
+        msg_listener_->Listen<MsgRandomPasswordUpdated>([self](const MsgRandomPasswordUpdated& msg) {
+            if (!self) {
+                return;
+            }
+            self->lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
+            self->SetDeviceRandomPwdVisibility();
+            self->UpdateQRCode();
         });
 
         // program data cleared
-        msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            context_->PostUITask([=, this]() {
-                lbl_machine_code_->setText(px::SpaceId("---------").c_str());
-                edt_machine_name_->setText("");
-                SetDeviceRandomPwdVisibility();
-                this->UpdateQRCode();
-            });
+        msg_listener_->Listen<MsgForceClearProgramData>([self](const MsgForceClearProgramData&) {
+            if (!self) {
+                return;
+            }
+            self->lbl_machine_code_->setText(px::SpaceId("---------").c_str());
+            self->edt_machine_name_->setText("");
+            self->SetDeviceRandomPwdVisibility();
+            self->UpdateQRCode();
         });
 
-        msg_listener_->Listen<MsgGrTimer1S>([=, this](const MsgGrTimer1S& m) {
-            context_->PostUITask([=, this]() {
-                UpdateServerState();
-            });
+        msg_listener_->Listen<MsgGrTimer1S>([self](const MsgGrTimer1S&) {
+            if (self) {
+                self->UpdateServerState();
+            }
         });
     }
 
@@ -691,8 +660,8 @@ namespace px
         // 设备 ID / 临时密码变化时同步刷新网页客户端直连地址
         UpdateWebClientUrl();
 
-        context_->PostTask([=, this]() {
-            auto dev_mgr = grApp->GetDeviceManager();
+        const auto dev_mgr = grApp->GetDeviceManager();
+        context_->PostTask([dev_mgr, desktop_link, desktop_link_raw]() {
             dev_mgr->UpdateDesktopLink(desktop_link, desktop_link_raw);
         });
 
@@ -742,38 +711,11 @@ namespace px
     }
 
     void TabServer::UpdateServerState() {
-        bool console_client_alive = grApp->IsConsoleClientAlive();
-        console_indicator_->SetState(console_client_alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
-        auto device_id = settings_->GetDeviceId();
-        if (!device_id.empty()) {
-            auto current_ts = TimeUtil::GetCurrentTimestamp();
-            // 心跳 1s 一次;阈值放宽到 10s,容忍会话建立/高负载时的短暂拥塞
-            auto max_duration = 10000;
-            {
-                auto sid = "server_" + device_id;
-                auto ts = stat_->GetRelayLastUpdateTimestamp(sid);
-                //LOGI("relay alive: {}, ts: {}, diff: {}ms", sid, ts, (current_ts - ts));
-                bool alive = current_ts - ts < max_duration;
-                if (alive != last_relay_alive_) {
-                    LOGI("relay indicator [{}] => {}", sid, alive ? "OK" : "ERROR");
-                    last_relay_alive_ = alive;
-                }
-                relay_indicator_->SetState(alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
-            }
-            {
-                auto sid = "ft_server_" + device_id;
-                auto ts = stat_->GetRelayLastUpdateTimestamp(sid);
-                bool alive = current_ts - ts < max_duration;
-                if (alive != last_relay_ft_alive_) {
-                    LOGI("relay indicator [{}] => {}", sid, alive ? "OK" : "ERROR");
-                    last_relay_ft_alive_ = alive;
-                }
-                relay_ft_indicator_->SetState(alive ? TcCircleIndicator::State::kOk : TcCircleIndicator::State::kError);
-            }
-        }
-        else {
-            relay_indicator_->SetState(TcCircleIndicator::State::kError);
-            relay_ft_indicator_->SetState(TcCircleIndicator::State::kError);
+        if (console_indicator_) {
+            const bool console_client_alive = grApp->IsConsoleClientAlive();
+            console_indicator_->SetState(
+                console_client_alive ? TcCircleIndicator::State::kOk
+                                     : TcCircleIndicator::State::kError);
         }
     }
 }

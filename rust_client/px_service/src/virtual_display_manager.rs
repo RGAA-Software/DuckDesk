@@ -173,8 +173,37 @@ impl VirtualDisplayManager {
         let created = match self.backend.add_monitor(width, height, refresh_hz) {
             Ok(created) => created,
             Err(err) => {
-                self.record_fault(&mut state, err.to_string());
-                return Err(err.into());
+                // The interactive worker can lose its response after the
+                // driver already accepted the add IOCTL. Adopt that single,
+                // mode-matching topology addition so ownership does not remain
+                // at zero while a GammaRay-created monitor is live.
+                let observed = self.backend.enumerate_monitors().map_err(|query_err| {
+                    self.record_fault(
+                        &mut state,
+                        format!("{err}; post-create reconciliation failed: {query_err}"),
+                    );
+                    VirtualDisplayError::from(query_err)
+                })?;
+                let additions: Vec<_> = observed
+                    .iter()
+                    .filter(|monitor| {
+                        !before
+                            .iter()
+                            .any(|existing| existing.device_name == monitor.device_name)
+                            && monitor.width == width
+                            && monitor.height == height
+                            && monitor.refresh_hz == refresh_hz
+                    })
+                    .cloned()
+                    .collect();
+                if observed.len() != before.len() + 1 || additions.len() != 1 {
+                    self.record_fault(&mut state, err.to_string());
+                    return Err(err.into());
+                }
+                additions
+                    .into_iter()
+                    .next()
+                    .expect("one addition was verified")
             }
         };
         let logical_id = format!("usbmmidd-slot-{}", state.persisted.owned_slots.len() + 1);
@@ -235,10 +264,23 @@ impl VirtualDisplayManager {
         }
 
         state.phase = VirtualDisplayPhase::Removing;
-        self.backend.remove_last_monitor().map_err(|err| {
-            self.record_fault(&mut state, err.to_string());
-            VirtualDisplayError::from(err)
-        })?;
+        if let Err(err) = self.backend.remove_last_monitor() {
+            // Some driver/interactive-worker failures are reported after the
+            // remove IOCTL has already changed the topology. Reconcile that
+            // irreversible side effect instead of preserving a stale owned
+            // slot that would block every subsequent operation.
+            let observed = self.backend.enumerate_monitors().map_err(|query_err| {
+                self.record_fault(
+                    &mut state,
+                    format!("{err}; post-remove reconciliation failed: {query_err}"),
+                );
+                VirtualDisplayError::from(query_err)
+            })?;
+            if observed.len().saturating_add(1) != before.len() {
+                self.record_fault(&mut state, err.to_string());
+                return Err(err.into());
+            }
+        }
         state.persisted.owned_slots.pop();
         state.persisted.desired_count = state.persisted.owned_slots.len() as u32;
         state.persisted.topology_generation += 1;
@@ -309,6 +351,18 @@ impl VirtualDisplayManager {
             // With no GammaRay-owned display, every observed monitor is foreign
             // and rebasing is always safe.
             state.persisted.foreign_baseline = actual;
+            state.persisted.last_known_total = actual;
+            state.persisted.removal_safe = true;
+            state.persisted.last_error = None;
+        } else if actual == state.persisted.foreign_baseline {
+            // All GammaRay-owned monitors are already absent. This can happen
+            // when the driver completed an operation but the worker response
+            // was lost, or after a process/service interruption. Clearing the
+            // stale ownership is safe because the observed topology is exactly
+            // the foreign baseline and no removal is attempted here.
+            state.persisted.owned_slots.clear();
+            state.persisted.desired_count = 0;
+            state.persisted.topology_generation += 1;
             state.persisted.last_known_total = actual;
             state.persisted.removal_safe = true;
             state.persisted.last_error = None;
@@ -403,6 +457,8 @@ mod tests {
     struct FakeBackend {
         monitors: StdMutex<Vec<MonitorSnapshot>>,
         installed: StdMutex<bool>,
+        fail_after_add: StdMutex<bool>,
+        fail_after_remove: StdMutex<bool>,
     }
 
     impl FakeBackend {
@@ -418,6 +474,8 @@ mod tests {
             Self {
                 monitors: StdMutex::new(monitors),
                 installed: StdMutex::new(foreign_count > 0),
+                fail_after_add: StdMutex::new(false),
+                fail_after_remove: StdMutex::new(false),
             }
         }
 
@@ -430,6 +488,18 @@ mod tests {
                 height: DEFAULT_HEIGHT,
                 refresh_hz: DEFAULT_REFRESH_HZ,
             });
+        }
+
+        fn remove_external(&self) {
+            self.monitors.lock().unwrap().pop();
+        }
+
+        fn fail_next_remove_after_side_effect(&self) {
+            *self.fail_after_remove.lock().unwrap() = true;
+        }
+
+        fn fail_next_add_after_side_effect(&self) {
+            *self.fail_after_add.lock().unwrap() = true;
         }
     }
 
@@ -466,6 +536,12 @@ mod tests {
                 refresh_hz,
             };
             monitors.push(monitor.clone());
+            if std::mem::take(&mut *self.fail_after_add.lock().unwrap()) {
+                return Err(UsbMmIddError::new(
+                    "WORKER_RESPONSE_LOST",
+                    "monitor was added before the worker response was lost",
+                ));
+            }
             Ok(monitor)
         }
 
@@ -473,6 +549,12 @@ mod tests {
             self.monitors.lock().unwrap().pop().ok_or_else(|| {
                 UsbMmIddError::new("NO_VIRTUAL_DISPLAY", "no fake monitor to remove")
             })?;
+            if std::mem::take(&mut *self.fail_after_remove.lock().unwrap()) {
+                return Err(UsbMmIddError::new(
+                    "WORKER_RESPONSE_LOST",
+                    "monitor was removed before the worker response was lost",
+                ));
+            }
             Ok(())
         }
     }
@@ -539,6 +621,73 @@ mod tests {
         assert_eq!(status.owned_slots.len(), 1);
         assert!(status.removal_safe);
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn remove_commits_when_the_driver_changed_topology_before_reporting_an_error() {
+        let backend = Arc::new(FakeBackend::new(0));
+        let manager = VirtualDisplayManager::new(
+            backend.clone(),
+            unique_store("remove_side_effect_reconcile"),
+        )
+        .unwrap();
+        manager.query().unwrap();
+        manager
+            .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
+            .unwrap();
+        backend.fail_next_remove_after_side_effect();
+
+        let removed = manager.remove_last().unwrap();
+
+        assert!(removed.status.owned_slots.is_empty());
+        assert!(removed.status.removal_safe);
+        assert!(removed.status.monitors.is_empty());
+    }
+
+    #[test]
+    fn create_commits_when_the_driver_changed_topology_before_reporting_an_error() {
+        let backend = Arc::new(FakeBackend::new(1));
+        let manager = VirtualDisplayManager::new(
+            backend.clone(),
+            unique_store("create_side_effect_reconcile"),
+        )
+        .unwrap();
+        manager.query().unwrap();
+        backend.fail_next_add_after_side_effect();
+
+        let created = manager
+            .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
+            .unwrap();
+
+        assert_eq!(
+            created.logical_display_id.as_deref(),
+            Some("usbmmidd-slot-1")
+        );
+        assert_eq!(created.status.owned_slots.len(), 1);
+        assert!(created.status.removal_safe);
+        assert_eq!(created.status.monitors.len(), 2);
+    }
+
+    #[test]
+    fn query_clears_stale_ownership_when_all_owned_monitors_are_already_absent() {
+        let backend = Arc::new(FakeBackend::new(0));
+        let manager =
+            VirtualDisplayManager::new(backend.clone(), unique_store("missing_owned_reconcile"))
+                .unwrap();
+        manager.query().unwrap();
+        let created = manager
+            .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
+            .unwrap();
+        backend.remove_external();
+
+        let reconciled = manager.query().unwrap();
+
+        assert!(reconciled.status.owned_slots.is_empty());
+        assert!(reconciled.status.removal_safe);
+        assert_eq!(
+            reconciled.status.topology_generation,
+            created.status.topology_generation + 1
+        );
     }
 
     #[test]

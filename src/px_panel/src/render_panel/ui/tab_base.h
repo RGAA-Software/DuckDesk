@@ -35,7 +35,7 @@ namespace px
         QObject* attach_ = nullptr;
         PxSettings* settings_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        PxStatistics* statistics_ = nullptr;
+        std::shared_ptr<PxStatistics> statistics_ = nullptr;
     };
 }
 

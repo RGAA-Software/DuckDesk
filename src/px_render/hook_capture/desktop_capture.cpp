@@ -14,9 +14,23 @@ namespace px
     DesktopCapture::DesktopCapture(const std::shared_ptr<MessageNotifier>& msg_notifier, const std::string& monitor) {
         msg_notifier_ = msg_notifier;
         capturing_monitor_name_ = monitor;
-        msg_listener_ = msg_notifier->CreateListener();
-        msg_listener_->Listen<RefreshScreenMessage>([this](const RefreshScreenMessage& msg) {
-            this->RefreshScreen();
+    }
+
+    DesktopCapture::~DesktopCapture() {
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
+    }
+
+    void DesktopCapture::InitMessageListener() {
+        msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<RefreshScreenMessage>([weak_self](const RefreshScreenMessage&) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->RefreshScreen();
             LOGI("Refresh screen.");
         });
     }

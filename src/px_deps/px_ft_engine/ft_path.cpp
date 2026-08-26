@@ -110,7 +110,7 @@ void ReadDirRecursive(const std::filesystem::path& path, const std::filesystem::
     if (std::filesystem::is_directory(path, ec)) {
         px::FileDirectory fd = ReadDir(ToUtf8(path), include_hidden);
         for (const auto& entry : fd.entries()) {
-            if (entry.entry_type() == px::FileType::File) {
+            if (entry.entry_type() == px::FileType::RegularFile) {
                 px::FileEntry e = entry;
                 e.set_name(ToUtf8(prefix / ToFsPath(entry.name())));
                 out->push_back(std::move(e));
@@ -122,7 +122,7 @@ void ReadDirRecursive(const std::filesystem::path& path, const std::filesystem::
         }
     } else if (std::filesystem::is_regular_file(path, ec)) {
         px::FileEntry e;
-        e.set_entry_type(px::FileType::File);
+        e.set_entry_type(px::FileType::RegularFile);
         e.set_size(std::filesystem::file_size(path, ec));
         if (ec) e.set_size(0);
         e.set_modified_time(GetFileMtimeSecs(path));
@@ -275,7 +275,7 @@ px::FileDirectory ReadDir(const std::string& path, bool include_hidden) {
         } else if (is_symlink) {
             e->set_entry_type(px::FileType::FileLink);
         } else {
-            e->set_entry_type(px::FileType::File);
+            e->set_entry_type(px::FileType::RegularFile);
             e->set_size(std::filesystem::file_size(p, sec));
             if (sec) e->set_size(0);
         }

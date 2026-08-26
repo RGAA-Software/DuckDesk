@@ -123,11 +123,12 @@ namespace px
         std::shared_ptr<VisitRecordOperator> visit_record_op_ = nullptr;
         std::shared_ptr<FileTransferRecordOperator> ft_record_op_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         // max speed of default ethernet
         uint64_t max_transmit_speed_ = 0;
         uint64_t max_receive_speed_ = 0;
         // statistics
-        PxStatistics* stat_ = nullptr;
+        std::shared_ptr<PxStatistics> stat_ = nullptr;
         // notify once flag
         std::once_flag notify_event_flag_;
         uint64_t notify_event_count_ = 0;

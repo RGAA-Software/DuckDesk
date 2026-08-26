@@ -29,11 +29,6 @@ namespace px
         app_ = app;
         context_ = app_->GetContext();
         clipboard_platform_ = clipboard::CreatePlatform();
-        msg_listener_ = context_->ObtainMessageListener();
-        msg_listener_->Listen<MsgRemoteClipboardResp>([=, this](const MsgRemoteClipboardResp& msg) {
-            SetRemoteClipboardEcho(msg.text_msg_);
-            LOGI("===> Remote is :{}", msg.text_msg_);
-        });
     }
 
     void WinMessageLoop::SetRemoteClipboardEcho(const std::string& text) {
@@ -49,7 +44,7 @@ namespace px
     }
 
     WinMessageLoop::~WinMessageLoop() {
-
+        Stop();
     }
 
     void WinMessageLoop::CreateMessageWindow() {
@@ -121,29 +116,60 @@ namespace px
     }
 
     void WinMessageLoop::Start() {
+        if (started_.exchange(true) || stopped_) {
+            return;
+        }
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgRemoteClipboardResp>([weak_self](const MsgRemoteClipboardResp& msg) {
+            if (const auto self = weak_self.lock(); self && !self->stopped_) {
+                self->SetRemoteClipboardEcho(msg.text_msg_);
+                LOGI("===> Remote is :{}", msg.text_msg_);
+            }
+        });
         CreateMessageWindow();
-        thread_ = std::thread(std::bind(&WinMessageLoop::ThreadFunc, this));
+        const auto message_window = message_window_;
+        thread_ = std::thread([message_window]() {
+            ThreadFunc(message_window);
+        });
     }
 
     void WinMessageLoop::Stop() {
+        if (stopped_.exchange(true)) {
+            return;
+        }
         LOGI("WinMessageLoop stopping...");
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
         if (clipboard_platform_) {
             clipboard_platform_->Clear();
         }
-        message_window_->CloseWindow();
-        if (thread_.joinable()) {
-            thread_.join();
+        if (message_window_) {
+            message_window_->CloseWindow();
         }
+        if (thread_.joinable()) {
+            if (thread_.get_id() == std::this_thread::get_id()) {
+                thread_.detach();
+            }
+            else {
+                thread_.join();
+            }
+        }
+        message_window_.reset();
+        context_.reset();
+        app_.reset();
         LOGI("WinMessageLoop stoped.");
     }
 
-    void WinMessageLoop::ThreadFunc() {
-        if (!message_window_->Create(kWindowName)) {
+    void WinMessageLoop::ThreadFunc(const std::shared_ptr<WinMessageWindow>& message_window) {
+        if (!message_window || !message_window->Create(kWindowName)) {
             LOGE("WinMessageLoop create window error.");
             return;
         }
         LOGI("WinMessageWindow create success");
-        HWND hwnd = message_window_->GetHwnd();
+        HWND hwnd = message_window->GetHwnd();
         if (!hwnd) {
             LOGE("WinMessageLoop hwnd is nullptr.");
             return;

@@ -11,8 +11,8 @@ namespace px
         msg_notifier_ = notifier;
     }
 
-    std::shared_ptr<MessageListener> RelayContext::CreateMessageListener() {
-        return msg_notifier_->CreateListener();
+    std::shared_ptr<MessageListener> RelayContext::CreateMessageListener(MessageExecutionLane lane) {
+        return msg_notifier_->CreateListener(lane);
     }
 
 }

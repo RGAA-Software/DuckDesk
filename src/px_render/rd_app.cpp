@@ -86,6 +86,7 @@ namespace px
     }
 
     RdApplication::~RdApplication() {
+        Exit();
         LOGI("RdApplication dtor");
     }
 
@@ -143,7 +144,6 @@ namespace px
         // connect to service
         LOGI("Will connect the service!");
         service_client_ = std::make_shared<RenderServiceClient>(shared_from_this());
-        service_client_->Start();
 
         // connect panel
         LOGI("Will connect the panel!");
@@ -155,7 +155,8 @@ namespace px
         // encoder in thread
         encoder_thread_ = EncoderThread::Make(shared_from_this());
         // event bus listener
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
         // app shared info
         app_shared_info_ = AppSharedInfo::Make(context_);
 
@@ -163,6 +164,11 @@ namespace px
         InitAppTimer();
         // messages
         InitMessages();
+        // Register the application listeners before the service connection can
+        // publish MsgRenderConnected2Service.  The local service may accept the
+        // socket immediately; starting it earlier could lose that edge-triggered
+        // notification and skip restoration of persisted virtual-display state.
+        service_client_->Start();
         // global audio capture
         if (settings_->capture_.enable_audio_) {
             InitAudioCapture();
@@ -205,27 +211,36 @@ namespace px
                 if (capture_plugin_ && capture_plugin_->IsPluginEnabled()) {
                     LOGI("Use dda capture plugin.");
                     capture_plugin_->SetCaptureFps(settings_->encoder_.fps_);
-                    capture_plugin_->SetCaptureErrorCallback([=, this](const MonitorCaptureError& err) {
+                    const auto weak_self = weak_from_this();
+                    capture_plugin_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exit_app_) {
+                            return;
+                        }
                         LOGE("*** capture error: {}", (int)err);
                         // the callback runs on the capture thread, switching capture must be
                         // done on the main thread, otherwise stopping DDA would join itself.
-                        PostGlobalTask([=, this]() {
-                            if (IsCurrentGdiCapture()) {
+                        self->PostGlobalTask([weak_self]() {
+                            const auto self = weak_self.lock();
+                            if (!self || self->exit_app_) {
+                                return;
+                            }
+                            if (self->IsCurrentGdiCapture()) {
                                 LOGI("Already use GDI capture, ignore the error.");
                                 return;
                             }
-                            if (monitor_changed_) {
+                            if (self->monitor_changed_) {
                                 LOGI("Maybe montor changed, ignore this error now.");
                                 return;
                             }
                             // change to GDI
                             // capture_plugin_->DisablePlugin();
                             LOGI("Don't use DDA, will switch to GDI.");
-                            if (!SwitchGdiCapture() || !capture_plugin_) {
+                            if (!self->SwitchGdiCapture() || !self->capture_plugin_) {
                                 LOGE("Switch to GDI failed or no capture plugin available.");
                                 return;
                             }
-                            capture_plugin_->StartCapturing();
+                            self->capture_plugin_->StartCapturing();
                         });
                     });
                 }
@@ -298,17 +313,25 @@ namespace px
 
     void RdApplication::InitMessages() {
         auto weak_self = weak_from_this();
-        msg_listener_->Listen<MsgBeforeInject>([=, this](const MsgBeforeInject& msg) {
+        msg_listener_->Listen<MsgBeforeInject>([weak_self](const MsgBeforeInject& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
             // Prefer PrepareGameHookBoot() called synchronously before InjectDll.
             // This async path is a fallback only.
-            if (settings_->capture_.IsVideoInnerCapture()) {
-                this->PrepareGameHookBoot(msg.pid_);
+            if (self->settings_->capture_.IsVideoInnerCapture()) {
+                self->PrepareGameHookBoot(msg.pid_);
             }
         });
 
-        msg_listener_->Listen<MsgObsInjected>([=, this](const MsgObsInjected& msg) {
+        msg_listener_->Listen<MsgObsInjected>([weak_self](const MsgObsInjected& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
             // Game-hook audio: start/restart host capture as PID process-loopback (never device mix).
-            if (!settings_->capture_.IsVideoInnerCapture() || msg.pid_ == 0) {
+            if (!self->settings_->capture_.IsVideoInnerCapture() || msg.pid_ == 0) {
                 return;
             }
             if (!PreferProcessLoopbackCapture()) {
@@ -319,7 +342,7 @@ namespace px
             // MUST NOT run MiniAudio/WASAPI ActivateAudioInterfaceAsync on the UI/message
             // thread: the async activation needs a pumping thread and will stall ~20s then
             // fail, producing no CaptureAudioFrame (video still works on other threads).
-            PostGlobalTask([weak_self, pid = msg.pid_]() {
+            self->PostGlobalTask([weak_self, pid = msg.pid_]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
                     LOGE("MsgObsInjected: cannot start PID audio (app/plugin missing) pid={}", pid);
@@ -366,8 +389,12 @@ namespace px
             });
         });
 
-        msg_listener_->Listen<MsgTimer16>([=, this](const MsgTimer16& msg) {
-            context_->PostTask([weak_self]() {
+        state_msg_listener_->Listen<MsgTimer16>([weak_self](const MsgTimer16&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->context_->PostTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -384,7 +411,7 @@ namespace px
                 }
             });
 
-            this->PostGlobalTask([weak_self]() {
+            self->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -393,8 +420,12 @@ namespace px
             });
         });
 
-        msg_listener_->Listen<MsgTimer100>([=, this](const MsgTimer100& msg) {
-            this->PostGlobalTask([weak_self]() {
+        state_msg_listener_->Listen<MsgTimer100>([weak_self](const MsgTimer100&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -404,50 +435,55 @@ namespace px
             });
         });
 
-        msg_listener_->Listen<MsgTimer1000>([=, this](const MsgTimer1000& msg) {
-            statistics_->IncreaseRunningTime();
+        state_msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->statistics_->IncreaseRunningTime();
 
-            auto plugin_manager = context_->GetPluginManager();
+            auto plugin_manager = self->context_->GetPluginManager();
             plugin_manager->On1Second();
 
 #if MEMORY_STST_ON
-            context_->PostTask([]() {
+            self->context_->PostTask([]() {
                 auto info = MemoryStat::Instance()->GetStatInfo();
                 LOGI("Memory usage: {}", info.Dump());
             });
 #endif
         });
 
-        msg_listener_->Listen<MsgClientConnected>([=, this](const MsgClientConnected& msg) {
+        msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
             // A reconnect during the grace window invalidates any shutdown
             // scheduled by the previous "last client disconnected" event.
             // Only connections with a stable id participate in game lifetime.
             // The transport name is deliberately not filtered: current web
             // clients may negotiate Direct, UDP or another registered net
             // plugin while preserving the same connect/disconnect id.
-            const bool tracked_game_client = settings_->IsGameHookMode()
+            const bool tracked_game_client = self->settings_->IsGameHookMode()
                 && !msg.conn_id_.empty();
             if (tracked_game_client) {
-                game_hook_has_seen_client_ = true;
-                std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
-                game_hook_client_ids_.insert(msg.conn_id_);
+                self->game_hook_has_seen_client_ = true;
+                std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+                self->game_hook_client_ids_.insert(msg.conn_id_);
             }
-            ++client_disconnect_generation_;
-            if (settings_->IsWebViewMode() && webview_runtime_) {
-                webview_runtime_->SetActive(true);
-                webview_runtime_->SendFocusEvent(true);
+            ++self->client_disconnect_generation_;
+            if (self->settings_->IsWebViewMode() && self->webview_runtime_) {
+                self->webview_runtime_->SetActive(true);
+                self->webview_runtime_->SendFocusEvent(true);
             }
-            this->PostGlobalTask([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || self->exit_app_) {
-                    return;
-                }
-
-            });
         });
 
-        msg_listener_->Listen<MsgClientHello>([=, this](const MsgClientHello& msg) {
-            this->PostGlobalTask([weak_self]() {
+        msg_listener_->Listen<MsgClientHello>([weak_self](const MsgClientHello&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -457,11 +493,15 @@ namespace px
             });
         });
 
-        msg_listener_->Listen<MsgClientDisconnected>([=, this](const MsgClientDisconnected& msg) {
-            if (settings_->IsWebViewMode()) {
-                const auto generation = ++client_disconnect_generation_;
-                auto weak_webview = weak_from_this();
-                context_->PostDelayTask([weak_webview, generation]() {
+        msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            if (self->settings_->IsWebViewMode()) {
+                const auto generation = ++self->client_disconnect_generation_;
+                const auto weak_webview = weak_self;
+                self->context_->PostDelayTask([weak_webview, generation]() {
                     const auto self = weak_webview.lock();
                     if (!self || self->exit_app_
                         || self->client_disconnect_generation_ != generation
@@ -473,18 +513,18 @@ namespace px
                 }, 100);
                 return;
             }
-            if (!settings_->IsGameHookMode()) {
+            if (!self->settings_->IsGameHookMode()) {
                 return;
             }
             bool removed_tracked_client = false;
             if (!msg.conn_id_.empty()) {
-                std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
-                removed_tracked_client = game_hook_client_ids_.erase(msg.conn_id_) > 0;
+                std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+                removed_tracked_client = self->game_hook_client_ids_.erase(msg.conn_id_) > 0;
             }
             // Still update the tracked set during startup so short-lived setup
             // sockets cannot keep the process alive.  Only the stop decision
             // is suppressed until the embedded web listener is ready.
-            if (!game_hook_startup_grace_complete_) {
+            if (!self->game_hook_startup_grace_complete_) {
                 LOGI("Ignore game-hook client-disconnect during startup grace period.");
                 return;
             }
@@ -492,19 +532,18 @@ namespace px
                 LOGI("Ignore untracked game-hook client-disconnect event.");
                 return;
             }
-            if (HasConnectedPeer()) {
+            if (self->HasConnectedPeer()) {
                 LOGI("Still has connected clients");
                 return;
             }
-            if (!game_hook_has_seen_client_) {
+            if (!self->game_hook_has_seen_client_) {
                 LOGW("Ignore game-hook client-disconnect before the first confirmed client connection.");
                 return;
             }
 
-            const auto generation = ++client_disconnect_generation_;
+            const auto generation = ++self->client_disconnect_generation_;
             LOGI("Last game-hook client disconnected; stop render in 5 seconds unless a client reconnects.");
-            auto weak_self = weak_from_this();
-            context_->PostDelayTask([weak_self, generation]() {
+            self->context_->PostDelayTask([weak_self, generation]() {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
                     return;
@@ -517,8 +556,12 @@ namespace px
             }, 5000);
         });
 
-        msg_listener_->Listen<ClipboardMessage>([=, this](const ClipboardMessage& msg) {
-            this->PostGlobalTask([weak_self, msg]() {
+        msg_listener_->Listen<ClipboardMessage>([weak_self](const ClipboardMessage& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->PostGlobalTask([weak_self, msg]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -528,8 +571,12 @@ namespace px
         });
 
         // DDA Init failed
-        msg_listener_->Listen<CaptureInitFailedMessage>([=, this](const CaptureInitFailedMessage& msg) {
-            this->PostGlobalTask([weak_self]() {
+        msg_listener_->Listen<CaptureInitFailedMessage>([weak_self](const CaptureInitFailedMessage&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -541,13 +588,30 @@ namespace px
         });
 
         // CaptureMonitorInfoMessage
-        msg_listener_->Listen<CaptureMonitorInfoMessage>([=, this](const CaptureMonitorInfoMessage& msg) {
-            this->PostGlobalTask([weak_self]() {
+        msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->PostGlobalTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
                 }
                 self->SendConfigurationBack();
+                if (self->settings_->virtual_display_enabled_ &&
+                    !self->settings_->IsGameHookMode()) {
+                    // The display driver may publish the Windows topology
+                    // notification before the Service operation response is
+                    // delivered. Query the authoritative ownership state after
+                    // that mutation has had a chance to commit, so a lost
+                    // response cannot leave connected clients on a stale count.
+                    self->context_->PostDelayTask([weak_self]() {
+                        if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                            self->RefreshVirtualDisplayStatus("render-monitor-query");
+                        }
+                    }, 500);
+                }
             });
         });
 
@@ -563,21 +627,22 @@ namespace px
                 self->settings_->IsGameHookMode()) {
                 return;
             }
-            const auto request_id = std::format("render-startup-query-{}", GetCurrentProcessId());
-            self->RequestVirtualDisplay(
-                request_id, kVirtualDisplayQuery, 1920, 1080, 60,
-                [](const MsgVirtualDisplayServiceResult&) {});
+            self->RefreshVirtualDisplayStatus("render-startup-query");
         });
 
-        msg_listener_->Listen<MsgReCreateRefresher>([=, this](const MsgReCreateRefresher& msg) {
+        msg_listener_->Listen<MsgReCreateRefresher>([weak_self](const MsgReCreateRefresher&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
             // report to Panel
             // !! USELESS !! Just report it
-            if (ws_panel_client_) {
-                ws_panel_client_->ReportMonitorChanged();
+            if (self->ws_panel_client_) {
+                self->ws_panel_client_->ReportMonitorChanged();
             }
 
-            monitor_changed_ = true;
-            context_->PostDelayTask([weak_self]() {
+            self->monitor_changed_ = true;
+            self->context_->PostDelayTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -586,34 +651,42 @@ namespace px
             }, 5000);
         });
 
-        msg_listener_->Listen<MsgModifyFps>([=, this](const MsgModifyFps& msg) {
-            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            if (capture_plugin_) {
-                settings_->encoder_.fps_ = msg.fps_;
-                capture_plugin_->SetCaptureFps(msg.fps_);
+        msg_listener_->Listen<MsgModifyFps>([weak_self](const MsgModifyFps& msg) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            std::lock_guard<std::mutex> lk(self->capture_plugin_mtx_);
+            if (self->capture_plugin_) {
+                self->settings_->encoder_.fps_ = msg.fps_;
+                self->capture_plugin_->SetCaptureFps(msg.fps_);
             }
         });
 
         // request from Remote Panel's context menu or same function
-        msg_listener_->Listen<MsgPanelStreamLockScreen>([=, this](const MsgPanelStreamLockScreen& msg) {
+        msg_listener_->Listen<MsgPanelStreamLockScreen>([](const MsgPanelStreamLockScreen& msg) {
             LOGI(" ** Panel request LockScreen from device: {}", msg.from_device_);
             Hardware::LockScreen();
         });
 
         // request from Remote Panel's context menu or same function
-        msg_listener_->Listen<MsgPanelStreamRestartDevice>([=, this](const MsgPanelStreamRestartDevice& msg) {
+        msg_listener_->Listen<MsgPanelStreamRestartDevice>([](const MsgPanelStreamRestartDevice& msg) {
             LOGI(" ** Panel request RestartDevice from device: {}", msg.from_device_);
             Hardware::RestartDevice();
         });
 
         // request from Remote Panel's context menu or same function
-        msg_listener_->Listen<MsgPanelStreamShutdownDevice>([=, this](const MsgPanelStreamShutdownDevice& msg) {
+        msg_listener_->Listen<MsgPanelStreamShutdownDevice>([](const MsgPanelStreamShutdownDevice& msg) {
             LOGI(" ** Panel request ShutdownDevice from device: {}", msg.from_device_);
             Hardware::ShutdownDevice();
         });
 
-        msg_listener_->Listen<MsgTimer20S>([=, this](const MsgTimer20S& msg) {
-            context_->PostTask([weak_self]() {
+        state_msg_listener_->Listen<MsgTimer20S>([weak_self](const MsgTimer20S&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
+                return;
+            }
+            self->context_->PostTask([weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
@@ -637,15 +710,19 @@ namespace px
         // a reason to restart it also terminates the game.  Game instances are
         // now lifecycle-managed by Console; without viewers they simply stop
         // capture/encode through the existing HasConnectedPeer gates.
-        msg_listener_->Listen<MsgTimer1Minute>([=, this](const MsgTimer1Minute&) {
-            if (settings_->IsGameHookMode()) {
+        state_msg_listener_->Listen<MsgTimer1Minute>([weak_self](const MsgTimer1Minute&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_) {
                 return;
             }
-            ++restart_counter_;
-            if (restart_counter_ >= 60 * 6) {
-                restart_counter_ = 0;
+            if (self->settings_->IsGameHookMode()) {
+                return;
+            }
+            ++self->restart_counter_;
+            if (self->restart_counter_ >= 60 * 6) {
+                self->restart_counter_ = 0;
 
-                if (HasConnectedPeer()) {
+                if (self->HasConnectedPeer()) {
                     return;
                 }
                 LOGW("** Don't have connected clients, will restart render now.");
@@ -655,14 +732,12 @@ namespace px
 
     }
 
-    void RdApplication::InitAudioCapture() {
+    void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
         auto weak_self = weak_from_this();
-        audio_encoder_plugin_ = plugin_manager_->GetAudioEncoderPlugin();
-        if (!audio_encoder_plugin_) {
+        if (exit_app_ || !audio_encoder_plugin_) {
             return;
         }
 
-        msg_listener_->Listen<CaptureAudioFrame>([=, this] (const CaptureAudioFrame& frame) {
             if (!HasConnectedPeer()) {
                 static thread_local uint64_t s_drop = 0;
                 if (++s_drop == 1 || (s_drop % 500) == 0) {
@@ -754,7 +829,14 @@ namespace px
                     });
                 });
             }
-        });
+    }
+
+    void RdApplication::InitAudioCapture() {
+        auto weak_self = weak_from_this();
+        audio_encoder_plugin_ = plugin_manager_->GetAudioEncoderPlugin();
+        if (!audio_encoder_plugin_) {
+            return;
+        }
 
         // WebView audio is delivered by CefAudioHandler, never by the OS
         // default device or another process's loopback stream.
@@ -782,8 +864,12 @@ namespace px
                      ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported());
             }
         } else {
-            audio_capture_thread_ = Thread::MakeOnceTask([=, this]() {
-                audio_capture_plugin_->StartProviding();
+            audio_capture_thread_ = Thread::MakeOnceTask([weak_self]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
+                    return;
+                }
+                self->audio_capture_plugin_->StartProviding();
             }, "global audio capture", false);
         }
     }
@@ -847,13 +933,6 @@ namespace px
             LOGI("Game-hook startup grace elapsed with no clients; stopping render.");
             ProcessUtil::KillProcess(GetCurrentProcessId());
         }, 15000);
-        msg_listener_->Listen<CaptureVideoFrame>([=, this](const CaptureVideoFrame& msg) {
-            if (!HasConnectedPeer()) {
-                return;
-            }
-            encoder_thread_->Encode(msg);
-        });
-
         LOGI("StartProcessWithHook: game_path={}, capture_method={}",
              settings_->app_.game_path_,
              (int)settings_->app_.inject_method_);
@@ -904,7 +983,7 @@ namespace px
             .on_audio_frame = [weak_self](const CaptureAudioFrame& frame) {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_app_) return;
-                self->context_->SendAppMessage(frame);
+                self->OnCapturedAudioFrame(frame);
             },
             .on_cursor = [weak_self](const CaptureCursorBitmap& cursor) {
                 const auto self = weak_self.lock();
@@ -974,46 +1053,6 @@ namespace px
     }
 
     void RdApplication::StartProcessWithScreenCapture() {
-        msg_listener_->Listen<CaptureVideoFrame>([=, this](const CaptureVideoFrame& msg) {
-            // todo: RtcLocal process
-            //
-
-            if (!HasConnectedPeer()) {
-                return;
-            }
-            bool only_audio_clients = true;
-            plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
-                if (plugin->IsWorking() && !plugin->IsOnlyAudioClients()) {
-                    only_audio_clients = false;
-                }
-            });
-            if (only_audio_clients) {
-                LOGI("Only audio clients, ignore video frame.");
-                return;
-            }
-
-            // calculate gaps between 2 captured frames.
-            //{
-            //    auto current_time = TimeUtil::GetCurrentTimestamp();
-            //    if (last_capture_screen_time_ == 0) {
-            //        last_capture_screen_time_ = current_time;
-            //    }
-            //    auto gap = current_time - last_capture_screen_time_;
-            //    last_capture_screen_time_ = current_time;
-            //    statistics_->AppendFrameGap(gap);
-            //}
-
-            // to encode
-            encoder_thread_->Encode(msg);
-        });
-
-        msg_listener_->Listen<CaptureCursorBitmap>([=, this](const CaptureCursorBitmap& cursor_msg) {
-            auto net_msg = NetMessageMaker::MakeCursorInfoSyncMsg(cursor_msg.x_, cursor_msg.y_, cursor_msg.hotspot_x_,
-                                                                  cursor_msg.hotspot_y_, cursor_msg.width_, cursor_msg.height_,
-                                                                  cursor_msg.visible_, cursor_msg.data_, cursor_msg.type_);
-            PostNetMessage(net_msg);
-        });
-
         if (capture_plugin_) {
             LOGI("Will start capturing by using: {}", capture_plugin_->GetPluginName());
             auto r = capture_plugin_->StartCapturing();
@@ -1033,15 +1072,49 @@ namespace px
         app_manager_->StartProcess();
     }
 
+    void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
+        if (exit_app_) {
+            return;
+        }
+        if (app_manager_) {
+            app_manager_->OnCapturedVideoFrame();
+        }
+        if (!HasConnectedPeer()) {
+            return;
+        }
+        if (!settings_->IsGameHookMode()) {
+            bool only_audio_clients = true;
+            plugin_manager_->VisitNetPlugins([&only_audio_clients](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                if (plugin->IsWorking() && !plugin->IsOnlyAudioClients()) {
+                    only_audio_clients = false;
+                }
+            });
+            if (only_audio_clients) {
+                LOGI("Only audio clients, ignore video frame.");
+                return;
+            }
+        }
+        encoder_thread_->Encode(frame);
+    }
+
+    void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {
+        if (exit_app_) {
+            return;
+        }
+        PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(
+            cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_,
+            cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
+    }
+
     void RdApplication::OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const {
         if (!HasConnectedPeer()) {
             return;
         }
-        encoder_thread_->Encode(*msg);
+        OnCapturedVideoFrame(*msg);
     }
 
-    void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) const {
-        // Same bus as MiniAudio / plugin audio capture → encode → clients.
+    void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
+        // In-process media path: do not enqueue high-rate PCM on the application bus.
         if (!context_) {
             LOGE("OnIpcAudioFrame: context_ null, drop frame idx={} pcm={}",
                  frame.frame_index_, frame.full_data_ ? frame.full_data_->Size() : 0);
@@ -1054,11 +1127,11 @@ namespace px
         }
         static thread_local uint64_t s_n = 0;
         if (++s_n == 1 || (s_n % 200) == 0) {
-            LOGI("OnIpcAudioFrame: n={} idx={} {}Hz {}ch {}bit bytes={} → bus", s_n,
+            LOGI("OnIpcAudioFrame: n={} idx={} {}Hz {}ch {}bit bytes={} → media", s_n,
                  frame.frame_index_, frame.samples_, frame.channels_, frame.bits_,
                  frame.full_data_->Size());
         }
-        context_->SendAppMessage(frame);
+        OnCapturedAudioFrame(frame);
     }
 
     bool RdApplication::HasConnectedPeer() const {
@@ -1519,11 +1592,44 @@ namespace px
     }
 
     void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
+        if (!result.accepted_) {
+            LOGW("Ignore failed virtual display status: request={}, code={}",
+                 result.request_id_, result.error_code_);
+            return;
+        }
+        const auto current_generation = virtual_display_topology_generation_.load();
+        if (result.topology_generation_ < current_generation) {
+            LOGW("Ignore stale virtual display status: request={}, incoming={}, current={}",
+                 result.request_id_, result.topology_generation_, current_generation);
+            return;
+        }
         virtual_display_owned_count_.store(result.owned_display_count_);
         virtual_display_topology_generation_.store(result.topology_generation_);
-        if (result.accepted_) {
-            SendConfigurationBack();
+        LOGI("Apply virtual display status: request={}, owned={}, generation={}",
+             result.request_id_, result.owned_display_count_, result.topology_generation_);
+        SendConfigurationBack();
+    }
+
+    void RdApplication::RefreshVirtualDisplayStatus(const std::string& request_prefix) {
+        if (exit_app_ || !settings_->virtual_display_enabled_ || settings_->IsGameHookMode()) {
+            return;
         }
+        const auto request_id = std::format(
+            "{}-{}-{}", request_prefix, GetCurrentProcessId(), GetTickCount64());
+        const auto weak_self = weak_from_this();
+        RequestVirtualDisplay(
+            request_id, kVirtualDisplayQuery, 1920, 1080, 60,
+            [weak_self](const MsgVirtualDisplayServiceResult& result) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_) {
+                    return;
+                }
+                self->PostGlobalTask([weak_self, result]() {
+                    if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                        self->UpdateVirtualDisplayStatus(result);
+                    }
+                });
+            });
     }
 
     void RdApplication::OnServiceRequestedStop() {
@@ -1531,10 +1637,12 @@ namespace px
         // broadcast kInstanceStopped to all RTC clients, then leave some time
         // for the message to be flushed out before exiting by ourselves
         PostNetMessage(NetMessageMaker::MakeInstanceStopped("stopped by Console"));
-        std::thread([this]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(400));
-            Exit();
-        }).detach();
+        const auto weak_self = weak_from_this();
+        context_->PostDelayTask([weak_self]() {
+            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                self->Exit();
+            }
+        }, 400);
     }
 
     std::shared_ptr<WinDesktopManager> RdApplication::GetDesktopManager() {
@@ -1668,12 +1776,17 @@ namespace px
     }
 
     void RdApplication::Exit() {
-        if (exit_app_) {
+        if (exit_app_.exchange(true)) {
             return;
         }
         // Flip the guard first so asynchronous callbacks stop touching the
         // pipeline while its owners are being released.
-        exit_app_ = true;
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+        }
         // stop the statistics reporting at first: it runs on the context task pool
         // and reads net plugins, so it must be silent before capturing stops
         if (statistics_) {
@@ -1735,6 +1848,10 @@ namespace px
             LOGI("RdApplication shutdown: encoder");
             encoder_thread_->Exit();
         }
+        if (plugin_manager_) {
+            LOGI("RdApplication shutdown: plug-in event routing");
+            plugin_manager_->StopRouting();
+        }
         LOGI("RdApplication shutdown: owners released");
 
         if (main_thread_id_ != 0) {
@@ -1755,7 +1872,9 @@ namespace px
     // The base destructor is invoked automatically after this destructor.
     // Calling it explicitly here destroyed the RdApplication subobject twice
     // and could terminate px_render with STATUS_HEAP_CORRUPTION on early exit.
-    WinApplication::~WinApplication() = default;
+    WinApplication::~WinApplication() {
+        Exit();
+    }
 
     int WinApplication::Run() {
         // WebView never injects the graphics hook and must not depend on the
@@ -1766,10 +1885,6 @@ namespace px
         return RdApplication::Run();
     }
 
-    void WinApplication::Exit() {
-        RdApplication::Exit();
-    }
-
     static std::function<BOOL(DWORD)> s_ctrl_handler;
     static BOOL ConsoleHandler(DWORD signal) {
         if (s_ctrl_handler) {
@@ -1778,11 +1893,22 @@ namespace px
         return FALSE;
     }
 
+    void WinApplication::Exit() {
+        SetConsoleCtrlHandler(ConsoleHandler, FALSE);
+        s_ctrl_handler = {};
+        RdApplication::Exit();
+    }
+
     void WinApplication::CaptureControlC() {
-        s_ctrl_handler = [this](DWORD signal) -> BOOL {
+        const auto weak_self = weak_from_this();
+        s_ctrl_handler = [weak_self](DWORD signal) -> BOOL {
             if (signal == CTRL_C_EVENT) {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return FALSE;
+                }
                 std::cout << "CTRL+C detected, localVar value is " << "\n";
-                this->Exit();
+                self->Exit();
                 return TRUE;
             }
             return FALSE;

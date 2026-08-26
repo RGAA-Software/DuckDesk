@@ -3,6 +3,7 @@
 //
 
 #include "float_sub_display_panel.h"
+#include <QPointer>
 #include "no_margin_layout.h"
 #include "switch_button.h"
 #include "background_widget.h"
@@ -102,8 +103,10 @@ namespace px
                 HideAllSubPanels();
                 if (cap_monitors_info_.monitors_.empty()) {
                     LOGE("Error monitor index, can not get MsgClientCaptureMonitor.");
-                    context_->PostUITask([=, this]() {
-                        context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_modify_display_settings_of_controlled"));
+                    const auto task_context = context_;
+                    context_->PostUITask([task_context]() {
+                        task_context->NotifyAppWarningMessage(
+                            tcTr("id_warning"), tcTr("id_modify_display_settings_of_controlled"));
                     });
                     return;
                 }
@@ -203,8 +206,11 @@ namespace px
         setLayout(root_layout);
 
         msg_listener_ = context_->ObtainUIMessageListener();
-        msg_listener_->Listen<MsgClientFullscreen>([=, this](const MsgClientFullscreen& msg) {
-            HideAllSubPanels();
+        const QPointer<SubDisplayPanel> guarded_self(this);
+        msg_listener_->Listen<MsgClientFullscreen>([guarded_self](const MsgClientFullscreen&) {
+            if (guarded_self) {
+                guarded_self->HideAllSubPanels();
+            }
         });
     }
 

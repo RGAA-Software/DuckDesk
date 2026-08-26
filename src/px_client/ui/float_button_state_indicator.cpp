@@ -6,6 +6,7 @@
 #include "key_state_panel.h"
 #include "no_margin_layout.h"
 #include "px_client/ct_client_context.h"
+#include <QPointer>
 
 namespace px
 {
@@ -44,39 +45,45 @@ namespace px
     }
 
     void FloatButtonStateIndicator::UpdateOnHeartBeat(std::shared_ptr<px::Message> msg) {
-        context_->PostUITask([=, this]() {
+        const QPointer<FloatButtonStateIndicator> guarded_self(this);
+        context_->PostUITask([guarded_self, msg = std::move(msg)]() {
+            if (!guarded_self || !msg) {
+                return;
+            }
             auto hb = msg->on_heartbeat();
             if (!hb.alt_pressed() && !hb.shift_pressed() && !hb.control_pressed() && !hb.win_pressed()) {
-                this->hide();
+                guarded_self->hide();
             } else {
-                this->show();
+                guarded_self->show();
             }
             if (hb.alt_pressed()) {
-                alt_item_->show();
+                guarded_self->alt_item_->show();
             } else {
-                alt_item_->hide();
+                guarded_self->alt_item_->hide();
             }
             if (hb.shift_pressed()) {
-                shift_item_->show();
+                guarded_self->shift_item_->show();
             } else {
-                shift_item_->hide();
+                guarded_self->shift_item_->hide();
             }
             if (hb.control_pressed()) {
-                control_item_->show();
+                guarded_self->control_item_->show();
             } else {
-                control_item_->hide();
+                guarded_self->control_item_->hide();
             }
             if (hb.win_pressed()) {
-                win_item_->show();
+                guarded_self->win_item_->show();
             } else {
-                win_item_->hide();
+                guarded_self->win_item_->hide();
             }
-            alt_item_->UpdateState(hb.alt_pressed());
-            shift_item_->UpdateState(hb.shift_pressed());
-            control_item_->UpdateState(hb.control_pressed());
-            win_item_->UpdateState(hb.win_pressed());
+            guarded_self->alt_item_->UpdateState(hb.alt_pressed());
+            guarded_self->shift_item_->UpdateState(hb.shift_pressed());
+            guarded_self->control_item_->UpdateState(hb.control_pressed());
+            guarded_self->win_item_->UpdateState(hb.win_pressed());
 
-            setFixedSize(QSize(alt_item_->width()*GetPressedCount(), alt_item_->height()));
+            guarded_self->setFixedSize(QSize(
+                guarded_self->alt_item_->width() * guarded_self->GetPressedCount(),
+                guarded_self->alt_item_->height()));
         });
     }
 

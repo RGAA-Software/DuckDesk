@@ -5,7 +5,9 @@
 #ifndef PX_STREAM_STATE_CHECKER_H
 #define PX_STREAM_STATE_CHECKER_H
 
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <functional>
@@ -26,6 +28,7 @@ namespace px
     class StreamStateChecker : public std::enable_shared_from_this<StreamStateChecker> {
     public:
         explicit StreamStateChecker(const std::shared_ptr<PxContext>& ctx);
+        ~StreamStateChecker();
         void Start();
         void Exit();
         void SetOnCheckedCallback(OnStreamStateCheckedCallback&&);
@@ -34,9 +37,10 @@ namespace px
         void CheckState(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items);
 
     private:
-        std::shared_ptr<PxContext> context_ = nullptr;
-        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::weak_ptr<PxContext> context_;
+        std::mutex callback_mtx_;
         OnStreamStateCheckedCallback on_checked_cbk_;
+        std::atomic_bool exiting_{false};
     };
 
 }

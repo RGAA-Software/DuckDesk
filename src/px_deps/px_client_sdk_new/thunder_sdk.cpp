@@ -601,7 +601,8 @@ namespace px
 
     void ThunderSdk::RegisterEventListeners() {
         const auto weak_self = weak_from_this();
-        msg_listener_ = msg_notifier_->CreateListener();
+        msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kState);
 
         // notify to net client
         msg_listener_->Listen<SdkMsgTimer16>([weak_self](const auto&) {
@@ -610,11 +611,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<SdkMsgTimer100>([](const auto&) {
-
-        });
-
-        msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
+        state_msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
             if (const auto owner = weak_self.lock()) {
                 owner->PostMiscTask([weak_self]() {
                     if (const auto self = weak_self.lock(); self && !self->exit_) {
@@ -624,10 +621,6 @@ namespace px
                     }
                 });
             }
-        });
-
-        msg_listener_->Listen<SdkMsgTimer2000>([](const auto&) {
-
         });
 
         // remote device offline
@@ -863,6 +856,7 @@ namespace px
         }
         LOGI("ThunderSdk start exiting.");
         msg_listener_.reset();
+        state_msg_listener_.reset();
         if (cast_receiver_) {
             cast_receiver_->Exit();
         }

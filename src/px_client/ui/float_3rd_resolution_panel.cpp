@@ -13,6 +13,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/message_notifier.h"
 #include <QLabel>
+#include <QPointer>
 #include <format>
 
 namespace px
@@ -31,9 +32,13 @@ namespace px
 
         listview_ = new SingleSelectedList(this);
         listview_->setFixedSize(QSize(ContentWidth() - 2*offset, ContentHeight()-2*offset));
+        const QPointer<ThirdResolutionPanel> guarded_self(this);
 
-        listview_->SetOnItemClickListener([=, this](int idx, QWidget*) {
-            auto item = listview_->GetItems().at(idx);
+        listview_->SetOnItemClickListener([guarded_self](int idx, auto) {
+            if (!guarded_self) {
+                return;
+            }
+            auto item = guarded_self->listview_->GetItems().at(idx);
             auto split_size = item->name_.split("x");
             if (split_size.size() < 2) {
                 return;
@@ -45,12 +50,12 @@ namespace px
                 return;
             }
 
-            auto monitor_name = monitor_.name_;
+            auto monitor_name = guarded_self->monitor_.name_;
             if (monitor_name.empty()) {
                 LOGE("Target monitor name is empty");
                 return;
             }
-            context_->SendAppMessage(MsgClientChangeMonitorResolution{
+            guarded_self->context_->SendAppMessage(MsgClientChangeMonitorResolution{
                 .monitor_name_ = monitor_name,
                 .width_ = width,
                 .height_ = height,
@@ -61,10 +66,14 @@ namespace px
         root_layout->addStretch();
         setLayout(root_layout);
 
-        msg_listener_->Listen<MsgClientMonitorChanged>([=, this](const MsgClientMonitorChanged& msg) {
-            context_->PostUITask([=, this]() {
-                this->SelectCapturingMonitorSize();
-            });
+        msg_listener_->Listen<MsgClientMonitorChanged>([guarded_self](const MsgClientMonitorChanged&) {
+            if (guarded_self) {
+                guarded_self->context_->PostUITask([guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->SelectCapturingMonitorSize();
+                    }
+                });
+            }
         });
     }
 

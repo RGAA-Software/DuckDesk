@@ -11,15 +11,14 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <climits>
+#include <cstdint>
 #include <iomanip>
 #include <cstring>
 #include <filesystem>
 
 #ifdef WIN32
 #include <Windows.h>
-#else
-#include <cerrno>
-#include <iconv.h>
 #endif
 
 #include "num_formatter.h"
@@ -117,7 +116,65 @@ namespace px
             }
             return result;
 #else
-            return ConvertWithIconv<wchar_t>(src, "WCHAR_T", "UTF-8");
+            std::wstring result;
+            result.reserve(src.size());
+            size_t offset = 0;
+            while (offset < src.size()) {
+                const auto lead = static_cast<uint8_t>(src[offset]);
+                uint32_t code_point = 0;
+                size_t continuation_count = 0;
+                if (lead <= 0x7f) {
+                    code_point = lead;
+                }
+                else if (lead >= 0xc2 && lead <= 0xdf) {
+                    code_point = lead & 0x1f;
+                    continuation_count = 1;
+                }
+                else if (lead >= 0xe0 && lead <= 0xef) {
+                    code_point = lead & 0x0f;
+                    continuation_count = 2;
+                }
+                else if (lead >= 0xf0 && lead <= 0xf4) {
+                    code_point = lead & 0x07;
+                    continuation_count = 3;
+                }
+                else {
+                    return {};
+                }
+
+                if (offset + continuation_count >= src.size()) {
+                    return {};
+                }
+                for (size_t index = 1; index <= continuation_count; ++index) {
+                    const auto continuation = static_cast<uint8_t>(src[offset + index]);
+                    if ((continuation & 0xc0) != 0x80) {
+                        return {};
+                    }
+                    code_point = (code_point << 6) | (continuation & 0x3f);
+                }
+                const bool overlong = (continuation_count == 1 && code_point < 0x80)
+                    || (continuation_count == 2 && code_point < 0x800)
+                    || (continuation_count == 3 && code_point < 0x10000);
+                if (overlong || code_point > 0x10ffff
+                    || (code_point >= 0xd800 && code_point <= 0xdfff)) {
+                    return {};
+                }
+
+#if WCHAR_MAX <= 0xffff
+                if (code_point <= 0xffff) {
+                    result.push_back(static_cast<wchar_t>(code_point));
+                }
+                else {
+                    code_point -= 0x10000;
+                    result.push_back(static_cast<wchar_t>(0xd800 + (code_point >> 10)));
+                    result.push_back(static_cast<wchar_t>(0xdc00 + (code_point & 0x3ff)));
+                }
+#else
+                result.push_back(static_cast<wchar_t>(code_point));
+#endif
+                offset += continuation_count + 1;
+            }
+            return result;
 #endif
         }
 
@@ -139,9 +196,32 @@ namespace px
             }
             return result;
 #else
-            const auto src_bytes = std::string_view(reinterpret_cast<const char*>(src.data()),
-                                                    src.size() * sizeof(wchar_t));
-            return ConvertWithIconv<char>(src_bytes, "UTF-8", "WCHAR_T");
+            std::string result;
+            result.reserve(src.size());
+            for (size_t index = 0; index < src.size(); ++index) {
+                uint32_t code_point = static_cast<uint32_t>(src[index]);
+#if WCHAR_MAX <= 0xffff
+                if (code_point >= 0xd800 && code_point <= 0xdbff) {
+                    if (++index >= src.size()) {
+                        return {};
+                    }
+                    const auto low = static_cast<uint32_t>(src[index]);
+                    if (low < 0xdc00 || low > 0xdfff) {
+                        return {};
+                    }
+                    code_point = 0x10000 + ((code_point - 0xd800) << 10) + (low - 0xdc00);
+                }
+                else if (code_point >= 0xdc00 && code_point <= 0xdfff) {
+                    return {};
+                }
+#endif
+                if (code_point > 0x10ffff
+                    || (code_point >= 0xd800 && code_point <= 0xdfff)) {
+                    return {};
+                }
+                AppendUtf8(result, code_point);
+            }
+            return result;
 #endif
         }
 
@@ -203,52 +283,26 @@ namespace px
         static std::string ToHexString(const std::vector<uint8_t>& data);
 
     private:
-#ifndef WIN32
-        template <typename CharT>
-        static std::basic_string<CharT> ConvertWithIconv(std::string_view src_bytes,
-                                                         const char* to_code,
-                                                         const char* from_code) {
-            if (src_bytes.empty()) {
-                return {};
+        static void AppendUtf8(std::string& result, uint32_t code_point) {
+            if (code_point <= 0x7f) {
+                result.push_back(static_cast<char>(code_point));
             }
-
-            iconv_t cd = iconv_open(to_code, from_code);
-            if (cd == reinterpret_cast<iconv_t>(-1)) {
-                return {};
+            else if (code_point <= 0x7ff) {
+                result.push_back(static_cast<char>(0xc0 | (code_point >> 6)));
+                result.push_back(static_cast<char>(0x80 | (code_point & 0x3f)));
             }
-
-            std::basic_string<CharT> result;
-            size_t out_capacity = std::max(static_cast<size_t>(16), src_bytes.size() + 1);
-            result.resize(out_capacity);
-
-            char* in_buf = const_cast<char*>(src_bytes.data());
-            size_t in_bytes_left = src_bytes.size();
-            char* out_buf = reinterpret_cast<char*>(result.data());
-            size_t out_bytes_left = result.size() * sizeof(CharT);
-
-            while (true) {
-                const size_t iconv_result = iconv(cd, &in_buf, &in_bytes_left, &out_buf, &out_bytes_left);
-                if (iconv_result != static_cast<size_t>(-1)) {
-                    break;
-                }
-
-                if (errno != E2BIG) {
-                    iconv_close(cd);
-                    return {};
-                }
-
-                const auto used_bytes = result.size() * sizeof(CharT) - out_bytes_left;
-                result.resize(result.size() * 2);
-                out_buf = reinterpret_cast<char*>(result.data()) + used_bytes;
-                out_bytes_left = result.size() * sizeof(CharT) - used_bytes;
+            else if (code_point <= 0xffff) {
+                result.push_back(static_cast<char>(0xe0 | (code_point >> 12)));
+                result.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3f)));
+                result.push_back(static_cast<char>(0x80 | (code_point & 0x3f)));
             }
-
-            const auto written_bytes = result.size() * sizeof(CharT) - out_bytes_left;
-            result.resize(written_bytes / sizeof(CharT));
-            iconv_close(cd);
-            return result;
+            else {
+                result.push_back(static_cast<char>(0xf0 | (code_point >> 18)));
+                result.push_back(static_cast<char>(0x80 | ((code_point >> 12) & 0x3f)));
+                result.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3f)));
+                result.push_back(static_cast<char>(0x80 | (code_point & 0x3f)));
+            }
         }
-#endif
     };
 
     // Helper: create std::filesystem::path from UTF-8 encoded std::string

@@ -6,6 +6,7 @@
 #include "app_color_theme.h"
 #include "px_common_new/log.h"
 #include "px_client/ct_client_context.h"
+#include <QPointer>
 #include <QTimer>
 #include <algorithm>
 
@@ -18,13 +19,16 @@ namespace px
         : FloatOverlayWindow(ctx, parent, QSize(48, 48), 24, 6, 0) {
         setObjectName("remoteControlFloatingButton");
         setAccessibleName(tr("Remote control menu"));
-        auto image = new QImage(":resources/px_icon.png");
-        pixmap_ = QPixmap::fromImage(*image);
+        const QImage image(":resources/px_icon.png");
+        pixmap_ = QPixmap::fromImage(image);
         pixmap_ = pixmap_.scaled(25, 25, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         setMouseTracking(true);
         this->setStyleSheet("background:#00000000;");
-        QTimer::singleShot(200, [=, this]() {
-            ReCalculatePosition();
+        const QPointer<FloatController> guarded_self(this);
+        QTimer::singleShot(200, [guarded_self]() {
+            if (guarded_self) {
+                guarded_self->ReCalculatePosition();
+            }
         });
     }
 

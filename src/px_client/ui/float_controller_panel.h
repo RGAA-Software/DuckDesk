@@ -5,6 +5,7 @@
 #ifndef GAMMARAYPC_FLOAT_CONTROLLER_PANEL_H
 #define GAMMARAYPC_FLOAT_CONTROLLER_PANEL_H
 #include <string>
+#include <QPointer>
 #include "float_overlay_window.h"
 #include "px_client/ct_app_message.h"
 #include "virtual_display_ui_state.h"
@@ -56,7 +57,7 @@ namespace px
         OnClickListener debug_listener_;
         OnClickListener file_trans_listener_;
         OnClickListener media_record_listener_;
-        std::map<SubPanelType, BaseWidget*> sub_panels_;
+        std::map<SubPanelType, QPointer<BaseWidget>> sub_panels_;
         std::vector<ComputerIcon*> computer_icons_;
         MsgClientCaptureMonitor capture_monitor_;
 

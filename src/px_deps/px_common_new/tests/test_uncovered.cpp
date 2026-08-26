@@ -5,7 +5,6 @@
 #include "px_common_new/num_formatter.h"
 #include "px_common_new/url_helper.h"
 #include "px_common_new/message_notifier.h"
-#include "px_common_new/message_looper.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/zip_util.h"
@@ -18,6 +17,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <thread>
 #include <chrono>
 #include "px_common_new/file.h"
@@ -96,6 +96,22 @@ TEST(TestUncovered, DataAtOutOfBounds) {
     EXPECT_EQ(data->At(-1), 0);
     EXPECT_EQ(data->At(3), 0);
     EXPECT_EQ(data->At(100), 0);
+}
+
+TEST(TestUncovered, DataCopyHasIndependentStorage) {
+    Data original("abcd", 4);
+    Data copied = original;
+    copied.DataAddr()[0] = 'z';
+
+    EXPECT_EQ(original.AsString(), "abcd");
+    EXPECT_EQ(copied.AsString(), "zbcd");
+}
+
+TEST(TestUncovered, DataMoveTransfersValueSafely) {
+    Data original("abcd", 4);
+    Data moved = std::move(original);
+    EXPECT_EQ(moved.AsString(), "abcd");
+    original.Reset();
 }
 
 TEST(TestUncovered, DataSaveAndLoad) {
@@ -183,45 +199,6 @@ TEST(TestUncovered, MessageNotifierUnListenAll) {
     EXPECT_EQ(received, 0);
 }
 
-// ========== MessageLooper ==========
-TEST(TestUncovered, MessageLooperPostAndExecute) {
-    MessageLooper looper(10);
-    std::atomic<int> count = 0;
-
-    std::thread t([&]() {
-        looper.Loop();
-    });
-
-    looper.Post([&]() { count.fetch_add(1); });
-    looper.Post([&]() { count.fetch_add(10); });
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    looper.Exit();
-    t.join();
-
-    EXPECT_EQ(count.load(), 11);
-}
-
-TEST(TestUncovered, MessageLooperMaxTasks) {
-    MessageLooper looper(2);
-    std::atomic<int> count = 0;
-
-    std::thread t([&]() {
-        looper.Loop();
-    });
-
-    looper.Post([&]() { count.store(1); });
-    looper.Post([&]() { count.store(2); });
-    looper.Post([&]() { count.store(3); }); // should drop oldest
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    looper.Exit();
-    t.join();
-
-    // oldest task dropped, only last 2 run
-    EXPECT_GE(count.load(), 2);
-}
-
 // ========== SharedPreference ==========
 TEST(TestUncovered, SharedPreferencePutGetRemove) {
     namespace fs = std::filesystem;
@@ -229,7 +206,7 @@ TEST(TestUncovered, SharedPreferencePutGetRemove) {
     fs::remove_all(tmp_dir);
     fs::create_directories(tmp_dir);
 
-    auto* sp = SharedPreference::Instance();
+    auto sp = SharedPreference::Instance();
     ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
     EXPECT_TRUE(sp->IsReady());
 
@@ -254,7 +231,7 @@ TEST(TestUncovered, SharedPreferenceVisit) {
     fs::remove_all(tmp_dir);
     fs::create_directories(tmp_dir);
 
-    auto* sp = SharedPreference::Instance();
+    auto sp = SharedPreference::Instance();
     ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
     sp->Put("a", "1");
     sp->Put("b", "2");
@@ -266,6 +243,35 @@ TEST(TestUncovered, SharedPreferenceVisit) {
         EXPECT_FALSE(val.empty());
     });
     EXPECT_EQ(count, 2);
+
+    sp->Release();
+    fs::remove_all(tmp_dir);
+}
+
+TEST(TestUncovered, SharedPreferenceVisitCallbackMayReenterDatabase) {
+    namespace fs = std::filesystem;
+    auto tmp_dir = fs::temp_directory_path() / "px_test_sp_reentrant_visit";
+    fs::remove_all(tmp_dir);
+    fs::create_directories(tmp_dir);
+
+    auto sp = SharedPreference::Instance();
+    ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
+    ASSERT_TRUE(sp->Put("a", "1"));
+    ASSERT_TRUE(sp->Put("b", "2"));
+
+    auto visit = std::async(std::launch::async, [sp]() {
+        int visited = 0;
+        sp->Visit([sp, &visited](const std::string& key, const std::string&) {
+            EXPECT_FALSE(sp->Get(key).empty());
+            EXPECT_TRUE(sp->Put("visited_" + key, "yes"));
+            ++visited;
+        });
+        return visited;
+    });
+    ASSERT_EQ(visit.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    EXPECT_EQ(visit.get(), 2);
+    EXPECT_EQ(sp->Get("visited_a"), "yes");
+    EXPECT_EQ(sp->Get("visited_b"), "yes");
 
     sp->Release();
     fs::remove_all(tmp_dir);

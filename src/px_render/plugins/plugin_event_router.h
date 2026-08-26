@@ -24,7 +24,7 @@ namespace px
     class PxPluginRemoteClipboardResp;
     class PxPluginPanelStreamMessage;
 
-    class PluginEventRouter {
+    class PluginEventRouter : public std::enable_shared_from_this<PluginEventRouter> {
     public:
         explicit PluginEventRouter(const std::shared_ptr<RdApplication>& app);
         void ProcessPluginEvent(const std::shared_ptr<PxPluginBaseEvent>& event);
@@ -46,7 +46,7 @@ namespace px
         std::shared_ptr<PluginStreamEventRouter> stream_event_router_ = nullptr;
         std::shared_ptr<PluginNetEventRouter> net_event_router_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        RdStatistics* stat_ = nullptr;
+        std::shared_ptr<RdStatistics> stat_ = nullptr;
 
     };
 

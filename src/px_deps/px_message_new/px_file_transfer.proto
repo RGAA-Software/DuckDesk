@@ -13,7 +13,7 @@ enum FileType {
   Dir = 0;
   DirLink = 2;
   DirDrive = 3;
-  File = 4;
+  RegularFile = 4;
   FileLink = 5;
 }
 

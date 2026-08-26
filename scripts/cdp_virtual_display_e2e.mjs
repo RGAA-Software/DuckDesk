@@ -31,6 +31,11 @@ const chrome = spawn(CHROME, [
   `--remote-debugging-port=${CDP_PORT}`,
   `--user-data-dir=${profile}`,
   '--no-first-run',
+  // The acceptance Console uses the repository's self-signed HTTPS
+  // certificate. A normal interactive browser keeps the user's explicit
+  // certificate exception; this fresh headless profile must opt in itself so
+  // topology-triggered ticket renewal exercises the real HTTPS endpoint.
+  '--ignore-certificate-errors',
   '--autoplay-policy=no-user-gesture-required',
   '--window-size=1600,900',
   'about:blank',
@@ -270,7 +275,6 @@ async function main() {
   const baselineNames = baseline.monitors.map((monitor) => monitor.name)
   const baselineMonitor = baseline.capturingMonitor || baselineNames[0]
   await recordStage('01_baseline_physical')
-
   await ensureFloatPanelControl('[data-testid="virtual-display-add"]')
   await screenshot('01b_floating_virtual_display_controls')
   await clickElement('[data-testid="virtual-display-add"]')

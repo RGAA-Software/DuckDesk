@@ -76,32 +76,47 @@ namespace px
     }
 
     void Workspace::ListenMultiMonDisplayModeMessage() {
-        msg_listener_->Listen<MsgClientMultiMonDisplayMode>([=, this](const MsgClientMultiMonDisplayMode& msg) {
-            context_->PostUITask([=, this]() {
-                multi_display_mode_ = msg.mode_;
-                if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
-                    if (monitors_count_ > 1) {
-                        setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(1)));
+        const std::weak_ptr<Workspace> weak_workspace =
+            std::static_pointer_cast<Workspace>(shared_from_this());
+        msg_listener_->Listen<MsgClientMultiMonDisplayMode>(
+            [weak_workspace](const MsgClientMultiMonDisplayMode& msg) {
+            const auto workspace = weak_workspace.lock();
+            if (!workspace) {
+                return;
+            }
+            workspace->context_->PostUITask([weak_workspace, msg]() {
+                const auto task_workspace = weak_workspace.lock();
+                if (!task_workspace) {
+                    return;
+                }
+                task_workspace->multi_display_mode_ = msg.mode_;
+                if (EMultiMonDisplayMode::kSeparate == task_workspace->multi_display_mode_) {
+                    if (task_workspace->monitors_count_ > 1) {
+                        task_workspace->setWindowTitle(
+                            task_workspace->origin_title_name_ +
+                            QStringLiteral(" (Desktop:%1)").arg(QString::number(1)));
                     }
                     else {
-                        setWindowTitle(origin_title_name_);
+                        task_workspace->setWindowTitle(task_workspace->origin_title_name_);
                     }
 
-                    for (const auto& index_name : monitor_index_map_name_) {
-                        if (game_views_.size() > index_name.first) {
-                            if (game_views_[index_name.first]) {
-                                game_views_[index_name.first]->SetMonitorName(index_name.second);
+                    for (const auto& index_name : task_workspace->monitor_index_map_name_) {
+                        if (task_workspace->game_views_.size() > index_name.first) {
+                            if (task_workspace->game_views_[index_name.first]) {
+                                task_workspace->game_views_[index_name.first]->SetMonitorName(
+                                    index_name.second);
                             }
                         }
                     }
                 }
-                else if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
-                    setWindowTitle(origin_title_name_);
-                    if (monitor_index_map_name_.count(msg.current_cap_mon_index_)) {
-                        game_views_[kMainGameViewIndex]->SetMonitorName(monitor_index_map_name_[msg.current_cap_mon_index_]);
+                else if (EMultiMonDisplayMode::kTab == task_workspace->multi_display_mode_) {
+                    task_workspace->setWindowTitle(task_workspace->origin_title_name_);
+                    if (task_workspace->monitor_index_map_name_.count(msg.current_cap_mon_index_)) {
+                        task_workspace->game_views_[kMainGameViewIndex]->SetMonitorName(
+                            task_workspace->monitor_index_map_name_[msg.current_cap_mon_index_]);
                     }
                 }
-                this->SendUpdateDesktopMessage();
+                task_workspace->SendUpdateDesktopMessage();
             });
         });
     }
@@ -313,30 +328,39 @@ namespace px
         UpdateGameViewsStatus(false);
 
         if (monitors_count_ > 1) {
-            std::call_once(send_split_windows_flag_, [this]() {
-                if (settings_->split_windows_) {
-                    this->SendSwitchMonitorMessage(kCaptureAllMonitorsSign);
+            const auto workspace = std::static_pointer_cast<Workspace>(shared_from_this());
+            std::call_once(send_split_windows_flag_, [workspace]() {
+                if (workspace->settings_->split_windows_) {
+                    workspace->SendSwitchMonitorMessage(kCaptureAllMonitorsSign);
                     LOGI("SendSwitchMonitorMessage(kCaptureAllMonitorsSign)");
                 }
             });
         }
 
-        std::call_once(layout_windows_, [=, this]() {
+        const std::weak_ptr<Workspace> weak_workspace =
+            std::static_pointer_cast<Workspace>(shared_from_this());
+        std::call_once(layout_windows_, [weak_workspace, monitors_count]() {
+            const auto workspace = weak_workspace.lock();
+            if (!workspace) {
+                return;
+            }
             if (monitors_count != 2) {
-                context_->PostDelayUITask([this]() {
-                    if (settings_->auto_layout_screens_) {
-                        this->showMaximized();
+                workspace->context_->PostDelayUITask([weak_workspace]() {
+                    if (const auto task_workspace = weak_workspace.lock();
+                        task_workspace && task_workspace->settings_->auto_layout_screens_) {
+                        task_workspace->showMaximized();
                     }
                 }, 100);
             }
             else {
-                context_->PostDelayUITask([=, this]() {
-                    if (settings_->auto_layout_screens_) {
+                workspace->context_->PostDelayUITask([weak_workspace, monitors_count]() {
+                    const auto task_workspace = weak_workspace.lock();
+                    if (task_workspace && task_workspace->settings_->auto_layout_screens_) {
                         // layout it
                         const auto screens = qApp->screens();
                         if (monitors_count == 2 && screens.size() == monitors_count) {
 
-                            this->showNormal();
+                            task_workspace->showNormal();
 
                             std::map<int, QScreen*> scs;
                             for (const auto& sc : screens) {
@@ -345,20 +369,20 @@ namespace px
                                 LOGI("===> Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
                             }
 
-                            if (game_views_.size() >= scs.size()) {
+                            if (task_workspace->game_views_.size() >= scs.size()) {
                                 int gv_index = 0;
                                 for (const auto& sc: scs | std::views::values) {
                                     if (gv_index == 0) {
                                         LOGI("===> 0 Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
-                                        auto ml = sc->geometry().left() + (sc->geometry().width() - this->width())/2;
-                                        auto mt = (sc->geometry().height() - this->height())/2;
-                                        this->move(ml, mt);
-                                        this->windowHandle()->setScreen(sc);
+                                        auto ml = sc->geometry().left() + (sc->geometry().width() - task_workspace->width())/2;
+                                        auto mt = (sc->geometry().height() - task_workspace->height())/2;
+                                        task_workspace->move(ml, mt);
+                                        task_workspace->windowHandle()->setScreen(sc);
                                     }
                                     else {
-                                        const auto view = game_views_[gv_index];
-                                        auto ml = sc->geometry().left() + (sc->geometry().width() - this->width())/2;
-                                        auto mt = (sc->geometry().height() - this->height())/2;
+                                        const auto view = task_workspace->game_views_[gv_index];
+                                        auto ml = sc->geometry().left() + (sc->geometry().width() - task_workspace->width())/2;
+                                        auto mt = (sc->geometry().height() - task_workspace->height())/2;
                                         view->move(ml, mt);
                                         if (const auto win = view->windowHandle()) {
                                             LOGI("===> 1 Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
@@ -369,9 +393,11 @@ namespace px
                                 }
                             }
 
-                            context_->PostDelayUITask([=, this]() {
-                                full_screen_ = true;
-                                this->UpdateGameViewsStatus(true);
+                            task_workspace->context_->PostDelayUITask([weak_workspace]() {
+                                if (const auto layout_workspace = weak_workspace.lock()) {
+                                    layout_workspace->full_screen_ = true;
+                                    layout_workspace->UpdateGameViewsStatus(true);
+                                }
                             }, 50);
                         }
                     }
@@ -447,21 +473,27 @@ namespace px
             }
             game_views_.push_back(game_view);
         }
-        QTimer::singleShot(1, this, [=, this]() {
+        const std::weak_ptr<Workspace> weak_workspace =
+            std::static_pointer_cast<Workspace>(shared_from_this());
+        QTimer::singleShot(1, this, [weak_workspace]() {
+            const auto workspace = weak_workspace.lock();
+            if (!workspace) {
+                return;
+            }
             {
                 QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
-                int x = (screenGeometry.width() - this->width()) / 2;
-                int y = (screenGeometry.height() - this->height()) / 2;
-                this->move(x, y);
+                int x = (screenGeometry.width() - workspace->width()) / 2;
+                int y = (screenGeometry.height() - workspace->height()) / 2;
+                workspace->move(x, y);
             }
 
-            QPoint ws_pos = this->pos();
+            QPoint ws_pos = workspace->pos();
             const int x_offset = 80;
             const int y_offset = 40;
             const int start_x = ws_pos.x();
             const int start_y = ws_pos.y();
             int index = 0;
-            for (auto game_view : game_views_) {
+            for (auto game_view : workspace->game_views_) {
                 if (!game_view) {
                     ++index;
                     continue;

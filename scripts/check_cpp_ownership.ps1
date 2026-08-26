@@ -56,17 +56,29 @@ try {
                 continue
             }
             $added = $line.Substring(1)
-            $isExistingPluginInstanceBoundary =
-                $currentFile -match '^src/px_deps/px_client_sdk_new/connection/webrtc(_local)?_connection\.cpp$' -and
-                $added -match 'rtc_lib_\s*=\s*new\s+QLibrary\('
-            if ($added -match '\[[^\]]*\bthis\b[^\]]*\]' -or
-                ($added -match '\bnew\s+[A-Za-z_:]' -and -not $isExistingPluginInstanceBoundary) -or
-                $added -match '\bdelete\s+[A-Za-z_]') {
-                $violations.Add("${currentFile}: $added")
+            # Comment-only additions cannot introduce ownership or lifetime
+            # behavior. Ignoring them also prevents prose such as "new path"
+            # from being mistaken for a C++ new-expression.
+            if ($added -match '^\s*(?://|/\*|\*|\*/)') {
+                continue
             }
-            # Function parameters and transient ABI casts are intentionally
-            # excluded by requiring a member-style trailing underscore.
-            if ($added -match '^\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_:<>]*\s*\*\s*[A-Za-z_][A-Za-z0-9_]*_\s*(?:=\s*nullptr\s*)?;') {
+            $isReviewedRawPointerBoundary =
+                $added -match 'NOLINT\(gammaray-raw-pointer-boundary\)'
+            if ($added -match '\[[^\]]*\bthis\b[^\]]*\]' -or
+                $added -match '\bnew\s+[A-Za-z_:]' -or
+                $added -match '\bdelete\s+[A-Za-z_]') {
+                if (-not $isReviewedRawPointerBoundary) {
+                    $violations.Add("${currentFile}: $added")
+                }
+            }
+            # New project code may not declare raw pointers, including locals,
+            # members, returns or parameters. A declaration forced by an
+            # external ABI requires the reviewed boundary annotation defined
+            # in docs/cpp_smart_pointer_standard.md.
+            $rawPointerAtLineStart = $added -match '^\s*(?:(?:static|const|constexpr|volatile|mutable|inline|virtual|typename)\s+)*(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
+            $rawPointerParameter = $added -match '[\(,]\s*(?:const\s+)?(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
+            if (($rawPointerAtLineStart -or $rawPointerParameter) -and
+                -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }
         }
@@ -76,7 +88,7 @@ try {
         Write-Error ("C++ ownership check failed ({0} violation(s)):`n{1}" -f
             $violations.Count, ($violations -join "`n"))
     }
-    Write-Host "C++ ownership check passed: no new raw ownership or [this] captures."
+    Write-Host "C++ ownership check passed: no new raw-pointer declarations, manual ownership, or [this] captures."
 }
 finally {
     Pop-Location

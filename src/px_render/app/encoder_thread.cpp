@@ -81,7 +81,9 @@ namespace px
 {
 
     std::shared_ptr<EncoderThread> EncoderThread::Make(const std::shared_ptr<RdApplication>& app) {
-        return std::make_shared<EncoderThread>(app);
+        auto encoder = std::make_shared<EncoderThread>(app);
+        encoder->InitListener();
+        return encoder;
     }
 
     EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app) {
@@ -98,17 +100,29 @@ namespace px
         // frame carrier
         frame_carrier_plugin_ = plugin_manager_->GetFrameCarrierPlugin();
 
-        msg_listener_ = context_->CreateMessageListener();
-        msg_listener_->Listen<MsgInsertKeyFrame>([=, this](const MsgInsertKeyFrame& msg) {
+    }
+
+    EncoderThread::~EncoderThread() {
+        Exit();
+    }
+
+    void EncoderThread::InitListener() {
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgInsertKeyFrame>([weak_self](const MsgInsertKeyFrame&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_ || !self->plugin_manager_) {
+                return;
+            }
             // plugins: InsertIdr
-            plugin_manager_->VisitEncoderPlugins([=](PxVideoEncoderPlugin* plugin) {
+            self->plugin_manager_->VisitEncoderPlugins([](PxVideoEncoderPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                 plugin->InsertIdr();
             });
         });
     }
 
     void EncoderThread::Encode(const CaptureVideoFrame& cap_video_msg) {
-        if (!frame_carrier_plugin_) {
+        if (exiting_ || !frame_carrier_plugin_) {
             return;
         }
         ++g_enc_diag.in_frames;
@@ -117,7 +131,18 @@ namespace px
         auto inflight_guard = std::shared_ptr<void>(nullptr, [](void*) {
             --g_enc_diag.in_flight;
         });
-        PostEncTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        PostEncTask([weak_self, cap_video_msg, inflight_guard]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            self->EncodeOnWorker(cap_video_msg, inflight_guard);
+        });
+    }
+
+    void EncoderThread::EncodeOnWorker(
+        CaptureVideoFrame cap_video_msg, const std::shared_ptr<void>& inflight_guard) {
             // 保持 inflight_guard 存活到本任务结束;若任务被队列挤掉未执行,lambda 析构时仍会 --in_flight
             (void)inflight_guard;
             auto diag_task_beg = TimeUtil::GetCurrentTimestamp();
@@ -144,14 +169,9 @@ namespace px
             // plugins: SharedTexture
             if (cap_video_msg.handle_ > 0) {
 
-                // all plugins   // to do 这里要不要考虑adapter_uid不合法的情况
-                //plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
-                //    plugin->d3d11_devices_[adapter_uid] = app_->GetD3DDevice(adapter_uid);
-                //    plugin->d3d11_devices_context_[adapter_uid] = app_->GetD3DContext(adapter_uid);
-                //});
-
-                context_->PostStreamPluginTask([=, this]() {
-                    plugin_manager_->VisitAllPlugins([=](PxPluginInterface* plugin) {
+                const auto plugin_manager = plugin_manager_;
+                context_->PostStreamPluginTask([plugin_manager, cap_video_msg]() {
+                    plugin_manager->VisitAllPlugins([cap_video_msg](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                         plugin->OnRawVideoFrameSharedTexture(cap_video_msg.display_name_,
                                                              cap_video_msg.frame_index_,
                                                              cap_video_msg.frame_width_,
@@ -338,7 +358,8 @@ namespace px
                 }
 
                 // all plugins
-                plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+                plugin_manager_->VisitAllPlugins(
+                    [adapter_uid, d3d_device, d3d_context](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                     plugin->d3d11_devices_[adapter_uid] = d3d_device;
                     plugin->d3d11_devices_context_[adapter_uid] = d3d_context;
                 });
@@ -474,8 +495,11 @@ namespace px
                 } ();
 
                 // plugins: VideoEncoderCreated
-                context_->PostStreamPluginTask([=, this]() {
-                    plugin_manager_->VisitStreamPlugins([=, this](PxStreamPlugin *plugin) {
+                const auto plugin_manager = plugin_manager_;
+                context_->PostStreamPluginTask(
+                    [plugin_manager, monitor_name, video_type, encoder_config]() {
+                    plugin_manager->VisitStreamPlugins(
+                        [monitor_name, video_type, encoder_config](PxStreamPlugin *plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                         plugin->OnVideoEncoderCreated(monitor_name, video_type, encoder_config.width, encoder_config.height);
                     });
                 });
@@ -567,18 +591,36 @@ namespace px
 
                     D3D11_TEXTURE2D_DESC desc;
                     target_texture->GetDesc(&desc);
-                    auto rgba_cbk = [=, this](const std::shared_ptr<Image> &image) {
+                    const auto weak_self = weak_from_this();
+                    auto rgba_cbk = [weak_self, monitor_name, cap_video_msg](
+                        const std::shared_ptr<Image>& image) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_ || !self->context_ || !self->plugin_manager_) {
+                            return;
+                        }
                         // callback in Enc thread
-                        context_->PostStreamPluginTask([=, this]() {
-                            plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+                        const auto plugin_manager = self->plugin_manager_;
+                        self->context_->PostStreamPluginTask(
+                            [plugin_manager, monitor_name, cap_video_msg, image]() {
+                            plugin_manager->VisitAllPlugins(
+                                [monitor_name, cap_video_msg, image](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                                 plugin->OnRawVideoFrameRgba(monitor_name, cap_video_msg.frame_index_, cap_video_msg.frame_width_, cap_video_msg.frame_height_, image);
                             });
                         });
                     };
-                    auto yuv_cbk = [=, this](const std::shared_ptr<Image> &image) {
+                    auto yuv_cbk = [weak_self, monitor_name, cap_video_msg, beg_map_texture,
+                                     can_encode_texture, frame_index](
+                        const std::shared_ptr<Image>& image) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_ || !self->context_ || !self->plugin_manager_) {
+                            return;
+                        }
                         // notify yuv
-                        context_->PostStreamPluginTask([=, this]() {
-                            plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface *plugin) {
+                        const auto plugin_manager = self->plugin_manager_;
+                        self->context_->PostStreamPluginTask(
+                            [plugin_manager, monitor_name, cap_video_msg, image]() {
+                            plugin_manager->VisitAllPlugins(
+                                [monitor_name, cap_video_msg, image](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                                 plugin->OnRawVideoFrameYuv(monitor_name, cap_video_msg.frame_index_, cap_video_msg.frame_width_, cap_video_msg.frame_height_, image);
                             });
                         });
@@ -586,27 +628,36 @@ namespace px
                         // calculate used time
                         auto end_map_cvt_texture = TimeUtil::GetCurrentTimestamp();
                         auto diff_map_cvt_texture = end_map_cvt_texture - beg_map_texture;
-                        stat_->CaptureInfo(monitor_name)->AppendMapCvtTextureDuration((int32_t)diff_map_cvt_texture);
+                        self->stat_->CaptureInfo(monitor_name)->AppendMapCvtTextureDuration((int32_t)diff_map_cvt_texture);
 
                         // callback in YUV converter thread
-                        if (target_encoder_plugin && !can_encode_texture) {
+                        if (!can_encode_texture && self->HasEncoderForMonitor(monitor_name)) {
                             auto enc_post_ts = TimeUtil::GetCurrentTimestamp();
                             ++g_enc_diag.enc_posts;
                             ++g_enc_diag.in_flight;
                             auto yuv_inflight = std::shared_ptr<void>(nullptr, [](void*) {
                                 --g_enc_diag.in_flight;
                             });
-                            PostEncTask([=, this]() {
+                            self->PostEncTask([weak_self, monitor_name, image, frame_index,
+                                               cap_video_msg, enc_post_ts, yuv_inflight]() {
+                                const auto self = weak_self.lock();
+                                if (!self || self->exiting_) {
+                                    return;
+                                }
                                 // yuv_inflight 捕获保活到任务结束(含被队列挤掉未执行)时再 --in_flight
                                 (void)yuv_inflight;
                                 auto enc_wait = TimeUtil::GetCurrentTimestamp() - enc_post_ts;
                                 g_enc_diag.enc_wait_sum += enc_wait;
                                 auto prev = g_enc_diag.enc_wait_max.load();
                                 while (enc_wait > prev && !g_enc_diag.enc_wait_max.compare_exchange_weak(prev, enc_wait)) {}
-                                auto encode_result = target_encoder_plugin->Encode(image, frame_index, cap_video_msg);
+                                const auto encoder_plugin = self->GetEncoderPluginForMonitor(monitor_name);
+                                if (!encoder_plugin) {
+                                    return;
+                                }
+                                auto encode_result = encoder_plugin->Encode(image, frame_index, cap_video_msg);
                                 if (!encode_result.Success()) {
                                     LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->, monitor: {}",
-                                         target_encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                         encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
                                     return;
                                 }
                             });
@@ -621,80 +672,129 @@ namespace px
                 //RdStatistics::Instance()->AppendEncodeDuration(diff);
             }
             else {
-                context_->PostStreamPluginTask([=, this]() {
-                    plugin_manager_->VisitStreamPlugins([=, this](PxStreamPlugin *plugin) {
+                const auto plugin_manager = plugin_manager_;
+                context_->PostStreamPluginTask([plugin_manager, monitor_name, frame_index,
+                                                 cap_video_msg]() {
+                    plugin_manager->VisitStreamPlugins(
+                        [monitor_name, frame_index, cap_video_msg](PxStreamPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                         plugin->OnRawVideoFrameRgba(monitor_name, frame_index, cap_video_msg.frame_width_, cap_video_msg.frame_height_, cap_video_msg.raw_image_);
                     });
                 });
 
                 auto beg_map_texture = TimeUtil::GetCurrentTimestamp();
+                const auto weak_self = weak_from_this();
 
-                auto rgba_cbk = [=, this](const std::shared_ptr<Image>& image) {
+                auto rgba_cbk = [weak_self, monitor_name, cap_video_msg](
+                    const std::shared_ptr<Image>& image) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_ || !self->plugin_manager_) {
+                        return;
+                    }
                     // callback in Enc thread
-                    context_->PostStreamPluginTask([=, this]() {
-                        plugin_manager_->VisitStreamPlugins([=, this](PxStreamPlugin* plugin) {
+                    const auto plugin_manager = self->plugin_manager_;
+                    self->context_->PostStreamPluginTask(
+                        [plugin_manager, monitor_name, cap_video_msg, image]() {
+                        plugin_manager->VisitStreamPlugins(
+                            [monitor_name, cap_video_msg, image](PxStreamPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                             plugin->OnRawVideoFrameRgba(monitor_name, cap_video_msg.frame_index_, cap_video_msg.frame_width_, cap_video_msg.frame_height_, image);
                         });
                     });
                 };
 
-                auto yuv_cbk = [=, this](const std::shared_ptr<Image>& image) {
+                auto yuv_cbk = [weak_self, monitor_name, cap_video_msg, frame_index,
+                                 beg_map_texture](const std::shared_ptr<Image>& image) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_ || !self->plugin_manager_) {
+                        return;
+                    }
                     // calculate used time
                     auto end_map_cvt_texture = TimeUtil::GetCurrentTimestamp();
                     auto diff_map_cvt_texture = end_map_cvt_texture - beg_map_texture;
-                    stat_->CaptureInfo(monitor_name)->AppendMapCvtTextureDuration((int32_t)diff_map_cvt_texture);
+                    self->stat_->CaptureInfo(monitor_name)->AppendMapCvtTextureDuration((int32_t)diff_map_cvt_texture);
 
                     // callback in YUV converter thread
-                    if (target_encoder_plugin) {
-                        PostEncTask([=, this]() {
-                            auto encode_result = target_encoder_plugin->Encode(image, frame_index, cap_video_msg);
+                    if (self->HasEncoderForMonitor(monitor_name)) {
+                        self->PostEncTask([weak_self, monitor_name, image, frame_index,
+                                           cap_video_msg]() {
+                            const auto self = weak_self.lock();
+                            if (!self || self->exiting_) {
+                                return;
+                            }
+                            const auto encoder_plugin = self->GetEncoderPluginForMonitor(monitor_name);
+                            if (!encoder_plugin) {
+                                return;
+                            }
+                            auto encode_result = encoder_plugin->Encode(image, frame_index, cap_video_msg);
                             if (!encode_result.Success()) {
                                 LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->{}, monitor: {}",
-                                     target_encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
-                                clear_encoders_ = true;
+                                     encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                self->clear_encoders_ = true;
                                 return;
                             }
                         });
                     }
-                    context_->PostStreamPluginTask([=, this]() {
+                    const auto plugin_manager = self->plugin_manager_;
+                    self->context_->PostStreamPluginTask(
+                        [plugin_manager, monitor_name, cap_video_msg, image]() {
                         // VisitAllPlugins:rtc_local 等 kNet 插件也要收裸帧通知
                         // (GDI/mock 时它靠这个驱动 WebRTC 视频源),与纹理路径一致
-                        plugin_manager_->VisitAllPlugins([=, this](PxPluginInterface* plugin) {
+                        plugin_manager->VisitAllPlugins(
+                            [monitor_name, cap_video_msg, image](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                             plugin->OnRawVideoFrameYuv(monitor_name, cap_video_msg.frame_index_, cap_video_msg.frame_width_, cap_video_msg.frame_height_, image);
                         });
                     });
                 };
                 frame_carrier_plugin_->ConvertRawImage(monitor_name, cap_video_msg.raw_image_, rgba_cbk, yuv_cbk);
             }
-        });
     }
 
     void EncoderThread::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
         if (enc_thread_) {
             enc_thread_->Exit();
+            enc_thread_->Clear();
+            enc_thread_.reset();
         }
+        app_.reset();
+        context_.reset();
+        plugin_manager_.reset();
+        stat_.reset();
+        frame_carrier_plugin_ = nullptr;
     }
 
     void EncoderThread::HandleD3DDeviceFailure(uint64_t adapter_uid) {
-        PostEncTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        PostEncTask([weak_self, adapter_uid]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
             LOGW("Reset encoder pipeline after D3D device failure, adapter_uid={}", adapter_uid);
             std::map<std::string, PxVideoEncoderPlugin*> working_plugins;
             {
-                std::lock_guard<std::mutex> lk(encoder_plugins_mtx_);
-                working_plugins.swap(encoder_plugins_);
+                std::lock_guard<std::mutex> lk(self->encoder_plugins_mtx_);
+                working_plugins.swap(self->encoder_plugins_);
             }
             for (const auto& [monitor_name, plugin] : working_plugins) {
                 if (plugin) {
                     plugin->Exit(monitor_name);
                 }
             }
-            last_video_frames_.clear();
-            clear_encoders_ = false;
+            self->last_video_frames_.clear();
+            self->clear_encoders_ = false;
         });
     }
 
     void EncoderThread::PostEncTask(std::function<void()>&& task) {
-        enc_thread_->Post(std::move(task));
+        if (!exiting_ && enc_thread_ && task) {
+            enc_thread_->Post(std::move(task));
+        }
     }
 
     std::map<std::string, PxVideoEncoderPlugin*> EncoderThread::GetWorkingVideoEncoderPlugins() {

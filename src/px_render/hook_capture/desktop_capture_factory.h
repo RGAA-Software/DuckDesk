@@ -21,6 +21,7 @@ namespace px
         static std::shared_ptr<DesktopCapture> Make(const std::shared_ptr<MessageNotifier>& msg_notifier, const std::string& monitor) {
             // windows
             auto capture =  std::make_shared<DDACapture>(msg_notifier, monitor);
+            capture->InitMessageListener();
             if (!capture->Init()) {
                 msg_notifier->SendAppMessage(CaptureInitFailedMessage {});
             }

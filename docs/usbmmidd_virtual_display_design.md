@@ -46,7 +46,10 @@ deviceinstaller64.exe enableidd 1
 deviceinstaller64.exe enableidd 0
 ```
 
-正式多屏控制不依赖上述粗粒度命令，而是移植 RustDesk 的 USBMMIDD 控制封装：
+正式多屏控制使用 RustDesk 同款 USBMMIDD IOCTL。交互会话 worker 通过活动显示
+适配器的 `DeviceString` 识别 `USB Mobile Monitor Virtual Display`，确认新增
+`DISPLAYn` 后设置分辨率；不要仅依赖 `EnumDisplayMonitors`，它可能在首个输出
+拓扑切换期间暂时漏掉已激活的适配器。
 
 - 设备接口 GUID：`{b5ffd75f-da40-4353-8ff8-b6daf6f1d8ca}`
 - IOCTL：`2307084`

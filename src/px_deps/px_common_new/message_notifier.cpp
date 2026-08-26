@@ -11,6 +11,7 @@
 #include <exception>
 #include <future>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +37,183 @@ namespace px
                    !target.compare_exchange_weak(current, value, std::memory_order_relaxed)) {
             }
         }
+
+        struct MessageLaneCounters {
+            std::atomic_uint64_t scheduled{0};
+            std::atomic_uint64_t completed{0};
+            std::atomic_uint64_t rejected{0};
+            std::atomic_uint64_t high_watermark{0};
+            std::atomic_uint64_t pending{0};
+
+            MessageBusLaneStatistics Snapshot() const {
+                MessageBusLaneStatistics result;
+                result.scheduled = scheduled.load(std::memory_order_relaxed);
+                result.completed = completed.load(std::memory_order_relaxed);
+                result.rejected = rejected.load(std::memory_order_relaxed);
+                result.high_watermark = high_watermark.load(std::memory_order_relaxed);
+                result.pending = pending.load(std::memory_order_relaxed);
+                return result;
+            }
+        };
+
+        class AsioRuntime {
+        public:
+            explicit AsioRuntime(std::size_t worker_threads)
+                : state_(std::make_shared<State>()),
+                  worker_threads_(std::max<std::size_t>(1, worker_threads)) {
+            }
+
+            ~AsioRuntime() {
+                Cancel();
+                Join();
+            }
+
+            void Start() {
+                std::lock_guard lock(join_mutex_);
+                if (!threads_.empty()) {
+                    return;
+                }
+                threads_.emplace_back(MakeRunner(RuntimeLane::kControl));
+                threads_.emplace_back(MakeRunner(RuntimeLane::kState));
+                for (std::size_t index = 0; index < worker_threads_; ++index) {
+                    threads_.emplace_back(MakeRunner(RuntimeLane::kWorker));
+                }
+            }
+
+            asio::io_context& ControlContext() {
+                return state_->control_context;
+            }
+
+            asio::io_context& StateContext() {
+                return state_->state_context;
+            }
+
+            asio::io_context& WorkerContext() {
+                return state_->worker_context;
+            }
+
+            bool IsControlThread() const {
+                std::lock_guard lock(state_->thread_ids_mutex);
+                return state_->control_thread_id == std::this_thread::get_id();
+            }
+
+            bool IsRuntimeThread() const {
+                std::lock_guard lock(state_->thread_ids_mutex);
+                return state_->thread_ids.contains(std::this_thread::get_id());
+            }
+
+            void ReleaseWork() {
+                bool expected = false;
+                if (!state_->work_released.compare_exchange_strong(
+                        expected, true, std::memory_order_acq_rel)) {
+                    return;
+                }
+                state_->control_guard.reset();
+                state_->state_guard.reset();
+                state_->worker_guard.reset();
+            }
+
+            void Cancel() {
+                ReleaseWork();
+                state_->control_context.stop();
+                state_->state_context.stop();
+                state_->worker_context.stop();
+            }
+
+            void Join() {
+                std::vector<std::thread> threads;
+                bool use_reaper = false;
+                {
+                    std::lock_guard lock(join_mutex_);
+                    if (threads_.empty()) {
+                        return;
+                    }
+                    use_reaper = IsRuntimeThread();
+                    threads.swap(threads_);
+                }
+
+                if (use_reaper) {
+                    std::thread([threads = std::move(threads)]() mutable {
+                        for (auto& thread : threads) {
+                            if (thread.joinable()) {
+                                thread.join();
+                            }
+                        }
+                    }).detach();
+                    return;
+                }
+                for (auto& thread : threads) {
+                    if (thread.joinable()) {
+                        thread.join();
+                    }
+                }
+            }
+
+        private:
+            enum class RuntimeLane {
+                kControl,
+                kState,
+                kWorker,
+            };
+
+            struct State {
+                State()
+                    : control_guard(asio::make_work_guard(control_context)),
+                      state_guard(asio::make_work_guard(state_context)),
+                      worker_guard(asio::make_work_guard(worker_context)) {
+                }
+
+                asio::io_context control_context;
+                asio::io_context state_context;
+                asio::io_context worker_context;
+                asio::executor_work_guard<asio::io_context::executor_type> control_guard;
+                asio::executor_work_guard<asio::io_context::executor_type> state_guard;
+                asio::executor_work_guard<asio::io_context::executor_type> worker_guard;
+                std::mutex thread_ids_mutex;
+                std::thread::id control_thread_id{};
+                std::set<std::thread::id> thread_ids;
+                std::atomic_bool work_released{false};
+            };
+
+            std::function<void()> MakeRunner(RuntimeLane lane) {
+                auto state = state_;
+                return [state, lane]() {
+                    const auto thread_id = std::this_thread::get_id();
+                    {
+                        std::lock_guard lock(state->thread_ids_mutex);
+                        state->thread_ids.insert(thread_id);
+                        if (lane == RuntimeLane::kControl) {
+                            state->control_thread_id = thread_id;
+                        }
+                    }
+
+                    switch (lane) {
+                    case RuntimeLane::kControl:
+                        state->control_context.run();
+                        break;
+                    case RuntimeLane::kState:
+                        state->state_context.run();
+                        break;
+                    case RuntimeLane::kWorker:
+                        state->worker_context.run();
+                        break;
+                    }
+
+                    {
+                        std::lock_guard lock(state->thread_ids_mutex);
+                        state->thread_ids.erase(thread_id);
+                        if (lane == RuntimeLane::kControl) {
+                            state->control_thread_id = {};
+                        }
+                    }
+                };
+            }
+
+            std::shared_ptr<State> state_;
+            const std::size_t worker_threads_;
+            std::mutex join_mutex_;
+            std::vector<std::thread> threads_;
+        };
     }
 
     class MessageListenerRegistration {
@@ -48,11 +226,13 @@ namespace px
     class MessageListenerState {
     public:
         MessageListenerState(const std::weak_ptr<MessageNotifierCore>& core,
+                             MessageExecutionLane lane,
                              MessageExecutor executor)
-            : core_(core), executor_(std::move(executor)) {
+            : core_(core), lane_(lane), executor_(std::move(executor)) {
         }
 
         std::weak_ptr<MessageNotifierCore> core_;
+        MessageExecutionLane lane_ = MessageExecutionLane::kControl;
         MessageExecutor executor_;
         std::mutex registrations_mutex_;
         std::vector<std::shared_ptr<MessageListenerRegistration>> registrations_;
@@ -61,30 +241,18 @@ namespace px
 
     class MessageNotifierCore : public std::enable_shared_from_this<MessageNotifierCore> {
     public:
-        explicit MessageNotifierCore(std::size_t max_pending_messages)
-            : max_pending_messages_(std::max<std::size_t>(1, max_pending_messages)),
-              work_guard_(asio::make_work_guard(io_context_)) {
+        explicit MessageNotifierCore(MessageNotifierOptions options)
+            : max_pending_messages_(std::max<std::size_t>(1, options.max_pending_messages)),
+              max_state_callbacks_(std::max<std::size_t>(1, options.max_state_callbacks)),
+              max_worker_callbacks_(std::max<std::size_t>(1, options.max_worker_callbacks)),
+              runtime_(std::make_shared<AsioRuntime>(options.worker_threads)) {
             static_assert(ASIO_VERSION == PX_ASIO_VERSION,
                           "GammaRay and asio2 must use the configured standalone Asio version");
-        }
-
-        void Run() {
-            {
-                std::lock_guard lock(dispatch_thread_mutex_);
-                dispatch_thread_id_ = std::this_thread::get_id();
-            }
-            io_context_.run();
-            {
-                std::lock_guard lock(dispatch_thread_mutex_);
-                dispatch_thread_id_ = {};
-            }
-            stopped_.store(true, std::memory_order_release);
-            queue_idle_cv_.notify_all();
+            runtime_->Start();
         }
 
         bool IsDispatchThread() const {
-            std::lock_guard lock(dispatch_thread_mutex_);
-            return dispatch_thread_id_ == std::this_thread::get_id();
+            return runtime_->IsRuntimeThread();
         }
 
         void TrackListener(const std::shared_ptr<MessageListenerState>& state) {
@@ -209,27 +377,9 @@ namespace px
                             }
                         };
 
-                        if (state->executor_) {
-                            try {
-                                state->executor_(std::move(invoke));
-                            }
-                            catch (const std::exception& e) {
-                                if (auto core = weak_core.lock()) {
-                                    core->callback_exceptions_.fetch_add(1, std::memory_order_relaxed);
-                                }
-                                LOGE("Message listener executor threw; type={}, error={}",
-                                     message_type.name(), e.what());
-                            }
-                            catch (...) {
-                                if (auto core = weak_core.lock()) {
-                                    core->callback_exceptions_.fetch_add(1, std::memory_order_relaxed);
-                                }
-                                LOGE("Message listener executor threw unknown exception; type={}",
-                                     message_type.name());
-                            }
-                        }
-                        else {
-                            invoke();
+                        if (auto core = weak_core.lock()) {
+                            core->ScheduleInvocation(state->lane_, state->executor_,
+                                                     std::move(invoke), message_type);
                         }
                     });
             };
@@ -239,6 +389,80 @@ namespace px
                 return nullptr;
             }
             return registration;
+        }
+
+        void ScheduleInvocation(MessageExecutionLane lane,
+                                const MessageExecutor& executor,
+                                std::function<void()> invocation,
+                                std::type_index message_type) {
+            if (executor || lane == MessageExecutionLane::kUi) {
+                auto& counters = ui_lane_counters_;
+                if (!executor) {
+                    counters.rejected.fetch_add(1, std::memory_order_relaxed);
+                    LOGE("UI message listener has no executor; type={}", message_type.name());
+                    return;
+                }
+
+                counters.scheduled.fetch_add(1, std::memory_order_relaxed);
+                std::weak_ptr<MessageNotifierCore> weak_self = shared_from_this();
+                try {
+                    executor([weak_self, invocation = std::move(invocation)]() mutable {
+                        if (auto self = weak_self.lock()) {
+                            self->ExecuteLaneCallback(
+                                MessageExecutionLane::kUi, std::move(invocation));
+                        }
+                    });
+                }
+                catch (const std::exception& e) {
+                    counters.rejected.fetch_add(1, std::memory_order_relaxed);
+                    callback_exceptions_.fetch_add(1, std::memory_order_relaxed);
+                    LOGE("Message listener executor threw; type={}, error={}",
+                         message_type.name(), e.what());
+                }
+                catch (...) {
+                    counters.rejected.fetch_add(1, std::memory_order_relaxed);
+                    callback_exceptions_.fetch_add(1, std::memory_order_relaxed);
+                    LOGE("Message listener executor threw unknown exception; type={}",
+                         message_type.name());
+                }
+                return;
+            }
+
+            if (lane == MessageExecutionLane::kControl) {
+                control_lane_counters_.scheduled.fetch_add(1, std::memory_order_relaxed);
+                ExecuteLaneCallback(lane, std::move(invocation));
+                return;
+            }
+
+            auto& counters = LaneCounters(lane);
+            const auto limit = lane == MessageExecutionLane::kState
+                ? max_state_callbacks_ : max_worker_callbacks_;
+            auto pending = counters.pending.load(std::memory_order_relaxed);
+            while (pending < limit &&
+                   !counters.pending.compare_exchange_weak(
+                       pending, pending + 1, std::memory_order_acq_rel)) {
+            }
+            if (pending >= limit) {
+                counters.rejected.fetch_add(1, std::memory_order_relaxed);
+                LOGE("Message callback lane is full; type={}, lane={}, pending={}, limit={}",
+                     message_type.name(), static_cast<int>(lane), pending, limit);
+                return;
+            }
+
+            counters.scheduled.fetch_add(1, std::memory_order_relaxed);
+            UpdateMaximum(counters.high_watermark, pending + 1);
+            std::weak_ptr<MessageNotifierCore> weak_self = shared_from_this();
+            auto task = [weak_self, lane, invocation = std::move(invocation)]() mutable {
+                if (auto self = weak_self.lock()) {
+                    self->ExecuteQueuedLaneCallback(lane, std::move(invocation));
+                }
+            };
+            if (lane == MessageExecutionLane::kState) {
+                asio::post(runtime_->StateContext(), std::move(task));
+            }
+            else {
+                asio::post(runtime_->WorkerContext(), std::move(task));
+            }
         }
 
         void RemoveListeners(
@@ -275,49 +499,59 @@ namespace px
             auto& task_running = task_running_;
             auto& cancel_requested = cancel_requested_;
             auto& stopped = stopped_;
+            auto& state_pending = state_lane_counters_.pending;
+            auto& worker_pending = worker_lane_counters_.pending;
             std::unique_lock lock(queue_mutex_);
             return queue_idle_cv_.wait_for(lock, timeout, [&queue, &task_running,
-                                                           &cancel_requested, &stopped]() {
-                return (queue.empty() && !task_running) || cancel_requested ||
+                                                           &cancel_requested, &stopped,
+                                                           &state_pending, &worker_pending]() {
+                return (queue.empty() && !task_running &&
+                        state_pending.load(std::memory_order_acquire) == 0 &&
+                        worker_pending.load(std::memory_order_acquire) == 0) ||
+                       cancel_requested ||
                        stopped.load(std::memory_order_acquire);
             });
         }
 
         void Stop(MessageBusStopMode mode) {
             bool expected = false;
-            if (!stopping_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-                return;
-            }
-            accepting_.store(false, std::memory_order_release);
+            const bool first_stop = stopping_.compare_exchange_strong(
+                expected, true, std::memory_order_acq_rel);
+            if (first_stop) {
+                accepting_.store(false, std::memory_order_release);
 
-            if (mode == MessageBusStopMode::kCancel) {
-                DeactivateListeners();
-                {
-                    std::lock_guard lock(queue_mutex_);
-                    queue_.clear();
-                    cancel_requested_ = true;
+                if (mode == MessageBusStopMode::kCancel) {
+                    DeactivateListeners();
+                    {
+                        std::lock_guard lock(queue_mutex_);
+                        queue_.clear();
+                        cancel_requested_ = true;
+                    }
+                    queue_idle_cv_.notify_all();
+                    runtime_->Cancel();
                 }
+                else if (IsDispatchThread()) {
+                    {
+                        std::lock_guard lock(queue_mutex_);
+                        stop_when_idle_ = true;
+                    }
+                    MaybeFinishDrainStop();
+                }
+                else {
+                    // No public messages can enter after accepting_ was
+                    // cleared. The barrier proves all earlier messages and
+                    // queued state/worker callbacks have finished.
+                    (void)Flush(std::chrono::seconds(10));
+                    DeactivateListeners();
+                    runtime_->ReleaseWork();
+                }
+            }
+
+            runtime_->Join();
+            if (!runtime_->IsRuntimeThread()) {
+                stopped_.store(true, std::memory_order_release);
                 queue_idle_cv_.notify_all();
-                work_guard_.reset();
-                io_context_.stop();
-                return;
             }
-
-            if (IsDispatchThread()) {
-                std::lock_guard lock(queue_mutex_);
-                stop_when_idle_ = true;
-                if (queue_.empty()) {
-                    work_guard_.reset();
-                }
-                return;
-            }
-
-            // No public messages can enter after accepting_ was cleared. The
-            // barrier therefore proves all earlier messages have finished.
-            (void)Flush(std::chrono::seconds(10));
-            DeactivateListeners();
-            work_guard_.reset();
-            io_context_.stop();
         }
 
         MessageBusStatistics Statistics() const {
@@ -330,8 +564,12 @@ namespace px
             result.high_watermark = high_watermark_.load(std::memory_order_relaxed);
             {
                 std::lock_guard lock(queue_mutex_);
-                result.pending = queue_.size();
+            result.pending = queue_.size();
             }
+            result.control_lane = control_lane_counters_.Snapshot();
+            result.state_lane = state_lane_counters_.Snapshot();
+            result.worker_lane = worker_lane_counters_.Snapshot();
+            result.ui_lane = ui_lane_counters_.Snapshot();
             return result;
         }
 
@@ -346,7 +584,7 @@ namespace px
         };
 
         bool InvokeSync(std::function<void()>&& callback, std::chrono::milliseconds timeout) {
-            if (IsDispatchThread()) {
+            if (runtime_->IsControlThread()) {
                 callback();
                 return true;
             }
@@ -391,7 +629,8 @@ namespace px
                 return;
             }
             drain_scheduled_ = true;
-            asio::post(io_context_, [self = shared_from_this()]() { self->Drain(); });
+            asio::post(runtime_->ControlContext(),
+                       [self = shared_from_this()]() { self->Drain(); });
         }
 
         void Drain() {
@@ -408,11 +647,7 @@ namespace px
                     if (queue_.empty()) {
                         drain_scheduled_ = false;
                         queue_idle_cv_.notify_all();
-                        if (stop_when_idle_) {
-                            DeactivateListeners();
-                            work_guard_.reset();
-                        }
-                        return;
+                        break;
                     }
                     task = std::move(queue_.front());
                     queue_.pop_front();
@@ -441,11 +676,61 @@ namespace px
                     }
                 }
             }
+            MaybeFinishDrainStop();
         }
 
         void Dispatch(std::type_index message_type, const ErasedPayload& payload) {
             dispatcher_.direct_dispatch(message_type, payload);
             dispatched_.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        MessageLaneCounters& LaneCounters(MessageExecutionLane lane) {
+            switch (lane) {
+            case MessageExecutionLane::kControl:
+                return control_lane_counters_;
+            case MessageExecutionLane::kState:
+                return state_lane_counters_;
+            case MessageExecutionLane::kWorker:
+                return worker_lane_counters_;
+            case MessageExecutionLane::kUi:
+                return ui_lane_counters_;
+            }
+            return control_lane_counters_;
+        }
+
+        void ExecuteLaneCallback(MessageExecutionLane lane,
+                                 std::function<void()> invocation) {
+            if (invocation) {
+                invocation();
+            }
+            LaneCounters(lane).completed.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        void ExecuteQueuedLaneCallback(MessageExecutionLane lane,
+                                       std::function<void()> invocation) {
+            ExecuteLaneCallback(lane, std::move(invocation));
+            LaneCounters(lane).pending.fetch_sub(1, std::memory_order_acq_rel);
+            queue_idle_cv_.notify_all();
+            MaybeFinishDrainStop();
+        }
+
+        void MaybeFinishDrainStop() {
+            bool finish = false;
+            {
+                std::lock_guard lock(queue_mutex_);
+                finish = stop_when_idle_ && queue_.empty() && !task_running_ &&
+                    state_lane_counters_.pending.load(std::memory_order_acquire) == 0 &&
+                    worker_lane_counters_.pending.load(std::memory_order_acquire) == 0;
+                if (finish) {
+                    stop_when_idle_ = false;
+                }
+            }
+            if (finish) {
+                DeactivateListeners();
+                runtime_->ReleaseWork();
+                stopped_.store(true, std::memory_order_release);
+                queue_idle_cv_.notify_all();
+            }
         }
 
         void DeactivateListeners() {
@@ -459,12 +744,10 @@ namespace px
         }
 
         const std::size_t max_pending_messages_;
-        asio::io_context io_context_;
-        asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
+        const std::size_t max_state_callbacks_;
+        const std::size_t max_worker_callbacks_;
+        std::shared_ptr<AsioRuntime> runtime_;
         Dispatcher dispatcher_;
-
-        mutable std::mutex dispatch_thread_mutex_;
-        std::thread::id dispatch_thread_id_{};
 
         std::mutex listener_states_mutex_;
         std::vector<std::weak_ptr<MessageListenerState>> listener_states_;
@@ -487,43 +770,10 @@ namespace px
         std::atomic_uint64_t coalesced_{0};
         std::atomic_uint64_t callback_exceptions_{0};
         std::atomic_uint64_t high_watermark_{0};
-    };
-
-    class MessageNotifier::WorkerOwner {
-    public:
-        explicit WorkerOwner(const std::shared_ptr<MessageNotifierCore>& core)
-            : worker_([core]() { core->Run(); }) {
-        }
-
-        ~WorkerOwner() {
-            Join();
-        }
-
-        void Join() {
-            std::thread worker;
-            bool join_on_reaper = false;
-            {
-                // Move ownership before waiting. Holding join_mutex_ across
-                // join() can deadlock if a listener concurrently calls Stop().
-                std::lock_guard lock(join_mutex_);
-                if (!worker_.joinable()) {
-                    return;
-                }
-                join_on_reaper = worker_.get_id() == std::this_thread::get_id();
-                worker = std::move(worker_);
-            }
-
-            if (join_on_reaper) {
-                std::thread([worker = std::move(worker)]() mutable { worker.join(); }).detach();
-            }
-            else {
-                worker.join();
-            }
-        }
-
-    private:
-        std::mutex join_mutex_;
-        std::thread worker_;
+        MessageLaneCounters control_lane_counters_;
+        MessageLaneCounters state_lane_counters_;
+        MessageLaneCounters worker_lane_counters_;
+        MessageLaneCounters ui_lane_counters_;
     };
 
     MessageListener::MessageListener(const std::shared_ptr<MessageListenerState>& state)
@@ -572,8 +822,12 @@ namespace px
     }
 
     MessageNotifier::MessageNotifier(std::size_t max_pending_messages)
-        : core_(std::make_shared<MessageNotifierCore>(max_pending_messages)),
-          worker_(std::make_unique<WorkerOwner>(core_)) {
+        : MessageNotifier(MessageNotifierOptions{
+              .max_pending_messages = max_pending_messages}) {
+    }
+
+    MessageNotifier::MessageNotifier(MessageNotifierOptions options)
+        : core_(std::make_shared<MessageNotifierCore>(std::move(options))) {
     }
 
     MessageNotifier::~MessageNotifier() {
@@ -581,7 +835,15 @@ namespace px
     }
 
     std::shared_ptr<MessageListener> MessageNotifier::CreateListener(MessageExecutor executor) {
-        auto state = std::make_shared<MessageListenerState>(core_, std::move(executor));
+        const auto lane = executor
+            ? MessageExecutionLane::kUi : MessageExecutionLane::kControl;
+        return CreateListener(lane, std::move(executor));
+    }
+
+    std::shared_ptr<MessageListener> MessageNotifier::CreateListener(
+        MessageExecutionLane lane, MessageExecutor executor) {
+        auto state = std::make_shared<MessageListenerState>(
+            core_, lane, std::move(executor));
         if (core_) {
             core_->TrackListener(state);
         }
@@ -598,9 +860,6 @@ namespace px
     void MessageNotifier::Stop(MessageBusStopMode mode) {
         if (core_) {
             core_->Stop(mode);
-        }
-        if (worker_) {
-            worker_->Join();
         }
     }
 

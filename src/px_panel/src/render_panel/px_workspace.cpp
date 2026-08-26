@@ -626,84 +626,56 @@ namespace px
     }
 
     void PxWorkspace::InitListeners() {
-        msg_listener_ = app_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainUIMessageListener();
         QPointer<PxWorkspace> self(this);
-        msg_listener_->Listen<MsgTitleBarSettingsClicked>([=, this](const MsgTitleBarSettingsClicked& msg) {
-            app_->GetContext()->PostUITask([self]() {
-                if (!self) {
-                    return;
-                }
+        msg_listener_->Listen<MsgTitleBarSettingsClicked>([self](const MsgTitleBarSettingsClicked&) {
+            if (self) {
                 self->ChangeTab(TabName::kTabSettings);
-            });
+            }
         });
 
-        msg_listener_->Listen<MsgTitleBarAvatarClicked>([=, this](const MsgTitleBarAvatarClicked& msg) {
-            app_->GetContext()->PostUITask([=, this]() {
-
-            });
+        msg_listener_->Listen<MsgTitleBarAvatarClicked>([](const MsgTitleBarAvatarClicked&) {
         });
 
         // develop mode update
-        msg_listener_->Listen<MsgDevelopModeUpdated>([=, this](const MsgDevelopModeUpdated& msg) {
-            app_->GetContext()->PostUITask([self, msg]() {
-                if (!self) {
-                    return;
-                }
+        msg_listener_->Listen<MsgDevelopModeUpdated>([self](const MsgDevelopModeUpdated& msg) {
+            if (self) {
                 self->btn_exit_->setHidden(!msg.enabled_);
                 self->btn_uninstall_->setHidden(!msg.enabled_);
-            });
+            }
         });
 
         // force stop all programs
-        msg_listener_->Listen<MsgForceStopAllPrograms>([=, this](const MsgForceStopAllPrograms& msg) {
-            app_->GetContext()->PostUITask([self, msg]() {
-                if (!self) {
-                    return;
-                }
+        msg_listener_->Listen<MsgForceStopAllPrograms>([self](const MsgForceStopAllPrograms& msg) {
+            if (self) {
                 self->ForceStopAllPrograms(msg.uninstall_service_);
-            });
+            }
         });
 
         // clear data
-        msg_listener_->Listen<MsgForceClearProgramData>([=, this](const MsgForceClearProgramData& msg) {
-            context_->PostUITask([self]() {
-                if (!self) {
-                    return;
-                }
+        msg_listener_->Listen<MsgForceClearProgramData>([self](const MsgForceClearProgramData&) {
+            if (self) {
                 self->ClearUserInfo();
-            });
+            }
         });
 
         // check update
-        msg_listener_->Listen<MsgCheckUpdate>([=, this](const MsgCheckUpdate& msg) {
-            app_->GetContext()->PostUITask([self]() {
-                if (!self) {
-                    return;
-                }
+        msg_listener_->Listen<MsgCheckUpdate>([self](const MsgCheckUpdate&) {
+            if (self) {
                 self->CheckAppUpdate(true);
-            });
+            }
         });
 
         // update
-        msg_listener_->Listen<MsgGrTimer10H>([=, this](const MsgGrTimer10H& msg) {
-            {
-                app_->GetContext()->PostUITask([self]() {
-                    if (!self) {
-                        return;
-                    }
-                    self->CheckAppUpdate(false);
-                });
-
-                app_->GetContext()->PostTask([=]() {
-                    px::ClearOldDumps();
-                });
+        msg_listener_->Listen<MsgGrTimer10H>([self, context = context_](const MsgGrTimer10H&) {
+            if (!self) {
+                return;
             }
-
-            {
-                if (self) {
-                    self->CheckOffSiteUpdate();
-                }
-            }
+            self->CheckAppUpdate(false);
+            context->PostTask([]() {
+                px::ClearOldDumps();
+            });
+            self->CheckOffSiteUpdate();
         });
 
         msg_listener_->Listen<MsgPanelVoiceCallConsentRequest>(

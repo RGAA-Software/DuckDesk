@@ -188,7 +188,11 @@ impl SessionUsbMmIddBackend {
             nonce.clone(),
         ];
         self.process_manager
-            .start_process_as_active_user(&work_dir, &executable, &args)
+            // Display topology is owned by the logged-on desktop. Running the
+            // worker as SYSTEM merely assigned to that session can issue the
+            // driver IOCTL but cannot reliably observe or configure its
+            // DISPLAYn output. Keep this boundary on the real WTS user token.
+            .start_process_as_session_user(&work_dir, &executable, &args)
             .map_err(|err| UsbMmIddError::new("SESSION_WORKER_LAUNCH_FAILED", err))?;
 
         let worker_timeout = operation.timeout();
@@ -269,6 +273,27 @@ impl UsbMmIddBackend for SessionUsbMmIddBackend {
 }
 
 #[cfg(test)]
+fn identify_created_monitor(
+    before: &[MonitorSnapshot],
+    after: &[MonitorSnapshot],
+) -> Result<MonitorSnapshot, UsbMmIddError> {
+    let before_names: std::collections::HashSet<_> = before
+        .iter()
+        .map(|monitor| monitor.device_name.as_str())
+        .collect();
+    after
+        .iter()
+        .find(|monitor| !before_names.contains(monitor.device_name.as_str()))
+        .cloned()
+        .ok_or_else(|| {
+            UsbMmIddError::new(
+                "MONITOR_ENUMERATION_FAILED",
+                "USBMMIDD count increased but no new monitor could be identified",
+            )
+        })
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -300,5 +325,37 @@ mod tests {
         let response =
             SessionWorkerResponse::failure("nonce", UsbMmIddError::new("TEST", "failed"));
         assert!(response.into_result().is_err());
+    }
+
+    #[test]
+    fn identifies_the_new_monitor_by_device_name() {
+        let before = vec![MonitorSnapshot {
+            device_name: r"\\.\DISPLAY4".to_string(),
+            width: 1920,
+            height: 1080,
+            refresh_hz: 60,
+        }];
+        let added = MonitorSnapshot {
+            device_name: r"\\.\DISPLAY5".to_string(),
+            width: 1920,
+            height: 1080,
+            refresh_hz: 60,
+        };
+        assert_eq!(
+            identify_created_monitor(&before, &[before[0].clone(), added.clone()]).unwrap(),
+            added
+        );
+    }
+
+    #[test]
+    fn rejects_a_topology_change_without_a_new_monitor_identity() {
+        let monitor = MonitorSnapshot {
+            device_name: r"\\.\DISPLAY4".to_string(),
+            width: 1920,
+            height: 1080,
+            refresh_hz: 60,
+        };
+        let error = identify_created_monitor(&[monitor.clone()], &[monitor]).unwrap_err();
+        assert_eq!(error.code, "MONITOR_ENUMERATION_FAILED");
     }
 }

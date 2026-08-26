@@ -6,6 +6,7 @@
 #define TC_CLIENT_ANDROID_APPLICATION_H
 
 #include <jni.h>
+#include <atomic>
 #include <memory>
 #include <functional>
 
@@ -22,11 +23,12 @@ namespace px
 
     using OnNativeMessageCallback = std::function<void(const std::string&)>;
 
-    class Application {
+    class Application : public std::enable_shared_from_this<Application> {
     public:
         static std::shared_ptr<Application> Make(const JavaVM* vm);
 
         Application(const JavaVM* vm);
+        ~Application();
         std::shared_ptr<EnvWrapper> ObtainEnvWrapper();
 
         void Init(const std::shared_ptr<ThunderSdkParams>& params, JNIEnv* env, jobject surface, bool hw_codec, bool use_oes, int oes_tex_id);
@@ -68,8 +70,9 @@ namespace px
         int frame_height_ = 0;
         SdkCaptureMonitorInfo cap_mon_info_;
 
-        SdkStatistics* statistics_ = nullptr;
+        std::shared_ptr<SdkStatistics> statistics_ = nullptr;
         std::shared_ptr<ThunderSdkParams> sdk_params_ = nullptr;
+        std::atomic_bool exited_{false};
 
     };
 

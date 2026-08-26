@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "ct_virtual_display_protocol.h"
+#include "px_common_new/rtc_monitor_track_slots.h"
 #include "ui/virtual_display_ui_state.h"
 
 namespace px {
@@ -140,6 +141,24 @@ namespace px {
         EXPECT_EQ(second.find("native-1234-"), 0U);
     }
 
+    TEST(VirtualDisplayProtocolTest, NativeClientKeepsHealthyTransportForTopologyChange) {
+        EXPECT_EQ(NormalizeNativeVirtualDisplayResponseState(
+                      true, kVirtualDisplayNeedReconnect),
+                  kVirtualDisplayReady);
+        EXPECT_EQ(NormalizeNativeVirtualDisplayResponseState(
+                      true, kVirtualDisplayReady),
+                  kVirtualDisplayReady);
+    }
+
+    TEST(VirtualDisplayProtocolTest, NativeClientPreservesFailureState) {
+        EXPECT_EQ(NormalizeNativeVirtualDisplayResponseState(
+                      false, kVirtualDisplayFailed),
+                  kVirtualDisplayFailed);
+        EXPECT_EQ(NormalizeNativeVirtualDisplayResponseState(
+                      false, kVirtualDisplayNeedReconnect),
+                  kVirtualDisplayNeedReconnect);
+    }
+
     TEST(VirtualDisplayProtocolTest, RoundTripsRemoveRequestThroughProtobuf) {
         const auto original = MakeVirtualDisplayRequestMessage(
             "device", "stream", "remove-9", kRemoteVirtualDisplayRemoveLast,
@@ -150,6 +169,44 @@ namespace px {
         ASSERT_TRUE(parsed.ParseFromString(bytes));
         EXPECT_EQ(parsed.virtual_display_request().request_id(), "remove-9");
         EXPECT_EQ(parsed.virtual_display_request().operation(), kRemoteVirtualDisplayRemoveLast);
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, HotAddUsesFirstNegotiatedEmptySlot) {
+        std::vector<std::string> slots { "DISPLAY1", "", "", "" };
+
+        EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(slots, { "DISPLAY1", "DISPLAY44" }));
+        EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "DISPLAY44", "", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, RemovalReleasesSlotWithoutMovingActiveTracks) {
+        std::vector<std::string> slots { "DISPLAY1", "DISPLAY44", "", "" };
+
+        EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(slots, { "DISPLAY1" }));
+        EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "", "", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, ActiveAssignmentsSurviveEnumerationReorder) {
+        std::vector<std::string> slots { "DISPLAY1", "DISPLAY44", "", "" };
+
+        EXPECT_FALSE(ReconcileRtcMonitorTrackSlots(slots, { "DISPLAY44", "DISPLAY1" }));
+        EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "DISPLAY44", "", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, ReplacementReusesReleasedSlot) {
+        std::vector<std::string> slots { "DISPLAY1", "DISPLAY44", "DISPLAY45", "" };
+
+        EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(
+            slots, { "DISPLAY1", "DISPLAY45", "DISPLAY46" }));
+        EXPECT_EQ(slots, (std::vector<std::string> {
+            "DISPLAY1", "DISPLAY46", "DISPLAY45", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, NegotiatedCapacityIsNeverExceeded) {
+        std::vector<std::string> slots { "DISPLAY1", "DISPLAY2" };
+
+        EXPECT_FALSE(ReconcileRtcMonitorTrackSlots(
+            slots, { "DISPLAY1", "DISPLAY2", "DISPLAY3" }));
+        EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "DISPLAY2" }));
     }
 
 }

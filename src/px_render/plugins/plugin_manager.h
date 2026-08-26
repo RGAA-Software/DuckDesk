@@ -9,6 +9,7 @@
 #include <string>
 #include <map>
 #include <atomic>
+#include <mutex>
 #include <shared_mutex>
 #include "plugin_ids.h"
 #include "px_common_new/win32/dynamic_library.h"
@@ -42,6 +43,7 @@ namespace px
 
         void LoadAllPlugins();
         void RegisterPluginEventsCallback();
+        void StopRouting();
         void ReleaseAllPlugins();
         void ReleasePlugin(const std::string& name);
 
@@ -94,6 +96,7 @@ namespace px
         std::shared_mutex plugins_mtx_;
         std::map<std::string, PxPluginInterface*> plugins_;
         std::map<std::string, std::shared_ptr<DynamicLibrary>> plugin_libraries_;
+        std::mutex routing_mtx_;
         std::shared_ptr<PluginEventRouter> evt_router_ = nullptr;
         std::atomic_bool exiting_ = false;
     };

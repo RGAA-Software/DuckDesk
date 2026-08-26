@@ -18,6 +18,7 @@ namespace px
         static std::shared_ptr<CastReceiver> Make();
 
         CastReceiver();
+        ~CastReceiver();
 
         void Start();
         void Exit();

@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <future>
+#include <memory>
 
 #include "px_common_new/thread.h"
 
@@ -25,6 +26,61 @@ namespace px
         // idempotent after the worker requested exit from inside its task.
         worker->Exit();
         EXPECT_TRUE(worker->IsExit());
+    }
+
+    TEST(ThreadExitTest, LastOwnerMayBeReleasedInsideWorkerTask) {
+        auto worker = Thread::Make("last-owner-release", 4);
+        std::weak_ptr<Thread> weak_worker = worker;
+        auto callback_returned = std::make_shared<std::promise<void>>();
+        auto returned = callback_returned->get_future();
+
+        worker->Poll();
+        worker->Post([owned_worker = worker, callback_returned]() mutable {
+            owned_worker->Exit();
+            callback_returned->set_value();
+            owned_worker.reset();
+        });
+        worker.reset();
+
+        ASSERT_EQ(returned.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (!weak_worker.expired() && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::yield();
+        }
+        EXPECT_TRUE(weak_worker.expired());
+    }
+
+    TEST(ThreadExitTest, QueueOverflowCallbackMayReenterThread) {
+        auto worker = Thread::Make("overflow-reentry", 1);
+        auto callback_returned = std::make_shared<std::promise<void>>();
+        auto returned = callback_returned->get_future();
+        std::weak_ptr<Thread> weak_worker = worker;
+
+        worker->SetOnFrontTaskCallback([weak_worker, callback_returned](ThreadTaskPtr) {
+            if (auto owner = weak_worker.lock()) {
+                owner->Clear();
+            }
+            callback_returned->set_value();
+        });
+        worker->Post([]() {});
+        worker->Post([]() {});
+
+        EXPECT_EQ(returned.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+        worker->Exit();
+    }
+
+    TEST(ThreadExitTest, RepeatedStartStopIsStable) {
+        constexpr int kRoutineIterations = 10;
+        for (int iteration = 0; iteration < kRoutineIterations; ++iteration) {
+            auto worker = Thread::Make("repeat-start-stop", 4);
+            auto completed = std::make_shared<std::promise<void>>();
+            auto future = completed->get_future();
+            worker->Poll();
+            worker->Post([completed]() { completed->set_value(); });
+            ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+            worker->Exit();
+            EXPECT_TRUE(worker->IsExit());
+        }
     }
 
 }

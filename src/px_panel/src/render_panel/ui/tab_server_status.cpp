@@ -3,6 +3,7 @@
 //
 
 #include "tab_server_status.h"
+#include <QPointer>
 
 #include <QScrollBar>
 #include <QVBoxLayout>
@@ -420,55 +421,58 @@ namespace px
 
         // messages
         msg_listener_ = context_->ObtainUIMessageListener();
-        msg_listener_->Listen<MsgViGEmState>([=, this](const MsgViGEmState& state) {
-            context_->PostUITask([=, this]() {
-                this->RefreshVigemState(state.ok_);
+        QPointer<TabServerStatus> self(this);
+        msg_listener_->Listen<MsgViGEmState>([self](const MsgViGEmState& state) {
+            if (self) {
+                self->RefreshVigemState(state.ok_);
+            }
+        });
+
+        msg_listener_->Listen<MsgServerAlive>([self](const MsgServerAlive& state) {
+            if (self) {
+                self->RefreshServerState(state.alive_);
+            }
+        });
+
+        msg_listener_->Listen<MsgServiceAlive>([self](const MsgServiceAlive& state) {
+            if (self) {
+                self->RefreshServiceState(state.alive_);
+            }
+        });
+
+        msg_listener_->Listen<MsgGrTimer100>([self](const auto&) {
+            if (self) {
+                self->RefreshUIEverySecond();
+            }
+        });
+
+        msg_listener_->Listen<AppMsgRestartServer>([context = context_](const AppMsgRestartServer&) {
+            context->PostTask([context]() {
+                const auto srv_mgr = context->GetRenderController();
+                if (srv_mgr) {
+                    srv_mgr->ReStart();
+                    context->SendAppMessage(MsgServerAlive {.alive_ = false});
+                }
             });
         });
 
-        msg_listener_->Listen<MsgServerAlive>([=, this](const MsgServerAlive& state) {
-            context_->PostUITask([=, this]() {
-                this->RefreshServerState(state.alive_);
-            });
-        });
-
-        msg_listener_->Listen<MsgServiceAlive>([=, this](const MsgServiceAlive& state) {
-            context_->PostUITask([=, this]() {
-                this->RefreshServiceState(state.alive_);
-            });
-        });
-
-        msg_listener_->Listen<MsgGrTimer100>([=, this](const auto& m) {
-            context_->PostUITask([=, this]() {
-                this->RefreshUIEverySecond();
-            });
-        });
-
-        msg_listener_->Listen<AppMsgRestartServer>([=, this](const AppMsgRestartServer& msg) {
-            context_->PostTask([=, this]() {
-                RpRestartServer();
-            });
-        });
-
-       msg_listener_->Listen<MsgRunningGameIds>([=, this](const MsgRunningGameIds& msg) {
-           if (!lbl_running_games_) {
+       msg_listener_->Listen<MsgRunningGameIds>([self](const MsgRunningGameIds&) {
+           if (!self || !self->lbl_running_games_) {
                return;
            }
-            this->context_->PostUITask([=, this]() {
-                auto rgm = this->context_->GetRunGameManager();
-                auto running_games = rgm->GetRunningGames();
-                std::string running_games_name;
-                for (const auto& rg : running_games) {
-                    running_games_name = running_games_name
-                            .append(std::to_string(rg->game_->game_id_))
-                            .append(" - ")
-                            .append(rg->game_->game_name_).append("\n");
-                }
-                if (running_games_name.empty()) {
-                    running_games_name = "None";
-                }
-                lbl_running_games_->setText(running_games_name.c_str());
-            });
+            auto rgm = self->context_->GetRunGameManager();
+            auto running_games = rgm->GetRunningGames();
+            std::string running_games_name;
+            for (const auto& rg : running_games) {
+                running_games_name = running_games_name
+                        .append(std::to_string(rg->game_->game_id_))
+                        .append(" - ")
+                        .append(rg->game_->game_name_).append("\n");
+            }
+            if (running_games_name.empty()) {
+                running_games_name = "None";
+            }
+            self->lbl_running_games_->setText(running_games_name.c_str());
         });
     }
 

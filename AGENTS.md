@@ -6,6 +6,7 @@
 
 # Project-wide modern C++ ownership and asynchronous safety
 
+- **Hard gate for all new code:** New GammaRay-owned or project-maintained C++ code must not declare, store, return, pass, or capture raw pointers. This includes local variables, members, container elements, function parameters/results, callback parameters, and `this` captures. Use smart pointers or typed RAII handles from the first ownership boundary; a temporary local raw pointer is not an acceptable workaround.
 - This is a repository-wide rule for every C++ module, not a feature-local convention. Project C++ code must not store or capture raw pointers, including asynchronous `[this]` captures.
 - Existing legacy code in the scope of a change must be migrated to this rule as part of that change. New code must never add more raw-pointer lifetime debt.
 - Express exclusive ownership with `std::unique_ptr`, shared lifetime with `std::shared_ptr`, and non-owning asynchronous references with `std::weak_ptr` followed by `lock()` at the point of use.

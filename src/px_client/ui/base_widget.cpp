@@ -5,6 +5,7 @@
 #include "base_widget.h"
 #include "px_client/ct_client_context.h"
 #include "ct_app_message.h"
+#include <QPointer>
 namespace px
 {
 
@@ -14,9 +15,13 @@ namespace px
 
     void BaseWidget::CreateMsgListener() {
         msg_listener_ = context_->ObtainUIMessageListener();
-        msg_listener_->Listen<MsgClientFloatControllerPanelUpdate>([=, this](const MsgClientFloatControllerPanelUpdate& msg) {
-            UpdateStatus(msg);
-        });
+        const QPointer<BaseWidget> guarded_self(this);
+        msg_listener_->Listen<MsgClientFloatControllerPanelUpdate>(
+            [guarded_self](const MsgClientFloatControllerPanelUpdate& msg) {
+                if (guarded_self) {
+                    guarded_self->UpdateStatus(msg);
+                }
+            });
     }
 
     void BaseWidget::SetOnClickListener(OnClickListener&& l) {

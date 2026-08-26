@@ -1079,6 +1079,7 @@ public:
 
 	using node     = typename node_traits_type::node;
 	using node_ptr = typename node_traits_type::node_ptr;
+	using snapshot_type = std::vector<node_ptr>;
 
 	class handle_type : public std::weak_ptr<node>
 	{
@@ -1172,11 +1173,7 @@ public:
 
 	inline bool empty() const noexcept
 	{
-		// Don't lock the mutex for performance reason.
-		// !head still works even when the underlying raw pointer is garbled (for other thread is writting to head)
-		// And empty() doesn't guarantee the list is still empty after the function returned.
-		//std::lock_guard<mutex_type> guard(list_mtx_);
-
+		typename thread_type::template shared_lock<mutex_type> guard(list_mtx_);
 		return ! head;
 	}
 
@@ -1267,7 +1264,29 @@ public:
 
 	inline std::size_t size() const noexcept
 	{
+		typename thread_type::template shared_lock<mutex_type> guard(list_mtx_);
 		return size_;
+	}
+
+	// Capture strong references while holding the list lock, then invoke the
+	// callbacks after every container lock has been released. A listener that
+	// is removed after this snapshot may run once in the current dispatch, but
+	// it cannot be reached by a later snapshot.
+	snapshot_type snapshot() const
+	{
+		snapshot_type result;
+		typename thread_type::template shared_lock<mutex_type> guard(list_mtx_);
+		result.reserve(size_);
+
+		const counter_type counter = current_counter_.load(std::memory_order_acquire);
+		for (node_ptr n = head; n; n = n->next)
+		{
+			if (n->counter != removed_counter && counter >= n->counter)
+			{
+				result.emplace_back(n);
+			}
+		}
+		return result;
 	}
 
 	inline void clear() noexcept
@@ -1403,7 +1422,7 @@ public:
 	template <typename Func>
 	void for_each(Func && func) const
 	{
-		do_for_each_if([&func, this](node_ptr & n) -> bool
+		for_each_snapshot_if(snapshot(), [&func](node_ptr & n) -> bool
 		{
 			do_for_each_invoke<void>(func, n);
 			return true;
@@ -1413,25 +1432,49 @@ public:
 	template <typename Func>
 	bool for_each_if(Func && func) const
 	{
-		return do_for_each_if([&func, this](node_ptr & n) -> bool
+		return for_each_snapshot_if(snapshot(), [&func](node_ptr & n) -> bool
 		{
 			return do_for_each_invoke<bool>(func, n);
+		});
+	}
+
+	template <typename Func>
+	static void for_each_snapshot(const snapshot_type& nodes, Func&& func)
+	{
+		for_each_snapshot_if(nodes, [&func](node_ptr& n) -> bool
+		{
+			do_for_each_invoke<void>(func, n);
+			return true;
+		});
+	}
+
+	template <typename Func>
+	static bool for_each_snapshot_if(const snapshot_type& nodes, Func&& func)
+	{
+		for (const auto& item : nodes)
+		{
+			node_ptr n = item;
+			if (n && !func(n))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static void dispatch_snapshot(const snapshot_type& nodes, Args ...args)
+	{
+		for_each_snapshot_if(nodes, [&args...](node_ptr& n) -> bool
+		{
+			n->callback(args...);
+			return can_continue_invoking_type::can_continue_invoking(args...);
 		});
 	}
 
 #if !defined(__GNUC__) || __GNUC__ >= 5
 	void operator() (Args ...args) const
 	{
-		for_each_if([&args...](callback_type & cb) -> bool
-		{
-			// We can't use std::forward here, because if we use std::forward,
-			// for arg that is passed by value, and the callback prototype accepts it by value,
-			// std::forward will move it and may cause the original value invalid.
-			// That happens on any value-to-value passing, no matter the callback moves it or not.
-
-			cb(args...);
-			return can_continue_invoking_type::can_continue_invoking(args...);
-		});
+		dispatch_snapshot(snapshot(), args...);
 	}
 #else
 	// This is a patch version for GCC 4. It inlines the unrolled do_for_each_if.
@@ -1470,46 +1513,15 @@ public:
 #endif
 
 private:
-	template <typename F>
-	bool do_for_each_if(F && f) const
-	{
-		node_ptr n;
-
-		{
-			typename thread_type::template shared_lock<mutex_type> guard(list_mtx_);
-			n = head;
-		}
-
-		const counter_type counter = current_counter_.load(std::memory_order_acquire);
-
-		while(n)
-		{
-			if(n->counter != removed_counter && counter >= n->counter)
-			{
-				if(! f(n))
-				{
-					return false;
-				}
-			}
-
-			{
-				typename thread_type::template shared_lock<mutex_type> guard(list_mtx_);
-				n = n->next;
-			}
-		}
-
-		return true;
-	}
-
 	template <typename RT, typename Func>
-	inline auto do_for_each_invoke(Func && func, node_ptr & n) const
+	static inline auto do_for_each_invoke(Func && func, node_ptr & n)
 		-> typename std::enable_if<can_invoke<Func, node_wptr, callback_type &>::value, RT>::type
 	{
 		return func(node_wptr(n), n->callback);
 	}
 
 	template <typename RT, typename Func>
-	inline auto do_for_each_invoke(Func && func, node_ptr & n) const
+	static inline auto do_for_each_invoke(Func && func, node_ptr & n)
 		-> typename std::enable_if<can_invoke<Func, callback_type &>::value, RT>::type
 	{
 		return func(n->callback);
@@ -1712,6 +1724,7 @@ public:
 		std::function<ReturnType (Args...)>
 	>::type;
 	using callback_list_type = callback_list<EventTypeT, ReturnType (Args...), PolicyT>;
+	using callback_snapshot_type = typename callback_list_type::snapshot_type;
 
 	using listener_name_type = typename callback_list_type::listener_name_type;
 
@@ -2117,10 +2130,11 @@ public:
 
 	std::size_t get_listener_count(const event_type& e)
 	{
-		const callback_list_type* callable_list = do_find_callable_list(e);
-		if (callable_list)
+		typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
+		auto it = listener_map_.find(e);
+		if (it != listener_map_.end())
 		{
-			return callable_list->size();
+			return it->second.size();
 		}
 
 		return 0;
@@ -2183,10 +2197,11 @@ public:
 
 	bool has_any_listener(const event_type & e) const
 	{
-		const callback_list_type * callable_list = do_find_callable_list(e);
-		if(callable_list)
+		typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
+		auto it = listener_map_.find(e);
+		if (it != listener_map_.end())
 		{
-			return ! callable_list->empty();
+			return !it->second.empty();
 		}
 
 		return false;
@@ -2194,6 +2209,9 @@ public:
 
 	inline callback_list_type* find_listeners(const event_type & e)
 	{
+		// Legacy compatibility API. The returned address is only valid until the
+		// next dispatcher mutation. Concurrent code must use for_each or dispatch,
+		// both of which operate on a strong listener snapshot.
 		return do_find_callable_list(e);
 	}
 
@@ -2204,19 +2222,13 @@ public:
 	template<class Function>
 	inline listener_wptr find_listener_if(const event_type & e, Function&& pred)
 	{
-		typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
-
-		auto it1 = this->listener_map_.find(e);
-		if (it1 != this->listener_map_.end())
+		auto nodes = do_snapshot_callable_list(e);
+		for (const auto& node : nodes)
 		{
-			callback_list_type& cblist = it1->second;
-
-			for (auto it2 = cblist.begin(); it2 != cblist.end(); ++it2)
+			auto current = node;
+			if (current && pred(current))
 			{
-				if (pred(*it2))
-				{
-					return listener_wptr(*it2);
-				}
+				return listener_wptr(current);
 			}
 		}
 
@@ -2226,35 +2238,36 @@ public:
 	template <typename Func>
 	void for_each(Func&& func) const
 	{
-		typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
-
-		for (auto& [e, cblist] : this->listener_map_)
+		std::vector<callback_snapshot_type> snapshots;
 		{
-			std::ignore = e;
-			cblist.for_each(func);
+			typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
+			snapshots.reserve(listener_map_.size());
+			for (const auto& [e, cblist] : listener_map_)
+			{
+				std::ignore = e;
+				snapshots.emplace_back(cblist.snapshot());
+			}
+		}
+
+		for (const auto& snapshot : snapshots)
+		{
+			callback_list_type::for_each_snapshot(snapshot, func);
 		}
 	}
 
 	template <typename Func>
 	void for_each(const event_type & e, Func && func) const
 	{
-		const callback_list_type * callable_list = do_find_callable_list(e);
-		if(callable_list)
-		{
-			callable_list->for_each(std::forward<Func>(func));
-		}
+		auto snapshot = do_snapshot_callable_list(e);
+		callback_list_type::for_each_snapshot(snapshot, std::forward<Func>(func));
 	}
 
 	template <typename Func>
 	bool for_each_if(const event_type & e, Func && func) const
 	{
-		const callback_list_type * callable_list = do_find_callable_list(e);
-		if (callable_list)
-		{
-			return callable_list->for_each_if(std::forward<Func>(func));
-		}
-
-		return true;
+		auto snapshot = do_snapshot_callable_list(e);
+		return callback_list_type::for_each_snapshot_if(
+			snapshot, std::forward<Func>(func));
 	}
 
 	void dispatch(Args ...args) const
@@ -2294,14 +2307,22 @@ public:
 			return;
 		}
 
-		const callback_list_type * callable_list = do_find_callable_list(e);
-		if(callable_list)
-		{
-			(*callable_list)(std::forward<Args>(args)...);
-		}
+		auto snapshot = do_snapshot_callable_list(e);
+		callback_list_type::dispatch_snapshot(snapshot, std::forward<Args>(args)...);
 	}
 
 protected:
+	inline callback_snapshot_type do_snapshot_callable_list(const event_type& e) const
+	{
+		typename thread_type::template shared_lock<mutex_type> guard(listener_mtx_);
+		auto it = listener_map_.find(e);
+		if (it == listener_map_.end())
+		{
+			return {};
+		}
+		return it->second.snapshot();
+	}
+
 	inline const callback_list_type * do_find_callable_list(const event_type & e) const
 	{
 		return do_find_callable_list_helper(this, e);
@@ -2332,10 +2353,9 @@ private:
 	static auto do_find_callable_list_helper(T * self, const event_type & e)
 		-> typename std::conditional<std::is_const<T>::value, const callback_list_type *, callback_list_type *>::type
 	{
+		typename thread_type::template shared_lock<mutex_type> guard(self->listener_mtx_);
 		if (self->listener_map_.empty())
 			return nullptr;
-
-		typename thread_type::template shared_lock<mutex_type> guard(self->listener_mtx_);
 
 		auto it = self->listener_map_.find(e);
 		if(it != self->listener_map_.end())

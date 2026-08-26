@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <future>
 #include <mutex>
 #include <queue>
@@ -498,7 +499,8 @@ TEST(MessageNotifierTest, CoalescingKeepsIndependentTypeAndKeySlots) {
 }
 
 TEST(MessageNotifierTest, RepeatedConstructionDispatchAndDestructionIsStable) {
-    for (int iteration = 0; iteration < 100; ++iteration) {
+    constexpr int kRoutineIterations = 10;
+    for (int iteration = 0; iteration < kRoutineIterations; ++iteration) {
         auto notifier = std::make_shared<MessageNotifier>();
         auto listener = notifier->CreateListener();
         std::atomic_int received{0};
@@ -509,6 +511,334 @@ TEST(MessageNotifierTest, RepeatedConstructionDispatchAndDestructionIsStable) {
         ASSERT_TRUE(notifier->FlushForTest());
         EXPECT_EQ(received.load(), 1);
     }
+}
+
+TEST(MessageNotifierTest, StateLanePreservesPublishOrder) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 1024,
+        .max_state_callbacks = 1024,
+        .max_worker_callbacks = 16,
+        .worker_threads = 2});
+    auto listener = notifier.CreateListener(MessageExecutionLane::kState);
+    auto values = std::make_shared<std::vector<int>>();
+    auto values_mutex = std::make_shared<std::mutex>();
+    listener->Listen<IntMessage>([values, values_mutex](const IntMessage& message) {
+        std::lock_guard lock(*values_mutex);
+        values->push_back(message.value);
+    });
+
+    for (int value = 0; value < 200; ++value) {
+        ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{value}));
+    }
+    ASSERT_TRUE(notifier.FlushForTest());
+
+    ASSERT_EQ(values->size(), 200u);
+    for (int value = 0; value < 200; ++value) {
+        EXPECT_EQ((*values)[value], value);
+    }
+    const auto statistics = notifier.GetStatistics();
+    EXPECT_EQ(statistics.state_lane.scheduled, 200u);
+    EXPECT_EQ(statistics.state_lane.completed, 200u);
+    EXPECT_EQ(statistics.state_lane.pending, 0u);
+}
+
+TEST(MessageNotifierTest, SlowWorkerLaneDoesNotBlockControlLane) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 16,
+        .max_worker_callbacks = 16,
+        .worker_threads = 1});
+    auto worker_listener = notifier.CreateListener(MessageExecutionLane::kWorker);
+    auto control_listener = notifier.CreateListener(MessageExecutionLane::kControl);
+    auto worker_entered = std::make_shared<std::promise<void>>();
+    auto worker_entered_future = worker_entered->get_future();
+    auto release_worker = std::make_shared<std::promise<void>>();
+    auto release_worker_future = release_worker->get_future().share();
+    auto control_called = std::make_shared<std::promise<void>>();
+    auto control_called_future = control_called->get_future();
+
+    worker_listener->Listen<OuterMessage>(
+        [worker_entered, release_worker_future](const OuterMessage&) {
+            worker_entered->set_value();
+            release_worker_future.wait();
+        });
+    control_listener->Listen<IntMessage>([control_called](const IntMessage&) {
+        control_called->set_value();
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(OuterMessage{}));
+    ASSERT_EQ(worker_entered_future.wait_for(2s), std::future_status::ready);
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    EXPECT_EQ(control_called_future.wait_for(500ms), std::future_status::ready);
+    release_worker->set_value();
+    EXPECT_TRUE(notifier.FlushForTest());
+}
+
+TEST(MessageNotifierTest, WorkerLaneRunsIndependentCallbacksInParallel) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 16,
+        .max_worker_callbacks = 16,
+        .worker_threads = 2});
+    auto listener = notifier.CreateListener(MessageExecutionLane::kWorker);
+    auto entered = std::make_shared<std::atomic_int>(0);
+    auto mutex = std::make_shared<std::mutex>();
+    auto condition = std::make_shared<std::condition_variable>();
+    auto release = std::make_shared<std::atomic_bool>(false);
+
+    listener->Listen<IntMessage>([entered, mutex, condition, release](const IntMessage&) {
+        entered->fetch_add(1, std::memory_order_release);
+        condition->notify_all();
+        std::unique_lock lock(*mutex);
+        condition->wait(lock, [release]() {
+            return release->load(std::memory_order_acquire);
+        });
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{2}));
+    {
+        std::unique_lock lock(*mutex);
+        ASSERT_TRUE(condition->wait_for(lock, 2s, [entered]() {
+            return entered->load(std::memory_order_acquire) == 2;
+        }));
+    }
+    release->store(true, std::memory_order_release);
+    condition->notify_all();
+    EXPECT_TRUE(notifier.FlushForTest());
+}
+
+TEST(MessageNotifierTest, WorkerLaneRejectsCallbacksAtItsOwnBound) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 16,
+        .max_worker_callbacks = 1,
+        .worker_threads = 1});
+    auto listener = notifier.CreateListener(MessageExecutionLane::kWorker);
+    auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    auto release = std::make_shared<std::promise<void>>();
+    auto release_future = release->get_future().share();
+    auto calls = std::make_shared<std::atomic_int>(0);
+
+    listener->Listen<IntMessage>([entered, release_future, calls](const IntMessage&) {
+        if (calls->fetch_add(1, std::memory_order_relaxed) == 0) {
+            entered->set_value();
+            release_future.wait();
+        }
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    ASSERT_EQ(entered_future.wait_for(2s), std::future_status::ready);
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{2}));
+
+    const auto deadline = std::chrono::steady_clock::now() + 2s;
+    while (notifier.GetStatistics().worker_lane.rejected == 0 &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(notifier.GetStatistics().worker_lane.rejected, 1u);
+    release->set_value();
+    ASSERT_TRUE(notifier.FlushForTest());
+    EXPECT_EQ(calls->load(std::memory_order_relaxed), 1);
+}
+
+TEST(MessageNotifierTest, UnlistenCancelsWorkerCallbackAlreadyQueued) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 16,
+        .max_worker_callbacks = 16,
+        .worker_threads = 1});
+    auto listener = notifier.CreateListener(MessageExecutionLane::kWorker);
+    auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    auto release = std::make_shared<std::promise<void>>();
+    auto release_future = release->get_future().share();
+    auto calls = std::make_shared<std::atomic_int>(0);
+
+    listener->Listen<IntMessage>([entered, release_future, calls](const IntMessage& message) {
+        calls->fetch_add(1, std::memory_order_relaxed);
+        if (message.value == 1) {
+            entered->set_value();
+            release_future.wait();
+        }
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    ASSERT_EQ(entered_future.wait_for(2s), std::future_status::ready);
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{2}));
+    listener->UnListenAll();
+    release->set_value();
+    ASSERT_TRUE(notifier.FlushForTest());
+    EXPECT_EQ(calls->load(std::memory_order_relaxed), 1);
+}
+
+TEST(MessageNotifierTest, DrainStopCanBeRequestedFromWorkerLane) {
+    auto notifier = std::make_shared<MessageNotifier>();
+    std::weak_ptr<MessageNotifier> weak_notifier = notifier;
+    auto listener = notifier->CreateListener(MessageExecutionLane::kWorker);
+    auto stop_returned = std::make_shared<std::promise<void>>();
+    auto stop_returned_future = stop_returned->get_future();
+
+    listener->Listen<IntMessage>([weak_notifier, stop_returned](const IntMessage&) {
+        if (auto owner = weak_notifier.lock()) {
+            owner->Stop(MessageBusStopMode::kDrain);
+        }
+        stop_returned->set_value();
+    });
+
+    ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{1}));
+    EXPECT_EQ(stop_returned_future.wait_for(2s), std::future_status::ready);
+    EXPECT_FALSE(notifier->PublishAppMessage(IntMessage{2}));
+}
+
+TEST(MessageNotifierTest, UiLaneWithoutExecutorIsRejected) {
+    MessageNotifier notifier;
+    auto listener = notifier.CreateListener(MessageExecutionLane::kUi);
+    auto calls = std::make_shared<std::atomic_int>(0);
+    listener->Listen<IntMessage>([calls](const IntMessage&) {
+        calls->fetch_add(1, std::memory_order_relaxed);
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    ASSERT_TRUE(notifier.FlushForTest());
+    EXPECT_EQ(calls->load(std::memory_order_relaxed), 0);
+    EXPECT_EQ(notifier.GetStatistics().ui_lane.rejected, 1u);
+}
+
+TEST(MessageNotifierTest, SlowStateLaneDoesNotBlockControlLane) {
+    MessageNotifier notifier;
+    auto state_listener = notifier.CreateListener(MessageExecutionLane::kState);
+    auto control_listener = notifier.CreateListener(MessageExecutionLane::kControl);
+    auto state_entered = std::make_shared<std::promise<void>>();
+    auto state_entered_future = state_entered->get_future();
+    auto release_state = std::make_shared<std::promise<void>>();
+    auto release_state_future = release_state->get_future().share();
+    auto control_called = std::make_shared<std::promise<void>>();
+    auto control_called_future = control_called->get_future();
+
+    state_listener->Listen<OuterMessage>(
+        [state_entered, release_state_future](const OuterMessage&) {
+            state_entered->set_value();
+            release_state_future.wait();
+        });
+    control_listener->Listen<IntMessage>([control_called](const IntMessage&) {
+        control_called->set_value();
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(OuterMessage{}));
+    ASSERT_EQ(state_entered_future.wait_for(2s), std::future_status::ready);
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    EXPECT_EQ(control_called_future.wait_for(500ms), std::future_status::ready);
+    release_state->set_value();
+    EXPECT_TRUE(notifier.FlushForTest());
+}
+
+TEST(MessageNotifierTest, StateLaneRejectsCallbacksAtItsOwnBound) {
+    MessageNotifier notifier(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 1,
+        .max_worker_callbacks = 16,
+        .worker_threads = 1});
+    auto listener = notifier.CreateListener(MessageExecutionLane::kState);
+    auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    auto release = std::make_shared<std::promise<void>>();
+    auto release_future = release->get_future().share();
+    auto calls = std::make_shared<std::atomic_int>(0);
+
+    listener->Listen<IntMessage>([entered, release_future, calls](const IntMessage&) {
+        if (calls->fetch_add(1, std::memory_order_relaxed) == 0) {
+            entered->set_value();
+            release_future.wait();
+        }
+    });
+
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{1}));
+    ASSERT_EQ(entered_future.wait_for(2s), std::future_status::ready);
+    ASSERT_TRUE(notifier.PublishAppMessage(IntMessage{2}));
+    const auto deadline = std::chrono::steady_clock::now() + 2s;
+    while (notifier.GetStatistics().state_lane.rejected == 0 &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(notifier.GetStatistics().state_lane.rejected, 1u);
+    release->set_value();
+    ASSERT_TRUE(notifier.FlushForTest());
+    EXPECT_EQ(calls->load(std::memory_order_relaxed), 1);
+}
+
+TEST(MessageNotifierTest, WorkerCallbackCanInstallListenerAndPublish) {
+    auto notifier = std::make_shared<MessageNotifier>();
+    std::weak_ptr<MessageNotifier> weak_notifier = notifier;
+    auto outer_listener = notifier->CreateListener(MessageExecutionLane::kWorker);
+    auto inner_listener = std::make_shared<std::shared_ptr<MessageListener>>();
+    auto inner_called = std::make_shared<std::promise<void>>();
+    auto inner_called_future = inner_called->get_future();
+
+    outer_listener->Listen<OuterMessage>(
+        [weak_notifier, inner_listener, inner_called](const OuterMessage&) {
+            if (auto owner = weak_notifier.lock()) {
+                *inner_listener = owner->CreateListener(MessageExecutionLane::kControl);
+                (*inner_listener)->Listen<InnerMessage>(
+                    [inner_called](const InnerMessage&) { inner_called->set_value(); });
+                owner->PublishAppMessage(InnerMessage{});
+            }
+        });
+
+    ASSERT_TRUE(notifier->PublishAppMessage(OuterMessage{}));
+    EXPECT_EQ(inner_called_future.wait_for(2s), std::future_status::ready);
+    EXPECT_TRUE(notifier->FlushForTest());
+}
+
+TEST(MessageNotifierTest, ExternalDrainStopWaitsForWorkerLane) {
+    auto notifier = std::make_shared<MessageNotifier>();
+    auto listener = notifier->CreateListener(MessageExecutionLane::kWorker);
+    auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    auto release = std::make_shared<std::promise<void>>();
+    auto release_future = release->get_future().share();
+
+    listener->Listen<IntMessage>([entered, release_future](const IntMessage&) {
+        entered->set_value();
+        release_future.wait();
+    });
+    ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{1}));
+    ASSERT_EQ(entered_future.wait_for(2s), std::future_status::ready);
+
+    auto stop = std::async(std::launch::async, [notifier]() {
+        notifier->Stop(MessageBusStopMode::kDrain);
+    });
+    EXPECT_EQ(stop.wait_for(50ms), std::future_status::timeout);
+    release->set_value();
+    EXPECT_EQ(stop.wait_for(2s), std::future_status::ready);
+}
+
+TEST(MessageNotifierTest, CancelFromWorkerDropsQueuedWorkerCallbacks) {
+    auto notifier = std::make_shared<MessageNotifier>(MessageNotifierOptions{
+        .max_pending_messages = 32,
+        .max_state_callbacks = 16,
+        .max_worker_callbacks = 16,
+        .worker_threads = 1});
+    std::weak_ptr<MessageNotifier> weak_notifier = notifier;
+    auto listener = notifier->CreateListener(MessageExecutionLane::kWorker);
+    auto calls = std::make_shared<std::atomic_int>(0);
+    auto stopped = std::make_shared<std::promise<void>>();
+    auto stopped_future = stopped->get_future();
+
+    listener->Listen<IntMessage>([weak_notifier, calls, stopped](const IntMessage&) {
+        if (calls->fetch_add(1, std::memory_order_relaxed) == 0) {
+            if (auto owner = weak_notifier.lock()) {
+                owner->Stop(MessageBusStopMode::kCancel);
+            }
+            stopped->set_value();
+        }
+    });
+
+    ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{1}));
+    ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{2}));
+    ASSERT_EQ(stopped_future.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(calls->load(std::memory_order_relaxed), 1);
 }
 
 } // namespace

@@ -5,6 +5,8 @@
 #ifndef TC_APPLICATION_TASKRUNTIME_H
 #define TC_APPLICATION_TASKRUNTIME_H
 
+#include <atomic>
+#include <mutex>
 #include <unordered_map>
 
 #include "thread.h"
@@ -41,6 +43,8 @@ namespace px
 
     private:
         int num_threads_ = 0;
+        std::atomic_bool exiting_ = false;
+        mutable std::mutex threads_mutex_;
         // thread id => thread
         std::unordered_map<int, std::shared_ptr<Thread>> threads_;
     };

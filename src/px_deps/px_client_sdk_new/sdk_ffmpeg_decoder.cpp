@@ -561,9 +561,12 @@ namespace px
                 decoded_image->device_context_ = d3d11_wrapper->d3d11_device_context_;
                 decoded_image->full_color_ = false;
                 auto end = TimeUtil::GetCurrentTimestamp();
-                sdk_->PostMiscTask([=, this]() {
-                    sdk_stat_->video_color_.Update("4:2:0");
-                    sdk_stat_->AppendDecodeDuration(monitor_name_, end - beg);
+                const auto sdk_stat = sdk_stat_;
+                const auto monitor_name = monitor_name_;
+                const auto decode_duration = end - beg;
+                sdk_->PostMiscTask([sdk_stat, monitor_name, decode_duration]() {
+                    sdk_stat->video_color_.Update("4:2:0");
+                    sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
                 });
 #endif
             }
@@ -663,8 +666,11 @@ namespace px
 
                 if (decoded_image_ && !stop_) {
                     auto end = TimeUtil::GetCurrentTimestamp();
-                    sdk_->PostMiscTask([=, this]() {
-                        sdk_stat_->AppendDecodeDuration(monitor_name_, end - beg);
+                    const auto sdk_stat = sdk_stat_;
+                    const auto monitor_name = monitor_name_;
+                    const auto decode_duration = end - beg;
+                    sdk_->PostMiscTask([sdk_stat, monitor_name, decode_duration]() {
+                        sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
                     });
                     //LOGI("FFmpeg decode YUV420p(I420) used : {}ms, {}x{}", (end-beg), frame_width_, frame_height_);
                     return decoded_image_;

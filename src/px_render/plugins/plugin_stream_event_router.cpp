@@ -20,14 +20,27 @@
 
 namespace px
 {
+    std::shared_ptr<PluginStreamEventRouter> PluginStreamEventRouter::Make(
+        const std::shared_ptr<RdApplication>& app) {
+        auto router = std::make_shared<PluginStreamEventRouter>(app);
+        router->InitListener();
+        return router;
+    }
+
     PluginStreamEventRouter::PluginStreamEventRouter(const std::shared_ptr<RdApplication>& app) {
         app_ = app;
         context_ = app->GetContext();
         plugin_manager_ = context_->GetPluginManager();
         statistics_ = RdStatistics::Instance();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<CaptureMonitorInfoMessage>([this](const CaptureMonitorInfoMessage&) {
-            awaiting_topology_first_frame_.store(true);
+    }
+
+    void PluginStreamEventRouter::InitListener() {
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage&) {
+            if (const auto self = weak_self.lock()) {
+                self->awaiting_topology_first_frame_.store(true);
+            }
         });
     }
 
@@ -105,8 +118,9 @@ namespace px
             plugin->PostProtoMessage(net_msg, false);
         });
 
-        context_->PostStreamPluginTask([=, this]() {
-            plugin_manager_->VisitStreamPlugins([=](PxStreamPlugin *plugin) {
+        const auto plugin_manager = plugin_manager_;
+        context_->PostStreamPluginTask([plugin_manager, msg, event]() {
+            plugin_manager->VisitStreamPlugins([msg, event](PxStreamPlugin *plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                 // stream plugins: Raw frame / Encoded frame
                 plugin->OnEncodedVideoFrame(msg.monitor_name_, event->type_, event->data_, event->frame_index_,
                                             (int)event->frame_width_, (int)event->frame_height_, event->key_frame_);
@@ -114,7 +128,7 @@ namespace px
             // net_rtc_local 也是编码帧消费者(WebRTC 复用主编码管线产物,
             // 其 OnEncodedVideoFrame 把帧缓存给 RtcSharedVideoEncoder 取用)。
             // 其它 net 插件不覆写该回调(基类空实现),不受影响。
-            plugin_manager_->VisitNetPlugins([=](PxNetPlugin *plugin) {
+            plugin_manager->VisitNetPlugins([msg, event](PxNetPlugin *plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                 plugin->OnEncodedVideoFrame(msg.monitor_name_, event->type_, event->data_, event->frame_index_,
                                             (int)event->frame_width_, (int)event->frame_height_, event->key_frame_);
             });

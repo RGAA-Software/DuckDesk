@@ -157,6 +157,7 @@ add_executable(test_client_virtual_display
     ct_virtual_display_protocol.cpp
     ui/virtual_display_ui_state.cpp
 )
+target_include_directories(test_client_virtual_display PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
 target_link_libraries(test_client_virtual_display PRIVATE px_message GTest::gtest GTest::gtest_main)
 
 add_executable(test_client_voice_call_protocol

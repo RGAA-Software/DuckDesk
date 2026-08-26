@@ -3,6 +3,7 @@
 //
 
 #include "tab_game.h"
+#include <QPointer>
 #include <QScrollBar>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -206,10 +207,11 @@ namespace px
         setLayout(root_layout);
 
         // listeners
-        msg_listener_->Listen<MsgRunningGameIds>([=, this](const MsgRunningGameIds& rgs) {
-            this->context_->PostUITask([=, this]() {
-                this->UpdateRunningStatus(rgs.game_ids_);
-            });
+        QPointer<TabGame> self(this);
+        msg_listener_->Listen<MsgRunningGameIds>([self](const MsgRunningGameIds& rgs) {
+            if (self) {
+                self->UpdateRunningStatus(rgs.game_ids_);
+            }
         });
 
         empty_tip_ = new QLabel(this);

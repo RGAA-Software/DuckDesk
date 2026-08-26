@@ -32,18 +32,22 @@ namespace px
     RunningStreamManager::RunningStreamManager(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
         settings_ = PxSettings::Instance();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
     }
 
     void RunningStreamManager::InitMessageListeners() {
         const auto weak_self = weak_from_this();
-        msg_listener_->Listen<MsgClientConnectedPanel>([=, this](const MsgClientConnectedPanel& msg) {
+        msg_listener_->Listen<MsgClientConnectedPanel>([weak_self](const MsgClientConnectedPanel& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             {
-                std::scoped_lock lock(running_mutex_);
-                running_connected_[msg.stream_id_] = true;
+                std::scoped_lock lock(self->running_mutex_);
+                self->running_connected_[msg.stream_id_] = true;
             }
             // clear loading dialog
-            context_->PostUIDelayTask([weak_self, msg]() {
+            self->context_->PostUIDelayTask([weak_self, msg]() {
                 const auto self = weak_self.lock();
                 if (!self) {
                     return;
@@ -54,8 +58,12 @@ namespace px
             }, 200);
         });
 
-        msg_listener_->Listen<MsgNoAvailableConnection>([=, this](const MsgNoAvailableConnection& msg) {
-            context_->PostUITask([weak_self, msg]() {
+        msg_listener_->Listen<MsgNoAvailableConnection>([weak_self](const MsgNoAvailableConnection& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->context_->PostUITask([weak_self, msg]() {
                 const auto self = weak_self.lock();
                 if (!self) {
                     return;
@@ -89,7 +97,9 @@ namespace px
     }
 
     RunningStreamManager::~RunningStreamManager() {
-
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
     }
 
     bool RunningStreamManager::RefreshConsoleTicket(

@@ -16,7 +16,7 @@ namespace px
     class MessageListener;
     class SteamManager;
 
-    class AppManager {
+    class AppManager : public std::enable_shared_from_this<AppManager> {
     public:
 
         explicit AppManager(const std::shared_ptr<RdContext>& ctx);
@@ -26,12 +26,14 @@ namespace px
         virtual bool StartProcess();
         virtual bool StartProcessWithHook();
         virtual void Exit();
+        virtual void OnCapturedVideoFrame();
         virtual void* GetWindowHandle() = 0;
         virtual void CloseCurrentApp();
 
     protected:
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
     };
 
 }

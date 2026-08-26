@@ -3,6 +3,7 @@
 //
 
 #include"notification_item.h"
+#include <QPointer>
 #include "no_margin_layout.h"
 #include "px_client/ct_client_context.h"
 #include "px_common_new/log.h"
@@ -150,38 +151,51 @@ namespace px
     }
 
     void NotificationItem::UpdateTitle(const std::string& title) {
-        context_->PostUITask([=, this]() {
+        const QPointer<NotificationItem> guarded_self(this);
+        context_->PostUITask([guarded_self, title]() {
+            if (!guarded_self) {
+                return;
+            }
             //title_->setText(title.c_str());
-            QFontMetrics fontWidth(title_->font());
+            QFontMetrics fontWidth(guarded_self->title_->font());
             QString elideNote = fontWidth.elidedText(title.c_str(), Qt::ElideRight, 210);
-            title_->setText(elideNote);
-            title_->setToolTip(title.c_str());
+            guarded_self->title_->setText(elideNote);
+            guarded_self->title_->setToolTip(title.c_str());
         });
     }
 
     void NotificationItem::UpdateProgress(int progress) {
-        context_->PostUITask([=, this]() {
-            if (last_progress_update_time_ == 0) {
-                last_progress_update_time_ = progress_update_time_;
+        const QPointer<NotificationItem> guarded_self(this);
+        context_->PostUITask([guarded_self, progress]() {
+            if (!guarded_self) {
+                return;
             }
-            auto diff_time = progress_update_time_ - last_progress_update_time_;
+            if (guarded_self->last_progress_update_time_ == 0) {
+                guarded_self->last_progress_update_time_ = guarded_self->progress_update_time_;
+            }
+            auto diff_time = guarded_self->progress_update_time_ - guarded_self->last_progress_update_time_;
             if (diff_time > 1000) {
-                auto diff_data_size = progress_data_size_ - last_progress_data_size_;
+                auto diff_data_size = guarded_self->progress_data_size_ - guarded_self->last_progress_data_size_;
                 auto diff_time_in_seconds = diff_time / 1000.0f;
                 auto speed = (uint64_t)(diff_data_size / diff_time_in_seconds);
-                last_speed_str_ = NumFormatter::FormatStorageSize(speed);
-                last_progress_data_size_ = progress_data_size_;
-                last_progress_update_time_ = progress_update_time_;
-                transfer_info_->setText(std::format("{}/s  {}", last_speed_str_, NumFormatter::FormatStorageSize(progress_data_size_)).c_str());
+                guarded_self->last_speed_str_ = NumFormatter::FormatStorageSize(speed);
+                guarded_self->last_progress_data_size_ = guarded_self->progress_data_size_;
+                guarded_self->last_progress_update_time_ = guarded_self->progress_update_time_;
+                guarded_self->transfer_info_->setText(std::format(
+                    "{}/s  {}", guarded_self->last_speed_str_,
+                    NumFormatter::FormatStorageSize(guarded_self->progress_data_size_)).c_str());
             }
 
             if (progress == 100) {
-                transfer_info_->setText(std::format("{}/s  {}", last_speed_str_.empty() ? "0" : last_speed_str_, NumFormatter::FormatStorageSize(progress_data_size_)).c_str());
-                progress_over_ = true;
+                guarded_self->transfer_info_->setText(std::format(
+                    "{}/s  {}", guarded_self->last_speed_str_.empty()
+                        ? "0" : guarded_self->last_speed_str_,
+                    NumFormatter::FormatStorageSize(guarded_self->progress_data_size_)).c_str());
+                guarded_self->progress_over_ = true;
             }
 
-            progress_->setValue(progress);
-            progress_info_->setText(std::format("{}/100", progress).c_str());
+            guarded_self->progress_->setValue(progress);
+            guarded_self->progress_info_->setText(std::format("{}/100", progress).c_str());
         });
     }
 

@@ -35,11 +35,16 @@ namespace px
         instance_id_ = std::format("{}-{}", GetCurrentProcessId(), TimeUtil::GetCurrentTimestamp());
     }
 
+    WsPanelClient::~WsPanelClient() {
+        Exit();
+    }
+
     void WsPanelClient::Start() {
         exiting_ = false;
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
         auto weak_self = weak_from_this();
-        msg_listener_->Listen<MsgTimer500>([weak_self](const MsgTimer500& msg) {
+        state_msg_listener_->Listen<MsgTimer500>([weak_self](const MsgTimer500&) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_) {
@@ -49,7 +54,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
+        msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected&) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_) {
@@ -59,7 +64,7 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
+        msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected&) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_) {
@@ -120,13 +125,25 @@ namespace px
     }
 
     void WsPanelClient::Exit() {
-        exiting_ = true;
-        msg_listener_ = nullptr;
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+            state_msg_listener_.reset();
+        }
         if (client_) {
             client_->stop_all_timers();
             client_->stop();
             client_.reset();
         }
+        plugin_mgr_.reset();
+        context_.reset();
+        statistics_.reset();
     }
 
     bool WsPanelClient::Alive() const {

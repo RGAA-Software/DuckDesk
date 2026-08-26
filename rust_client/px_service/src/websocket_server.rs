@@ -284,11 +284,14 @@ async fn process_virtual_display_operation(
     height: u32,
     refresh_hz: u32,
 ) -> Option<service_core::ServiceMessage> {
+    let cache_result = should_cache_virtual_display_operation(operation);
     let (manager, cached, init_error) = {
         let guard = runtime.lock().await;
         (
             guard.virtual_display_manager.clone(),
-            guard.virtual_display_results.get(&request_id).cloned(),
+            cache_result
+                .then(|| guard.virtual_display_results.get(&request_id).cloned())
+                .flatten(),
             guard.virtual_display_init_error.clone(),
         )
     };
@@ -335,7 +338,7 @@ async fn process_virtual_display_operation(
         }),
     };
     let response = virtual_display_result(&request_id, result);
-    {
+    if cache_result {
         let mut guard = runtime.lock().await;
         if guard.virtual_display_results.len() >= 256 {
             guard.virtual_display_results.clear();
@@ -345,6 +348,15 @@ async fn process_virtual_display_operation(
             .insert(request_id, response.clone());
     }
     Some(virtual_display_service_message(response))
+}
+
+fn should_cache_virtual_display_operation(
+    operation: service_core::VirtualDisplayOperation,
+) -> bool {
+    // Mutation request IDs provide at-most-once behavior across retries. A
+    // query is explicitly a live reconciliation request and must never return
+    // a snapshot cached by an earlier Render process that reused the same PID.
+    operation != service_core::VirtualDisplayOperation::Query
 }
 
 fn virtual_display_result(
@@ -416,6 +428,22 @@ mod tests {
     struct MockProcessManager {
         processes: StdMutex<Vec<ProcessSnapshot>>,
         launches: StdMutex<Vec<RenderLaunchSpec>>,
+    }
+
+    #[test]
+    fn virtual_display_queries_bypass_the_mutation_idempotency_cache() {
+        assert!(!should_cache_virtual_display_operation(
+            service_core::VirtualDisplayOperation::Query
+        ));
+        assert!(should_cache_virtual_display_operation(
+            service_core::VirtualDisplayOperation::Create
+        ));
+        assert!(should_cache_virtual_display_operation(
+            service_core::VirtualDisplayOperation::RemoveLast
+        ));
+        assert!(should_cache_virtual_display_operation(
+            service_core::VirtualDisplayOperation::ResetOwned
+        ));
     }
 
     impl MockProcessManager {

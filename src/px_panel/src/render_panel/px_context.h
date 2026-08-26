@@ -8,6 +8,7 @@
 #include <memory>
 #include <atomic>
 #include <string>
+#include <mutex>
 #include "px_common_new/ip_util.h"
 #include "px_common_new/message_notifier.h"
 #include <asio2/asio2.hpp>
@@ -46,6 +47,7 @@ namespace px
     class PxContext : public QObject, public std::enable_shared_from_this<PxContext> {
     public:
         explicit PxContext(QWidget* main_window);
+        ~PxContext() override;
 
         bool Init(const std::shared_ptr<PxApplication>& app);
         void Exit();
@@ -94,7 +96,8 @@ namespace px
             }
         }
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
-        std::shared_ptr<MessageListener> ObtainMessageListener();
+        std::shared_ptr<MessageListener> ObtainMessageListener(
+            MessageExecutionLane lane = MessageExecutionLane::kControl);
         std::shared_ptr<MessageListener> ObtainUIMessageListener();
         std::shared_ptr<PxRenderController> GetRenderController();
         std::shared_ptr<PxRunGameManager> GetRunGameManager();
@@ -134,14 +137,16 @@ namespace px
 
     private:
         void StartTimers();
+        std::shared_ptr<TaskRuntime> GetTaskRuntimeForPost() const;
 
     private:
         QWidget* main_window_ = nullptr;
         PxSettings* settings_ = nullptr;
-        SharedPreference* sp_ = nullptr;
-        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_;
+        std::weak_ptr<PxApplication> app_;
         std::shared_ptr<SteamManager> steam_mgr_ = nullptr;
         std::shared_ptr<TaskRuntime> task_rt_ = nullptr;
+        mutable std::mutex task_runtime_mutex_;
         //std::vector<EthernetInfo> ips_;
         std::shared_ptr<DBGameOperator> db_game_manager_ = nullptr;
         std::shared_ptr<PxResources> res_manager_ = nullptr;

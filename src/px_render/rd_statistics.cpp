@@ -11,7 +11,6 @@
 #include "px_render/plugins/plugin_manager.h"
 #include "px_common_new/log.h"
 #include "px_common_new/fps_stat.h"
-#include "px_common_new/thread.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/process_util.h"
 #include "px_render_panel_message.pb.h"
@@ -65,26 +64,25 @@ namespace px
 
     void RdStatistics::SetApplication(const std::shared_ptr<RdApplication>& app) {
         app_ = app;
-        context_ = app_->GetContext();
+        context_ = app->GetContext();
         plugin_mgr_ = context_->GetPluginManager();
     }
 
     void RdStatistics::StartMonitor() {
-        monitor_thread_ = Thread::Make("render_monitor", 128);
-        monitor_thread_->Poll();
-
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgTimer5000>([this](const MsgTimer5000& m) {
-            this->OnChecking();
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgTimer5000>([weak_self](const MsgTimer5000&) {
+            if (const auto self = weak_self.lock()) {
+                self->OnChecking();
+            }
         });
     }
 
     void RdStatistics::Exit() {
-        if (monitor_thread_) {
-            monitor_thread_->Exit();
-            monitor_thread_.reset();
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
         }
-        msg_listener_.reset();
         plugin_mgr_.reset();
         context_.reset();
         app_.reset();
@@ -145,8 +143,12 @@ namespace px
         // from inner server
         cst->set_server_send_media_data(send_media_bytes_);
         //
-        auto video_capture_plugin = app_->GetWorkingMonitorCapturePlugin();
-        auto video_encoder_plugins = app_->GetWorkingVideoEncoderPlugins();
+        const auto app = app_.lock();
+        if (!app) {
+            return RpProtoAsData(&msg);
+        }
+        auto video_capture_plugin = app->GetWorkingMonitorCapturePlugin();
+        auto video_encoder_plugins = app->GetWorkingVideoEncoderPlugins();
         auto frame_carrier_plugin = plugin_mgr_->GetFrameCarrierPlugin();
         auto frame_resize_plugin = plugin_mgr_->GetFrameResizePlugin();
         if (video_capture_plugin && !video_encoder_plugins.empty()) {
@@ -202,7 +204,7 @@ namespace px
                 }
 
                 // resize info
-                bool is_gdi_capture = plugin_mgr_->IsGDIMonitorCapturePlugin(app_->GetWorkingMonitorCapturePlugin());
+                bool is_gdi_capture = plugin_mgr_->IsGDIMonitorCapturePlugin(app->GetWorkingMonitorCapturePlugin());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     item->set_resize_frame_width(0);
                     item->set_resize_frame_height(0);
@@ -242,15 +244,9 @@ namespace px
         cst->set_audio_capture_type("WASAPI");
 
         //
-        cst->set_video_encode_type([=, this]() {
-            if (video_encoder_format_ == Encoder::EncoderFormat::kH264) {
-                return pxrp::VideoType::kNetH264;
-            }
-            else if (video_encoder_format_ == Encoder::EncoderFormat::kHEVC) {
-                return pxrp::VideoType::kNetHevc;
-            }
-            return pxrp::VideoType::kNetH264;
-        } ());
+        cst->set_video_encode_type(video_encoder_format_ == Encoder::EncoderFormat::kHEVC
+            ? pxrp::VideoType::kNetHevc
+            : pxrp::VideoType::kNetH264);
 
         cst->set_audio_encode_type(pxrp::AudioEncodeType::kNetOpus);
 
@@ -263,12 +259,8 @@ namespace px
     }
 
     void RdStatistics::OnChecking() {
-        monitor_thread_->Post([=, this]() {
-            //TimeDuration td("ProcessUtil::GetThreadCount");
-            //auto thread_count = ProcessUtil::GetThreadCount();
-            //TODO:
-            //LOGI("Thread count: {}", thread_count);
-        });
+        // Reserved for low-rate state sampling. Keep the timer callback cheap
+        // until a concrete statistic is added.
     }
 
     std::shared_ptr<MsgWorkingCaptureInfo> RdStatistics::CaptureInfo(const std::string& name) {

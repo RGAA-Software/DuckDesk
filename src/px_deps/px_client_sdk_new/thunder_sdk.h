@@ -127,6 +127,7 @@ namespace px
         std::shared_ptr<CastReceiver> cast_receiver_ = nullptr;
         std::shared_ptr<SdkTimer> sdk_timer_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<SdkStatistics> statistics_;
         std::shared_ptr<Thread> video_thread_ = nullptr;
         std::shared_ptr<Thread> audio_thread_ = nullptr;

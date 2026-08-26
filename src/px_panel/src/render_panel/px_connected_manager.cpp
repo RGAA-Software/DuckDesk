@@ -25,6 +25,13 @@ namespace px {
         InitPanel();
 	}
 
+    PxConnectedManager::~PxConnectedManager() {
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
+        connected_info_panel_group_.clear();
+    }
+
     bool PxConnectedManager::nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) {
         MSG* msg = static_cast<MSG*>(message);
         if (msg->message == WM_DISPLAYCHANGE) {
@@ -43,58 +50,50 @@ namespace px {
     }
 
     void PxConnectedManager::RegisterMessageListener() {
-        msg_listener_ = px_ctx_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = px_ctx_->ObtainUIMessageListener();
         QPointer<PxConnectedManager> self(this);
-        msg_listener_->Listen<MsgUpdateConnectedClientsInfo>([=, this](const MsgUpdateConnectedClientsInfo& msg) {
-
-            if (!px_ctx_) {
+        msg_listener_->Listen<MsgUpdateConnectedClientsInfo>([self](const MsgUpdateConnectedClientsInfo& msg) {
+            if (!self || !self->px_ctx_) {
                 LOGE("px_ctx_ is nullptr.");
                 return;
             }
 
-            client_connected_count_ = msg.clients_info_.size();
+            self->client_connected_count_ = msg.clients_info_.size();
 
-            px_ctx_->PostUITask([self, msg]() {
-                if (!self) {
-                    return;
-                }
-                int client_size = msg.clients_info_.size();
-                if (0 == client_size) {
-                    self->HideAllPanels();
-                    return;
-                }
-                //LOGI("MsgUpdateConnectedClientsInfo, client_size: {} ", client_size);
-                for (int index = 0; index < client_size; ++index) {
-                    auto client_info = msg.clients_info_[index];
-                    if (self->connected_info_panel_group_.count(index) > 0) {
-                        self->connected_info_panel_group_[index]->show();
-                        const std::string old_stream_id =  self->connected_info_panel_group_[index]->GetStreamId();
-                        self->connected_info_panel_group_[index]->UpdateInfo(client_info);
-                        if (old_stream_id != client_info->stream_id()) {
-                            self->connected_info_panel_group_[index]->Expand();
-                        }
+            int client_size = msg.clients_info_.size();
+            if (0 == client_size) {
+                self->HideAllPanels();
+                return;
+            }
+            for (int index = 0; index < client_size; ++index) {
+                auto client_info = msg.clients_info_[index];
+                if (self->connected_info_panel_group_.count(index) > 0) {
+                    self->connected_info_panel_group_[index]->show();
+                    const std::string old_stream_id = self->connected_info_panel_group_[index]->GetStreamId();
+                    self->connected_info_panel_group_[index]->UpdateInfo(client_info);
+                    if (old_stream_id != client_info->stream_id()) {
+                        self->connected_info_panel_group_[index]->Expand();
                     }
                 }
+            }
 
-                int group_index = -1;
-                for (auto& item : self->connected_info_panel_group_) {
-                    ++group_index;
-                    if (group_index < client_size) {
-                        continue;
-                    }
-                    item.second->hide();
+            int group_index = -1;
+            for (auto& item : self->connected_info_panel_group_) {
+                ++group_index;
+                if (group_index < client_size) {
+                    continue;
                 }
-            });
+                item.second->hide();
+            }
         });
 
-        msg_listener_->Listen<MsgOneClientDisconnect>([=, this](const MsgOneClientDisconnect& msg) {
-
-            if (!px_ctx_) {
+        msg_listener_->Listen<MsgOneClientDisconnect>([self](const MsgOneClientDisconnect&) {
+            if (!self || !self->px_ctx_) {
                 LOGE("px_ctx_ is nullptr.");
                 return;
             }
 
-            px_ctx_->PostUIDelayTask([self]() {
+            self->px_ctx_->PostUIDelayTask([self]() {
                 if (!self) {
                     return;
                 }
@@ -145,15 +144,12 @@ namespace px {
     }
 
     void PxConnectedManager::CreatePanel() {
-        for (auto& item : connected_info_panel_group_) {
-            delete item.second;
-        }
         connected_info_panel_group_.clear();
         const int kMaxCount = 2;
         for (int index = 0; index < kMaxCount; ++index) {
-            ConnectedInfoSlidingWindow* sliding_window = new ConnectedInfoSlidingWindow(px_ctx_);
-            connected_info_panel_group_[index] = sliding_window;
+            auto sliding_window = std::make_unique<ConnectedInfoSlidingWindow>(px_ctx_);
             sliding_window->hide();
+            connected_info_panel_group_[index] = std::move(sliding_window);
         }
     }
 }

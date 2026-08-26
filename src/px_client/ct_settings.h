@@ -61,7 +61,7 @@ namespace px
         bool audio_on_ = false;
         bool clipboard_on_ = false;
         bool full_color_on_ = false;
-        SharedPreference* sp_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_;
         SwitchWorkMode::WorkMode work_mode_ = SwitchWorkMode::kGame;
         ScaleMode scale_mode_ = ScaleMode::kFillWindow;
         // for client render process --- below

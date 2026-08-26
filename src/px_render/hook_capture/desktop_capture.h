@@ -19,9 +19,11 @@ namespace px
     class MessageNotifier;
     class MessageListener;
 
-    class DesktopCapture {
+    class DesktopCapture : public std::enable_shared_from_this<DesktopCapture> {
     public:
         explicit DesktopCapture(const std::shared_ptr<MessageNotifier>& msg_notifier, const std::string& monitor);
+        virtual ~DesktopCapture();
+        void InitMessageListener();
         virtual bool StartCapture() = 0;
         virtual void StopCapture() = 0;
         void SetCaptureMonitor(int index, const std::string& name);

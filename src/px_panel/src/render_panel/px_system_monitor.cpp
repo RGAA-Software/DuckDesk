@@ -79,7 +79,14 @@ namespace px
         this->settings_ = PxSettings::Instance();
     }
 
+    PxSystemMonitor::~PxSystemMonitor() {
+        Exit();
+    }
+
     void PxSystemMonitor::Start() {
+        if (exit_ || monitor_thread_) {
+            return;
+        }
         const bool has_service_binaries = HasServiceBinaries();
         if (has_service_binaries) {
             CheckServiceAlive();
@@ -90,7 +97,6 @@ namespace px
         }
 
         vigem_driver_manager_ = VigemDriverManager::Make();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
         RegisterMessageListener();
 
         // Default: do not auto-install ViGEm driver at startup.
@@ -100,15 +106,15 @@ namespace px
         // }
 
         const auto weak_self = weak_from_this();
-        monitor_thread_ = Thread::MakeOnceTask([=, this]() {
-            while (!exit_) {
+        monitor_thread_ = Thread::MakeOnceTask([weak_self, has_service_binaries]() {
+            for (;;) {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_) {
                     break;
                 }
                 // check system servers
-                if (settings_->HasConsoleServerConfig()) {
-                    context_->PostTask([weak_self]() {
+                if (self->settings_->HasConsoleServerConfig()) {
+                    self->context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
                             return;
@@ -119,7 +125,7 @@ namespace px
                 }
 
                 // check vigem
-                context_->PostTask([weak_self]() {
+                self->context_->PostTask([weak_self]() {
                     const auto self = weak_self.lock();
                     if (!self || self->exit_) {
                         return;
@@ -139,9 +145,9 @@ namespace px
                 });
 
                 // check running game
-                const auto skin = grApp->GetSkin();
+                const auto skin = self->app_->GetSkin();
                 if (skin && skin->IsGameEnabled()) {
-                    context_->PostTask([weak_self]() {
+                    self->context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
                             return;
@@ -163,7 +169,7 @@ namespace px
 
                 // check service status
                 if (has_service_binaries) {
-                    context_->PostTask([weak_self]() {
+                    self->context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
                             return;
@@ -176,16 +182,35 @@ namespace px
                     });
                 }
 
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                std::unique_lock lock(self->exit_mutex_);
+                self->exit_cv_.wait_for(lock, std::chrono::seconds(5), [self]() {
+                    return self->exit_.load();
+                });
             }
         }, "sys_monitor", false);
     }
 
     void PxSystemMonitor::Exit() {
-        exit_ = true;
-        if (monitor_thread_ && monitor_thread_->IsJoinable()) {
-            monitor_thread_->Join();
+        if (exit_.exchange(true)) {
+            return;
         }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+            state_msg_listener_.reset();
+        }
+        exit_cv_.notify_all();
+        if (monitor_thread_) {
+            monitor_thread_->Exit();
+            monitor_thread_.reset();
+        }
+        vigem_driver_manager_.reset();
+        service_manager_.reset();
+        context_.reset();
+        app_.reset();
     }
 
     bool PxSystemMonitor::CheckViGEmDriver() {
@@ -280,10 +305,15 @@ namespace px
     }
 
     void PxSystemMonitor::RegisterMessageListener() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
         const auto weak_self = weak_from_this();
-        msg_listener_->Listen<MsgInstallViGEm>([=, this](const MsgInstallViGEm& msg) {
-            context_->PostTask([weak_self]() {
+        msg_listener_->Listen<MsgInstallViGEm>([weak_self](const MsgInstallViGEm&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_) {
+                return;
+            }
+            self->context_->PostTask([weak_self]() {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_) {
                     return;
@@ -292,12 +322,19 @@ namespace px
             });
         });
 
-        msg_listener_->Listen<MsgConnectedToService>([=, this](const MsgConnectedToService& msg) {
-            StartServer();
+        msg_listener_->Listen<MsgConnectedToService>([weak_self](const MsgConnectedToService&) {
+            const auto self = weak_self.lock();
+            if (self && !self->exit_) {
+                self->StartServer();
+            }
         });
 
-        msg_listener_->Listen<MsgGrTimer2S>([=, this](const MsgGrTimer2S& msg) {
-            context_->PostTask([weak_self]() {
+        state_msg_listener_->Listen<MsgGrTimer2S>([weak_self](const MsgGrTimer2S&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_) {
+                return;
+            }
+            self->context_->PostTask([weak_self]() {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_) {
                     return;

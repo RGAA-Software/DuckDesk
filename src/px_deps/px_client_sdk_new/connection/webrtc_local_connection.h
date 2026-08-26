@@ -24,6 +24,7 @@ namespace px
     class Message;
     class MessageNotifier;
     class RtcClientInterface;
+    class ServerConfiguration;
 
     // one entry of the "monitors" array in the /alloc/local/rtc answer,
     // in video track order: track #i shows monitor[i]
@@ -73,6 +74,10 @@ namespace px
         // old-render compat(the answer has no "monitors" array): the single dynamic
         // track follows the capturing monitor, reported via ServerConfiguration
         void SetCapturingMonitorNameProvider(std::function<std::string()>&& provider);
+
+        // Refresh the negotiated track-slot mapping after monitor hot-plug. Track
+        // identities stay fixed; only empty/released slots are rebound.
+        void UpdateTrackMonitors(const ServerConfiguration& config);
 
         int64_t GetQueuingMsgCount() override;
         int64_t GetQueuingMediaMsgCount();

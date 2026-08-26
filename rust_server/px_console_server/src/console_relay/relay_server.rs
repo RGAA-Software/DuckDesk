@@ -307,25 +307,30 @@ impl RelayServer {
 
             tracing::info!("remove device: {}", device_id);
 
-            // notify controller if the exiting device is remote device
-            gRelayRoomMgr
-                .notify_remote_device_offline(device_id.clone())
-                .await;
-
-            // remove room
-            gRelayRoomMgr
-                .destroy_room_i_created(device_id.clone())
-                .await;
-
-            // clear info in rooms
-            gRelayRoomMgr
-                .clear_info_in_rooms_i_was_invited(device_id.clone())
-                .await;
-
-            // this connection has disconnected
             // remove connection
             relay_conn.lock().await.last_relay_msg_index = 0;
-            gRelayConnMgr.remove_connection(device_id).await;
+            if gRelayConnMgr
+                .remove_connection_if_current(&device_id, &relay_conn)
+                .await
+            {
+                // Only the currently registered socket owns device-level
+                // cleanup. A stale receive task must not tear down rooms or the
+                // replacement socket that was registered during reconnect.
+                gRelayRoomMgr
+                    .notify_remote_device_offline(device_id.clone())
+                    .await;
+                gRelayRoomMgr
+                    .destroy_room_i_created(device_id.clone())
+                    .await;
+                gRelayRoomMgr
+                    .clear_info_in_rooms_i_was_invited(device_id)
+                    .await;
+            } else {
+                tracing::info!(
+                    "skip stale relay disconnect cleanup because a replacement is active: {}",
+                    device_id
+                );
+            }
         });
 
         tokio::select! {

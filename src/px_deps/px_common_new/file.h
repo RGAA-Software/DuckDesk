@@ -3,6 +3,8 @@
 
 #include <functional>
 #include <filesystem>
+#include <cstdio>
+#include <memory>
 #include "data.h"
 #include "string_util.h"
 
@@ -28,6 +30,10 @@ namespace px
 
         File(const U8Path& path, const std::string& mode);
         ~File();
+        File(const File&) = delete;
+        File& operator=(const File&) = delete;
+        File(File&&) noexcept = default;
+        File& operator=(File&&) noexcept = default;
         static bool Delete(const U8Path& path);
         uint64_t Size();
         bool Exists();
@@ -48,8 +54,9 @@ namespace px
         int64_t Append(const char* data, uint64_t size);
 
     private:
+        using FileHandle = std::unique_ptr<std::FILE, decltype(&std::fclose)>;
         std::filesystem::path file_path_;
-        FILE* fp_ = nullptr;
+        FileHandle fp_{nullptr, &std::fclose};
         int64_t current_offset_ = 0;
     };
     

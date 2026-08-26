@@ -98,20 +98,31 @@ GLuint init_shader(const char *source, GLenum type) {
 namespace px
 {
 
+    void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Android NDK release ABI
+        if (window) {
+            ANativeWindow_release(window);
+        }
+    }
+
     std::shared_ptr<FrameRender> FrameRender::Make(const std::shared_ptr<AppContext>& ctx) {
-        return std::make_shared<FrameRender>(ctx);
+        auto render = std::make_shared<FrameRender>(ctx);
+        render->RegisterListeners();
+        return render;
     }
 
     FrameRender::FrameRender(const std::shared_ptr<AppContext>& ctx) {
         app_context_ = ctx;
-        RegisterListeners();
+    }
+
+    FrameRender::~FrameRender() {
+        OnDestroy();
     }
 
     void FrameRender::Init(JNIEnv* env, jobject surface, const DecoderRenderType& drt, int oes_tex_id) {
         decoder_render_type_ = drt;
         oes_tex_id_ = oes_tex_id;
         if (surface) {
-            decode_win_surface_ = ANativeWindow_fromSurface(env, surface);
+            decode_win_surface_.reset(ANativeWindow_fromSurface(env, surface));
         }
 
         GL_FUNC glGenVertexArrays(1, &video_vao_);
@@ -296,15 +307,18 @@ namespace px
     }
 
     void FrameRender::RegisterListeners() {
-        bus_listener_ = app_context_->ObtainMessageListener();
-        bus_listener_->Listen<SdkMsgFirstVideoFrameDecoded>([=, this](const auto& msg) {
-            this->need_init_texture_ = true;
-            LOGI("Need to init texture...");
+        bus_listener_ = app_context_->GetMessageNotifier()->CreateListener(MessageExecutionLane::kState);
+        const std::weak_ptr<FrameRender> weak_self = weak_from_this();
+        bus_listener_->Listen<SdkMsgFirstVideoFrameDecoded>([weak_self](const auto&) {
+            if (const auto self = weak_self.lock(); self && !self->exit_) {
+                self->need_init_texture_ = true;
+                LOGI("Need to init texture...");
+            }
         });
     }
 
     ANativeWindow* FrameRender::GetNativeWindow() {
-        return decode_win_surface_;
+        return decode_win_surface_.get();
     }
 
     void FrameRender::OnCreate() {
@@ -320,7 +334,11 @@ namespace px
     }
 
     void FrameRender::OnDestroy() {
-        exit_ = true;
+        if (exit_.exchange(true)) {
+            return;
+        }
+        bus_listener_.reset();
+        decode_win_surface_.reset();
     }
 
 }

@@ -9,6 +9,7 @@
 #include "px_common_new/time_util.h"
 
 #include <QTime>
+#include <QPointer>
 #include <QTimer>
 #include <QRandomGenerator>
 
@@ -68,10 +69,14 @@ namespace px
     }
 
     void CtStatChart::UpdateLines(const std::map<QString, std::vector<float>>& value) {
-        ctx_->PostUITask([=, this]() {
+        const QPointer<CtStatChart> guarded_self(this);
+        ctx_->PostUITask([guarded_self, value]() {
+            if (!guarded_self) {
+                return;
+            }
             auto beg = TimeUtil::GetCurrentTimestamp();
             for (auto& [in_n, in_v] : value) {
-                for (auto& [n, s] : series_) {
+                for (auto& [n, s] : guarded_self->series_) {
                     if (in_n == n) {
                         QList<QPointF> points;
                         for (int i = 0; i < in_v.size(); i++) {
@@ -83,7 +88,7 @@ namespace px
                     }
                 }
             }
-            chart_view_->update();
+            guarded_self->chart_view_->update();
             auto end = TimeUtil::GetCurrentTimestamp();
             //LOGI("UpdateLines UI, {}ms", (end-beg));
         });

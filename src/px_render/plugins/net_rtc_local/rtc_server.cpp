@@ -20,10 +20,10 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <optional>
 #include <format>
 #include <mutex>
 #include <nlohmann/json.hpp>
-#include <optional>
 #include <thread>
 
 using namespace webrtc;
@@ -701,13 +701,16 @@ namespace px
             }
         }
         auto monitors = plugin_->GetRtcTrackMonitors();
-        multi_track_mode_ = allow_video && offer_video_mlines > 1 && !monitors.empty();
+        multi_track_mode_ = allow_video && offer_video_mlines > 1;
         static constexpr const char* kMediaStreamId = "pixels_media";
         if (allow_video && multi_track_mode_) {
-            int track_index = 0;
-            for (const auto& m : monitors) {
+            const auto track_count = std::min(
+                offer_video_mlines, RtcLocalPlugin::kMaxRtcVideoTracks);
+            for (int track_index = 0; track_index < track_count; ++track_index) {
                 MonitorVideoTrack mvt;
-                mvt.mon_name_ = m.name_;
+                if (track_index < static_cast<int>(monitors.size())) {
+                    mvt.mon_name_ = monitors[track_index].name_;
+                }
                 mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
                 mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
                 auto video_track = peer_conn_factory_->CreateVideoTrack(mvt.track_source_, std::format("video_track_{}", track_index));
@@ -718,9 +721,9 @@ namespace px
                     return;
                 }
                 video_tracks_.push_back(mvt);
-                ++track_index;
             }
-            LOGI("Multi-track mode: created {} video track(s), offer video m-lines: {}", video_tracks_.size(), offer_video_mlines);
+            LOGI("Multi-track mode: reserved {} video track slot(s), active monitors: {}, offer video m-lines: {}",
+                 video_tracks_.size(), monitors.size(), offer_video_mlines);
             // 多 track = 客户端声明要多屏:让采集端产出所有显示器的帧,
             // 否则非当前屏的 track 永远等不到帧(采集端默认只采当前屏)
             plugin_->EnableAllMonitorCapture();
@@ -1095,33 +1098,75 @@ namespace px
     void RtcServer::DispatchCapturedFrameNotify(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle, int64_t adapter_id, uint64_t frame_format) {
 
         // 按屏路由:多 track 模式每条 track 只发自己那块屏的帧;
-        // 单 track(动态)模式接收所有屏,编码器侧处理切屏
-        MonitorVideoTrack* target = nullptr;
-        if (!multi_track_mode_) {
-            target = &video_tracks_[0];
-        }
-        else {
-            for (auto& t : video_tracks_) {
-                if (t.mon_name_ == mon_name) {
-                    target = &t;
-                    break;
-                }
+        // 单 track(动态)模式接收所有屏,编码器侧处理切屏。多轨模式遇到
+        // 新显示器时在已协商的空槽位内绑定,不触发连接重建或 SDP 重协商。
+        if (multi_track_mode_) {
+            bool monitor_is_mapped = false;
+            {
+                std::lock_guard<std::mutex> guard(video_tracks_mutex_);
+                monitor_is_mapped = std::any_of(
+                    video_tracks_.begin(), video_tracks_.end(),
+                    [&mon_name](const auto& track) { return track.mon_name_ == mon_name; });
             }
-            if (!target) {
-                // 建连后新增的显示器没有对应 track(加 track 需重新协商),限速日志后丢弃
-                static std::atomic_uint64_t unknown_mon_drops = 0;
-                if (++unknown_mon_drops % 300 == 1) {
-                    LOGW("OnNewFrameCaptured, no video track for monitor: {}", mon_name);
+            if (!monitor_is_mapped) {
+                const auto monitors = plugin_->GetRtcTrackMonitors();
+                std::vector<std::string> active_monitor_names;
+                active_monitor_names.reserve(monitors.size());
+                for (const auto& monitor : monitors) {
+                    active_monitor_names.push_back(monitor.name_);
                 }
-                return;
+
+                std::lock_guard<std::mutex> guard(video_tracks_mutex_);
+                std::vector<std::string> track_slots;
+                track_slots.reserve(video_tracks_.size());
+                for (const auto& track : video_tracks_) {
+                    track_slots.push_back(track.mon_name_);
+                }
+                if (ReconcileRtcMonitorTrackSlots(track_slots, active_monitor_names)) {
+                    for (size_t index = 0; index < video_tracks_.size(); ++index) {
+                        if (video_tracks_[index].mon_name_ != track_slots[index]) {
+                            LOGI("RTC video track slot #{} rebound: '{}' -> '{}'", index,
+                                 video_tracks_[index].mon_name_, track_slots[index]);
+                            video_tracks_[index].mon_name_ = track_slots[index];
+                            video_tracks_[index].last_frame_index_ = 0;
+                        }
+                    }
+                }
             }
         }
 
-        if (target->last_frame_index_ == 0) {
-            target->last_frame_index_ = frame_idx;
+        std::shared_ptr<VideoSourceImpl> target_source;
+        uint64_t diff = 0;
+        {
+            std::lock_guard<std::mutex> guard(video_tracks_mutex_);
+            std::optional<size_t> target_index;
+            if (!multi_track_mode_ && !video_tracks_.empty()) {
+                target_index = 0;
+            }
+            else {
+                for (size_t index = 0; index < video_tracks_.size(); ++index) {
+                    if (video_tracks_[index].mon_name_ == mon_name) {
+                        target_index = index;
+                        break;
+                    }
+                }
+            }
+            if (!target_index.has_value()) {
+                static std::atomic_uint64_t unknown_mon_drops = 0;
+                if (++unknown_mon_drops % 300 == 1) {
+                    LOGW("OnNewFrameCaptured, no negotiated video track slot for monitor: {}", mon_name);
+                }
+                return;
+            }
+
+            auto& target = video_tracks_[target_index.value()];
+            if (target.last_frame_index_ == 0) {
+                target.last_frame_index_ = frame_idx;
+            }
+            diff = frame_idx - target.last_frame_index_;
+            target.last_frame_index_ = frame_idx;
+            target_source = target.source_;
         }
-        auto diff = frame_idx - target->last_frame_index_;
-        target->last_frame_index_ = frame_idx;
         if (diff > 1) {
             LOGE("OnNewFrameCaptured [{}], but diff size is: {}", mon_name, diff);
         }
@@ -1137,10 +1182,13 @@ namespace px
                 .set_timestamp_us(now_us)
                 .set_id(static_cast<uint16_t>(frame_idx & 0xFFFF))
                 .build();
-        target->source_->OnNotifyFrame(notify_frame);
+        if (target_source) {
+            target_source->OnNotifyFrame(notify_frame);
+        }
     }
 
     std::vector<std::string> RtcServer::GetVideoTrackMonitors() const {
+        std::lock_guard<std::mutex> guard(video_tracks_mutex_);
         std::vector<std::string> names;
         names.reserve(video_tracks_.size());
         for (const auto& t : video_tracks_) {

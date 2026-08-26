@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <memory>
 #include <thread>
+#include <atomic>
 #include "px_common_new/clipboard/clipboard_echo.h"
 #include "px_common_new/clipboard/clipboard_platform.h"
 
@@ -28,7 +29,7 @@ namespace px
     private:
         void ProcessLocalClipboardUpdate();
         void CreateMessageWindow();
-        void ThreadFunc();
+        static void ThreadFunc(const std::shared_ptr<WinMessageWindow>& message_window);
         void OnWinSessionChange(uint32_t msg);
         static void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime);
     private:
@@ -39,6 +40,8 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<WinMessageWindow> message_window_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::atomic_bool started_ = false;
+        std::atomic_bool stopped_ = false;
     };
 
 }

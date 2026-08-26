@@ -26,6 +26,21 @@ namespace px
         kCancel,
     };
 
+    enum class MessageExecutionLane {
+        kControl,
+        kState,
+        kWorker,
+        kUi,
+    };
+
+    struct MessageBusLaneStatistics {
+        std::uint64_t scheduled = 0;
+        std::uint64_t completed = 0;
+        std::uint64_t rejected = 0;
+        std::uint64_t high_watermark = 0;
+        std::uint64_t pending = 0;
+    };
+
     struct MessageBusStatistics {
         std::uint64_t posted = 0;
         std::uint64_t dispatched = 0;
@@ -34,6 +49,17 @@ namespace px
         std::uint64_t callback_exceptions = 0;
         std::uint64_t high_watermark = 0;
         std::uint64_t pending = 0;
+        MessageBusLaneStatistics control_lane;
+        MessageBusLaneStatistics state_lane;
+        MessageBusLaneStatistics worker_lane;
+        MessageBusLaneStatistics ui_lane;
+    };
+
+    struct MessageNotifierOptions {
+        std::size_t max_pending_messages = 4096;
+        std::size_t max_state_callbacks = 1024;
+        std::size_t max_worker_callbacks = 1024;
+        std::size_t worker_threads = 2;
     };
 
     class MessageListener {
@@ -66,6 +92,7 @@ namespace px
     class MessageNotifier {
     public:
         explicit MessageNotifier(std::size_t max_pending_messages = 4096);
+        explicit MessageNotifier(MessageNotifierOptions options);
         ~MessageNotifier();
 
         MessageNotifier(const MessageNotifier&) = delete;
@@ -75,6 +102,12 @@ namespace px
         // thread. UI consumers can provide an executor that posts the guarded
         // callback to their owning event loop.
         std::shared_ptr<MessageListener> CreateListener(MessageExecutor executor = {});
+
+        // Control is the ordered default. State is a separate ordered lane,
+        // Worker is bounded and parallel, and UI requires a guarded external
+        // executor. Existing callers remain on Control unless they opt in.
+        std::shared_ptr<MessageListener> CreateListener(
+            MessageExecutionLane lane, MessageExecutor executor = {});
 
         template<typename T>
         bool PublishAppMessage(T&& message) {
@@ -112,8 +145,6 @@ namespace px
                         std::uint64_t coalesce_key);
 
         std::shared_ptr<MessageNotifierCore> core_;
-        class WorkerOwner;
-        std::unique_ptr<WorkerOwner> worker_;
     };
 }
 

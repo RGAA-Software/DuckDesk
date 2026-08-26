@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QProcess>
+#include <QPointer>
 
 namespace px
 {
@@ -29,7 +30,6 @@ namespace px
     class StreamDBOperator;
     class RoundImageDisplay;
     class TcCircleIndicator;
-    class PxStatistics;
 
     class TabServer : public TabBase {
     public:
@@ -48,7 +48,6 @@ namespace px
 
     private:
         PxSettings* settings_ = nullptr;
-        PxStatistics* stat_ = nullptr;
         QPixmap qr_pixmap_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QLabel* lbl_machine_code_ = nullptr;
@@ -63,12 +62,7 @@ namespace px
         TcImageButton* btn_hide_random_pwd_ = nullptr;
         std::shared_ptr<StreamDBOperator> stream_db_mgr_ = nullptr;
         std::vector<std::shared_ptr<px_console::ConsoleStream>> recent_streams_;
-        TcCircleIndicator* console_indicator_ = nullptr;
-        TcCircleIndicator* relay_indicator_ = nullptr;
-        TcCircleIndicator* relay_ft_indicator_ = nullptr;
-        // last computed alive state, for transition-only logging
-        bool last_relay_alive_ = false;
-        bool last_relay_ft_alive_ = false;
+        QPointer<TcCircleIndicator> console_indicator_;
     };
 }
 

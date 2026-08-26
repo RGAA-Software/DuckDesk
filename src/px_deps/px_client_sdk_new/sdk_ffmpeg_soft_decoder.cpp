@@ -291,8 +291,11 @@ namespace px
                 }
                 else {
                     auto end = TimeUtil::GetCurrentTimestamp();
-                    sdk_->PostMiscTask([=, this]() {
-                        sdk_stat_->AppendDecodeDuration(monitor_name_, end-beg);
+                    const auto sdk_stat = sdk_stat_;
+                    const auto monitor_name = monitor_name_;
+                    const auto decode_duration = end - beg;
+                    sdk_->PostMiscTask([sdk_stat, monitor_name, decode_duration]() {
+                        sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
                     });
                     //LOGI("FFmpeg decode YUV420p(I420) used : {}ms, {}x{}", (end-beg), frame_width_, frame_height_);
                     return decoded_image_;

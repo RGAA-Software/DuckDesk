@@ -7,8 +7,14 @@
 #include "../string_util.h"
 #include <filesystem>
 #include <fstream>
+#include <type_traits>
 
 using namespace px;
+
+static_assert(!std::is_copy_constructible_v<File>);
+static_assert(!std::is_copy_assignable_v<File>);
+static_assert(std::is_move_constructible_v<File>);
+static_assert(std::is_move_assignable_v<File>);
 
 
 class FileTest : public ::testing::Test {

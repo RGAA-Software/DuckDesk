@@ -61,7 +61,7 @@ namespace px
         bool full_functionality_ = false;
     private:
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        SharedPreference* sp_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_;
         std::shared_ptr<Thread> task_thread_ = nullptr;
         std::string name_;
         std::map<std::string, SdkCaptureMonitorInfo> capturing_info_map_;

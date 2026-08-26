@@ -22,6 +22,7 @@ namespace px
     class PxServiceClient : public std::enable_shared_from_this<PxServiceClient> {
     public:
         explicit PxServiceClient(const std::shared_ptr<PxApplication>& app);
+        ~PxServiceClient();
         void Start();
         void Exit();
         bool IsAlive();
@@ -34,12 +35,13 @@ namespace px
         void FillAuthInfo(MsgAuthInfo* auth_info);
 
     private:
-        PxStatistics* statistics_ = nullptr;
+        std::shared_ptr<PxStatistics> statistics_ = nullptr;
         std::shared_ptr<PxApplication> app_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
+        std::atomic_bool exiting_ = false;
     };
 
 }

@@ -7,6 +7,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/time_util.h"
+#include "px_common_new/rtc_monitor_track_slots.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/message_notifier.h"
@@ -283,6 +284,10 @@ namespace px
                             .bottom_ = m.value("bottom", 0),
                         });
                     }
+                    // The Windows client offers four recvonly m-lines. New renders
+                    // reserve all four sender slots so monitor hot-plug can bind an
+                    // idle slot without a reconnect or ticket replay.
+                    track_monitors_.resize(kMaxRtcLocalVideoTracks);
                     track_frame_indices_.assign(track_monitors_.size(), 0);
                     track_got_keyframe_.assign(track_monitors_.size(), false);
                     track_frame_widths_.clear();
@@ -428,6 +433,63 @@ namespace px
 
     void WebRtcLocalConnection::SetCapturingMonitorNameProvider(std::function<std::string()>&& provider) {
         capturing_monitor_provider_ = std::move(provider);
+    }
+
+    void WebRtcLocalConnection::UpdateTrackMonitors(const ServerConfiguration& config) {
+        std::vector<RtcLocalTrackMonitor> active_monitors;
+        std::vector<std::string> active_monitor_names;
+        active_monitors.reserve(config.monitors_info_size());
+        active_monitor_names.reserve(config.monitors_info_size());
+        for (const auto& monitor : config.monitors_info()) {
+            active_monitor_names.push_back(monitor.name());
+            active_monitors.push_back(RtcLocalTrackMonitor {
+                .name_ = monitor.name(),
+                .width_ = monitor.current_width(),
+                .height_ = monitor.current_height(),
+                .left_ = 0,
+                .top_ = 0,
+                .right_ = monitor.current_width(),
+                .bottom_ = monitor.current_height(),
+            });
+        }
+
+        std::lock_guard<std::mutex> guard(track_mtx_);
+        // No monitors array in the signaling response means an old Render with one
+        // dynamic track. Keep its capturing-monitor fallback behavior unchanged.
+        if (track_monitors_.empty()) {
+            return;
+        }
+
+        std::vector<std::string> track_slots;
+        track_slots.reserve(track_monitors_.size());
+        for (const auto& monitor : track_monitors_) {
+            track_slots.push_back(monitor.name_);
+        }
+        if (!ReconcileRtcMonitorTrackSlots(track_slots, active_monitor_names)) {
+            return;
+        }
+
+        for (size_t index = 0; index < track_monitors_.size(); ++index) {
+            if (track_monitors_[index].name_ == track_slots[index]) {
+                continue;
+            }
+            const auto old_name = track_monitors_[index].name_;
+            const auto active_monitor = std::find_if(
+                active_monitors.begin(), active_monitors.end(),
+                [&track_slots, index](const auto& monitor) {
+                    return monitor.name_ == track_slots[index];
+                });
+            track_monitors_[index] = active_monitor != active_monitors.end()
+                ? *active_monitor : RtcLocalTrackMonitor{};
+            if (index < track_frame_indices_.size()) {
+                track_frame_indices_[index] = 0;
+                track_got_keyframe_[index] = false;
+                track_frame_widths_[index] = track_monitors_[index].width_;
+                track_frame_heights_[index] = track_monitors_[index].height_;
+            }
+            LOGI("Rtc local track slot #{} rebound: '{}' -> '{}'", index,
+                 old_name, track_monitors_[index].name_);
+        }
     }
 
     std::string WebRtcLocalConnection::MakeSafetyPwdMd5() {

@@ -20,10 +20,10 @@ namespace px
 
     class Thread;
 
-    class PxPluginContext {
+    class PxPluginContext : public std::enable_shared_from_this<PxPluginContext> {
     public:
         explicit PxPluginContext(const std::string& plugin_name);
-        ~PxPluginContext() = default;
+        ~PxPluginContext();
 
         void OnDestroy();
 
@@ -39,6 +39,7 @@ namespace px
         std::shared_ptr<Thread> work_thread_ = nullptr;
         std::shared_ptr<asio2::timer> timer_ = nullptr;
         std::atomic<int> delay_task_id_ = 0;
+        std::atomic_bool destroyed_ = false;
     };
 
 }

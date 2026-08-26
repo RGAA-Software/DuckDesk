@@ -48,6 +48,10 @@ namespace px
         main_window_ = main_window;
     }
 
+    PxContext::~PxContext() {
+        Exit();
+    }
+
     bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         settings_ = PxSettings::Instance();
@@ -101,7 +105,7 @@ namespace px
         steam_mgr_ = SteamManager::Make();
         steam_mgr_->ScanInstalledSteamPath();
 
-        msg_notifier_ = app_->GetMessageNotifier();
+        msg_notifier_ = app->GetMessageNotifier();
 
         // ips
         auto ips = IPUtil::ScanIPs();
@@ -146,43 +150,91 @@ namespace px
     }
 
     void PxContext::Exit() {
-        exiting_ = true;
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (timer_) {
+            timer_->stop_all_timers();
+            timer_->stop();
+            timer_.reset();
+        }
         if (srv_manager_) {
             srv_manager_->Exit();
         }
+        std::shared_ptr<TaskRuntime> task_runtime;
+        {
+            std::lock_guard lock(task_runtime_mutex_);
+            task_runtime.swap(task_rt_);
+        }
+        if (task_runtime) {
+            task_runtime->Exit();
+        }
+        if (msg_notifier_) {
+            msg_notifier_->Stop(MessageBusStopMode::kCancel);
+        }
+
+        running_stream_mgr_.reset();
+        event_manager_.reset();
+        console_manager_.reset();
+        notify_mgr_.reset();
+        run_game_manager_.reset();
+        service_manager_.reset();
+        srv_manager_.reset();
+        res_manager_.reset();
+        db_game_manager_.reset();
+        stream_db_mgr_.reset();
+        database_.reset();
+        steam_mgr_.reset();
+        sp_.reset();
+        msg_notifier_.reset();
+        app_.reset();
     }
 
     std::shared_ptr<SteamManager> PxContext::GetSteamManager() {
         return steam_mgr_;
     }
 
+    std::shared_ptr<TaskRuntime> PxContext::GetTaskRuntimeForPost() const {
+        std::lock_guard lock(task_runtime_mutex_);
+        return exiting_ ? nullptr : task_rt_;
+    }
+
     void PxContext::PostTask(std::function<void()>&& task) {
-        if (!task_rt_) {
+        const auto runtime = GetTaskRuntimeForPost();
+        if (!runtime) {
             LOGE("PostTask ignored because task runtime is not ready");
             return;
         }
-        task_rt_->Post(SimpleThreadTask::Make(std::move(task)));
+        runtime->Post(SimpleThreadTask::Make(std::move(task)));
     }
 
     void PxContext::PostNetworkTask(std::function<void()>&& task) {
-        if (!task_rt_) {
+        const auto runtime = GetTaskRuntimeForPost();
+        if (!runtime) {
             LOGE("PostNetworkTask ignored because task runtime is not ready");
             return;
         }
-        task_rt_->GetFirstThread()->Post(SimpleThreadTask::Make(std::move(task)));
+        const auto thread = runtime->GetFirstThread();
+        if (thread) {
+            thread->Post(SimpleThreadTask::Make(std::move(task)));
+        }
     }
 
     void PxContext::PostTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
-        if (!task_rt_) {
+        const auto runtime = GetTaskRuntimeForPost();
+        if (!runtime) {
             LOGE("PostTask(exec/callback) ignored because task runtime is not ready");
             return;
         }
-        task_rt_->Post(
+        runtime->Post(
             ReturnThreadTask<ExecFunc, CallbackFunc>::Make(std::move(exec_task), std::move(cbk_task))
         );
     }
 
     void PxContext::PostUITask(std::function<void()>&& task) {
+        if (exiting_ || !task) {
+            return;
+        }
         auto weak_self = weak_from_this();
         QMetaObject::invokeMethod(this, [weak_self, task = std::move(task)]() {
             auto self = weak_self.lock();
@@ -194,6 +246,9 @@ namespace px
     }
 
     void PxContext::PostUIDelayTask(std::function<void()>&& task, int ms) {
+        if (exiting_ || !task) {
+            return;
+        }
         auto weak_self = weak_from_this();
         this->PostUITask([weak_self, ms, t = std::move(task)]() {
             QTimer::singleShot(ms, [weak_self, t]() {
@@ -207,6 +262,9 @@ namespace px
     }
 
     void PxContext::PostDelayTask(std::function<void()>&& task, int ms) {
+        if (exiting_ || !task) {
+            return;
+        }
         auto weak_self = weak_from_this();
         this->PostUIDelayTask([weak_self, task = std::move(task)]() mutable {
             auto self = weak_self.lock();
@@ -218,21 +276,29 @@ namespace px
     }
 
     void PxContext::PostDBTask(std::function<void()>&& task) {
-        if (!task_rt_) {
+        const auto runtime = GetTaskRuntimeForPost();
+        if (!runtime) {
             LOGE("PostDBTask ignored because task runtime is not ready");
             return;
         }
-        task_rt_->GetLastThread()->Post(SimpleThreadTask::Make(std::move(task)));
+        const auto thread = runtime->GetLastThread();
+        if (thread) {
+            thread->Post(SimpleThreadTask::Make(std::move(task)));
+        }
     }
 
     void PxContext::PostDBTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
-        if (!task_rt_) {
+        const auto runtime = GetTaskRuntimeForPost();
+        if (!runtime) {
             LOGE("PostDBTask(exec/callback) ignored because task runtime is not ready");
             return;
         }
-        task_rt_->GetLastThread()->Post(
-                ReturnThreadTask<ExecFunc, CallbackFunc>::Make(std::move(exec_task), std::move(cbk_task))
-        );
+        const auto thread = runtime->GetLastThread();
+        if (thread) {
+            thread->Post(
+                ReturnThreadTask<ExecFunc, CallbackFunc>::Make(
+                    std::move(exec_task), std::move(cbk_task)));
+        }
     }
 
     int PxContext::GetIndexByUniqueId() {
@@ -307,12 +373,13 @@ namespace px
         return msg_notifier_;
     }
 
-    std::shared_ptr<MessageListener> PxContext::ObtainMessageListener() {
+    std::shared_ptr<MessageListener> PxContext::ObtainMessageListener(
+        MessageExecutionLane lane) {
         if (!msg_notifier_) {
             LOGE("ObtainMessageListener failed because notifier is not ready");
             return nullptr;
         }
-        return msg_notifier_->CreateListener();
+        return msg_notifier_->CreateListener(lane);
     }
 
     std::shared_ptr<MessageListener> PxContext::ObtainUIMessageListener() {
@@ -321,7 +388,9 @@ namespace px
             return nullptr;
         }
         auto weak_self = weak_from_this();
-        return msg_notifier_->CreateListener([weak_self](std::function<void()> task) {
+        return msg_notifier_->CreateListener(
+            MessageExecutionLane::kUi,
+            [weak_self](std::function<void()> task) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->PostUITask(std::move(task));
             }
@@ -379,7 +448,7 @@ namespace px
     }
 
     std::shared_ptr<PxApplication> PxContext::GetApplication() {
-        return app_;
+        return app_.lock();
     }
 
     std::shared_ptr<PxConsoleManager> PxContext::GetConsoleManager() {

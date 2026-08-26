@@ -3,18 +3,13 @@
 //
 
 #include "tab_base.h"
+#include <QPointer>
 #include "render_panel/px_settings.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
 #include "px_common_new/message_notifier.h"
 #include "render_panel/px_statistics.h"
 #include "render_panel/px_app_messages.h"
-
-// 测试崩溃函数
-void CrashFunction() {
-    int* ptr = nullptr;
-    *ptr = 42;  // 人为制造崩溃
-}
 
 namespace px
 {
@@ -25,14 +20,18 @@ namespace px
         msg_listener_ = context_->ObtainUIMessageListener();
         statistics_ = PxStatistics::Instance();
 
-        msg_listener_->Listen<MsgLanguageChanged>([=, this](const MsgLanguageChanged& msg) {
-            this->OnTranslate();
-            //CrashFunction();
+        QPointer<TabBase> self(this);
+        msg_listener_->Listen<MsgLanguageChanged>([self](const MsgLanguageChanged&) {
+            if (self) {
+                self->OnTranslate();
+            }
         });
     }
 
     TabBase::~TabBase() {
-
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
     }
 
     void TabBase::OnTabShow() {

@@ -29,12 +29,12 @@ namespace px
     class PxVideoEncoderPlugin;
     class PxFrameCarrierPlugin;
 
-    class EncoderThread {
+    class EncoderThread : public std::enable_shared_from_this<EncoderThread> {
     public:
         static std::shared_ptr<EncoderThread> Make(const std::shared_ptr<RdApplication>& app);
 
         explicit EncoderThread(const std::shared_ptr<RdApplication>& app);
-        ~EncoderThread() = default;
+        ~EncoderThread();
 
         void Encode(const CaptureVideoFrame& msg);
         void HandleD3DDeviceFailure(uint64_t adapter_uid);
@@ -42,6 +42,9 @@ namespace px
         std::map<std::string, PxVideoEncoderPlugin*> GetWorkingVideoEncoderPlugins();
 
     private:
+        void InitListener();
+        void EncodeOnWorker(CaptureVideoFrame cap_video_msg,
+                            const std::shared_ptr<void>& inflight_guard);
         void PostEncTask(std::function<void()>&& task);
         void PrintEncoderConfig(const px::EncoderConfig& config);
         bool HasEncoderForMonitor(const std::string& monitor_name);
@@ -49,7 +52,7 @@ namespace px
 
     private:
         RdSettings* settings_ = nullptr;
-        RdStatistics* stat_ = nullptr;
+        std::shared_ptr<RdStatistics> stat_ = nullptr;
         std::shared_ptr<Thread> enc_thread_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
@@ -74,6 +77,7 @@ namespace px
         std::atomic_bool hardware_disabled_ = false;
 
         std::atomic_bool clear_encoders_ = false;
+        std::atomic_bool exiting_ = false;
     };
 
 }

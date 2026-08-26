@@ -19,7 +19,8 @@ namespace px
     }
 
     void AppManager::Init() {
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+        state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     }
 
     bool AppManager::StartProcess() {
@@ -31,7 +32,15 @@ namespace px
     }
 
     void AppManager::Exit() {
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+        }
+        if (state_msg_listener_) {
+            state_msg_listener_->UnListenAll();
+        }
+    }
 
+    void AppManager::OnCapturedVideoFrame() {
     }
 
     void AppManager::CloseCurrentApp() {

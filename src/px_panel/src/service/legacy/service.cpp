@@ -22,7 +22,7 @@ namespace px
 
     PxService::PxService(const std::shared_ptr<ServiceContext>& ctx) {
         context_ = ctx;
-        render_manager_ = std::make_shared<RenderManager>(ctx);
+        render_manager_ = RenderManager::Make(ctx);
     }
 
     void PxService::Run(DWORD dwArgc, LPWSTR* lpszArgv, SERVICE_STATUS_HANDLE handle) {

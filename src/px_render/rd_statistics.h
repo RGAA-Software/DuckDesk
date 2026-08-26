@@ -21,7 +21,6 @@ namespace px
     constexpr auto kMaxStatCounts = 180;
 
     class Data;
-    class Thread;
     class RdContext;
     class MessageListener;
     class PluginManager;
@@ -42,12 +41,12 @@ namespace px
 
     };
 
-    class RdStatistics {
+    class RdStatistics : public std::enable_shared_from_this<RdStatistics> {
     public:
 
-        static RdStatistics* Instance() {
-            static RdStatistics st;
-            return &st;
+        static std::shared_ptr<RdStatistics> Instance() {
+            static const auto st = std::make_shared<RdStatistics>();
+            return st;
         }
 
         RdStatistics();
@@ -86,9 +85,8 @@ namespace px
         void OnChecking();
 
     public:
-        std::shared_ptr<RdApplication> app_ = nullptr;
+        std::weak_ptr<RdApplication> app_;
         std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<Thread> monitor_thread_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
         RdSettings* settings_ = nullptr;

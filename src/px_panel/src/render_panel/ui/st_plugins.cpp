@@ -4,6 +4,7 @@
 
 #include <QStyledItemDelegate>
 #include "st_plugins.h"
+#include <QPointer>
 #include "render_panel/px_application.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
@@ -76,30 +77,34 @@ namespace px
 
         setLayout(root_layout);
 
-        msg_listener_->Listen<MsgPluginsInfo>([=, this](const MsgPluginsInfo& m_info) {
+        QPointer<StPlugins> self(this);
+        msg_listener_->Listen<MsgPluginsInfo>([self](const MsgPluginsInfo& m_info) {
+            if (!self) {
+                return;
+            }
             auto plugins_info = m_info.plugins_info_->plugins_info();
-            if (items_info_.empty()) {
+            if (self->items_info_.empty()) {
                 for (const auto& new_info : plugins_info) {
                     auto plugin_info = std::make_shared<pxrp::RpPluginInfo>();
                     plugin_info->CopyFrom(new_info);
-                    items_info_.push_back(std::make_shared<PluginItemInfo>(PluginItemInfo{
+                    self->items_info_.push_back(std::make_shared<PluginItemInfo>(PluginItemInfo{
                         .id_ = new_info.id(),
                         .info_ = plugin_info,
                     }));
 
                 }
-                RefreshListWidget();
+                self->RefreshListWidget();
             }
             else {
                 for (const auto& new_info : plugins_info) {
-                    for (const auto &item_info: items_info_) {
+                    for (const auto &item_info: self->items_info_) {
                         if (item_info->id_ == new_info.id()) {
                             item_info->info_->set_enabled(new_info.enabled());
                             break;
                         }
                     }
                 }
-                UpdateItemStatus();
+                self->UpdateItemStatus();
             }
         });
 

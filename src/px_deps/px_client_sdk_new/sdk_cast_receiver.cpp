@@ -16,8 +16,15 @@ namespace px
 
     }
 
+    CastReceiver::~CastReceiver() {
+        Exit();
+    }
+
     void CastReceiver::Start() {
-        recv_thread_ = std::thread([=, this]() {
+        if (recv_thread_.joinable()) {
+            return;
+        }
+        recv_thread_ = std::thread([]() {
             std::string_view host = "0.0.0.0";
             std::string_view port = "8030";
 #if 0

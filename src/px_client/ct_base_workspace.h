@@ -146,7 +146,7 @@ namespace px
         // reconnect when the remote device was in relay mode
         void ReconnectInRelayMode();
         // dismiss connecting dialog
-        void DismissConnectingDialog() const;
+        void DismissConnectingDialog();
 
         // messages defined in px_message.proto
         void ProcessNetworkMessage(const std::shared_ptr<px::Message>& msg);

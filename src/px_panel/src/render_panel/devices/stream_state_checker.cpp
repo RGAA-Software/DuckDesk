@@ -17,7 +17,10 @@ namespace px
 
     StreamStateChecker::StreamStateChecker(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
-        msg_listener_ = context_->ObtainMessageListener();
+    }
+
+    StreamStateChecker::~StreamStateChecker() {
+        Exit();
     }
 
     void StreamStateChecker::Start() {
@@ -25,14 +28,22 @@ namespace px
     }
 
     void StreamStateChecker::Exit() {
-
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        on_checked_cbk_ = {};
     }
 
     void StreamStateChecker::UpdateCurrentStreamItems(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items) {
+        const auto context = context_.lock();
+        if (!context || exiting_) {
+            return;
+        }
         const auto weak_self = weak_from_this();
-        context_->PostTask([weak_self, items]() {
+        context->PostTask([weak_self, items]() {
             const auto self = weak_self.lock();
-            if (!self) {
+            if (!self || self->exiting_) {
                 return;
             }
             self->CheckState(items);
@@ -40,7 +51,10 @@ namespace px
     }
 
     void StreamStateChecker::SetOnCheckedCallback(OnStreamStateCheckedCallback&& cbk) {
-        on_checked_cbk_ = cbk;
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        if (!exiting_) {
+            on_checked_cbk_ = std::move(cbk);
+        }
     }
 
     void StreamStateChecker::CheckState(const std::vector<std::shared_ptr<px_console::ConsoleStream>>& items) {
@@ -76,8 +90,13 @@ namespace px
             item->console_online_ = false;
         }
 
-        if (on_checked_cbk_) {
-            on_checked_cbk_(items);
+        OnStreamStateCheckedCallback callback;
+        {
+            std::lock_guard<std::mutex> lock(callback_mtx_);
+            callback = on_checked_cbk_;
+        }
+        if (callback && !exiting_) {
+            callback(items);
         }
     }
 

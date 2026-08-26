@@ -8,6 +8,12 @@ native modules. It is not limited to the Asio dispatcher implementation.
 
 ## Mandatory ownership model
 
+- **Hard gate for new code:** newly added GammaRay-owned or maintained C++ code
+  must not declare, store, pass, return or capture a raw pointer. This includes
+  local variables, data members, container elements, function parameters/results
+  and callback parameters; using a local raw pointer temporarily is not a
+  workaround. Every new or added line is subject to this zero-raw-pointer gate,
+  even when surrounding legacy code still uses raw pointers.
 - Use `std::unique_ptr` for exclusive ownership.
 - Use `std::shared_ptr` only when ownership is genuinely shared.
 - Use `std::weak_ptr` for observers and asynchronous references. Call `lock()`
@@ -27,6 +33,15 @@ Those values may be used only transiently at the call boundary. An owned result
 must be wrapped immediately in an RAII type. A borrowed boundary pointer cannot
 be retained in state or captured by asynchronous work. Boundary lifetime
 assumptions must be documented beside the adapter.
+
+When a new declaration or an existing plug-in loader allocation is unavoidable
+because an external ABI requires its established pointer representation, keep
+it in the smallest adapter and append
+`NOLINT(gammaray-raw-pointer-boundary)` with the ABI and lifetime reason on that
+line. This marker is not permitted for ordinary project APIs, local variables,
+stored state or asynchronous callbacks and requires code review. It must not be
+used to create a new project-owned ownership model; the loader case only
+preserves a pre-existing plug-in identity and process-lifetime contract.
 
 `src/px_deps/px_webrtc_client` is a deliberate structural exception. Its
 borrowed observer, SDP, track and callback pointers mirror libwebrtc APIs and
@@ -63,8 +78,9 @@ debt and must introduce zero new asynchronous raw captures.
 Reviews must explicitly check construction, destruction, unregister, shutdown,
 reconnect and callback ordering. Tests must include callbacks queued before
 destruction, owner expiry, repeated start/stop, concurrent unregister and
-shutdown invoked from inside a callback. Static checks should reject newly added
-`[this]` captures and owned raw-pointer fields.
+shutdown invoked from inside a callback. Static checks reject newly added
+raw-pointer declarations, `[this]` captures and manual ownership. A reviewed
+external-ABI declaration is the only annotated exception.
 
 Run `cmake --build build_official --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects

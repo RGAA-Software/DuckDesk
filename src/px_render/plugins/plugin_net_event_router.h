@@ -25,8 +25,10 @@ namespace px
     class PluginManager;
     struct VirtualDisplayCoordinator;
 
-    class PluginNetEventRouter {
+    class PluginNetEventRouter : public std::enable_shared_from_this<PluginNetEventRouter> {
     public :
+        static std::shared_ptr<PluginNetEventRouter> Make(
+            const std::shared_ptr<RdApplication>& app);
         explicit PluginNetEventRouter(const std::shared_ptr<RdApplication>& app);
         void ProcessNetEvent(const std::shared_ptr<PxPluginNetClientEvent>& event);
         void ProcessClientConnectedEvent(const std::shared_ptr<PxPluginClientConnectedEvent>& event);
@@ -36,6 +38,7 @@ namespace px
         void ProcessRtcReportEvent(const std::shared_ptr<PxPluginRtcReportEvent>& event);
 
     private:
+        void InitListeners();
         void ProcessHelloEvent(std::shared_ptr<Message>&& msg);
         void ProcessMouseEvent(std::shared_ptr<Message>&& msg);
         void ProcessKeyboardEvent(std::shared_ptr<Message>&& msg);
@@ -80,7 +83,7 @@ namespace px
 
     private:
         RdSettings* settings_ = nullptr;
-        RdStatistics* statistics_ = nullptr;
+        std::shared_ptr<RdStatistics> statistics_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
         //std::shared_ptr<WinEventReplayer> win_event_replayer_ = nullptr;

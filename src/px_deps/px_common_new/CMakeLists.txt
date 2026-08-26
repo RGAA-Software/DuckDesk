@@ -64,7 +64,6 @@ set(SRCS
     key_helper.cpp
     url_helper.cpp
     ws_server.cpp
-    message_looper.cpp
     base_handler.cpp
     http_base_op.cpp
     math_helper.cpp
@@ -142,8 +141,7 @@ if (WIN32)
 endif ()
 
 if (ANDROID)
-    find_package(Iconv REQUIRED)
-    target_link_libraries(px_common_new PUBLIC Iconv::Iconv ${ANDROID_OPENSSL_LIBS})
+    target_link_libraries(px_common_new PUBLIC ${ANDROID_OPENSSL_LIBS})
 endif ()
 
 target_link_libraries(px_common_new PUBLIC leveldb::leveldb fmt::fmt spdlog::spdlog_header_only miniz::miniz cpr::cpr)

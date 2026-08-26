@@ -24,12 +24,19 @@ namespace px
         context_ = app_->GetContext();
     }
 
+    PxServiceClient::~PxServiceClient() {
+        Exit();
+    }
+
     void PxServiceClient::Start() {
+        if (exiting_ || client_) {
+            return;
+        }
         auto weak_self = weak_from_this();
-        msg_listener_ = context_->GetMessageNotifier()->CreateListener();
-        msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S& msg) {
+        msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
+        msg_listener_->Listen<MsgGrTimer1S>([weak_self](const MsgGrTimer1S&) {
             auto self = weak_self.lock();
-            if (!self) {
+            if (!self || self->exiting_) {
                 return;
             }
             self->HeartBeat();
@@ -115,9 +122,21 @@ namespace px
     }
 
     void PxServiceClient::Exit() {
-        if (client_) {
-            client_->stop();
+        if (exiting_.exchange(true)) {
+            return;
         }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (client_) {
+            client_->stop_all_timers();
+            client_->stop();
+            client_.reset();
+        }
+        statistics_.reset();
+        context_.reset();
+        app_.reset();
     }
 
     bool PxServiceClient::IsAlive() {

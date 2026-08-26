@@ -88,9 +88,12 @@ namespace px
         void PostNetMessage(std::shared_ptr<Data> msg) const;
         std::shared_ptr<RdContext> GetContext() { return context_; }
         std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
+        void OnCapturedVideoFrame(const CaptureVideoFrame& frame) const;
+        void OnCapturedAudioFrame(const CaptureAudioFrame& frame);
+        void OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const;
         void OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const;
         // In-process hook audio from px_gh.dll via /ipc.
-        void OnIpcAudioFrame(const CaptureAudioFrame& frame) const;
+        void OnIpcAudioFrame(const CaptureAudioFrame& frame);
         // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
         void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
@@ -103,7 +106,7 @@ namespace px
         void HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason);
         ComPtr<ID3D11Device> GetD3DDevice(uint64_t adapter_uid);
         ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
-        SharedPreference* GetSp() const { return sp_; }
+        std::shared_ptr<SharedPreference> GetSp() const { return sp_; }
         void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
         void RedeemConnectionTicket(
             const std::string& ticket,
@@ -131,6 +134,7 @@ namespace px
             uint32_t refresh_hz,
             std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
         void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
+        void RefreshVirtualDisplayStatus(const std::string& request_prefix);
         void SendWebViewMouseEvent(const MouseEvent& event);
         void SendWebViewKeyEvent(const KeyEvent& event);
         void SendWebViewTextInput(const TextInput& event);
@@ -174,18 +178,19 @@ namespace px
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<EncoderThread> encoder_thread_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<AppTimer> app_timer_ = nullptr;
 
         std::shared_ptr<File> debug_encode_file_ = nullptr;
         std::shared_ptr<AppSharedMessage> app_shared_message_ = nullptr;
-        bool exit_app_ = false;
+        std::atomic_bool exit_app_ = false;
 
         std::shared_ptr<Thread> audio_capture_thread_ = nullptr;
         std::shared_ptr<AppSharedInfo> app_shared_info_ = nullptr;
 
         uint64_t last_post_audio_time_ = 0;
-        RdStatistics* statistics_ = nullptr;
-        SharedPreference* sp_ = nullptr;
+        std::shared_ptr<RdStatistics> statistics_ = nullptr;
+        std::shared_ptr<SharedPreference> sp_;
 
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
         std::mutex task_mutex_;

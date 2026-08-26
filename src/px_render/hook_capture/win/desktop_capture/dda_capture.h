@@ -11,6 +11,7 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <mutex>
 
 #include "desktop_capture.h"
 #include "px_common_new/monitors.h"
@@ -59,7 +60,7 @@ namespace px
         bool Exit();
         void Capture();
         CaptureResult CaptureNextFrame(int wait_time, CComPtr<ID3D11Texture2D>& out_tex, int monitor_index = 0);
-        void OnCaptureFrame(ID3D11Texture2D *texture, uint8_t monitor_index);
+        void OnCaptureFrame(const CComPtr<ID3D11Texture2D>& texture, uint8_t monitor_index);
         void SendTextureHandle(const HANDLE &shared_handle, MonitorIndex monitor_index, uint32_t width, uint32_t height, DXGI_FORMAT format);
         int GetFrameIndex(MonitorIndex monitor_index);
         bool IsTargetMonitor(int index);
@@ -68,6 +69,7 @@ namespace px
 
     private:
         std::atomic<bool> stop_flag_ = false;
+        std::mutex capture_lifecycle_mutex_;
         std::thread capture_thread_;
         uint8_t monitor_count_ = 0;
         int64_t adapter_uid_ = -1;

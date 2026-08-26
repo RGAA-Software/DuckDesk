@@ -5,6 +5,7 @@
 #ifndef TC_ENCODER_TC_ENCODER_H
 #define TC_ENCODER_TC_ENCODER_H
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -40,7 +41,7 @@ namespace px
 
 	using EncoderCallback = std::function<void(const std::shared_ptr<Image>& frame, uint64_t frame_index, bool key)>;
 
-	class VideoEncoder {
+	class VideoEncoder : public std::enable_shared_from_this<VideoEncoder> {
 	public:
 	    VideoEncoder(const std::shared_ptr<MessageNotifier>& msg_notifier, const EncoderFeature& encoder_feature);
 	    virtual ~VideoEncoder();
@@ -75,7 +76,8 @@ namespace px
         EncoderConfig encoder_config_;
         EncoderFeature encoder_feature_;
 	    EncoderCallback encoder_callback_;
-	    bool insert_idr_ = false;
+	    std::atomic_bool insert_idr_{false};
+        std::atomic_bool listener_registered_{false};
 
 	    ComPtr<ID3D11Device> d3d11_device_;
 	    ComPtr<ID3D11DeviceContext> d3d11_device_context_;
