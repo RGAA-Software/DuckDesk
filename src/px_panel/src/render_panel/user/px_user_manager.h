@@ -7,7 +7,9 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "px_console_client/console_user_device_api.h"
@@ -57,7 +59,7 @@ namespace px
         bool SaveAccessToken(const std::string& access_token);
         void DeleteAccessToken();
         void UpdateAvatarPath(const std::string& avatar_path);
-        std::pair<std::string, bool> ResourceSession();
+        std::tuple<std::string, bool, std::optional<px_console::ConsoleApiError>> ResourceSession();
         void ClearGuestSession();
         void HandleExpiredUserSession();
 

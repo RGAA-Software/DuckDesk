@@ -66,7 +66,7 @@ namespace px_console
         });
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("GetRelayDeviceInfo failed : {}", resp.status);
-            return TRError((ConsoleApiError)resp.status);
+            return TRError(ToConsoleApiError(resp));
         }
 
         try {
@@ -127,7 +127,7 @@ namespace px_console
         LOGI("NewDeviceResp, status: {}", resp.status);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Request new device failed, code: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {
@@ -156,7 +156,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("UpdateRandomPwd failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {
@@ -186,7 +186,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("UpdateSafetyPwd failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {
@@ -263,7 +263,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("UpdateDesktopLink failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {
@@ -294,7 +294,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("UpdateDeviceName failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {
@@ -327,7 +327,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("UpdateDeviceName failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(ToConsoleApiError(resp));
         }
 
         try {

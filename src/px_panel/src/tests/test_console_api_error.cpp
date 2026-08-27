@@ -33,4 +33,54 @@ TEST(ConsoleApiError, MapsAuthorizationStatusWithoutJsonBody) {
               px_console::ConsoleApiError::kInvalidAppkey);
 }
 
+TEST(ConsoleApiError, PreservesTransportFailureDetails) {
+    px::HttpResponse response;
+    response.status = 0;
+    response.error_code = 7;
+    response.error_message = "Failed to connect to 10.0.0.16 port 30500";
+
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kNetworkUnavailable);
+    EXPECT_EQ(px_console::ConsoleApiLastErrorMessage(), response.error_message);
+}
+
+TEST(ConsoleApiError, SuppliesDetailWhenTransportReturnsNoMessage) {
+    px::HttpResponse response;
+    response.status = 0;
+
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kNetworkUnavailable);
+    EXPECT_FALSE(px_console::ConsoleApiLastErrorMessage().empty());
+}
+
+TEST(ConsoleApiError, UserEndpointsKeepAuthenticationSemantics) {
+    px::HttpResponse response;
+    response.status = 401;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kAuthenticationRequired);
+
+    response.status = 403;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kForbidden);
+}
+
+TEST(ConsoleApiError, MapsStandardUserHttpErrors) {
+    px::HttpResponse response;
+    response.status = 404;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kNotFound);
+
+    response.status = 410;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kGone);
+
+    response.status = 429;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kRateLimited);
+
+    response.status = 503;
+    EXPECT_EQ(px_console::ToConsoleUserApiError(response),
+              px_console::ConsoleApiError::kServiceUnavailable);
+}
+
 } // namespace

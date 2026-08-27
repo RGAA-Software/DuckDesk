@@ -6,6 +6,7 @@
 #include "console_http_client.h"
 #include "console_server_info.h"
 #include "console_errors.h"
+#include "console_api.h"
 #include <nlohmann/json.hpp>
 #include "console_device.h"
 #include "console_event.h"
@@ -42,7 +43,7 @@ namespace px
 
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("AddCpuEvent failed: {}", resp.status);
-            return TcErr((ConsoleApiError)resp.status);
+            return TcErr(px_console::ToConsoleApiError(resp));
         }
 
         try {

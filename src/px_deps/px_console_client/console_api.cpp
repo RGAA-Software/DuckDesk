@@ -16,6 +16,51 @@ using namespace px;
 namespace px_console
 {
 
+    namespace {
+
+        ConsoleApiError ParseConsoleHttpError(const px::HttpResponse& response,
+                                              ConsoleApiError unauthorized_error,
+                                              ConsoleApiError forbidden_error) {
+            SetConsoleApiLastErrorMessage("");
+            if (!response.body.empty()) {
+                try {
+                    const auto object = json::parse(response.body);
+                    const auto code = object.value("code", 0);
+                    SetConsoleApiLastErrorMessage(object.value("message", ""));
+                    if (code >= static_cast<int>(ConsoleApiError::kInvalidParams)) {
+                        return static_cast<ConsoleApiError>(code);
+                    }
+                }
+                catch (const std::exception& error) {
+                    LOGE("Parse Console error response failed: {}, body: {}", error.what(), response.body);
+                }
+            }
+
+            if (response.status <= 0) {
+                SetConsoleApiLastErrorMessage(response.error_message.empty()
+                    ? "The Console did not return a response."
+                    : response.error_message);
+                return ConsoleApiError::kNetworkUnavailable;
+            }
+
+            switch (response.status) {
+                case 401: return unauthorized_error;
+                case 403: return forbidden_error;
+                case 404: return ConsoleApiError::kNotFound;
+                case 409: return ConsoleApiError::kConflict;
+                case 410: return ConsoleApiError::kGone;
+                case 429: return ConsoleApiError::kRateLimited;
+                case 503: return ConsoleApiError::kServiceUnavailable;
+                default:
+                    if (ConsoleApiLastErrorMessage().empty()) {
+                        SetConsoleApiLastErrorMessage("HTTP " + std::to_string(response.status));
+                    }
+                    return ConsoleApiError::kInternalError;
+            }
+        }
+
+    }
+
     const std::string kConsoleControl = "/api/v1/console/control";
     const std::string kQueryAliveConnections = kConsoleControl + "/query/alive/connections";
     const std::string kQueryAvailableNewConnection = kConsoleControl + "/available/new/connection";
@@ -27,27 +72,13 @@ namespace px_console
     //   401 -> authorization invalid/expired (appkey or license check failed)
     //   403 -> max streams reached, no available connection
     ConsoleApiError ToConsoleApiError(const px::HttpResponse& resp) {
-        SetConsoleApiLastErrorMessage("");
-        if (!resp.body.empty()) {
-            try {
-                auto obj = json::parse(resp.body);
-                auto code = obj["code"].get<int>();
-                if (code >= (int)ConsoleApiError::kInvalidParams) {
-                    SetConsoleApiLastErrorMessage(obj.value("message", ""));
-                    return (ConsoleApiError)code;
-                }
-            }
-            catch (const std::exception& e) {
-                LOGE("ToConsoleApiError parse failed: {}, body: {}", e.what(), resp.body);
-            }
-        }
-        if (resp.status == 401) {
-            return ConsoleApiError::kInvalidAppkey;
-        }
-        if (resp.status == 403) {
-            return ConsoleApiError::kMaxStreamsReached;
-        }
-        return ConsoleApiError::kInternalError;
+        return ParseConsoleHttpError(resp, ConsoleApiError::kInvalidAppkey,
+                                     ConsoleApiError::kMaxStreamsReached);
+    }
+
+    ConsoleApiError ToConsoleUserApiError(const px::HttpResponse& response) {
+        return ParseConsoleHttpError(response, ConsoleApiError::kAuthenticationRequired,
+                                     ConsoleApiError::kForbidden);
     }
 
     px::Result<AliveConnections, ConsoleApiError>

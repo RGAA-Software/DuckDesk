@@ -15,6 +15,7 @@
 #include "px_common_new/base64.h"
 #include "px_common_new/uuid.h"
 #include "console_device.h"
+#include "console_api.h"
 
 // login
 const std::string kLogin = "/api/v1/session/user/login";
@@ -37,35 +38,6 @@ using namespace nlohmann;
 
 namespace px_console
 {
-    namespace
-    {
-        ConsoleApiError ToUserApiError(const px::HttpResponse& response) {
-            SetConsoleApiLastErrorMessage("");
-            if (!response.body.empty()) {
-                try {
-                    const auto error = json::parse(response.body);
-                    const auto code = error.value("code", 0);
-                    SetConsoleApiLastErrorMessage(error.value("message", ""));
-                    if (code >= static_cast<int>(ConsoleApiError::kInvalidParams)) {
-                        return static_cast<ConsoleApiError>(code);
-                    }
-                }
-                catch (const std::exception& error) {
-                    LOGE("Parse Console user error response failed: {}", error.what());
-                }
-            }
-            switch (response.status) {
-                case 401: return ConsoleApiError::kAuthenticationRequired;
-                case 403: return ConsoleApiError::kForbidden;
-                case 404: return ConsoleApiError::kNotFound;
-                case 409: return ConsoleApiError::kConflict;
-                case 410: return ConsoleApiError::kGone;
-                case 429: return ConsoleApiError::kRateLimited;
-                case 503: return ConsoleApiError::kServiceUnavailable;
-                default: return ConsoleApiError::kInternalError;
-            }
-        }
-    }
 
     px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::Register(
         const std::string& host,
@@ -83,7 +55,7 @@ namespace px_console
              response.status, host, port, username);
         if (response.status != 200 || response.body.empty()) {
             LOGE("Register failed: {}", response.status);
-            return TcErr(ToUserApiError(response));
+            return TcErr(ToConsoleUserApiError(response));
         }
         try {
             auto user = ConsoleUser::FromObj(json::parse(response.body).at("data"));
@@ -114,7 +86,7 @@ namespace px_console
              resp.status, host, port, username);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Login failed: {}", resp.status);
-            return TcErr(ToUserApiError(resp));
+            return TcErr(ToConsoleUserApiError(resp));
         }
 
         try {
@@ -145,7 +117,7 @@ namespace px_console
         auto resp = client->Post({}, "{}", "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Logout failed: {}", resp.status);
-            return TcErr(ToUserApiError(resp));
+            return TcErr(ToConsoleUserApiError(resp));
         }
 
         try {
@@ -168,7 +140,7 @@ namespace px_console
         auto resp = client->Patch({}, obj.dump(), "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update failed: {}", resp.status);
-            return TcErr(ToUserApiError(resp));
+            return TcErr(ToConsoleUserApiError(resp));
         }
 
         try {
@@ -195,7 +167,7 @@ namespace px_console
         auto resp = client->Post({}, obj.dump(), "application/json");
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update failed: {}", resp.status);
-            return TcErr(ToUserApiError(resp));
+            return TcErr(ToConsoleUserApiError(resp));
         }
 
         try {
@@ -231,7 +203,7 @@ namespace px_console
         LOGI("Update Avatar, status:{}, address-> {}:{}", resp.status, host, port);
         if (resp.status != 200 || resp.body.empty()) {
             LOGE("Update Avatar failed: {}", resp.status);
-            return TcErr(ToUserApiError(resp));
+            return TcErr(ToConsoleUserApiError(resp));
         }
 
         try {

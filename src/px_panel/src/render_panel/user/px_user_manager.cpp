@@ -13,6 +13,7 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
+#include "render_panel/console/console_error_presenter.h"
 #include "px_label.h"
 #include "px_dialog.h"
 #include <Windows.h>
@@ -46,8 +47,8 @@ namespace px
                     LOGW("Failed to revoke Console session after credential vault error");
                 }
                 if (show_dialog) {
-                    context_->PostUITask([this]() {
-                        TcDialog dialog(tcTr("id_error"), tcTr("id_op_error"));
+                    context_->PostUITask([]() {
+                        TcDialog dialog(tcTr("id_error"), tcTr("id_credential_store_failed"));
                         dialog.exec();
                     });
                 }
@@ -64,8 +65,11 @@ namespace px
             auto err = r.error();
             LOGE("Login failed, err: {}, msg: {}", (int)err, px_console::ConsoleApiErrorAsString(err));
             if (show_dialog) {
-                context_->PostUITask([=, this]() {
-                    QString msg = tcTr("id_op_error") + ":" + QString::number((int) err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
+                const auto server_message = px_console::ConsoleApiLastErrorMessage();
+                const auto endpoint = MakeConsoleEndpoint(host, port);
+                context_->PostUITask([err, server_message, endpoint]() {
+                    const auto msg = MakeConsoleErrorMessage(
+                        ConsoleErrorOperation::kSignIn, err, server_message, endpoint);
                     TcDialog dialog(tcTr("id_error"), msg);
                     dialog.exec();
                 });
@@ -91,7 +95,8 @@ namespace px
         else {
             auto err = r.error();
             LOGE("Logout failed, err: {}, msg: {}", (int)err, px_console::ConsoleApiErrorAsString(err));
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
+            const auto msg = MakeConsoleErrorMessage(ConsoleErrorOperation::kSignOut, err,
+                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(host, port));
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
         }
@@ -110,7 +115,8 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
+            const auto msg = MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateAccount, err,
+                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(host, port));
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
@@ -133,7 +139,8 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
+            const auto msg = MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateAccount, err,
+                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(host, port));
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
@@ -152,7 +159,8 @@ namespace px
         }
         else {
             auto err = r.error();
-            QString msg = tcTr("id_op_error") + ":" + QString::number((int)err) + " " + px_console::ConsoleApiErrorAsString(err).c_str();
+            const auto msg = MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateAccount, err,
+                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(host, port));
             TcDialog dialog(tcTr("id_error"), msg);
             dialog.exec();
             return false;
@@ -176,8 +184,12 @@ namespace px
                 HandleExpiredUserSession();
             }
             if (show_dialog) {
-                grApp->GetContext()->PostUITask([=, this]() {
-
+                const auto server_message = px_console::ConsoleApiLastErrorMessage();
+                const auto endpoint = MakeConsoleEndpoint(host, port);
+                grApp->GetContext()->PostUITask([err, server_message, endpoint]() {
+                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                        ConsoleErrorOperation::kLoadResources, err, server_message, endpoint));
+                    dialog.exec();
                 });
             }
             return TcErr(err);
@@ -204,14 +216,12 @@ namespace px
     }
 
     bool PxUserManager::Register(const std::string& username, const std::string& password) {
-        auto [guest_access_token, guest] = ResourceSession();
+        auto [guest_access_token, guest, session_error] = ResourceSession();
         if (guest_access_token.empty() || !guest) {
-            auto detail = px_console::ConsoleApiLastErrorMessage();
-            QString message = tcTr("id_console_network_unavailable");
-            if (!detail.empty()) {
-                message += "\n";
-                message += QString::fromStdString(detail);
-            }
+            const auto message = MakeConsoleErrorMessage(ConsoleErrorOperation::kRegister,
+                session_error.value_or(px_console::ConsoleApiError::kInternalError),
+                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
+                    settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort()));
             TcDialog dialog(tcTr("id_error"), message);
             dialog.exec();
             return false;
@@ -225,8 +235,9 @@ namespace px
             return true;
         }
         const auto error = result.error();
-        QString message = tcTr("id_op_error") + ":" + QString::number((int)error)
-            + " " + px_console::ConsoleApiErrorAsString(error).c_str();
+        const auto message = MakeConsoleErrorMessage(ConsoleErrorOperation::kRegister, error,
+            px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
+                settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort()));
         TcDialog dialog(tcTr("id_error"), message);
         dialog.exec();
         return false;
@@ -234,14 +245,14 @@ namespace px
 
     px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError>
     PxUserManager::QueryApps() {
-        auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto [token, guest, session_error] = ResourceSession();
+        if (token.empty()) return TcErr(session_error.value_or(px_console::ConsoleApiError::kInternalError));
         auto result = px_console::ConsoleUserAppApi::QueryApps(settings_->GetConsoleServerHost(),
             settings_->GetConsoleServerPort(), token, guest);
         if (!result.has_value()
             && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
-            std::tie(token, guest) = ResourceSession();
+            std::tie(token, guest, session_error) = ResourceSession();
             if (!token.empty()) result = px_console::ConsoleUserAppApi::QueryApps(
                 settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token, guest);
         }
@@ -250,14 +261,14 @@ namespace px
 
     px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError>
     PxUserManager::StartApp(const std::string& app_id, const std::string& client_nonce) {
-        auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto [token, guest, session_error] = ResourceSession();
+        if (token.empty()) return TcErr(session_error.value_or(px_console::ConsoleApiError::kInternalError));
         auto result = px_console::ConsoleUserAppApi::StartApp(settings_->GetConsoleServerHost(),
             settings_->GetConsoleServerPort(), token, app_id, client_nonce, guest);
         if (!result.has_value()
             && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
-            std::tie(token, guest) = ResourceSession();
+            std::tie(token, guest, session_error) = ResourceSession();
             if (!token.empty()) result = px_console::ConsoleUserAppApi::StartApp(
                 settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 app_id, client_nonce, guest);
@@ -269,8 +280,8 @@ namespace px
     PxUserManager::IssueInstanceTicket(const std::string& instance_id,
         const std::string& client_nonce,
         const std::vector<std::string>& requested_permissions) {
-        auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto [token, guest, session_error] = ResourceSession();
+        if (token.empty()) return TcErr(session_error.value_or(px_console::ConsoleApiError::kInternalError));
         auto result = px_console::ConsoleUserAppApi::IssueInstanceTicket(settings_->GetConsoleServerHost(),
             settings_->GetConsoleServerPort(), token, instance_id, client_nonce,
             requested_permissions, guest);
@@ -280,7 +291,7 @@ namespace px
             // will intentionally fail with 404. The caller then refreshes the
             // catalog and starts a new instance under the new guest identity.
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
-            std::tie(token, guest) = ResourceSession();
+            std::tie(token, guest, session_error) = ResourceSession();
             if (!token.empty()) result = px_console::ConsoleUserAppApi::IssueInstanceTicket(
                 settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 instance_id, client_nonce, requested_permissions, guest);
@@ -290,14 +301,14 @@ namespace px
 
     px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError>
     PxUserManager::StopInstance(const std::string& instance_id) {
-        auto [token, guest] = ResourceSession();
-        if (token.empty()) return TcErr(px_console::ConsoleApiError::kInternalError);
+        auto [token, guest, session_error] = ResourceSession();
+        if (token.empty()) return TcErr(session_error.value_or(px_console::ConsoleApiError::kInternalError));
         auto result = px_console::ConsoleUserAppApi::StopInstance(settings_->GetConsoleServerHost(),
             settings_->GetConsoleServerPort(), token, instance_id, guest);
         if (!result.has_value()
             && result.error() == px_console::ConsoleApiError::kAuthenticationRequired) {
             if (guest) ClearGuestSession(); else HandleExpiredUserSession();
-            std::tie(token, guest) = ResourceSession();
+            std::tie(token, guest, session_error) = ResourceSession();
             if (!token.empty()) result = px_console::ConsoleUserAppApi::StopInstance(
                 settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), token,
                 instance_id, guest);
@@ -305,19 +316,20 @@ namespace px
         return result;
     }
 
-    std::pair<std::string, bool> PxUserManager::ResourceSession() {
+    std::tuple<std::string, bool, std::optional<px_console::ConsoleApiError>>
+    PxUserManager::ResourceSession() {
         if (auto token = GetAccessToken(); !token.empty()) {
-            return {std::move(token), false};
+            return {std::move(token), false, std::nullopt};
         }
         std::lock_guard<std::mutex> guard(guest_session_mutex_);
         if (guest_access_token_.empty()) {
             const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
             const auto result = px_console::ConsoleUserAppApi::CreateGuestSession(
                 settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), nonce);
-            if (!result.has_value()) return {{}, true};
+            if (!result.has_value()) return {{}, true, result.error()};
             guest_access_token_ = result.value();
         }
-        return {guest_access_token_, true};
+        return {guest_access_token_, true, std::nullopt};
     }
 
     void PxUserManager::ClearGuestSession() {

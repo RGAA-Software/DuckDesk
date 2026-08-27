@@ -15,6 +15,7 @@ namespace px_console
     enum class ConsoleApiError {
         kInvalidHostAddress = 1,
         kParseJsonFailed,
+        kNetworkUnavailable,
 
         kAuthenticationRequired = 401,
         kForbidden = 403,
@@ -56,6 +57,7 @@ namespace px_console
         switch (err) {
             case ConsoleApiError::kInvalidHostAddress: return "Invalid host address";
             case ConsoleApiError::kParseJsonFailed: return "Parse server response failed";
+            case ConsoleApiError::kNetworkUnavailable: return "Console network unavailable";
             case ConsoleApiError::kAuthenticationRequired: return "Authentication required";
             case ConsoleApiError::kForbidden: return "Operation forbidden";
             case ConsoleApiError::kNotFound: return "Resource not found";

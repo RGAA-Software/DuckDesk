@@ -10,8 +10,10 @@
 #include "console_user.h"
 #include "console_user_device.h"
 #include "console_device.h"
+#include "console_api.h"
 #include <format>
 #include <nlohmann/json.hpp>
+#include <string_view>
 
 const std::string kQueryUserDevices = "/api/v1/user/devices";
 
@@ -24,17 +26,13 @@ namespace px_console
     namespace {
 
         template <typename T>
-        px::Result<T, ConsoleApiError> HttpError(const char* operation, int status,
-                                              const std::string& body) {
-            std::string message;
-            try {
-                if (!body.empty()) message = json::parse(body).value("message", "");
-            } catch (...) {
-            }
-            SetConsoleApiLastErrorMessage(message);
-            LOGE("{} failed: HTTP {}, message: {}", operation, status,
-                 message.empty() ? "<empty>" : message);
-            return TcErr(static_cast<ConsoleApiError>(status));
+        px::Result<T, ConsoleApiError> HttpError(std::string_view operation,
+                                                const px::HttpResponse& response) {
+            const auto error = ToConsoleUserApiError(response);
+            const auto message = ConsoleApiLastErrorMessage();
+            LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status,
+                 response.error_code, message.empty() ? "<empty>" : message);
+            return TcErr(error);
         }
 
     }
@@ -49,7 +47,7 @@ namespace px_console
 
         if (resp.status != 200 || resp.body.empty()) {
             return HttpError<std::vector<std::shared_ptr<ConsoleUserDevice>>>(
-                "QueryUserDevices", resp.status, resp.body);
+                "QueryUserDevices", resp);
         }
 
         try {
@@ -94,7 +92,7 @@ namespace px_console
         auto resp = client->Post({}, obj.dump(), "application/json");
 
         if (resp.status != 200 || resp.body.empty()) {
-            return HttpError<ConsoleConnectionTicket>("IssueDeviceTicket", resp.status, resp.body);
+            return HttpError<ConsoleConnectionTicket>("IssueDeviceTicket", resp);
         }
 
         try {

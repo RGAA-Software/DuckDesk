@@ -2,8 +2,10 @@
 
 #include <format>
 #include <nlohmann/json.hpp>
+#include <string_view>
 
 #include "console_http_client.h"
+#include "console_api.h"
 #include "console_user.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/log.h"
@@ -33,18 +35,13 @@ ConsoleUserAppInstance ParseInstance(const json& data) {
 }
 
 template <typename T>
-px::Result<T, ConsoleApiError> HttpError(const char* operation, int status, const std::string& body) {
-    std::string message;
-    try {
-        if (!body.empty()) {
-            message = json::parse(body).value("message", "");
-        }
-    } catch (...) {
-    }
-    SetConsoleApiLastErrorMessage(message);
-    LOGE("{} failed: HTTP {}, message: {}", operation, status,
-         message.empty() ? "<empty>" : message);
-    return TcErr(static_cast<ConsoleApiError>(status));
+px::Result<T, ConsoleApiError> HttpError(std::string_view operation,
+                                        const px::HttpResponse& response) {
+    const auto error = ToConsoleUserApiError(response);
+    const auto message = ConsoleApiLastErrorMessage();
+    LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status,
+         response.error_code, message.empty() ? "<empty>" : message);
+    return TcErr(error);
 }
 
 }
@@ -56,7 +53,7 @@ ConsoleUserAppApi::CreateGuestSession(const std::string& host, int port,
     const auto response = client->Post({}, json{{"client_nonce", client_nonce},
         {"client_type", "panel"}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::string>("CreateGuestSession", response.status, response.body);
+        return HttpError<std::string>("CreateGuestSession", response);
     }
     try {
         const auto token = json::parse(response.body).at(kResponseData).value("access_token", "");
@@ -76,7 +73,7 @@ ConsoleUserAppApi::QueryApps(const std::string& host, int port, const std::strin
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Request();
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::vector<ConsoleUserApplication>>("QueryApps", response.status, response.body);
+        return HttpError<std::vector<ConsoleUserApplication>>("QueryApps", response);
     }
     try {
         const auto data = json::parse(response.body).at(kResponseData);
@@ -112,7 +109,7 @@ ConsoleUserAppApi::StartApp(const std::string& host, int port, const std::string
     // Console returns 200 when an idempotent start reuses an instance and 202
     // while a newly scheduled instance is starting. Both are successful.
     if ((response.status != 200 && response.status != 202) || response.body.empty()) {
-        return HttpError<ConsoleUserAppInstance>("StartApp", response.status, response.body);
+        return HttpError<ConsoleUserAppInstance>("StartApp", response);
     }
     try {
         return ParseInstance(json::parse(response.body).at(kResponseData));
@@ -137,7 +134,7 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
     const auto response = client->Post({}, json{{"client_nonce", client_nonce},
         {"requested_permissions", requested_permissions}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response.status, response.body);
+        return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response);
     }
     try {
         const auto data = json::parse(response.body).at(kResponseData);
@@ -170,7 +167,7 @@ ConsoleUserAppApi::StopInstance(const std::string& host, int port, const std::st
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Post({}, "{}", "application/json");
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<ConsoleUserAppInstance>("StopInstance", response.status, response.body);
+        return HttpError<ConsoleUserAppInstance>("StopInstance", response);
     }
     try {
         return ParseInstance(json::parse(response.body).at(kResponseData));

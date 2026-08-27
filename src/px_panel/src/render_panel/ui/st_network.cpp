@@ -26,6 +26,7 @@
 #include "px_relay_client/relay_api.h"
 #include "px_common_new/message_notifier.h"
 #include "render_panel/console_scanner/console_scanner.h"
+#include "render_panel/console/console_error_presenter.h"
 #include "st_network_auto_join_dialog.h"
 #include <QPushButton>
 #include <QLineEdit>
@@ -511,7 +512,7 @@ namespace px
                     return;
                 }
                 if (selected_item->console_ip_.empty() || selected_item->relay_ip_.empty()) {
-                    TcDialog dialog(tcTr("id_error"), tcTr("id_verify_console_failed"));
+                    TcDialog dialog(tcTr("id_error"), tcTr("id_console_access_info_invalid"));
                     dialog.exec();
                     return;
                 }
@@ -525,6 +526,8 @@ namespace px
         auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
         if (!ac_info) {
             LOGE("Parse access info failed: {}", edt_console_access_->toPlainText().toStdString());
+            TcDialog dialog(tcTr("id_error"), tcTr("id_console_access_info_invalid"));
+            dialog.exec();
             return;
         }
 
@@ -534,7 +537,13 @@ namespace px
         {
             auto r = px_console::ConsoleDeviceApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_console_port_, appkey);
             if (!r.has_value() || !r.value()) {
-                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_console_failed"));
+                const auto error = r.has_value()
+                    ? px_console::ConsoleApiError::kServiceUnavailable : r.error();
+                TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                    ConsoleErrorOperation::kCheckConsole, error,
+                    px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
+                        ac_info->console_config_.srv_w3c_ip_,
+                        ac_info->console_config_.srv_console_port_)));
                 dialog.exec();
                 return;
             }
@@ -544,7 +553,15 @@ namespace px
         {
             auto r = px_relay::RelayApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_relay_port_, appkey);
             if (!r.has_value() || !r.value()) {
-                TcDialog dialog(tcTr("id_error"), tcTr("id_verify_relay_failed"));
+                const auto error_code = r.has_value() ? 0 : r.error();
+                const auto endpoint = QStringLiteral("http://%1:%2")
+                    .arg(QString::fromStdString(ac_info->console_config_.srv_w3c_ip_))
+                    .arg(ac_info->console_config_.srv_relay_port_);
+                const auto message = tcTr("id_verify_relay_failed_actionable")
+                    + "\n" + tcTr("id_error_endpoint_label") + ": " + endpoint
+                    + "\n" + tcTr("id_error_code_label") + ": RELAY-"
+                    + QString::number(error_code);
+                TcDialog dialog(tcTr("id_error"), message);
                 dialog.exec();
                 return;
             }

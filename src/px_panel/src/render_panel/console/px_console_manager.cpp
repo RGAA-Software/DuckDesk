@@ -9,29 +9,10 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
 #include "translator/px_translator.h"
+#include "console_error_presenter.h"
 
 namespace px
 {
-
-    // Build a user-readable error message for a failed console api call.
-    // Well-known authorization/quota errors get localized texts; otherwise prefer
-    // the message returned by the Console in the response body, then the generic text.
-    static QString MakeConsoleErrorMessage(const px_console::ConsoleApiError& err, const std::string& server_message) {
-        QString detail;
-        if (err == px_console::ConsoleApiError::kInvalidAppkey || err == px_console::ConsoleApiError::kInvalidAuthorization) {
-            detail = tcTr("id_auth_invalid");
-        }
-        else if (err == px_console::ConsoleApiError::kMaxStreamsReached) {
-            detail = tcTr("id_no_available_connection");
-        }
-        else if (!server_message.empty()) {
-            detail = QString::fromStdString(server_message);
-        }
-        else {
-            detail = px_console::ConsoleApiErrorAsString(err).c_str();
-        }
-        return tcTr("id_op_error") + ":" + QString::number(static_cast<int>(err)) + " " + detail;
-    }
 
     PxConsoleManager::PxConsoleManager(const std::shared_ptr<PxContext>& context) {
         context_ = context;
@@ -47,8 +28,10 @@ namespace px
             if (show_err_dialog) {
                 auto err = r.error();
                 auto server_message = px_console::ConsoleApiLastErrorMessage();
-                context_->PostUITask([=]() {
-                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(err, server_message));
+                const auto endpoint = MakeConsoleEndpoint(host, port);
+                context_->PostUITask([err, server_message, endpoint]() {
+                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                        ConsoleErrorOperation::kCheckConsole, err, server_message, endpoint));
                     dialog.exec();
                 });
             }
@@ -69,8 +52,10 @@ namespace px
             if (show_err_dialog) {
                 auto err = r.error();
                 auto server_message = px_console::ConsoleApiLastErrorMessage();
-                context_->PostUITask([=]() {
-                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(err, server_message));
+                const auto endpoint = MakeConsoleEndpoint(host, port);
+                context_->PostUITask([err, server_message, endpoint]() {
+                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                        ConsoleErrorOperation::kCheckConsole, err, server_message, endpoint));
                     dialog.exec();
                 });
             }

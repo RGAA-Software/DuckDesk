@@ -107,6 +107,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/upgrade/upgrade_helper.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/console/px_console_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/console_error_presenter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/console/px_event_manager.cpp
 
 )

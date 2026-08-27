@@ -49,6 +49,7 @@
 #include "render_panel/database/stream_db_operator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "render_panel/user/px_user_manager.h"
+#include "render_panel/console/console_error_presenter.h"
 #include "render_panel/util/conn_info_parser.h"
 #include "px_common_new/const_auto.h"
 
@@ -595,11 +596,13 @@ namespace px
                     auto start_result = grApp->GetUserManager()->StartApp(target_item->console_app_id_, nonce);
                     if (!start_result.has_value()) {
                         LOGE("Console application start failed or did not reach running");
-                        auto error_message = px_console::ConsoleApiLastErrorMessage();
+                        const auto error_message = px_console::ConsoleApiLastErrorMessage();
                         TcDialog dialog(tcTr("id_connect_failed"),
-                                        error_message.empty()
-                                            ? tcTr("id_start_failed")
-                                            : QString::fromStdString(error_message),
+                                        MakeConsoleErrorMessage(
+                                            ConsoleErrorOperation::kStartApplication,
+                                            start_result.error(), error_message,
+                                            MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
+                                                                settings_->GetConsoleServerPort())),
                                         grWorkspace.get());
                         dialog.exec();
                         return;
@@ -621,7 +624,8 @@ namespace px
                     }
                     if (instance.state != "running") {
                         LOGE("Console application instance did not reach running, state: {}", instance.state);
-                        TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_start_failed"),
+                        TcDialog dialog(tcTr("id_connect_failed"),
+                                        tcTr("id_application_start_timeout"),
                                         grWorkspace.get());
                         dialog.exec();
                         return;
@@ -645,11 +649,13 @@ namespace px
                     // owned instance instead of retrying the stale id.
                     target_item->console_instance_id_.clear();
                 }
-                auto error_message = px_console::ConsoleApiLastErrorMessage();
+                const auto error_message = px_console::ConsoleApiLastErrorMessage();
                 TcDialog dialog(tcTr("id_connect_failed"),
-                                error_message.empty()
-                                    ? tcTr("id_op_error")
-                                    : QString::fromStdString(error_message),
+                                MakeConsoleErrorMessage(
+                                    ConsoleErrorOperation::kConnectRemote,
+                                    ticket_result.error(), error_message,
+                                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
+                                                        settings_->GetConsoleServerPort())),
                                 grWorkspace.get());
                 dialog.exec();
                 return;
@@ -659,7 +665,7 @@ namespace px
             if (!launch_url.isValid() || launch_url.host().isEmpty() || launch_url.port() <= 0) {
                 LOGE("Console returned an invalid device launch endpoint");
                 TcDialog dialog(tcTr("id_connect_failed"),
-                                "The Console returned an invalid device endpoint", grWorkspace.get());
+                                tcTr("id_invalid_console_endpoint"), grWorkspace.get());
                 dialog.exec();
                 return;
             }
@@ -846,10 +852,14 @@ namespace px
                     item->console_instance_state_ = "stopped";
                     self->RefreshResources();
                 } else {
+                    const auto error = result.error();
                     const auto error_message = px_console::ConsoleApiLastErrorMessage();
                     self->context_->NotifyAppErrMessage(
                         tcTr("id_error"),
-                        error_message.empty() ? tcTr("id_op_error") : QString::fromStdString(error_message));
+                        MakeConsoleErrorMessage(ConsoleErrorOperation::kStopApplication,
+                            error, error_message, MakeConsoleEndpoint(
+                                self->settings_->GetConsoleServerHost(),
+                                self->settings_->GetConsoleServerPort())));
                 }
             });
             return true;
@@ -1106,7 +1116,7 @@ namespace px
 
     void AppStreamList::StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!grApp->GetUserManager()->IsLoggedIn() || item->remote_device_id_.empty()) {
-            context_->NotifyAppErrMessage(tcTr("id_error"), "File transfer requires a signed-in Console user.");
+            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_file_transfer_requires_login"));
             return;
         }
         // A normal remote-control client already has a file-capable transport
@@ -1123,13 +1133,18 @@ namespace px
         if (!ticket.has_value()) {
             const auto message = ticket.error() == px_console::ConsoleApiError::kNotFound
                 ? tcTr("id_file_transfer_device_unavailable")
-                : QString::fromStdString(px_console::ConsoleApiLastErrorMessage());
-            context_->NotifyAppErrMessage(
-                tcTr("id_error"), message.isEmpty() ? tcTr("id_op_error") : message);
+                : MakeConsoleErrorMessage(ConsoleErrorOperation::kFileTransfer,
+                    ticket.error(), px_console::ConsoleApiLastErrorMessage(),
+                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
+                                        settings_->GetConsoleServerPort()));
+            context_->NotifyAppErrMessage(tcTr("id_error"), message);
             return;
         }
         const QUrl url(QString::fromStdString(ticket.value().launch_url));
-        if (!url.isValid() || url.host().isEmpty() || url.port() <= 0) return;
+        if (!url.isValid() || url.host().isEmpty() || url.port() <= 0) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_invalid_console_endpoint"));
+            return;
+        }
         launch->stream_host_ = url.host().toStdString(); launch->stream_port_ = url.port();
         launch->connection_ticket_ = ticket.value().ticket; launch->connection_nonce_ = nonce;
         const bool direct_available = RenderApi::GetRenderConfiguration(

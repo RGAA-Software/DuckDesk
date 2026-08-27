@@ -58,6 +58,7 @@
 #include "render_panel/companion/panel_companion.h"
 #include "render_panel/devices/px_device_manager.h"
 #include "render_panel/devices/connection_policy.h"
+#include "render_panel/console/console_error_presenter.h"
 #include "px_common_new/const_auto.h"
 
 namespace px
@@ -280,7 +281,11 @@ namespace px
                             context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_update_success"));
                         }
                         else {
-                            TcDialog dialog(tcTr("id_error"), tcTr("id_op_error"), this);
+                            TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                                ConsoleErrorOperation::kUpdateDevice, r.error(),
+                                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
+                                    settings_->GetConsoleServerHost(),
+                                    settings_->GetConsoleServerPort())), this);
                             dialog.exec();
                         }
                     });

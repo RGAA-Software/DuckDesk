@@ -27,6 +27,10 @@ namespace px_console
     // as HTTP 400 with business code 602).
     ConsoleApiError ToConsoleApiError(const px::HttpResponse& response);
 
+    // User and guest endpoints use normal HTTP authentication semantics, while
+    // the Console control endpoints use 401/403 for app-key and quota errors.
+    ConsoleApiError ToConsoleUserApiError(const px::HttpResponse& response);
+
     // Alive Connections
     class AliveConnections {
     public:
