@@ -271,7 +271,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 ## 6. 构建与验证
 
-1. **构建**：根工程 x64 Release（`px_build_premium_all`），确认生成 `media_recorder.dll`、`media_record_client.dll`。
+1. **构建**：根工程 x64 Release（`px_build_premium_all`），确认生成 `media_recorder.dll`、`record.dll`。
 2. **Render 手动录制**：面板 Enable Media Recorder → Start Record → 客户端连上跑 1~2 分钟（含音频）→ Stop。
 3. **同步验证**：`ffprobe` 检查 MP4 两轨 duration 基本相等；播放器试听 A/V 对齐。
 4. **滚动验证**：临时调小 `max_segment_bytes`（如 20MB）验证分段 + 关键帧首帧 + 音频连续；验证超过 `max_file_count` 后最旧文件被删。

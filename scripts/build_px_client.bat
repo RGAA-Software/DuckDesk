@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem Build the px_client executable and its file-transfer plugin with the
+rem Build the px_client executable and all runtime client plugins with the
 rem project's existing build_official CMake/Ninja tree.
 rem Usage: scripts\build_px_client.bat [build_dir] [parallelism]
 rem Example: scripts\build_px_client.bat build_official 8
@@ -33,13 +33,15 @@ if not defined VS_ROOT (
 call "%VS_ROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-echo Building px_client, RTC transport and ft_client in %BUILD_DIR% with %PARALLEL% jobs...
+echo Building px_client, RTC transport and ft in %BUILD_DIR% with %PARALLEL% jobs...
 cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client px_rtc_client ft_client
 if errorlevel 1 exit /b %errorlevel%
 
 set "CLIENT_OUT=%BUILD_DIR%\src\px_client\px_client.exe"
 set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_rtc_client.dll"
-set "FT_OUT=%BUILD_DIR%\src\px_client\plugins\ft\ft_client.dll"
+set "CLIPBOARD_OUT=%BUILD_DIR%\src\px_client\plugins\clipboard\clipboard.dll"
+set "FT_OUT=%BUILD_DIR%\src\px_client\plugins\ft\ft.dll"
+set "RECORD_OUT=%BUILD_DIR%\src\px_client\plugins\media_record\record.dll"
 set "DIST_DIR=%BUILD_DIR%\dist"
 set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
 set "LANG_SRC=%REPO_ROOT%\src\px_panel\resources\language"
@@ -49,7 +51,15 @@ if not exist "%CLIENT_OUT%" (
     exit /b 1
 )
 if not exist "%FT_OUT%" (
-    echo ERROR: ft_client build completed but output was not found: %FT_OUT%
+    echo ERROR: ft build completed but output was not found: %FT_OUT%
+    exit /b 1
+)
+if not exist "%CLIPBOARD_OUT%" (
+    echo ERROR: clipboard build completed but output was not found: %CLIPBOARD_OUT%
+    exit /b 1
+)
+if not exist "%RECORD_OUT%" (
+    echo ERROR: record build completed but output was not found: %RECORD_OUT%
     exit /b 1
 )
 if not exist "%RTC_OUT%" (
@@ -59,8 +69,14 @@ if not exist "%RTC_OUT%" (
 if not exist "%FT_DIST_DIR%" mkdir "%FT_DIST_DIR%"
 copy /Y "%CLIENT_OUT%" "%DIST_DIR%\px_client.exe" >nul || exit /b 1
 copy /Y "%RTC_OUT%" "%DIST_DIR%\px_client_rtc.dll" >nul || exit /b 1
-copy /Y "%FT_OUT%" "%FT_DIST_DIR%\ft_client.dll" >nul || exit /b 1
+del /Q "%FT_DIST_DIR%\client_clipboard.dll" 2>nul
+del /Q "%FT_DIST_DIR%\ft_client.dll" 2>nul
+del /Q "%FT_DIST_DIR%\media_record_client.dll" 2>nul
+del /Q "%FT_DIST_DIR%\multi_screens.dll" 2>nul
+copy /Y "%CLIPBOARD_OUT%" "%FT_DIST_DIR%\clipboard.dll" >nul || exit /b 1
+copy /Y "%FT_OUT%" "%FT_DIST_DIR%\ft.dll" >nul || exit /b 1
+copy /Y "%RECORD_OUT%" "%FT_DIST_DIR%\record.dll" >nul || exit /b 1
 cmake -E copy_directory "%LANG_SRC%" "%LANG_DIST%" || exit /b 1
 
-echo DONE: published px_client.exe, px_client_rtc.dll, file-transfer plugin and language files to %DIST_DIR%
+echo DONE: published px_client.exe, px_client_rtc.dll, client plugins and language files to %DIST_DIR%
 endlocal

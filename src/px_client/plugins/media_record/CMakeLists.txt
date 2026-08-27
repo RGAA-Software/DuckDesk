@@ -9,6 +9,7 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME record)
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_client_plugin Qt6::Core Qt6::Widgets)
 # remux 逻辑在共享库 px_media_record_new(内部链接 ffmpeg)
 target_link_libraries(${PROJECT_NAME} PRIVATE px_media_record_new)

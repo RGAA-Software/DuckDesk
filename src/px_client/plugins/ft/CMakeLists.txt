@@ -17,6 +17,7 @@ set(PLUGIN_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ft)
 target_link_libraries(${PROJECT_NAME} PRIVATE
         px_common_new px_message px_client_plugin px_ft_engine px_qt_widget
         Qt6::Core Qt6::Widgets Qt6::Svg Dwmapi.lib)

@@ -106,6 +106,6 @@ host → client 方向的取数链路原本是断的：
 
 ## 调试方法
 
-- 客户端日志：`C:\Users\Public\GoDesk\px_logs\ct_plugin_client_clipboard.dll.log`（注意 `Get-Content -Tail` 对它可能返回空，用 `Select-String`）。
+- 客户端日志：`C:\Users\Public\GoDesk\px_logs\ct_clipboard.dll.log`（注意 `Get-Content -Tail` 对它可能返回空，用 `Select-String`）。
 - 主机日志：`\\10.0.0.90\C$\Users\Public\GoDesk\px_logs\godesk_user_proxy.log`、`godesk_render_20371.log`、`plugin_net_ws.dll.log`。
 - 验证剪贴板格式：`OpenClipboard` + `EnumClipboardFormats` + `IsClipboardFormatAvailable`；验证跨进程取数用 `GetClipboardData` 是否返回 NULL（NULL 即 marshal 断了）。

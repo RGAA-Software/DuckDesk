@@ -12,8 +12,8 @@ if not exist "%CLIENT_EXE%" (
     echo ERROR: %CLIENT_EXE% not found. Run scripts\build_px_client.bat first.
     exit /b 1
 )
-if not exist "%REPO_ROOT%\build_official\dist\deps\ct_plugins\ft_client.dll" (
-    echo ERROR: ft_client.dll is missing. Run scripts\build_px_client.bat first.
+if not exist "%REPO_ROOT%\build_official\dist\deps\ct_plugins\ft.dll" (
+    echo ERROR: ft.dll is missing. Run scripts\build_px_client.bat first.
     exit /b 1
 )
 

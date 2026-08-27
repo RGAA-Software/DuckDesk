@@ -226,16 +226,29 @@ def main():
     # ------------------------------------------------------------------
     # 4. Client plugins  →  dist/deps/ct_plugins/
     # ------------------------------------------------------------------
-    client_plugin_dirs = ["clipboard", "ft", "media_record", "multi_screens"]
+    client_plugin_files = [
+        ("clipboard", "clipboard.dll"),
+        ("ft", "ft.dll"),
+        ("media_record", "record.dll"),
+    ]
     px_plugins_client_dst = os.path.join(dist_dir, "deps", "ct_plugins")
-    for plugin_dir in client_plugin_dirs:
+    os.makedirs(px_plugins_client_dst, exist_ok=True)
+    for stale_name in [
+        "client_clipboard.dll",
+        "ft_client.dll",
+        "media_record_client.dll",
+        "multi_screens.dll",
+    ]:
+        stale_path = os.path.join(px_plugins_client_dst, stale_name)
+        if os.path.isfile(stale_path):
+            os.remove(stale_path)
+            print(f"  - deps/ct_plugins/{stale_name}  (obsolete client plugin)")
+    for plugin_dir, plugin_file in client_plugin_files:
         plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
-        if not os.path.isdir(plugin_build_dir):
+        plugin_src = os.path.join(plugin_build_dir, plugin_file)
+        if not os.path.isfile(plugin_src):
             continue
-        os.makedirs(px_plugins_client_dst, exist_ok=True)
-        for f in os.listdir(plugin_build_dir):
-            if f.endswith(".dll") and should_copy_file(f):
-                copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_client_dst, f))
+        copy_file(plugin_src, os.path.join(px_plugins_client_dst, plugin_file))
 
     # ------------------------------------------------------------------
     # 5. Skins  →  dist/deps/theme/

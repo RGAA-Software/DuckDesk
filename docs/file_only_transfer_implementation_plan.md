@@ -60,7 +60,7 @@ RTC LAN 时，文件窗口复用它已有的 `ft_data_channel`，因此 RTC LAN 
 - ticket 和 nonce 都不能为空；只允许 `websocket`、`webrtc_direct`、`relay` 三种网络类型；
 - `enable_video=false`、audio/clipboard/input 关闭；不安装全局键盘 hook；
 - 跳过 Vulkan 能力探测、播放器、解码器、音频播放器和画面 UI；
-- 插件管理器只保留 `ft_client.dll`；
+- 插件管理器只保留 `ft.dll`；
 - 保留一个隐藏的最小 Workspace 作为既有消息总线/插件宿主，避免异步监听器访问已销毁 UI；
 - WS 和 Relay 都不创建媒体连接；RTC offer 不声明音频/视频 m-line，也不创建 media/input data channel；
 - FT 窗口关闭后只终止该独立文件会话，不影响画面会话或 Render。
@@ -141,7 +141,7 @@ scripts\build_px_client.bat build_official 8
 ```text
 build_official\dist\px_client.exe
 build_official\dist\px_client_rtc.dll
-build_official\dist\deps\ct_plugins\ft_client.dll
+build_official\dist\deps\ct_plugins\ft.dll
 ```
 
 Console：

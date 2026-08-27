@@ -21,6 +21,7 @@ else ()
 endif ()
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${CLIPBOARD_WIN_SRCS})
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME clipboard)
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message px_client_plugin Winmm.lib Wtsapi32.lib Qt6::Core Qt6::Widgets)
 target_include_directories(${PROJECT_NAME} PRIVATE
     

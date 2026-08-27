@@ -129,7 +129,7 @@ add_executable(px_client WIN32 ${SRCS_WS} ${CLIPBOARD_SRCS} ${CLIPBOARD_WIN_SRCS
 
 # Keep targeted client builds from packaging plugins compiled against an older
 # ClientPluginInterface ABI. These targets deploy beside px_client at runtime.
-foreach(runtime_plugin IN ITEMS client_clipboard ft_client media_record_client multi_screens)
+foreach(runtime_plugin IN ITEMS client_clipboard ft_client media_record_client)
     if(TARGET ${runtime_plugin})
         add_dependencies(px_client ${runtime_plugin})
     endif()
