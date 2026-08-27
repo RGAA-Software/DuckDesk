@@ -209,4 +209,45 @@ namespace px {
         EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "DISPLAY2" }));
     }
 
+    TEST(RtcMonitorTrackSlotsTest, FrameSequenceAcceptsFirstFrameAndForwardGaps) {
+        RtcFrameSequenceState state;
+
+        EXPECT_EQ(AdvanceRtcFrameSequence(state, 42).disposition_,
+                  RtcFrameSequenceDisposition::kFirstFrame);
+        EXPECT_EQ(AdvanceRtcFrameSequence(state, 43).disposition_,
+                  RtcFrameSequenceDisposition::kConsecutive);
+        const auto gap = AdvanceRtcFrameSequence(state, 46);
+        EXPECT_EQ(gap.disposition_, RtcFrameSequenceDisposition::kForwardGap);
+        EXPECT_EQ(gap.gap_, 3U);
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, FrameSequenceTreatsBackwardValueAsStreamReset) {
+        RtcFrameSequenceState state;
+        AdvanceRtcFrameSequence(state, 900);
+
+        const auto reset = AdvanceRtcFrameSequence(state, 1);
+        EXPECT_EQ(reset.disposition_, RtcFrameSequenceDisposition::kReset);
+        EXPECT_EQ(reset.gap_, 0U);
+        EXPECT_EQ(state.last_frame_index_, 1U);
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, FrameSequenceTreatsRepeatedValueAsStreamReset) {
+        RtcFrameSequenceState state;
+        AdvanceRtcFrameSequence(state, 0);
+
+        const auto reset = AdvanceRtcFrameSequence(state, 0);
+        EXPECT_EQ(reset.disposition_, RtcFrameSequenceDisposition::kReset);
+        EXPECT_TRUE(state.initialized_);
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, TopologyRebindForcesStreamResetBeforeFrameIndexRollsOver) {
+        RtcFrameSequenceState state;
+        AdvanceRtcFrameSequence(state, 1);
+        const auto next_frame = AdvanceRtcFrameSequence(state, 2);
+
+        EXPECT_EQ(next_frame.disposition_, RtcFrameSequenceDisposition::kConsecutive);
+        EXPECT_TRUE(ShouldResetRtcCaptureStream(true, next_frame));
+        EXPECT_FALSE(ShouldResetRtcCaptureStream(false, next_frame));
+    }
+
 }

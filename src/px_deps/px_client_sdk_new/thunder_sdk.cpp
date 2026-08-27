@@ -305,11 +305,20 @@ namespace px
                 if (!last_frame_indices_.contains(mon_name)) {
                     last_frame_indices_.insert({mon_name, frame.frame_index()});
                 }
-                auto frame_diff = frame.frame_index() - last_frame_indices_[frame.mon_name()];
-                if (frame_diff != 1) {
-                    LOGI("Video frame came, mon: [{}], index: {}, diff: {}, last: {}, extra: [{}]", mon_name, frame.frame_index(), (int64_t)frame_diff, last_frame_indices_[frame.mon_name()], frame.extra());
+                const auto previous_frame_index = last_frame_indices_[mon_name];
+                const auto current_frame_index = static_cast<int64_t>(frame.frame_index());
+                if (current_frame_index <= previous_frame_index) {
+                    LOGI("Video frame stream reset, mon: [{}], index: {}, last: {}, extra: [{}]",
+                         mon_name, current_frame_index, previous_frame_index, frame.extra());
                 }
-                last_frame_indices_[mon_name] = frame.frame_index();
+                else {
+                    const auto frame_diff = current_frame_index - previous_frame_index;
+                    if (frame_diff != 1) {
+                        LOGI("Video frame came, mon: [{}], index: {}, diff: {}, last: {}, extra: [{}]",
+                             mon_name, current_frame_index, frame_diff, previous_frame_index, frame.extra());
+                    }
+                }
+                last_frame_indices_[mon_name] = current_frame_index;
 
                 if (sdk_params_->debug_) {
                     if (!received_files_.contains(mon_name)) {

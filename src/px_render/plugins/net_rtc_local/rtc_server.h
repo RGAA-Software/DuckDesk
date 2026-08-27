@@ -30,7 +30,11 @@ namespace px
         std::string mon_name_;
         std::shared_ptr<VideoSourceImpl> source_;
         rtc::scoped_refptr<VideoTrackSourceImpl> track_source_;
-        uint64_t last_frame_index_ = 0;
+        RtcFrameSequenceState frame_sequence_;
+        // A slot can be rebound to a newly-created display that reuses the
+        // prior DISPLAYn name. The first frame must still start a new encode
+        // chain even before its frame-index rollover is observable.
+        bool requires_stream_reset_ = false;
     };
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {

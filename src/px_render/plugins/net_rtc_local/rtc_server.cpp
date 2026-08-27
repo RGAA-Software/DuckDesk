@@ -1128,7 +1128,8 @@ namespace px
                             LOGI("RTC video track slot #{} rebound: '{}' -> '{}'", index,
                                  video_tracks_[index].mon_name_, track_slots[index]);
                             video_tracks_[index].mon_name_ = track_slots[index];
-                            video_tracks_[index].last_frame_index_ = 0;
+                            video_tracks_[index].frame_sequence_ = {};
+                            video_tracks_[index].requires_stream_reset_ = true;
                         }
                     }
                 }
@@ -1136,7 +1137,8 @@ namespace px
         }
 
         std::shared_ptr<VideoSourceImpl> target_source;
-        uint64_t diff = 0;
+        RtcFrameSequenceResult frame_sequence_result;
+        bool topology_rebound = false;
         {
             std::lock_guard<std::mutex> guard(video_tracks_mutex_);
             std::optional<size_t> target_index;
@@ -1160,15 +1162,21 @@ namespace px
             }
 
             auto& target = video_tracks_[target_index.value()];
-            if (target.last_frame_index_ == 0) {
-                target.last_frame_index_ = frame_idx;
-            }
-            diff = frame_idx - target.last_frame_index_;
-            target.last_frame_index_ = frame_idx;
+            frame_sequence_result = AdvanceRtcFrameSequence(target.frame_sequence_, frame_idx);
+            topology_rebound = target.requires_stream_reset_;
+            target.requires_stream_reset_ = false;
             target_source = target.source_;
         }
-        if (diff > 1) {
-            LOGE("OnNewFrameCaptured [{}], but diff size is: {}", mon_name, diff);
+        const bool stream_reset = ShouldResetRtcCaptureStream(
+            topology_rebound, frame_sequence_result);
+        if (stream_reset) {
+            LOGW("RTC capture stream reset for [{}] (topology rebound: {}); discard prior delta chain and wait for IDR",
+                 mon_name, topology_rebound);
+        }
+        else if (frame_sequence_result.disposition_ == RtcFrameSequenceDisposition::kForwardGap
+                 && frame_sequence_result.gap_ > 1) {
+            LOGW("OnNewFrameCaptured [{}] skipped {} frame(s)", mon_name,
+                 frame_sequence_result.gap_ - 1);
         }
 
         // timestamp_us = Unix us. Do NOT set ntp_time_ms here: WebRTC fills NTP
@@ -1176,7 +1184,9 @@ namespace px
         // RtcSharedVideoEncoder normalizes EncodedImage.ntp_time_ms_ before send.
         const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format);
+        auto buffer = rtc::make_ref_counted<NotifyFrameFrameBuffer>(
+            mon_name, frame_idx, frame_width, frame_height, handle, adapter_id,
+            frame_format, stream_reset);
         webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder()
                 .set_video_frame_buffer(buffer)
                 .set_timestamp_us(now_us)

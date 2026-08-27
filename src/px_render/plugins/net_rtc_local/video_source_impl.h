@@ -20,7 +20,7 @@ namespace px
 
     class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
-        NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format) {
+        NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format, bool stream_reset) {
             this->mon_name_ = mon_name;
             this->frame_idx_ = frame_idx;
             this->width_ = width;
@@ -28,6 +28,7 @@ namespace px
             this->handle_ = handle;
             this->adapter_uid_ = adapter_uid;
             this->frame_format_ = frame_format;
+            this->stream_reset_ = stream_reset;
         }
 
         [[nodiscard]] Type type() const override {
@@ -67,6 +68,10 @@ namespace px
             return frame_idx_;
         }
 
+        [[nodiscard]] bool IsStreamReset() const {
+            return stream_reset_;
+        }
+
     private:
         std::string mon_name_;
         uint64_t frame_idx_ = 0;
@@ -75,6 +80,7 @@ namespace px
         uint64_t handle_ = 0;
         int64_t adapter_uid_ = 0;
         uint64_t frame_format_ = 0;
+        bool stream_reset_ = false;
     };
 
     class VideoSourceImpl : public rtc::VideoSourceInterface<webrtc::VideoFrame> {

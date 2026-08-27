@@ -121,9 +121,13 @@ namespace px
         // 重新等 IDR 并以新屏当前产出序号引导,只消费之后到达的帧,
         // 否则旧屏残帧/delta 帧会让浏览器解码花屏
         const auto& mon_name = native_buffer->GetMonName();
-        if (last_mon_name_ != mon_name) {
-            if (!last_mon_name_.empty()) {
+        const bool monitor_switched = last_mon_name_ != mon_name;
+        if (monitor_switched || native_buffer->IsStreamReset()) {
+            if (monitor_switched && !last_mon_name_.empty()) {
                 LOGI("Encoder detected monitor switch: {} -> {}, wait IDR again.", last_mon_name_, mon_name);
+            }
+            else if (native_buffer->IsStreamReset()) {
+                LOGI("Encoder detected capture stream reset for {}, wait IDR again.", mon_name);
             }
             last_mon_name_ = mon_name;
             mWaitIDRFrame = true;
@@ -131,6 +135,9 @@ namespace px
             // 新屏 frame_index 序号空间不同,旧时间戳日志作废
             input_ts_log_.clear();
             has_last_sent_ts_ = false;
+            // A topology change can restart capture with the same monitor name.
+            // Do not forward a delta frame from the prior encoder chain.
+            RequestIdrThrottled();
         }
 
         // 记录当前输入帧时间戳,供编码帧发送时按完整 frame_index 回查

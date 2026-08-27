@@ -9,6 +9,58 @@
 namespace px
 {
 
+    // Capture frame indices are scoped to a monitor's current capture stream.
+    // A display topology change can restart that stream from a lower value, so
+    // consumers must never derive a frame gap with an unchecked unsigned
+    // subtraction.
+    enum class RtcFrameSequenceDisposition {
+        kFirstFrame,
+        kConsecutive,
+        kForwardGap,
+        kReset,
+    };
+
+    struct RtcFrameSequenceState {
+        bool initialized_ = false;
+        uint64_t last_frame_index_ = 0;
+    };
+
+    struct RtcFrameSequenceResult {
+        RtcFrameSequenceDisposition disposition_ = RtcFrameSequenceDisposition::kFirstFrame;
+        uint64_t gap_ = 0;
+    };
+
+    inline RtcFrameSequenceResult AdvanceRtcFrameSequence(
+        RtcFrameSequenceState& state,
+        uint64_t frame_index) {
+        if (!state.initialized_) {
+            state.initialized_ = true;
+            state.last_frame_index_ = frame_index;
+            return {};
+        }
+
+        const uint64_t previous_frame_index = state.last_frame_index_;
+        state.last_frame_index_ = frame_index;
+        if (frame_index <= previous_frame_index) {
+            return { RtcFrameSequenceDisposition::kReset, 0 };
+        }
+
+        const uint64_t gap = frame_index - previous_frame_index;
+        return {
+            gap == 1
+                ? RtcFrameSequenceDisposition::kConsecutive
+                : RtcFrameSequenceDisposition::kForwardGap,
+            gap,
+        };
+    }
+
+    inline bool ShouldResetRtcCaptureStream(
+        bool topology_rebound,
+        const RtcFrameSequenceResult& sequence_result) {
+        return topology_rebound
+            || sequence_result.disposition_ == RtcFrameSequenceDisposition::kReset;
+    }
+
     // Keep negotiated RTC track identities stable while monitors are hot-added or
     // removed. Existing active monitor assignments are preserved; disappeared
     // monitors release their slots and new monitors take the first free slot.
