@@ -135,7 +135,7 @@
 
 1. 完善所有权检查器和历史基线，精确列出第三方、WebRTC、插件 ABI 例外。
 2. 修复 `Thread`、`Data`、`File`、`SharedPreference` 等公共基础设施。
-3. 修复 Client 的 BaseWorkspace、GameView、Clipboard 和 Context 队列。
+3. 修复 Client 的 BaseWorkspace、PxRenderView、Clipboard 和 Context 队列。
 4. 修复 Render 的 RdApplication、EncoderThread、AppManager 和网络服务器。
 5. 修复 Panel Workspace、Panel Server 和后台任务。
 6. Qt 父对象托管字段逐步改成 `QPointer`；控制器和异步对象使用 `shared_ptr/weak_ptr`。

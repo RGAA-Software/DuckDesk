@@ -24,10 +24,6 @@ typedef void *(*FnGetInstance)();
 namespace px
 {
 
-    // render side keeps at most one video track per monitor, capped at 4
-    // (see kMaxRtcVideoTracks in px_render/plugins/net_rtc_local/rtc_local_plugin.h)
-    static constexpr int kMaxRtcLocalVideoTracks = 4;
-
     // render side error code, see px_render/plugins/net_ws/http_handler.cpp(kHandlerErrRtcLocalOccupied)
     static constexpr int kRtcLocalRespOccupied = 704;
 
@@ -115,7 +111,7 @@ namespace px
         // multi-track: ask for one video track per monitor(capped). an old render
         // just answers a single track, the extra m-lines stay inactive.
         rtc_client_->SetVideoTrackCount(
-            sdk_params_->file_transfer_only_ ? 0 : kMaxRtcLocalVideoTracks);
+            sdk_params_->file_transfer_only_ ? 0 : kReservedRtcMonitorTrackCount);
 
         // encoded-sink mode: video tracks are consumed as pre-decode H264 and decoded
         // by the sdk's own FFmpegVulkanDecoder chain(zero-copy d3d11/pl_vulkan),
@@ -284,10 +280,10 @@ namespace px
                             .bottom_ = m.value("bottom", 0),
                         });
                     }
-                    // The Windows client offers four recvonly m-lines. New renders
-                    // reserve all four sender slots so monitor hot-plug can bind an
+                    // The Windows client offers eight recvonly m-lines. New renders
+                    // reserve all eight sender slots so monitor hot-plug can bind an
                     // idle slot without a reconnect or ticket replay.
-                    track_monitors_.resize(kMaxRtcLocalVideoTracks);
+                    track_monitors_.resize(kReservedRtcMonitorTrackCount);
                     track_frame_indices_.assign(track_monitors_.size(), 0);
                     track_got_keyframe_.assign(track_monitors_.size(), false);
                     track_frame_widths_.clear();

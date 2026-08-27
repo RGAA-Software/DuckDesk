@@ -49,7 +49,7 @@ namespace px
             return true;
         }
 
-        for (int index = 0; index < kMaxGameViewCount; ++index) {
+        for (int index = 0; index < kMaxRenderViewCount; ++index) {
             auto recorder = MediaRecorder::Make(this);
             recorder->SetIndex(index);
             media_recorders_.emplace_back(recorder);

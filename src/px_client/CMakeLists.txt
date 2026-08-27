@@ -71,7 +71,7 @@ set(SRCS_WS
     ct_qt_key_converter.cpp
     ct_audio_player.cpp
     ct_main_progress.cpp
-    ct_game_view.cpp
+    px_render_view.cpp
     ct_game_overlay.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/icon.rc ${RES}
     ui/switch_button.cpp

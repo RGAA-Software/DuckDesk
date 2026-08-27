@@ -41,7 +41,7 @@ namespace px
     class CtStatisticsPanel;
     class FloatButtonStateIndicator;
     class MainProgress;
-    class GameView;
+    class PxRenderView;
     class RtcClientInterface;
     class CtPanelClient;
     class ClientPluginManager;
@@ -132,10 +132,10 @@ namespace px
                                  const std::vector<uint8_t>& opus);
         void UpdateFloatButtonIndicatorPosition();
         void UpdateVideoWidgetSize();
-        virtual void UpdateGameViewsStatus(bool force_layout_screens) {}
+        virtual void UpdateRenderViewsStatus(bool force_layout_screens) {}
         virtual void OnGetCaptureMonitorsCount(int monitors_count);
         virtual void OnGetCaptureMonitorName(std::string monitor_name);
-        virtual void InitGameView(const std::shared_ptr<ThunderSdkParams>& params);
+        virtual void InitRenderViews(const std::shared_ptr<ThunderSdkParams>& params);
         void WidgetSelectMonitor(QWidget* widget, QList<QScreen*>& screens);
         void ExitClientWithDialog();
         void UpdateOverlayWidgetPos();

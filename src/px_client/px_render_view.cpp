@@ -1,4 +1,4 @@
-#include "ct_game_view.h"
+#include "px_render_view.h"
 #include <qsizepolicy.h>
 #include <qpalette.h>
 #include <QTimer>
@@ -11,8 +11,6 @@
 #include <qicon.h>
 #include <qpointer.h>
 #include <qpixmap.h>
-#include <QPropertyAnimation>
-#include <QGraphicsOpacityEffect>
 #include "px_dialog.h"
 #include "no_margin_layout.h"
 #include "ct_const_def.h"
@@ -36,12 +34,11 @@
 namespace px
 {
 
-    bool GameView::s_mouse_in_ = false;
+    bool PxRenderView::s_mouse_in_ = false;
 
-    GameView::GameView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent)
-        : ctx_(ctx), sdk_(sdk), params_(params), QWidget(parent) {
+    PxRenderView::PxRenderView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent)
+        : QWidget(parent), settings_(*Settings::Instance()), ctx_(ctx), sdk_(sdk), params_(params) {
         WidgetHelper::SetTitleBarColor(this, this->params_->titlebar_color_);
-        settings_ = Settings::Instance();
         msg_listener_ = ctx_->ObtainUIMessageListener();
         this->setAttribute(Qt::WA_StyledBackground, true);
         auto beg = TimeUtil::GetCurrentTimestamp();
@@ -51,7 +48,8 @@ namespace px
 
     #if TEST_SDL
         if (parent) {
-            sdl_video_widget_ = new SDLVideoWidget(ctx, sdk_, 0, RawImageFormat::kRawImageI420, nullptr);
+            sdl_video_widget_ = std::make_shared<SDLVideoWidget>(
+                ctx, sdk_, 0, RawImageFormat::kRawImageI420, nullptr);
             sdl_video_widget_->setFixedSize(1280, 768);
             sdl_video_widget_->show();
         }
@@ -60,20 +58,24 @@ namespace px
 #ifdef WIN32
         if (params_->support_vulkan_) {
             LOGI("*** Use vulkan to render frames");
-            video_widget_ = new VulkanVideoWidget(ctx, sdk_, 0, RawImageFormat::kRawImageVulkanAVFrame, this);
+            video_widget_ = std::make_shared<VulkanVideoWidget>(
+                ctx, sdk_, 0, RawImageFormat::kRawImageVulkanAVFrame, this);
         }
         else {
             if (params_->d3d11_wrapper_) {
-                video_widget_ = new D3D11VideoWidget(ctx, sdk_, 0, RawImageFormat::kRawImageD3D11Texture, this);
+                video_widget_ = std::make_shared<D3D11VideoWidget>(
+                    ctx, sdk_, 0, RawImageFormat::kRawImageD3D11Texture, this);
                 LOGI("*** Use D3D11 to render frames");
             }
             else {
-                video_widget_ = new OpenGLVideoWidget(ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
+                video_widget_ = std::make_shared<OpenGLVideoWidget>(
+                    ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
                 LOGI("*** Use OpenGL to render frames");
             }
         }
 #else
-        video_widget_ = new OpenGLVideoWidget(ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
+        video_widget_ = std::make_shared<OpenGLVideoWidget>(
+            ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
 #endif
         auto end = TimeUtil::GetCurrentTimestamp();
         LOGI("Create OpenGLWidget used: {}ms", (end-beg));
@@ -88,21 +90,8 @@ namespace px
         recording_sign_lab_ = new MediaRecordSignLab(ctx, this);
         recording_sign_lab_->move(this->width() * 0.85, 20);
         recording_sign_lab_->hide();
-        const QPointer<GameView> guarded_self(this);
+        const QPointer<PxRenderView> guarded_self(this);
 
-#if 0
-        // 创建透明度效果
-        QGraphicsOpacityEffect* opacityEffect = new QGraphicsOpacityEffect(recording_sign_lab_);
-        recording_sign_lab_->setGraphicsEffect(opacityEffect);
-
-        // 创建动画
-        QPropertyAnimation* animation = new QPropertyAnimation(opacityEffect, "opacity", recording_sign_lab_);
-        animation->setDuration(1500);
-        animation->setStartValue(1.0);  // 完全不透明
-        animation->setKeyValueAt(0.5, 0.0); // 中间点完全透明
-        animation->setEndValue(1.0); // 结束时不透明
-        animation->setLoopCount(-1); // 无限循环
-#endif
         msg_listener_->Listen<MsgClientMediaRecord>([guarded_self](const MsgClientMediaRecord&) {
             if (!guarded_self) {
                 return;
@@ -120,7 +109,7 @@ namespace px
 
         msg_listener_->Listen<MsgClientSwitchMonitor>([guarded_self](const MsgClientSwitchMonitor&) {
             if (guarded_self &&
-                ScaleMode::kKeepAspectRatio == guarded_self->settings_->scale_mode_ &&
+                ScaleMode::kKeepAspectRatio == guarded_self->settings_.get().scale_mode_ &&
                 !guarded_self->isHidden()) {
                 guarded_self->need_recalculate_aspect_ = true;
             }
@@ -161,14 +150,14 @@ namespace px
         });
     }
 
-    GameView::~GameView() {
+    PxRenderView::~PxRenderView() {
         if (msg_listener_) {
             msg_listener_->UnListenAll();
         }
     }
 
-    void GameView::resizeEvent(QResizeEvent* event) {
-        auto scale_mode = settings_->scale_mode_;
+    void PxRenderView::resizeEvent(QResizeEvent* event) {
+        const auto scale_mode = settings_.get().scale_mode_;
         if (scale_mode == ScaleMode::kFillWindow) {
             SwitchToFillWindow();
         }
@@ -189,33 +178,33 @@ namespace px
         QWidget::resizeEvent(event);
     }
 
-    void GameView::RefreshImage(const std::shared_ptr<RawImage>& image) {
+    void PxRenderView::RefreshImage(const std::shared_ptr<RawImage>& image) {
         if (video_widget_) {
             video_widget_->RefreshImage(image);
         }
         UpdateFullColorState(image->full_color_);
     }
 
-    void GameView::UpdateFullColorState(bool full_color) {
+    void PxRenderView::UpdateFullColorState(bool full_color) {
         if (!is_main_view_) {
             return;
         }
-        if (settings_->IsFullColorEnabled() != full_color) {
-            settings_->SetFullColorEnabled(full_color);
+        if (settings_.get().IsFullColorEnabled() != full_color) {
+            settings_.get().SetFullColorEnabled(full_color);
             ctx_->SendAppMessage(MsgClientFloatControllerPanelUpdate{
                 .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kFullColorStatus
             });
         }
     }
 
-    void GameView::RefreshI420Image(const std::shared_ptr<RawImage>& image) {
+    void PxRenderView::RefreshI420Image(const std::shared_ptr<RawImage>& image) {
         if (video_widget_->GetDisplayImageFormat() != kRawImageI420) {
             video_widget_->SetDisplayImageFormat(kRawImageI420);
         }
         video_widget_->RefreshImage(image);
 
     #if TEST_SDL
-        const QPointer<GameView> guarded_self(this);
+        const QPointer<PxRenderView> guarded_self(this);
         ctx_->PostUITask([guarded_self, image]() {
             if (guarded_self && guarded_self->sdl_video_widget_) {
                 guarded_self->sdl_video_widget_->RefreshI420Image(image);
@@ -224,19 +213,20 @@ namespace px
     #endif
     }
 
-    void GameView::RefreshI444Image(const std::shared_ptr<RawImage>& image) {
+    void PxRenderView::RefreshI444Image(const std::shared_ptr<RawImage>& image) {
         if (video_widget_->GetDisplayImageFormat() != kRawImageI444) {
             video_widget_->SetDisplayImageFormat(kRawImageI444);
         }
         video_widget_->RefreshImage(image);
     }
 
-    void GameView::RefreshCapturedMonitorInfo(const SdkCaptureMonitorInfo& mon_info) {
+    void PxRenderView::RefreshCapturedMonitorInfo(const SdkCaptureMonitorInfo& mon_info) {
         // 若按比例缩放的情况下，切换了屏幕，屏幕分辨率未必一致，如一个4K,一个2K，故重新计算
-        if (need_recalculate_aspect_ && ScaleMode::kKeepAspectRatio == settings_->scale_mode_) {
+        if (need_recalculate_aspect_
+            && ScaleMode::kKeepAspectRatio == settings_.get().scale_mode_) {
             const auto& exist_mon_info = video_widget_->GetCaptureMonitorInfo();
             if (mon_info.mon_name_ != exist_mon_info.mon_name_ && !exist_mon_info.mon_name_.empty()) {
-                const QPointer<GameView> guarded_self(this);
+                const QPointer<PxRenderView> guarded_self(this);
                 ctx_->PostDelayUITask([guarded_self]() {
                     if (guarded_self) {
                         guarded_self->CalculateAspectRatio();
@@ -248,16 +238,16 @@ namespace px
         video_widget_->RefreshCapturedMonitorInfo(mon_info);
     }
 
-    void GameView::SendKeyEvent(quint32 vk, bool down) {
+    void PxRenderView::SendKeyEvent(quint32 vk, bool down) {
         video_widget_->SendKeyEvent(vk, down);
     }
 
-    void GameView::SwitchToFillWindow() {
+    void PxRenderView::SwitchToFillWindow() {
         auto target_title_bar_height = this->isFullScreen() ? 0 : kTitleBarHeight;
         video_widget_->AsWidget()->setGeometry(0, target_title_bar_height, this->width(), this->height() - kTitleBarHeight);
     }
 
-    void GameView::CalculateAspectRatio() {
+    void PxRenderView::CalculateAspectRatio() {
         auto vw = video_widget_->GetCapturingMonitorWidth();
         auto vh = video_widget_->GetCapturingMonitorHeight();
         // no frame, fill the window
@@ -291,7 +281,7 @@ namespace px
 
     }
 
-    void GameView::InitFloatController()
+    void PxRenderView::InitFloatController()
     {
         float_controller_ = new FloatController(ctx_, this);
         float_controller_->installEventFilter(this);
@@ -301,14 +291,14 @@ namespace px
         controller_panel_->hide();
 
         // The overlays are top-level native windows. Moving the outer client
-        // window does not generate a move event for this child GameView, so
+        // window does not generate a move event for this child PxRenderView, so
         // observe the host window as well and keep the overlays attached.
         if (window() && window() != this) {
             window()->installEventFilter(this);
         }
         video_widget_->AsWidget()->installEventFilter(this);
 
-        const QPointer<GameView> guarded_self(this);
+        const QPointer<PxRenderView> guarded_self(this);
         float_controller_->SetOnClickListener([guarded_self]() {
             if (!guarded_self) {
                 return;
@@ -332,8 +322,8 @@ namespace px
         });
     }
 
-    void GameView::RegisterControllerPanelListeners() {
-        const QPointer<GameView> guarded_self(this);
+    void PxRenderView::RegisterControllerPanelListeners() {
+        const QPointer<PxRenderView> guarded_self(this);
         controller_panel_->SetOnDebugListener([guarded_self](auto) {
             if (!guarded_self) {
                 return;
@@ -369,33 +359,33 @@ namespace px
         });
     }
 
-    void GameView::SetMainView(bool main_view) {
+    void PxRenderView::SetMainView(bool main_view) {
         is_main_view_ = main_view;
         if (is_main_view_ && controller_panel_) {
             controller_panel_->SetMainControl();
         }
     }
 
-    void GameView::SetMonitorName(const std::string& mon_name) {
+    void PxRenderView::SetMonitorName(const std::string& mon_name) {
         monitor_name_ = mon_name;
         controller_panel_->SetMonitorName(mon_name);
     }
 
-    void GameView::enterEvent(QEnterEvent* event) {
+    void PxRenderView::enterEvent(QEnterEvent* event) {
         s_mouse_in_ = true;
         this->ctx_->SendAppMessage(MsgClientMouseEnterView{});
         QWidget::enterEvent(event);
-        //LOGI("GameView, enterEvent.");
+        //LOGI("PxRenderView, enterEvent.");
     }
 
-    void GameView::leaveEvent(QEvent* event) {
+    void PxRenderView::leaveEvent(QEvent* event) {
         s_mouse_in_ = false;
         this->ctx_->SendAppMessage(MsgClientMouseLeaveView{});
         QWidget::leaveEvent(event);
-        //LOGI("GameView, leaveEvent.");
+        //LOGI("PxRenderView, leaveEvent.");
     }
 
-    bool GameView::eventFilter(QObject* watched, QEvent* event) {
+    bool PxRenderView::eventFilter(QObject* watched, QEvent* event) {
         if (watched == window() && watched != this) {
             switch (event->type()) {
             case QEvent::Move:
@@ -406,7 +396,7 @@ namespace px
                 if (controller_panel_) {
                     controller_panel_->Hide();
                 }
-                QTimer::singleShot(0, this, [self = QPointer<GameView>(this)]() {
+                QTimer::singleShot(0, this, [self = QPointer<PxRenderView>(this)]() {
                     if (!self || !self->float_controller_) {
                         return;
                     }
@@ -454,7 +444,7 @@ namespace px
         return QWidget::eventFilter(watched, event);
     }
 
-    bool GameView::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
+    bool PxRenderView::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
 #ifdef WIN32
             MSG* msg = static_cast<MSG*>(message);
             if (msg->message == WM_ACTIVATE) {
@@ -476,19 +466,19 @@ namespace px
         return QWidget::nativeEvent(eventType, message, result);
     }
 
-    void GameView::SetActiveStatus(bool active) {
+    void PxRenderView::SetActiveStatus(bool active) {
         active_ = active;
     }
 
-    bool GameView::GetActiveStatus() const {
+    bool PxRenderView::GetActiveStatus() const {
         return active_;
     }
 
-    bool GameView::IsMainView() const {
+    bool PxRenderView::IsMainView() const {
         return is_main_view_;
     }
 
-    void GameView::SnapshotStream() {
+    void PxRenderView::SnapshotStream() {
         if (this->isHidden()) {
             return;
         }
@@ -520,17 +510,17 @@ namespace px
         }
     }
 
-    HWND GameView::GetVideoHwnd() {
+    HWND PxRenderView::GetVideoHwnd() {
         return (HWND)video_widget_->GetRenderWId();
     }
 
-    void GameView::showEvent(QShowEvent* event) {
+    void PxRenderView::showEvent(QShowEvent* event) {
         QWidget::showEvent(event);
         // 非主窗口创建出来后，并没有显示出来, 需要触发一次 resizeEvent 来更新交换链信息
         if (width() > 0 && height() > 0) {
             resize(width() + 1, height() + 1);
         }
-        QTimer::singleShot(60, this, [self = QPointer<GameView>(this)]() {
+        QTimer::singleShot(60, this, [self = QPointer<PxRenderView>(this)]() {
             if (!self) {
                 return;
             }
@@ -539,7 +529,7 @@ namespace px
         if (overlay_widget_) {
             overlay_widget_->show();
         }
-        QTimer::singleShot(0, this, [self = QPointer<GameView>(this)]() {
+        QTimer::singleShot(0, this, [self = QPointer<PxRenderView>(this)]() {
             if (!self || self->isHidden() || !self->float_controller_) {
                 return;
             }
@@ -548,7 +538,7 @@ namespace px
         });
     }
 
-    void GameView::hideEvent(QHideEvent* event) {
+    void PxRenderView::hideEvent(QHideEvent* event) {
         QWidget::hideEvent(event);
         if (overlay_widget_) {
             overlay_widget_->hide();
@@ -561,14 +551,14 @@ namespace px
         }
     }
 
-    std::string GameView::GetRenderTypeName() {
+    std::string PxRenderView::GetRenderTypeName() {
         if (!video_widget_) {
             return "";
         }
         return video_widget_->GetRenderTypeName();
     }
 
-    void GameView::moveEvent(QMoveEvent* event) {
+    void PxRenderView::moveEvent(QMoveEvent* event) {
         if (overlay_widget_) {
             QPoint global_pos = mapToGlobal(QPoint(0, 0));
             overlay_widget_->move(global_pos);
@@ -582,13 +572,13 @@ namespace px
         QWidget::moveEvent(event);
     }
 
-    void GameView::InitOverlayWidget() {
+    void PxRenderView::InitOverlayWidget() {
         overlay_widget_ = new OverlayWidget(this);
         overlay_widget_->resize(this->size());
         overlay_widget_->SetOpacity(0.5);
         // overlay_widget_->SetWatermarkCount(10);
         overlay_widget_->hide();
-        const QPointer<GameView> guarded_self(this);
+        const QPointer<PxRenderView> guarded_self(this);
         QTimer::singleShot(1000, this, [guarded_self]() {
             if (guarded_self && guarded_self->overlay_widget_) {
                 guarded_self->UpdateOverlayWidgetPos();
@@ -598,13 +588,13 @@ namespace px
                 else {
                     guarded_self->overlay_widget_->show();
                 }
-                // if (settings_->force_direct_) {
+                // if (settings_.get().force_direct_) {
                 //     overlay_widget_->SetWatermarkText("Force Direct");
                 // }
-                // if (settings_->show_watermark_) {
+                // if (settings_.get().show_watermark_) {
                 //     overlay_widget_->SetWatermarkText("Unlicensed Stream");
                 // }
-                // if (settings_->show_watermark_ || settings_->force_direct_) {
+                // if (settings_.get().show_watermark_ || settings_.get().force_direct_) {
                 //     overlay_widget_->SetWatermarkCount(15);
                 // }
                 // else {
@@ -614,11 +604,11 @@ namespace px
         });
     }
 
-    void GameView::mouseReleaseEvent(QMouseEvent* event) {
+    void PxRenderView::mouseReleaseEvent(QMouseEvent* event) {
         QWidget::mouseReleaseEvent(event);
     }
 
-    void GameView::UpdateOverlayWidgetPos() {
+    void PxRenderView::UpdateOverlayWidgetPos() {
         if (overlay_widget_) {
             QPoint global_pos = mapToGlobal(QPoint(0, 0));
             overlay_widget_->resize(this->size());

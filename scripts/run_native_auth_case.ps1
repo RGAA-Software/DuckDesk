@@ -10,6 +10,11 @@ param(
     [string]$NetworkType = 'webrtc_direct',
     [string]$RemotePassword = $env:PX_TEST_REMOTE_PASSWORD,
     [string]$ClientExe = '',
+    [switch]$SplitWindows,
+    [ValidateRange(1, 8)]
+    [int]$MaxScreens = 4,
+    [ValidateRange(1, 8)]
+    [int]$ExpectedMonitorCount = 1,
     [ValidateRange(10, 90)]
     [int]$TimeoutSeconds = 40,
     [string]$MongoExe = 'D:\software\mongodb_3.6\mongodb\bin\mongo.exe'
@@ -105,6 +110,8 @@ try {
         "--stream_id=$streamId", "--conn_type=$(if ($Mode -eq 'account') {'console_ticket'} else {'direct'})",
         "--network_type=$NetworkType", "--device_id=$clientId",
         "--remote_device_id=$DeviceId", '--enable_p2p=1', '--only_viewing=0',
+        "--split_windows=$($SplitWindows.IsPresent.ToString().ToLowerInvariant())",
+        "--max_num_of_screen=$MaxScreens",
         "--force_direct=$(if ($NetworkType -eq 'webrtc_direct') {1} else {0})",
         "--relay_host=$relayHost", "--relay_port=$relayPort"
     )
@@ -136,7 +143,11 @@ try {
                 $evidence -match 'Full WebRTC transport is ready' -and
                 $evidence -match 'RtcVideoSink OnFrame #1'
             }
-            if ($transportReady -and
+            $renderViewsReady = $ExpectedMonitorCount -le 1 -or
+                $evidence -match "Render view pool expanded on demand: requested=$ExpectedMonitorCount, active_capacity=$ExpectedMonitorCount"
+            $keyFrameCount = ([regex]::Matches($evidence, 'first key frame')).Count
+            if ($transportReady -and $renderViewsReady -and
+                $keyFrameCount -ge $ExpectedMonitorCount -and
                 $evidence -match 'First decoded video frame reached UI renderer' -and
                 $evidence -match 'File-transfer transport connected' -and
                 $evidence -match 'Init audio player') {
@@ -159,10 +170,17 @@ try {
     if ($evidence -notmatch 'First decoded video frame reached UI renderer') {
         throw 'native client decoded video but did not deliver it to the UI renderer'
     }
+    if ($ExpectedMonitorCount -gt 1 -and
+        $evidence -notmatch "Render view pool expanded on demand: requested=$ExpectedMonitorCount, active_capacity=$ExpectedMonitorCount") {
+        throw "native render view pool did not expand to $ExpectedMonitorCount monitors"
+    }
+    if (([regex]::Matches($evidence, 'first key frame')).Count -lt $ExpectedMonitorCount) {
+        throw "native RTC did not receive a first key frame from all $ExpectedMonitorCount monitor tracks"
+    }
     if ($evidence -notmatch 'File-transfer transport connected') { throw 'native file transport did not connect' }
     if ($evidence -notmatch 'Init audio player') { throw 'native audio player did not initialize' }
 
-    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId rtc=connected video=ui-rendered audio=initialized file=connected"
+    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId monitors=$ExpectedMonitorCount rtc=connected video=ui-rendered audio=initialized file=connected"
     $exitCode = 0
 }
 finally {

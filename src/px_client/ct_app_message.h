@@ -21,7 +21,7 @@ namespace px
 
     const std::string kCaptureAllMonitorsSign = "all";
 
-    const int kMainGameViewIndex = 0;
+    const int kMainRenderViewIndex = 0;
 
     // 多显示器展示方式
     enum class EMultiMonDisplayMode {

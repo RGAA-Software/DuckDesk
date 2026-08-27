@@ -48,7 +48,7 @@ namespace px
             auto layout = new QHBoxLayout();
 
             //屏幕索引切换按钮
-            for (int i = 0; i < kMaxGameViewCount; i++) {
+            for (int i = 0; i < kMaxRenderViewCount; i++) {
                 auto ci = new ComputerIcon(ctx, i, this);
                 ci->setFixedSize(QSize(26, 26));
                 ci->UpdateSelectedState(true);
@@ -1063,7 +1063,7 @@ namespace px
         }
         int index = 0;
         for (const auto& mon : capture_monitor_.monitors_) {
-            if (index >= kMaxGameViewCount) {
+            if (index >= kMaxRenderViewCount) {
                 break;
             }
             auto ci = computer_icons_[index];

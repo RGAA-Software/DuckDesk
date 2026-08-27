@@ -34,7 +34,7 @@
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
 #include "px_dialog.h"
 #include "px_label.h"
-#include "ct_game_view.h"
+#include "px_render_view.h"
 #include "ct_const_def.h"
 #include "px_common_new/file.h"
 #include "px_common_new/qwidget_helper.h"
@@ -171,7 +171,7 @@ namespace px
 
         // init game views
         if (!settings_->file_transfer_only_) {
-            InitGameView(this->params_);
+            InitRenderViews(this->params_);
 
         // vulkan 
         if (this->params_->support_vulkan_) {
@@ -862,7 +862,7 @@ namespace px
                 self->context_->PostUITask([weak_self]() {
                     if (const auto task_self = weak_self.lock()) {
                         task_self->full_screen_ = true;
-                        task_self->UpdateGameViewsStatus(false);
+                        task_self->UpdateRenderViewsStatus(false);
                     }
                 });
             }
@@ -873,7 +873,7 @@ namespace px
                 self->context_->PostUITask([weak_self]() {
                     if (const auto task_self = weak_self.lock()) {
                         task_self->full_screen_ = false;
-                        task_self->UpdateGameViewsStatus(false);
+                        task_self->UpdateRenderViewsStatus(false);
                     }
                 });
             }
@@ -1132,7 +1132,7 @@ namespace px
             if (!self) {
                 return;
             }
-            if (GameView::s_mouse_in_) {
+            if (PxRenderView::s_mouse_in_) {
                 if (QApplication::overrideCursor()) {
                     QApplication::changeOverrideCursor(self->cursor_);
                 }
@@ -1834,7 +1834,7 @@ namespace px
 
     }
 
-    void BaseWorkspace::InitGameView(const std::shared_ptr<ThunderSdkParams>& params) {
+    void BaseWorkspace::InitRenderViews(const std::shared_ptr<ThunderSdkParams>& params) {
         this->resize(def_window_size_);
     }
 

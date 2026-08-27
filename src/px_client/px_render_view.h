@@ -2,6 +2,9 @@
 
 #include <QWidget>
 #include <QLabel>
+#include <QPointer>
+#include <functional>
+#include <memory>
 #include <qevent.h>
 #include "thunder_sdk.h"
 
@@ -25,10 +28,10 @@ namespace px
     class MediaRecordSignLab;
     class OverlayWidget;
 
-    class GameView : public QWidget {
+    class PxRenderView : public QWidget {
     public:
-        GameView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent);
-        ~GameView() override;
+        PxRenderView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent);
+        ~PxRenderView() override;
         void resizeEvent(QResizeEvent* event) override;
         void enterEvent(QEnterEvent* event) override;
         void leaveEvent(QEvent* event) override;
@@ -60,13 +63,10 @@ namespace px
         static bool s_mouse_in_;
 
     private:
-        Settings* settings_ = nullptr;
-        VideoWidget* video_widget_ = nullptr;
+        std::reference_wrapper<Settings> settings_;
+        std::shared_ptr<VideoWidget> video_widget_;
     #if TEST_SDL
-        SDLVideoWidget* sdl_video_widget_ = nullptr;
-    #endif
-    #if TEST_D3D11
-        //VideoWidget* d3d11_video_widget_ = nullptr;
+        std::shared_ptr<SDLVideoWidget> sdl_video_widget_;
     #endif
         std::shared_ptr<ClientContext> ctx_ = nullptr;
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
@@ -76,16 +76,16 @@ namespace px
         bool active_ = false;
         bool is_main_view_ = false;
 
-        FloatController* float_controller_ = nullptr;
-        FloatControllerPanel* controller_panel_ = nullptr;
+        QPointer<FloatController> float_controller_;
+        QPointer<FloatControllerPanel> controller_panel_;
 
-        MediaRecordSignLab* recording_sign_lab_ = nullptr;
+        QPointer<MediaRecordSignLab> recording_sign_lab_;
 
         bool need_recalculate_aspect_ = true;
 
         std::shared_ptr<Thread> thread_ = nullptr;
 
-        OverlayWidget* overlay_widget_ = nullptr;
+        QPointer<OverlayWidget> overlay_widget_;
     private:
         void InitFloatController();
         void RegisterControllerPanelListeners();

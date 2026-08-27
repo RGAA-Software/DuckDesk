@@ -4,6 +4,11 @@
 状态: 已完成(2026-08-10 晚)——多 track/硬解 sink/datachannel 洪水修复/音频 sink 全部落地并验证,
 安装包 GoDesk_3.3.13_Official_Setup.exe 已出(output/build_official/3.3.13/)
 
+2026-08-27 更新：Windows 客户端和 Render 统一固定协商 **8 路** RTC video m-line/track
+槽位，屏幕热增删只绑定或释放空闲槽位，不重建连接。`PxRenderView` 不再按配置上限启动时
+全部预创建：连接初始只创建主窗口，收到远端屏幕数量或对应屏幕首帧后再按需扩展，最多仍受
+`max_num_of_screen`（硬上限 8）限制；屏幕移除时隐藏窗口并保留资源供后续复用。
+
 ## 实施结果摘要(2026-08-10 晚)
 
 已全部落地并通过测试:
@@ -13,7 +18,7 @@
   信令应答带 `monitors`(name/宽高/虚拟桌面坐标)。
 - **多 track 自动全屏采集**: 新增 `RtcLocalPlugin::EnableAllMonitorCapture()`,多 track 会话
   建立时自动切全屏采集——不再依赖客户端 UI 发 `SwitchMonitor("all")`(`split_windows` 关也能出全屏帧)。
-- **客户端 encoded sink**: offer 4 路 video(`AddTransceiver` kRecvOnly)、null decoder factory、
+- **客户端 encoded sink**: offer 8 路 video(`AddTransceiver` kRecvOnly)、null decoder factory、
   `AddEncodedSink` 取 AnnexB H264,合成 kVideoFrame proto(mon_name/坐标/extra="rtc_synth")
   注入既有每屏解码链(FFmpeg 硬解优先),无 app 层 ack。
 - **重大 bug 修复 — datachannel 帧洪水假过滤**: `IsMediaFrameMessage` 原按
@@ -119,7 +124,8 @@ render: 每屏一条 video track(每 track 独立帧源 → 混流/IDR 风暴根
 1. **per-monitor 帧源**: `mon_name → VideoTrackSourceImpl` map;
    `OnRawVideoFrameSharedTexture` 只把帧喂给对应屏的 source。
    这一步顺带根治混流和 IDR 风暴（原"方案一"),web_client 同步受益。
-2. **多 track**: 连接建立时按当前采集屏数（上限 4）创建 video track,
+2. **多 track**: 连接建立时按 offer 预留 video track（上限 8），当前显示器绑定已有槽位，
+   热增删复用空槽，不触发重连或重新协商；
    label = `video_track_{index}`,各自独立 stream id,协商前加完;
    track 0 = 当前选定屏（web offer 只有 1 条 video m-line,只协商到 track 0,
    保持 web 现有行为不变)。
@@ -132,7 +138,7 @@ render: 每屏一条 video track(每 track 独立帧源 → 混流/IDR 风暴根
 
 ### 客户端（px_webrtc_client / px_client_sdk_new / px_client)
 
-5. offer 固定声明 `offer_to_receive_video = 4`（上限）;**不需要**建连前拿 monitors——
+5. offer 固定声明 `offer_to_receive_video = 8`（上限）;**不需要**建连前拿 monitors——
    monitors 列表随 `/alloc/local/rtc` 应答一起返回，先 offer 后映射；旧 render
    只应答 1 条 track，多余 m-line 自动 inactive。
 6. `OnAddTrack`: track id `video_track_{i}` 解析 index（旧 render 的单 track
@@ -167,7 +173,7 @@ render: 每屏一条 video track(每 track 独立帧源 → 混流/IDR 风暴根
 
 1. ~~render: per-monitor 帧源改造（OnRawVideoFrameSharedTexture 按屏路由）~~ ✅ 已编译
 2. ~~render: 多 track 创建 + 信令返回 monitors 列表（含虚拟桌面坐标）~~ ✅ 已编译
-3. ~~客户端: offer 4 路 video;OnAddTrack 挂 AddEncodedSink;null decoder factory~~ ✅ 已编译
+3. ~~客户端: offer 8 路 video;OnAddTrack 挂 AddEncodedSink;null decoder factory~~ ✅ 已编译
 4. ~~客户端: 编码帧→合成 kVideoFrame proto 分发（无 ack）;monitors 映射/回退~~ ✅ 已编译
    - ~~客户端: 音频 sink~~ ✅ 已验证(AudioTrackSinkInterface→PCM 48kHz mono→AudioPlayer)
 5. ~~本机（10.0.0.16，单屏）测试~~ ✅ 通过（序列干净/解码正常/无 datachannel 洪水）

@@ -61,7 +61,7 @@ Web 主控端: 文件传输窗口全新重写
 **Qt 客户端**
 - `src/px_client/plugins/file_transfer_client/` **整目录删除**（core 状态机 + widget UI 全套约 7600 行 + 资源 + toml）+ 挂接点（`plugins/CMakeLists.txt:2`、`ct_plugin_ids.h:16`、`ct_plugin_manager.cpp:211-213`）——由新插件 `ft` 接替
 - `src/px_client/transfer/file_transfer.{h,cpp}` 删除（死代码，从未实例化）+ `ct_base_workspace.h:38,157` 残留声明
-- 入口接线保留并指向新窗口：`MsgClientOpenFiletrans`（ct_app_message.h:177）、`ct_base_workspace.cpp:885-891`、悬浮球菜单（ct_game_view.cpp:318-323、float_controller_panel.cpp:360）
+- 入口接线保留并指向新窗口：`MsgClientOpenFiletrans`（ct_app_message.h:177）、`ct_base_workspace.cpp:885-891`、悬浮球菜单（px_render_view.cpp:318-323、float_controller_panel.cpp:360）
 
 **panel / 设置（改，不是删）**
 - `src/px_panel/src/render_panel/transfer/file_transfer.{h,cpp}` 已标 `@Deprecated`，删除 + `ws_panel_server.cpp` 的 `/file/transfer` 旧路由清理

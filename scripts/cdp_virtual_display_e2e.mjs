@@ -15,6 +15,7 @@ const CDP_PORT = Number(process.env.CDP_PORT || 9450)
 const OP_TIMEOUT_MS = Number(process.env.OP_TIMEOUT_MS || 90000)
 const RECOVER_OWNED = process.env.RECOVER_OWNED === '1'
 const RECOVER_ONLY = process.env.RECOVER_ONLY === '1'
+const KEEP_DISPLAY_AFTER_ADD = process.env.KEEP_DISPLAY_AFTER_ADD === '1'
 
 if (!PAGE_URL) throw new Error('WEB_URL required')
 fs.mkdirSync(OUT_DIR, { recursive: true })
@@ -273,7 +274,9 @@ async function main() {
     throw new Error(`cannot add a display at baseline: owned=${baselineOwned}, max=${maxOwned}`)
   }
   const baselineNames = baseline.monitors.map((monitor) => monitor.name)
-  const baselineMonitor = baseline.capturingMonitor || baselineNames[0]
+  const baselineMonitor = baseline.capturingMonitor && baseline.capturingMonitor !== 'all'
+    ? baseline.capturingMonitor
+    : baselineNames[0]
   await recordStage('01_baseline_physical')
   await ensureFloatPanelControl('[data-testid="virtual-display-add"]')
   await screenshot('01b_floating_virtual_display_controls')
@@ -284,6 +287,18 @@ async function main() {
   const addedMonitor = added.monitors.find((monitor) => !baselineNames.includes(monitor.name))
   if (!addedMonitor) throw new Error(`new monitor not found: ${JSON.stringify(added.monitors)}`)
   await recordStage('02_after_add_physical')
+
+  if (KEEP_DISPLAY_AFTER_ADD) {
+    evidence.finishedAt = new Date().toISOString()
+    evidence.result = 'PASS'
+    evidence.mode = 'KEEP_DISPLAY_AFTER_ADD'
+    evidence.baselineOwned = baselineOwned
+    evidence.baselineMonitorNames = baselineNames
+    evidence.addedMonitor = addedMonitor
+    fs.writeFileSync(path.join(OUT_DIR, 'result.json'), JSON.stringify(evidence, null, 2))
+    console.log(`[e2e] ADD-ONLY PASS: ${path.join(OUT_DIR, 'result.json')}`)
+    return
+  }
 
   const switchToVirtual = await evaluate(`window.__virtualDisplay.switchMonitor(${JSON.stringify(addedMonitor.name)})`)
   if (!switchToVirtual) throw new Error('switch to virtual monitor request was not sent')
@@ -303,7 +318,9 @@ async function main() {
     s.connection === 'connected' && s.pending === false && s.owned === baselineOwned &&
     s.monitors?.length === baselineNames.length &&
     !s.monitors?.some((monitor) => monitor.name === addedMonitor.name) && s.videoWidth > 0)
-  if (!baselineNames.includes(removed.capturingMonitor)) {
+  const recoveredToBaseline = baselineNames.includes(removed.capturingMonitor) ||
+    (removed.capturingMonitor === 'all' && baselineNames.length === 1)
+  if (!recoveredToBaseline) {
     throw new Error(`capture did not recover to a baseline monitor: ${removed.capturingMonitor}`)
   }
   await recordStage('05_after_remove_recovered')

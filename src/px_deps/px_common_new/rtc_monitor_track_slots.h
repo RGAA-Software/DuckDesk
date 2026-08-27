@@ -8,6 +8,7 @@
 
 namespace px
 {
+    inline constexpr int kReservedRtcMonitorTrackCount = 8;
 
     // Capture frame indices are scoped to a monitor's current capture stream.
     // A display topology change can restart that stream from a lower value, so

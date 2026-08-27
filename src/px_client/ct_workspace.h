@@ -9,6 +9,7 @@
 #include <QMainWindow>
 #include <QLibrary>
 #include <map>
+#include <memory>
 #include <vector>
 #include <qlist.h>
 #include "thunder_sdk.h"
@@ -20,7 +21,7 @@
 namespace px
 {
 
-    class GameView;
+    class PxRenderView;
 
     class Workspace : public BaseWorkspace {
     public:
@@ -31,7 +32,7 @@ namespace px
         void SendWindowsKey(unsigned long vk, bool down) override;
     protected:
         explicit Workspace(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent = nullptr);
-        void InitGameView(const std::shared_ptr<ThunderSdkParams>& params) override;
+        void InitRenderViews(const std::shared_ptr<ThunderSdkParams>& params) override;
         void RegisterBaseListeners() override;
     private:
         struct PendingDecodedVideoFrame {
@@ -45,11 +46,13 @@ namespace px
                                      const SdkCaptureMonitorInfo& info);
         void CalculateAspectRatio() override;
         void SwitchToFillWindow() override;
-        void UpdateGameViewsStatus(bool force_layout_screens) override;
+        void UpdateRenderViewsStatus(bool force_layout_screens) override;
         void OnGetCaptureMonitorsCount(int monitors_count) override;
         void OnGetCaptureMonitorName(std::string monitor_name) override;
+        void EnsureRenderViewCount(int requested_count);
+        void PositionRenderViews();
     private:
-        std::vector<GameView*> game_views_;  
+        std::vector<std::shared_ptr<PxRenderView>> render_views_;
         std::shared_ptr<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>> video_frame_dispatch_queue_
             = std::make_shared<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>>();
   

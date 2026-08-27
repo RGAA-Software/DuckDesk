@@ -13,6 +13,7 @@
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_capture_new/monitor_util.h"
 #include "px_common_new/concurrent_hashmap.h"
+#include "px_common_new/rtc_monitor_track_slots.h"
 #include "rtc_local_encoded_frame.h"
 #include "px_common_new/concurrent_type.h"
 #include "px_render/plugins/net_rtc/rtc_messages.h"
@@ -108,7 +109,7 @@ namespace px
         // 多 track 会话需要所有屏的帧:让工作中的采集插件采集全部显示器
         // (客户端 offer 多条 video m-line 即声明要多屏,不再依赖 UI 的 SwitchMonitor)
         void EnableAllMonitorCapture();
-        static constexpr int kMaxRtcVideoTracks = 4;
+        static constexpr int kMaxRtcVideoTracks = kReservedRtcMonitorTrackCount;
 
     private:
         void OnRemoteSdp(const MsgRtcRemoteSdp& message);

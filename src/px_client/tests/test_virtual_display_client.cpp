@@ -1,10 +1,39 @@
 #include <gtest/gtest.h>
 
 #include "ct_virtual_display_protocol.h"
+#include "render_view_capacity.h"
 #include "px_common_new/rtc_monitor_track_slots.h"
 #include "ui/virtual_display_ui_state.h"
 
 namespace px {
+
+    TEST(RenderViewCapacityTest, StartsWithOnlyTheMainView) {
+        EXPECT_EQ(ResolveRequiredRenderViewCount(0, 4), 1U);
+        EXPECT_EQ(ResolveRequiredRenderViewCount(1, 4), 1U);
+    }
+
+    TEST(RenderViewCapacityTest, ExpandsToTheReportedMonitorCount) {
+        EXPECT_EQ(ResolveRequiredRenderViewCount(2, 4), 2U);
+        EXPECT_EQ(ResolveRequiredRenderViewCount(4, 4), 4U);
+    }
+
+    TEST(RenderViewCapacityTest, HonorsConfiguredAndHardLimits) {
+        EXPECT_EQ(ResolveRequiredRenderViewCount(8, 4), 4U);
+        EXPECT_EQ(ResolveRequiredRenderViewCount(20, 20), 8U);
+        EXPECT_EQ(ResolveRequiredRenderViewCount(2, 0), 1U);
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, ReservesEightNegotiatedTracks) {
+        EXPECT_EQ(kReservedRtcMonitorTrackCount, 8);
+
+        std::vector<std::string> slots(kReservedRtcMonitorTrackCount);
+        const std::vector<std::string> monitors {
+            "DISPLAY1", "DISPLAY2", "DISPLAY3", "DISPLAY4",
+            "DISPLAY5", "DISPLAY6", "DISPLAY7", "DISPLAY8",
+        };
+        EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(slots, monitors));
+        EXPECT_EQ(slots, monitors);
+    }
 
     TEST(VirtualDisplayUiStateTest, StartsDisabledAndNormalizesMaximum) {
         VirtualDisplayUiState state;

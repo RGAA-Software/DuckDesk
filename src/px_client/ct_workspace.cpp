@@ -33,7 +33,8 @@
 #include "ct_main_progress.h"
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
 #include "px_dialog.h"
-#include "ct_game_view.h"
+#include "px_render_view.h"
+#include "render_view_capacity.h"
 #include "ct_const_def.h"
 #include "px_common_new/file.h"
 #include "px_common_new/qwidget_helper.h"
@@ -68,6 +69,7 @@ namespace px
 
     Workspace::~Workspace() {
         video_frame_dispatch_queue_->Stop();
+        render_views_.clear();
     }
 
     void Workspace::RegisterBaseListeners() {
@@ -101,9 +103,9 @@ namespace px
                     }
 
                     for (const auto& index_name : task_workspace->monitor_index_map_name_) {
-                        if (task_workspace->game_views_.size() > index_name.first) {
-                            if (task_workspace->game_views_[index_name.first]) {
-                                task_workspace->game_views_[index_name.first]->SetMonitorName(
+                        if (task_workspace->render_views_.size() > index_name.first) {
+                            if (task_workspace->render_views_[index_name.first]) {
+                                task_workspace->render_views_[index_name.first]->SetMonitorName(
                                     index_name.second);
                             }
                         }
@@ -112,7 +114,7 @@ namespace px
                 else if (EMultiMonDisplayMode::kTab == task_workspace->multi_display_mode_) {
                     task_workspace->setWindowTitle(task_workspace->origin_title_name_);
                     if (task_workspace->monitor_index_map_name_.count(msg.current_cap_mon_index_)) {
-                        task_workspace->game_views_[kMainGameViewIndex]->SetMonitorName(
+                        task_workspace->render_views_[kMainRenderViewIndex]->SetMonitorName(
                             task_workspace->monitor_index_map_name_[msg.current_cap_mon_index_]);
                     }
                 }
@@ -179,35 +181,42 @@ namespace px
         }
         //LOGI("SdkCaptureMonitorInfo mon_index_: {}, w: {}, h: {}", info.mon_index_, image->img_width, image->img_height);
         if (EMultiMonDisplayMode::kTab == multi_display_mode_) {
-            if (!game_views_.empty()) {
-                if (game_views_[kMainGameViewIndex]) {
-                    game_views_[kMainGameViewIndex]->RefreshCapturedMonitorInfo(info);
+            if (!render_views_.empty()) {
+                if (render_views_[kMainRenderViewIndex]) {
+                    render_views_[kMainRenderViewIndex]->RefreshCapturedMonitorInfo(info);
                     // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
                     if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
-                        uintptr_t obj = reinterpret_cast<uintptr_t>(game_views_[kMainGameViewIndex]);
+                        const auto obj = reinterpret_cast<uintptr_t>(
+                            render_views_[kMainRenderViewIndex].get());
                         pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
-                        game_views_[kMainGameViewIndex]->UpdateFullColorState(image->full_color_);
+                        render_views_[kMainRenderViewIndex]->UpdateFullColorState(image->full_color_);
                     }
                     else {
-                        game_views_[kMainGameViewIndex]->RefreshImage(image);
+                        render_views_[kMainRenderViewIndex]->RefreshImage(image);
                     }
                 }
             }
         }
         else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
-            if (game_views_.size() > info.mon_index_) {
-                if (game_views_[info.mon_index_]) {
-                    game_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
+            if (info.mon_index_ >= 0) {
+                EnsureRenderViewCount(info.mon_index_ + 1);
+            }
+            if (info.mon_index_ >= 0
+                && render_views_.size() > static_cast<std::size_t>(info.mon_index_)) {
+                if (render_views_[info.mon_index_]) {
+                    render_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
                     // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
                     if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
-                        pl_vulkan_->RenderFrame(reinterpret_cast<uintptr_t>(game_views_[info.mon_index_]), image->vulkan_av_frame_);
+                        pl_vulkan_->RenderFrame(
+                            reinterpret_cast<uintptr_t>(render_views_[info.mon_index_].get()),
+                            image->vulkan_av_frame_);
                     }
                     else {
-                        game_views_[info.mon_index_]->RefreshImage(image);
+                        render_views_[info.mon_index_]->RefreshImage(image);
                     }
-                    if (!game_views_[info.mon_index_]->GetActiveStatus()) {
-                        game_views_[info.mon_index_]->SetActiveStatus(true);
-                        UpdateGameViewsStatus(false);
+                    if (!render_views_[info.mon_index_]->GetActiveStatus()) {
+                        render_views_[info.mon_index_]->SetActiveStatus(true);
+                        UpdateRenderViewsStatus(false);
                     }
                 }
             }
@@ -216,97 +225,97 @@ namespace px
     }
 
     void Workspace::SendWindowsKey(unsigned long vk, bool down) {
-        if (!game_views_.empty() && !remote_force_closed_) {
-            if (game_views_[kMainGameViewIndex]) {
-                game_views_[kMainGameViewIndex]->SendKeyEvent(vk, down);
+        if (!render_views_.empty() && !remote_force_closed_) {
+            if (render_views_[kMainRenderViewIndex]) {
+                render_views_[kMainRenderViewIndex]->SendKeyEvent(vk, down);
             }
         }
     }
 
     void Workspace::CalculateAspectRatio() {
-        for (auto game_view : game_views_) {
-            if (game_view && !game_view->isHidden()) {
-                game_view->CalculateAspectRatio();
+        for (auto render_view : render_views_) {
+            if (render_view && !render_view->isHidden()) {
+                render_view->CalculateAspectRatio();
             }
         }
     }
 
     void Workspace::SwitchToFillWindow() {
-        for (auto game_view : game_views_) {
-            if (game_view && !game_view->isHidden()) {
-                game_view->SwitchToFillWindow();
+        for (auto render_view : render_views_) {
+            if (render_view && !render_view->isHidden()) {
+                render_view->SwitchToFillWindow();
             }
         }
     }
 
-    void Workspace::UpdateGameViewsStatus(bool force_layout_screens) {
+    void Workspace::UpdateRenderViewsStatus(bool force_layout_screens) {
         QList<QScreen*> screens = QGuiApplication::screens();
         if (EMultiMonDisplayMode::kTab ==  multi_display_mode_) {
-            for (auto game_view : game_views_) {
-                if (game_view->IsMainView()) {
+            for (auto render_view : render_views_) {
+                if (render_view->IsMainView()) {
                     if (full_screen_) {
                         if (!force_layout_screens) {
                             WidgetSelectMonitor(this, screens);
                         }
                         this->showFullScreen();
-                        game_view->showFullScreen();
+                        render_view->showFullScreen();
                         //px::QWidgetHelper::SetBorderInFullScreen(this, true);
-                        //px::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                        //px::QWidgetHelper::SetBorderInFullScreen(render_view, true);
                     }
                     else {
                         if (this->isMaximized()) {
                             this->showMaximized();
-                            game_view->showMaximized();
+                            render_view->showMaximized();
                         }
                         else {
                             this->showNormal();
-                            game_view->showNormal();
+                            render_view->showNormal();
                         }
                     }
                 }
                 else {
-                    game_view->hide();
+                    render_view->hide();
                 }
             }
         }
         else if (EMultiMonDisplayMode::kSeparate == multi_display_mode_) {
-            for (auto game_view : game_views_) {
-                if (game_view->GetActiveStatus()) {
+            for (auto render_view : render_views_) {
+                if (render_view->GetActiveStatus()) {
                     if (full_screen_) {
-                        if (game_view->IsMainView()) {
+                        if (render_view->IsMainView()) {
                             if (!force_layout_screens) {
                                 WidgetSelectMonitor(this, screens);
                             }
                             this->showFullScreen();
                             this->raise();
-                            game_view->showFullScreen();
+                            render_view->showFullScreen();
                             //px::QWidgetHelper::SetBorderInFullScreen(this, true);
                         }
                         else {
                             if (!force_layout_screens) {
-                                WidgetSelectMonitor(game_view, screens);
+                                WidgetSelectMonitor(render_view.get(), screens);
                             }
-                            game_view->showFullScreen();
+                            render_view->showFullScreen();
                         }
-                        //px::QWidgetHelper::SetBorderInFullScreen(game_view, true);
+                        //px::QWidgetHelper::SetBorderInFullScreen(render_view, true);
                     }
                     else {
-                        if (game_view->isMaximized()) {
-                            game_view->showMaximized();
-                            if (game_view->IsMainView()) {
+                        if (render_view->isMaximized()) {
+                            render_view->showMaximized();
+                            if (render_view->IsMainView()) {
                                 this->showMaximized();
                             }
                         }
                         else {
-                            game_view->showNormal();
-                            if (game_view->IsMainView()) {
+                            render_view->showNormal();
+                            if (render_view->IsMainView()) {
                                 this->showNormal();
                             }
                         }
                     }
                 }
                 else {
-                    game_view->hide();
+                    render_view->hide();
                 }
             }
         }
@@ -314,18 +323,21 @@ namespace px
 
     void Workspace::OnGetCaptureMonitorsCount(int monitors_count) {
         monitors_count_ = monitors_count;
+        EnsureRenderViewCount(monitors_count);
         if (monitors_count <= 1) {
             setWindowTitle(origin_title_name_);
         }
-        int real_display_monitors = std::min(monitors_count, static_cast<int>(game_views_.size()));
+        const int real_display_monitors = std::clamp(
+            monitors_count, 0, static_cast<int>(render_views_.size()));
         for (int index = 0; index < real_display_monitors; ++index) {
-            game_views_[index]->SetActiveStatus(true);
+            render_views_[index]->SetActiveStatus(true);
         }
 
-        for (; real_display_monitors < game_views_.size(); ++real_display_monitors) {
-            game_views_[real_display_monitors]->SetActiveStatus(false);
+        for (std::size_t index = static_cast<std::size_t>(real_display_monitors);
+             index < render_views_.size(); ++index) {
+            render_views_[index]->SetActiveStatus(false);
         }
-        UpdateGameViewsStatus(false);
+        UpdateRenderViewsStatus(false);
 
         if (monitors_count_ > 1) {
             const auto workspace = std::static_pointer_cast<Workspace>(shared_from_this());
@@ -369,7 +381,7 @@ namespace px
                                 LOGI("===> Geometry: {},{}, {}, {}", sc->geometry().left(), sc->geometry().top(), sc->geometry().width(), sc->geometry().height());
                             }
 
-                            if (task_workspace->game_views_.size() >= scs.size()) {
+                            if (task_workspace->render_views_.size() >= scs.size()) {
                                 int gv_index = 0;
                                 for (const auto& sc: scs | std::views::values) {
                                     if (gv_index == 0) {
@@ -380,7 +392,7 @@ namespace px
                                         task_workspace->windowHandle()->setScreen(sc);
                                     }
                                     else {
-                                        const auto view = task_workspace->game_views_[gv_index];
+                                        const auto view = task_workspace->render_views_[gv_index];
                                         auto ml = sc->geometry().left() + (sc->geometry().width() - task_workspace->width())/2;
                                         auto mt = (sc->geometry().height() - task_workspace->height())/2;
                                         view->move(ml, mt);
@@ -396,7 +408,7 @@ namespace px
                             task_workspace->context_->PostDelayUITask([weak_workspace]() {
                                 if (const auto layout_workspace = weak_workspace.lock()) {
                                     layout_workspace->full_screen_ = true;
-                                    layout_workspace->UpdateGameViewsStatus(true);
+                                    layout_workspace->UpdateRenderViewsStatus(true);
                                 }
                             }, 50);
                         }
@@ -409,9 +421,9 @@ namespace px
     void Workspace::OnGetCaptureMonitorName(std::string monitor_name) {
         LOGI("OnGetCaptureMonitorName monitor_name: {}", monitor_name);
         for (const auto& index_name : monitor_index_map_name_) {
-            if (game_views_.size() > index_name.first) {
-                if (game_views_[index_name.first]) {
-                    game_views_[index_name.first]->SetMonitorName(index_name.second);
+            if (render_views_.size() > index_name.first) {
+                if (render_views_[index_name.first]) {
+                    render_views_[index_name.first]->SetMonitorName(index_name.second);
                 }
             }
         }
@@ -424,55 +436,18 @@ namespace px
         }
         else {
             multi_display_mode_ = EMultiMonDisplayMode::kTab;
-            if (game_views_[kMainGameViewIndex]) {
-                game_views_[kMainGameViewIndex]->SetMonitorName(monitor_name);
+            if (render_views_[kMainRenderViewIndex]) {
+                render_views_[kMainRenderViewIndex]->SetMonitorName(monitor_name);
             }
         }
     }
 
-    void Workspace::InitGameView(const std::shared_ptr<ThunderSdkParams>& params) {
+    void Workspace::InitRenderViews(const std::shared_ptr<ThunderSdkParams>& params) {
         this->resize(def_window_size_);
+        EnsureRenderViewCount(1);
+        params->render_type_name_ = render_type_name_ =
+            render_views_[kMainRenderViewIndex]->GetRenderTypeName();
 
-        bool support_vulkan = this->params_->support_vulkan_;
-
-        for (int index = 0; index < settings_->max_number_of_screen_window_; ++index) {
-            GameView* game_view = nullptr;
-            if (0 == index) {
-                game_view = new GameView(context_, sdk_, params, this);    // main view
-                game_view->resize(def_window_size_);
-                game_view->show();
-                game_view->SetMainView(true);
-                setCentralWidget(game_view);
-                if (support_vulkan) {
-                    auto hwnd = game_view->GetVideoHwnd();
-                    uintptr_t obj = reinterpret_cast<uintptr_t>(game_view);
-                    bool res = pl_vulkan_->Initialize(obj, hwnd);
-                    if (!res) {
-                        LOGE("pl_vulkan_->Initialize failed.");
-                    }
-                }
-                params->render_type_name_ = render_type_name_ = game_view->GetRenderTypeName();
-            }
-            else {
-                game_view = new GameView(context_, sdk_, params, nullptr); // extend view
-                game_view->InitOverlayWidget();
-                game_view->resize(def_window_size_);
-                game_view->hide();
-                game_view->SetMainView(false);
-                game_view->installEventFilter(this);
-                game_view->setWindowTitle(origin_title_name_ + QStringLiteral(" (Desktop:%1)").arg(QString::number(index + 1)));
-       
-                uintptr_t obj = reinterpret_cast<uintptr_t>(game_view);
-                if (support_vulkan) {
-                    auto hwnd = game_view->GetVideoHwnd();
-                    bool res = pl_vulkan_->CreateRenderComponent(obj, hwnd);
-                    if (!res) {
-                        LOGE("pl_vulkan_->CreateRenderComponent failed.");
-                    }
-                }
-            }
-            game_views_.push_back(game_view);
-        }
         const std::weak_ptr<Workspace> weak_workspace =
             std::static_pointer_cast<Workspace>(shared_from_this());
         QTimer::singleShot(1, this, [weak_workspace]() {
@@ -480,45 +455,107 @@ namespace px
             if (!workspace) {
                 return;
             }
-            {
-                QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
-                int x = (screenGeometry.width() - workspace->width()) / 2;
-                int y = (screenGeometry.height() - workspace->height()) / 2;
-                workspace->move(x, y);
-            }
-
-            QPoint ws_pos = workspace->pos();
-            const int x_offset = 80;
-            const int y_offset = 40;
-            const int start_x = ws_pos.x();
-            const int start_y = ws_pos.y();
-            int index = 0;
-            for (auto game_view : workspace->game_views_) {
-                if (!game_view) {
-                    ++index;
-                    continue;
-                }
-                if (game_view->IsMainView()) {
-                    ++index;
-                    continue;
-                }
-                game_view->move(start_x + x_offset * index, start_y + y_offset * index);
-                ++index;
-            }
+            workspace->PositionRenderViews();
         });
     }
 
+    void Workspace::EnsureRenderViewCount(int requested_count) {
+        Q_ASSERT(QThread::currentThread() == thread());
+        const auto configured_limit =
+            NormalizeRenderViewLimit(settings_->max_number_of_screen_window_);
+        const auto target_count = ResolveRequiredRenderViewCount(
+            requested_count,
+            settings_->max_number_of_screen_window_);
+        if (requested_count > static_cast<int>(configured_limit)) {
+            LOGW("Remote reported {} monitors, capped by configured render view limit {}",
+                 requested_count, configured_limit);
+        }
+        if (render_views_.size() >= target_count) {
+            return;
+        }
+
+        const bool support_vulkan = params_->support_vulkan_;
+        render_views_.reserve(target_count);
+        while (render_views_.size() < target_count) {
+            const auto index = render_views_.size();
+            std::shared_ptr<PxRenderView> render_view;
+            if (index == kMainRenderViewIndex) {
+                render_view = std::make_shared<PxRenderView>(context_, sdk_, params_, this);
+                render_view->resize(def_window_size_);
+                render_view->show();
+                render_view->SetMainView(true);
+                setCentralWidget(render_view.get());
+                if (support_vulkan) {
+                    const auto hwnd = render_view->GetVideoHwnd();
+                    const auto obj = reinterpret_cast<uintptr_t>(render_view.get());
+                    const bool res = pl_vulkan_->Initialize(obj, hwnd);
+                    if (!res) {
+                        LOGE("pl_vulkan_->Initialize failed.");
+                    }
+                }
+            }
+            else {
+                render_view = std::make_shared<PxRenderView>(context_, sdk_, params_, nullptr);
+                render_view->InitOverlayWidget();
+                render_view->resize(def_window_size_);
+                render_view->hide();
+                render_view->SetMainView(false);
+                render_view->installEventFilter(this);
+                render_view->setWindowTitle(
+                    origin_title_name_
+                    + QStringLiteral(" (Desktop:%1)").arg(QString::number(index + 1)));
+       
+                const auto obj = reinterpret_cast<uintptr_t>(render_view.get());
+                if (support_vulkan) {
+                    const auto hwnd = render_view->GetVideoHwnd();
+                    const bool res = pl_vulkan_->CreateRenderComponent(obj, hwnd);
+                    if (!res) {
+                        LOGE("pl_vulkan_->CreateRenderComponent failed.");
+                    }
+                }
+            }
+            render_views_.push_back(std::move(render_view));
+        }
+        PositionRenderViews();
+        LOGI("Render view pool expanded on demand: requested={}, active_capacity={}, configured_limit={}",
+             requested_count, render_views_.size(), configured_limit);
+    }
+
+    void Workspace::PositionRenderViews() {
+        Q_ASSERT(QThread::currentThread() == thread());
+        if (const auto primary_screen = QGuiApplication::primaryScreen()) {
+            const QRect screen_geometry = primary_screen->geometry();
+            const int x = (screen_geometry.width() - width()) / 2;
+            const int y = (screen_geometry.height() - height()) / 2;
+            if (!isVisible()) {
+                move(x, y);
+            }
+        }
+
+        const QPoint workspace_position = pos();
+        constexpr int kXOffset = 80;
+        constexpr int kYOffset = 40;
+        for (std::size_t index = 1; index < render_views_.size(); ++index) {
+            const auto& render_view = render_views_[index];
+            if (render_view) {
+                render_view->move(
+                    workspace_position.x() + kXOffset * static_cast<int>(index),
+                    workspace_position.y() + kYOffset * static_cast<int>(index));
+            }
+        }
+    }
+
     bool Workspace::eventFilter(QObject* watched, QEvent* event) {
-        for (const auto game_view : game_views_) {
-            if (!game_view) {
+        for (const auto render_view : render_views_) {
+            if (!render_view) {
                 continue;
             }
             
-            if (game_view == watched) {
+            if (render_view.get() == watched) {
                 switch (event->type())
                 {
                     case QEvent::Close: {
-                        close_event_occurred_widget_ = game_view;
+                        close_event_occurred_widget_ = render_view.get();
                         event->ignore();
                         this->close();
                         return true;

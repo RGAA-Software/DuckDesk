@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <memory>
 #include <vector>
 #include <map>
@@ -61,20 +61,20 @@ namespace px {
 		~PlVulkan();
 
         bool CreatePlVulkanInstance();
-        bool CreateWin32SurfaceFromHwnd(uintptr_t game_view_ptr, HWND hwnd);
-        bool CreateSwapchain(uintptr_t game_view_ptr);
-        bool CreatePlRender(uintptr_t game_view_ptr);
+        bool CreateWin32SurfaceFromHwnd(uintptr_t render_view_id, HWND hwnd);
+        bool CreateSwapchain(uintptr_t render_view_id);
+        bool CreatePlRender(uintptr_t render_view_id);
         bool InitAVHWDeviceContext();
 
-        bool Initialize(uintptr_t game_view_ptr, HWND hwnd);
+        bool Initialize(uintptr_t render_view_id, HWND hwnd);
 
-        bool CreateRenderComponent(uintptr_t game_view_ptr, HWND hwnd);
+        bool CreateRenderComponent(uintptr_t render_view_id, HWND hwnd);
 
-        bool ChooseVulkanDevice(uintptr_t game_view_ptr, PDECODER_PARAMETERS params, bool hdrOutputRequired);
-        bool tryInitializeDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, VkPhysicalDeviceProperties* deviceProps, PDECODER_PARAMETERS decoderParams, bool hdrOutputRequired);
-        bool isExtensionSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, const char* extensionName);
-        bool isColorSpaceSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, VkColorSpaceKHR colorSpace);
-        bool isSurfacePresentationSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device);
+        bool ChooseVulkanDevice(uintptr_t render_view_id, PDECODER_PARAMETERS params, bool hdrOutputRequired);
+        bool tryInitializeDevice(uintptr_t render_view_id, VkPhysicalDevice device, VkPhysicalDeviceProperties* deviceProps, PDECODER_PARAMETERS decoderParams, bool hdrOutputRequired);
+        bool isExtensionSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device, const char* extensionName);
+        bool isColorSpaceSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device, VkColorSpaceKHR colorSpace);
+        bool isSurfacePresentationSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device);
 
         bool populateQueues(int videoFormat);
 
@@ -83,9 +83,9 @@ namespace px {
             return m_HwDeviceCtx; 
         }
 
-        bool RenderFrame(uintptr_t game_view_ptr, AVFrame* frame);
+        bool RenderFrame(uintptr_t render_view_id, AVFrame* frame);
 
-        bool mapAvFrameToPlacebo(uintptr_t game_view_ptr, const AVFrame* frame, pl_frame* mappedFrame);
+        bool mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame* frame, pl_frame* mappedFrame);
 
         static void lockQueue(AVHWDeviceContext* dev_ctx, uint32_t queue_family, uint32_t index);
         static void unlockQueue(AVHWDeviceContext* dev_ctx, uint32_t queue_family, uint32_t index);

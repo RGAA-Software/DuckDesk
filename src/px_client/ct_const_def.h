@@ -2,5 +2,5 @@
 
 namespace px {
 	const int kTitleBarHeight = 0;
-	const int kMaxGameViewCount = 8;
+	const int kMaxRenderViewCount = 8;
 }

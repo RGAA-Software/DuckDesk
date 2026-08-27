@@ -176,10 +176,10 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::CreateWin32SurfaceFromHwnd(uintptr_t game_view_ptr, HWND hwnd) {
+    bool PlVulkan::CreateWin32SurfaceFromHwnd(uintptr_t render_view_id, HWND hwnd) {
 
         std::array<pl_tex, PL_MAX_PLANES> texture = {0};
-        textures_[game_view_ptr] = texture;
+        textures_[render_view_id] = texture;
 
         // 用 Win32 API 创建 surface
         VkWin32SurfaceCreateInfoKHR sci{};
@@ -188,9 +188,9 @@ namespace px {
         sci.hwnd = hwnd;
 
         VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
-        vulkan_surfaces_[game_view_ptr] = vk_surface;
+        vulkan_surfaces_[render_view_id] = vk_surface;
 
-        if (vkCreateWin32SurfaceKHR(m_PlVkInstance->instance, &sci, nullptr, &vulkan_surfaces_[game_view_ptr]) != VK_SUCCESS) {
+        if (vkCreateWin32SurfaceKHR(m_PlVkInstance->instance, &sci, nullptr, &vulkan_surfaces_[render_view_id]) != VK_SUCCESS) {
             LOGE("vkCreateWin32SurfaceKHR failed");
             return false;
         }
@@ -200,18 +200,18 @@ namespace px {
     }
 
     // 与surface关联
-    bool PlVulkan::CreateSwapchain(uintptr_t game_view_ptr) {
+    bool PlVulkan::CreateSwapchain(uintptr_t render_view_id) {
         VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;  // 这种模式也被称为 立即模式 或 无垂直同步模式
 
         pl_vulkan_swapchain_params vkSwapchainParams = {};
-        vkSwapchainParams.surface = vulkan_surfaces_[game_view_ptr];
+        vkSwapchainParams.surface = vulkan_surfaces_[render_view_id];
         vkSwapchainParams.present_mode = presentMode;
         vkSwapchainParams.swapchain_depth = 1; // No queued frames
 #if PL_API_VER >= 338
         vkSwapchainParams.disable_10bit_sdr = true; // Some drivers don't dither 10-bit SDR output correctly
 #endif
-        vulkan_swapchains_[game_view_ptr] = pl_vulkan_create_swapchain(m_Vulkan, &vkSwapchainParams);
-        if (vulkan_swapchains_[game_view_ptr] == nullptr) {
+        vulkan_swapchains_[render_view_id] = pl_vulkan_create_swapchain(m_Vulkan, &vkSwapchainParams);
+        if (vulkan_swapchains_[render_view_id] == nullptr) {
             LOGE("pl_vulkan_create_swapchain() failed");
             return false;
         }
@@ -219,9 +219,9 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::CreatePlRender(uintptr_t game_view_ptr) {
-        vulkan_renderers_[game_view_ptr] = pl_renderer_create(m_Log, m_Vulkan->gpu);
-        if (vulkan_renderers_[game_view_ptr] == nullptr) {
+    bool PlVulkan::CreatePlRender(uintptr_t render_view_id) {
+        vulkan_renderers_[render_view_id] = pl_renderer_create(m_Log, m_Vulkan->gpu);
+        if (vulkan_renderers_[render_view_id] == nullptr) {
             LOGE("pl_renderer_create() failed");
             return false;
         }
@@ -264,29 +264,29 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::Initialize(uintptr_t game_view_ptr, HWND hwnd) {
+    bool PlVulkan::Initialize(uintptr_t render_view_id, HWND hwnd) {
         
         if (!CreatePlVulkanInstance()) {
             LOGE("CreatePlVulkanInstance() failed");
             return false;
         }
 
-        if (!CreateWin32SurfaceFromHwnd(game_view_ptr, hwnd)) {
+        if (!CreateWin32SurfaceFromHwnd(render_view_id, hwnd)) {
             LOGE("CreateWin32SurfaceFromHwnd() failed");
             return false;
         }
 
-        if (!ChooseVulkanDevice(game_view_ptr, nullptr, false)) {
+        if (!ChooseVulkanDevice(render_view_id, nullptr, false)) {
             LOGE("ChooseVulkanDevice() failed");
             return false;
         }
 
-        if (!CreateSwapchain(game_view_ptr)) {
+        if (!CreateSwapchain(render_view_id)) {
             LOGE("CreateSwapchain() failed");
             return false;
         }
 
-        if (!CreatePlRender(game_view_ptr)) {
+        if (!CreatePlRender(render_view_id)) {
             LOGE("CreatePlRender() failed");
             return false;
         }
@@ -300,7 +300,7 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::ChooseVulkanDevice(uintptr_t game_view_ptr, PDECODER_PARAMETERS params, bool hdrOutputRequired)
+    bool PlVulkan::ChooseVulkanDevice(uintptr_t render_view_id, PDECODER_PARAMETERS params, bool hdrOutputRequired)
     {
         /*
         * 暂时不用支持HDR输出
@@ -324,7 +324,7 @@ namespace px {
         // First, try the first device in the list to support device selection layers
         // that put the user's preferred GPU in the first slot.
         fn_vkGetPhysicalDeviceProperties(physicalDevices[0], &deviceProps);
-        if (tryInitializeDevice(game_view_ptr, physicalDevices[0], &deviceProps, params, hdrOutputRequired)) {
+        if (tryInitializeDevice(render_view_id, physicalDevices[0], &deviceProps, params, hdrOutputRequired)) {
             return true;
         }
         devicesTried.emplace(0);
@@ -340,7 +340,7 @@ namespace px {
             VkPhysicalDeviceProperties deviceProps;
             fn_vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProps);
             if (deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-                if (tryInitializeDevice(game_view_ptr, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
+                if (tryInitializeDevice(render_view_id, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
                     return true;
                 }
                 devicesTried.emplace(i);
@@ -357,7 +357,7 @@ namespace px {
             VkPhysicalDeviceProperties deviceProps;
             fn_vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProps);
             if (deviceProps.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-                if (tryInitializeDevice(game_view_ptr, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
+                if (tryInitializeDevice(render_view_id, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
                     return true;
                 }
                 devicesTried.emplace(i);
@@ -373,7 +373,7 @@ namespace px {
 
             VkPhysicalDeviceProperties deviceProps;
             fn_vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProps);
-            if (tryInitializeDevice(game_view_ptr, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
+            if (tryInitializeDevice(render_view_id, physicalDevices[i], &deviceProps, params, hdrOutputRequired)) {
                 return true;
             }
             devicesTried.emplace(i);
@@ -383,7 +383,7 @@ namespace px {
         return false;
     }
 
-    bool PlVulkan::tryInitializeDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, VkPhysicalDeviceProperties* deviceProps, PDECODER_PARAMETERS decoderParams, bool hdrOutputRequired)
+    bool PlVulkan::tryInitializeDevice(uintptr_t render_view_id, VkPhysicalDevice device, VkPhysicalDeviceProperties* deviceProps, PDECODER_PARAMETERS decoderParams, bool hdrOutputRequired)
     {
 
         // Check the Vulkan API version first to ensure it meets libplacebo's minimum
@@ -408,18 +408,18 @@ namespace px {
             const char* videoDecodeExtension;
             // 这里直接使用265测试
             videoDecodeExtension = VK_KHR_VIDEO_DECODE_H265_EXTENSION_NAME;
-            if (!isExtensionSupportedByPhysicalDevice(game_view_ptr, device, videoDecodeExtension)) {
+            if (!isExtensionSupportedByPhysicalDevice(render_view_id, device, videoDecodeExtension)) {
                 LOGE("Vulkan device {} does not support {}", deviceProps->deviceName, videoDecodeExtension);
                 return false;
             }
         }
 
-        if (!isSurfacePresentationSupportedByPhysicalDevice(game_view_ptr, device)) {
+        if (!isSurfacePresentationSupportedByPhysicalDevice(render_view_id, device)) {
             LOGE("Vulkan device {} does not support presenting on window surface", deviceProps->deviceName);
             return false;
         }
 
-        if (hdrOutputRequired && !isColorSpaceSupportedByPhysicalDevice(game_view_ptr, device, VK_COLOR_SPACE_HDR10_ST2084_EXT)) {
+        if (hdrOutputRequired && !isColorSpaceSupportedByPhysicalDevice(render_view_id, device, VK_COLOR_SPACE_HDR10_ST2084_EXT)) {
             LOGE("Vulkan device {} does not support HDR10 (ST.2084 PQ)", deviceProps->deviceName);
             return false;
         }
@@ -433,7 +433,7 @@ namespace px {
         pl_vulkan_params vkParams = pl_vulkan_default_params;
         vkParams.instance = m_PlVkInstance->instance;
         vkParams.get_proc_addr = m_PlVkInstance->get_proc_addr;
-        vkParams.surface = vulkan_surfaces_[game_view_ptr];
+        vkParams.surface = vulkan_surfaces_[render_view_id];
         vkParams.device = device;
         vkParams.opt_extensions = k_OptionalDeviceExtensions;
         vkParams.num_opt_extensions = SDL_arraysize(k_OptionalDeviceExtensions);
@@ -448,7 +448,7 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::isExtensionSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, const char* extensionName) {
+    bool PlVulkan::isExtensionSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device, const char* extensionName) {
         uint32_t extensionCount = 0;
         fn_vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
         std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -462,13 +462,13 @@ namespace px {
         return false;
     }
 
-    bool PlVulkan::isColorSpaceSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device, VkColorSpaceKHR colorSpace)
+    bool PlVulkan::isColorSpaceSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device, VkColorSpaceKHR colorSpace)
     {
         uint32_t formatCount = 0;
-        fn_vkGetPhysicalDeviceSurfaceFormatsKHR(device, vulkan_surfaces_[game_view_ptr], &formatCount, nullptr);
+        fn_vkGetPhysicalDeviceSurfaceFormatsKHR(device, vulkan_surfaces_[render_view_id], &formatCount, nullptr);
 
         std::vector<VkSurfaceFormatKHR> formats(formatCount);
-        fn_vkGetPhysicalDeviceSurfaceFormatsKHR(device, vulkan_surfaces_[game_view_ptr], &formatCount, formats.data());
+        fn_vkGetPhysicalDeviceSurfaceFormatsKHR(device, vulkan_surfaces_[render_view_id], &formatCount, formats.data());
 
         for (uint32_t i = 0; i < formatCount; i++) {
             if (formats[i].colorSpace == colorSpace) {
@@ -478,14 +478,14 @@ namespace px {
         return false;
     }
 
-    bool PlVulkan::isSurfacePresentationSupportedByPhysicalDevice(uintptr_t game_view_ptr, VkPhysicalDevice device)
+    bool PlVulkan::isSurfacePresentationSupportedByPhysicalDevice(uintptr_t render_view_id, VkPhysicalDevice device)
     {
         uint32_t queueFamilyCount = 0;
         fn_vkGetPhysicalDeviceQueueFamilyProperties2(device, &queueFamilyCount, nullptr);
 
         for (uint32_t i = 0; i < queueFamilyCount; i++) {
             VkBool32 supported = VK_FALSE;
-            if (fn_vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vulkan_surfaces_[game_view_ptr], &supported) == VK_SUCCESS && supported == VK_TRUE) {
+            if (fn_vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vulkan_surfaces_[render_view_id], &supported) == VK_SUCCESS && supported == VK_TRUE) {
                 return true;
             }
         }
@@ -600,7 +600,7 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::RenderFrame(uintptr_t game_view_ptr, AVFrame* frame) {
+    bool PlVulkan::RenderFrame(uintptr_t render_view_id, AVFrame* frame) {
   
         const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat) frame->format);
         if (!desc) { // 这里需要判断下,因为如果desc是空 会导致在libplacebo库 崩溃
@@ -611,14 +611,14 @@ namespace px {
         pl_frame targetFrame;
 
         // 1) Map AVFrame -> pl_frame (检查返回)
-        if (!mapAvFrameToPlacebo(game_view_ptr, frame, &mappedFrame)) {
+        if (!mapAvFrameToPlacebo(render_view_id, frame, &mappedFrame)) {
             LOGE("mapAvFrameToPlacebo failed");
             return false;
         }
 
         // 2) Start swapchain frame (必须有，不能跳过)
         pl_swapchain_frame sw_frame;
-        if (!pl_swapchain_start_frame(vulkan_swapchains_[game_view_ptr], &sw_frame)) {
+        if (!pl_swapchain_start_frame(vulkan_swapchains_[render_view_id], &sw_frame)) {
             LOGE("pl_swapchain_start_frame failed (window occluded?)");
             pl_unmap_avframe(m_Vulkan->gpu, &mappedFrame);
             return false;
@@ -632,32 +632,32 @@ namespace px {
         targetFrame.overlays = nullptr;
 
         // 6) Render
-        if (!pl_render_image(vulkan_renderers_[game_view_ptr], &mappedFrame, &targetFrame, &pl_render_fast_params)) {
+        if (!pl_render_image(vulkan_renderers_[render_view_id], &mappedFrame, &targetFrame, &pl_render_fast_params)) {
             LOGE("pl_render_image() failed");
             // still fallthrough and submit
             return false;
         }
 
         // 7) Submit and (on Windows) swap buffers
-        if (!pl_swapchain_submit_frame(vulkan_swapchains_[game_view_ptr])) {
+        if (!pl_swapchain_submit_frame(vulkan_swapchains_[render_view_id])) {
             LOGE("pl_swapchain_submit_frame() failed");
             // handle recreate if necessary
             return false;
         }
 
 #ifdef Q_OS_WIN32
-        pl_swapchain_swap_buffers(vulkan_swapchains_[game_view_ptr]);
+        pl_swapchain_swap_buffers(vulkan_swapchains_[render_view_id]);
 #endif
         // 8) Unmap source frame
         pl_unmap_avframe(m_Vulkan->gpu, &mappedFrame);
         return true;
     }
 
-    bool PlVulkan::mapAvFrameToPlacebo(uintptr_t game_view_ptr, const AVFrame* frame, pl_frame* mappedFrame)
+    bool PlVulkan::mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame* frame, pl_frame* mappedFrame)
     {
         pl_avframe_params mapParams = {};
         mapParams.frame = frame;
-        mapParams.tex = textures_[game_view_ptr].data();
+        mapParams.tex = textures_[render_view_id].data();
         if (!pl_map_avframe_ex(m_Vulkan->gpu, mappedFrame, &mapParams)) {   
             LOGE("pl_map_avframe_ex() failed");
             return false;
@@ -684,18 +684,18 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::CreateRenderComponent(uintptr_t game_view_ptr, HWND hwnd) {
-        if (!CreateWin32SurfaceFromHwnd(game_view_ptr, hwnd)) {
+    bool PlVulkan::CreateRenderComponent(uintptr_t render_view_id, HWND hwnd) {
+        if (!CreateWin32SurfaceFromHwnd(render_view_id, hwnd)) {
             LOGE("CreateWin32SurfaceFromHwnd failed");
             return false;
         }
 
-        if (!CreateSwapchain(game_view_ptr)) {
+        if (!CreateSwapchain(render_view_id)) {
             LOGE("CreateSwapchain failed");
             return false;
         }
 
-        if (!CreatePlRender(game_view_ptr)) {
+        if (!CreatePlRender(render_view_id)) {
             LOGE("CreatePlRender failed");
             return false;
         }
