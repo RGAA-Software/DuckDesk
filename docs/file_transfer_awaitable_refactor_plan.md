@@ -2,8 +2,9 @@
 
 > 状态：实施中；Phase 0–6 在当前 HTTP/WS 产品拓扑和内网环境内已完成，
 > 包含生产 Session、唯一路由、完整性、结构化终态、数据规模矩阵、断点续传和
-> 真实 FT DLL 卸载屏障；Phase 7 已完成认证/Service 请求的第一批迁移，
-> RTC 配置更新、Panel/Console 其余请求流和其他高收益工作流仍按批次推进
+> 真实 FT DLL 卸载屏障；Phase 7 已完成认证/Service 请求和 RTC 配置更新状态机的
+> 第一批迁移，活跃会话真实 revision 广播、Panel/Console 其余请求流和其他高收益
+> 工作流仍按批次推进
 >
 > 日期：2026-08-28
 >
@@ -1147,3 +1148,62 @@ timer IO 线程投递异步取消；主线程随后立即释放最后一个 `sha
 `ft.dll`：先由 `build_cpp_render_plugins.bat` 重链并发布全部 24 个插件，再由
 `build_cpp_render.bat` 重链并发布 `px_render.exe`，最后在 90 的停服窗口原子替换并恢复
 `px_service`。最终服务为 Running，20371 可达。
+
+### 12.15 Phase 7 RTC 配置更新的第一批 awaitable 收敛
+
+标准 RTC 原先已经能够调用 `SetConfiguration/RestartIce`，但控制流仍然分散：ICE failed
+callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正的 libwebrtc 应用结果、
+后续 ICE connected/completed、15 秒宽限期和 Stop 分别由不同 callback 与 16 ms tick
+维护。调用成功不等于重启成功；快速连续下发 revision 时也没有统一的重复、过期和迟到
+结果规则。
+
+本批增加 `RtcIceRestartWorkflow`，并让 Windows Client 的标准 RTC 路径使用同一个
+`PxAsyncOneShot<RtcIceRestartCompletion>` 等待完整终态：
+
+- 首次 ICE failed 建立 `awaiting configuration` 工作流，只发送一次配置请求；
+- Panel 回传 revision 后进入 `applying configuration`，成功应用后等待 ICE
+  connected/completed，任一步失败或 15 秒超时都返回结构化错误；
+- 同 revision 幂等忽略，已完成的旧 revision 判为 stale；更高 revision 更新当前工作流，
+  旧 apply sequence 的迟到成功/失败不能结束新配置；
+- ICE connected/completed、应用失败、超时和 Stop 竞争时只有一个终态；取消后迟到
+  libwebrtc callback 被忽略；
+- 移除 16 ms tick 中的重启倒计时，deadline 由 Asio timer 驱动，不再把 UI 帧定时器当作
+  网络请求时钟；
+- `MessageNotifier` 只读暴露其共享 `PxAsyncRuntime`，RTC 建立独立 state-lane
+  `PxAsyncScope`，连接 Stop 会先取消操作并等待协程退出，不为每条连接再创建一套 Asio
+  线程；
+- libwebrtc adapter、Observer 和插件实例 ABI 均未改造，既有 WebRTC 裸指针边界保持原样；
+  本批新增的 GammaRay C++ 没有裸指针和 `[this]` 捕获。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| RTC restart 状态机 | 6 tests × 10 轮，共 60 次，全部 PASS |
+| 覆盖场景 | 请求→配置→恢复、重复/过期 revision、新 revision 替换、旧 apply 迟到失败、应用失败、超时、取消、10 次重复生命周期 |
+| MessageNotifier 回归 | 10/10 PASS |
+| PxAsyncRuntime 回归 | 10/10 PASS |
+| Windows Client 增量编译 | `px_client` PASS；未调用 `build_official.bat`，未编译 Rust/Web |
+| 本机 dist Windows Client → 90 标准 RTC | 10 次成功；RTC connected、首帧进入 UI、音频初始化、FT 通道就绪，临时 user/session/ticket 每轮均清零 |
+| C++ ownership / `git diff --check` | PASS |
+
+批量原生验收还暴露了测试基础设施的一个非产品失败：连续创建临时账号会命中 Console
+HTTP 429。`run_native_auth_case.ps1` 现按明确的 429 状态做有界退避重试，其他错误仍立即
+失败，避免把限流误报成 RTC 回归。
+
+客户端运行产物已由按需发布脚本同步到 `build_official\dist` 并逐项核对 SHA-256：
+
+| 产物 | SHA-256 |
+| --- | --- |
+| `px_client.exe` | `708AEE16B554C4899C1375811FEF344ED6E36FA525134CC325F35F9B26C779C7` |
+| `px_client_rtc.dll` | `8CE3861C1A5308CDA8E8BB5035E4ADBB42DC066D9F10BBE6863FCC22798B8520` |
+| `deps\ct_plugins\clipboard.dll` | `37FEDCB8493F84A1234178ACB6E61811FAA6B1FD9D2AB65B1F94A95EE44BC11F` |
+| `deps\ct_plugins\ft.dll` | `EF98A089D420AE05B946D3E6BA1379E25D3FBD4FB9C5BB29A3F1072BDAE3576A` |
+| `deps\ct_plugins\record.dll` | `C96EA5F16B2383D0E4B4F83EEA4DC28AFDF725A97D5F15E27589112D4FC30705` |
+
+当前实机已证明新客户端的标准 RTC 初始化和反复销毁稳定；由于当前 Console 管理员密码
+已不是仓库测试默认值，本批没有通过管理 API 修改生产 RTC 配置来制造 revision 广播，
+不伪造“活跃会话真实配置热更新”通过。该项在取得当前管理员会话后，使用同配置
+revision+1 触发广播，并以客户端日志同时出现 `started` 与 `completed`、画面/音频/输入/
+FT 全程连续作为下一批实机门禁；状态机层面的并发、超时和迟到 callback 已由上述 60 次
+确定性测试覆盖。

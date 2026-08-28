@@ -1,7 +1,7 @@
 @echo off
 setlocal
 if "%~1"=="" (
-    call "%~dp0scripts\build_cpp_target.bat" test_async_runtime test_message_notifier test_render_service_rpc_state test_ft_plugin_dll_lifecycle test_plugin_context_lifecycle
+    call "%~dp0scripts\build_cpp_target.bat" test_async_runtime test_message_notifier test_render_service_rpc_state test_rtc_ice_restart_workflow test_ft_plugin_dll_lifecycle test_plugin_context_lifecycle
 ) else (
     call "%~dp0scripts\build_cpp_target.bat" %*
 )

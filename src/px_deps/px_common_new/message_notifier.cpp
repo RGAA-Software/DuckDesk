@@ -101,6 +101,10 @@ namespace px
             return runtime_->IsRuntimeThread();
         }
 
+        std::shared_ptr<PxAsyncRuntime> GetAsyncRuntime() const {
+            return runtime_;
+        }
+
         void TrackListener(const std::shared_ptr<MessageListenerState>& state) {
             std::lock_guard lock(listener_states_mutex_);
             listener_states_.erase(
@@ -730,6 +734,10 @@ namespace px
 
     bool MessageNotifier::IsDispatchThread() const {
         return core_ && core_->IsDispatchThread();
+    }
+
+    std::shared_ptr<PxAsyncRuntime> MessageNotifier::GetAsyncRuntime() const {
+        return core_ ? core_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
     }
 
     MessageBusStatistics MessageNotifier::GetStatistics() const {

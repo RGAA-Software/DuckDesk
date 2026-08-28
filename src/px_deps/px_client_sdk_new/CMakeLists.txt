@@ -78,6 +78,15 @@ endif ()
 
 if(BUILD_TESTING AND NOT ANDROID)
     find_package(GTest CONFIG REQUIRED)
+    add_executable(test_rtc_ice_restart_workflow
+        tests/test_rtc_ice_restart_workflow.cpp
+        connection/rtc_ice_restart_workflow.cpp
+    )
+    target_link_libraries(test_rtc_ice_restart_workflow PRIVATE
+        px_common_new
+        GTest::gtest
+        GTest::gtest_main
+    )
     add_executable(test_ft_transport_e2e
         tests/test_ft_transport_e2e.cpp
     )

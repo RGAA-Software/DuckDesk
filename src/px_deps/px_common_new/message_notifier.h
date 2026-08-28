@@ -138,6 +138,7 @@ namespace px
         void Stop(MessageBusStopMode mode = MessageBusStopMode::kDrain);
         bool FlushForTest(std::chrono::milliseconds timeout = std::chrono::seconds(5));
         bool IsDispatchThread() const;
+        [[nodiscard]] std::shared_ptr<PxAsyncRuntime> GetAsyncRuntime() const;
         MessageBusStatistics GetStatistics() const;
 
     private:

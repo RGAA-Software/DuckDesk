@@ -294,7 +294,7 @@ namespace px
                 return;
             }
             if (!self->sdk_->RestartRtcIce(msg.ice_config_json_, msg.connection_ticket_,
-                                           msg.client_nonce_, msg.instance_id_)) {
+                                           msg.client_nonce_, msg.instance_id_, msg.revision_)) {
                 LOGE("RTC ICE restart request failed, revision={}", msg.revision_);
                 return;
             }

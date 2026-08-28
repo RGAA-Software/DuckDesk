@@ -768,8 +768,9 @@ namespace px
     bool NetClient::RestartRtcIce(const std::string& ice_config_json,
                                   const std::string& connection_ticket,
                                   const std::string& client_nonce,
-                                  const std::string& instance_id) {
+                                  const std::string& instance_id,
+                                  std::uint64_t revision) {
         return rtc_conn_ && rtc_conn_->RestartIce(
-            ice_config_json, connection_ticket, client_nonce, instance_id);
+            ice_config_json, connection_ticket, client_nonce, instance_id, revision);
     }
 }

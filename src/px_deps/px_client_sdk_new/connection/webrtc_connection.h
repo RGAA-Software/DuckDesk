@@ -14,6 +14,7 @@
 #include "sdk_params.h"
 #include "sdk_messages.h"
 #include "px_client_sdk_new/connection/connection.h"
+#include "px_common_new/async_runtime.h"
 
 namespace px
 {
@@ -26,6 +27,8 @@ namespace px
     class MessageNotifier;
     class RtcClientInterface;
     class MessageListener;
+    class RtcIceRestartWorkflow;
+    struct RtcIceRestartBegin;
 
     class WebRtcConnection : public Connection,
                              public std::enable_shared_from_this<WebRtcConnection> {
@@ -78,7 +81,8 @@ namespace px
         bool RestartIce(const std::string& ice_config_json,
                         const std::string& connection_ticket,
                         const std::string& client_nonce,
-                        const std::string& instance_id);
+                        const std::string& instance_id,
+                        std::uint64_t revision);
 
     private:
         void Init();
@@ -92,6 +96,12 @@ namespace px
         void NotifyConnectedWhenReady();
         void NotifyDisconnectedOnce();
         void UpdateTransportStats(const std::string& json);
+        void BeginManagedIceRestart();
+        bool SpawnManagedIceRestartWait(const RtcIceRestartBegin& begin);
+        static PxAwaitable<void> AwaitManagedIceRestart(
+            std::weak_ptr<WebRtcConnection> weak_connection,
+            std::shared_ptr<RtcIceRestartWorkflow> workflow,
+            RtcIceRestartBegin begin);
 
         void RunInRtcThread(std::function<void()>&&);
 
@@ -106,6 +116,8 @@ namespace px
         RtcClientInterface* rtc_client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
+        std::shared_ptr<PxAsyncScope> async_scope_ = nullptr;
+        std::shared_ptr<RtcIceRestartWorkflow> ice_restart_workflow_ = nullptr;
 
         std::function<void(std::shared_ptr<Data>)> media_msg_cbk_;
         std::function<void(std::shared_ptr<Data>)> ft_msg_cbk_;
@@ -115,8 +127,6 @@ namespace px
         std::atomic_bool ice_connected_{false};
         std::atomic_bool connected_notified_{false};
         std::atomic_bool disconnected_notified_{false};
-        std::atomic_bool ice_restart_requested_{false};
-        std::atomic_int ice_restart_grace_ticks_{0};
         std::atomic_bool stopped_{false};
         std::atomic_bool first_video_frame_forwarded_{false};
 

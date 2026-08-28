@@ -37,7 +37,7 @@ if ($ConsoleBase.StartsWith('https://') -and
     [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 }
 
-function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '') {
+function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int]$Attempts = 6) {
     $headers = @{}
     if ($Bearer) { $headers.Authorization = "Bearer $Bearer" }
     $request = @{
@@ -50,7 +50,17 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '') {
         (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
         $request.SkipCertificateCheck = $true
     }
-    Invoke-RestMethod @request
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            return Invoke-RestMethod @request
+        }
+        catch {
+            $status = [int]$_.Exception.Response.StatusCode
+            if ($status -ne 429 -or $attempt -eq $Attempts) { throw }
+            Write-Host "RATE_LIMIT_WAIT attempt=$attempt/$Attempts"
+            Start-Sleep -Seconds 10
+        }
+    }
 }
 
 function ConvertTo-Base64([string]$Value) {

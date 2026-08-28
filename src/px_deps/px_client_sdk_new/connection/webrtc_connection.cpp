@@ -10,6 +10,7 @@
 #include "px_common_new/thread.h"
 #include "px_webrtc_client/rtc_client_interface.h"
 #include "px_common_new/message_notifier.h"
+#include "px_client_sdk_new/connection/rtc_ice_restart_workflow.h"
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_client_sdk_new/thunder_sdk.h"
 #include "px_client_sdk_new/connection/relay_connection.h"
@@ -44,6 +45,14 @@ namespace px
         relay_conn_ = relay_conn;
         sdk_params_ = params;
         msg_notifier_ = notifier;
+        if (msg_notifier_) {
+            async_scope_ = PxAsyncScope::Create(
+                msg_notifier_->GetAsyncRuntime(), PxAsyncLane::kState);
+            if (async_scope_) {
+                ice_restart_workflow_ =
+                    RtcIceRestartWorkflow::Create(async_scope_->Executor());
+            }
+        }
         thread_ = Thread::Make("rtc_client_thread", 1024 * 8);
         thread_->Poll();
     }
@@ -90,6 +99,18 @@ namespace px
         Connection::Stop();
         if (stopped_.exchange(true)) {
             return;
+        }
+        if (ice_restart_workflow_) {
+            static_cast<void>(ice_restart_workflow_->Cancel(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceStopped,
+                "rtc_shutdown",
+                "RTC connection is stopping")));
+        }
+        if (async_scope_) {
+            async_scope_->BeginStop();
+            if (!async_scope_->IsScopeThread()) {
+                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
+            }
         }
         if (rtc_client_) {
             rtc_client_->Exit();
@@ -173,18 +194,15 @@ namespace px
                 if (state == 2 || state == 3) {
                     SdkStatistics::Instance()->rtc_ice_state_ = state == 2 ? "connected" : "completed";
                     locked->ice_connected_ = true;
-                    locked->ice_restart_requested_ = false;
-                    locked->ice_restart_grace_ticks_ = 0;
+                    if (locked->ice_restart_workflow_) {
+                        static_cast<void>(locked->ice_restart_workflow_->CompleteConnected());
+                    }
                     locked->NotifyConnectedWhenReady();
                 }
                 else if (state == 4) {
                     SdkStatistics::Instance()->rtc_ice_state_ = "restarting";
                     locked->ice_connected_ = false;
-                    if (!locked->ice_restart_requested_.exchange(true)) {
-                        locked->ice_restart_grace_ticks_ = 900;
-                        locked->msg_notifier_->SendAppMessage(SdkMsgRtcIceRestartNeeded {});
-                        LOGW("Full RTC ICE failed; requested one managed ICE restart");
-                    }
+                    locked->BeginManagedIceRestart();
                 }
                 else if (state == 6) {
                     SdkStatistics::Instance()->rtc_ice_state_ = "closed";
@@ -425,38 +443,125 @@ namespace px
         } else if (HasEnoughBufferForQueuingFtMessages()) {
             NotifyFileTransferWritable();
         }
-        if (ice_restart_requested_) {
-            const auto remaining = --ice_restart_grace_ticks_;
-            if (remaining <= 0) {
-                SdkStatistics::Instance()->rtc_ice_state_ = "failed";
-                ice_restart_requested_ = false;
-                LOGE("Managed ICE restart grace period expired");
-                NotifyDisconnectedOnce();
-            }
-        }
     }
 
     bool WebRtcConnection::RestartIce(const std::string& ice_config_json,
                                       const std::string& connection_ticket,
                                       const std::string& client_nonce,
-                                      const std::string& instance_id) {
+                                      const std::string& instance_id,
+                                      std::uint64_t revision) {
         if (stopped_ || !rtc_client_ || ice_config_json.empty() || connection_ticket.empty()
-            || client_nonce.empty()) {
+            || client_nonce.empty() || !ice_restart_workflow_ || !async_scope_) {
+            return false;
+        }
+        const auto begin = ice_restart_workflow_->ApplyConfiguration(revision);
+        if (!begin.ShouldApplyConfiguration()) {
+            LOGI("Ignore duplicate/stale RTC ICE configuration, revision={}, disposition={}",
+                 revision, static_cast<int>(begin.disposition));
+            return true;
+        }
+        if (begin.StartedWorkflow() && !SpawnManagedIceRestartWait(begin)) {
+            static_cast<void>(ice_restart_workflow_->Cancel(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceStopped,
+                "rtc_restart_scope",
+                "RTC async scope rejected the restart workflow")));
             return false;
         }
         sdk_params_->rtc_ice_config_json_ = ice_config_json;
         sdk_params_->connection_ticket_ = connection_ticket;
         sdk_params_->connection_nonce_ = client_nonce;
         sdk_params_->connection_instance_id_ = instance_id;
-        ice_restart_grace_ticks_ = 900;
         auto weak_self = weak_from_this();
-        RunInRtcThread([weak_self, ice_config_json]() {
+        const std::weak_ptr<RtcIceRestartWorkflow> weak_workflow = ice_restart_workflow_;
+        const auto generation = begin.generation;
+        const auto apply_sequence = begin.apply_sequence;
+        RunInRtcThread([weak_self, weak_workflow, ice_config_json, generation, apply_sequence]() {
             auto self = weak_self.lock();
-            if (self && self->rtc_client_ && !self->rtc_client_->RestartIce(ice_config_json)) {
-                LOGE("Active full RTC SetConfiguration/RestartIce failed");
+            const auto workflow = weak_workflow.lock();
+            if (!workflow) {
+                return;
             }
+            if (!self || !self->rtc_client_ || self->stopped_ ||
+                !self->rtc_client_->RestartIce(ice_config_json)) {
+                if (workflow->MarkApplyFailed(
+                        generation, apply_sequence,
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceRejected,
+                            "set_configuration",
+                            "active RTC SetConfiguration/RestartIce failed",
+                            true,
+                            "RTC_ICE_CONFIGURATION_REJECTED"))) {
+                    LOGE("Active full RTC SetConfiguration/RestartIce failed");
+                }
+                return;
+            }
+            static_cast<void>(workflow->MarkApplyAccepted(generation, apply_sequence));
         });
         return true;
+    }
+
+    void WebRtcConnection::BeginManagedIceRestart() {
+        if (stopped_ || !ice_restart_workflow_ || !async_scope_ || !msg_notifier_) {
+            return;
+        }
+        const auto begin = ice_restart_workflow_->BeginConfigurationRequest();
+        if (!begin.StartedWorkflow()) {
+            return;
+        }
+        if (!SpawnManagedIceRestartWait(begin)) {
+            static_cast<void>(ice_restart_workflow_->Cancel(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceStopped,
+                "rtc_restart_scope",
+                "RTC async scope rejected the restart workflow")));
+            NotifyDisconnectedOnce();
+            return;
+        }
+        if (!msg_notifier_->PublishAppMessage(SdkMsgRtcIceRestartNeeded {})) {
+            static_cast<void>(ice_restart_workflow_->Cancel(MakePxAsyncError(
+                PxAsyncErrorCode::kQueueFull,
+                "request_rtc_configuration",
+                "could not queue the managed RTC restart request",
+                true)));
+            return;
+        }
+        LOGW("Full RTC ICE failed; requested one managed ICE restart");
+    }
+
+    bool WebRtcConnection::SpawnManagedIceRestartWait(const RtcIceRestartBegin& begin) {
+        if (!async_scope_ || !begin.operation) {
+            return false;
+        }
+        const auto weak_connection = weak_from_this();
+        const auto workflow = ice_restart_workflow_;
+        return async_scope_->Spawn("managed-rtc-ice-restart",
+            [weak_connection, workflow, begin]() {
+                return AwaitManagedIceRestart(weak_connection, workflow, begin);
+            });
+    }
+
+    PxAwaitable<void> WebRtcConnection::AwaitManagedIceRestart(
+        std::weak_ptr<WebRtcConnection> weak_connection,
+        std::shared_ptr<RtcIceRestartWorkflow> workflow,
+        RtcIceRestartBegin begin) {
+        constexpr auto kRestartDeadline = std::chrono::seconds(15);
+        auto result = co_await RtcIceRestartWorkflow::Operation::WaitUntil(
+            begin.operation, std::chrono::steady_clock::now() + kRestartDeadline);
+        const auto connection = weak_connection.lock();
+        if (!connection) {
+            co_return;
+        }
+        if (!result.HasValue()) {
+            static_cast<void>(workflow->DetachTimedOut(begin.generation, begin.operation));
+            if (!connection->stopped_) {
+                SdkStatistics::Instance()->rtc_ice_state_ = "failed";
+                LOGE("Managed RTC ICE restart failed: code={}, stage={}, reason={}",
+                     result.Error().StableCode(), result.Error().stage, result.Error().message);
+                connection->NotifyDisconnectedOnce();
+            }
+            co_return;
+        }
+        LOGI("Managed RTC ICE restart completed, generation={}, revision={}",
+             result.Value().generation, result.Value().revision);
+        co_return;
     }
 
     void WebRtcConnection::UpdateTransportStats(const std::string& json) {
