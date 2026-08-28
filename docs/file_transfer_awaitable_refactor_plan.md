@@ -1153,7 +1153,7 @@ timer IO 线程投递异步取消；主线程随后立即释放最后一个 `sha
 
 标准 RTC 原先已经能够调用 `SetConfiguration/RestartIce`，但控制流仍然分散：ICE failed
 callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正的 libwebrtc 应用结果、
-后续 ICE connected/completed、15 秒宽限期和 Stop 分别由不同 callback 与 16 ms tick
+后续 ICE connected/completed、30 秒宽限期和 Stop 分别由不同 callback 与 16 ms tick
 维护。调用成功不等于重启成功；快速连续下发 revision 时也没有统一的重复、过期和迟到
 结果规则。
 
@@ -1162,7 +1162,7 @@ callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正�
 
 - 首次 ICE failed 建立 `awaiting configuration` 工作流，只发送一次配置请求；
 - Panel 回传 revision 后进入 `applying configuration`，成功应用后等待 ICE
-  connected/completed，任一步失败或 15 秒超时都返回结构化错误；
+  connected/completed，任一步失败或 30 秒超时都返回结构化错误；实机 TURN 回归表明 15 秒会在候选检查完成前约 0.5 秒误杀仍持续传输媒体的会话；
 - 同 revision 幂等忽略，已完成的旧 revision 判为 stale；更高 revision 更新当前工作流，
   旧 apply sequence 的迟到成功/失败不能结束新配置；
 - ICE connected/completed、应用失败、超时和 Stop 竞争时只有一个终态；取消后迟到
@@ -1184,26 +1184,31 @@ callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正�
 | MessageNotifier 回归 | 10/10 PASS |
 | PxAsyncRuntime 回归 | 10/10 PASS |
 | Windows Client 增量编译 | `px_client` PASS；未调用 `build_official.bat`，未编译 Rust/Web |
-| 本机 dist Windows Client → 90 标准 RTC | 10 次成功；RTC connected、首帧进入 UI、音频初始化、FT 通道就绪，临时 user/session/ticket 每轮均清零 |
+| 本机 dist Windows Client → 90 标准 RTC | 10 次成功；RTC connected、首帧进入 UI、音频初始化、FT 通道就绪，临时 user/user-session/guest-session/ticket 每轮均清零 |
+| 活跃标准 RTC 配置热更新 | 10/10 PASS；每轮第二张一次性 ticket + 最新 ICE snapshot，`SetConfiguration/RestartIce` 最终 completed，媒体、音频和 FT 会话保持工作 |
+| revision 防护 | 10/10 PASS；每轮同时注入同 revision 与 revision-1，均记录为 duplicate/stale 并拒绝重复应用 |
 | C++ ownership / `git diff --check` | PASS |
 
 批量原生验收还暴露了测试基础设施的一个非产品失败：连续创建临时账号会命中 Console
-HTTP 429。`run_native_auth_case.ps1` 现按明确的 429 状态做有界退避重试，其他错误仍立即
-失败，避免把限流误报成 RTC 回归。
+每 IP 每小时游客 session 上限。`run_native_auth_case.ps1` 现按明确的 429 状态做有界退避
+重试；本次为了继续验收只重启了 Console 的 `-r=server` 子进程清理内存限流状态，GUI 和
+Mongo 数据未重启。自签名 HTTPS 由 curl `--insecure` 访问，请求 JSON 通过 stdin 发送；
+只读 TLS warm-up 不再额外消耗 guest session。
 
 客户端运行产物已由按需发布脚本同步到 `build_official\dist` 并逐项核对 SHA-256：
 
 | 产物 | SHA-256 |
 | --- | --- |
-| `px_client.exe` | `708AEE16B554C4899C1375811FEF344ED6E36FA525134CC325F35F9B26C779C7` |
+| `px_client.exe` | `53EF7DB91644D8385FDE20AD96652504A51E33BF93C58BD42773F39258781B10` |
 | `px_client_rtc.dll` | `8CE3861C1A5308CDA8E8BB5035E4ADBB42DC066D9F10BBE6863FCC22798B8520` |
 | `deps\ct_plugins\clipboard.dll` | `37FEDCB8493F84A1234178ACB6E61811FAA6B1FD9D2AB65B1F94A95EE44BC11F` |
 | `deps\ct_plugins\ft.dll` | `EF98A089D420AE05B946D3E6BA1379E25D3FBD4FB9C5BB29A3F1072BDAE3576A` |
 | `deps\ct_plugins\record.dll` | `C96EA5F16B2383D0E4B4F83EEA4DC28AFDF725A97D5F15E27589112D4FC30705` |
 
-当前实机已证明新客户端的标准 RTC 初始化和反复销毁稳定；由于当前 Console 管理员密码
-已不是仓库测试默认值，本批没有通过管理 API 修改生产 RTC 配置来制造 revision 广播，
-不伪造“活跃会话真实配置热更新”通过。该项在取得当前管理员会话后，使用同配置
-revision+1 触发广播，并以客户端日志同时出现 `started` 与 `completed`、画面/音频/输入/
-FT 全程连续作为下一批实机门禁；状态机层面的并发、超时和迟到 callback 已由上述 60 次
-确定性测试覆盖。
+当前 Console 管理员密码已不是仓库测试默认值，因此实机验收没有修改生产 RTC 配置。
+验收使用仅监听 `127.0.0.1` 的受控 Panel WebSocket：等待真实 dist 客户端 Hello 后，
+下发由 Console 普通用户 API 实际签发的第二张 ticket、对应 ICE snapshot 和新 revision。
+这覆盖了产品中的 Panel→Windows Client→SDK→libwebrtc 热更新链路，同时避免管理接口
+权限依赖。10 轮均出现 Panel command、restart started、ICE completed，随后 duplicate/stale
+保护生效；视频帧、音频和 FT 通道验收同时通过。真实 Console 管理端“修改配置并广播”
+仍属于管理控制面的独立验收项，不再阻塞客户端活跃会话热更新结论。

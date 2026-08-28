@@ -542,7 +542,11 @@ namespace px
         std::weak_ptr<WebRtcConnection> weak_connection,
         std::shared_ptr<RtcIceRestartWorkflow> workflow,
         RtcIceRestartBegin begin) {
-        constexpr auto kRestartDeadline = std::chrono::seconds(15);
+        // A real TURN-backed restart can spend more than 15 seconds gathering
+        // and checking replacement candidates while the old selected pair
+        // continues to carry media. Do not tear down a healthy session just
+        // before libwebrtc reports completed.
+        constexpr auto kRestartDeadline = std::chrono::seconds(30);
         auto result = co_await RtcIceRestartWorkflow::Operation::WaitUntil(
             begin.operation, std::chrono::steady_clock::now() + kRestartDeadline);
         const auto connection = weak_connection.lock();
