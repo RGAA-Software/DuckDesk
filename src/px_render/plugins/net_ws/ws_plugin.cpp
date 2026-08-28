@@ -97,7 +97,11 @@ namespace px
         return false;
     }
 
-    bool WsPlugin::PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool WsPlugin::PostTargetFileTransferProtoMessage(
+        const std::string& stream_id,
+        std::shared_ptr<Data> msg,
+        bool run_through,
+        const std::string& connection_instance_id) {
         // A file-transfer-only client intentionally opens /file/transfer without
         // a companion /stream connection.  HasConnectedClients() reports media
         // stream routers, so using it here drops every response for a standalone

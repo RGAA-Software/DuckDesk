@@ -676,7 +676,7 @@ message VirtualDisplayResponse {
   string error_code = 7;
   string error_message = 8;
   uint32 owned_display_count = 9;
-  uint32 actual_usbmmidd_count = 10;
+  uint32 actual_virtual_display_count = 10;
   bool driver_installed = 11;
   bool package_valid = 12;
   bool removal_safe = 13;

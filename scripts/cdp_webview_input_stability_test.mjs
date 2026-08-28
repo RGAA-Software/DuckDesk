@@ -256,7 +256,10 @@ async function testStandardRtcFeatures() {
   }
   if (uploadJob?.state !== 'done') throw new Error(`standard RTC upload failed: ${JSON.stringify(uploadJob)}`)
   const download = await evaluate(`window.__ft.download(${JSON.stringify(remotePath)})`)
-  if (download.sha256 !== upload.sha256 || download.size !== upload.size) {
+  if (!/^[a-f0-9]{64}$/i.test(upload.sha256)
+      || !/^[a-f0-9]{64}$/i.test(download.sha256)
+      || download.sha256 !== upload.sha256
+      || download.size !== upload.size) {
     throw new Error(`standard RTC file hash mismatch: ${JSON.stringify({ upload, download })}`)
   }
   await evaluate(`window.__ft.removeFile(${JSON.stringify(remotePath)})`)

@@ -227,8 +227,35 @@ endif()
 set(PX_SYSINFO_EXE_NAME px_osinfo.exe)
 set(PX_SERVICE_EXE_NAME px_service.exe)
 set(PX_SERVICE_MGR_EXE_NAME px_service_manager.exe)
+set(PX_DISPLAY_EXE_NAME px_display.exe)
 set(PX_USER_PROXY_EXE_NAME px_function.exe)
 set(PX_UNINSTALL_EXE_NAME px_uninstall.exe)
+
+find_program(MSBUILD_EXECUTABLE
+    NAMES MSBuild.exe
+    PATHS
+        "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin"
+        "C:/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin"
+        "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin"
+        "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin"
+)
+if(NOT MSBUILD_EXECUTABLE)
+    message(FATAL_ERROR "MSBuild.exe not found. Visual Studio with .NET Framework 4.7.2 targeting pack is required to build px_display.")
+endif()
+
+set(PX_DISPLAY_PROJECT ${CMAKE_SOURCE_DIR}/third_party/parsec_vdd/source/app/ParsecDisplay.csproj)
+set(PX_DISPLAY_OUTPUT_DIR ${CMAKE_BINARY_DIR}/px_display)
+set(PX_DISPLAY_EXE ${PX_DISPLAY_OUTPUT_DIR}/${PX_DISPLAY_EXE_NAME})
+
+add_custom_target(px_display_build
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PX_DISPLAY_OUTPUT_DIR}"
+    COMMAND "${MSBUILD_EXECUTABLE}" "${PX_DISPLAY_PROJECT}" /t:Restore /p:RestoreIgnoreFailedSources=true
+    COMMAND "${MSBUILD_EXECUTABLE}" "${PX_DISPLAY_PROJECT}" /t:Build /p:Configuration=Release /p:Platform=AnyCPU /p:AssemblyName=px_display /p:OutputPath=${PX_DISPLAY_OUTPUT_DIR}/
+    BYPRODUCTS "${PX_DISPLAY_EXE}" "${PX_DISPLAY_OUTPUT_DIR}/px_display.exe.config"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/parsec_vdd/source/app
+    COMMENT "Building Parsec VDD controller as px_display.exe"
+    VERBATIM
+)
 
 set(PX_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
 set(PX_RUST_PROFILE debug)
@@ -342,7 +369,7 @@ add_dependencies(px_build_premium_all
     px_protection
 
     ### from former px_build_all (deps + rust stages)
-    px_render px_service_stage px_service_manager_stage px_message px_vigem px_plugin
+    px_render px_service_stage px_service_manager_stage px_display_build px_message px_vigem px_plugin
     px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
     px_osinfo_stage
     net_ws enc_ffmpeg frame_debugger cap_dda

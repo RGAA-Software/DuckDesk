@@ -22,13 +22,17 @@ $requiredFiles = @(
     "px_panel.exe",
     "px_render.exe",
     "px_service.exe",
+    "px_display.exe",
+    "px_display.exe.config",
     "px_client.exe",
     "px_voice_apm.dll",
     "deps\rd_plugins\voice_call.dll",
     "deps\rd_plugins\net_rtc_local.dll",
     "web_client\index.html",
-    "usbmmidd_v2\deviceinstaller64.exe",
-    "usbmmidd_v2\usbmmIdd.inf",
+    "parsec_vdd\nefconw.exe",
+    "parsec_vdd\driver\mm.cat",
+    "parsec_vdd\driver\mm.dll",
+    "parsec_vdd\driver\mm.inf",
     "Uninstall.exe"
 )
 
@@ -41,7 +45,7 @@ function Get-InstallState {
     )
     $driver = @(
         Get-PnpDevice -Class Display -ErrorAction SilentlyContinue |
-            Where-Object { $_.FriendlyName -eq "USB Mobile Monitor Virtual Display" }
+            Where-Object { $_.FriendlyName -eq "Parsec Virtual Display Adapter" }
     )
     [ordered]@{
         service = $service
@@ -117,7 +121,7 @@ foreach ($device in $state.driver) {
 }
 
 $productProcesses = @(
-    Get-Process -Name "px_panel", "px_service", "px_render" -ErrorAction SilentlyContinue |
+    Get-Process -Name "px_panel", "px_service", "px_render", "px_display" -ErrorAction SilentlyContinue |
         Select-Object Name, Id, SessionId, StartTime, Responding
 )
 $processIds = @($productProcesses | ForEach-Object Id)
@@ -138,7 +142,7 @@ $checks = [ordered]@{
     panel_in_interactive_session = @(
         $state.panel | Where-Object { $state.interactive_sessions -contains $_.SessionId }
     ).Count -gt 0
-    usbmmidd_healthy = @($state.driver | Where-Object Status -eq "OK").Count -gt 0
+    parsec_vdd_healthy = @($state.driver | Where-Object Status -eq "OK").Count -gt 0
     uninstall_registered = $null -ne $uninstall
     expected_version_matches = $versionMatches
     initiator_warning_present = $initiatorWarningPresent

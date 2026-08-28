@@ -28,7 +28,11 @@ namespace px
 
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
-        bool PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
+        bool PostTargetFileTransferProtoMessage(
+            const std::string& stream_id,
+            std::shared_ptr<Data> msg,
+            bool run_through,
+            const std::string& connection_instance_id = {}) override;
 
         void PostUserProxyMessage(std::shared_ptr<Data> msg) override;
         bool IsUserProxyConnected() override;

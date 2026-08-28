@@ -28,7 +28,11 @@ namespace px
         void OnMessageRaw(const std::any &msg) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
-        bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
+        bool PostTargetFileTransferProtoMessage(
+            const std::string& stream_id,
+            std::shared_ptr<Data> msg,
+            bool run_through,
+            const std::string& connection_instance_id = {}) override;
         int GetConnectedClientsCount() override;
         int64_t GetQueuingMediaMsgCount() override;
         int64_t GetQueuingFtMsgCount() override;

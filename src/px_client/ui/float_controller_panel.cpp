@@ -15,6 +15,7 @@
 #include "px_common_new/log.h"
 #include "px_client/ct_settings.h"
 #include "px_client/ct_virtual_display_protocol.h"
+#include "px_common_new/virtual_display_timeouts.h"
 #include "float_sub_mode_panel.h"
 #include "float_sub_display_panel.h"
 #include "float_sub_control_panel.h"
@@ -1153,7 +1154,9 @@ namespace px
             return;
         }
         UpdateVirtualDisplayUi();
-        virtual_display_timeout_timer_->start(40000);
+        virtual_display_timeout_timer_->start(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                kVirtualDisplayClientOperationTimeout).count());
         context_->SendAppMessage(MsgClientVirtualDisplayRequest {
             .request_id_ = request_id,
             .operation_ = operation == VirtualDisplayUiOperation::kCreate

@@ -635,7 +635,8 @@ const capturingMonitor = ref('')
 const remoteFps = ref(0)
 const virtualDisplayEnabled = ref(false)
 const virtualDisplayOwnedCount = ref(0)
-const virtualDisplayMaxCount = ref(2)
+const VIRTUAL_DISPLAY_MAX_COUNT = 8
+const virtualDisplayMaxCount = ref(VIRTUAL_DISPLAY_MAX_COUNT)
 const virtualDisplayPending = ref(false)
 const virtualDisplayGeneration = ref('0')
 let virtualDisplayRequestSeq = 0
@@ -735,7 +736,7 @@ function handleDcBinary(buf: ArrayBuffer) {
       }
       virtualDisplayEnabled.value = cfg.virtualDisplayEnabled ?? false
       virtualDisplayOwnedCount.value = cfg.virtualDisplayOwnedCount ?? 0
-      virtualDisplayMaxCount.value = cfg.virtualDisplayMaxCount || 2
+      virtualDisplayMaxCount.value = cfg.virtualDisplayMaxCount || VIRTUAL_DISPLAY_MAX_COUNT
       virtualDisplayGeneration.value = String(cfg.topologyGeneration ?? 0)
       const remoteVoiceSupported = (cfg.voiceCallEnabled ?? false)
         && (cfg.voiceCallProtocolVersion ?? 0) >= 1

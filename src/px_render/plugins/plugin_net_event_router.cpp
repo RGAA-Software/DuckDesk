@@ -37,6 +37,7 @@
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugins/net_rtc/rtc_messages.h"
 #include "px_common_new/win32/process_helper.h"
+#include "px_common_new/virtual_display_timeouts.h"
 #include "px_capture_new/capture_message_maker.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
@@ -48,6 +49,9 @@ namespace px {
         std::string device_id;
         std::string stream_id;
         std::chrono::steady_clock::time_point deadline;
+        RemoteVirtualDisplayOperation operation = kRemoteVirtualDisplayQuery;
+        uint32_t initial_owned_display_count = 0;
+        uint64_t initial_topology_generation = 0;
         uint64_t required_capture_epoch = 0;
         std::optional<MsgVirtualDisplayServiceResult> service_result;
     };
@@ -67,6 +71,20 @@ namespace px {
     };
 
     namespace {
+        std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(
+            RemoteVirtualDisplayOperation operation) {
+            switch (operation) {
+                case kRemoteVirtualDisplayQuery:
+                    return kVirtualDisplayQueryRenderTimeout;
+                case kRemoteVirtualDisplayResetOwned:
+                    return kVirtualDisplayResetRenderTimeout;
+                case kRemoteVirtualDisplayCreate:
+                case kRemoteVirtualDisplayRemoveLast:
+                default:
+                    return kVirtualDisplayMutationRenderTimeout;
+            }
+        }
+
         bool VerifyGuestDeviceCredential(const RdSettings& settings,
                                          const std::string& safety_pwd_md5) {
             if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
@@ -109,7 +127,7 @@ namespace px {
             response.set_error_code(result.error_code_);
             response.set_error_message(result.error_message_);
             response.set_owned_display_count(result.owned_display_count_);
-            response.set_actual_usbmmidd_count(result.actual_usbmmidd_count_);
+            response.set_actual_virtual_display_count(result.actual_virtual_display_count_);
             response.set_driver_installed(result.driver_installed_);
             response.set_package_valid(result.package_valid_);
             response.set_removal_safe(result.removal_safe_);
@@ -207,6 +225,51 @@ namespace px {
                 SendVirtualDisplayResponse(app, item.device_id, item.stream_id, item.response);
             }
         }
+
+        void ReconcileVirtualDisplayRequests(
+            const std::shared_ptr<RdApplication>& app,
+            const std::shared_ptr<VirtualDisplayCoordinator>& coordinator,
+            const MsgVirtualDisplayServiceResult& status) {
+            if (!status.accepted_) {
+                return;
+            }
+            bool changed = false;
+            {
+                std::scoped_lock lock(coordinator->mutex);
+                for (auto& [request_id, pending] : coordinator->pending) {
+                    if (pending.service_result ||
+                        status.topology_generation_ <= pending.initial_topology_generation) {
+                        continue;
+                    }
+                    const bool expected_topology =
+                        (pending.operation == kRemoteVirtualDisplayCreate &&
+                         status.owned_display_count_ == pending.initial_owned_display_count + 1) ||
+                        (pending.operation == kRemoteVirtualDisplayRemoveLast &&
+                         pending.initial_owned_display_count > 0 &&
+                         status.owned_display_count_ + 1 == pending.initial_owned_display_count) ||
+                        (pending.operation == kRemoteVirtualDisplayResetOwned &&
+                         status.owned_display_count_ == 0);
+                    if (!expected_topology) {
+                        continue;
+                    }
+                    auto reconciled = status;
+                    reconciled.request_id_ = request_id;
+                    reconciled.topology_changed_ = true;
+                    pending.service_result = std::move(reconciled);
+                    pending.deadline = std::chrono::steady_clock::now() +
+                        kVirtualDisplayCaptureRebuildTimeout;
+                    changed = true;
+                    LOGW("Reconciled virtual display request {} from authoritative status: "
+                         "owned {} -> {}, generation {} -> {}",
+                         request_id, pending.initial_owned_display_count,
+                         status.owned_display_count_, pending.initial_topology_generation,
+                         status.topology_generation_);
+                }
+            }
+            if (changed) {
+                CompleteVirtualDisplayRequests(app, coordinator);
+            }
+        }
     }
 
     std::shared_ptr<PluginNetEventRouter> PluginNetEventRouter::Make(
@@ -260,6 +323,13 @@ namespace px {
                 ExpireVirtualDisplayRequests(self->app_, self->virtual_display_);
             }
         });
+        msg_listener_->Listen<MsgVirtualDisplayServiceResult>(
+            [weak_self](const MsgVirtualDisplayServiceResult& status) {
+                if (const auto self = weak_self.lock()) {
+                    ReconcileVirtualDisplayRequests(
+                        self->app_, self->virtual_display_, status);
+                }
+            });
     }
 
     void PluginNetEventRouter::ProcessClientConnectedEvent(const std::shared_ptr<PxPluginClientConnectedEvent>& event) {
@@ -334,6 +404,14 @@ namespace px {
 
         // tell all plugins that a client disconnected
         plugin_manager_->VisitAllPlugins([=](PxPluginInterface* plugin) {
+            if (plugin->GetPluginId() == kFtPluginId) {
+                plugin->OnMessageRaw(FtRouteDisconnected{
+                    .stream_id_ = event->stream_id_,
+                    .source_plugin_id_ = event->plugin_name_,
+                    .source_connection_id_ = event->conn_id_,
+                });
+                return;
+            }
             plugin->OnClientDisconnected(event->visitor_device_id_, event->stream_id_);
         });
 
@@ -393,8 +471,11 @@ namespace px {
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
                                   msg->type() == MessageType::kKeyEvent ||
                                   msg->type() == MessageType::kTextInput;
+            const std::string source_plugin_id =
+                event->from_plugin_ ? event->from_plugin_->GetPluginId() : std::string{};
+            const std::string source_connection_id = event->connection_instance_id_;
             const auto weak_self = weak_from_this();
-            plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+            plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input, source_plugin_id, source_connection_id](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                 const auto self = weak_self.lock();
                 if (!self) {
                     return;
@@ -479,6 +560,16 @@ namespace px {
                         });
                         return;
                     }
+                }
+                if (plugin->GetPluginId() == kFtPluginId &&
+                    (msg->type() == MessageType::kFileAction ||
+                     msg->type() == MessageType::kFileResponse)) {
+                    plugin->OnMessageRaw(FtInboundMessage{
+                        .message_ = msg,
+                        .source_plugin_id_ = source_plugin_id,
+                        .source_connection_id_ = source_connection_id,
+                    });
+                    return;
                 }
                 plugin->OnMessage(msg);
             });
@@ -1126,6 +1217,8 @@ namespace px {
 
         std::optional<VirtualDisplayResponse> cached;
         bool already_pending = false;
+        const auto [initial_owned_count, initial_generation] =
+            app_->GetVirtualDisplayStatusSnapshot();
         {
             std::scoped_lock lock(virtual_display_->mutex);
             if (const auto it = virtual_display_->completed.find(request_id);
@@ -1139,7 +1232,11 @@ namespace px {
                 virtual_display_->pending.emplace(request_id, PendingVirtualDisplayRequest {
                     .device_id = device_id,
                     .stream_id = stream_id,
-                    .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(35),
+                    .deadline = std::chrono::steady_clock::now() +
+                        VirtualDisplayServiceResponseTimeout(request.operation()),
+                    .operation = request.operation(),
+                    .initial_owned_display_count = initial_owned_count,
+                    .initial_topology_generation = initial_generation,
                     .required_capture_epoch = virtual_display_->capture_epoch + 1,
                 });
             }
@@ -1154,25 +1251,44 @@ namespace px {
         }
 
         auto coordinator = virtual_display_;
-        auto context = context_;
+        LOGI("Virtual display request started: request={}, operation={}, owned={}, generation={}",
+             request_id, static_cast<int>(request.operation()), initial_owned_count,
+             initial_generation);
         app_->RequestVirtualDisplay(
             request_id,
             static_cast<int>(request.operation()),
             request.width(),
             request.height(),
             request.refresh_hz(),
-            [coordinator, app, context](const MsgVirtualDisplayServiceResult& result) {
-                context->PostTask([coordinator, app, result]() {
-                    {
-                        std::scoped_lock lock(coordinator->mutex);
-                        const auto it = coordinator->pending.find(result.request_id_);
-                        if (it == coordinator->pending.end()) {
-                            return;
-                        }
-                        it->second.service_result = result;
+            [coordinator, app](const MsgVirtualDisplayServiceResult& result) {
+                // The display-change path rebuilds the Render state lane and
+                // can discard work queued at exactly that boundary. Persist
+                // the Service result under the coordinator lock immediately;
+                // capture notifications and network responses remain safe to
+                // arrive in either order.
+                {
+                    std::scoped_lock lock(coordinator->mutex);
+                    const auto it = coordinator->pending.find(result.request_id_);
+                    if (it == coordinator->pending.end()) {
+                        LOGW("Late virtual display Service result ignored: request={}, accepted={}, code={}",
+                             result.request_id_, result.accepted_, result.error_code_);
+                        return;
                     }
-                    CompleteVirtualDisplayRequests(app, coordinator);
-                });
+                    LOGI("Virtual display Service result received: request={}, accepted={}, "
+                         "changed={}, owned={}, generation={}, code={}",
+                         result.request_id_, result.accepted_, result.topology_changed_,
+                         result.owned_display_count_, result.topology_generation_,
+                         result.error_code_);
+                    it->second.service_result = result;
+                    if (result.accepted_ && result.topology_changed_) {
+                        // Driver completion and capture recovery are two
+                        // different phases. A slow but valid Service reply
+                        // must still receive the full first-frame budget.
+                        it->second.deadline = std::chrono::steady_clock::now() +
+                            kVirtualDisplayCaptureRebuildTimeout;
+                    }
+                }
+                CompleteVirtualDisplayRequests(app, coordinator);
             });
     }
 

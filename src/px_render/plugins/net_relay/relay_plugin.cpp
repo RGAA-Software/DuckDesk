@@ -400,17 +400,20 @@ namespace px
         return true;
     }
 
-    bool RelayPlugin::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool RelayPlugin::PostTargetFileTransferProtoMessage(
+        const std::string& stream_id,
+        std::shared_ptr<Data> msg,
+        bool run_through,
+        const std::string& connection_instance_id) {
         if (!IsWorking() || !msg) {
             return false;
         }
         auto ft_sdk = GetFtSdk();
-        if (ft_sdk && (!paused_stream || run_through)) {
-            ft_sdk->RelayProtoMessage(stream_id, msg);
-
-            // report sent size
-            ReportSentDataSize(msg->Size());
+        if (!ft_sdk || (paused_stream && !run_through)) {
+            return false;
         }
+        ft_sdk->RelayProtoMessage(stream_id, msg);
+        ReportSentDataSize(msg->Size());
         return true;
     }
 

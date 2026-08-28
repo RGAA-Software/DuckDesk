@@ -1,21 +1,16 @@
 //
 // ft 主控端插件 core — px_ft_engine 的薄适配层(rustdesk 协议迁移阶段 3)
 // 模型与 render 壳(src/px_render/plugins/ft)一致:
-//   单 worker 线程 + 任务队列;UI 线程/网络回调只入队,引擎全部在 worker 上。
-// UI 通信经 Qt 信号(worker 线程 emit,自动 QueuedConnection 到 UI 线程)。
+//   UI/网络入口只向 FtAsyncSession 投递命令，引擎状态与发送泵全部在 state strand。
+// UI 通信经 Qt 信号(Session 线程 emit,自动 QueuedConnection 到 UI 线程)。
 //
 
 #ifndef PX_CLIENT_FT_CORE_H
 #define PX_CLIENT_FT_CORE_H
 
 #include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <deque>
 #include <functional>
 #include <memory>
-#include <mutex>
-#include <thread>
 #include <unordered_map>
 
 #include <QObject>
@@ -25,6 +20,7 @@
 
 namespace px::ft
 {
+    class FtAsyncSession;
     class FtEngine;
 }
 
@@ -89,7 +85,7 @@ namespace px
         void ConfirmOverwrite(int32_t job_id, int32_t file_num, int choice, uint64_t offset, bool apply_to_all);
         void SetRateLimitBytesPerSec(uint64_t bps);
 
-        bool HasJobs() const { return has_jobs_.load(); }
+        bool HasJobs() const;
 
     signals:
         // 远程目录列表响应(read_dir 回包,含 "/" 盘符列表)
@@ -106,12 +102,15 @@ namespace px
         void SigDirOpDone(int op_id, const QString& error_or_empty);
 
     private:
-        void WorkerMain();
-        void ProcessMessage(const std::shared_ptr<Message>& msg);
+        void ProcessMessage(const std::shared_ptr<px::ft::FtEngine>& engine,
+                            const std::shared_ptr<Message>& msg);
         void ProcessResponse(const px::FileResponse& resp);
 
         // 上传目录前:本地展开空目录并批量 CreateDir(file_model.dart:570 语义)
-        void CreateRemoteEmptyDirs(int32_t job_id, const QString& local_path, const QString& remote_to);
+        void CreateRemoteEmptyDirs(const std::shared_ptr<px::ft::FtEngine>& engine,
+                                   int32_t job_id,
+                                   const QString& local_path,
+                                   const QString& remote_to);
         // 下载目录后:远端空目录在本地落地
         void CreateLocalEmptyDirs(const px::ReadEmptyDirsResponse& resp, const QString& local_dir);
 
@@ -119,18 +118,8 @@ namespace px
 
     private:
         FtClientPlugin* plugin_ = nullptr;
-        std::unique_ptr<px::ft::FtEngine> engine_;
-
-        std::mutex task_mutex_;
-        std::condition_variable task_cv_;
-        std::deque<std::function<void()>> tasks_;
-        bool worker_exit_ = false;
-        std::thread worker_;
+        std::atomic<std::shared_ptr<px::ft::FtAsyncSession>> session_;
         std::atomic_bool accepting_ = false;
-        std::atomic_bool has_jobs_ = false;
-
-        // 仅 worker 线程访问
-        std::chrono::steady_clock::time_point last_activity_;
         // 目录操作 id(负值,避开引擎作业 id 空间)
         int32_t next_op_id_ = -1;
         // 下载中的空目录查询:远端路径 -> 本地落点

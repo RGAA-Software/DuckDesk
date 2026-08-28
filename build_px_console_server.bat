@@ -127,6 +127,13 @@ rem generators (Ninja vs "Visual Studio 17 2022") between runs makes cmake
 rem fail with "generator ... does not match the generator used previously".
 set "CMAKE_GENERATOR=Ninja"
 
+rem VS 2026's C runtime exposes stdatomic only when cl is explicitly placed in
+rem C11 mode. aws-lc-sys 0.32.x probes without /std:c11 and otherwise falls
+rem back to a stale CMake path that also asks for Perl. Pin the crate-supported
+rem C standard so its direct cc builder is selected consistently.
+set "AWS_LC_SYS_C_STD=11"
+if exist "%ProgramFiles%\Git\usr\bin\perl.exe" set "PATH=%PATH%;%ProgramFiles%\Git\usr\bin"
+
 rem aws-lc-sys generates err_data.c via `go run`. A globally-set GOOS=linux
 rem makes go cross-compile Linux binaries that cannot run on Windows
 rem ("executable file not found in %PATH%"), so pin GOOS for this build.

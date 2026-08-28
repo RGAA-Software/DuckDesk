@@ -9,6 +9,7 @@
 #include <memory>
 #include <any>
 #include "px_common_new/time_util.h"
+#include "px_common_new/file_transfer_send_result.h"
 
 // from plugins ---> exe
 
@@ -104,6 +105,8 @@ namespace px
         // sent message via media channel ?
         bool media_channel_ = false;
         std::shared_ptr<Data> buf_ = nullptr;
+        FileTransferSendResult send_result_ =
+            FileTransferSendResult::TransportError("network event was not dispatched");
     };
 
     // file transfer begin

@@ -24,7 +24,11 @@ namespace px
         return false;
     }
 
-    bool PxNetPlugin::PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool PxNetPlugin::PostTargetFileTransferProtoMessage(
+        const std::string& stream_id,
+        std::shared_ptr<Data> msg,
+        bool run_through,
+        const std::string& connection_instance_id) {
         return false;
     }
 
@@ -45,7 +49,8 @@ namespace px
                                         int64_t socket_fd,
                                         const NetPluginType& nt_plugin_type,
                                         const NetChannelType& ch_type,
-                                        std::shared_ptr<Data> msg) {
+                                        std::shared_ptr<Data> msg,
+                                        const std::string& connection_instance_id) {
         auto event = std::make_shared<PxPluginNetClientEvent>();
         event->is_proto_ = is_proto;
         event->socket_fd_ = socket_fd;
@@ -53,6 +58,7 @@ namespace px
         event->nt_channel_type_ = ch_type;
         event->message_ = msg;
         event->from_plugin_ = this;
+        event->connection_instance_id_ = connection_instance_id;
         CallbackEvent(event);
     }
 
@@ -60,7 +66,8 @@ namespace px
                                                 int64_t socket_fd,
                                                 const NetPluginType& nt_plugin_type,
                                                 const NetChannelType& ch_type,
-                                                std::shared_ptr<Data> msg) {
+                                                std::shared_ptr<Data> msg,
+                                                const std::string& connection_instance_id) {
         auto event = std::make_shared<PxPluginNetClientEvent>();
         event->is_proto_ = is_proto;
         event->socket_fd_ = socket_fd;
@@ -68,6 +75,7 @@ namespace px
         event->nt_channel_type_ = ch_type;
         event->message_ = std::move(msg);
         event->from_plugin_ = this;
+        event->connection_instance_id_ = connection_instance_id;
         CallbackEventDirectly(event);
     }
 

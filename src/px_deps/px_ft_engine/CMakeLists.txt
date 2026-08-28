@@ -14,6 +14,7 @@ add_library(px_ft_engine STATIC
     ft_compress.cpp
     transfer_job.cpp
     ft_engine.cpp
+    ft_async_session.cpp
 )
 
 # Ninja cannot infer MSVC's localized /showIncludes output on every Windows
@@ -30,6 +31,7 @@ set_property(SOURCE
     ft_compress.cpp
     transfer_job.cpp
     ft_engine.cpp
+    ft_async_session.cpp
     APPEND PROPERTY OBJECT_DEPENDS "${PX_FT_PROTO_HEADERS}"
 )
 
@@ -37,7 +39,7 @@ target_include_directories(px_ft_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # px_message.pb.h / px_file_transfer.pb.h 生成目录
 target_include_directories(px_ft_engine PUBLIC ${PX_PROJECT_BINARY_PATH}/px_message_new)
 
-target_link_libraries(px_ft_engine PUBLIC px_message)
+target_link_libraries(px_ft_engine PUBLIC px_message px_common_new)
 target_link_libraries(px_ft_engine PRIVATE miniz::miniz nlohmann_json::nlohmann_json)
 
 if(TESTS_ENABLED)

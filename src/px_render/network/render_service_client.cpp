@@ -173,7 +173,7 @@ namespace px
             result.error_code_ = sub.error_code();
             result.error_message_ = sub.error_message();
             result.owned_display_count_ = sub.owned_display_count();
-            result.actual_usbmmidd_count_ = sub.actual_usbmmidd_count();
+            result.actual_virtual_display_count_ = sub.actual_virtual_display_count();
             result.driver_installed_ = sub.driver_installed();
             result.package_valid_ = sub.package_valid();
             result.removal_safe_ = sub.removal_safe();

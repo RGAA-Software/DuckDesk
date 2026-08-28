@@ -40,6 +40,7 @@ PRODUCT_EXES = {
     "px_render.exe",
     "px_service.exe",
     "px_service_manager.exe",
+    "px_display.exe",
     "px_osinfo.exe",
     "px_function.exe",
     "px_uninstall.exe",
@@ -185,6 +186,14 @@ def main():
         os.path.join(source_dir, "rust_client", "target", "release", "px_service.exe"),
         os.path.join(dist_dir, "px_service.exe"),
     )
+    copy_file(
+        os.path.join(build_dir, "px_display", "px_display.exe"),
+        os.path.join(dist_dir, "px_display.exe"),
+    )
+    copy_file(
+        os.path.join(build_dir, "px_display", "px_display.exe.config"),
+        os.path.join(dist_dir, "px_display.exe.config"),
+    )
 
     # CEF runtime is staged beside px_render by its CMake target. Keep the same
     # adjacency in dist so px_render can act as browser/GPU/renderer subprocess.
@@ -283,30 +292,35 @@ def main():
         copy_file(joystick_src, os.path.join(dist_dir, "px_joystick.exe"))
 
     # ------------------------------------------------------------------
-    # 8. USBMMIDD virtual display driver (source tree)
+    # 8. Microsoft-signed Parsec virtual display driver (source tree)
     # ------------------------------------------------------------------
-    usbmmidd_src = os.path.join(source_dir, "third_party", "usbmmidd_v2")
-    usbmmidd_dst = os.path.join(dist_dir, "usbmmidd_v2")
-    usbmmidd_required = {
-        "deviceinstaller64.exe",
-        "License.txt",
+    parsec_vdd_src = os.path.join(source_dir, "third_party", "parsec_vdd")
+    parsec_vdd_dst = os.path.join(dist_dir, "parsec_vdd")
+    parsec_vdd_required = {
+        "nefconw.exe",
+        "SOURCE.md",
         "SHA256SUMS.txt",
-        "usbmmidd.cat",
-        "usbmmIdd.inf",
-        os.path.join("x64", "usbmmIdd.dll"),
+        os.path.join("driver", "mm.cat"),
+        os.path.join("driver", "mm.dll"),
+        os.path.join("driver", "mm.inf"),
     }
-    missing_usbmmidd = sorted(
-        rel for rel in usbmmidd_required
-        if not os.path.isfile(os.path.join(usbmmidd_src, rel))
+    missing_parsec_vdd = sorted(
+        rel for rel in parsec_vdd_required
+        if not os.path.isfile(os.path.join(parsec_vdd_src, rel))
     )
-    if missing_usbmmidd:
+    if missing_parsec_vdd:
         print(
-            "ERROR: usbmmidd_v2 package is incomplete: " + ", ".join(missing_usbmmidd),
+            "ERROR: parsec_vdd package is incomplete: " + ", ".join(missing_parsec_vdd),
             file=sys.stderr,
         )
         sys.exit(1)
-    shutil.copytree(usbmmidd_src, usbmmidd_dst)
-    print("  + usbmmidd_v2/  (validated source package)")
+    os.makedirs(parsec_vdd_dst, exist_ok=True)
+    for rel in parsec_vdd_required:
+        copy_file(
+            os.path.join(parsec_vdd_src, rel),
+            os.path.join(parsec_vdd_dst, rel),
+        )
+    print("  + parsec_vdd/  (validated signed driver package)")
 
     # ------------------------------------------------------------------
     # 9. Web frontends (vite build output) → dist/<name>/

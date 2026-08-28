@@ -18,7 +18,7 @@ $uninstallKeys = @(
     "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel"
 )
 $service = Get-Service -Name px_service -ErrorAction SilentlyContinue
-$processNames = @("px_service", "px_panel", "px_render", "px_function", "px_osinfo")
+$processNames = @("px_service", "px_panel", "px_render", "px_function", "px_osinfo", "px_display")
 $processes = foreach ($name in $processNames) {
     $instances = @(Get-Process -Name $name -ErrorAction SilentlyContinue)
     [ordered]@{
@@ -37,9 +37,9 @@ $ports = foreach ($port in @(20369, 20371, 20375)) {
     }
 }
 
-$usbDevices = @(
+$parsecDevices = @(
     Get-PnpDevice -Class Display -ErrorAction SilentlyContinue |
-        Where-Object { $_.FriendlyName -eq "USB Mobile Monitor Virtual Display" } |
+        Where-Object { $_.FriendlyName -eq "Parsec Virtual Display Adapter" } |
         ForEach-Object {
             [ordered]@{
                 instance_id = $_.InstanceId
@@ -50,9 +50,9 @@ $usbDevices = @(
         }
 )
 
-$usbDrivers = @(
+$parsecDrivers = @(
     Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue |
-        Where-Object { $_.DeviceName -eq "USB Mobile Monitor Virtual Display" } |
+        Where-Object { $_.DeviceName -eq "Parsec Virtual Display Adapter" } |
         ForEach-Object {
             [ordered]@{
                 device_id = $_.DeviceID
@@ -101,8 +101,8 @@ $result = [ordered]@{
     processes = @($processes)
     ports = @($ports)
     executables = @($executables)
-    usbmmidd_devices = @($usbDevices)
-    usbmmidd_drivers = @($usbDrivers)
+    parsec_vdd_devices = @($parsecDevices)
+    parsec_vdd_drivers = @($parsecDrivers)
     virtual_display_state = $virtualState
 }
 

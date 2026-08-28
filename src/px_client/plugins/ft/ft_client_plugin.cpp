@@ -6,6 +6,7 @@
 #include "ft_core.h"
 #include "ui/ft_window.h"
 
+#include <atomic>
 #include <format>
 
 #include "px_message.pb.h"
@@ -22,9 +23,6 @@ PX_PLUGIN_EXPORT(px::FtClientPlugin)
 
 namespace px
 {
-
-    // 反压阈值:在途消息数(每块 ~120KB,16 块 ≈ 2MB 上限积压)
-    static constexpr int64_t kMaxOutstandingSends = 16;
 
     std::string FtClientPlugin::GetPluginId() {
         return kClientFtPluginId;
@@ -150,7 +148,7 @@ namespace px
         }
     }
 
-    bool FtClientPlugin::SendToChannel(const px::Message& msg) {
+    FileTransferSendResult FtClientPlugin::SendToChannel(const px::Message& msg) {
         // 线程:ft core worker。引擎不感知通道,type/stream_id/device_id 由壳补齐。
         px::Message out = msg;
         if (out.has_file_response()) {
@@ -162,17 +160,22 @@ namespace px
         out.set_device_id(plugin_settings_.device_id_);
         auto data = px::ProtoAsData(&out);
 
-        outstanding_sends_.fetch_add(1);
-        PostWorkTask([this, data]() {
-            auto event = std::make_shared<ClientPluginNetworkEvent>();
-            event->media_channel_ = false;
-            event->buf_ = data;
-            // 在 context work 线程直调路由器;通道忙时 PostFileTransferMessage
-            // 内部自旋等待,只阻塞本插件 work 线程,不影响 UI。
-            CallbackEventDirectly(event);
-            outstanding_sends_.fetch_sub(1);
-        });
-        return outstanding_sends_.load() <= kMaxOutstandingSends;
+        auto event = std::make_shared<ClientPluginNetworkEvent>();
+        event->media_channel_ = false;
+        event->buf_ = std::move(data);
+        CallbackEventDirectly(event);
+        if (!event->send_result_.accepted()) {
+            static std::atomic<std::uint64_t> last_deferred_log_ms{0};
+            const auto now = TimeUtil::GetCurrentTimestamp();
+            auto previous = last_deferred_log_ms.load(std::memory_order_relaxed);
+            if (now - previous >= 10000 && last_deferred_log_ms.compare_exchange_strong(
+                    previous, now, std::memory_order_relaxed)) {
+                LOGW("File-transfer send deferred, status: {}, detail: {}",
+                     static_cast<int>(event->send_result_.status()),
+                     event->send_result_.detail());
+            }
+        }
+        return event->send_result_;
     }
 
     void FtClientPlugin::TrackJobBegin(int32_t job_id, const QString& name, bool is_download) {

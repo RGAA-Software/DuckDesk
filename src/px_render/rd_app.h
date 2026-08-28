@@ -12,6 +12,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <utility>
 #include "rd_context.h"
 #include "app/app_messages.h"
 #include "app_global_messages.h"
@@ -135,6 +136,7 @@ namespace px
             std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
         void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
         void RefreshVirtualDisplayStatus(const std::string& request_prefix);
+        std::pair<uint32_t, uint64_t> GetVirtualDisplayStatusSnapshot() const;
         void SendWebViewMouseEvent(const MouseEvent& event);
         void SendWebViewKeyEvent(const KeyEvent& event);
         void SendWebViewTextInput(const TextInput& event);

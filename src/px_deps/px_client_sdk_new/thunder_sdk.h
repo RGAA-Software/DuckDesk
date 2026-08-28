@@ -65,7 +65,7 @@ namespace px
         void SetOnVideoFrameDecodeThreadDiscardedCallback(OnVideoFrameDecodeThreadDiscardedCallback&& cbk);
 
         void PostMediaMessage(std::shared_ptr<Data> msg);
-        void PostFileTransferMessage(std::shared_ptr<Data> msg);
+        [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
         void PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name);
         void PostAudioTask(std::function<void()>&& task);
         void PostMiscTask(std::function<void()>&& task);

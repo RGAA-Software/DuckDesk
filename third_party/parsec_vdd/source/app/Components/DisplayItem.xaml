@@ -1,0 +1,62 @@
+﻿<UserControl
+    x:Class="ParsecDisplay.Components.DisplayItem"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+    xmlns:local="clr-namespace:ParsecDisplay.Components"
+    mc:Ignorable="d" 
+    Width="180" Height="110"
+    d:Background="Black"
+>
+    <Border Margin="4"
+            MouseDown="UserControl_MouseDown" MouseUp="UserControl_MouseUp"
+            BorderThickness="2" CornerRadius="{DynamicResource DisplayCornerRadius}">
+        <Border.Style>
+            <Style TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="#1FFF"/>
+                <Setter Property="BorderBrush" Value="#8FFF"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#3FFF"/>
+                        <Setter Property="BorderBrush" Value="#AFFF"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <TextBlock x:Name="xDeg" d:Text="90°" Foreground="White" Margin="8,4,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" />
+            <TextBlock x:Name="xPri" d:Text="[P]" Foreground="White" Margin="0,4,8,0" HorizontalAlignment="Right" VerticalAlignment="Top" />
+            <TextBlock Text="{Binding DisplayNum}" d:Text="1" FontSize="24" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,5" />
+            <TextBlock Grid.Row="1" Text="{Binding DisplayMode}" d:Text="1920 x 1080 @ 60 Hz" FontSize="12" Foreground="White" TextAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+        </Grid>
+    </Border>
+
+    <UserControl.ContextMenu>
+        <ContextMenu>
+            <MenuItem Header="{Binding DisplayName}" />
+            <MenuItem Header="{Binding DisplayPath}" />
+            <MenuItem IsEnabled="False" Header="ParsecVDA">
+                <MenuItem.Icon>
+                    <Image Source="../Resources/icon.ico" />
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator />
+            <MenuItem x:Name="xResolution" Click="ChangeResolution" Header="{DynamicResource t_resolution}" IsEnabled="{Binding Active}" />
+            <MenuItem x:Name="xRefreshRate" Click="ChangeRefreshRate" Header="{DynamicResource t_refresh_rate}" IsEnabled="{Binding Active}" />
+            <MenuItem x:Name="xOrientation" Click="ChangeOrientation" Header="{DynamicResource t_orientation}" IsEnabled="{Binding Active}">
+                <MenuItem Header="{DynamicResource t_landscape}" />
+                <MenuItem Header="{DynamicResource t_portrait}" />
+                <MenuItem Header="{DynamicResource t_landscape_flipped}" />
+                <MenuItem Header="{DynamicResource t_portrait_flipped}" />
+            </MenuItem>
+            <Separator />
+            <MenuItem Click="TakeScreenshot" Header="{DynamicResource t_take_screenshot}" IsEnabled="{Binding Active}" />
+            <MenuItem Click="MirrorScreen" Header="{DynamicResource t_mirror_screen}" IsEnabled="{Binding Active}" />
+            <MenuItem Click="SetAsPrimary" Header="{DynamicResource t_set_primary}" IsEnabled="{Binding CanSetPrimary}" />
+            <Separator />
+            <MenuItem Click="RemoveDisplay" Header="{DynamicResource t_remove}" />
+        </ContextMenu>
+    </UserControl.ContextMenu>
+    
+</UserControl>

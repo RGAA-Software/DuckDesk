@@ -7,20 +7,16 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QPointer>
 
 #include "px_message.pb.h"
+#include "ft_async_session.h"
 #include "ft_engine.h"
 #include "ft_path.h"
 #include "px_common_new/log.h"
 
 namespace px
 {
-
-    // rustdesk 调度节拍:有作业 1ms,空闲退避(MILLI1/SEC30 语义,空闲取 1s)
-    static constexpr auto kTickBusy = std::chrono::milliseconds(1);
-    static constexpr auto kTickIdle = std::chrono::milliseconds(1000);
-    // 无作业但刚有活动(待发队列可能压着握手消息)时的冲刷宽限期
-    static constexpr auto kActivityGrace = std::chrono::seconds(5);
 
     static QString NormalizeRemotePath(const QString& p) {
         QString r = p;
@@ -57,292 +53,237 @@ namespace px
     }
 
     void FtCore::Start() {
-        engine_ = std::make_unique<px::ft::FtEngine>(
-            [this](const px::Message& msg) { return plugin_->SendToChannel(msg); });
-        engine_->SetLogCallback([](const std::string& msg) {
-            LOGW("[ft_engine] {}", msg);
-        });
-        engine_->SetProgressCallback([this](const px::ft::TransferJobStatus& st) {
-            FtJobStatusInfo info;
-            info.id_ = st.id;
-            info.file_num_ = st.file_num;
-            info.file_count_ = st.file_count;
-            info.total_size_ = st.total_size;
-            info.finished_size_ = st.finished_size;
-            info.speed_ = st.speed;
-            info.is_download_ = st.is_remote;
-            info.done_ = st.done;
-            info.cancel_ = st.cancel;
-            info.error_ = QString::fromStdString(st.error);
-            emit SigJobProgress(info);
-        });
-        engine_->SetJobDoneCallback([this](int32_t job_id, int32_t file_num,
-                                           const std::string& error_or_empty) {
-            (void)file_num;
-            emit SigJobDone(job_id, QString::fromStdString(error_or_empty));
-        });
-        engine_->SetOverwriteConfirmCallback(
-            [this](int32_t job_id, int32_t file_num, const std::string& path,
-                   bool is_upload, bool is_identical) {
-                // worker 线程 emit -> UI 线程弹框;作业在引擎内等待 ConfirmFile 回喂
-                emit SigOverwriteConfirm(job_id, file_num, QString::fromStdString(path),
-                                         is_upload, is_identical);
+        const QPointer<FtCore> self(this);
+        const auto session = px::ft::FtAsyncSession::Create(
+            [self](const auto& message) {
+                return self
+                    ? self->plugin_->SendToChannel(*message)
+                    : FileTransferSendResult::Disconnected("FT client core was destroyed");
+            },
+            [self](const auto& engine) {
+                engine->SetLogCallback([](const std::string& message) {
+                    LOGW("[ft_engine] {}", message);
+                });
+                engine->SetProgressCallback([self](const px::ft::TransferJobStatus& status) {
+                    if (!self) return;
+                    FtJobStatusInfo info;
+                    info.id_ = status.id;
+                    info.file_num_ = status.file_num;
+                    info.file_count_ = status.file_count;
+                    info.total_size_ = status.total_size;
+                    info.finished_size_ = status.finished_size;
+                    info.speed_ = status.speed;
+                    info.is_download_ = status.is_remote;
+                    info.done_ = status.done;
+                    info.cancel_ = status.cancel;
+                    info.error_ = QString::fromStdString(status.error);
+                    emit self->SigJobProgress(info);
+                });
+                engine->SetJobDoneCallback(
+                    [self](int32_t job_id, int32_t file_num, const std::string& error) {
+                        static_cast<void>(file_num);
+                        if (self) emit self->SigJobDone(job_id, QString::fromStdString(error));
+                    });
+                engine->SetOverwriteConfirmCallback(
+                    [self](int32_t job_id, int32_t file_num, const std::string& path,
+                           bool is_upload, bool is_identical) {
+                        if (self) {
+                            emit self->SigOverwriteConfirm(
+                                job_id, file_num, QString::fromStdString(path),
+                                is_upload, is_identical);
+                        }
+                    });
+                engine->SetResponseCallback([self](const px::FileResponse& response) {
+                    if (self) self->ProcessResponse(response);
+                });
             });
-        engine_->SetResponseCallback([this](const px::FileResponse& resp) {
-            ProcessResponse(resp);
-        });
-
-        last_activity_ = std::chrono::steady_clock::now();
+        if (!session->Start()) {
+            LOGE("ft client async session failed to start.");
+            return;
+        }
+        session_.store(session);
         accepting_ = true;
-        worker_ = std::thread([this]() { this->WorkerMain(); });
-        LOGI("ft client core started.");
+        LOGI("ft client async session started.");
     }
 
     void FtCore::Stop() {
         accepting_ = false;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            if (!worker_exit_) {
-                // 在途作业按取消语义处理(清 .download/.digest,并通知对端)
-                tasks_.emplace_back([this]() {
-                    if (engine_) {
-                        std::vector<int32_t> ids;
-                        for (const auto& job : engine_->read_jobs()) ids.push_back(job.id());
-                        for (const auto& job : engine_->write_jobs()) ids.push_back(job.id());
-                        for (int32_t id : ids) engine_->CancelJob(id);
-                    }
-                });
-                worker_exit_ = true;
+        const auto session = session_.exchange({});
+        if (session) {
+            static_cast<void>(session->PostAndWait(
+                "ft-client-cancel-before-stop",
+                [](const auto& engine) {
+                    std::vector<int32_t> ids;
+                    for (const auto& job : engine->read_jobs()) ids.push_back(job.id());
+                    for (const auto& job : engine->write_jobs()) ids.push_back(job.id());
+                    for (const auto id : ids) engine->CancelJob(id);
+                }, std::chrono::seconds(5)));
+            if (!session->StopAndWait(std::chrono::seconds(5))) {
+                LOGE("ft client async session did not stop within deadline");
             }
         }
-        task_cv_.notify_one();
-        if (worker_.joinable()) {
-            worker_.join();
-        }
-        engine_.reset();
+    }
+
+    bool FtCore::HasJobs() const {
+        const auto session = session_.load();
+        return session && session->HasJobs();
     }
 
     // ---------------- 网络入口 ----------------
 
     void FtCore::EnqueueMessage(const std::shared_ptr<Message>& msg) {
-        if (!accepting_.load()) {
-            return;
-        }
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, msg]() { this->ProcessMessage(msg); });
-        }
-        task_cv_.notify_one();
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        static_cast<void>(session->Post("ft-client-inbound", [self, msg](const auto& engine) {
+            if (self) self->ProcessMessage(engine, msg);
+        }));
     }
 
     // ---------------- UI 主动操作 ----------------
 
     void FtCore::ReadDir(const QString& path) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, p = NormalizeRemotePath(path)]() {
-                if (engine_) {
-                    LOGI("ft remote directory request: {}", p.toStdString());
-                    engine_->ReadDir(p.toStdString(), false);
-                    last_activity_ = std::chrono::steady_clock::now();
-                }
-            });
-        }
-        task_cv_.notify_one();
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        const auto normalized = NormalizeRemotePath(path);
+        static_cast<void>(session->Post("ft-read-dir", [normalized](const auto& engine) {
+            LOGI("ft remote directory request: {}", normalized.toStdString());
+            engine->ReadDir(normalized.toStdString(), false);
+        }));
     }
 
     void FtCore::CreateDir(const QString& path) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, p = NormalizeRemotePath(path)]() {
-                if (engine_) {
-                    engine_->CreateDir(next_op_id_--, p.toStdString());
-                    last_activity_ = std::chrono::steady_clock::now();
-                }
-            });
-        }
-        task_cv_.notify_one();
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        const auto normalized = NormalizeRemotePath(path);
+        static_cast<void>(session->Post("ft-create-dir", [self, normalized](const auto& engine) {
+            if (self) engine->CreateDir(self->next_op_id_--, normalized.toStdString());
+        }));
     }
 
     void FtCore::RemoveEntry(const QString& path, bool is_dir) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, p = NormalizeRemotePath(path), is_dir]() {
-                if (engine_) {
-                    if (is_dir) {
-                        engine_->RemoveDir(next_op_id_--, p.toStdString(), true);
-                    } else {
-                        engine_->RemoveFile(next_op_id_--, p.toStdString());
-                    }
-                    last_activity_ = std::chrono::steady_clock::now();
-                }
-            });
-        }
-        task_cv_.notify_one();
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        const auto normalized = NormalizeRemotePath(path);
+        static_cast<void>(session->Post(
+            "ft-remove-entry", [self, normalized, is_dir](const auto& engine) {
+                if (!self) return;
+                if (is_dir) engine->RemoveDir(self->next_op_id_--, normalized.toStdString(), true);
+                else engine->RemoveFile(self->next_op_id_--, normalized.toStdString());
+            }));
     }
 
     void FtCore::RenameEntry(const QString& path, const QString& new_name) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, p = NormalizeRemotePath(path), n = new_name]() {
-                if (engine_) {
-                    engine_->RenameFile(next_op_id_--, p.toStdString(), n.toStdString());
-                    last_activity_ = std::chrono::steady_clock::now();
-                }
-            });
-        }
-        task_cv_.notify_one();
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        const auto normalized = NormalizeRemotePath(path);
+        static_cast<void>(session->Post(
+            "ft-rename-entry", [self, normalized, new_name](const auto& engine) {
+                if (self) engine->RenameFile(
+                    self->next_op_id_--, normalized.toStdString(), new_name.toStdString());
+            }));
     }
 
     void FtCore::StartUpload(const QStringList& local_paths, const QString& remote_dir) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, local_paths, rd = NormalizeRemotePath(remote_dir)]() {
-                if (!engine_) return;
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        const auto normalized_dir = NormalizeRemotePath(remote_dir);
+        static_cast<void>(session->Post(
+            "ft-start-upload",
+            [self, local_paths, normalized_dir](const auto& engine) {
+                if (!self) return;
                 for (const auto& lp : local_paths) {
                     QFileInfo fi(lp);
                     const QString name = fi.fileName();
-                    const QString remote_to = JoinRemote(rd, name);
+                    const QString remote_to = JoinRemote(normalized_dir, name);
                     // 本地建读作业(递归展开)+ 向对端发 FileTransferReceiveRequest
-                    const int32_t id = engine_->SendFiles(lp.toStdString(), false,
-                                                          remote_to.toStdString());
-                    emit SigJobAdded(id, name, false);
+                    const int32_t id = engine->SendFiles(
+                        lp.toStdString(), false, remote_to.toStdString());
+                    emit self->SigJobAdded(id, name, false);
                     // 目录上传:先补空目录(file_model.dart:570 语义)
                     if (fi.isDir()) {
-                        CreateRemoteEmptyDirs(id, lp, remote_to);
+                        self->CreateRemoteEmptyDirs(engine, id, lp, remote_to);
                     }
                 }
-                last_activity_ = std::chrono::steady_clock::now();
-            });
-        }
-        task_cv_.notify_one();
+            }));
     }
 
     void FtCore::StartDownload(const QStringList& remote_paths, const QString& local_dir) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, remote_paths, local_dir]() {
-                if (!engine_) return;
+        const QPointer<FtCore> self(this);
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        static_cast<void>(session->Post(
+            "ft-start-download", [self, remote_paths, local_dir](const auto& engine) {
+                if (!self) return;
                 for (const auto& rp : remote_paths) {
                     const QString norm = NormalizeRemotePath(rp);
                     const QString name = RemoteBaseName(norm);
                     const QString local_to = QDir(local_dir).filePath(name);
                     // 本地建写作业 + 向对端发 FileTransferSendRequest
-                    const int32_t id = engine_->ReceiveFiles(norm.toStdString(), false,
-                                                             local_to.toStdString());
-                    emit SigJobAdded(id, name, true);
+                    const int32_t id = engine->ReceiveFiles(
+                        norm.toStdString(), false, local_to.toStdString());
+                    emit self->SigJobAdded(id, name, true);
                     // 目录下载:向远端要空目录清单,回包后在本地落地
                     // (对文件查询远端会返回空清单,无副作用)
-                    engine_->ReadEmptyDirs(norm.toStdString(), false);
-                    pending_empty_dirs_[norm.toStdString()] = local_to;
+                    engine->ReadEmptyDirs(norm.toStdString(), false);
+                    self->pending_empty_dirs_[norm.toStdString()] = local_to;
                 }
-                last_activity_ = std::chrono::steady_clock::now();
-            });
-        }
-        task_cv_.notify_one();
+            }));
     }
 
     void FtCore::CancelJob(int32_t id) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, id]() {
-                if (engine_) engine_->CancelJob(id);
-            });
-        }
-        task_cv_.notify_one();
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        static_cast<void>(session->Post(
+            "ft-cancel-job", [id](const auto& engine) { engine->CancelJob(id); }));
     }
 
     void FtCore::ConfirmOverwrite(int32_t job_id, int32_t file_num, int choice,
                                   uint64_t offset, bool apply_to_all) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, job_id, file_num, choice, offset, apply_to_all]() {
-                if (!engine_) return;
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        static_cast<void>(session->Post(
+            "ft-confirm-overwrite",
+            [job_id, file_num, choice, offset, apply_to_all](const auto& engine) {
                 if (apply_to_all) {
                     // "应用到全部冲突":skip=false / overwrite|resume=true(io_loop.rs:673)
-                    engine_->SetOverwriteStrategy(job_id, choice != 0);
+                    engine->SetOverwriteStrategy(job_id, choice != 0);
                 }
                 if (choice == 0) {
-                    engine_->ConfirmFile(job_id, file_num, false, 0);
+                    engine->ConfirmFile(job_id, file_num, false, 0);
                 } else if (choice == 2) {
-                    engine_->ConfirmFile(job_id, file_num, true, offset);
+                    engine->ConfirmFile(job_id, file_num, true, offset);
                 } else {
-                    engine_->ConfirmFile(job_id, file_num, true, 0);
+                    engine->ConfirmFile(job_id, file_num, true, 0);
                 }
-            });
-        }
-        task_cv_.notify_one();
+            }));
     }
 
     void FtCore::SetRateLimitBytesPerSec(uint64_t bps) {
-        if (!accepting_.load()) return;
-        {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, bps]() {
-                if (engine_) engine_->SetRateLimitBytesPerSec(bps);
-            });
-        }
-        task_cv_.notify_one();
+        const auto session = session_.load();
+        if (!accepting_.load() || !session) return;
+        static_cast<void>(session->Post(
+            "ft-rate-limit", [bps](const auto& engine) {
+                engine->SetRateLimitBytesPerSec(bps);
+            }));
     }
 
-    // ---------------- worker 线程 ----------------
-
-    void FtCore::WorkerMain() {
-        while (true) {
-            std::function<void()> task;
-            {
-                std::unique_lock<std::mutex> lk(task_mutex_);
-                const bool has_jobs = engine_ &&
-                    (!engine_->read_jobs().empty() || !engine_->write_jobs().empty());
-                const bool recent_activity =
-                    std::chrono::steady_clock::now() - last_activity_ < kActivityGrace;
-                const auto timeout = (has_jobs || recent_activity) ? kTickBusy : kTickIdle;
-                task_cv_.wait_for(lk, timeout, [this]() {
-                    return !tasks_.empty() || worker_exit_;
-                });
-                if (worker_exit_ && tasks_.empty()) {
-                    break;
-                }
-                if (!tasks_.empty()) {
-                    task = std::move(tasks_.front());
-                    tasks_.pop_front();
-                }
-            }
-            if (task) {
-                task();
-            }
-            if (engine_) {
-                engine_->Tick();
-                has_jobs_ = !engine_->read_jobs().empty() || !engine_->write_jobs().empty();
-            }
-        }
-        has_jobs_ = false;
-        LOGI("ft client core worker exited.");
-    }
-
-    void FtCore::ProcessMessage(const std::shared_ptr<Message>& msg) {
-        if (!engine_) {
-            return;
-        }
+    void FtCore::ProcessMessage(const std::shared_ptr<px::ft::FtEngine>& engine,
+                                const std::shared_ptr<Message>& msg) {
         if (msg->type() == MessageType::kFileAction) {
             // 对称语义:对端也可能发起(io_loop.rs 双端同构)
-            engine_->HandleFileAction(msg->file_action());
+            engine->HandleFileAction(msg->file_action());
         } else if (msg->type() == MessageType::kFileResponse) {
-            engine_->HandleFileResponse(msg->file_response());
+            engine->HandleFileResponse(msg->file_response());
         }
-        last_activity_ = std::chrono::steady_clock::now();
     }
 
     void FtCore::ProcessResponse(const px::FileResponse& resp) {
-        // 仅 worker 线程(引擎 response_cb_ 触发)
+        // 仅 FtAsyncSession state strand（引擎 response callback 触发）。
         using U = px::FileResponse::UnionCase;
         switch (resp.union_case()) {
             case U::kDir: {
@@ -405,7 +346,9 @@ namespace px
         return out;
     }
 
-    void FtCore::CreateRemoteEmptyDirs(int32_t job_id, const QString& local_path,
+    void FtCore::CreateRemoteEmptyDirs(
+                                       const std::shared_ptr<px::ft::FtEngine>& engine,
+                                       int32_t job_id, const QString& local_path,
                                        const QString& remote_to) {
         // 本地递归找空目录(file_model.dart:621 readEmptyDirs(isLocal=true) 语义),
         // 直接用引擎同款实现,保证两端语义一致。
@@ -422,7 +365,7 @@ namespace px
             // fd.path 为相对前缀;根目录本身为空时是完整路径,此时建 remote_to 根
             const bool is_root = QDir::isAbsolutePath(p) || p.contains(':');
             const QString target = is_root ? remote_to : JoinRemote(remote_to, p);
-            engine_->CreateDir(job_id, target.toStdString());
+            engine->CreateDir(job_id, target.toStdString());
         }
     }
 

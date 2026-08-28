@@ -57,6 +57,7 @@
 #include "px_message_new/rp_proto_converter.h"
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/folder_util.h"
+#include "px_common_new/virtual_display_limits.h"
 #include "webview/webview_runtime.h"
 
 namespace px
@@ -1314,7 +1315,7 @@ namespace px
         config->set_virtual_display_enabled(
             settings_->virtual_display_enabled_ && !settings_->IsGameHookMode());
         config->set_virtual_display_owned_count(virtual_display_owned_count_.load());
-        config->set_virtual_display_max_count(2);
+        config->set_virtual_display_max_count(kVirtualDisplayMaximumCount);
         config->set_topology_generation(virtual_display_topology_generation_.load());
         config->set_voice_call_enabled(settings_->voice_call_enabled_);
         config->set_voice_call_protocol_version(settings_->voice_call_enabled_ ? 1 : 0);
@@ -1630,6 +1631,13 @@ namespace px
                     }
                 });
             });
+    }
+
+    std::pair<uint32_t, uint64_t> RdApplication::GetVirtualDisplayStatusSnapshot() const {
+        return {
+            virtual_display_owned_count_.load(),
+            virtual_display_topology_generation_.load(),
+        };
     }
 
     void RdApplication::OnServiceRequestedStop() {

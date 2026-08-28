@@ -22,12 +22,12 @@ pub struct PersistedVirtualDisplayState {
     pub initialized: bool,
     pub desired_count: u32,
     pub owned_slots: Vec<OwnedVirtualDisplay>,
-    /// Number of USBMMIDD displays that existed before GammaRay added its first
+    /// Number of Parsec VDD displays that existed before GammaRay added its first
     /// display. Those displays are never removed by GammaRay.
     pub foreign_baseline: u32,
     pub topology_generation: u64,
     pub last_known_total: u32,
-    /// Cleared if the USBMMIDD count changes outside GammaRay. USBMMIDD removal
+    /// Cleared if the Parsec VDD count changes outside GammaRay. Parsec VDD removal
     /// is LIFO, so deleting while this is false could remove another product's
     /// display.
     pub removal_safe: bool,
@@ -37,7 +37,7 @@ pub struct PersistedVirtualDisplayState {
 impl Default for PersistedVirtualDisplayState {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             initialized: false,
             desired_count: 0,
             owned_slots: Vec::new(),
@@ -66,8 +66,15 @@ impl VirtualDisplayStore {
 
     pub fn load(&self) -> io::Result<PersistedVirtualDisplayState> {
         match fs::read_to_string(&self.file_path) {
-            Ok(content) => serde_json::from_str(&content)
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err)),
+            Ok(content) => {
+                let state: PersistedVirtualDisplayState = serde_json::from_str(&content)
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+                if state.schema_version < 2 {
+                    Ok(PersistedVirtualDisplayState::default())
+                } else {
+                    Ok(state)
+                }
+            }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 Ok(PersistedVirtualDisplayState::default())
             }
@@ -122,6 +129,22 @@ mod tests {
     }
 
     #[test]
+    fn legacy_usbmmidd_state_is_reset_for_parsec_vdd() {
+        let path = unique_file("virtual_display_legacy_usbmmidd");
+        fs::write(
+            &path,
+            r#"{"schema_version":1,"initialized":true,"desired_count":1,"owned_slots":[{"logical_id":"usbmmidd-slot-1","width":1920,"height":1080,"refresh_hz":60,"observed_device_name":"\\\\.\\DISPLAY9"}]}"#,
+        )
+        .unwrap();
+        let store = VirtualDisplayStore::new(path.clone());
+        assert_eq!(
+            store.load().unwrap(),
+            PersistedVirtualDisplayState::default()
+        );
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn store_round_trip_is_atomic() {
         let path = unique_file("virtual_display_round_trip");
         let store = VirtualDisplayStore::new(path.clone());
@@ -129,7 +152,7 @@ mod tests {
             initialized: true,
             desired_count: 1,
             owned_slots: vec![OwnedVirtualDisplay {
-                logical_id: "usbmmidd-slot-1".to_string(),
+                logical_id: "parsec-vdd-slot-1".to_string(),
                 width: 1920,
                 height: 1080,
                 refresh_hz: 60,

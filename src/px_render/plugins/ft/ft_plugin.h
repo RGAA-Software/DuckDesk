@@ -9,24 +9,24 @@
 
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
-#include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <unordered_map>
 
 #include "px_render/plugin_interface/px_plugin_interface.h"
+#include "px_common_new/file_transfer_route_registry.h"
 
 namespace px::ft
 {
+    class FtAsyncSession;
     class FtEngine;
 }
 
 namespace px
 {
     class FileAction;
+    class PxAsyncRuntime;
 
     class FtPlugin : public PxPluginInterface {
     public:
@@ -44,35 +44,50 @@ namespace px
         bool OnDestroy() override;
 
         void OnMessage(std::shared_ptr<Message> msg) override;
+        void OnMessageRaw(const std::any& msg) override;
         void OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id) override;
         void OnSyncPluginSettingsInfo(const PxPluginSettingsInfo& settings) override;
 
     private:
-        // ---- worker 线程 ----
-        void WorkerMain();
-        void StopWorker();
-        void ProcessMessage(const std::shared_ptr<Message>& msg);
-        // 引擎发送回调(仅 worker 线程):补 type/stream_id/device_id 后经
-        // DispatchTargetFileTransferMessage 回包。返回 false 表示通道忙(水位满),
-        // 引擎会把消息压入内部待发队列,本 tick 不再读盘。
+        class AsyncBridge;
+
+        void StopSessions();
+        void RetireSession(const std::string& stream_id, bool close_audits);
+        std::shared_ptr<px::ft::FtAsyncSession> GetOrCreateSession(
+            const std::string& stream_id);
+        void ProcessMessage(const std::shared_ptr<px::ft::FtEngine>& engine,
+                            const std::shared_ptr<Message>& msg,
+                            const std::string& source_plugin_id,
+                            const std::string& source_connection_id);
+        void ProcessRouteDisconnected(const std::string& stream_id,
+                                      const std::string& source_plugin_id,
+                                      const std::string& source_connection_id);
+        void HandleOverwriteFallback(const std::string& stream_id,
+                                     int32_t job_id,
+                                     int32_t file_num);
+        // 引擎发送回调(仅 Session state strand):补 type/stream_id/device_id 后经
+        // DispatchTargetFileTransferMessage 回包。通道忙时 prepared packet 保留在
+        // Engine，Session 按退避策略等待后重试。
         //
         // 线程安全性核实结论(migration plan §2 阶段2 开工项):
         // DispatchTargetFileTransferMessage 可从非分发线程直调,无需回程队列:
         //  1) net_plugins_ 仅在插件加载期(plugin_manager.cpp AttachNetPlugin)与
-        //     OnDestroy(px_plugin_interface.cpp)写入,Running 期间只读,worker 并发读安全;
+        //     OnDestroy(px_plugin_interface.cpp)写入,Running 期间只读,Session 并发读安全;
         //  2) 各 net 插件的 PostTargetFileTransferProtoMessage 内部本就是跨线程设计:
         //     net_rtc/net_rtc_local 显式 PostTask 到 WebRTC 网络线程再 Send,
         //     net_ws 经 ConcurrentHashMap + asio 队列投递;
         //  3) 既有先例:ws_panel_client.cpp 在 panel WS 线程直调,clipboard 在 work 线程调用。
-        //  唯一约束:worker 必须先于基类 OnDestroy(清空 net_plugins_)join,见 StopWorker。
-        bool SendToChannel(const px::Message& msg, const std::string& stream_id);
-        px::ft::FtEngine* GetOrCreateEngine(const std::string& stream_id);
+        //  唯一约束:全部 Session 必须先于基类 OnDestroy(清空 net_plugins_)收敛。
+        FileTransferSendResult SendToChannel(const px::Message& msg,
+                                             const std::string& stream_id);
 
         // ---- 权限 / 上限 ----
         // file_transfer_enabled 关闭时在入口直接拒绝(dispatch 线程,小消息直发,
         // 对齐 rustdesk "No permission of file transfer")。
-        void ReplyNoPermission(const std::shared_ptr<Message>& in_msg);
-        // 文件数上限预检(worker 线程),超限回 FileTransferError 且不喂引擎。
+        void ReplyNoPermission(const std::shared_ptr<Message>& in_msg,
+                               const std::string& source_plugin_id,
+                               const std::string& source_connection_id);
+        // 文件数上限预检(Session state strand),超限回 FileTransferError 且不喂引擎。
         // 返回 false 表示已拒绝。对齐 rustdesk check_file_count_limit(ui_cm_interface.rs:112)。
         bool CheckFileCountLimit(const px::FileAction& action, const std::string& stream_id);
         // 引擎 NewRead 失败(多为路径不存在)时只回 error 不触发 job_done 回调,
@@ -88,24 +103,13 @@ namespace px
         void CloseAudits(const std::string& stream_id, bool success);
 
     private:
-        // FtEngine emits replies through a callback with no stream id. Keep one
-        // engine per connection so replies, jobs and reconnect cleanup cannot
-        // be redirected when a control session and a file-only session overlap.
-        std::unordered_map<std::string, std::unique_ptr<px::ft::FtEngine>> engines_;
-
-        // 任务队列:dispatch 线程只入队,worker 线程唯一消费者。
-        // 跨线程共享只有该队列本身(引擎全部可变状态仅 worker 持有)。
-        std::mutex task_mutex_;
-        std::condition_variable task_cv_;
-        std::deque<std::function<void()>> tasks_;
-        bool worker_exit_ = false;
-        std::thread worker_;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_;
+        std::shared_ptr<AsyncBridge> async_bridge_;
+        std::mutex route_session_mutex_;
+        std::mutex sessions_mutex_;
+        std::unordered_map<std::string, std::shared_ptr<px::ft::FtAsyncSession>> sessions_;
+        FileTransferRouteRegistry routes_;
         std::atomic_bool accepting_ = false;
-
-        // ---- 以下仅 worker 线程访问 ----
-        // 最近活动时间:有作业或刚有活动时 1ms tick,空闲 30s(对齐 rustdesk MILLI1/SEC30)。
-        // 引擎待发队列在通道忙时会积压握手消息,靠宽限期保证无作业时也能及时冲刷。
-        std::chrono::steady_clock::time_point last_activity_;
 
         struct AuditRecord {
             std::string the_file_id_;

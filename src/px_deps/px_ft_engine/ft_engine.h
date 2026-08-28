@@ -27,6 +27,7 @@
 
 #include <chrono>
 #include <deque>
+#include <memory>
 #include <unordered_map>
 
 #include "transfer_job.h"
@@ -46,6 +47,11 @@ struct TransferJobStatus {
     bool done = false;
     bool cancel = false;
     std::string error;
+};
+
+struct PreparedOutboundMessage {
+    std::uint64_t token = 0;
+    std::shared_ptr<const px::Message> message;
 };
 
 class FtEngine {
@@ -72,6 +78,10 @@ public:
     // 日志回调(默认 stderr)。
     using LogFunc = std::function<void(const std::string&)>;
 
+    // Two-phase mode. The owner drains PrepareOutbound() and must call exactly
+    // one of CommitOutbound()/RetryOutbound() for the returned token.
+    FtEngine();
+    // Compatibility mode for callers not migrated to the two-phase contract.
     explicit FtEngine(SendFunc send);
 
     void SetOverwriteConfirmCallback(OverwriteConfirmFunc cb) { overwrite_confirm_cb_ = std::move(cb); }
@@ -86,6 +96,12 @@ public:
     // timer 驱动:每 tick 只推进一个非等待读作业一块(fs.rs:1336/1376 break 语义)。
     // 同时负责:待发队列冲刷、读作业初始化(发 Digest)、限速令牌补充、每秒进度回调。
     void Tick();
+
+    [[nodiscard]] std::optional<PreparedOutboundMessage> PrepareOutbound() const;
+    [[nodiscard]] bool CommitOutbound(std::uint64_t token);
+    [[nodiscard]] bool RetryOutbound(std::uint64_t token) const;
+    [[nodiscard]] bool HasPendingOutbound() const { return !outbox_.empty(); }
+    [[nodiscard]] std::size_t PendingOutboundCount() const { return outbox_.size(); }
 
     // ---------------- 对端消息入口 ----------------
     // conn_id: 该消息归属的连接标识(插件壳传 px::Message.stream_id),
@@ -153,7 +169,12 @@ private:
     void HandleDone(const px::FileTransferDone& done);
     void UpdateJobsStatus();
 
-    SendFunc send_;
+    struct OutboundEntry {
+        std::uint64_t token = 0;
+        std::shared_ptr<const px::Message> message;
+    };
+
+    SendFunc legacy_send_;
     OverwriteConfirmFunc overwrite_confirm_cb_;
     ProgressFunc progress_cb_;
     JobDoneFunc job_done_cb_;
@@ -164,7 +185,8 @@ private:
     std::vector<TransferJob> write_jobs_;
 
     // 反压待发队列(小容量:每 tick 至多 1 块 + 少量握手消息)
-    std::deque<px::Message> outbox_;
+    std::deque<OutboundEntry> outbox_;
+    std::uint64_t next_outbound_token_ = 1;
 
     // 令牌桶限速
     uint64_t rate_bps_ = 0; // 0 = 不限速

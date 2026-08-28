@@ -146,7 +146,11 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_split_windows("split_windows", "split windows", "value", "");
     parser.addOption(opt_split_windows);
 
-    QCommandLineOption opt_max_num_of_screen("max_num_of_screen", "maximum allowed number of screens", "value", "2");
+    QCommandLineOption opt_max_num_of_screen(
+        "max_num_of_screen",
+        "maximum allowed number of screens",
+        "value",
+        QString::number(kVirtualDisplayMaximumCount));
     parser.addOption(opt_max_num_of_screen);
 
     QCommandLineOption opt_display_logo("display_logo", "display logo", "value", "");

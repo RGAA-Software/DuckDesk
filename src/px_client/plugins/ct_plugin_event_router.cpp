@@ -62,7 +62,7 @@ namespace px
                 thunder_sdk_->PostMediaMessage(target_event->buf_);
             }
             else {
-                thunder_sdk_->PostFileTransferMessage(target_event->buf_);
+                target_event->send_result_ = thunder_sdk_->PostFileTransferMessage(target_event->buf_);
             }
         }
         else if (ClientPluginEventType::kPluginFileTransBeginEvent == event->event_type_) {

@@ -1987,7 +1987,7 @@ namespace px
                 .logical_display_id_ = response.logical_display_id(),
                 .error_code_ = response.error_code(),
                 .error_message_ = response.error_message(),
-                .actual_usbmmidd_count_ = response.actual_usbmmidd_count(),
+                .actual_virtual_display_count_ = response.actual_virtual_display_count(),
                 .driver_installed_ = response.driver_installed(),
                 .package_valid_ = response.package_valid(),
                 .removal_safe_ = response.removal_safe(),
@@ -2160,7 +2160,7 @@ namespace px
     }
 
     void BaseWorkspace::PostFileTransferMessage(std::shared_ptr<Data> msg) {
-        sdk_->PostFileTransferMessage(msg);
+        static_cast<void>(sdk_->PostFileTransferMessage(std::move(msg)));
     }
 
     SkinInterface* BaseWorkspace::GetSkin() {

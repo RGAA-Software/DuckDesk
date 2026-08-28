@@ -26,7 +26,7 @@ pub fn run_virtual_display_command(
         .to_path_buf();
     let manager = VirtualDisplayManager::new_windows_session_aware(
         default_service_data_root(),
-        exe_dir.join("usbmmidd_v2"),
+        exe_dir.join("parsec_vdd"),
         Arc::new(WindowsProcessManager::new()),
     )
     .map_err(|err| err.to_string())?;
@@ -73,7 +73,7 @@ pub fn run_virtual_display_session_worker(
         width,
         height,
         refresh_hz,
-        exe_dir.join("usbmmidd_v2"),
+        exe_dir.join("parsec_vdd"),
         result_file,
         nonce,
     )

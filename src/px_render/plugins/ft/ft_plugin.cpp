@@ -5,9 +5,11 @@
 #include "ft_plugin.h"
 
 #include <filesystem>
+#include <optional>
 #include <vector>
 
 #include "px_message.pb.h"
+#include "ft_async_session.h"
 #include "ft_engine.h"
 #include "ft_path.h"
 #include "transfer_job.h"
@@ -23,6 +25,53 @@ PX_PLUGIN_EXPORT(px::FtPlugin)
 namespace px
 {
 
+    class FtPlugin::AsyncBridge final {
+    public:
+        explicit AsyncBridge(std::reference_wrapper<FtPlugin> owner)
+            : owner_(owner) {}
+
+        void Deactivate() {
+            active_.store(false, std::memory_order_release);
+        }
+
+        FileTransferSendResult Send(const px::Message& message,
+                                    const std::string& stream_id) const {
+            if (!active_.load(std::memory_order_acquire)) {
+                return FileTransferSendResult::Disconnected("FT plug-in bridge is inactive");
+            }
+            return owner_.get().SendToChannel(message, stream_id);
+        }
+
+        void Process(const std::shared_ptr<px::ft::FtEngine>& engine,
+                     const std::shared_ptr<Message>& message,
+                     const std::string& plugin_id,
+                     const std::string& connection_id) const {
+            if (active_.load(std::memory_order_acquire)) {
+                owner_.get().ProcessMessage(engine, message, plugin_id, connection_id);
+            }
+        }
+
+        void CompleteJob(const std::string& stream_id,
+                         int32_t job_id,
+                         const std::string& error) const {
+            if (active_.load(std::memory_order_acquire)) {
+                owner_.get().TrackJobEnd(stream_id, job_id, error);
+            }
+        }
+
+        void ConfirmFallback(const std::string& stream_id,
+                             int32_t job_id,
+                             int32_t file_num) const {
+            if (active_.load(std::memory_order_acquire)) {
+                owner_.get().HandleOverwriteFallback(stream_id, job_id, file_num);
+            }
+        }
+
+    private:
+        std::reference_wrapper<FtPlugin> owner_;
+        std::atomic_bool active_{true};
+    };
+
     FtPlugin::~FtPlugin() = default;
 
     // 对齐 rustdesk check_file_count_limit 的默认上限(DEFAULT_MAX_VALIDATED_FILES,
@@ -30,12 +79,6 @@ namespace px
     // TODO: 挂到设置体系 —— PxPluginSettingsInfo 暂无此字段,需 panel/SyncConfig
     // 下发链路配合,本阶段先常量。
     static constexpr size_t kMaxTransferFileCount = 10000;
-
-    // rustdesk 调度节拍:有作业 1ms,空闲 30s(MILLI1/SEC30)。
-    static constexpr auto kTickBusy = std::chrono::milliseconds(1);
-    static constexpr auto kTickIdle = std::chrono::seconds(30);
-    // 无作业但刚有活动(如握手消息进了引擎待发队列)时的冲刷宽限期。
-    static constexpr auto kActivityGrace = std::chrono::seconds(5);
 
     // FT 发送队列反压阈值,对齐 RtcPlugin::PostTargetFileTransferProtoMessage
     // 的水位判定(queuing > 256 或水位不足视为通道忙)。
@@ -70,28 +113,57 @@ namespace px
             return false;
         }
 
-        last_activity_ = std::chrono::steady_clock::now();
+        async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 1});
+        if (!async_runtime_->Start()) {
+            LOGE("ft async runtime failed to start.");
+            return false;
+        }
+        async_bridge_ = std::make_shared<AsyncBridge>(std::ref(*this));
         accepting_ = true;
-        worker_ = std::thread([this]() { this->WorkerMain(); });
-        LOGI("ft plugin created, worker started.");
+        LOGI("ft plugin created, shared async runtime started.");
         return true;
     }
 
     bool FtPlugin::OnStop() {
         accepting_ = false;
-        StopWorker();
+        StopSessions();
         return PxPluginInterface::OnStop();
     }
 
     bool FtPlugin::OnDestroy() {
         accepting_ = false;
-        // worker 必须先于基类 OnDestroy(清空 net_plugins_)join,见 SendToChannel 注释。
-        StopWorker();
-        engines_.clear();
+        StopSessions();
+        routes_.Clear();
         return PxPluginInterface::OnDestroy();
     }
 
     void FtPlugin::OnMessage(std::shared_ptr<Message> msg) {
+        OnMessageRaw(FtInboundMessage{
+            .message_ = std::move(msg),
+            .source_plugin_id_ = {},
+            .source_connection_id_ = {},
+        });
+    }
+
+    void FtPlugin::OnMessageRaw(const std::any& raw) {
+        if (raw.type() == typeid(FtRouteDisconnected)) {
+            const auto disconnected = std::any_cast<FtRouteDisconnected>(raw);
+            if (!accepting_.load()) {
+                return;
+            }
+            ProcessRouteDisconnected(
+                disconnected.stream_id_, disconnected.source_plugin_id_,
+                disconnected.source_connection_id_);
+            return;
+        }
+        if (raw.type() != typeid(FtInboundMessage)) {
+            return;
+        }
+        const auto inbound = std::any_cast<FtInboundMessage>(raw);
+        const auto& msg = inbound.message_;
+        if (!msg) {
+            return;
+        }
         static std::atomic<uint64_t> received_count{0};
         if (msg && (msg->type() == MessageType::kFileAction
                     || msg->type() == MessageType::kFileResponse)) {
@@ -108,19 +180,43 @@ namespace px
         // 权限开关:入口直接拒(旧插件同款语义,rustdesk 回 "No permission of file transfer")。
         if (!sys_settings_.file_transfer_enabled_) {
             if (type == MessageType::kFileAction) {
-                ReplyNoPermission(msg);
+                ReplyNoPermission(
+                    msg, inbound.source_plugin_id_, inbound.source_connection_id_);
             }
             return;
         }
-        // 分发线程只入队,不做任何磁盘 IO(慢插件告警:px_plugin_interface.cpp:268)。
+        // 分发线程只建立 route/session 并投递命令，不做任何磁盘 IO。
         if (!accepting_.load()) {
             return;
         }
+        std::shared_ptr<px::ft::FtAsyncSession> session;
         {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, m = std::move(msg)]() { this->ProcessMessage(m); });
+            std::lock_guard route_lock(route_session_mutex_);
+            if (!inbound.source_plugin_id_.empty()) {
+                const auto previous = routes_.Resolve(msg->stream_id());
+                const auto route = routes_.Bind(
+                    msg->stream_id(), inbound.source_plugin_id_,
+                    inbound.source_connection_id_);
+                if (previous && previous->generation != route.generation) {
+                    RetireSession(msg->stream_id(), true);
+                    LOGI("FT route replaced: stream {}, generation {} -> {}, connection {}",
+                         msg->stream_id(), previous->generation, route.generation,
+                         inbound.source_connection_id_);
+                }
+            }
+            session = GetOrCreateSession(msg->stream_id());
         }
-        task_cv_.notify_one();
+        const auto weak_bridge = std::weak_ptr<AsyncBridge>(async_bridge_);
+        if (!session || !session->Post(
+                "ft-inbound",
+                [weak_bridge, msg, plugin_id = inbound.source_plugin_id_,
+                 connection_id = inbound.source_connection_id_](const auto& engine) {
+                    if (const auto bridge = weak_bridge.lock()) {
+                        bridge->Process(engine, msg, plugin_id, connection_id);
+                    }
+                })) {
+            LOGW("ft inbound command rejected, stream {}", msg->stream_id());
+        }
     }
 
     void FtPlugin::OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id) {
@@ -129,18 +225,11 @@ namespace px
         }
         LOGW("ft client disconnected, visitor: {}, stream: {}", visitor_device_id, stream_id);
         {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, stream_id]() {
-                // 断线清理:只清该连接的作业,保留 .download/.digest 供续传
-                // (区别于显式取消);迟到的断线事件不会误杀新会话作业。
-                if (auto it = engines_.find(stream_id); it != engines_.end()) {
-                    it->second->DisconnectCleanup(stream_id);
-                    engines_.erase(it);
-                }
-                CloseAudits(stream_id, false);
-            });
+            std::lock_guard route_lock(route_session_mutex_);
+            if (routes_.Remove(stream_id)) {
+                RetireSession(stream_id, true);
+            }
         }
-        task_cv_.notify_one();
     }
 
     void FtPlugin::OnSyncPluginSettingsInfo(const PxPluginSettingsInfo& settings) {
@@ -149,77 +238,143 @@ namespace px
             return;
         }
         const uint64_t rate_bps = settings.max_transmit_speed_ / 8;
-        std::lock_guard<std::mutex> lk(task_mutex_);
-        tasks_.emplace_back([this, rate_bps]() {
-            for (auto& [stream_id, engine] : engines_) engine->SetRateLimitBytesPerSec(rate_bps);
-        });
-        task_cv_.notify_one();
-    }
-
-    // ---------------- worker 线程 ----------------
-
-    void FtPlugin::WorkerMain() {
-        while (true) {
-            std::function<void()> task;
-            {
-                std::unique_lock<std::mutex> lk(task_mutex_);
-                // 引擎状态仅本线程持有,这里读安全。
-                bool has_jobs = false;
-                for (const auto& [stream_id, engine] : engines_) {
-                    if (!engine->read_jobs().empty() || !engine->write_jobs().empty()) {
-                        has_jobs = true;
-                        break;
-                    }
-                }
-                const bool recent_activity =
-                    std::chrono::steady_clock::now() - last_activity_ < kActivityGrace;
-                const auto timeout = (has_jobs || recent_activity) ? kTickBusy : kTickIdle;
-                task_cv_.wait_for(lk, timeout, [this]() {
-                    return !tasks_.empty() || worker_exit_;
-                });
-                if (worker_exit_ && tasks_.empty()) {
-                    break;
-                }
-                if (!tasks_.empty()) {
-                    task = std::move(tasks_.front());
-                    tasks_.pop_front();
-                }
-            }
-            if (task) {
-                task();
-            }
-            for (auto& [stream_id, engine] : engines_) engine->Tick();
-        }
-        LOGI("ft plugin worker exited.");
-    }
-
-    void FtPlugin::StopWorker() {
+        std::vector<std::shared_ptr<px::ft::FtAsyncSession>> sessions;
         {
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            if (worker_exit_) {
-                // 已经发起过停止,只需 join。
-            } else {
-                // 在途作业按取消语义处理(清 .download/.digest,并通知对端)。
-                tasks_.emplace_back([this]() {
-                    for (auto& [stream_id, engine] : engines_) {
-                        std::vector<int32_t> ids;
-                        for (const auto& job : engine->read_jobs()) ids.push_back(job.id());
-                        for (const auto& job : engine->write_jobs()) ids.push_back(job.id());
-                        for (int32_t id : ids) engine->CancelJob(id);
-                    }
-                    CloseAudits("", false);
-                });
-                worker_exit_ = true;
+            std::lock_guard lock(sessions_mutex_);
+            for (const auto& [stream_id, session] : sessions_) {
+                static_cast<void>(stream_id);
+                sessions.push_back(session);
             }
         }
-        task_cv_.notify_one();
-        if (worker_.joinable()) {
-            worker_.join();
+        for (const auto& session : sessions) {
+            static_cast<void>(session->Post(
+                "ft-rate-limit", [rate_bps](const auto& engine) {
+                    engine->SetRateLimitBytesPerSec(rate_bps);
+                }));
         }
     }
 
-    void FtPlugin::ProcessMessage(const std::shared_ptr<Message>& msg) {
-        auto* engine = GetOrCreateEngine(msg->stream_id());
+    // ---------------- structured async sessions ----------------
+
+    void FtPlugin::StopSessions() {
+        std::lock_guard route_lock(route_session_mutex_);
+        std::vector<std::shared_ptr<px::ft::FtAsyncSession>> sessions;
+        {
+            std::lock_guard lock(sessions_mutex_);
+            for (auto& [stream_id, session] : sessions_) {
+                static_cast<void>(stream_id);
+                sessions.push_back(std::move(session));
+            }
+            sessions_.clear();
+        }
+        for (const auto& session : sessions) {
+            static_cast<void>(session->PostAndWait(
+                "ft-cancel-before-stop",
+                [](const auto& engine) {
+                    std::vector<int32_t> ids;
+                    for (const auto& job : engine->read_jobs()) ids.push_back(job.id());
+                    for (const auto& job : engine->write_jobs()) ids.push_back(job.id());
+                    for (const auto id : ids) engine->CancelJob(id);
+                },
+                std::chrono::seconds(5)));
+            if (!session->StopAndWait(std::chrono::seconds(5))) {
+                LOGE("ft async session did not stop within the unload deadline");
+            }
+        }
+        CloseAudits("", false);
+        if (async_bridge_) {
+            async_bridge_->Deactivate();
+        }
+        if (async_runtime_) {
+            async_runtime_->RequestStop();
+            async_runtime_->Join();
+            async_runtime_.reset();
+        }
+        async_bridge_.reset();
+    }
+
+    void FtPlugin::RetireSession(const std::string& stream_id, bool close_audits) {
+        std::shared_ptr<px::ft::FtAsyncSession> session;
+        {
+            std::lock_guard lock(sessions_mutex_);
+            if (const auto found = sessions_.find(stream_id); found != sessions_.end()) {
+                session = std::move(found->second);
+                sessions_.erase(found);
+            }
+        }
+        if (session) {
+            static_cast<void>(session->PostAndWait(
+                "ft-disconnect-cleanup",
+                [stream_id](const auto& engine) {
+                    engine->DisconnectCleanup(stream_id);
+                },
+                std::chrono::seconds(5)));
+            if (!session->StopAndWait(std::chrono::seconds(5))) {
+                LOGE("ft session retirement timed out, stream {}", stream_id);
+            }
+        }
+        if (close_audits) {
+            CloseAudits(stream_id, false);
+        }
+    }
+
+    std::shared_ptr<px::ft::FtAsyncSession> FtPlugin::GetOrCreateSession(
+        const std::string& stream_id) {
+        std::lock_guard lock(sessions_mutex_);
+        if (const auto found = sessions_.find(stream_id); found != sessions_.end()) {
+            return found->second;
+        }
+        if (!accepting_.load() || !async_runtime_ || !async_bridge_) {
+            return {};
+        }
+        const auto engine = std::make_shared<px::ft::FtEngine>();
+        const auto weak_bridge = std::weak_ptr<AsyncBridge>(async_bridge_);
+        auto session = px::ft::FtAsyncSession::CreateOnRuntime(
+            async_runtime_, engine,
+            [weak_bridge, stream_id](const auto& message) {
+                const auto bridge = weak_bridge.lock();
+                return bridge
+                    ? bridge->Send(*message, stream_id)
+                    : FileTransferSendResult::Disconnected("FT plug-in bridge expired");
+            },
+            [weak_bridge, stream_id](const auto& configured_engine) {
+                configured_engine->SetLogCallback([stream_id](const std::string& message) {
+                    LOGW("[ft_engine:{}] {}", stream_id, message);
+                });
+                configured_engine->SetJobDoneCallback(
+                    [weak_bridge, stream_id](int32_t job_id, int32_t file_num,
+                                             const std::string& error) {
+                        static_cast<void>(file_num);
+                        if (const auto bridge = weak_bridge.lock()) {
+                            bridge->CompleteJob(stream_id, job_id, error);
+                        }
+                    });
+                configured_engine->SetOverwriteConfirmCallback(
+                    [weak_bridge, stream_id](int32_t job_id, int32_t file_num,
+                                             const std::string& path, bool is_upload,
+                                             bool is_identical) {
+                        LOGW("ft overwrite fallback, stream {}, job {}, file #{}, path {}, upload {}, identical {}",
+                             stream_id, job_id, file_num, path, is_upload, is_identical);
+                        if (const auto bridge = weak_bridge.lock()) {
+                            bridge->ConfirmFallback(stream_id, job_id, file_num);
+                        }
+                    });
+            },
+            PxAsyncLane::kState);
+        if (!session->Start()) {
+            LOGE("ft session failed to start, stream {}", stream_id);
+            return {};
+        }
+        sessions_.emplace(stream_id, session);
+        return session;
+    }
+
+    void FtPlugin::ProcessMessage(const std::shared_ptr<px::ft::FtEngine>& engine,
+                                  const std::shared_ptr<Message>& msg,
+                                  const std::string& source_plugin_id,
+                                  const std::string& source_connection_id) {
+        static_cast<void>(source_plugin_id);
+        static_cast<void>(source_connection_id);
         if (msg->type() == MessageType::kFileAction) {
             const auto& action = msg->file_action();
             using U = px::FileAction::UnionCase;
@@ -243,20 +398,29 @@ namespace px
         } else {
             engine->HandleFileResponse(msg->file_response());
         }
-        last_activity_ = std::chrono::steady_clock::now();
     }
 
-    bool FtPlugin::SendToChannel(const px::Message& msg, const std::string& stream_id) {
-        // 线程安全性:见头文件注释(可从 worker 直调,无需回程队列)。
-        // 反压:通道忙时返回 false,引擎压入待发队列、本 tick 不再读盘。
-        if (GetQueuingFtMsgCountInNetPlugins() > kFtQueueBusyThreshold) {
-            return false;
+    void FtPlugin::ProcessRouteDisconnected(
+        const std::string& stream_id,
+        const std::string& source_plugin_id,
+        const std::string& source_connection_id) {
+        std::lock_guard route_lock(route_session_mutex_);
+        const bool removed = source_plugin_id.empty()
+            ? routes_.Remove(stream_id)
+            : (!source_connection_id.empty()
+                  ? routes_.RemoveIfConnectionMatches(
+                        stream_id, source_plugin_id, source_connection_id)
+                  : routes_.RemoveIfPluginMatches(stream_id, source_plugin_id));
+        if (!removed) {
+            LOGI("Ignore stale FT transport disconnect: stream {}, route {}, connection {}",
+                 stream_id, source_plugin_id, source_connection_id);
+            return;
         }
-        for (const auto& [id, np] : net_plugins_) {
-            if (np->GetConnectedClientsCount() > 0 && !np->HasEnoughBufferForQueuingFtMessages()) {
-                return false;
-            }
-        }
+        RetireSession(stream_id, true);
+    }
+
+    FileTransferSendResult FtPlugin::SendToChannel(const px::Message& msg,
+                                                   const std::string& stream_id) {
         // 引擎不感知通道,type/stream_id/device_id 由壳补齐。
         px::Message out = msg;
         if (out.has_file_response()) {
@@ -266,42 +430,40 @@ namespace px
         }
         out.set_stream_id(stream_id);
         out.set_device_id(sys_settings_.device_id_);
-        DispatchTargetFileTransferMessage(stream_id, ProtoAsData(&out));
-        return true;
+        const auto route = routes_.Resolve(stream_id);
+        if (!route) {
+            return FileTransferSendResult::Disconnected(
+                "no inbound transport route is registered for the stream");
+        }
+        return DispatchTargetFileTransferMessageOnRoute(
+            route->plugin_id, stream_id, ProtoAsData(&out), false,
+            route->connection_instance_id);
     }
 
-    px::ft::FtEngine* FtPlugin::GetOrCreateEngine(const std::string& stream_id) {
-        if (auto it = engines_.find(stream_id); it != engines_.end()) return it->second.get();
-        auto engine = std::make_unique<px::ft::FtEngine>(
-            [this, stream_id](const px::Message& msg) { return SendToChannel(msg, stream_id); });
-        engine->SetLogCallback([stream_id](const std::string& msg) {
-            LOGW("[ft_engine:{}] {}", stream_id, msg);
-        });
-        engine->SetJobDoneCallback([this, stream_id](int32_t job_id, int32_t file_num,
-                                                       const std::string& error_or_empty) {
-            (void)file_num;
-            TrackJobEnd(stream_id, job_id, error_or_empty);
-        });
-        engine->SetOverwriteConfirmCallback([this, stream_id](int32_t job_id, int32_t file_num,
-                                                               const std::string& path, bool is_upload, bool is_identical) {
-            LOGW("ft overwrite fallback, stream {}, job {}, file #{}, path {}, upload {}, identical {}",
-                 stream_id, job_id, file_num, path, is_upload, is_identical);
-            std::lock_guard<std::mutex> lk(task_mutex_);
-            tasks_.emplace_back([this, stream_id, job_id, file_num]() {
-                if (auto it = engines_.find(stream_id); it != engines_.end()) {
-                    it->second->ConfirmFile(job_id, file_num, false, 0);
-                }
-            });
-            task_cv_.notify_one();
-        });
-        auto* result = engine.get();
-        engines_.emplace(stream_id, std::move(engine));
-        return result;
+    void FtPlugin::HandleOverwriteFallback(const std::string& stream_id,
+                                           int32_t job_id,
+                                           int32_t file_num) {
+        std::shared_ptr<px::ft::FtAsyncSession> session;
+        {
+            std::lock_guard lock(sessions_mutex_);
+            if (const auto found = sessions_.find(stream_id); found != sessions_.end()) {
+                session = found->second;
+            }
+        }
+        if (session) {
+            static_cast<void>(session->Post(
+                "ft-overwrite-fallback",
+                [job_id, file_num](const auto& engine) {
+                    engine->ConfirmFile(job_id, file_num, false, 0);
+                }));
+        }
     }
 
     // ---------------- 权限 / 上限 ----------------
 
-    void FtPlugin::ReplyNoPermission(const std::shared_ptr<Message>& in_msg) {
+    void FtPlugin::ReplyNoPermission(const std::shared_ptr<Message>& in_msg,
+                                     const std::string& source_plugin_id,
+                                     const std::string& source_connection_id) {
         const auto& action = in_msg->file_action();
         using U = px::FileAction::UnionCase;
         int32_t id = 0;
@@ -326,7 +488,11 @@ namespace px
         e->set_id(id);
         e->set_file_num(file_num);
         e->set_error("No permission of file transfer");
-        DispatchTargetFileTransferMessage(in_msg->stream_id(), ProtoAsData(&out));
+        if (!source_plugin_id.empty()) {
+            static_cast<void>(DispatchTargetFileTransferMessageOnRoute(
+                source_plugin_id, in_msg->stream_id(), ProtoAsData(&out), false,
+                source_connection_id));
+        }
     }
 
     static size_t CountEntriesRecursive(const std::string& path, size_t limit) {
@@ -377,7 +543,8 @@ namespace px
             return true;
         }
         LOGW("ft rejected: too many files ({} exceeds limit {})", count, kMaxTransferFileCount);
-        SendToChannel(px::ft::NewError(id, "Too many files", file_num), stream_id);
+        static_cast<void>(SendToChannel(
+            px::ft::NewError(id, "Too many files", file_num), stream_id));
         return false;
     }
 
@@ -391,8 +558,9 @@ namespace px
             return true;
         }
         LOGW("ft rejected: path not exists: {}", action.send().path());
-        SendToChannel(px::ft::NewError(action.send().id(), "Path not exists",
-                                       action.send().file_num()), stream_id);
+        static_cast<void>(SendToChannel(
+            px::ft::NewError(action.send().id(), "Path not exists",
+                             action.send().file_num()), stream_id));
         return false;
     }
 

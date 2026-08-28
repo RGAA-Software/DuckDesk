@@ -447,7 +447,7 @@ namespace px
                     auto payload_msg = Data::Make(data.data(), data.size());
                     plugin_->OnClientEventCameDirectly(
                         true, 0, NetPluginType::kWebRtc,
-                        NetChannelType::kFileTransfer, std::move(payload_msg));
+                        NetChannelType::kFileTransfer, std::move(payload_msg), conn_id_);
                 });
             }
             else if (name == "input_data_channel") {
@@ -989,11 +989,16 @@ namespace px
         // 必须投递到 WebRTC 网络线程再 Send,否则 data_channel_->Send() 跨线程调用
         // 会被 libwebrtc 静默丢弃(剪切板文件取数 kClipboardReqBuffer/kClipboardRespBuffer
         // 偶发 60s 超时即源于此)。与 media 通道 PostTargetStreamProtoMessage 对齐。
-        if (network_thread_ && ft_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                ft_data_channel_->SendData(msg);
-            });
+        if (!network_thread_ || !ft_data_channel_ || exit_ ||
+            !ft_data_channel_->IsConnected()) {
+            return false;
         }
+        const auto weak_self = weak_from_this();
+        network_thread_->PostTask([weak_self, msg]() {
+            if (const auto self = weak_self.lock(); self && self->ft_data_channel_ && !self->exit_) {
+                self->ft_data_channel_->SendData(msg);
+            }
+        });
         return true;
     }
 

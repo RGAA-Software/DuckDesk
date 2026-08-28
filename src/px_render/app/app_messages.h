@@ -207,7 +207,7 @@ namespace px
         std::string error_code_;
         std::string error_message_;
         uint32_t owned_display_count_ = 0;
-        uint32_t actual_usbmmidd_count_ = 0;
+        uint32_t actual_virtual_display_count_ = 0;
         bool driver_installed_ = false;
         bool package_valid_ = false;
         bool removal_safe_ = false;

@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+#include "px_common_new/virtual_display_limits.h"
+
 namespace px {
 
     enum class VirtualDisplayUiOperation {
@@ -53,7 +55,7 @@ namespace px {
 
         bool enabled_ = false;
         uint32_t owned_ = 0;
-        uint32_t maximum_ = 2;
+        uint32_t maximum_ = kVirtualDisplayMaximumCount;
         uint64_t generation_ = 0;
         VirtualDisplayUiPhase phase_ = VirtualDisplayUiPhase::kIdle;
         std::string pending_request_id_;

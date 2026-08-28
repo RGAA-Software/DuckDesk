@@ -145,9 +145,22 @@ try {
             }
             $renderViewsReady = $ExpectedMonitorCount -le 1 -or
                 $evidence -match "Render view pool expanded on demand: requested=$ExpectedMonitorCount, active_capacity=$ExpectedMonitorCount"
-            $keyFrameCount = ([regex]::Matches($evidence, 'first key frame')).Count
+            $keyFramePattern = if ($NetworkType -eq 'webrtc_direct') {
+                'first key frame'
+            } else {
+                'RtcVideoSink OnFrame #1'
+            }
+            $keyFrameCount = ([regex]::Matches($evidence, $keyFramePattern)).Count
+            # Direct RTC negotiates one stable track slot per monitor. Standard
+            # RTC intentionally carries the selected monitor on one video track
+            # and changes that track when the user switches monitors.
+            $expectedKeyFrameCount = if ($NetworkType -eq 'webrtc_direct') {
+                $ExpectedMonitorCount
+            } else {
+                1
+            }
             if ($transportReady -and $renderViewsReady -and
-                $keyFrameCount -ge $ExpectedMonitorCount -and
+                $keyFrameCount -ge $expectedKeyFrameCount -and
                 $evidence -match 'First decoded video frame reached UI renderer' -and
                 $evidence -match 'File-transfer transport connected' -and
                 $evidence -match 'Init audio player') {
@@ -174,8 +187,18 @@ try {
         $evidence -notmatch "Render view pool expanded on demand: requested=$ExpectedMonitorCount, active_capacity=$ExpectedMonitorCount") {
         throw "native render view pool did not expand to $ExpectedMonitorCount monitors"
     }
-    if (([regex]::Matches($evidence, 'first key frame')).Count -lt $ExpectedMonitorCount) {
-        throw "native RTC did not receive a first key frame from all $ExpectedMonitorCount monitor tracks"
+    $expectedKeyFrameCount = if ($NetworkType -eq 'webrtc_direct') {
+        $ExpectedMonitorCount
+    } else {
+        1
+    }
+    $keyFramePattern = if ($NetworkType -eq 'webrtc_direct') {
+        'first key frame'
+    } else {
+        'RtcVideoSink OnFrame #1'
+    }
+    if (([regex]::Matches($evidence, $keyFramePattern)).Count -lt $expectedKeyFrameCount) {
+        throw "native RTC received fewer than $expectedKeyFrameCount expected video-track first frames"
     }
     if ($evidence -notmatch 'File-transfer transport connected') { throw 'native file transport did not connect' }
     if ($evidence -notmatch 'Init audio player') { throw 'native audio player did not initialize' }

@@ -1,0 +1,85 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <ProjectGuid>{2D44934F-B4CF-4F2C-BD03-AE60B71AD045}</ProjectGuid>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <OutputPath>bin\</OutputPath>
+    <AssemblyName>ParsecDisplay</AssemblyName>
+    <RootNamespace>ParsecDisplay</RootNamespace>
+    <StartupObject>ParsecDisplay.Program</StartupObject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
+    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\*.png" />
+    <Resource Include="Resources\*.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <Target Name="CreateBatchFile" AfterTargets="Build">
+    <PropertyGroup>
+      <CLICode>
+<![CDATA[
+@echo off
+setlocal
+
+set app_exe=%~dp0ParsecDisplay.exe
+set parent_exe=%~dp0..\ParsecDisplay.exe
+
+if exist "%app_exe%" (
+    start /b /wait "" "%app_exe%" -cli %*
+) else if exist "%parent_exe%" (
+    start /b /wait "" "%parent_exe%" -cli %*
+) else (
+    echo ParsecDisplay.exe does not exist.
+)
+
+endlocal
+]]>
+      </CLICode>
+    </PropertyGroup>
+	<WriteLinesToFile File="$(OutputPath)vdd.cmd" Lines="$(CLICode)" Overwrite="true" />
+  </Target>
+
+</Project>

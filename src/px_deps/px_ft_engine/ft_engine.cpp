@@ -26,11 +26,14 @@ px::FileTransferSendConfirmRequest MakeConfirm(int32_t id, int32_t file_num, boo
 
 int32_t FtEngine::NextJobId() { return g_next_job_id.fetch_add(1); }
 
-FtEngine::FtEngine(SendFunc send)
-    : send_(std::move(send)),
-      last_refill_(std::chrono::steady_clock::now()),
+FtEngine::FtEngine()
+    : last_refill_(std::chrono::steady_clock::now()),
       last_status_time_(std::chrono::steady_clock::now()) {
-    if (!send_) throw std::invalid_argument("FtEngine: send callback is required");
+}
+
+FtEngine::FtEngine(SendFunc send) : FtEngine() {
+    if (!send) throw std::invalid_argument("FtEngine: send callback is required");
+    legacy_send_ = std::move(send);
 }
 
 void FtEngine::Log(const std::string& msg) {
@@ -48,22 +51,52 @@ void FtEngine::SetRateLimitBytesPerSec(uint64_t bps) {
 }
 
 bool FtEngine::Send(const px::Message& msg) {
-    // 队列非空时直接入队保序
+    // 队列非空时直接入队保序。两阶段模式下 outbox 是唯一待发队列；
+    // compatibility 模式只在底层明确拒绝时进入 outbox。
     if (!outbox_.empty()) {
-        outbox_.push_back(msg);
+        outbox_.push_back(OutboundEntry{
+            next_outbound_token_++, std::make_shared<const px::Message>(msg)});
+        return !legacy_send_;
+    }
+    if (legacy_send_) {
+        if (legacy_send_(msg)) return true;
+        outbox_.push_back(OutboundEntry{
+            next_outbound_token_++, std::make_shared<const px::Message>(msg)});
         return false;
     }
-    if (send_(msg)) return true;
-    outbox_.push_back(msg);
-    return false;
+    outbox_.push_back(OutboundEntry{
+        next_outbound_token_++, std::make_shared<const px::Message>(msg)});
+    return true;
 }
 
 bool FtEngine::FlushOutbox() {
+    if (!legacy_send_) {
+        return outbox_.empty();
+    }
     while (!outbox_.empty()) {
-        if (!send_(outbox_.front())) return false;
+        if (!legacy_send_(*outbox_.front().message)) return false;
         outbox_.pop_front();
     }
     return true;
+}
+
+std::optional<PreparedOutboundMessage> FtEngine::PrepareOutbound() const {
+    if (legacy_send_ || outbox_.empty()) {
+        return std::nullopt;
+    }
+    return PreparedOutboundMessage{outbox_.front().token, outbox_.front().message};
+}
+
+bool FtEngine::CommitOutbound(std::uint64_t token) {
+    if (legacy_send_ || outbox_.empty() || outbox_.front().token != token) {
+        return false;
+    }
+    outbox_.pop_front();
+    return true;
+}
+
+bool FtEngine::RetryOutbound(std::uint64_t token) const {
+    return !legacy_send_ && !outbox_.empty() && outbox_.front().token == token;
 }
 
 void FtEngine::Tick() {

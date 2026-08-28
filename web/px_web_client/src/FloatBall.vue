@@ -751,7 +751,7 @@ onBeforeUnmount(() => {
         <span class="menu-icon"><IconDeviceDesktop :size="17" /></span>
         <span class="menu-text">
           {{ t('float.virtualDisplay') }}
-          ({{ virtualDisplayOwnedCount }}/{{ virtualDisplayMaxCount || 2 }})
+          ({{ virtualDisplayOwnedCount }}/{{ virtualDisplayMaxCount || 8 }})
         </span>
         <span class="virtual-display-actions">
           <button
@@ -765,7 +765,7 @@ onBeforeUnmount(() => {
             data-testid="virtual-display-add"
             type="button"
             :title="t('float.virtualDisplayAdd')"
-            :disabled="!connected || !virtualDisplayEnabled || virtualDisplayPending || virtualDisplayOwnedCount >= (virtualDisplayMaxCount || 2)"
+            :disabled="!connected || !virtualDisplayEnabled || virtualDisplayPending || virtualDisplayOwnedCount >= (virtualDisplayMaxCount || 8)"
             @click.stop="requestVirtualDisplay('create')"
           >+</button>
         </span>

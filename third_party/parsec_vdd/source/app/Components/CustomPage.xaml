@@ -1,0 +1,104 @@
+﻿<Page
+    x:Class="ParsecDisplay.Components.CustomPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+    xmlns:local="clr-namespace:ParsecDisplay.Components"
+    mc:Ignorable="d" 
+    
+    Loaded="Page_Loaded"
+    Unloaded="Page_Unloaded"
+    
+    d:DesignHeight="450" d:DesignWidth="800"
+    d:Background="#222"
+>
+    <Grid>
+        <Label Content="{DynamicResource t_custom}" Foreground="White" Margin="5,5,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" />
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel.Resources>
+                <Style TargetType="{x:Type StackPanel}">
+                    <Setter Property="Margin" Value="0,5,0,0"/>
+                </Style>
+                <Style TargetType="{x:Type Label}">
+                    <Setter Property="Foreground" Value="#DDD"/>
+                </Style>
+                <Style TargetType="{x:Type TextBox}">
+                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="CaretBrush" Value="White"/>
+                </Style>
+            </StackPanel.Resources>
+            <StackPanel Orientation="Horizontal">
+                <Label Width="50">Slot #1</Label>
+                <TextBox Width="80" />
+                <Label>×</Label>
+                <TextBox Width="80" />
+                <Label>@</Label>
+                <TextBox Width="60" />
+                <Label>Hz</Label>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Width="50">Slot #2</Label>
+                <TextBox Width="80" />
+                <Label>×</Label>
+                <TextBox Width="80" />
+                <Label>@</Label>
+                <TextBox Width="60" />
+                <Label>Hz</Label>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Width="50">Slot #3</Label>
+                <TextBox Width="80" />
+                <Label>×</Label>
+                <TextBox Width="80" />
+                <Label>@</Label>
+                <TextBox Width="60" />
+                <Label>Hz</Label>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Width="50">Slot #4</Label>
+                <TextBox Width="80" />
+                <Label>×</Label>
+                <TextBox Width="80" />
+                <Label>@</Label>
+                <TextBox Width="60" />
+                <Label>Hz</Label>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Label Width="50">Slot #5</Label>
+                <TextBox Width="80" />
+                <Label>×</Label>
+                <TextBox Width="80" />
+                <Label>@</Label>
+                <TextBox Width="60" />
+                <Label>Hz</Label>
+            </StackPanel>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="25,0,0,25">
+            <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource t_parent_gpu}" />:
+            </TextBlock>
+            <ComboBox x:Name="xParentGPU" Width="80" FontSize="14" SelectedIndex="0" BorderBrush="Transparent" Background="Transparent" Margin="10,0,0,0">
+                <ComboBoxItem Content="Auto" />
+                <ComboBoxItem Content="AMD" />
+                <ComboBoxItem Content="NVIDIA" />
+            </ComboBox>
+        </StackPanel>
+        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Orientation="Horizontal" Margin="0,0,25,25">
+            <local:Button Click="ApplyChanges" Width="120" Height="36" Foreground="White">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="auto" />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <Image Source="../Resources/admin.png" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{DynamicResource t_apply}" Margin="6,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+            </local:Button>
+        </StackPanel>
+    </Grid>
+</Page>

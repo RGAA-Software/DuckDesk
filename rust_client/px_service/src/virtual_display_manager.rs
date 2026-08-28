@@ -4,16 +4,19 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 
 #[cfg(test)]
-use crate::usbmmidd::WindowsUsbMmIddBackend;
-use crate::usbmmidd::{MonitorSnapshot, UsbMmIddBackend, UsbMmIddError};
-use crate::virtual_display_session::SessionUsbMmIddBackend;
+use crate::parsec_vdd::WindowsParsecVddBackend;
+use crate::parsec_vdd::{MonitorSnapshot, ParsecVddError, VirtualDisplayBackend};
+use crate::virtual_display_session::SessionParsecVddBackend;
 use crate::virtual_display_store::{
     OwnedVirtualDisplay, PersistedVirtualDisplayState, VirtualDisplayStore,
     VIRTUAL_DISPLAY_STATE_FILE,
 };
 use crate::windows_process::ProcessManager;
 
-pub const GAMMARAY_VIRTUAL_DISPLAY_LIMIT: usize = 2;
+// Keep the product limit aligned with the eight render/RTC display slots.
+// Displays are still created on demand; this is a capacity limit, not a
+// preallocation count.
+pub const GAMMARAY_VIRTUAL_DISPLAY_LIMIT: usize = 8;
 pub const DEFAULT_WIDTH: u32 = 1920;
 pub const DEFAULT_HEIGHT: u32 = 1080;
 pub const DEFAULT_REFRESH_HZ: u32 = 60;
@@ -72,8 +75,8 @@ impl std::fmt::Display for VirtualDisplayError {
 
 impl std::error::Error for VirtualDisplayError {}
 
-impl From<UsbMmIddError> for VirtualDisplayError {
-    fn from(value: UsbMmIddError) -> Self {
+impl From<ParsecVddError> for VirtualDisplayError {
+    fn from(value: ParsecVddError) -> Self {
         Self::new(value.code, value.message)
     }
 }
@@ -84,14 +87,14 @@ struct ManagerState {
 }
 
 pub struct VirtualDisplayManager {
-    backend: Arc<dyn UsbMmIddBackend>,
+    backend: Arc<dyn VirtualDisplayBackend>,
     store: VirtualDisplayStore,
     state: Mutex<ManagerState>,
 }
 
 impl VirtualDisplayManager {
     pub fn new(
-        backend: Arc<dyn UsbMmIddBackend>,
+        backend: Arc<dyn VirtualDisplayBackend>,
         store: VirtualDisplayStore,
     ) -> Result<Self, VirtualDisplayError> {
         let persisted = store.load().map_err(|err| {
@@ -116,7 +119,7 @@ impl VirtualDisplayManager {
         driver_dir: PathBuf,
     ) -> Result<Self, VirtualDisplayError> {
         Self::new(
-            Arc::new(WindowsUsbMmIddBackend::new(driver_dir)),
+            Arc::new(WindowsParsecVddBackend::new(driver_dir)),
             VirtualDisplayStore::new(data_root.join(VIRTUAL_DISPLAY_STATE_FILE)),
         )
     }
@@ -126,7 +129,7 @@ impl VirtualDisplayManager {
         driver_dir: PathBuf,
         process_manager: Arc<dyn ProcessManager>,
     ) -> Result<Self, VirtualDisplayError> {
-        let backend = SessionUsbMmIddBackend::new(
+        let backend = SessionParsecVddBackend::new(
             driver_dir,
             data_root.join("virtual_display_worker"),
             process_manager,
@@ -206,7 +209,7 @@ impl VirtualDisplayManager {
                     .expect("one addition was verified")
             }
         };
-        let logical_id = format!("usbmmidd-slot-{}", state.persisted.owned_slots.len() + 1);
+        let logical_id = format!("parsec-vdd-slot-{}", state.persisted.owned_slots.len() + 1);
         let previous = state.persisted.clone();
         state.persisted.owned_slots.push(OwnedVirtualDisplay {
             logical_id: logical_id.clone(),
@@ -253,7 +256,7 @@ impl VirtualDisplayManager {
             self.record_fault(
                 &mut state,
                 format!(
-                    "refusing LIFO removal: expected {expected} USBMMIDD monitors, observed {}",
+                    "refusing LIFO removal: expected {expected} Parsec VDD monitors, observed {}",
                     before.len()
                 ),
             );
@@ -329,7 +332,7 @@ impl VirtualDisplayManager {
         state: &mut ManagerState,
     ) -> Result<Vec<MonitorSnapshot>, VirtualDisplayError> {
         state.phase = VirtualDisplayPhase::Reconciling;
-        let monitors = self.backend.enumerate_monitors()?;
+        let mut monitors = self.backend.enumerate_monitors()?;
         let actual = monitors.len() as u32;
         if !state.persisted.initialized {
             state.persisted.initialized = true;
@@ -355,22 +358,41 @@ impl VirtualDisplayManager {
             state.persisted.removal_safe = true;
             state.persisted.last_error = None;
         } else if actual == state.persisted.foreign_baseline {
-            // All GammaRay-owned monitors are already absent. This can happen
-            // when the driver completed an operation but the worker response
-            // was lost, or after a process/service interruption. Clearing the
-            // stale ownership is safe because the observed topology is exactly
-            // the foreign baseline and no removal is attempted here.
-            state.persisted.owned_slots.clear();
-            state.persisted.desired_count = 0;
+            // Parsec VDD removes displays when its controller heartbeat stops.
+            // The persisted slots express desired state, so a controller or
+            // service restart must recreate them instead of silently forgetting
+            // user-requested displays.
+            let desired_slots = state.persisted.owned_slots.clone();
+            let mut restored_slots = Vec::with_capacity(desired_slots.len());
+            for slot in desired_slots {
+                let monitor = self
+                    .backend
+                    .add_monitor(slot.width, slot.height, slot.refresh_hz)
+                    .map_err(|error| {
+                        self.record_fault(
+                            state,
+                            format!("failed to restore {}: {error}", slot.logical_id),
+                        );
+                        VirtualDisplayError::from(error)
+                    })?;
+                restored_slots.push(OwnedVirtualDisplay {
+                    observed_device_name: monitor.device_name,
+                    ..slot
+                });
+            }
+            state.persisted.owned_slots = restored_slots;
+            state.persisted.desired_count = state.persisted.owned_slots.len() as u32;
             state.persisted.topology_generation += 1;
-            state.persisted.last_known_total = actual;
+            state.persisted.last_known_total =
+                state.persisted.foreign_baseline + state.persisted.desired_count;
             state.persisted.removal_safe = true;
             state.persisted.last_error = None;
+            monitors = self.backend.enumerate_monitors()?;
         } else if actual != expected {
             state.persisted.removal_safe = false;
             state.persisted.last_known_total = actual;
             state.persisted.last_error = Some(format!(
-                "USBMMIDD topology changed outside GammaRay: expected {expected}, observed {actual}"
+                "Parsec VDD topology changed outside GammaRay: expected {expected}, observed {actual}"
             ));
         }
         state.phase = if state.persisted.removal_safe {
@@ -394,7 +416,7 @@ impl VirtualDisplayManager {
                     .persisted
                     .last_error
                     .clone()
-                    .unwrap_or_else(|| "USBMMIDD ownership is uncertain".to_string()),
+                    .unwrap_or_else(|| "Parsec VDD ownership is uncertain".to_string()),
             ));
         }
         Ok(())
@@ -503,8 +525,8 @@ mod tests {
         }
     }
 
-    impl UsbMmIddBackend for FakeBackend {
-        fn verify_package(&self) -> Result<(), UsbMmIddError> {
+    impl VirtualDisplayBackend for FakeBackend {
+        fn verify_package(&self) -> Result<(), ParsecVddError> {
             Ok(())
         }
 
@@ -512,12 +534,12 @@ mod tests {
             *self.installed.lock().unwrap()
         }
 
-        fn install_driver(&self) -> Result<(), UsbMmIddError> {
+        fn install_driver(&self) -> Result<(), ParsecVddError> {
             *self.installed.lock().unwrap() = true;
             Ok(())
         }
 
-        fn enumerate_monitors(&self) -> Result<Vec<MonitorSnapshot>, UsbMmIddError> {
+        fn enumerate_monitors(&self) -> Result<Vec<MonitorSnapshot>, ParsecVddError> {
             Ok(self.monitors.lock().unwrap().clone())
         }
 
@@ -526,7 +548,7 @@ mod tests {
             width: u32,
             height: u32,
             refresh_hz: u32,
-        ) -> Result<MonitorSnapshot, UsbMmIddError> {
+        ) -> Result<MonitorSnapshot, ParsecVddError> {
             self.install_driver()?;
             let mut monitors = self.monitors.lock().unwrap();
             let monitor = MonitorSnapshot {
@@ -537,7 +559,7 @@ mod tests {
             };
             monitors.push(monitor.clone());
             if std::mem::take(&mut *self.fail_after_add.lock().unwrap()) {
-                return Err(UsbMmIddError::new(
+                return Err(ParsecVddError::new(
                     "WORKER_RESPONSE_LOST",
                     "monitor was added before the worker response was lost",
                 ));
@@ -545,12 +567,12 @@ mod tests {
             Ok(monitor)
         }
 
-        fn remove_last_monitor(&self) -> Result<(), UsbMmIddError> {
+        fn remove_last_monitor(&self) -> Result<(), ParsecVddError> {
             self.monitors.lock().unwrap().pop().ok_or_else(|| {
-                UsbMmIddError::new("NO_VIRTUAL_DISPLAY", "no fake monitor to remove")
+                ParsecVddError::new("NO_VIRTUAL_DISPLAY", "no fake monitor to remove")
             })?;
             if std::mem::take(&mut *self.fail_after_remove.lock().unwrap()) {
-                return Err(UsbMmIddError::new(
+                return Err(ParsecVddError::new(
                     "WORKER_RESPONSE_LOST",
                     "monitor was removed before the worker response was lost",
                 ));
@@ -577,21 +599,26 @@ mod tests {
     }
 
     #[test]
-    fn creates_two_and_removes_only_last_owned_monitor() {
+    fn creates_up_to_eight_and_removes_only_last_owned_monitor() {
         let backend = Arc::new(FakeBackend::new(1));
         let manager = VirtualDisplayManager::new(backend, unique_store("create_remove")).unwrap();
         manager.query().unwrap();
         let first = manager
             .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
             .unwrap();
-        assert_eq!(first.logical_display_id.as_deref(), Some("usbmmidd-slot-1"));
-        let second = manager
-            .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
-            .unwrap();
         assert_eq!(
-            second.logical_display_id.as_deref(),
-            Some("usbmmidd-slot-2")
+            first.logical_display_id.as_deref(),
+            Some("parsec-vdd-slot-1")
         );
+        for slot in 2..=GAMMARAY_VIRTUAL_DISPLAY_LIMIT {
+            let created = manager
+                .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
+                .unwrap();
+            assert_eq!(
+                created.logical_display_id.as_deref(),
+                Some(format!("parsec-vdd-slot-{slot}").as_str())
+            );
+        }
         let limit = manager
             .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
             .unwrap_err();
@@ -599,9 +626,9 @@ mod tests {
         let removed = manager.remove_last().unwrap();
         assert_eq!(
             removed.logical_display_id.as_deref(),
-            Some("usbmmidd-slot-2")
+            Some("parsec-vdd-slot-8")
         );
-        assert_eq!(removed.status.monitors.len(), 2);
+        assert_eq!(removed.status.monitors.len(), 8);
     }
 
     #[test]
@@ -661,7 +688,7 @@ mod tests {
 
         assert_eq!(
             created.logical_display_id.as_deref(),
-            Some("usbmmidd-slot-1")
+            Some("parsec-vdd-slot-1")
         );
         assert_eq!(created.status.owned_slots.len(), 1);
         assert!(created.status.removal_safe);
@@ -669,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn query_clears_stale_ownership_when_all_owned_monitors_are_already_absent() {
+    fn query_restores_desired_parsec_displays_after_heartbeat_loss() {
         let backend = Arc::new(FakeBackend::new(0));
         let manager =
             VirtualDisplayManager::new(backend.clone(), unique_store("missing_owned_reconcile"))
@@ -682,7 +709,9 @@ mod tests {
 
         let reconciled = manager.query().unwrap();
 
-        assert!(reconciled.status.owned_slots.is_empty());
+        assert_eq!(reconciled.status.owned_slots.len(), 1);
+        assert_eq!(reconciled.status.monitors.len(), 1);
+        assert_eq!(reconciled.status.desired_count, 1);
         assert!(reconciled.status.removal_safe);
         assert_eq!(
             reconciled.status.topology_generation,

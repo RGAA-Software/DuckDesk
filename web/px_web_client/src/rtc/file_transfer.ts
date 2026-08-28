@@ -15,6 +15,7 @@
 //   pkt_index 严格递增(render 按它排序);>128KB 消息 render 侧分片,接收经 TlvReassembler 重组;
 //   块载荷 120KB(避免恰在 TLV 分片边界,plan §5.4);发送反压水位 4MB(旧实现实测阈值)。
 import { zlibSync, unzlibSync } from 'fflate'
+import CryptoJS from 'crypto-js'
 import { packTlv, TlvReassembler } from './tlv'
 import {
   encodeMessage,
@@ -128,7 +129,12 @@ interface UploadJobState {
   remoteTo: string
   isResume: boolean
   // 当前文件的确认等待(发完 digest 等 send_confirm)
-  confirmWait: { fileNum: number; resolve: (r: { skip: boolean; offset: number }) => void } | null
+  confirmWait: {
+    fileNum: number
+    resolve: (r: { skip: boolean; offset: number }) => void
+    reject: (e: Error) => void
+    timer: number
+  } | null
   cancelled: boolean
   activated: boolean
 }
@@ -177,9 +183,22 @@ export function parentRemote(path: string): string {
   return p.slice(0, idx)
 }
 
+export function sha256HexSoftware(data: Uint8Array): string {
+  const words: number[] = []
+  for (let index = 0; index < data.length; index += 1) {
+    words[index >>> 2] = (words[index >>> 2] || 0)
+      | (data[index] << (24 - (index % 4) * 8))
+  }
+  return CryptoJS.SHA256(CryptoJS.lib.WordArray.create(words, data.length))
+    .toString(CryptoJS.enc.Hex)
+}
+
 export async function sha256Hex(data: Uint8Array): Promise<string> {
-  // 非安全上下文(http://IP 访问)没有 crypto.subtle;哈希仅作校验/日志用途
-  if (typeof crypto === 'undefined' || !crypto.subtle) return ''
+  // Render 的局域网 HTTP origin 不是浏览器安全上下文，可能没有
+  // crypto.subtle。完整性校验不能因此退化成空字符串相等。
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    return sha256HexSoftware(data)
+  }
   const digest = await crypto.subtle.digest('SHA-256', data.slice().buffer)
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -519,18 +538,33 @@ export class FileTransferClient {
       job.fileNum = i
       this.touchJob(job)
 
-      // 逐文件 digest 握手(覆盖检测):发源文件 size/mtime,等对端 send_confirm
-      this.sendResponse({
-        digest: {
-          id,
-          fileNum: i,
-          lastModified: item.modifiedTime,
-          fileSize: item.size,
-          isResume: st.isResume,
-        },
-      })
-      const confirm = await new Promise<{ skip: boolean; offset: number }>((resolve) => {
-        st.confirmWait = { fileNum: i, resolve }
+      // 逐文件 digest 握手(覆盖检测):必须先挂起确认等待再发送。
+      // RTC 本机/局域网回包可以在 send() 返回前同步触发 onmessage；
+      // 如果先发后挂 await，send_confirm 会成为丢失唤醒，作业永久停在 0 字节。
+      const confirm = await new Promise<{ skip: boolean; offset: number }>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          if (st.confirmWait?.fileNum === i) {
+            st.confirmWait = null
+          }
+          reject(new Error(`等待远端文件确认超时: ${item.name || st.remoteTo}`))
+        }, RESP_TIMEOUT_MS)
+        const waiter = { fileNum: i, resolve, reject, timer }
+        st.confirmWait = waiter
+        try {
+          this.sendResponse({
+            digest: {
+              id,
+              fileNum: i,
+              lastModified: item.modifiedTime,
+              fileSize: item.size,
+              isResume: st.isResume,
+            },
+          })
+        } catch (err) {
+          window.clearTimeout(timer)
+          if (st.confirmWait === waiter) st.confirmWait = null
+          reject(err instanceof Error ? err : new Error(String(err)))
+        }
       })
       st.confirmWait = null
       if (st.cancelled) return
@@ -736,6 +770,7 @@ export class FileTransferClient {
       const offset = decision === 'resume' ? resumeBytes : 0
       const skip = decision === 'skip'
       this.sendAction({ sendConfirm: { id: d.id, fileNum: d.fileNum, ...(skip ? { skip: true } : { offsetBlk: offset }) } })
+      window.clearTimeout(st.confirmWait.timer)
       st.confirmWait.resolve({ skip, offset })
       return
     }
@@ -822,6 +857,7 @@ export class FileTransferClient {
     const st = this.uploadJobs.get(c.id)
     if (!st || !st.confirmWait) return
     if (st.confirmWait.fileNum !== c.fileNum) return // 非当前文件的 confirm 忽略(fs.rs:1157)
+    window.clearTimeout(st.confirmWait.timer)
     const skip = c.skip === true
     const offset = skip ? 0 : toNum(c.offsetBlk)
     st.confirmWait.resolve({ skip, offset })
@@ -986,6 +1022,7 @@ export class FileTransferClient {
     const up = this.uploadJobs.get(id)
     if (up) {
       up.cancelled = true
+      if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
       up.confirmWait?.resolve({ skip: true, offset: 0 })
       up.confirmWait = null
     }
@@ -1019,7 +1056,9 @@ export class FileTransferClient {
     const activated = up?.activated || down?.activated
     if (up) {
       up.cancelled = true
+      if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
       up.confirmWait?.resolve({ skip: true, offset: 0 }) // 解开等待,runUpload 自行退出
+      up.confirmWait = null
     }
     if (down) {
       down.cancelled = true
@@ -1119,7 +1158,9 @@ export class FileTransferClient {
         const up = this.uploadJobs.get(id)
         if (up) {
           up.cancelled = true
+          if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
           up.confirmWait?.resolve({ skip: true, offset: 0 })
+          up.confirmWait = null
         }
         const down = this.downloadJobs.get(id)
         if (down) {

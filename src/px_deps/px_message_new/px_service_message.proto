@@ -122,7 +122,7 @@ message MsgVirtualDisplayResult {
   string error_code = 6;
   string error_message = 7;
   uint32 owned_display_count = 8;
-  uint32 actual_usbmmidd_count = 9;
+  uint32 actual_virtual_display_count = 9;
   bool driver_installed = 10;
   bool package_valid = 11;
   bool removal_safe = 12;

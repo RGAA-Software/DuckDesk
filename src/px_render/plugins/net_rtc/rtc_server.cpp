@@ -9,6 +9,8 @@
 #include "rtc_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "rtc_data_channel.h"
+#include "px_common_new/md5.h"
+#include "px_common_new/uuid.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 
@@ -23,6 +25,7 @@ namespace px
 
     RtcServer::RtcServer(RtcPlugin* plugin) {
         plugin_ = plugin;
+        connection_instance_id_ = MD5::Hex(px::GetUUID());
     }
 
     RtcPlugin* RtcServer::GetPlugin() {
@@ -120,7 +123,10 @@ namespace px
                         return;
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kFileTransfer, payload_msg);
+                    plugin_->OnClientEventCame(
+                        true, 0, NetPluginType::kWebRtc,
+                        NetChannelType::kFileTransfer, payload_msg,
+                        connection_instance_id_);
                 });
             }
             else if (name == "input_data_channel") {
@@ -360,11 +366,16 @@ namespace px
         }
         // 与 net_rtc_local 同理:必须投递到 WebRTC 网络线程再 Send,避免跨线程
         // 调用 data_channel_->Send() 被 libwebrtc 静默丢弃。
-        if (network_thread_ && ft_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                ft_data_channel_->SendData(msg);
-            });
+        if (!network_thread_ || !ft_data_channel_ || exit_ ||
+            !ft_data_channel_->IsConnected()) {
+            return false;
         }
+        const auto weak_self = weak_from_this();
+        network_thread_->PostTask([weak_self, msg]() {
+            if (const auto self = weak_self.lock(); self && self->ft_data_channel_ && !self->exit_) {
+                self->ft_data_channel_->SendData(msg);
+            }
+        });
         return true;
     }
 
@@ -407,6 +418,7 @@ namespace px
         // 空时回退 datachannel 内部 id(历史行为)
         event->stream_id_ = !stream_id_.empty() ? stream_id_
             : (media_data_channel_ ? media_data_channel_->the_conn_id_ : "");
+        event->conn_id_ = connection_instance_id_;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = media_data_channel_
             ? event->end_timestamp_ - media_data_channel_->created_timestamp_ : 0;

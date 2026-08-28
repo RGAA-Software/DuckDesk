@@ -602,10 +602,14 @@ namespace px
         }
     }
 
-    void ThunderSdk::PostFileTransferMessage(std::shared_ptr<Data> msg) {
-        if(net_client_) {
-            net_client_->PostFileTransferMessage(msg);
+    FileTransferSendResult ThunderSdk::PostFileTransferMessage(std::shared_ptr<Data> msg) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError("file-transfer message is empty");
         }
+        if (!net_client_) {
+            return FileTransferSendResult::Disconnected("network client is unavailable");
+        }
+        return net_client_->PostFileTransferMessage(std::move(msg));
     }
 
     void ThunderSdk::RegisterEventListeners() {

@@ -6,9 +6,12 @@
 #include <unordered_set>
 #include <vector>
 
+#include "virtual_display_limits.h"
+
 namespace px
 {
-    inline constexpr int kReservedRtcMonitorTrackCount = 8;
+    inline constexpr int kReservedRtcMonitorTrackCount =
+        static_cast<int>(kVirtualDisplayMaximumCount);
 
     // Capture frame indices are scoped to a monitor's current capture stream.
     // A display topology change can restart that stream from a lower value, so

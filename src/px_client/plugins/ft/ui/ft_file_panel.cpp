@@ -805,7 +805,8 @@ namespace px
         const auto paths = SelectedPaths();
         if (paths.isEmpty()) return;
         const auto ret = QMessageBox::question(this, tcTr("id_file_trans_del"),
-                                               tcTr("id_file_trans_del") + QString(" (%1)").arg(paths.size()));
+                                               tcTr("id_file_trans_del_confirm")
+                                                   .arg(paths.size()));
         if (ret != QMessageBox::Yes) return;
         for (const auto& p : paths) {
             if (is_local_) {

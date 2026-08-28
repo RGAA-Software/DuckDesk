@@ -12,8 +12,8 @@
 #define PX_CLIENT_FT_CLIENT_PLUGIN_H
 
 #include "px_client/plugin_interface/ct_plugin_interface.h"
+#include "px_common_new/file_transfer_send_result.h"
 
-#include <atomic>
 #include <memory>
 #include <unordered_map>
 
@@ -44,10 +44,9 @@ namespace px
         // 引擎发送回调(ft core 的 worker 线程调用):
         // 补 type/stream_id/device_id 后经 ClientPluginNetworkEvent 走
         // ct_plugin_event_router -> ThunderSdk::PostFileTransferMessage 的既有路径。
-        // 反压:在途(已投递未完成)消息超过阈值返回 false,引擎压入内部待发队列、
-        // 本 tick 不再读盘(对齐 render 壳的水位语义;通道真正繁忙时
-        // PostFileTransferMessage 内部自旋等待,只阻塞本插件的 work 线程)。
-        bool SendToChannel(const px::Message& msg);
+        // 只有底层通道已经接收消息时才返回 true。繁忙、断开或发送错误均返回
+        // false,由引擎的单一 outbox 保序重试;消息绝不会同时存在于两个队列。
+        FileTransferSendResult SendToChannel(const px::Message& msg);
 
     private:
         void TrackJobBegin(int32_t job_id, const QString& name, bool is_download);
@@ -56,9 +55,6 @@ namespace px
     private:
         FtCore* core_ = nullptr;      // QObject 父子树管理
         FtWindow* window_ = nullptr;  // root_widget_ 的子控件
-
-        // 反压在途计数(worker 线程加,context work 线程减)
-        std::atomic<int64_t> outstanding_sends_ = 0;
 
         // 审计配对(UI 线程)
         std::unordered_map<int32_t, QString> audit_jobs_;

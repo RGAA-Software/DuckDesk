@@ -86,7 +86,7 @@
 | 角色 | 默认位置 | 主要组件 |
 | --- | --- | --- |
 | 主控/控制面 | 开发机 | px_console、px_auth、px_turn、WebClient、原生客户端、测试驱动 |
-| 被控端 | 90号机 | px_service、px_panel、desktop px_render、USBMMIDD |
+| 被控端 | 90号机 | px_service、px_panel、desktop px_render、Parsec VDD、px_display |
 | 浏览器 | 开发机 | Chrome为P0，Edge为P1；使用独立测试profile |
 | 网络仿真网关 | 可选虚拟机 | Linux tc netem 或等效受控网关 |
 
@@ -99,7 +99,7 @@
 - 两机 Windows 版本、GPU、网卡、交互 Session、物理/虚拟显示器基线。
 - RTC revision、ICE Server 摘要、TURN listener 和 relay 端口范围；不保存 credential 或共享密钥。
 - Service、Panel、Render、Coturn PID、启动时间和监听端口。
-- 90号机麦克风隐私、默认通信设备、USBMMIDD PnP/Driver Store 状态。
+- 90号机麦克风隐私、默认通信设备、Parsec VDD PnP/Driver Store 状态和 `px_display` heartbeat。
 
 ### 4.3 安全规则
 
@@ -160,7 +160,7 @@
 4. WebClient单元测试、类型检查和生产构建。
 5. C++ common、文件、记录、语音、原生虚拟显示和语音协议测试。
 6. px_client、px_panel、px_render、net_rtc、net_rtc_local、voice_call增量构建。
-7. 安装汇总检查必需DLL、Web资源、USBMMIDD和Coturn产物。
+7. 安装汇总检查必需 DLL、Web 资源、微软签名 Parsec VDD、`px_display.exe` 和 Coturn 产物。
 8. git diff --check，并记录测试前后工作区差异。
 
 ## 7. Ticket、会话和权限
@@ -250,7 +250,7 @@ RTC-LAN-02、03、04各执行核心功能；RTC-LAN-03执行完整集合。
 | FUNC-05 | 文件上传 | 随机内容和SHA-256 | 大小、摘要一致 |
 | FUNC-06 | 文件下载 | 下载远端文件 | 大小、摘要一致 |
 | FUNC-07 | 文件续传 | 中断后恢复 | offset有效，临时文件清理 |
-| FUNC-08 | 新增显示器 | 创建USBMMIDD屏 | 拓扑N到N+1，generation递增 |
+| FUNC-08 | 新增显示器 | 按需创建 Parsec VDD 屏（容量 8） | 拓扑 N 到 N+1，generation 递增，第 9 块被明确拒绝 |
 | FUNC-09 | 多屏切换 | 切到新屏播放动态刺激 | 新屏独立帧持续增长 |
 | FUNC-10 | 删除恢复 | 删除本轮屏并切物理屏 | 拓扑精确恢复，继续出帧 |
 | FUNC-11 | 并行业务 | 视频+系统声+语音+输入+大文件10分钟 | 控制及时、队列有界 |
@@ -510,7 +510,7 @@ Console重命名采用断代策略，不测试旧数据迁移：
 3. 删除本轮唯一前缀的防火墙、计划任务和临时证书/配置。
 4. 恢复RTC revision、ICE Server、TURN listener和relay端口范围。
 5. 恢复90号机麦克风隐私和默认通信设备。
-6. 删除本轮新增USBMMIDD屏，核对owned、generation、PnP和第三方适配器。
+6. 逆序删除本轮新增 Parsec VDD 屏，核对 owned、generation、PnP 和外部适配器所有权。
 7. 确认Console、Service、Panel、Render和Coturn按默认状态运行。
 8. 确认端口、进程、RTC room和TURN allocation回到基线。
 9. 扫描证据中的password、cookie、ticket、renewal、credential、secret、appkey和完整SDP。

@@ -279,36 +279,31 @@ namespace px
         return true;
     }
 
-    bool RtcLocalPlugin::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        auto queuing_msg_count = GetQueuingFtMsgCount();
-        auto has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-        auto wait_count = 0;
-        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
-            if (rtc_servers_.Empty()) {
-                LOGW("===> Send file, no alive rtc server, drop the message.");
+    bool RtcLocalPlugin::PostTargetFileTransferProtoMessage(
+        const std::string& stream_id,
+        std::shared_ptr<Data> msg,
+        bool run_through,
+        const std::string& connection_instance_id) {
+        if (!connection_instance_id.empty()) {
+            const auto target = rtc_servers_.TryGet(connection_instance_id);
+            if (!target || !*target || (*target)->GetStreamId() != stream_id ||
+                (*target)->GetFtPendingMessages() > 256 ||
+                !(*target)->HasEnoughBufferForQueuingFtMessages()) {
                 return false;
             }
-            TimeUtil::DelayBySleep(1);
-            has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-            queuing_msg_count = GetQueuingFtMsgCount();
-            wait_count++;
+            return (*target)->PostTargetFileTransferProtoMessage(
+                stream_id, std::move(msg), run_through);
         }
-        if (wait_count >= 2000) {
-            // 拥塞日志限频:每 10s 最多一条,避免长时间拥塞时刷爆日志
-            static std::atomic<int64_t> last_ft_timeout_log_ts = 0;
-            auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
-            auto last = last_ft_timeout_log_ts.load();
-            if (now - last >= 10000 && last_ft_timeout_log_ts.compare_exchange_strong(last, now)) {
-                LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
-            }
-            return false;
-        }
-        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
-            if (srv && srv->GetStreamId() == stream_id) {
-                srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+        bool accepted = false;
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            if (!accepted && srv && srv->GetStreamId() == stream_id &&
+                srv->GetFtPendingMessages() <= 256 &&
+                srv->HasEnoughBufferForQueuingFtMessages()) {
+                accepted = srv->PostTargetFileTransferProtoMessage(
+                    stream_id, msg, run_through);
             }
         });
-        return true;
+        return accepted;
     }
 
     void RtcLocalPlugin::WaitForMediaChannelActive() {

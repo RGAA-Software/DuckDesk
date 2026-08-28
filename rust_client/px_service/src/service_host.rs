@@ -88,8 +88,8 @@ impl ServiceRuntime {
         let storage = ServiceStorage::new(config.storage_file());
         let driver_dir = std::env::current_exe()
             .ok()
-            .and_then(|path| path.parent().map(|parent| parent.join("usbmmidd_v2")))
-            .unwrap_or_else(|| std::path::PathBuf::from("usbmmidd_v2"));
+            .and_then(|path| path.parent().map(|parent| parent.join("parsec_vdd")))
+            .unwrap_or_else(|| std::path::PathBuf::from("parsec_vdd"));
         #[cfg(not(test))]
         let manager_result = VirtualDisplayManager::new_windows_session_aware(
             config.data_root.clone(),

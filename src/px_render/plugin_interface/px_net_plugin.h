@@ -117,7 +117,11 @@ namespace px
 
         // Serialized proto message from Renderer
         // to file transfer
-        virtual bool PostTargetFileTransferProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through);
+        virtual bool PostTargetFileTransferProtoMessage(
+            const std::string& stream_id,
+            std::shared_ptr<Data> msg,
+            bool run_through,
+            const std::string& connection_instance_id = {});
 
         // Serialized RpMessage to localhost UserProxy WebSocket
         virtual void PostUserProxyMessage(std::shared_ptr<Data> msg);
@@ -132,7 +136,8 @@ namespace px
                                int64_t socket_fd,
                                const NetPluginType& nt_plugin_type,
                                const NetChannelType& ch_type,
-                               std::shared_ptr<Data> msg);
+                               std::shared_ptr<Data> msg,
+                               const std::string& connection_instance_id = {});
 
         // Use for lightweight reliable-channel messages whose consumer only
         // validates and queues work. This avoids an extra transport work-queue
@@ -141,7 +146,8 @@ namespace px
                                        int64_t socket_fd,
                                        const NetPluginType& nt_plugin_type,
                                        const NetChannelType& ch_type,
-                                       std::shared_ptr<Data> msg);
+                                       std::shared_ptr<Data> msg,
+                                       const std::string& connection_instance_id = {});
 
         virtual bool IsOnlyAudioClients();
 

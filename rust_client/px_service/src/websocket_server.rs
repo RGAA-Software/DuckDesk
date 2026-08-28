@@ -276,6 +276,21 @@ fn virtual_display_service_message(
     }
 }
 
+const VIRTUAL_DISPLAY_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const VIRTUAL_DISPLAY_MUTATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+const VIRTUAL_DISPLAY_RESET_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
+fn virtual_display_operation_timeout(
+    operation: service_core::VirtualDisplayOperation,
+) -> std::time::Duration {
+    match operation {
+        service_core::VirtualDisplayOperation::Query => VIRTUAL_DISPLAY_QUERY_TIMEOUT,
+        service_core::VirtualDisplayOperation::ResetOwned => VIRTUAL_DISPLAY_RESET_TIMEOUT,
+        service_core::VirtualDisplayOperation::Create
+        | service_core::VirtualDisplayOperation::RemoveLast => VIRTUAL_DISPLAY_MUTATION_TIMEOUT,
+    }
+}
+
 async fn process_virtual_display_operation(
     runtime: Arc<Mutex<ServiceRuntime>>,
     request_id: String,
@@ -284,6 +299,12 @@ async fn process_virtual_display_operation(
     height: u32,
     refresh_hz: u32,
 ) -> Option<service_core::ServiceMessage> {
+    let started_at = std::time::Instant::now();
+    tracing::info!(
+        request_id = %request_id,
+        operation = ?operation,
+        "virtual display operation started"
+    );
     let cache_result = should_cache_virtual_display_operation(operation);
     let (manager, cached, init_error) = {
         let guard = runtime.lock().await;
@@ -311,12 +332,10 @@ async fn process_virtual_display_operation(
         ));
     };
 
-    // Query is advisory and must not hold resources as long as a requested
-    // create/remove. Mutations retain the longer driver-operation budget.
-    let operation_timeout = match operation {
-        service_core::VirtualDisplayOperation::Query => std::time::Duration::from_secs(10),
-        _ => std::time::Duration::from_secs(40),
-    };
+    // The manager may reconcile before and after an interactive worker call.
+    // Its timeout must therefore exceed the worker's own 35-second budget.
+    // Reset can legitimately repeat that sequence for every owned display.
+    let operation_timeout = virtual_display_operation_timeout(operation);
     let task_manager = manager.clone();
     let task = tokio::task::spawn_blocking(move || match operation {
         service_core::VirtualDisplayOperation::Create => {
@@ -338,6 +357,16 @@ async fn process_virtual_display_operation(
         }),
     };
     let response = virtual_display_result(&request_id, result);
+    tracing::info!(
+        request_id = %request_id,
+        operation = ?operation,
+        accepted = response.accepted,
+        topology_changed = response.topology_changed,
+        owned_display_count = response.owned_display_count,
+        elapsed_ms = started_at.elapsed().as_millis(),
+        error_code = %response.error_code,
+        "virtual display operation completed"
+    );
     if cache_result {
         let mut guard = runtime.lock().await;
         if guard.virtual_display_results.len() >= 256 {
@@ -371,7 +400,7 @@ fn virtual_display_result(
             topology_generation: result.status.topology_generation,
             logical_display_id: result.logical_display_id.unwrap_or_default(),
             owned_display_count: result.status.owned_slots.len() as u32,
-            actual_usbmmidd_count: result.status.monitors.len() as u32,
+            actual_virtual_display_count: result.status.monitors.len() as u32,
             driver_installed: result.status.driver_installed,
             package_valid: result.status.package_valid,
             removal_safe: result.status.removal_safe,
@@ -444,6 +473,26 @@ mod tests {
         assert!(should_cache_virtual_display_operation(
             service_core::VirtualDisplayOperation::ResetOwned
         ));
+    }
+
+    #[test]
+    fn virtual_display_operation_timeouts_cover_worker_and_reconciliation() {
+        assert_eq!(
+            virtual_display_operation_timeout(service_core::VirtualDisplayOperation::Query),
+            std::time::Duration::from_secs(15)
+        );
+        assert_eq!(
+            virtual_display_operation_timeout(service_core::VirtualDisplayOperation::Create),
+            std::time::Duration::from_secs(90)
+        );
+        assert_eq!(
+            virtual_display_operation_timeout(service_core::VirtualDisplayOperation::RemoveLast),
+            std::time::Duration::from_secs(90)
+        );
+        assert_eq!(
+            virtual_display_operation_timeout(service_core::VirtualDisplayOperation::ResetOwned),
+            std::time::Duration::from_secs(600)
+        );
     }
 
     impl MockProcessManager {

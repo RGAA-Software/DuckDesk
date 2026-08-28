@@ -44,6 +44,9 @@ namespace px
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);
         [[nodiscard]] const std::string& GetStreamId() const { return stream_id_; }
+        [[nodiscard]] const std::string& GetConnectionInstanceId() const {
+            return connection_instance_id_;
+        }
 
         uint32_t GetMediaPendingMessages();
         uint32_t GetFtPendingMessages();
@@ -69,6 +72,7 @@ namespace px
         std::unique_ptr<rtc::Thread> worker_thread_;
         std::unique_ptr<rtc::Thread> sig_thread_;
         std::string stream_id_;
+        std::string connection_instance_id_;
         std::string offer_sdp_;
         std::string ice_config_json_;
         std::vector<std::string> permissions_;

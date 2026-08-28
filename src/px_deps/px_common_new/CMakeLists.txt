@@ -47,6 +47,8 @@ set(SRCS
     time_util.cpp
     thread.cpp
     task_runtime.cpp
+    async_runtime.cpp
+    file_transfer_route_registry.cpp
     base64.cpp
     file.cpp
     image.cpp

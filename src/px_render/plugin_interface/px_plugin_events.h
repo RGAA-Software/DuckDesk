@@ -107,6 +107,26 @@ namespace px
         NetPluginType nt_plugin_type_;
         NetChannelType nt_channel_type_;
         PxNetPlugin* from_plugin_ = nullptr;
+        // Value identity of the concrete transport connection. It is copied
+        // into FT routing state and never used as an ownership handle.
+        std::string connection_instance_id_;
+    };
+
+    // Value envelope: copy the source id at the established plug-in ABI
+    // boundary so file-transfer code never retains or guesses a transport.
+    struct FtInboundMessage {
+        std::shared_ptr<Message> message_;
+        std::string source_plugin_id_;
+        std::string source_connection_id_;
+    };
+
+    // A transport-specific disconnect must only remove the route currently
+    // owned by that transport. This avoids a late WS close tearing down an RTC
+    // file-transfer route for the same stream.
+    struct FtRouteDisconnected {
+        std::string stream_id_;
+        std::string source_plugin_id_;
+        std::string source_connection_id_;
     };
 
     // PxClientConnectedEvent

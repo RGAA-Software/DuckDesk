@@ -18,6 +18,7 @@
 #include "px_plugin_settings_info.h"
 #include "app/app_messages.h"
 #include "px_capture_new/capture_message.h"
+#include "px_common_new/file_transfer_send_result.h"
 
 #ifndef PX_PLUGIN_EXPORT
 #if defined(_WIN32)
@@ -166,6 +167,12 @@ namespace px
         // to file transfer
         // !! Call this function in a NON-NET-PLUGIN !!
         void DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through = false);
+        [[nodiscard]] FileTransferSendResult DispatchTargetFileTransferMessageOnRoute(
+            const std::string& plugin_id,
+            const std::string& stream_id,
+            std::shared_ptr<Data> msg,
+            bool run_through = false,
+            const std::string& connection_instance_id = {});
 
         // messages from remote
         virtual void OnMessage(std::shared_ptr<Message> msg);

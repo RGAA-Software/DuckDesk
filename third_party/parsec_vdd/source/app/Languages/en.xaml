@@ -1,0 +1,59 @@
+﻿<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:system="clr-namespace:System;assembly=mscorlib"
+>
+    <system:String x:Key="lang_name">English</system:String>
+    
+    <!--Interface-->
+    <system:String x:Key="t_add_display">Add display</system:String>
+    <system:String x:Key="t_hint_add_display_first">Add a virtual display first!</system:String>
+    <system:String x:Key="t_custom">Custom...</system:String>
+    <system:String x:Key="t_apply">Apply</system:String>
+    <system:String x:Key="t_parent_gpu">Parent GPU</system:String>
+    <system:String x:Key="t_language">Language</system:String>
+
+    <!--Context menu-->
+    <system:String x:Key="t_resolution">Resolution</system:String>
+    <system:String x:Key="t_refresh_rate">Refresh rate</system:String>
+    <system:String x:Key="t_orientation">Orientation</system:String>
+        <system:String x:Key="t_landscape">Landscape</system:String>
+        <system:String x:Key="t_portrait">Portrait</system:String>
+        <system:String x:Key="t_landscape_flipped">Landscape (flipped)</system:String>
+        <system:String x:Key="t_portrait_flipped">Portrait (flipped)</system:String>
+    <system:String x:Key="t_take_screenshot">Take screenshot</system:String>
+    <system:String x:Key="t_mirror_screen">Mirror screen</system:String>
+    <system:String x:Key="t_set_primary">Set as primary</system:String>
+    <system:String x:Key="t_remove">Remove</system:String>
+    
+    <!--Tray menu-->
+    <system:String x:Key="t_remove_last_display">Remove last display</system:String>
+    <system:String x:Key="t_options">Options</system:String>
+    <system:String x:Key="t_run_on_startup">Run on startup</system:String>
+    <system:String x:Key="t_restore_displays">Restore displays</system:String>
+    <system:String x:Key="t_fallback_display">Fallback display</system:String>
+    <system:String x:Key="t_keep_screen_on">Keep screen on</system:String>
+    <system:String x:Key="t_check_for_update">Check for update</system:String>
+    <system:String x:Key="t_exit">Exit</system:String>
+    
+    <!--Dialog messages-->
+    <system:String x:Key="t_msg_up_to_date">Your app version is up-to-date.</system:String>
+    <system:String x:Key="t_msg_update_available">A new version — v{0} is available.\nTo keep your experience optimal, please update it now."</system:String>
+    
+    <system:String x:Key="t_msg_custom_access_denied">Could not apply custom resolutions, access denied!</system:String>
+    <system:String x:Key="t_msg_custom_invalid_slot">Found invalid value in slot #{0}.</system:String>
+
+    <system:String x:Key="t_msg_exceeded_display_limit">Could not add more virtual displays, you have exceeded the maximum number ({0}).</system:String>
+    <system:String x:Key="t_msg_prompt_leave_all">All added virtual displays will be unplugged.\nDo you still want to exit?.</system:String>
+
+    <system:String x:Key="t_msg_driver_status">Driver status</system:String>
+    <system:String x:Key="t_msg_must_restart_pc">You must restart your PC to complete the driver setup.</system:String>
+    <system:String x:Key="t_msg_driver_is_disabled">{0} is disabled, please enable it in Device Manager.</system:String>
+    <system:String x:Key="t_msg_please_install_driver">Please install the driver first.</system:String>
+    <system:String x:Key="t_msg_driver_status_not_ok">The driver is not OK, please check again. Current status: {0}.</system:String>
+    
+    <system:String x:Key="t_msg_failed_to_obtain_handle">Failed to obtain the device handle, please check the driver installation again.</system:String>
+    <system:String x:Key="t_msg_failed_to_add_display">Failed to add virtual display.</system:String>
+    <system:String x:Key="t_msg_failed_to_remove_display">Failed to remove virtual display.</system:String>
+    
+</ResourceDictionary>

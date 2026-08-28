@@ -1,5 +1,11 @@
 # 文件传输整体替换计划：废弃现有方案，全面采用 RustDesk 方案
 
+> **2026-08-28 后续设计说明**：本文的 RustDesk 协议、路径安全、覆盖、续传和
+> UI 迁移结论继续有效；其中以同步 `bool SendFunc` 模拟 RustDesk
+> `await send` 的反压设计，已被
+> `docs/file_transfer_awaitable_refactor_plan.md` 的单队列、单路由、
+> awaitable 背压和插件卸载屏障方案取代。后续实现以新文档为准。
+
 > 目标：**整体废弃** GammaRay 现有文件传输（`px_file_transfer.proto` 消息族 + render 插件 +
 > Qt 客户端插件 core + Web `file_transfer.ts`），替换为 rustdesk 的协议语义与传输引擎
 > （`FileAction`/`FileResponse` 消息族 + `fs.rs` 的 `.download`/`.digest` 续传、Digest 覆盖确认、路径安全校验）。

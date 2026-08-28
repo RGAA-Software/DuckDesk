@@ -457,6 +457,7 @@
   "id_file_trans_modify_time": "Modify Time",
   "id_file_trans_rename": "Rename",
   "id_file_trans_del": "Delete",
+  "id_file_trans_del_confirm": "Delete the selected %1 item(s)?",
   "id_file_trans_new_folder": "New Folder",
   "id_file_trans_select_all": "Select All",
   "id_file_trans_local_device": "Local Device",

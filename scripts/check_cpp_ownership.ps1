@@ -50,7 +50,8 @@ try {
             if ($line -notmatch '^\+(?!\+\+\+)') {
                 continue
             }
-            if ($currentFile -match '^src/px_deps/px_webrtc_client/' -or
+            if ($currentFile -match '^third_party/' -or
+                $currentFile -match '^src/px_deps/px_webrtc_client/' -or
                 ($currentFile -match '^src/px_deps/px_3rdparty/' -and
                  $currentFile -notmatch '^src/px_deps/px_3rdparty/asio2/')) {
                 continue

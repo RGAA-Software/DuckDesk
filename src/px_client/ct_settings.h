@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include "px_message.pb.h"
+#include "px_common_new/virtual_display_limits.h"
 
 namespace px
 {
@@ -122,7 +123,7 @@ namespace px
         bool split_windows_ = false;
 
         // max_number_of_screen_window
-        int max_number_of_screen_window_ = 2;
+        int max_number_of_screen_window_ = static_cast<int>(kVirtualDisplayMaximumCount);
 
         // display logo
         bool display_logo_ = false;
@@ -184,7 +185,7 @@ namespace px
         uint32_t render_ft_protocol_version_ = 0;
         bool render_virtual_display_enabled_ = false;
         uint32_t render_virtual_display_owned_count_ = 0;
-        uint32_t render_virtual_display_max_count_ = 2;
+        uint32_t render_virtual_display_max_count_ = kVirtualDisplayMaximumCount;
         uint64_t render_virtual_display_topology_generation_ = 0;
         bool render_voice_call_enabled_ = false;
         uint32_t render_voice_call_protocol_version_ = 0;

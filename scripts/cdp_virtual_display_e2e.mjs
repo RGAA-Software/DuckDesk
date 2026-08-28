@@ -16,8 +16,12 @@ const OP_TIMEOUT_MS = Number(process.env.OP_TIMEOUT_MS || 90000)
 const RECOVER_OWNED = process.env.RECOVER_OWNED === '1'
 const RECOVER_ONLY = process.env.RECOVER_ONLY === '1'
 const KEEP_DISPLAY_AFTER_ADD = process.env.KEEP_DISPLAY_AFTER_ADD === '1'
+const TARGET_OWNED = Number(process.env.TARGET_OWNED || 1)
 
 if (!PAGE_URL) throw new Error('WEB_URL required')
+if (!Number.isInteger(TARGET_OWNED) || TARGET_OWNED < 1 || TARGET_OWNED > 8) {
+  throw new Error(`TARGET_OWNED must be an integer from 1 through 8: ${TARGET_OWNED}`)
+}
 fs.mkdirSync(OUT_DIR, { recursive: true })
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -57,6 +61,7 @@ for (const name of ['password', 'pwd_md5', 'token']) {
   if (evidenceUrl.searchParams.has(name)) evidenceUrl.searchParams.set(name, '[redacted]')
 }
 const evidence = { url: evidenceUrl.toString(), startedAt: new Date().toISOString(), stages: [] }
+const lastDecodedByTrack = new Map()
 
 process.on('exit', () => {
   try { ws?.close() } catch { /* ignore */ }
@@ -208,12 +213,28 @@ async function recordStage(name) {
     afterStats = await evaluate(STATS_JS)
     decodedAfter = afterStats.inbound.reduce((sum, item) => sum + item.framesDecoded, 0)
   }
+  // Monitor switches normally deliver a fresh keyframe before the UI reports
+  // the new capturingMonitor. A completely static virtual desktop may then
+  // produce no additional frames during this observation window. Preserve the
+  // previous stage's per-track counters so those already-decoded switch frames
+  // count as forward progress instead of being reported as a false failure.
+  const observationWindowDelta = decodedAfter - decodedBefore
+  let stageBoundaryDelta = 0
+  for (const inbound of afterStats.inbound) {
+    const previous = lastDecodedByTrack.get(inbound.id)
+    if (Number.isFinite(previous)) {
+      stageBoundaryDelta += Math.max(0, inbound.framesDecoded - previous)
+    }
+    lastDecodedByTrack.set(inbound.id, inbound.framesDecoded)
+  }
   const item = {
     name,
     at: new Date().toISOString(),
     state: await state(),
     stats: afterStats,
-    decodedFrameDelta: decodedAfter - decodedBefore,
+    decodedFrameDelta: Math.max(observationWindowDelta, stageBoundaryDelta),
+    observationWindowDelta,
+    stageBoundaryDelta,
     screenshot: await screenshot(name),
   }
   evidence.stages.push(item)
@@ -269,9 +290,9 @@ async function main() {
     }
   }
   const baselineOwned = baseline.owned ?? 0
-  const maxOwned = baseline.max ?? 2
-  if (baselineOwned >= maxOwned) {
-    throw new Error(`cannot add a display at baseline: owned=${baselineOwned}, max=${maxOwned}`)
+  const maxOwned = baseline.maximum ?? 8
+  if (baselineOwned >= TARGET_OWNED || TARGET_OWNED > maxOwned) {
+    throw new Error(`cannot reach requested display count: owned=${baselineOwned}, target=${TARGET_OWNED}, max=${maxOwned}`)
   }
   const baselineNames = baseline.monitors.map((monitor) => monitor.name)
   const baselineMonitor = baseline.capturingMonitor && baseline.capturingMonitor !== 'all'
@@ -281,12 +302,27 @@ async function main() {
   await ensureFloatPanelControl('[data-testid="virtual-display-add"]')
   await screenshot('01b_floating_virtual_display_controls')
   await clickElement('[data-testid="virtual-display-add"]')
-  const added = await waitFor('virtual display add and WebRTC reconnect', (s) =>
+  let added = await waitFor('virtual display add and WebRTC reconnect', (s) =>
     s.connection === 'connected' && s.pending === false && s.owned === baselineOwned + 1 &&
     s.monitors?.length === baselineNames.length + 1 && s.videoWidth > 0)
   const addedMonitor = added.monitors.find((monitor) => !baselineNames.includes(monitor.name))
   if (!addedMonitor) throw new Error(`new monitor not found: ${JSON.stringify(added.monitors)}`)
+  const addedMonitors = [addedMonitor]
   await recordStage('02_after_add_physical')
+
+  while (added.owned < TARGET_OWNED) {
+    const ownedBefore = added.owned
+    const monitorNamesBefore = added.monitors.map((monitor) => monitor.name)
+    const sent = await evaluate('window.__virtualDisplay.create()')
+    if (!sent) throw new Error(`create request ${ownedBefore + 1} was not sent`)
+    added = await waitFor(`virtual display add to owned=${ownedBefore + 1}`, (s) =>
+      s.connection === 'connected' && s.pending === false && s.owned === ownedBefore + 1 &&
+      s.monitors?.length === monitorNamesBefore.length + 1 && s.videoWidth > 0)
+    const nextMonitor = added.monitors.find((monitor) => !monitorNamesBefore.includes(monitor.name))
+    if (!nextMonitor) throw new Error(`new monitor ${ownedBefore + 1} not found: ${JSON.stringify(added.monitors)}`)
+    addedMonitors.push(nextMonitor)
+    await recordStage(`02_after_add_${ownedBefore + 1}`)
+  }
 
   if (KEEP_DISPLAY_AFTER_ADD) {
     evidence.finishedAt = new Date().toISOString()
@@ -294,17 +330,20 @@ async function main() {
     evidence.mode = 'KEEP_DISPLAY_AFTER_ADD'
     evidence.baselineOwned = baselineOwned
     evidence.baselineMonitorNames = baselineNames
-    evidence.addedMonitor = addedMonitor
+    evidence.addedMonitors = addedMonitors
     fs.writeFileSync(path.join(OUT_DIR, 'result.json'), JSON.stringify(evidence, null, 2))
     console.log(`[e2e] ADD-ONLY PASS: ${path.join(OUT_DIR, 'result.json')}`)
     return
   }
 
-  const switchToVirtual = await evaluate(`window.__virtualDisplay.switchMonitor(${JSON.stringify(addedMonitor.name)})`)
-  if (!switchToVirtual) throw new Error('switch to virtual monitor request was not sent')
-  await waitFor('switch to virtual monitor', (s) =>
-    s.connection === 'connected' && s.capturingMonitor === addedMonitor.name && s.videoWidth > 0)
-  await recordStage('03_virtual_monitor_capture')
+  for (let index = 0; index < addedMonitors.length; index++) {
+    const monitor = addedMonitors[index]
+    const switchToVirtual = await evaluate(`window.__virtualDisplay.switchMonitor(${JSON.stringify(monitor.name)})`)
+    if (!switchToVirtual) throw new Error(`switch to virtual monitor ${monitor.name} was not sent`)
+    await waitFor(`switch to virtual monitor ${monitor.name}`, (s) =>
+      s.connection === 'connected' && s.capturingMonitor === monitor.name && s.videoWidth > 0)
+    await recordStage(`03_virtual_monitor_capture_${index + 1}`)
+  }
 
   const switchToPhysical = await evaluate(`window.__virtualDisplay.switchMonitor(${JSON.stringify(baselineMonitor)})`)
   if (!switchToPhysical) throw new Error('switch back to physical monitor request was not sent')
@@ -312,12 +351,19 @@ async function main() {
     s.connection === 'connected' && s.capturingMonitor === baselineMonitor && s.videoWidth > 0)
   await recordStage('04_switched_back_physical')
 
-  await ensureFloatPanelControl('[data-testid="virtual-display-remove"]')
-  await clickElement('[data-testid="virtual-display-remove"]')
-  const removed = await waitFor('virtual display remove and WebRTC reconnect', (s) =>
-    s.connection === 'connected' && s.pending === false && s.owned === baselineOwned &&
-    s.monitors?.length === baselineNames.length &&
-    !s.monitors?.some((monitor) => monitor.name === addedMonitor.name) && s.videoWidth > 0)
+  let removed = await state()
+  while (removed.owned > baselineOwned) {
+    const ownedBefore = removed.owned
+    await ensureFloatPanelControl('[data-testid="virtual-display-remove"]')
+    await clickElement('[data-testid="virtual-display-remove"]')
+    removed = await waitFor(`virtual display remove to owned=${ownedBefore - 1}`, (s) =>
+      s.connection === 'connected' && s.pending === false && s.owned === ownedBefore - 1 &&
+      s.monitors?.length === baselineNames.length + ownedBefore - 1 - baselineOwned &&
+      s.videoWidth > 0)
+  }
+  if (removed.monitors?.some((monitor) => addedMonitors.some((addedItem) => addedItem.name === monitor.name))) {
+    throw new Error(`one or more added monitors remain after cleanup: ${JSON.stringify(removed.monitors)}`)
+  }
   const recoveredToBaseline = baselineNames.includes(removed.capturingMonitor) ||
     (removed.capturingMonitor === 'all' && baselineNames.length === 1)
   if (!recoveredToBaseline) {
@@ -329,7 +375,7 @@ async function main() {
   evidence.result = 'PASS'
   evidence.baselineOwned = baselineOwned
   evidence.baselineMonitorNames = baselineNames
-  evidence.addedMonitor = addedMonitor
+  evidence.addedMonitors = addedMonitors
   fs.writeFileSync(path.join(OUT_DIR, 'result.json'), JSON.stringify(evidence, null, 2))
   console.log(`[e2e] PASS: ${path.join(OUT_DIR, 'result.json')}`)
 }

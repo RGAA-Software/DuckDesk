@@ -457,6 +457,7 @@
   "id_file_trans_modify_time": "修改时间",
   "id_file_trans_rename": "重命名",
   "id_file_trans_del": "删除",
+  "id_file_trans_del_confirm": "确定删除选中的 %1 个项目吗？",
   "id_file_trans_new_folder": "新建文件夹",
   "id_file_trans_select_all": "全选",
   "id_file_trans_local_device": "本地设备",

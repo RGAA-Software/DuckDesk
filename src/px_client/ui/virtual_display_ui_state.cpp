@@ -7,7 +7,7 @@ namespace px {
 
     namespace {
         uint32_t NormalizeMaximum(uint32_t maximum) {
-            return maximum == 0 ? 2 : maximum;
+            return maximum == 0 ? kVirtualDisplayMaximumCount : maximum;
         }
     }
 

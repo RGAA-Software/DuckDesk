@@ -176,30 +176,23 @@ namespace px
         return true;
     }
 
-    bool RtcPlugin::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        auto queuing_msg_count = GetQueuingFtMsgCount();
-        auto has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-        auto wait_count = 0;
-        while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
-            if (rtc_servers_.Empty()) {
-                LOGW("===> Send file, no alive rtc server, drop the message.");
-                return false;
-            }
-            TimeUtil::DelayBySleep(1);
-            has_buffer = this->HasEnoughBufferForQueuingFtMessages();
-            queuing_msg_count = GetQueuingFtMsgCount();
-            wait_count++;
-        }
-        if (wait_count >= 2000) {
-            LOGW("===> Send file timeout after {}ms, drop the message, msg count: {}", wait_count, queuing_msg_count);
-            return false;
-        }
-        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
-            if (srv && srv->GetStreamId() == stream_id) {
-                srv->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+    bool RtcPlugin::PostTargetFileTransferProtoMessage(
+        const std::string& stream_id,
+        std::shared_ptr<Data> msg,
+        bool run_through,
+        const std::string& connection_instance_id) {
+        bool accepted = false;
+        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+            const bool matches_connection = connection_instance_id.empty() ||
+                (srv && srv->GetConnectionInstanceId() == connection_instance_id);
+            if (!accepted && matches_connection && srv && srv->GetStreamId() == stream_id &&
+                srv->GetFtPendingMessages() <= 256 &&
+                srv->HasEnoughBufferForQueuingFtMessages()) {
+                accepted = srv->PostTargetFileTransferProtoMessage(
+                    stream_id, msg, run_through);
             }
         });
-        return true;
+        return accepted;
     }
 
     void RtcPlugin::WaitForMediaChannelActive() {

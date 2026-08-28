@@ -1,11 +1,13 @@
 ;--------------------------------
 ; Modern UI
+Unicode true
+
 !include "MUI2.nsh"
 !include "x64.nsh"
 !include "nsProcess.nsh"
 !include "proj_version.nsh"
+!include "parsec_vdd_setup.nsh"
 
-Unicode true
 RequestExecutionLevel admin
 
 ;--------------------------------
@@ -68,16 +70,26 @@ Section "Install required files" SecMain
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
 
-    ; 2. Install the Amyuni USBMMIDD virtual display driver. Keep the working
-    ; directory on the driver payload, matching RustDesk's invocation.
-    Call InstallUsbMmIddDriver
+    ; 2. Install the Microsoft-signed Parsec virtual display driver.
+    Call InstallParsecVddDriver
     Pop $R0
-    StrCmp $R0 "0" usbmmidd_install_ok
+    StrCmp $R0 "0" parsec_vdd_install_ok
         IfSilent +2
-            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to install the USBMMIDD virtual display driver. Setup cannot continue."
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to install the Parsec virtual display driver. Setup cannot continue."
         SetErrorLevel 1603
-        Abort "USBMMIDD virtual display driver installation failed"
-usbmmidd_install_ok:
+        Abort "Parsec virtual display driver installation failed"
+parsec_vdd_install_ok:
+
+    ; Remove the legacy GammaRay USBMMIDD device/package only after Parsec VDD
+    ; is healthy. It is an upgrade cleanup path, never a runtime fallback.
+    Call CleanupLegacyUsbMmIddDriver
+    Pop $R0
+    StrCmp $R0 "0" legacy_usbmmidd_cleanup_ok
+        IfSilent +2
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the legacy USBMMIDD driver. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "Legacy USBMMIDD cleanup failed"
+legacy_usbmmidd_cleanup_ok:
 
     ; 3. Install ViGEm joystick driver silently
     ExecWait '"$INSTDIR\px_joystick.exe" /S'
@@ -107,16 +119,15 @@ SectionEnd
 ;--------------------------------
 ; Uninstaller
 Section "Uninstall"
-    ; The USBMMIDD removal tool must still be present, so remove the driver
-    ; before deleting the installation directory.
-    Call un.UninstallUsbMmIddDriver
+    ; Remove Parsec VDD only when this product installed/owns the device.
+    Call un.UninstallParsecVddDriver
     Pop $R0
-    StrCmp $R0 "0" usbmmidd_uninstall_ok
+    StrCmp $R0 "0" parsec_vdd_uninstall_ok
         IfSilent +2
-            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the USBMMIDD virtual display driver. Uninstall cannot continue."
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the Parsec virtual display driver. Uninstall cannot continue."
         SetErrorLevel 1603
-        Abort "USBMMIDD virtual display driver removal failed"
-usbmmidd_uninstall_ok:
+        Abort "Parsec virtual display driver removal failed"
+parsec_vdd_uninstall_ok:
 
     ; Delete files
     ; The driver function used $INSTDIR as its working directory. Move away
@@ -134,6 +145,7 @@ usbmmidd_uninstall_ok:
 
     ; Delete registry entries
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
+    DeleteRegKey HKLM "Software\Pixels\VirtualDisplay"
     DeleteRegValue HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe"
 
 SectionEnd
@@ -168,116 +180,6 @@ Function LaunchLink
     ExecShell "" "$INSTDIR\${APPNAME}.exe"
 FunctionEnd
 
-; Return "0" on success and "1" on failure. deviceinstaller64 starts the
-; Plug-and-Play work asynchronously, so its process exit code alone is not a
-; reliable result. Poll PnP until a healthy display device appears.
-Function InstallUsbMmIddDriver
-    IfFileExists "$INSTDIR\usbmmidd_v2\deviceinstaller64.exe" +2 0
-        Goto usbmmidd_install_failed
-    IfFileExists "$INSTDIR\usbmmidd_v2\usbmmIdd.inf" +2 0
-        Goto usbmmidd_install_failed
-
-    ; Match RustDesk's idempotent behavior: do not create another ROOT\DISPLAY
-    ; device when USBMMIDD is already installed during an upgrade/repair.
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'USB Mobile Monitor Virtual Display' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
-    Pop $R3
-    Pop $R4
-    StrCmp $R3 "0" usbmmidd_install_already_present
-
-    DetailPrint "Installing USBMMIDD virtual display driver..."
-    SetOutPath "$INSTDIR\usbmmidd_v2"
-    nsExec::ExecToStack '"$INSTDIR\usbmmidd_v2\deviceinstaller64.exe" install usbmmidd.inf usbmmidd'
-    Pop $R0
-    Pop $R1
-    DetailPrint "USBMMIDD installer exit code: $R0"
-    DetailPrint "$R1"
-
-    StrCpy $R2 0
-usbmmidd_install_verify:
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'USB Mobile Monitor Virtual Display' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
-    Pop $R3
-    Pop $R4
-    StrCmp $R3 "0" usbmmidd_install_verified
-    IntOp $R2 $R2 + 1
-    StrCmp $R2 "60" usbmmidd_install_failed
-    Sleep 500
-    Goto usbmmidd_install_verify
-
-usbmmidd_install_verified:
-    DetailPrint "USBMMIDD virtual display driver is installed."
-    SetOutPath "$INSTDIR"
-    Push "0"
-    Return
-
-usbmmidd_install_already_present:
-    DetailPrint "USBMMIDD virtual display driver is already installed; skipping device creation."
-    SetOutPath "$INSTDIR"
-    Push "0"
-    Return
-
-usbmmidd_install_failed:
-    DetailPrint "USBMMIDD virtual display driver was not detected after installation."
-    SetOutPath "$INSTDIR"
-    Push "1"
-FunctionEnd
-
-; Remove all USBMMIDD monitors and the root display device before deleting the
-; bundled deviceinstaller64.exe. This is the vendor/RustDesk removal path.
-Function un.UninstallUsbMmIddDriver
-    IfFileExists "$INSTDIR\usbmmidd_v2\deviceinstaller64.exe" +3 0
-        DetailPrint "USBMMIDD removal tool is absent; verifying that the driver is absent."
-        Goto usbmmidd_uninstall_verify
-
-    DetailPrint "Removing USBMMIDD virtual display driver..."
-    SetOutPath "$INSTDIR\usbmmidd_v2"
-    nsExec::ExecToLog '"$INSTDIR\usbmmidd_v2\deviceinstaller64.exe" stop usbmmidd'
-    nsExec::ExecToStack '"$INSTDIR\usbmmidd_v2\deviceinstaller64.exe" remove usbmmidd'
-    Pop $R0
-    Pop $R1
-    DetailPrint "USBMMIDD remover exit code: $R0"
-    DetailPrint "$R1"
-
-usbmmidd_uninstall_verify:
-    StrCpy $R2 0
-usbmmidd_uninstall_verify_loop:
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'USB Mobile Monitor Virtual Display' }); if ($$device.Count -eq 0) { exit 0 }; exit 1"`
-    Pop $R3
-    Pop $R4
-    StrCmp $R3 "0" usbmmidd_uninstall_verified
-    IntOp $R2 $R2 + 1
-    StrCmp $R2 "60" usbmmidd_uninstall_failed
-    Sleep 500
-    Goto usbmmidd_uninstall_verify_loop
-
-usbmmidd_uninstall_verified:
-    DetailPrint "USBMMIDD device node is removed; deleting its staged driver package..."
-    ; deviceinstaller64 follows the RustDesk/vendor device-removal path, but
-    ; Windows normally leaves the signed INF staged in Driver Store. The
-    ; product owns this package, so remove only the exact Amyuni usbmmIdd.inf
-    ; package as part of a full product uninstall.
-    SetOutPath "$PLUGINSDIR"
-    File /oname=remove_usbmmidd_driver_store.ps1 "remove_usbmmidd_driver_store.ps1"
-    ${DisableX64FSRedirection}
-    nsExec::ExecToStack '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\remove_usbmmidd_driver_store.ps1"'
-    ${EnableX64FSRedirection}
-    Pop $R3
-    Pop $R4
-    DetailPrint "$R4"
-    StrCmp $R3 "0" usbmmidd_driver_store_removed
-    Goto usbmmidd_uninstall_failed
-
-usbmmidd_driver_store_removed:
-    DetailPrint "USBMMIDD virtual display driver and Driver Store package are removed."
-    SetOutPath "$INSTDIR"
-    Push "0"
-    Return
-
-usbmmidd_uninstall_failed:
-    DetailPrint "USBMMIDD virtual display driver is still present."
-    SetOutPath "$INSTDIR"
-    Push "1"
-FunctionEnd
-
 Function StopAndDeleteService
     ; net stop synchronization: first ensure the service is stopped and removed,
     ; cutting off the restart source
@@ -300,6 +202,7 @@ Function KillProcesses
     nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
 FunctionEnd
@@ -310,6 +213,7 @@ Function un.KillProcesses
     nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
 FunctionEnd

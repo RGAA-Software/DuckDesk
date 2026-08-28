@@ -1,0 +1,125 @@
+﻿using System;
+using System.Reflection;
+using Microsoft.Win32;
+
+namespace ParsecDisplay
+{
+    internal static class Config
+    {
+        static string REG_PATH => $"HKEY_CURRENT_USER\\SOFTWARE\\{Program.AppName}";
+        static string REG_STARTUP_PATH => @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+
+        public static string Language
+        {
+            get => GetString(nameof(Language), "English");
+            set => SetString(nameof(Language), value);
+        }
+
+        /// <summary>
+        /// Whether to restore previously-added virtual displays at startup and
+        /// after sleep/resume. The actual saved state lives in
+        /// <see cref="SavedDisplays"/>; this is just the on/off switch.
+        /// </summary>
+        public static bool RestoreDisplays
+        {
+            get => GetInt(nameof(RestoreDisplays), 1) != 0;
+            set => SetInt(nameof(RestoreDisplays), value ? 1 : 0);
+        }
+
+        /// <summary>
+        /// Packed snapshot of the last-known displays state. Format is a
+        /// comma-separated list of WxH@Hz/O entries (see Display.State.Pack).
+        /// Empty string means no saved state.
+        /// </summary>
+        public static string SavedDisplays
+        {
+            get => GetString(nameof(SavedDisplays), string.Empty);
+            set => SetString(nameof(SavedDisplays), value ?? string.Empty);
+        }
+
+        public static bool FallbackDisplay
+        {
+            get => GetInt(nameof(FallbackDisplay)) != 0;
+            set => SetInt(nameof(FallbackDisplay), value ? 1 : 0);
+        }
+
+        public static bool KeepScreenOn
+        {
+            get
+            {
+                bool enable = GetInt(nameof(KeepScreenOn)) != 0;
+                Helper.StayAwake(enable);
+                return enable;
+            }
+            set
+            {
+                SetInt(nameof(KeepScreenOn), value ? 1 : 0);
+                Helper.StayAwake(value);
+            }
+        }
+
+        public static bool SkipDriverCheck
+        {
+            get => GetInt(nameof(SkipDriverCheck)) != 0;
+            set => SetInt(nameof(SkipDriverCheck), value ? 1 : 0);
+        }
+
+        public static int MirroringFPS
+        {
+            get => GetInt(nameof(MirroringFPS), 30);
+            set => SetInt(nameof(MirroringFPS), value);
+        }
+
+        #region Registry data store
+
+        static string GetString(string key, string @default)
+        {
+            var value = Registry.GetValue(REG_PATH, key, null);
+            return value == null ? @default : Convert.ToString(value);
+        }
+
+        static void SetString(string key, string value)
+        {
+            Registry.SetValue(REG_PATH, key, value, RegistryValueKind.String);
+        }
+
+        static int GetInt(string key, int @default = 0)
+        {
+            var value = Registry.GetValue(REG_PATH, key, null);
+            return value == null ? @default : Convert.ToInt32(value);
+        }
+
+        static void SetInt(string key, int value)
+        {
+            Registry.SetValue(REG_PATH, key, value, RegistryValueKind.DWord);
+        }
+
+        #endregion
+
+        public static bool RunOnStartup
+        {
+            get
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(REG_STARTUP_PATH, false))
+                {
+                    return key.GetValue(Program.AppName) != null;
+                }
+            }
+            set
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(REG_STARTUP_PATH, true))
+                {
+                    if (value)
+                    {
+                        var exePath = Assembly.GetExecutingAssembly().Location;
+                        key.SetValue(Program.AppName, $"\"{exePath}\" -silent", RegistryValueKind.String);
+                    }
+                    else
+                    {
+                        key.DeleteValue(Program.AppName, false);
+                    }
+                }
+            }
+        }
+    }
+}

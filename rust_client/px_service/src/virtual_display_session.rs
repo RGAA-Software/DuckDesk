@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::usbmmidd::{MonitorSnapshot, UsbMmIddBackend, UsbMmIddError, WindowsUsbMmIddBackend};
+use crate::parsec_vdd::{
+    MonitorSnapshot, ParsecVddError, VirtualDisplayBackend, WindowsParsecVddBackend,
+};
 use crate::windows_process::ProcessManager;
 
 const QUERY_WORKER_TIMEOUT: Duration = Duration::from_secs(8);
@@ -62,7 +64,7 @@ impl SessionWorkerResponse {
         }
     }
 
-    fn failure(nonce: &str, error: UsbMmIddError) -> Self {
+    fn failure(nonce: &str, error: ParsecVddError) -> Self {
         Self {
             nonce: nonce.to_string(),
             ok: false,
@@ -73,11 +75,11 @@ impl SessionWorkerResponse {
         }
     }
 
-    fn into_result(self) -> Result<Self, UsbMmIddError> {
+    fn into_result(self) -> Result<Self, ParsecVddError> {
         if self.ok {
             Ok(self)
         } else {
-            Err(UsbMmIddError::new(
+            Err(ParsecVddError::new(
                 "SESSION_WORKER_OPERATION_FAILED",
                 format!("{}: {}", self.error_code, self.error_message),
             ))
@@ -94,7 +96,7 @@ pub fn run_session_worker(
     result_file: &Path,
     nonce: &str,
 ) -> Result<(), String> {
-    let backend = WindowsUsbMmIddBackend::new(driver_dir);
+    let backend = WindowsParsecVddBackend::new(driver_dir);
     let response = match operation {
         SessionWorkerOperation::Query => backend
             .enumerate_monitors()
@@ -117,27 +119,27 @@ pub fn run_session_worker(
     fs::rename(&temp, result_file).map_err(|err| err.to_string())
 }
 
-pub struct SessionUsbMmIddBackend {
-    direct: WindowsUsbMmIddBackend,
+pub struct SessionParsecVddBackend {
+    direct: WindowsParsecVddBackend,
     worker_dir: PathBuf,
     process_manager: Arc<dyn ProcessManager>,
     executable: PathBuf,
 }
 
-impl SessionUsbMmIddBackend {
+impl SessionParsecVddBackend {
     pub fn new(
         driver_dir: PathBuf,
         worker_dir: PathBuf,
         process_manager: Arc<dyn ProcessManager>,
-    ) -> Result<Self, UsbMmIddError> {
+    ) -> Result<Self, ParsecVddError> {
         let executable = std::env::current_exe().map_err(|err| {
-            UsbMmIddError::new(
+            ParsecVddError::new(
                 "SESSION_WORKER_EXE_NOT_FOUND",
                 format!("cannot resolve px_service executable: {err}"),
             )
         })?;
         Ok(Self {
-            direct: WindowsUsbMmIddBackend::new(driver_dir),
+            direct: WindowsParsecVddBackend::new(driver_dir),
             worker_dir,
             process_manager,
             executable,
@@ -150,9 +152,9 @@ impl SessionUsbMmIddBackend {
         width: u32,
         height: u32,
         refresh_hz: u32,
-    ) -> Result<SessionWorkerResponse, UsbMmIddError> {
+    ) -> Result<SessionWorkerResponse, ParsecVddError> {
         fs::create_dir_all(&self.worker_dir).map_err(|err| {
-            UsbMmIddError::new(
+            ParsecVddError::new(
                 "SESSION_WORKER_DIR_FAILED",
                 format!("cannot create {}: {err}", self.worker_dir.display()),
             )
@@ -193,14 +195,14 @@ impl SessionUsbMmIddBackend {
             // driver IOCTL but cannot reliably observe or configure its
             // DISPLAYn output. Keep this boundary on the real WTS user token.
             .start_process_as_session_user(&work_dir, &executable, &args)
-            .map_err(|err| UsbMmIddError::new("SESSION_WORKER_LAUNCH_FAILED", err))?;
+            .map_err(|err| ParsecVddError::new("SESSION_WORKER_LAUNCH_FAILED", err))?;
 
         let worker_timeout = operation.timeout();
         let deadline = Instant::now() + worker_timeout;
         while Instant::now() < deadline {
             if result_file.exists() {
                 let payload = fs::read(&result_file).map_err(|err| {
-                    UsbMmIddError::new(
+                    ParsecVddError::new(
                         "SESSION_WORKER_RESULT_READ_FAILED",
                         format!("cannot read {}: {err}", result_file.display()),
                     )
@@ -208,10 +210,10 @@ impl SessionUsbMmIddBackend {
                 let _ = fs::remove_file(&result_file);
                 let response: SessionWorkerResponse =
                     serde_json::from_slice(&payload).map_err(|err| {
-                        UsbMmIddError::new("SESSION_WORKER_RESULT_INVALID", err.to_string())
+                        ParsecVddError::new("SESSION_WORKER_RESULT_INVALID", err.to_string())
                     })?;
                 if response.nonce != nonce {
-                    return Err(UsbMmIddError::new(
+                    return Err(ParsecVddError::new(
                         "SESSION_WORKER_NONCE_MISMATCH",
                         "session worker response nonce did not match",
                     ));
@@ -220,7 +222,7 @@ impl SessionUsbMmIddBackend {
             }
             thread::sleep(Duration::from_millis(100));
         }
-        Err(UsbMmIddError::new(
+        Err(ParsecVddError::new(
             "SESSION_WORKER_TIMEOUT",
             format!(
                 "interactive virtual display worker did not answer within {:?}",
@@ -230,8 +232,8 @@ impl SessionUsbMmIddBackend {
     }
 }
 
-impl UsbMmIddBackend for SessionUsbMmIddBackend {
-    fn verify_package(&self) -> Result<(), UsbMmIddError> {
+impl VirtualDisplayBackend for SessionParsecVddBackend {
+    fn verify_package(&self) -> Result<(), ParsecVddError> {
         self.direct.verify_package()
     }
 
@@ -239,11 +241,11 @@ impl UsbMmIddBackend for SessionUsbMmIddBackend {
         self.direct.driver_installed()
     }
 
-    fn install_driver(&self) -> Result<(), UsbMmIddError> {
+    fn install_driver(&self) -> Result<(), ParsecVddError> {
         self.direct.install_driver()
     }
 
-    fn enumerate_monitors(&self) -> Result<Vec<MonitorSnapshot>, UsbMmIddError> {
+    fn enumerate_monitors(&self) -> Result<Vec<MonitorSnapshot>, ParsecVddError> {
         self.execute(SessionWorkerOperation::Query, 0, 0, 0)
             .map(|response| response.monitors)
     }
@@ -253,20 +255,20 @@ impl UsbMmIddBackend for SessionUsbMmIddBackend {
         width: u32,
         height: u32,
         refresh_hz: u32,
-    ) -> Result<MonitorSnapshot, UsbMmIddError> {
+    ) -> Result<MonitorSnapshot, ParsecVddError> {
         // Driver installation is system-wide and remains Service-owned.
         self.direct.install_driver()?;
         self.execute(SessionWorkerOperation::Create, width, height, refresh_hz)?
             .monitor
             .ok_or_else(|| {
-                UsbMmIddError::new(
+                ParsecVddError::new(
                     "SESSION_WORKER_RESULT_INVALID",
                     "create worker returned no monitor",
                 )
             })
     }
 
-    fn remove_last_monitor(&self) -> Result<(), UsbMmIddError> {
+    fn remove_last_monitor(&self) -> Result<(), ParsecVddError> {
         self.execute(SessionWorkerOperation::RemoveLast, 0, 0, 0)
             .map(|_| ())
     }
@@ -276,7 +278,7 @@ impl UsbMmIddBackend for SessionUsbMmIddBackend {
 fn identify_created_monitor(
     before: &[MonitorSnapshot],
     after: &[MonitorSnapshot],
-) -> Result<MonitorSnapshot, UsbMmIddError> {
+) -> Result<MonitorSnapshot, ParsecVddError> {
     let before_names: std::collections::HashSet<_> = before
         .iter()
         .map(|monitor| monitor.device_name.as_str())
@@ -286,9 +288,9 @@ fn identify_created_monitor(
         .find(|monitor| !before_names.contains(monitor.device_name.as_str()))
         .cloned()
         .ok_or_else(|| {
-            UsbMmIddError::new(
+            ParsecVddError::new(
                 "MONITOR_ENUMERATION_FAILED",
-                "USBMMIDD count increased but no new monitor could be identified",
+                "Parsec VDD count increased but no new monitor could be identified",
             )
         })
 }
@@ -323,7 +325,7 @@ mod tests {
     #[test]
     fn worker_response_rejects_failure() {
         let response =
-            SessionWorkerResponse::failure("nonce", UsbMmIddError::new("TEST", "failed"));
+            SessionWorkerResponse::failure("nonce", ParsecVddError::new("TEST", "failed"));
         assert!(response.into_result().is_err());
     }
 

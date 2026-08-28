@@ -4,8 +4,17 @@
 #include "render_view_capacity.h"
 #include "px_common_new/rtc_monitor_track_slots.h"
 #include "ui/virtual_display_ui_state.h"
+#include "px_common_new/virtual_display_timeouts.h"
 
 namespace px {
+
+    TEST(VirtualDisplayTimeoutTest, BudgetsCoverEachSlowerDownstreamPhase) {
+        EXPECT_GT(kVirtualDisplayQueryRenderTimeout, kVirtualDisplayQueryServiceTimeout);
+        EXPECT_GT(kVirtualDisplayMutationRenderTimeout, kVirtualDisplayMutationServiceTimeout);
+        EXPECT_GT(kVirtualDisplayResetRenderTimeout, kVirtualDisplayResetServiceTimeout);
+        EXPECT_GT(kVirtualDisplayClientOperationTimeout,
+                  kVirtualDisplayMutationRenderTimeout + kVirtualDisplayCaptureRebuildTimeout);
+    }
 
     TEST(RenderViewCapacityTest, StartsWithOnlyTheMainView) {
         EXPECT_EQ(ResolveRequiredRenderViewCount(0, 4), 1U);
@@ -40,12 +49,12 @@ namespace px {
 
         EXPECT_FALSE(state.CanAdd());
         EXPECT_FALSE(state.CanRemove());
-        EXPECT_EQ(state.Maximum(), 2U);
+        EXPECT_EQ(state.Maximum(), kVirtualDisplayMaximumCount);
 
         state.ApplyStatus(true, 0, 0, 7);
         EXPECT_TRUE(state.CanAdd());
         EXPECT_FALSE(state.CanRemove());
-        EXPECT_EQ(state.Maximum(), 2U);
+        EXPECT_EQ(state.Maximum(), kVirtualDisplayMaximumCount);
         EXPECT_EQ(state.Generation(), 7U);
     }
 

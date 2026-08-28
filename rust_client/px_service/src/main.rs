@@ -2,9 +2,9 @@
 
 mod app;
 mod console_client;
+mod parsec_vdd;
 mod service_host;
 mod service_windows;
-mod usbmmidd;
 mod user_proxy;
 mod virtual_display_manager;
 mod virtual_display_session;

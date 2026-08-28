@@ -19,6 +19,7 @@
 #include <asio2/external/asio.hpp>
 #include <asio2/util/event_dispatcher.hpp>
 
+#include "async_runtime.h"
 #include "log.h"
 
 namespace px
@@ -56,164 +57,6 @@ namespace px
             }
         };
 
-        class AsioRuntime {
-        public:
-            explicit AsioRuntime(std::size_t worker_threads)
-                : state_(std::make_shared<State>()),
-                  worker_threads_(std::max<std::size_t>(1, worker_threads)) {
-            }
-
-            ~AsioRuntime() {
-                Cancel();
-                Join();
-            }
-
-            void Start() {
-                std::lock_guard lock(join_mutex_);
-                if (!threads_.empty()) {
-                    return;
-                }
-                threads_.emplace_back(MakeRunner(RuntimeLane::kControl));
-                threads_.emplace_back(MakeRunner(RuntimeLane::kState));
-                for (std::size_t index = 0; index < worker_threads_; ++index) {
-                    threads_.emplace_back(MakeRunner(RuntimeLane::kWorker));
-                }
-            }
-
-            asio::io_context& ControlContext() {
-                return state_->control_context;
-            }
-
-            asio::io_context& StateContext() {
-                return state_->state_context;
-            }
-
-            asio::io_context& WorkerContext() {
-                return state_->worker_context;
-            }
-
-            bool IsControlThread() const {
-                std::lock_guard lock(state_->thread_ids_mutex);
-                return state_->control_thread_id == std::this_thread::get_id();
-            }
-
-            bool IsRuntimeThread() const {
-                std::lock_guard lock(state_->thread_ids_mutex);
-                return state_->thread_ids.contains(std::this_thread::get_id());
-            }
-
-            void ReleaseWork() {
-                bool expected = false;
-                if (!state_->work_released.compare_exchange_strong(
-                        expected, true, std::memory_order_acq_rel)) {
-                    return;
-                }
-                state_->control_guard.reset();
-                state_->state_guard.reset();
-                state_->worker_guard.reset();
-            }
-
-            void Cancel() {
-                ReleaseWork();
-                state_->control_context.stop();
-                state_->state_context.stop();
-                state_->worker_context.stop();
-            }
-
-            void Join() {
-                std::vector<std::thread> threads;
-                bool use_reaper = false;
-                {
-                    std::lock_guard lock(join_mutex_);
-                    if (threads_.empty()) {
-                        return;
-                    }
-                    use_reaper = IsRuntimeThread();
-                    threads.swap(threads_);
-                }
-
-                if (use_reaper) {
-                    std::thread([threads = std::move(threads)]() mutable {
-                        for (auto& thread : threads) {
-                            if (thread.joinable()) {
-                                thread.join();
-                            }
-                        }
-                    }).detach();
-                    return;
-                }
-                for (auto& thread : threads) {
-                    if (thread.joinable()) {
-                        thread.join();
-                    }
-                }
-            }
-
-        private:
-            enum class RuntimeLane {
-                kControl,
-                kState,
-                kWorker,
-            };
-
-            struct State {
-                State()
-                    : control_guard(asio::make_work_guard(control_context)),
-                      state_guard(asio::make_work_guard(state_context)),
-                      worker_guard(asio::make_work_guard(worker_context)) {
-                }
-
-                asio::io_context control_context;
-                asio::io_context state_context;
-                asio::io_context worker_context;
-                asio::executor_work_guard<asio::io_context::executor_type> control_guard;
-                asio::executor_work_guard<asio::io_context::executor_type> state_guard;
-                asio::executor_work_guard<asio::io_context::executor_type> worker_guard;
-                std::mutex thread_ids_mutex;
-                std::thread::id control_thread_id{};
-                std::set<std::thread::id> thread_ids;
-                std::atomic_bool work_released{false};
-            };
-
-            std::function<void()> MakeRunner(RuntimeLane lane) {
-                auto state = state_;
-                return [state, lane]() {
-                    const auto thread_id = std::this_thread::get_id();
-                    {
-                        std::lock_guard lock(state->thread_ids_mutex);
-                        state->thread_ids.insert(thread_id);
-                        if (lane == RuntimeLane::kControl) {
-                            state->control_thread_id = thread_id;
-                        }
-                    }
-
-                    switch (lane) {
-                    case RuntimeLane::kControl:
-                        state->control_context.run();
-                        break;
-                    case RuntimeLane::kState:
-                        state->state_context.run();
-                        break;
-                    case RuntimeLane::kWorker:
-                        state->worker_context.run();
-                        break;
-                    }
-
-                    {
-                        std::lock_guard lock(state->thread_ids_mutex);
-                        state->thread_ids.erase(thread_id);
-                        if (lane == RuntimeLane::kControl) {
-                            state->control_thread_id = {};
-                        }
-                    }
-                };
-            }
-
-            std::shared_ptr<State> state_;
-            const std::size_t worker_threads_;
-            std::mutex join_mutex_;
-            std::vector<std::thread> threads_;
-        };
     }
 
     class MessageListenerRegistration {
@@ -245,7 +88,7 @@ namespace px
             : max_pending_messages_(std::max<std::size_t>(1, options.max_pending_messages)),
               max_state_callbacks_(std::max<std::size_t>(1, options.max_state_callbacks)),
               max_worker_callbacks_(std::max<std::size_t>(1, options.max_worker_callbacks)),
-              runtime_(std::make_shared<AsioRuntime>(options.worker_threads)) {
+              runtime_(PxAsyncRuntime::Create({.worker_threads = options.worker_threads})) {
             static_assert(ASIO_VERSION == PX_ASIO_VERSION,
                           "GammaRay and asio2 must use the configured standalone Asio version");
             runtime_->Start();
@@ -458,10 +301,10 @@ namespace px
                 }
             };
             if (lane == MessageExecutionLane::kState) {
-                asio::post(runtime_->StateContext(), std::move(task));
+                asio::post(runtime_->Executor(PxAsyncLane::kState), std::move(task));
             }
             else {
-                asio::post(runtime_->WorkerContext(), std::move(task));
+                asio::post(runtime_->Executor(PxAsyncLane::kWorker), std::move(task));
             }
         }
 
@@ -528,7 +371,7 @@ namespace px
                         cancel_requested_ = true;
                     }
                     queue_idle_cv_.notify_all();
-                    runtime_->Cancel();
+                    runtime_->RequestStop();
                 }
                 else if (IsDispatchThread()) {
                     {
@@ -543,7 +386,7 @@ namespace px
                     // queued state/worker callbacks have finished.
                     (void)Flush(std::chrono::seconds(10));
                     DeactivateListeners();
-                    runtime_->ReleaseWork();
+                    runtime_->RequestDrain();
                 }
             }
 
@@ -629,7 +472,7 @@ namespace px
                 return;
             }
             drain_scheduled_ = true;
-            asio::post(runtime_->ControlContext(),
+            asio::post(runtime_->Executor(PxAsyncLane::kControl),
                        [self = shared_from_this()]() { self->Drain(); });
         }
 
@@ -727,7 +570,7 @@ namespace px
             }
             if (finish) {
                 DeactivateListeners();
-                runtime_->ReleaseWork();
+                runtime_->RequestDrain();
                 stopped_.store(true, std::memory_order_release);
                 queue_idle_cv_.notify_all();
             }
@@ -746,7 +589,7 @@ namespace px
         const std::size_t max_pending_messages_;
         const std::size_t max_state_callbacks_;
         const std::size_t max_worker_callbacks_;
-        std::shared_ptr<AsioRuntime> runtime_;
+        std::shared_ptr<PxAsyncRuntime> runtime_;
         Dispatcher dispatcher_;
 
         std::mutex listener_states_mutex_;

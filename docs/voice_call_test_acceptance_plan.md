@@ -72,7 +72,7 @@
 | 音频输出 | 3.5mm/USB耳机、USB扬声器、内置声卡、蓝牙通信设备 |
 | 音频输入 | 内置麦克风、USB麦克风、蓝牙麦克风、无麦克风 |
 | 传输 | WebSocket/当前默认直连（P0）、Relay（P0）、UDP/KCP（启用时P1）、WebRTC local（Web P0） |
-| 显示 | 单物理屏、多物理屏、USBMMIDD虚拟屏、物理/虚拟切换 |
+| 显示 | 单物理屏、多物理屏、Parsec VDD 虚拟屏、物理/虚拟切换 |
 | 负载 | 空闲、高清视频、桌面系统声、文件传输、三者并发 |
 
 若某传输在产品配置中未启用，可记 N/A，但必须记录配置与产品声明；不能用一种传输的结果推导其他传输通过。
@@ -158,7 +158,7 @@ npm run build
 
 Web真实浏览器脚本为 `scripts/cdp_voice_call_e2e.mjs`。它只从运行时 `WEB_URL` 取连接信息，证据会脱敏包括 `c` 在内的敏感查询参数，并在截图前遮盖受控桌面；`EXPECTED_DECISION=accept/reject/timeout` 分别覆盖正式Panel决定。accept路径还会验证两条audio m-line、接受前sender无track、双向RTP增长、双向独立静音和挂断后track ended。调用方必须用真实Panel操作或UI Automation执行决定，脚本自身不绕过授权。`ALLOW_INSECURE_MEDIA_TEST=1` 仅允许在自动化中把指定 HTTP 源临时视作安全源，结果必须标记该开关且不能替代生产 HTTPS 验收；正常 HTTP 必须另以 `EXPECT_INSECURE_BLOCK=1` 验证明确禁用和不采集麦克风。
 
-候选安装包部署后运行 `scripts/validate_voice_install.ps1`，验证 Service/Panel、语音 APM 与插件、WebClient、两端安全提示、卸载登记及 USBMMIDD 健康状态，并把文件哈希、驱动签名信息、进程和监听端口写入 JSON。该脚本只做安装健康检查，不替代真实呼叫媒体 E2E。
+候选安装包部署后运行 `scripts/validate_voice_install.ps1`，验证 Service/Panel、语音 APM 与插件、WebClient、两端安全提示、卸载登记、Parsec VDD 签名与健康状态，并把文件哈希、驱动签名信息、进程和监听端口写入 JSON。该脚本只做安装健康检查，不替代真实呼叫媒体 E2E。
 
 ## 6. 单元与组件测试用例
 
@@ -443,7 +443,7 @@ Web真实浏览器脚本为 `scripts/cdp_voice_call_e2e.mjs`。它只从运行�
 2. `/S` 静默覆盖安装，核对返回码、服务状态、模块数量、监听端口、插件加载日志、版本和SHA-256。
 3. 原生客户端连接，确认物理屏首帧和 capability；执行呼叫→真实Panel接受→双向语音→双方静音→挂断。
 4. 执行拒绝、30秒超时、等待中取消、错误call重放和第二客户端busy。
-5. 添加一块USBMMIDD屏，采集新增屏，切回物理屏；通话中切屏；移除测试屏并确认画面恢复。
+5. 添加一块 Parsec VDD 屏，采集新增屏，切回物理屏；通话中切屏；移除测试屏并确认画面恢复。容量回归另覆盖 1、2、4、8 屏以及第 9 屏拒绝。
 6. WebClient先在正常 `http://IP` 验证安全上下文禁用提示，再在生产 HTTPS 入口用Chrome通过真实鼠标操作悬浮按钮，完成浏览器授权、Panel接受、双向语音、静音、挂断、刷新清理；仅测试安全源开关的结果不得冒充生产 HTTPS。
 7. 分别验证当前默认直连与Relay；记录实际选中传输，禁止根据配置推测。
 8. 重启Panel、Render和Service，执行断网/恢复、锁屏/解锁；确认状态和设备释放。

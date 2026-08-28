@@ -557,72 +557,37 @@ namespace px
         stat_->AppendSentDataSize(msg->Size());
     }
 
-    void NetClient::PostFileTransferMessage(std::shared_ptr<Data> msg) {
-        if (sdk_params_->enable_p2p_ && rtc_conn_ && rtc_conn_->IsFtChannelReady()) {
-            auto queuing_msg_count = rtc_conn_->GetQueuingFtMsgCount();
-            auto has_enough_buffer = rtc_conn_->HasEnoughBufferForQueuingFtMessages();
-            int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages || !has_enough_buffer) {
-                if (!rtc_conn_->IsFtChannelReady()) {
-                    return;
-                }
-                TimeUtil::DelayByCount(1);
-                queuing_msg_count = rtc_conn_->GetQueuingFtMsgCount();
-                has_enough_buffer = rtc_conn_->HasEnoughBufferForQueuingFtMessages();
-                wait_count++;
-            }
-            if (wait_count > 0) {
-                LOGI("===> [RTC File] wait for {}ms", wait_count);
-            }
+    FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> msg) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError("file-transfer message is empty");
+        }
 
+        if (sdk_params_->enable_p2p_ && rtc_conn_ && rtc_conn_->IsFtChannelReady()) {
+            if (rtc_conn_->GetQueuingFtMsgCount() >= kMaxQueuingFtMessages ||
+                !rtc_conn_->HasEnoughBufferForQueuingFtMessages()) {
+                return FileTransferSendResult::Busy("standard RTC file channel is congested");
+            }
             rtc_conn_->PostFtMessage(msg);
         }
         else if (rtc_local_conn_ && rtc_local_conn_->IsFtChannelReady()) {
-            auto queuing_msg_count = rtc_local_conn_->GetQueuingFtMsgCount();
-            auto has_enough_buffer = rtc_local_conn_->HasEnoughBufferForQueuingFtMessages();
-            int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages || !has_enough_buffer) {
-                if (!rtc_local_conn_->IsFtChannelReady()) {
-                    return;
-                }
-                TimeUtil::DelayByCount(1);
-                queuing_msg_count = rtc_local_conn_->GetQueuingFtMsgCount();
-                has_enough_buffer = rtc_local_conn_->HasEnoughBufferForQueuingFtMessages();
-                wait_count++;
+            if (rtc_local_conn_->GetQueuingFtMsgCount() >= kMaxQueuingFtMessages ||
+                !rtc_local_conn_->HasEnoughBufferForQueuingFtMessages()) {
+                return FileTransferSendResult::Busy("direct RTC file channel is congested");
             }
-            if (wait_count > 0) {
-                LOGI("===> [RTC Local File] wait for {}ms", wait_count);
-            }
-
             rtc_local_conn_->PostFtMessage(msg);
         }
         else {
-            // TODO:
-            auto queuing_msg_count = this->GetQueuingFtMsgCount();
-            int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages && wait_count < 2000) {
-                if (!ft_conn_ || !ft_conn_->IsAlive()) {
-                    LOGW("===> [WS File] connection not alive, drop the message, queuing: {}", queuing_msg_count);
-                    return;
-                }
-                //LOGI("===> queue too many msgs, count: {}, wait for 1ms", queuing_msg_count);
-                TimeUtil::DelayBySleep(1);
-                queuing_msg_count = this->GetQueuingFtMsgCount();
-                wait_count++;
+            if (!ft_conn_ || !ft_conn_->IsAlive()) {
+                return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
             }
-            if (wait_count >= 2000) {
-                LOGW("===> [WS File] wait timeout after {}ms, drop the message, queuing: {}", wait_count, queuing_msg_count);
-                return;
+            if (ft_conn_->GetQueuingMsgCount() >= kMaxQueuingFtMessages) {
+                return FileTransferSendResult::Busy("file-transfer connection queue is full");
             }
-            if (wait_count > 0) {
-                LOGI("===> [WS File] wait for {}ms", wait_count);
-            }
-            if (ft_conn_) {
-                ft_conn_->PostBinaryMessage(msg);
-            }
+            ft_conn_->PostBinaryMessage(msg);
         }
 
         stat_->AppendSentDataSize(msg->Size());
+        return FileTransferSendResult::Accepted();
     }
 
     void NetClient::SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& cbk) {
@@ -694,7 +659,7 @@ namespace px
         auto proto_msg = msg->SerializeAsString();
         if (auto buffer = px::ProtoAsData(msg); buffer) {
             this->PostMediaMessage(buffer);
-            this->PostFileTransferMessage(buffer);
+            static_cast<void>(this->PostFileTransferMessage(buffer));
         }
     }
 
