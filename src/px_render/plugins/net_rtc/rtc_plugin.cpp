@@ -176,23 +176,55 @@ namespace px
         return true;
     }
 
-    bool RtcPlugin::PostTargetFileTransferProtoMessage(
+    FileTransferSendResult RtcPlugin::PostTargetFileTransferProtoMessage(
         const std::string& stream_id,
         std::shared_ptr<Data> msg,
         bool run_through,
         const std::string& connection_instance_id) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError(
+                "standard RTC file-transfer payload is empty");
+        }
+        bool matched = false;
+        bool congested = false;
+        bool disconnected = false;
         bool accepted = false;
+        std::shared_ptr<FileTransferWritableSignal> writable_signal;
         rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             const bool matches_connection = connection_instance_id.empty() ||
                 (srv && srv->GetConnectionInstanceId() == connection_instance_id);
-            if (!accepted && matches_connection && srv && srv->GetStreamId() == stream_id &&
-                srv->GetFtPendingMessages() <= 256 &&
-                srv->HasEnoughBufferForQueuingFtMessages()) {
-                accepted = srv->PostTargetFileTransferProtoMessage(
-                    stream_id, msg, run_through);
+            if (accepted || !matches_connection || !srv || srv->GetStreamId() != stream_id) {
+                return;
             }
+            matched = true;
+            if (!srv->IsFtDataChannelConnected()) {
+                disconnected = true;
+                return;
+            }
+            if (srv->GetFtPendingMessages() >= kMaxFileTransferQueuedMessages ||
+                !srv->HasEnoughBufferForQueuingFtMessages()) {
+                congested = true;
+                writable_signal = srv->AcquireFtWritableSignal();
+                return;
+            }
+            accepted = srv->PostTargetFileTransferProtoMessage(
+                stream_id, msg, run_through);
+            disconnected = !accepted;
         });
-        return accepted;
+        if (accepted) {
+            return FileTransferSendResult::Accepted();
+        }
+        if (congested) {
+            return FileTransferSendResult::Busy(
+                "standard RTC file data channel is congested",
+                std::move(writable_signal));
+        }
+        if (matched || disconnected) {
+            return FileTransferSendResult::Disconnected(
+                "standard RTC file data channel is not connected");
+        }
+        return FileTransferSendResult::Disconnected(
+            "standard RTC file-transfer session was not found");
     }
 
     void RtcPlugin::WaitForMediaChannelActive() {

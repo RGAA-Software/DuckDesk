@@ -5,10 +5,13 @@
 #ifndef PX_RELAY_NET_CLIENT_H
 #define PX_RELAY_NET_CLIENT_H
 
+#include <memory>
+
 #include "relay_callbacks.h"
 
 namespace px
 {
+    class FileTransferWritableSignal;
 
     class Data;
 
@@ -50,6 +53,10 @@ namespace px
 
         virtual int64_t GetQueuingMsgCount() {
             return 0;
+        }
+        [[nodiscard]] virtual std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal() {
+            return {};
         }
 
         virtual bool IsAlive() = 0;

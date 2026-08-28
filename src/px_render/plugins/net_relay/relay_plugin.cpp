@@ -315,22 +315,73 @@ namespace px
                             auto type = msg->type();
                             if (type == RelayMessageType::kRelayTargetMessage) {
                                 auto sub = msg->relay();
-                                auto relay_msg_index = sub.relay_msg_index();
-                                if (recv_relay_ft_msg_index_ == 0) {
-                                    recv_relay_ft_msg_index_ = relay_msg_index;
-                                }
-                                else {
-                                    auto diff = relay_msg_index - recv_relay_ft_msg_index_;
-                                    if (diff != 1) {
-                                        LOGE("FT error sequence, current: {}, last: {}", relay_msg_index, recv_relay_ft_msg_index_.load());
+                                const auto room_id = sub.room_ids_size() > 0
+                                    ? sub.room_ids(0)
+                                    : std::string{};
+                                std::string connection_instance_id;
+                                if (!room_id.empty()) {
+                                    std::lock_guard lock(ft_route_mtx_);
+                                    auto [route_it, inserted] = ft_routes_.try_emplace(room_id);
+                                    auto& route = route_it->second;
+                                    if (inserted || route.connection_instance_id.empty()) {
+                                        route.connection_instance_id = room_id + "#" +
+                                            std::to_string(++ft_route_generation_);
                                     }
-                                    recv_relay_ft_msg_index_ = relay_msg_index;
+                                    const auto relay_msg_index = sub.relay_msg_index();
+                                    if (route.has_recv_msg_index &&
+                                        relay_msg_index != route.last_recv_msg_index + 1) {
+                                        LOGE("FT error sequence, room: {}, current: {}, last: {}",
+                                             room_id, relay_msg_index,
+                                             route.last_recv_msg_index);
+                                    }
+                                    route.last_recv_msg_index = relay_msg_index;
+                                    route.has_recv_msg_index = true;
+                                    connection_instance_id = route.connection_instance_id;
                                 }
                                 const auto &payload = sub.payload();
-                                auto payload_msg = Data::Make((char*)payload.data(), payload.size());
+                                auto payload_msg = Data::Make(payload.data(), payload.size());
                                 this->OnClientEventCameDirectly(
                                     true, 0, NetPluginType::kWebSocket,
-                                    NetChannelType::kFileTransfer, std::move(payload_msg));
+                                    NetChannelType::kFileTransfer, std::move(payload_msg),
+                                    connection_instance_id);
+                            } else if (type == RelayMessageType::kRelayRoomPrepared) {
+                                const auto& prepared = msg->room_prepared();
+                                std::lock_guard lock(ft_route_mtx_);
+                                auto [route_it, inserted] =
+                                    ft_routes_.try_emplace(prepared.room_id());
+                                auto& route = route_it->second;
+                                if (inserted || route.connection_instance_id.empty()) {
+                                    route.connection_instance_id = prepared.room_id() + "#" +
+                                        std::to_string(++ft_route_generation_);
+                                }
+                                route.stream_id = prepared.creator_stream_id();
+                                route.visitor_device_id = ExtractClientId(
+                                    prepared.creator_device_id().starts_with("ft_")
+                                        ? prepared.creator_device_id().substr(3)
+                                        : prepared.creator_device_id());
+                                if (route.created_timestamp == 0) {
+                                    route.created_timestamp = static_cast<int64_t>(
+                                        TimeUtil::GetCurrentTimestamp());
+                                }
+                            } else if (type == RelayMessageType::kRelayRoomDestroyed) {
+                                const auto& destroyed = msg->room_destroyed();
+                                FtRelayRouteInfo route;
+                                bool found = false;
+                                {
+                                    std::lock_guard lock(ft_route_mtx_);
+                                    if (const auto current = ft_routes_.find(destroyed.room_id());
+                                        current != ft_routes_.end()) {
+                                        route = current->second;
+                                        ft_routes_.erase(current);
+                                        found = true;
+                                    }
+                                }
+                                if (found) {
+                                    NotifyMediaClientDisConnected(
+                                        route.connection_instance_id, route.stream_id,
+                                        route.visitor_device_id,
+                                        route.created_timestamp);
+                                }
                             }
                         });
 
@@ -400,21 +451,36 @@ namespace px
         return true;
     }
 
-    bool RelayPlugin::PostTargetFileTransferProtoMessage(
+    FileTransferSendResult RelayPlugin::PostTargetFileTransferProtoMessage(
         const std::string& stream_id,
         std::shared_ptr<Data> msg,
         bool run_through,
         const std::string& connection_instance_id) {
-        if (!IsWorking() || !msg) {
-            return false;
+        if (!msg) {
+            return FileTransferSendResult::TransportError(
+                "relay file-transfer payload is empty");
+        }
+        if (!IsWorking()) {
+            return FileTransferSendResult::Disconnected(
+                "relay transport is not working");
         }
         auto ft_sdk = GetFtSdk();
-        if (!ft_sdk || (paused_stream && !run_through)) {
-            return false;
+        if (!ft_sdk) {
+            return FileTransferSendResult::Disconnected(
+                "relay file-transfer connection is unavailable");
+        }
+        // Media pause/resume controls screen streaming only. A standalone FT
+        // room intentionally has no media room, so paused_stream remains true
+        // and must not block its independent reliable channel.
+        static_cast<void>(run_through);
+        if (ft_sdk->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
+            return FileTransferSendResult::Busy(
+                "relay file-transfer queue is full",
+                ft_sdk->AcquireFileTransferWritableSignal());
         }
         ft_sdk->RelayProtoMessage(stream_id, msg);
         ReportSentDataSize(msg->Size());
-        return true;
+        return FileTransferSendResult::Accepted();
     }
 
     int RelayPlugin::GetConnectedClientsCount() {

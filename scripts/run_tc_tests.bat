@@ -33,6 +33,9 @@ for %%t in (
     test_task_runtime_exit
     test_asio_event_dispatcher_concurrency
     test_message_notifier
+    test_file_transfer_send_result
+    test_async_runtime
+    test_file_transfer_route_registry
     test_common
     test_http
     test_cpu
@@ -55,6 +58,9 @@ for %%t in (
     test_ft_compress
     test_ft_transfer_job
     test_ft_engine
+    test_ft_async_session
+    test_ft_send_contract
+    test_ft_two_phase_send
 ) do (
     echo ===== %%t ===== >> "%LOG%" 2>&1
     if exist "%FT_TEST_DIR%\%%t.exe" (

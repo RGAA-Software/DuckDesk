@@ -1036,6 +1036,12 @@ namespace px
         return !exit_ && ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages();
     }
 
+    std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal() {
+        return !exit_ && ft_data_channel_
+            ? ft_data_channel_->AcquireFileTransferWritableSignal()
+            : std::shared_ptr<FileTransferWritableSignal>{};
+    }
+
     void RtcServer::On100msTimeout() {
         if (!exit_ && wall_observer_ && !ice_ever_connected_) {
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();

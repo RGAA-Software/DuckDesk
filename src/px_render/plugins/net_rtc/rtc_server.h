@@ -17,6 +17,7 @@ namespace px
     class DesktopCapture;
     class RtcPlugin;
     class RtcDataChannel;
+    class FileTransferWritableSignal;
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
@@ -34,6 +35,7 @@ namespace px
         void Exit();
         void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
         bool IsDataChannelConnected();
+        bool IsFtDataChannelConnected();
 
         // 插件级客户端断开事件:ICE 断开/终态、datachannel 独立关闭时触发,
         // 全连接生命周期只发一次(去重)。stream_id 用真实访客 stream id
@@ -53,6 +55,8 @@ namespace px
 
         bool HasEnoughBufferForQueuingMediaMessages();
         bool HasEnoughBufferForQueuingFtMessages();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFtWritableSignal();
 
         void On100msTimeout();
 

@@ -14,6 +14,7 @@ public:
     std::shared_ptr<FtEngine> engine;
     Sender sender;
     std::shared_ptr<asio::steady_timer> timer;
+    std::shared_ptr<asio::steady_timer> writable_timer;
     mutable std::mutex engine_mutex;
     std::atomic_bool stopping{false};
     std::atomic_bool has_jobs{false};
@@ -132,6 +133,10 @@ bool FtAsyncSession::StopAndWait(std::chrono::milliseconds timeout) {
                 asio::error_code ignored;
                 state->timer->cancel(ignored);
             }
+            if (state->writable_timer) {
+                asio::error_code ignored;
+                state->writable_timer->cancel(ignored);
+            }
         });
         const bool stopped = scope_->StopAndWait(timeout);
         if (owns_runtime_) {
@@ -167,8 +172,50 @@ PxAwaitable<void> FtAsyncSession::ExecuteCommand(std::shared_ptr<State> state,
             asio::error_code ignored;
             state->timer->cancel(ignored);
         }
+        if (state->writable_timer) {
+            asio::error_code ignored;
+            state->writable_timer->cancel(ignored);
+        }
     }
     co_return;
+}
+
+PxAwaitable<FtAsyncSession::WritableWaitResult> FtAsyncSession::WaitForWritable(
+    std::shared_ptr<State> state,
+    std::shared_ptr<FileTransferWritableSignal> signal) {
+    const auto executor = co_await asio::this_coro::executor;
+    const auto timer = std::make_shared<asio::steady_timer>(executor);
+    state->writable_timer = timer;
+    // Completion callbacks are authoritative. This deadline is only a safety
+    // net for transports/OS versions that occasionally omit a low-water
+    // callback; one preflight per second cannot recreate the old 2 ms spin.
+    timer->expires_after(std::chrono::seconds(1));
+    const auto weak_timer = std::weak_ptr<asio::steady_timer>(timer);
+    signal->Subscribe([weak_timer](FileTransferWritableOutcome) {
+        if (const auto active_timer = weak_timer.lock()) {
+            asio::post(active_timer->get_executor(), [weak_timer]() {
+                if (const auto posted_timer = weak_timer.lock()) {
+                    asio::error_code ignored;
+                    posted_timer->cancel(ignored);
+                }
+            });
+        }
+    });
+    asio::error_code ignored;
+    co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, ignored));
+    if (state->writable_timer == timer) {
+        state->writable_timer.reset();
+    }
+    const auto outcome = signal->outcome();
+    if (outcome == FileTransferWritableOutcome::kWritable) {
+        co_return WritableWaitResult::kWritable;
+    }
+    if (outcome == FileTransferWritableOutcome::kClosed) {
+        co_return WritableWaitResult::kClosed;
+    }
+    co_return ignored == asio::error::operation_aborted
+        ? WritableWaitResult::kInterrupted
+        : WritableWaitResult::kTimedOut;
 }
 
 PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
@@ -181,6 +228,7 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
             state->engine->Tick();
         }
         auto retry_delay = std::chrono::milliseconds(1);
+        std::shared_ptr<FileTransferWritableSignal> writable_signal;
         for (;;) {
             std::optional<PreparedOutboundMessage> prepared;
             {
@@ -213,6 +261,7 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
                 case FileTransferSendStatus::kBusy:
                     ++state->statistics.busy_retries;
                     retry_delay = std::chrono::milliseconds(2);
+                    writable_signal = result.writable_signal();
                     break;
                 case FileTransferSendStatus::kDisconnected:
                     ++state->statistics.disconnected_retries;
@@ -245,6 +294,24 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
                      !state->engine->write_jobs().empty();
         }
         state->has_jobs.store(active, std::memory_order_release);
+        if (active && writable_signal) {
+            {
+                std::lock_guard lock(state->statistics_mutex);
+                ++state->statistics.writable_waits;
+            }
+            const auto outcome = co_await WaitForWritable(state, writable_signal);
+            std::lock_guard lock(state->statistics_mutex);
+            if (outcome == WritableWaitResult::kWritable) {
+                ++state->statistics.writable_wakeups;
+            } else if (outcome == WritableWaitResult::kClosed) {
+                ++state->statistics.writable_closures;
+            } else if (outcome == WritableWaitResult::kTimedOut) {
+                ++state->statistics.writable_timeouts;
+            } else {
+                ++state->statistics.writable_interruptions;
+            }
+            continue;
+        }
         state->timer->expires_after(active ? retry_delay : std::chrono::seconds(1));
         asio::error_code ignored;
         co_await state->timer->async_wait(
@@ -253,6 +320,7 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
 
     state->has_jobs.store(false, std::memory_order_release);
     state->timer.reset();
+    state->writable_timer.reset();
     co_return;
 }
 

@@ -117,7 +117,7 @@ namespace px
 
         // Serialized proto message from Renderer
         // to file transfer
-        virtual bool PostTargetFileTransferProtoMessage(
+        virtual FileTransferSendResult PostTargetFileTransferProtoMessage(
             const std::string& stream_id,
             std::shared_ptr<Data> msg,
             bool run_through,

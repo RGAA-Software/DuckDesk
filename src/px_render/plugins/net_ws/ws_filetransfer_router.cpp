@@ -19,6 +19,7 @@ namespace px
     }
 
     void WsFileTransferRouter::OnClose(std::shared_ptr<asio2::http_session> &sess_ptr) {
+        NotifyClosed();
         WsRouter::OnClose(sess_ptr);
         LOGI("FileTransfer OnClose.");
     }
@@ -33,7 +34,8 @@ namespace px
         auto plugin = Get<WsPlugin*>("plugin");
         auto msg = Data::Make(data.data(), data.size());
         plugin->OnClientEventCameDirectly(
-            true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_, std::move(msg));
+            true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_,
+            std::move(msg), conn_id_);
     }
 
     void WsFileTransferRouter::OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) {
@@ -45,8 +47,23 @@ namespace px
     }
 
     void WsFileTransferRouter::PostBinaryMessage(std::shared_ptr<Data> msg) {
+        static_cast<void>(TryPostBinaryMessage(msg));
+    }
+
+    FileTransferSendResult WsFileTransferRouter::TryPostBinaryMessage(
+        const std::shared_ptr<Data>& msg) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError(
+                "WebSocket file-transfer payload is empty");
+        }
         if (!session_ || !session_->is_started()) {
-            return;
+            return FileTransferSendResult::Disconnected(
+                "WebSocket file-transfer session is not connected");
+        }
+        if (GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
+            return FileTransferSendResult::Busy(
+                "WebSocket file-transfer queue is full",
+                AcquireWritableSignal());
         }
         auto tid = px::GetCurrentThreadID();
         if (post_thread_id_ == 0) {
@@ -59,12 +76,17 @@ namespace px
         session_->ws_stream().binary(true);
         queuing_message_count_++;
         auto weak_self = weak_from_this();
-        session_->async_send(msg->CStr(), msg->Size(), [weak_self](size_t byte_sent) {
+        session_->async_send(msg->CStr(), msg->Size(),
+                             [weak_self, payload = msg](size_t byte_sent) {
+            static_cast<void>(payload);
             auto self = weak_self.lock();
             if (!self) {
                 return;
             }
-            self->queuing_message_count_--;
+            const auto remaining = --self->queuing_message_count_;
+            if (remaining <= kFileTransferQueueLowWatermark) {
+                self->NotifyWritable();
+            }
 
             // report data size
             auto plugin = self->Get<WsPlugin*>("plugin");
@@ -72,6 +94,46 @@ namespace px
                 plugin->ReportSentDataSize((int)byte_sent);
             }
         });
+        return FileTransferSendResult::Accepted();
+    }
+
+    std::shared_ptr<FileTransferWritableSignal>
+    WsFileTransferRouter::AcquireWritableSignal() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            if (!writable_signal_ ||
+                writable_signal_->outcome() != FileTransferWritableOutcome::kPending) {
+                writable_signal_ = FileTransferWritableSignal::Create();
+            }
+            signal = writable_signal_;
+        }
+        if (GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+            signal->NotifyWritable();
+        }
+        return signal;
+    }
+
+    void WsFileTransferRouter::NotifyWritable() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->NotifyWritable();
+        }
+    }
+
+    void WsFileTransferRouter::NotifyClosed() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->Close();
+        }
     }
 
 }

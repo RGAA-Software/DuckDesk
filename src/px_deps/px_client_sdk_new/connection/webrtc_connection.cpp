@@ -87,6 +87,7 @@ namespace px
     }
 
     void WebRtcConnection::Stop() {
+        Connection::Stop();
         if (stopped_.exchange(true)) {
             return;
         }
@@ -419,6 +420,11 @@ namespace px
             rtc_client_->On16msTimeout();
         }
         NotifyConnectedWhenReady();
+        if (!IsFtChannelReady()) {
+            NotifyFileTransferClosed();
+        } else if (HasEnoughBufferForQueuingFtMessages()) {
+            NotifyFileTransferWritable();
+        }
         if (ice_restart_requested_) {
             const auto remaining = --ice_restart_grace_ticks_;
             if (remaining <= 0) {

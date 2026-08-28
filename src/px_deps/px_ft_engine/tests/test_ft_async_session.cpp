@@ -51,6 +51,119 @@ TEST(FtAsyncSession, BusyRetriesThenCommitsExactlyOnce) {
     EXPECT_TRUE(session->StopAndWait(2s));
 }
 
+TEST(FtAsyncSession, BusyWaitsForWritableSignalInsteadOfPolling) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create(
+        [attempts, accepted, signal](const auto&) {
+            if (++*attempts == 1) {
+                return FileTransferSendResult::Busy("test queue full", signal);
+            }
+            accepted->set_value();
+            return FileTransferSendResult::Accepted();
+        });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 &&
+           std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    std::this_thread::sleep_for(25ms);
+    EXPECT_EQ(attempts->load(), 1);
+
+    signal->NotifyWritable();
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(attempts->load(), 2);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.writable_waits, 1U);
+    EXPECT_EQ(statistics.writable_wakeups, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, CloseCancelsWritableWaitAndStopStillConverges) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create([attempts, signal](const auto&) {
+        ++*attempts;
+        return FileTransferSendResult::Busy("test queue full", signal);
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 &&
+           std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    signal->Close();
+    const auto close_deadline = std::chrono::steady_clock::now() + 2s;
+    while (session->GetStatistics().writable_closures == 0 &&
+           std::chrono::steady_clock::now() < close_deadline) {
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(session->GetStatistics().writable_closures, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, StopCancelsPendingWritableWaitAndLateWakeIsSafe) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto signal = FileTransferWritableSignal::Create();
+    auto session = FtAsyncSession::Create([attempts, signal](const auto&) {
+        ++*attempts;
+        return FileTransferSendResult::Busy("test queue full", signal);
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 &&
+           std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    EXPECT_TRUE(session->StopAndWait(2s));
+    session.reset();
+
+    // The transport may complete after the owning session was destroyed. The
+    // registered callback only holds a weak timer and must remain harmless.
+    signal->NotifyWritable();
+    SUCCEED();
+}
+
+TEST(FtAsyncSession, MissingTransportWakeUsesBoundedSafetyRetry) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto missing_signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create(
+        [attempts, accepted, missing_signal](const auto&) {
+            if (++*attempts == 1) {
+                return FileTransferSendResult::Busy(
+                    "transport omitted low-water callback", missing_signal);
+            }
+            accepted->set_value();
+            return FileTransferSendResult::Accepted();
+        });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(attempts->load(), 2);
+    EXPECT_EQ(session->GetStatistics().writable_timeouts, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
 TEST(FtAsyncSession, StopConvergesWhileTransportIsDisconnected) {
     const auto attempts = std::make_shared<std::atomic_int>(0);
     const auto session = FtAsyncSession::Create([attempts](const auto&) {
@@ -69,6 +182,66 @@ TEST(FtAsyncSession, StopConvergesWhileTransportIsDisconnected) {
     ASSERT_GT(attempts->load(), 0);
     EXPECT_TRUE(session->StopAndWait(2s));
     EXPECT_FALSE(session->HasJobs());
+}
+
+TEST(FtAsyncSession, DisconnectedRouteRetriesThenCommitsExactlyOnce) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted_count = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto session = FtAsyncSession::Create(
+        [attempts, accepted_count, accepted](const auto&) {
+            const auto attempt = ++*attempts;
+            if (attempt <= 3) {
+                return FileTransferSendResult::Disconnected("route reconnecting");
+            }
+            if (++*accepted_count == 1) {
+                accepted->set_value();
+            }
+            return FileTransferSendResult::Accepted();
+        });
+
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(attempts->load(), 4);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.disconnected_retries, 3U);
+    EXPECT_EQ(statistics.accepted_messages, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, TransportErrorDoesNotCommitBeforeAcceptedRetry) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted_count = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto session = FtAsyncSession::Create(
+        [attempts, accepted_count, accepted](const auto&) {
+            const auto attempt = ++*attempts;
+            if (attempt <= 3) {
+                return FileTransferSendResult::TransportError("temporary adapter error");
+            }
+            if (++*accepted_count == 1) {
+                accepted->set_value();
+            }
+            return FileTransferSendResult::Accepted();
+        });
+
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) {
+        engine->ReceiveFiles("remote.bin", false, "local.bin");
+    }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(attempts->load(), 4);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.transport_errors, 3U);
+    EXPECT_EQ(statistics.accepted_messages, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
 }
 
 TEST(FtAsyncSession, RepeatedStartStopTenRounds) {

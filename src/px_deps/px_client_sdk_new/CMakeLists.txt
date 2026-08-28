@@ -75,3 +75,20 @@ else ()
             ${FFMPEG_LIBRARIES}
     )
 endif ()
+
+if(BUILD_TESTING AND NOT ANDROID)
+    find_package(GTest CONFIG REQUIRED)
+    add_executable(test_ft_transport_e2e
+        tests/test_ft_transport_e2e.cpp
+    )
+    target_link_libraries(test_ft_transport_e2e PRIVATE
+        px_sdk
+        px_ft_engine
+        px_common_new
+        px_message
+        Qt6::Core
+        GTest::gtest
+        GTest::gtest_main
+    )
+    add_test(NAME test_ft_transport_e2e COMMAND test_ft_transport_e2e)
+endif()

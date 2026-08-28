@@ -266,6 +266,12 @@ namespace px
         return ws_client_->GetQueuingMsgCount();
     }
 
+    std::shared_ptr<FileTransferWritableSignal>
+    RelayServerSdk::AcquireFileTransferWritableSignal() {
+        return ws_client_ ? ws_client_->AcquireFileTransferWritableSignal()
+                          : std::shared_ptr<FileTransferWritableSignal>{};
+    }
+
     bool RelayServerSdk::HasRelayRooms() {
         return rooms_.Size() > 0;
     }

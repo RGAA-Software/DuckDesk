@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('rtc', 'rtc_direct')]
+    [string]$ConnectionMode = 'rtc',
     [ValidateSet('any', 'host', 'relay')]
     [string]$ExpectedCandidate = 'host',
     [ValidateSet('', 'udp', 'tcp')]
@@ -83,7 +85,7 @@ try {
 
     if ($BlockDirectUdp) { Add-BlockRule 'direct_udp' $TargetHost }
 
-    $nonce = "standard_$suffix"
+    $nonce = "${ConnectionMode}_$suffix"
     $ticket = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
         @{ client_nonce = $nonce; requested_permissions = @('view', 'input', 'clipboard', 'file', 'audio') } `
         $accessToken
@@ -106,7 +108,7 @@ try {
 
     $launch = [uri]$value.launch_url
     $query = [Web.HttpUtility]::ParseQueryString($launch.Query)
-    $query['connType'] = 'rtc'
+    $query['connType'] = $ConnectionMode
     $fragment = [Web.HttpUtility]::ParseQueryString($launch.Fragment.TrimStart('#'))
     $fragment['renew_url'] = "$ConsoleBase/api/v1/connection-tickets/renew"
     $fragment['renew'] = $value.renewal_token
@@ -130,7 +132,7 @@ try {
     $env:CDP_PORT = [string](Get-Random -Minimum 22000 -Maximum 45000)
     if ($EvidenceDir) { $env:OUT_DIR = $EvidenceDir }
     if ($Quiet) { $env:QUIET = '1' }
-    if (-not $Quiet) { Write-Host "Running RTC LAN gate: candidate=$ExpectedCandidate relayProtocol=$ExpectedRelayProtocol samples=${SampleSeconds}s" }
+    if (-not $Quiet) { Write-Host "Running RTC LAN gate: mode=$ConnectionMode candidate=$ExpectedCandidate relayProtocol=$ExpectedRelayProtocol samples=${SampleSeconds}s" }
     $nodeStarted = Get-Date
     & node (Join-Path $PSScriptRoot $DiagnosticScript)
     $nodeExitCode = $LASTEXITCODE

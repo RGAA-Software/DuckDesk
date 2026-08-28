@@ -27,5 +27,39 @@ TEST(FileTransferSendResult, DistinguishesAcceptedBusyAndTerminalFailures) {
     EXPECT_EQ(failed.detail(), "serialization failed");
 }
 
+TEST(FileTransferSendResult, SharedQueueLimitHasOneUnambiguousBoundary) {
+    EXPECT_EQ(kMaxFileTransferQueuedMessages, 256);
+    EXPECT_LT(kMaxFileTransferQueuedMessages - 1,
+              kMaxFileTransferQueuedMessages);
+    EXPECT_GE(kMaxFileTransferQueuedMessages,
+              kMaxFileTransferQueuedMessages);
+    EXPECT_EQ(kFileTransferQueueLowWatermark, 64);
+}
+
+TEST(FileTransferSendResult, WritableSignalHandlesWakeCloseAndLateSubscription) {
+    const auto writable = FileTransferWritableSignal::Create();
+    const auto writable_calls = std::make_shared<int>(0);
+    writable->Subscribe([writable_calls](FileTransferWritableOutcome outcome) {
+        EXPECT_EQ(outcome, FileTransferWritableOutcome::kWritable);
+        ++*writable_calls;
+    });
+    writable->NotifyWritable();
+    writable->NotifyWritable();
+    writable->Subscribe([writable_calls](FileTransferWritableOutcome outcome) {
+        EXPECT_EQ(outcome, FileTransferWritableOutcome::kWritable);
+        ++*writable_calls;
+    });
+    EXPECT_EQ(*writable_calls, 2);
+
+    const auto closed = FileTransferWritableSignal::Create();
+    closed->Close();
+    const auto closed_calls = std::make_shared<int>(0);
+    closed->Subscribe([closed_calls](FileTransferWritableOutcome outcome) {
+        EXPECT_EQ(outcome, FileTransferWritableOutcome::kClosed);
+        ++*closed_calls;
+    });
+    EXPECT_EQ(*closed_calls, 1);
+}
+
 } // namespace
 } // namespace px

@@ -85,7 +85,9 @@ cmake --build build_official -j18 --target ^
     test_clipboard_echo test_clipboard_file_builder test_clipboard_platform ^
     test_px_udp_protocol test_thread_exit test_task_runtime_exit ^
     test_asio_event_dispatcher_concurrency test_message_notifier ^
+    test_file_transfer_send_result test_async_runtime test_file_transfer_route_registry ^
     test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine ^
+    test_ft_async_session test_ft_send_contract test_ft_two_phase_send ^
     px_media_record_new test_record_writer ^
     test_voice_call test_client_voice_call_protocol test_client_virtual_display ^
     test_client_latest_frame_dispatch_queue ^

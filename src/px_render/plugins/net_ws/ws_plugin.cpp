@@ -97,7 +97,7 @@ namespace px
         return false;
     }
 
-    bool WsPlugin::PostTargetFileTransferProtoMessage(
+    FileTransferSendResult WsPlugin::PostTargetFileTransferProtoMessage(
         const std::string& stream_id,
         std::shared_ptr<Data> msg,
         bool run_through,
@@ -107,10 +107,15 @@ namespace px
         // stream routers, so using it here drops every response for a standalone
         // file manager even though the target FT router is alive.  Let the FT
         // router lookup below be the source of truth for this channel.
-        if (IsWorking() && msg) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError(
+                "WebSocket file-transfer payload is empty");
+        }
+        if (IsWorking()) {
             return ws_server_->PostTargetFileTransferMessage(stream_id, msg);
         }
-        return false;
+        return FileTransferSendResult::Disconnected(
+            "WebSocket file-transfer server is not working");
     }
 
     void WsPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {

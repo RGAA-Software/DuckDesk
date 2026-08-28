@@ -59,6 +59,7 @@ namespace px
     }
 
     void WebRtcLocalConnection::Stop() {
+        Connection::Stop();
         if (stopped_.exchange(true)) {
             return;
         }
@@ -572,6 +573,11 @@ namespace px
     void WebRtcLocalConnection::On16msTimeout() {
         if (rtc_client_) {
             rtc_client_->On16msTimeout();
+        }
+        if (!IsFtChannelReady()) {
+            NotifyFileTransferClosed();
+        } else if (HasEnoughBufferForQueuingFtMessages()) {
+            NotifyFileTransferWritable();
         }
     }
 

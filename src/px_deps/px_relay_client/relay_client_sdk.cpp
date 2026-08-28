@@ -110,6 +110,12 @@ namespace px
         return ws_client_->GetQueuingMsgCount();
     }
 
+    std::shared_ptr<FileTransferWritableSignal>
+    RelayClientSdk::AcquireFileTransferWritableSignal() {
+        return ws_client_ ? ws_client_->AcquireFileTransferWritableSignal()
+                          : std::shared_ptr<FileTransferWritableSignal>{};
+    }
+
     void RelayClientSdk::RelayProtoMessage(std::shared_ptr<Data> msg) {
         std::lock_guard<std::mutex> lk(relay_mtx_);
         if (!room_ || !room_->IsValid() || !ws_client_) {

@@ -212,7 +212,16 @@ namespace px
                 [weak_bridge, msg, plugin_id = inbound.source_plugin_id_,
                  connection_id = inbound.source_connection_id_](const auto& engine) {
                     if (const auto bridge = weak_bridge.lock()) {
-                        bridge->Process(engine, msg, plugin_id, connection_id);
+                        try {
+                            bridge->Process(engine, msg, plugin_id, connection_id);
+                        } catch (const std::exception& error) {
+                            LOGE("FT inbound command failed: stream {}, type {}, error {}",
+                                 msg->stream_id(), static_cast<int>(msg->type()),
+                                 error.what());
+                        } catch (...) {
+                            LOGE("FT inbound command failed: stream {}, type {}, unknown error",
+                                 msg->stream_id(), static_cast<int>(msg->type()));
+                        }
                     }
                 })) {
             LOGW("ft inbound command rejected, stream {}", msg->stream_id());
@@ -309,6 +318,18 @@ namespace px
                     engine->DisconnectCleanup(stream_id);
                 },
                 std::chrono::seconds(5)));
+            const auto statistics = session->GetStatistics();
+            LOGI("FT async session statistics: stream {}, accepted {}, busy {}, disconnected {}, transport_errors {}, writable_waits {}, writable_wakeups {}, writable_closures {}, writable_timeouts {}, writable_interruptions {}",
+                 stream_id,
+                 statistics.accepted_messages,
+                 statistics.busy_retries,
+                 statistics.disconnected_retries,
+                 statistics.transport_errors,
+                 statistics.writable_waits,
+                 statistics.writable_wakeups,
+                 statistics.writable_closures,
+                 statistics.writable_timeouts,
+                 statistics.writable_interruptions);
             if (!session->StopAndWait(std::chrono::seconds(5))) {
                 LOGE("ft session retirement timed out, stream {}", stream_id);
             }

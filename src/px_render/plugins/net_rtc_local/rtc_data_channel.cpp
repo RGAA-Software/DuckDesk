@@ -55,6 +55,9 @@ namespace px
 
         } else if (data_channel_->state() == webrtc::DataChannelInterface::kClosed) {
             connected_ = false;
+            if (IsFtChannel()) {
+                NotifyFileTransferClosed();
+            }
             // 媒体 datachannel 独立关闭(客户端退出 SCTP、浏览器关闭页面等)时,
             // ICE 未必会立刻进入 Failed/Closed,必须从这里触发 RtcServer 退出,
             // 否则该 RtcServer 会变成"ICE 仍在但媒体面已死"的僵尸连接。
@@ -176,6 +179,9 @@ namespace px
 
     void RtcDataChannel::OnBufferedAmountChange(uint64_t sent_data_size) {
         DataChannelObserver::OnBufferedAmountChange(sent_data_size);
+        if (IsFtChannel() && HasEnoughBufferForQueuingMessages()) {
+            NotifyFileTransferWritable();
+        }
     }
 
     bool RtcDataChannel::IsConnected() {
@@ -230,6 +236,9 @@ namespace px
                 LOGE("Send error in channel: {}", name_);
                 pending_data_count_ = 0;
                 connected_ = false;
+                if (IsFtChannel()) {
+                    NotifyFileTransferClosed();
+                }
                 // TODO: Notify
             }
             else {
@@ -298,6 +307,9 @@ namespace px
                     LOGE("Send error in channel: {}", name_);
                     pending_data_count_ = 0;
                     connected_ = false;
+                    if (IsFtChannel()) {
+                        NotifyFileTransferClosed();
+                    }
                     // TODO: Notify
                 }
                 else {
@@ -319,6 +331,45 @@ namespace px
                && data_channel_->buffered_amount() <= data_channel_->MaxSendQueueSize()*1/4;
     }
 
+    std::shared_ptr<FileTransferWritableSignal>
+    RtcDataChannel::AcquireFileTransferWritableSignal() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            if (!writable_signal_ ||
+                writable_signal_->outcome() != FileTransferWritableOutcome::kPending) {
+                writable_signal_ = FileTransferWritableSignal::Create();
+            }
+            signal = writable_signal_;
+        }
+        if (HasEnoughBufferForQueuingMessages()) {
+            signal->NotifyWritable();
+        }
+        return signal;
+    }
+
+    void RtcDataChannel::NotifyFileTransferWritable() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->NotifyWritable();
+        }
+    }
+
+    void RtcDataChannel::NotifyFileTransferClosed() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->Close();
+        }
+    }
+
     bool RtcDataChannel::IsMediaChannel() {
         return name_ == "media_data_channel";
     }
@@ -330,6 +381,9 @@ namespace px
     void RtcDataChannel::Close() {
         LOGI("DataChannel will close!");
         connected_ = false;
+        if (IsFtChannel()) {
+            NotifyFileTransferClosed();
+        }
         if (data_channel_) {
             data_channel_->Close();
         }

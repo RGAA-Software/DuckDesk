@@ -186,7 +186,13 @@ namespace px
                 LOGI("client session removed: {}", val->visitor_device_id_);
                 LOGI("App server media close, media router size: {}", self->stream_routers_.Size());
             }
-            else if (self->ft_routers_.Remove(socket_fd).has_value()) {
+            else if (auto removed = self->ft_routers_.Remove(socket_fd);
+                     removed.has_value()) {
+                const auto& router = removed.value();
+                router->OnClose(sess_ptr);
+                self->NotifyMediaClientDisConnected(
+                    router->conn_id_, router->stream_id_, router->device_id_,
+                    router->created_timestamp_);
             }
             else if (self->ipc_sessions_.Remove(socket_fd).has_value()) {
                 LOGI("IPC (/ipc) session removed on disconnect, remaining={}",
@@ -335,15 +341,21 @@ namespace px
         return found_target_stream;
     }
 
-    bool WsPluginServer::PostTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
-        bool found_target_stream = false;
-        ft_routers_.ApplyAll([=, &found_target_stream](const uint64_t& socket_fd, const std::shared_ptr<WsFileTransferRouter>& router) {
+    FileTransferSendResult WsPluginServer::PostTargetFileTransferMessage(
+        const std::string& stream_id,
+        const std::shared_ptr<Data>& msg) {
+        if (!msg) {
+            return FileTransferSendResult::TransportError(
+                "WebSocket file-transfer payload is empty");
+        }
+        auto result = FileTransferSendResult::Disconnected(
+            "WebSocket file-transfer route was not found");
+        ft_routers_.ApplyAll([&](const uint64_t& socket_fd, const std::shared_ptr<WsFileTransferRouter>& router) {
             if (stream_id == router->stream_id_ || stream_id.empty()) {
-                router->PostBinaryMessage(msg);
-                found_target_stream = true;
+                result = router->TryPostBinaryMessage(msg);
             }
         });
-        return found_target_stream;
+        return result;
     }
 
     int WsPluginServer::GetConnectedClientsCount() {
@@ -750,7 +762,14 @@ namespace px
                     }
                 }
                 else if (path == kUrlFileTransfer) {
-                    self->ft_routers_.Remove(socket_fd);
+                    if (auto removed = self->ft_routers_.Remove(socket_fd);
+                        removed.has_value()) {
+                        const auto& router = removed.value();
+                        router->OnClose(sess_ptr);
+                        self->NotifyMediaClientDisConnected(
+                            router->conn_id_, router->stream_id_, router->device_id_,
+                            router->created_timestamp_);
+                    }
                 }
             })
             .on_ping([weak_self](auto &sess_ptr) {

@@ -18,8 +18,6 @@ namespace asio2 {
 namespace px
 {
 
-    constexpr uint32_t kMaxQueuingFtMessages = 256;
-
     using OnRawMessageCallback = std::function<void(std::shared_ptr<px::Message>)>;
     using OnVideoFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
     using OnAudioFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;

@@ -13,6 +13,7 @@
 #include "relay_callbacks.h"
 #include "relay_net_client.h"
 #include "relay_device_info.h"
+#include "px_common_new/file_transfer_send_result.h"
 
 namespace asio2 {
     class ws_client;
@@ -37,6 +38,8 @@ namespace px
         void SetDeviceNetInfo(const std::vector<px::RelayDeviceNetInfo>& info);
         bool IsAlive() override;
         void PostNetTask(std::function<void ()> &&task) override;
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal() override;
 
     private:
         void SendHello();
@@ -59,6 +62,11 @@ namespace px
         std::vector<px::RelayDeviceNetInfo> net_info_;
         std::atomic<int64_t> send_index_ = 0;
         std::mutex send_mtx_;
+        std::mutex writable_signal_mutex_;
+        std::shared_ptr<FileTransferWritableSignal> writable_signal_;
+
+        void NotifyFileTransferWritable();
+        void NotifyFileTransferClosed();
     };
 
 }

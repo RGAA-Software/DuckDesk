@@ -24,6 +24,7 @@ namespace px
     class RelayContext;
     class RelayWsClient;
     class RelayConnectedClientInfo;
+    class FileTransferWritableSignal;
 
     class RelayServerSdk {
     public:
@@ -46,6 +47,8 @@ namespace px
 
         bool IsAlive();
         int64_t GetQueuingMsgCount();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal();
         bool HasRelayRooms();
         std::shared_ptr<RelayRoom> GetRoomById(const std::string& room_id);
         int GetConnectedClientsCount();

@@ -23,6 +23,7 @@ namespace px
     class RelayRoom;
     class RelayContext;
     class RelayNetClient;
+    class FileTransferWritableSignal;
 
     // Only connect to one remote
     class RelayClientSdk {
@@ -41,6 +42,8 @@ namespace px
 
         std::shared_ptr<RelayNetClient> GetNetClient();
         int64_t GetQueuingMsgCount();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal();
 
         // send from client
         void RequestCreateRoom();

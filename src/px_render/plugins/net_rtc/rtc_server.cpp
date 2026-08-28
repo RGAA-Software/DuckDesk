@@ -383,6 +383,10 @@ namespace px
         return !exit_ && media_data_channel_ && media_data_channel_->IsConnected();
     }
 
+    bool RtcServer::IsFtDataChannelConnected() {
+        return !exit_ && ft_data_channel_ && ft_data_channel_->IsConnected();
+    }
+
     uint32_t RtcServer::GetMediaPendingMessages() {
         return !exit_ && media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0;
     }
@@ -397,6 +401,12 @@ namespace px
 
     bool RtcServer::HasEnoughBufferForQueuingFtMessages() {
         return !exit_ && ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages();
+    }
+
+    std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal() {
+        return !exit_ && ft_data_channel_
+            ? ft_data_channel_->AcquireFileTransferWritableSignal()
+            : std::shared_ptr<FileTransferWritableSignal>{};
     }
 
     void RtcServer::On100msTimeout() {

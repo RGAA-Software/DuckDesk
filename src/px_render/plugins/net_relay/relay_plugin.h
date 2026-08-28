@@ -6,6 +6,7 @@
 #define PX_VR_MANAGER_PLUGIN_H
 
 #include <mutex>
+#include <unordered_map>
 #include "px_render/plugin_interface/px_net_plugin.h"
 
 namespace px
@@ -25,7 +26,7 @@ namespace px
         bool OnDestroy() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
-        bool PostTargetFileTransferProtoMessage(
+        FileTransferSendResult PostTargetFileTransferProtoMessage(
             const std::string& stream_id,
             std::shared_ptr<Data> msg,
             bool run_through,
@@ -56,11 +57,22 @@ namespace px
         void SetFtSdk(const std::shared_ptr<RelayServerSdk>& sdk);
 
     private:
+        struct FtRelayRouteInfo {
+            std::string stream_id;
+            std::string visitor_device_id;
+            std::string connection_instance_id;
+            int64_t created_timestamp = 0;
+            uint64_t last_recv_msg_index = 0;
+            bool has_recv_msg_index = false;
+        };
+
         std::mutex sdks_mtx_;
         std::shared_ptr<RelayServerSdk> relay_media_sdk_ = nullptr;
         std::shared_ptr<RelayServerSdk> relay_ft_sdk_ = nullptr;
-        std::atomic_uint64_t recv_relay_ft_msg_index_ = 0;
         std::atomic_uint64_t recv_relay_media_msg_index_ = 0;
+        std::mutex ft_route_mtx_;
+        std::unordered_map<std::string, FtRelayRouteInfo> ft_routes_;
+        uint64_t ft_route_generation_ = 0;
 
         // don't send media stream at begin
         // client will request to resume it

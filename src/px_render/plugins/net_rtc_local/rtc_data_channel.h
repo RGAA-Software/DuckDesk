@@ -9,6 +9,7 @@
 #include <mutex>
 #include <map>
 #include "px_common_new/webrtc_helper.h"
+#include "px_common_new/file_transfer_send_result.h"
 
 namespace px
 {
@@ -34,6 +35,8 @@ namespace px
 
         void SetOnDataCallback(OnDataCallback&&);
         bool HasEnoughBufferForQueuingMessages();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal();
 
         void On100msTimeout();
 
@@ -58,6 +61,11 @@ namespace px
 
         std::mutex cached_messages_mtx_;
         std::map<uint64_t, std::string> cached_ft_messages_;
+        std::mutex writable_signal_mutex_;
+        std::shared_ptr<FileTransferWritableSignal> writable_signal_;
+
+        void NotifyFileTransferWritable();
+        void NotifyFileTransferClosed();
 
     public:
         std::string the_conn_id_;

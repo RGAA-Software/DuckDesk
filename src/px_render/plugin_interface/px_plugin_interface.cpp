@@ -331,12 +331,13 @@ namespace px
     void PxPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         for (const auto& [plugin_id, plugin] : net_plugins_) {
             auto begin = px::TimeUtil::GetCurrentTimestamp();
-            const bool accepted = plugin->PostTargetFileTransferProtoMessage(stream_id, msg, run_through);
+            const auto result = plugin->PostTargetFileTransferProtoMessage(
+                stream_id, msg, run_through);
             auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
             if (cost > kSlowPluginDispatchThresholdMs) {
                 LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
             }
-            if (accepted) {
+            if (result.accepted()) {
                 return;
             }
             LogFtDispatchFailed(plugin_id, stream_id);
@@ -356,23 +357,22 @@ namespace px
         if (route == net_plugins_.end()) {
             return FileTransferSendResult::Disconnected("file-transfer route is unavailable");
         }
-        if (route->second->GetConnectedClientsCount() <= 0) {
-            return FileTransferSendResult::Disconnected("file-transfer route has no connected client");
-        }
+        // A standalone file-transfer session intentionally has no media
+        // client.  Each transport owns the authoritative FT-channel liveness
+        // check (WS router, Relay room, or RTC data channel), so a generic
+        // media-client count must not reject the routed send here.
         const auto begin = px::TimeUtil::GetCurrentTimestamp();
-        const bool accepted = route->second->PostTargetFileTransferProtoMessage(
+        const auto result = route->second->PostTargetFileTransferProtoMessage(
             stream_id, std::move(msg), run_through, connection_instance_id);
         const auto cost = static_cast<int64_t>(px::TimeUtil::GetCurrentTimestamp()) -
                           static_cast<int64_t>(begin);
         if (cost > kSlowPluginDispatchThresholdMs) {
             LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
         }
-        if (!accepted) {
+        if (!result.accepted()) {
             LogFtDispatchFailed(plugin_id, stream_id);
-            return FileTransferSendResult::Busy(
-                "selected file-transfer route is not ready or congested");
         }
-        return FileTransferSendResult::Accepted();
+        return result;
     }
 
     void PxPluginInterface::OnMessage(std::shared_ptr<Message> msg) {

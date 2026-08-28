@@ -12,6 +12,7 @@
 #include <set>
 #include "network/ws_router.h"
 #include "px_common_new/concurrent_hashmap.h"
+#include "px_common_new/file_transfer_send_result.h"
 #include <asio2/asio2.hpp>
 
 namespace px
@@ -35,7 +36,9 @@ namespace px
         void PostNetMessage(std::shared_ptr<Data> msg);
         void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
         bool PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
-        bool PostTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
+        FileTransferSendResult PostTargetFileTransferMessage(
+            const std::string& stream_id,
+            const std::shared_ptr<Data>& msg);
         int GetConnectedClientsCount();
         bool IsOnlyAudioClients();
         bool IsWorking();

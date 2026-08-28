@@ -9,7 +9,9 @@
 #include <functional>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include "sdk_params.h"
+#include "px_common_new/file_transfer_send_result.h"
 
 namespace px
 {
@@ -49,14 +51,21 @@ namespace px
         virtual void On16msTimeout() {}
         virtual void RetryConnection() {}
         virtual bool IsAlive() { return true; }
+        [[nodiscard]] virtual std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal();
 
     protected:
+        void NotifyFileTransferWritable();
+        void NotifyFileTransferClosed();
+
         OnConnectedCallback conn_cbk_;
         OnDisConnectedCallback dis_conn_cbk_;
         OnMessageCallback msg_cbk_;
         std::atomic_int64_t queuing_message_count_ = 0;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<ThunderSdkParams> sdk_params_;
+        std::mutex writable_signal_mutex_;
+        std::shared_ptr<FileTransferWritableSignal> writable_signal_;
     };
 
 }

@@ -38,6 +38,9 @@ namespace px
         void RequestPauseStream() override;
         void RequestResumeStream() override;
         void RetryConnection() override;
+        void On16msTimeout() override;
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFileTransferWritableSignal() override;
 
     private:
         std::string host_;

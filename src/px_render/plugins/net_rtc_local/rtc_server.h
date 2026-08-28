@@ -19,6 +19,7 @@ namespace px
     class SetSessCallback;
     class RtcLocalPlugin;
     class RtcDataChannel;
+    class FileTransferWritableSignal;
     class AudioSourceImpl;
     class VideoSourceImpl;
     class VideoTrackSourceImpl;
@@ -94,6 +95,8 @@ namespace px
 
         bool HasEnoughBufferForQueuingMediaMessages();
         bool HasEnoughBufferForQueuingFtMessages();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireFtWritableSignal();
 
         void On100msTimeout();
 

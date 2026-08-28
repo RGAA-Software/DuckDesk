@@ -40,42 +40,50 @@ namespace px
 
     void RelayWsClient::Start() {
         client_ = std::make_shared<asio2::ws_client>();
+        const auto weak_self = weak_from_this();
         client_->set_auto_reconnect(true);
         client_->set_timeout(std::chrono::milliseconds(3000));
-        client_->start_timer("ws-heartbeat", std::chrono::seconds(1), [this]() {
-            HeartBeat();
+        client_->start_timer("ws-heartbeat", std::chrono::seconds(1), [weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->HeartBeat();
+            }
         });
 
-        client_->bind_init([this]() {
-            if (client_) {
-                client_->set_no_delay(true);
-                client_->ws_stream().set_option(
+        client_->bind_init([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->client_) {
+                self->client_->set_no_delay(true);
+                self->client_->ws_stream().set_option(
                     websocket::stream_base::decorator([](websocket::request_type &req) {
                         req.set(http::field::authorization, "websocket-client-authorization");
                     })
                 );
             }
         })
-        .bind_connect([this]() {
-            if (client_) {
+        .bind_connect([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->client_) {
                 if (asio2::get_last_error()) {
                     LOGE("connect failure : {} {} [ {} - {} - {}]",
-                         asio2::last_error_val(), asio2::last_error_msg().c_str(), host_, port_, device_id_);
+                         asio2::last_error_val(), asio2::last_error_msg().c_str(),
+                         self->host_, self->port_, self->device_id_);
                 } else {
-                    LOGI("connect success : {} {} ", client_->local_address().c_str(), client_->local_port());
-                    client_->post_queued_event([this]() {
-                        if (srv_conn_cbk_) {
-                            srv_conn_cbk_();
+                    LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
+                    self->NotifyFileTransferWritable();
+                    self->client_->post_queued_event([weak_self]() {
+                        if (const auto queued_self = weak_self.lock()) {
+                            if (queued_self->srv_conn_cbk_) {
+                                queued_self->srv_conn_cbk_();
+                            }
+                            queued_self->SendHello();
                         }
-                        SendHello();
                     });
                 }
             }
         })
-        .bind_disconnect([this]() {
-            if (client_) {
-                if (srv_dis_conn_cbk_) {
-                    srv_dis_conn_cbk_();
+        .bind_disconnect([weak_self]() {
+            if (const auto self = weak_self.lock(); self && self->client_) {
+                self->NotifyFileTransferClosed();
+                if (self->srv_dis_conn_cbk_) {
+                    self->srv_dis_conn_cbk_();
                 }
             }
         })
@@ -84,10 +92,10 @@ namespace px
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
             }
         })
-        .bind_recv([this](std::string_view data) {
-            if (client_ && msg_cbk_) {
+        .bind_recv([weak_self](std::string_view data) {
+            if (const auto self = weak_self.lock(); self && self->client_ && self->msg_cbk_) {
                 auto cpy_data = Data::Make(data.data(), data.size());
-                msg_cbk_(cpy_data);
+                self->msg_cbk_(cpy_data);
             }
         });
 
@@ -105,6 +113,7 @@ namespace px
     }
 
     void RelayWsClient::Stop() {
+        NotifyFileTransferClosed();
         if (client_) {
             client_->stop_all_timers();
             client_->stop();
@@ -119,8 +128,14 @@ namespace px
         }
         client_->ws_stream().binary(true);
         queuing_msg_count_++;
-        client_->async_send(msg, [this]() {
-            queuing_msg_count_--;
+        const auto weak_self = weak_from_this();
+        client_->async_send(msg, [weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                --self->queuing_msg_count_;
+                if (self->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+                    self->NotifyFileTransferWritable();
+                }
+            }
         });
     }
 
@@ -184,6 +199,45 @@ namespace px
             client_->post_queued_event([t = std::move(task)]() {
                 t();
             });
+        }
+    }
+
+    std::shared_ptr<FileTransferWritableSignal>
+    RelayWsClient::AcquireFileTransferWritableSignal() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            if (!writable_signal_ ||
+                writable_signal_->outcome() != FileTransferWritableOutcome::kPending) {
+                writable_signal_ = FileTransferWritableSignal::Create();
+            }
+            signal = writable_signal_;
+        }
+        if (GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+            signal->NotifyWritable();
+        }
+        return signal;
+    }
+
+    void RelayWsClient::NotifyFileTransferWritable() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->NotifyWritable();
+        }
+    }
+
+    void RelayWsClient::NotifyFileTransferClosed() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->Close();
         }
     }
 

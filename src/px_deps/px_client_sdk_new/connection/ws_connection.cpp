@@ -76,6 +76,7 @@ namespace px
     }
 
     void WsConnection::Stop() {
+        Connection::Stop();
         if (client_ && client_->is_started()) {
             client_->stop_all_timers();
             client_->stop();
@@ -87,8 +88,15 @@ namespace px
             client_->ws_stream().binary(true);
             ++queuing_message_count_;
             const auto weak_self = weak_from_this();
-            client_->async_send(msg->DataAddr(), msg->Size(), [weak_self]() {
-                if (const auto self = weak_self.lock()) --self->queuing_message_count_;
+            const auto payload = msg;
+            client_->async_send(payload->DataAddr(), payload->Size(), [weak_self, payload]() {
+                static_cast<void>(payload);
+                if (const auto self = weak_self.lock()) {
+                    const auto remaining = --self->queuing_message_count_;
+                    if (remaining <= kFileTransferQueueLowWatermark) {
+                        self->NotifyFileTransferWritable();
+                    }
+                }
             });
         }
     }
@@ -99,7 +107,12 @@ namespace px
             ++queuing_message_count_;
             const auto weak_self = weak_from_this();
             client_->async_send(msg, [weak_self]() {
-                if (const auto self = weak_self.lock()) --self->queuing_message_count_;
+                if (const auto self = weak_self.lock()) {
+                    const auto remaining = --self->queuing_message_count_;
+                    if (remaining <= kFileTransferQueueLowWatermark) {
+                        self->NotifyFileTransferWritable();
+                    }
+                }
             });
         }
     }

@@ -35,7 +35,7 @@ namespace px
         void On1Second() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
-        bool PostTargetFileTransferProtoMessage(
+        FileTransferSendResult PostTargetFileTransferProtoMessage(
             const std::string& stream_id,
             std::shared_ptr<Data> msg,
             bool run_through,

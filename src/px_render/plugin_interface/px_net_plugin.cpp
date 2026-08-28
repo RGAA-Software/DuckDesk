@@ -24,12 +24,13 @@ namespace px
         return false;
     }
 
-    bool PxNetPlugin::PostTargetFileTransferProtoMessage(
+    FileTransferSendResult PxNetPlugin::PostTargetFileTransferProtoMessage(
         const std::string& stream_id,
         std::shared_ptr<Data> msg,
         bool run_through,
         const std::string& connection_instance_id) {
-        return false;
+        return FileTransferSendResult::Disconnected(
+            "network plug-in does not provide a file-transfer route");
     }
 
     void PxNetPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {

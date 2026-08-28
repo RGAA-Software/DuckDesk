@@ -59,11 +59,17 @@ namespace px
         });
         relay_sdk_->SetOnRelayServerConnectedCallback([weak_self]() {
             LOGI("Relay server connected.");
-            if (const auto self = weak_self.lock(); self && self->conn_cbk_) self->conn_cbk_();
+            if (const auto self = weak_self.lock()) {
+                self->NotifyFileTransferWritable();
+                if (self->conn_cbk_) self->conn_cbk_();
+            }
         });
         relay_sdk_->SetOnRelayServerDisConnectedCallback([weak_self]() {
             LOGI("Relay server disconnected.");
-            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) self->dis_conn_cbk_();
+            if (const auto self = weak_self.lock()) {
+                self->NotifyFileTransferClosed();
+                if (self->dis_conn_cbk_) self->dis_conn_cbk_();
+            }
         });
         relay_sdk_->SetOnRelayRoomPreparedCallback(
             [weak_self](const std::shared_ptr<px_relay::RelayMessage>&) {
@@ -104,6 +110,7 @@ namespace px
     }
 
     void RelayConnection::Stop() {
+        Connection::Stop();
         if (relay_sdk_) {
             relay_sdk_->Stop();
         }
@@ -138,6 +145,22 @@ namespace px
         if (relay_sdk_) {
             relay_sdk_->RetryConnection();
         }
+    }
+
+    void RelayConnection::On16msTimeout() {
+        if (!relay_sdk_) {
+            NotifyFileTransferClosed();
+            return;
+        }
+        if (relay_sdk_->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+            NotifyFileTransferWritable();
+        }
+    }
+
+    std::shared_ptr<FileTransferWritableSignal>
+    RelayConnection::AcquireFileTransferWritableSignal() {
+        return relay_sdk_ ? relay_sdk_->AcquireFileTransferWritableSignal()
+                          : Connection::AcquireFileTransferWritableSignal();
     }
 
 }

@@ -1,8 +1,12 @@
 param(
+    [ValidateSet('rtc', 'rtc_direct')]
+    [string]$ConnectionMode = 'rtc',
     [ValidateRange(1, 1000)]
     [int]$Rounds = 10,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 9,
+    [ValidateRange(0, 60)]
+    [int]$InterRoundDelaySeconds = 0,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
@@ -78,6 +82,7 @@ try {
             # dedicated host/TURN UDP/TURN TCP cases; stability only gates
             # end-to-end connectivity, media progress and resource cleanup.
             & (Join-Path $PSScriptRoot 'run_rtc_lan_case.ps1') `
+                -ConnectionMode $ConnectionMode `
                 -ExpectedCandidate any -SampleSeconds $SampleSeconds -Quiet `
                 -ConsoleBase $ConsoleBase -TargetHost $TargetHost -DeviceId $DeviceId `
                 -BearerToken $token -MongoExe $MongoExe
@@ -99,6 +104,12 @@ try {
             }
             Write-Host "RESOURCE_CHECK round=$round cdpChrome=$cdpChrome"
         }
+        if ($round -lt $Rounds -and $InterRoundDelaySeconds -gt 0) {
+            # The diagnostic intentionally force-terminates its isolated Chrome
+            # process. Direct RTC detects that ungraceful peer loss through ICE
+            # and has a five-second server-side sweep grace period.
+            Start-Sleep -Seconds $InterRoundDelaySeconds
+        }
     }
 }
 finally {
@@ -119,6 +130,6 @@ printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subj
     }
 }
 
-Write-Host ("STABILITY_SUMMARY pass={0} fail={1} failRounds={2} totalMinutes={3:N1}" -f `
-    $pass, $fail, ($failRounds -join ','), ((Get-Date) - $started).TotalMinutes)
+Write-Host ("STABILITY_SUMMARY mode={0} pass={1} fail={2} failRounds={3} totalMinutes={4:N1}" -f `
+    $ConnectionMode, $pass, $fail, ($failRounds -join ','), ((Get-Date) - $started).TotalMinutes)
 if ($fail -gt 0) { exit 1 }

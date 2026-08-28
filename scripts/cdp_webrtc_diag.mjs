@@ -16,6 +16,9 @@ const EXPECT_CANDIDATE_TYPE = process.env.EXPECT_CANDIDATE_TYPE || ''
 const EXPECT_RELAY_PROTOCOL = process.env.EXPECT_RELAY_PROTOCOL || ''
 const FORCE_RELAY = process.env.FORCE_RELAY === '1'
 const QUIET = process.env.QUIET === '1'
+const FT_E2E_BYTES = Number(process.env.FT_E2E_BYTES || 0)
+const FT_TARGET_DIR = process.env.FT_TARGET_DIR || 'C:\\Windows\\Temp'
+const FT_TIMEOUT_MS = Number(process.env.FT_TIMEOUT_MS || 300000)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const profile = process.env.CDP_PROFILE || path.join(os.tmpdir(), `cdp-diag-${Date.now()}`)
@@ -76,10 +79,83 @@ function cmd(method, params = {}, timeoutMs = 10000) {
     }
   })
 }
-async function evaluate(expression) {
-  const r = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture: true })
+async function evaluate(expression, timeoutMs = 10000) {
+  const r = await cmd('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture: true }, timeoutMs)
   if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 300))
   return r.result?.value
+}
+
+async function waitFtJob(jobId, label) {
+  const deadline = Date.now() + FT_TIMEOUT_MS
+  let last = null
+  while (Date.now() < deadline) {
+    const remaining = Math.max(1, deadline - Date.now())
+    last = await evaluate(
+      `window.__ft?.jobs?.().find((job) => job.id === ${Number(jobId)}) ?? null`,
+      Math.min(2000, remaining),
+    )
+    if (last?.state === 'done') return last
+    if (last?.state === 'error' || last?.state === 'cancelled') {
+      throw new Error(`${label} failed: ${JSON.stringify(last)}`)
+    }
+    await sleep(250)
+  }
+  throw new Error(`${label} timed out: ${JSON.stringify(last)}`)
+}
+
+async function runFileTransferE2E() {
+  if (!Number.isSafeInteger(FT_E2E_BYTES) || FT_E2E_BYTES <= 0) return null
+  console.log(`FT_PHASE: waiting-ready bytes=${FT_E2E_BYTES}`)
+  const readyDeadline = Date.now() + 30000
+  while (Date.now() < readyDeadline) {
+    const remaining = Math.max(1, readyDeadline - Date.now())
+    if (await evaluate(
+      `window.__ft?.ready?.() === true`, Math.min(1000, remaining),
+    ).catch(() => false)) break
+    await sleep(250)
+  }
+  if (!(await evaluate(`window.__ft?.ready?.() === true`, 1000).catch(() => false))) {
+    throw new Error('file-transfer data channel did not become ready')
+  }
+
+  const name = `px_ft_backpressure_${Date.now()}.bin`
+  const targetPath = `${FT_TARGET_DIR}\\${name}`
+  console.log(`FT_PHASE: upload-start path=${targetPath}`)
+  const uploaded = await evaluate(`(async () => {
+    const size = ${FT_E2E_BYTES}
+    let state = 0x6d2b79f5
+    const chunks = []
+    for (let offset = 0; offset < size; offset += 65536) {
+      const bytes = new Uint8Array(Math.min(65536, size - offset))
+      for (let index = 0; index < bytes.length; index += 1) {
+        state ^= state << 13
+        state ^= state >>> 17
+        state ^= state << 5
+        bytes[index] = 32 + ((state >>> 0) % 95)
+      }
+      chunks.push(new TextDecoder('ascii').decode(bytes))
+    }
+    const content = chunks.join('')
+    return window.__ft.uploadText(${JSON.stringify(name)}, ${JSON.stringify(FT_TARGET_DIR)}, content)
+  })()`, FT_TIMEOUT_MS)
+  const uploadJob = await waitFtJob(uploaded.jobId, 'upload')
+  console.log(`FT_PHASE: upload-done transferred=${uploadJob.transferred}`)
+  console.log(`FT_PHASE: download-start path=${targetPath}`)
+  const downloaded = await evaluate(
+    `window.__ft.download(${JSON.stringify(targetPath)})`, FT_TIMEOUT_MS)
+  if (downloaded.size !== uploaded.size || downloaded.sha256 !== uploaded.sha256) {
+    throw new Error(`file hash mismatch: upload=${JSON.stringify(uploaded)} download=${JSON.stringify(downloaded)}`)
+  }
+  console.log(`FT_PHASE: download-done bytes=${downloaded.size}`)
+  await evaluate(`window.__ft.removeFile(${JSON.stringify(targetPath)})`, 30000)
+  const result = {
+    bytes: uploaded.size,
+    sha256: uploaded.sha256,
+    uploadTransferred: uploadJob.transferred,
+    remotePath: targetPath,
+  }
+  console.log('FT_E2E: PASS', JSON.stringify(result))
+  return result
 }
 async function waitDevtools() {
   for (let i = 0; i < 60; i++) {
@@ -178,9 +254,14 @@ async function main() {
   // give navigation the same 30-second budget as the connection phase.
   await cmd('Page.navigate', { url: PAGE_URL }, 30000)
 
+  console.log('RTC_PHASE: waiting-connected')
   let connected = false
-  for (let i = 0; i < 60; i++) {
-    const st = await evaluate(`window.__pc ? window.__pc.connectionState : 'none'`).catch(() => 'err')
+  const connectDeadline = Date.now() + 30000
+  while (Date.now() < connectDeadline) {
+    const remaining = Math.max(1, connectDeadline - Date.now())
+    const st = await evaluate(
+      `window.__pc ? window.__pc.connectionState : 'none'`, Math.min(1000, remaining),
+    ).catch(() => 'err')
     if (st === 'connected') { connected = true; break }
     await sleep(500)
   }
@@ -266,6 +347,7 @@ async function main() {
     candidate.type === 'relay' && candidate.relayProto === EXPECT_RELAY_PROTOCOL)) {
     throw new Error(`selected TURN transport 不是 ${EXPECT_RELAY_PROTOCOL}: ${JSON.stringify(selected)}`)
   }
+  const fileTransfer = await runFileTransferE2E()
   console.log('RESULT: PASS', JSON.stringify({
     frameDelta,
     staticFrameHold,
@@ -279,6 +361,7 @@ async function main() {
     rttMs: (lastWithPair.pair.rtt || 0) * 1000,
     localCandidate: lastWithPair.localCand,
     remoteCandidate: lastWithPair.remoteCand,
+    fileTransfer,
   }))
 }
 

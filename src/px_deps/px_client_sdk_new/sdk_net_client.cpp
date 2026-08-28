@@ -146,15 +146,36 @@ namespace px
                  sdk_params_->port_, sdk_params_->ip_, sdk_params_->udp_port_);
             // 文件传输复用 ws 控制面同一条 ws 服务,走独立 /file/transfer 路由;
             // 之前 kUdpDirect 未建 ft_conn_,导致文件传输(含剪贴板文件)被静默丢弃。
+            auto ft_path = ft_path_;
+            if (sdk_params_->file_transfer_only_ &&
+                !sdk_params_->connection_ticket_.empty()) {
+                ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ +
+                    "&client_nonce=" + sdk_params_->connection_nonce_;
+            }
             if (sdk_params_->ssl_) {
-                media_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
-                ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
+                if (!sdk_params_->file_transfer_only_) {
+                    media_conn_ = std::make_shared<WssConnection>(
+                        sdk_params_, msg_notifier_, sdk_params_->ip_,
+                        sdk_params_->port_, media_path_);
+                }
+                ft_conn_ = std::make_shared<WssConnection>(
+                    sdk_params_, msg_notifier_, sdk_params_->ip_,
+                    sdk_params_->port_, ft_path);
             }
             else {
-                media_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
-                ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path_);
+                if (!sdk_params_->file_transfer_only_) {
+                    media_conn_ = std::make_shared<WsConnection>(
+                        sdk_params_, msg_notifier_, sdk_params_->ip_,
+                        sdk_params_->port_, media_path_);
+                }
+                ft_conn_ = std::make_shared<WsConnection>(
+                    sdk_params_, msg_notifier_, sdk_params_->ip_,
+                    sdk_params_->port_, ft_path);
             }
-            udp_direct_conn_ = std::make_shared<UdpDirectConnection>(sdk_params_, msg_notifier_);
+            if (!sdk_params_->file_transfer_only_) {
+                udp_direct_conn_ = std::make_shared<UdpDirectConnection>(
+                    sdk_params_, msg_notifier_);
+            }
         }
         else {
             LOGE("Start failed! Don't know the connection type: {}", (int)network_type_);
@@ -497,7 +518,7 @@ namespace px
             auto queuing_msg_count = rtc_conn_->GetQueuingMediaMsgCount();
             auto has_enough_buffer = rtc_conn_->HasEnoughBufferForQueuingMediaMessages();
             int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages || !has_enough_buffer) {
+            while (queuing_msg_count >= kMaxFileTransferQueuedMessages || !has_enough_buffer) {
                 if (!rtc_conn_->IsMediaChannelReady()) {
                     return;
                 }
@@ -516,7 +537,7 @@ namespace px
             auto queuing_msg_count = rtc_local_conn_->GetQueuingMediaMsgCount();
             auto has_enough_buffer = rtc_local_conn_->HasEnoughBufferForQueuingMediaMessages();
             int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages || !has_enough_buffer) {
+            while (queuing_msg_count >= kMaxFileTransferQueuedMessages || !has_enough_buffer) {
                 if (!rtc_local_conn_->IsMediaChannelReady()) {
                     return;
                 }
@@ -534,7 +555,7 @@ namespace px
         else {
             auto queuing_msg_count = this->GetQueuingMediaMsgCount();
             int wait_count = 0;
-            while (queuing_msg_count >= kMaxQueuingFtMessages && wait_count < 200) {
+            while (queuing_msg_count >= kMaxFileTransferQueuedMessages && wait_count < 200) {
                 if (!media_conn_ || !media_conn_->IsAlive()) {
                     LOGW("===> [Media] connection not alive, drop the message, queuing: {}", queuing_msg_count);
                     return;
@@ -563,16 +584,30 @@ namespace px
         }
 
         if (sdk_params_->enable_p2p_ && rtc_conn_ && rtc_conn_->IsFtChannelReady()) {
-            if (rtc_conn_->GetQueuingFtMsgCount() >= kMaxQueuingFtMessages ||
+            if (rtc_conn_->GetQueuingFtMsgCount() >= kMaxFileTransferQueuedMessages ||
                 !rtc_conn_->HasEnoughBufferForQueuingFtMessages()) {
-                return FileTransferSendResult::Busy("standard RTC file channel is congested");
+                const auto signal = rtc_conn_->AcquireFileTransferWritableSignal();
+                if (rtc_conn_->GetQueuingFtMsgCount() <= kFileTransferQueueLowWatermark &&
+                    rtc_conn_->HasEnoughBufferForQueuingFtMessages()) {
+                    signal->NotifyWritable();
+                }
+                return FileTransferSendResult::Busy(
+                    "standard RTC file channel is congested",
+                    signal);
             }
             rtc_conn_->PostFtMessage(msg);
         }
         else if (rtc_local_conn_ && rtc_local_conn_->IsFtChannelReady()) {
-            if (rtc_local_conn_->GetQueuingFtMsgCount() >= kMaxQueuingFtMessages ||
+            if (rtc_local_conn_->GetQueuingFtMsgCount() >= kMaxFileTransferQueuedMessages ||
                 !rtc_local_conn_->HasEnoughBufferForQueuingFtMessages()) {
-                return FileTransferSendResult::Busy("direct RTC file channel is congested");
+                const auto signal = rtc_local_conn_->AcquireFileTransferWritableSignal();
+                if (rtc_local_conn_->GetQueuingFtMsgCount() <= kFileTransferQueueLowWatermark &&
+                    rtc_local_conn_->HasEnoughBufferForQueuingFtMessages()) {
+                    signal->NotifyWritable();
+                }
+                return FileTransferSendResult::Busy(
+                    "direct RTC file channel is congested",
+                    signal);
             }
             rtc_local_conn_->PostFtMessage(msg);
         }
@@ -580,8 +615,14 @@ namespace px
             if (!ft_conn_ || !ft_conn_->IsAlive()) {
                 return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
             }
-            if (ft_conn_->GetQueuingMsgCount() >= kMaxQueuingFtMessages) {
-                return FileTransferSendResult::Busy("file-transfer connection queue is full");
+            if (ft_conn_->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
+                const auto signal = ft_conn_->AcquireFileTransferWritableSignal();
+                if (ft_conn_->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+                    signal->NotifyWritable();
+                }
+                return FileTransferSendResult::Busy(
+                    "file-transfer connection queue is full",
+                    signal);
             }
             ft_conn_->PostBinaryMessage(msg);
         }

@@ -751,7 +751,9 @@ RTC 回包只允许交给完全匹配的 server 实例。旧实例即使仍在 m
 - 在开启“剪贴板回执也必须成功”的综合回归中，前 4 轮通过，第 5 轮剪贴板回执
   10 秒未到；该轮尚未进入文件步骤，因此不计为 FT 失败，也不能写成综合功能
   10/10。FT 专项随后独立完成 10/10。剪贴板控制通道竞态需单独跟踪。
-- WS/WSS、Relay、Direct RTC、UDP Direct 可靠旁路尚未完成同等真实大文件 10 轮矩阵。
+- WS、Relay、UDP Direct 可靠旁路、标准 RTC 和 Direct RTC 的真实大文件 10 轮矩阵
+  已在 12.9 完成。WSS 不属于当前产品运行拓扑：按既定部署决策只有 Console 使用
+  HTTPS，Render 继续提供 HTTP/WS，不能把未启用的 WSS 写成实机通过。
 - Windows 原生 FT UI 的双向实机操作、64 MiB/1 GiB、10000 小文件、全覆盖/跳过/
   取消/断点续传矩阵仍需执行。
 - `blk_id` capability 和接收端最终文件 SHA-256 门禁尚未完成；插件真实
@@ -770,3 +772,138 @@ RTC 回包只允许交给完全匹配的 server 实例。旧实例即使仍在 m
   每轮还覆盖画面、系统音频轨、输入、剪贴板发送、虚拟屏新增、RTC 重建、切屏和删除。
 - 90 的 service/render 和 20371 正常，最近日志未命中 crash、FT timeout、route not
   found 或 Session 停止超时；临时 Console 用户已自动删除。
+
+### 12.6 检查点后的 Phase 4 进展
+
+- 检查点 `8a8e434ee` 之后，Render 的 net plugin FT 接口由 `bool` 改为
+  `FileTransferSendResult`。RTC、Direct RTC、WS/WSS 和 Relay 现在分别返回
+  accepted、busy、disconnected 或 transport error，不再由路由层把所有失败压成
+  “selected route busy”。
+- 标准 RTC 增加只读的 FT DataChannel connected 查询；未找到指定
+  `connection_instance_id`、通道已关闭和发送队列拥塞现在可以分开诊断。
+- WS/WSS 的 accepted 定义收紧为目标 FT router 存在、session 已启动且消息已经提交给
+  asio2 `async_send`；Relay 和两种 RTC 使用统一的 256 消息高水位常量。
+- Client SDK 与 Render 共用 `kMaxFileTransferQueuedMessages`，避免两端水位边界漂移。
+- 该检查点后的第一步是 Phase 4 的同步 preflight/入队结果层；后续低水位等待的实现与
+  验收见 12.7。单协议真实大文件背压矩阵未完成前，仍不把整个 Phase 4 标记为完成。
+
+### 12.7 可写低水位等待、关闭取消与 3.3.62 验收
+
+- `FileTransferWritableSignal` 提供跨线程、一次完成的 `writable/closed` 通知。它不跨 DLL
+  暴露 `asio::awaitable`；Transport 只发布通知，`FtAsyncSession` 在自己的 executor 上
+  用 coroutine 等待并恢复。
+- `FtAsyncSession` 收到带可写信号的 `busy` 后不再执行 2 ms 重试轮询。队列到达统一的
+  1/4 低水位后恢复；Session stop、Transport close 或 error 会取消挂起 timer，迟到的
+  Transport completion 只持有 weak timer，不会访问已经销毁的 Session。
+- Render WS/WSS 和 Relay 使用 asio2/Relay WS 的真实发送完成回调触发低水位；标准 RTC
+  和 Direct RTC 在 GammaRay DataChannel 包装层的 `OnBufferedAmountChange` 中检查
+  `buffered_amount`，不修改 libwebrtc observer ABI 和其既有裸指针合同。
+- Windows Client 的 WS/WSS 与 Relay 同样由真实发送完成触发。Client RTC/Direct RTC
+  遵守“不改 `px_webrtc_client` 结构”的约束，暂由既有 16 ms RTC 驱动读取包装层水位并
+  发布信号；已经消除 FT Session 的 2 ms busy polling，但该路径仍需在后续独立接口评审
+  中决定是否增加不破坏 ABI 的原生低水位通知。
+- 所有通道在返回 `busy` 后再次检查当前水位，覆盖“检测到满 -> 建立 waiter”之间队列已
+  经排空的 lost-wakeup 窗口。Relay 底层本批改动的异步裸 `this` 捕获已迁移为
+  `weak_ptr + lock()`。
+
+本批自动化与部署结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| `check_cpp_ownership` / `git diff --check` | PASS |
+| Low-water 单测 | 通知、关闭、迟订阅、重复通知、无轮询等待、stop 取消、owner 销毁后迟到唤醒均 PASS |
+| Native focused tests | 10 个相关测试程序连续 10 轮全部 PASS |
+| 增量编译 | Client SDK、WS、Relay、标准 RTC、Direct RTC 全部 PASS |
+| `build_official` | 3.3.62 全量 C++、Rust Client、Parsec VDD、Web Client、Console 和三项 Rust Server PASS |
+| `build_official\dist` | 9 个关键运行产物逐项 SHA-256 一致；Web Client 5/5、Console 4/4 文件一致 |
+| 90 部署 | 9 个关键运行产物及两个 Web 目录与 dist 一致；service Running，20371 可达 |
+| 标准 RTC 稳定性 | 本机到 90 连续 10/10，新连接、1920x1080 画面推进、无冻结/丢帧统计 |
+| 标准 RTC 大文件背压 | 16 MiB 不可压缩内容上传+下载+SHA-256 连续 10/10；每轮均真实触发 busy/writable wait |
+
+大文件验收使用浏览器内确定性伪随机 ASCII，避免重复字符串被压缩后无法施压。每轮原始
+16 MiB、实际上传约 13.4 MiB，上传完成后立即反向下载并严格比较 SHA-256，最后删除远端
+文件；10 轮结束后 90 的测试临时文件为 0。90 日志中每轮 `accepted=144`，10/10 的
+`busy` 和 `writable_waits` 都大于 0，`disconnected=0`、`transport_errors=0`。其中一轮
+底层漏发两次低水位通知，1 秒安全 deadline 成功恢复，最终仍完成且摘要一致。
+
+在加入安全 deadline 前，同一不可压缩 64 MiB 用例曾在下载约 5 分钟后超时；远端上传
+文件已经完整写入，Session 统计显示 118 次 busy、111 次唤醒和若干未完成等待。将正常
+事件驱动保留、仅把异常兜底由 30 秒收紧到 1 秒后，64 MiB 双向传输通过，日志为
+`busy=193`、`writable_waits=193`、`writable_wakeups=181`、`writable_timeouts=0`、
+`disconnected=0`，上传/下载 SHA-256 一致，失败用例残留也已清理。
+
+标准 RTC 和 Direct RTC high-water 已关闭；仍需用同一脚本矩阵覆盖 WS/WSS、Relay，
+并补 Windows 原生 FT UI、断线取消/续传、插件真实 unload 和更大文件后，才能关闭整个
+Phase 4。
+
+### 12.8 Direct RTC 真实背压与连续会话验收
+
+- `run_rtc_lan_case.ps1` 和 `run_rtc_lan_stability.ps1` 增加显式
+  `ConnectionMode=rtc|rtc_direct`，同一套门禁可验证标准 RTC 与 Direct RTC，避免仅靠
+  Render 日志推断实际连接方式。
+- CDP 连接轮询改用 30 秒墙钟总预算、单次最多 1 秒；原实现的 60 次轮询每次可等待
+  10 秒，页面线程无响应时会错误拖到约 600 秒。FT ready/job 查询同样按剩余 deadline
+  限制，并输出 waiting-ready、upload、download 阶段，超时现场可以准确归类。
+- Direct RTC 的诊断 Chrome 在每轮结束时由 `taskkill` 强制终止，模拟客户端异常退出。
+  Render 需要约 4 秒检测 ICE disconnected，再等待 5 秒宽限并 sweep；若立即开始下一轮，
+  新请求会按设计返回 occupied。稳定性脚本新增可配置轮间等待，本验收使用 12 秒覆盖完整
+  回收窗口。7 秒不足的探索轮稳定复现 occupied，不计入通过轮数。
+- 最终本机 Web 到 90 的 Direct RTC 连续 10/10 PASS，总计 6.2 分钟。每轮新建 host UDP
+  RTC 会话，1920x1080 画面继续解码、观测窗口新增丢包为 0；每轮上传 16 MiB 确定性
+  伪随机内容，再下载到内存并校验 SHA-256
+  `ab6c06393858b578167fccf7d99f667e87836f63540372090d5adb796819aa2e`，最后删除远端文件。
+- 第 10 轮后 `cdpChrome=0`；临时 Console 用户、Session、Ticket 均为 0。中断探索轮留下
+  的远端测试文件已显式删除，最终没有已知测试残留。
+
+### 12.9 WS、Relay、UDP Direct 与最终发布包回归
+
+本批增加原生 `test_ft_transport_e2e` 和 `run_ft_transport_e2e.ps1`。测试直接使用
+Windows Client 的 `NetClient + FtAsyncSession + FtEngine` 生产链路，生成确定性不可压缩
+文件，依次执行上传、下载、SHA-256 比较和远端删除；每轮使用新 Ticket 和 stream，结束
+后删除临时 Console 用户、Session 和 Ticket。支持 `ws`、`wss`、`relay` 和
+`udp_direct` 选择，其中 WSS 仅保留代码能力，不在当前 Render HTTP/WS 部署中执行。
+
+实机回归中定位并修复了以下仅靠单元测试无法发现的问题：
+
+- WS/WSS `async_send` 的 buffer 生命周期曾依赖函数实参求值顺序；现在先保存共享 payload，
+  再把稳定地址交给异步发送，completion 前不会释放。
+- Render 的通用 FT 分发错误依赖“媒体客户端数量”，导致独立文件连接虽然在线仍被拒绝；
+  现以所选 FT transport 自身的连接和队列状态为准。
+- Relay 的媒体 `paused_stream` 曾错误阻塞独立 FT 房间；媒体暂停不再影响可靠文件通道。
+- WS close、disconnect 和 Relay room destroyed 现在都会按 connection instance 收敛
+  `FtAsyncSession`，断开后立即输出统计，不再遗留活跃 Session。
+- Relay server 会复用同一对设备的 room id，且新房间首个 target message 可能早于
+  `RoomPrepared`。旧实现把序号和 route identity 跨房间复用，连续第 2 轮可复现
+  `current=0,last=286` 后停滞。现在为每个房间代际分配唯一 connection instance，
+  序号按代际保存，并允许首包先建立 provisional route；修复后连续 10 轮通过。
+- UDP Direct 的文件只运行模式此前仍创建媒体/裸 UDP 通道，FT URL 也没有附加 Ticket。
+  现在 file-transfer-only 只建立 WS/WSS FT 可靠旁路并携带 Ticket；正常 UDP Direct
+  模式仍保持 WS 控制/文件面与裸 UDP 媒体面的双通道结构。
+
+最终 90 实机结果：
+
+| 路径 | 测试内容 | 结果 |
+| --- | --- | --- |
+| WS | 每轮 16 MiB 上传、下载、SHA-256、删除 | 10/10 PASS |
+| Relay | 每轮新建/销毁 FT room，16 MiB 双向校验和删除 | 10/10 PASS |
+| UDP Direct FT 可靠旁路 | 原生 `kUdpDirect` file-transfer-only，16 MiB 双向校验和删除 | 10/10 PASS |
+| 标准 RTC | 1920x1080 画面推进 + 16 MiB 双向 FT | 10/10 PASS，丢包/冻结 0 |
+| Direct RTC | 独立 host UDP 会话 + 画面 + 16 MiB 双向 FT | 10/10 PASS，丢包/冻结 0 |
+| Native 生命周期门禁 | 8 个相关测试程序，每程序 `gtest_repeat=10` | 全部 PASS |
+
+所有 16 MiB 用例的 SHA-256 均为
+`ab6c06393858b578167fccf7d99f667e87836f63540372090d5adb796819aa2e`；WS、Relay 和
+UDP Direct 每轮接受 144 条 FT 消息，无 disconnected 或 transport error。RTC 两组
+结束后 `cdpChrome=0`；各脚本最终报告临时用户、Session、Ticket 为 0，远端测试文件已
+由用例删除。
+
+发布门禁方面，Visual Studio 18 official 工具链完成全量 C++、Rust、Parsec VDD 与
+dist 收集。26 个受影响 C++ 运行产物的 build tree/dist SHA-256 一致；最终完整 dist
+共 521 个文件部署到 90 后逐文件比对，missing=0、mismatch=0，`px_service` Running，
+20371 可达。Relay 与 UDP Direct 最后修复已经重新执行 official 收集、部署和同样的
+哈希门禁，最终一次构建输出即为交付基准。
+
+仍未关闭的扩展验收不应与本批“异步发送与真实 completion”混为一谈：Windows 原生 FT
+UI 的人工双向操作、64 MiB/1 GiB、10000 小文件、覆盖/跳过/取消/断点续传、真实 DLL
+load/transfer/stop/unload，以及公网跨网 TURN UDP/TCP 场景仍需单独执行。当前没有公网
+环境，不能把跨网 TURN 项写成已通过。

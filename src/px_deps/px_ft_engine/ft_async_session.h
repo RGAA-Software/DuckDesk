@@ -18,6 +18,11 @@ struct FtAsyncSessionStatistics {
     std::uint64_t busy_retries = 0;
     std::uint64_t disconnected_retries = 0;
     std::uint64_t transport_errors = 0;
+    std::uint64_t writable_waits = 0;
+    std::uint64_t writable_wakeups = 0;
+    std::uint64_t writable_closures = 0;
+    std::uint64_t writable_timeouts = 0;
+    std::uint64_t writable_interruptions = 0;
 };
 
 class FtAsyncSession final {
@@ -60,10 +65,19 @@ public:
 
 private:
     class State;
+    enum class WritableWaitResult {
+        kWritable,
+        kClosed,
+        kTimedOut,
+        kInterrupted,
+    };
 
     static PxAwaitable<void> Run(std::shared_ptr<State> state);
     static PxAwaitable<void> ExecuteCommand(std::shared_ptr<State> state,
                                             Command command);
+    static PxAwaitable<WritableWaitResult> WaitForWritable(
+        std::shared_ptr<State> state,
+        std::shared_ptr<FileTransferWritableSignal> signal);
 
     std::shared_ptr<PxAsyncRuntime> runtime_;
     std::shared_ptr<PxAsyncScope> scope_;
