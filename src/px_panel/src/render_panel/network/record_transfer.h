@@ -11,7 +11,6 @@
 #ifndef TC_APPLICATION_RECORD_TRANSFER_H
 #define TC_APPLICATION_RECORD_TRANSFER_H
 
-#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -47,11 +46,15 @@ namespace px
         // or in-flight (dedupe; console also dedupes, this is the second line).
         bool Push(const RecordFetchTask& task);
 
-        // Blocks until a task is available. Returns false when stopped and drained.
-        bool WaitPop(RecordFetchTask& out);
+        // Pump ownership and queue access are one mutex-protected state machine.
+        // This avoids a lost wake-up when a producer races the pump going idle.
+        bool TryStartPump();
+        bool TryPop(RecordFetchTask& out);
+        bool KeepPumpRunning();
+        void AbortPump();
 
         // Puts a failed task back at the tail (dedupe set kept).
-        void Requeue(const RecordFetchTask& task);
+        bool Requeue(const RecordFetchTask& task);
 
         // Marks the task finished (success or given up); allows the same
         // filename to be pushed again afterwards.
@@ -63,9 +66,9 @@ namespace px
 
     private:
         std::mutex mtx_;
-        std::condition_variable cv_;
         std::deque<RecordFetchTask> queue_;
         std::set<std::string> names_;       // queued + in-flight filenames
+        bool pump_active_ = false;
         bool stopped_ = false;
     };
 

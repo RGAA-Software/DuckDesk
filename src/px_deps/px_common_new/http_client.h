@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <atomic>
 #include <map>
 #include <string>
 #include <memory>
@@ -47,6 +48,7 @@ namespace px
 
         static HttpResponse Download(const std::string& url, std::function<void(const std::string& body)>&& download_cbk);
         void SetVerifySsl(bool verify_ssl);
+        void SetCancellationSignal(std::shared_ptr<std::atomic_bool> cancellation_signal);
         void SetHeader(const std::string& key, const std::string& value);
         void ClearHeaders();
         
@@ -62,6 +64,7 @@ namespace px
         int timeout_ms_ = 3000;
         std::string req_path_;
         std::map<std::string, std::string> headers_;
+        std::shared_ptr<std::atomic_bool> cancellation_signal_;
 
     };
 

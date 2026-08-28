@@ -25,14 +25,21 @@ namespace px
         }
         names_.insert(task.filename);
         queue_.push_back(task);
-        cv_.notify_one();
         return true;
     }
 
-    bool RecordFetchQueue::WaitPop(RecordFetchTask& out) {
-        std::unique_lock<std::mutex> lk(mtx_);
-        cv_.wait(lk, [&] { return !queue_.empty() || stopped_; });
-        if (queue_.empty()) {
+    bool RecordFetchQueue::TryStartPump() {
+        std::lock_guard<std::mutex> lk(mtx_);
+        if (stopped_ || pump_active_ || queue_.empty()) {
+            return false;
+        }
+        pump_active_ = true;
+        return true;
+    }
+
+    bool RecordFetchQueue::TryPop(RecordFetchTask& out) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        if (stopped_ || !pump_active_ || queue_.empty()) {
             return false;
         }
         out = queue_.front();
@@ -40,13 +47,31 @@ namespace px
         return true;
     }
 
-    void RecordFetchQueue::Requeue(const RecordFetchTask& task) {
+    bool RecordFetchQueue::KeepPumpRunning() {
         std::lock_guard<std::mutex> lk(mtx_);
         if (stopped_) {
-            return;
+            pump_active_ = false;
+            return false;
+        }
+        if (!queue_.empty()) {
+            return true;
+        }
+        pump_active_ = false;
+        return false;
+    }
+
+    void RecordFetchQueue::AbortPump() {
+        std::lock_guard<std::mutex> lk(mtx_);
+        pump_active_ = false;
+    }
+
+    bool RecordFetchQueue::Requeue(const RecordFetchTask& task) {
+        std::lock_guard<std::mutex> lk(mtx_);
+        if (stopped_) {
+            return false;
         }
         queue_.push_back(task);
-        cv_.notify_one();
+        return true;
     }
 
     void RecordFetchQueue::Finish(const std::string& filename) {
@@ -57,7 +82,9 @@ namespace px
     void RecordFetchQueue::Stop() {
         std::lock_guard<std::mutex> lk(mtx_);
         stopped_ = true;
-        cv_.notify_all();
+        pump_active_ = false;
+        queue_.clear();
+        names_.clear();
     }
 
     bool RecordFetchQueue::IsStopped() {

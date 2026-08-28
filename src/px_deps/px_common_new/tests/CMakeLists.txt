@@ -29,6 +29,7 @@ add_tc_test(test_message_notifier test_message_notifier.cpp)
 add_tc_test(test_asio_event_dispatcher_concurrency test_asio_event_dispatcher_concurrency.cpp)
 add_tc_test(test_file_transfer_send_result test_file_transfer_send_result.cpp)
 add_tc_test(test_async_runtime test_async_runtime.cpp)
+add_tc_test(test_http_client_cancellation test_http_client_cancellation.cpp)
 add_tc_test(test_file_transfer_route_registry test_file_transfer_route_registry.cpp)
 
 add_executable(test_common test.cpp)

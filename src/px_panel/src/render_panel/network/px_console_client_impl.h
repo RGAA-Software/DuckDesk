@@ -6,7 +6,6 @@
 #define PX_PANEL_CONSOLE_CLIENT_IMPL_H
 
 #include <memory>
-#include <thread>
 #include <type_traits>
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/websocket/wss_client.hpp>
@@ -18,6 +17,7 @@
 #include "px_common_new/log.h"
 #include "render_panel/px_context.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/task_runtime.h"
 #include "render_panel/px_app_messages.h"
 #include "px_common_new/time_util.h"
 #include "render_panel/px_settings.h"
@@ -106,8 +106,11 @@ namespace px
             if (const auto notifier = context_->GetMessageNotifier()) {
                 if (const auto runtime = notifier->GetAsyncRuntime()) {
                     rtc_config_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
+                    record_fetch_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                 }
             }
+            fetch_queue_ = std::make_shared<RecordFetchQueue>();
+            record_fetch_blocking_runtime_ = std::make_shared<TaskRuntime>(1);
 
             client_ = std::make_shared<ClientType>();
             client_->set_auto_reconnect(true);
@@ -187,14 +190,6 @@ namespace px
                 LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
             }
 
-            // serial record-upload worker (design doc 6.2 / 7.2)
-            fetch_queue_ = std::make_shared<RecordFetchQueue>();
-            fetch_thread_ = std::thread([weak_self]() {
-                auto self = weak_self.lock();
-                if (self) {
-                    self->FetchWorkerLoop();
-                }
-            });
         }
 
         void Stop() override {
@@ -205,6 +200,26 @@ namespace px
                 msg_listener_->UnListenAll();
                 msg_listener_.reset();
             }
+            if (fetch_queue_) {
+                fetch_queue_->Stop();
+            }
+            if (const auto cancellation =
+                    active_record_upload_cancellation_.exchange({})) {
+                cancellation->store(true, std::memory_order_release);
+            }
+            if (record_fetch_scope_) {
+                if (record_fetch_scope_->IsScopeThread()) {
+                    record_fetch_scope_->BeginStop();
+                }
+                else if (!record_fetch_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
+                    LOGW("Panel record fetch scope did not drain within 2 seconds");
+                }
+                record_fetch_scope_.reset();
+            }
+            if (record_fetch_blocking_runtime_) {
+                record_fetch_blocking_runtime_->Exit();
+                record_fetch_blocking_runtime_.reset();
+            }
             rtc_config_refresh_gate_->Stop();
             if (rtc_config_scope_) {
                 if (rtc_config_scope_->IsScopeThread()) {
@@ -214,17 +229,6 @@ namespace px
                     LOGW("Panel RTC config refresh scope did not drain within 2 seconds");
                 }
                 rtc_config_scope_.reset();
-            }
-            if (fetch_queue_) {
-                fetch_queue_->Stop();
-            }
-            if (fetch_thread_.joinable()) {
-                if (fetch_thread_.get_id() == std::this_thread::get_id()) {
-                    fetch_thread_.detach();
-                }
-                else {
-                    fetch_thread_.join();
-                }
             }
             if (client_) {
                 client_->stop_all_timers();
@@ -515,42 +519,177 @@ namespace px
             task.upload_url = req.upload_url();
             if (!fetch_queue_->Push(task)) {
                 LOGW("RecordFetchReq duplicated, ignored: {}", req.filename());
+                return;
+            }
+            StartRecordFetchPump();
+        }
+
+        void StartRecordFetchPump() {
+            const auto queue = fetch_queue_;
+            if (!queue || !queue->TryStartPump()) {
+                return;
+            }
+            const auto scope = record_fetch_scope_;
+            if (!scope) {
+                queue->AbortPump();
+                LOGE("RecordFetchReq cannot start because async scope is unavailable");
+                return;
+            }
+            const auto weak_self = this->weak_from_this();
+            if (!scope->Spawn("panel-record-fetch", [weak_self]() {
+                    return RunRecordFetchPump(weak_self);
+                })) {
+                queue->AbortPump();
+                LOGW("Panel record fetch pump was rejected by the async scope");
             }
         }
 
-        void FetchWorkerLoop() {
-            LOGI("record fetch worker started");
-            while (fetch_queue_ && !fetch_queue_->IsStopped()) {
-                RecordFetchTask task;
-                if (!fetch_queue_->WaitPop(task)) {
-                    break;
+        static PxAwaitable<PxResult<std::string>> UploadRecordFileAsync(
+            std::shared_ptr<TaskRuntime> blocking_runtime,
+            asio::any_io_executor executor,
+            RecordFetchTask task,
+            std::string appkey,
+            std::shared_ptr<std::atomic_bool> cancellation_signal) {
+            const auto operation = PxAsyncOneShot<std::string>::Create(executor);
+            const auto task_id = blocking_runtime->Post(SimpleThreadTask::Make(
+                [operation, task = std::move(task), appkey = std::move(appkey),
+                 cancellation_signal]() {
+                    try {
+                        static_cast<void>(operation->TryComplete(
+                            PxResult<std::string>::Success(UploadRecordFile(
+                                task, appkey, cancellation_signal))));
+                    }
+                    catch (const std::exception& error) {
+                        static_cast<void>(operation->TryFail(MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError,
+                            "panel_record_upload",
+                            error.what(),
+                            true)));
+                    }
+                }));
+            if (task_id == 0) {
+                static_cast<void>(operation->TryFail(MakePxAsyncError(
+                    PxAsyncErrorCode::kCancelled,
+                    "panel_record_upload",
+                    "record upload worker is stopping")));
+            }
+            co_return co_await PxAsyncOneShot<std::string>::WaitUntil(
+                operation, std::chrono::steady_clock::now() + std::chrono::seconds(3605));
+        }
+
+        static PxAwaitable<bool> WaitForRecordFetchRetry(
+            asio::any_io_executor executor,
+            std::chrono::milliseconds delay) {
+            auto timer = std::make_shared<asio::steady_timer>(executor);
+            timer->expires_after(delay);
+            asio::error_code wait_error;
+            co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
+            const auto cancellation = co_await asio::this_coro::cancellation_state;
+            co_return !wait_error
+                && cancellation.cancelled() == asio::cancellation_type::none;
+        }
+
+        static PxAwaitable<void> RunRecordFetchPump(
+            std::weak_ptr<PxConsoleClientImpl<ClientType>> weak_self) {
+            std::shared_ptr<RecordFetchQueue> queue;
+            {
+                const auto current = weak_self.lock();
+                if (!current || current->stopping_ || !current->fetch_queue_) {
+                    co_return;
                 }
-                std::string err = UploadRecordFile(task);
+                queue = current->fetch_queue_;
+            }
+            LOGI("record fetch coroutine started");
+            while (!queue->IsStopped()) {
+                RecordFetchTask task;
+                if (!queue->TryPop(task)) {
+                    if (queue->KeepPumpRunning()) {
+                        continue;
+                    }
+                    LOGI("record fetch coroutine idle");
+                    co_return;
+                }
+
+                const auto cancellation_signal = std::make_shared<std::atomic_bool>(false);
+                std::shared_ptr<TaskRuntime> blocking_runtime;
+                asio::any_io_executor executor;
+                {
+                    const auto current = weak_self.lock();
+                    if (!current || current->stopping_ || !current->record_fetch_scope_
+                        || !current->record_fetch_blocking_runtime_) {
+                        queue->Finish(task.filename);
+                        queue->AbortPump();
+                        co_return;
+                    }
+                    blocking_runtime = current->record_fetch_blocking_runtime_;
+                    executor = current->record_fetch_scope_->Executor();
+                    current->active_record_upload_cancellation_.store(cancellation_signal);
+                }
+                auto result = co_await UploadRecordFileAsync(
+                    std::move(blocking_runtime), executor, task, grApp->GetAppkey(),
+                    cancellation_signal);
+                cancellation_signal->store(true, std::memory_order_release);
+                if (const auto current = weak_self.lock()) {
+                    current->active_record_upload_cancellation_.store({});
+                }
+                const auto cancellation = co_await asio::this_coro::cancellation_state;
+                if (cancellation.cancelled() != asio::cancellation_type::none) {
+                    queue->Finish(task.filename);
+                    queue->AbortPump();
+                    co_return;
+                }
+
+                std::string err;
+                if (result.HasValue()) {
+                    err = result.TakeValue();
+                }
+                else {
+                    err = std::format("{}: {}", result.Error().StableCode(),
+                                      result.Error().message);
+                }
                 if (err.empty()) {
-                    fetch_queue_->Finish(task.filename);
-                    SendRecordFetchDone(task, true, "");
+                    queue->Finish(task.filename);
+                    if (const auto current = weak_self.lock();
+                        current && !current->stopping_) {
+                        current->SendRecordFetchDone(task, true, "");
+                    }
                     continue;
                 }
-                // failed: exponential backoff retry, at most kMaxAttempts tries (design 7.2)
+
                 task.attempt += 1;
                 LOGE("upload record failed (attempt {}/{}): {}, {}",
                      task.attempt, RecordFetchQueue::kMaxAttempts, task.filename, err);
                 if (task.attempt >= RecordFetchQueue::kMaxAttempts) {
-                    fetch_queue_->Finish(task.filename);
-                    SendRecordFetchDone(task, false, err);
+                    queue->Finish(task.filename);
+                    if (const auto current = weak_self.lock();
+                        current && !current->stopping_) {
+                        current->SendRecordFetchDone(task, false, err);
+                    }
                     continue;
                 }
-                // interruptible backoff sleep
+
                 const auto delay = RecordFetchQueue::RetryDelayMs(task.attempt);
-                for (int64_t slept = 0; slept < delay && !fetch_queue_->IsStopped(); slept += 100) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                if (!co_await WaitForRecordFetchRetry(
+                        executor, std::chrono::milliseconds(delay))) {
+                    queue->Finish(task.filename);
+                    queue->AbortPump();
+                    co_return;
                 }
-                fetch_queue_->Requeue(task);
+                if (!queue->Requeue(task)) {
+                    queue->Finish(task.filename);
+                    queue->AbortPump();
+                    co_return;
+                }
             }
-            LOGI("record fetch worker exited");
+            queue->AbortPump();
+            LOGI("record fetch coroutine stopped");
+            co_return;
         }
 
-        std::string UploadRecordFile(const RecordFetchTask& task) {
+        static std::string UploadRecordFile(
+            const RecordFetchTask& task,
+            const std::string& appkey,
+            const std::shared_ptr<std::atomic_bool>& cancellation_signal) {
             const fs::path file_path = fs::path(GetRenderRecordsDir()) / task.filename;
             std::error_code ec;
             if (!fs::exists(file_path, ec) || !fs::is_regular_file(file_path, ec)) {
@@ -577,9 +716,10 @@ namespace px
             // 1GB segments over a 100Mbps link take minutes; allow 1 hour
             auto client = ssl ? HttpClient::MakeSSL(host, port, upath, 3600 * 1000)
                               : HttpClient::Make(host, port, upath, 3600 * 1000);
+            client->SetCancellationSignal(cancellation_signal);
             auto resp = client->PostMultiPart(
                 {
-                    {"appkey", grApp->GetAppkey()},
+                    {"appkey", appkey},
                     {"token", task.token},
                     {"device_id", task.device_id},
                     {"filename", task.filename},
@@ -638,7 +778,9 @@ namespace px
 
         // serial record-upload queue (design doc 7.2)
         std::shared_ptr<RecordFetchQueue> fetch_queue_ = nullptr;
-        std::thread fetch_thread_;
+        std::shared_ptr<PxAsyncScope> record_fetch_scope_ = nullptr;
+        std::shared_ptr<TaskRuntime> record_fetch_blocking_runtime_ = nullptr;
+        std::atomic<std::shared_ptr<std::atomic_bool>> active_record_upload_cancellation_;
     };
 
 }

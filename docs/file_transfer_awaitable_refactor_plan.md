@@ -1247,3 +1247,43 @@ Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
 `B72D77FB2CCE9DA8C859D91069C0D08DC1DD4B5FBBEDA7C7F35C2C2359E4981D`。
 本批没有 Console 管理员凭据，因此没有改动生产 RTC 配置来触发真实管理端广播；该项仍保留
 为管理控制面验收，不影响本批对 Panel 拉取并发、取消和生命周期安全的结论。
+
+### 12.17 Phase 7 Panel 录像回传上传的 awaitable 收敛
+
+Console 请求 Panel 回传录像文件时，原实现创建一条专用 `std::thread`，在其中串行执行
+最长 1 小时的同步 multipart 上传和 `sleep_for` 重试。正常 Stop 会直接 join，网络异常时
+可能阻塞退出；若 Stop 恰好从该 worker 发起则改为 detach，线程随后仍可能访问 Panel。
+
+本批将业务编排改为有界 awaitable workflow：
+
+- `RecordFetchQueue` 现在同时维护队列、去重集合和唯一 pump 所有权；生产者与 pump 变空
+  竞争时由同一 mutex 决定继续或重新启动，不会丢唤醒，也不会出现两个并发上传；
+- Panel 使用共享 `PxAsyncRuntime` 的独立 `PxAsyncScope` 运行串行 pump；重试退避由可取消
+  Asio timer 驱动，不再用 100 ms 轮询睡眠；
+- 同步 CPR 上传保留为阻塞叶子，但放入 Panel 自有、可 join 的单线程 `TaskRuntime`，不会
+  占用 `PxContext` 的共享网络线程，也不会阻塞 RTC 配置拉取；
+- `HttpClient` multipart 增加 `shared_ptr<atomic_bool>` 取消信号，并直接接入 CPR/libcurl 的
+  cancellation progress callback。Stop 先停止队列并置位当前上传信号，再取消 scope、等待
+  协程退出并 join 阻塞 worker；1 小时是正常大文件请求上限，不再是退出等待上限；
+- 阻塞叶子只捕获 task、appkey、one-shot 和取消信号，不捕获 Panel；协程跨 `co_await`
+  不持有 Panel shared ownership，迟到结果只能尝试完成 one-shot，不能访问已销毁对象；
+- 删除 `fetch_thread_`、`FetchWorkerLoop`、`WaitPop` 和 self-thread detach 路径，没有新增
+  裸指针、`[this]` 捕获或跨 DLL awaitable ABI。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| record fetch 队列/解析 | 24 tests × 10 轮，共 240 次 PASS |
+| 队列覆盖 | FIFO、去重、重试入队、32/64 线程并发、pump 启停竞争、Stop、Abort、迟到 retry、10 次重复生命周期 |
+| 真实 multipart 取消 | 3 tests × 10 轮，共 30 次 PASS；覆盖传输中取消、开始前取消、受管 worker 取消后 join |
+| 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS |
+| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| dist 启动 smoke | 新 `px_panel.exe` 保持运行 15 秒；Service、Render、HTTPS Console 连接成功，单线程上传 worker 启动 |
+| C++ ownership / `git diff --check` | PASS；record fetch 旧线程、`WaitPop`、detach 搜索为零 |
+
+Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
+`E1D32E1F4DCCD151A489227DB0BAD475CCF9405439EC6468DC990D5B563F38F4`。
+真实 HTTP 测试使用本机慢速 TCP 接收端和 32 MiB multipart 文件，验证的是 CPR 的实际
+传输中断与 worker join，不是 mock。当前没有使用 Console 管理端触发生产录像回传命令，
+因此“Console 页面请求真实录像并完整下载”仍作为功能级独立验收项保留。

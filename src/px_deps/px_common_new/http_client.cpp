@@ -191,6 +191,9 @@ namespace px
         session.SetUrl(url);
         session.SetVerifySsl(verify_ssl_);
         session.SetTimeout(cpr::Timeout{timeout_ms_});
+        if (cancellation_signal_) {
+            session.SetCancellationParam(cancellation_signal_);
+        }
         if (!headers_.empty()) {
             session.SetHeader(ToCprHeader(headers_));
         }
@@ -237,6 +240,9 @@ namespace px
         session.SetUrl(cpr::Url{url_path});
         session.SetVerifySsl(verify_ssl_);
         session.SetTimeout(cpr::Timeout{timeout_ms_});
+        if (cancellation_signal_) {
+            session.SetCancellationParam(cancellation_signal_);
+        }
         if (!headers_.empty()) {
             session.SetHeader(ToCprHeader(headers_));
         }
@@ -284,6 +290,11 @@ namespace px
 
     void HttpClient::SetVerifySsl(bool verify_ssl) {
         verify_ssl_ = verify_ssl;
+    }
+
+    void HttpClient::SetCancellationSignal(
+        std::shared_ptr<std::atomic_bool> cancellation_signal) {
+        cancellation_signal_ = std::move(cancellation_signal);
     }
 
     void HttpClient::SetHeader(const std::string& key, const std::string& value) {
